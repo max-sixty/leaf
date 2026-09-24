@@ -30,10 +30,13 @@ from leaf.projection import (
 )
 from leaf.read_state import read_contract_error
 from leaf.registry.contract import (
+    WRITERS,
     created_child,
+    event_spec,
     schema_error,
     state_specs,
     visual_parts,
+    writer,
 )
 from leaf.registry.reactions import reaction_tokens
 from leaf.requests import (
@@ -85,20 +88,24 @@ def browser_command_error(contract: dict, event: dict):
     )
 
 
-def declared_event_error(
-    event: dict, tag: str, registry: dict, kind: str, channel: str
-):
-    """Why a known widget's verb or detail violates one declared channel."""
+def declared_event_error(event: dict, tag: str, registry: dict):
+    """Why a known widget's verb or detail violates its x-state declaration, or
+    names a verb the event's own writer does not write."""
+    kind = event["kind"]
     entry = registry.get(tag)
     if entry is None:
         return (
             f"registry no longer declares <{tag}> for {kind} widget {event['widget']!r}"
         )
-    declared = entry.get(channel, {})
-    spec = declared.get(event["action"])
+    spec = event_spec(entry, event)
     if spec is None:
+        declared = sorted(
+            verb
+            for verb, declared_spec in state_specs(entry)
+            if writer(declared_spec) == WRITERS[kind]
+        )
         return f"<{tag}> does not declare {kind} verb {event['action']!r}" + (
-            f"; it declares {sorted(declared)}" if kind == "report" and declared else ""
+            f"; it declares {declared}" if kind == "report" and declared else ""
         )
     if message := schema_error(spec["detail"], event["detail"]):
         return f"<{tag}> {kind} {event['action']!r} detail is invalid: {message}"
@@ -130,7 +137,7 @@ def declared_action_error(
             "or agent-authored thread markup"
         )
     tag = rec["tag"]
-    if error := declared_event_error(event, tag, registry, "action", "x-state"):
+    if error := declared_event_error(event, tag, registry):
         return error
     # The exhibit rule at the door, not only in the shipped runtime's
     # browser controller: an exhibited widget is a mention, and the log outranks the
@@ -195,7 +202,7 @@ def position_record_error(
         node = node["holder"]
         while node is not None:
             entry = registry.get(node["tag"], {})
-            if any(spec.get("record") for _, _, spec in state_specs(entry)):
+            if any(spec.get("record") for _, spec in state_specs(entry)):
                 return node
             node = node["holder"]
         return None
@@ -205,7 +212,7 @@ def position_record_error(
         return any(
             spec.get("unit") == "widget"
             and (spec.get("record") or {}).get("kind") == "position"
-            for _, _, spec in state_specs(registry.get(node["tag"], {}))
+            for _, spec in state_specs(registry.get(node["tag"], {}))
         )
 
     # A node has one place and one widget records it: the node itself when its own
@@ -391,7 +398,7 @@ def report_contract_error(event: dict, page, registry: dict):
             "reports name page widgets only; thread markup is frozen, so no "
             "version could ever answer a report made there"
         )
-    return declared_event_error(event, tag, registry, "report", "x-report")
+    return declared_event_error(event, tag, registry)
 
 
 def admitting_registry(view, event: dict) -> dict:

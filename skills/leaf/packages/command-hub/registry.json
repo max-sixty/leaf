@@ -85,7 +85,7 @@
     }
   },
   "$command": {
-    "description": "The optional Command Hub projection. Each widget names the general role it plays and the attributes that carry that role's state. A goal or worker state attribute is backed by exactly one widget-unit value record in x-state or x-report and its module presents the widgetController reading, so the projection consumes one immutable application epoch rather than rendered attributes. Later packages may add their own tag entries under widgets without teaching Leaf's kernel their names.",
+    "description": "The optional Command Hub projection. Each widget names the general role it plays and the attributes that carry that role's state. A goal or worker state attribute is backed by exactly one widget-unit value record in x-state, which is also the role's report verb when it declares `writer: \"agent\"`, and its module presents the widgetController reading, so the projection consumes one immutable application epoch rather than rendered attributes. Later packages may add their own tag entries under widgets without teaching Leaf's kernel their names.",
     "widgets": {
       "lf-command": {
         "role": "command"
@@ -107,7 +107,6 @@
         "stalled": [
           "stalled"
         ],
-        "report": "status",
         "depends": "needs",
         "stoppedAt": "stopped-at"
       },
@@ -121,8 +120,7 @@
           "reaped",
           "done"
         ],
-        "on": "on",
-        "report": "state"
+        "on": "on"
       },
       "lf-worktree": {
         "role": "evidence"
@@ -190,8 +188,9 @@
       }
     },
     "x-upgrade": true,
-    "x-report": {
+    "x-state": {
       "state": {
+        "writer": "agent",
         "detail": {
           "type": "object",
           "properties": {
@@ -227,7 +226,7 @@
     }
   },
   "lf-tasks": {
-    "description": "A hierarchy of work: what a project is made of, who holds each piece, and where each piece stands. Children are lf-task elements, nesting freely — the tree is the plan's own shape, so write the decomposition as it is rather than flattening it. Where lf-milestones is a flat rail of stages on a schedule and lf-board is a set the reviewer re-orders, lf-tasks is structure: a parent's children are what doing it means, and the upgrade counts each parent's subtree into a generated done-fraction chip so the tree reads as progress without a widget of its own. Statuses change through live source revisions, or between saves by a worker's `leaf report` (x-report on lf-task) — the page keeps up with the work — and comments anchor per task, so keep every task's id stable across revisions.",
+    "description": "A hierarchy of work: what a project is made of, who holds each piece, and where each piece stands. Children are lf-task elements, nesting freely — the tree is the plan's own shape, so write the decomposition as it is rather than flattening it. Where lf-milestones is a flat rail of stages on a schedule and lf-board is a set the reviewer re-orders, lf-tasks is structure: a parent's children are what doing it means, and the upgrade counts each parent's subtree into a generated done-fraction chip so the tree reads as progress without a widget of its own. Statuses change through live source revisions, or between saves by a worker's `leaf report` (lf-task's agent-written x-state verb) — the page keeps up with the work — and comments anchor per task, so keep every task's id stable across revisions.",
     "type": "object",
     "properties": {
       "id": {
@@ -330,8 +329,9 @@
       },
       "hold": "Send & pause"
     },
-    "x-report": {
+    "x-state": {
       "status": {
+        "writer": "agent",
         "detail": {
           "type": "object",
           "properties": {

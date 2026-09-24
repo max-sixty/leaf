@@ -603,10 +603,15 @@ canonical `id`, and has `x-content: markup`. The append door refuses an id the s
 document already holds, and version checks enforce the declared tag and
 direct-ownership relation once an author writes the child into the markup.
 
-`x-report` declares the agent's side of the same coordinates: a worker posts a report
-with `leaf report`, and it stands until a version answers it. A report verb that shares
-its name with an `x-state` verb states the same fact, and a user's action at that
-coordinate outranks it.
+A verb whose state the agent writes rather than the user declares `"writer": "agent"`
+beside its `detail`, `unit`, and `record`. A worker posts it with `leaf report`, the
+page paints it live, and it stands until a version answers it; the user has no control
+for it. Its record is required and may not be `body`, and it may name the detail field
+carrying its short human-readable news with `update`. Every verb has exactly one
+writer, so a coordinate never holds a user's action and an agent's report at once.
+Command Hub's `lf-task` `status` is the shipped example, and a widget declaring such a
+verb also declares the boolean `overruled` attribute a version keeps its own state
+with.
 
 ## External requests and receipts
 
@@ -623,7 +628,7 @@ instruction, remove the holder rather than leaving an empty Ask with no possible
 `verbs` gives each operation a closed detail schema. Optional `bind` entries require a
 detail field to equal an authored string attribute on the holder, so a crafted event
 cannot retarget the operation. Every bound detail field and holder attribute is required,
-string-valued, and immutable through `x-state` or `x-report`; every offer attribute is a
+string-valued, and immutable through `x-state`; every offer attribute is a
 required string enum on its child. These constraints make the same declaration usable at
 authoring, browser, and server boundaries rather than leaving a partial bind to runtime
 guesswork.

@@ -19,7 +19,7 @@ page and is not a global identifier. The kinds:
 | `unresolve` | user | `POST /api/event` | `parent` | the user reopens a resolved thread |
 | `done` | user | the banner, only on a page declaring `<meta name="lf-review" content="sign-off">` | `version`, the stamp approved | approval of the declared sign-off; a page that asks nothing gets no terminal control |
 | `action` | user | `POST /api/event` from a widget | `widget`, `action`, `detail`; server-stamped `meaning` | the user edited the document through the widget |
-| `report` | agent or worker | `leaf report` | as `action`, validated by the widget's `x-report` | provisional state that stands until a stamped revision answers it |
+| `report` | agent or worker | `leaf report` | as `action`, validated by an `x-state` verb declaring `writer: "agent"` | provisional state that stands until a stamped revision answers it |
 | `request` | user | `POST /api/event` from a widget | `widget`, `action`, `detail`, and `source_revision` for a projected record; validated by the holder's `x-request` | a durable, non-undoable one-shot instruction to the host, seated on its admitted document, widget, and unit |
 | `receipt` | agent | `leaf receipt`; a host failure receipt | `request`, `succeeded` or `failed`, `text`; host `failure` with `failed` | exactly one terminal outcome per accepted request |
 | `pickup` | page | the delivery carrier; a host failure receipt | `events`, `phase` (`queued`, `opened`, or `failed`), `session`, `turn`; `failure` with `failed` | the named user events reached the durable Codex queue or entered an exact agent turn, or the host gave up on them with no answer coming; idempotent per event, phase, session, and turn; never a work claim |

@@ -28,6 +28,7 @@ from interact_support import (
     Json,
     ModelPage,
     Prose,
+    _agent_verb_answers,
     _body_record_with_nested_widget,
     _body_record_with_prose,
     _mutated_registry_check,
@@ -39,6 +40,7 @@ from interact_support import (
     _report_without_overruled,
     _report_without_upgrade,
     _tasks_version,
+    _user_verb_update,
     append_command,
     assert_revendor_serializes_writer,
     check,
@@ -1096,7 +1098,7 @@ def test_init_refuses_changed_generated_child_semantics(page_dir, mutation):
 
 def test_init_refuses_a_logged_report_the_incoming_layer_no_longer_speaks(page_dir):
     """A report is the log's forever-contract exactly as an action is: an
-    incoming layer that drops the widget's x-report verb strands every recorded
+    incoming layer that drops the widget's agent verb strands every recorded
     report, and the stamp refuses the re-vendor rather than let them fall
     silent."""
     version = page_dir / "index.html"
@@ -1117,7 +1119,7 @@ def test_init_refuses_a_logged_report_the_incoming_layer_no_longer_speaks(page_d
 
     registry = json.loads((page_dir / "registry.json").read_text())
     task = registry["lf-task"]
-    task.pop("x-report")
+    task.pop("x-state")
     overlay = page_dir.parent / ".leaf"
     overlay.mkdir(parents=True)
     (overlay / "registry.json").write_text(json.dumps({"lf-task": task}))
@@ -1188,7 +1190,7 @@ def test_report_validation_and_append_cannot_straddle_revendoring(
     publish(page_dir)
     registry = json.loads((page_dir / "registry.json").read_text())
     task = registry["lf-task"]
-    task.pop("x-report")
+    task.pop("x-state")
     overlay = page_dir.parent / ".leaf"
     overlay.mkdir(parents=True)
     (overlay / "registry.json").write_text(json.dumps({"lf-task": task}))
@@ -1247,7 +1249,7 @@ def test_report_validation_and_append_cannot_straddle_revendoring(
     assert outcomes == ["reported"]
     assert len(errors) == 1 and "report contract" in str(errors[0])
     assert events_model.read_events(page_dir)[-1]["kind"] == "report"
-    assert "x-report" in json.loads((page_dir / "registry.json").read_text())["lf-task"]
+    assert "x-state" in json.loads((page_dir / "registry.json").read_text())["lf-task"]
 
 
 def test_a_preview_holds_one_contract_until_it_closes(page_dir, monkeypatch):
@@ -1328,7 +1330,7 @@ def test_revendoring_cannot_pass_a_worker_report_still_entering_the_log(
     publish(page_dir)
     registry = json.loads((page_dir / "registry.json").read_text())
     task = registry["lf-task"]
-    task.pop("x-report")
+    task.pop("x-state")
     overlay = page_dir.parent / ".leaf"
     overlay.mkdir(parents=True)
     (overlay / "registry.json").write_text(json.dumps({"lf-task": task}))
@@ -2514,12 +2516,16 @@ def test_one_each_child_declarations_are_checked_whole(page_dir, mutation, messa
         # every contradiction is unpublishable.
         (_report_without_overruled, "not the boolean `overruled`"),
         # Reports replay through renderState, so the widget must upgrade.
-        (_report_without_upgrade, "declares x-report"),
+        (_report_without_upgrade, "declares x-state"),
+        # Only a report carries update prose.
+        (_user_verb_update, "registry extensions are invalid"),
+        # The user answers their own Ask; the agent's news never does.
+        (_agent_verb_answers, "which are not x-state verbs the user writes"),
         (_body_record_with_prose, "x-content must be data"),
         (_body_record_with_nested_widget, "admits nested widgets"),
     ],
 )
-def test_an_x_report_declaration_is_checked_whole(page_dir, mutate, message):
+def test_an_agent_verb_declaration_is_checked_whole(page_dir, mutate, message):
     result = _mutated_registry_check(page_dir, mutate)
     assert result.exit_code != 0
     assert message in result.output
@@ -2587,7 +2593,7 @@ def test_generated_child_declaration_closes_its_boundary(page_dir, mutation, mes
     elif mutation == "wrong-id":
         option["properties"]["id"]["pattern"] = "^option-.+$"
     elif mutation == "report-creates":
-        registry["lf-agent"]["x-report"]["state"]["creates"] = {
+        registry["lf-agent"]["x-state"]["state"]["creates"] = {
             "child": "lf-option",
             "words": "doing",
         }
@@ -2641,7 +2647,7 @@ def test_request_detail_schemas_match_the_post_object_contract(page_dir):
         ),
         (
             "mutable-bound-attribute",
-            "to `target`, which is written by x-state or x-report",
+            "to `target`, which is written by x-state",
         ),
         ("optional-id", "x-request instances are addressable"),
         ("no-upgrade", "declares x-request"),
@@ -2674,8 +2680,9 @@ def test_an_x_request_declaration_closes_its_widget_boundary(
         operations["required"].remove("target")
     elif mutation == "mutable-bound-attribute":
         operations["properties"]["overruled"] = {"type": "boolean"}
-        operations["x-report"] = {
+        operations["x-state"] = {
             "retarget": {
+                "writer": "agent",
                 "detail": {
                     "type": "object",
                     "properties": {"target": {"type": "string"}},
@@ -2715,8 +2722,8 @@ def test_an_x_request_declaration_closes_its_widget_boundary(
     assert message in result.output
 
 
-@pytest.mark.parametrize("channel", ["x-state", "x-report"])
-def test_a_request_offer_attribute_is_authored_static_state(page_dir, channel):
+@pytest.mark.parametrize("writer", [{}, {"writer": "agent"}])
+def test_a_request_offer_attribute_is_authored_static_state(page_dir, writer):
     registry = json.loads((page_dir / "registry.json").read_text())
     operation = registry["lf-operation"]
     operation["properties"].update(
@@ -2728,8 +2735,9 @@ def test_a_request_offer_attribute_is_authored_static_state(page_dir, channel):
     )
     operation["required"].append("id")
     operation["x-upgrade"] = True
-    operation[channel] = {
+    operation["x-state"] = {
         "change-offer": {
+            **writer,
             "detail": {
                 "type": "object",
                 "properties": {"verb": deepcopy(operation["properties"]["verb"])},
@@ -2745,7 +2753,7 @@ def test_a_request_offer_attribute_is_authored_static_state(page_dir, channel):
         registry_contract.RegistryError,
         match=(
             r"<lf-operations> x-request offer <lf-operation> attribute `verb` "
-            r"is written by x-state or x-report"
+            r"is written by x-state"
         ),
     ):
         registry_validation.validate_registry(registry, "test registry")
@@ -2833,7 +2841,7 @@ def test_value_records_use_the_string_type_html_attributes_carry(page_dir):
     registry = json.loads((page_dir / "registry.json").read_text())
     numeric = {"type": "integer", "minimum": 0}
     registry["lf-agent"]["properties"]["state"] = numeric
-    registry["lf-agent"]["x-report"]["state"]["detail"]["properties"]["state"] = numeric
+    registry["lf-agent"]["x-state"]["state"]["detail"]["properties"]["state"] = numeric
     (page_dir / "registry.json").write_text(json.dumps(registry))
 
     result = check(page_dir)
@@ -2870,7 +2878,7 @@ def test_report_update_words_are_declared_once(page_dir, change, wanted):
     names that field explicitly and guarantees every report carries real words. A
     consumer never guesses from a field name or string-shaped value."""
     registry = json.loads((page_dir / "registry.json").read_text())
-    spec = registry["lf-agent"]["x-report"]["state"]
+    spec = registry["lf-agent"]["x-state"]["state"]
     assert spec["update"] == "doing"
     change(spec)
     (page_dir / "registry.json").write_text(json.dumps(registry))
@@ -2882,15 +2890,15 @@ def test_report_update_words_are_declared_once(page_dir, change, wanted):
 
 
 @pytest.mark.parametrize(
-    ("tag", "channel", "verb", "field"),
+    ("tag", "verb", "field"),
     [
-        ("lf-suggestion", "x-state", "decide", "unit"),
-        ("lf-task", "x-report", "status", "unit"),
+        ("lf-suggestion", "decide", "unit"),
+        ("lf-task", "status", "unit"),
     ],
 )
-def test_every_fold_verb_declares_its_coordinate(page_dir, tag, channel, verb, field):
+def test_every_fold_verb_declares_its_coordinate(page_dir, tag, verb, field):
     registry = json.loads((page_dir / "registry.json").read_text())
-    del registry[tag][channel][verb][field]
+    del registry[tag]["x-state"][verb][field]
     (page_dir / "registry.json").write_text(json.dumps(registry))
 
     result = check(page_dir)
@@ -2900,57 +2908,29 @@ def test_every_fold_verb_declares_its_coordinate(page_dir, tag, channel, verb, f
     assert field in result.output
 
 
-def test_a_state_and_report_verb_of_one_name_share_one_unit_and_record_form(page_dir):
-    """The user's and the agent's statement of one fact fold on one coordinate."""
-    registry = json.loads((page_dir / "registry.json").read_text())
-    task = registry["lf-task"]
-    task["properties"]["restated"] = {"type": "boolean"}
-    status = json.loads(json.dumps(task["x-report"]["status"]))
-    status.pop("update", None)
-    status.pop("record")
-    task["x-state"] = {"status": status}
-    (page_dir / "registry.json").write_text(json.dumps(registry))
-
-    result = check(page_dir)
-
-    assert result.exit_code != 0
-    assert "x-state and x-report verb `status`" in result.output
-    assert "identical record forms" in result.output
-
-    status["record"] = task["x-report"]["status"]["record"]
-    status["unit"] = "option"
-    status["detail"]["properties"]["option"] = {"type": "string"}
-    status["detail"]["required"].append("option")
-    (page_dir / "registry.json").write_text(json.dumps(registry))
-    result = check(page_dir)
-    assert result.exit_code != 0
-    assert "x-state and x-report verb `status`" in result.output
-    assert "different fold units" in result.output
-
-
 @pytest.mark.parametrize(
-    ("tag", "channel", "verb", "slot"),
+    ("tag", "verb", "slot"),
     [
-        ("lf-draft", "x-state", "edit", "body"),
-        ("lf-board", "x-state", "move", "position"),
-        ("lf-task", "x-report", "status", "value `status`"),
-        ("lf-options", "x-state", "choose", "attribute `chosen`"),
+        ("lf-draft", "edit", "body"),
+        ("lf-board", "move", "position"),
+        ("lf-task", "status", "value `status`"),
+        ("lf-options", "choose", "attribute `chosen`"),
     ],
 )
 def test_distinct_verbs_cannot_claim_one_physical_record_slot(
-    page_dir, tag, channel, verb, slot
+    page_dir, tag, verb, slot
 ):
     registry = json.loads((page_dir / "registry.json").read_text())
-    declared = registry[tag][channel][verb]
+    declared = registry[tag]["x-state"][verb]
     parallel = json.loads(json.dumps(declared))
-    registry[tag][channel]["parallel"] = parallel
+    registry[tag]["x-state"]["parallel"] = parallel
     (page_dir / "registry.json").write_text(json.dumps(registry))
 
     result = check(page_dir)
 
     assert result.exit_code != 0
     assert (
-        f"<{tag}> {channel} verb `parallel` and {channel} verb `{verb}` claim the "
+        f"<{tag}> x-state verbs `parallel` and `{verb}` claim the "
         f"same physical record slot (unit `{parallel['unit']}`, {slot}); distinct "
         "verbs must record independently" in result.output
     )
@@ -2959,19 +2939,15 @@ def test_distinct_verbs_cannot_claim_one_physical_record_slot(
 def test_physical_record_slots_remain_local_to_the_coordinate(page_dir):
     registry = json.loads((page_dir / "registry.json").read_text())
 
-    # Both channels may state the same fact through the same slot.
-    task = registry["lf-task"]
-    task["properties"]["restated"] = {"type": "boolean"}
-    task["x-state"] = {"status": task["x-report"]["status"]}
-
     # A different host attribute is a different value slot on the same unit.
-    owner = json.loads(json.dumps(task["x-report"]["status"]))
+    task = registry["lf-task"]
+    owner = json.loads(json.dumps(task["x-state"]["status"]))
     owner["detail"]["properties"] = {"owner": {"type": "string"}}
     owner["detail"]["required"] = ["owner"]
     owner["record"] = {"kind": "value", "attr": "owner", "value": "owner"}
     task["properties"]["owner"] = {"type": "string"}
     task.setdefault("required", []).append("owner")
-    task["x-report"]["owner"] = owner
+    task["x-state"]["owner"] = owner
     registry["lf-tasks"]["x-example"] = re.sub(
         r"<lf-task\b(?![^>]*\bowner=)",
         '<lf-task owner="test"',
@@ -3124,12 +3100,25 @@ def test_check_refuses_a_retirement_outcome_its_parent_does_not_decide(page_dir)
     assert "<lf-suggestion> declares no deciding x-state verb" in result.output
 
 
-def test_retirement_verbs_fold_by_the_parent_widget(page_dir):
+@pytest.mark.parametrize("fault", ["per-part", "agent-written"])
+def test_retirement_verbs_fold_by_the_parent_widget(page_dir, fault):
+    """The deciding verb is the user's whole-widget decision: a verb folding per part,
+    or one the agent writes, cannot say which members leave the page."""
     registry = json.loads((page_dir / "registry.json").read_text())
-    decide = registry["lf-suggestion"]["x-state"]["decide"]
-    decide["detail"]["properties"]["part"] = {"type": "string"}
-    decide["detail"]["required"].append("part")
-    decide["unit"] = "part"
+    suggestion = registry["lf-suggestion"]
+    decide = suggestion["x-state"]["decide"]
+    if fault == "per-part":
+        decide["detail"]["properties"]["part"] = {"type": "string"}
+        decide["detail"]["required"].append("part")
+        decide["unit"] = "part"
+    else:
+        # An agent verb never answers an Ask, so the suggestion stops asking one.
+        suggestion.pop("x-awaits")
+        suggestion["properties"].pop("resolves")
+        decide["writer"] = "agent"
+        decide["record"] = {"kind": "value", "attr": "outcome", "value": "outcome"}
+        suggestion["properties"]["outcome"] = decide["detail"]["properties"]["outcome"]
+        suggestion["properties"]["overruled"] = {"type": "boolean"}
     (page_dir / "registry.json").write_text(json.dumps(registry))
 
     result = check(page_dir)
@@ -3276,7 +3265,7 @@ def test_the_registry_door_refuses_a_withdrawal_that_retires_nothing(trial_page)
             "lf-options",
             "x-awaits",
             {"answered": {"submit": {}}},
-            "answers with undeclared x-state verbs",
+            "which are not x-state verbs the user writes",
         ),
         (
             "lf-suggestion",
@@ -5101,7 +5090,9 @@ def test_x_awaits_names_the_verbs_that_answer_it(page_dir):
     result = check(page_dir)
 
     assert result.exit_code == 1
-    assert "x-awaits answers with undeclared x-state verbs ['missing']" in result.output
+    assert "x-awaits answers with verbs ['missing'], which are not x-state" in (
+        result.output
+    )
 
 
 def test_the_reply_door_refuses_a_picture_the_page_directory_has_not_got(page_dir):

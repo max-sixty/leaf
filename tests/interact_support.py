@@ -739,25 +739,26 @@ def _mutated_registry_check(page_dir, mutate):
 
 
 def _report_body_record(registry):
-    registry["lf-task"]["x-report"]["status"]["record"] = {
+    registry["lf-task"]["x-state"]["status"]["record"] = {
         "kind": "body",
         "value": "status",
     }
 
 
 def _report_no_record(registry):
-    del registry["lf-task"]["x-report"]["status"]["record"]
+    del registry["lf-task"]["x-state"]["status"]["record"]
 
 
 def _report_undeclared_attr(registry):
-    registry["lf-task"]["x-report"]["status"]["record"]["attr"] = "phase"
+    registry["lf-task"]["x-state"]["status"]["record"]["attr"] = "phase"
 
 
 def _report_says_attr(registry):
     task = registry["lf-task"]
     task["required"].append("owner")
     task["x-says"] = {"owner": "before"}
-    task["x-report"]["status"] = {
+    task["x-state"]["status"] = {
+        "writer": "agent",
         "detail": {
             "type": "object",
             "properties": {"owner": {"type": "string"}},
@@ -770,7 +771,7 @@ def _report_says_attr(registry):
 
 
 def _report_detail_drift(registry):
-    registry["lf-task"]["x-report"]["status"]["detail"]["properties"]["status"] = {
+    registry["lf-task"]["x-state"]["status"]["detail"]["properties"]["status"] = {
         "type": "string"
     }
 
@@ -781,6 +782,15 @@ def _report_without_overruled(registry):
 
 def _report_without_upgrade(registry):
     registry["lf-task"]["x-upgrade"] = False
+
+
+def _user_verb_update(registry):
+    registry["lf-options"]["x-state"]["choose"]["update"] = "options"
+
+
+def _agent_verb_answers(registry):
+    registry["lf-options"]["x-state"]["choose"]["writer"] = "agent"
+    registry["lf-options"]["properties"]["overruled"] = {"type": "boolean"}
 
 
 def _body_record_with_prose(registry):

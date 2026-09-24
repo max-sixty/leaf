@@ -1138,8 +1138,7 @@ test("a standing report supplies desired widget state", () => {
   const source = {
     ...descriptor,
     declaration: {
-      "x-state": { preview: valueSpec },
-      "x-report": { preview: valueSpec },
+      "x-state": { preview: { ...valueSpec, writer: "agent" } },
     },
   };
   const app = setup([[source.id, source]]);

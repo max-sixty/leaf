@@ -54,8 +54,7 @@ def direct_dependencies(event: dict, spec: dict) -> list[str]:
 
 def state_meaning(event: dict, entry: dict, document: dict) -> dict:
     """Resolve one validated verb using its sending document's declaration."""
-    channel = "x-state" if event["kind"] == "action" else "x-report"
-    spec = entry[channel][event["action"]]
+    spec = entry["x-state"][event["action"]]
     dependencies = direct_dependencies(event, spec)
     owner, unit = dependencies[:2]
     meaning = {
@@ -190,15 +189,13 @@ def stored_meaning_error(
         ):
             return f"request {event['id']} changes its admitted record binding"
     if event["kind"] in {"action", "report"}:
-        channel = "x-state" if event["kind"] == "action" else "x-report"
-        before = recorded_registry[recorded["tag"]][channel][event["action"]]
-        after = entry[channel][event["action"]]
-        fields = [("record", "record form")]
-        if event["kind"] == "action":
-            fields.append(("creates", "creates declaration"))
-        else:
-            fields.append(("update", "update field"))
-        for field, label in fields:
+        before = recorded_registry[recorded["tag"]]["x-state"][event["action"]]
+        after = entry["x-state"][event["action"]]
+        for field, label in (
+            ("record", "record form"),
+            ("creates", "creates declaration"),
+            ("update", "update field"),
+        ):
             if before.get(field) != after.get(field):
                 return f"{event['kind']} {event['id']} changes its admitted {label}"
     return None

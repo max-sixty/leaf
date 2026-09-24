@@ -100,8 +100,6 @@ three more times. Neither warrants snapshots or incremental folding yet.
 - Stored `meaning` repeats `widget`, `revision`, and `generated`, and
   `stored_meaning_error` asserts it still equals a recomputation: two mechanisms for
   one guarantee. Keep the stored `coordinate`, which registry-free readers need.
-- `x-state` and `x-report` declare one shape; `"x-state" if action else "x-report"`
-  recurs. One verb declaration with `by: [user, agent]`.
 - `undo`, `restated`, and a note's `settles` are one relation, "this stops
   standing"; `restated` differs in naming element ids.
 - `fragments` is `records` plus one deferred field, declared beside it with an

@@ -51,25 +51,24 @@ export function closestCommandRole(element, role) {
   return null;
 }
 
+// The role's state verb is also its report verb when the agent writes it.
 function stateReport(element, role) {
-  const spec = commandRole(element, role);
-  const report = declarationFor(element, "x-report")?.[spec?.report];
-  return report ? [spec.report, report] : [null, null];
+  const verb = stateVerb(element, role);
+  const spec = declarationFor(element, "x-state")[verb];
+  return spec.writer === "agent" ? [verb, spec] : [null, null];
 }
 
 function stateVerb(element, role) {
   const attribute = commandRole(element, role)?.state;
-  const matches = ["x-state", "x-report"].flatMap((channel) =>
-    Object.entries(declarationFor(element, channel) ?? {})
-      .filter(
-        ([, spec]) =>
-          spec.unit === "widget" &&
-          spec.record?.kind === "value" &&
-          spec.record.attr === attribute,
-      )
-      .map(([verb]) => verb),
-  );
-  if (new Set(matches).size !== 1)
+  const matches = Object.entries(declarationFor(element, "x-state") ?? {})
+    .filter(
+      ([, spec]) =>
+        spec.unit === "widget" &&
+        spec.record?.kind === "value" &&
+        spec.record.attr === attribute,
+    )
+    .map(([verb]) => verb);
+  if (matches.length !== 1)
     throw new Error(
       `leaf: $command ${role} <${element.localName}> state ${attribute} needs one recorded widget verb`,
     );

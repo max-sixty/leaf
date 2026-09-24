@@ -33,7 +33,8 @@ const compareProjected = (a, b) => {
    it may also carry `restated`, `scope`, or `terminal`. Pending entries are already
    filtered for rejection and authoritative receipts by their delivery owner. A pending
    undo removes its target from the same coordinate fold, revealing the newest surviving
-   local action, durable action, standing report, or authored state in that order. */
+   local action, durable action, or authored state in that order. A verb has one writer,
+   so a coordinate a local gesture reaches never holds an agent's report. */
 /** @param {{entries?: object[], actionIds?: string[], reportIds?: string[], desiredIds?: string[], coverage?: object[], pendingEntries?: object[]}} input */
 export function foldProjection({
   entries = [],
@@ -104,12 +105,9 @@ export function foldProjection({
       .sort(compareProjected)
       .at(-1);
     const action = local ?? durable;
-    if (action) actions.set(coordinate, action);
-    else actions.delete(coordinate);
-    const report = reports.get(coordinate)?.at(-1);
-    if (action) desired.set(coordinate, action);
-    else if (report) desired.set(coordinate, report);
-    else desired.delete(coordinate);
+    for (const view of [actions, desired])
+      if (action) view.set(coordinate, action);
+      else view.delete(coordinate);
   };
 
   for (const entry of pendingEntries) {

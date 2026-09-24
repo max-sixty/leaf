@@ -1,8 +1,8 @@
-/* The one traversal of `x-state` and `x-report`, and the generation it belongs to.
+/* The one traversal of `x-state`, and the generation it belongs to.
 
    Derived state declarations belong to one complete registry generation. Warming the
    index must not make a later generation inherit the declarations of the one before it,
-   and both channels contribute while only recorded declarations contribute owner
+   and verbs of both writers contribute while only recorded declarations contribute owner
    selectors.
 
    The vocabulary is stated here rather than loaded, so what the index returns is caused
@@ -29,24 +29,21 @@ test("a vocabulary that has not loaded has no state index to give", () => {
 
 // The generation is the index's cache key, and in the product it is a content
 // fingerprint, so no two vocabularies here share one either.
-test("both channels contribute, and only recorded declarations own a selector", () => {
-  load("channels", {
+test("both writers contribute, and only recorded declarations own a selector", () => {
+  load("writers", {
     "lf-index-action": { "x-state": { set: { record: { role: "value" } } } },
-    "lf-index-report": { "x-report": { measure: { record: { role: "body" } } } },
+    "lf-index-report": {
+      "x-state": { measure: { writer: "agent", record: { role: "value" } } },
+    },
     "lf-index-recordless": { "x-state": { settle: {} } },
   });
 
   assert.deepEqual(
-    stateSpecs().map(({ tag, channel, verb, spec }) => [
-      tag,
-      channel,
-      verb,
-      Boolean(spec.record),
-    ]),
+    stateSpecs().map(({ tag, verb, spec }) => [tag, verb, Boolean(spec.record)]),
     [
-      ["lf-index-action", "x-state", "set", true],
-      ["lf-index-report", "x-report", "measure", true],
-      ["lf-index-recordless", "x-state", "settle", false],
+      ["lf-index-action", "set", true],
+      ["lf-index-report", "measure", true],
+      ["lf-index-recordless", "settle", false],
     ],
   );
   assert.deepEqual(recordedWidgetSelector().split(","), [
@@ -62,7 +59,7 @@ test("a later generation inherits nothing from the index warmed before it", () =
     ["lf-index-gone"],
   );
 
-  load("later", { "lf-index-fresh": { "x-report": { measure: {} } } });
+  load("later", { "lf-index-fresh": { "x-state": { measure: {} } } });
   assert.deepEqual(
     stateSpecs().map(({ tag }) => tag),
     ["lf-index-fresh"],

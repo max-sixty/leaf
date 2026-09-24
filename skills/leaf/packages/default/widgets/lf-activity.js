@@ -144,7 +144,7 @@ function actionPhrase(event) {
 
 function reportPhrase(event, reports) {
   const element = document.getElementById(event.widget);
-  const report = declarationFor(element, "x-report")?.[event.action];
+  const report = declarationFor(element, "x-state")?.[event.action];
   const value = report?.record?.value ? event.detail?.[report.record.value] : null;
   return {
     what: `reported ${quoted(value ?? event.action)} on`,

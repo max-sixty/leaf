@@ -169,15 +169,10 @@ function createWidgetController(owner) {
       `leaf: <${owner.localName}>#${owner.id || "(missing id)"} has no captured widget descriptor`,
     );
   const selected = applicationState.selectWidget(descriptor);
-  const stateVerbs = new Set(
-    ["x-state", "x-report"].flatMap((channel) =>
-      Object.keys(descriptor.declaration[channel] ?? {}),
-    ),
-  );
-  const orderedPosition = ["x-state", "x-report"].some((channel) =>
-    Object.values(descriptor.declaration[channel] ?? {}).some(
-      (spec) => spec.unit === "widget" && spec.record?.kind === "position",
-    ),
+  const stateDeclaration = descriptor.declaration["x-state"] ?? {};
+  const stateVerbs = new Set(Object.keys(stateDeclaration));
+  const orderedPosition = Object.values(stateDeclaration).some(
+    (spec) => spec.unit === "widget" && spec.record?.kind === "position",
   );
   const subscriptions = new Set();
   let deferred = false;

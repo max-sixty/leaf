@@ -796,9 +796,9 @@ export function createVersionController({
         for (const el of units) {
           const baseEl = doc.getElementById(el.id);
           if (!baseEl) continue; // new to this version: the content half marks it
-          // A user's action outranks provisional agent news on the same fact;
-          // otherwise the standing writer is the report. The verb's coordinate
-          // means an unrelated fact on this unit never enters the choice.
+          // The verb's one writer stands here: the user's action, or the agent's
+          // newest live report. The verb's coordinate means an unrelated fact on
+          // this unit never enters the choice.
           const coordinate = stateCoordinate(widget.id, el.id, verb);
           const writer = baseProjection.desired.get(coordinate);
           const before = writer ? writer.value : domValue(baseEl, spec.record);

@@ -25,16 +25,19 @@
 #                      Codex's queue accepts it.
 #   Codex App Server   Leaf starts a turn with `turn/start`, carrying the
 #                      delivery as a `leaf_delivery` tool output, and binds the
-#                      turn's final message as the reply. Leaf acknowledges the
-#                      delivery once it enters that turn. leaf.page's hosted
-#                      agent and a `leaf codex launch` terminal use this carrier.
+#                      turn's opening and final messages as the reply. Leaf
+#                      acknowledges the delivery once it enters that turn.
+#                      leaf.page's hosted agent and a `leaf codex launch`
+#                      terminal use this carrier.
 #
 # Each carrier freezes a delivery of its own. The envelope's shape is the same on
-# all three, but not its `handling`: a clause's `when` reads which carrier delivers
-# it (`wait`, `queue` or `app-server`), so each agent is told only its own route,
-# who acknowledges and whether its final message is the reply. The agent's
-# standing instructions (its host contract, and on leaf.page the developer
-# instructions) are not part of a delivery; test_website_server records
+# all three, and it names its `carrier`. Two things differ, each stated once:
+# `acknowledge` says how the agent confirms the delivery, or is null where the
+# carrier confirmed it; and the comment's `answer` is a `reply`, for `leaf reply`,
+# except on App Server, where it is a `turn` the turn's own messages write. The
+# `handling` follows from the answer, so each agent is told only its own route.
+# The agent's standing instructions (its host contract, and on leaf.page the
+# developer instructions) are not part of a delivery; test_website_server records
 # leaf.page's.
 #
 # What this file records
@@ -58,81 +61,17 @@
 
 leaf wait:
   output:
-    format: leaf-delivery-v2
+    format: leaf-delivery-v3
     id: '11111111'
     created_at: 1790046750.29
-    batches:
-      - page: /path/to/page
-        through_seq: 2
-        conversations:
-          - id: 1946b466
-            title: null
-            anchor:
-              section: plan
-              quote: moves to Tuesdays
-            detached_from: null
-            resolved: null
-            elided:
-              messages: 0
-              actions: 0
-            messages: []
-            summaries: []
-            actions: []
-        handling:
-          h1: >-
-            Acknowledge this delivery before anything else by starting the next
-            background wait with `leaf wait --ack <delivery-id>`, where `<delivery-id>`
-            is the delivery's `id`: until then the user's message reads Sent rather
-            than Picked up.
-          h2: >-
-            This event's conversation has no title yet: name it with `leaf conversation
-            title <page> <conversation-id> --text "<a few words>"`, so the thread
-            panel lists its subject rather than its opening words.
-          h3: >-
-            Answer with `leaf reply <page> --for <event-id>` before any other work,
-            including the work this event asks for: give the answer, or say what
-            you are about to do and where the result will appear. Once that work
-            lands, report it with `leaf reply <page> --to <address> --initiates`,
-            where `<address>` is the event's `obligation.response.to`. `leaf reply`
-            checks any saved page edit and makes it live before posting. If a revision
-            removes what the thread is anchored on, move the thread in the reply
-            that reports it with `--section <id>` (narrowed by `--quote` or `--part`
-            if needed), or `--detach` it if its subject has left the page. Add `--awaits`
-            only if your reply's prose asks the user something.
-          h4: >-
-            Your reply renders as Markdown, so show code or markup in a fenced block.
-        events:
-          - kind: comment
-            revision: 1
-            text: why here?
-            anchor:
-              section: plan
-              quote: moves to Tuesdays
-            author: user
-            id: 1946b466
-            ts: '2026-09-21T20:12:30-07:00'
-            seq: 2
-            subject:
-              kind: conversation
-              id: 1946b466
-            conversations: [1946b466]
-            handling: [h1, h2, h3, h4]
-            obligation:
-              as_of_seq: 2
-              response:
-                kind: reply
-                to: 1946b466
-                for: 1946b466
-
-Codex queue:
-  codex queue --message: |-
-    ```xml
-    <leaf-delivery id="22222222" operation="delivery read" />
-    ```
-  leaf delivery read 22222222:
-    format: leaf-delivery-v2
-    id: '22222222'
-    created_at: 1790046750.29
+    carrier: wait
+    acknowledge: >-
+      Whoever ran the `leaf wait` that printed this delivery acknowledges it; until
+      then the user's moves read Sent rather than Picked up. If the output was cut
+      off, acknowledge nothing and rerun the wait with room for the whole envelope.
+      If you handle it, acknowledge before any other work; if you forward it, acknowledge
+      once it durably arrives there. To acknowledge, start `leaf wait --ack 11111111`
+      as the next background task: it confirms this delivery and waits for the next.
     batches:
       - page: /path/to/page
         through_seq: 2
@@ -160,12 +99,12 @@ Codex queue:
             including the work this event asks for: give the answer, or say what
             you are about to do and where the result will appear. Once that work
             lands, report it with `leaf reply <page> --to <address> --initiates`,
-            where `<address>` is the event's `obligation.response.to`. `leaf reply`
-            checks any saved page edit and makes it live before posting. If a revision
-            removes what the thread is anchored on, move the thread in the reply
-            that reports it with `--section <id>` (narrowed by `--quote` or `--part`
-            if needed), or `--detach` it if its subject has left the page. Add `--awaits`
-            only if your reply's prose asks the user something.
+            where `<address>` is the event's `answer.to`. `leaf reply` checks any
+            saved page edit and makes it live before posting. If a revision removes
+            what the thread is anchored on, move the thread in the reply that reports
+            it with `--section <id>` (narrowed by `--quote` or `--part` if needed),
+            or `--detach` it if its subject has left the page. Add `--awaits` only
+            if your reply's prose asks the user something.
           h3: >-
             Your reply renders as Markdown, so show code or markup in a fenced block.
         events:
@@ -184,12 +123,77 @@ Codex queue:
               id: 1946b466
             conversations: [1946b466]
             handling: [h1, h2, h3]
-            obligation:
-              as_of_seq: 2
-              response:
-                kind: reply
-                to: 1946b466
-                for: 1946b466
+            answer:
+              kind: reply
+              to: 1946b466
+              for: 1946b466
+
+Codex queue:
+  codex queue --message: |-
+    ```xml
+    <leaf-delivery id="22222222" operation="delivery read" />
+    ```
+  leaf delivery read 22222222:
+    format: leaf-delivery-v3
+    id: '22222222'
+    created_at: 1790046750.29
+    carrier: queue
+    acknowledge: null
+    batches:
+      - page: /path/to/page
+        through_seq: 2
+        conversations:
+          - id: 1946b466
+            title: null
+            anchor:
+              section: plan
+              quote: moves to Tuesdays
+            detached_from: null
+            resolved: null
+            elided:
+              messages: 0
+              actions: 0
+            messages: []
+            summaries: []
+            actions: []
+        handling:
+          h1: >-
+            This event's conversation has no title yet: name it with `leaf conversation
+            title <page> <conversation-id> --text "<a few words>"`, so the thread
+            panel lists its subject rather than its opening words.
+          h2: >-
+            Answer with `leaf reply <page> --for <event-id>` before any other work,
+            including the work this event asks for: give the answer, or say what
+            you are about to do and where the result will appear. Once that work
+            lands, report it with `leaf reply <page> --to <address> --initiates`,
+            where `<address>` is the event's `answer.to`. `leaf reply` checks any
+            saved page edit and makes it live before posting. If a revision removes
+            what the thread is anchored on, move the thread in the reply that reports
+            it with `--section <id>` (narrowed by `--quote` or `--part` if needed),
+            or `--detach` it if its subject has left the page. Add `--awaits` only
+            if your reply's prose asks the user something.
+          h3: >-
+            Your reply renders as Markdown, so show code or markup in a fenced block.
+        events:
+          - kind: comment
+            revision: 1
+            text: why here?
+            anchor:
+              section: plan
+              quote: moves to Tuesdays
+            author: user
+            id: 1946b466
+            ts: '2026-09-21T20:12:30-07:00'
+            seq: 2
+            subject:
+              kind: conversation
+              id: 1946b466
+            conversations: [1946b466]
+            handling: [h1, h2, h3]
+            answer:
+              kind: reply
+              to: 1946b466
+              for: 1946b466
 
 Codex App Server:
   turn/start:
@@ -199,9 +203,11 @@ Codex App Server:
     toolOutput:
       name: leaf_delivery
       output:
-        format: leaf-delivery-v2
+        format: leaf-delivery-v3
         id: '33333333'
         created_at: 1790046750.29
+        carrier: app-server
+        acknowledge: null
         batches:
           - page: /path/to/page
             through_seq: 2
@@ -251,10 +257,9 @@ Codex App Server:
                   id: 1946b466
                 conversations: [1946b466]
                 handling: [h1, h2, h3]
-                obligation:
-                  as_of_seq: 2
-                  response:
-                    kind: reply
-                    to: 1946b466
-                    for: 1946b466
+                answer:
+                  kind: turn
+                  to: 1946b466
+                  for: 1946b466
+                  attempt: leaf-delivery-afb47e00531153e93808589e43d02c11
     turnTrigger: leaf

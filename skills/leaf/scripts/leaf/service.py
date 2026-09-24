@@ -7,6 +7,7 @@ import hashlib
 import os
 import secrets
 import time
+from contextlib import contextmanager
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -707,6 +708,26 @@ def restore_page_claim(
     previous, expected = transition
     with PageTransaction(page_dir) as page:
         page.restore_claim(expected, previous)
+
+
+@contextmanager
+def starting_claim(page_dir: Path, *, standing: bool = False):
+    """Claim the page for whatever starts inside, and give the claim back if the
+    start raises.
+
+    The one claim transition a start takes: `server start`, `server run`, a
+    `--user` preview's first start, and `leaf codex start`. A standing start
+    declines the claim. What counts as a start that raised is the caller's: a
+    detached start raises until its handshake commits (`detached`), so a caller
+    that leaves before committing restores the claim it took. The restore keeps a
+    successor's claim that replaced this one in between.
+    """
+    transition = None if standing else take_page_claim(page_dir)
+    try:
+        yield
+    except BaseException:
+        restore_page_claim(page_dir, transition)
+        raise
 
 
 def open_session_turn(session_id: str) -> None:

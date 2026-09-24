@@ -7,7 +7,6 @@ from pathlib import Path
 import click
 
 from leaf.schema import (
-    ACK_BATCH_INSTRUCTION,
     EVENTS_FILE,
     SKILL_ROOT,
     WAIT_BATCH_OUTPUT_INSTRUCTION,
@@ -129,17 +128,22 @@ def codex_start(
 
 @codex.command("run", hidden=True)
 @click.option("--codex-path", required=True)
-@click.option("--ready-fd", type=int)
+@click.option("--handshake", type=int)
 @click.option("--app-server", hidden=True)
 def codex_run(
     codex_path: str,
-    ready_fd: int | None,
+    handshake: int | None,
     app_server: str | None,
 ) -> None:
     """Run the detached carrier child."""
-    from leaf.codex_adapter import run_adapter
+    from contextlib import nullcontext
 
-    sys.exit(run_adapter(codex_path, ready_fd, app_server))
+    from leaf.codex_adapter import run_adapter
+    from leaf.detached import Handshake
+
+    # Tests run the carrier in the foreground, where nobody waits on a handshake.
+    with Handshake(handshake) if handshake is not None else nullcontext() as answer:
+        sys.exit(run_adapter(codex_path, answer, app_server))
 
 
 @cli.group(short_help="Create pages and add media.")
@@ -414,7 +418,7 @@ def conversation_summarize(
     click.echo(f"summarized {from_message} through {through_message}")
 
 
-@cli.group(short_help="Set, capture, or clear page-bound external data.")
+@cli.group(short_help="Set or clear page-bound external data.")
 def data() -> None:
     """Manage each bound source's current value, one JSON file per source."""
 
@@ -440,43 +444,6 @@ def data_set(dir: str, source: str, input_file) -> None:
             f"invalid JSON ({error.msg}, line {error.lineno})"
         ) from error
     cmd_data_set(resolve_dir(dir), source, value)
-
-
-@data.command("capture", short_help="Set a bound source from a UTF-8 file.")
-@click.argument("dir", metavar="PAGE")
-@click.argument("source", metavar="SOURCE")
-@click.option(
-    "--file",
-    "input_file",
-    type=click.Path(exists=True, dir_okay=False, path_type=Path),
-    required=True,
-    metavar="PATH",
-    help="UTF-8 file to capture",
-)
-@click.option(
-    "--format",
-    "capture_format",
-    type=click.Choice(["text", "unified-diff"]),
-    default="text",
-    show_default=True,
-    help="transform applied before capture",
-)
-@click.option(
-    "--lines",
-    metavar="START:END",
-    help="one-based inclusive range for text captures",
-)
-def data_capture(
-    dir: str,
-    source: str,
-    input_file: Path,
-    capture_format: str,
-    lines: str | None,
-) -> None:
-    """Set SOURCE's current value from FILE, whole, as a line range, or as a diff."""
-    from leaf.data import cmd_data_capture
-
-    cmd_data_capture(resolve_dir(dir), source, input_file, lines, capture_format)
 
 
 @data.command("clear", short_help="Remove one source's current value.")
@@ -608,28 +575,13 @@ def start(dir: str, host: str | None, standing: bool) -> None:
     goes down with the session that claimed it besides. A page already served
     prints that server's URL and is left alone.
     """
-    from leaf.host import session_harness
-    from leaf.hosting import start_server
-    from leaf.service import PageTransaction, restore_page_claim, take_page_claim
+    from leaf.detached import StartRefused
+    from leaf.hosting import claim_and_start
 
-    page_dir = resolve_dir(dir)
-    claim_transition = None if standing else take_page_claim(page_dir)
-    if claim_transition:
-        # Check the claim after taking it. The child checks it again under its
-        # own transaction, so SessionEnd winning the spawn gap makes startup
-        # fail instead of reviving a released page.
-        with PageTransaction(page_dir) as page:
-            if not page.owned_by(session_harness()):
-                raise SystemExit(
-                    f"this session no longer owns {page_dir}; the server was not started"
-                )
-    started = start_server(page_dir, host, standing)
-    if not started:
-        # A refusal or failed bind never transfers the page. Restore the prior
-        # provenance only if nobody replaced this startup's exact claim.
-        restore_page_claim(page_dir, claim_transition)
-        raise SystemExit(1)
-    url, note = started
+    try:
+        url, note = claim_and_start(resolve_dir(dir), host, standing)
+    except StartRefused as error:
+        raise SystemExit(str(error)) from None
     print(url)
     print(note, file=sys.stderr)
 
@@ -650,7 +602,7 @@ def run(dir: str, host: str | None, standing: bool, temporary: bool) -> None:
     `server start`. A page already served prints that server's URL and exits.
     """
     from leaf.hosting import cmd_serve, cmd_serve_temporary
-    from leaf.service import restore_page_claim, take_page_claim
+    from leaf.service import starting_claim
 
     page_dir = resolve_dir(dir)
     if temporary:
@@ -660,23 +612,24 @@ def run(dir: str, host: str | None, standing: bool, temporary: bool) -> None:
             raise click.UsageError("--temporary is loopback-only; omit --host")
         cmd_serve_temporary(page_dir)
         return
-    claim_transition = None if standing else take_page_claim(page_dir)
-    try:
+    with starting_claim(page_dir, standing=standing):
         cmd_serve(page_dir, host, standing)
-    except BaseException:
-        restore_page_claim(page_dir, claim_transition)
-        raise
 
 
 @server.command("_serve", hidden=True)
 @click.argument("dir", metavar="PAGE")
 @serve_flags
 @click.option("--revive", is_flag=True, hidden=True)
-def _serve(dir: str, host: str | None, standing: bool, revive: bool) -> None:
+@click.option("--handshake", type=int, required=True, hidden=True)
+def _serve(
+    dir: str, host: str | None, standing: bool, revive: bool, handshake: int
+) -> None:
     """Private child process spawned by server start and Watch revival."""
+    from leaf.detached import Handshake
     from leaf.hosting import cmd_serve
 
-    cmd_serve(resolve_dir(dir), host, standing, revive, detached=True)
+    with Handshake(handshake) as answer:
+        cmd_serve(resolve_dir(dir), host, standing, revive, handshake=answer)
 
 
 @server.command(short_help="Stop a page's server.")
@@ -737,7 +690,7 @@ def status(dir: str, state: str, detail: str, on: str | None) -> None:
     short_help="Confirm a delivery, if given, then wait for the next batch.",
     help=(
         "Watch every page this session holds — plus PAGE, claimed first, when "
-        "given.\n\n" + WAIT_BATCH_OUTPUT_INSTRUCTION + "\n\n" + ACK_BATCH_INSTRUCTION
+        "given.\n\n" + WAIT_BATCH_OUTPUT_INSTRUCTION
     ),
 )
 @click.argument("dir", metavar="PAGE", required=False)

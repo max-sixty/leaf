@@ -13,6 +13,12 @@ the file inside it, and where it lands — so those are rows in COPIES. Where
 nothing published is loadable as it stands, or what Leaf ships is cut down to
 what its registry declares, vendoring is a program, so those are functions.
 
+Every version they carry is the one `package-lock.json` resolved: `package.json`
+names each package a bundle's entry imports, the lock settles the rest of the
+closure, and every build reads the root `node_modules` that `npm ci` installs from
+it. So a run after `npm ci` reproduces the tracked bytes, and a moved lock is the
+only thing that moves them.
+
 With no arguments it rebuilds everything; name bundles to redo only those.
 """
 
@@ -33,6 +39,7 @@ ASSETS = ROOT / "skills/leaf/assets"
 PACKAGES = ROOT / "skills/leaf/packages"
 MCP_APP = ROOT / "skills/leaf/mcp-app"
 PIERRE_SOURCE = ROOT / "scripts/vendor-src/pierre"
+NODE_MODULES = ROOT / "node_modules"
 
 
 def package_vendor(package: str) -> Path:
@@ -46,60 +53,10 @@ def package_vendor(package: str) -> Path:
     return PACKAGES / package / "vendor"
 
 
-# The contributor build's pins, which its lock resolves. `esbuild` is one: the browser
-# framework build and every bundle here run the same release, so it is pinned there
-# once and read from there.
-PACKAGE_PINS = json.loads((ROOT / "package.json").read_text())["devDependencies"]
-
-# Every pinned version, exact and in one place. A range would let a dependency
-# move under a bundle nobody rebuilt, and then the tracked bytes stop being what
-# this file produces. `esbuild` is the tool the browser bundles share rather than
-# payload, so it moves when a bundle needs it rather than on every release.
-PINS = {
-    "highlight.js": "11.12.0",
-    "marked": "18.0.14",
-    "diff": "9.0.0",
-    "agentic-mermaid": "0.4.1",
-    "elkjs": "0.11.1",
-    "entities": "7.0.1",
-    "yaml": "2.9.1",
-    "sortablejs": "1.15.7",
-    "@observablehq/plot": "0.6.17",
-    "@pierre/diffs": "1.4.3",
-    "@modelcontextprotocol/ext-apps": "2.0.0",
-    "@floating-ui/dom": "1.8.0",
-    "@floating-ui/core": "1.8.0",
-    "@floating-ui/utils": "0.2.12",
-    "shiki": "4.4.3",
-    "esbuild": PACKAGE_PINS["esbuild"],
-    "@awesome.me/webawesome": "3.13.0",
-    "@ctrl/tinycolor": "4.1.0",
-    "@shoelace-style/localize": "3.2.3",
-    "composed-offset-position": "0.0.6",
-    "nanoid": "5.1.16",
-}
-
-
-def spec(package: str) -> str:
-    return f"{package}@{PINS[package]}"
-
-
-def browser_pins() -> dict[str, str]:
-    """The page payload `scripts/browser/build.mjs` bundles, at `package.json`'s pins.
-
-    Those pins stay in `package.json`, where the contributor build's lock reads them,
-    rather than a second copy here; the build's manifest says which of them reach a
-    page, which is what `--pins` watches. Lit is one: `lit.js` is the page's only copy,
-    and the Web Awesome bundle imports it.
-    """
-    manifest = json.loads(
-        (ROOT / "scripts/browser/generated/browser-runtime.manifest.json").read_text()
-    )
-    return {
-        package: PACKAGE_PINS[package]
-        for package in manifest["bundledDependencies"]
-        if package in PACKAGE_PINS
-    }
+def version(package: str) -> str:
+    """The installed version of a package, which is the one the lock resolved."""
+    manifest = NODE_MODULES / package / "package.json"
+    return json.loads(manifest.read_text(encoding="utf-8"))["version"]
 
 
 class Copy(NamedTuple):
@@ -129,26 +86,12 @@ COPIES = {
 }
 
 
-def run(*args: str, cwd: Path, capture: bool = False) -> str:
-    done = subprocess.run(
-        args,
-        cwd=cwd,
-        check=True,
-        text=True,
-        stdout=subprocess.PIPE if capture else None,
-    )
-    return (done.stdout or "").strip()
-
-
-def unpack(package: str, work: Path) -> Path:
-    """Unpack a published package into work/package, and answer that directory."""
-    tarball = run("npm", "pack", "--silent", spec(package), cwd=work, capture=True)
-    run("tar", "xzf", tarball, cwd=work)
-    return work / "package"
+def run(*args: str, cwd: Path) -> None:
+    subprocess.run(args, cwd=cwd, check=True)
 
 
 def esbuild(*args: str, cwd: Path) -> None:
-    run("npx", "--yes", spec("esbuild"), *args, cwd=cwd)
+    run(str(NODE_MODULES / ".bin/esbuild"), *args, cwd=cwd)
 
 
 def languages() -> list[str]:
@@ -183,17 +126,19 @@ def build_highlight(work: Path) -> list[Path]:
     registry states.
     """
     out = ASSETS / "vendor/highlight.esm.js"
-    unpack("highlight.js", work)
+    # Core is the CommonJS build, which the package's exports map offers only to
+    # `require`, so it is imported by path.
+    package = (NODE_MODULES / "highlight.js").as_posix()
     names = languages()
     entry = [
         (
-            f"/*! highlight.js {PINS['highlight.js']} — BSD-3-Clause"
+            f"/*! highlight.js {version('highlight.js')} — BSD-3-Clause"
             " — https://highlightjs.org */"
         ),
-        'import hljs from "./package/lib/core.js";',
+        f'import hljs from "{package}/lib/core.js";',
         *(
             f"import {name} from"
-            f' "./package/es/languages/{HLJS_ALIASES.get(name, name)}.js";'
+            f' "highlight.js/lib/languages/{HLJS_ALIASES.get(name, name)}";'
             for name in names
         ),
         # Registered under leaf's name, not highlight.js's, so `language="html"`
@@ -217,12 +162,11 @@ def build_highlight(work: Path) -> list[Path]:
 def build_jsdiff(work: Path) -> list[Path]:
     """Bundle only jsdiff's array comparison for the core browser runtime."""
     out = ASSETS / "vendor/jsdiff.esm.js"
-    unpack("diff", work)
     (work / "entry.mjs").write_text(
         (
-            f"/*! jsdiff {PINS['diff']} — BSD-3-Clause"
+            f"/*! jsdiff {version('diff')} — BSD-3-Clause"
             " — https://github.com/kpdecker/jsdiff */\n"
-            'export { diffArrays } from "./package/libesm/diff/array.js";\n'
+            'export { diffArrays } from "diff/lib/diff/array.js";\n'
         ),
         encoding="utf-8",
     )
@@ -261,11 +205,11 @@ def refuse_if_csp_forbids(out: Path) -> None:
             )
 
 
-def package_notices(work: Path, packages: tuple[str, ...], title: str) -> str:
-    """The licenses for a build's explicitly installed runtime packages."""
+def package_notices(packages: tuple[str, ...], title: str) -> str:
+    """The licenses for the packages a build names as reaching its bundle."""
     notices = []
     for package in packages:
-        root = work / "node_modules" / package
+        root = NODE_MODULES / package
         manifest = json.loads((root / "package.json").read_text(encoding="utf-8"))
         license_file = next(
             (
@@ -291,7 +235,7 @@ def build_agentic_mermaid(work: Path) -> list[Path]:
     """Bundle Agentic Mermaid's SVG renderer and ELK into one browser-native ESM file.
 
     Upstream's ESM keeps `entities`, `elkjs` and `yaml` as bare imports. Leaf loads one
-    self-contained file under its self-only CSP, so esbuild resolves the exact pinned
+    self-contained file under its self-only CSP, so esbuild resolves the locked
     dependency set and leaves no runtime chunk or package lookup behind. The package
     entry also exports PNG, CLI and agent tooling; importing only `renderMermaidSVG`
     keeps the native rasterizer and the code-mode parser out of the bundle.
@@ -303,16 +247,6 @@ def build_agentic_mermaid(work: Path) -> list[Path]:
     out = package_vendor("diagram") / "agentic-mermaid.esm.js"
     notices = package_vendor("diagram") / "agentic-mermaid.LICENSES.txt"
     packages = ("agentic-mermaid", "elkjs", "entities", "yaml")
-    run(
-        "npm",
-        "install",
-        "--no-save",
-        "--no-package-lock",
-        "--silent",
-        *(spec(package) for package in packages),
-        spec("esbuild"),
-        cwd=work,
-    )
     (work / "entry.mjs").write_text(
         'export { renderMermaidSVG } from "agentic-mermaid";\n',
         encoding="utf-8",
@@ -325,19 +259,19 @@ def build_agentic_mermaid(work: Path) -> list[Path]:
         "--target=chrome105",
         "--minify",
         "--legal-comments=inline",
-        f"--banner:js=/*! agentic-mermaid {PINS['agentic-mermaid']} — MIT"
+        f"--banner:js=/*! agentic-mermaid {version('agentic-mermaid')} — MIT"
         " — licenses: agentic-mermaid.LICENSES.txt */",
         f"--outfile={out}",
         cwd=work,
     )
     refuse_if_csp_forbids(out)
-    renderer = work / "node_modules/agentic-mermaid"
+    renderer = NODE_MODULES / "agentic-mermaid"
     bundled = [
         renderer / "THIRD_PARTY_NOTICES.md",
         *sorted(renderer.glob("LICENSES/*")),
     ]
     notices.write_text(
-        package_notices(work, packages, out.name)
+        package_notices(packages, out.name)
         + "".join(
             f"\n===== agentic-mermaid: {path.relative_to(renderer)} =====\n"
             f"{path.read_text(encoding='utf-8').strip()}\n"
@@ -353,23 +287,13 @@ def build_floating_ui(work: Path) -> list[Path]:
 
     Floating UI's DOM package publishes browser ESM, but leaves its core and utility
     packages as bare imports. Leaf pages run under a self-only CSP and have no package
-    resolver, so the three exact packages become one browser-native module. Only the
+    resolver, so the three packages become one browser-native module. Only the
     positioning and lifecycle middleware used by Leaf's floating chrome are exported;
     esbuild drops the rest.
     """
     out = ASSETS / "vendor/floating-ui.esm.js"
     notices = ASSETS / "vendor/floating-ui.LICENSES.txt"
     packages = ("@floating-ui/dom", "@floating-ui/core", "@floating-ui/utils")
-    run(
-        "npm",
-        "install",
-        "--no-save",
-        "--no-package-lock",
-        "--silent",
-        *(spec(package) for package in packages),
-        spec("esbuild"),
-        cwd=work,
-    )
     (work / "entry.mjs").write_text(
         "export { autoUpdate, computePosition, flip, limitShift, offset, shift, size } "
         'from "@floating-ui/dom";\n',
@@ -383,16 +307,13 @@ def build_floating_ui(work: Path) -> list[Path]:
         "--target=chrome105",
         "--minify",
         "--legal-comments=inline",
-        f"--banner:js=/*! @floating-ui/dom {PINS['@floating-ui/dom']} — MIT"
+        f"--banner:js=/*! @floating-ui/dom {version('@floating-ui/dom')} — MIT"
         " — licenses: floating-ui.LICENSES.txt */",
         f"--outfile={out}",
         cwd=work,
     )
     refuse_if_csp_forbids(out)
-    notices.write_text(
-        package_notices(work, packages, out.name),
-        encoding="utf-8",
-    )
+    notices.write_text(package_notices(packages, out.name), encoding="utf-8")
     return [out, notices]
 
 
@@ -403,11 +324,10 @@ def build_webawesome(work: Path) -> list[Path]:
     on demand; the shared chunks are core payload because chrome also reads them.
 
     Lit is not bundled: every Lit import binds to `/vendor/lit.js`, the page's one
-    copy, which `scripts/browser/build.mjs` builds at the version `package.json`
-    pins. That version is installed here beside Web Awesome so npm can say whether
-    it falls inside Web Awesome's declared range; outside it, npm nests Web
-    Awesome's own choice under the package, and the build refuses rather than run
-    Web Awesome against a Lit it was not published for.
+    copy, which `scripts/browser/build.mjs` builds from the same install. Where that
+    Lit falls outside Web Awesome's declared range, npm nests Web Awesome's own
+    choice under the package, and the build refuses rather than run Web Awesome
+    against a Lit it was not published for.
     """
     directory = package_vendor("default")
     directory.mkdir(parents=True, exist_ok=True)
@@ -423,20 +343,10 @@ def build_webawesome(work: Path) -> list[Path]:
         "@floating-ui/core",
         "@floating-ui/utils",
     )
-    lit = browser_pins()["lit"]
-    run(
-        "npm",
-        "install",
-        "--no-save",
-        "--no-package-lock",
-        "--silent",
-        *(spec(package) for package in packages),
-        f"lit@{lit}",
-        spec("esbuild"),
-        cwd=work,
-    )
-    if (work / "node_modules/@awesome.me/webawesome/node_modules/lit").exists():
-        raise RuntimeError(f"Web Awesome's declared Lit range excludes lit {lit}")
+    if (NODE_MODULES / "@awesome.me/webawesome/node_modules/lit").exists():
+        raise RuntimeError(
+            f"Web Awesome's declared Lit range excludes lit {version('lit')}"
+        )
     source = ROOT / "scripts/vendor-src/webawesome"
     for name in ("entry.mjs", "chrome.mjs", "setup.mjs", "build.mjs", "leaf-theme.css"):
         shutil.copyfile(source / name, work / name)
@@ -444,7 +354,7 @@ def build_webawesome(work: Path) -> list[Path]:
         "node",
         "build.mjs",
         str(work / "bundle"),
-        PINS["@awesome.me/webawesome"],
+        version("@awesome.me/webawesome"),
         cwd=work,
     )
     consumed = tuple(json.loads((work / "packages.json").read_text()))
@@ -460,7 +370,7 @@ def build_webawesome(work: Path) -> list[Path]:
     outputs = [out, chrome, *sorted(shared.glob("*.js"))]
     for output in outputs:
         refuse_if_csp_forbids(output)
-    notices.write_text(package_notices(work, consumed, out.name), encoding="utf-8")
+    notices.write_text(package_notices(consumed, out.name), encoding="utf-8")
     return [*outputs, notices]
 
 
@@ -482,23 +392,6 @@ def build_plot(work: Path) -> list[Path]:
     the list is worth about 100KB, against a 385KB bundle.
     """
     out = package_vendor("default") / "plot.esm.js"
-    run(
-        "npm",
-        "install",
-        "--silent",
-        "--no-audit",
-        "--no-fund",
-        spec("@observablehq/plot"),
-        cwd=work,
-        capture=True,
-    )
-    d3 = run(
-        "node",
-        "-p",
-        "require('./node_modules/d3/package.json').version",
-        cwd=work,
-        capture=True,
-    )
     (work / "entry.mjs").write_text(
         'export * from "@observablehq/plot";\n', encoding="utf-8"
     )
@@ -508,9 +401,9 @@ def build_plot(work: Path) -> list[Path]:
         "--format=esm",
         "--minify",
         "--legal-comments=inline",
-        f"--banner:js=/*! @observablehq/plot {PINS['@observablehq/plot']} — ISC"
+        f"--banner:js=/*! @observablehq/plot {version('@observablehq/plot')} — ISC"
         " — https://observablehq.com/plot\n"
-        f" *  bundled with d3 {d3} — ISC — https://d3js.org */",
+        f" *  bundled with d3 {version('d3')} — ISC — https://d3js.org */",
         f"--outfile={out}",
         cwd=work,
     )
@@ -528,22 +421,6 @@ def build_pierre(work: Path) -> list[Path]:
     """
     out = package_vendor("diff") / "pierre-diffs.esm.js"
     notices = package_vendor("diff") / "pierre-diffs.LICENSES.txt"
-    shiki = PINS["shiki"]
-    run(
-        "npm",
-        "install",
-        "--no-save",
-        "--no-package-lock",
-        "--silent",
-        spec("@pierre/diffs"),
-        spec("shiki"),
-        f"@shikijs/core@{shiki}",
-        f"@shikijs/engine-javascript@{shiki}",
-        f"@shikijs/langs@{shiki}",
-        f"@shikijs/themes@{shiki}",
-        spec("esbuild"),
-        cwd=work,
-    )
     shiki_source = (PIERRE_SOURCE / "shiki-leaf.mjs").read_text(encoding="utf-8")
     if shiki_source.count(PIERRE_LANGUAGE_SENTINEL) != 1:
         raise RuntimeError("Pierre's Shiki source must contain one language sentinel")
@@ -566,7 +443,7 @@ def build_pierre(work: Path) -> list[Path]:
         "build.mjs",
         str(out),
         str(notices),
-        PINS["@pierre/diffs"],
+        version("@pierre/diffs"),
         cwd=work,
     )
     return [out, notices]
@@ -583,16 +460,6 @@ def build_mcp_app(work: Path) -> list[Path]:
     standalone resource.
     """
     source = ROOT / "scripts/mcp-app"
-    run(
-        "npm",
-        "install",
-        "--no-save",
-        "--no-package-lock",
-        "--silent",
-        spec("@modelcontextprotocol/ext-apps"),
-        spec("esbuild"),
-        cwd=work,
-    )
     entry = work / "page-entry.js"
     bundle = work / "page-bundle.js"
     out = MCP_APP / "page-app.html"
@@ -605,7 +472,7 @@ def build_mcp_app(work: Path) -> list[Path]:
         "--target=chrome105",
         "--minify",
         "--legal-comments=inline",
-        f"--banner:js=/*! @modelcontextprotocol/ext-apps {PINS['@modelcontextprotocol/ext-apps']}"
+        f"--banner:js=/*! @modelcontextprotocol/ext-apps {version('@modelcontextprotocol/ext-apps')}"
         " — MIT — https://github.com/modelcontextprotocol/ext-apps */",
         f"--outfile={bundle}",
         cwd=work,
@@ -640,158 +507,27 @@ BUILDS: dict[str, Callable[[Path], list[Path]]] = {
 
 
 def vendor(name: str) -> list[Path]:
-    with tempfile.TemporaryDirectory() as tmp:
-        work = Path(tmp)
-        if name in COPIES:
-            copy = COPIES[name]
-            shutil.copyfile(unpack(copy.package, work) / copy.inside, copy.out)
-            return [copy.out]
-        return BUILDS[name](work)
-
-
-# Which bundle a moved pin obliges you to rebuild. A copy answers for its own
-# package; a build reaches for several, and esbuild is the tool the builds share.
-REBUILDS = {
-    **{copy.package: (name,) for name, copy in COPIES.items()},
-    "highlight.js": ("highlight",),
-    "diff": ("jsdiff",),
-    "@observablehq/plot": ("plot",),
-    "@pierre/diffs": ("pierre",),
-    "@modelcontextprotocol/ext-apps": ("mcp-app",),
-    "agentic-mermaid": ("agentic-mermaid",),
-    "@floating-ui/dom": ("floating-ui", "webawesome"),
-    "@floating-ui/core": ("floating-ui", "webawesome"),
-    "@floating-ui/utils": ("floating-ui", "webawesome"),
-    "elkjs": ("agentic-mermaid",),
-    "entities": ("agentic-mermaid",),
-    "yaml": ("agentic-mermaid",),
-    "shiki": ("pierre",),
-    **{
-        package: ("webawesome",)
-        for package in (
-            "@awesome.me/webawesome",
-            "@ctrl/tinycolor",
-            "@shoelace-style/localize",
-            "composed-offset-position",
-            "nanoid",
-        )
-    },
-    # `browser` is `npm run build:browser`. Lit also reruns `webawesome`, whose build
-    # refuses a Lit outside the range Web Awesome declares.
-    "lit": ("browser", "webawesome"),
-    "@preact/signals-core": ("browser",),
-    "esbuild": (
-        "browser",
-        "agentic-mermaid",
-        "floating-ui",
-        "highlight",
-        "mcp-app",
-        "plot",
-        "pierre",
-        "webawesome",
-    ),
-}
-
-
-# Some pins cannot move to whatever upstream published last. A bundle is self-contained,
-# so esbuild resolves its bare imports itself and every package in the install has to be
-# named — and one of those packages may declare a range for another. A release outside
-# that range is not a pin to take: npm would install the declared version nested under
-# the dependant, esbuild would bundle that one, and the table would say one thing while
-# the bundle carried another. Those rows read against the dependant's range, so what the
-# report calls movement is movement that can actually be taken.
-#
-# The install decides, not the pin's provenance. `@floating-ui/dom` is Leaf's own choice
-# for the `floating-ui` bundle and still held, because the `webawesome` bundle installs
-# it beside Web Awesome, which declares a range of its own; Leaf's choice would land in
-# one bundle and nested under the other. `diff` is the case provenance reads backwards:
-# `@pierre/diffs` declares the version Leaf pins, but the `pierre` build installs
-# `@pierre/diffs` and Shiki rather than the `diff` pin, so the two never meet in one
-# install and a moved `diff` rebuilds `jsdiff` alone.
-HELD_BY = {
-    "elkjs": "agentic-mermaid",
-    "entities": "agentic-mermaid",
-    "yaml": "agentic-mermaid",
-    "@floating-ui/dom": "@awesome.me/webawesome",
-    "@floating-ui/core": "@floating-ui/dom",
-    "@floating-ui/utils": "@floating-ui/dom",
-    "shiki": "@pierre/diffs",
-    "@ctrl/tinycolor": "@awesome.me/webawesome",
-    "@shoelace-style/localize": "@awesome.me/webawesome",
-    "composed-offset-position": "@awesome.me/webawesome",
-    "nanoid": "@awesome.me/webawesome",
-    "lit": "@awesome.me/webawesome",
-}
-
-
-def newest(package: str, within: str = "latest") -> str:
-    """Upstream's newest release of a package, bounded by a range where one is given.
-
-    A range answers with every match, and npm prints them in packument order rather
-    than semver order, so the last one is the range's most recently published release.
-    That is its newest while a range's releases go out in order; a patch backported
-    inside the range after a higher one would be read in its place.
-    """
-    found = json.loads(
-        run(
-            "npm",
-            "view",
-            f"{package}@{within}",
-            "version",
-            "--json",
-            cwd=ROOT,
-            capture=True,
-        )
-    )
-    return found[-1] if isinstance(found, list) else found
-
-
-def report_pins() -> None:
-    """Every pin against the newest release it could take, and the bundle to rebuild."""
-    for package, pinned in {**PINS, **browser_pins()}.items():
-        holder = HELD_BY.get(package)
-        allowed = (
-            run(
-                "npm",
-                "view",
-                spec(holder),
-                f"dependencies.{package}",
-                cwd=ROOT,
-                capture=True,
-            )
-            if holder
-            else "latest"
-        )
-        latest = newest(package, allowed)
-        rebuild = " ".join(REBUILDS[package])
-        held = f" (held to {holder}'s {allowed})" if holder else ""
-        moved = "" if latest == pinned else f"latest {latest}{held}"
-        print(f"{package:22} {pinned:10} {rebuild:24} {moved}".rstrip())
+    if name in COPIES:
+        copy = COPIES[name]
+        shutil.copyfile(NODE_MODULES / copy.package / copy.inside, copy.out)
+        return [copy.out]
+    # Under the root, so a bare import in an entry, and in a build script that imports
+    # esbuild, resolves the way Node's does: up to the root `node_modules`.
+    scratch = ROOT / ".tmp"
+    scratch.mkdir(exist_ok=True)
+    with tempfile.TemporaryDirectory(dir=scratch, prefix="vendor-") as tmp:
+        return BUILDS[name](Path(tmp))
 
 
 def main() -> None:
     known = sorted(COPIES | BUILDS)
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("bundle", nargs="*", help=f"one or more of: {', '.join(known)}")
-    parser.add_argument(
-        "--pins",
-        action="store_true",
-        help=(
-            "read every pin against the newest release it could take, "
-            "and name what to rebuild"
-        ),
-    )
     args = parser.parse_args()
 
     unknown = sorted(set(args.bundle) - set(known))
     if unknown:
         parser.error(f"unknown bundle: {', '.join(unknown)}")
-    if args.pins:
-        if args.bundle:
-            parser.error("--pins reads every pin, so it takes no bundle")
-        report_pins()
-        return
-
     for name in args.bundle or known:
         for out in vendor(name):
             print(f"wrote {out} ({out.stat().st_size} bytes)")

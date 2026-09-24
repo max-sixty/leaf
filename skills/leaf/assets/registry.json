@@ -66,27 +66,9 @@
     "contracts": {}
   },
   "$events": {
-    "description": "Leaf's fixed kernel event contract. Each kind carries the closed `record` schema for the complete event read from the log. A `browser` schema opts that kind into POST /api/event and adds the browser writer's assertions. Layers extend widget behavior through x-state and x-request; they cannot add or change transport kinds. `page init` checks the existing log against these records before it re-vendors, so a recorded event never becomes unreadable. A kind declaring `bookkeeping` records a fact about the user's view of the page rather than a move: it never asks the agent for anything, and the browser sends it outside the ordered gesture queue, so it neither waits behind a gesture nor holds one back. A `pickup` is the page-owned durable transport fact that named user events reached their next consumer, or with phase `failed` and a host `failure` code that the host gave up on them with no answer coming; it is never a claim that work has begun. A failed `receipt` carrying a host `failure` code is the host giving up on a request; one without it is the agent's own outcome. A `comment` or `reply` carrying `token` instead of `text` is a reaction — one word from $reactions, aimed where the comment's anchor or the reply's parent points, or with neither at the page whole. It starts as a mark rather than a conversation: no thread opens until someone replies to it, `resolve` on it is the floor after which it stops painting, and while nothing has answered it the user takes it back with an ordinary `undo` naming it. `handling` and `answering` remain layer-owned. `handling` holds, per kernel kind, an ordered list of clauses, each a `text` and an optional `when` JSON Schema; `answering` holds the same per answer kind (`reply`, `markup`, `receipt`), for the event that owns that answer. A `when` matches the delivered event: its record plus the `obligation` it owns and its `conversation`'s entry in the batch's digest, each if any, and the `carrier` delivering it (`wait`, `queue` or `app-server`), so a clause states one case plainly rather than naming a condition the delivery already settles. Each delivered event carries its kind's matching clauses and then its answer's, so an event is told only its own case and only the answer it owes, and a later layer may restate one kind at a time.",
+    "description": "Leaf's fixed kernel event contract. Each kind carries the closed `record` schema for the complete event read from the log. A `browser` schema opts that kind into POST /api/event and adds the browser writer's assertions. Layers extend widget behavior through x-state and x-request; they cannot add or change transport kinds. `page init` checks the existing log against these records before it re-vendors, so a recorded event never becomes unreadable. A kind declaring `bookkeeping` records a fact about the user's view of the page rather than a move: it never asks the agent for anything, and the browser sends it outside the ordered gesture queue, so it neither waits behind a gesture nor holds one back. A `pickup` is the page-owned durable transport fact that named user events reached their next consumer, or with phase `failed` and a host `failure` code that the host gave up on them with no answer coming; it is never a claim that work has begun. A failed `receipt` carrying a host `failure` code is the host giving up on a request; one without it is the agent's own outcome. A `comment` or `reply` carrying `token` instead of `text` is a reaction — one word from $reactions, aimed where the comment's anchor or the reply's parent points, or with neither at the page whole. It starts as a mark rather than a conversation: no thread opens until someone replies to it, `resolve` on it is the floor after which it stops painting, and while nothing has answered it the user takes it back with an ordinary `undo` naming it. `handling` and `answering` remain layer-owned. `handling` holds, per kernel kind, an ordered list of clauses, each a `text` and an optional `when` JSON Schema; `answering` holds the same per answer kind (`reply`, `turn`, `markup`, `receipt`), for the event that owes that answer. A `when` matches the delivered event: its record plus the `answer` it owes and its `conversation`'s entry in the batch's digest, each if any, so a clause states one case plainly rather than naming a condition the delivery already settles. What differs by carrier is not a clause: the delivery states once who acknowledges it, and routes a thread reply as `turn` where the turn carrying it writes the reply. Each delivered event carries its kind's matching clauses and then its answer's, so an event is told only its own case and only the answer it owes, and a later layer may restate one kind at a time.",
     "handling": {
       "comment": [
-        {
-          "when": {
-            "required": [
-              "carrier"
-            ],
-            "properties": {
-              "carrier": {
-                "const": "wait"
-              }
-            },
-            "not": {
-              "required": [
-                "token"
-              ]
-            }
-          },
-          "text": "Acknowledge this delivery before anything else by starting the next background wait with `leaf wait --ack <delivery-id>`, where `<delivery-id>` is the delivery's `id`: until then the user's message reads Sent rather than Picked up."
-        },
         {
           "when": {
             "required": [
@@ -169,24 +151,6 @@
         }
       ],
       "reply": [
-        {
-          "when": {
-            "required": [
-              "carrier"
-            ],
-            "properties": {
-              "carrier": {
-                "const": "wait"
-              }
-            },
-            "not": {
-              "required": [
-                "token"
-              ]
-            }
-          },
-          "text": "Acknowledge this delivery before anything else by starting the next background wait with `leaf wait --ack <delivery-id>`, where `<delivery-id>` is the delivery's `id`: until then the user's message reads Sent rather than Picked up."
-        },
         {
           "when": {
             "not": {
@@ -289,7 +253,7 @@
               {
                 "not": {
                   "required": [
-                    "obligation"
+                    "answer"
                   ]
                 }
               },
@@ -305,14 +269,7 @@
                       ],
                       "properties": {
                         "document": {
-                          "required": [
-                            "kind"
-                          ],
-                          "properties": {
-                            "kind": {
-                              "const": "thread"
-                            }
-                          }
+                          "const": "thread"
                         }
                       }
                     }
@@ -348,14 +305,7 @@
                       ],
                       "properties": {
                         "document": {
-                          "required": [
-                            "kind"
-                          ],
-                          "properties": {
-                            "kind": {
-                              "const": "thread"
-                            }
-                          }
+                          "const": "thread"
                         }
                       }
                     }
@@ -392,14 +342,7 @@
                   ],
                   "properties": {
                     "document": {
-                      "required": [
-                        "kind"
-                      ],
-                      "properties": {
-                        "kind": {
-                          "const": "thread"
-                        }
-                      }
+                      "const": "thread"
                     }
                   }
                 }
@@ -412,7 +355,7 @@
           "when": {
             "not": {
               "required": [
-                "obligation"
+                "answer"
               ]
             }
           },
@@ -443,32 +386,34 @@
     "answering": {
       "reply": [
         {
-          "when": {
-            "required": [
-              "carrier"
-            ],
-            "properties": {
-              "carrier": {
-                "enum": [
-                  "wait",
-                  "queue"
-                ]
-              }
-            }
-          },
-          "text": "Answer with `leaf reply <page> --for <event-id>` before any other work, including the work this event asks for: give the answer, or say what you are about to do and where the result will appear. Once that work lands, report it with `leaf reply <page> --to <address> --initiates`, where `<address>` is the event's `obligation.response.to`. `leaf reply` checks any saved page edit and makes it live before posting. If a revision removes what the thread is anchored on, move the thread in the reply that reports it with `--section <id>` (narrowed by `--quote` or `--part` if needed), or `--detach` it if its subject has left the page. Add `--awaits` only if your reply's prose asks the user something."
+          "text": "Answer with `leaf reply <page> --for <event-id>` before any other work, including the work this event asks for: give the answer, or say what you are about to do and where the result will appear. Once that work lands, report it with `leaf reply <page> --to <address> --initiates`, where `<address>` is the event's `answer.to`. `leaf reply` checks any saved page edit and makes it live before posting. If a revision removes what the thread is anchored on, move the thread in the reply that reports it with `--section <id>` (narrowed by `--quote` or `--part` if needed), or `--detach` it if its subject has left the page. Add `--awaits` only if your reply's prose asks the user something."
+        },
+        {
+          "text": "Your reply renders as Markdown, so show code or markup in a fenced block."
         },
         {
           "when": {
             "required": [
-              "carrier"
+              "meaning"
             ],
             "properties": {
-              "carrier": {
-                "const": "app-server"
+              "meaning": {
+                "required": [
+                  "document"
+                ],
+                "properties": {
+                  "document": {
+                    "const": "thread"
+                  }
+                }
               }
             }
           },
+          "text": "The widget is in a thread message: continue the work the user's answer selects or unblocks, and answer in that thread."
+        }
+      ],
+      "turn": [
+        {
           "text": "Your turn's first and final messages are the reply, and `leaf reply` refuses this event. Before your first tool call, open with a short message to the user: the answer, or what you are about to do. Leaf streams it into the thread at once, and later working messages stay in Codex. Finish the reply in your final message: the answer, or what changed and where it appears. The reply leaves the thread on its anchor."
         },
         {
@@ -486,14 +431,7 @@
                 ],
                 "properties": {
                   "document": {
-                    "required": [
-                      "kind"
-                    ],
-                    "properties": {
-                      "kind": {
-                        "const": "thread"
-                      }
-                    }
+                    "const": "thread"
                   }
                 }
               }
@@ -842,7 +780,7 @@
             "widget": {"type": "string", "minLength": 1},
             "action": {"type": "string", "minLength": 1},
             "detail": {"type": "object"},
-            "meaning": {"type": "object", "properties": {"document": {"oneOf": [{"type": "object", "properties": {"kind": {"const": "page"}, "revision": {"type": "integer", "minimum": 1}}, "required": ["kind", "revision"], "additionalProperties": false}, {"type": "object", "properties": {"kind": {"const": "thread"}}, "required": ["kind"], "additionalProperties": false}]}, "coordinate": {"type": "array", "items": {"type": "string", "minLength": 1}, "minItems": 3, "maxItems": 3}, "depends": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true}, "answer": {"type": ["string", "null"], "minLength": 1}, "creates": {"type": "string", "pattern": "^lf-[a-z0-9]+(-[a-z0-9]+)*$"}}, "required": ["document", "coordinate", "depends"], "additionalProperties": false},
+            "meaning": {"type": "object", "properties": {"document": {"enum": ["page", "thread"]}, "unit": {"type": "string", "minLength": 1}, "depends": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true}, "answer": {"type": ["string", "null"], "minLength": 1}, "creates": {"type": "string", "pattern": "^lf-[a-z0-9]+(-[a-z0-9]+)*$"}}, "required": ["document", "unit", "depends"], "additionalProperties": false},
             "revision": {"type": "integer", "minimum": 1},
             "attempt": {"type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$"}
           },
@@ -863,7 +801,7 @@
             "widget": {"type": "string", "minLength": 1},
             "action": {"type": "string", "minLength": 1},
             "detail": {"type": "object"},
-            "meaning": {"type": "object", "properties": {"document": {"oneOf": [{"type": "object", "properties": {"kind": {"const": "page"}, "revision": {"type": "integer", "minimum": 1}}, "required": ["kind", "revision"], "additionalProperties": false}, {"type": "object", "properties": {"kind": {"const": "thread"}}, "required": ["kind"], "additionalProperties": false}]}, "unit": {"type": "string", "minLength": 1}}, "required": ["document", "unit"], "additionalProperties": false},
+            "meaning": {"type": "object", "properties": {"document": {"enum": ["page", "thread"]}, "unit": {"type": "string", "minLength": 1}}, "required": ["document", "unit"], "additionalProperties": false},
             "source_revision": {"type": "string", "pattern": "^[0-9a-f]{16}$"},
             "revision": {"type": "integer", "minimum": 1},
             "attempt": {"type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$"}
@@ -952,7 +890,7 @@
             "widget": {"type": "string", "minLength": 1},
             "action": {"type": "string", "minLength": 1},
             "detail": {"type": "object"},
-            "meaning": {"type": "object", "properties": {"document": {"oneOf": [{"type": "object", "properties": {"kind": {"const": "page"}, "revision": {"type": "integer", "minimum": 1}}, "required": ["kind", "revision"], "additionalProperties": false}, {"type": "object", "properties": {"kind": {"const": "thread"}}, "required": ["kind"], "additionalProperties": false}]}, "coordinate": {"type": "array", "items": {"type": "string", "minLength": 1}, "minItems": 3, "maxItems": 3}, "depends": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true}}, "required": ["document", "coordinate", "depends"], "additionalProperties": false},
+            "meaning": {"type": "object", "properties": {"document": {"enum": ["page", "thread"]}, "unit": {"type": "string", "minLength": 1}, "depends": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true}}, "required": ["document", "unit", "depends"], "additionalProperties": false},
             "revision": {"type": "integer", "minimum": 1},
             "agent": {"type": "string", "minLength": 1},
             "session": {"type": "string", "minLength": 1}

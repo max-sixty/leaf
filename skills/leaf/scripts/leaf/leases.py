@@ -2,7 +2,6 @@
 
 import functools
 import hashlib
-import secrets
 import sys
 from pathlib import Path
 
@@ -38,6 +37,26 @@ def lock_is_held(path: Path) -> bool:
             return False
     except OSError:
         return False
+
+
+def take_lease(path: Path):
+    """Take the exclusive lease on this file and return it held, or None when
+    another process holds it.
+
+    The one way a lease is taken without waiting: a wait's, a server's, an
+    adapter's, a preview slot's, and the barrier a stop takes once the server it
+    disabled has exited. The caller holds the returned file for as long as it
+    holds the lease; closing it, or exiting, releases it. The lease's directory
+    must already exist, so a stop naming a page that is gone cannot create it.
+    """
+    require_cross_process_locking()
+    record = open(path, "a+b")  # noqa: SIM115 - returned and held by the caller
+    try:
+        fcntl.flock(record, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        record.close()
+        return None
+    return record
 
 
 def page_lock(page_dir: Path, purpose: str) -> Path:
@@ -88,7 +107,7 @@ def waiter_lease_path(page_dir: Path | None, session_id: str | None) -> Path | N
     watch set and no lease.
     """
     if session_id:
-        return state_home() / "sessions" / f"{session_id}.wait"
+        return _session_lease(session_id, "wait")
     return page_dir / WAITER_LOCK if page_dir is not None else None
 
 
@@ -100,30 +119,18 @@ def adapter_lease_path(session_id: str) -> Path:
     events to a later turn after the foreground turn ends, so the adapter holds
     a second lease for exactly that capability.
     """
-    return state_home() / "sessions" / f"{session_id}.adapter"
+    return _session_lease(session_id, "adapter")
+
+
+def _session_lease(session_id: str, purpose: str) -> Path:
+    sessions = state_home() / "sessions"
+    sessions.mkdir(exist_ok=True)
+    return sessions / f"{session_id}.{purpose}"
 
 
 def adapter_is_live(session_id: str) -> bool:
     """Whether this session has a detached delivery carrier right now."""
     return lock_is_held(adapter_lease_path(session_id))
-
-
-def take_waiter_lease(path: Path):
-    """Take and return a wait lease, or None when another wait already holds it."""
-    require_cross_process_locking()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    record = open(path, "a+b")  # noqa: SIM115 - returned and held for the wait's life
-    try:
-        fcntl.flock(record, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    except BlockingIOError:
-        record.close()
-        return None
-    # Each holder writes its own start over the last holder's, so a reader can
-    # tell this wait from the one before it on the same lease (`started_wait`).
-    record.truncate(0)
-    record.write(secrets.token_hex(8).encode())
-    record.flush()
-    return record
 
 
 def started_wait(session_id: str) -> str | None:

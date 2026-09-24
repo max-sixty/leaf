@@ -17,6 +17,7 @@ from typing import NamedTuple
 import preview as preview_model
 import pytest
 from click.testing import CliRunner
+from example_data import patch_manifest
 from interact_support import install_payload, wait_for
 from leaf import cli as cli_model
 from leaf import data as data_model
@@ -183,10 +184,12 @@ def test_terminating_a_preview_stops_its_claimed_service(tmp_path, preview_slot,
 def test_terminating_a_preview_while_its_service_starts_leaves_none(
     tmp_path, preview_slot, spawn
 ):
-    """A stop that lands before the durable service has announced itself leaves
-    it disabled. The serving child runs in a session of its own, so the group
-    signal never reaches it, and the preview's stop can run before the child has
-    taken the page; the start used to stand behind that stop, enabled."""
+    """A stop that lands before the durable service has committed leaves none.
+    The serving child runs in a session of its own, so the group signal never
+    reaches it, and the preview's stop can run before the child has taken the
+    page; the start used to stand behind that stop, enabled. Now the preview's
+    interrupted start gives its claim back and closes the handshake, so the child
+    either refuses before recording a service or withdraws the one it recorded."""
     slot, page = preview_slot
     with (tmp_path / "preview.log").open("w", encoding="utf-8") as output:
         process = spawn(
@@ -217,7 +220,8 @@ def test_terminating_a_preview_while_its_service_starts_leaves_none(
     process.wait(timeout=30)
     wait_for(serving_child, lambda pids: not pids, failure="the service outlived it")
     assert server_model.running_server(page) is None
-    assert not json.loads((page / "service.json").read_text())["enabled"]
+    service = files_model.read_json(page / "service.json")
+    assert service is None or not service["enabled"], service
 
 
 def test_a_leaf_failure_exits_the_preview_without_a_wrapper_traceback(
@@ -1272,9 +1276,7 @@ def test_interactive_export_hydrates_captured_data_fragments_offline(
         "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n"
         '@@ -1 +1 @@\n-return "old"\n+return "new"\n'
     )
-    data_model.cmd_data_set(
-        serve.page_dir, "review-patch", data_model.unified_diff_manifest(patch)
-    )
+    data_model.cmd_data_set(serve.page_dir, "review-patch", patch_manifest(patch))
     interactive = tmp_path / "fragmented-interactive.html"
     result = CliRunner().invoke(
         cli_model.cli,
@@ -2180,8 +2182,8 @@ OPEN_EDIT = {
     "action": "edit",
     "detail": {"text": "The sample workshop is in the red room."},
     "meaning": {
-        "document": {"kind": "page", "revision": 1},
-        "coordinate": ["d-open", "d-open", "edit"],
+        "document": "page",
+        "unit": "d-open",
         "depends": ["d-open"],
         "answer": None,
     },

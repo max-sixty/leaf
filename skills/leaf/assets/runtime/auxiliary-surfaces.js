@@ -13,6 +13,9 @@
    page. Leaving that posture restores exactly the inert and role state it found; it
    does not rebuild, hide, or scroll either side.
 
+   Travel asks this owner to clear whatever surface hides a destination (`clearFor`),
+   so every trip that promises to show one closes the same surfaces by the same rule.
+
    Native inertness owns sequential focus and pointer reach. This owner adds the Tab
    wrap and programmatic-focus recovery that a non-top-layer surface still needs.
    Entering the boundary dismisses pre-existing outside popovers. Native dialogs, and
@@ -20,6 +23,7 @@
 
 import { openPopovers } from "./keyboard/layer-stack.js";
 import { registerAuxiliaryModality } from "./keyboard/register.js";
+import { hides, placeHolder } from "./geometry.js";
 import { under } from "./shadow.js";
 import { userStore } from "./storage.js";
 import { pagePresented } from "./presentation.js";
@@ -269,6 +273,18 @@ export function createAuxiliarySurfaces({
     });
   }
 
+  // Travel that promises to show a destination clears the selected surface hiding it:
+  // one covering the page, for anything outside it, or one standing over most of the
+  // destination where it lands (geometry.js, `hides`). A destination inside the surface
+  // is the surface's own to show. The one owner of this, so a trip to a thread, an Ask
+  // or a datum each clears whatever surface happens to stand.
+  function clearFor(where) {
+    const selected = controllers.get(selectedKey);
+    const holder = where && placeHolder(where);
+    if (!selected || !holder || under(holder, selected.surface)) return;
+    if (selected.covers() || hides(selected.surface, where)) select(null);
+  }
+  const selectedSurface = () => controllers.get(selectedKey)?.surface ?? null;
   const coveringSurface = () => active?.surface ?? null;
   const coveringScroller = () => active?.scroller() ?? null;
   const coveringFocus = () => (active ? (active.focus() ?? active.surface) : null);
@@ -284,6 +300,8 @@ export function createAuxiliarySurfaces({
     present,
     sync,
     mount,
+    clearFor,
+    selectedSurface,
     coveringSurface,
     coveringScroller,
     coveringFocus,

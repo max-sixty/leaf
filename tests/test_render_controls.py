@@ -1939,7 +1939,7 @@ def test_a_status_kind_change_is_announced_in_the_banners_own_words(browser, ser
     )
 
     claim = record_claim(serve.page_dir, id="s", pid=os.getpid())
-    lease = leases_model.take_waiter_lease(
+    lease = leases_model.take_lease(
         leases_model.waiter_lease_path(serve.page_dir, claim["id"])
     )
     assert lease

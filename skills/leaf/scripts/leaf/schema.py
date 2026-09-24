@@ -20,23 +20,20 @@ UNDOABLE_KINDS = {"resolve", "unresolve", "action", "done"}
 MESSAGE_KINDS = {"comment", "reply"}
 # The kinds a widget owns, admitted against the page's registry before they append.
 WIDGET_KINDS = {"action", "report", "request"}
-# The operations that settle a user move the agent owes, as `workflows` addresses
-# them and `$events.answering` explains them.
-ANSWER_KINDS = ("reply", "version", "markup", "receipt")
+# The operations that settle a user move the agent owes, as `workflows` and
+# `activity` address them and `$events.answering` explains them. A `turn` answer is
+# a thread reply the claimant's turn writes with its own opening and final messages.
+ANSWER_KINDS = ("reply", "turn", "markup", "receipt")
+# The answer kinds that post a message in a thread.
+THREAD_ANSWER_KINDS = frozenset({"reply", "turn"})
 ANSWER_ASK_INSTRUCTION = (
     "Each move takes the answer named for it. Read current obligations with `leaf page state <page>` and conversation history with "
     "`leaf conversation read <page> <id>`."
 )
 WAIT_BATCH_OUTPUT_INSTRUCTION = (
     "Print one page's complete ordered batch, conversation context, and response "
-    "requirements as an immutable delivery. `leaf delivery read <id>` reads that same delivery."
-)
-ACK_BATCH_INSTRUCTION = (
-    "If output is truncated, acknowledge nothing; rerun with enough output capacity "
-    "for the whole batch. If you handle the batch yourself, read it fully, then "
-    "acknowledge it before any other work. If forwarding it, acknowledge once it "
-    "durably arrives there. Run `leaf wait --ack <delivery-id>` in the "
-    "background to acknowledge its captured batches and wait for the next batch while the page remains live."
+    "requirements as an immutable delivery, whose `acknowledge` says how to confirm "
+    "it. `leaf delivery read <id>` reads that same delivery."
 )
 
 HTML_NAME = r"[a-z][a-z0-9-]*"

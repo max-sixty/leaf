@@ -18,11 +18,10 @@ whose "Delivery and acknowledgement" section says how a wait ends. Its job is:
    this instruction before the wait output:
 
    ```text
-   This Leaf batch was forwarded by a watcher task. Handle every event, but do not run
-   `leaf wait`, even where its handling says to acknowledge with `leaf wait --ack`: the
-   watcher owns the wait and acknowledges this batch only after this follow-up is
-   accepted. A page and event seq already handled is a retry, even when a
-   later delivery also contains newer events.
+   This Leaf batch was forwarded by a watcher task, which ran the wait and
+   acknowledges it once this follow-up is accepted. Handle every event, and run no
+   `leaf wait` yourself. A page and event seq already handled is a retry, even when
+   a later delivery also contains newer events.
    ```
 
    Append the complete wait output verbatim. If the send fails or its outcome is

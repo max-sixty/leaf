@@ -1,6 +1,7 @@
 """Agent status, waiting, and acknowledgement policy."""
 
 import json
+import secrets
 import sys
 import time
 from collections.abc import Callable
@@ -15,15 +16,15 @@ from .delivery import (
     receive_batch,
     record_pickup,
 )
+from .detached import StartRefused
 from .files import file_stamp, next_reading, read_json
 from .host import Harness, session_harness
 from .hosting import start_server
-from .leases import take_waiter_lease, waiter_lease_path
+from .leases import take_lease, waiter_lease_path
 from .locations import path_location, paths_same
 from .machine import state_home
 from .revisioning import activate_source
 from .schema import (
-    ACK_BATCH_INSTRUCTION,
     ANSWER_ASK_INSTRUCTION,
     SERVICE_FILE,
     STATUS_FILE,
@@ -188,7 +189,7 @@ def cmd_idle(page_dir: Path, detail: str, on: str | None) -> None:
         if pending:
             sys.exit(
                 f"{pending} update{'s' if pending != 1 else ''} nobody has picked up; "
-                "read them with `leaf wait` before idling. " + ACK_BATCH_INSTRUCTION
+                "read them with `leaf wait` before idling"
             )
         owed = [
             obligation
@@ -256,10 +257,16 @@ class Watch:
         if self.leases:
             return True
         for path in self.lease_paths:
-            lease = take_waiter_lease(path)
+            lease = take_lease(path)
             if lease is None:
                 self.release()
                 return False
+            # Each wait writes its own start over the last one's, so a reader can
+            # tell this wait from the one before it on the same lease
+            # (`leases.started_wait`).
+            lease.truncate(0)
+            lease.write(secrets.token_hex(8).encode())
+            lease.flush()
             self.leases.append(lease)
         return True
 
@@ -312,7 +319,11 @@ class Watch:
                 # Discovery can race deletion; a missing marker is no page.
                 continue
 
-            started = start_server(page_dir, revive=True)
+            try:
+                started = start_server(page_dir, revive=True)
+            except StartRefused as error:
+                print(error, file=sys.stderr)
+                started = None
             key = str(page_dir)
             if started:
                 self._revived.add(key)
@@ -404,24 +415,42 @@ class _WatchPass(NamedTuple):
     outcome: int | None
 
 
-def delivery_json(reading: PageTick) -> str:
+def wait_acknowledgement(harness: Harness | None) -> Callable[[str], str]:
+    """What a `leaf wait` delivery tells its reader about acknowledging it.
+
+    Printing is not receipt, so the reader of the wait confirms it, in the way its
+    harness runs the next wait. It is stated once for the delivery, ahead of the
+    batches, where output cut off partway still shows it."""
+    run_ack = (harness or Harness).run_ack
+
+    def acknowledge(delivery_id: str) -> str:
+        return (
+            "Whoever ran the `leaf wait` that printed this delivery acknowledges "
+            "it; until then the user's moves read Sent rather than Picked up. If "
+            "the output was cut off, acknowledge nothing and rerun the wait with room "
+            "for the whole envelope. If you handle it, acknowledge before any other "
+            "work; if you forward it, acknowledge once it durably arrives there. To "
+            f"acknowledge, {run_ack(delivery_id)}: it confirms this delivery and "
+            "waits for the next."
+        )
+
+    return acknowledge
+
+
+def delivery_json(reading: PageTick, harness: Harness | None) -> str:
     """Freeze and serialize a watcher reading as one delivery envelope."""
     payload = freeze_delivery(
         [batch_data(reading.page_dir, reading.transaction, reading.batch)],
         carrier="wait",
+        acknowledge=wait_acknowledgement(harness),
     )
     return json.dumps(payload, ensure_ascii=False)
-
-
-def _deliver_batch(reading: PageTick) -> None:
-    """Print immutable input; only the consumer can confirm receipt."""
-    print(delivery_json(reading), flush=True)
 
 
 def read_watch_pass(
     watch: Watch,
     named: Path | None,
-    deliver: Callable[[PageTick], None] = _deliver_batch,
+    deliver: Callable[[PageTick], None],
 ) -> _WatchPass:
     """Read pages until this pass completes or one page ends the wait."""
     readings = []
@@ -558,10 +587,15 @@ def cmd_wait(page_dir: Path | None = None, *, ack: str | None = None) -> int:
         target = "this session" if harness else ", ".join(map(str, explicit))
         print(f"another `leaf wait` is already active for {target}", file=sys.stderr)
         return 2
+
+    def print_delivery(reading: PageTick) -> None:
+        """Print immutable input; only the consumer can confirm receipt."""
+        print(delivery_json(reading, harness), flush=True)
+
     try:
         while True:
             mark = watch.mark()
-            reading = read_watch_pass(watch, named)
+            reading = read_watch_pass(watch, named, print_delivery)
             if reading.outcome is not None:
                 return reading.outcome
             if not reading.live:

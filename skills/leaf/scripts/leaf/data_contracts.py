@@ -83,19 +83,15 @@ def merge_data_bindings(
 
 
 def _contract_semantics(registry: dict, contract: str) -> tuple[dict, dict | None]:
-    """The validation and fragmented-delivery meaning of one contract.
+    """The validation and record meaning of one contract.
 
     Descriptions and agent guidance may improve without changing what a source value
-    means to a pinned document. JSON Schema and the fragment coordinate may not: an
+    means to a pinned document. JSON Schema and the record declaration may not: an
     old document keeps consuming the page's replaceable current value through the
     registry captured with that document.
     """
     declaration = registry["$data"]["contracts"][contract]
-    return (
-        declaration["schema"],
-        declaration.get("records") or declaration.get("fragments"),
-        declaration.get("fragments"),
-    )
+    return declaration["schema"], declaration.get("records")
 
 
 def merge_data_document_readings(
@@ -124,7 +120,7 @@ def merge_data_document_readings(
             if source in semantics and semantics[source] != meaning:
                 errors.append(
                     f"source {source!r} keeps contract {contract!r}, but its schema "
-                    f"or fragment coordinate changes between {seats[source]} and "
+                    f"or record declaration changes between {seats[source]} and "
                     f"{seat}; use a new source id for the new meaning"
                 )
                 continue
@@ -209,7 +205,7 @@ def data_contract_transition_errors(
             ):
                 errors.append(
                     f"source {source!r} contract {contract!r} changes its schema or "
-                    f"fragment coordinate from {seats[source]}"
+                    f"record declaration from {seats[source]}"
                 )
     return errors
 
@@ -421,8 +417,7 @@ def payload_error(source: str, contract: str, value, registry: dict) -> str | No
             f"unresolved reference {error.ref!r}"
         )
     if error is None:
-        fragments = declaration.get("fragments")
-        records = declaration.get("records") or fragments
+        records = declaration.get("records")
         items = (
             value.get(records["items"]) if records and isinstance(value, dict) else None
         )
@@ -438,20 +433,20 @@ def payload_error(source: str, contract: str, value, registry: dict) -> str | No
                 key = item.get(records["key"]) if isinstance(item, dict) else None
                 if not isinstance(key, str) or not key:
                     return (
-                        f"source {source!r} contract {contract!r} fragment item "
+                        f"source {source!r} contract {contract!r} record "
                         f"{index} needs a non-empty string {records['key']!r}"
                     )
-                if fragments and fragments["value"] not in item:
+                if "deferred" in records and records["deferred"] not in item:
                     return (
-                        f"source {source!r} contract {contract!r} fragment item "
-                        f"{index} needs {fragments['value']!r}"
+                        f"source {source!r} contract {contract!r} record "
+                        f"{index} needs {records['deferred']!r}"
                     )
                 if key in keys:
                     duplicates.add(key)
                 keys.add(key)
             if duplicates:
                 return (
-                    f"source {source!r} contract {contract!r} fragment keys must be "
+                    f"source {source!r} contract {contract!r} record keys must be "
                     f"unique; repeated {sorted(duplicates)}"
                 )
         return None

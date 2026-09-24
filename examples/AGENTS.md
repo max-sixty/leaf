@@ -140,8 +140,9 @@ complete current value. A reserved `$captures` object instead maps a source id t
 `file` and optional `format` or `lines`; the file is a sibling of the
 example. The format defaults to `text`, where `lines` may select an inclusive
 range; a large unified diff stays in its `.patch` source and is captured with
-`"format": "unified-diff"`. Builders apply captures first and then current values
-through `leaf data capture` and `leaf data set`, so binding, contract validation,
+`"format": "unified-diff"`, which runs the `diff` package's `patch_manifest.py` on it.
+Builders set captures first and then current values through `leaf data set`, so
+binding, contract validation,
 live preview, browser sweeps, and the static site all exercise the
 real doors. `scripts/corpus.py` composes those companions into
 `corpus.data.json`.

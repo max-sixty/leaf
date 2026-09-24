@@ -2,11 +2,15 @@
 
 import json
 import re
+import subprocess
 from html.parser import HTMLParser
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 TEST_PAGES = ROOT / "tests" / "fixtures" / "pages"
+PATCH_MANIFEST = (
+    ROOT / "skills" / "leaf" / "packages" / "diff" / "scripts" / "patch_manifest.py"
+)
 
 
 def regression_sources() -> list[Path]:
@@ -77,26 +81,49 @@ def example_versions(source: Path) -> list[Path]:
     return [*priors, source]
 
 
+def patch_manifest(patch: str) -> dict:
+    """The `diff` package's producer script's manifest for one patch.
+
+    It runs the way an agent runs it, `uv run` in the environment its inline
+    metadata declares, so the fixtures and the suite exercise that command rather
+    than an import of it. A refused patch raises with the script's stderr."""
+    produced = subprocess.run(
+        ["uv", "run", "--quiet", str(PATCH_MANIFEST)],
+        input=patch.encode("utf-8"),
+        capture_output=True,
+        check=False,
+    )
+    if produced.returncode != 0:
+        raise ValueError(produced.stderr.decode("utf-8").strip())
+    return json.loads(produced.stdout)
+
+
+def captured_value(file: Path, spec: dict):
+    """One `$captures` entry's value: the file's text, an inclusive `lines` range of
+    it, or, for `"format": "unified-diff"`, the patch's file manifest."""
+    text = file.read_text(encoding="utf-8")
+    if spec.get("format") == "unified-diff":
+        return patch_manifest(text)
+    if (lines := spec.get("lines")) is None:
+        return text
+    start, end = (int(bound) for bound in lines.split(":"))
+    selected = text.splitlines(keepends=True)[start - 1 : end]
+    if len(selected) != end - start + 1:
+        raise ValueError(f"{file}: lines {lines} run past the file's end")
+    return "".join(selected)
+
+
 def data_operations(source: Path) -> list[dict]:
-    """Return captures first, then replaceable values, for one example source."""
+    """Every source value one example sets: captures first, then written values."""
     companion = source.with_suffix(".data.json")
     if not companion.exists():
         return []
     document = json.loads(companion.read_text(encoding="utf-8"))
-
-    operations = []
-    for name, spec in document.pop("$captures", {}).items():
-        operations.append(
-            {
-                "kind": "capture",
-                "source": name,
-                "input_file": source.parent / spec["file"],
-                "format": spec.get("format", "text"),
-                "lines": spec.get("lines"),
-            }
-        )
-    operations.extend(
-        {"kind": "set", "source": name, "value": value}
-        for name, value in document.items()
-    )
-    return operations
+    captures = [
+        {"source": name, "value": captured_value(source.parent / spec["file"], spec)}
+        for name, spec in document.pop("$captures", {}).items()
+    ]
+    return [
+        *captures,
+        *({"source": name, "value": value} for name, value in document.items()),
+    ]

@@ -31,7 +31,7 @@ reference="$(cd "$reference" && pwd -P)"
 printf '%s\n' "$run_dir" > "$results/run-dir.txt"
 printf '%s\n' "$reference" > "$results/reference-dir.txt"
 
-# Like vendor.py, pin direct npm inputs and keep fetched dependencies out of
+# Pin direct npm inputs and keep fetched dependencies out of
 # the plugin payload. The reference host supplies its own committed lockfile.
 npm install --prefix "$dependencies" --no-save --no-package-lock --no-audit --no-fund \
   esbuild-wasm@0.28.2 @modelcontextprotocol/ext-apps@1.7.5

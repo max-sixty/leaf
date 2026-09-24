@@ -110,6 +110,26 @@ def append_command(page_dir, command):
         return event_contracts_model.append_admitted(page, command)
 
 
+def write_revision(page_dir: Path, revision: int, data: bytes) -> Path:
+    """Write revision `revision` of `data` under the page's current registry.
+
+    A shortcut past `version stamp` for a test that stages history directly: it
+    runs no gate and no activation, and refuses a revision number already taken."""
+    from leaf.registry.storage import read_page_registry
+    from leaf.revision_artifact import capture_artifact, write_artifact
+    from leaf.structure import SourceDocument
+
+    candidate = read_page_registry(page_dir)
+    artifact = capture_artifact(
+        page_dir,
+        SourceDocument(data.decode("utf-8")),
+        candidate.registry,
+        declaration_sources=candidate.declaration_sources,
+        widget_sources=candidate.widget_sources,
+    )
+    return write_artifact(page_dir, revision, artifact)
+
+
 @cache
 def model_layer(*packages: str) -> dict:
     """The vocabulary `page init` vendors for one package selection.
@@ -675,8 +695,8 @@ ACCEPT = {
     "action": "decide",
     "detail": {"outcome": "accept"},
     "meaning": {
-        "document": {"kind": "page", "revision": 1},
-        "coordinate": ["sug-a", "sug-a", "decide"],
+        "document": "page",
+        "unit": "sug-a",
         "depends": ["sug-a"],
         "answer": "c1",
     },
@@ -1039,7 +1059,7 @@ def neighbour_page(directory, title=None, dead=False, published=True):
     (directory / "index.html").write_text(html)
     initialized = CliRunner().invoke(cli_model.cli, ["page", "init", str(directory)])
     assert initialized.exit_code == 0, initialized.output
-    files_model.write_revision(directory, 1, html.encode())
+    write_revision(directory, 1, html.encode())
     # What `page init` writes: a page always has a status record.
     files_model.write_json(
         directory / "status.json",

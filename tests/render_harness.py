@@ -786,11 +786,11 @@ def told(page):
             raise AssertionError(
                 f"the page never took in what the server holds: waiting for {began}, "
                 f"the page last applied "
-                f"{page.evaluate('() => document.body.dataset.lfReading')}"
+                f"{page.evaluate('() => document.body?.dataset.lfReading')}"
             )
         try:
             page.wait_for_function(
-                "want => document.body.dataset.lfReading === want",
+                "want => document.body?.dataset.lfReading === want",
                 arg=want,
                 timeout=min(500, remaining * 1000),
                 polling=50,
@@ -1197,6 +1197,13 @@ ONE_FRAME = f"() => ({FRAMES})(1)"
 RENDERED = f"() => ({FRAMES})(2)"
 
 
+# What navigate reports when a ResizeObserver loop notice comes back on the confirming
+# navigation, so a one-off notice is dropped and a recurring one fails the test.
+RECURRING_RESIZE_NOTICE = (
+    "window error: ResizeObserver loop notice recurred on the confirming navigation"
+)
+
+
 def navigate(page, url, *, wait_until="load", ready=BOTH_STAMPS):
     """Navigate through a complete page handover, classifying only the
     ResizeObserver notices raised during that navigation.
@@ -1236,7 +1243,7 @@ def navigate(page, url, *, wait_until="load", ready=BOTH_STAMPS):
         errors.extend(notice for notice in notices if notice not in errors)
         raise
     if confirming_notices:
-        errors.append(render_gate_model.recurring_resize_observer_error("navigation"))
+        errors.append(RECURRING_RESIZE_NOTICE)
 
 
 def shortcut_bar_text(page):

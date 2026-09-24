@@ -7,6 +7,7 @@ from copy import deepcopy
 from datetime import datetime, timedelta
 
 import pytest
+import render_harness
 from click.testing import CliRunner
 from interact_support import (
     COMMAND_HUB_PACKAGE,
@@ -26,6 +27,7 @@ from leaf import structure as structure_model
 from leaf.render_gate import version as render_gate_model
 from leaf.render_gate.preview import preview_server
 from leaf.validation import compatibility as validation_model
+from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_cases_interaction import (
     ASKS_IN_ORDER,
@@ -583,6 +585,7 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
 
     page.keyboard.press("Escape")
     expect(page.locator("#patch [data-line-type]")).to_have_count(0)
+    entries = page.evaluate("history.length")
     lines.nth(1).locator(".lf-call-location").click()
     context = page.locator(
         'lf-diff [data-lf-datum=\'["gateway/limits.py","both",38,38]\']'
@@ -601,7 +604,6 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     expect(context).to_be_hidden()
     lines.nth(2).locator(".lf-call-location").click()
     expect(search).to_have_value("")
-    expect(page).to_have_url(re.compile(r"#patch$"))
     added = page.locator('lf-diff [data-lf-datum=\'["gateway/limits.py","new",40]\']')
     expect(added).to_be_in_viewport()
     expect(page.locator(".lf-live")).to_have_text(
@@ -611,6 +613,10 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
         "() => document.querySelector('#patch').shadowRoot.activeElement"
         ".matches('summary')"
     )
+    # Each line already stood in the window once the diff revealed it, so neither
+    # trip departed: no history entry, and the address kept no fragment.
+    assert page.evaluate("history.length") == entries
+    expect(page).not_to_have_url(re.compile(r"#patch$"))
 
     data_model.cmd_data_set(
         serve.page_dir,
@@ -3795,6 +3801,34 @@ def test_a_revision_that_rewrites_a_draft_leaves_the_user_where_they_stand(
     # The rewritten draft has connected and read its edit back: the words are kept.
     expect(editor).to_have_value("Ship it, but louder.")
     expect(pick).to_be_focused()
+
+
+def test_told_waits_through_a_document_without_a_body(browser, monkeypatch):
+    """The replacement navigation can be between its html and body while told polls."""
+    page = browser.new_page()
+    page.set_content('<body data-lf-reading="ready"></body>')
+    monkeypatch.setattr(render_harness, "_server_reading", lambda _page: "ready")
+    page.evaluate(
+        "() => { window.detachedBody = document.body; document.body.remove(); }"
+    )
+    assert page.evaluate("() => document.body === null")
+    real_wait = page.wait_for_function
+    attempts = 0
+
+    def wait_for_function(*args, **kwargs):
+        nonlocal attempts
+        attempts += 1
+        try:
+            return real_wait(*args, **kwargs)
+        except PlaywrightTimeout:
+            page.evaluate("() => document.documentElement.append(window.detachedBody)")
+            raise
+
+    monkeypatch.setattr(page, "wait_for_function", wait_for_function)
+
+    told(page)
+    assert attempts == 2
+    assert page.evaluate("() => document.body.dataset.lfReading") == "ready"
 
 
 def test_the_replacing_install_gives_back_the_same_apparatus(browser, serve):

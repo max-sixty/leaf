@@ -10,7 +10,7 @@ mutable-source locations are offered only when that source is the same document.
 from copy import deepcopy
 from pathlib import Path
 
-from .data import data_fragments, data_manifest, source_file
+from .data import data_manifest, deferred_records, source_file
 from .projection import (
     StateProjection,
     authored_rank,
@@ -65,11 +65,11 @@ def input_readings(
                 reading["value"], spec["contract"], registry
             )
             inputs[name]["updated"] = reading["updated"]
-            if fragments := data_fragments(
+            if records := deferred_records(
                 reading["value"], spec["contract"], registry
             ):
-                inputs[name]["fragments"] = {
-                    **fragments,
+                inputs[name]["deferred"] = {
+                    **records,
                     "file": str(source_file(page_dir, source)),
                     "revision": reading["revision"],
                 }

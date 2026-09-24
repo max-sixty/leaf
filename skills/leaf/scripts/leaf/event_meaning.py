@@ -52,14 +52,19 @@ def direct_dependencies(event: dict, spec: dict) -> list[str]:
     return dependencies
 
 
-def state_meaning(event: dict, entry: dict, document: dict) -> dict:
-    """Resolve one validated verb using its sending document's declaration."""
+def state_meaning(event: dict, entry: dict, document: str) -> dict:
+    """Resolve one validated verb using its sending document's declaration.
+
+    Only what a registry-free reader cannot recover from the event is stored: the
+    fold unit, the identities the declared record fields name, and a created
+    child's tag. The owner and verb are the event's `widget` and `action`, and a
+    page document is the revision the event names (`events.event_coordinate`,
+    `events.event_document`)."""
     spec = entry["x-state"][event["action"]]
     dependencies = direct_dependencies(event, spec)
-    owner, unit = dependencies[:2]
     meaning = {
         "document": document,
-        "coordinate": [owner, unit, event["action"]],
+        "unit": dependencies[1],
         "depends": sorted(set(dependencies)),
     }
     # A created child's unit is new, so no document may yet hold it. Stamping its
@@ -87,7 +92,7 @@ def answer_meaning(
         return False, None
     withdrawn = entry.get("x-withdrawn-as")
     declined = withdrawn is not None and event["detail"].get("outcome") == withdrawn
-    if event["meaning"]["document"]["kind"] == "page":
+    if event["meaning"]["document"] == "page":
         reading = readings.page(sender, event["revision"])
         byid = sender.by_id
     else:
@@ -122,10 +127,10 @@ def admit_widget_event(sender, event: dict, readings: AdmissionReadings) -> dict
     `sender` is the authored document of the revision the command names."""
     events, registry = readings.events, readings.registry
     record = sender.by_id.get(event["widget"])
-    document = {"kind": "page", "revision": event["revision"]}
+    document = "page"
     if record is None:
         record = thread_structure(events).by_id[event["widget"]]
-        document = {"kind": "thread"}
+        document = "thread"
     entry = registry[record["tag"]]
     admitted = dict(event)
     if event["kind"] == "request":
@@ -140,43 +145,25 @@ def admit_widget_event(sender, event: dict, readings: AdmissionReadings) -> dict
     return admitted
 
 
-def stored_meaning_error(
-    event: dict,
-    page,
-    thread,
-    registry: dict,
-    recorded_registry: dict,
-    *,
-    recorded_page,
+def admitted_contract_error(
+    event: dict, page, thread, registry: dict, recorded_registry: dict, *, recorded_page
 ) -> str | None:
-    """Reject a candidate that would reinterpret one admitted command.
+    """Reject a candidate registry that would read one admitted command differently.
 
-    The recorded side comes from the immutable artifact named by the event. The
+    The stored meaning already fixes the identities admission derived, so no
+    candidate can move those. What folds still read through the vocabulary is the
+    verb's declaration — its fold unit, which decides the shape its state takes,
+    its record form, created child, update field, or request binding — and that
+    must stay what the event's own captured registry said. The
     candidate side comes from the document being checked, except that thread widgets
-    live in their frozen markup for the page's whole lifetime. `answer` is the one
-    part of the meaning read off the log at admission, so it stays as admitted and
-    no candidate is asked to derive it again.
+    live in their frozen markup for the page's whole lifetime.
     """
-    scope = event["meaning"]["document"]["kind"]
-    if scope == "page":
+    if event["meaning"]["document"] == "page":
         record = page.by_id[event["widget"]]
         recorded = recorded_page.by_id[event["widget"]]
-        document = {"kind": "page", "revision": event["revision"]}
     else:
         record = recorded = thread.by_id[event["widget"]]
-        document = {"kind": "thread"}
     entry = registry[record["tag"]]
-    expected = (
-        {
-            "document": document,
-            "unit": request_unit(event, entry["x-request"]["verbs"][event["action"]]),
-        }
-        if event["kind"] == "request"
-        else state_meaning(event, entry, document)
-    )
-    admitted = {k: v for k, v in event["meaning"].items() if k != "answer"}
-    if admitted != expected:
-        return f"{event['kind']} {event['id']} changes admitted meaning from {event['meaning']!r} to {expected!r}"
     if event["kind"] == "request":
         before_request = recorded_registry[recorded["tag"]]["x-request"]
         after_request = entry["x-request"]
@@ -188,14 +175,15 @@ def stored_meaning_error(
             or before.get("unit") != after.get("unit")
         ):
             return f"request {event['id']} changes its admitted record binding"
-    if event["kind"] in {"action", "report"}:
-        before = recorded_registry[recorded["tag"]]["x-state"][event["action"]]
-        after = entry["x-state"][event["action"]]
-        for field, label in (
-            ("record", "record form"),
-            ("creates", "creates declaration"),
-            ("update", "update field"),
-        ):
-            if before.get(field) != after.get(field):
-                return f"{event['kind']} {event['id']} changes its admitted {label}"
+        return None
+    before = recorded_registry[recorded["tag"]]["x-state"][event["action"]]
+    after = entry["x-state"][event["action"]]
+    for field, label in (
+        ("unit", "fold unit"),
+        ("record", "record form"),
+        ("creates", "creates declaration"),
+        ("update", "update field"),
+    ):
+        if before.get(field) != after.get(field):
+            return f"{event['kind']} {event['id']} changes its admitted {label}"
     return None

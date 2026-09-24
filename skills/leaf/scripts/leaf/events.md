@@ -92,17 +92,24 @@ otherwise it reads the named revision's vocabulary, checks that the kind is
 declared, runs its gates against the page and standing log, derives server-owned
 meaning, and validates the finished record against its stored-record contract.
 Using the event's revision keeps re-vendoring from reinterpreting an open document.
-A refusal returns a command error or a final HTTP 400.
+A refusal returns a command error or a final HTTP 400. A fault raises instead, since
+it may land either side of the append; the HTTP transport's one fault boundary
+(`http.PageEndpoint._answer`) records it and answers HTTP 500 without `final`, so
+the browser retries the same attempt.
 
 Transports own only their input boundary: which kinds and fields they accept,
 how they answer retries, and whether their anchors need file-side capture.
 
 Browser POSTs are commands. The append transaction stamps the accepted event with
 server-owned `meaning`; callers cannot send it, and retry identity
-compares the original command fields rather than this enrichment. Actions and
-reports record `document`, the `[owner, unit, verb]` coordinate, and `depends`,
-the direct element identities named by declared state fields. Requests record
-their page-revision or frozen-thread document identity. An action whose admission
+compares the original command fields rather than this enrichment. Meaning holds
+only what a reader without the sending registry cannot recover from the event
+itself. Every widget event records `document`, `page` or `thread`: a page event's
+document is the revision the event names, and a thread event's is the frozen
+markup that sent its widget. It also records `unit`, the fold unit or request
+seat, so an action or report stands on the `[widget, unit, action]` coordinate.
+Actions and reports add `depends`, the direct element identities named by the
+owner, the unit, and declared state fields. An action whose admission
 makes its widget's `x-awaits.answered` condition hold is that Ask's answer and
 additionally records `answer`: the widget's authored `resolves`, read from the
 sending document, names the thread the answer closes, and null answers without

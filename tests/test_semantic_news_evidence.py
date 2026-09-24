@@ -139,10 +139,11 @@ def test_request_outcomes_keep_receipts_after_the_seat_is_removed():
         {
             "kind": "request",
             "id": "first",
+            "revision": 1,
             "widget": "old-seat",
             "action": "submit",
             "meaning": {
-                "document": {"kind": "page", "revision": 1},
+                "document": "page",
                 "unit": "old-seat",
             },
         },
@@ -156,10 +157,11 @@ def test_request_outcomes_keep_receipts_after_the_seat_is_removed():
         {
             "kind": "request",
             "id": "second",
+            "revision": 1,
             "widget": "old-seat",
             "action": "submit",
             "meaning": {
-                "document": {"kind": "page", "revision": 1},
+                "document": "page",
                 "unit": "old-seat",
             },
         },

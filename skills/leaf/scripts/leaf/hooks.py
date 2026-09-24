@@ -11,7 +11,6 @@ from .files import next_reading, read_json
 from .host import claim_harness
 from .leases import started_wait, waiter_lease_path
 from .schema import (
-    ACK_BATCH_INSTRUCTION,
     ANSWER_ASK_INSTRUCTION,
     PREVIEW_FILE,
     STATUS_FILE,
@@ -27,16 +26,20 @@ from .service import (
 )
 
 
-def _stream_answers(reply: dict | None, obligation: dict, state: dict) -> bool:
-    """Whether App Server finished the exact answer this Stop is closing."""
+def _turn_wrote(obligation: dict, state: dict) -> bool:
+    """Whether the turn this Stop is closing finished the reply it owes this move.
+
+    A `turn` answer is written by the claimant's own turn, and the carrier commits
+    it once the turn ends, which is after this hook runs. So the move is answered
+    here when the turn's final message is complete, with text, in the reply draft
+    bound to it."""
+    draft = obligation.get("response") or {}
     return bool(
-        reply
-        and reply.get("state") == "active"
-        and reply.get("settles")
-        and reply.get("has_text")
-        and reply.get("session") == state["claim_session"]
-        and reply.get("turn") == state["claim_turn"]
-        and reply.get("responds") == obligation["input"]
+        obligation["answer"]["kind"] == "turn"
+        and draft.get("state") == "active"
+        and draft.get("settles")
+        and draft.get("has_text")
+        and draft.get("turn") == state["claim_turn"]
     )
 
 
@@ -86,14 +89,13 @@ def unattended_pages(
         # Queue acceptance belongs to the originating turn, so it is not debt
         # there. The later UserPromptSubmit still opens it below; from that
         # point its ordinary unanswered debt is enforced again.
-        # A draft reply counts as the answer only while the carrier that would
-        # commit it is alive; otherwise nothing will finish it.
-        reply = state["activity"].get("reply") if carried else None
+        # A finished turn answer counts only while the carrier that would commit
+        # it is alive; otherwise nothing will.
         stale = [
             obligation
             for obligation in acknowledged
             if obligation["stage"] != "queued"
-            and not _stream_answers(reply, obligation, state)
+            and not (carried and _turn_wrote(obligation, state))
         ]
         if stale:
             page_reasons.append(
@@ -112,15 +114,13 @@ def unattended_pages(
             if n:
                 # The harness's own remedy names this page, so it stays on the
                 # line; what follows it is the same for every page in the batch.
+                # The delivery that carries them says how to acknowledge it.
                 page_reasons.append(
                     (
                         f"{page_dir}: {n} update{'s' if n != 1 else ''} you haven't "
                         "picked up. "
                         + harness.input_unpicked(page_dir, listening=listening),
-                        (
-                            f"{ACK_BATCH_INSTRUCTION} The agent handling the batch "
-                            "must address every event."
-                        ),
+                        None,
                     )
                 )
             # Nothing is owed and nothing is listening. That is a debt on a page

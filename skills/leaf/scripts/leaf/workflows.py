@@ -15,6 +15,11 @@ Answers are one of:
 
 - `{"kind": "reply", "to": <message>, "for": <event>}` — a thread input, or a
   move in an answered Ask in frozen thread markup, answered by `leaf reply --for`;
+- `{"kind": "turn", "to", "for", "attempt": <reply attempt>}` — the same reply
+  once it is bound to the claimant's App Server turn, which writes it with its own
+  opening and final messages. The binding lives in the page's stream status, so
+  `activity` routes the answer, and a delivery frozen for App Server routes it
+  ahead of the binding; `leaf reply` refuses every writer but that attempt;
 - `{"kind": "markup", "action": <action>}` — a page action that is part of its
   widget's answered Ask and the authored markup does not yet record, answered by
   a stamped version that writes it in;

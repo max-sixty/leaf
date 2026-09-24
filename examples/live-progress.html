@@ -55,17 +55,26 @@
         The production canary is paused at 25%. Customer checkout is healthy, but
         finance export is one row short and must reconcile before traffic expands.
       </p>
+      <p id="lp-tags">
+        <span class="tag warn">Paused at 25%</span>
+        <span class="tag danger">Finance export failing</span>
+        <span class="tag ok">Checkout healthy</span>
+      </p>
 
       <lf-grid id="lp-layout" columns="2fr 1fr">
         <lf-grid id="lp-body" columns="1">
           <lf-grid id="lp-status" columns="4">
             <lf-metric id="lp-k-traffic" value="25%">candidate traffic</lf-metric>
-            <lf-metric id="lp-k-checks" value="4 of 5">checks passing</lf-metric>
-            <lf-metric id="lp-k-latency" value="184 ms">p95 latency</lf-metric>
+            <lf-metric id="lp-k-checks" value="4 of 5" delta="-1" direction="up-good"
+              >checks passing</lf-metric
+            >
+            <lf-metric id="lp-k-latency" value="184 ms" delta="-6 ms" direction="up-bad"
+              >p95 latency</lf-metric
+            >
             <lf-metric id="lp-k-observed" value="14:24:44">last observation</lf-metric>
           </lf-grid>
           <section id="lp-decision">
-            <aside class="callout" id="lp-current-state">
+            <aside class="callout warn" id="lp-current-state">
               <strong>Paused at 25%</strong>
               Automatic promotion stopped when the finance-parity check failed. The
               candidate remains live for canary traffic while Ledger traces a
@@ -89,6 +98,25 @@
                 </p>
               </lf-release-action>
             </lf-release-actions>
+          </section>
+          <section class="panel" id="lp-traffic">
+            <h2>Candidate traffic since deploy</h2>
+            <lf-chart
+              id="lp-traffic-chart"
+              kind="line"
+              y="share of checkout traffic (%)"
+            >
+              <pre>
+minutes since deploy, checkout-v2
+0, 0
+1, 5
+2, 10
+3, 25
+4, 25
+5, 25
+6, 25
+</pre>
+            </lf-chart>
           </section>
           <section class="panel" id="lp-checks">
             <h2>Checks</h2>

@@ -1111,6 +1111,20 @@ section.panel > :is(h2, h3):first-child {
   margin: 0 0 10px; font: 600 var(--t-6)/1.3 var(--sans); letter-spacing: .06em;
   text-transform: uppercase; color: var(--muted); }
 section.panel > :last-child { margin-bottom: 0; }
+/* A status a label or a callout carries, in the three tones every status on the page is
+   drawn in (lf-chip's `tone`, a metric's delta, a check's result). The tint is the whole
+   of the marking and the ink its text, so a tone never needs a word of its own to be
+   read, and never stands in for one. */
+.tag.ok, .callout.ok { --lf-tone-tint: var(--ok-tint); --lf-tone-ink: var(--ok-ink); }
+.tag.warn, .callout.warn { --lf-tone-tint: var(--warn-tint); --lf-tone-ink: var(--warn-ink); }
+.tag.danger, .callout.danger {
+  --lf-tone-tint: var(--danger-tint); --lf-tone-ink: var(--danger-ink); }
+.tag:is(.ok, .warn, .danger) { background: var(--lf-tone-tint); color: var(--lf-tone-ink); }
+/* A callout's prose stays in the body's ink; its title takes the tone. */
+.callout:is(.ok, .warn, .danger) {
+  background: var(--lf-tone-tint);
+  border-color: color-mix(in srgb, var(--lf-tone-ink) 22%, transparent); }
+.callout:is(.ok, .warn, .danger) > strong:first-child { color: var(--lf-tone-ink); }
 /* A sidebar is page-level supporting material rather than an annotation on one block:
    local navigation, a compact legend, or stable reference facts. In ordinary flow it is
    simply an aside where it was authored. On a roomy screen its box moves into the left

@@ -1111,8 +1111,8 @@ def test_monitoring_evidence_moves_without_stealing_position_or_the_summary(
             '<lf-metric id="lp-k-traffic" value="100%">target traffic</lf-metric>',
         ),
         (
-            '<lf-metric id="lp-k-checks" value="4 of 5">checks passing</lf-metric>',
-            '<lf-metric id="lp-k-checks" value="5 of 5">checks passing</lf-metric>',
+            'id="lp-k-checks" value="4 of 5" delta="-1" direction="up-good"',
+            'id="lp-k-checks" value="5 of 5"',
         ),
         (
             '<lf-milestone id="lp-step-checks" status="blocked" when="now">',

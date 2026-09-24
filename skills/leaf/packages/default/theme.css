@@ -1474,6 +1474,16 @@ lf-column > [data-lf-said="label"] { display: block; font-size: var(--t-working-
             font-weight: 600; line-height: 1.5; color: var(--ink-2);
             padding: 2px var(--lf-card-inset) 10px; }
 lf-column::before { content: attr(label); }
+/* A column's tone says what landing in it means, in the page's three status tones: its
+   field takes the tint and its heading the ink, so the blocking column reads as such
+   before a card in it is read. */
+lf-column[tone="ok"] { --lf-tone-tint: var(--ok-tint); --lf-tone-ink: var(--ok-ink); }
+lf-column[tone="warn"] { --lf-tone-tint: var(--warn-tint); --lf-tone-ink: var(--warn-ink); }
+lf-column[tone="danger"] {
+  --lf-tone-tint: var(--danger-tint); --lf-tone-ink: var(--danger-ink); }
+lf-column[tone] { background: color-mix(in srgb, var(--lf-tone-tint) 70%, var(--field)); }
+lf-column[tone]::before,
+lf-column[tone] > [data-lf-said="label"] { color: var(--lf-tone-ink); }
 lf-column:has(> [data-lf-said="label"])::before { content: none; }
 lf-card { display: block; position: relative; background: var(--card);
           font: var(--t-5)/1.5 var(--sans);

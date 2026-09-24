@@ -20,7 +20,7 @@
 
       <lf-grid id="triage-layout" columns="3fr 1fr">
         <lf-board id="release-board">
-          <lf-column id="col-blocking" label="Blocking release">
+          <lf-column id="col-blocking" label="Blocking release" tone="danger">
             <lf-card id="card-migration"
               ><strong>Migration reruns on every deploy</strong> The version stamp never
               lands. The next migration applies credits and is not idempotent.</lf-card
@@ -52,7 +52,7 @@
               conversion step. Four reports this quarter.</lf-card
             >
           </lf-column>
-          <lf-column id="col-repro" label="Needs a repro">
+          <lf-column id="col-repro" label="Needs a repro" tone="warn">
             <lf-card id="card-search"
               ><strong>Search misses renamed projects</strong> One report, on a
               workspace migrated from v1. The reindex job ran clean.</lf-card

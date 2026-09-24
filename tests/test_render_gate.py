@@ -1251,6 +1251,31 @@ def test_the_render_gate_resolves_a_part_its_visual_draws_on_reveal(browser, ser
     )
 
 
+def test_the_render_gate_reads_a_visual_before_revealing_its_parts(browser, serve):
+    """Reveals come after every other reading, so a defect in the opening state stands
+    even when revealing a part draws it away."""
+    module = STAGED_VISUAL_WIDGETS["lf-test-visual.js"]
+    opening = 'fill="#dbeafe" stroke="#2563eb"'
+    assert module.count(opening) == 1
+    module = module.replace(
+        opening, 'fill="var(--accent-glow)" stroke="#2563eb"'
+    ).replace(
+        "          inner.style.display = '';",
+        "          inner.style.display = '';\n"
+        "          outerSurface.setAttribute('fill', '#dbeafe');",
+    )
+    failures = render_gate_model.render_version(
+        browser,
+        serve(
+            GENERIC_VISUAL_PAGE,
+            layer_registry=GENERIC_VISUAL_LAYER,
+            layer_widgets={"lf-test-visual.js": module},
+        ),
+    )
+    assert any("does not resolve to valid fill" in f for f in failures), failures
+    assert not any("did not reveal" in f for f in failures), failures
+
+
 def test_the_render_gate_rejects_invalid_visual_inventory_records(browser, serve):
     markup = GENERIC_VISUAL_PAGE.replace(
         '<lf-test-visual id="visual" parts="outer inner html"></lf-test-visual>',

@@ -56,14 +56,31 @@ export function revealVisualPart(source, id) {
   return visualPart(source, id);
 }
 
+// The current state's inventory. A declared part it lacks is a problem only when the
+// visual cannot reveal it; `unrevealedVisualParts` asks the reveal, once nothing else
+// needs the state the page opened in.
 export function visualPartProblems(source, declared) {
   if (!hasVisualParts(source)) return ["did not call registerVisualParts"];
   try {
-    // Each declared part must resolve in some state the visual can draw: the current
-    // one, or the one its reveal draws.
-    const missing = [...declared].filter((id) => !revealVisualPart(source, id));
+    const ids = new Set(visualParts(source).map((part) => part.id));
+    const missing = revealsVisualParts(source)
+      ? []
+      : [...declared].filter((id) => !ids.has(id));
     return missing.length
       ? [`did not register declared parts ${missing.join(", ")}`]
+      : [];
+  } catch (error) {
+    return [String(error?.message ?? error)];
+  }
+}
+
+// Reveal each declared part the current state lacks. This moves the visual off the
+// state it opened in, so a caller asks it last.
+export function unrevealedVisualParts(source, declared) {
+  try {
+    const missing = [...declared].filter((id) => !revealVisualPart(source, id));
+    return missing.length
+      ? [`did not reveal declared parts ${missing.join(", ")}`]
       : [];
   } catch (error) {
     return [String(error?.message ?? error)];

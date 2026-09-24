@@ -883,11 +883,17 @@
                   with none, and every other element, uses the shown box. Targeting a
                   mapped part stores its id as <code>anchor.visual</code> while the
                   widget remains the semantic seat. A missing token or registration
-                  detaches on replay rather than widening to the whole picture. The
+                  detaches on replay rather than widening to the whole picture. A visual
+                  that draws its parts over time passes
+                  <code>registerVisualParts(source, read, {reveal})</code>:
+                  <code>reveal(id)</code> synchronously draws a state whose inventory
+                  holds that declared part. A declared part absent from the current
+                  state then places its threads on the whole picture, and thread travel
+                  calls <code>reveal</code> before landing on the part. The
                   registration's <code>update()</code> signals any rendering or geometry
                   change, including an in-place attribute or style change. The render
                   gate validates every record and requires each authored token to
-                  resolve.
+                  resolve, in the current state or after its <code>reveal</code>.
                 </p>
               </details>
             </div>

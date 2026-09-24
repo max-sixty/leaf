@@ -6,7 +6,7 @@ import {
   textNodesUnder,
   upFrom,
 } from "/runtime/widget-api.js";
-import { visualPartProblems } from "/runtime/visual-parts.js";
+import { unrevealedVisualParts, visualPartProblems } from "/runtime/visual-parts.js";
 import { openRoots } from "./open-roots.js";
 
 // Each error box's message and the widget that drew it. A box's `pre` echoes the source,
@@ -107,7 +107,7 @@ export const missingUpgrades = (declarations) =>
         entry["x-upgrade"] && document.querySelector(tag) && !customElements.get(tag),
     )
     .map(([tag]) => tag);
-export const invalidVisualProviders = (declarations) =>
+const visualProviderProblems = (declarations, check) =>
   Object.entries(declarations)
     .filter(([, entry]) => entry["x-visual"] && typeof entry["x-visual"] === "object")
     .flatMap(([tag, entry]) =>
@@ -117,11 +117,15 @@ export const invalidVisualProviders = (declarations) =>
           .trim()
           .split(/\s+/)
           .filter(Boolean);
-        const problems = visualPartProblems(el, declared);
-        return { tag, id: el.id, problems };
+        return { tag, id: el.id, problems: check(el, declared) };
       }),
     )
     .filter((instance) => instance.problems.length);
+export const invalidVisualProviders = (declarations) =>
+  visualProviderProblems(declarations, visualPartProblems);
+// Moves each visual it reveals off the state the page opened in: the gate's last reading.
+export const unrevealedVisualProviders = (declarations) =>
+  visualProviderProblems(declarations, unrevealedVisualParts);
 export const undeclaredShadowRoots = (registry) => [
   ...new Set(
     [...document.querySelectorAll("*")]

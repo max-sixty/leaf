@@ -8,7 +8,7 @@ from pathlib import Path
 from leaf.event_log import follow_events, jsonl_line, read_events
 from leaf.events import build_threads, is_reaction, standing_approvals, taken_back
 from leaf.files import latest_revision, revision_label
-from leaf.gesture_words import GestureWords
+from leaf.gesture_words import GestureWords, revisions_on_disk
 from leaf.passages import active_enclosing, enclosing_of, spoken
 from leaf.registry.reactions import reaction_tokens
 from leaf.registry.storage import active_registry
@@ -106,7 +106,11 @@ def _print_edits(page_dir: Path, events: list, registry: dict) -> None:
     # then what the ids it names say there. The widget's own words are left out: it
     # is named by its id, and a body edit's detail already carries the new words.
     withdrawn = taken_back(events)
-    words = GestureWords(page_dir, events, registry) if registry else None
+    words = (
+        GestureWords(events, registry, revisions_on_disk(page_dir))
+        if registry
+        else None
+    )
     edits = [
         e
         for e in events

@@ -9299,3 +9299,38 @@ def test_datum_travel_resolves_the_destination_after_reveal(
         expect(page.locator(".lf-live")).to_have_text(
             "app.py:2 is not present in the exact patch"
         )
+
+
+def test_the_activity_feed_words_a_pick_in_the_document_it_was_made_in(browser, serve):
+    """A later version rewording or removing an option leaves the feed's row as made."""
+
+    def page_with(question):
+        return leaf_page(
+            "Route",
+            f"<h1>Route</h1>{question}"
+            '<section id="recent"><h2>Recent</h2>'
+            '<lf-activity id="feed"></lf-activity></section>',
+        )
+
+    def ask(fast, restated=""):
+        return f"""<lf-ask id="route-ask"><h2>Which route?</h2>
+  <lf-options id="route" choose>
+    <lf-option id="route-fast"{restated}>{fast}</lf-option>
+    <lf-option id="route-slow">Slow path</lf-option>
+  </lf-options>
+</lf-ask>"""
+
+    page = open_page(browser, live_url(serve(page_with(ask("Fast path")))))
+    page.locator("#route-fast .lf-pick").click()
+    round_trip(page)
+    row = page.locator("#feed .lf-activity-row", has_text="chose")
+    expect(row).to_contain_text("chose “Fast path” in")
+
+    reworded = page_with(ask("Quick route", " restated"))
+    stamp_page(serve.page_dir, reworded, "reword the option")
+    wait_for_revision(page, 2)
+    expect(row).to_contain_text("chose “Fast path” in")
+
+    stamp_page(serve.page_dir, page_with(""), "drop the question")
+    wait_for_revision(page, 3)
+    expect(row).to_contain_text("chose “Fast path” in")

@@ -24,7 +24,7 @@ from pathlib import Path
 from .event_contracts import append_admitted
 from .event_log import flocked
 from .files import read_json, write_json
-from .gesture_words import GestureWords
+from .gesture_words import GestureWords, revisions_on_disk
 from .machine import state_home
 from .passages import active_enclosing
 from .registry.contract import RegistryError, event_clauses
@@ -142,7 +142,7 @@ def batch_data(
     by_id = {event["id"]: event for event in events}
     through_seq = max(event["seq"] for event in batch)
     evidence_seq = through_seq if as_of_seq is None else as_of_seq
-    words = GestureWords(page_dir, events, registry)
+    words = GestureWords(events, registry, revisions_on_disk(page_dir))
 
     captured = []
     for event in batch:

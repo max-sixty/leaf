@@ -92,11 +92,13 @@ export const saidAt = (el) =>
   closestAcross(el, ".lf-msg")?.querySelector(":scope > .lf-msg-head time")?.dateTime ||
   publishedAt();
 
-// Full history is intentionally raw: it is the one public escape hatch whose contract
-// is the append-only log itself rather than a semantic reading of that log.
+// The server's history reading: the newest moves, newest first, each already carrying
+// its thread, whether it was undone, and a gesture's words as its own document had
+// them. The server sends it only to a page holding a widget that declares
+// `x-history`; elsewhere the callback reads an empty feed.
 export const watchHistory = (owner, callback) =>
   watchProjection(owner, () =>
-    callback(runtime.events.map((event) => structuredClone(event))),
+    callback(structuredClone(runtime.browser?.history ?? [])),
   );
 
 export function createProjectionUpdates({ coordinateProjectionCommitted }) {

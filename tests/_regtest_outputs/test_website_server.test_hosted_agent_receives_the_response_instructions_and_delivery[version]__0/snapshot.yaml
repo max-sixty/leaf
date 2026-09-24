@@ -39,14 +39,12 @@ thread/start:
     final message completes the reply, and Leaf commits the opening and the final message
     together through the same reply contract as `leaf reply`. Do not run `leaf reply` for
     that response, which refuses it as bound to this delivery's final message. The
-    committed reply retains the thread's standing anchor, so the delivered instruction to
-    move or detach a thread with reply flags does not apply to it. Settling that move
-    before the commit does not discard the answer: the completed reply keeps its response
-    address and reopens the conversation in Open Threads. A later plain reply remains
-    pending for the next slice.
+    final message cannot move or detach its thread, so the thread keeps its anchor. If
+    the user resolves the thread before the turn completes, the reply still posts and
+    reopens it. A later plain reply remains pending for the next slice.
 
-    Version, markup, and receipt obligations in the slice still take their explicit
-    operations: a stamped version, `resolve`, and `receipt`.
+    Other obligations in the slice take the operations their delivered `answering`
+    clauses name.
 
     A `leaf-delivery` pointer queued before Leaf observed the task can still arrive as a
     user message; read it with `leaf delivery read <id>`, and Leaf binds its reply to the
@@ -68,9 +66,7 @@ thread/start:
     A terminal task reaches App Server through a detached adapter that
     `leaf codex start` leaves running: it connects to the task's server as a second
     client, watches the task's own turns, and starts a delivery's turn once the task is
-    idle. This route is experimental. Its protocol and browser path have automated
-    coverage, and the normal interactive workflow has been smoke-tested with a real Codex
-    App Server and CLI.
+    idle. This route is experimental.
 
     ### Start the terminal
 
@@ -97,8 +93,8 @@ thread/start:
     From that remote CLI task, pass the same endpoint to `leaf codex start` with
     `--app-server ws://127.0.0.1:4500`.
 
-    Only absolute Unix socket paths and unauthenticated loopback `ws://` endpoints are
-    accepted; keep a socket you supply in a directory only you can reach, as
+    Only `unix://<absolute path>` sockets and unauthenticated loopback `ws://` endpoints
+    are accepted; keep a socket you supply in a directory only you can reach, as
     `leaf codex launch` does. The loopback WebSocket listener is experimental; do not
     expose it on a network. Keep the CLI open because it is still the interactive client for
     approvals and user input. The task is still stored in Codex's task history and can be

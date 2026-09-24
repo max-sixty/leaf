@@ -1,7 +1,5 @@
-# Command Hub worker
-
-Use the assigned launcher for every Leaf write. Start by moving your agent row
-and task:
+Your brief names `LEAF`, `PAGE`, `WORKER`, `ROW`, and `TASK`. Use that launcher
+for every Leaf write, under that name. Start by moving your agent row and task:
 
 ```bash
 LEAF_AGENT="$WORKER" "$LEAF" report "$PAGE" "$ROW" state state=working doing="<current activity>"
@@ -19,11 +17,11 @@ working grace, about a quarter of an hour. Both `state` and
 - A completed handoff moves the task to `review` and the agent to `waiting`.
 - The coordinator records `done` only after review or landing.
 
-For a routed user comment, reply under your assigned identity, then report any
-resulting state change:
+A routed user comment arrives with its event id as `EVENT`. Reply to it under your
+name, then report any resulting state change:
 
 ```bash
-LEAF_AGENT="$WORKER" "$LEAF" reply "$PAGE" --to "$THREAD" --for "$EVENT" <<'EOF'
+LEAF_AGENT="$WORKER" "$LEAF" reply "$PAGE" --for "$EVENT" <<'EOF'
 The reconnect drops the queue, so the retry sends against a closed socket.
 
 - the handler clears `pending` before it awaits the write

@@ -4,15 +4,21 @@
    in a pane's header or footer select that pane, while the body is the scroller only in
    bounded posture. `registerReadingArrangement` groups regions under one allocation owner;
    nested and compound owners inherit posture through DOM containment and read their
-   assigned content box on demand. CSS still owns how that box is divided.
+   assigned content box on demand (`readingAllocation`). CSS still owns how that box is
+   divided. Registration admits an arrangement's owner, content, and every region at
+   once: a collision refuses the whole call and leaves every proposed id free, and one
+   owner or content box belongs to one live arrangement until its cleanup. Bundled
+   packages arrange through reading-layout.js and register only their own regions here.
 
    A posture transition notifies watchers before mutation, when old geometry is intact,
    and after the next animation frame, when new geometry can be read. Superseded after
    notifications are dropped. Continuity owners subscribe here; this module stores no
    landmarks or scroll offsets. `preserveReadingRegions` brackets a composition change
    and its layout completion with the same notifications, retaining only scrollers inside
-   that composition when regions become hidden or visible without changing posture. The enclosing transition owns continuity
-   over any nested posture changes.
+   that composition when regions become hidden or visible without changing posture. Its
+   notifications carry null `from` and `to`; a superseding change marks its `before` as
+   `retained`, and a failed or disconnected change marks its `after` as `cancelled`. The
+   enclosing transition owns continuity over any nested posture changes.
    Hidden connected regions remain registered and return
    null bounds. Cleanup removes live DOM bindings, so a replacement can reclaim an id. */
 import { shownBox, shownRect } from "./geometry.js";

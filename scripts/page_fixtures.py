@@ -88,8 +88,6 @@ def _seed_data(fixture: PageFixture, page: Path, run_leaf: Callable) -> None:
     for operation in fixture.data:
         if operation["kind"] == "set":
             args = ["data", "set", str(page), operation["source"]]
-            if operation["capture_label"] is not None:
-                args.extend(("--capture-label", operation["capture_label"]))
             run_leaf(*args, input_text=json.dumps(operation["value"]))
             continue
         args = [
@@ -102,8 +100,6 @@ def _seed_data(fixture: PageFixture, page: Path, run_leaf: Callable) -> None:
             "--format",
             operation["format"],
         ]
-        if operation["label"] is not None:
-            args.extend(("--label", operation["label"]))
         if operation["lines"] is not None:
             args.extend(("--lines", operation["lines"]))
         run_leaf(*args)

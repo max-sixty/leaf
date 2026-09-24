@@ -93,11 +93,12 @@ has tried; settle that before building it.
   whose first block is an `lf-ask` opens 48px lower than one that starts with its
   own heading: the Ask's `h2` margin collapses through the boxless `lf-ask` to
   `main`'s edge, and the `--lf-block-frame` trim reaches only `main`'s direct
-  children. Inside a 32rem specimen, that margin plus `main`'s 72px top padding
-  leaves 120px of blank space above the question.
-- **Unconfirmed: scrolling a live specimen sometimes sticks.** A user scrolling an
-  entered `lf-specimen` reported that scrolling got stuck, with no reproduction yet.
-  Settle it after the scrolling changes land.
+  children. Inside a specimen, whose `main` pads only 24px, it leaves 72px of blank
+  space above the question.
+- **Unconfirmed: scrolling a live specimen sometimes sticks.** A user reported it
+  while a specimen still scrolled inside a fixed-height frame, with no reproduction.
+  The frame now takes its page's height, so nothing scrolls inside it; check that the
+  report no longer reproduces once the scrolling changes land.
 
 ### The agent's text interface
 
@@ -114,10 +115,17 @@ has tried; settle that before building it.
   several open Asks and an informational page before choosing how the banner
   explains who owes the next move. Keep explicit agent status available when the
   Ask alone does not explain the wait.
-- **Give each delivery-loop rule one home.** The acknowledge-then-reply order and
-  what the delivery statuses mean are still written in several places.
-  [The audit](notes/guidance-duplication.md) lists every site and proposes a home
-  for each rule.
+- **Decide whether requests earn their weight.** A request (`x-request`, `leaf
+  receipt`) is a non-undoable one-shot operation the user asks the host to run, with
+  one pending attempt per control and a `succeeded`/`failed` receipt. Leaf never
+  runs it, and a receipt carries no structured result. Its users are Command Hub's
+  `lf-operations`, monitoring's `lf-release-actions` and the developer gallery's
+  `lf-job-requests`, none backed by a real integration, while the lifecycle reaches
+  `requests.py`, workflows, Asks, admission, the runtime's pending model and margin,
+  and the Codex adapter's failure receipts. Once the Command Hub redesign settles
+  whether its operations stay, either remove requests and recast the remaining
+  operations as Asks, or keep them and cut what only the gallery uses: projected
+  holders (`records`, one seat per data row).
 
 ## Etc
 

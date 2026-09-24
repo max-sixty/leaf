@@ -408,17 +408,6 @@ def _validate_widget_structure(
                 f"{path}: <{tag}> x-data input `{input_name}` source attribute "
                 f"`{source_attr}` must be a canonical data source string"
             )
-        if snapshot_attr := spec.get("snapshot"):
-            snapshot_schema = properties.get(snapshot_attr, {})
-            if (
-                not isinstance(snapshot_schema, dict)
-                or snapshot_schema.get("type") != "string"
-                or snapshot_schema.get("pattern") != "^[1-9][0-9]*$"
-            ):
-                raise RegistryError(
-                    f"{path}: <{tag}> x-data input `{input_name}` snapshot attribute "
-                    f"`{snapshot_attr}` must be a positive decimal string"
-                )
     if measured := entry.get("x-measured"):
         input_name = measured["input"]
         if input_name not in entry.get("x-data", {}):
@@ -591,12 +580,7 @@ def _validate_widget_predicates(
             f"{path}: <{tag}> x-conversation requires a version response but "
             "declares no x-awaits standing Ask"
         )
-    data_bindings = {
-        attr
-        for spec in entry.get("x-data", {}).values()
-        for attr in (spec["source"], spec.get("snapshot"))
-        if attr is not None
-    }
+    data_bindings = {spec["source"] for spec in entry.get("x-data", {}).values()}
     if dynamic := sorted(data_bindings & mutable_values):
         raise RegistryError(
             f"{path}: <{tag}> x-data binding attributes are authored, "

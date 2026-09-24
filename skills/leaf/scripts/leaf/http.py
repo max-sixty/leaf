@@ -22,8 +22,14 @@ from starlette.requests import Request
 from starlette.responses import Response, StreamingResponse
 
 from . import presence as presence_model
-from .data import DataError, data_fragment, read_data, read_data_fragment
-from .data_contracts import valid_snapshot_id
+from .data import (
+    DataError,
+    StaleDataError,
+    data_fragment,
+    read_contracts,
+    read_data,
+    read_source,
+)
 from .event_endpoint import accept_event, event_rejection
 from .event_log import read_events
 from .files import (
@@ -578,19 +584,17 @@ class PageEndpoint:
         return _query_int(raw, "view sequence", 0)
 
     def data_fragment(self) -> dict:
-        """One contract-declared payload from the data revision the tab holds."""
-        data_revision = _query_int(
-            self.query.get("data_revision", [None])[-1], "data_revision", 0
-        )
+        """One contract-declared payload from the source revision the tab holds."""
         source = self.query.get("source", [None])[-1]
+        revision = self.query.get("source_revision", [None])[-1]
         key = self.query.get("key", [None])[-1]
-        snapshot = self.query.get("snapshot", [None])[-1]
-        if not isinstance(source, str) or not source:
-            raise ValueError("source is required")
-        if not isinstance(key, str) or not key:
-            raise ValueError("key is required")
-        if snapshot is not None and not valid_snapshot_id(snapshot):
-            raise ValueError("snapshot must be a positive decimal revision")
+        for name, value in (
+            ("source", source),
+            ("source_revision", revision),
+            ("key", key),
+        ):
+            if not isinstance(value, str) or not value:
+                raise ValueError(f"{name} is required")
         view_revision = self.requested_view_revision()
         if view_revision is not None:
             revisions = (
@@ -607,23 +611,14 @@ class PageEndpoint:
             registry = require_registry(self.page_dir)
         self.response_layer = registry["$layer"]["generation"]
         if self.page_snapshot is not None:
-            return data_fragment(
-                self.page_snapshot.data,
-                registry,
-                data_revision=data_revision,
-                source=source,
-                key=key,
-                snapshot_id=snapshot,
-            )
-        with PageTransaction(self.page_dir):
-            return read_data_fragment(
-                self.page_dir,
-                registry,
-                data_revision=data_revision,
-                source=source,
-                key=key,
-                snapshot_id=snapshot,
-            )
+            reading = self.page_snapshot.data["sources"].get(source)
+        elif contract := read_contracts(self.page_dir).get(source):
+            reading = read_source(self.page_dir, source, contract, registry)
+        else:
+            reading = None
+        return data_fragment(
+            reading, registry, source=source, revision=revision, key=key
+        )
 
     def _news(self) -> StreamingResponse:
         """The page's reading, named on an open stream each time it changes.
@@ -1144,9 +1139,10 @@ class PageEndpoint:
         if path == "/api/data":
             try:
                 fragment = self.data_fragment()
+            except StaleDataError as error:
+                return self._json({"error": str(error)}, 409)
             except (DataError, ValueError) as error:
-                status = 409 if " is stale; current revision is " in str(error) else 400
-                return self._json({"error": str(error)}, status)
+                return self._json({"error": str(error)}, 400)
             return self._json(fragment)
         if path == "/api/view":
             try:
@@ -1241,7 +1237,7 @@ class PageEndpoint:
                     with PageTransaction(self.page_dir) as page:
                         artifact = self._artifact(revision)
                         events = page.events
-                        data = read_data(self.page_dir)
+                        data = read_data(self.page_dir, artifact.registry)
                         asset_root = self._specimen_asset_root(revision)
                 # Allocation validates and writes only the child's directory.
                 # Its parent reading is complete before releasing the log lease.
@@ -1292,10 +1288,15 @@ class SpecimenEndpoint(PageEndpoint):
 
     def _content(self, status: int, ctype: str, body: bytes) -> Response:
         if ctype.startswith("text/html"):
+            # A live child lays out as a block of its containing page (theme.css). Every
+            # child arrives inert, so its startup cannot take focus from the page; the
+            # host releases a live one once it presents. A passive replay demonstrates a
+            # whole window and never takes input.
             scope = html.escape(self.page_root + "/", quote=True)
+            contained = "" if self.passive else " data-lf-contained"
             body = re.sub(
                 rb"<html\b",
-                f'<html data-lf-contained data-lf-user-scope="{scope}"'.encode(),
+                f'<html{contained} data-lf-user-scope="{scope}"'.encode(),
                 body,
                 count=1,
                 flags=re.IGNORECASE,
@@ -1303,7 +1304,7 @@ class SpecimenEndpoint(PageEndpoint):
             passive = b" data-lf-specimen-passive" if self.passive else b""
             body = re.sub(
                 rb"<body\b",
-                b"<body data-lf-contained inert" + passive,
+                b"<body inert" + passive,
                 body,
                 count=1,
                 flags=re.IGNORECASE,

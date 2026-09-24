@@ -2175,7 +2175,9 @@ lf-specimen[data-lf-specimen-live]::before { content: "live specimen"; }
 lf-specimen[data-lf-specimen-live][label]::before { content: "live specimen · " attr(label); }
 lf-specimen[data-lf-specimen-live]:has(> [data-lf-said="label"])::before { content: none; }
 lf-specimen[data-lf-specimen-live] > [data-lf-said="label"]::before { content: "live specimen · "; }
-/* Like the label, host controls describe the exhibit; they stand outside its gutter. */
+/* Like the label, host controls describe the exhibit; they stand outside its gutter.
+ * The frame's height is a placeholder until its child presents and the widget sizes it
+ * to the child's page. */
 .lf-specimen-controls { display: table-caption; margin-bottom: 10px; }
 .lf-specimen-controls > div { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
 .lf-specimen-status { color: var(--muted); font: var(--t-6)/1.4 var(--sans); }

@@ -1,5 +1,3 @@
-# Playgrounds
-
 Use `lf-playground` when several values or behaviors need to be explored together before
 the user chooses one configuration. Put it inside `lf-ask`, declare controls and
 optional presets, then include exactly one preview and one output.
@@ -107,8 +105,8 @@ control in `detail.values`, including controls the prose does not repeat.
 
 A preview that needs JavaScript keeps its page-specific behavior in an inline
 `<script type="module">` block. Put the real candidates in an ordinary element or a
-page-specific custom element, following `references/packages.md`'s behavior-module
-contract.
+page-specific custom element, following `references/packages.md`, "What a behavior
+module owes".
 
 Wait for `customElements.whenDefined("lf-playground")` before reading
 `closest("lf-playground").values`. Later snapshots arrive in the bubbling

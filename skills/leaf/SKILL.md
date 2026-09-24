@@ -118,12 +118,12 @@ freely as the subject changes and stamp meaningful checkpoints.
 
 While a page is live, telling its user what you are doing takes priority over doing
 it, as a UI thread handles input before background work. When user input arrives,
-acknowledge it first and reply to it next, before any other work, including the work it
-asks for. Put each step on the page before starting it. Keep the watcher running, and
-hand work longer than a few minutes to background workers
-rather than waiting on it yourself, so a new comment reaches you in time to change the
-next step. The page stays yours while they run. `references/conversation-loop.md` names
-the surfaces, when to write each, and what a worker may touch.
+answer it before any other work, including the work it asks for. Put each step on the
+page before starting it. Keep the watcher running, and hand work longer than a few
+minutes to background workers rather than waiting on it yourself, so a new comment
+reaches you in time to change the next step. The page stays yours while they run.
+`references/conversation-loop.md` names the surfaces, when to write each, and what a
+worker may touch.
 
 ## Improve Leaf through use
 

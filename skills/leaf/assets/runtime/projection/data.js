@@ -32,15 +32,14 @@
    place and schedules the shared anchor pass after synchronous projection work.
 
    A selection wholly inside a derived datum captures `{section, datum, quote}`. A datum
-   projected from `watchData` also captures `{source, data_revision}`. Within that source
+   projected from `watchData` also captures `{source, source_revision}`. Within that source
    revision, resolution looks only for the key under its section. If the original words
    still stand, Leaf marks them. If their display changes, Leaf outlines the same datum
    and keeps the old quote in the thread. A current-source replacement makes the
    placement outdated: the thread keeps its section context and remains in the panel, but
-   it does not mark or attach to a datum from the new revision. An authored snapshot
-   remains exact. A missing or duplicate key detaches rather than guessing. Selections
-   crossing datum boundaries remain ordinary quote anchors because they name a passage,
-   not one fact.
+   it does not mark or attach to a datum from the new revision. A missing or duplicate
+   key detaches rather than guessing. Selections crossing datum boundaries remain
+   ordinary quote anchors because they name a passage, not one fact.
 
    `data-lf-projection`, `data-lf-datum`, `data-lf-origin`, `data-lf-source`,
    `data-lf-source-revision`, and `data-lf-gen` are written by `projectData`, never
@@ -139,10 +138,10 @@ export function createDataProjection({ invalidateDom }) {
       snapshot != null &&
       (typeof snapshot.source !== "string" ||
         !snapshot.source ||
-        !Number.isInteger(snapshot.revision) ||
-        snapshot.revision < 1)
+        typeof snapshot.revision !== "string" ||
+        !snapshot.revision)
     )
-      throw new TypeError("projectData snapshot needs a source and positive revision");
+      throw new TypeError("projectData snapshot needs a source and revision");
 
     const stampBasis = (node) => {
       if (snapshot) node.dataset.lfSource = snapshot.source;

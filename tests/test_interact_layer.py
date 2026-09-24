@@ -33,6 +33,7 @@ from interact_support import (
     shipped_payload,
 )
 from leaf import cli as cli_model
+from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf import files as interact_files
 from leaf import hooks as hooks_model
@@ -68,6 +69,7 @@ EXPECTED_PAGE_DIRECTORIES = (
     "vendor",
     "guidance",
     "media",
+    "data",
     "page",
 )
 
@@ -1021,10 +1023,6 @@ def test_init_vendors_the_layer(page_dir):
     assert (page_dir / "vendor" / "agentic-mermaid.LICENSES.txt").is_file()
     assert (page_dir / "widgets" / "lf-diff.js").is_file()
     assert (page_dir / "vendor" / "pierre-diffs.esm.js").is_file()
-    assert interact_files.read_json(page_dir / "data.json") == {
-        "revision": 0,
-        "sources": {},
-    }
 
 
 def test_init_and_revendoring_preserve_the_page_owned_contribution(
@@ -1786,11 +1784,13 @@ def test_fresh_page_state_points_only_to_readable_authorities(tmp_path, monkeypa
     assert state["source"]["live"] is False
     assert "write index.html first" in state["source"]["error"]
     assert state["event_seq"] == 0
-    assert state["data"] == {"file": "data.json", "revision": 0}
-    assert interact_files.read_json(page / state["data"]["file"]) == {
-        "revision": 0,
-        "sources": {},
-    }
+    assert state["data"] == {"file": "data.json", "dir": "data", "errors": []}
+    assert (
+        data_model.read_data(page, json.loads((page / "registry.json").read_text()))[
+            "sources"
+        ]
+        == {}
+    )
 
 
 def test_init_composes_and_prunes_nested_browser_modules(tmp_path, monkeypatch):
@@ -4160,23 +4160,15 @@ def test_page_init_selects_the_same_directory_contract_at_any_cardinality(
     )
     (widget_package / "vendor" / "solo.json").write_text('{"accent":"plum"}\n')
     (widget_package / "guidance").mkdir()
-    (widget_package / "guidance" / "author.md").write_text(
-        "# Solo widget\n\nUse one solo.\n"
-    )
-    (widget_package / "guidance" / "worker.md").write_text(
-        "# Solo worker\n\nReport the result.\n"
-    )
+    (widget_package / "guidance" / "author.md").write_text("Use one solo.\n")
+    (widget_package / "guidance" / "worker.md").write_text("Report the result.\n")
 
     theme_package = tmp_path / "night"
     theme_package.mkdir()
     (theme_package / "theme.css").write_text(":root { --solo-night: 1; }\n")
     (theme_package / "guidance").mkdir()
-    (theme_package / "guidance" / "author.md").write_text(
-        "# Night theme\n\nUse after dusk.\n"
-    )
-    (theme_package / "guidance" / "reviewer.md").write_text(
-        "# Night reviewer\n\nCheck the contrast.\n"
-    )
+    (theme_package / "guidance" / "author.md").write_text("Use after dusk.\n")
+    (theme_package / "guidance" / "reviewer.md").write_text("Check the contrast.\n")
 
     page = tmp_path / "page"
     initialized = CliRunner().invoke(
@@ -4204,7 +4196,9 @@ def test_page_init_selects_the_same_directory_contract_at_any_cardinality(
         "--solo-night: 1"
     )
     guidance = (page / "guidance" / "author.md").read_text()
-    assert guidance.index("# Solo widget") < guidance.index("# Night theme")
+    assert guidance == (
+        "# Package `solo`\n\nUse one solo.\n\n# Package `night`\n\nUse after dusk.\n"
+    )
     assert "Report the result." in (page / "guidance" / "worker.md").read_text()
     assert "Check the contrast." in (page / "guidance" / "reviewer.md").read_text()
 
@@ -4215,7 +4209,16 @@ def test_page_init_selects_the_same_directory_contract_at_any_cardinality(
     assert audiences.exit_code == 0, audiences.output
     assert audiences.output.splitlines() == ["author", "reviewer", "worker"]
     assert worker.exit_code == 0, worker.output
-    assert worker.output == "# Solo worker\n\nReport the result.\n"
+    assert worker.output == "# Package `solo`\n\nReport the result.\n"
+    author = CliRunner().invoke(
+        cli_model.cli, ["page", "guidance", str(page), "author"]
+    )
+    assert author.exit_code == 0, author.output
+    assert author.output.endswith(
+        "# Other audiences\n\nThis page also carries guidance for `reviewer` "
+        "and `worker`. Whoever takes one of those roles, you or an agent you assign, "
+        "reads `leaf page guidance <page> <audience>` before acting in it.\n"
+    )
 
     revendored = CliRunner().invoke(cli_model.cli, ["page", "init", str(page)])
     assert revendored.exit_code == 0, revendored.output
@@ -4260,7 +4263,7 @@ def test_page_init_vendors_an_explicit_package_without_privileging_it(
     assert not (plain / "widgets" / "lf-command.js").exists()
     assert (command / "widgets" / "lf-command.js").is_file()
     assert list((plain / "guidance").iterdir()) == []
-    assert "# Command Hub package" in (command / "guidance" / "author.md").read_text()
+    assert "# Package `command-hub`" in (command / "guidance" / "author.md").read_text()
     plain_audiences = CliRunner().invoke(
         cli_model.cli, ["page", "guidance", str(plain)]
     )
@@ -4273,7 +4276,7 @@ def test_page_init_vendors_an_explicit_package_without_privileging_it(
     assert audiences.exit_code == 0, audiences.output
     assert audiences.output.splitlines() == ["author", "coordinator", "worker"]
     assert coordinator.exit_code == 0, coordinator.output
-    assert "# Command Hub coordinator" in coordinator.output
+    assert "# Package `command-hub`" in coordinator.output
     assert "# Data contract `lf-worktree`" in coordinator.output
     assert (
         packaged_registry["$data"]["contracts"]["lf-worktree"]["guidance"][
@@ -4321,7 +4324,6 @@ def test_pr_review_package_composes_its_data_brief(tmp_path, monkeypatch):
         "request": {
             "contract": "pull-request",
             "source": "source",
-            "snapshot": "snapshot",
         }
     }
     assert "pull-request" in registry["$data"]["contracts"]
@@ -4330,7 +4332,6 @@ def test_pr_review_package_composes_its_data_brief(tmp_path, monkeypatch):
         "document": {
             "contract": "text-document",
             "source": "source",
-            "snapshot": "snapshot",
         }
     }
     assert (page / "widgets" / "lf-call-diff.js").is_file()
@@ -4356,7 +4357,6 @@ def test_visual_review_package_composes_its_run_contract(tmp_path, monkeypatch):
         "run": {
             "contract": "visual-run",
             "source": "source",
-            "snapshot": "snapshot",
         }
     }
     assert widget["x-state"]["review"]["unit"] == "case"

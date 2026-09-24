@@ -56,8 +56,8 @@ when focus is on the page. Native modal and popover boundaries keep their browse
 
 These states have distinct parents:
 
-- The document is the base. An entered live specimen adds a final Escape back to its
-  containing page after its own unwind finishes.
+- The document is the base. A live specimen holding focus adds a final Escape back to
+  its containing page after its own unwind finishes.
 - Draw and Design are page modes. Surfaces opened within them close before the mode.
 - Auxiliary surfaces contain their own state, such as the Threads narrowing. Page-side
   selections, captured targets, expanded margin clusters, and the page composer can

@@ -34,7 +34,8 @@ other page files and the external state listed below.
   identity are defined in [layer-registry.md](layer-registry.md).
 
 - `guidance/` — package-owned guidance grouped by audience. Files with the same name
-  concatenate in package order; `page guidance` reads any audience
+  concatenate in package order, each under a heading naming its package;
+  `page guidance` reads any audience
 
 - `icon.svg` — tab icon; its lf-tone element follows the banner's status colour
 
@@ -56,9 +57,12 @@ other page files and the external state listed below.
 
 - `events.jsonl` — append-only event log; an event's seq is its line number (1-based)
 
-- `data.json` — page-bound source contracts, replaceable current values, and immutable
-  captures; initialized at data revision 0. `data.py` owns storage and updates.
-  Fragment payloads served by `/api/data` come from this same store.
+- `data.json` — the contract each external-data source id was first set under.
+  `data.py` owns storage and updates.
+
+- `data/` — one JSON file per source, `<source>.json`, holding its current value.
+  Any process may rewrite one; readings validate it against the recorded contract.
+  Fragment payloads served by `/api/data` come from these same files.
 
 - `status.json` — work declarations and transient delivery handling, observed activity,
   and reply bindings. [session-lifetime.md](session-lifetime.md) owns their writers and
@@ -104,7 +108,8 @@ manifest control document replacement and widget retention;
 fingerprint, kernel runtime identity, packages, and producer;
 `source` names `index.html`, whether that candidate is live, and any validation
 error. `active.file` names the immutable revision the live root actually
-shows when one exists; `data.file` always names a readable JSON store.
+shows when one exists; `data` names the contract file, the value directory, and any source whose
+value fails its contract.
 `active.executable`, shared with `/api/state`, gives the active revision's
 nullable executable digest. Delivery emits `<meta name="lf-executable">` when a
 digest is available; `../../assets/runtime/version.js` owns the resulting install choice.
@@ -130,13 +135,10 @@ bounded history selected by `--after` and `--limit`. Its `content_source` names 
 conversation and vocabulary file; message identities locate the frozen source. Default
 `page state` conversation entries stay compact.
 
-Widget `inputs` join each binding to its selected value or captured snapshot,
-contract, source id, data revision, and mutation route. Fragmented contracts expose
-the manifest plus the exact `data.json` file, path, and revision for their payload.
-Live inputs declare `edit.operation: "data set"`; pinned inputs declare
-`"capture-and-rebind"`, since the source update alone leaves the selected capture
-unchanged. A pinned input in frozen markup declares `"capture-and-reply"` and its
-conversation: a new message presents the replacement capture. The compact
+Widget `inputs` join each binding to its source's current value, contract, source
+id, and revision, or to the `error` a failing value reads as. Each input's `edit`
+names the value file to rewrite. Fragmented contracts expose the manifest plus that
+file and its revision for their payload. The compact
 `elements`, `state`, and lifecycle indexes remain available for machine queries.
 Raw diagnostic history belongs to `leaf events --conversation`, and the page's
 `registry.json` owns the vocabulary.

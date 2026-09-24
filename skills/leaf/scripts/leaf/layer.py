@@ -201,7 +201,12 @@ def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
 
 
 def composed_guidance(inputs: list[Path]) -> dict[str, bytes]:
-    """Package guidance joined by audience in layer precedence order."""
+    """Package guidance joined by audience in layer precedence order.
+
+    Each package's passage opens under a heading naming its package, so a guide
+    file starts with its first rule rather than a title of its own, and one
+    package's text never reads as part of the package before it.
+    """
     parts: dict[str, list[str]] = {}
     for root in inputs:
         directory = root / GUIDANCE_DIR
@@ -215,7 +220,9 @@ def composed_guidance(inputs: list[Path]) -> dict[str, bytes]:
             except UnicodeDecodeError:
                 sys.exit(f"{path} must be UTF-8")
             if guidance.strip():
-                parts.setdefault(path.name, []).append(guidance.rstrip() + "\n")
+                parts.setdefault(path.name, []).append(
+                    f"# Package `{root.name}`\n\n{guidance.strip()}\n"
+                )
     return {name: "\n".join(passages).encode() for name, passages in parts.items()}
 
 

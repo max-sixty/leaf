@@ -19,6 +19,22 @@ for (const type of ["pointerdown", "keydown", "input", "wheel", "touchstart"])
   addEventListener(type, leave, { capture: true, passive: true });
 addEventListener("blur", leave);
 
+// Place selection treats a pointer moving or scrolling over a visible item as a newer
+// reading target than an older focused item. These inputs do not all supersede a
+// delayed action above; they only choose which visible item holds a reflow.
+let placeInput = "focus";
+for (const type of ["pointermove", "pointerdown", "wheel"])
+  addEventListener(type, () => (placeInput = "pointer"), {
+    capture: true,
+    passive: true,
+  });
+for (const type of ["focusin", "keydown"])
+  addEventListener(type, () => (placeInput = "focus"), {
+    capture: true,
+    passive: true,
+  });
+export const recentPlaceInput = () => placeInput;
+
 // Capture before the first asynchronous step. Pass this same predicate into nested
 // reveals; capturing again after a wait gives stale work a newer gesture's authority.
 export function retainUserIntent({

@@ -146,6 +146,7 @@ WORKSPACE_PAGE = leaf_page(
   <footer>2 items</footer>
 </lf-workspace>
 """,
+    width="available",
 )
 
 
@@ -744,6 +745,7 @@ def test_an_ordinary_two_part_ask_retains_document_flow(browser, serve):
 
     held = (
         source.replace("<h1>Session-store follow-ups</h1>\n", "")
+        .replace("<main>", '<main data-width="available">')
         .replace(
             '<lf-ask id="session-triage-decision">',
             '<lf-workspace id="triage-workspace"><lf-ask id="session-triage-decision">',
@@ -770,6 +772,7 @@ def test_a_direct_embedded_workspace_keeps_the_root_in_document_flow(browser, se
   </lf-workspace>
 </lf-workspace>
 """,
+        width="available",
     )
     page = open_page(browser, serve(embedded))
     resized(page, 1280, 720)
@@ -822,6 +825,7 @@ def test_a_pane_inside_a_plain_section_of_a_root_workspace_flows(browser, serve)
   <section><h2>Section heading</h2>{LONG_PANE}</section>
 </lf-workspace>
 """,
+        width="available",
     )
     page = open_page(browser, serve(sectioned))
     resized(page, 1280, 720)
@@ -841,6 +845,7 @@ def test_a_pane_inside_a_plain_section_of_a_root_workspace_flows(browser, serve)
     direct = leaf_page(
         "a pane as the workspace body",
         f'<lf-workspace id="held-workspace">{LONG_PANE}</lf-workspace>',
+        width="available",
     )
     page = open_page(browser, serve(direct))
     resized(page, 1280, 720)
@@ -870,6 +875,7 @@ def test_an_ask_with_more_than_one_answer_part_flows_in_a_root_workspace(
   </lf-ask>
 </lf-workspace>
 """,
+        width="available",
     )
     page = open_page(browser, serve(three_part))
     resized(page, 1280, 720)
@@ -889,6 +895,7 @@ def test_an_ask_with_more_than_one_answer_part_flows_in_a_root_workspace(
 
     two_part = (
         PLAYGROUND_PAGE.replace("<h1>Card playground</h1>\n", "")
+        .replace("<main>", '<main data-width="available">')
         .replace(
             '<lf-ask id="card-playground-ask">',
             '<lf-workspace id="held-workspace"><lf-ask id="card-playground-ask">',
@@ -933,6 +940,7 @@ def test_the_page_end_clears_the_bottom_chrome_around_a_workspace(browser, serve
     root = leaf_page(
         "a root workspace",
         f'<lf-workspace id="held-workspace">{LONG_PANE}</lf-workspace>',
+        width="available",
     )
     page = open_page(browser, serve(root))
     resized(page, 1280, 420)
@@ -959,6 +967,7 @@ def test_a_comment_in_a_pane_leaves_its_grammar_whole(browser, serve):
   </lf-pane>
 </lf-workspace>
 """,
+        width="available",
     )
     page = open_page(browser, serve(source))
     resized(page, 1000, 720)
@@ -999,6 +1008,7 @@ def test_regions_inside_a_bounded_pane_body_flow_within_the_body_that_scrolls(
   </div></lf-pane>
 </lf-workspace>
 """,
+        width="available",
     )
     page = open_page(browser, serve(source))
     resized(page, 1280, 720)
@@ -1033,8 +1043,8 @@ def test_a_release_page_is_a_sheet_and_keeps_the_log_on_its_newest_line(browser,
     example = Path(__file__).parent.parent / "examples" / "live-progress.html"
     context = browser.new_context(viewport={"width": 1600, "height": 1000})
     page = open_page(browser, live_url(serve(example)), context=context)
-    body = ["lp-status", "lp-decision", "lp-checks", "lp-log"]
-    rail = ["lp-steps", "lp-release"]
+    body = ["lp-status", "lp-current-state", "lp-traffic", "lp-log"]
+    rail = ["lp-steps", "lp-checks", "lp-release"]
     ids = [*body, *rail, "lp-layout", "lp-checks-table", "lp-lede"]
     boxes = f"""() => Object.fromEntries(
       [...{ids!r}, 'main'].map(id => [id, (document.getElementById(id)
@@ -1066,8 +1076,8 @@ def test_a_release_page_is_a_sheet_and_keeps_the_log_on_its_newest_line(browser,
 
     resized(page, 560, 900)
     narrow = page.evaluate(boxes)
-    assert narrow["lp-log"]["top"] >= narrow["lp-checks"]["bottom"]
     assert narrow["lp-steps"]["top"] >= narrow["lp-log"]["bottom"]
+    assert narrow["lp-checks"]["top"] >= narrow["lp-steps"]["bottom"]
     assert narrow["lp-steps"]["width"] == narrow["lp-log"]["width"]
 
     page.emulate_media(media="print")
@@ -1103,9 +1113,9 @@ def test_a_grid_cell_is_a_frame_that_holds_text_to_the_measure_and_lets_a_surfac
     browser, serve
 ):
     """A cell takes the grid's width, not the page's room; text in it keeps the reading
-    measure and a surface fills it. A template's tracks stand as written until the
-    grid is narrower than 600px, where each cell takes the row, and a grid nested in
-    a cell takes none of its parent's template."""
+    measure and a surface fills it. A template's tracks stand as written until its
+    narrowest track would fall below the grid minimum, where each cell takes the row,
+    and a grid nested in a cell takes none of its parent's template."""
     context = browser.new_context(viewport={"width": 1600, "height": 1000})
     page = open_page(browser, live_url(serve(GRID_PAGE)), context=context)
     width = "id => document.getElementById(id).getBoundingClientRect().width"
@@ -3509,7 +3519,7 @@ def test_a_playground_keeps_one_typed_working_state_until_the_user_chooses(
     expect(page.locator("#card-instruction")).to_have_css(
         "font-family", 'system-ui, -apple-system, "Segoe UI", sans-serif'
     )
-    expect(page.locator("#card-instruction")).to_have_css("font-size", "11.5px")
+    expect(page.locator("#card-instruction")).to_have_css("font-size", "14px")
 
     with sending(page, "the playground configuration"):
         playground.get_by_role("button", name="Use these settings").click()
@@ -3540,35 +3550,43 @@ def test_a_playground_keeps_one_typed_working_state_until_the_user_chooses(
 def test_notification_playground_sets_regions_side_by_side_while_its_workspace_holds_the_window(
     browser, serve
 ):
-    """A playground is a workspace with its relationship declared: controls beside the
-    preview they operate. While the root workspace holds the window each region scrolls
-    on its own under the fixed presets and above the fixed actions; where it doesn't,
-    the regions stack and the page scrolls. Either way each is a named reading region."""
+    """A playground is a workspace with its relationship declared: the preview is the
+    stage, with the controls and the instruction they write in a rail beside it. While
+    the root workspace holds the window each region scrolls on its own, the controls
+    under their fixed presets and the instruction above its fixed actions; where it
+    doesn't, the page scrolls, and a narrow one stacks the regions. Either way each is a
+    named reading region."""
     source = Path(__file__).parents[1] / "examples" / "notification-playground.html"
     page = open_page(browser, serve(source))
     playground = page.locator("#notification-playground")
     controls = playground.locator(".lf-playground-controls")
     preview = playground.locator(".lf-playground-preview-body")
     presets = playground.get_by_role("group", name="Starting points")
-    actions = playground.locator(":scope > .lf-playground-actions")
+    actions = playground.locator(".lf-playground-actions")
     reading = """async () => {
       const leaf = await window.__lfRuntimeImport('/runtime/widget-api.js');
       const playground = document.querySelector('#notification-playground');
       const controls = playground.querySelector('.lf-playground-controls');
       const preview = playground.querySelector('.lf-playground-preview-body');
+      const instruction = playground.querySelector('lf-playground-output');
       const region = (body) => leaf.readingRegionFor(body);
       const controlsBox = region(controls).host.getBoundingClientRect();
       const previewBox = region(preview).host.getBoundingClientRect();
+      const instructionBox = region(instruction).host.getBoundingClientRect();
       return {
         controlsId: region(controls).id,
         previewId: region(preview).id,
-        postures: [controls, preview].map((body) => leaf.readingPosture(region(body))),
-        scrollers: [controls, preview].map((body) =>
+        instructionId: region(instruction).id,
+        postures: [controls, preview, instruction].map((body) =>
+          leaf.readingPosture(region(body))),
+        scrollers: [controls, preview, instruction].map((body) =>
           leaf.effectiveScroller(body) === body ? 'own' :
           leaf.effectiveScroller(body) === document.scrollingElement ? 'page' : 'other'),
         sideBySide: Math.abs(previewBox.top - controlsBox.top) < 1
-          && previewBox.left >= controlsBox.right,
-        stacked: previewBox.top >= controlsBox.bottom - 1,
+          && controlsBox.left >= previewBox.right
+          && Math.abs(instructionBox.left - controlsBox.left) < 1
+          && instructionBox.top >= controlsBox.bottom,
+        stacked: controlsBox.top >= previewBox.bottom - 1,
         presetsHeadControls: controls.previousElementSibling
           === playground.querySelector('.lf-playground-presets'),
         controlsSize: [controls.clientHeight, controls.scrollHeight],
@@ -3586,8 +3604,9 @@ def test_notification_playground_sets_regions_side_by_side_while_its_workspace_h
         **bounded,
         "controlsId": "lf-region:notification-playground:controls",
         "previewId": "lf-region:notification-playground:preview",
-        "postures": ["bounded", "bounded"],
-        "scrollers": ["own", "own"],
+        "instructionId": "lf-region:notification-playground:instruction",
+        "postures": ["bounded", "bounded", "bounded"],
+        "scrollers": ["own", "own", "own"],
         "sideBySide": True,
         "presetsHeadControls": True,
         "pageScrolls": False,
@@ -3603,12 +3622,6 @@ def test_notification_playground_sets_regions_side_by_side_while_its_workspace_h
         control_box["y"] + control_box["height"]
         <= controls_box["y"] + controls_box["height"]
     ), f"the fixed presets left no complete control row: {bounded['controlsSize']}"
-    # A short allocation scrolls the preview and instruction as successive blocks;
-    # shrinking the preview's grid track would paint it underneath the instruction.
-    content_boxes = preview.evaluate(
-        """body => [...body.children].map(node => node.getBoundingClientRect().toJSON())"""
-    )
-    assert content_boxes[0]["bottom"] <= content_boxes[1]["top"], content_boxes
     assert controls.evaluate("body => body.scrollWidth === body.clientWidth"), (
         "native control margins must fit inside the allocated pane width"
     )
@@ -3678,20 +3691,18 @@ def test_notification_playground_sets_regions_side_by_side_while_its_workspace_h
     assert action_box["y"] + action_box["height"] <= shortcut_box["y"] + 1
 
     # Beside Threads, the notification wraps beyond the preview's minimum height.
-    # The preview must grow around its content before the instruction begins.
+    # The preview must grow around its content rather than clip it.
     resized(page, 1280, 720)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    assert page.evaluate(reading)["postures"] == ["bounded", "bounded"]
+    assert page.evaluate(reading)["postures"] == ["bounded", "bounded", "bounded"]
     notification_box = page.locator(
         ".notification-demo-card-banner"
     ).first.bounding_box()
     preview_box = page.locator("#notification-preview").bounding_box()
-    instruction_box = page.locator("#notification-instruction").bounding_box()
     assert notification_box["y"] + notification_box["height"] <= (
         preview_box["y"] + preview_box["height"]
     )
-    assert preview_box["y"] + preview_box["height"] <= instruction_box["y"]
     page.locator(".lf-threads-toggle").click()
 
     for width, height in [(1100, 300), (700, 500), (500, 900)]:
@@ -3699,8 +3710,8 @@ def test_notification_playground_sets_regions_side_by_side_while_its_workspace_h
         flow = page.evaluate(reading)
         assert flow == {
             **flow,
-            "postures": ["flow", "flow"],
-            "scrollers": ["page", "page"],
+            "postures": ["flow", "flow", "flow"],
+            "scrollers": ["page", "page", "page"],
             "pageScrolls": True,
             "askDisplay": "block",
         }, (width, height)
@@ -4082,9 +4093,10 @@ def test_playground_composed_structural_target_resolves_in_the_next_revision(
     }
 
     revised = source.replace(
-        "One width gesture\n          reaches both",
-        "One shared width gesture\n          reaches both",
+        "One width gesture\n        reaches both",
+        "One shared width gesture\n        reaches both",
     )
+    assert revised != source
     stamp = stamp_page(serve.page_dir, revised, "Clarify the comparison gesture")
     wait_for_revision(page, stamp["revision"])
     target = page.locator(
@@ -4683,7 +4695,7 @@ def test_notification_playground_export_flows_at_another_width_and_on_paper(
     assert playground.evaluate(
         f"""root => {{
           const found = ({bodies})(root);
-          return found.length === 2
+          return found.length === 3
             && found.every(body => getComputedStyle(body).overflowY === 'visible');
         }}"""
     )
@@ -4692,7 +4704,7 @@ def test_notification_playground_export_flows_at_another_width_and_on_paper(
     assert playground.evaluate(
         f"""root => {{
           const found = ({bodies})(root);
-          return found.length === 2
+          return found.length === 3
             && found.every(body => getComputedStyle(body).overflowY === 'visible'
               && body.scrollHeight === body.clientHeight);
         }}"""
@@ -5062,10 +5074,27 @@ def test_a_swipe_deck_reflows_with_its_parent_allocation(browser, serve):
     assert narrow["controls"]["bottom"] < narrow["passed"]["top"], narrow
     assert narrow["passed"]["bottom"] < narrow["kept"]["top"], narrow
 
-    wide = layout("44rem")
-    assert len(wide["columns"]) == 2, wide
-    assert wide["passed"]["top"] == pytest.approx(wide["kept"]["top"]), wide
-    assert wide["passed"]["right"] < wide["kept"]["left"], wide
+    stacked = layout("44rem")
+    assert len(stacked["columns"]) == 2, stacked
+    assert stacked["passed"]["top"] == pytest.approx(stacked["kept"]["top"]), stacked
+    assert stacked["passed"]["right"] < stacked["kept"]["left"], stacked
+
+    # With room for a rail the deck is a body beside it: the queue and its controls on
+    # the left, Kept above Passed on the right, the rail as tall as the queue.
+    railed = layout("60rem")
+    assert len(railed["columns"]) == 2, railed
+    assert railed["deck"]["width"] == pytest.approx(
+        decision.evaluate("element => element.clientWidth")
+    ), railed
+    assert railed["queue"]["right"] < railed["kept"]["left"], railed
+    assert railed["kept"]["left"] == pytest.approx(railed["passed"]["left"]), railed
+    assert railed["kept"]["bottom"] < railed["passed"]["top"], railed
+    assert railed["queue"]["top"] == pytest.approx(railed["kept"]["top"]), railed
+    assert railed["queue"]["bottom"] == pytest.approx(railed["passed"]["bottom"]), (
+        railed
+    )
+    assert railed["queue"]["bottom"] < railed["controls"]["top"], railed
+    assert railed["controls"]["right"] <= railed["queue"]["right"], railed
 
 
 def test_a_swipe_deck_is_one_ask_with_directional_action_hints(browser, serve):
@@ -5272,17 +5301,22 @@ def test_ideas_to_implement_is_a_fast_mobile_decision_queue(browser, serve):
     page.set_viewport_size({"width": 1200, "height": 900})
     wide = page.evaluate(
         """() => {
+          const queue = document.querySelector('#ideas-queue').getBoundingClientRect();
           const passed = document.querySelector('#ideas-pass').getBoundingClientRect();
           const kept = document.querySelector('#ideas-keep').getBoundingClientRect();
           return {
+            queueRight: queue.right,
+            keptLeft: kept.left,
+            keptBottom: kept.bottom,
             passedTop: passed.top,
-            keptTop: kept.top,
             pageWidth: document.documentElement.scrollWidth,
             viewportWidth: document.documentElement.clientWidth,
           };
         }"""
     )
-    assert wide["passedTop"] == pytest.approx(wide["keptTop"], abs=0.02)
+    # The sheet gives the deck room for its rail: both piles stay beside the queue.
+    assert wide["queueRight"] < wide["keptLeft"], wide
+    assert wide["keptBottom"] < wide["passedTop"], wide
     assert wide["pageWidth"] == wide["viewportWidth"] == 1200
 
     expect(approve).to_have_text("Approve version")
@@ -7772,15 +7806,16 @@ def test_ask_actions_replace_unusable_package_binding_badge_faces(browser, serve
         }"""
     )
 
+    # The Ask's bindings are chrome, painted on the frame after the press that enters it.
     page.keyboard.press("a")
-    controls = page.locator(
-        "#disconnected-face, #shared-face-one, #shared-face-two, #covered-face, "
-        "#clipped-face"
-    )
-    expect(controls).to_have_count(5)
-    assert controls.evaluate_all(
-        "nodes => nodes.map(node => node.getAttribute('aria-keyshortcuts'))"
-    ) == ["3", "4", "5", "6", "7"]
+    for control, binding in (
+        ("#disconnected-face", "3"),
+        ("#shared-face-one", "4"),
+        ("#shared-face-two", "5"),
+        ("#covered-face", "6"),
+        ("#clipped-face", "7"),
+    ):
+        expect(page.locator(control)).to_have_attribute("aria-keyshortcuts", binding)
     expect(
         page.locator("#shared-binding-badge[data-lf-ask-binding-badge]")
     ).to_have_count(0)
@@ -9170,9 +9205,10 @@ def test_the_asks_tray_takes_room_rather_than_covering_the_column(browser, serve
     overlap on any window under about 1320px, which is most of them, so the strip comes
     out of the page the way the thread panel's does on the other side.
 
-    Below twice the tray's own width there is no strip to take, and it covers instead —
-    the same bargain at the same ratio the panel strikes, so a user who has learned
-    one edge has learned the other."""
+    Where the strip would leave less than a usable page beside it, it covers instead —
+    the rule the panel follows, asked of the room the tray leaves rather than of the
+    window, so a narrow window and a tray drawn wide on a wide one come to the same
+    answer, and a user who has learned one edge has learned the other."""
     page = open_page(browser, serve(ASKS_PAGE))
     geometry = """() => ({
       column: Math.round(document.querySelector('main').getBoundingClientRect().left),
@@ -9185,9 +9221,10 @@ def test_the_asks_tray_takes_room_rather_than_covering_the_column(browser, serve
     resized(page, 1200, 800)
     banner_control(page, ".lf-asks").click()
     expect(page.locator(".lf-asks-panel")).to_be_visible()
-    page.wait_for_function(
-        """() => getComputedStyle(document.body).borderLeftWidth !== '0px'"""
-    )
+    covering = page.locator("body[data-lf-covering-surface='lf-asks']")
+    strip = "() => getComputedStyle(document.body).borderLeftWidth"
+    page.wait_for_function(f"() => ({strip})() !== '0px'")
+    expect(covering).to_have_count(0)
     wide = page.evaluate(geometry)
     assert wide["column"] >= wide["tray"], (
         f"the tray covers the column: it ends at {wide['tray']} and the column "
@@ -9195,12 +9232,33 @@ def test_the_asks_tray_takes_room_rather_than_covering_the_column(browser, serve
     )
     assert wide["sideways"] == 0, "the page scrolls sideways with the tray up"
 
-    # Narrow enough and the strip is more than the page can give, so it covers.
-    resized(page, 560, 800)
-    page.wait_for_function(
-        """() => getComputedStyle(document.body).borderLeftWidth === '0px'"""
-    )
+    # At 610 the default 300px strip would leave 310, short of a usable page.
+    resized(page, 610, 800)
+    expect(covering).to_have_count(1)
+    assert page.evaluate(strip) == "0px"
     assert page.evaluate(geometry)["sideways"] == 0
+    resized(page, 1200, 800)
+    expect(covering).to_have_count(0)
+
+    # Drawn wide enough on a wide window, the strip is more than the page can give,
+    # so the tray covers. One step back and the page has its usable width again.
+    edge = page.locator(".lf-asks-panel > .lf-edge")
+    edge.focus()
+    for _ in range(40):
+        if covering.count():
+            break
+        page.keyboard.press("ArrowRight")
+    expect(covering).to_have_count(1)
+    left = page.evaluate(
+        """() => innerWidth
+             - document.querySelector('.lf-asks-panel').getBoundingClientRect().width"""
+    )
+    assert left < 320, f"the tray covered with {left}px of page beside it"
+    assert page.evaluate(strip) == "0px"
+    page.keyboard.press("ArrowLeft")
+    expect(covering).to_have_count(0)
+    beside = page.evaluate(geometry)
+    assert beside["column"] >= beside["tray"], beside
 
 
 def test_one_tray_stands_on_the_left_edge_at_a_time(browser, serve, other_leaf):
@@ -9620,7 +9678,7 @@ def test_the_gate_passes_a_chart_whose_tick_names_its_month_on_a_second_line(
         "the lines land on nothing, so a gate that never looked would pass this too"
     )
     page.close()
-    assert render_gate_model.render_version(browser, url) == []
+    assert render_gate_model.render_version(browser, url).failures == []
 
 
 @pytest.mark.parametrize("scroll_to_chart", [False, True])

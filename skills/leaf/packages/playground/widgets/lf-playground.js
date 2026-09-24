@@ -537,13 +537,15 @@ customElements.define(
       return actions;
     }
 
-    // The playground is a workspace whose relationship is declared: controls operate the
-    // preview. It composes the layout layer's own grammar out of boxes it generates, a
-    // grid of two panes (packages/default/theme.css, at lf-workspace), so the theme alone
-    // decides whether each pane's body scrolls or the page does. Each pane is a reading
-    // region under the playground's id.
+    // The playground is a workspace whose relationship is declared: the controls, and the
+    // instruction they write, operate the preview. It composes the layout layer's own
+    // grammar out of boxes it generates, a grid of three panes (packages/default/theme.css,
+    // at lf-workspace), so the theme alone decides whether each pane's body scrolls or the
+    // page does. The playground theme places them: the preview is the stage, and the
+    // controls stand above the instruction and its actions in a rail beside it. Each pane
+    // is a reading region under the playground's id.
     #buildLayout({ panel, presetBar, preview, actions }) {
-      const pane = (name, label, header, body) => {
+      const pane = (name, label, header, body, footer) => {
         const host = document.createElement("div");
         host.className = `lf-playground-${name}-region`;
         host.dataset.lfReadingRole = "pane";
@@ -551,21 +553,30 @@ customElements.define(
         host.setAttribute("aria-label", label);
         if (header) host.append(header);
         host.append(body);
+        if (footer) host.append(footer);
         this.#regions.push({ id: compoundReadingRegionId(this, name), host, body });
         return host;
       };
       const previewBody = document.createElement("div");
       previewBody.className = "lf-playground-preview-body";
-      previewBody.append(preview, this.#output);
+      previewBody.append(preview);
+      const title = "Instruction to agent";
 
       const split = document.createElement("div");
       split.className = "lf-playground-split";
       split.dataset.lfReadingRole = "grid";
       split.append(
-        pane("controls", "Controls", presetBar, panel),
         pane("preview", "Preview", null, previewBody),
+        pane("controls", "Controls", presetBar, panel),
+        pane(
+          "instruction",
+          title,
+          offer("header", "lf-playground-instruction-title", title),
+          this.#output,
+          actions,
+        ),
       );
-      this.append(split, actions);
+      this.append(split);
       this.#registerRegions();
     }
 

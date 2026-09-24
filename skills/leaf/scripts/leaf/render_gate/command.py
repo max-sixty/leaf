@@ -15,6 +15,7 @@ from .browser import (
 )
 from .page_code import run_page_code
 from .preview import preview_server
+from .readings import SWEEP_WIDTHS
 from .version import RENDER_VIEWPORTS, render_version
 
 
@@ -106,14 +107,16 @@ def render_check(
     )
     if ran is None:
         return 1
-    failures, browser_name = ran
-    if failures:
+    reading, browser_name = ran
+    if reading.failures:
         print(
-            f"✗ index.html: renders broken — {len(failures)} issue(s)",
+            f"✗ index.html: renders broken — {len(reading.failures)} issue(s)",
             file=sys.stderr,
         )
-        for f in failures:
+        for f in reading.failures:
             print(f"  - {f}", file=sys.stderr)
+        for line in reading.advice:
+            print(f"  · {line}", file=sys.stderr)
         return 1
     viewport_names = " and ".join(
         f"{viewport['width']}x{viewport['height']}" for viewport in RENDER_VIEWPORTS
@@ -123,6 +126,8 @@ def render_check(
         f"{viewport_names} — no "
         "console errors, every widget takes space, no words on top of other words, code that reads "
         "against the block it is on, boxes showing the inset they draw, nothing past the "
-        "column, no sideways scroll"
+        f"column, no sideways scroll from {SWEEP_WIDTHS[0]}px to {SWEEP_WIDTHS[-1]}px wide"
     )
+    for line in reading.advice:
+        print(f"  · {line}")
     return 0

@@ -10,6 +10,7 @@
     "required": ["id", "submit-label"],
     "additionalProperties": false,
     "x-content": "members",
+    "x-measure": "surface",
     "x-guidance": {
       "author": "Both candidates are built lf-code widgets. Shared controls drive both, while the page-owned contributor keeps and copies explicit candidate settings."
     },

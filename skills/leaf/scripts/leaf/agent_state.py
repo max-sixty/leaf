@@ -62,7 +62,7 @@ def standing_entry(coordinate, e: dict, conversation: str | None = None) -> dict
 def cmd_page_state(page_dir: Path) -> None:
     """Print the agent-side state from one transaction-consistent snapshot."""
     with PageTransaction(page_dir) as page:
-        activation = activate_source(page_dir, page.events)
+        activation = activate_source(page_dir)
         _write_page_state(page_dir, page.events, activation.error)
 
 
@@ -75,7 +75,7 @@ def cmd_conversation_read(
 ) -> None:
     """Print one exact current conversation and one bounded history page."""
     with PageTransaction(page_dir) as page:
-        activation = activate_source(page_dir, page.events)
+        activation = activate_source(page_dir)
         _write_page_state(
             page_dir,
             page.events,

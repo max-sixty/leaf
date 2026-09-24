@@ -136,7 +136,25 @@ customElements.define(
         // select them, and the theme's generated copy is left to the no-script case.
         heading.setAttribute("aria-hidden", "true");
         heading.textContent = col.getAttribute("label");
+        // How many cards stand in the column, beside its heading rather than in it, so
+        // the heading's words stay the column's name. Generated like the heading, and
+        // quotable like it: a figure the user can see is one they can point at. The
+        // list already tells a screen reader its length, so it is the visible half only.
+        const count = document.createElement("span");
+        count.className = "lf-column-count";
+        count.dataset.lfGen = "1";
+        count.setAttribute("aria-hidden", "true");
         col.prepend(heading);
+        heading.after(count);
+      }
+      this.#counts();
+    }
+
+    #counts() {
+      for (const col of this.querySelectorAll(":scope > lf-column")) {
+        const count = col.querySelector(":scope > .lf-column-count");
+        const n = String(this.#cards(col).length);
+        if (count && count.textContent !== n) count.textContent = n;
       }
     }
 
@@ -145,6 +163,7 @@ customElements.define(
     // card is without having read the list it sits in. State provenance is the runtime's
     // one shared reading on the card rather than another suffix in this control's name.
     #names() {
+      this.#counts();
       for (const col of this.querySelectorAll(":scope > lf-column")) {
         const where = col.getAttribute("label");
         for (const card of this.#cards(col)) {

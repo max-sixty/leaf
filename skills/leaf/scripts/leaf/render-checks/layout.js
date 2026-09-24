@@ -214,20 +214,39 @@ export function misplacedBoxes() {
         : Math.round(Math.max(b.right - right, left - b.left));
     if (past > 1) over.set(el, [past, wide, frame, host]);
   }
+  // Each finding names its element and its kind beside the words, so a reader that
+  // takes this pass at several widths (the gate's sweep) can tell one fault met again
+  // from a new one without reading the sentence, whose pixel count moves with the width.
   const found = [];
+  const report = (el, kind, text) => found.push({ at: at(el), kind, text });
   for (const [el, [past, wide, frame, host]] of over) {
     if ([...over.keys()].some((other) => other !== el && other.contains(el))) continue;
-    found.push(
-      host
-        ? `${at(el)} stands ${past}px outside the ${at(host)} it is part of`
-        : !wide
-          ? `${at(el)} is set ${past}px past the column, out in the margin`
-          : frame
-            ? `${at(el)} stands ${past}px outside the ${at(frame)} that frames it — ` +
-              `declare --lf-block-frame: 1 in the rule that draws the frame, so the box ` +
-              `holds the room in as well as the margins`
-            : `${at(el)} stands ${past}px past the room the page has for a wide widget`,
-    );
+    if (host)
+      report(
+        el,
+        "part",
+        `${at(el)} stands ${past}px outside the ${at(host)} it is part of`,
+      );
+    else if (!wide)
+      report(
+        el,
+        "column",
+        `${at(el)} is set ${past}px past the column, out in the margin`,
+      );
+    else if (frame)
+      report(
+        el,
+        "frame",
+        `${at(el)} stands ${past}px outside the ${at(frame)} that frames it — ` +
+          `declare --lf-block-frame: 1 in the rule that draws the frame, so the box ` +
+          `holds the room in as well as the margins`,
+      );
+    else
+      report(
+        el,
+        "room",
+        `${at(el)} stands ${past}px past the room the page has for a wide widget`,
+      );
   }
   // The room being the page's own box is not the whole of what a wide widget owes,
   // because the page hangs things in that box. A suggestion's controls stand 22px off
@@ -260,7 +279,9 @@ export function misplacedBoxes() {
       );
     });
     if (hit)
-      found.push(
+      report(
+        el,
+        "over",
         `${at(el)} is drawn over ${at(hit)}, which stands in the ` +
           `margin it grew into — the side that holds it gives no room`,
       );
@@ -357,9 +378,88 @@ export function misplacedBoxes() {
     // of one container hide the one hung off it and lost 400px out of another.
     if ([...lost].some(([o, [, its]]) => o !== el && its === a && o.contains(el)))
       continue;
-    found.push(`${at(el)} is drawn ${past}px outside ${at(a)}, which does not show it`);
+    report(
+      el,
+      "hidden",
+      `${at(el)} is drawn ${past}px outside ${at(a)}, which does not show it`,
+    );
   }
-  return [...new Set(found)];
+  const texts = new Set();
+  return found.filter(({ text }) => !texts.has(text) && texts.add(text));
+}
+
+// Whether a page's grids stand on one set of vertical lines. A sheet reads as one
+// structure when every region shares the same tracks (page-authoring.md, the sheet), and
+// reads as a jumble when each row is a grid of its own whose split lands somewhere new.
+// So each split — the midpoint of the gutter between two cells side by side — is a line
+// the page draws, and the count that matters is how many lines the page draws beyond what
+// its busiest grid needs: `unshared` is the distinct splits across the page, clustered at
+// 2px, less the most any one grid has. A page of one grid, or of grids that repeat one
+// grid's tracks, reads 0.
+//
+// Only layout grids are walked into: `main`'s own children, and the cells of each grid
+// among them, recursively. What a widget lays out inside itself — a board's columns, a
+// table — is the widget's structure rather than the page's. Only gutters count, and only
+// in a grid given tracks (a template, or `1` to stack a track's regions): a count grid is a
+// row of equal tiles, whose gutters are wherever its tile count puts them rather than a
+// region boundary the reader is meant to follow down the page. A box placed absolutely,
+// fixed or floated answers for its own position and stands on no track.
+export function misalignedSplits() {
+  const main = document.querySelector("main");
+  if (!main) return { unshared: 0, grids: [] };
+  const layoutGrid = (el) => el.matches('lf-grid, [data-lf-reading-role="grid"]');
+  const tracked = (el) =>
+    /fr/.test(el.getAttribute("columns") || "") || el.getAttribute("columns") === "1";
+  const standing = (el) => {
+    if (!el.checkVisibility()) return false;
+    const s = getComputedStyle(el);
+    if (s.position === "absolute" || s.position === "fixed" || s.float !== "none")
+      return false;
+    const b = el.getBoundingClientRect();
+    return b.width >= 2 && b.height >= 2;
+  };
+  const grids = [];
+  const walk = (parent) => {
+    for (const el of parent.children) {
+      if (!standing(el)) continue;
+      // A workspace and its panes are the page's regions, so the grids they hold are
+      // the page's tracks too.
+      if (!layoutGrid(el) || !tracked(el)) {
+        if (
+          el.matches(
+            '[data-lf-reading-role="workspace"], [data-lf-reading-role="pane"]',
+          )
+        )
+          walk(el);
+        continue;
+      }
+      const rows = new Map();
+      for (const cell of el.children) {
+        if (!standing(cell)) continue;
+        const b = cell.getBoundingClientRect();
+        const top = Math.round(b.top);
+        rows.set(top, [...(rows.get(top) ?? []), b]);
+      }
+      const splits = [];
+      for (const row of rows.values()) {
+        row.sort((a, b) => a.left - b.left);
+        for (let i = 1; i < row.length; i++)
+          splits.push(Math.round((row[i - 1].right + row[i].left) / 2));
+      }
+      if (splits.length) grids.push({ at: at(el), splits: [...new Set(splits)] });
+      walk(el);
+    }
+  };
+  walk(main);
+  // Chained, so a run of splits each within 2px of the last is one line.
+  let lines = 0,
+    last = -Infinity;
+  for (const x of grids.flatMap((g) => g.splits).sort((a, b) => a - b)) {
+    if (x - last > 2) lines++;
+    last = x;
+  }
+  const busiest = Math.max(0, ...grids.map((g) => g.splits.length));
+  return { unshared: lines - busiest, grids };
 }
 
 // A drawing scrolling beside room that would have shown it whole. Scrolling is the

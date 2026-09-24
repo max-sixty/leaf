@@ -908,7 +908,7 @@ class PageEndpoint:
             version = self.page_snapshot.active["version"]
         else:
             with PageTransaction(self.page_dir) as page:
-                activate_source(self.page_dir, page.events)
+                activate_source(self.page_dir)
                 events = page.events
             revision = latest_revision(self.page_dir)
             if revision is None:

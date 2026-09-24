@@ -14,7 +14,6 @@
 import { userStore, tabStore } from "./storage.js";
 import { AUXILIARY_SURFACE_KEY } from "./auxiliary-surfaces.js";
 import { DESIGN_MODE_KEY } from "./design-readings.js";
-import { removeRuntimeRootStyle } from "./root-state.js";
 
 export const USER_VIEW_RESTORE_CASES = [
   {
@@ -55,7 +54,5 @@ export function restoreUserView({
   traysEdge.restore();
   restoreAuxiliarySurface();
   if (tabStore.get(DESIGN_MODE_KEY) === "1") setDesignMode(true, { spoken: false });
-  const root = document.documentElement;
-  root.removeAttribute("data-lf-restore-asks");
-  removeRuntimeRootStyle(root, "--lf-tray-slot-choice");
+  delete document.documentElement.dataset.lfRestoreSurface;
 }

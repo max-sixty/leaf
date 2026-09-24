@@ -38,6 +38,7 @@ PUBLIC_TABS = [
     ("data-explorer", "Data explorer"),
     ("code-comparison", "Code comparison"),
     ("live-progress", "Live"),
+    ("alert-review", "Alerts"),
     ("pr-walkthrough", "PR"),
     ("wt-merge", "Merge film"),
     ("security-boundary", "Security"),
@@ -52,8 +53,8 @@ DEVELOPER_TABS = [
         "Visual review package",
     ),
 ]
-CONTENTS_SIDEBAR = re.compile(
-    r'\s*<aside class="sidebar" id="[^"]+">\s*' r"<lf-toc\b[^>]*></lf-toc>\s*</aside>"
+CONTENTS_MAP = re.compile(
+    r"\s*<(aside|section)\b[^>]*>\s*<lf-toc\b[^>]*></lf-toc>\s*</\1>"
 )
 TABS = [
     *((EXAMPLES_DIR / f"{stem}.html", label) for stem, label in PUBLIC_TABS),
@@ -175,7 +176,7 @@ def build() -> str:
         # lf-toc maps its closest main. After composition that is the corpus's outer
         # document, so retaining a source page's map would repeat one whole-corpus
         # outline in every tab rather than navigate that source page.
-        body = CONTENTS_SIDEBAR.sub("", body)
+        body = CONTENTS_MAP.sub("", body)
         tabs.append(f'<lf-tab id="corpus-{stem}" label="{label}">\n{body}\n</lf-tab>\n')
 
     head = HEAD.replace("</head>", "\n".join(authored_assets) + "\n</head>")

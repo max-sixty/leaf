@@ -10,6 +10,7 @@
     "required": ["id", "submit-label"],
     "additionalProperties": false,
     "x-content": "members",
+    "x-measure": "surface",
     "x-guidance": {
       "author": "The page module owns ordered filter rows; the Playground package owns their aggregate reset, restore, copy, and submission path."
     },

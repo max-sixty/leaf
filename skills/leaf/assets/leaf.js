@@ -650,7 +650,6 @@ layout = createChromeLayout({
 });
 threadPanelController = createThreadPanelController({
   auxiliarySurfaces,
-  panelCovers: layout.panelCovers,
   elements: { panel, toggleBtn, threadsBox },
   widen: () => widen(app.presentConversation),
   activeInlineThread: app.margin.activeInlineThread,

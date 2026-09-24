@@ -18,7 +18,7 @@ from leaf.work import standing_work_claims, widget_work_without_targets
 
 
 def _stamp_activation(page_dir: Path, events: list):
-    activation = activate_source(page_dir, events, allow_transition=True)
+    activation = activate_source(page_dir, allow_transition=True)
     if activation.error or activation.revision is None:
         detail = activation.error or "index.html produced no revision"
         sys.exit(f"refusing to stamp index.html: {detail}")

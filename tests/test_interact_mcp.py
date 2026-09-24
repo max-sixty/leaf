@@ -26,7 +26,7 @@ from mcp.client.stdio import StdioServerParameters, stdio_client
 def test_mcp_specimens_keep_the_parent_capability_and_their_own_log(page_dir):
     template = '<template id="practice" data-specimen><h1>Practice</h1><p id="child-text">A child page.</p></template>'
     (page_dir / "index.html").write_text(PAGE.replace("</main>", template + "</main>"))
-    activation = activate_source(page_dir, [])
+    activation = activate_source(page_dir)
     assert activation.error is None
     pages = ProcessPageServer()
     try:
@@ -73,7 +73,7 @@ def test_mcp_specimens_keep_the_parent_capability_and_their_own_log(page_dir):
 
 
 def test_snapshot_event_round_trip_is_durable_retryable_and_canonical(page_dir):
-    activated = activate_source(page_dir, events_model.read_events(page_dir))
+    activated = activate_source(page_dir)
     assert activated.error is None and activated.revision == 1
     candidate = {
         "kind": "comment",
@@ -110,7 +110,7 @@ def test_the_snapshot_door_refuses_a_passage_no_context_identifies(page_dir):
         "  <p>Later: The flag is off. We hold the release.</p>",
     )
     (page_dir / "index.html").write_text(twice, encoding="utf-8")
-    activated = activate_source(page_dir, events_model.read_events(page_dir))
+    activated = activate_source(page_dir)
     assert activated.error is None and activated.revision == 1
 
     def comment(quote, attempt):
@@ -181,7 +181,7 @@ def test_mcp_snapshot_write_rejects_non_comment_event_kinds(page_dir, kind):
 
 
 def test_mcp_refuses_an_anchor_on_static_widget_source(page_dir):
-    activated = activate_source(page_dir, events_model.read_events(page_dir))
+    activated = activate_source(page_dir)
     assert activated.error is None and activated.revision == 1
     result = apply_event(
         str(page_dir),
@@ -318,7 +318,7 @@ def test_stdio_protocol_carries_the_app_resource_and_private_tool_result(
 
 
 def test_stdio_snapshot_write_boundary_accepts_only_comments(page_dir):
-    activated = activate_source(page_dir, events_model.read_events(page_dir))
+    activated = activate_source(page_dir)
     assert activated.error is None and activated.revision == 1
 
     async def exchange():

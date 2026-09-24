@@ -394,7 +394,7 @@ UNMARKABLE_PAGE = LONG_PAGE.replace(
 # compact posture has no margin for these synthetic residents, so it removes them.
 FLOATING_PAGE = LONG_PAGE.replace(
     "</main>",
-    "<style>@media (max-width: 600px) { .fixture-margin-float { display: none; } }</style>"
+    "<style>@media (max-width: 1199px) { .fixture-margin-float { display: none; } }</style>"
     "<div class='fixture-margin-float' id='in-the-margin' style='float: left; clear: left; width: 180px;"
     " margin-left: -204px'>Beside <code id='inner-word'>--flag</code>.</div>"
     "<div class='fixture-margin-float' id='half-out' style='float: left; clear: left; width: 180px;"
@@ -505,8 +505,7 @@ SCROLLED_CONTAINER = LONG_PAGE.replace(
 # import. `strip` says whether the page yields the region a strip: the Asks tray stands
 # beside the page, and the thread panel stands over it and takes nothing. `squeeze` is the
 # window that has no room for what the user chose and the width the region stands at
-# there — per edge, because a strip-taking tray is capped at half its window and the panel
-# over the page only at the window itself.
+# there, which is the window itself on either side.
 EDGES = [
     SimpleNamespace(
         name="comments",
@@ -530,7 +529,7 @@ EDGES = [
         store="lf-tray-slot-width",
         wide=300,
         strip=True,
-        squeeze=(800, 400),
+        squeeze=(400, 400),
     ),
 ]
 EDGE_IDS = [edge.name for edge in EDGES]

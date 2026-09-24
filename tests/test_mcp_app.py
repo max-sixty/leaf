@@ -7,7 +7,7 @@ import urllib.request
 from urllib.parse import urlsplit
 
 from interact_support import PAGE, ROOT, run_async
-from leaf.event_log import append_event, read_events
+from leaf.event_log import append_event
 from leaf.files import revision_path
 from leaf.mcp_page import (
     PAGE_APP_RESOURCE,
@@ -23,7 +23,7 @@ from leaf.structure import EXTERNAL_ORIGINS
 
 def activate(page_dir, html=PAGE):
     (page_dir / "index.html").write_text(html, encoding="utf-8")
-    active = activate_source(page_dir, read_events(page_dir))
+    active = activate_source(page_dir)
     assert active.error is None
     return active.revision
 

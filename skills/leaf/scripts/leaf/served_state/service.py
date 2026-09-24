@@ -78,7 +78,7 @@ class PageStateService:
     ) -> dict:
         if self.page_snapshot is None:
             with PageTransaction(self.page_dir) as page:
-                activation = activate_source(self.page_dir, page.events)
+                activation = activate_source(self.page_dir)
                 reading = served_reading.page_reading(self.page_dir)
                 state = self._full_state(
                     page.events, activation.error, view_revision=view_revision
@@ -107,7 +107,7 @@ class PageStateService:
     def page_browser_view(self, view_revision: int, through_seq: int) -> dict:
         if self.page_snapshot is None:
             with PageTransaction(self.page_dir) as page:
-                activate_source(self.page_dir, page.events)
+                activate_source(self.page_dir)
                 active = active_descriptor(self.page_dir, page.events)
                 if active is None:
                     raise ValueError(missing_revision(self.page_dir))

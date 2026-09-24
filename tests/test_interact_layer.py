@@ -1443,10 +1443,10 @@ def test_the_injected_control_face_is_a_default_only_the_document_reads():
 
 
 def test_the_layer_sheets_spell_the_runtime_s_layout_numbers():
-    """A media query cannot read a custom property, so the sheets state the tray's
-    covering width, the strip-taking tray, the width properties, and the Ask stamp as
-    literals while the runtime lays out and paints by the constants. Held equal here rather than
-    trusted to stay so."""
+    """A stylesheet cannot read a runtime constant, so the sheets state the strip-taking
+    surfaces, the width properties, the room the runtime reads covering from, and the Ask
+    stamp as literals while the runtime lays out and paints by the constants. Held equal
+    here rather than trusted to stay so."""
     runtime = schema_model.ASSETS / "runtime"
     layout = (runtime / "chrome-layout.js").read_text()
     trays = (runtime / "trays.js").read_text()
@@ -1458,18 +1458,19 @@ def test_the_layer_sheets_spell_the_runtime_s_layout_numbers():
     def constant(pattern, source):
         return re.search(pattern, source, re.MULTILINE | re.DOTALL).group(1)
 
-    tray = int(constant(r"^const TRAY_SLOT_W = (\d+);", trays))
-    assert 'covers: () => key !== "asks" || trayCovers(),' in trays
+    surfaces = (runtime / "auxiliary-surfaces.js").read_text()
     for spelling in (
-        f"(width <= {tray * 2}px)",
+        "--lf-" + constant(r'getPropertyValue\("--lf-([a-z-]+)"\)', surfaces) + ":",
         "var(" + constant(r'^const THREAD_PANEL_PROP = "([^"]+)";', layout) + ")",
         "var(" + constant(r'^export const TRAY_SLOT_PROP = "([^"]+)";', trays) + ")",
         "[" + constant(r'^  ask: "([^"]+)",', presentation) + "]",
     ):
         assert spelling in sheet, f"the layer sheets no longer spell {spelling}"
     for spelling in (
-        "html[data-lf-restore-asks]",
-        'html[data-lf-live]:has(body[data-lf-auxiliary-surface="asks"])',
+        'html[data-lf-restore-surface="asks"] body',
+        'html[data-lf-live] body[data-lf-auxiliary-surface="asks"]',
+        'html[data-lf-restore-surface="threads"] body',
+        'html[data-lf-live] body[data-lf-auxiliary-surface="threads"]',
     ):
         assert spelling in sheet, f"the layer sheets no longer spell {spelling}"
 
@@ -1510,17 +1511,25 @@ def test_the_prepaint_shell_matches_the_runtime_s_saved_arrangements():
         return re.search(pattern, source, re.MULTILINE).group(1)
 
     auxiliary_surfaces = (assets / "runtime" / "auxiliary-surfaces.js").read_text()
+    layout = (assets / "runtime" / "chrome-layout.js").read_text()
     for pattern, source in (
         (r'^export const AUXILIARY_SURFACE_KEY = "([^"]+)";', auxiliary_surfaces),
         (r'key: "(lf-tray-slot-width)"', trays),
+        (r'key: "(lf-thread-panel-width)"', layout),
     ):
         key = constant(pattern, source)
         assert f'localStorage.getItem(scope + "{key}")' in bootstrap
 
+    panel_prop = constant(r'^const THREAD_PANEL_PROP = "([^"]+)";', layout)
+    tray_prop = constant(r'^export const TRAY_SLOT_PROP = "([^"]+)";', trays)
+    for prop in (panel_prop, tray_prop):
+        assert f'root.style.setProperty("{prop}"' in bootstrap
+    panel_default = constant(r"^const THREAD_PANEL_W = (\d+);", layout)
+    tray_default = constant(r"^const TRAY_SLOT_W = (\d+);", trays)
     for literal in (
-        constant(r"^const TRAY_SLOT_W = (\d+);", trays),
-        constant(r"^const TRAY_SLOT_MIN = (\d+);", trays),
-        "data-lf-restore-asks",
+        f"var({panel_prop}, {panel_default}px)",
+        f"var({tray_prop}, {tray_default}px)",
+        "data-lf-restore-surface",
     ):
         assert literal in theme
 

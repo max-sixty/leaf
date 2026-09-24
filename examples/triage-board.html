@@ -62,32 +62,31 @@
 
         <lf-grid id="triage-status" columns="1">
           <lf-grid id="triage-counts" columns="2">
-            <lf-metric id="count-blocking" value="1">blocking</lf-metric>
+            <lf-metric id="count-cut" value="2 days">to the Thursday cut</lf-metric>
             <lf-metric id="count-open" value="7" delta="-3" direction="up-bad"
               >open since Monday</lf-metric
             >
           </lf-grid>
+          <section class="panel" id="triage-why">
+            <h2>Why only the migration blocks</h2>
+            <p>
+              The deploy script writes the schema version after the post-deploy hook,
+              and the hook exits non-zero on a warning. So the stamp never lands, and
+              every deploy runs 0041 again. 0041 only adds a column, so rerunning it is
+              a no-op. 0042 credits every account that was billed twice in March. Run
+              twice, it pays twice.
+            </p>
+            <p>
+              Every other card is either cosmetic, has a safe retry, or affects one
+              customer who has a workaround. None gets worse by waiting a week.
+            </p>
+          </section>
           <section class="panel" id="triage-moves">
             <h2>Recent moves</h2>
             <lf-activity id="triage-activity"></lf-activity>
           </section>
         </lf-grid>
       </lf-grid>
-
-      <section id="triage-why">
-        <h2>Why the migration blocks and nothing else does</h2>
-        <p>
-          The deploy script writes the schema version after the post-deploy hook, and
-          the hook exits non-zero on a warning. So the stamp never lands, and every
-          deploy runs 0041 again. 0041 only adds a column, so rerunning it is a no-op.
-          0042 credits every account that was billed twice in March. Run twice, it pays
-          twice.
-        </p>
-        <p>
-          Every other card is either cosmetic, has a safe retry, or affects one customer
-          who has a workaround. None gets worse by waiting a week.
-        </p>
-      </section>
     </main>
   </body>
 </html>

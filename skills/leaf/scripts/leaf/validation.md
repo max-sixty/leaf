@@ -83,7 +83,15 @@ values that resolve, and given real space; words a user can mark, reach, and
 select, with the registry's verbatim and shadow declarations honored; no sideways
 scroll, clipped control, squeezed table, trapped margin, or misplaced box; a print
 rendering that covers and drops nothing; and standing state that replays without
-conflict and idempotently. `render_gate/readings.py` is the list.
+conflict and idempotently. `render_gate/readings.py` is the list. Those readings run
+at a desktop and a phone viewport; once they are done, the loaded desktop page is
+resized through the widths from 360px to 1200px and the two sideways readings are taken
+again at each: a version holds at every width from the narrowest phone to the desktop,
+not only at the two the gate renders, and each fault the sweep alone finds is reported
+with the widths it spans. The gate also gives
+advice, which never refuses a version: at the desktop viewport, a page whose layout
+grids split at more places than its busiest grid needs is told to lay a sheet on one
+set of tracks.
 The invariants live in render_version, which the tests/test_render_*.py modules drive over
 the shipped examples. The suite uses Chromium's headless shell, while its
 end-to-end render-check tests run the launches used here — the installed Chrome

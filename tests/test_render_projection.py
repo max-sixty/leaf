@@ -7,6 +7,7 @@ from copy import deepcopy
 from datetime import datetime, timedelta
 
 import pytest
+import render_harness
 from click.testing import CliRunner
 from interact_support import (
     COMMAND_HUB_PACKAGE,
@@ -26,6 +27,7 @@ from leaf import structure as structure_model
 from leaf.render_gate import version as render_gate_model
 from leaf.render_gate.preview import preview_server
 from leaf.validation import compatibility as validation_model
+from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_cases_interaction import (
     ASKS_IN_ORDER,
@@ -3795,6 +3797,32 @@ def test_a_revision_that_rewrites_a_draft_leaves_the_user_where_they_stand(
     # The rewritten draft has connected and read its edit back: the words are kept.
     expect(editor).to_have_value("Ship it, but louder.")
     expect(pick).to_be_focused()
+
+
+def test_told_waits_through_a_document_without_a_body(browser, monkeypatch):
+    """The replacement navigation can be between its html and body while told polls."""
+    page = browser.new_page()
+    page.set_content('<body data-lf-reading="ready"></body>')
+    monkeypatch.setattr(render_harness, "_server_reading", lambda _page: "ready")
+    page.evaluate("() => { window.detachedBody = document.body; document.body.remove(); }")
+    assert page.evaluate("() => document.body === null")
+    real_wait = page.wait_for_function
+    attempts = 0
+
+    def wait_for_function(*args, **kwargs):
+        nonlocal attempts
+        attempts += 1
+        try:
+            return real_wait(*args, **kwargs)
+        except PlaywrightTimeout:
+            page.evaluate("() => document.documentElement.append(window.detachedBody)")
+            raise
+
+    monkeypatch.setattr(page, "wait_for_function", wait_for_function)
+
+    told(page)
+    assert attempts == 2
+    assert page.evaluate("() => document.body.dataset.lfReading") == "ready"
 
 
 def test_the_replacing_install_gives_back_the_same_apparatus(browser, serve):

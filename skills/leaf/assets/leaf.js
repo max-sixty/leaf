@@ -6,6 +6,8 @@ import "./vendor/webawesome-chrome.js";
 import { passiveSpecimen, offlineInteractive, runtime } from "./runtime/context.js";
 import { initializeServedDocument } from "./runtime/document-identity.js";
 import { chromeRoot } from "./runtime/chrome.js";
+import { readingBlock } from "./runtime/reading-place.js";
+import { mountHistory } from "./runtime/history.js";
 import { chromeSheet, marksSheet } from "./runtime/stylesheets.js";
 import { reportPageError, uploadMedia } from "./runtime/layer-client.js";
 import { upgradeWidgets } from "./runtime/widget-loader.js";
@@ -338,11 +340,8 @@ const version = createVersionController({
   midComposition: () => app.midComposition(),
   hasPending: () => app.hasPending(),
   readAndApply: (...args) => app.readAndApply(...args),
-  banner,
   landedAt: (...args) => asks.landedAt(...args),
   setLanded: (...args) => asks.setLanded(...args),
-  readableDestination: anchorTravel.readableDestination,
-  scrollToElement: anchorTravel.scrollToElement,
   forgetAuthoredOwners: (...args) => app.forgetAuthoredOwners(...args),
   retireProjectionCoverage: () => app.retireProjectionCoverage(),
   syncLayout: () => layout.syncLayout(),
@@ -447,7 +446,7 @@ if (offlineInteractive) applicationState.setHostAvailable(false);
 // Where a landing in the document goes, which is version continuity's reading of what is
 // on screen. Declared beside the let-go that uses it, for the same reason: the owner
 // stands by now and nothing has read the register yet.
-declareReading(version.readingBlock);
+declareReading(readingBlock);
 
 // And where it goes instead while a surface covers the page: the page is inert under one,
 // so the reading above cannot take the user and a step that let go would leave them
@@ -483,7 +482,7 @@ pageMapDialog = createPageMapDialog({
 // Ask view is constructed below by its owner factory; all accesses above are inert closures.
 asks = createAskView({
   panelIsOpen,
-  readingBlock: version.readingBlock,
+  readingBlock,
   focusForNavigation: app.margin.focusForNavigation,
   presentedControl: app.margin.presentedControl,
   projectionTarget: app.margin.marginTargetAt,
@@ -862,6 +861,8 @@ if (!passiveSpecimen && !offlineInteractive) {
   // for the browser to carry on from.
   releaseFocus();
 }
+mountHistory();
+const landFragment = version.aimArrival();
 const { landArrival, savedView } = offlineInteractive
   ? { landArrival: () => {}, savedView: null }
   : version.installArrival();
@@ -885,6 +886,7 @@ async function presentPage() {
   document.body.setAttribute(PAGE_PAINT_ATTRIBUTE.presented, "1");
   anchorControls.publishVisualActions();
   if (offlineInteractive) {
+    landFragment();
     document.dispatchEvent(new Event(PRESENTATION));
     return;
   }
@@ -896,6 +898,7 @@ async function presentPage() {
   paintVersionApproval();
   repaint();
   layoutMarginRows();
+  landFragment();
   landArrival();
   if (savedView && savedView.revision < runtime.currentRevision)
     notice(`Updated to ${runtime.currentLabel}`, { background: true });
@@ -926,6 +929,7 @@ async function startPage() {
     asks.syncAsks();
   }
   await settlePageInterface();
+  landFragment();
   document.body.setAttribute(PAGE_PAINT_ATTRIBUTE.upgraded, "1");
   app.startFeed(presentPage, initialStateRead);
 }

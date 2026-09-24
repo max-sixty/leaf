@@ -316,6 +316,11 @@ def test_root_tabs_switch_views_without_moving_the_strip_and_follow_history(
     expect(plan).to_have_attribute("aria-selected", "true")
     settled()
     expect(page.locator("#plan-rollback h2")).to_be_in_viewport()
+    # Back to that link's entry from another view switches to the view holding it.
+    switch(evidence)
+    page.go_back()
+    expect(plan).to_have_attribute("aria-selected", "true")
+    assert page.url.endswith("#plan-rollback")
 
     # A reveal (a comment anchor, find-in-page) opens another view, and the entry the
     # user stands on then names it, so pressing away and coming Back returns there.
@@ -334,6 +339,72 @@ def test_root_tabs_switch_views_without_moving_the_strip_and_follow_history(
     expect(evidence).to_have_attribute("aria-selected", "true")
     assert page.url.endswith("#evidence-tab")
     assert settled() == 0
+
+
+def test_a_root_view_keeps_its_place_through_a_resize_while_hidden(browser, serve):
+    """A view's place is where the user was reading in it, not a pixel offset: a window
+    resized while the view is hidden rewraps everything above that passage, and the
+    view still reopens with the passage where the user left it."""
+    page = open_page(browser, serve(ROOT_TABS_PAGE))
+    resized(page, 1280, 720)
+    tabs = page.locator("#root-tabs")
+    plan = tabs.get_by_role("tab", name="Plan", exact=True)
+    evidence = tabs.get_by_role("tab", name="Evidence", exact=True)
+    passage = page.locator("#evidence-sign-in p").first
+    below_landing_edge = """element => element.getBoundingClientRect().top
+        - parseFloat(getComputedStyle(document.scrollingElement).scrollPaddingTop)"""
+
+    def switch(tab):
+        box = tab.bounding_box()
+        page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+        expect(tab).to_have_attribute("aria-selected", "true")
+        scroll_settled(page)
+
+    switch(evidence)
+    passage.evaluate("element => element.scrollIntoView({block: 'start'})")
+    page.evaluate("scrollBy({top: -40, behavior: 'instant'})")
+    scroll_settled(page)
+    left = passage.evaluate(below_landing_edge)
+    assert left == pytest.approx(40, abs=2)
+    switch(plan)
+    resized(page, 520, 720)
+    switch(evidence)
+    assert passage.evaluate(below_landing_edge) == pytest.approx(left, abs=2)
+
+
+def test_a_url_into_a_hidden_root_view_lands_once_the_view_is_built(browser, serve):
+    """The browser lands a fragment while every view still stacks, before the tab set
+    has hidden the others or put up its strip. The page lands it again once widgets
+    have upgraded, by the browser's own rule, and the state read that follows moves
+    nothing."""
+    url = serve(ROOT_TABS_PAGE)
+    page = browser.new_page(viewport={"width": 1280, "height": 720})
+    held = []
+    page.route("**/api/state*", lambda route: held.append(route))
+    page.goto(f"{url}#evidence-sign-in", wait_until="load")
+    render_checks_model.wait_for_probe(page, "upgraded")
+    assert page.locator("body").get_attribute("data-lf-presented") is None
+    expect(page.locator("#evidence-tab")).not_to_have_attribute(
+        "hidden", re.compile(".*")
+    )
+    landing = page.evaluate(
+        """() => ({
+          target: document.querySelector('#evidence-sign-in')
+            .getBoundingClientRect().top,
+          edge: parseFloat(getComputedStyle(document.scrollingElement).scrollPaddingTop),
+          scroll: document.scrollingElement.scrollTop,
+        })"""
+    )
+    assert landing["target"] == pytest.approx(landing["edge"], abs=1), landing
+
+    assert held, "the state read completed before the upgraded landing was observed"
+    held.pop().continue_()
+    page.unroute("**/api/state*")
+    page.wait_for_function(BOTH_STAMPS)
+    scroll_settled(page)
+    assert page.evaluate("document.scrollingElement.scrollTop") == pytest.approx(
+        landing["scroll"], abs=1
+    )
 
 
 def test_a_stuck_root_tab_strip_hides_what_passes_under_it(browser, serve):
@@ -401,6 +472,42 @@ def test_embedded_tab_selection_preserves_the_document_reading_position(browser,
     expect(evidence).to_have_attribute("aria-selected", "true")
     scroll_settled(page)
     assert page.evaluate("scrollY") == pytest.approx(before, abs=2)
+
+
+def test_back_to_a_fragment_the_page_has_hidden_since_lands_on_it(browser, serve):
+    """Back restores the offset an entry was left at, unless the element its fragment
+    names is no longer shown: the user closed its tab since, so that offset belongs to
+    a page that has changed, and landing the fragment, which opens the tab, is the
+    answer. The tab set is embedded, so it keeps no history of its own."""
+    filler = "".join(f"<p>Filler paragraph {n}.</p>" for n in range(60))
+    url = serve(
+        leaf_page(
+            "Back to a hidden fragment",
+            '<h1 id="top">Hidden fragment</h1><p><a href="#x">To x</a></p>'
+            '<section><lf-tabs id="views">'
+            '<lf-tab id="one" label="One"><p>One is short.</p></lf-tab>'
+            f'<lf-tab id="two" label="Two">{filler}<p id="x">The target.</p></lf-tab>'
+            '</lf-tabs></section><p><a href="#top">To top</a></p>',
+        )
+    )
+    page = open_page(browser, url)
+    resized(page, 1280, 720)
+    tabs = page.locator("#views")
+    one = tabs.get_by_role("tab", name="One", exact=True)
+    two = tabs.get_by_role("tab", name="Two", exact=True)
+    target = page.locator("#x")
+
+    page.get_by_role("link", name="To x").click()
+    expect(two).to_have_attribute("aria-selected", "true")
+    expect(target).to_be_in_viewport()
+    one.click()
+    expect(one).to_have_attribute("aria-selected", "true")
+    page.get_by_role("link", name="To top").click()
+    page.wait_for_url(re.compile("#top$"))
+
+    page.go_back()
+    expect(two).to_have_attribute("aria-selected", "true")
+    expect(target).to_be_in_viewport()
 
 
 @pytest.mark.parametrize(

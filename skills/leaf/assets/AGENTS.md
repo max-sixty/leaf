@@ -63,7 +63,7 @@ relative to `runtime/` unless stated otherwise.
 | Margin inventory, controls, and Page Map | `margin-entries.js`, `margin-entry-model.js`, `margin-model.js`, `margin-map-model.js`, `margin-projection.js`, `margin-cluster-view.js`, `page-map-dialog.js` |
 | Margin placement | `margin-layout.js`, `thread-card-geometry.js` |
 | Passage reading and target identity | `passages.js`, `text-alignment.js`, `anchor-coordinate.js`, `target-references.js`, `resolved-target.js`, `anchor-resolution.js` |
-| Anchor paint, controls, and travel | `anchor-paint.js`, `anchor-note-view.js`, `anchor-controls.js`, `anchor-travel.js`, `target-paint.js`, `visual-parts.js` |
+| Anchor paint, controls, and travel | `anchor-paint.js`, `anchor-note-view.js`, `anchor-controls.js`, `anchor-travel.js`, `target-paint.js`, `visual-parts.js`, `indication.js` |
 | Banner, approvals, and the row, menu, and gesture control seats | `banner.js`, `banner-status-view.js`, `banner-approval.js`, `banner-shelf.js` |
 | Trays and neighboring pages | `trays.js`, `live-leaves.js`, `live-leaves-list.js` |
 | Activity timing and updates | `presence.js`, `updates.js` |

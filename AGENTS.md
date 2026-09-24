@@ -140,9 +140,13 @@ writable by the session running leaf.
 `pyproject.toml` states each runtime dependency at the lowest version the suite
 passes on, with no upper cap, and `uv.lock` ships beside it, so an install runs
 the resolution the suite was last green on. Shipping the lock does not take the
-host's index out of the loop: it records versions and hashes, and `uv sync`
-asks the host's configured index for them, so a private mirror answers and an
-offline run installs from `uv`'s cache. Python arrives on the same terms. The
+host's index out of the loop. `bin/leaf` passes neither `--frozen` nor
+`--locked`, so on a host whose configured index is not the pypi.org registry
+the lock records, `uv` re-locks against that index, keeps the locked versions,
+installs from it, and rewrites `uv.lock` in the install to name it. A private
+mirror answers, and an offline run installs from `uv`'s cache. `--frozen` would
+fetch the recorded pypi.org URLs whatever index the host sets, as a script lock
+always does. Python arrives on the same terms. The
 host also supplies the `jq` authoring dependency at the minimum version named
 in the README. The dev group — pytest, the accessibility checks, the demo
 recorder's frames — is recorded in that same lock but never installed on a
@@ -160,8 +164,9 @@ bundled script declares, and the suite runs those scripts under the project's
 interpreter, so `uv.lock` pins the version the suite passed on and a fresh
 machine needs no network after setup to run them.
 
-`uv` owns `.venv/`; a `.venv` inside an installed copy is uv doing its job, not
-stray state to clean up. Nothing else is written back: no cache leaf keeps for
+`uv` owns `.venv/` and, on a mirror host, `uv.lock`; a `.venv` or a re-locked
+`uv.lock` inside an installed copy is uv doing its job, not stray state to
+clean up. Nothing else is written back: no cache leaf keeps for
 itself, no generated file, no repaired state. Plugin updates may replace the
 directory wholesale, so what has to survive one belongs in the page directory
 or the state home.

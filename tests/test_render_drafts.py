@@ -848,8 +848,8 @@ def test_one_shared_added_option_has_one_action_payload_across_tabs(
 
     The two views deliberately start from different projected selections. Both can
     submit the one shared add-option generation: its `add` is one event by attempt, and
-    the pick behind it comes from the generation's recorded choice, so deriving it from
-    each tab's DOM cannot make the two tabs' picks disagree.
+    the pick behind it comes from the generation's recorded choice rather than from
+    each tab's own selection, so the two tabs send one pick.
     """
     url = serve(ASK_PAGE)
     first = open_page(browser, url, context=one_user)

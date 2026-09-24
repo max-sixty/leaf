@@ -25,6 +25,7 @@ export class OptionAddition {
   #add = null;
   #syncInput = () => {};
   #stopDraftWatch = null;
+  #standing = new Set();
 
   constructor(host, { offered, available, commit }) {
     this.#host = host;
@@ -107,7 +108,9 @@ export class OptionAddition {
 
   /* The choice the generation recorded, less any option the group no longer holds:
    * an undo since then may have taken back an added option the draft still names, and
-   * the door refuses a pick of an option the group lacks. */
+   * the door refuses a pick of an option the group lacks. Membership is the authored
+   * options and the standing adds of the latest reading, not whatever this tab last
+   * painted. */
   #draftChoice(payload) {
     if (
       !payload ||
@@ -117,9 +120,16 @@ export class OptionAddition {
       return this.detailFor(this.#picked());
     return {
       options: payload.options.filter(
-        (id) => document.getElementById(id)?.parentElement === this.#host,
+        (id) => this.#standing.has(id) || this.#authored(id),
       ),
     };
+  }
+
+  #authored(id) {
+    const option = document.getElementById(id);
+    return (
+      option?.parentElement === this.#host && !option.hasAttribute("data-lf-added")
+    );
   }
 
   /* The draft's attempt names the option, so a resend after reload names the same one
@@ -147,6 +157,7 @@ export class OptionAddition {
    * `added` maps each standing option id to its words, in log order. */
   reconcile(added = {}, fallbackBefore = null) {
     const wanted = new Map(Object.entries(added));
+    this.#standing = new Set(wanted.keys());
     for (const option of this.#host.querySelectorAll(
       ":scope > lf-option[data-lf-added]",
     ))

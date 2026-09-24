@@ -4552,11 +4552,9 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         "lf-composer-media-remove",
         "lf-message-media",
         "lf-media-open",
-        # A standing reaction's paint on the page: the element outline, margin glyph,
-        # and the wash a copy carries as a <mark>.
+        # A standing reaction's paint on the page: the element outline and margin glyph.
         "lf-react-el",
         "lf-react-mark",
-        "lf-react",
         # Visual reactions add a quiet keyboard proxy beside the authored target and
         # an outline on the target while its shared action bar is standing.
         "lf-visual-actions",

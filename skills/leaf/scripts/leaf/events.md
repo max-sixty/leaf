@@ -92,7 +92,10 @@ otherwise it reads the named revision's vocabulary, checks that the kind is
 declared, runs its gates against the page and standing log, derives server-owned
 meaning, and validates the finished record against its stored-record contract.
 Using the event's revision keeps re-vendoring from reinterpreting an open document.
-A refusal returns a command error or a final HTTP 400.
+A refusal returns a command error or a final HTTP 400. A fault raises instead, since
+it may land either side of the append; the HTTP transport's one fault boundary
+(`http.PageEndpoint._answer`) records it and answers HTTP 500 without `final`, so
+the browser retries the same attempt.
 
 Transports own only their input boundary: which kinds and fields they accept,
 how they answer retries, and whether their anchors need file-side capture.

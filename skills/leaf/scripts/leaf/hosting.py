@@ -4,7 +4,6 @@ import errno
 import logging
 import secrets
 import socket
-import subprocess
 import sys
 import threading
 import time
@@ -14,12 +13,13 @@ from urllib.parse import urlsplit
 
 import uvicorn
 
+from .detached import Handshake, start_detached
 from .event_log import flocked, require_cross_process_locking
 from .files import read_json, write_json
 from .host import session_harness
 from .http import page_app, page_endpoint
 from .layer import payload_provenance
-from .leases import lock_is_held, transition_lock
+from .leases import take_lease, transition_lock
 from .registry.storage import layer_metadata
 from .schema import SERVER_LOCK, SERVICE_FILE
 from .server import (
@@ -31,12 +31,7 @@ from .server import (
     running_server,
     stop_when_service_ends,
 )
-from .service import PageTransaction
-
-try:
-    import fcntl
-except ImportError:  # pragma: no cover - unsupported non-POSIX platform
-    fcntl = None
+from .service import PageTransaction, starting_claim
 
 TEMPORARY_SERVER_NOTE = "server   temporary (stops with this command)"
 
@@ -101,12 +96,10 @@ class LeafHTTPServer:
         self._uvicorn = None
         # Leaf says what it has to say on its own streams: the URL, the lifetime
         # note, and the page's own errors. A server with a logging voice of its own
-        # would write into the handshake those are read from, and a detached serve's
-        # stderr is a pipe nobody drains, so a refused request line repeated often
-        # enough would fill it and stop the page answering. Silenced here rather than
-        # drained there, because the writes are uvicorn's own and nothing reads them:
-        # `log_config=None` configures no handler, which leaves logging's last-resort
-        # one printing to stderr.
+        # would write a line per refused request into the streams a foreground
+        # `server run` is read from. Silenced here because the writes are uvicorn's
+        # own and nothing reads them: `log_config=None` configures no handler, which
+        # leaves logging's last-resort one printing to stderr.
         for name in ("uvicorn", "uvicorn.error", "uvicorn.access"):
             logger = logging.getLogger(name)
             logger.handlers = [logging.NullHandler()]
@@ -257,8 +250,8 @@ def startup_note(page_dir: Path) -> str:
     # exists to expose look current merely because a newer client inspected it.
     runtime = service.get("runtime") or {}
     fingerprint = layer["fingerprint"]
-    # After the lifetime line, not before: a served subprocess's first line of
-    # stderr is the lifetime, and readers of that handshake take exactly one.
+    # After the lifetime line, not before: a foreground serve's first line of
+    # stderr is the lifetime, and its readers take exactly one.
     return "\n".join(
         line
         for line in (
@@ -304,21 +297,21 @@ def _serve_claim(
     return claimed
 
 
-def _announce_server(page_dir: Path, url: str, detached: bool) -> None:
-    """Print a server's URL and lifetime in the order its caller consumes them."""
-    note = startup_note(page_dir)
-    if detached:
-        # The parent reads the URL as the successful-start handshake and then
-        # closes these private pipes. Finish the note before that handshake.
-        print(note, file=sys.stderr, flush=True)
-        print(url, flush=True)
-        return
+def _announce_server(page_dir: Path, url: str, handshake: Handshake | None) -> bool:
+    """Say where the server is to whoever started it, and whether they heard.
+
+    A detached serve announces through its handshake and learns whether its caller
+    committed the start. A foreground serve prints the URL, then its note, in the
+    order a reader of its streams takes them."""
+    if handshake is not None:
+        return handshake.announce({"url": url})
     print(url, flush=True)
-    print(note, file=sys.stderr, flush=True)
+    print(startup_note(page_dir), file=sys.stderr, flush=True)
+    return True
 
 
 def _reuse_server(
-    page_dir: Path, host: str | None, standing: bool, detached: bool
+    page_dir: Path, host: str | None, standing: bool, handshake: Handshake | None
 ) -> bool:
     """Report a compatible running server, or say a fresh bind is needed."""
     existing = running_server(page_dir)
@@ -334,25 +327,20 @@ def _reuse_server(
             f"already serving as a session server at {existing['url']}; "
             "leaf server stop first, then re-run with --standing"
         )
-    _announce_server(page_dir, existing["url"], detached)
+    _announce_server(page_dir, existing["url"], handshake)
     return True
 
 
-def _take_server_lease(page_dir: Path, detached: bool):
+def _take_server_lease(page_dir: Path, handshake: Handshake | None):
     """Take the process lease, or report the concurrent server that won it."""
-    lease = open(  # noqa: SIM115 - held until the server process exits
-        page_dir / SERVER_LOCK, "a+b"
-    )
-    try:
-        fcntl.flock(lease, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    except OSError:
-        lease.close()
-        winner = running_server(page_dir)
-        if winner:
-            _announce_server(page_dir, winner["url"], detached)
-            return None
-        sys.exit(f"another server run is serving {page_dir}; re-run")
-    return lease
+    lease = take_lease(page_dir / SERVER_LOCK)
+    if lease is not None:
+        return lease
+    winner = running_server(page_dir)
+    if winner:
+        _announce_server(page_dir, winner["url"], handshake)
+        return None
+    sys.exit(f"another server run is serving {page_dir}; re-run")
 
 
 def _bind_server(page_dir: Path, access: dict, token: str, ports: list, lease):
@@ -401,14 +389,15 @@ def cmd_serve(
     standing: bool = False,
     revive: bool = False,
     *,
-    detached: bool = False,
+    handshake: Handshake | None = None,
 ) -> None:
     """Serve one initialized page under its durable service contract.
 
-    Claiming is deliberately outside this process: server start claims before
-    spawning it, server run claims at the CLI boundary, and a wait already owns
-    the page it revives. This child only verifies that the matching claim still
-    stands, then owns service.json and the server.lock process lease.
+    Claiming is deliberately outside this process: `claim_and_start` and
+    `server run` claim through `starting_claim`, and a wait already owns the page
+    it revives. This process only verifies that the matching claim still stands,
+    then owns service.json and the server.lock process lease. A detached serve
+    answers `start_server` through `handshake`.
     """
     require_cross_process_locking()
     lease = None
@@ -417,14 +406,14 @@ def cmd_serve(
     with flocked(transition_lock(page_dir)), PageTransaction(page_dir) as page:
         service = read_json(page_dir / SERVICE_FILE)
         claimed = _serve_claim(page_dir, page, service, standing, revive)
-        if _reuse_server(page_dir, host, standing, detached):
+        if _reuse_server(page_dir, host, standing, handshake):
             return
 
         access = page_access(page_dir, host)
         token = host_key()
         base = 41000 + zlib.crc32(str(page_dir.resolve()).encode()) % 4000
         ports = [access["port"]] if "port" in access else [*range(base, base + 10), 0]
-        lease = _take_server_lease(page_dir, detached)
+        lease = _take_server_lease(page_dir, handshake)
         if lease is None:
             return
         httpd = _bind_server(page_dir, access, token, ports, lease)
@@ -433,12 +422,10 @@ def cmd_serve(
         url = page_url(service["host"], service["port"], token)
 
     try:
-        try:
-            _announce_server(page_dir, url, detached)
-        except BrokenPipeError:
-            # Whoever started this server went away before hearing where it is,
-            # and its stop may already have run and found nothing to stop. The
-            # announcement is the start's commit, so a failed one withdraws it.
+        if not _announce_server(page_dir, url, handshake):
+            # Whoever started this server left before committing the start, and
+            # its cleanup may already have run a stop that found nothing to stop.
+            # An uncommitted start withdraws itself.
             with flocked(transition_lock(page_dir)):
                 write_json(page_dir / SERVICE_FILE, {**service, "enabled": False})
             return
@@ -458,30 +445,27 @@ def start_server(
     host: str | None = None,
     standing: bool = False,
     revive: bool = False,
-) -> tuple[str, str] | None:
+) -> tuple[str, str]:
     """Put the page's server up in a session of its own, and report where.
 
     The serve has to outlive this command — the browser polls it between turns
     and across every `leaf wait`, which exits to deliver — so it is spawned
     rather than held, and the one long-running command a leaf costs its session
     is the watcher. The maintainer `session-lifetime.md` contract carries the
-    rest of that.
+    rest of that; `detached` carries the handshake that commits the start.
 
-    `server run` in a session of its own is the whole mechanism. An explicit
-    start may enable a stopped service; a revival carries the narrower intent
-    "only if still enabled," which the child checks inside the transition.
-    sys.executable is the resolved uv environment, so this skips uv.
+    An explicit start may enable a stopped service; a revival carries the
+    narrower intent "only if still enabled," which the child checks inside the
+    transition.
 
     Returns where the page is and what ends it — the URL the child minted and
-    the note for the lifetime it recorded — or None, having put the child's
-    reason on stderr.
+    the note for the lifetime it recorded. Raises `StartRefused` with the child's
+    reason: a stale bind, a taken port, a flag the running server contradicts, or
+    a claim this session no longer holds.
     """
     require_cross_process_locking()
-    child = subprocess.Popen(
+    answer = start_detached(
         [
-            sys.executable,
-            "-m",
-            "leaf",
             "server",
             "_serve",
             str(page_dir),
@@ -489,58 +473,41 @@ def start_server(
             *(["--standing"] if standing else []),
             *(["--revive"] if revive else []),
         ],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        start_new_session=True,
+        what=f"the server for {page_dir}",
     )
-    # The child's own handshake, rather than a deadline over a file that may or
-    # may not appear inside it: a detached serve prints the URL after it holds
-    # the record and the port and finishes its startup note. Otherwise it exits
-    # having named its own reason — a stale bind, a taken port, or a flag the
-    # running server contradicts.
-    try:
-        url = child.stdout.readline().strip()
-    except BaseException:
-        # Abandoning the handshake closes it before this caller's own cleanup
-        # runs, so a child that has not yet announced withdraws its start rather
-        # than coming up behind a stop that found nothing to stop.
-        child.stdout.close()
-        child.stderr.close()
-        raise
-    if not url:
-        print(
-            child.stderr.read().strip() or f"the server for {page_dir} did not start",
-            file=sys.stderr,
-        )
-        return None
-    # Nothing drains the child's streams from here on, which is safe because the
-    # URL and the note printed beside it are everything a server ever says — the
-    # page's own routes print nothing and uvicorn's loggers are silenced where the
-    # server is built — so there is nothing left to write into pipes this process
-    # closes on its way out.
-    return url, startup_note(page_dir)
+    return answer["url"], startup_note(page_dir)
+
+
+def claim_and_start(
+    page_dir: Path, host: str | None = None, standing: bool = False
+) -> tuple[str, str]:
+    """Claim the page for this host session, then start its server.
+
+    What `server start` does, and what a `--user` preview does when it first puts
+    its page up. A start that does not commit gives the claim back
+    (`starting_claim`); a `standing` start takes none.
+    """
+    with starting_claim(page_dir, standing=standing):
+        return start_server(page_dir, host, standing)
 
 
 def cmd_stop(page_dir: Path) -> str:
-    """Disable the desired service and wait until its process lease is released."""
+    """Disable the desired service and wait until its process lease is released.
+
+    The barrier is taking the lease under the transition lock, without waiting:
+    held together, they keep a new start out of the gap between the old server's
+    exit and this return. The wait between attempts is outside the transition,
+    since a serving process may need it to withdraw an uncommitted start."""
     require_cross_process_locking()
     stopped = False
     while True:
         with flocked(transition_lock(page_dir)):
             service = read_json(page_dir / SERVICE_FILE)
-            stopped |= lock_is_held(page_dir / SERVER_LOCK)
             if service and service["enabled"]:
                 write_json(page_dir / SERVICE_FILE, {**service, "enabled": False})
-            # Acquire the lease without waiting under the transition lock: the
-            # serving process may need that lock to withdraw a failed start.
-            # Holding both together when this succeeds keeps a new start from
-            # taking the gap between the old server's exit and our barrier.
-            with open(page_dir / SERVER_LOCK, "a+b") as lease:
-                try:
-                    fcntl.flock(lease, fcntl.LOCK_EX | fcntl.LOCK_NB)
-                except BlockingIOError:
-                    pass
-                else:
-                    return "stopped server" if stopped else "no server running"
+            lease = take_lease(page_dir / SERVER_LOCK)
+            if lease is not None:
+                lease.close()
+                return "stopped server" if stopped else "no server running"
+        stopped = True
         time.sleep(0.05)

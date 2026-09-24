@@ -6839,6 +6839,45 @@ def test_watch_does_not_revive_a_disabled_service(page_dir, monkeypatch, snapsho
     )
 
 
+def test_a_watch_wakes_on_what_its_pass_read_moving(page_dir):
+    """Between passes a watch follows the stamps of what the last pass read, so an
+    append wakes it in a look rather than on a timer; with nothing moved it wakes
+    on its timeout, for what a pass owes the clock.
+
+    The first pass finds a page the mark before it did not know, so it returns at
+    once: that mark stamped the old set."""
+    watch = session_model.Watch(None, pages=(page_dir,))
+    assert watch.acquire()
+    try:
+        mark = watch.mark()
+        list(watch.tick())
+        started = time.monotonic()
+        watch.await_news(mark, timeout=60)
+        assert time.monotonic() - started < 30
+
+        mark = watch.mark()
+        list(watch.tick())
+        started = time.monotonic()
+        watch.await_news(mark, timeout=0.2)
+        assert time.monotonic() - started >= 0.2
+
+        mark = watch.mark()
+        list(watch.tick())
+        appending = threading.Timer(
+            0.2,
+            events_model.append_event,
+            (page_dir, {"kind": "comment", "author": "user", "text": "hi"}),
+        )
+        appending.start()
+        started = time.monotonic()
+        watch.await_news(mark, timeout=60)
+        appending.join()
+        assert time.monotonic() - started < 30
+        assert events_model.read_events(page_dir)[-1]["text"] == "hi"
+    finally:
+        watch.release()
+
+
 def test_a_delayed_revival_cannot_cross_an_explicit_stop(page_dir, monkeypatch):
     files_model.write_json(
         page_dir / "service.json",
@@ -10414,65 +10453,111 @@ def test_a_claim_is_active_while_the_lifetime_it_names_holds(
     assert service_model.owned_pages("guarded") == [other.resolve()]
 
 
-def test_a_leaf_wait_launch_under_claude_code_carries_the_closing_guidance(tmp_path):
-    """The `PostToolUse` entry prints `hooks/wait-started.json` after a background
-    `leaf wait` launch in Claude Code, and nothing anywhere else.
+def test_a_background_wait_start_carries_the_closing_guidance(monkeypatch, capsys):
+    """After a background command, the `PostToolUse` hook adds the session-list
+    closing guidance once for each wait that took this session's lease, and says
+    nothing otherwise.
 
-    The command decides both things itself rather than trusting the host's `if`
-    filter: Codex runs the same `hooks.json` and ignores `if`, and Claude Code
-    passes any command it cannot resolve, such as one reading `$?`. So a command
-    that mentions the phrase, or prints it into `tool_response`, has to be refused
-    by the command's own reading. Run the registered command the way a host does:
-    through a shell, payload on stdin.
+    The wait's lease is the whole evidence, so the command text plays no part:
+    `$LEAF wait`, which the shipped skill tells agents to run, gets the guidance
+    like any other spelling, and a command that only mentions the phrase gets none
+    because no wait took the lease. A wait already named is not this command's: a
+    second wait is refused while one holds the lease. The hook fires as soon as the
+    host spawns the command, ahead of the wait taking its lease, so it looks for a
+    lease taken after it started.
     """
+    monkeypatch.setattr(hooks_model, "WAIT_START_S", 0.3)
+
+    def start_wait():
+        watch = session_model.Watch(
+            host_model.ClaudeCodeHarness(session="s1", agent="Claude")
+        )
+        assert watch.acquire()
+        return watch
+
+    def hook(command, background=True):
+        hooks_model.cmd_hook(
+            {
+                "hook_event_name": "PostToolUse",
+                "session_id": "s1",
+                "tool_name": "Bash",
+                "tool_input": {"command": command, "run_in_background": background},
+                "tool_response": {"stdout": "", "stderr": ""},
+            }
+        )
+        printed = capsys.readouterr().out
+        return (
+            json.loads(printed)["hookSpecificOutput"]["additionalContext"]
+            if printed
+            else None
+        )
+
+    assert hook("grep -n 'leaf wait' skills/leaf/SKILL.md") is None
+
+    wait = start_wait()
+    assert hook("$LEAF wait p", background=False) is None
+    assert hook("$LEAF wait p") == hooks_model.WAIT_STARTED
+    # The same wait, seen after a later command: named already.
+    assert hook('"$LEAF" wait --ack 64186241') is None
+    wait.release()
+
+    # The next wait is a new start, and one that takes the lease after the hook
+    # began looking still counts.
+    waits = []
+    later = threading.Timer(0.1, lambda: waits.append(start_wait()))
+    later.start()
+    assert hook("uv run leaf wait --ack 64186241") == hooks_model.WAIT_STARTED
+    later.join()
+    waits[0].release()
+
+
+def test_the_registered_tool_hook_speaks_only_under_claude_code(tmp_path):
+    """The `PostToolUse` registration runs `leaf hook` only under Claude Code.
+
+    Codex runs the same `hooks.json` and ignores its `if` filter, so the command
+    itself gates on `$CLAUDECODE`. Driven the way a host drives it: through a
+    shell, payload on stdin, with a wait holding the session's lease."""
     (entry,) = json.loads((PLUGIN_ROOT / "hooks" / "hooks.json").read_text())["hooks"][
         "PostToolUse"
     ]
     (hook,) = entry["hooks"]
-    guidance = json.loads((PLUGIN_ROOT / "hooks" / "wait-started.json").read_text())
-    assert "needs input:" in guidance["hookSpecificOutput"]["additionalContext"]
     base = {k: v for k, v in os.environ.items() if k != "CLAUDECODE"}
     base["CLAUDE_PLUGIN_ROOT"] = str(PLUGIN_ROOT)
+    payload = {
+        "hook_event_name": "PostToolUse",
+        "session_id": "s1",
+        "tool_name": "Bash",
+        "tool_input": {"command": "$LEAF wait p", "run_in_background": True},
+        "tool_response": {"stdout": "", "stderr": ""},
+    }
 
-    def run(command, claude_code=True, background=True, printed=""):
-        payload = {
-            "hook_event_name": "PostToolUse",
-            "tool_name": "Bash",
-            "tool_input": {"command": command, "run_in_background": background},
-            "tool_response": {"stdout": printed, "stderr": ""},
-        }
-        env = base | ({"CLAUDECODE": "1"} if claude_code else {})
+    def run(claude_code):
         done = subprocess.run(
             ["sh", "-c", hook["command"]],
             input=json.dumps(payload),
-            env=env,
+            env=base | ({"CLAUDECODE": "1"} if claude_code else {}),
             capture_output=True,
             text=True,
-            timeout=30,
+            timeout=60,
             check=False,
         )
         assert (done.returncode, done.stderr) == (0, "")
         return json.loads(done.stdout) if done.stdout else None
 
-    launch = f"{PLUGIN_ROOT}/bin/leaf wait --ack 64186241"
-    assert run(launch) == guidance
-    assert run(launch, claude_code=False) is None
-    assert run(launch, background=False) is None
-    for starts in [
-        "leaf wait",
-        'cd /tmp && FOO=1 "$CLAUDE_PLUGIN_ROOT/bin/leaf" wait; echo $?',
-        "echo hi  # don't block on this\nbin/leaf wait --ack 1",
-    ]:
-        assert run(starts) == guidance, starts
-    for mentions in [
-        "git status",
-        "grep -n 'leaf wait' skills/leaf/SKILL.md",
-        "leaf serve page; echo leaf wait",
-        "# leaf wait is running\ngit status",
-        "cat > run.sh <<'EOF'\nleaf wait\nEOF\nchmod +x run.sh",
-    ]:
-        assert run(mentions) is None, mentions
-    assert run("sed -n 1p hooks/hooks.json; echo $?", printed="leaf wait") is None
+    wait = session_model.Watch(
+        host_model.ClaudeCodeHarness(session="s1", agent="Claude")
+    )
+    assert wait.acquire()
+    try:
+        assert run(claude_code=False) is None
+        assert run(claude_code=True) == {
+            "hookSpecificOutput": {
+                "hookEventName": "PostToolUse",
+                "additionalContext": hooks_model.WAIT_STARTED,
+            }
+        }
+    finally:
+        wait.release()
 
 
 def test_the_registered_hook_answers_out_of_interact_or_says_nothing(claimed, tmp_path):

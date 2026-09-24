@@ -1478,31 +1478,74 @@ catalog.</p>
         blocker. Move a card if you would ship differently.
       </p>
 
-      <lf-board id="release-board">
-        <lf-column id="col-blocking" label="Blocking release">
-          <lf-card id="card-migration"
-            ><strong>Migration reruns on every deploy</strong> The version stamp never
-            lands. The next migration applies credits and is not idempotent.</lf-card
-          >
-        </lf-column>
-        <lf-column id="col-next" label="Fix in 2.4.1">
-          <lf-card id="card-tz"
-            ><strong>Digest email uses server timezone</strong> Cosmetic for most,
-            wrong-day for UTC+13.</lf-card
-          >
-          <lf-card id="card-export"
-            ><strong>CSV export quotes numerics</strong> Breaks one customer's
-            downstream import.</lf-card
-          >
-        </lf-column>
-        <lf-column id="col-defer" label="Defer from 2.4">
-          <lf-card id="card-logout"
-            ><strong>Logout fails with an expired session</strong> The user can retry
-            safely, and the shared-session cleanup is not ready for this
-            release.</lf-card
-          >
-        </lf-column>
-      </lf-board>
+      <lf-grid id="triage-layout" columns="3fr 1fr">
+        <lf-board id="release-board">
+          <lf-column id="col-blocking" label="Blocking release">
+            <lf-card id="card-migration"
+              ><strong>Migration reruns on every deploy</strong> The version stamp never
+              lands. The next migration applies credits and is not idempotent.</lf-card
+            >
+          </lf-column>
+          <lf-column id="col-next" label="Fix in 2.4.1">
+            <lf-card id="card-tz"
+              ><strong>Digest email uses server timezone</strong> Cosmetic for most,
+              wrong-day for UTC+13.</lf-card
+            >
+            <lf-card id="card-export"
+              ><strong>CSV export quotes numerics</strong> Breaks one customer's
+              downstream import.</lf-card
+            >
+            <lf-card id="card-retry"
+              ><strong>Webhook retries ignore Retry-After</strong> Three partners rate
+              limit us during their own deploys; we back off on a fixed
+              schedule.</lf-card
+            >
+          </lf-column>
+          <lf-column id="col-defer" label="Defer from 2.4">
+            <lf-card id="card-logout"
+              ><strong>Logout fails with an expired session</strong> The user can retry
+              safely, and the shared-session cleanup is not ready for this
+              release.</lf-card
+            >
+            <lf-card id="card-avatar"
+              ><strong>Avatar upload rejects HEIC</strong> iPhone photos need a
+              conversion step. Four reports this quarter.</lf-card
+            >
+          </lf-column>
+          <lf-column id="col-repro" label="Needs a repro">
+            <lf-card id="card-search"
+              ><strong>Search misses renamed projects</strong> One report, on a
+              workspace migrated from v1. The reindex job ran clean.</lf-card
+            >
+          </lf-column>
+        </lf-board>
+
+        <aside id="triage-status" aria-label="Release status">
+          <lf-grid id="triage-counts" columns="2">
+            <lf-metric id="count-blocking" value="1">blocking</lf-metric>
+            <lf-metric id="count-open" value="7" delta="-3" direction="up-bad"
+              >open since Monday</lf-metric
+            >
+          </lf-grid>
+          <h2>Recent moves</h2>
+          <lf-activity id="triage-activity"></lf-activity>
+        </aside>
+      </lf-grid>
+
+      <section id="triage-why">
+        <h2>Why the migration blocks and nothing else does</h2>
+        <p>
+          The deploy script writes the schema version after the post-deploy hook, and
+          the hook exits non-zero on a warning. So the stamp never lands, and every
+          deploy runs 0041 again. 0041 only adds a column, so rerunning it is a no-op.
+          0042 credits every account that was billed twice in March. Run twice, it pays
+          twice.
+        </p>
+        <p>
+          Every other card is either cosmetic, has a safe retry, or affects one customer
+          who has a workaround. None gets worse by waiting a week.
+        </p>
+      </section>
 </lf-tab>
 
 <lf-tab id="corpus-ideas-to-implement" label="Ideas">
@@ -2125,35 +2168,64 @@ export const summarize = checks =>
         finance export is one row short and must reconcile before traffic expands.
       </p>
 
-      <lf-grid id="lp-status" columns="3">
+      <lf-grid id="lp-status" columns="4">
         <lf-metric id="lp-k-traffic" value="25%">candidate traffic</lf-metric>
         <lf-metric id="lp-k-checks" value="4 of 5">checks passing</lf-metric>
+        <lf-metric id="lp-k-latency" value="184 ms">p95 latency</lf-metric>
         <lf-metric id="lp-k-observed" value="14:24:44">last observation</lf-metric>
       </lf-grid>
 
-      <aside class="callout" id="lp-current-state">
-        <strong>Paused at 25%</strong>
-        Automatic promotion stopped when the finance-parity check failed. The candidate
-        remains live for canary traffic while Ledger traces a partial-refund fixture
-        mismatch; the exact failing producer is not yet established.
-      </aside>
-      <p id="lp-hold-policy">
-        <strong>Hold until 14:32.</strong> Escalate to Finance at 14:30; roll back
-        sooner if a customer guardrail fails.
-      </p>
-      <lf-release-actions
-        id="lp-release-actions"
-        candidate="checkout-v2"
-        stable="checkout-v1"
-      >
-        <lf-release-action verb="rollback">
-          <strong>Request rollback to checkout-v1</strong>
-          <p>
-            Ready; returns traffic to the stable release without repairing the missing
-            finance row.
+      <lf-grid id="lp-now" columns="3fr 2fr">
+        <section id="lp-decision">
+          <aside class="callout" id="lp-current-state">
+            <strong>Paused at 25%</strong>
+            Automatic promotion stopped when the finance-parity check failed. The
+            candidate remains live for canary traffic while Ledger traces a
+            partial-refund fixture mismatch; the exact failing producer is not yet
+            established.
+          </aside>
+          <p id="lp-hold-policy">
+            <strong>Hold until 14:32.</strong> Escalate to Finance at 14:30; roll back
+            sooner if a customer guardrail fails.
           </p>
-        </lf-release-action>
-      </lf-release-actions>
+          <lf-release-actions
+            id="lp-release-actions"
+            candidate="checkout-v2"
+            stable="checkout-v1"
+          >
+            <lf-release-action verb="rollback">
+              <strong>Request rollback to checkout-v1</strong>
+              <p>
+                Ready; returns traffic to the stable release without repairing the
+                missing finance row.
+              </p>
+            </lf-release-action>
+          </lf-release-actions>
+        </section>
+        <section id="lp-steps">
+          <h2 id="lp-steps-heading">Release steps</h2>
+          <lf-milestones id="lp-release-steps">
+            <lf-milestone id="lp-step-build" status="done" when="14:18">
+              <strong>Build and verify the candidate</strong> Image signed and
+              provenance recorded.
+            </lf-milestone>
+            <lf-milestone id="lp-step-canary" status="done" when="14:22">
+              <strong>Deploy the 25% canary</strong> Candidate serving production
+              checkout traffic.
+            </lf-milestone>
+            <lf-milestone id="lp-step-checks" status="blocked" when="now">
+              <strong>Pass release checks</strong> Finance export has 1,998 of 1,999
+              expected rows.
+            </lf-milestone>
+            <lf-milestone id="lp-step-promote" status="planned">
+              <strong>Expand to 100%</strong>
+            </lf-milestone>
+            <lf-milestone id="lp-step-observe" status="planned">
+              <strong>Observe and complete</strong>
+            </lf-milestone>
+          </lf-milestones>
+        </section>
+      </lf-grid>
 
       <lf-grid id="lp-evidence" columns="1fr 1fr">
         <section id="lp-checks">
@@ -2220,86 +2292,70 @@ export const summarize = checks =>
         </section>
       </lf-grid>
 
-      <section id="lp-release">
-        <h2>Release</h2>
-        <dl class="facts" id="lp-release-facts">
-          <dt>Environment</dt>
-          <dd>Production</dd>
-          <dt>Candidate</dt>
-          <dd><code>checkout-v2</code></dd>
-          <dt>Stable</dt>
-          <dd><code>checkout-v1</code></dd>
-          <dt>Observed</dt>
-          <dd>14:24:44</dd>
-        </dl>
-        <h3 id="lp-steps-heading">Release steps</h3>
-        <lf-milestones id="lp-release-steps">
-          <lf-milestone id="lp-step-build" status="done" when="14:18">
-            <strong>Build and verify the candidate</strong> Image signed and provenance
-            recorded.
-          </lf-milestone>
-          <lf-milestone id="lp-step-canary" status="done" when="14:22">
-            <strong>Deploy the 25% canary</strong> Candidate serving production checkout
-            traffic.
-          </lf-milestone>
-          <lf-milestone id="lp-step-checks" status="blocked" when="now">
-            <strong>Pass release checks</strong> Finance export has 1,998 of 1,999
-            expected rows.
-          </lf-milestone>
-          <lf-milestone id="lp-step-promote" status="planned">
-            <strong>Expand to 100%</strong>
-          </lf-milestone>
-          <lf-milestone id="lp-step-observe" status="planned">
-            <strong>Observe and complete</strong>
-          </lf-milestone>
-        </lf-milestones>
-        <details id="lp-release-notes">
-          <summary>Release notes · 3 changes</summary>
-          <ul>
-            <li>Keep partial-refund state through checkout retries.</li>
-            <li>Write refund adjustments to the finance export.</li>
-            <li>Add parity checks before production promotion.</li>
-          </ul>
-        </details>
-        <details id="lp-release-owners">
-          <summary>Release owners · 5</summary>
-          <lf-roster id="lp-owners">
-            <lf-agent id="lp-agent-deployer" state="waiting">
-              <strong>deployer</strong> Holding promotion at 25% while finance parity is
-              red.
-            </lf-agent>
-            <lf-agent id="lp-agent-ledger" state="working">
-              <strong>ledger</strong> Reconciling <code>co_18427</code> against the
-              candidate export.
-            </lf-agent>
-            <lf-agent id="lp-agent-finance" state="blocked">
-              <strong>finance</strong> Waiting for the missing export row before signing
-              off.
-            </lf-agent>
-            <lf-agent id="lp-agent-observer" state="idle">
-              <strong>observer</strong> Ready to watch the release after promotion.
-            </lf-agent>
-            <lf-agent id="lp-agent-builder" state="done">
-              <strong>builder</strong> Signed the candidate and recorded its provenance.
-            </lf-agent>
-          </lf-roster>
-        </details>
+      <lf-grid id="lp-release" columns="1fr 2fr">
+        <section id="lp-release-summary">
+          <h2>Release</h2>
+          <dl class="facts" id="lp-release-facts">
+            <dt>Environment</dt>
+            <dd>Production</dd>
+            <dt>Candidate</dt>
+            <dd><code>checkout-v2</code></dd>
+            <dt>Stable</dt>
+            <dd><code>checkout-v1</code></dd>
+            <dt>Observed</dt>
+            <dd>14:24:44</dd>
+          </dl>
+        </section>
+        <section id="lp-release-detail">
+          <details id="lp-release-notes">
+            <summary>Release notes · 3 changes</summary>
+            <ul>
+              <li>Keep partial-refund state through checkout retries.</li>
+              <li>Write refund adjustments to the finance export.</li>
+              <li>Add parity checks before production promotion.</li>
+            </ul>
+          </details>
+          <details id="lp-release-owners">
+            <summary>Release owners · 5</summary>
+            <lf-roster id="lp-owners">
+              <lf-agent id="lp-agent-deployer" state="waiting">
+                <strong>deployer</strong> Holding promotion at 25% while finance parity
+                is red.
+              </lf-agent>
+              <lf-agent id="lp-agent-ledger" state="working">
+                <strong>ledger</strong> Reconciling <code>co_18427</code> against the
+                candidate export.
+              </lf-agent>
+              <lf-agent id="lp-agent-finance" state="blocked">
+                <strong>finance</strong> Waiting for the missing export row before
+                signing off.
+              </lf-agent>
+              <lf-agent id="lp-agent-observer" state="idle">
+                <strong>observer</strong> Ready to watch the release after promotion.
+              </lf-agent>
+              <lf-agent id="lp-agent-builder" state="done">
+                <strong>builder</strong> Signed the candidate and recorded its
+                provenance.
+              </lf-agent>
+            </lf-roster>
+          </details>
 
-        <details id="lp-rollback-procedure">
-          <summary>Rollback procedure · 3 steps</summary>
-          <ol class="steps">
-            <li>Route new checkout sessions to <code>checkout-v1</code>.</li>
-            <li>Drain the candidate after active sessions finish.</li>
-            <li>Verify order counts and finance-export isolation.</li>
-          </ol>
-        </details>
-        <details id="lp-code-changes">
-          <summary>Code changes · 2 files, +18 −4</summary>
-          <lf-diff id="lp-release-diff" source="release-patch">
-            <pre></pre>
-          </lf-diff>
-        </details>
-      </section>
+          <details id="lp-rollback-procedure">
+            <summary>Rollback procedure · 3 steps</summary>
+            <ol class="steps">
+              <li>Route new checkout sessions to <code>checkout-v1</code>.</li>
+              <li>Drain the candidate after active sessions finish.</li>
+              <li>Verify order counts and finance-export isolation.</li>
+            </ol>
+          </details>
+          <details id="lp-code-changes">
+            <summary>Code changes · 2 files, +18 −4</summary>
+            <lf-diff id="lp-release-diff" source="release-patch">
+              <pre></pre>
+            </lf-diff>
+          </details>
+        </section>
+      </lf-grid>
 </lf-tab>
 
 <lf-tab id="corpus-pr-walkthrough" label="PR">

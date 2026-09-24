@@ -89,7 +89,7 @@ it does not become another kind of page, so its comments and anchors stay put.
   rather than paragraphs; a row of headline numbers is a grid of `lf-metric` tiles.
   A grid of paragraphs is prose cut into columns, and reads worse than the column.
   A grid stands at the wide width, centred on the column, so it lines up with the
-  prose around it; give it `data-width="available"` only when the tiles are the page.
+  prose around it; when the tiles are the page, make the page a sheet (below).
 - **A comparison** is `lf-compare`, which keeps its variants paired at any width.
 - **Controls beside evidence** is a playground, which declares how its controls
   operate its preview. Use an `lf-workspace` of plain panes for task regions that
@@ -114,6 +114,15 @@ says where the title goes and which elements its body can be, and the `lf-pane` 
 what a pane holds. Place several panes with an `lf-grid`, such as `columns="1fr 2fr"`
 for a queue beside its detail. Let Leaf allocate the space: page-specific positioning
 should not be needed to keep a pane or footer reachable.
+
+A page whose subject is wider than an argument — a board with its status beside it,
+a dashboard of tiles over checks and a log — is a sheet: write `<main
+data-width="available">`, or `data-width="wide"` for the capped evidence width. Every
+block, the title included, then starts at one left edge and takes the sheet's width,
+while text keeps the reading measure, so a lede and a board line up rather than sitting
+on two centred axes. Lay the sheet out with `lf-grid`s, such as `columns="3fr 1fr"` for
+a board beside its status and activity. A sheet stays a scrolling document; use a
+workspace instead when regions must stay in view together.
 
 Choose width separately from document or workspace form. Keep prose at a readable
 measure and let declared visual surfaces use the room their task needs. A wide comparison

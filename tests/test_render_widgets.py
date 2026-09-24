@@ -871,27 +871,35 @@ def test_regions_inside_a_bounded_pane_body_flow_within_the_body_that_scrolls(
     }
 
 
-def test_a_release_page_spreads_its_evidence_and_keeps_the_log_on_its_newest_line(
-    browser, serve
-):
-    """A document with grids: status tiles and the evidence pair stand at the wide
-    width, centred on the column the prose keeps, and the checks table fills its cell.
-    The pair stacks once the window cannot hold it, and the bounded log opens on its
-    newest line. Paper shows the log whole."""
+def test_a_release_page_is_a_sheet_and_keeps_the_log_on_its_newest_line(browser, serve):
+    """A sheet: the title, the lede and every grid start at one left edge, the grids take
+    the sheet's width while the lede keeps the reading measure, and the checks table
+    fills its cell beside the log. The pair stacks once the window cannot hold it, and
+    the bounded log opens on its newest line. Paper shows the log whole."""
     example = Path(__file__).parent.parent / "examples" / "live-progress.html"
     context = browser.new_context(viewport={"width": 1600, "height": 1000})
     page = open_page(browser, live_url(serve(example)), context=context)
-    boxes = """() => Object.fromEntries(
-      ['lp-status', 'lp-evidence', 'lp-checks', 'lp-checks-table', 'lp-log', 'lp-lede']
-        .map(id => [id, document.getElementById(id).getBoundingClientRect().toJSON()]))"""
-
-    def centre(box):
-        return box["left"] + box["width"] / 2
+    ids = [
+        "lp-status",
+        "lp-now",
+        "lp-evidence",
+        "lp-checks",
+        "lp-checks-table",
+        "lp-log",
+        "lp-lede",
+    ]
+    boxes = f"""() => Object.fromEntries(
+      [...{ids!r}, 'main'].map(id => [id, (document.getElementById(id)
+        ?? document.querySelector(id)).getBoundingClientRect().toJSON()]))"""
 
     wide = page.evaluate(boxes)
-    for grid in ("lp-status", "lp-evidence"):
-        assert wide[grid]["width"] == pytest.approx(1080, abs=1)
-        assert centre(wide[grid]) == pytest.approx(centre(wide["lp-lede"]), abs=1)
+    sheet = wide["main"]
+    assert sheet["width"] > 1080, "the sheet should take the room past the wide width"
+    for block in ("lp-lede", "lp-status", "lp-now", "lp-evidence"):
+        assert wide[block]["left"] == pytest.approx(sheet["left"], abs=1)
+    for grid in ("lp-status", "lp-now", "lp-evidence"):
+        assert wide[grid]["width"] == pytest.approx(sheet["width"], abs=1)
+    assert wide["lp-lede"]["width"] <= 720 + 1
     assert wide["lp-checks-table"]["width"] == pytest.approx(
         wide["lp-checks"]["width"], abs=1
     )
@@ -1134,9 +1142,14 @@ def test_monitoring_evidence_moves_without_stealing_position_or_the_summary(
             "<code>1,999</code> / <code>1,999</code> rows",
         ),
     )
+    # The example's line wrapping is layout, not content: match each passage across
+    # whatever whitespace the source wraps it with.
     for before, after in revisions:
-        assert before in incorporated
-        incorporated = incorporated.replace(before, after, 1)
+        pattern = r"\s+".join(map(re.escape, before.split()))
+        incorporated, count = re.subn(
+            pattern, lambda _, after=after: after, incorporated, count=1
+        )
+        assert count == 1, before
     stamp = stamp_page(
         serve.page_dir,
         incorporated,

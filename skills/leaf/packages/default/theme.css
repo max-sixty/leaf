@@ -54,9 +54,17 @@ lf-grid[columns="6"] { --lf-grid-count: 6; }
 /* The gap is the space between cells. A widget's own block margins are for the page's
  * flow and would add to it, so the reset outranks any one-tag widget rule. */
 :is(lf-grid, :where([data-lf-reading-role="grid"])) > :nth-child(n) { margin: 0; }
-/* A surface fills its cell. A table sizes to its content, so a table of short rows
- * stood in a third of a half-page cell beside a log that filled the other half. */
-:is(lf-grid, :where([data-lf-reading-role="grid"])) > :is(table, * > table) {
+/* A surface fills its cell. The kernel sets a table as a block so a wide one scrolls,
+ * and a block's rows size to their content: a table of short rows stood in a third of
+ * a half-page cell beside a log that filled the other half, and a width on the block
+ * widens the scroller, never the rows. A cell is sized for what it holds, so a table
+ * standing in one, or in a section that is one, is a table again and takes the cell.
+ * Its cells wrap to fit, identifiers included (`code` breaks in a cell); a table whose
+ * columns cannot wrap to the cell overflows it rather than scrolling, and belongs in
+ * the page's flow instead. */
+:is(lf-grid, :where([data-lf-reading-role="grid"])) > table,
+:is(lf-grid, :where([data-lf-reading-role="grid"])) > * > table {
+  display: table;
   width: 100%;
 }
 @container lf-grid (width < 600px) {

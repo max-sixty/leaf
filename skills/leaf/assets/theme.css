@@ -229,6 +229,10 @@
      from the shell and its occupied margins, so a widget stands clear of both. An
      `available` surface is not held to this number. */
   --wide: 1080px;
+  /* The widest a page that is itself a sheet (`<main data-width="available">`) grows.
+     Past it a board's columns and a dashboard's tiles stop gaining anything but the
+     distance between them. */
+  --sheet-max: 1600px;
   /* The chrome's line box, said once, because one control in the banner cannot be
      told it. Chrome computes a select's inner height from its own metrics and
      refuses line-height outright — the computed value stays normal however the
@@ -808,6 +812,33 @@ main {
     * { --lf-room: 0px; }
   }
   main > * { --lf-room: inherit; }
+
+  /* A page whose subject is wider than an argument — a board, a dashboard, a queue
+   * beside its detail — declares the width on `main` itself. The page is then a sheet:
+   * every block, title included, starts at one left edge, and text keeps the reading
+   * measure the column gave it (--lf-measure, the rule below) rather than being centred
+   * on a narrower axis than the exhibits around it. A column page with a wide exhibit
+   * keeps two axes, the prose's and the exhibit's; a sheet has one. The room is the
+   * sheet's own width, so a wide widget on it fills the sheet instead of breaking out. */
+  main:is([data-width="wide"], [data-width="available"]) {
+    /* A sheet's edge is the page's edge, so it sits in a gutter that grows with the
+     * window rather than the column's 24px, which is a phone's margin. The margin
+     * rail's strip stands in that gutter rather than beside it, and both gutters take
+     * the wider of the two, so the sheet stays centred in the window. */
+    --lf-sheet-gutter: max(clamp(var(--col-pad), 4cqi, 64px), var(--strip-l),
+      var(--strip-r));
+    --lf-room: max(0px, calc(100cqi - 2 * var(--lf-sheet-gutter)));
+    --lf-measure: var(--col);
+    max-width: none;
+    /* The runtime paints the occurrence like any block's (data-lf-space), and the
+     * block rule's margins would pin the sheet to the left edge. */
+    margin-inline: auto;
+    padding-inline: 0;
+    left: 0;
+  }
+  main[data-width="wide"] { width: min(var(--wide), var(--lf-room)); }
+  main[data-width="available"] { width: min(var(--sheet-max), var(--lf-room)); }
+  main:is([data-width="wide"], [data-width="available"]) > * { --lf-room: 100%; }
 
   /* Text keeps the reading measure in every frame; a surface fills its frame. In the
    * page's own flow the column is the measure already, so this matters in a frame wider

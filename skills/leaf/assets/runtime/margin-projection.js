@@ -2223,7 +2223,7 @@ export function createMarginProjection({
           });
           return {
             optimistic: () => {
-              if (preview.matches(":popover-open")) return false;
+              if (previewOpen()) return false;
               return mayLand.handoff(() => focusDestination(target));
             },
           };

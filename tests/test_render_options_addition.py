@@ -287,11 +287,12 @@ def test_an_option_mark_keeps_addition_and_clarification_as_separate_routes(
 
 
 def test_another_option_becomes_a_real_option_without_starting_a_thread(browser, serve):
-    """The answer the author missed joins the control and travels as selection state.
+    """The answer the author missed joins the control as a row of its own.
 
     It is not a comment with a special response contract: the user has supplied an
-    answer, not opened a conversation. The standing action carries every generated
-    option so a later ordinary pick and a reload retain the same set of alternatives.
+    answer, not opened a conversation. The `add` stands on its own coordinate, so a
+    later ordinary pick and a reload keep the option, and each undo takes back one
+    gesture: the later pick, then the option's pick, then the option itself.
     """
     url = serve(ASK_PAGE)
     page = open_page(browser, url)
@@ -323,28 +324,22 @@ def test_another_option_becomes_a_real_option_without_starting_a_thread(browser,
     )
     expect(new_option).to_contain_text("Insulate the camera battery")
     expect(new_option).to_have_attribute("chosen", "")
-    event = [
-        event
+    identity = new_option.get_attribute("id")
+    moves = [
+        (event["action"], event["detail"])
         for event in sent_events(d)
         if event.get("kind") == "action" and event.get("widget") == "jobs"
-    ][-1]
-    assert event["action"] == "choose"
-    assert event["detail"] == {
-        "options": [new_option.get_attribute("id")],
-        "additions": {new_option.get_attribute("id"): "Insulate the camera battery"},
-    }
-    assert event["generated"] == [new_option.get_attribute("id")]
+    ]
+    assert moves == [
+        ("add", {"option": identity, "text": "Insulate the camera battery"}),
+        ("choose", {"options": [identity]}),
+    ]
     assert not [event for event in sent_events(d) if event["kind"] == "comment"]
 
     page.locator("#job-heater").click()
     round_trip(page)
-    latest = [
-        event
-        for event in sent_events(d)
-        if event.get("kind") == "action" and event.get("widget") == "jobs"
-    ][-1]
-    assert latest["detail"]["additions"] == event["detail"]["additions"]
-    assert latest["generated"] == event["generated"]
+    expect(page.locator("#job-heater")).to_have_attribute("chosen", "")
+    expect(new_option).to_have_attribute("chosen", "")
 
     page.reload(wait_until="load")
     page.wait_for_function(
@@ -358,8 +353,10 @@ def test_another_option_becomes_a_real_option_without_starting_a_thread(browser,
         "chosen", ""
     )
     undo(page)
-    expect(page.locator("#jobs > lf-option[data-lf-added]")).to_have_count(0)
+    expect(page.locator("#jobs > lf-option[data-lf-added]")).to_have_count(1)
     expect(page.locator("#jobs > lf-option[chosen]")).to_have_count(0)
+    undo(page)
+    expect(page.locator("#jobs > lf-option[data-lf-added]")).to_have_count(0)
 
 
 def test_the_add_field_hands_its_words_to_the_option_it_drew(held_events, serve):
@@ -532,7 +529,6 @@ def test_an_arrival_cannot_hide_a_question_draft(browser, serve):
         ({"section": "jobs"}, "A separate note on this question."),
     ]
     action = next(e for e in sent_events(d) if e["kind"] == "action")
-    assert action["detail"]["additions"] == {added.get_attribute("id"): draft}
-    assert action["generated"] == [added.get_attribute("id")]
+    assert action["detail"] == {"option": added.get_attribute("id"), "text": draft}
     page.locator(".lf-threads-toggle").click()
     expect(page.locator(f'.lf-thread[data-id="{external["id"]}"]')).to_have_count(1)

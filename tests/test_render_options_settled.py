@@ -177,7 +177,8 @@ def test_a_settled_ask_reconciles_added_options_into_its_disclosure(browser, ser
     """A replayed option stays inside the settled disclosure it belongs to.
 
     The disclosure's count and controls describe the complete current option set,
-    including options reconstructed from the standing action and their later undo.
+    including options reconstructed from their standing `add`, and follow the undo
+    that takes that `add` back.
     """
     page = open_page(browser, serve(SETTLED_ASK_PAGE))
     group = page.locator("#jobs")
@@ -208,6 +209,10 @@ def test_a_settled_ask_reconciles_added_options_into_its_disclosure(browser, ser
         added_id,
     ]
 
+    # The first undo takes back the pick; the option stays in the disclosure.
+    undo(page)
+    expect(group.locator(":scope > lf-option[data-lf-added]")).to_have_count(1)
+    expect(row.locator(".lf-settled-count")).to_have_text("4 options")
     undo(page)
     expect(group.locator(":scope > lf-option[data-lf-added]")).to_have_count(0)
     expect(row.locator(".lf-settled-count")).to_have_text("3 options")

@@ -13,7 +13,6 @@ from referencing.exceptions import Unresolvable
 from referencing.jsonschema import DRAFT202012
 
 from leaf.files import read_json
-from leaf.schema import ELEMENT_ID
 
 FORMAT_CHECKER = FormatChecker()
 RFC3339_DATE_TIME = re.compile(
@@ -77,14 +76,6 @@ def schema_error(schema: dict, instance) -> str | None:
     return error.message if error else None
 
 
-CREATED_CHILDREN_DETAIL_SCHEMA = {
-    "type": "object",
-    "minProperties": 1,
-    "propertyNames": {"pattern": f"^{ELEMENT_ID}$"},
-    "additionalProperties": {"type": "string", "minLength": 1},
-}
-
-
 def event_clauses(entry: dict, registry: dict | None) -> list[dict]:
     """What the layer asks of the agent for one delivered event, read off the
     vendored `$events`: the event kind's `handling` clauses, then the `answering`
@@ -116,10 +107,13 @@ def event_clauses(entry: dict, registry: dict | None) -> list[dict]:
     ]
 
 
-def created_children(event: dict, spec: dict) -> dict:
-    """The generated child id-to-words map declared by one validated action."""
+def created_child(event: dict, spec: dict) -> tuple[str, str] | None:
+    """The id and words of the child one validated action creates, or None where
+    its verb declares no `creates`. The verb's fold unit names the child."""
     creates = spec.get("creates")
-    return event["detail"].get(creates["field"], {}) if creates else {}
+    if not creates:
+        return None
+    return event["detail"][spec["unit"]], event["detail"][creates["words"]]
 
 
 def visual_part_attribute(entry: dict) -> str | None:

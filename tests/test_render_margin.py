@@ -105,7 +105,6 @@ ACTION_ON_ASK = {
     "widget": "bracket",
     "action": "choose",
     "detail": {"options": ["br-steel"]},
-    "generated": [],
     "meaning": {
         "document": {"kind": "page", "revision": 1},
         "coordinate": ["bracket", "bracket", "selection"],

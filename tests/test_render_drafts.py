@@ -844,11 +844,12 @@ def test_one_shared_draft_edit_appends_one_action_across_tabs(browser, serve, on
 def test_one_shared_added_option_has_one_action_payload_across_tabs(
     browser, serve, one_user
 ):
-    """A draft attempt owns its action detail as well as its visible words.
+    """A draft attempt owns its actions' details as well as its visible words.
 
     The two views deliberately start from different projected selections. Both can
-    submit the one shared add-option generation, so deriving its absolute choice from
-    each tab's DOM would reuse one attempt for two conflicting payloads.
+    submit the one shared add-option generation: its `add` is one event by attempt, and
+    the pick behind it comes from the generation's recorded choice rather than from
+    each tab's own selection, so the two tabs send one pick.
     """
     url = serve(ASK_PAGE)
     first = open_page(browser, url, context=one_user)
@@ -873,20 +874,28 @@ def test_one_shared_added_option_has_one_action_payload_across_tabs(
     ).click()
     round_trip(second)
     held_detail = held[0].request.post_data_json["detail"]
-    held[0].continue_()
+    # The pick queues behind the held `add`, so the route comes off before the `add`
+    # goes on and nothing sent after it is caught.
     first.unroute("**/api/event")
+    for route in held:
+        route.continue_()
     round_trip(first)
 
-    additions = [
+    moves = [
         event
         for event in sent_events(serve.page_dir)
-        if event.get("kind") == "action"
-        and event.get("widget") == "jobs"
-        and event.get("detail", {}).get("additions")
+        if event.get("kind") == "action" and event.get("widget") == "jobs"
     ]
-    assert len(additions) == 1
-    assert additions[0]["detail"] == held_detail
-    assert _traffic(first).sends == _traffic(second).sends == 1
+    adds = [event["detail"] for event in moves if event["action"] == "add"]
+    assert adds == [held_detail]
+    picks = {
+        tuple(event["detail"]["options"])
+        for event in moves
+        if event["action"] == "choose"
+    }
+    assert picks == {("job-mounts", held_detail["option"])}
+    # Each tab sent the generation's `add` and its pick once.
+    assert _traffic(first).sends == _traffic(second).sends == 2
 
 
 def test_a_comment_being_typed_reaches_the_pages_other_tabs(browser, serve, one_user):

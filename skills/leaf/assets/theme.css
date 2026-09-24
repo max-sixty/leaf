@@ -555,9 +555,16 @@ html { background: var(--paper); }
  *
  * The thread panel takes no room from a column page, whose centred column mostly clears
  * it. A sheet (`main[data-width]`, below) runs to the window's edge and its rail is the
- * part the panel would stand on, so where the panel stands over a live page rather than
- * covering it (`data-lf-panel-over`, chrome-layout.js) the sheet yields it a strip on the
- * right, the same border the tray takes on the left, and reflows its tracks beside it.
+ * part the panel would stand on, so where the panel stands beside a live page rather than
+ * covering it the sheet yields it a strip on the right, the same border the tray takes on
+ * the left, and reflows its tracks beside it. Whether it stands beside the page is
+ * `--lf-thread-panel-beside`, stated once on body below; the runtime reads the same
+ * length to decide where the panel covers (chrome-layout.js, `panelCovers`).
+ *
+ * Both surfaces reach the first paint of a page reloaded with one open: the bootstrap
+ * states the stored surface as `data-lf-restore-surface` and the stored width as the
+ * property the runtime later writes, and the rules below read those until the runtime
+ * replaces them with body state.
  *
  * The strip is a border and not a margin, and that is the whole of what keeps the user
  * where they were standing. Narrowing the shell reflows the page inside it — residents
@@ -592,7 +599,7 @@ html { background: var(--paper); }
 }
 @media screen and (not (width <= 600px)) {
   :is(
-    html[data-lf-restore-asks],
+    html[data-lf-restore-surface="asks"],
     html[data-lf-live]:has(body[data-lf-auxiliary-surface="asks"])
   ) body {
     --lf-shell-inset-left: var(--lf-tray-slot-width);
@@ -600,12 +607,39 @@ html { background: var(--paper); }
   }
 }
 @media screen and (width <= 600px) {
-  html[data-lf-restore-asks] { overflow-y: hidden; }
+  html[data-lf-restore-surface="asks"] { overflow-y: hidden; }
+}
+/* The room the thread panel takes beside the page: its width where the window leaves a
+ * usable page beside it, and nothing where it does not, so there it covers the page
+ * instead. A usable page is 320px, the narrowest window anything here is laid out in;
+ * narrower than that, what shows beside the panel is a sliver no one can read or work in.
+ * Asked of the width the panel stands at rather than of a breakpoint, because what makes
+ * the page unusable is how much of it the panel leaves: a phone's window at the default
+ * 420px, or anywhere a user draws it that wide. `100vw` counts the root's scrollbar, as
+ * `innerWidth` does: the covering boundary locks the root's scroll and a classic scrollbar
+ * leaves with it, so a reading that grew by the bar would answer that the panel no longer
+ * covers, drop the lock, and flip back on every sync.
+ *
+ * CSS has no comparison, so the clamp is one: the scaled difference is far past the
+ * panel's width wherever the page keeps its 320 whole pixels (every width here is whole)
+ * and below zero wherever it does not. Registered so the runtime reads it as one resolved
+ * length; not inherited, so it restyles body alone as the edge moves. */
+@property --lf-thread-panel-beside {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+body {
+  --lf-thread-panel-beside: clamp(0px,
+    (100vw - var(--lf-thread-panel-width, 420px) - 319.5px) * 1000000,
+    var(--lf-thread-panel-width, 420px));
 }
 @media screen {
-  html[data-lf-live] body[data-lf-panel-over]:has(
-    > main:is([data-width="wide"], [data-width="available"])) {
-    border-right: var(--lf-thread-panel-width) solid transparent;
+  :is(
+    html[data-lf-restore-surface="threads"] body,
+    html[data-lf-live] body[data-lf-auxiliary-surface="threads"]
+  ):has(> main:is([data-width="wide"], [data-width="available"])) {
+    border-right: var(--lf-thread-panel-beside) solid transparent;
   }
 }
 /* Authored HTML is the page's useful initial condition, so it paints from stylesheet

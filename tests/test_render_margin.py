@@ -154,6 +154,7 @@ DUPLICATE_REGION_PAGE = leaf_page(
   </lf-grid>
 </lf-workspace>
 """,
+    width="available",
 )
 
 DUPLICATE_REGION_COMMENTS = [
@@ -5713,6 +5714,59 @@ def test_design_mode_retires_and_suppresses_the_top_layer_margin_preview(
     expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
 
 
+def test_the_conversation_card_s_transcript_is_its_scroller_before_and_after_it_opens(
+    browser, serve
+):
+    """The card registers its transcript as a reading region at startup, while it is
+    still closed. That region reads bounded from the first frame, so opening the card
+    announces no scroller shift and the box the region names is the one a wheel moves."""
+    url = serve(PANEL_PAGE)
+    panel_comment(
+        serve.page_dir,
+        "A long comment about capacity. " + "Review the capacity limit. " * 250,
+        {"section": "how-cap"},
+    )
+    page = open_page(browser, url)
+    resized(page, 1440, 700)
+    scroller = """async () => {
+      const regions = await window.__lfRuntimeImport('/runtime/reading-regions.js');
+      const list = document.querySelector('.lf-margin-preview-list');
+      const box = regions.effectiveScroller('lf-margin-preview');
+      return box === list ? 'transcript'
+        : box === document.scrollingElement ? 'page' : box?.className;
+    }"""
+    assert page.evaluate(scroller) == "transcript"
+    page.evaluate("""async () => {
+      const regions = await window.__lfRuntimeImport('/runtime/reading-regions.js');
+      window.__previewShifts = [];
+      regions.watchReadingRegionTransitions(({phase, shifted}) => {
+        if (phase === 'shift')
+          window.__previewShifts.push(...shifted.map(({region}) => region.id));
+      });
+    }""")
+
+    page.locator('.lf-margin-marker[data-lf-kinds~="comment"]').click()
+    transcript = page.locator(".lf-margin-preview-list")
+    expect(transcript).to_be_visible()
+    # A shift is announced from the resize observer's delivery, after the layout that
+    # opened the card; two frames later it has been heard if it is coming.
+    page.evaluate(
+        "() => new Promise(done => requestAnimationFrame(() => "
+        "requestAnimationFrame(done)))"
+    )
+    assert page.evaluate("() => window.__previewShifts") == []
+    assert page.evaluate(scroller) == "transcript"
+
+    before = page.evaluate("() => document.scrollingElement.scrollTop")
+    box = transcript.bounding_box()
+    page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+    page.mouse.wheel(0, 400)
+    page.wait_for_function(
+        "() => document.querySelector('.lf-margin-preview-list').scrollTop > 0"
+    )
+    assert page.evaluate("() => document.scrollingElement.scrollTop") == before
+
+
 def test_anchored_thread_reading_keys_and_page_return(browser, serve):
     """The focused conversation pages its own transcript; g p returns to the page
     without dismissing the card, and the next d pages the document."""
@@ -5783,7 +5837,7 @@ def test_a_thread_can_be_answered_in_the_margin_without_opening_threads(
           const painted = new Promise(resolve => requestAnimationFrame(() => {
             const box = card.getBoundingClientRect();
             resolve({open: !card.hidden,
-                     thread: card.hasAttribute('data-lf-thread'),
+                     thread: Boolean(card.querySelector('.lf-margin-thread')),
                      opacity: getComputedStyle(card).opacity,
                      left: box.left,
                      top: box.top,
@@ -5906,10 +5960,10 @@ def test_a_thread_can_be_answered_in_the_margin_without_opening_threads(
 
     preview.evaluate(
         """card => {
-          window.__openedMarginModes = [];
+          window.__cardOpenings = [];
           card.addEventListener('toggle', event => {
             if (event.newState === 'open')
-              window.__openedMarginModes.push(card.hasAttribute('data-lf-thread'));
+              window.__cardOpenings.push(event.newState);
           });
         }"""
     )
@@ -5920,7 +5974,7 @@ def test_a_thread_can_be_answered_in_the_margin_without_opening_threads(
     panel_settled(page)
     expect(preview).to_be_hidden()
     expect(page.locator(f'.lf-thread[data-id="{root_id}"] textarea')).to_be_focused()
-    assert page.evaluate("() => window.__openedMarginModes") == []
+    assert page.evaluate("() => window.__cardOpenings") == []
 
 
 def test_a_thread_margin_entry_opens_inline_when_the_panel_is_closed(browser, serve):

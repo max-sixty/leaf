@@ -111,10 +111,12 @@ The shared `.lf-ui` face starts in the assets root's `shadow.css`, before compon
 rules. Its `:where(:root) .lf-ui` selector has class specificity and does not match inside
 shadow trees, where the host's control face applies.
 
-A standing Asks tray reserves its strip with a transparent body border (`theme.css`),
-preserving native scroll anchoring during reflow. The thread panel and the Leaves tray
-stand over the page and reserve nothing. `chrome-layout.js` must not override the user's
-position.
+A standing Asks tray, and the thread panel beside a sheet, reserve their strips with a
+transparent body border (`theme.css`), preserving native scroll anchoring during reflow.
+The bootstrap states a restored surface and its stored width on the root, so a reload
+paints the strip before the runtime arrives. The thread panel over a column page and the
+Leaves tray stand over the page and reserve nothing. `chrome-layout.js` must not override
+the user's position.
 A workspace's posture is the stylesheet's: one container query on the workspace's own
 box decides whether each pane's body scrolls, and the runtime reads which box scrolls
 a region from that result rather than choosing it (`reading-regions.js`).
@@ -577,7 +579,8 @@ and repository lint checks the source.
 | `invalidPaints` | every var()-backed SVG paint resolves to a valid value in each scheme |
 | `tinyBoxes` | every declared widget has a usable rendered box |
 | `unmarkableElements` | every addressable element has a visible part for an outline |
-| `misplacedBoxes` | boxes stay in the column or in genuinely reachable overflow |
+| `misplacedBoxes` | boxes stay in the column or in genuinely reachable overflow, at every swept width |
+| `misalignedSplits` | advice only: a page's layout grids split where its busiest grid does |
 | `squeezedTables` | a table scrolls sideways only with every column at its longest unbreakable run |
 | `withheldRoom` | a drawing scrolls only when the room, net of margin residents at its band, ran short |
 | `silentCuts` | a box showing less than it holds across fades each edge with content beyond it |

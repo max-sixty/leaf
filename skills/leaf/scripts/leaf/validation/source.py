@@ -47,6 +47,7 @@ from leaf.validation.markup import (
     page_boundary_errors,
     structure_errors,
     unpointable_blocks,
+    workspace_sheet_errors,
 )
 from leaf.validation.source_history import (
     RevisionReading,
@@ -182,6 +183,7 @@ def _instance_errors(
         return errors
     errors.extend(widget_errors(parser.lf_elements, registry))
     errors.extend(layout_errors(parser.lf_elements, registry))
+    errors.extend(workspace_sheet_errors(parser, registry))
     errors.extend(visual_part_errors(parser.lf_elements, registry))
     errors.extend(addressable_instance_errors(parser.lf_elements, registry))
     errors.extend(ask_surface_errors(parser.lf_elements, registry))

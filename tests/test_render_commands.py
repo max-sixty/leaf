@@ -110,7 +110,7 @@ def test_the_gate_passes_a_page_that_carries_a_comment(browser, serve):
         page, "coveredWords", {"holdFloating": False}
     )
     page.close()
-    assert render_gate_model.render_version(browser, url) == []
+    assert render_gate_model.render_version(browser, url).failures == []
     assert held == []
     assert any("1 comment" in found for found in reported), (
         "the line falls on nobody, so a gate that never looked would pass this too"
@@ -150,7 +150,7 @@ def test_the_gate_passes_a_page_whose_collapsed_cards_lie_on_each_other(browser,
         "the cards fell on nobody, so a gate that never looked would pass this too"
     )
     page.close()
-    assert render_gate_model.render_version(browser, url) == []
+    assert render_gate_model.render_version(browser, url).failures == []
 
 
 def test_the_gate_measures_an_inline_widget_by_its_words(browser, serve):
@@ -204,7 +204,7 @@ def test_the_gate_measures_an_inline_widget_by_its_words(browser, serve):
     assert [box for box in flattened if box["tag"] == "lf-chip"], (
         "a chip with no height left reports nothing, so the floor is gone rather than declared"
     )
-    assert render_gate_model.render_version(browser, url) == []
+    assert render_gate_model.render_version(browser, url).failures == []
 
 
 def test_check_render_refuses_what_only_a_browser_can_see(serve, headless_shell):
@@ -465,7 +465,7 @@ def test_render_reports_a_word_the_printed_page_loses(browser, serve):
 
     A control declared an offer is exempt, since paper has nothing to press: the same
     page's pick mark reads "chosen" and goes unreported either way."""
-    lost = render_gate_model.render_version(browser, serve(PRINT_LOSS_PAGE))
+    lost = render_gate_model.render_version(browser, serve(PRINT_LOSS_PAGE)).failures
     assert lost == [
         (
             '[print] <p id=lede> drops "Where the decision stands, for the recor", '
@@ -492,7 +492,7 @@ def test_a_shot_compares_its_frames_with_a_direct_divider(browser, serve):
         SHOT_PAGE,
         media={SHOT_SRC[name]: data for name, data in SHOTS.items()},
     )
-    assert render_gate_model.render_version(browser, url) == []
+    assert render_gate_model.render_version(browser, url).failures == []
 
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     page.add_init_script(
@@ -915,7 +915,7 @@ def test_a_shot_refuses_a_pair_shot_at_two_widths(browser, serve):
 
     assert [
         f
-        for f in render_gate_model.render_version(browser, url)
+        for f in render_gate_model.render_version(browser, url).failures
         if "600px" in f and "400px" in f
     ], "the gate has to hear about a mismatch, since nobody else will"
 
@@ -985,7 +985,9 @@ def test_render_reports_words_a_widget_puts_out_of_reach(browser, serve):
     assert page.locator("#hidden-note").is_hidden()
     page.close()
 
-    found = render_gate_model.render_version(primed_browser, serve(CARRIED_PAGE))
+    found = render_gate_model.render_version(
+        primed_browser, serve(CARRIED_PAGE)
+    ).failures
     assert len(found) == 6, found
     assert sorted({f.split("] ", 1)[1] for f in found}) == [
         (
@@ -1033,7 +1035,7 @@ def test_render_reports_a_painted_fact_whose_word_was_drawn_nowhere(browser, ser
         f.split("] ", 1)[1]
         for f in render_gate_model.render_version(
             browser, serve(PAINTED_IN_SILENCE_PAGE)
-        )
+        ).failures
     ]
     assert sorted(set(found)) == [
         (
@@ -1098,7 +1100,10 @@ def test_render_reads_a_reply_widgets_own_chrome_and_not_the_panel_around_it(
         },
     )
     found = sorted(
-        {f.split("] ", 1)[1] for f in render_gate_model.render_version(browser, url)}
+        {
+            f.split("] ", 1)[1]
+            for f in render_gate_model.render_version(browser, url).failures
+        }
     )
     assert found == [
         (

@@ -1468,8 +1468,10 @@ def test_the_layer_sheets_spell_the_runtime_s_layout_numbers():
     ):
         assert spelling in sheet, f"the layer sheets no longer spell {spelling}"
     for spelling in (
-        "html[data-lf-restore-asks]",
+        'html[data-lf-restore-surface="asks"]',
         'html[data-lf-live]:has(body[data-lf-auxiliary-surface="asks"])',
+        'html[data-lf-restore-surface="threads"] body',
+        'html[data-lf-live] body[data-lf-auxiliary-surface="threads"]',
     ):
         assert spelling in sheet, f"the layer sheets no longer spell {spelling}"
 
@@ -1510,17 +1512,23 @@ def test_the_prepaint_shell_matches_the_runtime_s_saved_arrangements():
         return re.search(pattern, source, re.MULTILINE).group(1)
 
     auxiliary_surfaces = (assets / "runtime" / "auxiliary-surfaces.js").read_text()
+    layout = (assets / "runtime" / "chrome-layout.js").read_text()
     for pattern, source in (
         (r'^export const AUXILIARY_SURFACE_KEY = "([^"]+)";', auxiliary_surfaces),
         (r'key: "(lf-tray-slot-width)"', trays),
+        (r'key: "(lf-thread-panel-width)"', layout),
     ):
         key = constant(pattern, source)
         assert f'localStorage.getItem(scope + "{key}")' in bootstrap
 
+    panel_prop = constant(r'^const THREAD_PANEL_PROP = "([^"]+)";', layout)
+    assert f'root.style.setProperty("{panel_prop}"' in bootstrap
+    panel_default = constant(r"^const THREAD_PANEL_W = (\d+);", layout)
     for literal in (
         constant(r"^const TRAY_SLOT_W = (\d+);", trays),
         constant(r"^const TRAY_SLOT_MIN = (\d+);", trays),
-        "data-lf-restore-asks",
+        f"var({panel_prop}, {panel_default}px)",
+        "data-lf-restore-surface",
     ):
         assert literal in theme
 

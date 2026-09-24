@@ -499,8 +499,9 @@ export function dress(root) {
 //
 // Two more are facts of the element wherever it renders. x-measure says whether the
 // widget fills the frame holding it (surface) or only groups other blocks (group);
-// undeclared, it is text and keeps the reading measure inside a frame wider than the
-// column. x-bound says it holds
+// undeclared, a block made of members groups them, since an element made of other
+// elements is never text, and anything else is text and keeps the reading measure
+// inside a frame wider than the column. x-bound says it holds
 // its own height and scrolls inside it; `bounds.js` keeps an `end` bound on its newest
 // entry. A page occurrence overrides x-bound with data-bound, as data-width overrides
 // x-space. x-reading-role is the structural role the theme lays out, so a package's
@@ -527,14 +528,21 @@ function* elementsIn(root, selector) {
 // A declaration an authored occurrence may override, and the attribute it is written as.
 const AUTHORED = Object.freeze({ "x-space": "data-width", "x-bound": "data-bound" });
 
+// What an entry declares for a painted key, with the one default a declaration has:
+// see x-measure above.
+const declaration = (entry, key) =>
+  key === "x-measure" && entry["x-content"] === "members" && !entry["x-inline"]
+    ? (entry[key] ?? "group")
+    : entry[key];
+
 export function markDeclared(root, painted) {
   for (const key of Object.keys(AUTHORED))
     if (painted[key])
       for (const el of elementsIn(root, `[${painted[key]}]`))
         el.removeAttribute(painted[key]);
   for (const [key, attr] of Object.entries(painted))
-    for (const tag of tagsDeclaring((entry) => entry[key])) {
-      const declared = registry[tag][key];
+    for (const tag of tagsDeclaring((entry) => declaration(entry, key))) {
+      const declared = declaration(registry[tag], key);
       for (const el of elementsIn(root, tag))
         el.setAttribute(attr, declared === true ? "" : declared);
     }

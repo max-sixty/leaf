@@ -57,9 +57,14 @@ UNCLAIMED = {
 }
 
 
-def leaf_page(title: str, body: str, *, head: str = "") -> str:
-    """A complete page carrying the presentation boundary every fixture shares."""
+def leaf_page(
+    title: str, body: str, *, head: str = "", width: str | None = None
+) -> str:
+    """A complete page carrying the presentation boundary every fixture shares. `width`
+    makes the page a sheet (`<main data-width>`), as a page whose only block is a
+    workspace must be."""
     extra_head = f"{head}\n" if head else ""
+    main = f'<main data-width="{width}">' if width else "<main>"
     return f"""<!doctype html>
 <html lang="en">
 <head>
@@ -67,7 +72,7 @@ def leaf_page(title: str, body: str, *, head: str = "") -> str:
 {extra_head}
 </head>
 <body>
-<main>{body}</main>
+{main}{body}</main>
 </body>
 </html>
 """

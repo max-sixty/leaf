@@ -26,6 +26,8 @@ export {
 } from "./anchor-resolution.js";
 // The name Threads, the margin, and reactions give a comment's anchor.
 export { anchorLabel } from "./conversation/messages.js";
+// The page's `main`, or the body of the message whose markup a node stands in.
+export { authoredScope } from "./conversation/messages.js";
 export { navigateToDatum } from "./application.js";
 export {
   declareCoverRoom,

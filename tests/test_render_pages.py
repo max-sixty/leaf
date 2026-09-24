@@ -2298,7 +2298,7 @@ def test_a_drawing_scrolls_only_for_room_the_page_truly_lacks(browser, serve):
         '<h1 id="t">Flow</h1>',
         '<style>#flow { max-width: 640px }</style>\n<h1 id="t">Flow</h1>',
     )
-    failures = render_gate_model.render_version(browser, serve(capped))
+    failures = render_gate_model.render_version(browser, serve(capped)).failures
     assert [f for f in failures if "<lf-diagram id=flow> scrolls" in f], (
         f"a drawing held under its own graph beside an empty margin must be named at "
         f"handover, and the gate said: {failures or 'nothing'}"
@@ -2423,7 +2423,7 @@ def test_a_box_that_shows_less_than_it_holds_says_so_and_the_gate_asks(browser, 
     )
     page.close()
 
-    assert render_gate_model.render_version(browser, url) == []
+    assert render_gate_model.render_version(browser, url).failures == []
 
 
 def test_the_render_gate_names_a_wide_widget_drawn_over_the_pages_own_margin(
@@ -2440,7 +2440,9 @@ def test_the_render_gate_names_a_wide_widget_drawn_over_the_pages_own_margin(
     of its own and nothing has to be declared to it. That is what keeps the two theme
     rules honest: the next claimant that forgets one is a refusal with a name on it
     rather than a page somebody eventually notices is drawn over its own controls."""
-    failures = render_gate_model.render_version(browser, serve(OWN_MARGIN_FURNITURE))
+    failures = render_gate_model.render_version(
+        browser, serve(OWN_MARGIN_FURNITURE)
+    ).failures
 
     assert [
         f
@@ -2728,7 +2730,9 @@ def test_the_render_gate_names_a_wide_widget_that_escapes_a_frame_that_scrolls(
 
     The frame here is the page's own, because a project's box is what no theme rule can
     reach — the same place the margin-furniture gate above stands."""
-    failures = render_gate_model.render_version(browser, serve(FRAMED_SCROLLER_PAGE))
+    failures = render_gate_model.render_version(
+        browser, serve(FRAMED_SCROLLER_PAGE)
+    ).failures
 
     assert [
         f for f in failures if "<lf-board id=framed>" in f and "<div id=own-frame>" in f

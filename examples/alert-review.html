@@ -1,0 +1,581 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <title>Weekly alert review: payments on-call</title>
+    <meta
+      name="description"
+      content="Work through a week of payments pages in a queue beside its evidence: see which alerts caught real incidents, then decide how each noisy one should change."
+    />
+    <style>
+      /* Each alert is one item in the detail pane: a rule marks where the next begins,
+         and the first starts at the top of the pane. */
+      #ar-alerts > section:first-child > h3 {
+        margin-top: 0;
+      }
+      #ar-alerts > section + section {
+        margin-top: var(--sp-4);
+        padding-top: var(--sp-4);
+        border-top: 1px solid var(--rule);
+        --lf-block-frame: 1;
+      }
+    </style>
+  </head>
+  <body>
+    <main data-width="available">
+      <lf-workspace id="ar-workspace">
+        <header>
+          <p class="eyebrow">payments on-call · alert review · week 38</p>
+          <h1>Which alerts should still page?</h1>
+          <p class="lede" id="ar-lede">
+            Payments paged 158 times last week, and 17 of those pages needed a person.
+            Pick what each noisy alert should do; I'll change every rule in one pull
+            request.
+          </p>
+          <p id="ar-legend">
+            <span class="tag danger">5 caught incidents</span>
+            <span class="tag warn">7 mostly noise</span>
+            <span class="tag">2 wrong owner</span>
+          </p>
+        </header>
+
+        <lf-grid id="ar-regions" columns="1fr 2fr">
+          <lf-pane id="ar-queue" label="Alerts">
+            <header><h2>Alerts by pages</h2></header>
+            <nav aria-label="Alerts">
+              <table id="ar-queue-table">
+                <thead>
+                  <tr>
+                    <th>Alert</th>
+                    <th class="num">Real / pages</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>
+                      <a href="#ar-canary">Canary health check</a>
+                      <span class="tag warn">noise</span>
+                    </td>
+                    <td class="num">0 / 47</td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <a href="#ar-latency">Checkout p99 latency</a>
+                      <span class="tag warn">noise</span>
+                    </td>
+                    <td class="num">1 / 31</td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <a href="#ar-webhooks">Webhook queue depth</a>
+                      <span class="tag warn">noise</span>
+                    </td>
+                    <td class="num">2 / 22</td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <a href="#ar-export">Ledger export lag</a>
+                      <span class="tag warn">noise</span>
+                    </td>
+                    <td class="num">0 / 18</td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <a href="#ar-disk">Replica disk usage</a>
+                      <span class="tag warn">noise</span>
+                    </td>
+                    <td class="num">0 / 9</td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <a href="#ar-cert">Sandbox TLS expiry</a>
+                      <span class="tag">wrong owner</span>
+                    </td>
+                    <td class="num">0 / 7</td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <a href="#ar-settlement">Settlement job failed</a>
+                      <span class="tag warn">noise</span>
+                    </td>
+                    <td class="num">3 / 6</td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <a href="#ar-kafka">Ledger consumer lag</a>
+                      <span class="tag">wrong owner</span>
+                    </td>
+                    <td class="num">0 / 5</td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <a href="#ar-errors">Payments API 5xx rate</a>
+                      <span class="tag danger">incident</span>
+                    </td>
+                    <td class="num">4 / 4</td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <a href="#ar-3ds">3-D Secure failure rate</a>
+                      <span class="tag warn">noise</span>
+                    </td>
+                    <td class="num">1 / 3</td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <a href="#ar-fraud">Fraud score drift</a>
+                      <span class="tag danger">incident</span>
+                    </td>
+                    <td class="num">2 / 2</td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <a href="#ar-payouts">Payout file rejected</a>
+                      <span class="tag danger">incident</span>
+                    </td>
+                    <td class="num">2 / 2</td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <a href="#ar-refunds">Refund processor timeouts</a>
+                      <span class="tag danger">incident</span>
+                    </td>
+                    <td class="num">1 / 1</td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <a href="#ar-disputes">Dispute deadline near</a>
+                      <span class="tag danger">incident</span>
+                    </td>
+                    <td class="num">1 / 1</td>
+                  </tr>
+                </tbody>
+                <tfoot>
+                  <tr>
+                    <th scope="row">All alerts</th>
+                    <td class="num">17 / 158</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </nav>
+          </lf-pane>
+
+          <lf-pane id="ar-detail" label="Selected alert">
+            <header><h2>Evidence and decision</h2></header>
+            <div id="ar-alerts">
+              <section id="ar-canary">
+                <h3>Canary health check</h3>
+                <dl class="facts">
+                  <dt>Rule</dt>
+                  <dd><code>payments_canary_probe_failed</code></dd>
+                  <dt>Fires on</dt>
+                  <dd>One failed probe against the canary pod</dd>
+                  <dt>Pages</dt>
+                  <dd>47, none of which needed a person</dd>
+                </dl>
+                <p>
+                  Forty-four of the 47 pages came within three minutes of a deploy,
+                  while the restarting canary missed one probe; the 10:00, 14:00 and
+                  18:00 trains alone account for 39. It was never down long enough to
+                  act on.
+                </p>
+                <lf-ask id="ar-canary-decision">
+                  <h4>How should the canary probe page?</h4>
+                  <lf-options id="ar-canary-choice" choose>
+                    <lf-option id="ar-canary-consecutive">
+                      <lf-chip>last week: 0 pages</lf-chip>
+                      <lf-chip tone="ok">recommended</lf-chip>
+                      <strong>Require three failed probes in a row</strong> Pages when
+                      the canary is down for 90 seconds, which no deploy restart
+                      reached.
+                    </lf-option>
+                    <lf-option id="ar-canary-suppress">
+                      <lf-chip>last week: 3 pages</lf-chip>
+                      <strong>Mute for five minutes after each deploy</strong> Keeps
+                      single-probe sensitivity between trains, but depends on deploy
+                      events arriving on time.
+                    </lf-option>
+                    <lf-option id="ar-canary-keep">
+                      <lf-chip>last week: 47 pages</lf-chip>
+                      <strong>Keep paging on one failed probe</strong> No change to the
+                      rule.
+                    </lf-option>
+                  </lf-options>
+                </lf-ask>
+              </section>
+
+              <section id="ar-latency">
+                <h3>Checkout p99 latency</h3>
+                <dl class="facts">
+                  <dt>Rule</dt>
+                  <dd><code>checkout_latency_p99_high</code></dd>
+                  <dt>Fires on</dt>
+                  <dd>p99 above 800 ms for two minutes</dd>
+                  <dt>Pages</dt>
+                  <dd>31, one of which needed a person</dd>
+                </dl>
+                <p>
+                  Most pages came from the lunchtime traffic peak and recovered on their
+                  own in a median of four minutes. The one real page was Thursday's
+                  database failover, which the 5xx alert also caught a minute earlier.
+                </p>
+                <lf-ask id="ar-latency-decision">
+                  <h4>What should the latency alert page on?</h4>
+                  <p>
+                    Checkout's latency objective is 1.2 seconds at p99 over ten minutes.
+                  </p>
+                  <lf-options id="ar-latency-choice" choose>
+                    <lf-option id="ar-latency-objective">
+                      <lf-chip>last week: 1 page</lf-chip>
+                      <lf-chip tone="ok">recommended</lf-chip>
+                      <strong>Page on the objective itself</strong> 1.2 seconds
+                      sustained for ten minutes; peaks that recover stop paging.
+                    </lf-option>
+                    <lf-option id="ar-latency-hours">
+                      <lf-chip>last week: 12 pages</lf-chip>
+                      <strong>Keep 800 ms, page only in working hours</strong> Nights
+                      and weekends open a ticket instead.
+                    </lf-option>
+                    <lf-option id="ar-latency-keep">
+                      <lf-chip>last week: 31 pages</lf-chip>
+                      <strong>Keep the current threshold</strong> No change to the rule.
+                    </lf-option>
+                  </lf-options>
+                </lf-ask>
+              </section>
+
+              <section id="ar-webhooks">
+                <h3>Webhook queue depth</h3>
+                <dl class="facts">
+                  <dt>Rule</dt>
+                  <dd><code>webhook_queue_depth_high</code></dd>
+                  <dt>Fires on</dt>
+                  <dd>More than 5,000 queued deliveries</dd>
+                  <dt>Pages</dt>
+                  <dd>22, two of which needed a person</dd>
+                </dl>
+                <p>
+                  Twenty pages were one partner's bulk retries, which drained within ten
+                  minutes each time. The two that mattered were Wednesday's stuck
+                  consumer: the queue was short, but its oldest delivery was 40 minutes
+                  old.
+                </p>
+                <lf-ask id="ar-webhooks-decision">
+                  <h4>What should the webhook alert measure?</h4>
+                  <p>
+                    Depth tracks partner traffic; age tracks whether we are keeping up.
+                  </p>
+                  <lf-options id="ar-webhooks-choice" choose>
+                    <lf-option id="ar-webhooks-age">
+                      <lf-chip>last week: 2 pages</lf-chip>
+                      <lf-chip tone="ok">recommended</lf-chip>
+                      <strong>Page on the oldest delivery's age</strong> Ten minutes old
+                      trips it; a burst that drains does not.
+                    </lf-option>
+                    <lf-option id="ar-webhooks-depth">
+                      <lf-chip>last week: 6 pages</lf-chip>
+                      <strong>Raise the depth to 20,000</strong> Fewer burst pages, and
+                      still blind to a stuck consumer on a short queue.
+                    </lf-option>
+                    <lf-option id="ar-webhooks-keep">
+                      <lf-chip>last week: 22 pages</lf-chip>
+                      <strong>Keep paging at 5,000</strong> No change to the rule.
+                    </lf-option>
+                  </lf-options>
+                </lf-ask>
+              </section>
+
+              <section id="ar-export">
+                <h3>Ledger export lag</h3>
+                <dl class="facts">
+                  <dt>Rule</dt>
+                  <dd><code>ledger_export_lag_high</code></dd>
+                  <dt>Fires on</dt>
+                  <dd>Export more than 30 minutes behind</dd>
+                  <dt>Pages</dt>
+                  <dd>18, none of which needed a person</dd>
+                </dl>
+                <p>
+                  Every page fell between 01:00 and 03:00 UTC, while the nightly
+                  settlement batch holds the ledger lock. The lag cleared by 03:20 each
+                  night without anyone touching it.
+                </p>
+                <lf-chart id="ar-export-hours" kind="bars" y="pages by hour (UTC)">
+                  <pre>
+hour, pages
+22:00, 0
+23:00, 0
+00:00, 0
+01:00, 7
+02:00, 9
+03:00, 2
+04:00, 0
+05:00, 0
+06:00, 0
+</pre>
+                </lf-chart>
+                <lf-ask id="ar-export-decision">
+                  <h4>What should happen during the nightly batch?</h4>
+                  <p>Finance reads the export at 07:00 UTC.</p>
+                  <lf-options id="ar-export-choice" choose>
+                    <lf-option id="ar-export-window">
+                      <lf-chip tone="ok">recommended</lf-chip>
+                      <strong>Mute from 01:00 to 03:30 UTC</strong> Lag outside the
+                      batch still pages.
+                    </lf-option>
+                    <lf-option id="ar-export-ticket">
+                      <strong>Open a ticket instead of paging</strong> Someone checks it
+                      before Finance's 07:00 read.
+                    </lf-option>
+                    <lf-option id="ar-export-keep">
+                      <strong>Keep paging</strong> No change to the rule.
+                    </lf-option>
+                  </lf-options>
+                </lf-ask>
+              </section>
+
+              <section id="ar-disk">
+                <h3>Replica disk usage</h3>
+                <dl class="facts">
+                  <dt>Rule</dt>
+                  <dd><code>ledger_replica_disk_80</code></dd>
+                  <dt>Fires on</dt>
+                  <dd>Ledger read replica above 80% full</dd>
+                  <dt>Pages</dt>
+                  <dd>9, none of which needed a person</dd>
+                </dl>
+                <p>
+                  Autovacuum reclaimed the space within the hour every time. Growth is
+                  already tracked in the monthly capacity review, and the 95% critical
+                  alert on the same disk stays either way.
+                </p>
+                <lf-ask id="ar-disk-decision">
+                  <h4>Should the 80% disk alert page at all?</h4>
+                  <p>The 95% alert has not fired this quarter.</p>
+                  <lf-options id="ar-disk-choice" choose>
+                    <lf-option id="ar-disk-delete">
+                      <lf-chip tone="ok">recommended</lf-chip>
+                      <strong>Delete it</strong> The capacity review and the 95% alert
+                      cover the disk.
+                    </lf-option>
+                    <lf-option id="ar-disk-ninety">
+                      <strong>Raise it to 90%</strong> Leaves an hour's warning before
+                      the critical alert.
+                    </lf-option>
+                    <lf-option id="ar-disk-keep">
+                      <strong>Keep paging at 80%</strong> No change to the rule.
+                    </lf-option>
+                  </lf-options>
+                </lf-ask>
+              </section>
+
+              <section id="ar-cert">
+                <h3>Sandbox TLS expiry</h3>
+                <dl class="facts">
+                  <dt>Rule</dt>
+                  <dd><code>tls_cert_expiring_14d</code></dd>
+                  <dt>Fires on</dt>
+                  <dd>A certificate within 14 days of expiry</dd>
+                  <dt>Pages</dt>
+                  <dd>7, one a day for the same certificate</dd>
+                </dl>
+                <p>
+                  The certificate belongs to the partner sandbox host, which Platform
+                  owns and renews automatically. Their renewal job is failing, and
+                  PLAT-2291 already tracks the fix.
+                </p>
+                <lf-ask id="ar-cert-decision">
+                  <h4>Who should hear about the sandbox certificate?</h4>
+                  <p>It expires in six days.</p>
+                  <lf-options id="ar-cert-choice" choose>
+                    <lf-option id="ar-cert-platform">
+                      <lf-chip tone="ok">recommended</lf-chip>
+                      <strong>Route it to Platform's queue</strong> The team that can
+                      renew it sees it; payments stops paging.
+                    </lf-option>
+                    <lf-option id="ar-cert-both">
+                      <strong>Page both teams until it renews</strong> Payments keeps
+                      waking up for a fix it cannot make.
+                    </lf-option>
+                  </lf-options>
+                </lf-ask>
+              </section>
+
+              <section id="ar-settlement">
+                <h3>Settlement job failed</h3>
+                <dl class="facts">
+                  <dt>Rule</dt>
+                  <dd><code>settlement_job_failed</code></dd>
+                  <dt>Fires on</dt>
+                  <dd>Any failed settlement attempt</dd>
+                  <dt>Pages</dt>
+                  <dd>6, three of which needed a person</dd>
+                </dl>
+                <p>
+                  The three pages nobody needed were first attempts that the scheduler
+                  retried successfully five minutes later. The other three were Friday's
+                  expired bank credential, which failed every retry.
+                </p>
+                <lf-ask id="ar-settlement-decision">
+                  <h4>Should a settlement failure wait for its retry?</h4>
+                  <p>The scheduler retries once, five minutes after a failure.</p>
+                  <lf-options id="ar-settlement-choice" choose>
+                    <lf-option id="ar-settlement-retry">
+                      <lf-chip tone="ok">recommended</lf-chip>
+                      <strong>Page when the retry fails too</strong> Real failures
+                      arrive five minutes later.
+                    </lf-option>
+                    <lf-option id="ar-settlement-keep">
+                      <strong>Keep paging on the first failure</strong> No change to the
+                      rule.
+                    </lf-option>
+                  </lf-options>
+                </lf-ask>
+              </section>
+
+              <section id="ar-kafka">
+                <h3>Ledger consumer lag</h3>
+                <dl class="facts">
+                  <dt>Rule</dt>
+                  <dd><code>ledger_events_consumer_lag</code></dd>
+                  <dt>Fires on</dt>
+                  <dd>More than 50,000 unread events on the ledger topic</dd>
+                  <dt>Pages</dt>
+                  <dd>5, none of which needed a person</dd>
+                </dl>
+                <p>
+                  Each page was a broker rebalance on the shared event cluster, which
+                  Data Platform runs. The consumer caught up once partitions were
+                  reassigned; nothing on the payments side changed.
+                </p>
+                <lf-ask id="ar-kafka-decision">
+                  <h4>Who should hear about ledger consumer lag?</h4>
+                  <p>Lag that outlasts a rebalance does delay the ledger export.</p>
+                  <lf-options id="ar-kafka-choice" choose>
+                    <lf-option id="ar-kafka-route">
+                      <lf-chip tone="ok">recommended</lf-chip>
+                      <strong>Page Data Platform during rebalances</strong> Payments
+                      hears only when lag outlasts 15 minutes.
+                    </lf-option>
+                    <lf-option id="ar-kafka-keep">
+                      <strong>Keep paging payments</strong> No change to the rule.
+                    </lf-option>
+                  </lf-options>
+                </lf-ask>
+              </section>
+
+              <section id="ar-errors">
+                <h3>Payments API 5xx rate</h3>
+                <dl class="facts">
+                  <dt>Rule</dt>
+                  <dd><code>payments_api_5xx_rate</code></dd>
+                  <dt>Pages</dt>
+                  <dd>4, all of which needed a person</dd>
+                </dl>
+                <p>
+                  Caught Tuesday's card-network outage six minutes before the first
+                  customer ticket, and paged for Thursday's failover a minute ahead of
+                  the latency alert. It keeps paging unchanged.
+                </p>
+              </section>
+
+              <section id="ar-3ds">
+                <h3>3-D Secure failure rate</h3>
+                <dl class="facts">
+                  <dt>Rule</dt>
+                  <dd><code>threeds_challenge_failure_rate</code></dd>
+                  <dt>Fires on</dt>
+                  <dd>More than 8% of challenges failing over five minutes</dd>
+                  <dt>Pages</dt>
+                  <dd>3, one of which needed a person</dd>
+                </dl>
+                <p>
+                  Two pages came from one issuing bank's challenge outage, which only
+                  that bank could fix. The third was our own expired signing key, which
+                  failed every issuer at once.
+                </p>
+                <lf-ask id="ar-3ds-decision">
+                  <h4>Should one issuer's outage page us?</h4>
+                  <p>Per-issuer failure rates are already on the payments dashboard.</p>
+                  <lf-options id="ar-3ds-choice" choose>
+                    <lf-option id="ar-3ds-spread">
+                      <lf-chip tone="ok">recommended</lf-chip>
+                      <strong>Page when three or more issuers fail</strong> A single
+                      bank's outage opens a ticket instead.
+                    </lf-option>
+                    <lf-option id="ar-3ds-keep">
+                      <strong>Keep paging on the overall rate</strong> No change to the
+                      rule.
+                    </lf-option>
+                  </lf-options>
+                </lf-ask>
+              </section>
+
+              <section id="ar-fraud">
+                <h3>Fraud score drift</h3>
+                <dl class="facts">
+                  <dt>Rule</dt>
+                  <dd><code>fraud_score_distribution_drift</code></dd>
+                  <dt>Pages</dt>
+                  <dd>2, both of which needed a person</dd>
+                </dl>
+                <p>
+                  Both pages were Friday's stale feature pipeline, which left the model
+                  scoring on day-old velocity counts. It keeps paging unchanged.
+                </p>
+              </section>
+
+              <section id="ar-payouts">
+                <h3>Payout file rejected</h3>
+                <dl class="facts">
+                  <dt>Rule</dt>
+                  <dd><code>payout_file_rejected</code></dd>
+                  <dt>Pages</dt>
+                  <dd>2, both of which needed a person</dd>
+                </dl>
+                <p>
+                  The bank rejected Monday's payout file over a changed date format, and
+                  the page arrived in time to resubmit before the cutoff. It keeps
+                  paging unchanged.
+                </p>
+              </section>
+
+              <section id="ar-refunds">
+                <h3>Refund processor timeouts</h3>
+                <dl class="facts">
+                  <dt>Rule</dt>
+                  <dd><code>refund_processor_timeout_rate</code></dd>
+                  <dt>Pages</dt>
+                  <dd>1, which needed a person</dd>
+                </dl>
+                <p>
+                  Saturday's page was the processor's own degradation, confirmed on
+                  their status page twelve minutes later. It keeps paging unchanged.
+                </p>
+              </section>
+              <section id="ar-disputes">
+                <h3>Dispute deadline near</h3>
+                <dl class="facts">
+                  <dt>Rule</dt>
+                  <dd><code>dispute_evidence_due_24h</code></dd>
+                  <dt>Pages</dt>
+                  <dd>1, which needed a person</dd>
+                </dl>
+                <p>
+                  A chargeback's evidence was due within a day and had no owner; the
+                  page got it filed with four hours to spare. It keeps paging unchanged.
+                </p>
+              </section>
+            </div>
+            <footer>
+              <p id="ar-next">
+                <strong>Nine decisions open.</strong> Answer them in any order; I'll
+                open one pull request against <code>alerts/payments.yaml</code> once
+                they're in.
+              </p>
+            </footer>
+          </lf-pane>
+        </lf-grid>
+      </lf-workspace>
+    </main>
+  </body>
+</html>

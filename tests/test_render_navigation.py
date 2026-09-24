@@ -136,6 +136,7 @@ READING_REGIONS_PAGE = leaf_page(
   </lf-grid>
 </lf-workspace>
 """,
+    width="available",
 )
 
 
@@ -487,8 +488,9 @@ def test_revision_restoration_yields_to_input_while_a_diagram_loads(
             '<label>Draft <input id="reading-draft"></label><button id="left-head">',
         )
         .replace(
-            "<main>",
-            '<main><lf-tabs id="reading-tabs"><lf-tab id="first-tab" label="First">',
+            '<main data-width="available">',
+            '<main data-width="available"><lf-tabs id="reading-tabs">'
+            '<lf-tab id="first-tab" label="First">',
         )
         .replace(
             "</main>",

@@ -4857,13 +4857,12 @@ def test_a_stop_ends_a_server_whose_caller_left_while_it_announced(page_dir, spa
     )
     os.close(writer)
     service = page_dir / "service.json"
+    # The record is written after the lease, inside the same transition, so an
+    # enabled record proves the lease too.
     wait_for(
-        lambda: (
-            leases_model.lock_is_held(page_dir / "server.lock")
-            and json.loads(service.read_text())["enabled"]
-        ),
+        lambda: service.exists() and json.loads(service.read_text())["enabled"],
         bool,
-        failure="the child did not take its lease",
+        failure="the child did not record its service",
     )
     stopped = []
     stopping = threading.Thread(

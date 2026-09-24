@@ -26,11 +26,12 @@
 // while nested scrollports report on their elements. Use `scrollerFor(el)` where a widget
 // may be one an agent sent, since a widget in a message is scrolled by the panel's own
 // list and by nothing else. Threads and trays are alternate auxiliary surfaces, so only
-// one stands at a time. Threads and Leaves always stand over the page and never take width
-// from it, so the page is laid out for one width whatever is open. Leaves covers it, and
-// Threads covers it only where it leaves less than a usable page (`panelCovers`). The Asks tray is the
-// one surface that takes a strip: it stands beside the page where the viewport can hold
-// it and covers the page under its media query otherwise (trays.js). Auxiliary modality
+// one stands at a time. Leaves always covers the page. Threads covers it only where it
+// leaves less than a usable page (`panelCovers`); elsewhere it stands over a column page
+// and takes no width from it, and beside a sheet, which yields it a strip on the right
+// (`data-lf-panel-over`, theme.css at the body strip). The Asks tray takes a strip on the
+// left: it stands beside the page where the viewport can hold it and covers the page under
+// its media query otherwise (trays.js). Auxiliary modality
 // is a shared inert boundary outside this geometry owner; the reference and Page Map
 // keep native `showModal()`. The shell's inline size already reflects the strip a beside
 // tray takes. `--strip-l`, `--strip-r`,
@@ -91,7 +92,10 @@ export function createChromeLayout({
   repaint,
   repaintPage,
 }) {
-  // The panel stands over the page at every width and takes no room from it. It covers
+  // The panel stands over a column page and takes no room from it: the centred column
+  // mostly clears it. A sheet has no column to clear it with — its rail is under the
+  // panel — so it yields the panel a strip and reflows its tracks beside it (theme.css,
+  // at the body strip). Either way the panel covers
   // the page — the modal boundary that makes the page inert — only where what it leaves
   // beside it is less than a usable page (`PAGE_MIN`): a phone's window by default, or
   // anywhere a user draws it that wide. Asked of the width it stands at rather than of a
@@ -104,6 +108,16 @@ export function createChromeLayout({
   // covering.
   const panelCovers = () =>
     panelIsOpen() && innerWidth - commentsEdge.width() < PAGE_MIN;
+  // The open panel over a live page, stated on body for the cascade: a sheet yields its
+  // strip on it. Written with the shell's other facts, inside the frame that moves the
+  // content (`takeShell`, `landEdge`), and on a resize, which is everywhere `panelCovers`
+  // can change its answer. The covering boundary's own attribute is written after the
+  // surface renders, a frame the page's reflow may not wait for.
+  const statePanelOver = () =>
+    document.body.toggleAttribute(
+      "data-lf-panel-over",
+      panelIsOpen() && !panelCovers(),
+    );
   // Whether the open panel hides a destination — an element or a range — on the page:
   // it covers the whole page, or it stands over most of the destination, more than half
   // its width. A block the width of the column keeps most of itself clear of the panel at
@@ -273,6 +287,7 @@ export function createChromeLayout({
     moveContentFrame(() => {
       if (surface) document.body.dataset.lfAuxiliarySurface = surface;
       else delete document.body.dataset.lfAuxiliarySurface;
+      statePanelOver();
     });
   }
   // Field sizing and every other chrome-size change feed the one layout pass.
@@ -326,6 +341,7 @@ export function createChromeLayout({
     commentsEdge.handle(panel, () => closeBtn);
     addEventListener("resize", () => {
       commentsEdge.state();
+      statePanelOver();
       restateTrayEdge();
       syncAuxiliarySurfaces();
       pageShifted();
@@ -349,6 +365,7 @@ export function createChromeLayout({
   function landEdge(state) {
     const apply = () => {
       state();
+      statePanelOver();
       syncAuxiliarySurfaces();
       syncLayout();
     };

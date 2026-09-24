@@ -544,10 +544,16 @@ body { position: static !important; box-sizing: border-box !important;
   }
 }
 /* The Asks tray narrows the body's page shell on wide screens and covers it on compact
- * ones; the thread panel and the Leaves tray stand over the page at every width and take
- * no room from it. A bootstrap root attribute supplies the tray's geometry before the
- * runtime replaces it with body state; the stored width is capped by the same responsive
- * bargain as the live resizable edge.
+ * ones; the Leaves tray stands over the page at every width and takes no room from it.
+ * A bootstrap root attribute supplies the tray's geometry before the runtime replaces it
+ * with body state; the stored width is capped by the same responsive bargain as the live
+ * resizable edge.
+ *
+ * The thread panel takes no room from a column page, whose centred column mostly clears
+ * it. A sheet (`main[data-width]`, below) runs to the window's edge and its rail is the
+ * part the panel would stand on, so where the panel stands over a live page rather than
+ * covering it (`data-lf-panel-over`, chrome-layout.js) the sheet yields it a strip on the
+ * right, the same border the tray takes on the left, and reflows its tracks beside it.
  *
  * The strip is a border and not a margin, and that is the whole of what keeps the user
  * where they were standing. Narrowing the shell reflows the page inside it — residents
@@ -591,6 +597,12 @@ body { position: static !important; box-sizing: border-box !important;
 }
 @media screen and (width <= 600px) {
   html[data-lf-restore-asks] { overflow-y: hidden; }
+}
+@media screen {
+  html[data-lf-live] body[data-lf-panel-over]:has(
+    > main:is([data-width="wide"], [data-width="available"])) {
+    border-right: var(--lf-thread-panel-width) solid transparent;
+  }
 }
 /* Authored HTML is the page's useful initial condition, so it paints from stylesheet
  * parse while JavaScript upgrades widgets and reads the standing log. Generated page

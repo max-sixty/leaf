@@ -90,8 +90,9 @@ other page files and the external state listed below.
   after the server has closed its sockets.
 
 - `<state-home>/claims/` — one atomic claim per resolved page, independent of its page
-  directory. [session-lifetime.md](session-lifetime.md) owns claimant identity,
-  release, harness, and lifetime.
+  directory, and removed by the first scan that finds that directory gone
+  (`service.claim_records`). [session-lifetime.md](session-lifetime.md) owns claimant
+  identity, release, harness, and lifetime.
 
 ## Revision delivery
 

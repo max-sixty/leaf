@@ -114,6 +114,51 @@ def unpointable_blocks(parser: SourceDocument) -> list:
     return lines
 
 
+def main_roots(parser: SourceDocument) -> tuple:
+    """`main` and the authored blocks directly in it: text, and elements other than
+    script, style and template."""
+    main = next((node for node in parser.nodes if node["tag"] == "main"), None)
+    if main is None:
+        return None, []
+    return main, [
+        node
+        for node in main["content"]
+        if (isinstance(node, str) and node.strip())
+        or (
+            isinstance(node, dict)
+            and node["tag"] not in {"script", "style", "template"}
+        )
+    ]
+
+
+def sole_workspace(roots: list, registry: dict) -> dict | None:
+    """The workspace that is `main`'s only block, if one is."""
+    if (
+        len(roots) == 1
+        and isinstance(roots[0], dict)
+        and registry.get(roots[0]["tag"], {}).get("x-reading-role") == "workspace"
+    ):
+        return roots[0]
+    return None
+
+
+def workspace_sheet_errors(parser: SourceDocument, registry: dict) -> list:
+    """A workspace holds the window as a sheet's sole content, so a page whose only
+    block is a workspace declares the sheet. Without it the workspace flows in the
+    reading column, which is never what a page made of one workspace means."""
+    main, roots = main_roots(parser)
+    workspace = sole_workspace(roots, registry)
+    if workspace is None or main["attrs"].get("data-width") in {"wide", "available"}:
+        return []
+    return [
+        (
+            f"line {main['line']}: <main> holds only <{workspace['tag']}>, and a "
+            "workspace holds the window as a sheet's sole content: write "
+            '<main data-width="available">'
+        )
+    ]
+
+
 def missing_outline(parser: SourceDocument, registry: dict) -> list:
     """A document with several headings and nothing that lists them. Advice, never a
     gate: the outline widget's own entry states the default — a page with two or
@@ -126,22 +171,9 @@ def missing_outline(parser: SourceDocument, registry: dict) -> list:
     deliberately low bar. An author who reads the line and still leaves the page
     bare has answered it: on a page short enough to take in whole, a list of its
     headings says nothing the page has not already said."""
-    main = next((node for node in parser.nodes if node["tag"] == "main"), None)
+    main, roots = main_roots(parser)
     if main is not None:
-        roots = [
-            node
-            for node in main["content"]
-            if (isinstance(node, str) and node.strip())
-            or (
-                isinstance(node, dict)
-                and node["tag"] not in {"script", "style", "template"}
-            )
-        ]
-        workspace = (
-            len(roots) == 1
-            and isinstance(roots[0], dict)
-            and registry.get(roots[0]["tag"], {}).get("x-reading-role") == "workspace"
-        )
+        workspace = sole_workspace(roots, registry) is not None
         page_navigation = (
             roots
             and len(roots) <= 2

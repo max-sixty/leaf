@@ -47,6 +47,7 @@ from leaf.validation.markup import (
     page_boundary_errors,
     structure_errors,
     unpointable_blocks,
+    workspace_sheet_errors,
 )
 from leaf.validation.source_history import (
     RevisionReading,
@@ -62,9 +63,6 @@ class SourceCheck(NamedTuple):
 
     document: SourceDocument
     registry: dict | None
-    projection: object
-    spoken: dict
-    predecessor: int
     errors: list[str]
     advice: list[str]
     column: int
@@ -182,6 +180,7 @@ def _instance_errors(
         return errors
     errors.extend(widget_errors(parser.lf_elements, registry))
     errors.extend(layout_errors(parser.lf_elements, registry))
+    errors.extend(workspace_sheet_errors(parser, registry))
     errors.extend(visual_part_errors(parser.lf_elements, registry))
     errors.extend(addressable_instance_errors(parser.lf_elements, registry))
     errors.extend(ask_surface_errors(parser.lf_elements, registry))
@@ -280,7 +279,7 @@ def check_source(
     """Check ``index.html`` against the last activated revision."""
     data, source_error = _source_bytes(page_dir)
     if source_error:
-        return SourceCheck(SourceDocument(""), None, None, {}, 0, [source_error], [], 0)
+        return SourceCheck(SourceDocument(""), None, [source_error], [], 0)
     html = data.decode("utf-8")
     document = SourceDocument(html)
     errors = []
@@ -363,24 +362,29 @@ def check_source(
     source_history_errors, dropped_advice = continuity_errors(
         events, document, registry, revision
     )
-    errors.extend(source_history_errors)
-    # The door admitted every event appended since the active revision activated,
-    # so only a candidate that differs from it can drop a contract history needs.
-    if registry is not None and revision.predecessor and not revision.unchanged:
+    # A source whose artifact is the active revision's has no transition left to
+    # judge. Its activation judged these bytes against the log as it stood, and the
+    # door has admitted every event since against the revision it names, so only a
+    # candidate that differs from the active revision can drop what history needs.
+    # The dropped ids stay advice: they are what stamping this revision will change.
+    if not revision.unchanged:
+        errors.extend(source_history_errors)
+        if registry is not None and revision.predecessor:
+            errors.extend(
+                candidate_vocabulary_gaps(
+                    page_dir,
+                    events,
+                    document,
+                    registry,
+                    revision.predecessor,
+                )
+            )
+        transition = transition_reading(document, events, registry, revision)
         errors.extend(
-            candidate_vocabulary_gaps(
-                page_dir,
-                events,
-                document,
-                registry,
-                revision.predecessor,
+            transition_errors(
+                document, registry, revision, transition, allow_transition
             )
         )
-
-    transition = transition_reading(document, events, registry, revision)
-    errors.extend(
-        transition_errors(document, registry, revision, transition, allow_transition)
-    )
 
     advice = _source_advice(
         document,
@@ -389,14 +393,4 @@ def check_source(
         revision,
         dropped_advice,
     )
-    return SourceCheck(
-        document,
-        registry,
-        transition.projection,
-        transition.words,
-        revision.predecessor,
-        errors,
-        advice,
-        column,
-        artifact,
-    )
+    return SourceCheck(document, registry, errors, advice, column, artifact)

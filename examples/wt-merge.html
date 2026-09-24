@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="en">
   <head>
-    <title>Watch wt merge land a branch</title>
+    <title>Explain how wt merge works</title>
     <meta
       name="description"
       content="An interactive film of Worktrunk's wt merge, drawn live from flags and a scenario, beside the steps it runs. Flip a flag to re-plot the run, and comment on any commit, branch or hook."
@@ -164,6 +164,12 @@
       lf-merge-steps li[data-now] p {
         display: block;
       }
+      html:not([data-lf-live]) lf-merge-steps p {
+        display: block;
+      }
+      html:not([data-lf-live]) lf-merge-steps li {
+        cursor: auto;
+      }
       lf-merge-steps .this-run {
         color: var(--ink-2);
         font-style: italic;
@@ -180,10 +186,10 @@
     </style>
   </head>
   <body>
-    <main>
+    <main data-width="available">
       <lf-workspace id="merge-workspace">
         <header>
-          <h1>Watch <code>wt merge</code> land a branch</h1>
+          <h1>Explain how <code>wt merge</code> works</h1>
           <p id="lede">
             Worktrunk's <code>wt merge</code> takes a finished branch to main in one
             command: commit, squash, rebase, test, merge, then clean up. The film draws

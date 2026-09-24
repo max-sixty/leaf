@@ -10,6 +10,7 @@
     "required": ["id", "submit-label"],
     "additionalProperties": false,
     "x-content": "members",
+    "x-measure": "surface",
     "x-guidance": {
       "author": "All notification controls, including event pressure, belong to one exact page-owned value schema and one Playground submission."
     },

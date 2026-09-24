@@ -344,6 +344,15 @@ A widget that re-renders or resizes content inside a scroller of its own holds t
 user's place with `placeKeeper(scroller, {items, identity})` rather than by restoring a
 `scrollTop`; `runtime/user-place.js` describes it.
 
+A widget that remembers where the user was reading, in a view it hides and shows again,
+keeps a place rather than an offset: `capturePlace()` reads the page's place as a
+landmark in its own words, and `restorePlace(place)` returns to it however the page has
+moved since (`runtime/reading-place.js`). A widget that adds same-document history
+entries adds them with `pushEntry(url)` and `replaceEntry(url)`, and places the page
+itself at Back or Forward to one of them by claiming that traversal with
+`claimTraversals(claim, {signal})`. Every other traversal returns the user to the offset
+the entry was left at (`runtime/history.js`).
+
 A sticky box that covers the top of its scroller declares the room it takes with
 `declareCoverRoom(host, property, covers)`, which keeps `property` on `host` at the
 tallest cover's height for a `scroll-padding` or `scroll-margin` to read, so every
@@ -384,6 +393,12 @@ contract gives none, and `addressableSays(element)` is the element's whole words
 widget whose title is an attribute, as a column's `label` is, declares `x-name`.
 `anchorLabel(anchor, about)` names a comment's anchor the way Threads does, and
 `markdownWords(text)` is the words a Markdown string renders to.
+
+A message's widget markup is a document of its own, and it may repeat the shapes the page
+holds. A module that finds a partner element by reference, as a seat names the widget it
+serves, searches `authoredScope(element)`: the page's `main`, or the body of the message
+whose markup holds the element. A search of the whole `document` lets quoted markup answer
+for the page.
 
 A module that moves something calls `motion(element, keyframes, ms)` rather than
 `element.animate`. The stylesheet's reduced-motion guard reaches CSS animation and

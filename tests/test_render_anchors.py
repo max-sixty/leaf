@@ -4006,7 +4006,7 @@ def test_a_press_on_a_passage_opens_its_thread_where_it_stands(browser, serve):
     # So the card standing where the pass put it is the edge a travel would have been
     # asked for behind; read the page's own position from there rather than from a hold
     # long enough to have covered the wait.
-    expect(page.locator("[data-lf-thread]")).to_be_in_viewport(ratio=1)
+    expect(page.locator(".lf-margin-preview")).to_be_in_viewport(ratio=1)
     scroll_settled(page)
     assert page.evaluate("() => document.scrollingElement.scrollTop") == pytest.approx(
         covered["scroll"], abs=1
@@ -4027,7 +4027,7 @@ def test_a_withheld_row_opens_its_card_beside_the_passage(browser, serve):
     expect(page.locator(".lf-conversation-thread")).to_be_focused()
     boxes = page.evaluate(
         """() => {
-          const card = document.querySelector('[data-lf-thread]').getBoundingClientRect();
+          const card = document.querySelector('.lf-margin-preview').getBoundingClientRect();
           const words = [...CSS.highlights.get('lf-mark')][0].getBoundingClientRect();
           return {card: [card.top, card.bottom], words: [words.top, words.bottom]};
         }"""
@@ -4043,7 +4043,7 @@ def test_a_withheld_row_opens_its_card_beside_the_passage(browser, serve):
     # take the dismissal a scroll offers it: at these widths it hung there for the rest
     # of the page's life. Anchored to the passage, it leaves when the passage does.
     page.evaluate("() => document.scrollingElement.scrollBy(0, 900)")
-    expect(page.locator("[data-lf-thread]")).to_be_hidden()
+    expect(page.locator(".lf-margin-preview")).to_be_hidden()
 
 
 def test_a_row_the_platform_activates_names_both_of_its_keys(browser, serve):
@@ -4945,10 +4945,12 @@ def test_a_data_bound_diff_aims_and_selects_one_source_line(browser, serve):
     assert all("detached" not in classes for classes in quote_classes), quote_classes
 
 
-def test_back_returns_from_a_thread_a_widget_surface_holds(browser, serve):
+@pytest.mark.parametrize("arrived", ["", "#title"], ids=["plain", "fragment"])
+def test_back_returns_from_a_thread_a_widget_surface_holds(browser, serve, arrived):
     """A thread the diff seats is a trip like any other: Back returns to where the
     user was reading, although the surface scrolls itself into view as it takes
-    focus."""
+    focus. The entry Back returns to may carry the fragment the page was opened at,
+    and Back still returns to the reading, not to the element the fragment names."""
     filler = "".join(f"<p>Filler paragraph {n}.</p>" for n in range(120))
     url = serve(
         leaf_page(
@@ -4983,7 +4985,7 @@ def test_back_returns_from_a_thread_a_widget_surface_holds(browser, serve):
             },
         },
     )["id"]
-    page = open_page(browser, url)
+    page = open_page(browser, url + arrived)
     page.evaluate("document.scrollingElement.scrollTo({top: 1e6, behavior: 'instant'})")
     reading = page.evaluate("document.scrollingElement.scrollTop")
     assert reading > 2000

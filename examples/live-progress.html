@@ -73,14 +73,14 @@
             >
             <lf-metric id="lp-k-observed" value="14:24:44">last observation</lf-metric>
           </lf-grid>
-          <section id="lp-decision">
-            <aside class="callout warn" id="lp-current-state">
-              <strong>Paused at 25%</strong>
+          <aside class="callout warn" id="lp-current-state">
+            <strong>Paused at 25%</strong>
+            <p>
               Automatic promotion stopped when the finance-parity check failed. The
               candidate remains live for canary traffic while Ledger traces a
               partial-refund fixture mismatch; the exact failing producer is not yet
               established.
-            </aside>
+            </p>
             <p id="lp-hold-policy">
               <strong>Hold until 14:32.</strong> Escalate to Finance at 14:30; roll back
               sooner if a customer guardrail fails.
@@ -98,7 +98,7 @@
                 </p>
               </lf-release-action>
             </lf-release-actions>
-          </section>
+          </aside>
           <section class="panel" id="lp-traffic">
             <h2>Candidate traffic since deploy</h2>
             <lf-chart
@@ -117,6 +117,43 @@ minutes since deploy, checkout-v2
 6, 25
 </pre>
             </lf-chart>
+          </section>
+          <section class="panel" id="lp-log">
+            <h2>Run log</h2>
+            <p id="lp-log-note">
+              Example snapshot ending at 14:24:44. New events append without moving a
+              user who has scrolled back.
+            </p>
+            <lf-text-document
+              id="lp-live-log"
+              source="release-log"
+              data-bound="end"
+            ></lf-text-document>
+          </section>
+        </lf-grid>
+        <lf-grid id="lp-rail" columns="1">
+          <section class="panel" id="lp-steps">
+            <h2 id="lp-steps-heading">Release steps</h2>
+            <lf-milestones id="lp-release-steps">
+              <lf-milestone id="lp-step-build" status="done" when="14:18">
+                <strong>Build and verify the candidate</strong> Image signed and
+                provenance recorded.
+              </lf-milestone>
+              <lf-milestone id="lp-step-canary" status="done" when="14:22">
+                <strong>Deploy the 25% canary</strong> Candidate serving production
+                checkout traffic.
+              </lf-milestone>
+              <lf-milestone id="lp-step-checks" status="blocked" when="now">
+                <strong>Pass release checks</strong> Finance export has 1,998 of 1,999
+                expected rows.
+              </lf-milestone>
+              <lf-milestone id="lp-step-promote" status="planned">
+                <strong>Expand to 100%</strong>
+              </lf-milestone>
+              <lf-milestone id="lp-step-observe" status="planned">
+                <strong>Observe and complete</strong>
+              </lf-milestone>
+            </lf-milestones>
           </section>
           <section class="panel" id="lp-checks">
             <h2>Checks</h2>
@@ -167,43 +204,6 @@ minutes since deploy, checkout-v2
                 </tr>
               </tbody>
             </table>
-          </section>
-          <section class="panel" id="lp-log">
-            <h2>Run log</h2>
-            <p id="lp-log-note">
-              Example snapshot ending at 14:24:44. New events append without moving a
-              user who has scrolled back.
-            </p>
-            <lf-text-document
-              id="lp-live-log"
-              source="release-log"
-              data-bound="end"
-            ></lf-text-document>
-          </section>
-        </lf-grid>
-        <lf-grid id="lp-rail" columns="1">
-          <section class="panel" id="lp-steps">
-            <h2 id="lp-steps-heading">Release steps</h2>
-            <lf-milestones id="lp-release-steps">
-              <lf-milestone id="lp-step-build" status="done" when="14:18">
-                <strong>Build and verify the candidate</strong> Image signed and
-                provenance recorded.
-              </lf-milestone>
-              <lf-milestone id="lp-step-canary" status="done" when="14:22">
-                <strong>Deploy the 25% canary</strong> Candidate serving production
-                checkout traffic.
-              </lf-milestone>
-              <lf-milestone id="lp-step-checks" status="blocked" when="now">
-                <strong>Pass release checks</strong> Finance export has 1,998 of 1,999
-                expected rows.
-              </lf-milestone>
-              <lf-milestone id="lp-step-promote" status="planned">
-                <strong>Expand to 100%</strong>
-              </lf-milestone>
-              <lf-milestone id="lp-step-observe" status="planned">
-                <strong>Observe and complete</strong>
-              </lf-milestone>
-            </lf-milestones>
           </section>
           <section class="panel" id="lp-release">
             <h2>Release</h2>

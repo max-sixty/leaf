@@ -11,30 +11,29 @@ from leaf.files import (
 from leaf.host import message_identity
 from leaf.leases import contract_writer
 from leaf.projection import folded_value, markup_value, page_reading
-from leaf.revisioning import activate_source
+from leaf.revisioning import activate_checked_source
 from leaf.service import PageTransaction
 from leaf.validation.admission import read_text_arg
+from leaf.validation.source import check_source
 from leaf.work import standing_work_claims, widget_work_without_targets
 
 
 def _stamp_activation(page_dir: Path, events: list):
-    activation = activate_source(page_dir, events, allow_transition=True)
-    if activation.error or activation.revision is None:
-        detail = activation.error or "index.html produced no revision"
-        sys.exit(f"refusing to stamp index.html: {detail}")
-    return activation
+    """Check the exact source against the standing log, then activate it."""
+    checked = check_source(page_dir, events, allow_transition=True)
+    if checked.errors:
+        sys.exit(f"refusing to stamp index.html: {'; '.join(checked.errors)}")
+    return checked, activate_checked_source(page_dir, checked)
 
 
-def _stamp_reading(events: list, activation):
-    revision = activation.revision
+def _stamp_reading(events: list, checked, revision: int):
     if existing := stamped_version(events, revision):
         sys.exit(f"revision r{revision} is already stamped as v{existing}")
-    checked = activation.check
     registry = checked.registry
     if registry is None:
         sys.exit("refusing to stamp index.html: the page has no registry.json")
     page = page_reading(checked.document, events, registry, revision)
-    return checked, registry, page.projection, page.document, page.spoken
+    return registry, page.projection, page.document, page.spoken
 
 
 def _completed_work(
@@ -127,12 +126,12 @@ def _stamp_event(
 
 def _stamp_locked(page_dir: Path, page, body: str, completes: tuple[str, ...]) -> dict:
     events = page.events
-    activation = _stamp_activation(page_dir, events)
+    checked, activation = _stamp_activation(page_dir, events)
     revision = activation.revision
     created_revision = revision_path(page_dir, revision) if activation.created else None
     committed = False
     try:
-        checked, registry, projection, parser, spk = _stamp_reading(events, activation)
+        registry, projection, parser, spk = _stamp_reading(events, checked, revision)
 
         completed = _completed_work(
             checked,

@@ -63,9 +63,14 @@ These states have distinct parents:
   selections, captured targets, expanded margin clusters, and the page composer can
   coexist beside an auxiliary surface; focus determines which answers first.
 - A composer, reply box, or find box exits to its container. A native layer such as a
-  margin card, versions menu, or modal dialog owns its dismissal.
+  versions menu or modal dialog owns its dismissal.
 - A selected page destination, such as a conversation, Ask, or heading, has a let-go step
   back to the document. Page-side state added there closes before that step.
+- A conversation in the margin's thread card has the element it is about as its parent.
+  Escape from the card lands on that element and leaves the card beside it, because the
+  user still stands at the same target; the element's let-go then takes both. The card
+  is margin chrome rather than a native layer, so standing on its element and working in
+  it are not two layers competing for the keyboard.
 
 Bounded interactions — Go-to, target hints, page search, reactions, and the command
 reference — own the keyboard and their return while active. They do not add persistent
@@ -85,10 +90,11 @@ A title and its conversation select the same thread. Native focus order runs fro
 title through its open conversation; Enter/Space selects a closed title, leaves an open
 one selected, and Comment enters the reply box even from a collapsed title.
 
-TODO(2026-09-22): Reconcile the page's `t` shortcut with this hierarchy. It jumps directly
-to a page thread, bypassing panel selection. A thread that requires the panel also opens
-directly with `t`, but exits through whole-panel selection. Preserve this behavior until
-there is a route that respects the hierarchy without making page threads harder to reach.
+TODO(2026-09-22): Reconcile the page's `t` shortcut with this hierarchy for threads that
+require the panel. A page thread's `t` lands in its card and exits through the element it
+is about, which is the hierarchy. A thread that requires the panel also opens directly with
+`t`, but exits through whole-panel selection. Preserve this behavior until there is a route
+that respects the hierarchy without making page threads harder to reach.
 
 Unwinding closes a surface even if it was already open before entry. Thus `g A` from
 Threads leaves Threads closed, and `c` from the page needs one Escape from the box and

@@ -326,7 +326,7 @@ def write_failure_receipt(
 def agent_event_pending(page_dir: Path, event_id: str) -> bool:
     """Whether one accepted user event still belongs to the agent's next turn."""
     with PageTransaction(page_dir) as page:
-        activation = activate_source(page_dir, page.events)
+        activation = activate_source(page_dir)
         if activation.error:
             raise ValueError(activation.error)
         events = page.events
@@ -341,7 +341,7 @@ def agent_event_pending(page_dir: Path, event_id: str) -> bool:
 def agent_event_thread(page_dir: Path, event_id: str) -> str | None:
     """Return the Codex task that has already accepted one pending event."""
     with PageTransaction(page_dir) as page:
-        activation = activate_source(page_dir, page.events)
+        activation = activate_source(page_dir)
         if activation.error:
             raise ValueError(activation.error)
         workflow = next(
@@ -862,7 +862,7 @@ class WebsiteCodexHost:
             )
 
         with PageTransaction(page_dir) as page:
-            activation = activate_source(page_dir, page.events)
+            activation = activate_source(page_dir)
             claim = page.claim
             if (
                 claim

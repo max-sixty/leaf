@@ -997,6 +997,34 @@ export default [
     languageOptions: { sourceType: "script" },
   },
   {
+    // runtime/history.js owns this document's session history: a Back to an entry the
+    // page added returns to the place it was left at only because that owner takes the
+    // traversal. The prepaint bootstrap runs before any module, and only cleans marks
+    // off the address the document arrived at.
+    files: ["skills/leaf/assets/**/*.js", "skills/leaf/packages/**/*.js"],
+    ignores: [
+      "skills/leaf/assets/runtime/history.js",
+      "skills/leaf/assets/runtime/bootstrap.js",
+    ],
+    rules: {
+      "no-restricted-properties": [
+        "error",
+        {
+          object: "history",
+          property: "pushState",
+          message:
+            "Add and rename history entries through runtime/history.js (pushEntry, replaceEntry), which owns traversal among them.",
+        },
+        {
+          object: "history",
+          property: "replaceState",
+          message:
+            "Add and rename history entries through runtime/history.js (pushEntry, replaceEntry), which owns traversal among them.",
+        },
+      ],
+    },
+  },
+  {
     // An import or binding nothing reads is a dependency edge the graph still carries
     // and a name the next reader has to account for. Arguments and caught errors are
     // left alone: a signature says what a callback is handed.

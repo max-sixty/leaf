@@ -54,9 +54,9 @@ relative to `runtime/` unless stated otherwise.
 | Revision installs and continuity | `version.js`, `version-chooser.js`, `carry.js`, `dom-children.js`, `root-state.js`, `restore-state.js` |
 | Shared repaint and geometry | `repaint.js`, `standing.js`, `page-geometry.js`, `geometry.js`, `pointer.js` |
 | Chrome assembly and available room | `chrome.js`, `chrome-layout.js`, `auxiliary-surfaces.js`, `drawn-edge.js` |
-| Reading regions and scrolling | `reading-regions.js`, `bounds.js`, `scrolling.js`, `reach.js`, `user-place.js` |
+| Reading regions and scrolling | `reading-regions.js`, `reading-place.js`, `bounds.js`, `scrolling.js`, `reach.js`, `user-place.js` |
 | Keyboard commands and their projections | `keyboard/AGENTS.md` |
-| Focus and navigation | `focus.js`, `navigation.js`, `user-intent.js`, `walk-position.js` |
+| Focus and navigation | `focus.js`, `navigation.js`, `history.js`, `user-intent.js`, `walk-position.js` |
 | Asks | `asks/view.js`, `asks/view-elements.js`, `asks/model.js` |
 | Comment capture and entry | `composing/`, `drafts.js`, `media.js` |
 | Threads and reply surfaces | `conversation/`, `thread-panel.js` |
@@ -111,10 +111,15 @@ The shared `.lf-ui` face starts in the assets root's `shadow.css`, before compon
 rules. Its `:where(:root) .lf-ui` selector has class specificity and does not match inside
 shadow trees, where the host's control face applies.
 
-A standing Asks tray reserves its strip with a transparent body border (`theme.css`),
-preserving native scroll anchoring during reflow. The thread panel and the Leaves tray
-stand over the page and reserve nothing. `chrome-layout.js` must not override the user's
-position.
+A standing Asks tray, and the thread panel beside a sheet, reserve their strips with a
+transparent body border (`theme.css`), preserving native scroll anchoring during reflow.
+Either covers the page instead where it would leave less than a usable page beside it;
+`--lf-auxiliary-beside` states that rule once for both, and the runtime reads it
+(`standsBeside`) rather than asking the viewport.
+The bootstrap states a restored surface and its stored width on the root, so a reload
+paints the strip before the runtime arrives. The thread panel over a column page and the
+Leaves tray stand over the page and reserve nothing. `chrome-layout.js` must not override
+the user's position.
 A workspace's posture is the stylesheet's: one container query on the workspace's own
 box decides whether each pane's body scrolls, and the runtime reads which box scrolls
 a region from that result rather than choosing it (`reading-regions.js`).
@@ -157,6 +162,7 @@ Each mutable fact has one writer:
 | how much of a scroller's top a pinned cover takes | the tallest declared cover's rendered box | `declareCoverRoom` (`geometry.js`) observes the covers and writes the property a `scroll-padding` or `scroll-margin` reads: the thread list's run headings as `--lf-head-room` on the list (`renderThreads`), each `lf-diff` file header on its file, a root `lf-tabs` strip as `--lf-root-tab-clear` on the document |
 | a nested scroller's viewport position through a re-render | one reference node in the scroller's visible band, handed across to whatever the render puts under its identity | `user-place.js`'s place hold, taken by whatever re-renders the scroller: the thread list's `renderThreads` (generated presentation, receipt updates, provisional work, resolution folds) and `holdThroughDisclosure`, the Page Map's `renderSheet`, and the margin card's `buildThreadCard` for the same thread; a package takes it through the widget API. The document's scroller takes none: native anchoring holds it, and `takeShell` (`chrome-layout.js`) keeps surface rendering out of the frame that anchoring rests on |
 | where the thread holding the focus stands in the list | the band the list declares landable through `scroll-padding` | `threadsBox`'s `focusin`, and its press through `pointerdown`/`pointerup`; `stepThread` for a key press that moves no focus, `landIn` for the box it puts the user in, `placeThreadEdge` for an explicit edge placement, and `showThread` for a deliberate arrival. A press's correction is instant, because the click that follows it in the same gesture writes this same scroll and a write cancels an animation instead of superseding it (`landing.js`, at `land`) |
+| whether the margin card shows, and which target's threads | the user's standing target: focus on the target or inside it, its margin cluster, or the card | `margin-projection.js`'s `followStanding` on focus arrival, the standing scope's `release` (`focus.js`), `pressAway` for a press outside the card, its target, and its cluster, and the explicit opens (`t`, a marker, a mark); with Threads open, `followStanding` expands the target's thread in the list instead (`accompanyThread`, `conversation/landing.js`) |
 | the margin card's place in its transcript | the card list's own scroll, held through a re-render of the same thread by the place hold above | a landing through `revealConversation`, a send revealing its reply, and `buildThreadCard` starting another thread at the top; placing the card writes none |
 | how much of a scroller the user can see, and where a landing may put something | the scroller's shown band less the covers declared through `declareCoverRoom` that stick in it, or less its declared `scroll-padding` | `visibleBand` and `landingBand` in `geometry.js`; `shownRect`'s clip walk applies `visibleBand` at every ancestor, so whether something is on screen has one answer |
 | what a surface standing over the page hides | the surface's own box, for what stacks beneath it and outside it | the surface declares itself once through `declareOccluder` (`geometry.js`); the thread panel does, and `shownRect` takes what it stands over away, so exposure, travel, and badge placement read it alike |
@@ -207,7 +213,8 @@ Startup order is load-bearing:
 8. Start the shared dressing passes and wait for the current coordinator publication,
    including controller-registered widget preparation and the dressing region.
 9. Present the optional runtime-owned page-interface region that composes those widgets.
-10. Mark `body` `data-lf-upgraded="1"`.
+10. Land a fresh URL's fragment in the upgraded geometry (`version.js`, `aimArrival`,
+    which lands it again once the page presents), then mark `body` `data-lf-upgraded="1"`.
 11. Start the state feed; its first answer is applied and reconciled, then current
     coordinator readiness presents the page. The feed waits a bounded time for that
     answer and then presents without one,
@@ -576,7 +583,8 @@ and repository lint checks the source.
 | `invalidPaints` | every var()-backed SVG paint resolves to a valid value in each scheme |
 | `tinyBoxes` | every declared widget has a usable rendered box |
 | `unmarkableElements` | every addressable element has a visible part for an outline |
-| `misplacedBoxes` | boxes stay in the column or in genuinely reachable overflow |
+| `misplacedBoxes` | boxes stay in the column or in genuinely reachable overflow, at every swept width |
+| `misalignedSplits` | advice only: a page's layout grids split where its busiest grid does |
 | `squeezedTables` | a table scrolls sideways only with every column at its longest unbreakable run |
 | `withheldRoom` | a drawing scrolls only when the room, net of margin residents at its band, ran short |
 | `silentCuts` | a box showing less than it holds across fades each edge with content beyond it |

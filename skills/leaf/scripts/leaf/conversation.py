@@ -256,7 +256,7 @@ def _current_anchor(
     if revision is None:
         from leaf.revisioning import activate_source
 
-        activation = activate_source(page_dir, events)
+        activation = activate_source(page_dir)
         if activation.error and (quote or section or part):
             sys.exit(f"cannot use invalid index.html: {activation.error}")
         revision = require_revision(page_dir)
@@ -845,8 +845,7 @@ def cmd_report(
             sys.exit(f"detail fields are name=value, got {field!r}")
         detail[name] = value
     with PageTransaction(page_dir) as page:
-        events = page.events
-        activate_source(page_dir, events)
+        activate_source(page_dir)
         event = {
             "kind": "report",
             "author": "agent",

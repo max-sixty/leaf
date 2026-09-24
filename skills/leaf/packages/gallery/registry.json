@@ -13,6 +13,7 @@
     ],
     "additionalProperties": false,
     "x-content": "empty",
+    "x-measure": "surface",
     "x-exhibit": true,
     "x-upgrade": true,
     "x-example": "<lf-margin-entry-gallery id=\"margin-entry-gallery\"></lf-margin-entry-gallery>"

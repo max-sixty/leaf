@@ -8,9 +8,32 @@
    looking at. */
 
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 
-import { foldWidgetStates, rankAt } from "/runtime/projection/model.js";
+import { authoredRank, foldWidgetStates, rankAt } from "/runtime/projection/model.js";
+
+// The rank cases `test_interact_document.py` holds `projection.py` to, so the append
+// door admits what this module computes and both runtimes rank authored units alike.
+const cases = JSON.parse(readFileSync(new URL("../rank_cases.json", import.meta.url)));
+const RANK = new RegExp(`^(?:${cases.pattern})$`);
+
+test("authored ranks and computed keys follow the rules the append door reads", () => {
+  for (const [index, rank] of cases.authored) assert.equal(authoredRank(index), rank);
+  for (const rank of cases.invalid) assert.doesNotMatch(rank, RANK);
+  // A key between every two valid neighbours, and past either end, is itself valid.
+  const valid = [...cases.valid].sort();
+  for (const rank of valid) assert.match(rank, RANK);
+  for (let i = 0; i <= valid.length; i += 1) {
+    const [before, after] = [valid[i - 1], valid[i]];
+    const ranks = { ...(before && { b: before }), ...(after && { a: after }) };
+    const units = [...(before ? ["b"] : []), ...(after ? ["a"] : [])];
+    const key = rankAt({ value: { c: units }, ranks }, "c", before ? 1 : 0, "u");
+    assert.match(key, RANK);
+    if (before) assert.ok(before < key, `${before} < ${key}`);
+    if (after) assert.ok(key < after, `${key} < ${after}`);
+  }
+});
 
 const record = { kind: "position", within: "lf-column", value: "to", rank: "rank" };
 const spec = { unit: "card", record };

@@ -119,7 +119,12 @@ widget retires. Every action at the coordinate competes: a later action of the
 same verb on the same unit supersedes its prior answer, while another verb leaves
 it standing. Coordinates are independent, so a position record places its unit by a
 rank key rather than an index: the key means the same place whichever other units'
-moves stand, and undoing or superseding one unit's move never moves another.
+moves stand, and undoing or superseding one unit's move never moves another. The key
+lies between neighbours of the revision the move was made on, so it places the unit
+only until a version takes the move in (`events.taken_in`: a note later in the log,
+over a later revision). `version check` holds that version's markup to the place the
+fold left, and from then on the markup places the unit; the move still stands, as a
+written-back pick does, and undoing it leaves the order the version wrote.
 
 ## Following the log
 

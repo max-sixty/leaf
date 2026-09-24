@@ -1996,26 +1996,23 @@ def test_a_withdrawal_is_heard_by_a_tab_reading_a_later_version(browser, serve):
     the action being withdrawn (replay takes every action up to the version it reads).
 
     Refusing to hear it there leaves the newer tab showing a gesture the log no longer
-    holds, and only until someone reloads it. What this load's markup says is the right
-    answer either way: a version written around the decision states the same placement,
-    so the restore is a no-op, and one that was not, like this one, catches up."""
+    holds, and only until someone reloads it. A version written after the move takes
+    it in and states its placement itself, so there the restore is a no-op; this move
+    is made on v1 after v2 was stamped, so v2 has not taken it in and must catch up."""
     url = serve(BOARD_PAGE)
     pinned = open_page(browser, url + "&pin")
     moved_on = open_page(browser, live_url(url))
 
-    pinned.locator("#card-baffle .lf-grip").focus()
-    for key in ["Enter", "ArrowRight", "Enter"]:
-        pinned.keyboard.press(key)
-    round_trip(pinned)
-    expect(moved_on.locator("#col-done #card-baffle")).to_have_count(1)
-
-    # A second version that says nothing about the move — the card is where v1 wrote
-    # it — so what the two tabs owe the card afterwards is visibly different.
     d = serve.page_dir
     stamp_page(d, BOARD_PAGE, "unchanged")
     wait_for_revision(moved_on, 2)
     expect(moved_on).not_to_have_url(re.compile("/versions/"))
     expect(pinned).to_have_url(re.compile("v1"))
+
+    pinned.locator("#card-baffle .lf-grip").focus()
+    for key in ["Enter", "ArrowRight", "Enter"]:
+        pinned.keyboard.press(key)
+    round_trip(pinned)
     # Replay carries the v1 move onto v2, so this tab is showing it.
     expect(moved_on.locator("#col-done #card-baffle")).to_have_count(1)
 

@@ -2112,7 +2112,7 @@ def test_undo_candidates_keep_only_standing_user_gestures():
             "text": "answered",
         },
     ]
-    empty = projection_model.StateProjection({}, {}, {}, {}, {})
+    empty = projection_model.StateProjection({}, {}, {}, {}, {}, frozenset())
     undo_reading = event_folds_model.UndoReading(events, within={})
 
     candidates = served_document.browser_undo_candidates(

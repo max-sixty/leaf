@@ -35,6 +35,7 @@ from interact_support import (
     _report_body_record,
     _report_detail_drift,
     _report_no_record,
+    _report_position_record,
     _report_says_attr,
     _report_undeclared_attr,
     _report_without_overruled,
@@ -2581,6 +2582,9 @@ def test_one_each_child_declarations_are_checked_whole(page_dir, mutation, messa
         # A report moves declared state only, never body words — the schema is
         # where the paint-only constraint lives, so a body record never parses.
         (_report_body_record, "registry extensions are invalid"),
+        # Nor a part's place: the stamped version owns where a unit stands, and a
+        # rank is read between the neighbours a widget shows the user.
+        (_report_position_record, "registry extensions are invalid"),
         # The gate compares record forms, so a recordless report declares
         # nothing a version could be checked against.
         (_report_no_record, "registry extensions are invalid"),

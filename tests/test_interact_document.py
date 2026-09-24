@@ -54,6 +54,7 @@ from leaf import files as files_model
 from leaf import http as http_model
 from leaf import leases as leases_model
 from leaf import passages as passages_model
+from leaf import projection as projection_model
 from leaf import publishing as publishing_model
 from leaf import render_checks as render_checks_model
 from leaf import requests as requests_model
@@ -724,6 +725,115 @@ def test_undoing_one_cards_move_leaves_the_other_cards_order(page_dir):
     assert order() == ["c", "a", "b", "d"]
 
 
+RANK_CASES = json.loads((Path(__file__).parent / "rank_cases.json").read_text())
+
+
+def test_rank_rules_match_the_browser_cases():
+    """`tests/runtime/board-order.test.mjs` reads the same cases against
+    `projection/model.js`, so the two runtimes rank authored units alike and the
+    append door admits what a widget computes."""
+    assert projection_model.RANK.pattern == RANK_CASES["pattern"]
+    for index, rank in RANK_CASES["authored"]:
+        assert projection_model.authored_rank(index) == rank
+        assert projection_model.RANK.fullmatch(rank)
+    assert all(projection_model.RANK.fullmatch(r) for r in RANK_CASES["valid"])
+    assert not any(projection_model.RANK.fullmatch(r) for r in RANK_CASES["invalid"])
+
+
+def _todo_order(page_dir):
+    todo = construction_nodes(state_json(page_dir)["content"])["c-todo"]
+    return [n["attrs"]["id"] for n in todo["content"] if isinstance(n, dict)]
+
+
+def _write_board(page_dir, todo, done=()):
+    def cards(ids):
+        return [(c, "", c.upper()) for c in ids]
+
+    (page_dir / "index.html").write_text(
+        PAGE.replace("</main>", _board(cards(todo), cards(done)) + "</main>")
+    )
+
+
+def _drop_x_between_a_and_b(page_dir):
+    """v1 has todo `a b c` and x in done; the user drops x between a and b, at the
+    rank lf-board computes between their authored ranks."""
+    _write_board(page_dir, "abc", "x")
+    publish(page_dir)
+    move = append_command(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "b1",
+            "action": "move",
+            "detail": {"card": "x", "to": "c-todo", "rank": "1i"},
+        },
+    )
+    assert _todo_order(page_dir) == ["a", "x", "b", "c"]
+    return move
+
+
+def test_a_version_that_leaves_a_move_to_the_log_is_refused(page_dir):
+    """A rank is a key between the neighbours the user saw, and a version that adds a
+    card above them shifts every authored rank under it: carried onto `n a b c`, x's
+    "1i" reads as the gap between n and a. So a version writes a standing move where
+    the move put the card, and leaving it where the previous version had it is not
+    the silence it is for an attribute."""
+    _drop_x_between_a_and_b(page_dir)
+    _write_board(page_dir, "nabc", "x")
+    result = check(page_dir)
+    assert result.exit_code == 1, result.output
+    assert "id='x'" in result.output and "move (on r1)" in result.output
+
+
+def test_a_version_that_writes_the_move_owns_its_order(page_dir):
+    """Once a version writes the move, its markup is where the card stands: the rank
+    no longer places it, and undoing the move leaves the order the version wrote."""
+    move = _drop_x_between_a_and_b(page_dir)
+    _write_board(page_dir, "naxbc")
+    assert check(page_dir).exit_code == 0, check(page_dir).output
+    publish(page_dir, 2)
+    assert _todo_order(page_dir) == ["n", "a", "x", "b", "c"]
+    append_command(page_dir, {"kind": "undo", "author": "user", "undoes": move["id"]})
+    assert _todo_order(page_dir) == ["n", "a", "x", "b", "c"]
+
+
+def test_a_version_that_writes_the_card_elsewhere_in_its_column_is_refused(page_dir):
+    """The move's column is not all it decided: `a b c x` puts x in the column the
+    user chose and contradicts where in it they put x."""
+    _drop_x_between_a_and_b(page_dir)
+    _write_board(page_dir, "abcx")
+    result = check(page_dir)
+    assert result.exit_code == 1, result.output
+    assert "id='x'" in result.output
+    _write_board(page_dir, "axbc")
+    assert check(page_dir).exit_code == 0
+
+
+def test_a_reorder_within_one_column_reaches_the_gate(page_dir):
+    """A card moved up its own column changes no container, so a reading of the
+    column alone would take a version that ignores the move as recording it."""
+    _write_board(page_dir, "abc")
+    publish(page_dir)
+    append_command(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "b1",
+            "action": "move",
+            "detail": {"card": "c", "to": "c-todo", "rank": "0i"},
+        },
+    )
+    assert _todo_order(page_dir) == ["c", "a", "b"]
+    _write_board(page_dir, "abcn")
+    assert check(page_dir).exit_code == 1
+    _write_board(page_dir, "cabn")
+    assert check(page_dir).exit_code == 0
+
+
 def test_page_inspection_preserves_exact_user_state_and_its_edit_routes(page_dir):
     markup = PAGE.replace(
         "</main>",
@@ -782,13 +892,16 @@ def test_page_inspection_preserves_exact_user_state_and_its_edit_routes(page_dir
     assert nodes["card-x"]["authored"]["placement"] == {"parent": "c-todo"}
     assert nodes["explanation"]["content"][1] == " "
 
-    # A successor uses the emitted source address to change unrelated wording.
-    # User state remains effective without transcribing any of it into HTML.
+    # A successor uses the emitted source address to change unrelated wording. User
+    # state remains effective without transcribing it into HTML, except the moves,
+    # which a version writes in the order the reading shows.
     target = nodes["explanation"]["edit"]
     assert target["matches_active"]
     path = Path(state["content_source"]["edit_file"])
     path.write_text(
-        path.read_text().replace("<strong>Keep</strong>", "<strong>Preserve</strong>")
+        path.read_text()
+        .replace("<strong>Keep</strong>", "<strong>Preserve</strong>")
+        .replace(_board([X, Y], []), _board([], [X, Y]))
     )
     revised = state_json(page_dir)
     again = construction_nodes(revised["content"])
@@ -2498,52 +2611,52 @@ def test_an_effective_report_protects_detail_ids_its_record_needs(page_dir):
     registry_path = page_dir / "registry.json"
     registry = json.loads(registry_path.read_text())
     registry["lf-board"]["properties"]["overruled"] = {"type": "boolean"}
-    registry["lf-board"]["x-state"]["move"]["writer"] = "agent"
+    registry["lf-card"]["properties"]["flagged"] = {"type": "boolean"}
+    registry["lf-board"]["x-state"]["flag"] = {
+        "writer": "agent",
+        "detail": {
+            "type": "object",
+            "properties": {"cards": {"type": "array", "items": {"type": "string"}}},
+            "required": ["cards"],
+            "additionalProperties": False,
+        },
+        "unit": "widget",
+        "record": {"kind": "attribute", "attr": "flagged", "value": "cards"},
+    }
     registry_path.write_text(json.dumps(registry))
 
-    board = _board([X], [])
+    def report(cards):
+        append_command(
+            page_dir,
+            {
+                "kind": "report",
+                "author": "agent",
+                "revision": files_model.latest_revision(page_dir),
+                "widget": "b1",
+                "action": "flag",
+                "detail": {"cards": cards},
+            },
+        )
+
     (page_dir / "index.html").write_text(
-        PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + board)
+        PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + _board([X, Y], []))
     )
     publish(page_dir)
-    append_command(
-        page_dir,
-        {
-            "kind": "report",
-            "author": "agent",
-            "revision": files_model.latest_revision(page_dir),
-            "widget": "b1",
-            "action": "move",
-            "detail": {"card": "card-x", "to": "c-done", "rank": "0i"},
-        },
-    )
+    report(["card-x"])
 
-    without_destination = board.replace(
-        '<lf-column id="c-done" label="Done"></lf-column>', ""
-    )
     (page_dir / "index.html").write_text(
-        PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + without_destination)
+        PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + _board([Y], []))
     )
 
     standing = check(page_dir)
     assert standing.exit_code == 1
-    assert "protected ids" in standing.output and "'c-done'" in standing.output
+    assert "protected ids" in standing.output and "'card-x'" in standing.output
 
     # A newer report at the same coordinate is the state that stands now.
-    append_command(
-        page_dir,
-        {
-            "kind": "report",
-            "author": "agent",
-            "revision": files_model.latest_revision(page_dir),
-            "widget": "b1",
-            "action": "move",
-            "detail": {"card": "card-x", "to": "c-todo", "rank": "0i"},
-        },
-    )
+    report(["card-y"])
     superseded = check(page_dir)
     assert superseded.exit_code == 0, superseded.output
-    assert "ids dropped from revision r1: ['c-done']" in superseded.output
+    assert "ids dropped from revision r1: ['card-x']" in superseded.output
 
 
 def test_a_version_may_not_quietly_rewrite_what_the_user_decided(page_dir):
@@ -3130,16 +3243,18 @@ def test_the_gate_asks_about_the_card_that_was_moved_and_not_the_board(page_dir)
     )
     assert check(page_dir).exit_code == 0
 
-    # An untouched card rewritten, the moved card's own words left alone.
-    write([X, ("card-y", "", "Wire the importer and its backfill")], [])
+    # The moved card written where the user put it, an untouched card rewritten.
+    write([("card-y", "", "Wire the importer and its backfill")], [X])
     assert check(page_dir).exit_code == 0, (
         "an untouched card is not the gate's business"
     )
 
-    # The card written where the user put it. Redundant now that replay
-    # carries the move, but a version that does it anyway is not wrong.
-    write([Y], [X])
-    assert check(page_dir).exit_code == 0, "relocating the moved card must pass"
+    # The moved card left where the previous version had it: the version would
+    # take the move in without writing it.
+    write([X, ("card-y", "", "Wire the importer and its backfill")], [])
+    result = check(page_dir)
+    assert result.exit_code == 1
+    assert "card-x" in result.output and "card-y" not in result.output
 
     # The moved card's own words rewritten: now the decision is in question.
     write([("card-x", "", "Guard the delete behind the flag"), Y], [])

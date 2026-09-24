@@ -5687,7 +5687,8 @@ def test_swipe_deck_projects_the_same_exit_motion_as_a_local_swipe(browser, serv
 
 
 def test_swipe_deck_activation_restores_a_standing_swipe_without_motion(browser, serve):
-    """A new revision carries an old classification at rest, as an arrival."""
+    """A new revision that writes an old classification shows it at rest, as an
+    arrival."""
     url = serve(SWIPE_PAGE)
     page = open_page(browser, live_url(url), init_script=HOLD_MOTION)
 
@@ -5707,7 +5708,13 @@ def test_swipe_deck_activation_restores_a_standing_swipe_without_motion(browser,
     page.evaluate("window.__lfHeld[0].finish()")
     expect(page.locator(".lf-swipe-exit")).to_have_count(0)
 
-    stamp_page(serve.page_dir, SWIPE_PAGE, "second")
+    card = SWIPE_PAGE[SWIPE_PAGE.index('<lf-swipe-card id="swipe-a">') :]
+    card = card[: card.index("</lf-swipe-card>") + len("</lf-swipe-card>")]
+    kept = SWIPE_PAGE.replace(card, "").replace(
+        "<p>The revocation primitive.</p></lf-swipe-card>",
+        f"<p>The revocation primitive.</p></lf-swipe-card>{card}",
+    )
+    stamp_page(serve.page_dir, kept, "second")
     wait_for_revision(page, 2)
 
     expect(page.locator("#session-keep > #swipe-a")).to_have_count(1)

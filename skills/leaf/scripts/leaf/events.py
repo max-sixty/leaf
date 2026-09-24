@@ -483,6 +483,26 @@ def report_settlements(events: list, upto=None) -> dict:
     return at
 
 
+def taken_in(events: list, upto=None) -> set[str]:
+    """Ids of the page actions a stamped version has taken in: one whose note follows
+    the action in the log and supersedes the revision it was made on. A note stamped
+    over the very revision the user acted on was written before the move reached
+    anyone, and no version takes in a move made in frozen thread markup."""
+    taken = set()
+    newest = 0  # the newest revision a note later in the log stamped
+    for event in reversed(events):
+        if event["kind"] == "note":
+            if upto is None or event["revision"] <= upto:
+                newest = max(newest, event["revision"])
+        elif (
+            event["kind"] == "action"
+            and event_document(event)["kind"] == "page"
+            and newest > event["revision"]
+        ):
+            taken.add(event["id"])
+    return taken
+
+
 def action_rests_on(event: dict, within: dict) -> list:
     """Declared direct identities under the document's current containment.
 

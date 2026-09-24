@@ -200,15 +200,17 @@ STATE_SCHEMA = {
         "required": ["detail", "unit"],
         "additionalProperties": False,
         # An agent's verb moves declared state only, never body words — so the
-        # passage reading never has to model one — and its record is required: the
-        # gate compares record forms, and a recordless report would be a claim nothing
-        # could check a version against. Only the user adds children, and only a
-        # report carries update prose.
+        # passage reading never has to model one — and never a part's place, which
+        # the stamped version owns and a rank reads between the neighbours a widget
+        # shows the user. Its record is required: the gate compares record forms,
+        # and a recordless report would be a claim nothing could check a version
+        # against. Only the user adds children, and only a report carries update
+        # prose.
         "if": {"required": ["writer"]},
         "then": {
             "required": ["record"],
             "properties": {
-                "record": {"properties": {"kind": {"not": {"const": "body"}}}},
+                "record": {"properties": {"kind": {"enum": ["attribute", "value"]}}},
                 "creates": False,
             },
         },

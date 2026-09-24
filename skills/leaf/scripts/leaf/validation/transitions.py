@@ -7,10 +7,19 @@ from leaf.projection import (
     action_subjects,
     folded_value,
     markup_value,
+    recorded_state,
 )
 from leaf.registry.contract import created_child
 
 from .markup import at
+
+
+def _placed(placement: tuple) -> str:
+    container, before = placement
+    if container is None:
+        return "outside every container"
+    return f"in {container!r} after {before}" if before else f"first in {container!r}"
+
 
 # A verb with no declared record form (decide — the honoring version
 # retires the wrapper, so there is no markup value to compare) has no record.
@@ -52,7 +61,10 @@ def restatement_errors(
     same way a silent rewrite of words is. Writing the folded state is the
     state-level echo (honoring); re-emitting the previous version's state is
     blessed silence, which reconciliation resolves; a unit with no surviving folded
-    action is exempt — never decided, or retracted back to the author. And
+    action is exempt — never decided, or retracted back to the author. A position
+    has no silence: its rank lies between the neighbours of the version the user
+    moved it on, so the version that takes a move in writes where the move left the
+    unit, and its markup places the unit from then on. And
     `restated` is earned by either divergence kind: a words-unchanged
     relocation earns it at the unit even though no subject's words moved."""
     errors = []
@@ -80,23 +92,40 @@ def restatement_errors(
         # A unit either version lacks is id-survival's business, not this gate's.
         if rec is None or unit not in prev_byid:
             continue
-        f_cur = markup_value(unit, spec, byid, now, registry)
-        f_prev = markup_value(unit, spec, prev_byid, was, registry)
-        if f_cur is NO_RECORD or f_cur == f_prev:
-            continue  # no record form, or no active change — replay resolves silence
-        f_fold = folded_value(e, spec)
+        # The fold is read on the previous version, the page the user last saw.
+        reading = recorded_state(
+            coordinate, e, spec, (byid, now), (prev_byid, was), registry, projection
+        )
+        if reading is NO_RECORD:
+            continue
+        f_cur, f_fold = reading
         if f_cur == f_fold:
             continue  # writing the folded state is honoring: the state-level echo
+        position = spec["record"]["kind"] == "position"
+        # Silence is no answer to a position: the version takes the move in, and
+        # from then on its markup places the unit (`StateProjection.taken_in`).
+        if not position and f_cur == markup_value(unit, spec, prev_byid, was, registry):
+            continue  # no active change — replay resolves silence
         if unit in declared:
             state_earned.add(unit)
             continue
         where = at(rec, f"id={unit!r}")
+        made = f"their {e['action']} (on r{e['revision']})"
+        if position:
+            errors.append(
+                f"{where}: the markup puts it {_placed(f_cur)} where {made} left "
+                f"it {_placed(f_fold)}. A version writes the order the user left, "
+                f"as `leaf page state` shows it: once stamped, the version's markup "
+                f"is where the unit stands. Write it there, or add `restated` to "
+                f"retract the move and ask again."
+            )
+            continue
         errors.append(
             f"{where}: its state changed under the user's decision — the markup "
-            f"shows {f_cur!r} where their {e['action']} (on r{e['revision']}) "
-            f"left {f_fold!r}. Their decision is what the page shows, so this state "
-            f"would never reach them — add `restated` to retract it and ask again, "
-            f"or leave it as r{prev_num} had it."
+            f"shows {f_cur!r} where {made} left {f_fold!r}. Their decision is what "
+            f"the page shows, so this state would never reach them — add "
+            f"`restated` to retract it and ask again, or leave it as r{prev_num} "
+            f"had it."
         )
 
     for sid, rec in sorted(byid.items()):

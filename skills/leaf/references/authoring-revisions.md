@@ -37,12 +37,19 @@ words remain effective across revisions.
 
 ## Honor user state
 
-The event log preserves user choices, generated options, moves, edits, and
-suggestion outcomes across revisions. Leave their authored inputs unchanged
-unless the content needs revision. The page directory and standalone export
-preserve that state without it being copied into markup.
+The event log preserves user choices, generated options, edits, and suggestion
+outcomes across revisions. Leave their authored inputs unchanged unless the
+content needs revision. The page directory and standalone export preserve that
+state without it being copied into markup.
 
-A user's answer to a page Ask is the exception: it shows as waiting on you, and
+A moved card, on a board or in a swipe deck's piles, is one exception: write it
+where `leaf page state` shows it, in that order. A move records a place between
+the cards the user saw, and a version that adds or removes cards around it
+changes what that place means, so the version you stamp after a move decides
+where the card stands from then on. `version check` refuses one that puts the
+card anywhere else.
+
+A user's answer to a page Ask is the other: it shows as waiting on you, and
 holds your turn open, until a stamped version takes it in. Where the answering
 widget declares a markup form for its state (its `x-state` `record`), that
 version's markup has to show the answer in that form: `chosen` on exactly the

@@ -65,7 +65,10 @@ from .service import (
 )
 
 START_TIMEOUT = 20
-RECORD_FORMAT = "leaf-codex-delivery-v1"
+# A collecting record holds captured events in the delivery's own shape, so the
+# version moves with it; a record of another version is dropped, and the events
+# its page has not acknowledged are captured afresh.
+RECORD_FORMAT = "leaf-codex-delivery-v2"
 STREAM_UPDATE_INTERVAL = 0.2
 STREAM_TEXT_METHODS = {"item/reasoning/summaryTextDelta"}
 STREAM_MESSAGE_METHOD = "item/agentMessage/delta"

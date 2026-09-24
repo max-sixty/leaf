@@ -4983,7 +4983,9 @@ def test_a_swipe_deck_reflows_with_its_parent_allocation(browser, serve):
     assert railed["kept"]["left"] == pytest.approx(railed["passed"]["left"]), railed
     assert railed["kept"]["bottom"] < railed["passed"]["top"], railed
     assert railed["queue"]["top"] == pytest.approx(railed["kept"]["top"]), railed
-    assert railed["queue"]["bottom"] == pytest.approx(railed["passed"]["bottom"]), railed
+    assert railed["queue"]["bottom"] == pytest.approx(railed["passed"]["bottom"]), (
+        railed
+    )
     assert railed["queue"]["bottom"] < railed["controls"]["top"], railed
     assert railed["controls"]["right"] <= railed["queue"]["right"], railed
 

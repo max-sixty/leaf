@@ -807,22 +807,28 @@ def test_a_tray_takes_the_markers_and_hands_the_user_the_map(browser, serve):
     assert not page.evaluate(offered), "the room came back and the margin did not"
 
 
-def test_the_rail_is_claimed_only_in_a_shell_that_can_hold_it(browser, serve):
+@pytest.mark.parametrize(
+    ("touch", "floor"), [(False, 863), (True, 887)], ids=["mouse", "finger"]
+)
+def test_the_rail_is_claimed_only_in_a_shell_that_can_hold_it(
+    browser, serve, touch, floor
+):
     """The floor grants the rail out of the shell, so the shell has to hold what it
-    grants: the column (720), its padding (2 x 24) and the claim. A finger raises the
-    claim from 59 to 71, which puts the requirement at 839 against a floor of 840 — one
-    pixel, and until now nothing but the prose beside the rule stood behind it. So this
-    walks the shell down through the flip with the aim floor at the value a coarse
-    pointer gives it, and holds the column whole wherever the rail stands.
+    grants: the column (720), its padding (2 x 24) and the rail. A finger raises the
+    rail from 95 to 119, so each pointer has its own floor, and a container query
+    cannot read the rail to derive it. So this walks the shell down through the flip
+    under each pointer and holds the column whole wherever the rail stands.
 
     A floor set too low reads here as a column narrower than its measure, which is the
-    bug the floor exists to stop: the markers go flush against whatever took the room."""
-    page = open_page(browser, serve(PANEL_PAGE))
-    page.evaluate(
-        "() => document.documentElement.style.setProperty('--aim-floor', '44px')"
+    bug the floor exists to stop: the markers go flush against whatever took the room.
+    One set too high reads as a sweep whose narrowest rail stands well above the floor."""
+    context = browser.new_context(
+        viewport={"width": floor + 40, "height": 900}, has_touch=touch
     )
+    page = open_page(browser, serve(PANEL_PAGE), context=context)
+    assert page.evaluate("() => matchMedia('(pointer: coarse)').matches") == touch
     stood = []
-    for width in range(880, 815, -5):
+    for width in range(floor + 40, floor - 30, -3):
         resized(page, width, 900)
         margins_laid_out(page)
         reading = page.evaluate(
@@ -844,8 +850,8 @@ def test_the_rail_is_claimed_only_in_a_shell_that_can_hold_it(browser, serve):
             f"{reading['column']}px column: the floor granted room the page lacks"
         )
     assert stood, "no width in this sweep claimed the rail, so nothing here was tested"
-    assert min(r["shell"] for r in stood) <= 850, (
-        "the sweep stopped above the flip, so the narrowest claim went untested"
+    assert min(r["shell"] for r in stood) <= floor + 3, (
+        "the rail folded above its floor, giving up room the page had"
     )
 
 
@@ -903,7 +909,7 @@ def test_a_docked_cluster_keeps_later_margin_entries_beside_their_targets(
               })
             );
             registerMarginContribution({key: id, target: document.getElementById(id),
-              read: () => ({entries: entries(), claim: false,
+              read: () => ({entries: entries(),
                 state: count > 1 ? 'engaged' : 'idle'}), activate: () => {}});
           }
         }"""
@@ -3393,7 +3399,6 @@ def test_one_target_has_one_primary_margin_entry_and_inline_secondary_margin_ent
         }"""
     )
     expect(accept).to_be_focused()
-    rail = page.locator("html").evaluate("el => el.style.getPropertyValue('--rail')")
     column = page.locator("main").evaluate(
         "el => { const box = el.getBoundingClientRect(); return [box.left, box.right]; }"
     )
@@ -3413,10 +3418,6 @@ def test_one_target_has_one_primary_margin_entry_and_inline_secondary_margin_ent
     page.evaluate(
         "() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done)))"
     )
-    assert (
-        page.locator("html").evaluate("el => el.style.getPropertyValue('--rail')")
-        == rail
-    ), "temporary reaction choices permanently widened the page rail"
     assert (
         page.locator("main").evaluate(
             "el => { const box = el.getBoundingClientRect(); return [box.left, box.right]; }"
@@ -4970,7 +4971,7 @@ def test_a_secondary_thread_keeps_card_ownership_through_membership_and_posture(
           let primaryVisible = true;
           const registration = registerMarginContribution({
             key: 'fixture', target: document.querySelector('#how-cap'),
-            read: () => ({claim: true, entries: [marginEntry({
+            read: () => ({entries: [marginEntry({
               key: 'act', glyph: 'A', label: 'Act', behavior: 'action',
               visible: primaryVisible
             })]}), activate: () => {}
@@ -5527,12 +5528,16 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
             (total, button) => total + button.getBoundingClientRect().width, 0
           ) + (parseFloat(style.columnGap || style.gap) || 0)
             * Math.max(0, buttons.length - 1)
+            + (parseFloat(style.marginLeft) || 0)
             + (parseFloat(style.paddingLeft) || 0)
             + (parseFloat(style.paddingRight) || 0);
-          return {
-            needed,
-            rail: parseFloat(document.documentElement.style.getPropertyValue('--rail'))
-          };
+          const probe = document.createElement('i');
+          probe.style.cssText =
+            'position:fixed;visibility:hidden;height:0;padding:0;border:0;width:var(--rail)';
+          document.querySelector('main').append(probe);
+          const rail = probe.getBoundingClientRect().width;
+          probe.remove();
+          return {needed, rail};
         }"""
     )
     assert claim["rail"] >= claim["needed"] - 0.5, claim
@@ -6826,7 +6831,7 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
     expect(preview.locator(".lf-conversation-thread")).to_be_focused()
     expect(preview.locator("textarea")).to_be_hidden()
 
-    resized_shell(page, 1472, 900)
+    resized_shell(page, 1436, 900)
     beside = page.evaluate(
         """() => {
           const main = document.querySelector('main').getBoundingClientRect();
@@ -6955,10 +6960,11 @@ def test_a_live_page_leaves_no_empty_thread_column_and_keeps_its_reading_positio
             }"""
         )
 
+    # The rail is 95px, so the page's axis stands at most half of it off the shell's.
     initial = position()
-    assert abs(initial["offset"]) < 40, initial
+    assert abs(initial["offset"]) <= 48, initial
     assert (
-        initial["width"] >= min(1128 if wide else 768, initial["shellWidth"] - 59) - 1
+        initial["width"] >= min(1128 if wide else 768, initial["shellWidth"] - 95) - 1
     ), initial
 
     comment = events_model.append_event(

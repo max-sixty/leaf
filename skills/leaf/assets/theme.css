@@ -64,8 +64,9 @@
 
    A floor asks about the room its rule governs. One granting a posture out of the room
    left beside a standing surface is a container query on `lf-shell`, inside `@media screen`
-   since paper has no tray and no margin to grant: 1152 and 1496 for the sidebar and
-   sidenote strips, 840 for the margin projection's rail, 640 for a narrow column's facts.
+   since paper has no tray and no margin to grant: 1188, 1152 and 1496 for the sidebar,
+   sidenote and paired strips, 863 (887 by finger) for the margin projection's rail, 640
+   for a narrow column's facts.
    One answering to the device, such as a phone's vertical rhythm, asks the window, and a
    package's widget asks its own box (references/packages.md).
 
@@ -181,9 +182,15 @@
      rail's claim below reserves the same length, so it is named rather than written
      into each. */
   --margin-entry: max(32px, var(--aim-floor));
-  /* --rail has no authored value: the shared margin measures its widest target item
-     after content modules have contributed their controls, then states that width on
-     the root. The rule that spends it is beside .lf-margin-cluster below. */
+  /* The rail: the strip beside the column that a live page's margin entries stand in.
+     It is authored rather than measured, so the page's geometry is settled before
+     anything lands in the margin and never moves because of what does. It seats the
+     resting cluster the margin model budgets (RESTING_MARGIN_ENTRY_BUDGET in
+     margin-model.js): two entries and the cluster's 4px gap, hung 22px off the column,
+     with the focus ring's room at the outer edge. A cluster wider than that borrows the
+     room past the rail or docks (margin-layout.js). The rule that spends it is beside
+     .lf-margin-cluster below. */
+  --rail: calc(2 * var(--margin-entry) + 4px + 22px + var(--here-ring-room));
   /* A sidenote's strip: a column of text plus its gutter, chosen rather than measured
      off anything the way --rail is. The 360px it leaves the note sets about fifty-six
      characters of --t-5 serif. The rule that spends it is beside aside.sidenote below.
@@ -1235,9 +1242,10 @@ section.panel > :last-child { margin-bottom: 0; }
    The claim is page-wide because a sticky box may occupy any height while the user
    scrolls. It is a strip like any other margin claim, so the page's own arithmetic
    (main, above) places the column beside it and holds a wide exhibit's left growth to
-   what is free of it. A sidebar and a sidenote together wait for 1496px of shell, the ordinary
-   1152px margin floor plus the widest sidebar's 344px; granting both at the ordinary
-   floor shrank the prose. The paired number is held to those two tokens in
+   what is free of it. A sidebar alone waits for 1188px of shell: the widest sidebar's
+   344px, a 24px gutter, the column and the rail (95) beside it. A sidebar and a sidenote
+   together wait for 1496px, the note's 1152px floor plus that 344px, the note's strip
+   being wider than the rail; granting both at the note's floor shrank the prose. The paired number is held to those two tokens in
    test_the_sidebar_and_note_floor_is_their_sum. Paper gets only the base in-flow form,
    and therefore neither a sticky box nor an empty margin.
 
@@ -1260,7 +1268,7 @@ aside.sidebar > :first-child { margin-top: 0; }
 aside.sidebar > :last-child { margin-bottom: 0; }
 main > aside.sidebar:nth-child(1 of aside.sidebar) { --lf-sidebar-slot: margin; }
 @media screen {
-  @container lf-shell (min-width: 1152px) {
+  @container lf-shell (min-width: 1188px) {
   html:not(.lf-copy)
     main:has(> aside.sidebar):not(:has(aside.sidenote)) {
     --strip-l: var(--lf-sidebar-claim, var(--sidebar));
@@ -1854,41 +1862,49 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
     height: 16px; padding: 0 3px; box-sizing: border-box; border-radius: 999px;
     border: 1px solid var(--paper); background: var(--ink); color: var(--paper);
     font: 600 10px/14px var(--sans); text-align: center; }
-/* The rail stands in a shell wider than 840px. The rule that claims it says so on `main`
- * as `--lf-rail-posture`, and that reading is the whole answer: the runtime places rows by
+/* The rail stands in a shell wide enough to hold it beside the whole column: the column
+ * (720), its padding (2 x 24) and the rail (95), so 863, or 887 where a finger raises the
+ * entries to the aim floor. The rule that claims it says so on `main` as
+ * `--lf-rail-posture`, and that reading is the whole answer: the runtime places rows by
  * it (margin-projection.js) and a copy's dock rule below asks it, so neither derives the
- * posture again from a width. The rail itself needs 827 — the column (720), its padding
- * (2 x 24) and the claim (59), or 839 where a finger raises the marker to the aim floor —
- * and 840 is also where the banner folds, which asks the window, so with no strip taken
- * the page goes compact at one width, less a classic scrollbar's gutter. The Page Map the
- * folded banner then offers asks this floor of this box (chrome.css), so a tray that
- * takes the markers away hands the user the map in their place. This asks `lf-shell`
- * because the rail is drawn in the shell, and a tray standing beside takes its room as
- * surely as a narrow window does. The thread panel takes none: it covers the page.
+ * posture again from a width. A container query cannot read `--rail`, so the two floors
+ * are written out, one per pointer, and a change to the rail's width changes them with
+ * it. The Page Map the folded banner offers asks this posture (chrome-layout.js), so a
+ * tray that takes the markers away hands the user the map in their place. This asks
+ * `lf-shell` because the rail is drawn in the shell, and a tray standing beside takes
+ * its room as surely as a narrow window does. The thread panel takes none: it covers
+ * the page.
  *
  * The claim cannot feed back into the answer. It comes out of `main`'s room inside the
  * shell (--strip-r, at the column), while the shell's own inline size is the window less
  * whatever strip a tray holds, so the container answers the same whether a marker stands
  * in the rail or not. */
 @media screen {
-  @container lf-shell (width > 840px) {
+  @container lf-shell (width > 863px) {
     :is(
       :root[data-lf-rail],
       html[data-lf-live]
     ) main {
-      /* The floor is the generated marker: 32px of glyph, or the aim floor where a finger
-         raises it, hanging 22px off the column, with the shared focus-ring room at the
-         outer edge. Claim all three, or opening a side tray leaves that last band past
-         body's room and the layout hides the marker. Over that floor stands the widest
-         stable contribution the shared layout has measured, which is wider wherever a
-         contributed control takes the marker's place. What the condition reads is stated
-         with the rest of the claim below. */
-      --claim-rail: max(calc(var(--margin-entry) + 22px + var(--here-ring-room)),
-                        var(--rail, 0px));
+      /* The whole rail, focus-ring room included: claimed short of that last band, a
+         side tray leaves it past body's room and the layout hides the entry standing in
+         it. What the condition reads is stated with the rest of the claim below. */
+      --claim-rail: var(--rail);
       --lf-rail-posture: margin;
     }
   }
-  @container lf-shell (width <= 840px) {
+  @container lf-shell (width <= 863px) {
+    .lf-margin-projection, .lf-margin-marker.lf-margin-entry { display: none; }
+  }
+}
+@media screen and (pointer: coarse) {
+  @container lf-shell (width <= 887px) {
+    :is(
+      :root[data-lf-rail],
+      html[data-lf-live]
+    ) main {
+      --claim-rail: initial;
+      --lf-rail-posture: initial;
+    }
     .lf-margin-projection, .lf-margin-marker.lf-margin-entry { display: none; }
   }
 }
@@ -1925,12 +1941,12 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 /* A page that can grow a page-edge margin entry reserves this strip at load. The runtime says
  * so on the root (data-lf-rail) and never takes it back, so durable apparatus never hangs
  * in accidental leftover space and the user never buys the room for it with a gesture.
- * The claim's width is the widest stable width the shared layout has measured, over a
- * floor of the generated marker's own margin entry, and it is monotonic for the page's life:
- * neither settling an action nor taking it back moves the column under the user.
- * Temporary reaction choices borrow the available RHS and dock the complete item if they
- * do not fit; they do not enlarge this claim. Below the breakpoint the whole item docks
- * into flow.
+ * The claim's width is `--rail`, a constant of the theme rather than a measurement, so
+ * the author knows the page's geometry in advance and nothing arriving in the margin,
+ * settling there, or leaving it moves the column under the user. A cluster wider than
+ * the rail — reaction choices unfolded, a contribution with more than the resting
+ * budget — borrows the available RHS and docks the complete item if it does not fit.
+ * Below the breakpoint the whole item docks into flow.
  *
  * This is a claim rather than the strip itself because a sidenote may claim the same side;
  * body spends the wider claim, not their sum. The condition is what the page declares,

@@ -228,21 +228,6 @@ export function bake() {
   // this file no longer has: the panel, tray, and shortcut bar leave with the chrome
   // above. A copy drops what it hasn't got. Page room is not in this list: CSS resolves
   // it from the copy's own shell.
-  //
-  // It keeps what it still has, which is why `--rail` is not on this list and must
-  // not be added to it. The rail is the width of the margin a suggestion's controls
-  // stand in, and a decided change keeps that row's status — the record of what was
-  // decided is the whole reason the margin was reserved. Cleared, the copy reads its
-  // room off the viewport, knows nothing of the row still sitting in the margin, and
-  // spends the surplus on the free side: the exported board stood 35px outside the
-  // page's box at a laptop's width and 47px at a narrow one, off the left, where
-  // overflow scrolls nothing and the columns are not cut off with a way to reach
-  // them but simply gone.
-  // `test_a_copy_keeps_a_wide_widget_inside_its_standing_reaction_rail` is that, and
-  // it is what a sweep of every inline custom property on the root ran into: read as a
-  // stale number, the rail is the one that is not. It asks the copy for the width the
-  // live page measured rather than for a non-zero strip, because the cascade leaves a
-  // floor under `--rail` and a copy that lost the measurement still reports one.
   for (const stale of [
     "--lf-thread-panel-width",
     "--lf-tray-slot-width",
@@ -468,9 +453,8 @@ export function bake() {
   // exists because a margin entry can arrive on a gesture and the user must not pay a reflow
   // for it; a file takes no gestures, so what it has when it is written is all it will
   // ever have. Kept regardless, a copy of a page with no durable margin content opened
-  // with its column pushed off-centre by a strip holding nothing. The width above is not
-  // on this list and must not join it: a standing reaction keeps its mark and the room
-  // that mark was reserved for, and that room is the rail it was exported with.
+  // with its column pushed off-centre by a strip holding nothing. The rail's width
+  // is the theme's constant, so a copy that keeps the reservation keeps the same strip.
   if (!document.querySelector("main .lf-margin-cluster"))
     document.documentElement.removeAttribute("data-lf-rail");
   // What the runtime painted, as against what a widget built, goes the same way. An

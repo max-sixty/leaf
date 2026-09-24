@@ -66,8 +66,6 @@ const READING_OPTIONS = new Set([
   "subject",
   "state",
   "side",
-  "claim",
-  "reserve",
   "notice",
   "entries",
   "readings",
@@ -184,8 +182,6 @@ export function normalizeMarginReading(reading, owner) {
     subject = null,
     state = "idle",
     side = "before",
-    claim = true,
-    reserve = 0,
     notice = null,
     entries = [],
     readings = [],
@@ -194,8 +190,6 @@ export function normalizeMarginReading(reading, owner) {
     throw new TypeError(`Unknown margin contribution state: ${state}`);
   if (side !== "before" && side !== "after")
     throw new TypeError(`Unknown margin contribution side: ${side}`);
-  if (!Number.isFinite(reserve) || reserve < 0)
-    throw new TypeError("A margin contribution reserve must be non-negative");
   if (!Array.isArray(entries))
     throw new TypeError("A margin contribution's entries must be an array");
   if (!Array.isArray(readings))
@@ -231,8 +225,6 @@ export function normalizeMarginReading(reading, owner) {
     subject: text(subject) || null,
     state,
     side,
-    claim: Boolean(claim),
-    reserve,
     notice: normalizedNotice,
     entries: Object.freeze(normalizedEntries),
     readings: Object.freeze(readings.map((item) => Object.freeze({ ...item }))),

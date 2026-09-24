@@ -5,7 +5,7 @@
    and the inline thread card per target, then supplies the complete target projection to
    `page-map-dialog.js`. `margin-entries.js` owns the public control grammar and contribution
    registry; `margin-cluster-view.js` owns retained control materialization and Lit child
-   order; `margin-layout.js` owns row measurement, rail claims, responsive docking, packing,
+   order; `margin-layout.js` owns row measurement, responsive docking, packing,
    and collision bands.
 
    `margin-model.js` derives the immutable inventory and cluster selection; its public
@@ -81,7 +81,6 @@ import {
 } from "./margin-entries.js";
 import {
   KINDS,
-  secondaryCount,
   entryEngaged,
   choosePrimary,
   readingKey,
@@ -1117,46 +1116,6 @@ export function createMarginProjection({
         ? {}
         : { fallback: "hide" }),
       priority: 10,
-      claim: () => {
-        const entry = row.lfEntry;
-        if (!entry) return 0;
-        if (readingRegionFor(targetFor(entry))) return 0;
-        const primaryItem = choosePrimary(entry);
-        const primary = hosts.get(entry.key)?.primary ?? null;
-        const stable = [];
-        if (primary && entry.offers.some((offered) => offered.reading.claim))
-          stable.push(primary);
-        const marker = rows.get(entry.key);
-        if (!primary && marker && !marker.hidden) stable.push(marker);
-        const more = moreMarginEntries.get(entry.key);
-        if (more && optionsOffered(entry, primaryItem, { claimedOnly: true }))
-          stable.push(more);
-        const options = hosts.get(entry.key)?.options;
-        if (
-          options &&
-          !optionsOffered(entry, primaryItem, { claimedOnly: true }) &&
-          secondaryCount(entry, primaryItem, { claimedOnly: true }) > 0
-        )
-          stable.push(...clusterMarginEntries(options));
-        const widths = stable
-          .map((part) => part.getBoundingClientRect().width)
-          .filter(Boolean);
-        const reserved = Math.max(
-          0,
-          ...entry.offers.map((offered) => offered.reading.reserve),
-        );
-        if (!widths.length && !reserved) return 0;
-        const style = getComputedStyle(row);
-        const gap = parseFloat(style.columnGap || style.gap) || 0;
-        const current =
-          widths.reduce((total, width) => total + width, 0) +
-          gap * Math.max(0, widths.length - 1);
-        return (
-          Math.max(current, reserved) +
-          (parseFloat(style.paddingLeft) || 0) +
-          (parseFloat(style.paddingRight) || 0)
-        );
-      },
       shown: (target) =>
         Boolean(target && shownParts(target).some((part) => part.checkVisibility())),
       // The compact margin projection has no page rail. Dock every contributed entry even when a

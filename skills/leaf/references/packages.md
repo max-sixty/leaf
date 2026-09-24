@@ -871,21 +871,20 @@ discover the ids, contracts, widgets, and documents it needs without parsing mar
 Every source value goes to every user of the page, including fields a module does not
 paint. Do not put credentials or private host state in it.
 
-A contract whose values contain large independently useful payloads may declare a
-`fragments` coordinate: the top-level array field, each item's unique key field, and the
-payload field. The source file still holds the complete value, and readings validate
-all of it. `/api/state` sends the array as a lightweight manifest with that payload
-field omitted; a widget uses `loadDataFragment(snapshot, key)` to fetch one payload
-using the delivery `watchData` handed it. A request naming a source revision the file no
-longer holds is refused instead of combining a new payload with an old manifest. This is how a collapsed `lf-diff` can show
-thousands of files without transferring or rendering every patch first.
-`records` names the same `items` and `key` fields without splitting payload delivery;
-when a contract declares both, they must agree. Both forms validate non-empty,
-unique string keys before a source replacement is accepted.
+A contract whose value holds keyed rows declares `records`: the top-level array field
+and each row's key field. A source replacement is accepted only when every row has a
+non-empty, unique string key. Rows that each carry a large, independently useful
+payload may name that field `deferred`. The source file still holds the complete value,
+and readings validate all of it, but `/api/state` sends each row with that field
+omitted; a widget uses `loadDataFragment(snapshot, key)` to fetch one row's payload
+using the delivery `watchData` handed it. A request naming a source revision the file
+no longer holds is refused instead of combining a new payload with an old manifest.
+This is how a collapsed `lf-diff` can show thousands of files without transferring or
+rendering every patch first.
 
 ```json
 {
-  "fragments": { "items": "files", "key": "key", "value": "patch" },
+  "records": { "items": "files", "key": "key", "deferred": "patch" },
   "schema": {
     "type": "object",
     "properties": {

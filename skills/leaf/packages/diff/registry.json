@@ -3,10 +3,10 @@
     "contracts": {
       "unified-diff": {
         "description": "A unified patch, either as one text value or as a file manifest whose patch fields Leaf delivers separately on demand.",
-        "fragments": {
+        "records": {
           "items": "files",
           "key": "key",
-          "value": "patch"
+          "deferred": "patch"
         },
         "schema": {
           "type": ["string", "object"],

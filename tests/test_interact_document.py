@@ -5290,15 +5290,15 @@ def test_page_inspection_fragments_only_the_manifest_branch_of_a_data_contract(
         reading = node["inputs"]["document"]
         if isinstance(value, str):
             assert reading["value"] == patch
-            assert "fragments" not in reading
+            assert "deferred" not in reading
         else:
             assert reading["value"] == {
                 "files": [{key: field for key, field in file.items() if key != "patch"}]
             }
-            assert reading["fragments"]["file"] == str(
+            assert reading["deferred"]["file"] == str(
                 data_model.source_file(page_dir, "reading-patch")
             )
-            assert reading["fragments"]["revision"] == reading["origin"]["revision"]
+            assert reading["deferred"]["revision"] == reading["origin"]["revision"]
         assert read_page_data(page_dir)["sources"]["reading-patch"]["value"] == value
 
 

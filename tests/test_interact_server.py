@@ -683,10 +683,10 @@ def test_fragmented_data_sends_a_manifest_then_serves_one_exact_payload(
     )
     registry_path = page_dir / "registry.json"
     registry = json.loads(registry_path.read_text())
-    registry["$data"]["contracts"]["diff-files"]["fragments"] = {
+    registry["$data"]["contracts"]["diff-files"]["records"] = {
         "items": "files",
         "key": "key",
-        "value": "patch",
+        "deferred": "patch",
     }
     registry_path.write_text(json.dumps(registry))
     index = page_dir / "index.html"
@@ -700,7 +700,7 @@ def test_fragmented_data_sends_a_manifest_then_serves_one_exact_payload(
         page_dir, event_model.read_events(page_dir)
     )
     assert activated.error is None
-    with pytest.raises(data_model.DataError, match="fragment keys must be unique"):
+    with pytest.raises(data_model.DataError, match="record keys must be unique"):
         data_model.cmd_data_set(
             page_dir,
             "review-patch",
@@ -4202,10 +4202,10 @@ def test_a_page_snapshot_stays_on_one_page_reading(page_dir):
         page_dir, "patches", schema, contract="patch-list", activate=False
     )
     registry = json.loads((page_dir / "registry.json").read_text())
-    registry["$data"]["contracts"]["patch-list"]["fragments"] = {
+    registry["$data"]["contracts"]["patch-list"]["records"] = {
         "items": "files",
         "key": "key",
-        "value": "patch",
+        "deferred": "patch",
     }
     (page_dir / "registry.json").write_text(json.dumps(registry))
     activated = revisioning_model.activate_source(

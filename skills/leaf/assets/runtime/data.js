@@ -239,10 +239,10 @@ export async function loadDataFragment(manifest, key) {
     throw new TypeError("loadDataFragment needs a source delivery");
   if (typeof key !== "string" || !key)
     throw new TypeError("loadDataFragment key must be a non-empty string");
-  const contract = registry.$data?.contracts?.[manifest.contract];
-  if (!contract?.fragments)
+  const records = registry.$data?.contracts?.[manifest.contract]?.records;
+  if (!records?.deferred)
     throw new Error(
-      `loadDataFragment contract ${manifest.contract} does not declare fragments`,
+      `loadDataFragment contract ${manifest.contract} defers no record field`,
     );
   const { source, revision } = manifest;
   const current = () => runtime.data.sources[source]?.revision === revision;
@@ -258,13 +258,13 @@ export async function loadDataFragment(manifest, key) {
       reading.revision !== revision
     )
       throw new Error("interactive export fragment does not match its source");
-    const items = reading.value?.[contract.fragments.items];
+    const items = reading.value?.[records.items];
     const matches = Array.isArray(items)
-      ? items.filter((item) => item?.[contract.fragments.key] === key)
+      ? items.filter((item) => item?.[records.key] === key)
       : [];
-    if (matches.length !== 1 || !(contract.fragments.value in matches[0]))
+    if (matches.length !== 1 || !(records.deferred in matches[0]))
       throw new Error("interactive export fragment does not match its key");
-    return structuredClone(matches[0][contract.fragments.value]);
+    return structuredClone(matches[0][records.deferred]);
   }
   const params = new URLSearchParams({ source, source_revision: revision, key });
   const response = await fetch(pageUrl(`api/data?${params}`), {

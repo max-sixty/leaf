@@ -158,7 +158,7 @@ def request_records(record: dict, registry: dict, data: dict) -> list[dict]:
     if reading is None or "value" not in reading:
         return []
     contract = registry["$data"]["contracts"][binding["contract"]]
-    records = contract.get("records") or contract["fragments"]
+    records = contract["records"]
     value = reading["value"]
     rows = value.get(records["items"], []) if isinstance(value, dict) else []
     return [

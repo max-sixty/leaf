@@ -395,21 +395,20 @@ def data_errors(stored: dict) -> list[str]:
     ]
 
 
-def data_fragments(value, contract: str, registry: dict) -> dict | None:
-    """The split-delivery coordinate of this validated value's manifest branch.
+def deferred_records(value, contract: str, registry: dict) -> dict | None:
+    """The contract's `records` declaration when this validated value's records
+    carry a field Leaf delivers on demand (`records.deferred`).
 
-    A contract may admit both an inline value and a manifest. Its fragment
-    declaration applies only to an object carrying the declared item array.
+    A contract may admit both an inline value and a record array. The deferred
+    field applies only to an object carrying the declared item array.
     """
     spec = (
-        registry.get("$data", {})
-        .get("contracts", {})
-        .get(contract, {})
-        .get("fragments")
+        registry.get("$data", {}).get("contracts", {}).get(contract, {}).get("records")
     )
     return (
         spec
         if spec is not None
+        and "deferred" in spec
         and isinstance(value, dict)
         and isinstance(value.get(spec["items"]), list)
         else None
@@ -417,26 +416,26 @@ def data_fragments(value, contract: str, registry: dict) -> dict | None:
 
 
 def data_manifest(value, contract: str, registry: dict):
-    """Keep a contract's manifest while leaving large payloads at their source.
+    """Keep a contract's records while leaving each deferred field at its source.
 
     Both browser delivery and agent inspection use this projection. It never
-    mutates its input and returns the original value when there is no split.
+    mutates its input and returns the original value when nothing is deferred.
     """
-    spec = data_fragments(value, contract, registry)
+    spec = deferred_records(value, contract, registry)
     if spec is None:
         return value
     return {
         **value,
         spec["items"]: [
-            {key: item for key, item in record.items() if key != spec["value"]}
+            {key: item for key, item in record.items() if key != spec["deferred"]}
             for record in value[spec["items"]]
         ],
     }
 
 
 def browser_data_from(stored: dict, registry: dict) -> dict:
-    """The reading a browser receives: each fragmented value as its manifest, whose
-    payloads the fragment door serves from the same source file."""
+    """The reading a browser receives: each value with its deferred fields omitted,
+    which the fragment door serves from the same source file."""
     return {
         "version": stored["version"],
         "sources": {
@@ -458,7 +457,8 @@ def browser_data_from(stored: dict, registry: dict) -> dict:
 def data_fragment(
     reading: dict | None, registry: dict, *, source: str, revision: str, key: str
 ) -> dict:
-    """One fragment of the source value at `revision`, which must still be current.
+    """One record's deferred field in the source value at `revision`, which must
+    still be current.
 
     `reading` is the source as `read_source` read it, or None where the page records
     no such source."""
@@ -469,9 +469,9 @@ def data_fragment(
             f"data source {source!r} no longer holds revision {revision!r}"
         )
     value = reading.get("value")
-    spec = data_fragments(value, reading["contract"], registry)
+    spec = deferred_records(value, reading["contract"], registry)
     if spec is None:
-        raise DataError(f"data source {source!r} has no fragmented value")
+        raise DataError(f"data source {source!r} defers no record field")
     matches = [
         item
         for item in value[spec["items"]]
@@ -481,14 +481,14 @@ def data_fragment(
         reason = "unknown" if not matches else "duplicate"
         raise DataError(f"{reason} fragment key {key!r} in data source {source!r}")
     item = matches[0]
-    if spec["value"] not in item:
+    if spec["deferred"] not in item:
         raise DataError(f"fragment {key!r} in data source {source!r} has no value")
     return {
         "source": source,
         "contract": reading["contract"],
         "revision": revision,
         "key": key,
-        "value": item[spec["value"]],
+        "value": item[spec["deferred"]],
     }
 
 

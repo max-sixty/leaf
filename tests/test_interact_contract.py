@@ -1865,10 +1865,10 @@ def test_candidate_vocabulary_preserves_commands_in_frozen_thread_markup(page_di
                 "builds": {
                     "description": "Build facts.",
                     "schema": {"type": "object"},
-                    "fragments": {"items": "rows", "key": "id", "value": "id"},
+                    "records": {"items": "rows", "key": "id", "deferred": "id"},
                 }
             },
-            "fragments must name distinct",
+            "records must name distinct",
         ),
     ],
 )
@@ -2099,7 +2099,7 @@ def _page_owned_fragmented_source(page_dir):
     contract = {
         "description": "Page-owned file payloads.",
         "schema": schema,
-        "fragments": {"items": "files", "key": "key", "value": "patch"},
+        "records": {"items": "files", "key": "key", "deferred": "patch"},
     }
     widget = element_declaration("lf-local-data")
     widget["properties"]["source"] = {
@@ -2143,14 +2143,14 @@ def test_page_owned_data_contract_meaning_is_fixed_for_the_source_lifetime(page_
     """A same-named contract cannot redirect old readers to a different field."""
     authored = _page_owned_fragmented_source(page_dir)
     declarations = json.loads(authored.read_text())
-    declarations["$data"]["contracts"]["local-files"]["fragments"]["value"] = "body"
+    declarations["$data"]["contracts"]["local-files"]["records"]["deferred"] = "body"
     authored.write_text(json.dumps(declarations))
 
     activation = revisioning_model.activate_source(
         page_dir, events_model.read_events(page_dir)
     )
-    assert "schema or fragment coordinate changes" in activation.error
-    with pytest.raises(data_model.DataError, match="schema or fragment coordinate"):
+    assert "schema or record declaration changes" in activation.error
+    with pytest.raises(data_model.DataError, match="schema or record declaration"):
         data_model.cmd_data_set(
             page_dir,
             "files",
@@ -2158,7 +2158,7 @@ def test_page_owned_data_contract_meaning_is_fixed_for_the_source_lifetime(page_
         )
     revendored = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
     assert revendored.exit_code != 0
-    assert "schema or fragment coordinate" in revendored.output
+    assert "schema or record declaration" in revendored.output
 
 
 def test_page_owned_data_contract_description_can_improve(page_dir):

@@ -15,7 +15,7 @@ from pathlib import Path
 import pytest
 from click.testing import CliRunner
 from conftest import LEAF_COMMAND
-from example_data import patch_manifest
+from example_data import captured_value, patch_manifest
 from interact_support import (
     COMMAND_SUBJECTS,
     OPTIONS,
@@ -5412,3 +5412,13 @@ def test_projected_verbatim_includes_generated_children():
     )
 
     assert expected == {("page", None, 0): [{"text": "Authored item. Generated item."}]}
+
+
+def test_a_unified_diff_capture_refuses_a_line_range(tmp_path):
+    """A patch is captured whole: a `lines` range beside `"format": "unified-diff"`
+    is refused rather than silently dropped, and the same range on text applies."""
+    source = tmp_path / "change.patch"
+    source.write_text("one\ntwo\nthree\n")
+    with pytest.raises(ValueError, match="takes the whole patch"):
+        captured_value(source, {"format": "unified-diff", "lines": "1:2"})
+    assert captured_value(source, {"lines": "2:3"}) == "two\nthree\n"

@@ -6,6 +6,14 @@ Interactive behavior does not by itself justify a package; `references/packages.
 says where page-only and reused behavior belong. A page module can define custom
 elements, register structured state with its playground, and derive the output.
 
+The playground draws its own regions: the preview is a stage, and the controls and the
+instruction to the agent stand in a rail beside it, on the same `2fr 1fr` tracks as a
+sheet's body and rail, wherever it has 50rem; narrower, they stack. A preview that needs
+width, such as two candidates side by side, belongs on a sheet (`<main
+data-width="available">`), where later body content can stand under the stage in an
+`lf-grid columns="2fr 1fr"`. Draw candidates on the stage without a card of their own;
+the stage is their surface.
+
 The preview is the surface the user operates. An A/B comparison keeps both candidates
 mounted in that preview and renders both from one interaction state, so each control
 edit or custom gesture reaches both. The user should not have to reproduce a drag,

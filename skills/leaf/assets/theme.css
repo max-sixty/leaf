@@ -509,6 +509,10 @@ body { position: static !important; box-sizing: border-box !important;
        font: var(--t-4)/1.6 var(--serif); overflow-wrap: break-word;
        --lf-shell-inset-left: 0px;
        container: lf-shell / inline-size; }
+/* A container is contained, and containment keeps the body's background off the canvas,
+ * so the root paints the page's colour itself: a copy shorter than the window, with no
+ * live body stretched to fill it, otherwise ended in white. */
+html { background: var(--paper); }
 /* The live shell's fixed chrome arrives after the authored document, but its room is
  * part of the document's final layout. The render-blocking theme reserves that room so
  * the useful initial HTML paints where it will remain. The root stays the document

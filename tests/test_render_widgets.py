@@ -3367,7 +3367,7 @@ def test_a_playground_keeps_one_typed_working_state_until_the_user_chooses(
     expect(page.locator("#card-instruction")).to_have_css(
         "font-family", 'system-ui, -apple-system, "Segoe UI", sans-serif'
     )
-    expect(page.locator("#card-instruction")).to_have_css("font-size", "11.5px")
+    expect(page.locator("#card-instruction")).to_have_css("font-size", "14px")
 
     with sending(page, "the playground configuration"):
         playground.get_by_role("button", name="Use these settings").click()
@@ -3398,35 +3398,43 @@ def test_a_playground_keeps_one_typed_working_state_until_the_user_chooses(
 def test_notification_playground_sets_regions_side_by_side_while_its_workspace_holds_the_window(
     browser, serve
 ):
-    """A playground is a workspace with its relationship declared: controls beside the
-    preview they operate. While the root workspace holds the window each region scrolls
-    on its own under the fixed presets and above the fixed actions; where it doesn't,
-    the regions stack and the page scrolls. Either way each is a named reading region."""
+    """A playground is a workspace with its relationship declared: the preview is the
+    stage, with the controls and the instruction they write in a rail beside it. While
+    the root workspace holds the window each region scrolls on its own, the controls
+    under their fixed presets and the instruction above its fixed actions; where it
+    doesn't, the page scrolls, and a narrow one stacks the regions. Either way each is a
+    named reading region."""
     source = Path(__file__).parents[1] / "examples" / "notification-playground.html"
     page = open_page(browser, serve(source))
     playground = page.locator("#notification-playground")
     controls = playground.locator(".lf-playground-controls")
     preview = playground.locator(".lf-playground-preview-body")
     presets = playground.get_by_role("group", name="Starting points")
-    actions = playground.locator(":scope > .lf-playground-actions")
+    actions = playground.locator(".lf-playground-actions")
     reading = """async () => {
       const leaf = await window.__lfRuntimeImport('/runtime/widget-api.js');
       const playground = document.querySelector('#notification-playground');
       const controls = playground.querySelector('.lf-playground-controls');
       const preview = playground.querySelector('.lf-playground-preview-body');
+      const instruction = playground.querySelector('lf-playground-output');
       const region = (body) => leaf.readingRegionFor(body);
       const controlsBox = region(controls).host.getBoundingClientRect();
       const previewBox = region(preview).host.getBoundingClientRect();
+      const instructionBox = region(instruction).host.getBoundingClientRect();
       return {
         controlsId: region(controls).id,
         previewId: region(preview).id,
-        postures: [controls, preview].map((body) => leaf.readingPosture(region(body))),
-        scrollers: [controls, preview].map((body) =>
+        instructionId: region(instruction).id,
+        postures: [controls, preview, instruction].map((body) =>
+          leaf.readingPosture(region(body))),
+        scrollers: [controls, preview, instruction].map((body) =>
           leaf.effectiveScroller(body) === body ? 'own' :
           leaf.effectiveScroller(body) === document.scrollingElement ? 'page' : 'other'),
         sideBySide: Math.abs(previewBox.top - controlsBox.top) < 1
-          && previewBox.left >= controlsBox.right,
-        stacked: previewBox.top >= controlsBox.bottom - 1,
+          && controlsBox.left >= previewBox.right
+          && Math.abs(instructionBox.left - controlsBox.left) < 1
+          && instructionBox.top >= controlsBox.bottom,
+        stacked: controlsBox.top >= previewBox.bottom - 1,
         presetsHeadControls: controls.previousElementSibling
           === playground.querySelector('.lf-playground-presets'),
         controlsSize: [controls.clientHeight, controls.scrollHeight],
@@ -3444,8 +3452,9 @@ def test_notification_playground_sets_regions_side_by_side_while_its_workspace_h
         **bounded,
         "controlsId": "lf-region:notification-playground:controls",
         "previewId": "lf-region:notification-playground:preview",
-        "postures": ["bounded", "bounded"],
-        "scrollers": ["own", "own"],
+        "instructionId": "lf-region:notification-playground:instruction",
+        "postures": ["bounded", "bounded", "bounded"],
+        "scrollers": ["own", "own", "own"],
         "sideBySide": True,
         "presetsHeadControls": True,
         "pageScrolls": False,
@@ -3461,12 +3470,6 @@ def test_notification_playground_sets_regions_side_by_side_while_its_workspace_h
         control_box["y"] + control_box["height"]
         <= controls_box["y"] + controls_box["height"]
     ), f"the fixed presets left no complete control row: {bounded['controlsSize']}"
-    # A short allocation scrolls the preview and instruction as successive blocks;
-    # shrinking the preview's grid track would paint it underneath the instruction.
-    content_boxes = preview.evaluate(
-        """body => [...body.children].map(node => node.getBoundingClientRect().toJSON())"""
-    )
-    assert content_boxes[0]["bottom"] <= content_boxes[1]["top"], content_boxes
     assert controls.evaluate("body => body.scrollWidth === body.clientWidth"), (
         "native control margins must fit inside the allocated pane width"
     )
@@ -3536,20 +3539,18 @@ def test_notification_playground_sets_regions_side_by_side_while_its_workspace_h
     assert action_box["y"] + action_box["height"] <= shortcut_box["y"] + 1
 
     # Beside Threads, the notification wraps beyond the preview's minimum height.
-    # The preview must grow around its content before the instruction begins.
+    # The preview must grow around its content rather than clip it.
     resized(page, 1280, 720)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    assert page.evaluate(reading)["postures"] == ["bounded", "bounded"]
+    assert page.evaluate(reading)["postures"] == ["bounded", "bounded", "bounded"]
     notification_box = page.locator(
         ".notification-demo-card-banner"
     ).first.bounding_box()
     preview_box = page.locator("#notification-preview").bounding_box()
-    instruction_box = page.locator("#notification-instruction").bounding_box()
     assert notification_box["y"] + notification_box["height"] <= (
         preview_box["y"] + preview_box["height"]
     )
-    assert preview_box["y"] + preview_box["height"] <= instruction_box["y"]
     page.locator(".lf-threads-toggle").click()
 
     for width, height in [(1100, 300), (700, 500), (500, 900)]:
@@ -3557,8 +3558,8 @@ def test_notification_playground_sets_regions_side_by_side_while_its_workspace_h
         flow = page.evaluate(reading)
         assert flow == {
             **flow,
-            "postures": ["flow", "flow"],
-            "scrollers": ["page", "page"],
+            "postures": ["flow", "flow", "flow"],
+            "scrollers": ["page", "page", "page"],
             "pageScrolls": True,
             "askDisplay": "block",
         }, (width, height)
@@ -3940,9 +3941,10 @@ def test_playground_composed_structural_target_resolves_in_the_next_revision(
     }
 
     revised = source.replace(
-        "One width gesture\n          reaches both",
-        "One shared width gesture\n          reaches both",
+        "One width gesture\n        reaches both",
+        "One shared width gesture\n        reaches both",
     )
+    assert revised != source
     stamp = stamp_page(serve.page_dir, revised, "Clarify the comparison gesture")
     wait_for_revision(page, stamp["revision"])
     target = page.locator(
@@ -4541,7 +4543,7 @@ def test_notification_playground_export_flows_at_another_width_and_on_paper(
     assert playground.evaluate(
         f"""root => {{
           const found = ({bodies})(root);
-          return found.length === 2
+          return found.length === 3
             && found.every(body => getComputedStyle(body).overflowY === 'visible');
         }}"""
     )
@@ -4550,7 +4552,7 @@ def test_notification_playground_export_flows_at_another_width_and_on_paper(
     assert playground.evaluate(
         f"""root => {{
           const found = ({bodies})(root);
-          return found.length === 2
+          return found.length === 3
             && found.every(body => getComputedStyle(body).overflowY === 'visible'
               && body.scrollHeight === body.clientHeight);
         }}"""

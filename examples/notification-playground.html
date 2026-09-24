@@ -15,10 +15,19 @@
         container-type: inline-size;
       }
 
+      /* The two formats are lanes down the stage: a stage the window holds taller than
+         the burst gives each lane its full height, so the chosen lane's frame reads as
+         a column and the room below a short feed is the lane's, not the stage's. */
+      #notification-preview {
+        grid-template-rows: auto 1fr;
+        align-content: stretch;
+      }
+
       notification-simulator .notification-demo-candidates {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: var(--sp-3);
+        height: 100%;
       }
 
       notification-simulator .notification-demo-candidate {
@@ -154,8 +163,10 @@
       }
 
       @container (max-width: 42rem) {
+        /* Stacked, the formats are no longer lanes, and each keeps its own height. */
         notification-simulator .notification-demo-candidates {
           grid-template-columns: minmax(0, 1fr);
+          height: auto;
         }
       }
     </style>

@@ -149,46 +149,52 @@ def run_session(leaf_root: Path, run: Path) -> None:
     # still ends: the kill closes stdout and the loop below finishes.
     deadline = threading.Timer(TURN_LIMIT, give_up)
     deadline.start()
-    url = None
-    waits, posted, arrived, results = set(), False, False, 0
-    with (run / "stream.jsonl").open("w") as stream:
-        for line in proc.stdout:
-            stream.write(line)
-            record = json.loads(line)
-            if record.get("subtype") == "task_notification":
-                arrived = arrived or (posted and record["tool_use_id"] in waits)
-            content = (record.get("message") or {}).get("content")
-            for block in content if isinstance(content, list) else ():
-                if block.get("type") == "tool_use" and block["name"] == "Bash":
-                    command = block["input"].get("command", "")
-                    if "leaf wait" in command and block["input"].get(
-                        "run_in_background"
-                    ):
-                        waits.add(block["id"])
-                elif block.get("type") == "tool_result" and not url:
-                    if found := URL.search(json.dumps(block.get("content"))):
-                        url = found.group(0)
-            if url and waits and not posted:
-                posted = True
-                time.sleep(5)
-                post_comment(url)
-            if record.get("type") == "result":
-                results += 1
-                # The first result ends the setup turn, even when the delivery landed
-                # before it did; a later one after the delivery ends a turn it woke.
-                # A trailing wake may follow, hence the grace period.
-                if results > 1 and arrived:
-                    threading.Timer(20, close_stdin).start()
-    proc.wait(timeout=60)
-    deadline.cancel()
-    events = subprocess.run(
-        [leaf, "events", page], env=env, check=True, capture_output=True, text=True
-    ).stdout
-    (run / "events.jsonl").write_text(events)
-    # The server may already have stopped with its session.
-    subprocess.run(
-        [leaf, "server", "stop", page], env=env, check=False, capture_output=True
-    )
+    try:
+        url = None
+        waits, posted, arrived, results = set(), False, False, 0
+        with (run / "stream.jsonl").open("w") as stream:
+            for line in proc.stdout:
+                stream.write(line)
+                record = json.loads(line)
+                if record.get("subtype") == "task_notification":
+                    arrived = arrived or (posted and record["tool_use_id"] in waits)
+                content = (record.get("message") or {}).get("content")
+                for block in content if isinstance(content, list) else ():
+                    if block.get("type") == "tool_use" and block["name"] == "Bash":
+                        command = block["input"].get("command", "")
+                        if "leaf wait" in command and block["input"].get(
+                            "run_in_background"
+                        ):
+                            waits.add(block["id"])
+                    elif block.get("type") == "tool_result" and not url:
+                        if found := URL.search(json.dumps(block.get("content"))):
+                            url = found.group(0)
+                if url and waits and not posted:
+                    posted = True
+                    time.sleep(5)
+                    post_comment(url)
+                if record.get("type") == "result":
+                    results += 1
+                    # The first result ends the setup turn, even when the delivery landed
+                    # before it did; a later one after the delivery ends a turn it woke.
+                    # A trailing wake may follow, hence the grace period.
+                    if results > 1 and arrived:
+                        threading.Timer(20, close_stdin).start()
+        proc.wait(timeout=60)
+        events = subprocess.run(
+            [leaf, "events", page], env=env, check=True, capture_output=True, text=True
+        ).stdout
+        (run / "events.jsonl").write_text(events)
+    finally:
+        # A failed arm ends as promptly as a stalled one: no timer or child outlives it.
+        deadline.cancel()
+        if proc.poll() is None:
+            proc.kill()
+            proc.wait()
+        # The server may already have stopped with its session.
+        subprocess.run(
+            [leaf, "server", "stop", page], env=env, check=False, capture_output=True
+        )
 
 
 def score(run: Path) -> dict:

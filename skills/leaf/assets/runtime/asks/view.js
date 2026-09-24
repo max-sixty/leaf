@@ -160,6 +160,8 @@ export function createAskView({
   setPanel,
   setOpenTray,
   trayCovers,
+  depart,
+  stay,
   readableDestination,
   scrollToElement,
   refreshConversation,
@@ -1095,10 +1097,10 @@ export function createAskView({
     );
   }
 
-  // Standing on one ask: what d and D do once they have decided which, and what a press on
-  // a tray row does having been told outright. One function because it is one act — a
-  // second would be a second answer to "how do I put the user on an ask", and the two
-  // would drift the first time either the reveal or the focus rule changed.
+  // Standing on one ask: what a and Shift+a do once they have decided which, and what a
+  // press on a tray row does having been told outright. One function because it is one
+  // act — a second would be a second answer to "how do I put the user on an ask", and the
+  // two would drift the first time either the reveal or the focus rule changed.
   //
   // The list comes with the ask, because the announcement names a place in it and the caller
   // is the one that knows which list it walked: the walk's own or the tray's.
@@ -1150,7 +1152,15 @@ export function createAskView({
     else {
       const box = scrollerFor(target);
       const region = arrivalRegion(target, box);
-      if (!framed(region, target, box, readableDestination)) {
+      // Whether this press moves the page is `framed`'s answer, so it is also whether
+      // the press is a trip. Nothing above has moved the page: reveal opens what holds
+      // the Ask in place and the focus moves without scrolling, so the entry recorded
+      // here still holds where the user was reading. A thread Ask moves only the panel
+      // and is no trip.
+      const landing = () => askNode(next);
+      if (framed(region, target, box, readableDestination)) stay(landing);
+      else {
+        depart({ landing });
         // The ask's own box first, which is the only pass that moves a scroller
         // other than the page's: the placement below moves whichever box scrolls the
         // region, and for a region out on the page that is never the board's own

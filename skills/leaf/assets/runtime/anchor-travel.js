@@ -5,8 +5,8 @@
  * subordinate geometry never imports the presenter. A trip keeps its original user
  * intent through hydration, reveal and presentation. Newer input or another trip
  * cancels its landing without cancelling the data the page is loading. A trip to a
- * thread or datum somewhere else leaves a history entry, so browser Back returns the
- * user to where they were reading. A walk from thread to thread is one entry.
+ * thread, Ask or datum somewhere else leaves a history entry, so browser Back returns
+ * the user to where they were reading. A walk from landing to landing is one entry.
  */
 
 import {
@@ -46,20 +46,35 @@ export function createAnchorTravel({
   // The browser saves the current scroll position onto the entry a push leaves and
   // restores it when Back traverses to it, which is the native restoration history
   // travel keeps (version.js). A push therefore comes before the trip moves anything.
-  // A thread already readable where the user stands is no trip and records nothing.
-  // A thread trip taken while the thread the last trip landed on is still readable
-  // continues that walk: it replaces the walk's entry, which already holds where the
-  // walk began. Once the user has moved off that landing, the next trip pushes again.
-  function depart({ url = window.location.href, thread = null } = {}) {
-    const state = thread ? { lfThread: thread } : null;
-    if (thread && stillLanded()) history.replaceState(state, "", url);
+  // A destination already readable where the user stands is no trip; its caller does
+  // not depart. A trip that names its `landing` while any of the last trip's landing
+  // still shows continues that walk, whether it walks threads or Asks: it replaces the
+  // walk's entry, which already holds where the walk began. Once the user has moved
+  // off that landing, the next trip pushes again. The landing is a lookup rather than
+  // a node because the conversation pass repaints marks, and the entry carries a token
+  // for this document's walk because only this load holds the lookup.
+  const walkPrefix = `${performance.timeOrigin}:`;
+  let trips = 0;
+  let walk = null;
+
+  function depart({ url = window.location.href, landing = null } = {}) {
+    const continuing = landing && stillLanded();
+    walk = landing && { token: walkPrefix + ++trips, landing };
+    const state = walk && { lfWalk: walk.token };
+    if (continuing) history.replaceState(state, "", url);
     else history.pushState(state, "", url);
   }
 
+  // A step whose destination is already in front of the user moves nothing and records
+  // nothing, but it is still a step of the walk: the walk now stands on its landing, so
+  // the next trip continues from there rather than from the one before it.
+  function stay(landing) {
+    if (stillLanded()) walk.landing = landing;
+  }
+
   function stillLanded() {
-    const id = history.state?.lfThread;
-    const where = id && threadDestination(id);
-    return Boolean(where && readableDestination(where));
+    const where = walk && history.state?.lfWalk === walk.token && walk.landing();
+    return Boolean(where && seenOf(where));
   }
 
   function validateProjectionReference(owner, attribute) {
@@ -174,21 +189,24 @@ export function createAnchorTravel({
     scrollRevealedElement(element, behavior, block);
   }
 
-  function readableDestination(where) {
-    const holder =
-      where instanceof Range
-        ? where.startContainer instanceof Element
-          ? where.startContainer
-          : where.startContainer.parentElement
-        : where;
-    if (!holder) return false;
+  // A destination's box and what of it the user can see, which is that box less the
+  // window and whatever clips it, or null when none of it shows.
+  function seenOf(where) {
+    const holder = destinationHolder(where);
+    if (!holder) return null;
     const destination =
       where instanceof Range ? where.getBoundingClientRect() : shownBox(where);
     const seen =
       where instanceof Range
         ? clippedContents(destination, holder, new Map())
         : shownRect(where, new Map());
-    if (!seen) return false;
+    return seen && { holder, destination, seen };
+  }
+
+  function readableDestination(where) {
+    const shown = seenOf(where);
+    if (!shown) return false;
+    const { holder, destination, seen } = shown;
     const box = scrollingBoxFor(holder);
     const view = shownBox(box ?? pageScroller);
     const { top: clearAbove, bottom: clearBelow } = box
@@ -206,10 +224,7 @@ export function createAnchorTravel({
   }
 
   function scrollRevealedRange(where, behavior = scrollBehavior()) {
-    const holder =
-      where.startContainer instanceof Element
-        ? where.startContainer
-        : where.startContainer.parentElement;
+    const holder = destinationHolder(where);
     if (!holder) return;
     const targetScroller = scrollingBoxFor(holder);
     if (!targetScroller) return;
@@ -266,8 +281,9 @@ export function createAnchorTravel({
     const standing = threadDestination(id);
     // Decided before the trip awaits anything: a destination that is not readable now,
     // or one a widget has yet to hydrate, is somewhere else.
-    if ((standing || hydrating) && !(standing && readableDestination(standing)))
-      depart({ thread: id });
+    const landing = () => threadDestination(id);
+    if (standing && readableDestination(standing)) stay(landing);
+    else if (standing || hydrating) depart({ landing });
     if (hydrating) {
       const source = sectionOf(anchor);
       const hydration = source?.lfRevealDatum?.(anchor.datum);
@@ -303,6 +319,8 @@ export function createAnchorTravel({
   }
 
   return {
+    depart,
+    stay,
     navigateToDatum,
     scrollToElement,
     scrollRevealedElement,

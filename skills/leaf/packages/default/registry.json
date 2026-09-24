@@ -758,7 +758,7 @@
       "lf-column"
     ],
     "x-content": "markup",
-    "x-work": {"seat": "content"},
+    "x-work": true,
     "x-upgrade": false
   },
   "lf-tabs": {

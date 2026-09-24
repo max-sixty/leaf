@@ -526,7 +526,6 @@ def _validate_widget_predicates(tag: str, entry: dict, properties: dict, path) -
             for condition in awaits.get("answered", {}).values()
         ),
         ("x-conversation", entry.get("x-conversation", {}).get("when", {})),
-        ("x-work", entry.get("x-work", {}).get("when", {})),
     ]
     for declaration, condition in conditions:
         for attr, values in condition.items():
@@ -601,24 +600,18 @@ def _validate_widget_interactions(
     awaits: dict,
     path,
 ) -> None:
-    work = entry.get("x-work")
-    if work and work["seat"] == "content":
+    if entry.get("x-work"):
         if entry.get("x-inline"):
             raise RegistryError(
-                f"{path}: <{tag}> declares a content work seat but is inline; "
+                f"{path}: <{tag}> declares x-work but is inline; "
                 "local work chrome needs a block slot"
             )
         if entry.get("x-content") != "markup":
             raise RegistryError(
-                f"{path}: <{tag}> declares a content work seat but x-content is "
+                f"{path}: <{tag}> declares x-work but x-content is "
                 f"{entry.get('x-content')}; generated local chrome may only join "
                 "authored prose"
             )
-    if work and work["seat"] == "conversation" and not entry.get("x-conversation"):
-        raise RegistryError(
-            f"{path}: <{tag}> declares a conversation work seat but declares "
-            "no x-conversation"
-        )
     answered = awaits.get("answered", {})
     if entry.get("x-awaits") is not None and not answered:
         raise RegistryError(

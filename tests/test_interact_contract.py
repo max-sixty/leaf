@@ -2415,7 +2415,7 @@ def test_boolean_attribute_subschemas_validate_without_crashing(
         ("x-upgrade", "yes"),
         ("x-verbatim", "false"),
         ("x-work", []),
-        ("x-work", {"seat": "content", "when": {"choose": True}}),
+        ("x-work", {"seat": "content"}),
         ("x-unknown", True),
     ],
 )
@@ -2434,22 +2434,12 @@ def test_check_refuses_malformed_registry_extensions(page_dir, key, value):
     ("mutate", "message"),
     [
         (
-            lambda registry: registry["lf-chip"].update(
-                {"x-work": {"seat": "content"}}
-            ),
-            "content work seat but is inline",
+            lambda registry: registry["lf-chip"].update({"x-work": True}),
+            "declares x-work but is inline",
         ),
         (
-            lambda registry: registry["lf-diagram"].update(
-                {"x-work": {"seat": "content"}}
-            ),
-            "content work seat but x-content is data",
-        ),
-        (
-            lambda registry: registry["lf-options"].update(
-                {"x-work": {"seat": "conversation"}}
-            ),
-            "conversation work seat but declares no x-conversation",
+            lambda registry: registry["lf-diagram"].update({"x-work": True}),
+            "declares x-work but x-content is data",
         ),
     ],
 )

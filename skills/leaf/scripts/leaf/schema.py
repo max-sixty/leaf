@@ -294,16 +294,6 @@ AWAITS_SCHEMA = {
 }
 # A list of the widget's own attribute names. One shape for the three keys that hold
 # one, since the shape is a consequence of what they name rather than three decisions.
-WORK_SCHEMA = {
-    "type": "object",
-    "properties": {
-        "seat": {"enum": ["content", "conversation"]},
-        "when": AWAITING_CONDITION,
-    },
-    "required": ["seat"],
-    "additionalProperties": False,
-}
-
 GUIDANCE_SCHEMA = {
     "type": "object",
     "propertyNames": {"pattern": f"^{HTML_NAME}$"},
@@ -431,7 +421,7 @@ EXTENSION_SCHEMA = {
         "x-withdrawn-as": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "x-word": {"enum": ["module"]},
         "x-name": {"type": "string", "pattern": f"^{HTML_NAME}$"},
-        "x-work": WORK_SCHEMA,
+        "x-work": {"const": True},
     },
     "required": ["x-content", "x-upgrade"],
     "dependentRequired": {

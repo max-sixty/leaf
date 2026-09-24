@@ -180,6 +180,46 @@ def test_terminating_a_preview_stops_its_claimed_service(tmp_path, preview_slot,
     assert "Traceback" not in (tmp_path / "preview.log").read_text()
 
 
+def test_terminating_a_preview_while_its_service_starts_leaves_none(
+    tmp_path, preview_slot, spawn
+):
+    """A stop that lands before the durable service has announced itself leaves
+    it disabled. The serving child runs in a session of its own, so the group
+    signal never reaches it, and the preview's stop can run before the child has
+    taken the page; the start used to stand behind that stop, enabled."""
+    slot, page = preview_slot
+    with (tmp_path / "preview.log").open("w", encoding="utf-8") as output:
+        process = spawn(
+            [sys.executable, PREVIEW_SCRIPT, "heat-loss", "--slot", slot, "--user"],
+            cwd=ROOT,
+            stdout=output,
+            stderr=subprocess.STDOUT,
+            start_new_session=True,
+        )
+
+    def serving_child():
+        found = subprocess.run(
+            ["pgrep", "-f", f"server _serve {page}"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        return [int(pid) for pid in found.stdout.split()]
+
+    children = wait_for(
+        serving_child,
+        lambda pids: pids or process.poll() is not None,
+        failure="the preview never spawned its service",
+        timeout=90,
+    )
+    assert children, (tmp_path / "preview.log").read_text()
+    os.killpg(process.pid, signal.SIGTERM)
+    process.wait(timeout=30)
+    wait_for(serving_child, lambda pids: not pids, failure="the service outlived it")
+    assert server_model.running_server(page) is None
+    assert not json.loads((page / "service.json").read_text())["enabled"]
+
+
 def test_a_leaf_failure_exits_the_preview_without_a_wrapper_traceback(
     tmp_path, preview_slot
 ):

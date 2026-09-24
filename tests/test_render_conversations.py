@@ -6331,9 +6331,12 @@ def test_the_line_offers_the_list_its_own_keys_rather_than_the_way_deeper_in(
     expect(shown.nth(1)).to_contain_text("close threads")
 
     # And the press it displaced still works, from the placeholder that advertises it.
-    expect(page.locator(".lf-general textarea")).to_have_attribute(
-        "placeholder", re.compile(r"·\s*c$")
-    )
+    # The badge inside the painted placeholder is where the box states that key, and
+    # it stands only while the box is hinted and empty, so reading it holds what the
+    # user can see rather than how the hint's two parts happen to be joined.
+    advertised = page.locator(".lf-general .lf-compose-placeholder kbd")
+    expect(advertised).to_be_visible()
+    expect(advertised).to_have_text("c")
     page.keyboard.press("c")
     expect(page.locator(".lf-general textarea")).to_be_focused()
 

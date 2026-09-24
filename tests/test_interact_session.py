@@ -3359,7 +3359,7 @@ def test_a_delivery_bound_final_is_the_only_plain_reply_writer(page_dir):
     with service_model.PageTransaction(page_dir) as page:
         page.open_turn("codex-thread", "turn-2")
 
-    with pytest.raises(SystemExit, match="bound to this delivery's final message"):
+    with pytest.raises(SystemExit, match="answered by this turn's messages"):
         conversation_model.cmd_reply(
             page_dir,
             comment["id"],
@@ -3394,7 +3394,7 @@ def test_a_delivery_reserves_its_final_before_provider_execution(page_dir):
 
     conversation_model.reserve_delivery_reply("codex-thread", "delivery-1", target)
 
-    with pytest.raises(SystemExit, match="bound to this delivery's final message"):
+    with pytest.raises(SystemExit, match="answered by this turn's messages"):
         conversation_model.cmd_reply(
             page_dir,
             comment["id"],
@@ -7708,7 +7708,7 @@ def test_an_uncertain_app_server_start_recovers_by_delivery_identity(
     [payload] = attempted
     [(path, queue)] = codex_records("codex-thread")
     assert queue["state"] == "offering"
-    with pytest.raises(SystemExit, match="bound to this delivery's final message"):
+    with pytest.raises(SystemExit, match="answered by this turn's messages"):
         conversation_model.cmd_reply(
             page,
             comment["id"],
@@ -10260,13 +10260,14 @@ def test_a_claim_is_active_while_the_lifetime_it_names_holds(
 
 
 def test_a_leaf_wait_launch_under_claude_code_carries_the_closing_guidance(tmp_path):
-    """The `PostToolUse` entry prints `hooks/wait-started.json` after a `leaf wait`
-    launch in Claude Code, and nothing anywhere else.
+    """The `PostToolUse` entry prints `hooks/wait-started.json` after a background
+    `leaf wait` launch in Claude Code, and nothing anywhere else.
 
-    The command checks both things itself rather than trusting the host's `if`
-    filter: Codex runs the same `hooks.json`, ignores `if`, and fires the entry on
-    every shell call, and a Claude Code build that drops `if` would do the same.
-    Claude Code 2.1.280 honors it. Run the registered command the way a host does:
+    The command decides both things itself rather than trusting the host's `if`
+    filter: Codex runs the same `hooks.json` and ignores `if`, and Claude Code
+    passes any command it cannot resolve, such as one reading `$?`. So a command
+    that mentions the phrase, or prints it into `tool_response`, has to be refused
+    by the command's own reading. Run the registered command the way a host does:
     through a shell, payload on stdin.
     """
     (entry,) = json.loads((PLUGIN_ROOT / "hooks" / "hooks.json").read_text())["hooks"][
@@ -10278,11 +10279,12 @@ def test_a_leaf_wait_launch_under_claude_code_carries_the_closing_guidance(tmp_p
     base = {k: v for k, v in os.environ.items() if k != "CLAUDECODE"}
     base["CLAUDE_PLUGIN_ROOT"] = str(PLUGIN_ROOT)
 
-    def run(command, claude_code):
+    def run(command, claude_code=True, background=True, printed=""):
         payload = {
             "hook_event_name": "PostToolUse",
             "tool_name": "Bash",
-            "tool_input": {"command": command, "run_in_background": True},
+            "tool_input": {"command": command, "run_in_background": background},
+            "tool_response": {"stdout": printed, "stderr": ""},
         }
         env = base | ({"CLAUDECODE": "1"} if claude_code else {})
         done = subprocess.run(
@@ -10298,9 +10300,24 @@ def test_a_leaf_wait_launch_under_claude_code_carries_the_closing_guidance(tmp_p
         return json.loads(done.stdout) if done.stdout else None
 
     launch = f"{PLUGIN_ROOT}/bin/leaf wait --ack 64186241"
-    assert run(launch, claude_code=True) == guidance
+    assert run(launch) == guidance
     assert run(launch, claude_code=False) is None
-    assert run("git status", claude_code=True) is None
+    assert run(launch, background=False) is None
+    for starts in [
+        "leaf wait",
+        'cd /tmp && FOO=1 "$CLAUDE_PLUGIN_ROOT/bin/leaf" wait; echo $?',
+        "echo hi  # don't block on this\nbin/leaf wait --ack 1",
+    ]:
+        assert run(starts) == guidance, starts
+    for mentions in [
+        "git status",
+        "grep -n 'leaf wait' skills/leaf/SKILL.md",
+        "leaf serve page; echo leaf wait",
+        "# leaf wait is running\ngit status",
+        "cat > run.sh <<'EOF'\nleaf wait\nEOF\nchmod +x run.sh",
+    ]:
+        assert run(mentions) is None, mentions
+    assert run("sed -n 1p hooks/hooks.json; echo $?", printed="leaf wait") is None
 
 
 def test_the_registered_hook_answers_out_of_interact_or_says_nothing(claimed, tmp_path):

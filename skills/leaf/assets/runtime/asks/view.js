@@ -161,6 +161,7 @@ export function createAskView({
   setOpenTray,
   trayCovers,
   depart,
+  stay,
   readableDestination,
   scrollToElement,
   refreshConversation,
@@ -1111,11 +1112,6 @@ export function createAskView({
     // same reason reveal() opens a settled group before the scroll.
     let { target, source } = await materializeAsk(next, mayArrive);
     if (!mayArrive() || !target) return false;
-    // A page Ask the user cannot read where they stand is a trip, recorded before the
-    // reveal and the scroll below move anything. A thread Ask moves only the panel,
-    // which leaves the page where Back would return it.
-    if (!inChrome(target) && !readableDestination(target))
-      depart({ landing: () => askNode(next) });
     if (inChrome(target) && !panelIsOpen()) {
       if (!mayArrive.handoff(() => setPanel(true))) return false;
       await refreshConversation();
@@ -1156,7 +1152,15 @@ export function createAskView({
     else {
       const box = scrollerFor(target);
       const region = arrivalRegion(target, box);
-      if (!framed(region, target, box, readableDestination)) {
+      // Whether this press moves the page is `framed`'s answer, so it is also whether
+      // the press is a trip. Nothing above has moved the page: reveal opens what holds
+      // the Ask in place and the focus moves without scrolling, so the entry recorded
+      // here still holds where the user was reading. A thread Ask moves only the panel
+      // and is no trip.
+      const landing = () => askNode(next);
+      if (framed(region, target, box, readableDestination)) stay(landing);
+      else {
+        depart({ landing });
         // The ask's own box first, which is the only pass that moves a scroller
         // other than the page's: the placement below moves whichever box scrolls the
         // region, and for a region out on the page that is never the board's own

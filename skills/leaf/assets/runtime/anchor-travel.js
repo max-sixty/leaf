@@ -65,6 +65,13 @@ export function createAnchorTravel({
     else history.pushState(state, "", url);
   }
 
+  // A step whose destination is already in front of the user moves nothing and records
+  // nothing, but it is still a step of the walk: the walk now stands on its landing, so
+  // the next trip continues from there rather than from the one before it.
+  function stay(landing) {
+    if (stillLanded()) walk.landing = landing;
+  }
+
   function stillLanded() {
     const where = walk && history.state?.lfWalk === walk.token && walk.landing();
     return Boolean(where && seenOf(where));
@@ -274,8 +281,9 @@ export function createAnchorTravel({
     const standing = threadDestination(id);
     // Decided before the trip awaits anything: a destination that is not readable now,
     // or one a widget has yet to hydrate, is somewhere else.
-    if ((standing || hydrating) && !(standing && readableDestination(standing)))
-      depart({ landing: () => threadDestination(id) });
+    const landing = () => threadDestination(id);
+    if (standing && readableDestination(standing)) stay(landing);
+    else if (standing || hydrating) depart({ landing });
     if (hydrating) {
       const source = sectionOf(anchor);
       const hydration = source?.lfRevealDatum?.(anchor.datum);
@@ -312,6 +320,7 @@ export function createAnchorTravel({
 
   return {
     depart,
+    stay,
     navigateToDatum,
     scrollToElement,
     scrollRevealedElement,

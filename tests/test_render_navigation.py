@@ -8654,6 +8654,48 @@ def test_back_returns_from_an_ask_the_walk_travelled_to(browser, serve):
     )
 
 
+def test_back_returns_from_an_ask_whose_context_the_arrival_brings_in(browser, serve):
+    """An Ask in front of the user whose arrival region is not still moves the page,
+    since the arrival puts the region's start at the top of the window, and a press
+    that moves the page records where the user was reading. A draft declares no region,
+    so its region runs up from the heading its context starts under."""
+    context = "".join(f"<p>Context paragraph {n}.</p>" for n in range(8))
+    filler = "".join(f"<p>Filler paragraph {n}.</p>" for n in range(40))
+    url = serve(
+        leaf_page(
+            "Back from a draft",
+            f"""
+<h1 id="h">Back from a draft</h1>
+<section id="above">{filler}</section>
+<h2 id="context">The invitation</h2>
+{context}
+<lf-draft id="note" needed><pre>The sample workshop is in the blue room.</pre></lf-draft>
+<section id="below">{filler}</section>
+""",
+        )
+    )
+    page = open_page(browser, url)
+    page.evaluate(
+        "document.scrollingElement.scrollBy({top: document.getElementById('note')"
+        ".getBoundingClientRect().top - 70, behavior: 'instant'})"
+    )
+    assert page.evaluate(
+        "document.getElementById('context').getBoundingClientRect().bottom < 0"
+    )
+    reading = page.evaluate("document.scrollingElement.scrollTop")
+    entries = page.evaluate("history.length")
+
+    page.keyboard.press("a")
+    expect(page.locator("#note")).to_be_focused()
+    scroll_settled(page)
+    assert page.evaluate("document.scrollingElement.scrollTop") < reading - 100
+    assert page.evaluate("history.length") == entries + 1
+    page.go_back()
+    page.wait_for_function(
+        "top => Math.abs(document.scrollingElement.scrollTop - top) <= 2", arg=reading
+    )
+
+
 def test_the_key_line_keeps_local_and_page_hints_and_progressively_reveals_the_rest(
     browser, serve
 ):

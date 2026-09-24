@@ -529,10 +529,12 @@ def cmd_stop(page_dir: Path) -> str:
         live = lock_is_held(page_dir / SERVER_LOCK)
         if service and service["enabled"]:
             write_json(page_dir / SERVICE_FILE, {**service, "enabled": False})
-        if live:
-            # The serving process observes disabled desired state and exits.
-            # Taking its lease is the barrier proving every socket is closed.
-            with open(page_dir / SERVER_LOCK, "a+b") as lease:
-                fcntl.flock(lease, fcntl.LOCK_EX)
-            return "stopped server"
+    if live:
+        # The serving process observes disabled desired state and exits. Taking
+        # its lease is the barrier proving every socket is closed. It is taken
+        # outside the transition, which that process may still need on its way
+        # out; nothing can re-enable the record while the lease is held.
+        with open(page_dir / SERVER_LOCK, "a+b") as lease:
+            fcntl.flock(lease, fcntl.LOCK_EX)
+        return "stopped server"
     return "no server running"

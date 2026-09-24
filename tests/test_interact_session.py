@@ -4737,7 +4737,7 @@ def test_each_delivered_event_says_only_what_its_own_case_asks(page_dir, capsys)
         "action": "choose",
         "detail": {"options": ["a"]},
         "meaning": {
-            "document": "page",
+            "scope": "page",
             "unit": "w",
             "depends": ["a", "w"],
             "answer": None,
@@ -4745,7 +4745,7 @@ def test_each_delivered_event_says_only_what_its_own_case_asks(page_dir, capsys)
     }
     thread_pick = {
         **page_pick,
-        "meaning": {**page_pick["meaning"], "document": "thread"},
+        "meaning": {**page_pick["meaning"], "scope": "thread"},
     }
     drawing = {"format": "leaf-drawing/2", "strokes": [[[0, 0], [10, 10]]]}
     for event in (
@@ -4945,7 +4945,7 @@ def test_wait_prints_unacknowledged_input_without_receipt_or_pickup(page_dir, ca
             "action": "move",
             "detail": {"card": "x", "to": "y", "rank": "0i"},
             "meaning": {
-                "document": "page",
+                "scope": "page",
                 "unit": "x",
                 "depends": ["b", "x", "y"],
             },
@@ -5009,7 +5009,7 @@ def test_wait_prints_unacknowledged_input_without_receipt_or_pickup(page_dir, ca
             "session": "worker-1",
             "widget": "t1",
             "meaning": {
-                "document": "page",
+                "scope": "page",
                 "unit": "t1",
                 "depends": ["t1"],
             },
@@ -10779,7 +10779,7 @@ def test_idle_cannot_close_a_page_over_events_nobody_read(claimed, capsys):
             "author": "agent",
             "widget": "t1",
             "meaning": {
-                "document": "page",
+                "scope": "page",
                 "unit": "t1",
                 "depends": ["t1"],
             },

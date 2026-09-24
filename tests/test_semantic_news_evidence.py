@@ -143,7 +143,7 @@ def test_request_outcomes_keep_receipts_after_the_seat_is_removed():
             "widget": "old-seat",
             "action": "submit",
             "meaning": {
-                "document": "page",
+                "scope": "page",
                 "unit": "old-seat",
             },
         },
@@ -161,7 +161,7 @@ def test_request_outcomes_keep_receipts_after_the_seat_is_removed():
             "widget": "old-seat",
             "action": "submit",
             "meaning": {
-                "document": "page",
+                "scope": "page",
                 "unit": "old-seat",
             },
         },

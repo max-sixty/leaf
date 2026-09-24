@@ -4,7 +4,7 @@ from pathlib import Path
 
 from .asks import quoted_in
 from .event_meaning import request_unit
-from .events import event_document
+from .events import document_identity, event_document
 from .host import message_identity
 from .leases import contract_writer
 from .registry.contract import schema_error
@@ -261,10 +261,7 @@ def request_lifecycle_error(
         unit=request_unit(
             event, registry[record["tag"]]["x-request"]["verbs"][event["action"]]
         ),
-        document={
-            "kind": scope,
-            **({"revision": event["revision"]} if scope == "page" else {}),
-        },
+        document=document_identity(scope, event["revision"]),
     )
     latest = lifecycle["latest"]
     if latest is None:

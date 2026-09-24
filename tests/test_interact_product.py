@@ -1406,7 +1406,7 @@ def test_export_prints_threads_and_versions(page_dir):
             "action": "move",
             "detail": {"card": "card-x", "to": "col-done", "rank": "0i"},
             "meaning": {
-                "document": "page",
+                "scope": "page",
                 "unit": "card-x",
                 "depends": ["b", "card-x", "col-done"],
             },
@@ -1422,7 +1422,7 @@ def test_export_prints_threads_and_versions(page_dir):
             "action": "choose",
             "detail": {"options": ["backfill-first"]},
             "meaning": {
-                "document": "page",
+                "scope": "page",
                 "unit": "plan-options",
                 "depends": ["backfill-first", "plan-options"],
             },

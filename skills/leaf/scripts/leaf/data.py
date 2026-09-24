@@ -28,7 +28,7 @@ from .service import PageTransaction
 
 
 class StaleDataError(DataError):
-    """A fragment request named a source revision the source no longer holds."""
+    """A deferred-value request named a source revision the source no longer holds."""
 
 
 def source_file(page_dir: Path, source: str) -> Path:
@@ -179,7 +179,7 @@ def data_manifest(value, contract: str, registry: dict):
 
 def browser_data_from(stored: dict, registry: dict) -> dict:
     """The reading a browser receives: each value with its deferred fields omitted,
-    which the fragment door serves from the same source file."""
+    which the deferred door serves from the same source file."""
     return {
         "version": stored["version"],
         "sources": {
@@ -198,7 +198,7 @@ def browser_data_from(stored: dict, registry: dict) -> dict:
     }
 
 
-def data_fragment(
+def deferred_value(
     reading: dict | None, registry: dict, *, source: str, revision: str, key: str
 ) -> dict:
     """One record's deferred field in the source value at `revision`, which must
@@ -223,10 +223,12 @@ def data_fragment(
     ]
     if len(matches) != 1:
         reason = "unknown" if not matches else "duplicate"
-        raise DataError(f"{reason} fragment key {key!r} in data source {source!r}")
+        raise DataError(f"{reason} record key {key!r} in data source {source!r}")
     item = matches[0]
     if spec["deferred"] not in item:
-        raise DataError(f"fragment {key!r} in data source {source!r} has no value")
+        raise DataError(
+            f"record {key!r} in data source {source!r} has no deferred value"
+        )
     return {
         "source": source,
         "contract": reading["contract"],

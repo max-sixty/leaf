@@ -4269,6 +4269,31 @@ def test_the_diff_script_refuses_evidence_the_widget_cannot_render(patch_text, m
         patch_manifest(patch_text)
 
 
+def test_data_set_names_the_producer_when_nothing_arrives(page_dir, tmp_path):
+    """A producer that refuses its input writes nothing, and `data set` downstream
+    of it says so, pointing back at the producer's error rather than adding a JSON
+    parse error of its own. Nothing is stored."""
+    declare_data_input(page_dir, "builds", {"type": "object"}, contract="build-map")
+    empty = tmp_path / "builds.json"
+    empty.write_text("\n")
+
+    piped = CliRunner().invoke(
+        cli_model.cli, ["data", "set", str(page_dir), "builds"], input=""
+    )
+    filed = CliRunner().invoke(
+        cli_model.cli, ["data", "set", str(page_dir), "builds", "--file", str(empty)]
+    )
+
+    assert piped.exit_code == 1
+    assert piped.output == (
+        "Error: no value arrived on stdin; if a command piped into this one, it "
+        "likely failed, and its error above says why\n"
+    )
+    assert filed.exit_code == 1
+    assert f"{empty} is empty" in filed.output
+    assert "builds" not in read_page_data(page_dir)["sources"]
+
+
 def test_data_set_reads_a_structured_value_from_a_file(page_dir, tmp_path):
     declare_data_input(page_dir, "builds", {"type": "object"}, contract="build-map")
     payload = tmp_path / "builds.json"

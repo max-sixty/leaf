@@ -5,7 +5,10 @@ The corpus is derived test content — edit an example, regression page, or the
 developer feature gallery and rerun this script (tests fail on a stale corpus). Each page's
 <main> body keeps its ids but not its document-level contents sidebar. Every source
 must therefore keep its ids disjoint, which this script enforces.
-Usage: corpus.py  (no arguments; writes examples/corpus.html)
+An example that owns an element (a page/registry.json declaration with its module under
+page/widgets/) brings that element into the corpus through examples/corpus.page/, the
+corpus's own page directory, so its markup still names a declared element there.
+Usage: corpus.py  (no arguments; writes examples/corpus.html and its companions)
 """
 
 import json
@@ -21,6 +24,7 @@ EXAMPLES_DIR = Path(__file__).resolve().parent.parent / "examples"
 CORPUS = EXAMPLES_DIR / "corpus.html"
 CORPUS_DATA = EXAMPLES_DIR / "corpus.data.json"
 CORPUS_EVENTS = EXAMPLES_DIR / "corpus.jsonl"
+CORPUS_PAGE = EXAMPLES_DIR / "corpus.page"
 # Keep the short core pages first; specialist and regression surfaces follow.
 PUBLIC_TABS = [
     ("review-a-plan", "Plan review"),
@@ -35,6 +39,7 @@ PUBLIC_TABS = [
     ("code-comparison", "Code comparison"),
     ("live-progress", "Live"),
     ("pr-walkthrough", "PR"),
+    ("wt-merge", "Merge film"),
     ("security-boundary", "Security"),
     ("command-hub", "Command"),
 ]
@@ -177,6 +182,45 @@ def build() -> str:
     return head + "\n" + "\n".join(tabs) + "\n" + FOOT
 
 
+def build_page() -> dict[str, bytes]:
+    """The corpus's page directory: every element an example owns, with its modules.
+
+    An element is the example's own when it ships the module that defines it,
+    `widgets/<tag>.js`; a declaration without one narrows a layer widget for that page
+    alone (a playground's fixed id) and stays out of the corpus. An owning example's
+    other page files come along, since its modules import them.
+    """
+    declarations = {}
+    files = {}
+    for source, _ in TABS:
+        page = source.with_suffix(".page")
+        if not page.is_dir():
+            continue
+        registry = json.loads((page / "registry.json").read_text(encoding="utf-8"))
+        owned = {
+            tag: entry
+            for tag, entry in registry.items()
+            if (page / "widgets" / f"{tag}.js").is_file()
+        }
+        if not owned:
+            continue
+        for tag, entry in owned.items():
+            if tag in declarations:
+                sys.exit(f"corpus examples both declare {tag!r}")
+            declarations[tag] = entry
+        for path in sorted(page.rglob("*")):
+            name = path.relative_to(page).as_posix()
+            if not path.is_file() or name == "registry.json":
+                continue
+            if name in files and files[name] != path.read_bytes():
+                sys.exit(f"corpus examples contribute conflicting page file {name!r}")
+            files[name] = path.read_bytes()
+    if not declarations:
+        return {}
+    registry = json.dumps(declarations, indent=2, ensure_ascii=False) + "\n"
+    return {"registry.json": registry.encode(), **files}
+
+
 def build_data() -> dict:
     """Compose the package sources needed by the examples embedded in the corpus."""
     return composed_data()
@@ -230,6 +274,13 @@ def main() -> None:
         encoding="utf-8",
     )
     CORPUS_EVENTS.write_text(build_events(), encoding="utf-8")
+    for old in (
+        sorted(CORPUS_PAGE.rglob("*"), reverse=True) if CORPUS_PAGE.exists() else []
+    ):
+        old.unlink() if old.is_file() else old.rmdir()
+    for name, data in build_page().items():
+        (CORPUS_PAGE / name).parent.mkdir(parents=True, exist_ok=True)
+        (CORPUS_PAGE / name).write_bytes(data)
     print(CORPUS)
     print(CORPUS_DATA)
     print(CORPUS_EVENTS)

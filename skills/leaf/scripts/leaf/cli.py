@@ -187,9 +187,9 @@ def init(dir: str, selected: tuple[str, ...], no_packages: bool) -> None:
     cmd_init(resolve_dir(dir, must_exist=False), selections)
 
 
-@cli.group(short_help="Create, check, and install packages.")
+@cli.group(short_help="Create, check, install, and run packages.")
 def package() -> None:
-    """Create, check, and install packages."""
+    """Create, check, install, and run packages."""
 
 
 @package.command("init", short_help="Create a package directory.")
@@ -241,6 +241,26 @@ def package_install(package_path: Path) -> None:
     from leaf.packages import cmd_package_install
 
     cmd_package_install(package_path)
+
+
+@package.command(
+    "run",
+    short_help="Run one of a package's scripts.",
+    context_settings={"ignore_unknown_options": True, "allow_interspersed_args": False},
+)
+@click.argument("name", metavar="PACKAGE")
+@click.argument("script", metavar="SCRIPT")
+@click.argument("arguments", nargs=-1, type=click.UNPROCESSED, metavar="[ARGS]...")
+def package_run(name: str, script: str, arguments: tuple[str, ...]) -> None:
+    """Run SCRIPT from PACKAGE's scripts/ with ARGS.
+
+    PACKAGE is a bundled or installed package's name, as `page init --package`
+    takes it. The script reads and writes stdin and stdout itself, so it sits
+    in a pipeline as printed, and its exit status is the command's.
+    """
+    from leaf.packages import cmd_package_run
+
+    cmd_package_run(name, script, arguments)
 
 
 @page.command(short_help="Add images and print their page paths.")
@@ -437,8 +457,18 @@ def data_set(dir: str, source: str, input_file) -> None:
     """Validate and replace SOURCE with one complete JSON value."""
     from leaf.data import cmd_data_set
 
+    text = input_file.read()
+    if not text.strip():
+        # Usually a producer upstream in the pipe failed and wrote nothing, and
+        # its own error is the one to read; a JSON parse error would bury it.
+        raise click.ClickException(
+            "no value arrived on stdin; if a command piped into this one, it "
+            "likely failed, and its error above says why"
+            if input_file.name == "<stdin>"
+            else f"{input_file.name} is empty; it holds no JSON value"
+        )
     try:
-        value = json.load(input_file)
+        value = json.loads(text)
     except json.JSONDecodeError as error:
         raise click.ClickException(
             f"invalid JSON ({error.msg}, line {error.lineno})"

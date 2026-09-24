@@ -7,6 +7,9 @@ the widget, under the vocabulary that document was written in, so a later versio
 that reworded or removed an option does not change what the user chose. Deliveries,
 the transcript, and the served history state a gesture through this one reading.
 
+A child a user wrote through a `creates` verb is in no document; the action that
+created it carries its words, and both readings take them from there.
+
 Two readings of an element come out of that document. `says` is its whole words.
 `name` is what the authoring contract calls it away from itself: the attribute its
 entry declares with `x-name`, else a leading `<summary>`, heading, or `<strong>`,
@@ -15,6 +18,7 @@ the live page, read here off the document the gesture was made in.
 """
 
 from collections.abc import Callable
+from functools import cached_property
 from pathlib import Path
 
 from .events import event_document
@@ -115,31 +119,52 @@ class GestureWords:
                 )
         return self._documents[revision]
 
+    @cached_property
+    def created(self) -> dict[str, str]:
+        """id → words, for each child a user's `creates` action wrote, withdrawn or
+        not: a gesture that named the child named it by these words."""
+        created = {}
+        for event in self.events:
+            meaning = event.get("meaning") or {}
+            if event["kind"] != "action" or "creates" not in meaning:
+                continue
+            spec = self.declaration(event).get("x-state", {}).get(event["action"], {})
+            if creates := spec.get("creates"):
+                created[meaning["unit"]] = event["detail"][creates["words"]]
+        return created
+
     def says(self, event: dict) -> dict[str, str]:
         """id → what it says, for the elements one gesture names.
 
-        An undo names its gesture's elements. A child a user wrote is in no
-        document; the event's own detail carries its words. An element that only
-        encloses another named one is left out: its words repeat theirs, and a list
-        would otherwise travel whole with every row pressed in it."""
+        An undo names its gesture's elements. A child a user wrote says the words
+        its creating action gave it, and its sender encloses it. An element that
+        only encloses another named one is left out: its words repeat theirs, and a
+        list would otherwise travel whole with every row pressed in it."""
         if event["kind"] == "undo":
             event = self.by_id.get(event["undoes"], event)
         document = self._document(event)
         if document is None:
             return {}
         said = document.spoken
-        named = {
-            identity: said[identity]
-            for identity in event["meaning"].get("depends", [event["widget"]])
-            if identity in said
+        depends = event["meaning"].get("depends", [event["widget"]])
+        named = {identity: said[identity] for identity in depends if identity in said}
+        written = {
+            identity: self.created[identity]
+            for identity in depends
+            if identity not in said and identity in self.created
         }
         enclosing = {
             outer for element in named.values() for outer in element.within[:-1]
         }
+        if written:
+            enclosing.add(event["widget"])
         return {
-            identity: element.words
-            for identity, element in named.items()
-            if element.words and identity not in enclosing
+            **{
+                identity: element.words
+                for identity, element in named.items()
+                if element.words and identity not in enclosing
+            },
+            **written,
         }
 
     def declaration(self, event: dict) -> dict:
@@ -150,7 +175,7 @@ class GestureWords:
 
     def name(self, event: dict, identity: str) -> str:
         """What the gesture's document calls one element it names: its title, else
-        its words, else the id itself."""
+        its words, else the words a user wrote it with, else the id itself."""
         document = self._document(event)
         if document is None:
             return identity
@@ -158,6 +183,7 @@ class GestureWords:
         return (
             (document.name(node) if node else "")
             or (said.words if (said := document.spoken.get(identity)) else "")
+            or self.created.get(identity)
             or identity
         )
 

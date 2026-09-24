@@ -347,6 +347,42 @@ def test_history_reaches_only_a_page_that_renders_it_and_keeps_a_pick_as_made():
     assert "history" not in model.reading(unwatched, events)
 
 
+def test_history_words_a_pick_of_an_added_option_by_what_the_user_wrote():
+    """An added option is in no document, so its words come from the `add` that
+    wrote it. The pick of it reads by those words even after the add is undone,
+    since that is what the user picked."""
+    question = model.leaf_page(
+        "Route",
+        """<h1>Route</h1>
+<lf-options id="route" choose>
+  <lf-option id="fast"><strong>Fast path</strong> ships on Friday.</lf-option>
+</lf-options>
+<lf-activity id="feed"></lf-activity>""",
+    )
+    events = (
+        {
+            "kind": "action",
+            "widget": "route",
+            "action": "add",
+            "detail": {"option": "route-mine", "text": "Ship half"},
+        },
+        {
+            "kind": "action",
+            "widget": "route",
+            "action": "choose",
+            "detail": {"options": ["route-mine"]},
+        },
+        {"kind": "undo", "undoes": "e2"},
+        {"kind": "undo", "undoes": "e1"},
+    )
+
+    history = model.reading(question, events)["history"]
+    assert [(row["id"], row["gesture"]) for row in history] == [
+        ("e2", {"form": "choice", "chosen": ["Ship half"]}),
+        ("e1", {"form": "add", "words": "Ship half"}),
+    ]
+
+
 def test_the_swipe_that_empties_the_queue_is_the_decks_answer():
     """A deck's Ask is answered by its standing state, so admission marks the swipe
     that empties the queue as the answer and no swipe before it.

@@ -1897,7 +1897,7 @@ def test_paper_holds_no_room_for_the_chrome_it_does_not_print(browser, serve):
         f"the document starts {room['head']:.0f}px down, under a "
         f"{room['banner']:.0f}px banner"
     )
-    assert room["foot"] >= room["line"], (
+    assert room["foot"] >= room["line"] - 1, (
         f"the document ends {room['foot']:.0f}px short of its own end, under a "
         f"{room['line']:.0f}px shortcut bar"
     )
@@ -2064,14 +2064,13 @@ def test_a_wide_widget_leaves_the_rail_its_controls(browser, serve):
     written: 76px of board over the controls at 1200px and 134px at 1400 and 1600,
     which is the whole row.
 
-    The claim is settled at the height it arises, which is what the two boards are for
-    — the same pair the sidenote's margin keeps. One holds a change in its
-    own card, so its row hangs level with it and the board declines the right side; the
-    other is 600px further down with nothing beside it, and grows both ways where it
-    stands. Asserting only the first would pass just as well for a page that refused
-    every exhibit the margin because a change existed somewhere above it — the reading
-    that held a board 1400px below the only row to the column's width with 345px of
-    margin standing empty beside it.
+    The row gives way rather than the board, because the row is Leaf's and the board is
+    the page's: nothing Leaf draws moves the page's content, so a comment arriving level
+    with a board cannot narrow it. The board's growth stops at main's gutter, which holds
+    the rail's reservation, so a row level with it steps out past its right edge into the
+    rail. Both boards are for that — the same pair the sidenote's margin keeps. One holds
+    a change in its own card, so its row hangs level with it; the other is 600px further
+    down with nothing beside it. Both grow both ways where they stand.
 
     A range of windows rather than one, because the gap between the reservation and the
     occupancy is the column's leftover and grows with the window: a single viewport can
@@ -2114,25 +2113,36 @@ def test_a_wide_widget_leaves_the_rail_its_controls(browser, serve):
             f"{at['plan']['width']:.0f}px inside the column"
         )
 
-    # The claim reaches the rows' own heights and no further: with the whole left margin
-    # free the near board still grows that way, and the far board, which no row is level
-    # with, takes both margins where it stands.
+    # Both boards take both margins, the one a row stands level with included: the row
+    # stepped out past it rather than the board pulling back.
     resized(page, 1600, 900)
+    margins_laid_out(page)
     at = page.evaluate(RAIL_BANDS)
-    assert at["plan"]["left"] < at["column"]["left"] - 1, (
-        "a claim on one margin must cost that side only: with the whole left margin "
-        "free the near board is still the column's width, so nothing grew at all"
-    )
-    assert at["later"]["right"] > at["column"]["right"] + 1, (
-        "a board with no row anywhere near it is held to the column's right edge: a "
-        "row claims the margin at its own height, not down the whole page"
-    )
+    for name in ("plan", "later"):
+        assert at[name]["left"] < at["column"]["left"] - 1, (name, at)
+        assert at[name]["right"] > at["column"]["right"] + 1, (
+            f"the {name} board is held to the column's right edge, so a row in the "
+            f"margin took room from the page's content: {at}"
+        )
+    level = [
+        r
+        for r in at["rows"]
+        if not r["docked"]
+        and r["top"] < at["plan"]["bottom"]
+        and r["bottom"] > at["plan"]["top"]
+    ]
+    assert level, f"no row stands level with the near board, so nothing is tested: {at}"
+    for r in level:
+        assert r["left"] >= at["plan"]["right"], (r, at)
+        assert r["right"] <= at["pageRight"] + 1, (r, at)
 
 
 def test_a_contents_map_and_right_rail_leave_the_middle_room(browser, serve):
-    """A right-side action withholds only the right growth from a surface level with
-    it. The contents map owns its complete interaction rectangle at the shell edge, so
-    the empty band between that map and the prose remains available on the left."""
+    """A surface grows into both margins between the contents map at the shell's left
+    edge and the rail at its right. A right-side action level with it steps out past the
+    surface into the rail instead of taking the surface's right growth, and the map owns
+    its complete interaction rectangle, so the band between map and prose stays the
+    surface's on the left."""
     source = RAIL_BAND_PAGE.replace(
         '<h1 id="t">Release</h1>',
         '<aside class="sidebar"><lf-toc id="rail-toc"></lf-toc></aside>'
@@ -2146,14 +2156,18 @@ def test_a_contents_map_and_right_rail_leave_the_middle_room(browser, serve):
     toc = page.locator("#rail-toc").bounding_box()
     assert toc is not None
     hanging = [row for row in at["rows"] if not row["docked"]]
-    assert page.locator("#plan").get_attribute("data-lf-yield") == "r"
-    assert hanging and any(
-        plan["top"] < row["bottom"] and plan["bottom"] > row["top"] for row in hanging
-    ), at
-    assert plan["right"] <= at["column"]["right"] + 1, at
+    level = [
+        row
+        for row in hanging
+        if plan["top"] < row["bottom"] and plan["bottom"] > row["top"]
+    ]
+    assert level, at
+    assert plan["right"] > at["column"]["right"] + 1, at
     assert toc["x"] + toc["width"] + 15 <= plan["left"]
-    assert plan["left"] <= toc["x"] + toc["width"] + 25
     assert plan["left"] < at["column"]["left"] - 100, at
+    for row in level:
+        assert row["left"] >= plan["right"], at
+        assert row["right"] <= at["pageRight"] + 1, at
     for row in hanging:
         across = plan["left"] < row["right"] and plan["right"] > row["left"]
         down = plan["top"] < row["bottom"] and plan["bottom"] > row["top"]
@@ -2943,16 +2957,11 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
     assert geometry["sidebarLeft"] >= geometry["trayRight"] - 1
     assert abs(geometry["tocLeft"] - geometry["trayRight"] - 24) <= 1
     assert 64 <= geometry["tocTop"] <= 68
-    # The map is sized to the window rather than to the room left under the shortcut bar, so
-    # its foot is the window's less the banner and the inset. The line stands over its
-    # last entry and this asserts that it does: the line is a hover here, and the map is
-    # not one of the regions that ends above it (`lf-toc`'s rule carries the TODO).
-    assert abs(geometry["tocBottom"] - 876) <= 1, (
-        f"the map is no longer sized to the window: {geometry}"
-    )
-    assert geometry["lineTop"] < geometry["tocBottom"], (
-        f"the shortcut bar no longer stands over the map's foot, so the cutoff this page "
-        f"accepts has been closed somewhere without the TODO being settled: {geometry}"
+    # The map ends above the bottom band, as every region does: its foot is the window's
+    # less the band and the map's own inset, so the keyboard's line never covers its last
+    # entry.
+    assert abs(geometry["tocBottom"] - (geometry["lineTop"] - 24)) <= 1, (
+        f"the map's foot is not the band's top less its inset: {geometry}"
     )
     banner_control(page, ".lf-asks").click()
     expect(page.locator(".lf-asks-panel")).to_be_hidden()

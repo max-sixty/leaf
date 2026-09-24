@@ -2087,14 +2087,18 @@ def test_the_ask_walk_position_shares_the_shortcut_line(browser, serve):
     )
     assert "lf-walk-position" not in geometry["first"], geometry
     assert "lf-bottom-status" in geometry["parent"], geometry
+    # The status is a chip standing in the bottom band's row, at its far end.
     assert geometry["status"]["right"] == 1182, geometry
-    assert geometry["status"]["top"] == geometry["line"]["top"], geometry
-    assert geometry["status"]["bottom"] == geometry["line"]["bottom"], geometry
-    assert geometry["status"]["left"] > geometry["line"]["right"], geometry
+    assert geometry["line"]["top"] < geometry["status"]["top"], geometry
+    assert geometry["status"]["bottom"] < geometry["line"]["bottom"], geometry
+    assert (
+        abs(
+            (geometry["status"]["top"] - geometry["line"]["top"])
+            - (geometry["line"]["bottom"] - geometry["status"]["bottom"])
+        )
+        <= 1
+    ), geometry
     assert geometry["font"]["position"] == geometry["font"]["line"], geometry
-    assert geometry["face"]["background"] == geometry["face"]["lineBackground"], (
-        geometry
-    )
     assert geometry["face"]["border"] == "1px", geometry
     assert geometry["face"]["positionBackground"] == "rgba(0, 0, 0, 0)", geometry
     assert geometry["face"]["positionBorder"] == "0px", geometry
@@ -5065,13 +5069,21 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
 
     for width in (1280, 420):
         resized(page, width, 800)
-        page.wait_for_function(
+        page.evaluate(RENDERED)
+        # The sequence's line grows upward over the page; the page's room stays the band's
+        # stated height rather than following it.
+        room = page.evaluate(
             """() => {
-              const line = document.querySelector('.lf-shortcut-bar');
-              const chrome = document.querySelector('.lf-chrome');
-                  return parseFloat(getComputedStyle(chrome).paddingBottom) >= line.offsetHeight + 19;
+              const probe = document.createElement('div');
+              probe.style.cssText = 'position:fixed;visibility:hidden;height:var(--lf-band-h)';
+              document.body.append(probe);
+              const band = probe.getBoundingClientRect().height;
+              probe.remove();
+              return {band, reserved: parseFloat(getComputedStyle(
+                document.querySelector('.lf-chrome')).paddingBottom)};
             }"""
         )
+        assert room["band"] > 0 and room["reserved"] == room["band"], room
         geometry = line.evaluate(
             """node => {
               const visible = [...node.children].filter(el => el.checkVisibility());
@@ -9091,8 +9103,10 @@ def test_a_coarse_pointer_keeps_useful_status_without_keyboard_hints(browser, se
                 document.querySelector('.lf-chrome')).paddingBottom),
             })"""
     )
+    # A touch screen draws no band, so the standing status overlays the page like a
+    # passing notice: showing it changes nothing about where the page ends.
     assert active_room["height"] > 0, active_room
-    assert active_room["reserved"] > 0, active_room
+    assert active_room["reserved"] == 0, active_room
 
     page.locator("#h").click()
     expect(line).to_be_hidden()
@@ -9164,16 +9178,11 @@ UNDER_THE_LINE = """(id) => {
 
 
 def test_the_key_line_stands_in_a_band_of_its_own(browser, serve):
-    """The line is fixed at the foot of the window, so what it owes the page is a band:
-    room of its own where the document ends, and no press taken from what it stands over
-    on the way there.
-
-    The room was measured as the line's height alone. Its own 14px inset came out of the
-    20px of air that was supposed to be left over, so the document's last line cleared the
-    line by five pixels rather than twenty. The band from the line's top to a region's own
-    foot is one measurement and covers every inset. A covering sheet leaves that viewport
-    band unchanged: its growing foreground footer is not geometry owned by the background
-    line.
+    """The line is the bottom band, fixed at the foot of the window at one stated height,
+    so what it owes the page is exactly that band: room of its own where the document
+    ends, and no press taken from what it stands over on the way there. The page's own
+    foot keeps its air above the band. A covering sheet leaves the band unchanged: its
+    growing foreground footer is not geometry owned by the background line.
 
     The press is the other half. The line and its chips take no pointer events, so a
     control the line stands over on some scroll position is still a control. Its More
@@ -9189,10 +9198,9 @@ def test_the_key_line_stands_in_a_band_of_its_own(browser, serve):
     page.evaluate(RENDERED)
     ended = page.evaluate(FOOT_ROOM)
     assert ended["atEnd"] and ended["lineHeight"] > 0, ended
-    # The band, and the air over it. Reserving the height alone spent 14 of the 20px on
-    # the line's own inset and left five, which clears and says nothing about whether the
-    # reservation knows what it is reserving for.
-    assert ended["reserved"] >= ended["footprint"] + 20, ended
+    # The reservation is the band itself, and the band reaches the window's foot.
+    assert ended["reserved"] == pytest.approx(ended["footprint"], abs=1), ended
+    assert ended["footprint"] == pytest.approx(ended["lineHeight"], abs=1), ended
     assert ended["clearance"] >= 20, (
         f"the document's last control ends in the shortcut bar's band: {ended}"
     )
@@ -9207,8 +9215,8 @@ def test_the_key_line_stands_in_a_band_of_its_own(browser, serve):
     assert covered["footprint"] == pytest.approx(ended["footprint"], abs=1), (
         f"the covering sheet moved the viewport-fixed line: {ended}, {covered}"
     )
-    assert covered["reserved"] >= covered["footprint"] + 20, (
-        f"the document lost the line's standing reservation: {covered}"
+    assert covered["reserved"] == pytest.approx(covered["footprint"], abs=1), (
+        f"the document lost the band's standing reservation: {covered}"
     )
     page.keyboard.press("Escape")
 

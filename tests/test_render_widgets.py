@@ -889,13 +889,21 @@ def test_the_page_end_clears_the_bottom_chrome_around_a_workspace(browser, serve
     resized(page, 1280, 720)
     pane_posture(page, page.locator("#held-pane"), "flow")
     room = page.evaluate(
-        """() => ({
-          padding: getComputedStyle(document.querySelector('.lf-chrome')).paddingBottom,
-          clear: getComputedStyle(document.documentElement)
-            .getPropertyValue('--lf-bottom-chrome-clear').trim(),
-        })"""
+        """() => {
+          const probe = document.createElement('div');
+          probe.style.cssText = 'position:fixed;visibility:hidden;height:var(--lf-band-h)';
+          document.body.append(probe);
+          const band = probe.getBoundingClientRect().height;
+          probe.remove();
+          return {
+            padding: parseFloat(getComputedStyle(document.querySelector('.lf-chrome')).paddingBottom),
+            band,
+            line: document.querySelector('.lf-shortcut-bar').getBoundingClientRect().height,
+          };
+        }"""
     )
-    assert room["padding"] == room["clear"] and room["clear"] != "0px", room
+    # The page's end room is the band's stated height, and the band is that tall.
+    assert room["padding"] == room["band"] == room["line"] and room["band"] > 0, room
     end = clear_of_the_bottom_chrome(page, "#document-end")
     assert end["clear"], end
     page.close()
@@ -2182,8 +2190,9 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
         "node => parseFloat(getComputedStyle(node).paddingBlockStart)"
     )
     assert toc_box["y"] == pytest.approx(banner_box["y"] + banner_box["height"], abs=1)
+    # The map ends where the bottom band starts.
     assert toc_box["y"] + toc_box["height"] == pytest.approx(
-        page.evaluate("innerHeight"), abs=1
+        page.locator(".lf-shortcut-bar").bounding_box()["y"], abs=1
     )
     assert nav_box["y"] == pytest.approx(toc_box["y"] + padding, abs=1)
     assert nav_box["y"] + nav_box["height"] == pytest.approx(
@@ -2203,17 +2212,12 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
         {"x": nav_box["x"] + 100, "y": toc_box["y"] - 2},
     )
     expect(prepare).to_have_css("opacity", "0")
-    # The map is sized to the window, so it runs past the shortcut bar and the line stands
-    # over its last entry. That is the accepted state, not an oversight: the line is a
-    # hover, and `lf-toc`'s own rule carries the TODO for choosing between that and a
-    # line the whole layer ends above. This holds the map to the window so the cutoff
-    # cannot be closed by accident, one region at a time, without that being settled.
+    # The bottom band is attached to the window's foot, so the map ends above it with its
+    # last entry in view, as every region does.
     line_box = page.locator(".lf-shortcut-bar").bounding_box()
     assert line_box is not None, "the fixture drew no shortcut bar"
-    assert line_box["y"] < nav_box["y"] + nav_box["height"], (
-        f"the map now ends above the shortcut bar: the layer has started giving the line a "
-        f"foot's reservation region by region — settle the TODO on `lf-toc`'s rule "
-        f"instead: map {nav_box}, line {line_box}"
+    assert nav_box["y"] + nav_box["height"] <= line_box["y"] + 1, (
+        f"the bottom band stands over the map's foot: map {nav_box}, band {line_box}"
     )
     prepare_box = page.locator("#prepare").bounding_box()
     assert prepare_box is not None

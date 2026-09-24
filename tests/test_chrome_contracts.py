@@ -1093,10 +1093,21 @@ def test_notices_stay_at_the_visible_pages_right_edge(browser, serve):
             geometry["availableRight"] - 18, abs=1
         ), (width, panel_open, geometry)
         assert geometry["left"] >= 0, (width, panel_open, geometry)
-        assert geometry["bottom"] <= 800 - 14, (width, panel_open, geometry)
         if panel_open and width <= 840:
             foot = page.locator(".lf-thread-panel-foot").bounding_box()
             assert geometry["bottom"] == pytest.approx(foot["y"] - 14, abs=1)
+        else:
+            # Centred on the bottom band's row, inside the band.
+            band = page.locator(".lf-shortcut-bar").bounding_box()
+            assert band["y"] <= geometry["top"] and geometry["bottom"] <= 800, (
+                width,
+                panel_open,
+                geometry,
+                band,
+            )
+            assert (geometry["top"] - band["y"]) == pytest.approx(
+                800 - geometry["bottom"], abs=1
+            ), (width, panel_open, geometry, band)
         pixels = Image.open(io.BytesIO(page.screenshot())).convert("RGB")
         accent = tuple(map(int, re.findall(r"\d+", token_colour(page, "--accent"))))
         assert (

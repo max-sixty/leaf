@@ -3,6 +3,42 @@
 Leaf is a page an agent hands to a user and the loop that carries anchored
 comments and actions back. `README.md` describes the product.
 
+## Leaf's role
+
+The agent is the author; the user is its principal. A Leaf page is how the
+user sees the agent's work and steers it: they read, point at exact
+passages, and act, and the agent answers by revising the page.
+
+The agent decides both a page's content and its presentation. The user's
+word overrides either, whether given in a comment or as a standing preference,
+and Leaf's own defaults yield to both.
+
+Leaf supplies what the agent builds with: primitives, instructions, and
+templates. An agent could instead build a bespoke site for each task, so each
+primitive must give the user something that site would not:
+
+- **Difficult code.** Mechanisms too hard to write well each time: anchored
+  threads, widgets whose state survives a revision, and the event log that
+  returns each comment and decision to the agent as a structured event.
+- **Consistency.** One interface across sessions and agents — keybindings,
+  conversations, and how a widget answers a move — so the user learns it
+  once.
+- **Preferences.** A place for the user's own preferences, such as
+  aesthetics and style, stated once and honoured on every page.
+- **Trust.** A page runs under a locked-down content policy, and an action
+  records its meaning when taken, so a control does what it says and the
+  record shows what the user decided.
+- **Presentation craft.** Layout, type, and composition that hold at every
+  width and beside every open panel, improved once and inherited by every
+  page. A bespoke site starts from nothing each time.
+- **Self-checks.** A check the agent runs on its own page, so a mistake reaches
+  the agent rather than the user.
+
+Leaf is the medium: every choice on a page is the agent's or
+the user's. Leaf fixes how to read, comment, and act, so that stays the same
+across sessions and agents; what a page says and how it is composed is the
+agent's to decide.
+
 ## Stage
 
 Leaf has no users, deployment, database, or persisted state that constrains new

@@ -311,8 +311,6 @@ export function presentMarginEntryHost(
     if (writesSeat && control.tabIndex < 0) control.tabIndex = 0;
   }
   keeps(control, "aria-label", accessibleLabel ?? record.accessibleLabel);
-  if (record.staticLabel) keeps(control, "data-lf-static-label", record.staticLabel);
-  else control.removeAttribute("data-lf-static-label");
   syncAgentDescriptionBase(control, record.description || null, record.title || null);
   projectCommandScope(control, commandScopes.get(record));
   return record;

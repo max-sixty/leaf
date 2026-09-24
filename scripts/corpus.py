@@ -41,6 +41,7 @@ PUBLIC_TABS = [
     ("alert-review", "Alerts"),
     ("pr-walkthrough", "PR"),
     ("wt-merge", "Merge film"),
+    ("rust-sort", "Sort film"),
     ("security-boundary", "Security"),
     ("command-hub", "Command"),
 ]

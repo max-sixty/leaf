@@ -128,17 +128,6 @@ customElements.define(
       this.scrub.max = this.#film.total;
     }
 
-    // A static export keeps the drawing but not the script: freeze a poster moment that
-    // shows the landed graph and the whole terminal, and drop controls that could not work.
-    lfPrepareExport() {
-      this.#pause();
-      this.#inspect(null);
-      const post = this.#film.starts.postmerge ?? this.#film.starts.end;
-      this.#t = post + 2;
-      this.#paint();
-      for (const node of [...this.children]) if (node !== this.stage) node.remove();
-    }
-
     // Dispatch film-frame for the current moment, for a listener that arrived late.
     announce() {
       this.#paint();

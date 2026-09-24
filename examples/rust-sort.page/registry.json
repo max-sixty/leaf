@@ -1,0 +1,44 @@
+{
+  "lf-sort-film": {
+    "description": "An animated, scrubbable trace of the merge sort Rust shipped in 1.15, drawn as one SVG in the page's palette: the slice, the scratch buffer, and the run stack with its collapse() checks. It indicates the source line each step executes in the lf-code excerpts its sort-code, head-code and merge-code attributes name, by the line's number in slice.rs. Each slot of the slice (v:0 \u2026 v:39), the scratch lane, the run stack and each collapse() clause is a commentable visual part.",
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      },
+      "parts": {
+        "type": "string",
+        "minLength": 1,
+        "pattern": "^[a-z]+(:[a-z0-9]+)?(\\s+[a-z]+(:[a-z0-9]+)?)*$"
+      },
+      "sort-code": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      },
+      "head-code": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      },
+      "merge-code": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      }
+    },
+    "required": [
+      "id"
+    ],
+    "additionalProperties": false,
+    "x-content": "empty",
+    "x-upgrade": true,
+    "x-space": "wide",
+    "x-visual": {
+      "parts": "parts"
+    },
+    "x-refers": {
+      "sort-code": {},
+      "head-code": {},
+      "merge-code": {}
+    }
+  }
+}

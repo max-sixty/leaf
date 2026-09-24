@@ -168,7 +168,6 @@ lf-command [data-lf-command-goal] > [data-lf-command-worker] {
 lf-command [data-lf-command-goal][data-lf-open] > [data-lf-command-worker] { display: block; }
 lf-command [data-lf-command-goal][data-lf-held] {
   background: linear-gradient(90deg, var(--warn-tint), transparent 72%); }
-html.lf-copy lf-command [data-lf-command-goal] > [data-lf-command-worker] { display: block; }
 
 /* Host operations are a compact command set, distinct from lf-options' replayable
  * document decisions. The prose stays authored and selectable; the trailing press is
@@ -204,11 +203,8 @@ lf-worktree { display: block; margin: var(--sp-2) 0; padding-left: var(--sp-3);
   color: var(--muted); font: var(--t-7) var(--sans); letter-spacing: .055em;
   text-transform: uppercase; }
 .lf-worktree-evidence > pre { margin: 0; }
-html.lf-copy .lf-worktree-head { cursor: default; }
 lf-worktree:not([data-lf-open]) .lf-worktree-snapshot > :not(.lf-worktree-head) {
   display: none; }
-html.lf-copy lf-worktree:not([data-lf-open]) .lf-worktree-snapshot > :not(.lf-worktree-head) {
-  display: block; }
 
 @media print {
   .lf-worktree-head { cursor: default; }

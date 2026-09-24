@@ -1,7 +1,6 @@
 /* The diff's rules inside its own shadow tree (x-shadow). A selector in theme.css stops
-   dead at a shadow boundary, so these go in as a <style> the shadow root owns — which is
-   also what makes them survive `version export`, since an adopted stylesheet is in no
-   element's markup and a copy runs no script to adopt one. They stay in the package's
+   dead at a shadow boundary, so these go in as a <style> the shadow root owns. They stay
+   in the package's
    stylesheets because the package owns the look: a project overriding it overrides these
    with it, and a second copy in a widget module would be a second answer to what a diff
    looks like. Everything here is written for the shadow tree — :host is the widget
@@ -24,8 +23,7 @@
    long path wraps above it rather than running underneath, and reaches at least as far
    down as the bar's foot. A path sets the line at 35px, which already clears a mouse's
    bar; under a finger the bar is the taller and the line follows it rather than letting
-   it hang over the first row of the patch. A copy with no press to make room for takes
-   its ordinary inset back. */
+   it hang over the first row of the patch. */
 .lf-diff-file:has(> .lf-diff-file-actions > *) > .lf-diff-fold > .lf-diff-head,
 .lf-diff-file:has(> .lf-diff-file-actions > *) .lf-diff-rename {
                                      box-sizing: border-box;
@@ -45,7 +43,6 @@
 .lf-diff-wrap-label { display: inline-flex; align-items: center; gap: 6px; flex: none;
                       min-height: var(--aim-floor);
                       white-space: nowrap; cursor: pointer; }
-/* A native switch keeps the exported diff interactive without scripts. */
 .lf-diff-wrap { appearance: none; margin: 0; flex: none; cursor: pointer;
                 width: 2rem; height: 1.125rem; border-radius: 999px;
                 border: 1px solid var(--code-border); background: var(--code-muted);
@@ -102,7 +99,7 @@
                    two side by side across the bar's gap. */
                 --lf-diff-action-gap: 6px;
                 --lf-diff-actions: var(--lf-diff-action-h); }
-.lf-diff-file:has(.lf-diff-review, .lf-diff-reviewed) {
+.lf-diff-file:has(.lf-diff-review) {
                 --lf-diff-actions: calc(var(--lf-diff-press) + var(--lf-diff-action-gap)
                                         + var(--lf-diff-action-h)); }
 .lf-diff-file:has(> .lf-diff-file-actions > *) > :is(.lf-diff-fold, .lf-diff-rename) {
@@ -114,15 +111,10 @@
                         width: fit-content; height: var(--lf-diff-action-h);
                         margin: var(--lf-diff-action-top) 11px 0 auto;
                         font-family: var(--sans); }
-.lf-diff-review, .lf-diff-reviewed { display: block; width: fit-content;
-                                     height: var(--lf-diff-action-h);
-                                     font-family: inherit; }
-.lf-diff-review { box-sizing: border-box; width: var(--lf-diff-press);
-                  padding: 2px 8px; font-size: var(--t-6); }
-.lf-diff-reviewed { font-size: var(--t-5);
-                    line-height: var(--lf-diff-action-h); }
-.lf-diff-review[aria-pressed="true"], .lf-diff-reviewed { color: var(--ok);
-                                                         font-weight: 650; }
+.lf-diff-review { display: block; box-sizing: border-box;
+                  width: var(--lf-diff-press); height: var(--lf-diff-action-h);
+                  padding: 2px 8px; font-family: inherit; font-size: var(--t-6); }
+.lf-diff-review[aria-pressed="true"] { color: var(--ok); font-weight: 650; }
 /* Square, and the same height as the press beside it. */
 .lf-diff-file-comment { box-sizing: border-box; width: var(--lf-diff-action-h);
                         height: var(--lf-diff-action-h); padding: 0;
@@ -169,8 +161,7 @@
    The slot is the banner's own height, said once at :root and inherited through this
    boundary, so the two edges cannot drift apart. Opaque already (the summary's
    background), because the rows pass underneath it.
-   Screen only: paper has no banner and no scroll to pin against, and a copy's rows are
-   all on the page at once. And only where the module says the page's own scroller is the
+   Screen only: paper has no banner and no scroll to pin against. And only where the module says the page's own scroller is the
    one underneath — inside the panel the pinned slot is the run headings', and a diff in a
    reply scrolls in that list rather than in the document. */
 @media screen {
@@ -272,8 +263,7 @@
    file — twenty-four thousand pixels below the line, on the patch this was measured on.
    Wrapping trades the diff's column alignment for lines that end where the user can
    see them, which is why it is the user's own switch rather than the default.
-   The shared body reads its checkbox, so the state has one home and a copy with its
-   scripts dropped still works it. Keeping the query inside one subtree also lets
+   The shared body reads its checkbox, so the state has one home. Keeping the query inside one subtree also lets
    WebKit invalidate the line styles when the user taps the switch. `anywhere` rather than
    `break-word`: what runs long in a patch is paths, URLs, minified data and prose in
    comments, and the first three offer the line box no break opportunity to find.

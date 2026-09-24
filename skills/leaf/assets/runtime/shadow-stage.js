@@ -5,9 +5,9 @@
    paint, which is the one failure this whole capability exists to avoid.
 
    The two sheets arrive differently on purpose. The theme's rules go in as a <style>
-   element, because that is markup and a copy keeps it; the marks are adopted, because
-   they are the live comment layer, which a copy drops with the rest of the chrome — an
-   adopted sheet is in no element's markup and would not survive the export either way.
+   element, because they are the page's look and a project overrides them with the
+   page's stylesheet; the marks are adopted, because they are the live comment layer,
+   shared by the document and every stage.
 
    It takes the nodes rather than handing back a root to fill, so the style cannot be
    left out: a module that wrote its own children would replace the one thing holding its
@@ -27,9 +27,6 @@ import { watchExternalLinks } from "./presentation.js";
 // Awesome bundle calls this as it evaluates (scripts/vendor-src/webawesome/build.mjs).
 // Keep one constructable sheet per name so a page parses it once, existing stages
 // receive a late-loaded bundle, and stages built after registration inherit the sheet.
-// Adopted rather than written in as a <style>, against the rule the header states for a
-// stage's own two sheets: these rules dress an interface that is absent from a
-// script-free copy, so a copy has nothing left to keep them for.
 const widgetSheets = new Map();
 const stageRefs = new Set();
 const stageRefFor = new WeakMap();
@@ -60,13 +57,7 @@ export function registerWidgetStyles(name, text) {
 }
 
 export function shadowStage(host, nodes) {
-  // serializable, because a copy is rendered DOM with the scripts dropped and a shadow
-  // root is in no element's outerHTML: exported without this, a diff leaves an empty
-  // element where its lines were, which is the one medium that cannot be re-rendered
-  // later. With it, `version export` writes a declarative <template shadowrootmode>
-  // the browser rebuilds on open, with nothing running.
-  const root =
-    host.shadowRoot ?? host.attachShadow({ mode: "open", serializable: true });
+  const root = host.shadowRoot ?? host.attachShadow({ mode: "open" });
   rememberStage(root);
   root.adoptedStyleSheets = [marksSheet, ...widgetSheets.values()];
   // A root is the one place the shortcut bar's watch cannot reach on its own: a `toggle`

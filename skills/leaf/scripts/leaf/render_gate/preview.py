@@ -4,11 +4,10 @@ import contextlib
 import sys
 from pathlib import Path
 
-from leaf.event_log import flocked
 from leaf.files import version_name
 from leaf.hosting import TemporaryPageServer
 from leaf.layer import payload_runtime_fingerprint
-from leaf.leases import transition_lock
+from leaf.leases import page_locked
 from leaf.page_snapshot import capture_page_snapshot
 from leaf.registry.storage import layer_metadata
 from leaf.revision_artifact import RevisionArtifact
@@ -18,7 +17,7 @@ from leaf.structure import SourceDocument
 def _refuse_a_foreign_runtime(page_dir: Path) -> None:
     """Refuse to instrument a page whose runtime came from another Leaf.
 
-    The gates serve their probe modules from the Leaf running the command and the
+    The gate serves its probe modules from the Leaf running the command and the
     runtime those modules import from the page, so the two have to come from one
     kernel. Where they do not, the browser reports an export the page's older runtime
     does not have, which reads as a defect in the page.
@@ -54,11 +53,7 @@ def preview_server(
     a user out of every page on 127.0.0.1 — except that both callers drive
     Playwright, whose browser brings its own jar.
     """
-    transition = (
-        contextlib.nullcontext()
-        if transition_held
-        else flocked(transition_lock(page_dir))
-    )
+    transition = contextlib.nullcontext() if transition_held else page_locked(page_dir)
     with transition:
         _refuse_a_foreign_runtime(page_dir)
         active = {

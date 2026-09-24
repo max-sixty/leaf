@@ -86,6 +86,10 @@ other page files and the external state listed below.
   [session-lifetime.md, “Lifetime”](session-lifetime.md#lifetime) owns the lifetime rule.
   The URL's access key belongs to the machine's state home.
 
+- The page lock is the directory itself: `leases.page_locked` flocks a descriptor on
+  it to serialize service changes, re-vendoring, and contract-bearing writes, so it
+  writes nothing and ends with the page.
+
 - `server.lock` — process-held server lease. `hosting.py` waits for its release on stop,
   after the server has closed its sockets.
 

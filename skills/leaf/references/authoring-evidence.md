@@ -47,7 +47,10 @@ ranking, a composition, or two numbers against each other. `lf-chart` needs no
 package. A handful of numbers the sentence beside them can carry is prose; a chart is
 for when the shape of the numbers is the point. Use inline SVG only for a bespoke
 drawing. Use `<pre><code class="language-…">` for selectable literal source and
-`lf-code` for a line-numbered walkthrough. The registry's `$languages.names` lists
+`lf-code` for a line-numbered walkthrough; its `lines` attribute quotes an excerpt
+of a longer file under the file's own line numbers, with elided rows where it skips;
+a note placed at a skipped line captions that row with what was left out.
+The registry's `$languages.names` lists
 accepted language names. Keep logs and transcripts plain when they are not source
 code.
 

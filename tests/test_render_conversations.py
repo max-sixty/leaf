@@ -878,6 +878,56 @@ def test_resolve_acknowledges_the_press_and_recovers_a_refusal(
         expect(page.locator(".lf-general textarea")).to_be_focused()
 
 
+def test_resolving_one_of_two_threads_leaves_the_user_in_the_card(browser, serve):
+    """Resolving a thread the card outlives keeps focus in the card.
+
+    Only the last thread at an anchor closes its margin card, and only that closure hands
+    focus back to the anchor. With a second thread standing, the card stays up showing
+    it, so the user stays in the card rather than being carried out to the text.
+    """
+    comment = {
+        "kind": "comment",
+        "author": "user",
+        "revision": 1,
+        "anchor": {"section": "bracket"},
+    }
+    page = open_page(
+        browser,
+        serve(
+            ASK_PAGE,
+            events=[
+                {**comment, "text": "Check whether these jobs can share one visit."},
+                {**comment, "text": "And whether the second visit needs a permit."},
+            ],
+        ),
+    )
+    resized(page, 1440, 900)
+    page.locator('.lf-margin-marker[data-lf-kinds="comment"]').click()
+    card = page.locator(".lf-margin-preview")
+    resolve = card.get_by_role("button", name="Resolve thread", exact=True)
+    expect(resolve).to_be_visible()
+    resolve.focus()
+    with sending(page, "the resolve"):
+        page.keyboard.press("Enter")
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (1)")
+    expect(card).to_be_visible()
+    expect(
+        card.get_by_role("button", name="Resolve thread", exact=True)
+    ).to_be_visible()
+    focus = page.evaluate(
+        """() => {
+          const active = document.activeElement;
+          return {
+            inCard: document.getElementById("lf-margin-preview").contains(active),
+            on: active?.outerHTML.slice(0, 80),
+          };
+        }"""
+    )
+    assert focus["inCard"], (
+        f"resolving a thread the card outlives left focus on {focus}"
+    )
+
+
 def test_a_card_repaint_keeps_the_user_on_the_control_they_reached(browser, serve):
     """A repaint of an open card leaves the user's press where they aimed it.
 
@@ -4508,15 +4558,8 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
     # Every one of these is worn by something the runtime puts inside the page rather
     # than inside its own container: a scoped rule cannot reach the copy in the page.
     # What is not here is the shared vocabulary, whose faces the theme states — see the
-    # exception above, and chrome.css's header for why. Except the
-    # first two, which document level names only to hold a rule off them and which are here
-    # for the other half of the sentence. lf-copy is the medium `version export` marks on
-    # the root, and the runtime names it under a negation to withhold the live page's
-    # scroller from a file that has no panel to scroll beside; a rule that dresses no
-    # element can leak onto none, and what the pin is for is the day one of these stops
-    # being either kind.
+    # exception above, and chrome.css's header for why.
     assert {c for c in surface["global"] if c.startswith("lf-")} == {
-        "lf-copy",
         # Drawing is a body state, and an inline conversation lives inside authored
         # widget markup. Both deliberately cross the chrome scope so drawing can spare
         # the conversation's controls.
@@ -4559,11 +4602,9 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         "lf-composer-media-remove",
         "lf-message-media",
         "lf-media-open",
-        # A standing reaction's paint on the page: the element outline, margin glyph,
-        # and the wash a copy carries as a <mark>.
+        # A standing reaction's paint on the page: the element outline and margin glyph.
         "lf-react-el",
         "lf-react-mark",
-        "lf-react",
         # Visual reactions add a quiet keyboard proxy beside the authored target and
         # an outline on the target while its shared action bar is standing.
         "lf-visual-actions",

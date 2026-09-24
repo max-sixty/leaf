@@ -466,7 +466,7 @@ def shoot_stills(
     )
     run_leaf("status", str(page_dir), "waiting")
     # The user's board move has to have landed in each shot, or it shows a page
-    # mid-replay — the same wait `version export` takes for the same reason. Counted
+    # mid-replay. Counted
     # once: neither shot posts anything, so the log is the same for both.
     actions = sum(
         json.loads(line)["kind"] == "action"

@@ -171,8 +171,8 @@ Leaf fades the content at those edges, so a widget that has to scroll says so wi
 the package writing anything. An interactive
 affordance stands down inside `[data-lf-exhibit]`, where the widget is quoted rather
 than offered. The stylesheet is
-inlined into an export, so use fonts available on the user's machine rather than a
-remote font a standalone copy would have to fetch.
+inlined into an export, which opens offline, so use fonts available on the user's
+machine rather than a remote font.
 
 `body[data-lf-presented]` means the initial authoritative projection, or the deliberate
 offline fallback, is safe for recorded interaction. Authored content is already visible:
@@ -243,10 +243,7 @@ hoisted chrome removed and any `indicate` cleared with `null` in `disconnectedCa
 when the owner disconnects;
 `commands()` at upgrade — through `DISCLOSE(el)` over anything that folds, the runtime
 owning those commands — `quoted()` before wiring input, controller command availability
-before an optimistic gesture, and durable state in attributes because export drops the
-scripts. A widget that must finish asynchronous content or unwind live-only structure
-before those scripts leave implements `lfPrepareExport()`; it may finish synchronously
-or return the promise the exporter must await.
+before an optimistic gesture.
 
 `renderState` receives the state of every declared verb, keyed by verb name, including
 the initial values an undo returns to. A widget-unit verb's state is `{action, value,
@@ -453,9 +450,7 @@ exposes `entry`, `control`, `contains`, `activate`, `focus`, `update`, and `unre
 `update()` replaces the whole reading and may synchronously lay it out or focus a
 surviving key. Keep text fields, history, and other mechanical editing state in the
 widget. Publish only action and status records to the margin, with explicit `element` or
-`entries` relations when a disclosure owns another surface or entry. An entry whose
-interactive name no longer describes its script-free rendering supplies `staticLabel`;
-export removes the action and keeps that name on the resulting static image.
+`entries` relations when a disclosure owns another surface or entry.
 
 ### Following a reference
 
@@ -1025,8 +1020,7 @@ non-empty string for the logical datum; `render` receives
 `(record, priorNode, index)` and returns its element, reusing `priorNode` where that
 preserves a focused control or selection. Leaf marks those words as readable data
 rather than authored prose, reconciles their order, and keeps comments attached by the
-projection/key pair even when a refresh replaces the text nodes. Export keeps the last
-rendering as a labelled snapshot and drops the code that could refresh it. A renderer
+projection/key pair even when a refresh replaces the text nodes. A renderer
 that owns a nested layout passes `{nested: true}` and returns its existing descendants;
 Leaf labels those nodes without moving them. Add `labelOf(record, index)` when a thread
 should name a projected datum with a human coordinate; the stable key remains opaque to
@@ -1046,7 +1040,7 @@ until the element is reconnected.
 Leaf records the default origin or `originOf(record, index)` result as JSON in
 `data-lf-origin` on each datum; a null origin removes any previous provenance. Derived records outside the data
 store can instead name their contributing widget seats as `{derived: [{widget: id}]}`.
-Export retains these origins with the rendering. Leaf never infers them from displayed
+Leaf never infers them from displayed
 text or datum keys.
 
 ## Widget-local Thread surfaces

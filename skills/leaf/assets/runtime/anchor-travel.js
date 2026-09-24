@@ -15,6 +15,7 @@
 import {
   addressedElements,
   referencedProjection,
+  revealVisualPart,
   requireReference,
   sectionOf,
 } from "./anchor-resolution.js";
@@ -310,7 +311,10 @@ export function createAnchorTravel({
     const mayArrive = retainTravel();
     const thread = currentThreads().find((candidate) => candidate.root.id === id);
     const anchor = thread?.anchor;
-    const hydrating = anchor?.datum && anchors.placedAt(id)?.status !== "outdated";
+    const status = anchors.placedAt(id)?.status;
+    const hydrating =
+      (anchor?.datum && status !== "outdated") ||
+      (anchor?.visual && status === "fallback");
     const standing = threadDestination(id);
     // Decided before the trip awaits anything: a destination that is not readable now,
     // or one a widget has yet to hydrate, is somewhere else.
@@ -318,7 +322,9 @@ export function createAnchorTravel({
     if (standing || hydrating) trip(standing, { landing, keep, intent: mayArrive });
     if (hydrating) {
       const source = sectionOf(anchor);
-      const hydration = source?.lfRevealDatum?.(anchor.datum);
+      // A visual draws the state holding its part synchronously; a lazy datum may load.
+      if (anchor.visual) revealVisualPart(source, anchor.visual);
+      const hydration = anchor.datum && source?.lfRevealDatum?.(anchor.datum);
       if (hydration?.then) await hydration;
       if (!mayArrive() || sectionOf(anchor) !== source) return false;
       await refreshConversation();

@@ -1670,6 +1670,73 @@ def test_a_working_claim_can_name_a_widget_until_a_version_completes_it(page_dir
     assert "no active widget work claim" in unearned.output
 
 
+def test_a_delivery_and_its_codex_records_go_once_their_pages_do(
+    claimed, capsys, tmp_path
+):
+    """Envelopes and a Codex task's archived records are read one id at a time, so
+    the writer that adds one removes those whose pages are all gone, and those
+    this version does not read; a task's live records go at the scan that reads
+    them. Pages are deleted from outside leaf, so nothing sees the moment."""
+    gone = tmp_path / "gone"
+
+    def record(path, value):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        files_model.write_json(path, value)
+        return path
+
+    def envelope(delivery_id, page, format=delivery_model.DELIVERY_FORMAT):
+        batches = [{"page": str(page)}]
+        return record(
+            delivery_model.delivery_path(delivery_id),
+            {"format": format, "batches": batches},
+        )
+
+    kept = envelope("0000000a", claimed)
+    retired = [
+        envelope("0000000b", gone),
+        envelope("0000000c", claimed, "v2"),
+        record(delivery_model.delivery_path("00000012"), {"batches": []}),
+        record(
+            delivery_model.delivery_path("00000013"),
+            {"format": delivery_model.DELIVERY_FORMAT},
+        ),
+    ]
+    serving(claimed, 1)
+    events_model.append_event(
+        claimed, {"kind": "comment", "author": "user", "text": "new input"}
+    )
+    assert session_model.cmd_wait(claimed) == 0
+    frozen = delivery_model.delivery_path(json.loads(capsys.readouterr().out)["id"])
+    assert kept.exists() and frozen.exists()
+    assert not any(path.exists() for path in retired)
+
+    def task_record(delivery_id, page, **fields):
+        return {
+            "format": codex_model.RECORD_FORMAT,
+            "state": "collecting",
+            "created_at": 0,
+            "batches": [{"page": str(page), "receipted": True}],
+            **fields,
+        }
+
+    live = record(codex_model.record_path("t", "0000000d"), task_record("d", claimed))
+    stale = record(codex_model.record_path("t", "0000000e"), task_record("e", gone))
+    history = live.parent / "history"
+    archived_gone = record(history / "0000000f.json", task_record("f", gone))
+    archived_other = record(history / "00000010.json", {"batches": []})
+    archived_incomplete = record(
+        history / "00000012.json", {"format": codex_model.RECORD_FORMAT}
+    )
+    archived_kept = record(history / "00000011.json", task_record("g", claimed))
+    with events_model.flocked(codex_model.delivery_lock_path("t")):
+        assert [path for path, _ in codex_model.delivery_records("t")] == [live]
+        assert not stale.exists()
+        codex_model.archive_record(live, task_record("d", claimed, state="accepted"))
+    assert sorted(history.iterdir()) == [history / live.name, archived_kept]
+    assert not archived_gone.exists() and not archived_other.exists()
+    assert not archived_incomplete.exists()
+
+
 def test_direct_delivery_progress_does_not_become_page_activity(claimed, capsys):
     """Delivery stays exact interaction evidence while page activity continues to
     describe the claimant's availability and independently declared work."""
@@ -9517,6 +9584,44 @@ def test_a_question_about_a_lease_does_not_turn_its_taker_away(tmp_path):
     lease.close()
 
 
+def test_a_page_lock_is_its_directory_and_follows_a_page_made_again(tmp_path):
+    """The page lock is the page directory, so it leaves nothing in the state home
+    and ends with the page. A taker that waited on a directory deleted and made
+    again at the same path locks the new one, so it excludes the next taker; a
+    page gone for good raises."""
+    page = tmp_path / "page"
+    assert CliRunner().invoke(cli_model.cli, ["page", "init", str(page)]).exit_code == 0
+    assert not (machine_model.state_home() / "page-locks").exists()
+
+    entered = threading.Event()
+    release = threading.Event()
+
+    def take():
+        with leases_model.page_locked(page):
+            entered.set()
+            assert release.wait(10)
+
+    taker = threading.Thread(target=take)
+    with leases_model.page_locked(page):
+        taker.start()
+        time.sleep(0.2)  # the taker opens the directory and waits on this lock
+        shutil.rmtree(page)
+        page.mkdir()
+    assert entered.wait(10)
+    fd = os.open(page, os.O_RDONLY)
+    try:
+        with pytest.raises(BlockingIOError):
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    finally:
+        os.close(fd)
+    release.set()
+    taker.join(10)
+
+    page.rmdir()
+    with pytest.raises(FileNotFoundError), leases_model.page_locked(page):
+        pass
+
+
 def test_a_new_claim_cannot_borrow_the_previous_sessions_wait_lease(
     page_dir, monkeypatch
 ):
@@ -10643,6 +10748,24 @@ def test_a_background_wait_start_carries_the_closing_guidance(monkeypatch, capsy
     assert hook("uv run leaf wait --ack 64186241") == hooks_model.WAIT_STARTED
     assert looks == [False, True]
     waits.pop().release()
+
+
+def test_a_wait_that_ends_unnamed_leaves_no_start_mark():
+    """A foreground wait returns before any tool hook runs, so nothing names its
+    start; ending takes its mark with it, and the session's next wait is a new
+    start. A named start's mark is already gone, and ending does not mind."""
+    mark = machine_model.state_home() / "sessions" / "s1.started"
+    for named in (False, True):
+        watch = session_model.Watch(
+            host_model.ClaudeCodeHarness(session="s1", agent="Claude")
+        )
+        assert watch.acquire()
+        assert mark.exists()
+        if named:
+            assert leases_model.name_wait_start("s1") is True
+        watch.release()
+        assert not mark.exists()
+        assert leases_model.name_wait_start("s1") is False
 
 
 def test_the_registered_tool_hook_speaks_only_under_claude_code(tmp_path):

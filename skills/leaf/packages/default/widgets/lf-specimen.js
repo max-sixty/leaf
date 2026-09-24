@@ -134,10 +134,5 @@ customElements.define(
       }
       return this.#track(this.#host.reset());
     }
-
-    async lfPrepareExport() {
-      await this.#ready;
-      if (this.#frame) this.querySelector(":scope > .lf-specimen-controls").remove();
-    }
   },
 );

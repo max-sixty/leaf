@@ -49,8 +49,10 @@ from .delivery import (
     delivery_path,
     freeze_delivery,
     new_delivery_id,
+    pages_gone,
     receive_batch,
     record_pickup,
+    retire_if_gone,
     validate_delivery_id,
 )
 from .event_log import flocked
@@ -1107,13 +1109,19 @@ def record_path(session_id: str, delivery_id: str) -> Path:
 
 
 def archive_record(path: Path, record: dict) -> None:
-    """Move completed delivery records out of the adapter's hot scan."""
+    """Move completed delivery records out of the adapter's hot scan.
+
+    `history/` is read one delivery at a time, so this, its one writer, is also
+    where an archived record whose pages are all gone, or that this version does
+    not read, is removed."""
     if record["state"] == "accepted" and all(
         batch["receipted"] for batch in record["batches"]
     ):
-        history_path = path.parent / "history" / path.name
-        history_path.parent.mkdir(parents=True, exist_ok=True)
-        path.replace(history_path)
+        history = path.parent / "history"
+        history.mkdir(parents=True, exist_ok=True)
+        for archived in history.glob("*.json"):
+            retire_if_gone(archived, RECORD_FORMAT)
+        path.replace(history / path.name)
 
 
 def write_record(path: Path, record: dict) -> None:
@@ -1123,7 +1131,9 @@ def write_record(path: Path, record: dict) -> None:
 
 
 def delivery_records(session_id: str) -> list[tuple[Path, dict]]:
-    """Every standing delivery record one task holds, oldest first."""
+    """Every standing delivery record one task holds, oldest first, removing each
+    whose pages are all gone (`delivery.pages_gone`). Every caller holds the
+    task's delivery lock."""
     directory = delivery_dir(session_id)
     if not directory.is_dir():
         return []
@@ -1135,6 +1145,9 @@ def delivery_records(session_id: str) -> list[tuple[Path, dict]]:
             continue
         record = read_json(path)
         if record is None or record.get("format") != RECORD_FORMAT:
+            continue
+        if pages_gone(record["batches"]):
+            path.unlink()
             continue
         if record["state"] == "offering":
             payload = read_json(delivery_path(path.stem))

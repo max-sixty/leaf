@@ -75,7 +75,7 @@
  * swap between the two views included: an open edit is the box being in the document, so
  * the CSS reads that and this module writes no display state at all. Which is also what
  * lets paper disagree — it drops the box and keeps the words. History is chrome too and
- * exists only on a live page; a scriptless copy cannot honestly offer restore. Authored
+ * exists only on a live page. Authored
  * content is never discarded, so there is no failSoft.
  */
 import {

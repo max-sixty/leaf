@@ -143,6 +143,7 @@
           <a href="#x-measure"><code>x-measure</code></a>
           <a href="#x-measured"><code>x-measured</code></a>
           <a href="#x-name"><code>x-name</code></a>
+          <a href="#x-numbering"><code>x-numbering</code></a>
           <a href="#x-outline"><code>x-outline</code></a>
           <a href="#x-owners"><code>x-owners</code></a>
           <a href="#x-page-navigation"><code>x-page-navigation</code></a>
@@ -389,11 +390,19 @@
             <h3><code>x-lines</code></h3>
             <div class="reference-copy">
               <p>
-                Attributes holding 1-based line references into the nearest data body —
-                the element's own &lt;pre&gt;, or its enclosing data element's (a note's
+                Attributes holding line references into the nearest data body — the
+                element's own &lt;pre&gt;, or its enclosing data element's (a note's
                 <code>at</code> names a line of its code block) — which
                 <code>version check</code> refuses outside the body.
               </p>
+              <details class="reference-more">
+                <summary aria-label="Full x-lines contract">Full contract</summary>
+                <p>
+                  A reference names a line by the number that body's x-numbering gives
+                  it, 1-based when it has none; a number inside a gap the numbering
+                  leaves is in the body.
+                </p>
+              </details>
             </div>
           </section>
           <section class="reference-entry" id="x-measure">
@@ -456,6 +465,23 @@
                   title instead, as a column's or a tab's <code>label</code> is. An
                   attribute the element merely shows first, such as a metric's value or
                   a chronology entry's time, is not its title.
+                </p>
+              </details>
+            </div>
+          </section>
+          <section class="reference-entry" id="x-numbering">
+            <h3><code>x-numbering</code></h3>
+            <div class="reference-copy">
+              <p>
+                The attribute giving the source line numbers a data body quotes, as
+                ascending ranges ("1505-1507,1520-1527").
+              </p>
+              <details class="reference-more">
+                <summary aria-label="Full x-numbering contract">Full contract</summary>
+                <p>
+                  <code>version check</code> holds it to one number per body line; a gap
+                  between ranges is lines the body leaves out, and every x-lines
+                  reference into that body names lines by these numbers.
                 </p>
               </details>
             </div>
@@ -895,11 +921,17 @@
                   shown box. Targeting a mapped part stores its id as
                   <code>anchor.visual</code> while the widget remains the semantic seat.
                   A missing token or registration detaches on replay rather than
-                  widening to the whole picture. The registration's
-                  <code>update()</code> signals any rendering or geometry change,
-                  including an in-place attribute or style change. The render gate
-                  validates every record, requires each authored token to resolve, and
-                  refuses a registered id its prefixes do not admit.
+                  widening to the whole picture. A visual that draws its parts over time
+                  passes <code>registerVisualParts(source, read, {reveal})</code>:
+                  <code>reveal(id)</code> synchronously draws a state whose inventory
+                  holds that declared part. A declared part absent from the current
+                  state then places its threads on the whole picture, and thread travel
+                  calls <code>reveal</code> before landing on the part. The
+                  registration's <code>update()</code> signals any rendering or geometry
+                  change, including an in-place attribute or style change. The render
+                  gate validates every record, requires each authored token to resolve,
+                  in the current state or after its <code>reveal</code>, and refuses a
+                  registered id its prefixes do not admit.
                 </p>
               </details>
             </div>

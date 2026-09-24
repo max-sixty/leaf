@@ -25,8 +25,8 @@
  * The serif is stacked, not shipped. theme.css is inlined whole into every
  * `version export` and parsed by `version check` on every version, so a webfont
  * would have to arrive as a base64 blob in both — and referenced by URL instead
- * it silently falls back in exactly the medium (a copy, mailed on) that has no
- * server to ask. Charter and Iowan Old Style ship on macOS, Georgia everywhere
+ * it silently falls back in exactly the medium (an exported file, mailed on) that
+ * has no server to ask. Charter and Iowan Old Style ship on macOS, Georgia everywhere
  * else; each is a screen serif with a large x-height, which is the property that
  * matters at 17px.
  *
@@ -96,15 +96,13 @@
    that lets a grandchild's margin collapse through it declares the frame at the wrapper
    level only when it is the boundary responsible for that flow.
 
-   Put a layout grant in a selector strong enough to override the withheld base rule. Put
-   a standalone-only affordance guard in `:where(html:not(.lf-copy))` so the guard does
-   not add specificity to every rule inside it.
+   Put a layout grant in a selector strong enough to override the withheld base rule.
+   A screen rule that refines a base rule by one class of weight spells that weight
+   `html:root`: it matches the root alone and adds exactly one class and one type.
 
-   The live-page scrolling and chrome reservations stay under the live guard. A copy with
-   no panel uses an ordinary centered document and must not retain room for absent runtime
-   furniture.
+   The live-page scrolling and chrome reservations stay under the live guard.
 
-   Print asks a stricter question than export because nothing on paper is interactive.
+   Print asks a stricter question because nothing on paper is interactive.
    `data-lf-offer` identifies injected controls to remove, while `data-lf-said` preserves
    a decision word the page speaks through a control and `data-lf-echo` a name a control
    copies off the row it routes to. What the two word markers keep is the word and not the
@@ -215,9 +213,8 @@
      1496px = the ordinary 1152px floor plus this 344px maximum. */
   --sidebar-max: 344px;
   /* The measure, and the gutter main sets it in. Named because three rules now want
-     main's width: the element itself, the strip arithmetic beside aside.sidenote, and
-     the room a copy states for itself. A second copy of 720 would be a release behind
-     the first. */
+     main's width: the element itself and the strip arithmetic beside aside.sidenote.
+     A second copy of 720 would be a release behind the first. */
   --col: 720px;
   --col-pad: 24px;
   /* How wide evidence with `x-space: wide` may stand — one number for the whole
@@ -398,9 +395,9 @@
 @media screen and (pointer: coarse) and (width > 840px) {
   :root { --lf-banner-h: calc(53px + var(--lf-safe-top)); }
 }
-/* Only a live page draws the banner. A copy or an export has none, so what sticks
-   below the banner sticks to the top of the window. */
-html:is(:not([data-lf-live]), .lf-copy) { --lf-banner-h: 0px; }
+/* Only a live page draws the banner. Without one, what sticks below the banner sticks
+   to the top of the window. */
+html:not([data-lf-live]) { --lf-banner-h: 0px; }
 /* The other half of --aim-floor and --entry-floor, and the whole of what a coarse pointer
    changes about how small a control, or the words typed in one, may be. Every rule that
    states a floor reads its token, so a control joins both answers by joining one of them. */
@@ -495,8 +492,7 @@ html:is(:not([data-lf-live]), .lf-copy) { --lf-banner-h: 0px; }
  * was the one with no width to spare at all, and a twelve-character value ran 287px out
  * of a 138px card and across whatever the grid had put beside it. */
 /* Margin features claim named strips instead of overwriting page padding themselves.
- * A static copy must subtract exactly the room its padding reserved; the live page can
- * measure its final box, but both still need one shared answer. The right side hosts
+ * The right side hosts
  * sidenotes, suggestion controls, and the margin projection's inline conversations. They occupy
  * the same strip and are collision-laid-out rather than summed, so the page reserves only
  * the widest claim.
@@ -507,7 +503,7 @@ body { position: static !important; box-sizing: border-box !important;
        --lf-shell-inset-left: 0px;
        container: lf-shell / inline-size; }
 /* A container is contained, and containment keeps the body's background off the canvas,
- * so the root paints the page's colour itself: a copy shorter than the window, with no
+ * so the root paints the page's colour itself: a page shorter than the window, with no
  * live body stretched to fill it, otherwise ended in white. */
 html { background: var(--paper); }
 /* The live shell's fixed chrome arrives after the authored document, but its room is
@@ -516,10 +512,9 @@ html { background: var(--paper); }
  * scrollport. Its definite height lets the body's percentage minimum fill a short
  * viewport while a longer body still overflows it. A standing scrollbar prevents a
  * later height change from recentering the page. The server's prepaint bootstrap marks
- * a live page before its graph has loaded; the bake removes that marker and paper has
- * no fixed chrome. */
+ * a live page before its graph has loaded, and paper has no fixed chrome. */
 @media screen {
-  html[data-lf-live]:not(.lf-copy) {
+  html[data-lf-live] {
     height: 100%;
     overflow-x: hidden;
     overflow-y: scroll;
@@ -536,7 +531,7 @@ html { background: var(--paper); }
    * takes a block's. The banner keeps only its one row of actions (chrome.css). An open
    * auxiliary surface covers the window, so the page stands at least a window tall
    * while one is open, or a short specimen's Threads would have no room to list. */
-  html[data-lf-live][data-lf-contained]:not(.lf-copy) {
+  html[data-lf-live][data-lf-contained] {
     --lf-banner-h: 48px;
     overflow-y: hidden;
     body { min-height: 0; }
@@ -769,8 +764,7 @@ main {
  * naming lf-board would work perfectly for lf-board and do nothing at all for the
  * twelfth widget, which is the failure the whole vocabulary is arranged against. The
  * runtime marks what the registry declares, so this reaches a widget nobody has written
- * yet — and marks the element itself, which is what carries the width into an exported
- * copy, a file that runs no script and keeps the markup.
+ * yet.
  *
  * The element grows out of the column rather than widening the prose around it. That is
  * the floor for free — a margin with nothing
@@ -797,7 +791,7 @@ main {
  * width, so leaving the rule out of print is the whole of what paper needs. On screen,
  * `body` is the size container. Its inline size already excludes any standing Leaf
  * workspace, and `main` subtracts the page's own two margin claims from that one browser
- * reading. A live page and a standalone copy therefore use the same arithmetic. */
+ * reading. */
 @media screen {
   /* Two attributes carry one fact. `data-lf-space` is what the runtime paints from the
    * registry, and it arrives with the script. `data-width` is the page's own occurrence
@@ -1261,7 +1255,7 @@ aside.sidebar > :last-child { margin-bottom: 0; }
 main > aside.sidebar:nth-child(1 of aside.sidebar) { --lf-sidebar-slot: margin; }
 @media screen {
   @container lf-shell (min-width: 1152px) {
-  html:not(.lf-copy)
+  html:root
     main:has(> aside.sidebar):not(:has(aside.sidenote)) {
     --strip-l: var(--lf-sidebar-claim, var(--sidebar));
     --lf-sidebar-posture: margin;
@@ -1276,7 +1270,7 @@ main > aside.sidebar:nth-child(1 of aside.sidebar) { --lf-sidebar-slot: margin; 
        package). */
     --lf-free-l: var(--lf-sidebar-free-left, 0px);
   }
-  html:not(.lf-copy) main:not(:has(aside.sidenote))
+  html:root main:not(:has(aside.sidenote))
     > aside.sidebar:nth-child(1 of aside.sidebar) {
     float: left; clear: left; position: sticky;
     top: calc(var(--lf-banner-h, 0px) + var(--sp-4));
@@ -1288,14 +1282,14 @@ main > aside.sidebar:nth-child(1 of aside.sidebar) { --lf-sidebar-slot: margin; 
   }
   }
   @container lf-shell (min-width: 1496px) {
-  html:not(.lf-copy)
+  html:root
     main:has(> aside.sidebar):has(aside.sidenote) {
     --strip-l: var(--lf-sidebar-claim, var(--sidebar));
     --lf-sidebar-posture: margin;
     /* As beside a sidebar alone. */
     --lf-free-l: var(--lf-sidebar-free-left, 0px);
   }
-  html:not(.lf-copy) main:has(aside.sidenote)
+  html:root main:has(aside.sidenote)
     > aside.sidebar:nth-child(1 of aside.sidebar) {
     float: left; clear: left; position: sticky;
     top: calc(var(--lf-banner-h, 0px) + var(--sp-4));
@@ -1327,7 +1321,7 @@ main > aside.sidebar:nth-child(1 of aside.sidebar) { --lf-sidebar-slot: margin; 
    a change lands near it — and the overlap costs one line of a note that is read where
    it stands, against a control that is read where it is reached for. `version check
    --render` is told, in the one place it can be told: chrome a widget hangs out of the
-   flow may cover the page's words (coveredWords, in render-checks/standalone.js), which
+   flow may cover the page's words (coveredWords, in render-checks/words.js), which
    is the exemption the runtime's own floating layer already had, said for whoever owns
    the float.
 
@@ -1376,8 +1370,7 @@ aside.sidenote { font-size: var(--t-5); line-height: 1.45; color: var(--muted);
 
        `clear` says this and the browser already knows how: the note is a float, floats have
        a flow of their own, and clearing one is how a block declines to share its band. It
-       needs no measurement, so an exported copy that runs no script gets the same answer as
-       the live page. Inside the rule with the strip it claims, because they are one
+       needs no measurement. Inside the rule with the strip it claims, because they are one
        condition — a cramped page has handed the strip back and its notes are indented
        blocks in the flow, so there is no float out there to clear and no margin to take.
 
@@ -1397,8 +1390,8 @@ aside.sidenote { font-size: var(--t-5); line-height: 1.45; color: var(--muted);
   /* The pull reaches the page's margin through any box between that doesn't clip, which
      is a section, a tab panel, a disclosure. Through one that does — a choose group, a
      board, a table — the note is drawn nowhere at all, and the user is the only party
-     who loses it: checkVisibility() is true of a clipped box, so screen and paper agree,
-     and the copy withholds the clip and shows the words the live page dropped. Scoping
+     who loses it: checkVisibility() is true of a clipped box, so screen and paper agree.
+     Scoping
      the float to what it may float out of would answer that and cost the cases that
      work, a tab panel clipping nothing, so MISPLACED_BOXES carries a reading for it and
      the version is refused at handover instead.
@@ -1414,8 +1407,8 @@ aside.sidenote { font-size: var(--t-5); line-height: 1.45; color: var(--muted);
      differently, for a shift nobody can see across a 24px gutter. `clear` is what
      stacks a second note under the first rather than over it.
 
-     The in-flow form above is the whole fallback. The shell query grants the margin on
-     both a live page and a script-free copy, with no runtime state to mirror. */
+     The in-flow form above is the whole fallback. The shell query grants the margin
+     with no runtime state to mirror. */
   main aside.sidenote {
     float: right; clear: right; width: calc(var(--note) - var(--sp-4));
     margin: 0 calc(-1 * var(--note)) 12px 0; }
@@ -1454,7 +1447,7 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
                         font-weight: 600; display: grid; place-items: center; }
 
 @media screen {
-  html:not(.lf-copy) {
+  html:root {
     /* :not([hidden]), because a caller may take the box behind a collapse (a settled
        group takes it with its options) — the display here would outrank the
        attribute's own hiding. */
@@ -1499,7 +1492,7 @@ lf-old { background: var(--del-tint); color: var(--ink-2);
 lf-new { background: var(--add-tint); }
 /* The words that moved, deepened against the slot's own tint: the module's ranges
  * through the highlight registry (lf-suggestion.js #emphasize), so no node is
- * wrapped and a dead copy simply keeps the whole-slot tints. Layout-free
+ * wrapped. Layout-free
  * properties only, which is all ::highlight() may carry. */
 ::highlight(lf-sug-del) { background-color: color-mix(in srgb, var(--danger) 30%, transparent); }
 ::highlight(lf-sug-ins) { background-color: color-mix(in srgb, var(--ok) 26%, transparent); }
@@ -1587,15 +1580,15 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new) {
  * relation (data-lf-retired, leaf.js renderRetired). One rule for every family, so a
  * holder a project declares hides what a settlement removes the day it declares it —
  * the by-name pair that stood here was the closed list wearing CSS's clothes. A
- * module's fold outranks this with its inline display for the length of the motion,
- * and an exported copy keeps marker and rule with no module behind them. What no
+ * module's fold outranks this with its inline display for the length of the motion.
+ * What no
  * relation can say stays the family's own, like the emptied wrapper below. */
 [data-lf-retired] { display: none; }
 lf-suggestion[data-lf-state="accept"]:not(:has(lf-new)),
 lf-suggestion[data-lf-state="reject"]:not(:has(lf-old)) { display: none; }
 /* A pending suggestion still has to say it is proposed when generated controls are
  * absent. On screen the ✓/✗ row carries that fact and this word stays clipped for
- * whoever is listening. A static copy and paper expose the word #voice already writes
+ * whoever is listening. Paper exposes the word #voice already writes
  * in each slot, so the proposal remains distinguishable from settled content without
  * adding another label or moving it elsewhere.
  *
@@ -1613,7 +1606,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   position: static; width: auto; height: auto; overflow: visible; clip-path: none;
   display: inline-block; margin-right: 5px; }
 @media screen {
-  html:not(.lf-copy) lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
+  html:root lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
     position: absolute; width: 1px; height: 1px; overflow: hidden;
     clip-path: inset(50%); margin-right: 0; }
 }
@@ -1654,8 +1647,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-margin-options[hidden] { display: none; }
 .lf-margin-cluster.lf-docked .lf-margin-options { flex-wrap: wrap; white-space: normal; }
 /* The visible label becomes transient hover and focus chrome once the runtime's
- * stylesheet arrives. The accessible name comes from the entry reading, and a static
- * copy keeps the compact glyph in every medium. */
+ * stylesheet arrives. The accessible name comes from the entry reading. */
 .lf-margin-entry > :is(.lf-margin-entry-space, .lf-margin-entry-label) {
   display: none;
 }
@@ -1716,10 +1708,8 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-margin-entry[data-lf-tone="negative"] > :is(.lf-margin-entry-icon, .lf-margin-entry-glyph) {
   color: var(--danger-ink);
 }
-/* Pointer and hover feedback belong to interactive offers. BAKE removes the role
-   and tab stop from standing reaction marks, which retain their shape without
-   promising a press. A status keeps its ghost ring in the page-map walk, while its
-   hand and hover response go. */
+/* Pointer and hover feedback belong to interactive offers. A status keeps its ghost
+   ring in the page-map walk, while its hand and hover response go. */
 .lf-margin-entry:is(button, [role="button"]):not([data-lf-behavior="status"]):not(:disabled):not([aria-disabled="true"]) {
   cursor: pointer;
 }
@@ -1856,8 +1846,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
     font: 600 10px/14px var(--sans); text-align: center; }
 /* The rail stands in a shell wider than 840px. The rule that claims it says so on `main`
  * as `--lf-rail-posture`, and that reading is the whole answer: the runtime places rows by
- * it (margin-projection.js) and a copy's dock rule below asks it, so neither derives the
- * posture again from a width. The rail itself needs 827 — the column (720), its padding
+ * it (margin-projection.js), so nothing derives the posture again from a width. The rail itself needs 827 — the column (720), its padding
  * (2 x 24) and the claim (59), or 839 where a finger raises the marker to the aim floor —
  * and 840 is also where the banner folds, which asks the window, so with no strip taken
  * the page goes compact at one width, less a classic scrollbar's gutter. The Page Map the
@@ -1891,30 +1880,6 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   @container lf-shell (width <= 840px) {
     .lf-margin-projection, .lf-margin-marker.lf-margin-entry { display: none; }
   }
-}
-/* A file cannot dock. The runtime's packing pass measured the rail once, at the width
- * the page was exported at, and left with the scripts; the record a copy keeps stands
- * in an absolute seat hung off the right of its target. Where the rail is not drawn —
- * under the floor above, and on paper — that seat is off the page box: an 800px window
- * put the record 115px past its own edge and grew the document to reach it, and a
- * sheet narrower than the export simply loses it. So a copy takes the shape the
- * runtime gives a margin too narrow to stand in (.lf-margin-cluster.lf-docked above),
- * on the medium's terms rather than on a measurement it can no longer make.
- *
- * Not the rows the same pass withheld. `lf-withheld` says the target is not shown — a
- * widget inside a shut fold is the reachable case — and that rule is one class less
- * specific than this one, so a shape taken on the medium's terms would also be the
- * only thing standing a record beside a passage the file was folding away when
- * exported. Paper later unfolds that passage through CSS, but a script-free copy
- * cannot rerun the packing pass; changing the serialized `lf-withheld` reading belongs
- * to the live and copied layouts together, not to this export override.
- *
- * Where the rail is not drawn is the page's own reading, stated with the claim above, and
- * paper never states it, so one rule answers a narrow screen and a sheet alike. */
-@container lf-content-frame not style(--lf-rail-posture: margin) {
-  html.lf-copy .lf-margin-cluster:not(.lf-withheld) { position: static; display: flex;
-      width: fit-content;
-      max-width: 100%; margin: 2px 0 12px; flex-wrap: wrap; white-space: normal; }
 }
 @media (pointer: coarse) {
   .lf-margin-cluster { margin-left: 10px; }
@@ -1952,8 +1917,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
      layout marks the exhibits whose bands a row reaches (data-lf-yield) here.
      Said beside the reservation because they are the two halves of taking a margin, and a
      page that reserves one without saying so is a page whose exhibits are drawn over its
-     own apparatus. A copy runs no script and keeps the marks it was exported with, the
-     way it keeps the rail its decided rows reserved. */
+     own apparatus. */
   [data-lf-space][data-lf-yield~="r"] {
     --lf-space-bound: calc(var(--lf-width) + var(--lf-free-l));
     --lf-grow-l: var(--lf-surplus); --lf-grow-r: 0px;

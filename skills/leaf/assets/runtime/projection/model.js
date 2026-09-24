@@ -3,7 +3,7 @@
    Callers normalize server records and pending browser values at their boundaries.
    This module combines those values without consulting the DOM, registry, runtime
    state, or delivery state. Authored snapshots have the same shape captured by
-   projection/authored.js: a map from widget id to `{state, specs, positions}`. */
+   projection/authored.js: a map from widget id to `{state, specs}`. */
 
 // Keep this spelling aligned with passages.js's cross-runtime whitespace reading.
 const COLLAPSE =
@@ -138,7 +138,7 @@ const authoredValue = (authoredSnapshots, coordinate) => {
   const value = authored.state[verb].value;
   if (record?.kind === "attribute") return value.join(" ");
   if (record?.kind === "body") return value.replace(COLLAPSE, " ").trim();
-  if (record?.kind === "position" && spec.unit !== "widget")
+  if (record?.kind === "position")
     return (
       Object.keys(value).find((container) => value[container].includes(unit)) ?? null
     );
@@ -190,20 +190,42 @@ export const authoredRank = (index) =>
 const byRank = (ranks) => (a, b) =>
   ranks[a] < ranks[b] ? -1 : ranks[a] > ranks[b] ? 1 : a < b ? -1 : a > b ? 1 : 0;
 
-// The shortest key strictly between `before` ("" is the start) and `after` (null is the
-// end). Equal bounds have nothing between them, so the key ties and ids decide.
+// A key strictly between `before` ("" is the start) and `after` (null is the end).
+// Equal bounds have nothing between them, so the key ties and ids decide. An open end
+// steps one digit past its neighbour rather than halving the gap, so a column that only
+// ever grows at one end gains a character per 35 drops rather than per 5; an empty
+// container starts in the middle.
 function rankBetween(before, after) {
-  if (after !== null && before >= after) return before;
+  if (after === null) return before ? rankAfter(before) : "i";
+  if (!before) return rankBefore(after);
+  if (before >= after) return before;
+  return midpoint(before, after);
+}
+
+function rankAfter(key) {
+  const digit = DIGITS.indexOf(key[0]);
+  if (digit < DIGITS.length - 1) return DIGITS[digit + 1];
+  return "z" + (key.length > 1 ? rankAfter(key.slice(1)) : "1");
+}
+
+function rankBefore(key) {
+  if (key.length > 1 && key[0] !== "0") return key[0];
+  const digit = DIGITS.indexOf(key[0]);
+  if (digit > 1) return DIGITS[digit - 1];
+  return "0" + (key.length > 1 ? rankBefore(key.slice(1)) : "z");
+}
+
+function midpoint(before, after) {
   if (after !== null) {
     let n = 0;
     while ((before[n] ?? "0") === after[n]) n += 1;
-    if (n > 0) return after.slice(0, n) + rankBetween(before.slice(n), after.slice(n));
+    if (n > 0) return after.slice(0, n) + midpoint(before.slice(n), after.slice(n));
   }
   const low = before ? DIGITS.indexOf(before[0]) : 0;
   const high = after !== null ? DIGITS.indexOf(after[0]) : DIGITS.length;
   if (high - low > 1) return DIGITS[Math.round((low + high) / 2)];
   if (after !== null && after.length > 1) return after[0];
-  return DIGITS[low] + rankBetween(before.slice(1), null);
+  return DIGITS[low] + midpoint(before.slice(1), null);
 }
 
 // The rank that puts `unit` at `index` among the other units a position verb's state
@@ -227,18 +249,7 @@ export function foldWidgetStates(authoredSnapshots, projection) {
       },
     ]),
   );
-  const positions = Object.assign(
-    {},
-    ...[
-      ...new Set([...authoredSnapshots.values()].map(({ positions }) => positions)),
-    ].map((value) => structuredClone(value)),
-  );
-  const positionRanks = Object.fromEntries(
-    Object.values(positions).flatMap((ids) =>
-      ids.map((id, index) => [id, authoredRank(index)]),
-    ),
-  );
-  const place = (containers, ranks, unit, record, detail) => {
+  const place = ({ value: containers, ranks }, unit, record, detail) => {
     const destination = containers[detail[record.value]];
     if (!destination || !Object.values(containers).some((ids) => ids.includes(unit)))
       return;
@@ -249,9 +260,6 @@ export function foldWidgetStates(authoredSnapshots, projection) {
     destination.push(unit);
     ranks[unit] = detail[record.rank];
   };
-  const list = (containers, ranks) => {
-    for (const ids of Object.values(containers)) ids.sort(byRank(ranks));
-  };
 
   for (const entry of [...projection.desired.values()].sort(compareProjected)) {
     const owner = states.get(entry.e.widget);
@@ -261,45 +269,18 @@ export function foldWidgetStates(authoredSnapshots, projection) {
     const value = record ? structuredClone(e.detail[record.value]) : e.action;
     const standing = { action: e.action, value, detail: structuredClone(e.detail) };
     owner.entries.push(entry);
-    if (spec.unit === "widget") {
-      owner.state[e.action] = standing;
-      if (record?.kind === "position")
-        place(positions, positionRanks, unit, record, e.detail);
-    } else {
+    if (spec.unit === "widget") owner.state[e.action] = standing;
+    else {
       const target = owner.state[e.action];
       target.units[unit] = standing;
-      if (record?.kind === "position")
-        place(target.value, target.ranks, unit, record, e.detail);
-    }
-  }
-  list(positions, positionRanks);
-
-  for (const [id, owner] of states) {
-    const { state, specs } = owner;
-    for (const [verb, spec] of specs) {
-      if (spec.record?.kind !== "position") continue;
-      if (spec.unit !== "widget") {
-        list(state[verb].value, state[verb].ranks);
-        continue;
-      }
-      const record = spec.record;
-      const container = Object.keys(positions).find((key) =>
-        positions[key].includes(id),
-      );
-      if (!container) continue;
-      state[verb].value = container;
-      state[verb].detail[record.value] = container;
-      state[verb].detail[record.rank] = positionRanks[id];
-      state[verb].index = positions[container].indexOf(id);
-      owner.order = [container, state[verb].index];
+      if (record?.kind === "position") place(target, unit, record, e.detail);
     }
   }
 
-  return new Map(
-    [...states].sort(([, a], [, b]) => {
-      const left = a.order ?? ["", -1];
-      const right = b.order ?? ["", -1];
-      return left[0].localeCompare(right[0]) || left[1] - right[1];
-    }),
-  );
+  for (const { state, specs } of states.values())
+    for (const [verb, spec] of specs)
+      if (spec.record?.kind === "position")
+        for (const ids of Object.values(state[verb].value))
+          ids.sort(byRank(state[verb].ranks));
+  return states;
 }

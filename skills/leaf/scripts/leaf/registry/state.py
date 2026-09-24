@@ -132,13 +132,13 @@ def validate_widget_record_contracts(
                         f"{path}: <{tag}> x-state verb `{verb}` records a "
                         f"position within unknown widget <{record['within']}>"
                     )
-                if spec["unit"] == "widget" and record["within"] not in entry.get(
-                    "x-owners", []
-                ):
+                # A rank is read between the unit's neighbours, which only the
+                # widget holding the container has; a node cannot place itself.
+                if unit == "widget":
                     raise RegistryError(
-                        f"{path}: <{tag}> x-state verb `{verb}` records "
-                        f"its own position within <{record['within']}>, which "
-                        "its x-owners does not admit"
+                        f"{path}: <{tag}> x-state verb `{verb}` records a "
+                        "position, so its unit must be the part it places, "
+                        "not the widget"
                     )
             if record["kind"] == "body":
                 if entry.get("x-content") != "data":

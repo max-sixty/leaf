@@ -3326,16 +3326,14 @@ def test_a_part_scoped_answering_verb_needs_an_empty_condition(page_dir):
         registry_validation.validate_registry(registry, "test registry")
 
 
-def test_a_self_position_record_stays_within_the_declared_ownership_relation(page_dir):
+def test_a_position_record_places_a_part_and_never_the_widget(page_dir):
+    """A rank lies between the unit's neighbours, which only the widget holding the
+    container can read, so a widget cannot record its own position."""
     registry = json.loads((page_dir / "registry.json").read_text())
-    registry["lf-options"]["x-owners"] = ["lf-task"]
     registry["lf-options"]["x-state"]["move"] = {
         "detail": {
             "type": "object",
-            "properties": {
-                "to": {"type": "string"},
-                "rank": {"type": "string"},
-            },
+            "properties": {"to": {"type": "string"}, "rank": {"type": "string"}},
             "required": ["to", "rank"],
             "additionalProperties": False,
         },
@@ -3352,67 +3350,7 @@ def test_a_self_position_record_stays_within_the_declared_ownership_relation(pag
     result = check(page_dir)
 
     assert result.exit_code != 0
-    assert "records its own position within <lf-column>" in result.output
-    assert "x-owners does not admit" in result.output
-
-
-def test_a_recursive_self_position_record_cannot_create_a_dom_cycle(server, page_dir):
-    """A recursive content model permits moving a widget between peer containers,
-    never into itself or a descendant. Admission reads the standing holder relation so
-    a valid registry cannot turn an impossible DOM insertion into durable state.
-    """
-    registry = json.loads((page_dir / "registry.json").read_text())
-    registry["lf-task"]["properties"]["restated"] = {"type": "boolean"}
-    registry["lf-task"]["x-state"] = {
-        "move": {
-            "detail": {
-                "type": "object",
-                "properties": {
-                    "to": {"type": "string"},
-                    "rank": {"type": "string"},
-                },
-                "required": ["to", "rank"],
-                "additionalProperties": False,
-            },
-            "unit": "widget",
-            "record": {
-                "kind": "position",
-                "within": "lf-task",
-                "value": "to",
-                "rank": "rank",
-            },
-        }
-    }
-    (page_dir / "registry.json").write_text(json.dumps(registry))
-    result = check(page_dir)
-    assert result.exit_code == 0, result.output
-
-    tasks = (
-        '<lf-command id="commands"><lf-task id="parent-task" status="active">'
-        "<strong>Parent</strong>"
-        '<lf-task id="child-task" status="active"><strong>Child</strong></lf-task>'
-        "</lf-task></lf-command>"
-    )
-    html = re.sub(r"<main>.*?</main>", f"<main>{tasks}</main>", PAGE, flags=re.DOTALL)
-    (page_dir / "index.html").write_text(html)
-    publish(page_dir)
-    revision = events_model.read_events(page_dir)[-1]["revision"]
-
-    for destination in ("parent-task", "child-task"):
-        status, body = fetch(
-            f"{server}/api/event",
-            data=json.dumps(
-                {
-                    "kind": "action",
-                    "revision": revision,
-                    "widget": "parent-task",
-                    "action": "move",
-                    "detail": {"to": destination, "rank": "0i"},
-                }
-            ).encode(),
-        )
-        assert status == 400, body
-        assert "inside itself or its descendant" in json.loads(body)["error"]
+    assert "its unit must be the part it places, not the widget" in result.output
 
 
 def _value_verb(attr):
@@ -3434,39 +3372,17 @@ def _value_verb(attr):
     [
         ("own-verb", None),
         ("recording-column", "'card' is not owned by action widget 'board'"),
-        ("own-position", "'card' records its own position, so action widget 'board'"),
     ],
 )
 def test_the_widget_that_records_a_parts_position_is_the_one_that_places_it(
     server, page_dir, arrangement, refusal
 ):
-    """A card has one place and one widget records it: the card itself when its own
-    contract records its position, otherwise the nearest recording widget above it. A
+    """A card has one place and the nearest recording widget above it records it. A
     verb the card records of its own is a coordinate of the card's, so the board still
-    moves it. A column that records stands between the board and the card, and a card
-    that positions itself leaves the board nothing to place."""
+    moves it. A column that records stands between the board and the card."""
     registry = json.loads((page_dir / "registry.json").read_text())
     registry["lf-column"]["properties"]["tint"] = {"type": "string"}
     card_verbs = {"flag": _value_verb("flag")}
-    if arrangement == "own-position":
-        card_verbs["move"] = {
-            "detail": {
-                "type": "object",
-                "properties": {
-                    "to": {"type": "string"},
-                    "rank": {"type": "string"},
-                },
-                "required": ["to", "rank"],
-                "additionalProperties": False,
-            },
-            "unit": "widget",
-            "record": {
-                "kind": "position",
-                "within": "lf-column",
-                "value": "to",
-                "rank": "rank",
-            },
-        }
     recorders = {"lf-card": ("flag", card_verbs)}
     if arrangement == "recording-column":
         recorders["lf-column"] = ("tint", {"tint": _value_verb("tint")})

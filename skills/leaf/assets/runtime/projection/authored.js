@@ -27,8 +27,7 @@ import { authoredRank } from "./model.js";
    - `attribute`: sorted owned ids carrying the declared attribute;
    - `value`: the attribute string, or `null` when absent;
    - `position`: ordered id lists per container and each listed unit's authored rank
-     (projection/model.js); an individual widget also names its containing id and rank,
-     and its index among that container's identified children;
+     (projection/model.js);
    - `body`: the data body's exact words, with source-layout indentation removed;
    - no record: `null` for a widget verb, an empty unit map otherwise.
 
@@ -108,19 +107,7 @@ function initialState(widget, spec) {
       .filter(Boolean)
       .sort();
   else if (record?.kind === "value") value = widget.getAttribute(record.attr);
-  else if (record?.kind === "position") {
-    const container = widget.closest(record.within);
-    const index = container
-      ? [...container.children].filter((part) => part.id).indexOf(widget)
-      : 0;
-    value = container?.id ?? null;
-    return {
-      action: null,
-      value,
-      index,
-      detail: { [record.value]: value, [record.rank]: authoredRank(index) },
-    };
-  } else if (record?.kind === "body") value = decodeBodyRecord(widget);
+  else if (record?.kind === "body") value = decodeBodyRecord(widget);
   return { action: null, value, detail: record ? { [record.value]: value } : {} };
 }
 
@@ -132,26 +119,14 @@ export function stageAuthoredStates(root = document, existing = authoredStates()
     specs.set(verb, spec);
     byTag.set(tag, specs);
   }
-  const positions = {};
   for (const [tag, specs] of byTag) {
     const widgets = [...root.querySelectorAll(tag)];
     if (root.nodeType === Node.ELEMENT_NODE && root.matches(tag)) widgets.unshift(root);
     for (const widget of widgets) {
       if (!widget.id || existing.has(widget.id)) continue;
-      for (const spec of specs.values())
-        if (spec.unit === "widget" && spec.record?.kind === "position")
-          for (const container of [
-            ...root.querySelectorAll(spec.record.within),
-            widget.closest(spec.record.within),
-          ].filter(Boolean))
-            if (container.id && !positions[container.id])
-              positions[container.id] = [...container.children]
-                .filter((part) => part.id)
-                .map((part) => part.id);
       captured.set(widget.id, {
         tag,
         specs,
-        positions,
         state: Object.fromEntries(
           [...specs].map(([verb, spec]) => [verb, initialState(widget, spec)]),
         ),

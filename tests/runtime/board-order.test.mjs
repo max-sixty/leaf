@@ -26,7 +26,6 @@ const authored = new Map([
         },
       },
       specs: new Map([["move", spec]]),
-      positions: {},
     },
   ],
 ]);
@@ -104,3 +103,21 @@ test("repeated drops at one place keep finding a rank between their neighbours",
   // Forty alternating drops between a and whatever sits second.
   assert.deepEqual(b.order().todo, ["a", "b", "c", "d"]);
 });
+
+// A column that only grows at one end, as a swipe pile does: each key sorts past the
+// last and stays short, since an open end steps a digit rather than halving the gap.
+for (const end of ["tail", "head"]) {
+  test(`two thousand drops at the ${end} keep their keys ordered and short`, () => {
+    const state = { value: { pile: [] }, ranks: {} };
+    for (let i = 0; i < 2000; i += 1) {
+      const unit = `u${i}`;
+      const at = end === "tail" ? state.value.pile.length : 0;
+      state.ranks[unit] = rankAt(state, "pile", at, unit);
+      state.value.pile.splice(at, 0, unit);
+    }
+    const keys = state.value.pile.map((unit) => state.ranks[unit]);
+    for (const key of keys) assert.match(key, /^[0-9a-z]*[1-9a-z]$/);
+    for (let i = 1; i < keys.length; i += 1) assert.ok(keys[i - 1] < keys[i], keys[i]);
+    assert.ok(Math.max(...keys.map((key) => key.length)) <= 60);
+  });
+}

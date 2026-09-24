@@ -7,6 +7,7 @@ import re
 import pytest
 from interact_support import append_command
 from leaf import event_log as events_model
+from leaf import projection as projection_model
 from leaf import schema as schema_model
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -238,7 +239,9 @@ def test_z_puts_a_card_back_where_the_version_had_it(browser, serve):
     expect(grip).to_be_focused()
     log = events_model.read_events(serve.page_dir)
     (moved,) = actions(serve.page_dir)
-    assert moved["detail"] == {"card": "card-baffle", "to": "col-done", "rank": "i"}
+    rank = moved["detail"].pop("rank")
+    assert moved["detail"] == {"card": "card-baffle", "to": "col-done"}
+    assert projection_model.RANK.fullmatch(rank)
     assert [(e["kind"], e.get("undoes")) for e in log if e["kind"] == "undo"] == [
         ("undo", moved["id"])
     ]
@@ -715,14 +718,14 @@ def test_a_newer_queued_action_survives_an_older_refusal(browser, serve):
     page.unroute("**/api/event")
     round_trip(page)
 
-    assert [
-        (event["detail"]["card"], event["detail"]["to"], event["detail"]["rank"])
-        for event in actions(serve.page_dir)
-    ] == [
-        ("card-heater", "col-done", "i"),
-        ("card-baffle", "col-done", "r"),
-        ("card-baffle", "col-done", "9"),
+    heater, below, above = (event["detail"] for event in actions(serve.page_dir))
+    assert [(d["card"], d["to"]) for d in (heater, below, above)] == [
+        ("card-heater", "col-done"),
+        ("card-baffle", "col-done"),
+        ("card-baffle", "col-done"),
     ]
+    # Each queued send ranks the baffle on the side of the heater the user put it.
+    assert above["rank"] < heater["rank"] < below["rank"]
     assert page.eval_on_selector_all(
         "#col-done > lf-card", "cards => cards.map(card => card.id)"
     ) == ["card-baffle", "card-heater"]

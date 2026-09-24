@@ -171,10 +171,8 @@ def position_record_error(
     if record.get("kind") != "position":
         return None
 
-    unit_id = (
-        event["widget"] if spec["unit"] == "widget" else event["detail"][spec["unit"]]
-    )
-    unit = current if spec["unit"] == "widget" else by_id.get(unit_id)
+    unit_id = event["detail"][spec["unit"]]
+    unit = by_id.get(unit_id)
     if unit is None:
         return f"position record names unknown {spec['unit']} {unit_id!r}"
 
@@ -220,24 +218,8 @@ def position_record_error(
             node = node["holder"]
         return None
 
-    def positions_itself(node: dict) -> bool:
-        """Whether the node's own contract records where the node stands."""
-        return any(
-            spec.get("unit") == "widget"
-            and (spec.get("record") or {}).get("kind") == "position"
-            for _, spec in state_specs(registry.get(node["tag"], {}))
-        )
-
-    # A node has one place and one widget records it: the node itself when its own
-    # contract records its position, otherwise the nearest recording widget above it.
-    # The browser folds a self-position and a container's part position into two
-    # different maps, so admitting both would place one node twice.
-    if unit is not current and positions_itself(unit):
-        return (
-            f"position record unit {unit_id!r} records its own position, so action "
-            f"widget {event['widget']!r} cannot place it"
-        )
-    if unit is not current and recording_owner(unit) is not current:
+    # A node has one place, and the nearest recording widget above it records it.
+    if recording_owner(unit) is not current:
         return (
             f"position record unit {unit_id!r} is not owned by action widget "
             f"{event['widget']!r}"
@@ -248,10 +230,8 @@ def position_record_error(
             f"{target_id!r}"
         )
     # A part record repositions something inside its owning widget, so its
-    # destination belongs there too. A self-position record instead moves the
-    # widget among containers admitted by its x-owners (often siblings of its
-    # current parent), and the registry relation below is its complete boundary.
-    if unit is not current and not inside(target, current):
+    # destination belongs there too.
+    if not inside(target, current):
         return (
             f"position record destination {target_id!r} is outside action widget "
             f"{event['widget']!r}"

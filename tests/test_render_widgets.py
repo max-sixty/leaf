@@ -5222,12 +5222,15 @@ def test_swipe_deck_buttons_arrows_and_rapid_actions_share_order(browser, serve)
         "swipe",
         "swipe",
     ]
-    assert [event["detail"] for event in logged] == [
-        {"card": "swipe-a", "to": "session-pass", "rank": "j"},
-        {"card": "swipe-b", "to": "session-keep", "rank": "j"},
-        {"card": "swipe-c", "to": "session-pass", "rank": "s"},
-        {"card": "swipe-d", "to": "session-keep", "rank": "s"},
+    assert [(e["detail"]["card"], e["detail"]["to"]) for e in logged] == [
+        ("swipe-a", "session-pass"),
+        ("swipe-b", "session-keep"),
+        ("swipe-c", "session-pass"),
+        ("swipe-d", "session-keep"),
     ]
+    # Each swipe lands after the pile's authored card ("1") and the swipe before it.
+    a, b, c, d = (event["detail"]["rank"] for event in logged)
+    assert "1" < a < c and "1" < b < d
 
 
 def test_a_classification_can_return_before_its_send_finishes(browser, serve):

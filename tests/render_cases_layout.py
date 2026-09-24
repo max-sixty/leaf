@@ -937,6 +937,14 @@ LEGEND_TRUE = """() => [...document.querySelectorAll('.lf-legend-box')].every(b 
   }
   if (r.top < 0 || r.bottom > innerHeight) return true;
   if (b.style.display === 'none') return false;
+  // The open thread panel stands over the right of the page, and a box is drawn for
+  // what the page shows of its item, which ends at the panel's edge.
+  const panel = document.querySelector('.lf-thread-panel');
+  if (panel?.open) {
+    const edge = panel.getBoundingClientRect().left;
+    r = { left: r.left, top: r.top, height: r.height,
+          width: Math.min(r.right, edge) - r.left };
+  }
   const bb = b.getBoundingClientRect();
   return Math.abs(bb.left + 1 - r.left) < 1.5 && Math.abs(bb.top + 1 - r.top) < 1.5
     && Math.abs(bb.width - 2 - r.width) < 1.5 && Math.abs(bb.height - 2 - r.height) < 1.5;

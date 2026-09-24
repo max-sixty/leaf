@@ -6,7 +6,7 @@ import urllib.error
 import urllib.request
 from urllib.parse import urlsplit
 
-from interact_support import PAGE, run_async
+from interact_support import PAGE, ROOT, run_async
 from leaf.event_log import append_event, read_events
 from leaf.files import revision_path
 from leaf.mcp_page import (
@@ -19,7 +19,6 @@ from leaf.mcp_page import (
 from leaf.mcp_server import make_mcp_server
 from leaf.revisioning import activate_source
 from leaf.structure import EXTERNAL_ORIGINS
-from vendor import PINS
 
 
 def activate(page_dir, html=PAGE):
@@ -203,14 +202,13 @@ def test_shipped_adaptive_app_is_one_self_contained_html_blob():
     assert "LEAF_MCP_STYLE" not in page
     assert "LEAF_MCP_SCRIPT" not in page
     assert "LEAF_MCP_ICON" not in page
-    # The version comes from the pin rather than a number written here, for the
-    # reason `vendor.py` states over PINS: a second copy is what lets the tracked
-    # bytes and the pin disagree. Written out, this assertion only ever failed
-    # because someone bumped the pin, and passed again once they retyped it here.
-    assert (
-        f"@modelcontextprotocol/ext-apps {PINS['@modelcontextprotocol/ext-apps']}"
-        in page
-    )
+    # The version comes from the lock rather than a number written here: a second
+    # copy is what lets the tracked bytes and the lock disagree. Written out, this
+    # assertion only ever failed because someone bumped the pin, and passed again
+    # once they retyped it here.
+    lock = json.loads((ROOT / "package-lock.json").read_text(encoding="utf-8"))
+    ext_apps = lock["packages"]["node_modules/@modelcontextprotocol/ext-apps"]
+    assert f"@modelcontextprotocol/ext-apps {ext_apps['version']}" in page
     assert '<script src="' not in page
     assert '<link rel="stylesheet"' not in page
     assert "leaf_refresh" in page

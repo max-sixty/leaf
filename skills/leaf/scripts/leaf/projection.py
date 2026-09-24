@@ -325,11 +325,11 @@ def authored_rank(index: int) -> str:
 class StateProjection(NamedTuple):
     """The durable widget state declared by one page and log window.
 
-    `absorbed` holds the moves a later revision in the window has taken in. The
-    door admits a page move only on the newest revision, and every later revision
-    passed `version check` against the fold that held the move, so its markup wrote
-    the unit where the move put it. An absorbed move still stands, as a written-back
-    pick does, but no longer places its unit: the markup does."""
+    `absorbed` holds the moves whose container this document authors differently
+    from the revision the move was made on (`move_absorbed`). Every revision that
+    does passed `version check` against the fold that held the move, so its markup
+    wrote the unit where the move put it. An absorbed move still stands, as a
+    written-back pick does, but no longer places its unit: the markup does."""
 
     actions: dict
     reports: dict
@@ -406,7 +406,6 @@ def state_projection(
     withdrawn = taken_back(events)
     settled = report_settlements(events, upto)
     actions = {}
-    absorbed = set()
     reports = {}
     settlement_versions = {}
     classified = {}
@@ -431,12 +430,6 @@ def state_projection(
             if event["id"] in withdrawn or action_retracted(event, floors, within):
                 continue
             actions[coordinate] = entry
-            if (
-                upto is not None
-                and event["meaning"].get("places")
-                and event["revision"] < upto
-            ):
-                absorbed.add(event["id"])
         elif settled_at := settled.get(event["id"]):
             settlement_versions[coordinate] = max(
                 settlement_versions.get(coordinate, 0), settled_at
@@ -446,13 +439,20 @@ def state_projection(
 
     desired = {coordinate: entries[-1] for coordinate, entries in reports.items()}
     desired.update(actions)
+    orders = {}
+    absorbed = frozenset(
+        event["id"]
+        for _coordinate, (event, spec) in classified.values()
+        if event["kind"] == "action"
+        and move_absorbed(event, spec, byid, spk, registry, orders)
+    )
     return StateProjection(
         actions,
         reports,
         desired,
         settlement_versions,
         classified,
-        frozenset(absorbed),
+        absorbed,
     )
 
 
@@ -503,9 +503,8 @@ def recorded_owner(unit: str, byid: dict, spk: dict, registry: dict):
 def markup_value(unit: str, spec: dict, byid: dict, spk: dict, registry: dict):
     """What one version's markup shows for a unit's declared record form: every
     element inside it carrying the attribute, the unit's own attribute's value, or
-    its body's words — the empty list where the markup shows no pick. It reads no
-    position: a unit's place is read against the whole fold (`recorded_state`),
-    and no caller reaches here with one.
+    its body's words — the empty list where the markup shows no pick. A unit's
+    place is read against the whole fold instead (`recorded_state`).
 
     An attribute record is a set, never one element: a group taking several
     picks marks several options, and one shape for both is what lets the fold
@@ -513,6 +512,8 @@ def markup_value(unit: str, spec: dict, byid: dict, spk: dict, registry: dict):
     record = spec.get("record")
     if not record:
         return NO_RECORD
+    if record["kind"] == "position":
+        raise ValueError("a position is read against the whole fold: recorded_state")
     if record["kind"] == "attribute":
         return sorted(
             oid
@@ -547,6 +548,25 @@ def authored_positions(
     return order
 
 
+def move_absorbed(
+    event: dict, spec: dict, byid: dict, spk: dict, registry: dict, orders: dict
+) -> bool:
+    """Whether this document authors a move's container differently from the
+    revision the move was made on: other units, or the same in another order, than
+    the move's `meaning.among`. The rank lies among those authored units, so it lands
+    in the gap the user chose only while they stand as they did; a document that
+    changes them has written the unit itself (`version check`). `orders` caches each
+    owner's authored order across the calls one reading makes."""
+    among = event["meaning"].get("among")
+    if among is None:
+        return False
+    record = spec["record"]
+    owner = event["widget"]
+    if owner not in orders:
+        orders[owner] = authored_positions(owner, record, byid, spk, registry)
+    return orders[owner].get(event["detail"][record["value"]]) != among
+
+
 def folded_positions(
     owner: str,
     verb: str,
@@ -558,10 +578,10 @@ def folded_positions(
 ) -> dict[str, list[str]]:
     """Container id → its units in the order the fold leaves on this markup.
 
-    Authored units rank by authored index; each standing move no later revision has
-    absorbed puts its unit in its container at the rank it names, and a container lists
-    its units by rank, ties by id. `projection/model.js`'s `foldWidgetStates` is the
-    browser's reading of the same rule."""
+    Authored units rank by authored index; each standing move this markup has not
+    absorbed (`move_absorbed`) puts its unit in its container at the rank it names,
+    and a container lists its units by rank, ties by id. `projection/model.js`'s
+    `foldWidgetStates` is the browser's reading of the same rule."""
     order = authored_positions(owner, record, byid, spk, registry)
     ranks = {
         unit: authored_rank(index)
@@ -569,8 +589,13 @@ def folded_positions(
         for index, unit in enumerate(units)
     }
     standing = sorted(projection.desired.items(), key=lambda item: item[1][0]["seq"])
-    for (widget, unit, action), (event, _spec) in standing:
-        if widget != owner or action != verb or event["id"] in projection.absorbed:
+    orders = {owner: authored_positions(owner, record, byid, spk, registry)}
+    for (widget, unit, action), (event, spec) in standing:
+        if (
+            widget != owner
+            or action != verb
+            or move_absorbed(event, spec, byid, spk, registry, orders)
+        ):
             continue
         destination = order.get(event["detail"][record["value"]])
         if destination is None or unit not in ranks:
@@ -587,19 +612,16 @@ def folded_positions(
 
 
 class Placement(NamedTuple):
-    """Where one unit stands: its container and, while its move places it, the
-    nearest unit both documents list before it there — None when no shared unit
-    precedes it, or once a later revision has absorbed the move."""
+    """Where one unit stands: its container, and the nearest unit both documents
+    list before it there, None where no shared unit precedes it."""
 
     container: str | None
     after: str | None
 
 
-def _placement(unit: str, order: dict, shared: set | None) -> Placement:
+def _placement(unit: str, order: dict, shared: set) -> Placement:
     for container, units in order.items():
         if unit in units:
-            if shared is None:
-                return Placement(container, None)
             before = [i for i in units[: units.index(unit)] if i in shared]
             return Placement(container, before[-1] if before else None)
     return Placement(None, None)
@@ -620,12 +642,10 @@ def recorded_state(
     fold is `projection` read on `folded`.
 
     Most record forms are the event's own detail. A position is a `Placement`,
-    read on both sides from the whole fold. A move the fold still places holds the
-    markup to its container and to the nearest unit both documents list before it,
-    which is the gap the user dropped it into: a version may add or drop cards
-    around it and still say the same. A move a later revision has absorbed holds
-    the markup to its container alone, as a written-back pick holds the markup to the
-    pick: the version decides the order within it."""
+    read on both sides from the whole fold: the unit's container and the nearest
+    unit both documents list before it, which is the gap the user dropped it into.
+    A version may add or drop cards around it, or rearrange cards away from it, and
+    still say the same."""
     widget, unit, verb = coordinate
     record = spec.get("record")
     if not record:
@@ -634,11 +654,9 @@ def recorded_state(
         return markup_value(unit, spec, *markup, registry), folded_value(event, spec)
     shown = authored_positions(widget, record, *markup, registry)
     left = folded_positions(widget, verb, record, *folded, registry, projection)
-    shared = None
-    if event["id"] not in projection.absorbed:
-        shared = {i for units in shown.values() for i in units} & {
-            i for units in left.values() for i in units
-        }
+    shared = {i for units in shown.values() for i in units} & {
+        i for units in left.values() for i in units
+    }
     return _placement(unit, shown, shared), _placement(unit, left, shared)
 
 

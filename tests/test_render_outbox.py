@@ -2025,20 +2025,31 @@ def test_a_withdrawal_is_heard_by_a_tab_reading_a_later_version(browser, serve):
 def test_a_move_on_a_version_a_newer_one_replaced_is_refused_and_restored(
     browser, serve
 ):
-    """A move's rank lies between the neighbours of the version it was made on, so the
-    door takes a move only on the newest one. A tab still holding v1 after v2 exists
-    sees its move refused and the card back where it stood; the log keeps nothing."""
+    """A move's rank lies among the cards of the version it was made on. A tab still
+    holding v1 after v2 added a card to the destination column sees its move refused
+    in words meant for it, and the card back where it stood; the log keeps nothing."""
     url = serve(BOARD_PAGE)
     pinned = open_page(browser, url + "&pin")
-    stamp_page(serve.page_dir, BOARD_PAGE.replace("Sprint<", "Sprint two<"), "v2")
+    stamp_page(
+        serve.page_dir,
+        BOARD_PAGE.replace(
+            '<lf-column id="col-done" label="Done"></lf-column>',
+            '<lf-column id="col-done" label="Done">'
+            '<lf-card id="card-feeder"><strong>Feeder</strong></lf-card></lf-column>',
+        ),
+        "v2",
+    )
     expect(pinned).to_have_url(re.compile("v1"))
 
     pinned.locator("#card-baffle .lf-grip").focus()
     with pinned.expect_response(
         lambda response: "/api/event" in response.url and response.status == 400
-    ):
+    ) as refused:
         for key in ["Enter", "ArrowRight", "Enter"]:
             pinned.keyboard.press(key)
+    assert refused.value.json()["error"] == (
+        "The page changed while you moved this; move it again."
+    )
     round_trip(pinned)
     expect(pinned.locator("#col-todo #card-baffle")).to_have_count(1)
     assert actions(serve.page_dir) == []

@@ -253,8 +253,8 @@ retains generated-child labels and other declared event data. A per-part verb's 
 contains `units`, keyed by unit id, and a position verb's also contains `value`, a map
 from container id to the complete ordered ids it holds, and `ranks`, each listed unit's
 rank. A position record carries a rank rather than an index, so a unit's placement
-stands whichever other moves stand until a version takes the move in and its markup
-places the unit: dispatch `rankAt(state.<verb>, container, index,
+stands whichever other moves stand, until a version authors the container's units
+differently and its markup places the unit: dispatch `rankAt(state.<verb>, container, index,
 unit)` from `runtime/widget-api.js` for a unit dropped at `index` among the container's
 other units. Missing recordless units are
 undecided. Render the final composition and keep independent

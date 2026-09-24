@@ -741,6 +741,14 @@ def test_rank_rules_match_the_browser_cases():
     assert not any(projection_model.RANK.fullmatch(r) for r in RANK_CASES["invalid"])
 
 
+def test_a_position_is_never_read_as_one_actions_markup_value():
+    """A unit's place is read against the whole fold (`recorded_state`); reading it
+    the way a pick or a value is read would fall through to the unit's words."""
+    spec = {"record": {"kind": "position", "within": "lf-column"}}
+    with pytest.raises(ValueError, match="recorded_state"):
+        projection_model.markup_value("x", spec, {}, {}, {})
+
+
 def _todo_order(page_dir):
     todo = construction_nodes(state_json(page_dir)["content"])["c-todo"]
     return [n["attrs"]["id"] for n in todo["content"] if isinstance(n, dict)]
@@ -779,20 +787,34 @@ def _drop_x_between_a_and_b(page_dir):
     return move
 
 
-def test_a_version_that_leaves_a_move_to_the_log_is_refused(page_dir):
-    """A rank is a key between the neighbours the user saw, and a version that adds a
-    card above them shifts every authored rank under it: carried onto `n a b c`, x's
-    "1i" reads as the gap between n and a. So a version writes a standing move where
-    the move put the card, and leaving it where the previous version had it is not
-    the silence it is for an attribute."""
+def test_a_version_that_changes_the_moves_column_without_writing_it_is_refused(
+    page_dir,
+):
+    """A rank is a key among the cards the user saw, and a version that adds a card
+    above them shifts every authored rank under it: carried onto `n a b c`, x's "1i"
+    reads as the gap between n and a. So a version that changes the move's column
+    writes the moved card where the move put it."""
     _drop_x_between_a_and_b(page_dir)
     _write_board(page_dir, "nabc", "x")
     result = check(page_dir)
     assert result.exit_code == 1, result.output
-    assert "id='x'" in result.output and "move (on r1) put it in 'c-todo'" in (
-        result.output
+    assert (
+        "the markup puts it in 'c-done' where their move (on r1) left it in "
+        "'c-todo' right after 'a'"
+    ) in result.output
+
+
+def test_a_version_that_leaves_the_moves_column_alone_needs_not_write_it(page_dir):
+    """While a version authors the move's column as the move's revision did, the rank
+    still lands in the gap the user chose, so leaving the move to the log is sound
+    and a prose edit or a re-vendor needs no transcription."""
+    _drop_x_between_a_and_b(page_dir)
+    (page_dir / "index.html").write_text(
+        (page_dir / "index.html").read_text().replace("<h2>Plan</h2>", "<h2>Plans</h2>")
     )
-    assert "right after 'a'" in result.output
+    assert check(page_dir).exit_code == 0, check(page_dir).output
+    publish(page_dir, 2)
+    assert _todo_order(page_dir) == ["a", "x", "b", "c"]
 
 
 def test_a_version_that_writes_the_move_owns_its_order(page_dir):
@@ -804,27 +826,54 @@ def test_a_version_that_writes_the_move_owns_its_order(page_dir):
     assert check(page_dir).exit_code == 0, check(page_dir).output
     publish(page_dir, 2)
     assert _todo_order(page_dir) == ["n", "a", "x", "b", "c"]
-    with pytest.raises(events_model.EventRefused, match="now places its unit"):
+    with pytest.raises(events_model.EventRefused, match="markup now places its unit"):
         append_command(
             page_dir, {"kind": "undo", "author": "user", "undoes": move["id"]}
         )
 
 
-def test_a_version_after_the_one_that_wrote_a_move_orders_its_column(page_dir):
-    """Absorbed, a move holds later versions to its column and no more, as a
-    written-back pick holds them to the pick: reordering the column is the version's
-    to do, and taking the card out of it is taking the move back."""
+def test_a_later_version_keeps_a_written_move_unless_it_restates_the_card(page_dir):
+    """A version keeps a user's decision unless it takes it back: after a version
+    wrote the move, a later one keeps x right after a however it arranges the cards
+    away from it, and moving x itself takes `restated`."""
     _drop_x_between_a_and_b(page_dir)
     _write_board(page_dir, "naxbc")
     publish(page_dir, 2)
+    _write_board(page_dir, "naxcb")
+    assert check(page_dir).exit_code == 0, check(page_dir).output
     _write_board(page_dir, "nacxb")
     result = check(page_dir)
-    assert result.exit_code == 0, result.output
-    _write_board(page_dir, "nacb", "x")
+    assert result.exit_code == 1
+    assert "their move (on r1) and r2 left it in 'c-todo' right after 'a'" in (
+        result.output
+    )
+    assert "keeps a user's placement unless it marks the card `restated`" in (
+        result.output
+    )
+    (page_dir / "index.html").write_text(
+        (page_dir / "index.html")
+        .read_text()
+        .replace('<lf-card id="x">', '<lf-card id="x" restated>')
+    )
+    assert check(page_dir).exit_code == 0, check(page_dir).output
+
+
+def test_a_reorder_the_next_version_wrote_survives_a_later_one(page_dir):
+    """A card moved up its own column and written there by v2 is still the user's
+    order on v3: a v3 that puts the column back as v1 had it, beside an unrelated
+    edit, contradicts the user and is refused."""
+    _write_board(page_dir, "abc")
+    publish(page_dir)
+    _move(page_dir, "c", "c-todo", "0i")
+    _write_board(page_dir, "cab")
+    publish(page_dir, 2)
+    _write_board(page_dir, "abc")
+    (page_dir / "index.html").write_text(
+        (page_dir / "index.html").read_text().replace("<h2>Plan</h2>", "<h2>Plans</h2>")
+    )
     result = check(page_dir)
     assert result.exit_code == 1
-    assert "takes it out of 'c-todo'" in result.output
-    assert "move (on r1) put it" not in result.output
+    assert "id='c'" in result.output and "first in 'c-todo'" in result.output
 
 
 @pytest.mark.parametrize(
@@ -858,22 +907,44 @@ def test_a_reorder_within_one_column_reaches_the_gate(page_dir):
     _write_board(page_dir, "abcn")
     result = check(page_dir)
     assert result.exit_code == 1
-    assert "first in 'c-todo' among the units both versions list" in result.output
+    assert "first in 'c-todo' of the units both versions list" in result.output
     _write_board(page_dir, "ncab")
     assert check(page_dir).exit_code == 0
 
 
-def test_a_move_on_a_replaced_revision_is_refused(page_dir):
-    """A rank read on r1 lands in another gap on r2 once r2 adds a card above it, so
-    the door takes a move only on the newest revision."""
+def test_a_move_on_a_replaced_revision_lands_only_where_its_column_held(page_dir):
+    """A rank read on r1 lands in another gap on r2 once r2 adds a card to the
+    column, so the door refuses that move, with words for the user apart from the
+    reason. A newer revision that left the column alone takes it."""
     _write_board(page_dir, "abc", "x")
     publish(page_dir)
     _write_board(page_dir, "nabc", "x")
     publish(page_dir, 2)
-    with pytest.raises(events_model.EventRefused, match="r2 is newer"):
+    with pytest.raises(
+        events_model.EventRefused, match="authors 'c-todo' differently"
+    ) as refused:
         _move(page_dir, "x", "c-todo", "1i")
+    assert refused.value.user == "The page changed while you moved this; move it again."
     _move(page_dir, "x", "c-todo", "2i", revision=2)
     assert _todo_order(page_dir) == ["n", "a", "x", "b", "c"]
+
+    (page_dir / "index.html").write_text(
+        (page_dir / "index.html").read_text().replace("<h2>Plan</h2>", "<h2>Plans</h2>")
+    )
+    publish(page_dir, 3)
+    _move(page_dir, "b", "c-done", "i", revision=2)
+    assert _todo_order(page_dir) == ["n", "a", "x", "c"]
+
+
+def test_page_init_says_when_the_source_will_not_activate(page_dir):
+    """Re-vendoring succeeds on its own, but the new layer reaches the page only when
+    index.html activates; an index.html that would be refused is named then."""
+    _drop_x_between_a_and_b(page_dir)
+    _write_board(page_dir, "nabc", "x")
+    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
+    assert result.exit_code == 0, result.output
+    assert "index.html will not activate until" in result.output
+    assert "id='x'" in result.output
 
 
 def test_page_inspection_preserves_exact_user_state_and_its_edit_routes(page_dir):
@@ -3291,9 +3362,14 @@ def test_the_gate_asks_about_the_card_that_was_moved_and_not_the_board(page_dir)
         "an untouched card is not the gate's business"
     )
 
-    # The moved card left where the previous version had it: the version would
-    # take the move in without writing it.
+    # The moved card left where the previous version had it: the move's column is
+    # authored as before, so the move still lands where the user dropped it.
     write([X, ("card-y", "", "Wire the importer and its backfill")], [])
+    assert check(page_dir).exit_code == 0
+
+    # A card added to the move's column changes what the rank lies among, so the
+    # version writes the moved card too.
+    write([X, Y], [("card-z", "", "Cut over")])
     result = check(page_dir)
     assert result.exit_code == 1
     assert "card-x" in result.output and "card-y" not in result.output

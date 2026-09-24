@@ -8,6 +8,7 @@ from leaf.projection import (
     action_subjects,
     folded_value,
     markup_value,
+    move_absorbed,
     recorded_state,
 )
 from leaf.registry.contract import created_child
@@ -15,12 +16,25 @@ from leaf.registry.contract import created_child
 from .markup import at
 
 
-def _placed(placement: Placement) -> str:
+def _placed(placement: Placement, *, gap: bool = True) -> str:
+    """Where a placement puts a unit, in words; `gap` names its neighbour too."""
     if placement.container is None:
         return "outside every container"
+    if not gap:
+        return f"in {placement.container!r}"
     if placement.after is None:
-        return f"first in {placement.container!r} among the units both versions list"
+        return f"first in {placement.container!r} of the units both versions list"
     return f"in {placement.container!r} right after {placement.after!r}"
+
+
+def _misplaced(markup: Placement, fold: Placement, who: str) -> str:
+    """The markup's placement against the fold's, naming the gap only where both
+    stand in one container, since across containers the neighbour says nothing."""
+    same = markup.container == fold.container
+    return (
+        f"the markup puts it {_placed(markup, gap=same)} where {who} left it "
+        f"{_placed(fold)}"
+    )
 
 
 # A verb with no declared record form (decide — the honoring version
@@ -104,8 +118,16 @@ def restatement_errors(
         if f_cur == f_fold:
             continue  # writing the folded state is honoring: the state-level echo
         position = spec["record"]["kind"] == "position"
-        # Silence is no answer to a position: this version absorbs the move, and
-        # from then on its markup places the unit (`StateProjection.absorbed`).
+        # A position is silent while neither this markup nor the previous one
+        # authors the move's container differently from the move's own revision:
+        # the rank still lands in the gap the user chose. Markup that changes that
+        # container places the unit itself (`StateProjection.absorbed`), so it has
+        # to say what the fold says, and once one has, every later one keeps it.
+        absorbed_before = position and move_absorbed(
+            e, spec, prev_byid, was, registry, {}
+        )
+        if position and not absorbed_before and e["id"] not in projection.absorbed:
+            continue
         if not position and f_cur == markup_value(unit, spec, prev_byid, was, registry):
             continue  # no active change — replay resolves silence
         if unit in declared:
@@ -113,19 +135,20 @@ def restatement_errors(
             continue
         where = at(rec, f"id={unit!r}")
         made = f"their {e['action']} (on r{e['revision']})"
-        if position and e["id"] in projection.absorbed:
+        if absorbed_before:
             errors.append(
-                f"{where}: the markup takes it out of {f_fold.container!r}, where "
-                f"the user moved it and an earlier version wrote it. Keep it in "
-                f"that container, or mark it `restated` to take the move back."
+                f"{where}: {_misplaced(f_cur, f_fold, f'{made} and r{prev_num}')}. "
+                f"A version keeps a user's placement unless it marks the card "
+                f"`restated`: leave it there, or mark it `restated` to place it "
+                f"yourself."
             )
             continue
         if position:
             errors.append(
-                f"{where}: {made} put it {_placed(f_fold)}, and the markup puts it "
-                f"{_placed(f_cur)}. Write it where `leaf page state` shows it: "
-                f"once stamped, the version's markup places it. Or mark it "
-                f"`restated` to take the move back."
+                f"{where}: {_misplaced(f_cur, f_fold, made)}. This "
+                f"version changes the cards around it, so it writes the card where "
+                f"`leaf page state` shows it, or marks it `restated` to place it "
+                f"itself."
             )
             continue
         errors.append(

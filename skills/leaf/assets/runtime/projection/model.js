@@ -183,10 +183,11 @@ export function projectionOrigins(authoredSnapshots, projection) {
    state the same two rules for the Python fold and the append door, and
    `tests/rank_cases.json` holds both runtimes to the same cases.
 
-   A rank lies between the neighbours of the revision the user moved on, so it holds
-   only until a later revision absorbs the move: that revision writes the unit where the
-   move left it, and from then on its markup places the unit. The server marks such an
-   entry `absorbed`, and it no longer places its unit. */
+   A rank lies among the container's authored units on the revision the user moved on,
+   so it holds while a revision authors them the same way. A revision that authors them
+   differently absorbs the move: it writes the unit where the move left it, and its
+   markup places the unit. The server marks such an entry `absorbed` for the document
+   it reads, and it no longer places its unit. */
 
 const DIGITS = "0123456789abcdefghijklmnopqrstuvwxyz";
 
@@ -241,7 +242,7 @@ export function rankAt({ value, ranks }, container, index, unit) {
   return rankBetween(ranks[others[index - 1]] ?? "", ranks[others[index]] ?? null);
 }
 
-// Compose complete verb values in memory. A position record no later revision has
+// Compose complete verb values in memory. A position record the document has not
 // absorbed places its unit at the rank it names, a coordinate of that unit's own (rank keys
 // above), so each container lists its units by rank once every standing placement is
 // in. `projection.py`'s `folded_positions` is the server's reading of the same rule.

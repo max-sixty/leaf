@@ -2,11 +2,14 @@
  * The Pass and Keep buttons own the semantic action. Arrow keys and pointer swipes call
  * those buttons, whose click handler first places one card optimistically and then sends
  * the same absolute action the runtime replays after reload, sync, or undo. A card the
- * user classified returns to the front of the queue with a new `swipe` there, since a
- * later version may already have written the classification in, and an undo would then
- * restore nothing. Every classification is one `swipe`; the deck's Ask is answered while
- * the queue stands empty, so returning any card reopens it. Complete projection supplies the ordered cards in every pile;
- * this module places the retained nodes and carries only the live pointer gesture. A
+ * user classified can return to the queue. While its classification is still being
+ * sent, Return withdraws that attempt, so a refused classification leaves nothing
+ * behind; once the log holds it, Return is a new `swipe` to the front of the queue,
+ * since a later version may have written the classification in and an undo would then
+ * restore nothing. Every classification is one `swipe`; the deck's Ask is answered
+ * while the queue stands empty, so returning any card reopens it. Complete projection
+ * supplies the ordered cards in every pile; this module places the retained nodes and
+ * carries only the live pointer gesture. A
  * card's parent pile presents whether it is unseen, passed, or kept. The complete
  * painted reading is memoized, so a broad action heartbeat that changes no deck state
  * writes nothing and repaints keyboard scopes only when action availability changes.
@@ -233,16 +236,28 @@ customElements.define(
       this.#painted = reading;
     };
 
-    // A card the user sent to a verdict pile, while the deck takes swipes.
+    // How a card the user sent to a verdict pile goes back to the queue: the undo of
+    // its classification while that is still unsent or unanswered, a swipe to the
+    // front once the log holds it, or null where the card is not the user's to return.
     #returnable(card) {
       const { actions, state } = this.#controller.read();
       const queue = this.#pile("unseen");
-      return Boolean(
-        actions.swipe?.available &&
-        queue &&
-        card.parentElement !== queue &&
-        state.swipe?.units[card.id],
+      if (!actions.swipe?.available || !queue || card.parentElement === queue)
+        return null;
+      const pending = actions.swipe.undo.find(
+        (event) => event.detail?.card === card.id && !Number.isInteger(event.seq),
       );
+      if (pending) return { kind: "undo", target: pending.attempt ?? pending.id };
+      if (!state.swipe?.units[card.id]) return null;
+      return {
+        kind: "action",
+        verb: "swipe",
+        detail: {
+          card: card.id,
+          to: queue.id,
+          rank: rankAt(state.swipe, queue.id, 0, card.id),
+        },
+      };
     }
 
     #returnControl(card) {
@@ -252,24 +267,17 @@ customElements.define(
       button.setAttribute("aria-label", `Return ${title} to queue`);
       button.hidden = true;
       button.addEventListener("click", async () => {
-        if (!this.#returnable(card) || this.#returning.has(card.id)) return;
+        const command = this.#returnable(card);
+        if (!command || this.#returning.has(card.id)) return;
         const refocus = document.activeElement === button;
-        const queue = this.#pile("unseen");
-        const detail = {
-          card: card.id,
-          to: queue.id,
-          rank: rankAt(this.#controller.read().state.swipe, queue.id, 0, card.id),
-        };
         this.#returning.add(card.id);
-        this.#place(card, queue, 0);
+        const placed =
+          command.kind === "action" && this.#place(card, this.#pile("unseen"), 0);
         this.#render();
-        layoutChanged(this);
+        if (placed) layoutChanged(this);
         let returned = false;
         try {
-          returned = Boolean(
-            await this.#controller.dispatch({ kind: "action", verb: "swipe", detail })
-              ?.delivery,
-          );
+          returned = Boolean(await this.#controller.dispatch(command)?.delivery);
         } finally {
           this.#returning.delete(card.id);
           if (this.isConnected) this.#render();

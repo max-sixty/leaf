@@ -9,7 +9,12 @@ from functools import cached_property
 
 from leaf.asks import answer_verbs, answering_action
 from leaf.events import event_document
-from leaf.projection import frozen_thread_reading, page_reading, with_action
+from leaf.projection import (
+    authored_positions,
+    frozen_thread_reading,
+    page_reading,
+    with_action,
+)
 from leaf.thread_context import thread_structure
 
 
@@ -72,10 +77,6 @@ def state_meaning(event: dict, entry: dict, scope: str) -> dict:
     # tag lets registry-free readers keep the action resting on it regardless.
     if creates := spec.get("creates"):
         meaning["creates"] = creates["child"]
-    # A move places its unit by a rank only until a version takes it in, and a
-    # registry-free reader asks which actions those are (`UndoReading`).
-    if (spec.get("record") or {}).get("kind") == "position":
-        meaning["places"] = True
     return meaning
 
 
@@ -144,6 +145,20 @@ def admit_widget_event(sender, event: dict, readings: AdmissionReadings) -> dict
         admitted["meaning"] = {"scope": scope, "unit": unit}
     else:
         admitted["meaning"] = state_meaning(event, entry, scope)
+        position = entry["x-state"][event["action"]].get("record") or {}
+        if position.get("kind") == "position":
+            # The authored units the rank lies among, in their order on the sending
+            # document: a later document that authors them differently has placed
+            # the unit itself (`projection.move_absorbed`).
+            reading = (
+                readings.page(sender, event["revision"])
+                if scope == "page"
+                else readings.thread
+            )
+            byid = reading.document.by_id if scope == "page" else reading.by_id
+            admitted["meaning"]["among"] = authored_positions(
+                event["widget"], position, byid, reading.spoken, registry
+            )[event["detail"][position["value"]]]
         answers, closes = answer_meaning(sender, record, admitted, readings)
         if answers:
             admitted["meaning"]["answer"] = closes

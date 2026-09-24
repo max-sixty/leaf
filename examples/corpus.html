@@ -3969,48 +3969,49 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
           </p>
         </header>
 
-        <lf-partition id="comparison-regions" direction="columns">
+        <lf-grid id="comparison-regions" columns="2">
           <lf-pane id="comparison-current" label="Current policy">
             <header>
               <p class="eyebrow">current result</p>
               <h2>Refresh every failed request</h2>
             </header>
+            <div>
+              <section id="comparison-current-behavior">
+                <h3>Behavior</h3>
+                <p>
+                  Each call that receives an expired-session response starts its own
+                  credential refresh, then retries once with the returned token.
+                </p>
+              </section>
 
-            <section id="comparison-current-behavior">
-              <h3>Behavior</h3>
-              <p>
-                Each call that receives an expired-session response starts its own
-                credential refresh, then retries once with the returned token.
-              </p>
-            </section>
+              <section id="comparison-current-replay">
+                <h3>Five-call replay</h3>
+                <pre
+                  id="comparison-current-trace"
+                ><code>/orders    401 → refresh A → retry
+  /cart      401 → refresh B → retry
+  /profile   401 → refresh C → retry
+  /offers    401 → refresh D → retry
+  /delivery  401 → refresh E → retry</code></pre>
+                <dl class="facts">
+                  <dt>Refresh requests</dt>
+                  <dd>5</dd>
+                  <dt>Original calls retried</dt>
+                  <dd>5</dd>
+                  <dt>Failure fan-out</dt>
+                  <dd>Independent</dd>
+                </dl>
+              </section>
 
-            <section id="comparison-current-replay">
-              <h3>Five-call replay</h3>
-              <pre
-                id="comparison-current-trace"
-              ><code>/orders    401 → refresh A → retry
-/cart      401 → refresh B → retry
-/profile   401 → refresh C → retry
-/offers    401 → refresh D → retry
-/delivery  401 → refresh E → retry</code></pre>
-              <dl class="facts">
-                <dt>Refresh requests</dt>
-                <dd>5</dd>
-                <dt>Original calls retried</dt>
-                <dd>5</dd>
-                <dt>Failure fan-out</dt>
-                <dd>Independent</dd>
-              </dl>
-            </section>
-
-            <section id="comparison-current-consequence">
-              <h3>Release consequence</h3>
-              <p>
-                No client behavior changes. A busy tab can still send several refresh
-                requests for one expired credential, and each request can finish with a
-                different refresh result.
-              </p>
-            </section>
+              <section id="comparison-current-consequence">
+                <h3>Release consequence</h3>
+                <p>
+                  No client behavior changes. A busy tab can still send several refresh
+                  requests for one expired credential, and each request can finish with
+                  a different refresh result.
+                </p>
+              </section>
+            </div>
           </lf-pane>
 
           <lf-pane id="comparison-proposed" label="Proposed policy">
@@ -4018,49 +4019,51 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
               <p class="eyebrow">proposed result · selected</p>
               <h2>Share one refresh per tab</h2>
             </header>
+            <div>
+              <section id="comparison-proposed-behavior">
+                <h3>Behavior</h3>
+                <p>
+                  The first expired-session response starts a refresh. Other calls in
+                  that tab wait for it, then retry once with the same returned token.
+                </p>
+              </section>
 
-            <section id="comparison-proposed-behavior">
-              <h3>Behavior</h3>
-              <p>
-                The first expired-session response starts a refresh. Other calls in that
-                tab wait for it, then retry once with the same returned token.
-              </p>
-            </section>
+              <section id="comparison-proposed-replay">
+                <h3>Five-call replay</h3>
+                <pre id="comparison-proposed-trace"><code>/orders   ┐
+  /cart     │
+  /profile  ├→ refresh A → retry all five
+  /offers   │
+  /delivery ┘</code></pre>
+                <dl class="facts">
+                  <dt>Refresh requests</dt>
+                  <dd>1</dd>
+                  <dt>Original calls retried</dt>
+                  <dd>5</dd>
+                  <dt>Failure fan-out</dt>
+                  <dd>Shared</dd>
+                </dl>
+              </section>
 
-            <section id="comparison-proposed-replay">
-              <h3>Five-call replay</h3>
-              <pre id="comparison-proposed-trace"><code>/orders   ┐
-/cart     │
-/profile  ├→ refresh A → retry all five
-/offers   │
-/delivery ┘</code></pre>
-              <dl class="facts">
-                <dt>Refresh requests</dt>
-                <dd>1</dd>
-                <dt>Original calls retried</dt>
-                <dd>5</dd>
-                <dt>Failure fan-out</dt>
-                <dd>Shared</dd>
-              </dl>
-            </section>
+              <section id="comparison-proposed-consequence">
+                <h3>Release consequence</h3>
+                <p>
+                  Concurrent calls reuse one refresh result. If that refresh fails, all
+                  five calls return the same failure without retrying with a stale
+                  token.
+                </p>
+              </section>
 
-            <section id="comparison-proposed-consequence">
-              <h3>Release consequence</h3>
-              <p>
-                Concurrent calls reuse one refresh result. If that refresh fails, all
-                five calls return the same failure without retrying with a stale token.
-              </p>
-            </section>
-
-            <section id="comparison-rollout">
-              <h3>Recorded rollout</h3>
-              <p>
-                Version 2.8 enables shared refreshes for web clients. The existing
-                single-retry limit and the mobile policy remain unchanged.
-              </p>
-            </section>
+              <section id="comparison-rollout">
+                <h3>Recorded rollout</h3>
+                <p>
+                  Version 2.8 enables shared refreshes for web clients. The existing
+                  single-retry limit and the mobile policy remain unchanged.
+                </p>
+              </section>
+            </div>
           </lf-pane>
-        </lf-partition>
+        </lf-grid>
 
         <footer>
           <lf-ask id="comparison-policy-decision">
@@ -4089,55 +4092,61 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
           <h1>Review the 2.8 release</h1>
         </header>
 
-        <lf-partition id="review-regions" direction="columns">
+        <lf-grid id="review-regions" columns="1fr 2fr">
           <lf-pane id="review-queue" label="Items">
             <header><h2>Queue</h2></header>
-            <nav aria-label="Review items">
-              <ul>
-                <li>
-                  <a href="#review-auth"><strong>Authentication retry</strong></a>
-                  <p>Ready · customer sign-in · medium risk</p>
-                </li>
-                <li>
-                  <a href="#review-cache"><strong>Cache migration</strong></a>
-                  <p>Ready · automatic rollback · high risk</p>
-                </li>
-                <li>
-                  <a href="#review-email"><strong>Receipt email</strong></a>
-                  <p>Ready · refund receipts · low risk</p>
-                </li>
-                <li>
-                  <a href="#review-export"><strong>Ledger export</strong></a>
-                  <p>Ready · finance integration · medium risk</p>
-                </li>
-                <li>
-                  <a href="#review-search"><strong>Order search</strong></a>
-                  <p>Accessibility reviewed · support workflow · low risk</p>
-                </li>
-                <li>
-                  <a href="#review-worker"><strong>Settlement worker</strong></a>
-                  <p>Ready · asynchronous processing · medium risk</p>
-                </li>
-                <li>
-                  <a href="#review-billing"><strong>Billing reconciliation</strong></a>
-                  <p>Ready · legacy reporting path · high risk</p>
-                </li>
-                <li>
-                  <a href="#review-webhook"><strong>Webhook delivery</strong></a>
-                  <p>Ready · partner integrations · low risk</p>
-                </li>
-              </ul>
-            </nav>
-            <section id="review-notes">
-              <h3>Release notes</h3>
-              <p>Two items change stored data. Four affect behavior at request time.</p>
-              <details id="review-method">
-                <summary>How this queue was ordered</summary>
+            <div>
+              <nav aria-label="Review items">
+                <ul>
+                  <li>
+                    <a href="#review-auth"><strong>Authentication retry</strong></a>
+                    <p>Ready · customer sign-in · medium risk</p>
+                  </li>
+                  <li>
+                    <a href="#review-cache"><strong>Cache migration</strong></a>
+                    <p>Ready · automatic rollback · high risk</p>
+                  </li>
+                  <li>
+                    <a href="#review-email"><strong>Receipt email</strong></a>
+                    <p>Ready · refund receipts · low risk</p>
+                  </li>
+                  <li>
+                    <a href="#review-export"><strong>Ledger export</strong></a>
+                    <p>Ready · finance integration · medium risk</p>
+                  </li>
+                  <li>
+                    <a href="#review-search"><strong>Order search</strong></a>
+                    <p>Accessibility reviewed · support workflow · low risk</p>
+                  </li>
+                  <li>
+                    <a href="#review-worker"><strong>Settlement worker</strong></a>
+                    <p>Ready · asynchronous processing · medium risk</p>
+                  </li>
+                  <li>
+                    <a href="#review-billing"
+                      ><strong>Billing reconciliation</strong></a
+                    >
+                    <p>Ready · legacy reporting path · high risk</p>
+                  </li>
+                  <li>
+                    <a href="#review-webhook"><strong>Webhook delivery</strong></a>
+                    <p>Ready · partner integrations · low risk</p>
+                  </li>
+                </ul>
+              </nav>
+              <section id="review-notes">
+                <h3>Release notes</h3>
                 <p>
-                  Data changes lead, followed by customer-visible paths and workers.
+                  Two items change stored data. Four affect behavior at request time.
                 </p>
-              </details>
-            </section>
+                <details id="review-method">
+                  <summary>How this queue was ordered</summary>
+                  <p>
+                    Data changes lead, followed by customer-visible paths and workers.
+                  </p>
+                </details>
+              </section>
+            </div>
           </lf-pane>
 
           <lf-pane id="review-detail" label="Selected item">
@@ -4318,7 +4327,7 @@ expire old keys</code></pre>
               </p>
             </footer>
           </lf-pane>
-        </lf-partition>
+        </lf-grid>
       </lf-workspace>
 </lf-tab>
 
@@ -4498,31 +4507,43 @@ expire old keys</code></pre>
               <p class="eyebrow">migration workbench · eight cohorts</p>
               <h2>Prepare and inspect each cohort</h2>
             </header>
-            <lf-partition id="workbench-regions" direction="columns">
+            <lf-grid id="workbench-regions" columns="1fr 2fr">
               <lf-pane id="queue-pane" label="Cohort queue">
                 <header><h3>Cohort queue</h3></header>
-                <nav aria-label="Migration cohorts">
-                  <ul>
-                    <li><a href="#cohort-staff">Staff and test tenants</a> · ready</li>
-                    <li><a href="#cohort-na-free">North America free</a> · waiting</li>
-                    <li><a href="#cohort-na-paid">North America paid</a> · waiting</li>
-                    <li><a href="#cohort-eu-free">Europe free</a> · waiting</li>
-                    <li><a href="#cohort-eu-paid">Europe paid</a> · waiting</li>
-                    <li><a href="#cohort-apac-free">Asia Pacific free</a> · waiting</li>
-                    <li><a href="#cohort-apac-paid">Asia Pacific paid</a> · waiting</li>
-                    <li>
-                      <a href="#cohort-remaining">Remaining accounts</a> · waiting
-                    </li>
-                  </ul>
-                </nav>
-                <section id="queue-guidance">
-                  <h4>Queue order</h4>
-                  <p>
-                    Staff accounts lead. Regional free cohorts follow before paid
-                    cohorts, keeping the first customer group small while still covering
-                    every authentication method.
-                  </p>
-                </section>
+                <div>
+                  <nav aria-label="Migration cohorts">
+                    <ul>
+                      <li>
+                        <a href="#cohort-staff">Staff and test tenants</a> · ready
+                      </li>
+                      <li>
+                        <a href="#cohort-na-free">North America free</a> · waiting
+                      </li>
+                      <li>
+                        <a href="#cohort-na-paid">North America paid</a> · waiting
+                      </li>
+                      <li><a href="#cohort-eu-free">Europe free</a> · waiting</li>
+                      <li><a href="#cohort-eu-paid">Europe paid</a> · waiting</li>
+                      <li>
+                        <a href="#cohort-apac-free">Asia Pacific free</a> · waiting
+                      </li>
+                      <li>
+                        <a href="#cohort-apac-paid">Asia Pacific paid</a> · waiting
+                      </li>
+                      <li>
+                        <a href="#cohort-remaining">Remaining accounts</a> · waiting
+                      </li>
+                    </ul>
+                  </nav>
+                  <section id="queue-guidance">
+                    <h4>Queue order</h4>
+                    <p>
+                      Staff accounts lead. Regional free cohorts follow before paid
+                      cohorts, keeping the first customer group small while still
+                      covering every authentication method.
+                    </p>
+                  </section>
+                </div>
                 <footer>
                   <p><a href="#evidence-question">Review the observation window</a></p>
                 </footer>
@@ -4530,82 +4551,88 @@ expire old keys</code></pre>
 
               <lf-pane id="detail-pane" label="Cohort detail">
                 <header><h3>Selected cohort</h3></header>
-                <section id="cohort-staff">
-                  <h4>Staff and test tenants</h4>
-                  <dl class="facts">
-                    <dt>Accounts</dt>
-                    <dd>1,284</dd>
-                    <dt>Regions</dt>
-                    <dd>All</dd>
-                    <dt>Authentication</dt>
-                    <dd>Password, passkey, enterprise</dd>
-                    <dt>Owner</dt>
-                    <dd>Identity platform</dd>
-                  </dl>
-                  <p>
-                    This cohort covers every account shape while keeping the first move
-                    inside teams that can report a broken journey directly.
-                  </p>
-                  <h4>Before migration</h4>
-                  <ul>
-                    <li>Capture account and permission totals by region.</li>
-                    <li>Confirm the rollback writer is healthy.</li>
-                    <li>Notify support of the cohort start and observation window.</li>
-                    <li>Record the current sign-in and settings-save rates.</li>
-                  </ul>
-                  <h4>After migration</h4>
-                  <ul>
-                    <li>Compare copied account, tenant, and permission rows.</li>
-                    <li>Run password, passkey, and enterprise sign-in checks.</li>
-                    <li>Run the daily permissions sync against migrated accounts.</li>
-                    <li>Review migration-related support contacts.</li>
-                    <li>Record the advancement decision with its evidence.</li>
-                  </ul>
-                  <details id="cohort-staff-commands">
-                    <summary>Inspect the operator sequence</summary>
-                    <pre><code>capture --cohort staff
-copy --cohort staff
-compare --cohort staff
-switch-reads --cohort staff
-observe --cohort staff</code></pre>
-                  </details>
-                </section>
-                <section id="cohort-na-free">
-                  <h4>North America free</h4>
-                  <p>Begins after the staff cohort passes every advancement gate.</p>
-                </section>
-                <section id="cohort-na-paid">
-                  <h4>North America paid</h4>
-                  <p>Adds subscription and invoice settings to the comparison.</p>
-                </section>
-                <section id="cohort-eu-free">
-                  <h4>Europe free</h4>
-                  <p>Adds regional residency and consent settings.</p>
-                </section>
-                <section id="cohort-eu-paid">
-                  <h4>Europe paid</h4>
-                  <p>Adds regional tax and billing permissions.</p>
-                </section>
-                <section id="cohort-apac-free">
-                  <h4>Asia Pacific free</h4>
-                  <p>Adds the longest replication route in the release.</p>
-                </section>
-                <section id="cohort-apac-paid">
-                  <h4>Asia Pacific paid</h4>
-                  <p>Adds subscription records across the longest replication route.</p>
-                </section>
-                <section id="cohort-remaining">
-                  <h4>Remaining accounts</h4>
-                  <p>
-                    Completes the migration in four equal batches after every regional
-                    cohort passes.
-                  </p>
-                </section>
+                <div>
+                  <section id="cohort-staff">
+                    <h4>Staff and test tenants</h4>
+                    <dl class="facts">
+                      <dt>Accounts</dt>
+                      <dd>1,284</dd>
+                      <dt>Regions</dt>
+                      <dd>All</dd>
+                      <dt>Authentication</dt>
+                      <dd>Password, passkey, enterprise</dd>
+                      <dt>Owner</dt>
+                      <dd>Identity platform</dd>
+                    </dl>
+                    <p>
+                      This cohort covers every account shape while keeping the first
+                      move inside teams that can report a broken journey directly.
+                    </p>
+                    <h4>Before migration</h4>
+                    <ul>
+                      <li>Capture account and permission totals by region.</li>
+                      <li>Confirm the rollback writer is healthy.</li>
+                      <li>
+                        Notify support of the cohort start and observation window.
+                      </li>
+                      <li>Record the current sign-in and settings-save rates.</li>
+                    </ul>
+                    <h4>After migration</h4>
+                    <ul>
+                      <li>Compare copied account, tenant, and permission rows.</li>
+                      <li>Run password, passkey, and enterprise sign-in checks.</li>
+                      <li>Run the daily permissions sync against migrated accounts.</li>
+                      <li>Review migration-related support contacts.</li>
+                      <li>Record the advancement decision with its evidence.</li>
+                    </ul>
+                    <details id="cohort-staff-commands">
+                      <summary>Inspect the operator sequence</summary>
+                      <pre><code>capture --cohort staff
+  copy --cohort staff
+  compare --cohort staff
+  switch-reads --cohort staff
+  observe --cohort staff</code></pre>
+                    </details>
+                  </section>
+                  <section id="cohort-na-free">
+                    <h4>North America free</h4>
+                    <p>Begins after the staff cohort passes every advancement gate.</p>
+                  </section>
+                  <section id="cohort-na-paid">
+                    <h4>North America paid</h4>
+                    <p>Adds subscription and invoice settings to the comparison.</p>
+                  </section>
+                  <section id="cohort-eu-free">
+                    <h4>Europe free</h4>
+                    <p>Adds regional residency and consent settings.</p>
+                  </section>
+                  <section id="cohort-eu-paid">
+                    <h4>Europe paid</h4>
+                    <p>Adds regional tax and billing permissions.</p>
+                  </section>
+                  <section id="cohort-apac-free">
+                    <h4>Asia Pacific free</h4>
+                    <p>Adds the longest replication route in the release.</p>
+                  </section>
+                  <section id="cohort-apac-paid">
+                    <h4>Asia Pacific paid</h4>
+                    <p>
+                      Adds subscription records across the longest replication route.
+                    </p>
+                  </section>
+                  <section id="cohort-remaining">
+                    <h4>Remaining accounts</h4>
+                    <p>
+                      Completes the migration in four equal batches after every regional
+                      cohort passes.
+                    </p>
+                  </section>
+                </div>
                 <footer>
                   <p><a href="#plan-return">Return to the rollout plan</a></p>
                 </footer>
               </lf-pane>
-            </lf-partition>
+            </lf-grid>
           </lf-workspace>
         </lf-tab>
       </lf-tabs>
@@ -5608,19 +5635,20 @@ gallery/
       </section>
 
       <section id="bg-layout-family">
-        <p class="eyebrow bg-feature-elements">lf-workspace · lf-pane · lf-partition</p>
+        <p class="eyebrow bg-feature-elements">lf-workspace · lf-pane · lf-grid</p>
         <h2>
           <strong>Workspace regions</strong
           ><span class="bg-feature-detail">: nested reading areas</span>
         </h2>
         <p id="bg-layout-guide">
           This workspace is embedded in a document, so its list, detail regions, and
-          action footer stay in document flow. The same pane and partition markup can
-          divide a root workspace into columns and rows when the window has room.
+          action footer stay in document flow. The same panes in a grid fill a root
+          workspace in columns and rows when the window has room, each scrolling on its
+          own.
         </p>
         <lf-workspace id="bg-layout-workspace">
           <header><h3>Release candidate review</h3></header>
-          <lf-partition id="bg-layout-columns" direction="columns">
+          <lf-grid id="bg-layout-columns" columns="1fr 1fr">
             <lf-pane id="bg-layout-list" label="Changes">
               <header><h4>Changes</h4></header>
               <lf-tabs id="bg-layout-tabs">
@@ -5642,7 +5670,7 @@ gallery/
               </lf-tabs>
             </lf-pane>
 
-            <lf-partition id="bg-layout-rows" direction="rows">
+            <lf-grid id="bg-layout-rows" columns="1">
               <lf-pane id="bg-layout-evidence" label="Evidence">
                 <header><h4>Evidence</h4></header>
                 <article id="bg-layout-article">
@@ -5688,8 +5716,8 @@ switch --readers checkout-api,orders-api</code></pre>
                   </lf-ask>
                 </footer>
               </lf-pane>
-            </lf-partition>
-          </lf-partition>
+            </lf-grid>
+          </lf-grid>
         </lf-workspace>
       </section>
 
@@ -5831,10 +5859,12 @@ switch --readers checkout-api,orders-api</code></pre>
 </lf-tab>
 
 <lf-tab id="corpus-visual-review-gallery" label="Visual review package">
-<lf-visual-review
-        id="visual-review-run"
-        source="gallery-visual-run"
-      ></lf-visual-review>
+<lf-workspace id="visual-review-workspace">
+        <lf-visual-review
+          id="visual-review-run"
+          source="gallery-visual-run"
+        ></lf-visual-review>
+      </lf-workspace>
 </lf-tab>
 
 </lf-tabs>

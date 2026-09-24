@@ -115,6 +115,7 @@ export const PAGE_PAINT_ATTRIBUTE = Object.freeze({
   inline: "data-lf-inline",
   space: "data-lf-space",
   measure: "data-lf-measure",
+  readingRole: "data-lf-reading-role",
   bound: "data-lf-bound",
   exhibit: "data-lf-exhibit",
   yield: "data-lf-yield",
@@ -502,12 +503,14 @@ export function dress(root) {
 // column. x-bound says it holds
 // its own height and scrolls inside it; `bounds.js` keeps an `end` bound on its newest
 // entry. A page occurrence overrides x-bound with data-bound, as data-width overrides
-// x-space.
+// x-space. x-reading-role is the structural role the theme lays out, so a package's
+// differently named pane or grid takes the same rules as lf-pane and lf-grid.
 export const MARKED_ANYWHERE = Object.freeze({
   "x-inline": PAGE_PAINT_ATTRIBUTE.inline,
   "x-exhibit": PAGE_PAINT_ATTRIBUTE.exhibit,
   "x-measure": PAGE_PAINT_ATTRIBUTE.measure,
   "x-bound": PAGE_PAINT_ATTRIBUTE.bound,
+  "x-reading-role": PAGE_PAINT_ATTRIBUTE.readingRole,
 });
 export const MARKED_IN_PAGE = Object.freeze({
   ...MARKED_ANYWHERE,

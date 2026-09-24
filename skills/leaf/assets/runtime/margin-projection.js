@@ -105,7 +105,7 @@ import { runtime } from "./context.js";
 import {
   containingReadingRegionFor,
   readingRegionFor,
-  registerReadingArrangement,
+  registerReadingRegion,
   shownRegionBounds,
 } from "./reading-regions.js";
 
@@ -367,7 +367,7 @@ export function createMarginProjection({
   previewNav.append(previewPrevious, previewPosition, previewNext);
   const previewList = el("div", "lf-margin-preview-list");
   preview.append(previewList);
-  let previewReadingArrangement = null;
+  let previewRegionMounted = false;
   // The card's transcript is re-rendered on every reading of its thread; a message holds
   // the user's place in it under the event id it is rendered with (user-place.js).
   const previewPlace = placeKeeper(previewList, {
@@ -1560,10 +1560,23 @@ export function createMarginProjection({
       if (!(root instanceof ShadowRoot)) return target;
       perch = root.host;
     }
-    if (flow) return perch;
+    if (flow) return inBlockFlow(perch);
     while (perch.parentElement !== main && main.contains(perch.parentElement))
       perch = perch.parentElement;
     return perch;
+  }
+
+  // A parent that lays its children out as items, such as a pane around its one body
+  // element or an Ask holding a heading and a playground, would take an item hung after
+  // one of them as one more item, so there the item hangs after the block's own last
+  // content instead. A block with no light content to follow keeps the sibling place.
+  function inBlockFlow(block) {
+    const parent = block.parentElement;
+    if (!parent || !/grid|flex/.test(getComputedStyle(parent).display)) return block;
+    let last = block.lastChild;
+    while (last?.matches?.(".lf-margin-cluster[data-lf-external]"))
+      last = last.previousSibling;
+    return last ?? block;
   }
 
   function moveExternalHost(host, flow) {
@@ -2776,12 +2789,14 @@ export function createMarginProjection({
       changePosture(stands);
     }).observe(document.body);
     chromeRoot.append(nav, preview);
-    previewReadingArrangement ??= registerReadingArrangement({
-      owner: preview,
-      content: preview,
-      regions: [{ id: "lf-margin-preview", host: preview, body: previewList }],
-    });
-    void previewReadingArrangement.setReadingPosture("bounded");
+    if (!previewRegionMounted) {
+      previewRegionMounted = true;
+      registerReadingRegion({
+        id: "lf-margin-preview",
+        host: preview,
+        body: previewList,
+      });
+    }
   }
   return {
     pageMapActive: () => availableRows().includes(focused()),

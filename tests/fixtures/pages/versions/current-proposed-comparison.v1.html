@@ -15,48 +15,49 @@
           </p>
         </header>
 
-        <lf-partition id="comparison-regions" direction="columns">
+        <lf-grid id="comparison-regions" columns="2">
           <lf-pane id="comparison-current" label="Current policy">
             <header>
               <p class="eyebrow">current result</p>
               <h2>Refresh every failed request</h2>
             </header>
+            <div>
+              <section id="comparison-current-behavior">
+                <h3>Behavior</h3>
+                <p>
+                  Each call that receives an expired-session response starts its own
+                  credential refresh, then retries once with the returned token.
+                </p>
+              </section>
 
-            <section id="comparison-current-behavior">
-              <h3>Behavior</h3>
-              <p>
-                Each call that receives an expired-session response starts its own
-                credential refresh, then retries once with the returned token.
-              </p>
-            </section>
+              <section id="comparison-current-replay">
+                <h3>Five-call replay</h3>
+                <pre
+                  id="comparison-current-trace"
+                ><code>/orders    401 → refresh A → retry
+  /cart      401 → refresh B → retry
+  /profile   401 → refresh C → retry
+  /offers    401 → refresh D → retry
+  /delivery  401 → refresh E → retry</code></pre>
+                <dl class="facts">
+                  <dt>Refresh requests</dt>
+                  <dd>5</dd>
+                  <dt>Original calls retried</dt>
+                  <dd>5</dd>
+                  <dt>Failure fan-out</dt>
+                  <dd>Independent</dd>
+                </dl>
+              </section>
 
-            <section id="comparison-current-replay">
-              <h3>Five-call replay</h3>
-              <pre
-                id="comparison-current-trace"
-              ><code>/orders    401 → refresh A → retry
-/cart      401 → refresh B → retry
-/profile   401 → refresh C → retry
-/offers    401 → refresh D → retry
-/delivery  401 → refresh E → retry</code></pre>
-              <dl class="facts">
-                <dt>Refresh requests</dt>
-                <dd>5</dd>
-                <dt>Original calls retried</dt>
-                <dd>5</dd>
-                <dt>Failure fan-out</dt>
-                <dd>Independent</dd>
-              </dl>
-            </section>
-
-            <section id="comparison-current-consequence">
-              <h3>Release consequence</h3>
-              <p>
-                No client behavior changes. A busy tab can still send several refresh
-                requests for one expired credential, and each request can finish with a
-                different refresh result.
-              </p>
-            </section>
+              <section id="comparison-current-consequence">
+                <h3>Release consequence</h3>
+                <p>
+                  No client behavior changes. A busy tab can still send several refresh
+                  requests for one expired credential, and each request can finish with
+                  a different refresh result.
+                </p>
+              </section>
+            </div>
           </lf-pane>
 
           <lf-pane id="comparison-proposed" label="Proposed policy">
@@ -64,41 +65,43 @@
               <p class="eyebrow">proposed result</p>
               <h2>Share one refresh per tab</h2>
             </header>
+            <div>
+              <section id="comparison-proposed-behavior">
+                <h3>Behavior</h3>
+                <p>
+                  The first expired-session response starts a refresh. Other calls in
+                  that tab wait for it, then retry once with the same returned token.
+                </p>
+              </section>
 
-            <section id="comparison-proposed-behavior">
-              <h3>Behavior</h3>
-              <p>
-                The first expired-session response starts a refresh. Other calls in that
-                tab wait for it, then retry once with the same returned token.
-              </p>
-            </section>
+              <section id="comparison-proposed-replay">
+                <h3>Five-call replay</h3>
+                <pre id="comparison-proposed-trace"><code>/orders   ┐
+  /cart     │
+  /profile  ├→ refresh A → retry all five
+  /offers   │
+  /delivery ┘</code></pre>
+                <dl class="facts">
+                  <dt>Refresh requests</dt>
+                  <dd>1</dd>
+                  <dt>Original calls retried</dt>
+                  <dd>5</dd>
+                  <dt>Failure fan-out</dt>
+                  <dd>Shared</dd>
+                </dl>
+              </section>
 
-            <section id="comparison-proposed-replay">
-              <h3>Five-call replay</h3>
-              <pre id="comparison-proposed-trace"><code>/orders   ┐
-/cart     │
-/profile  ├→ refresh A → retry all five
-/offers   │
-/delivery ┘</code></pre>
-              <dl class="facts">
-                <dt>Refresh requests</dt>
-                <dd>1</dd>
-                <dt>Original calls retried</dt>
-                <dd>5</dd>
-                <dt>Failure fan-out</dt>
-                <dd>Shared</dd>
-              </dl>
-            </section>
-
-            <section id="comparison-proposed-consequence">
-              <h3>Release consequence</h3>
-              <p>
-                Concurrent calls reuse one refresh result. If that refresh fails, all
-                five calls return the same failure without retrying with a stale token.
-              </p>
-            </section>
+              <section id="comparison-proposed-consequence">
+                <h3>Release consequence</h3>
+                <p>
+                  Concurrent calls reuse one refresh result. If that refresh fails, all
+                  five calls return the same failure without retrying with a stale
+                  token.
+                </p>
+              </section>
+            </div>
           </lf-pane>
-        </lf-partition>
+        </lf-grid>
 
         <footer>
           <lf-ask id="comparison-policy-decision">

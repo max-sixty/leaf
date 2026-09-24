@@ -78,11 +78,10 @@ item.
 | **Text** and **surface** | How a block uses its frame's width: text keeps the reading measure, a surface (`x-measure: surface`, or `x-space` past the column) fills the frame; a group (`x-measure: group`) passes the measure to what it holds |
 | **Bounded block** | A block that holds its own height and scrolls inside it (`x-bound`, `data-bound`); not a reading region |
 | **Workspace** | An authored structural composition that keeps task regions together |
-| **Pane** | A leaf in a workspace composition that owns one reading region |
-| **Partition** | A binary structural node arranging two panes or partitions |
+| **Pane** | One reading region in a workspace: an optional header, exactly one body element, an optional footer |
 | **Reading region** | A stable semantic place used by navigation and reading-position recovery |
 | **Effective reading scroller** | The scroll container currently governing one reading region |
-| **Reading posture** | The content frame's responsive presentation: `flow` or `bounded` |
+| **Reading posture** | Whether a region's body scrolls on its own (`bounded`) or the region is carried by its container (`flow`); a root workspace's container query decides, and the runtime reads the result |
 
 A root `lf-tabs` and an embedded `lf-tabs` remain the same element type; placement
 changes their presentation rather than creating another structural kind. A root

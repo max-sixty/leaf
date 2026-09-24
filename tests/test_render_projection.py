@@ -101,10 +101,12 @@ from render_harness import (
     consume_browser_errors,
     expect_banner_control_offered,
     holding,
+    holds_the_window,
     leaf_page,
     open_page,
     opened_tab,
     page_registry,
+    pane_posture,
     panel_settled,
     post_event,
     refuse,
@@ -1302,8 +1304,7 @@ def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
     page = open_page(browser, serve(VISUAL_REVIEW_GALLERY))
     resized(page, 1366, 768)
     widget = page.locator("#visual-review-run")
-    expect(widget).to_have_attribute("data-lf-workspace-context", "root")
-    expect(widget).to_have_attribute("data-lf-reading-posture", "bounded")
+    holds_the_window(page, widget, True)
     gallery_scope = widget.get_by_role("radiogroup", name="Scope")
     expect(gallery_scope).to_be_visible()
     expect(widget).to_have_attribute("data-inspection-scope", "focus")
@@ -1391,7 +1392,6 @@ def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
         "node => node.scrollWidth <= node.clientWidth"
     )
     resized(page, 560, 720)
-    expect(widget).to_have_attribute("data-lf-reading-posture", "flow")
     assert page.evaluate(
         "() => document.documentElement.scrollWidth <= document.documentElement.clientWidth"
     )
@@ -1400,7 +1400,7 @@ def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
         "() => document.documentElement.scrollWidth <= document.documentElement.clientWidth"
     )
     resized(page, 1366, 768)
-    expect(widget).to_have_attribute("data-lf-reading-posture", "bounded")
+    holds_the_window(page, widget, True)
     shot_host = widget.locator(".lf-vr-case:not([hidden]) .lf-vr-shot-host")
     assert shot_host.evaluate("node => node.scrollWidth == node.clientWidth")
     shot_host.evaluate("node => node.style.height = '120px'")
@@ -1420,10 +1420,9 @@ def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
     copy_widths = read_copy_widths()
     assert len(copy_widths) == 6
     assert copy_widths == pytest.approx([388, 388, 388, 388, 1278, 1278], abs=1)
-    # Entering copy mode resizes the body, so the root fit answers on a later frame and
-    # leaves the unbounded copy in flow posture. The copy is the whole workspace at the
-    # page's width either way: a user who copies a slower page gets the same evidence.
-    expect(widget).to_have_attribute("data-lf-reading-posture", "flow")
+    # The copy is the whole workspace at the page's width on the first frame and every
+    # later one: a user who copies a slower page gets the same evidence.
+    page.evaluate(ONE_FRAME)
     assert read_copy_widths() == pytest.approx(copy_widths, abs=1)
     assert widget.locator(".lf-vr-case lf-shot img").evaluate_all(
         "images => images.every(image => getComputedStyle(image).transform === 'none')"
@@ -2972,9 +2971,11 @@ def test_revision_changes_keep_the_complete_heading_below_user_chrome(browser, s
         }"""
     )
     assert view["quote"].startswith(title), view
-    assert view["quoteTop"] >= clipped["inset"], view
+    # A view measures its places from the top of the scroller's visible band, which
+    # scroll-padding declares: a heading's is never above it.
+    assert view["quoteTop"] >= 0, view
     assert view["section"] == "summary", view
-    assert view["sectionTop"] > clipped["summary"]["top"], view
+    assert view["sectionTop"] > clipped["summary"]["top"] - clipped["inset"], view
 
     stamp_page(
         serve.page_dir,
@@ -3079,11 +3080,14 @@ customElements.define("lf-shadow-reading", class extends HTMLElement {
 
 
 def test_revision_remembers_the_active_region_when_a_workspace_reflows(browser, serve):
-    """One active semantic reading wins when several regions begin sharing the page."""
+    """One active semantic reading wins when several regions begin sharing the page.
+
+    The revision puts prose before the workspace, so it stops being the page and flows,
+    and every pane's reading moves onto the one page scroll."""
 
     def pane(side):
         return f"""
-    <lf-pane id="{side}-reading" label="{side.title()} reading">
+    <lf-pane id="{side}-reading" label="{side.title()} reading"><div>
       <p id="{side}-start">{side.title()} start with enough words for a landmark.</p>
       <div style="height: 320px"></div>
       <p id="{side}-landmark">The current {side} reading has a stable semantic landmark.
@@ -3091,57 +3095,44 @@ def test_revision_remembers_the_active_region_when_a_workspace_reflows(browser, 
       </p>
       <div style="height: 700px"></div>
       <p>{side.title()} end.</p>
-    </lf-pane>"""
+    </div></lf-pane>"""
 
-    first = leaf_page(
-        "Active region continuity",
-        f"""
+    workspace_markup = f"""
 <lf-workspace id="reading-workspace">
   <header><h1>Reading workspace</h1></header>
-  <lf-partition id="reading-split" direction="columns">
+  <lf-grid id="reading-split" columns="2">
     {pane("left")}
     {pane("right")}
-  </lf-partition>
+  </lf-grid>
 </lf-workspace>
-""",
-    )
+"""
+    first = leaf_page("Active region continuity", workspace_markup)
     page = open_page(browser, live_url(serve(first)))
     resized(page, 900, 760)
-    workspace = page.locator("#reading-workspace")
-    expect(workspace).to_have_attribute("data-lf-reading-posture", "bounded")
-    left = page.locator("#left-reading .lf-pane-body")
-    right = page.locator("#right-reading .lf-pane-body")
+    right_pane = page.locator("#right-reading")
+    pane_posture(page, right_pane, "bounded")
+    left = page.locator("#left-reading > div")
+    right = page.locator("#right-reading > div")
     left.evaluate("el => el.scrollTop = 180")
     right.evaluate("el => el.scrollTop = 360")
     page.locator("#right-subject").focus()
     before = page.locator("#right-landmark").evaluate(
         """el => el.getBoundingClientRect().top -
-          el.closest('.lf-pane-body').getBoundingClientRect().top"""
+          el.closest('lf-pane > div').getBoundingClientRect().top"""
     )
 
     revised = leaf_page(
         "Active region continuity",
-        f"""
-<lf-workspace id="reading-workspace">
-  <header><h1>Reading workspace</h1></header>
-  <lf-partition id="reading-split" direction="columns">
-    <lf-partition id="first-pair" direction="columns">
-      {pane("left")}
-      {pane("right")}
-    </lf-partition>
-    <lf-partition id="second-pair" direction="columns">
-      {pane("third")}
-      {pane("fourth")}
-    </lf-partition>
-  </lf-partition>
-</lf-workspace>
-""",
+        "<p>The revision adds context before the workspace.</p>" + workspace_markup,
     )
-    stamp_page(serve.page_dir, revised, "add two reading regions")
+    stamp_page(serve.page_dir, revised, "put the workspace in the document")
     wait_for_revision(page, 2)
-    expect(workspace).to_have_attribute("data-lf-reading-posture", "flow")
+    pane_posture(page, right_pane, "flow")
+    # The page's band starts below the banner, where scroll-padding says; the landmark
+    # keeps its distance below the top of what the user can see.
     after = page.locator("#right-landmark").evaluate(
-        "el => el.getBoundingClientRect().top"
+        """el => el.getBoundingClientRect().top -
+          parseFloat(getComputedStyle(document.scrollingElement).scrollPaddingTop)"""
     )
     assert abs(after - before) <= 4, (before, after)
 
@@ -3217,7 +3208,11 @@ def test_revision_reveals_an_active_region_without_any_reading_landmark(browser,
 
 
 def test_revision_does_not_move_a_page_offset_into_a_new_bounded_region(browser, serve):
-    """A raw offset belongs to the scrollport that supplied it."""
+    """A raw offset belongs to the scrollport that supplied it.
+
+    The workspace flows under prose in the first version and is the page in the second,
+    so the scroll the user left on the page has no place in the pane that now scrolls.
+    """
 
     def pane(name, *, standing=False):
         control = (
@@ -3225,31 +3220,26 @@ def test_revision_does_not_move_a_page_offset_into_a_new_bounded_region(browser,
         )
         return f"""
 <lf-pane id="{name}-pane" label="{name.title()}">
-  {control}<div style="height: 700px"></div>
+  <div>{control}<div style="height: 1100px"></div></div>
 </lf-pane>
 """
 
+    workspace_markup = f"""
+<lf-workspace id="reading-workspace">
+  <lf-grid id="all-panes" columns="2">
+    {pane("active", standing=True)}
+    {pane("second")}
+  </lf-grid>
+</lf-workspace>
+"""
     first = leaf_page(
         "Changing offset ownership",
-        f"""
-<lf-workspace id="reading-workspace">
-  <lf-partition id="all-panes" direction="columns">
-    <lf-partition id="first-pair" direction="columns">
-      {pane("active", standing=True)}
-      {pane("second")}
-    </lf-partition>
-    <lf-partition id="second-pair" direction="columns">
-      {pane("third")}
-      {pane("fourth")}
-    </lf-partition>
-  </lf-partition>
-</lf-workspace>
-""",
+        "<p>Context before the workspace.</p>" + workspace_markup,
     )
     page = open_page(browser, live_url(serve(first)))
     resized(page, 900, 760)
-    workspace = page.locator("#reading-workspace")
-    expect(workspace).to_have_attribute("data-lf-reading-posture", "flow")
+    active = page.locator("#active-pane")
+    pane_posture(page, active, "flow")
     page.locator("#standing-control").evaluate(
         "control => control.focus({preventScroll: true})"
     )
@@ -3257,25 +3247,12 @@ def test_revision_does_not_move_a_page_offset_into_a_new_bounded_region(browser,
     before = page.evaluate("document.scrollingElement.scrollTop")
     assert before == 300
 
-    revised = leaf_page(
-        "Changing offset ownership",
-        f"""
-<lf-workspace id="reading-workspace">
-  <lf-partition id="remaining-panes" direction="columns">
-    {pane("active", standing=True)}
-    {pane("second")}
-  </lf-partition>
-</lf-workspace>
-""",
-    )
-    stamp_page(serve.page_dir, revised, "remove two reading regions")
+    revised = leaf_page("Changing offset ownership", workspace_markup)
+    stamp_page(serve.page_dir, revised, "make the workspace the page")
     wait_for_revision(page, 2)
 
-    expect(workspace).to_have_attribute("data-lf-reading-posture", "bounded")
-    assert (
-        page.locator("#active-pane .lf-pane-body").evaluate("pane => pane.scrollTop")
-        == 0
-    )
+    pane_posture(page, active, "bounded")
+    assert page.locator("#active-pane > div").evaluate("pane => pane.scrollTop") == 0
 
 
 def test_revision_does_not_move_an_offset_between_bounded_region_owners(browser, serve):
@@ -3285,40 +3262,34 @@ def test_revision_does_not_move_an_offset_between_bounded_region_owners(browser,
         "type": "object",
         "properties": {
             "id": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
-            "posture": {"enum": ["flow", "bounded"]},
         },
-        "required": ["id", "posture"],
+        "required": ["id"],
         "additionalProperties": False,
         "x-content": "markup",
         "x-upgrade": True,
         "x-example": (
-            '<lf-owned-scroll id="example" posture="flow">'
+            '<lf-owned-scroll id="example">'
             "<div data-scroll-body><button>Control</button></div>"
             "</lf-owned-scroll>"
         ),
     }
     module = """
-import {registerReadingArrangement} from '/runtime/widget-api.js';
+import {registerReadingRegion} from '/runtime/widget-api.js';
 customElements.define('lf-owned-scroll', class extends HTMLElement {
-  #reading = null;
+  #stop = null;
   connectedCallback() {
     const body = this.querySelector(':scope > [data-scroll-body]');
-    this.#reading = registerReadingArrangement({
-      owner: this,
-      content: body,
-      regions: [{id: this.id, host: this, body}],
-    });
-    void this.#reading.setReadingPosture(this.getAttribute('posture'));
+    this.#stop = registerReadingRegion({id: this.id, host: this, body});
   }
   disconnectedCallback() {
-    this.#reading?.cleanup();
-    this.#reading = null;
+    this.#stop?.();
+    this.#stop = null;
   }
 });
 """
     active = """
 <div style="height: 250px"></div>
-<lf-owned-scroll id="active-region" posture="flow">
+<lf-owned-scroll id="active-region">
   <div data-scroll-body>
     <section id="removed-landmark">
       <p>The nested region landmark disappears in the arriving revision.</p>
@@ -3337,7 +3308,7 @@ customElements.define('lf-owned-scroll', class extends HTMLElement {
 
     def parent(name, content=""):
         return f"""
-<lf-owned-scroll id="{name}-region" posture="bounded">
+<lf-owned-scroll id="{name}-region">
   <div data-scroll-body style="height: 240px; overflow: auto">
     {content}<div style="height: 700px"></div>
   </div>

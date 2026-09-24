@@ -1,9 +1,16 @@
-/* A visual run is one active-case workspace. Navigation and disposition stay above the
- * evidence; supporting capture facts follow it. A root review fits the viewport, while
- * an embedded review keeps the same order in ordinary document flow. */
+/* A visual run is one active-case review: a heading, then one evidence pane whose
+ * header is the case navigation. Disposition stays above the evidence and supporting
+ * capture facts follow it. The pane is the layer's own grammar (data-lf-reading-role,
+ * in the default theme), so in a bounded workspace its body fills the review's row and
+ * the stage takes what the case leaves; everywhere else the same order flows with the
+ * document and the stage takes a height from the review's width. */
 lf-visual-review {
   --lf-frame: 1;
-  display: block;
+  /* Passes a held workspace's height to its evidence pane (default theme). */
+  --lf-passes-hold: 1;
+  min-height: var(--lf-track-min);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
   box-sizing: border-box;
   margin-block: var(--sp-4);
   overflow: clip;
@@ -12,25 +19,6 @@ lf-visual-review {
   background: var(--paper);
   font: var(--t-5) / 1.4 var(--sans);
   container-type: inline-size;
-}
-
-lf-visual-review > .lf-reading-before,
-lf-visual-review > .lf-reading-after {
-  --lf-frame: 1;
-  margin: 0;
-  padding: var(--sp-3) var(--sp-4);
-}
-
-lf-visual-review > .lf-reading-before {
-  padding-block: var(--sp-2);
-  border-bottom: 1px solid var(--rule);
-  background: color-mix(in srgb, var(--paper) 94%, var(--accent));
-}
-
-lf-visual-review > .lf-reading-after {
-  border-top: 1px solid var(--rule);
-  color: var(--muted);
-  font: var(--t-6) var(--sans);
 }
 
 .lf-vr-title,
@@ -53,10 +41,14 @@ lf-visual-review > .lf-reading-after {
 }
 
 .lf-vr-head {
+  --lf-frame: 1;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--sp-4);
+  padding: var(--sp-2) var(--sp-4);
+  border-bottom: 1px solid var(--rule);
+  background: color-mix(in srgb, var(--paper) 94%, var(--accent));
 }
 
 .lf-vr-progress {
@@ -65,37 +57,21 @@ lf-visual-review > .lf-reading-after {
   font: 600 var(--t-6) / 1.35 var(--sans);
 }
 
-.lf-vr-partition > .lf-partition-content {
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
-  gap: 1px;
-  background: var(--rule);
+/* The review's own border frames the pane, so the pane draws only its inner rule. */
+.lf-vr-evidence-region {
+  border: 0;
+  border-radius: 0;
 }
 
-.lf-vr-queue-region,
-.lf-vr-evidence-region {
-  min-width: 0;
-  background: var(--paper);
+.lf-vr-queue {
+  padding: var(--sp-2) var(--sp-3);
+  font: inherit;
 }
 
 .lf-vr-queue-region {
-  height: auto !important;
-}
-
-.lf-vr-queue-region > .lf-pane-content > .lf-pane-body,
-.lf-vr-evidence-region > .lf-pane-content > .lf-pane-body {
-  padding: 0;
-}
-
-.lf-vr-evidence-region > .lf-pane-content > .lf-pane-body {
-  overscroll-behavior: auto;
-}
-
-.lf-vr-queue-region > .lf-pane-content > .lf-pane-body {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   gap: var(--sp-2);
-  padding: var(--sp-2) var(--sp-3);
 }
 
 /* The workspace gives the evidence a laptop's height, so the two rows of chrome above it
@@ -189,10 +165,15 @@ lf-visual-review > .lf-reading-after {
 
 .lf-vr-cases {
   min-width: 0;
+  padding: 0;
 }
 
+/* The case takes the pane body's height where the body has one, which gives the stage
+   row what the case's furniture leaves; in flow the percentage has nothing to resolve
+   against and the case takes its content's height. */
 .lf-vr-case {
   box-sizing: border-box;
+  height: 100%;
   display: grid;
   grid-template-rows: auto auto auto minmax(0, 1fr) auto auto;
   gap: var(--sp-1);
@@ -355,6 +336,9 @@ lf-visual-review > .lf-reading-after {
   font: inherit;
 }
 
+/* The stage never sizes to its captures. Its intrinsic height comes from the review's
+   width (half of it, within a laptop-readable range), which is the stage's height in
+   flow; a bounded case's minmax(0, 1fr) row overrides it with the height left. */
 .lf-vr-shot-host {
   box-sizing: border-box;
   display: grid;
@@ -362,10 +346,9 @@ lf-visual-review > .lf-reading-after {
   justify-items: center;
   min-width: 0;
   width: 100%;
-  height: var(--lf-vr-stage-height, auto);
-  min-height: 14rem;
-  max-height: 35rem;
-  aspect-ratio: 2;
+  min-height: 0;
+  contain: size;
+  contain-intrinsic-block-size: clamp(14rem, 50cqi, 35rem);
   overflow: auto;
   border: 1px solid var(--rule);
   border-radius: var(--r);
@@ -552,42 +535,7 @@ lf-visual-review > .lf-reading-after {
   text-align: center;
 }
 
-lf-visual-review[data-lf-reading-posture="bounded"] {
-  height: 100%;
-  margin-block: 0;
-}
-
-lf-visual-review[data-lf-reading-posture="bounded"] > .lf-workspace-content,
-lf-visual-review[data-lf-reading-posture="bounded"] .lf-vr-partition,
-lf-visual-review[data-lf-reading-posture="bounded"]
-  .lf-vr-partition > .lf-partition-content,
-lf-visual-review[data-lf-reading-posture="bounded"] .lf-vr-evidence-region,
-lf-visual-review[data-lf-reading-posture="bounded"]
-  .lf-vr-evidence-region > .lf-pane-content,
-lf-visual-review[data-lf-reading-posture="bounded"]
-  .lf-vr-evidence-region > .lf-pane-content > .lf-pane-body,
-lf-visual-review[data-lf-reading-posture="bounded"] .lf-vr-cases,
-lf-visual-review[data-lf-reading-posture="bounded"] .lf-vr-case {
-  min-height: 0;
-  height: 100%;
-}
-
-lf-visual-review[data-lf-reading-posture="bounded"] .lf-vr-shot-host {
-  min-height: 0;
-  max-height: none;
-  aspect-ratio: auto;
-}
-
 @container (max-width: 28rem) {
-  .lf-vr-partition > .lf-partition-content {
-    display: block;
-  }
-
-  .lf-vr-queue-region > .lf-pane-content,
-  .lf-vr-evidence-region > .lf-pane-content {
-    height: auto;
-  }
-
   .lf-vr-claim {
     grid-template-areas:
       "action-term"
@@ -638,13 +586,13 @@ lf-visual-review[data-lf-reading-posture="bounded"] .lf-vr-shot-host {
 }
 
 html.lf-copy .lf-vr-dispositions,
-html.lf-copy .lf-vr-queue-region,
+html.lf-copy .lf-vr-queue,
 html.lf-copy .lf-vr-inspector {
   display: none !important;
 }
 
-html.lf-copy .lf-vr-partition > .lf-partition-content {
-  display: block !important;
+html.lf-copy .lf-vr-case {
+  height: auto;
 }
 
 html.lf-copy .lf-vr-case[hidden] {
@@ -656,10 +604,7 @@ html.lf-copy .lf-vr-case + .lf-vr-case {
 }
 
 html.lf-copy .lf-vr-shot-host {
-  height: auto;
-  min-height: 0;
-  max-height: none;
-  aspect-ratio: auto;
+  contain: none;
   overflow: visible;
 }
 
@@ -679,13 +624,13 @@ html.lf-copy .lf-vr-details > .lf-vr-provenance {
 @media print {
   .lf-vr-dispositions,
   .lf-vr-frame-label,
-  .lf-vr-queue-region,
+  .lf-vr-queue,
   .lf-vr-inspector {
     display: none !important;
   }
 
-  .lf-vr-partition > .lf-partition-content {
-    display: block !important;
+  .lf-vr-case {
+    height: auto;
   }
 
   .lf-vr-case[hidden] {
@@ -698,10 +643,7 @@ html.lf-copy .lf-vr-details > .lf-vr-provenance {
   }
 
   .lf-vr-shot-host {
-    height: auto;
-    min-height: 0;
-    max-height: none;
-    aspect-ratio: auto;
+    contain: none;
     overflow: visible;
   }
 
@@ -719,7 +661,7 @@ html.lf-copy .lf-vr-details > .lf-vr-provenance {
   }
 
   lf-visual-review,
-  lf-visual-review > .lf-reading-before {
+  .lf-vr-head {
     background: transparent;
   }
 }

@@ -54,7 +54,7 @@ relative to `runtime/` unless stated otherwise.
 | Revision installs and continuity | `version.js`, `version-chooser.js`, `carry.js`, `dom-children.js`, `root-state.js`, `restore-state.js` |
 | Shared repaint and geometry | `repaint.js`, `standing.js`, `page-geometry.js`, `geometry.js`, `pointer.js` |
 | Chrome assembly and available room | `chrome.js`, `chrome-layout.js`, `auxiliary-surfaces.js`, `drawn-edge.js` |
-| Reading arrangements and scrolling | `reading-regions.js`, `reading-layout.js`, `scrolling.js`, `reach.js`, `user-place.js` |
+| Reading regions and scrolling | `reading-regions.js`, `bounds.js`, `scrolling.js`, `reach.js`, `user-place.js` |
 | Keyboard commands and their projections | `keyboard/AGENTS.md` |
 | Focus and navigation | `focus.js`, `navigation.js`, `user-intent.js`, `walk-position.js` |
 | Asks | `asks/view.js`, `asks/view-elements.js`, `asks/model.js` |
@@ -115,9 +115,9 @@ A standing Asks tray reserves its strip with a transparent body border (`theme.c
 preserving native scroll anchoring during reflow. The thread panel and the Leaves tray
 stand over the page and reserve nothing. `chrome-layout.js` must not override the user's
 position.
-Reading arrangements measure available room and minimum size in the bounded candidate
-without changing current geometry, so responsive posture does not depend on the posture
-from which the measurement began.
+A workspace's posture is the stylesheet's: one container query on the workspace's own
+box decides whether each pane's body scrolls, and the runtime reads which box scrolls
+a region from that result rather than choosing it (`reading-regions.js`).
 
 The widget layer loads the vendored
 registry, imports modules declared by `x-upgrade`, renders registry-declared

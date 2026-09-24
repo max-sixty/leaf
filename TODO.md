@@ -93,11 +93,18 @@ has tried; settle that before building it.
 
 ### Layout
 
-- **Replace the document/workspace choice with layout axes.** Follow the
-  [layout model](notes/layout-model.md): a two-state `lf-workspace` that picks its
-  posture from its own size (#30), then the playground, visual review and Ask onto
-  the grid (#31). **Unconfirmed:** that one global threshold suits the comparison and
-  queue-with-detail pages.
+- **Test the layout recipes on agents.** Give fresh agents tasks across the recipes in
+  `page-authoring.md` ("Composing a page"), then ask them to revise the results: turn
+  a report into a report with live status while keeping its comments. The recipes hold
+  if revisions happen by ordinary composition, with no page-wide CSS and no wholesale
+  restructuring. Include a cold agent asked for "a dashboard", the likeliest trigger
+  for over-tiling. Run it with the agent-usability baseline (#19). **Unconfirmed:**
+  that one global threshold (720×480) suits the comparison and queue-with-detail
+  pages.
+- **Layout values that wait for a task:** row and column spans in `lf-grid` with a
+  narrow-width rule; a selection-and-detail component whose phone form shows one side
+  at a time; canvas regions, whose reading position is two-dimensional; slides as a
+  presentation of `lf-tabs`.
 - **Trim a heading's margin at the top of a page when a block wraps it.** A page
   whose first block is an `lf-ask` opens 48px lower than one that starts with its
   own heading: the Ask's `h2` margin collapses through the boxless `lf-ask` to

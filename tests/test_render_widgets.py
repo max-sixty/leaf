@@ -84,9 +84,11 @@ from render_harness import (
     consume_browser_errors,
     expect_banner_control_offered,
     holding,
+    holds_the_window,
     leaf_page,
     open_page,
     page_right,
+    pane_posture,
     panel_settled,
     post_event,
     refuse,
@@ -124,19 +126,22 @@ WORKSPACE_PAGE = leaf_page(
     """
 <lf-workspace id="review-workspace">
   <header><h1>Review queue</h1></header>
-  <lf-partition id="review-regions" direction="columns">
+  <lf-grid id="review-regions" columns="2">
     <lf-pane id="queue" label="Items">
-      <p>Queue start</p>
-      <div style="height: 1100px"></div>
-      <p>Queue end</p>
+      <div>
+        <p>Queue start</p>
+        <div style="height: 1100px"></div>
+        <p>Queue end</p>
+      </div>
     </lf-pane>
     <lf-pane id="detail" label="Selected item">
-      <article><header><h2>Nested article header</h2></header></article>
-      <p>Detail start</p>
-      <div style="height: 1100px"></div>
-      <p>Detail end</p>
+      <div>
+        <p>Detail start</p>
+        <div style="height: 1100px"></div>
+        <p>Detail end</p>
+      </div>
     </lf-pane>
-  </lf-partition>
+  </lf-grid>
   <footer>2 items</footer>
 </lf-workspace>
 """,
@@ -147,19 +152,20 @@ def test_a_root_workspace_bounds_independent_regions_and_flows_when_it_cannot_fi
     browser, serve
 ):
     page = open_page(browser, serve(WORKSPACE_PAGE))
+    resized(page, 1280, 720)
     workspace = page.locator("#review-workspace")
-    queue = page.locator("#queue > .lf-pane-content > .lf-pane-body")
-    detail = page.locator("#detail > .lf-pane-content > .lf-pane-body")
+    queue_pane = page.locator("#queue")
+    queue = page.locator("#queue > :not(header, footer)")
+    detail = page.locator("#detail > :not(header, footer)")
 
-    expect(workspace).to_have_attribute("data-lf-reading-posture", "bounded")
-    page.wait_for_function(
-        "() => document.documentElement.scrollHeight === document.documentElement.clientHeight"
-    )
+    pane_posture(page, queue_pane, "bounded")
+    holds_the_window(page, workspace, True)
     assert page.evaluate("() => document.scrollingElement.scrollTop") == 0
     readings = page.evaluate(
         """() => {
-          const queue = document.querySelector('#queue > .lf-pane-content > .lf-pane-body');
-          const detail = document.querySelector('#detail > .lf-pane-content > .lf-pane-body');
+          const body = id => document.querySelector(`#${id} > :not(header, footer)`);
+          const queue = body('queue');
+          const detail = body('detail');
           return {queue: [queue.clientHeight, queue.scrollHeight],
                   detail: [detail.clientHeight, detail.scrollHeight]};
         }"""
@@ -170,20 +176,20 @@ def test_a_root_workspace_bounds_independent_regions_and_flows_when_it_cannot_fi
     expect(detail).to_have_attribute("data-lf-more-below", "")
     queue.evaluate("el => el.scrollTop = 300")
     page.wait_for_function(
-        "() => document.querySelector('#queue > .lf-pane-content > .lf-pane-body').scrollTop > 0"
+        "() => document.querySelector('#queue > :not(header, footer)').scrollTop > 0"
     )
     assert detail.evaluate("el => el.scrollTop") == 0
-    assert workspace.evaluate(
+    # A pane that leaves the document and returns registers its body again, so the cue
+    # that the body holds more comes back with it.
+    workspace.evaluate(
         """owner => {
           const parent = owner.parentNode;
           const next = owner.nextSibling;
-          const nodes = [...owner.querySelectorAll('*')];
           owner.remove();
           parent.insertBefore(owner, next);
-          return nodes.every((node, index) => owner.querySelectorAll('*')[index] === node);
         }"""
     )
-    expect(workspace).to_have_attribute("data-lf-reading-posture", "bounded")
+    pane_posture(page, queue_pane, "bounded")
     expect(queue).to_have_attribute("data-lf-more-below", "")
     queue.evaluate("el => el.scrollTop = el.scrollHeight")
     expect(queue).not_to_have_attribute("data-lf-more-below", "")
@@ -197,16 +203,11 @@ def test_a_root_workspace_bounds_independent_regions_and_flows_when_it_cannot_fi
     )
     expect(queue).to_have_attribute("data-lf-more-below", "")
 
-    # Only direct furniture is slotted. An article's native header remains in the
-    # pane's reading body rather than becoming pane chrome.
-    expect(detail.locator("article > header")).to_have_count(1)
-
-    page.set_viewport_size({"width": 520, "height": 900})
-    expect(workspace).to_have_attribute("data-lf-reading-posture", "flow")
-    page.wait_for_function(
-        """() => getComputedStyle(document.querySelector(
-          '#queue > .lf-pane-content > .lf-pane-body')).overflowY === 'visible'"""
-    )
+    # A window too short to hold the regions hands the scroll to the page, and the grid
+    # keeps the columns its width allows: posture decides heights, not placement.
+    resized(page, 1280, 420)
+    pane_posture(page, queue_pane, "flow")
+    holds_the_window(page, workspace, False)
     flow = page.evaluate(
         """() => {
           const queue = document.querySelector('#queue').getBoundingClientRect();
@@ -214,9 +215,14 @@ def test_a_root_workspace_bounds_independent_regions_and_flows_when_it_cannot_fi
           return {queue, detail};
         }"""
     )
-    assert flow["detail"]["top"] >= flow["queue"]["bottom"] - 1, flow
+    assert flow["detail"]["left"] >= flow["queue"]["right"] - 1, flow
+    assert flow["queue"]["height"] > 1100, flow
     expect(queue).not_to_have_attribute("data-lf-more-below", "")
     expect(detail).not_to_have_attribute("data-lf-more-below", "")
+    # The posture is the window's, not the one the user came from.
+    resized(page, 1280, 720)
+    pane_posture(page, queue_pane, "bounded")
+    holds_the_window(page, workspace, True)
 
 
 ROOT_TABS_PAGE = Path(__file__).parent / "fixtures/pages/root-tabs.html"
@@ -396,11 +402,23 @@ def test_root_tabs_allocate_the_active_workspace_and_preserve_its_pane_scroll(
         work_box["x"] + work_box["width"] / 2,
         work_box["y"] + work_box["height"] / 2,
     )
-    workspace = page.locator("#workbench")
-    expect(workspace).to_have_attribute("data-lf-reading-posture", "bounded")
-    page.wait_for_function(
-        "() => document.documentElement.scrollHeight === document.documentElement.clientHeight"
-    )
+    queue_pane = page.locator("#queue-pane")
+    pane_posture(page, queue_pane, "bounded")
+    # A bounded workspace is never taller than the room its tab gives it, so the page
+    # can carry a shared header away but cannot scroll the panes themselves out from
+    # under the strip: at the page's furthest scroll the workspace is still whole.
+    furthest = page.evaluate("""() => {
+      const y = scrollY;
+      scrollTo({top: document.scrollingElement.scrollHeight, behavior: 'instant'});
+      const box = selector => document.querySelector(selector).getBoundingClientRect().toJSON();
+      const seen = {strip: box('#root-tabs > .lf-tabstrip'), workspace: box('#workbench'),
+                    height: innerHeight};
+      scrollTo({top: y, behavior: 'instant'});
+      return seen;
+    }""")
+    assert furthest["workspace"]["top"] >= furthest["strip"]["bottom"] - 1, furthest
+    assert furthest["workspace"]["bottom"] <= furthest["height"], furthest
+    scroll_settled(page)
     geometry = page.evaluate("""() => {
       const box = selector => document.querySelector(selector).getBoundingClientRect().toJSON();
       return {strip: box('#root-tabs > .lf-tabstrip'), workspace: box('#workbench'),
@@ -410,13 +428,14 @@ def test_root_tabs_allocate_the_active_workspace_and_preserve_its_pane_scroll(
     assert geometry["workspace"]["bottom"] <= geometry["height"], geometry
     assert geometry["detail"]["left"] >= geometry["queue"]["right"] - 1, geometry
 
-    detail = page.locator("#detail-pane > .lf-pane-content > .lf-pane-body")
+    detail_body = "#detail-pane > :not(header, footer)"
+    detail = page.locator(detail_body)
     detail.hover()
     page.mouse.wheel(0, 350)
     page.wait_for_function(
-        "() => document.querySelector('#detail-pane > .lf-pane-content > .lf-pane-body').scrollTop > 100"
+        "body => document.querySelector(body).scrollTop > 100", arg=detail_body
     )
-    scroll_settled(page, scroller="#detail-pane > .lf-pane-content > .lf-pane-body")
+    scroll_settled(page, scroller=detail_body)
     detail_scroll = detail.evaluate("element => element.scrollTop")
     plan.click()
     expect(plan).to_have_attribute("aria-selected", "true")
@@ -427,23 +446,23 @@ def test_root_tabs_allocate_the_active_workspace_and_preserve_its_pane_scroll(
         work_box["x"] + work_box["width"] / 2,
         work_box["y"] + work_box["height"] / 2,
     )
-    expect(workspace).to_have_attribute("data-lf-reading-posture", "bounded")
+    pane_posture(page, queue_pane, "bounded")
     page.wait_for_function(
-        "expected => Math.abs(document.querySelector('#detail-pane > .lf-pane-content > .lf-pane-body').scrollTop - expected) < 2",
-        arg=detail_scroll,
+        "([body, expected]) => Math.abs(document.querySelector(body).scrollTop - expected) < 2",
+        arg=[detail_body, detail_scroll],
     )
     page.go_back()
     expect(plan).to_have_attribute("aria-selected", "true")
     scroll_settled(page)
     assert page.url.endswith("#plan-tab")
     page.go_forward()
-    expect(workspace).to_have_attribute("data-lf-reading-posture", "bounded")
+    pane_posture(page, queue_pane, "bounded")
     page.wait_for_function(
-        "expected => Math.abs(document.querySelector('#detail-pane > .lf-pane-content > .lf-pane-body').scrollTop - expected) < 2",
-        arg=detail_scroll,
+        "([body, expected]) => Math.abs(document.querySelector(body).scrollTop - expected) < 2",
+        arg=[detail_body, detail_scroll],
     )
     resized(page, 520, 900)
-    expect(workspace).to_have_attribute("data-lf-reading-posture", "flow")
+    pane_posture(page, queue_pane, "flow")
     flow = page.evaluate("""() => ({
       queue: document.querySelector('#queue-pane').getBoundingClientRect().toJSON(),
       detail: document.querySelector('#detail-pane').getBoundingClientRect().toJSON(),
@@ -473,7 +492,7 @@ def test_root_tabs_allocate_the_active_workspace_and_preserve_its_pane_scroll(
     scroll_settled(page)
     assert page.evaluate("scrollY") == pytest.approx(workspace_start, abs=2)
     resized(page, 1440, 900)
-    expect(workspace).to_have_attribute("data-lf-reading-posture", "bounded")
+    pane_posture(page, queue_pane, "bounded")
 
 
 def test_root_tab_targets_remain_global_and_export_in_authored_order(
@@ -505,9 +524,7 @@ def test_root_tab_targets_remain_global_and_export_in_authored_order(
     )
     expect(page.locator("#plan-return")).to_be_in_viewport()
     tabs.get_by_role("tab", name="Workbench", exact=True).click()
-    expect(page.locator("#workbench")).to_have_attribute(
-        "data-lf-reading-posture", "bounded"
-    )
+    pane_posture(page, page.locator("#queue-pane"), "bounded")
 
     copies = []
     for entry in ("plan-tab", "workbench-tab"):
@@ -545,358 +562,11 @@ def test_root_tab_targets_remain_global_and_export_in_authored_order(
     }
 
 
-# A root whose furniture answers the width it is given: four fixed badges stand on one
-# row in the width a bounded allocation has, and on two rows in the narrower reading
-# measure flow leaves. The wrapping is geometry rather than text, so the two readings
-# differ by exactly one badge row whatever a platform's fonts measure.
-FIT_BADGES = """<style>
-  .fit-badges { display: flex; flex-wrap: wrap; }
-  .fit-badges > span { width: 280px; height: 200px; background: silver; }
-</style>"""
-
-ROOT_FIT_PAGE = leaf_page(
-    "a root whose furniture wraps with its width",
-    """
-<lf-workspace id="fit-workspace">
-  <header><div class="fit-badges"><span></span><span></span><span></span><span></span></div></header>
-  <lf-pane id="fit-body" label="Body"><p>One pane under the badges.</p></lf-pane>
-</lf-workspace>
-""",
-    head=FIT_BADGES,
-)
-
-NESTED_FIT_PAGE = leaf_page(
-    "a root whose nested furniture wraps with its allocation",
-    """
-<lf-workspace id="fit-workspace">
-  <lf-partition id="fit-partition" direction="columns">
-    <lf-pane id="fit-pane" label="Badges">
-      <header><div class="fit-badges"><span></span><span></span><span></span><span></span></div></header>
-      <p>One pane under the badges.</p>
-    </lf-pane>
-    <lf-pane id="fit-peer" label="Peer"><p>The other pane.</p></lf-pane>
-  </lf-partition>
-</lf-workspace>
-""",
-    head=FIT_BADGES,
-)
-
-SCROLLED_FIT_PAGE = leaf_page(
-    "a root in flow a user has scrolled down",
-    """
-<lf-workspace id="fit-workspace">
-  <header><div class="fit-badges"><span></span><span></span><span></span><span></span></div></header>
-  <lf-pane id="fit-body" label="Body">
-    <p>The top of the pane.</p>
-    <div style="height: 2400px"></div>
-    <p>The end of the pane.</p>
-  </lf-pane>
-</lf-workspace>
-""",
-    head=FIT_BADGES,
-)
-
-POSTURE_WIDTH_PAGE = leaf_page(
-    "a root whose flow posture reserves a strip of page width",
-    """
-<lf-workspace id="fit-workspace">
-  <lf-pane id="fit-body" label="Body"><p>One pane in the workspace.</p></lf-pane>
-</lf-workspace>
-""",
-    head="""<style>
-      body:has(> main > #fit-workspace[data-lf-reading-posture="flow"]) {
-        width: calc(100% - 20px);
-      }
-    </style>""",
-)
-
-PADDED_ROOM_PAGE = leaf_page(
-    "a root inside authored body padding",
-    """
-<lf-workspace id="fit-workspace">
-  <lf-pane id="fit-body" label="Body"><p>One pane in the workspace.</p></lf-pane>
-</lf-workspace>
-""",
-    head="""<style>body { padding-inline: 20px; }</style>""",
-)
-
-PADDED_HEIGHT_PAGE = leaf_page(
-    "a root inside candidate main block padding",
-    """
-<lf-workspace id="fit-workspace">
-  <lf-pane id="fit-body" label="Body"><p>One pane in the workspace.</p></lf-pane>
-</lf-workspace>
-""",
-    head="""<style>
-      body > main:has(> #fit-workspace[data-lf-reading-posture="bounded"]) {
-        padding-block: 160px;
-      }
-    </style>""",
-)
-
-# The fitting reads the room in an animation frame and writes the posture there, and
-# `resized` has already waited for the resize event to reach the listener that asks for
-# that frame. So the new window's posture stands on the element by the frame after it,
-# and the second frame here is the one a posture change's own layout signal would use.
-SETTLED_POSTURE = """() => new Promise((resolve) => requestAnimationFrame(() =>
-  requestAnimationFrame(() =>
-    resolve(document.querySelector('#fit-workspace').dataset.lfReadingPosture ?? null))))"""
-
-FIT_HEIGHTS = (400, 500, 600, 700, 900)
-
-
-def test_a_root_posture_is_the_window_it_stands_in_and_not_the_one_it_came_from(
-    browser, serve
-):
-    """One window allocates one way, whichever window the user arrived from.
-
-    A root decides its posture from the minimum its own live layout reports, and flow
-    lays that layout out in the reading measure rather than the wide box bounded would
-    allocate. Read there, furniture that wraps reports a minimum taller than the posture
-    under decision would ever have, and the window has two stable answers: the user
-    who shrinks a tall window keeps the bounded desk, while the user who opens the
-    same window fresh is given flow and cannot resize out of it, because every reading
-    taken from flow is the flow reading again.
-    """
-    url = serve(ROOT_FIT_PAGE)
-    page = open_page(browser, url)
-    resized(page, 1200, max(FIT_HEIGHTS))
-    shrinking = {}
-    for height in sorted(FIT_HEIGHTS, reverse=True):
-        resized(page, 1200, height)
-        shrinking[height] = page.evaluate(SETTLED_POSTURE)
-    # The positive control: a fixture whose badges stood on one row in both layouts
-    # would agree about every window while proving nothing.
-    header = page.locator("#fit-workspace > .lf-reading-before")
-    resized(page, 1200, max(FIT_HEIGHTS))
-    page.evaluate(SETTLED_POSTURE)
-    allocated = header.bounding_box()["height"]
-    resized(page, 1200, min(FIT_HEIGHTS) // 2)
-    page.evaluate(SETTLED_POSTURE)
-    assert header.bounding_box()["height"] > allocated, (
-        "the badges kept one row in both postures, so this page exercises no "
-        "width-dependent furniture"
-    )
-    page.close()
-
-    arriving = {}
-    for height in FIT_HEIGHTS:
-        context = browser.new_context(viewport={"width": 1200, "height": height})
-        fresh = open_page(browser, url, context=context)
-        arriving[height] = fresh.evaluate(SETTLED_POSTURE)
-        fresh.close()
-        context.close()
-
-    assert set(arriving.values()) == {
-        "bounded",
-        "flow",
-    }, f"every window in the sweep allocated the same way: {arriving}"
-    assert arriving == shrinking
-
-
-def test_nested_furniture_reads_the_candidate_partition_posture(browser, serve):
-    """A nested grid answers for the candidate posture, not the current one."""
-    heights = (*FIT_HEIGHTS, 800, 1000, 1100)
-    url = serve(NESTED_FIT_PAGE)
-    page = open_page(browser, url)
-    resized(page, 1200, max(heights))
-    shrinking = {}
-    for height in sorted(heights, reverse=True):
-        resized(page, 1200, height)
-        shrinking[height] = page.evaluate(SETTLED_POSTURE)
-
-    header = page.locator("#fit-pane > .lf-reading-before")
-    resized(page, 1200, max(heights))
-    page.evaluate(SETTLED_POSTURE)
-    allocated = header.bounding_box()["height"]
-    resized(page, 1200, min(heights) // 2)
-    page.evaluate(SETTLED_POSTURE)
-    assert header.bounding_box()["height"] != allocated, (
-        "the badges kept the same height in both postures, so this page exercises no "
-        "posture-dependent partition"
-    )
-    page.close()
-
-    arriving = {}
-    for height in heights:
-        context = browser.new_context(viewport={"width": 1200, "height": height})
-        fresh = open_page(browser, url, context=context)
-        arriving[height] = fresh.evaluate(SETTLED_POSTURE)
-        fresh.close()
-        context.close()
-
-    assert set(arriving.values()) == {"bounded", "flow"}, arriving
-    assert arriving == shrinking
-
-
-def test_root_room_is_read_in_the_candidate_posture(browser, serve):
-    """Posture-owned page width cannot make the root retain its prior answer."""
-    page = open_page(browser, serve(POSTURE_WIDTH_PAGE))
-    resized(page, 620, 900)
-    assert page.evaluate(SETTLED_POSTURE) == "bounded"
-
-    # Model the width a non-overlay standing scrollbar reserves in flow. At this
-    # narrower window the root enters flow, whose page box is 20px narrower. Returning
-    # to 620px crosses the workspace minimum only in the bounded candidate's room.
-    resized(page, 580, 900)
-    assert page.evaluate(SETTLED_POSTURE) == "flow"
-    resized(page, 620, 900)
-    assert page.evaluate(SETTLED_POSTURE) == "bounded"
-
-
-def test_root_room_is_the_candidate_main_content_box(browser, serve):
-    """Authored body padding is not room offered to a bounded root."""
-    page = open_page(browser, serve(PADDED_ROOM_PAGE))
-    resized(page, 620, 900)
-    assert page.evaluate(SETTLED_POSTURE) == "flow"
-    resized(page, 660, 900)
-    assert page.evaluate(SETTLED_POSTURE) == "bounded"
-
-
-def test_root_height_is_the_candidate_main_content_box(browser, serve):
-    """Candidate main padding is not room offered to a bounded root."""
-    page = open_page(browser, serve(PADDED_HEIGHT_PAGE))
-    resized(page, 1200, 500)
-    assert page.evaluate(SETTLED_POSTURE) == "flow"
-    resized(page, 1200, 700)
-    assert page.evaluate(SETTLED_POSTURE) == "bounded"
-
-
-def test_reading_a_root_minimum_leaves_the_user_where_they_had_scrolled_to(
-    browser, serve
-):
-    """Measuring a candidate posture does not move a user in document flow."""
-    page = open_page(browser, serve(SCROLLED_FIT_PAGE))
-    resized(page, 1200, 380)
-    assert page.evaluate(SETTLED_POSTURE) == "flow"
-    styles = page.locator("html, body > main, #fit-workspace").evaluate_all(
-        "nodes => nodes.map(node => node.getAttribute('style'))"
-    )
-    page.evaluate(
-        "() => document.scrollingElement.scrollTop = document.scrollingElement.scrollHeight"
-    )
-    landed = page.evaluate("() => document.scrollingElement.scrollTop")
-    assert landed > 0, "the flow page never scrolled, so no clamp could be exercised"
-    page.locator("#fit-workspace").evaluate(
-        "owner => owner.dispatchEvent(new CustomEvent('lf-layout', {bubbles: true}))"
-    )
-    assert page.evaluate(SETTLED_POSTURE) == "flow"
-    assert page.evaluate("() => document.scrollingElement.scrollTop") == landed
-    assert (
-        page.locator("html, body > main, #fit-workspace").evaluate_all(
-            "nodes => nodes.map(node => node.getAttribute('style'))"
-        )
-        == styles
-    )
-
-
-def test_a_delayed_custom_arrangement_propagates_furniture_and_rejects_loose_content(
-    browser, serve
-):
-    page = open_page(browser, serve(WORKSPACE_PAGE))
-    workspace = page.locator("#review-workspace")
-    expect(workspace).to_have_attribute("data-lf-reading-posture", "bounded")
-
-    page.evaluate(
-        """async () => {
-          const leaf = await window.__lfRuntimeImport('/runtime/widget-api.js');
-          const workspace = document.querySelector('#review-workspace');
-          const content = workspace.querySelector(':scope > .lf-workspace-content');
-          const split = content.firstElementChild;
-          const owner = document.createElement('section');
-          owner.id = 'package-surface';
-          const heading = document.createElement('h2');
-          heading.textContent = 'Package-owned furniture';
-          heading.style.height = '120px';
-          owner.append(heading, split);
-          content.replaceChildren(owner);
-          leaf.layoutChanged(owner);
-        }"""
-    )
-    expect(workspace).to_have_attribute("data-lf-reading-posture", "flow")
-
-    page.evaluate(
-        """async () => {
-          const leaf = await window.__lfRuntimeImport('/runtime/widget-api.js');
-          await new Promise(resolve => setTimeout(resolve, 30));
-          const owner = document.querySelector('#package-surface');
-          leaf.arrangeReadingElement({
-            owner,
-            role: 'workspace',
-            header: owner.firstElementChild,
-          });
-        }"""
-    )
-    expect(workspace).to_have_attribute("data-lf-reading-posture", "bounded")
-    surface = page.locator("#package-surface")
-    expect(surface.locator(":scope > .lf-reading-before")).to_have_text(
-        "Package-owned furniture"
-    )
-    expect(
-        surface.locator(":scope > .lf-reading-content > #review-regions")
-    ).to_have_count(1)
-
-    surface.locator(":scope > .lf-reading-content").evaluate(
-        "content => content.append('Unsupported loose prose')"
-    )
-    surface.evaluate(
-        "owner => owner.dispatchEvent(new CustomEvent('lf-layout', {bubbles: true}))"
-    )
-    expect(workspace).to_have_attribute("data-lf-reading-posture", "flow")
-    surface.locator(":scope > .lf-reading-content").evaluate(
-        "content => content.lastChild.remove()"
-    )
-    surface.evaluate(
-        "owner => owner.dispatchEvent(new CustomEvent('lf-layout', {bubbles: true}))"
-    )
-    expect(workspace).to_have_attribute("data-lf-reading-posture", "bounded")
-
-    page.set_viewport_size({"width": 1100, "height": 420})
-    expect(workspace).to_have_attribute("data-lf-reading-posture", "flow")
-    surface.locator(":scope > .lf-reading-before").evaluate(
-        "heading => heading.style.display = 'none'"
-    )
-    surface.evaluate(
-        "owner => owner.dispatchEvent(new CustomEvent('lf-layout', {bubbles: true}))"
-    )
-    expect(workspace).to_have_attribute("data-lf-reading-posture", "bounded")
-
-
-def test_a_layout_notice_sent_while_a_posture_settles_is_read(browser, serve):
-    """A root fit answers the layout it was last told about, not the one it read.
-
-    Publishing a posture waits a frame for the new geometry. A notice arriving in
-    that wait describes content the fit's reading never saw, so it needs a reading
-    of its own; sharing the settling one leaves the posture stale for good."""
-    page = open_page(browser, serve(WORKSPACE_PAGE))
-    workspace = page.locator("#review-workspace")
-    expect(workspace).to_have_attribute("data-lf-reading-posture", "bounded")
-
-    # The second notice goes out from a frame callback queued behind the first fit's,
-    # which is the frame that fit spends publishing the posture it just chose.
-    page.evaluate(
-        """async () => {
-          const leaf = await window.__lfRuntimeImport('/runtime/widget-api.js');
-          const workspace = document.querySelector('#review-workspace');
-          const content = workspace.querySelector(':scope > .lf-workspace-content');
-          const loose = document.createTextNode('Unsupported loose prose');
-          content.append(loose);
-          leaf.layoutChanged(workspace);
-          requestAnimationFrame(() => {
-            window.__lfSettlingPosture = workspace.dataset.lfReadingPosture;
-            loose.remove();
-            leaf.layoutChanged(workspace);
-          });
-        }"""
-    )
-    page.wait_for_function("() => window.__lfSettlingPosture")
-    assert page.evaluate("() => window.__lfSettlingPosture") == "flow", (
-        "the second notice has to go out while the first choice is still settling"
-    )
-    expect(workspace).to_have_attribute("data-lf-reading-posture", "bounded")
-
-
 def test_an_ordinary_two_part_ask_retains_document_flow(browser, serve):
+    """An Ask in a document is prose and a control, not a workspace's region.
+
+    The control is the same Ask as a root workspace's body, which the workspace makes a
+    grid that hands its height to the answer."""
     source = SWIPE_PAGE.replace(
         "  <p>Pass removes an item from this design; Keep carries it into implementation.</p>\n",
         "",
@@ -905,7 +575,7 @@ def test_an_ordinary_two_part_ask_retains_document_flow(browser, serve):
     ask = page.locator("#session-triage-decision")
     assert ask.evaluate("node => getComputedStyle(node).display") == "block"
     assert (
-        ask.locator(":scope > .lf-reading-before").evaluate(
+        ask.locator(":scope > h2").evaluate(
             "heading => getComputedStyle(heading).marginTop"
         )
         != "0px"
@@ -917,177 +587,288 @@ def test_an_ordinary_two_part_ask_retains_document_flow(browser, serve):
             && leaf.effectiveScroller(node) === document.scrollingElement;
         }"""
     )
+    page.close()
+
+    held = (
+        source.replace("<h1>Session-store follow-ups</h1>\n", "")
+        .replace(
+            '<lf-ask id="session-triage-decision">',
+            '<lf-workspace id="triage-workspace"><lf-ask id="session-triage-decision">',
+        )
+        .replace("</lf-ask>", "</lf-ask></lf-workspace>")
+    )
+    page = open_page(browser, serve(held))
+    resized(page, 1280, 720)
+    expect(page.locator("#session-triage-decision")).to_have_css("display", "grid")
 
 
 def test_a_direct_embedded_workspace_keeps_the_root_in_document_flow(browser, serve):
-    source = leaf_page(
+    """A workspace inside another has no window of its own: its panes flow and the page
+    scrolls to their ends. The control is the same pane in the root workspace itself."""
+    embedded = leaf_page(
         "embedded workspace",
         """
 <lf-workspace id="outer-workspace">
   <header><h1>Outer workspace</h1></header>
   <lf-workspace id="embedded-workspace">
     <lf-pane id="embedded-pane" label="Long reading">
-      <p>Start</p><div style="height: 900px"></div><p>End</p>
+      <div><p>Start</p><div style="height: 900px"></div><p id="pane-end">End</p></div>
     </lf-pane>
   </lf-workspace>
 </lf-workspace>
 """,
     )
-    page = open_page(browser, serve(source))
-    expect(page.locator("#embedded-workspace")).to_have_attribute(
-        "data-lf-reading-posture", "flow"
-    )
-    expect(page.locator("#outer-workspace")).to_have_attribute(
-        "data-lf-reading-posture", "flow"
-    )
+    page = open_page(browser, serve(embedded))
+    resized(page, 1280, 720)
+    pane_posture(page, page.locator("#embedded-pane"), "flow")
     assert page.evaluate(
         "document.documentElement.scrollHeight > document.documentElement.clientHeight"
     )
-
-
-CUSTOM_WORKSPACE_LAYER = {
-    "lf-studio": {
-        "description": "A package-owned workspace used to exercise the public layout contract.",
-        "type": "object",
-        "properties": {
-            "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
-        },
-        "required": ["id"],
-        "additionalProperties": False,
-        "x-content": "markup",
-        "x-reading-role": "workspace",
-        "x-upgrade": True,
-        "x-verbatim": True,
-        "x-example": '<lf-studio id="studio"><lf-pane id="canvas" label="Canvas"><p>Draw.</p></lf-pane></lf-studio>',
-    }
-}
-CUSTOM_WORKSPACE_WIDGETS = {
-    "lf-studio.js": """
-import {
-  arrangeReadingElement,
-  once,
-  widgetController,
-} from '/runtime/widget-api.js';
-
-customElements.define('lf-studio', class extends HTMLElement {
-  connectedCallback() {
-    if (!this.layout) {
-      once(this);
-      this.layout = arrangeReadingElement({
-        owner: this,
-        role: 'workspace',
-        minimumSize: () => ({width: 200, height: 200}),
-      });
-    }
-    widgetController(this).present(this.layout.connect());
-  }
-
-  disconnectedCallback() {
-    this.layout?.disconnect();
-  }
-});
-"""
-}
-
-
-def test_a_package_workspace_root_receives_the_available_page_while_embedded_ones_flow(
-    browser, serve
-):
-    source = leaf_page(
-        "package workspace",
-        """
-<lf-studio id="studio">
-  <lf-pane id="canvas" label="Canvas">
-    <p>Canvas start</p><div style="height: 1000px"></div><p>Canvas end</p>
-  </lf-pane>
-</lf-studio>
-""",
-    )
-    page = open_page(
-        browser,
-        serve(
-            source,
-            layer_registry=CUSTOM_WORKSPACE_LAYER,
-            layer_widgets=CUSTOM_WORKSPACE_WIDGETS,
-        ),
-    )
-    studio = page.locator("#studio")
-    expect(studio).to_have_attribute("data-lf-workspace-context", "root")
-    expect(studio).to_have_attribute("data-lf-reading-posture", "bounded")
-    geometry = page.evaluate(
-        """() => {
-          const main = document.querySelector('main').getBoundingClientRect();
-          const studio = document.querySelector('#studio').getBoundingClientRect();
-          return {main, studio, viewport: {width: innerWidth, height: innerHeight}};
-        }"""
-    )
-    assert geometry["main"]["width"] >= geometry["viewport"]["width"] - 2
-    assert geometry["studio"]["height"] == geometry["main"]["height"]
-    assert geometry["studio"]["height"] > 700
-    studio.evaluate(
-        "owner => { const main = owner.parentElement; owner.remove(); main.append(owner); }"
-    )
-    expect(studio).to_have_attribute("data-lf-reading-posture", "bounded")
-    assert studio.evaluate(
-        """async owner => {
-          const leaf = await window.__lfRuntimeImport('/runtime/widget-api.js');
-          return leaf.readingPosture(owner) === 'bounded';
-        }"""
-    )
-    studio.evaluate(
-        """owner => {
-          const wrapper = document.createElement('div');
-          owner.parentElement.append(wrapper);
-          wrapper.append(owner);
-        }"""
-    )
-    expect(studio).to_have_attribute("data-lf-workspace-context", "embedded")
-    expect(studio).to_have_attribute("data-lf-reading-posture", "flow")
-    studio.evaluate("owner => document.querySelector('main').replaceChildren(owner)")
-    expect(studio).to_have_attribute("data-lf-workspace-context", "root")
-    expect(studio).to_have_attribute("data-lf-reading-posture", "bounded")
+    page.locator("#pane-end").scroll_into_view_if_needed()
+    expect(page.locator("#pane-end")).to_be_in_viewport()
     page.close()
 
-    embedded_source = leaf_page(
-        "embedded package workspace",
-        """
-<h1>Embedded workspace</h1>
-<lf-studio id="embedded-studio">
-  <lf-pane id="embedded-canvas" label="Canvas">
-    <p>Canvas start</p><div style="height: 1000px"></div><p>Canvas end</p>
-  </lf-pane>
-</lf-studio>
+    root = embedded.replace('<lf-workspace id="embedded-workspace">', "").replace(
+        "</lf-pane>\n  </lf-workspace>", "</lf-pane>"
+    )
+    page = open_page(browser, serve(root))
+    resized(page, 1280, 720)
+    pane_posture(page, page.locator("#embedded-pane"), "bounded")
+
+
+def clear_of_the_bottom_chrome(page, selector):
+    """Scroll the page to its end and measure one box against the shortcut bar.
+
+    The bar is the fixed chrome a page's last line has to scroll clear of; a page whose
+    end room is missing leaves that line under it however far the reader scrolls."""
+    return page.evaluate(
+        """selector => {
+          const page = document.scrollingElement;
+          page.scrollTop = page.scrollHeight;
+          const bar = document.querySelector('.lf-shortcut-bar').getBoundingClientRect();
+          const box = document.querySelector(selector).getBoundingClientRect();
+          return {bottom: box.bottom, bar: bar.top, clear: box.bottom <= bar.top + 1};
+        }""",
+        selector,
+    )
+
+
+LONG_PANE = """<lf-pane id="held-pane" label="Long reading"><div>
+  <p>Start</p><div style="height: 900px"></div><p id="pane-end">End</p>
+</div></lf-pane>"""
+
+
+def test_a_pane_inside_a_plain_section_of_a_root_workspace_flows(browser, serve):
+    """Only a box that passes the height on holds what it contains. A section is a
+    grouping, so a pane in one takes its natural height and the page scrolls it to its
+    end. The control is the same pane as the workspace's body, which the window holds."""
+    sectioned = leaf_page(
+        "a pane in a section",
+        f"""
+<lf-workspace id="held-workspace">
+  <section><h2>Section heading</h2>{LONG_PANE}</section>
+</lf-workspace>
 """,
     )
-    page = open_page(
-        browser,
-        serve(
-            embedded_source,
-            layer_registry=CUSTOM_WORKSPACE_LAYER,
-            layer_widgets=CUSTOM_WORKSPACE_WIDGETS,
-        ),
-    )
-    embedded = page.locator("#embedded-studio")
-    expect(embedded).to_have_attribute("data-lf-workspace-context", "embedded")
-    expect(embedded).to_have_attribute("data-lf-reading-posture", "flow")
-    embedded.evaluate(
-        """owner => {
-          owner.dataset.lfWorkspaceContext = 'root';
-          owner.dataset.lfReadingPosture = 'bounded';
+    page = open_page(browser, serve(sectioned))
+    resized(page, 1280, 720)
+    pane = page.locator("#held-pane")
+    pane_posture(page, pane, "flow")
+    assert pane.evaluate(
+        """async node => {
+          const leaf = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          return leaf.readingPosture(node) === 'flow'
+            && leaf.effectiveScroller(node) === document.scrollingElement;
         }"""
     )
-    assert embedded.evaluate(
-        "owner => owner.classList.contains('lf-workspace-reading')"
+    end = clear_of_the_bottom_chrome(page, "#pane-end")
+    assert end["clear"], end
+    page.close()
+
+    direct = leaf_page(
+        "a pane as the workspace body",
+        f'<lf-workspace id="held-workspace">{LONG_PANE}</lf-workspace>',
     )
-    embedded.evaluate(
-        "owner => owner.classList.replace('lf-workspace-reading', 'lf-pane-reading')"
+    page = open_page(browser, serve(direct))
+    resized(page, 1280, 720)
+    pane_posture(page, page.locator("#held-pane"), "bounded")
+    holds_the_window(page, page.locator("#held-workspace"), True)
+
+
+def test_an_ask_with_more_than_one_answer_part_flows_in_a_root_workspace(
+    browser, serve
+):
+    """An Ask passes the height on only when it is a heading and one answer, which then
+    takes what is left. With context between the heading and the options there is no one
+    box to give it to, so the Ask stays a block, nothing is drawn over the options, and
+    the page scrolls to them. The control is a heading and a playground, which the
+    workspace holds as a grid."""
+    three_part = leaf_page(
+        "a three-part Ask as the workspace",
+        """
+<lf-workspace id="held-workspace">
+  <lf-ask id="held-ask">
+    <h2>Which release should go out?</h2>
+    <div id="ask-context" style="height: 900px">The context the reader weighs.</div>
+    <lf-options id="held-options" choose>
+      <lf-option id="held-ship">Ship it</lf-option>
+      <lf-option id="held-hold">Hold it</lf-option>
+    </lf-options>
+  </lf-ask>
+</lf-workspace>
+""",
     )
-    assert page.evaluate(
-        "getComputedStyle(document.documentElement).overflowY !== 'hidden'"
+    page = open_page(browser, serve(three_part))
+    resized(page, 1280, 720)
+    ask = page.locator("#held-ask")
+    expect(ask).to_have_css("display", "block")
+    geometry = page.evaluate(
+        """() => ({
+          context: document.querySelector('#ask-context').getBoundingClientRect().bottom,
+          options: document.querySelector('#held-options').getBoundingClientRect().top,
+        })"""
     )
-    assert page.evaluate(
-        "document.scrollingElement.scrollHeight > document.scrollingElement.clientHeight"
+    assert geometry["options"] >= geometry["context"] - 1, geometry
+    holds_the_window(page, page.locator("#held-workspace"), False)
+    end = clear_of_the_bottom_chrome(page, "#held-options")
+    assert end["clear"], end
+    page.close()
+
+    two_part = (
+        PLAYGROUND_PAGE.replace("<h1>Card playground</h1>\n", "")
+        .replace(
+            '<lf-ask id="card-playground-ask">',
+            '<lf-workspace id="held-workspace"><lf-ask id="card-playground-ask">',
+        )
+        .replace("</lf-ask>", "</lf-ask></lf-workspace>")
     )
+    page = open_page(browser, serve(two_part))
+    resized(page, 1280, 720)
+    expect(page.locator("#card-playground-ask")).to_have_css("display", "grid")
+    pane_posture(page, page.locator(".lf-playground-controls-region"), "bounded")
+    holds_the_window(page, page.locator("#held-workspace"), True)
+
+
+def test_the_page_end_clears_the_bottom_chrome_around_a_workspace(browser, serve):
+    """A document keeps its end room with a workspace inside it; a root workspace that
+    flows gives its last block that room, and one the window holds does not scroll."""
+    document = leaf_page(
+        "a workspace mid-document",
+        f"""
+<h1>A document with a workspace</h1>
+<p>Before the workspace.</p>
+<lf-workspace id="held-workspace">{LONG_PANE}</lf-workspace>
+{"<p>After the workspace.</p>" * 30}
+<p id="document-end">The document's last line.</p>
+""",
+    )
+    page = open_page(browser, serve(document))
+    resized(page, 1280, 720)
+    pane_posture(page, page.locator("#held-pane"), "flow")
+    room = page.evaluate(
+        """() => ({
+          padding: getComputedStyle(document.querySelector('.lf-chrome')).paddingBottom,
+          clear: getComputedStyle(document.documentElement)
+            .getPropertyValue('--lf-bottom-chrome-clear').trim(),
+        })"""
+    )
+    assert room["padding"] == room["clear"] and room["clear"] != "0px", room
+    end = clear_of_the_bottom_chrome(page, "#document-end")
+    assert end["clear"], end
+    page.close()
+
+    root = leaf_page(
+        "a root workspace",
+        f'<lf-workspace id="held-workspace">{LONG_PANE}</lf-workspace>',
+    )
+    page = open_page(browser, serve(root))
+    resized(page, 1280, 420)
+    pane_posture(page, page.locator("#held-pane"), "flow")
+    end = clear_of_the_bottom_chrome(page, "#pane-end")
+    assert end["clear"], end
+
+    resized(page, 1280, 720)
+    pane_posture(page, page.locator("#held-pane"), "bounded")
+    holds_the_window(page, page.locator("#held-workspace"), True)
+
+
+def test_a_comment_in_a_pane_leaves_its_grammar_whole(browser, serve):
+    """With the rail down, a comment's controls hang beside the block they serve. A
+    pane whose one body element is that block would take a sibling as a second body,
+    so the controls hang at the end of the block instead and the pane keeps scrolling
+    its one body."""
+    source = leaf_page(
+        "a comment in a pane",
+        """
+<lf-workspace id="held-workspace">
+  <lf-pane id="held-pane" label="Only a paragraph">
+    <p id="only">A paragraph that is the whole body of its pane.</p>
+  </lf-pane>
+</lf-workspace>
+""",
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1000, 720)
+    pane_posture(page, page.locator("#held-pane"), "bounded")
+    page.locator("#only").click(click_count=3)
+    page.locator(".lf-fab-input").click()
+    page.keyboard.type("A thread on the paragraph.")
+    with sending(page, "the comment on the paragraph"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    page.keyboard.press("Escape")
+    page.keyboard.press("Escape")
+    expect(page.locator("#only > .lf-margin-cluster")).to_have_count(1)
+    expect(page.locator("#held-pane > *")).to_have_count(1)
+    pane_posture(page, page.locator("#held-pane"), "bounded")
+
+
+def test_regions_inside_a_bounded_pane_body_flow_within_the_body_that_scrolls(
+    browser, serve
+):
+    """A workspace or pane written inside a bounded pane's body is that body's content:
+    it takes its natural height and the outer body scrolls it, so reading keys and
+    continuity name the box that actually moves. The control is the outer pane, which
+    the same window holds."""
+    source = leaf_page(
+        "regions inside a pane body",
+        """
+<lf-workspace id="outer-workspace">
+  <lf-pane id="host" label="Host"><div id="host-body">
+    <p>Host start</p>
+    <lf-workspace id="inner-workspace">
+      <lf-pane id="inner-pane" label="Inner pane">
+        <div><p>Start</p><div style="height: 900px"></div><p>End</p></div>
+      </lf-pane>
+    </lf-workspace>
+    <lf-pane id="loose-pane" label="Loose pane">
+      <div><p>Start</p><div style="height: 900px"></div><p>End</p></div>
+    </lf-pane>
+  </div></lf-pane>
+</lf-workspace>
+""",
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1280, 720)
+    pane_posture(page, page.locator("#host"), "bounded")
+    for inner in ("#inner-pane", "#loose-pane"):
+        pane_posture(page, page.locator(inner), "flow")
+    readings = page.evaluate(
+        """async () => {
+          const leaf = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const host = document.querySelector('#host-body');
+          return Object.fromEntries(['inner-pane', 'loose-pane'].map(id => {
+            const body = document.querySelector(`#${id} > div`);
+            return [id, {posture: leaf.readingPosture(id),
+                         scroller: leaf.effectiveScroller(id) === host,
+                         fits: body.scrollHeight <= body.clientHeight}];
+          }).concat([['host', host.scrollHeight > host.clientHeight]]));
+        }"""
+    )
+    assert readings == {
+        "inner-pane": {"posture": "flow", "scroller": True, "fits": True},
+        "loose-pane": {"posture": "flow", "scroller": True, "fits": True},
+        "host": True,
+    }
 
 
 def test_a_release_page_spreads_its_evidence_and_keeps_the_log_on_its_newest_line(
@@ -3581,76 +3362,65 @@ def test_a_playground_keeps_one_typed_working_state_until_the_user_chooses(
     assert playground.evaluate("root => root.values")["compact"] is False
 
 
-def test_notification_playground_uses_shared_bounded_regions_and_flows_when_narrow(
+def test_notification_playground_sets_regions_side_by_side_while_its_workspace_holds_the_window(
     browser, serve
 ):
+    """A playground is a workspace with its relationship declared: controls beside the
+    preview they operate. While the root workspace holds the window each region scrolls
+    on its own under the fixed presets and above the fixed actions; where it doesn't,
+    the regions stack and the page scrolls. Either way each is a named reading region."""
     source = Path(__file__).parents[1] / "examples" / "notification-playground.html"
     page = open_page(browser, serve(source))
-    workspace = page.locator("#notification-workspace")
     playground = page.locator("#notification-playground")
-    controls = playground.locator(
-        ".lf-playground-controls-region > .lf-pane-content > .lf-pane-body"
-    )
-    preview = playground.locator(
-        ".lf-playground-preview-region > .lf-pane-content > .lf-pane-body"
-    )
+    controls = playground.locator(".lf-playground-controls")
+    preview = playground.locator(".lf-playground-preview-body")
     presets = playground.get_by_role("group", name="Starting points")
     actions = playground.locator(":scope > .lf-playground-actions")
+    reading = """async () => {
+      const leaf = await window.__lfRuntimeImport('/runtime/widget-api.js');
+      const playground = document.querySelector('#notification-playground');
+      const controls = playground.querySelector('.lf-playground-controls');
+      const preview = playground.querySelector('.lf-playground-preview-body');
+      const region = (body) => leaf.readingRegionFor(body);
+      const controlsBox = region(controls).host.getBoundingClientRect();
+      const previewBox = region(preview).host.getBoundingClientRect();
+      return {
+        controlsId: region(controls).id,
+        previewId: region(preview).id,
+        postures: [controls, preview].map((body) => leaf.readingPosture(region(body))),
+        scrollers: [controls, preview].map((body) =>
+          leaf.effectiveScroller(body) === body ? 'own' :
+          leaf.effectiveScroller(body) === document.scrollingElement ? 'page' : 'other'),
+        sideBySide: Math.abs(previewBox.top - controlsBox.top) < 1
+          && previewBox.left >= controlsBox.right,
+        stacked: previewBox.top >= controlsBox.bottom - 1,
+        presetsHeadControls: controls.previousElementSibling
+          === playground.querySelector('.lf-playground-presets'),
+        controlsSize: [controls.clientHeight, controls.scrollHeight],
+        pageScrolls: document.scrollingElement.scrollHeight > innerHeight,
+        askDisplay: getComputedStyle(document.querySelector('#notification-ask')).display,
+        authoredWords: leaf.wrote(playground).includes('Drag event pressure'),
+        spokenWords: leaf.says(playground).includes('Drag event pressure'),
+      };
+    }"""
 
-    resized(page, 1100, 520)
-    expect(workspace).to_have_attribute("data-lf-reading-posture", "bounded")
+    resized(page, 1100, 700)
     expect(actions).to_be_visible()
-    bounded = page.evaluate(
-        """async () => {
-          const leaf = await window.__lfRuntimeImport('/runtime/widget-api.js');
-          const playground = document.querySelector('#notification-playground');
-          const controls = playground.querySelector(
-            '.lf-playground-controls-region > .lf-pane-content > .lf-pane-body');
-          const preview = playground.querySelector(
-            '.lf-playground-preview-region > .lf-pane-content > .lf-pane-body');
-          return {
-            controlsId: leaf.readingRegionFor(controls).id,
-            previewId: leaf.readingRegionFor(preview).id,
-            controlsScrolls: controls.scrollHeight > controls.clientHeight,
-            controlsSize: [controls.clientHeight, controls.scrollHeight],
-            presetsAreFurniture:
-              controls.closest('.lf-pane-content').previousElementSibling === document.querySelector(
-                '#notification-playground .lf-playground-presets'),
-            presetsSize: (() => {
-              const presets = document.querySelector(
-                '#notification-playground .lf-playground-presets');
-              return [presets.clientHeight, presets.scrollHeight];
-            })(),
-            playgroundHeight: playground.getBoundingClientRect().height,
-            askHeight: document.querySelector('#notification-ask').getBoundingClientRect().height,
-            controlsScroller: leaf.effectiveScroller(controls) === controls,
-            previewScroller: leaf.effectiveScroller(preview) === preview,
-            askDisplay: getComputedStyle(document.querySelector('#notification-ask')).display,
-            furnitureEdgesTrimmed: [
-              getComputedStyle(document.querySelector(
-                '#notification-ask > :first-child')).marginTop,
-            ].every(margin => margin === '0px'),
-            authoredWords: leaf.wrote(playground).includes('Drag event pressure'),
-            spokenWords: leaf.says(playground).includes('Drag event pressure'),
-          };
-        }"""
-    )
+    bounded = page.evaluate(reading)
     assert bounded == {
+        **bounded,
         "controlsId": "lf-region:notification-playground:controls",
         "previewId": "lf-region:notification-playground:preview",
-        "controlsScrolls": True,
-        "controlsSize": bounded["controlsSize"],
-        "presetsAreFurniture": True,
-        "presetsSize": bounded["presetsSize"],
-        "playgroundHeight": bounded["playgroundHeight"],
-        "askHeight": bounded["askHeight"],
-        "controlsScroller": True,
-        "previewScroller": True,
+        "postures": ["bounded", "bounded"],
+        "scrollers": ["own", "own"],
+        "sideBySide": True,
+        "presetsHeadControls": True,
+        "pageScrolls": False,
         "askDisplay": "grid",
-        "furnitureEdgesTrimmed": True,
         "authoredWords": True,
         "spokenWords": True,
     }
+    assert bounded["controlsSize"][1] > bounded["controlsSize"][0], bounded
     first_control = playground.locator("lf-playground-control").first
     control_box = first_control.bounding_box()
     controls_box = controls.bounding_box()
@@ -3658,9 +3428,6 @@ def test_notification_playground_uses_shared_bounded_regions_and_flows_when_narr
         control_box["y"] + control_box["height"]
         <= controls_box["y"] + controls_box["height"]
     ), f"the fixed presets left no complete control row: {bounded['controlsSize']}"
-    assert bounded["presetsSize"][0] == bounded["presetsSize"][1], (
-        f"the fixed presets acquired another scrollbar: {bounded['presetsSize']}"
-    )
     # A short allocation scrolls the preview and instruction as successive blocks;
     # shrinking the preview's grid track would paint it underneath the instruction.
     content_boxes = preview.evaluate(
@@ -3693,6 +3460,11 @@ def test_notification_playground_uses_shared_bounded_regions_and_flows_when_narr
           return values === JSON.stringify(owner.values)
             && nodes.every((node, index) => owner.querySelectorAll('*')[index] === node);
         }"""
+    )
+    reattached = page.evaluate(reading)
+    assert (reattached["controlsId"], reattached["previewId"]) == (
+        "lf-region:notification-playground:controls",
+        "lf-region:notification-playground:preview",
     )
     regular_strip_padding = page.locator(
         ".notification-demo-card-status-strip"
@@ -3730,27 +3502,12 @@ def test_notification_playground_uses_shared_bounded_regions_and_flows_when_narr
     )
     assert action_box["y"] + action_box["height"] <= shortcut_box["y"] + 1
 
-    actions.evaluate(
-        """footer => {
-          footer.style.height = '360px';
-          footer.dispatchEvent(new CustomEvent('lf-layout', {bubbles: true, composed: true}));
-        }"""
-    )
-    expect(workspace).to_have_attribute("data-lf-reading-posture", "flow")
-    actions.evaluate(
-        """footer => {
-          footer.style.removeProperty('height');
-          footer.dispatchEvent(new CustomEvent('lf-layout', {bubbles: true, composed: true}));
-        }"""
-    )
-    expect(workspace).to_have_attribute("data-lf-reading-posture", "bounded")
-
     # Beside Threads, the notification wraps beyond the preview's minimum height.
     # The preview must grow around its content before the instruction begins.
     resized(page, 1280, 720)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    expect(workspace).to_have_attribute("data-lf-reading-posture", "bounded")
+    assert page.evaluate(reading)["postures"] == ["bounded", "bounded"]
     notification_box = page.locator(
         ".notification-demo-card-banner"
     ).first.bounding_box()
@@ -3762,36 +3519,18 @@ def test_notification_playground_uses_shared_bounded_regions_and_flows_when_narr
     assert preview_box["y"] + preview_box["height"] <= instruction_box["y"]
     page.locator(".lf-threads-toggle").click()
 
-    resized(page, 1100, 300)
-    expect(workspace).to_have_attribute("data-lf-reading-posture", "flow")
-    resized(page, 500, 900)
-    expect(workspace).to_have_attribute("data-lf-reading-posture", "flow")
-    flow = page.evaluate(
-        """async () => {
-          const leaf = await window.__lfRuntimeImport('/runtime/widget-api.js');
-          const playground = document.querySelector('#notification-playground');
-          const controls = playground.querySelector(
-            '.lf-playground-controls-region > .lf-pane-content > .lf-pane-body');
-          const preview = playground.querySelector(
-            '.lf-playground-preview-region > .lf-pane-content > .lf-pane-body');
-          const controlsBox = controls.getBoundingClientRect();
-          const previewBox = preview.getBoundingClientRect();
-          return {
-            controlsIsDocument:
-              leaf.effectiveScroller(controls) === document.scrollingElement,
-            previewIsDocument:
-              leaf.effectiveScroller(preview) === document.scrollingElement,
-            stacked: previewBox.top >= controlsBox.bottom - 1,
-            askDisplay: getComputedStyle(document.querySelector('#notification-ask')).display,
-          };
-        }"""
-    )
-    assert flow == {
-        "controlsIsDocument": True,
-        "previewIsDocument": True,
-        "stacked": True,
-        "askDisplay": "block",
-    }
+    for width, height in [(1100, 300), (700, 500), (500, 900)]:
+        resized(page, width, height)
+        flow = page.evaluate(reading)
+        assert flow == {
+            **flow,
+            "postures": ["flow", "flow"],
+            "scrollers": ["page", "page"],
+            "pageScrolls": True,
+            "askDisplay": "block",
+        }, (width, height)
+        # Too short to hold the regions is not too narrow to set them side by side.
+        assert flow["stacked"] is (width < 1100), (width, height, flow)
 
 
 def test_composed_corpus_runs_authored_page_modules(browser, serve):
@@ -4355,6 +4094,9 @@ body { font-family: system-ui, sans-serif; }
         ".notification-demo-card-banner .notification-demo-detail"
     ).first
     expect(receipt_copy).to_be_visible()
+    # The preview is its own scroller while the workspace holds the window, and a
+    # user selects the receipt where that pane shows it.
+    receipt_copy.scroll_into_view_if_needed()
     receipt_copy.select_text()
     page.keyboard.press("c")
     expect(page.locator(".lf-fab-input")).to_be_visible()
@@ -4761,16 +4503,24 @@ def test_notification_playground_export_flows_at_another_width_and_on_paper(
     ).to_have_accessible_name("Escalation sent")
     expect(playground.locator(".notification-demo-card-banner").first).to_be_visible()
     assert copy.evaluate("document.documentElement.scrollWidth") == 480
+    bodies = """root => [...root.querySelectorAll(
+      '[data-lf-reading-role="pane"] > :not(header, footer)')]"""
     assert playground.evaluate(
-        """root => [...root.querySelectorAll('.lf-pane-body')]
-          .every(body => getComputedStyle(body).overflowY === 'visible')"""
+        f"""root => {{
+          const found = ({bodies})(root);
+          return found.length === 2
+            && found.every(body => getComputedStyle(body).overflowY === 'visible');
+        }}"""
     )
 
     copy.emulate_media(media="print")
     assert playground.evaluate(
-        """root => [...root.querySelectorAll('.lf-pane-body')]
-          .every(body => getComputedStyle(body).overflowY === 'visible'
-            && body.scrollHeight === body.clientHeight)"""
+        f"""root => {{
+          const found = ({bodies})(root);
+          return found.length === 2
+            && found.every(body => getComputedStyle(body).overflowY === 'visible'
+              && body.scrollHeight === body.clientHeight);
+        }}"""
     )
 
 
@@ -4794,7 +4544,7 @@ def test_a_quoted_playground_is_a_static_preview_with_its_authored_output(
         """async root => {
           const {readingRegionFor} = await window.__lfRuntimeImport('/runtime/widget-api.js');
           return readingRegionFor(root.querySelector('lf-playground-preview')) === undefined
-            && getComputedStyle(root).display === 'block';
+            && !root.querySelector('[data-lf-reading-role]');
         }"""
     )
 

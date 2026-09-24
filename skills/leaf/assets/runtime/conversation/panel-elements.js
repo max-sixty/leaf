@@ -2,7 +2,7 @@
  * Panel visibility belongs to thread-panel; the class here only renders that state. */
 import { iconElement } from "../icons.js";
 import { focused } from "../keyboard/scopes.js";
-import { registerReadingArrangement } from "../reading-regions.js";
+import { registerReadingRegion } from "../reading-regions.js";
 import { el } from "../widget-elements.js";
 import { createThreadListView } from "./thread-list-view.js";
 import { createThreadNarrowingView } from "./narrowing-view.js";
@@ -50,13 +50,9 @@ export const inPanel = (panelIsOpen) => panelIsOpen() && under(focused(), panel)
 export const panelEdgeOver = (node) =>
   panel.open && !under(node, panel) ? panel.getBoundingClientRect().left : Infinity;
 
-let readingArrangement = null;
+let mounted = false;
 export function mountPanelReadingRegion() {
-  if (readingArrangement) return;
-  readingArrangement = registerReadingArrangement({
-    owner: panel,
-    content: panel,
-    regions: [{ id: "lf-threads", host: panel, body: threadsBox }],
-  });
-  void readingArrangement.setReadingPosture("bounded");
+  if (mounted) return;
+  mounted = true;
+  registerReadingRegion({ id: "lf-threads", host: panel, body: threadsBox });
 }

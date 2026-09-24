@@ -508,11 +508,11 @@
             <h3><code>x-reading-role</code></h3>
             <div class="reference-copy">
               <p>
-                The structural role an element supplies: workspace receives the page
-                allocation among optional header/footer slots and exactly one body
-                element, pane is one labeled reading region, partition divides exactly
-                two direct pane or partition roles in columns or rows, and grid places
-                its direct children as cells in two dimensions.
+                The structural role an element supplies: workspace keeps task regions
+                together between optional header/footer slots around exactly one body
+                element, pane is one labeled reading region with exactly one body
+                element between its optional header and footer, and grid places its
+                direct children as cells in two dimensions.
               </p>
               <details class="reference-more">
                 <summary aria-label="Full x-reading-role contract">
@@ -526,10 +526,8 @@
                   closed parent-child vocabulary. Every role requires a string
                   <code>id</code>; a pane also requires a string <code>label</code>,
                   which names its accessible region while a visible heading belongs in
-                  its authored header; a partition requires <code>direction</code> with
-                  the complete <code>columns</code>/<code>rows</code> enum. A workspace
-                  or pane may hold one direct native <code>header</code> first and one
-                  <code>footer</code> last.
+                  its authored header. A workspace or pane may hold one direct native
+                  <code>header</code> first and one <code>footer</code> last.
                 </p>
               </details>
             </div>

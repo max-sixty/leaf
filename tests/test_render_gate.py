@@ -87,6 +87,7 @@ from render_harness import (
     consume_browser_errors,
     leaf_page,
     open_page,
+    pane_posture,
     panel_settled,
     primed,
     resized,
@@ -100,10 +101,10 @@ BOUNDED_WORKSPACE_PAGE = leaf_page(
     """
 <lf-workspace id="gate-workspace">
   <header><h1>Queue</h1></header>
-  <lf-partition id="gate-split" direction="columns">
-    <lf-pane id="gate-list" label="Items"><p>First</p><div style="height:900px"></div><p>Last</p></lf-pane>
-    <lf-pane id="gate-detail" label="Detail"><p>Subject</p><div style="height:900px"></div><button>Finish</button></lf-pane>
-  </lf-partition>
+  <lf-grid id="gate-split" columns="2">
+    <lf-pane id="gate-list" label="Items"><div><p>First</p><div style="height:900px"></div><p>Last</p></div></lf-pane>
+    <lf-pane id="gate-detail" label="Detail"><div><p>Subject</p><div style="height:900px"></div><button>Finish</button></div></lf-pane>
+  </lf-grid>
   <footer>End of queue</footer>
 </lf-workspace>
 """,
@@ -424,40 +425,53 @@ def test_the_render_gate_reads_content_through_bounded_pane_regions(browser, ser
 
 
 RECURSIVE_ROWS_PAGE = leaf_page(
-    "recursive row fit",
+    "recursive rows",
     """
 <lf-workspace id="rows-workspace">
-  <lf-partition id="rows" direction="rows">
-    <lf-pane id="upper" label="Upper"><p>Upper body</p><footer style="height:120px">Tall actions</footer></lf-pane>
-    <lf-partition id="lower" direction="columns">
-      <lf-pane id="lower-left" label="Lower left"><p>Left body</p></lf-pane>
-      <lf-pane id="lower-right" label="Lower right"><p>Right body</p></lf-pane>
-    </lf-partition>
-  </lf-partition>
+  <lf-grid id="rows" columns="1">
+    <lf-pane id="upper" label="Upper"><div><p>Upper body</p><div style="height:600px"></div></div><footer style="height:120px">Tall actions</footer></lf-pane>
+    <lf-grid id="lower" columns="2">
+      <lf-pane id="lower-left" label="Lower left"><div><p>Left body</p></div></lf-pane>
+      <lf-pane id="lower-right" label="Lower right"><div><p>Right body</p></div></lf-pane>
+    </lf-grid>
+  </lf-grid>
 </lf-workspace>
 """,
 )
 
 
-def test_recursive_rows_flow_before_short_height_hides_pane_furniture(browser, serve):
+def test_recursive_rows_share_the_window_and_keep_pane_furniture_in_view(
+    browser, serve
+):
+    """Rows nested in a bounded workspace split its height, and a pane's footer stays
+    inside its row while the body above it scrolls. A window too short for the
+    workspace hands the scroll to the page, where each pane takes its full height."""
     page = open_page(browser, serve(RECURSIVE_ROWS_PAGE))
-    workspace = page.locator("#rows-workspace")
-    expect(workspace).to_have_attribute("data-lf-reading-posture", "bounded")
-
-    # The children's summed minima fit here, but equal rows cannot each give the
-    # taller upper pane its minimum. The workspace must therefore choose flow.
-    page.set_viewport_size({"width": 1200, "height": 700})
-    expect(workspace).to_have_attribute("data-lf-reading-posture", "flow")
-    rows = page.evaluate(
+    resized(page, 1200, 700)
+    upper = page.locator("#upper")
+    pane_posture(page, upper, "bounded")
+    held = page.evaluate(
         """() => {
-          const upper = document.querySelector('#upper').getBoundingClientRect();
-          const lower = document.querySelector('#lower').getBoundingClientRect();
-          const footer = document.querySelector('#upper > footer').getBoundingClientRect();
-          return {upper, lower, footer};
+          const box = selector => document.querySelector(selector).getBoundingClientRect();
+          return {upper: box('#upper'), lower: box('#lower'),
+                  footer: box('#upper > footer'), workspace: box('#rows-workspace')};
         }"""
     )
-    assert rows["lower"]["top"] >= rows["upper"]["bottom"] - 1, rows
-    assert rows["footer"]["bottom"] <= 700, rows
+    assert held["lower"]["top"] >= held["upper"]["bottom"] - 1, held
+    assert held["footer"]["bottom"] <= held["upper"]["bottom"] + 1, held
+    assert held["workspace"]["bottom"] <= 700, held
+    assert abs(held["upper"]["height"] - held["lower"]["height"]) <= 1, held
+
+    resized(page, 1200, 420)
+    pane_posture(page, upper, "flow")
+    flow = page.evaluate(
+        """() => {
+          const box = selector => document.querySelector(selector).getBoundingClientRect();
+          return {upper: box('#upper'), lower: box('#lower')};
+        }"""
+    )
+    assert flow["lower"]["top"] >= flow["upper"]["bottom"] - 1, flow
+    assert flow["upper"]["height"] > 720, flow
 
 
 def test_a_broken_probe_module_is_a_gate_finding(browser, serve):

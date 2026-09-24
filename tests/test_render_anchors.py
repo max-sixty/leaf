@@ -445,10 +445,10 @@ def test_quotes_cross_preserving_containers_and_remain_attached(
     </lf-ask>"""
     content = (
         f"""<lf-workspace id="workspace">
-          <lf-partition id="split" direction="rows">
+          <lf-grid id="split" columns="1">
             <lf-pane id="decision-pane" label="Decision">{ask}</lf-pane>
             <lf-pane id="evidence-pane" label="Evidence"><p>Supporting evidence.</p></lf-pane>
-          </lf-partition>
+          </lf-grid>
         </lf-workspace>"""
         if workspace
         else ask

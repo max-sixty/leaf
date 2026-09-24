@@ -18,9 +18,11 @@ import { bannerControlDoor, dismissBannerControls } from "./banner-shelf.js";
 import { createAskTrayList } from "./asks/tray-list.js";
 // The left side holds one tray at a time, selected by the shared auxiliary-surface owner.
 // The leaves tray overlays the document because its
-// rows leave the page. The asks tray takes a strip because its rows travel within the
-// page and the user must keep the target visible. Both entry controls call the same
-// tray setter.
+// rows leave the page. The asks tray stands beside the page, taking a strip, because its
+// rows travel within the page and the user must keep the target visible; where that would
+// leave less than a usable page it covers the page instead, by the rule the thread panel
+// follows on the other side (auxiliary-surfaces.js, `standsBeside`). Both entry controls
+// call the same tray setter.
 //
 // Trays declare presentation-time arrival: their first paint needs the state-dependent
 // rows, while their remembered selection reserves the shell geometry during startup.
@@ -33,9 +35,7 @@ import { createAskTrayList } from "./asks/tray-list.js";
 // reconcile during a transition.
 
 // The trays' edge, on the left, and everything said above said again for it: the width
-// it stands at until the user moves it, how narrow they may draw it, and the window
-// under which a tray covers the page rather than standing beside it. The same bargain at
-// the same ratio, because a user who has learned one edge has learned the other.
+// it stands at until the user moves it, and how narrow they may draw it.
 //
 // 220 is where the tray's own row stops being one. A leaf's row spends 45px before any
 // word of the page's — the status dot's 9px, its 8px gap, and the 20px and 8px the row
@@ -45,13 +45,11 @@ import { createAskTrayList } from "./asks/tray-list.js";
 // further down, which is why the floor is the leaves tray's to set.
 const TRAY_SLOT_W = 300;
 const TRAY_SLOT_MIN = 220;
-const TRAY_COVERING = `(width <= ${TRAY_SLOT_W * 2}px)`;
-// Where the standing width is written, and where the cascade reads it. chrome.css
-// spells the same name and the same covering width, and the layer test holds the two
-// spellings equal, since a stylesheet cannot read a constant.
+// Where the standing width is written, and where the cascade reads it. theme.css and
+// chrome.css spell the same name, and theme.css the same default for the first paint of
+// a reloaded page, and the layer test holds the spellings equal, since a stylesheet
+// cannot read a constant.
 export const TRAY_SLOT_PROP = "--lf-tray-slot-width";
-const trayCovering = matchMedia(TRAY_COVERING);
-const trayCovers = () => trayCovering.matches;
 
 // The rows' own box, one per tray. Collected privately as they are made, because what
 // the layout reserves at the foot of one it reserves at the foot of every one — and a
@@ -142,7 +140,6 @@ export function createTrays({
     min: TRAY_SLOT_MIN,
     prop: TRAY_SLOT_PROP,
     key: "lf-tray-slot-width",
-    over: trayCovers,
     when: () => leavesOffered() || asksOffered(),
     land: landEdge,
   });
@@ -156,8 +153,8 @@ export function createTrays({
       surface: panel,
       scroller: () => panel.querySelector(".lf-tray-list"),
       // Asks needs the document beside it because its rows lead to controls there.
-      // Other trays cover it unless they declare their own beside-page geometry.
-      covers: () => key !== "asks" || trayCovers(),
+      // Leaves covers it: its rows leave the page.
+      beside: key === "asks",
       focus: () =>
         panel.querySelector(".lf-tray-list button, .lf-tray-list a[href]") ?? panel,
       arrival: "presentation",

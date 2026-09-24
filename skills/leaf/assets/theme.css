@@ -63,7 +63,7 @@
    like apparatus and still be a page word the user can quote.
 
    A floor asks about the room its rule governs. One granting a posture out of the room
-   left beside a standing tray is a container query on `lf-shell`, inside `@media screen`
+   left beside a standing surface is a container query on `lf-shell`, inside `@media screen`
    since paper has no tray and no margin to grant: 1152 and 1496 for the sidebar and
    sidenote strips, 840 for the margin projection's rail, 640 for a narrow column's facts.
    One answering to the device, such as a phone's vertical rhythm, asks the window, and a
@@ -392,17 +392,11 @@
   --series-3: light-dark(#25966a, #50a069); --series-4: light-dark(#6c489a, #7a4faf);
   --series-5: light-dark(#8c2d2a, #b13d54);
 }
-html:root {
-  --lf-tray-slot-width: min(50vw, max(220px, var(--lf-tray-slot-choice, 300px)));
-}
 @media screen and (width <= 840px) {
   html:root { --lf-banner-h: calc(88px + var(--lf-safe-top)); }
 }
 @media screen and (pointer: coarse) and (width > 840px) {
   :root { --lf-banner-h: calc(53px + var(--lf-safe-top)); }
-}
-@media screen and (width <= 600px) {
-  html:root { --lf-tray-slot-width: min(100vw, max(220px, var(--lf-tray-slot-choice, 300px))); }
 }
 /* The other half of --aim-floor and --entry-floor, and the whole of what a coarse pointer
    changes about how small a control, or the words typed in one, may be. Every rule that
@@ -547,19 +541,29 @@ html { background: var(--paper); }
     main { padding-block: 24px; }
   }
 }
-/* The Asks tray narrows the body's page shell on wide screens and covers it on compact
- * ones; the Leaves tray stands over the page at every width and takes no room from it.
- * A bootstrap root attribute supplies the tray's geometry before the runtime replaces it
- * with body state; the stored width is capped by the same responsive bargain as the live
- * resizable edge.
+/* Two surfaces held to an edge of the window may stand beside the page rather than cover
+ * it: the Asks tray on the left and the thread panel on the right. The Leaves tray stands
+ * over the page at every width and takes no room from it.
  *
- * The thread panel takes no room from a column page, whose centred column mostly clears
- * it. A sheet (`main[data-width]`, below) runs to the window's edge and its rail is the
- * part the panel would stand on, so where the panel stands beside a live page rather than
- * covering it the sheet yields it a strip on the right, the same border the tray takes on
- * the left, and reflows its tracks beside it. Whether it stands beside the page is
- * `--lf-thread-panel-beside`, stated once on body below; the runtime reads the same
- * length to decide where the panel covers (chrome-layout.js, `panelCovers`).
+ * Whether one stands beside the page is one rule for both, asked of the room it leaves
+ * rather than of a breakpoint: it stands beside where the window keeps a usable page
+ * beside it, and covers the page where it does not. A usable page is 320px, the narrowest
+ * window anything here is laid out in; narrower than that, what shows beside the surface
+ * is a sliver no one can read or work in. What makes the page unusable is how much of it
+ * the surface leaves — a phone's window at either default width, or anywhere a user draws
+ * one that wide — so the width the surface stands at is half the question.
+ *
+ * The rule is `--lf-auxiliary-beside`, below: the room the selected surface takes beside
+ * the page, which is its width where it stands beside and nothing where it covers. Each
+ * surface states only its width (`--lf-auxiliary-width`), and the runtime reads the same
+ * length to decide where the selected surface covers (auxiliary-surfaces.js,
+ * `standsBeside`), so the strip the page yields and the modal boundary cannot disagree.
+ *
+ * Standing beside, the Asks tray takes its strip out of every page. The thread panel takes
+ * none from a column page, whose centred column mostly clears it. A sheet
+ * (`main[data-width]`, below) runs to the window's edge and its rail is the part the panel
+ * would stand on, so the sheet yields it a strip on the right, the same border the tray
+ * takes on the left, and reflows its tracks beside it.
  *
  * Both surfaces reach the first paint of a page reloaded with one open: the bootstrap
  * states the stored surface as `data-lf-restore-surface` and the stored width as the
@@ -597,49 +601,44 @@ html { background: var(--paper); }
 @media screen {
   html[data-lf-live]:has(body[data-lf-covering-surface]) { overflow-y: hidden; }
 }
-@media screen and (not (width <= 600px)) {
-  :is(
-    html[data-lf-restore-surface="asks"],
-    html[data-lf-live]:has(body[data-lf-auxiliary-surface="asks"])
-  ) body {
-    --lf-shell-inset-left: var(--lf-tray-slot-width);
-    border-left: var(--lf-tray-slot-width) solid transparent;
-  }
-}
-@media screen and (width <= 600px) {
-  html[data-lf-restore-surface="asks"] { overflow-y: hidden; }
-}
-/* The room the thread panel takes beside the page: its width where the window leaves a
- * usable page beside it, and nothing where it does not, so there it covers the page
- * instead. A usable page is 320px, the narrowest window anything here is laid out in;
- * narrower than that, what shows beside the panel is a sliver no one can read or work in.
- * Asked of the width the panel stands at rather than of a breakpoint, because what makes
- * the page unusable is how much of it the panel leaves: a phone's window at the default
- * 420px, or anywhere a user draws it that wide. `100vw` counts the root's scrollbar, as
- * `innerWidth` does: the covering boundary locks the root's scroll and a classic scrollbar
- * leaves with it, so a reading that grew by the bar would answer that the panel no longer
- * covers, drop the lock, and flip back on every sync.
+/* `100vw` counts the root's scrollbar, as `innerWidth` does: the covering boundary locks
+ * the root's scroll and a classic scrollbar leaves with it, so a reading that grew by the
+ * bar would answer that the surface no longer covers, drop the lock, and flip back on
+ * every sync.
  *
  * CSS has no comparison, so the clamp is one: the scaled difference is far past the
- * panel's width wherever the page keeps its 320 whole pixels (every width here is whole)
- * and below zero wherever it does not. Registered so the runtime reads it as one resolved
- * length; not inherited, so it restyles body alone as the edge moves. */
-@property --lf-thread-panel-beside {
+ * surface's width wherever the page keeps its 320 whole pixels (every width here is whole)
+ * and below zero wherever it does not. Where the selected surface states no width — none
+ * is selected, or it is the Leaves tray — the room is nothing. Registered so the runtime
+ * reads it as one resolved length; not inherited, so it restyles body alone as an edge
+ * moves. */
+@property --lf-auxiliary-beside {
   syntax: "<length>";
   inherits: false;
   initial-value: 0px;
 }
 body {
-  --lf-thread-panel-beside: clamp(0px,
-    (100vw - var(--lf-thread-panel-width, 420px) - 319.5px) * 1000000,
-    var(--lf-thread-panel-width, 420px));
+  --lf-auxiliary-beside: clamp(0px,
+    (100vw - var(--lf-auxiliary-width, 100vw) - 319.5px) * 1000000,
+    var(--lf-auxiliary-width, 0px));
 }
 @media screen {
   :is(
+    html[data-lf-restore-surface="asks"] body,
+    html[data-lf-live] body[data-lf-auxiliary-surface="asks"]
+  ) {
+    --lf-auxiliary-width: var(--lf-tray-slot-width, 300px);
+    --lf-shell-inset-left: var(--lf-auxiliary-beside);
+    border-left: var(--lf-auxiliary-beside) solid transparent;
+  }
+  :is(
     html[data-lf-restore-surface="threads"] body,
     html[data-lf-live] body[data-lf-auxiliary-surface="threads"]
-  ):has(> main:is([data-width="wide"], [data-width="available"])) {
-    border-right: var(--lf-thread-panel-beside) solid transparent;
+  ) {
+    --lf-auxiliary-width: var(--lf-thread-panel-width, 420px);
+    &:has(> main:is([data-width="wide"], [data-width="available"])) {
+      border-right: var(--lf-auxiliary-beside) solid transparent;
+    }
   }
 }
 /* Authored HTML is the page's useful initial condition, so it paints from stylesheet

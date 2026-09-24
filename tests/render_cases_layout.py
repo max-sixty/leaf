@@ -505,8 +505,7 @@ SCROLLED_CONTAINER = LONG_PAGE.replace(
 # import. `strip` says whether the page yields the region a strip: the Asks tray stands
 # beside the page, and the thread panel stands over it and takes nothing. `squeeze` is the
 # window that has no room for what the user chose and the width the region stands at
-# there — per edge, because a strip-taking tray is capped at half its window and the panel
-# over the page only at the window itself.
+# there, which is the window itself on either side.
 EDGES = [
     SimpleNamespace(
         name="comments",
@@ -530,7 +529,7 @@ EDGES = [
         store="lf-tray-slot-width",
         wide=300,
         strip=True,
-        squeeze=(800, 400),
+        squeeze=(400, 400),
     ),
 ]
 EDGE_IDS = [edge.name for edge in EDGES]

@@ -113,6 +113,9 @@ shadow trees, where the host's control face applies.
 
 A standing Asks tray, and the thread panel beside a sheet, reserve their strips with a
 transparent body border (`theme.css`), preserving native scroll anchoring during reflow.
+Either covers the page instead where it would leave less than a usable page beside it;
+`--lf-auxiliary-beside` states that rule once for both, and the runtime reads it
+(`standsBeside`) rather than asking the viewport.
 The bootstrap states a restored surface and its stored width on the root, so a reload
 paints the strip before the runtime arrives. The thread panel over a column page and the
 Leaves tray stand over the page and reserve nothing. `chrome-layout.js` must not override

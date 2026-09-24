@@ -492,8 +492,17 @@ RESTORED_PROSE = "".join(
         ),
         # Where it would leave less than a usable page it covers the sheet instead.
         ({"lf-auxiliary-surface": "threads"}, True, 700, 0),
+        # The Asks tray by the same rule: 300 of a 600px window leaves 300.
+        ({"lf-auxiliary-surface": "asks"}, False, 600, 0),
     ],
-    ids=["asks", "threads-column", "threads-sheet", "threads-sheet-drawn", "covering"],
+    ids=[
+        "asks",
+        "threads-column",
+        "threads-sheet",
+        "threads-sheet-drawn",
+        "covering",
+        "asks-covering",
+    ],
 )
 @pytest.mark.parametrize("contained", [False, True])
 def test_a_restored_auxiliary_surface_has_final_geometry_before_runtime_loads(
@@ -577,10 +586,9 @@ def test_a_restored_auxiliary_surface_has_final_geometry_before_runtime_loads(
         expect(page.locator("body")).to_have_attribute(
             "data-lf-auxiliary-surface", surface
         )
-        if surface == "threads":
-            expect(page.locator("body[data-lf-covering-surface]")).to_have_count(
-                1 if window < 740 else 0
-            )
+        expect(page.locator("body[data-lf-covering-surface]")).to_have_count(
+            1 if window < {"asks": 620, "threads": 740}[surface] else 0
+        )
         presented = geometry()
         assert presented == pytest.approx(initial, abs=1), (
             f"restoring {surface} moved the page between first paint and presentation"

@@ -8,6 +8,7 @@ import json
 import os
 import re
 import select
+import shutil
 import socket
 import subprocess
 import sys
@@ -5065,6 +5066,37 @@ def test_others_ships_on_a_network_facing_bind_too(page_dir):
         port = httpd.server_address[1]
         state = json.loads(fetch(f"http://127.0.0.1:{port}/api/state")[1])
     assert [entry["title"] for entry in state["others"]] == ["The other page"]
+
+
+def test_neighbours_follow_their_servers_and_a_deleted_pages_claim_retires(
+    page_dir, tmp_path
+):
+    """A neighbour appears on the read after its server starts and leaves on the
+    read after it stops, though neither moves a file the candidate set is keyed
+    on. A claim whose page directory is gone is removed by the scan that finds
+    it, so the claims directory holds what is still there to claim."""
+    stopped = tmp_path / "stopped"
+    neighbour_page(stopped, title="Starts later", dead=True)
+    record_claim(stopped, id="later")
+    scratch = tmp_path / "scratch"
+    neighbour_page(scratch, title="Scratch")
+    record_claim(scratch, id="scratch")
+    deleted = tmp_path / "deleted"
+    neighbour_page(deleted, title="Deleted", dead=True)
+    record_claim(deleted, id="deleted")
+    shutil.rmtree(deleted)
+
+    def titles():
+        return [entry["title"] for entry in presence_model.other_leaves(page_dir)]
+
+    assert titles() == ["Scratch"]
+    assert not service_model.claim_path(deleted).exists()
+    assert service_model.claim_path(stopped).exists()
+
+    lease = leases_model.take_lease(stopped / "server.lock")
+    assert titles() == ["Scratch", "Starts later"]
+    lease.close()
+    assert titles() == ["Scratch"]
 
 
 def test_state_reads_claims_and_their_log_floor_in_one_transaction(

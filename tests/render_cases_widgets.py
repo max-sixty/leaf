@@ -155,6 +155,24 @@ customElements.define('lf-test-visual', class extends HTMLElement {
 });
 """
 }
+# The same visual with its part ids declared as a grammar rather than authored: the
+# element names none of them, and the module's inventory is bounded by the pattern.
+PATTERNED_VISUAL_PAGE = GENERIC_VISUAL_PAGE.replace(' parts="outer inner html"', "")
+
+
+def patterned_visual_layer(pattern):
+    entry = GENERIC_VISUAL_LAYER["lf-test-visual"]
+    return {
+        "lf-test-visual": {
+            **entry,
+            "properties": {"id": entry["properties"]["id"]},
+            "required": ["id"],
+            "x-visual": {"pattern": pattern},
+            "x-example": '<lf-test-visual id="visual"></lf-test-visual>',
+        }
+    }
+
+
 SHADOW_VISUAL_PAGE = leaf_page(
     "shadow visual clipping",
     """

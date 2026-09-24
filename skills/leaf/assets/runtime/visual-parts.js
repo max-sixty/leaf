@@ -35,20 +35,28 @@ export function registerVisualParts(source, read) {
 
 const hasVisualParts = (source) => registrations.has(source);
 
-export function visualPartProblems(source, declared) {
+/** Why one source's registration breaks its declaration: `declared` ids it must
+ * register, and `admits`, which every registered id must pass. */
+export function visualPartProblems(source, declared, admits = () => true) {
   if (!hasVisualParts(source)) return ["did not call registerVisualParts"];
   try {
-    const ids = new Set(visualParts(source).map((part) => part.id));
-    const missing = [...declared].filter((id) => !ids.has(id));
-    return missing.length
-      ? [`did not register declared parts ${missing.join(", ")}`]
-      : [];
+    const ids = visualParts(source).map((part) => part.id);
+    const missing = [...declared].filter((id) => !ids.includes(id));
+    const outside = ids.filter((id) => !admits(id));
+    return [
+      ...(missing.length
+        ? [`did not register declared parts ${missing.join(", ")}`]
+        : []),
+      ...(outside.length
+        ? [`registered parts its pattern does not match ${outside.join(", ")}`]
+        : []),
+    ];
   } catch (error) {
     return [String(error?.message ?? error)];
   }
 }
 
-function visualParts(source) {
+export function visualParts(source) {
   const read = registrations.get(source);
   if (!read) return [];
   const seenIds = new Set();

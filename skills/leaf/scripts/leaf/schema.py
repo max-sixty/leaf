@@ -398,6 +398,12 @@ EXTENSION_SCHEMA = {
                     "required": ["parts"],
                     "additionalProperties": False,
                 },
+                {
+                    "type": "object",
+                    "properties": {"pattern": {"type": "string", "format": "regex"}},
+                    "required": ["pattern"],
+                    "additionalProperties": False,
+                },
             ]
         },
         "x-space": {"enum": ["wide", "available"]},

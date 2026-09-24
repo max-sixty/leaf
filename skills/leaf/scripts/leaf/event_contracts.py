@@ -283,7 +283,7 @@ def visual_anchor_error(event: dict, page_by_id: dict, registry: dict):
     if visual not in available:
         return (
             f"visual anchor {visual!r} is not declared on section {section!r}; "
-            f"known: {list(available)}"
+            f"{available}"
         )
     return None
 

@@ -3,6 +3,7 @@
 import functools
 import json
 import re
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
@@ -121,11 +122,41 @@ def visual_part_attribute(entry: dict) -> str | None:
     return visual.get("parts") if isinstance(visual, dict) else None
 
 
-def visual_parts(record: dict, registry: dict) -> tuple[str, ...]:
-    """Stable visual-part ids declared by one authored Leaf element."""
-    attribute = visual_part_attribute(registry.get(record.get("tag"), {}))
-    value = record.get("attrs", {}).get(attribute) if attribute else None
-    return tuple(value.split()) if value else ()
+@dataclass(frozen=True)
+class VisualParts:
+    """The part ids one authored element admits as `anchor.visual`.
+
+    A widget declares them one of two ways: `tokens` authored in its `parts` attribute,
+    or a `pattern` over the ids its module generates, for a picture drawn from data
+    whose parts the author cannot list. Neither says a part is on screen; the browser
+    resolves that, and an admitted id nothing renders detaches."""
+
+    tokens: tuple[str, ...] = ()
+    pattern: str | None = None
+
+    def __contains__(self, part: str) -> bool:
+        if self.pattern is not None:
+            return re.search(self.pattern, part) is not None
+        return part in self.tokens
+
+    def __bool__(self) -> bool:
+        return self.pattern is not None or bool(self.tokens)
+
+    def __str__(self) -> str:
+        if self.pattern is not None:
+            return f"ids matching {self.pattern!r}"
+        return f"known: {list(self.tokens)}"
+
+
+def visual_parts(record: dict, registry: dict) -> VisualParts:
+    """The visual-part ids one authored Leaf element admits."""
+    visual = registry.get(record.get("tag"), {}).get("x-visual")
+    if not isinstance(visual, dict):
+        return VisualParts()
+    if "pattern" in visual:
+        return VisualParts(pattern=visual["pattern"])
+    value = record.get("attrs", {}).get(visual["parts"])
+    return VisualParts(tokens=tuple(value.split()) if value else ())
 
 
 def registry_path(registry: dict, path: str):

@@ -14,6 +14,7 @@ import { inUi, under, upFrom } from "./shadow.js";
 import {
   visualPart as registeredVisualPart,
   visualPartAt as registeredVisualPartAt,
+  visualParts as registeredVisualParts,
 } from "./visual-parts.js";
 import {
   blockAt,
@@ -80,30 +81,41 @@ export function referencedProjection(owner, attribute) {
   return id ? elementById(id) : null;
 }
 
-// A generated visual part keeps an authored semantic token. Generated ids never escape
-// into the event log; the provider declaration bounds the inventory core will trust.
-const visualPartAttribute = (visual) => {
+// A generated visual part keeps a semantic id the provider declaration bounds: a token
+// authored in its `parts` attribute, or any id its `pattern` matches. Element ids never
+// escape into the event log; the declaration bounds the inventory core will trust. Null
+// when the visual declares no parts at all.
+const admittedVisualPart = (visual) => {
   const declaration = registry[visual?.localName]?.["x-visual"];
-  return declaration && typeof declaration === "object" ? declaration.parts : null;
+  if (!declaration || typeof declaration !== "object") return null;
+  if (declaration.pattern) {
+    const pattern = new RegExp(declaration.pattern, "u");
+    return (id) => pattern.test(id);
+  }
+  const tokens = new Set(
+    visual.getAttribute(declaration.parts)?.trim().split(/\s+/).filter(Boolean),
+  );
+  return (id) => tokens.has(id);
 };
 
 const wholeVisualSurface = (element) =>
   registry[element?.localName]?.["x-visual"] ? element : null;
 
-export const declaredVisualParts = (visual) => {
-  const attribute = visualPartAttribute(visual);
-  const value = attribute ? visual?.getAttribute(attribute) : "";
-  return new Set(value?.trim().split(/\s+/).filter(Boolean) ?? []);
-};
+/** The registered parts a visual's declaration admits, in registration order. */
+export function visualParts(visual) {
+  const admits = admittedVisualPart(visual);
+  return admits ? registeredVisualParts(visual).filter((part) => admits(part.id)) : [];
+}
 
 export function visualPart(visual, part) {
-  if (!declaredVisualParts(visual).has(part)) return null;
-  return registeredVisualPart(visual, part);
+  return admittedVisualPart(visual)?.(part) ? registeredVisualPart(visual, part) : null;
 }
 
 export function visualPartAt(visual, target) {
-  const declared = declaredVisualParts(visual);
-  return registeredVisualPartAt(visual, target, (part) => declared.has(part.id));
+  const admits = admittedVisualPart(visual);
+  return admits
+    ? registeredVisualPartAt(visual, target, (part) => admits(part.id))
+    : null;
 }
 
 export const visualPartLabel = (visual, part) =>
@@ -327,10 +339,7 @@ export function aimTargets() {
     ...pageQueryAll(ADDRESSABLE).filter(isAddressable),
     ...pageQueryAll(DATUM),
     ...pageQueryAll(declaredVisualSelector()).flatMap((visual) =>
-      [...declaredVisualParts(visual)].flatMap((token) => {
-        const part = visualPart(visual, token);
-        return part ? [part.element] : [];
-      }),
+      visualParts(visual).map((part) => part.element),
     ),
   ];
   const targets = candidates.map(aimTargetAt).filter(Boolean);
@@ -408,7 +417,7 @@ export function resolveAnchor(anchor, text = "") {
     const section = sectionOf(anchor);
     // A missing declaration or provider detaches instead of silently widening a visual
     // part coordinate to the containing widget.
-    if (!section || !visualPartAttribute(section) || settledAway(section)) return null;
+    if (!section || settledAway(section)) return null;
     const found = visualPart(section, anchor.visual);
     return found
       ? resolvedElement({

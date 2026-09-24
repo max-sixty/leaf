@@ -414,6 +414,49 @@ def test_a_comment_may_name_a_declared_visual_part(page_dir):
     assert "--part needs --section" in unseated.output
 
 
+def declare_part_pattern(page_dir, pattern):
+    """Give the page's diagram a part-id pattern in place of its authored list."""
+    registry_path = page_dir / "registry.json"
+    registry = json.loads(registry_path.read_text())
+    registry["lf-diagram"]["x-visual"] = {"pattern": pattern}
+    registry_path.write_text(json.dumps(registry))
+
+
+def test_a_patterned_visual_admits_the_parts_its_pattern_matches(page_dir):
+    """A picture drawn from data cannot list its parts in markup, so its widget
+    declares their grammar: any matching id is a part a comment may name, with
+    nothing authored on the element, and one outside it is refused by name."""
+    declare_part_pattern(page_dir, "^node:[A-Z]$")
+    published(page_dir)
+
+    named = comment(
+        page_dir, "--section", "flow", "--part", "node:B", "--text", "and this?"
+    )
+    assert named.exit_code == 0, named.output
+    assert json.loads(named.output)["anchor"] == {"section": "flow", "visual": "node:B"}
+
+    outside = comment(page_dir, "--section", "flow", "--part", "edge:B", "--text", "x")
+    assert outside.exit_code != 0
+    assert "ids matching '^node:[A-Z]$'" in outside.output
+
+    refused = event_contracts_model.visual_anchor_error(
+        {"anchor": {"section": "flow", "visual": "edge:B"}},
+        {"flow": {"tag": "lf-diagram", "attrs": {"id": "flow"}}},
+        json.loads((page_dir / "registry.json").read_text()),
+    )
+    assert refused == (
+        "visual anchor 'edge:B' is not declared on section 'flow'; "
+        "ids matching '^node:[A-Z]$'"
+    )
+
+    # The file lists none of these parts, so markup cannot drop one; a pattern that
+    # stops admitting a part a thread holds is what drops it.
+    declare_part_pattern(page_dir, "^edge:[A-Z]$")
+    dropped = check(page_dir)
+    assert dropped.exit_code != 0
+    assert "flow · node:B" in dropped.output
+
+
 def test_an_agent_reply_can_move_a_thread_to_its_revised_visual(page_dir):
     """The reply and replacement anchor are one durable act. The raw opening keeps
     where the question was asked, while every current-state reading follows the new

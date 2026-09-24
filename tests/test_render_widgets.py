@@ -53,6 +53,7 @@ from render_cases_layout import (
 from render_cases_navigation import (
     BINDING_BADGE_PAGE,
     actions,
+    painted,
 )
 from render_cases_widgets import (
     BAD_CHART_PAGE,
@@ -10585,3 +10586,117 @@ def test_a_phone_can_wrap_diff_lines_by_tapping_the_label(iphone, serve):
     assert line.bounding_box()["height"] > before
     label.tap()
     expect(line).to_have_css("white-space", "pre")
+
+
+# A page-authored driver that points at a code block's lines through its declared `for`,
+# from its first connection, before the block's lazy tokenizer has put any line in.
+POINTER_REGISTRY = {
+    "lf-pointer": {
+        "description": "Points at lines of the code block its `for` names.",
+        "type": "object",
+        "properties": {
+            "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
+            "for": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
+        },
+        "required": ["id", "for"],
+        "additionalProperties": False,
+        "x-content": "empty",
+        "x-refers": {"for": {}},
+        "x-upgrade": True,
+    }
+}
+POINTER_MODULE = """import { indicate } from "/runtime/widget-api.js";
+customElements.define("lf-pointer", class extends HTMLElement {
+  connectedCallback() { indicate(this, "for", "3-4"); }
+  disconnectedCallback() { indicate(this, "for", null); }
+  point(key) { return indicate(this, "for", key); }
+});
+"""
+
+
+def test_a_widget_indicates_lines_of_a_code_block_without_moving_the_page(
+    browser, serve
+):
+    """One widget marks part of another through a reference its entry declares: here
+    a driver standing for a film, and the code block whose lines it is executing.
+
+    The mark is the page's own state, like hover, so it is asserted where a user meets
+    it: the lines the key names wear it and nothing else does, the
+    block's authored `hi` line keeps its own face, a comment painted on a marked line
+    still paints, and neither the scroll nor the focus moves as the indication does."""
+    url = serve(
+        leaf_page(
+            "indication",
+            """
+<h1 id="t">Bracket</h1>
+<p id="lede">The function below is the whole rule.</p>
+<div style="height: 1400px"></div>
+<lf-code id="walk" language="python" hi="2"><pre>
+def bracket(temp):
+    if temp &lt; 0:
+        return "steel"
+    return "cedar"
+print(bracket(3))
+</pre></lf-code>
+<lf-pointer id="film" for="walk"></lf-pointer>
+""",
+        ),
+        layer_registry=POINTER_REGISTRY,
+        layer_widgets={"lf-pointer.js": POINTER_MODULE},
+    )
+    page = open_page(browser, url)
+    lines = page.locator("#walk .lf-code-line")
+    expect(lines).to_have_count(5)
+    indicated = page.locator("#walk .lf-code-line[data-lf-indicated]")
+
+    def marked():
+        return lines.evaluate_all(
+            """ls => ls.flatMap((l, i) => l.hasAttribute('data-lf-indicated')
+                   ? [i + 1] : [])"""
+        )
+
+    # Asked for before the block had lines; resolved when the render stated them. No
+    # comment stands yet, so no thread list lays itself out and says so on the way.
+    expect(indicated).to_have_count(2)
+    assert marked() == [3, 4]
+    expect(page.locator("#walk .lf-code-line.hi")).to_have_count(1)
+
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "id": "c-steel",
+            "author": "user",
+            "revision": 1,
+            "text": "Why steel?",
+            "anchor": {"section": "walk", "quote": 'return "steel"'},
+        },
+    )
+    told(page)
+    page.wait_for_function(
+        """() => [...(CSS.highlights.get('lf-mark') ?? [])]
+                   .some(r => r.toString().includes('steel'))"""
+    )
+    assert marked() == [3, 4]
+
+    faces = lines.evaluate_all(
+        "ls => ls.map(l => getComputedStyle(l, '::before').boxShadow)"
+    )
+    assert faces[2] != "none" and faces[0] == "none" and faces[1] == "none", faces
+
+    before = page.evaluate("[scrollY, document.activeElement.localName]")
+    assert page.evaluate("document.querySelector('#film').point('2,5')") is True
+    assert marked() == [2, 5]
+    expect(page.locator("#walk .lf-code-line.hi")).to_have_count(1)
+    assert page.evaluate("document.querySelector('#film').point('9')") is False
+    assert marked() == []
+    page.evaluate("document.querySelector('#film').point('3')")
+    assert marked() == [3]
+    assert "steel" in painted(page, "lf-mark")
+    assert page.evaluate("[scrollY, document.activeElement.localName]") == before
+
+    page.evaluate("document.querySelector('#film').point(null)")
+    assert marked() == []
+    page.evaluate("document.querySelector('#film').point('1')")
+    page.evaluate("document.querySelector('#film').remove()")
+    assert marked() == [], "a driver that leaves takes its indication with it"

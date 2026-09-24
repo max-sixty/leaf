@@ -2332,9 +2332,7 @@ def test_an_approval_made_elsewhere_reaches_the_panel_and_the_banner(browser, se
         {
             "kind": "done",
             "author": "user",
-            "revision": 1,
             "version": 1,
-            "text": "Looks good",
         },
     )
     told(page)
@@ -2354,9 +2352,7 @@ def test_the_conversation_clock_reopens_its_same_epoch_ticket(browser, serve):
         {
             "kind": "done",
             "author": "user",
-            "revision": 1,
             "version": 1,
-            "text": "Looks good",
         },
     )
     page = open_page(browser, url)

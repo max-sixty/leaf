@@ -2520,9 +2520,7 @@ def test_a_failed_candidate_presentation_keeps_version_approval(browser, serve):
         {
             "kind": "done",
             "author": "user",
-            "revision": 1,
             "version": 1,
-            "text": "Looks good",
         },
     )
     holding(page, held_states, 1, "candidate approval read")

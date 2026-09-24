@@ -690,7 +690,6 @@ def test_a_page_asking_for_sign_off_records_the_approval(browser, serve):
     round_trip(page)
     event = events_model.read_events(serve.page_dir)[-1]
     assert (event["kind"], event["author"], event["version"]) == ("done", "user", 1)
-    assert event["text"]
     expect(button).to_be_disabled()
 
 

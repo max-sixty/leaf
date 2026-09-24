@@ -1564,9 +1564,7 @@ def test_server_takes_an_approval_only_where_the_version_asked_for_one(
 
     status, body = fetch(
         f"{server}/api/event",
-        data=json.dumps(
-            {"kind": "done", "version": 1, "revision": 1, "text": "Looks good"}
-        ).encode(),
+        data=json.dumps({"kind": "done", "version": 1}).encode(),
     )
     assert status == 400
     assert json.loads(body)["error"] == (
@@ -1582,9 +1580,7 @@ def test_server_takes_an_approval_only_where_the_version_asked_for_one(
     publish(page_dir, version=2)
     status, body = fetch(
         f"{server}/api/event",
-        data=json.dumps(
-            {"kind": "done", "version": 2, "revision": 2, "text": "Looks good"}
-        ).encode(),
+        data=json.dumps({"kind": "done", "version": 2}).encode(),
     )
     assert status == 400
     assert json.loads(body)["error"] == (
@@ -1638,9 +1634,7 @@ def test_server_takes_an_approval_only_where_the_version_asked_for_one(
     assert reply.exit_code == 0, reply.output
     status, body = fetch(
         f"{server}/api/event",
-        data=json.dumps(
-            {"kind": "done", "version": 2, "revision": 2, "text": "Looks good"}
-        ).encode(),
+        data=json.dumps({"kind": "done", "version": 2}).encode(),
     )
     assert status == 400
     assert json.loads(body)["error"] == (
@@ -1662,12 +1656,37 @@ def test_server_takes_an_approval_only_where_the_version_asked_for_one(
     assert status == 200, body
     status, body = fetch(
         f"{server}/api/event",
-        data=json.dumps(
-            {"kind": "done", "version": 2, "revision": 2, "text": "Looks good"}
-        ).encode(),
+        data=json.dumps({"kind": "done", "version": 2}).encode(),
     )
     assert status == 200, body
     assert event_model.read_events(page_dir)[-1]["kind"] == "done"
+
+
+def test_the_transcript_reports_only_an_approval_that_stands(page_dir):
+    """A withdrawn approval is not one: the transcript reads approvals through the
+    same withdrawal every other fold honours, so it names the version approved and
+    says nothing once the user takes the approval back."""
+    signoff = PAGE.replace(
+        "<title>t</title>",
+        '<title>t</title>\n<meta name="lf-review" content="sign-off">',
+    )
+    (page_dir / "index.html").write_text(signoff)
+    publish(page_dir, version=1)
+    approval = event_model.append_event(
+        page_dir, {"kind": "done", "author": "user", "version": 1}
+    )
+
+    def transcript():
+        result = CliRunner().invoke(cli_model.cli, ["transcript", str(page_dir)])
+        assert result.exit_code == 0, result.output
+        return result.output
+
+    assert f"Approved v1 at {approval['ts']}." in transcript()
+
+    event_model.append_event(
+        page_dir, {"kind": "undo", "author": "user", "undoes": approval["id"]}
+    )
+    assert "Approved" not in transcript()
 
 
 def test_server_makes_attempt_identity_atomic_without_deduplicating_content(

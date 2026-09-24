@@ -823,14 +823,12 @@
             "kind": {"const": "done"},
             "seq": {"type": "integer", "minimum": 1},
             "version": {"type": "integer", "minimum": 1},
-            "revision": {"type": "integer", "minimum": 1},
-            "text": {"type": "string", "minLength": 1},
             "attempt": {"type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$"}
           },
-          "required": ["id", "ts", "author", "kind", "seq", "version", "revision", "text"],
+          "required": ["id", "ts", "author", "kind", "seq", "version"],
           "additionalProperties": false
         },
-        "browser": {"required": ["kind", "version", "revision", "text"]}
+        "browser": {"required": ["kind", "version"]}
       },
       "action": {
         "record": {

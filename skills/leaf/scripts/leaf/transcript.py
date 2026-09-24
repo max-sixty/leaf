@@ -4,7 +4,7 @@ import sys
 from pathlib import Path
 
 from leaf.event_log import jsonl_line, read_events
-from leaf.events import build_threads, is_reaction, taken_back
+from leaf.events import build_threads, is_reaction, standing_approvals, taken_back
 from leaf.files import latest_revision, revision_label
 from leaf.gesture_words import GestureWords
 from leaf.passages import active_enclosing, enclosing_of, spoken
@@ -191,11 +191,9 @@ def _print_threads(events: list, spk: dict, registry: dict) -> None:
         print()
 
 
-def _print_approval(events: list) -> None:
-    for e in events:
-        if e["kind"] == "done":
-            print(f"Approved at {e['ts']}.")
-            break
+def _print_approvals(events: list) -> None:
+    for approval in standing_approvals(events):
+        print(f"Approved v{approval['version']} at {approval['ts']}.")
 
 
 def cmd_transcript(page_dir: Path) -> None:
@@ -208,4 +206,4 @@ def cmd_transcript(page_dir: Path) -> None:
     _print_edits(page_dir, events, registry)
     spk = _published_reading(page_dir, registry, revision)
     _print_threads(events, spk, registry)
-    _print_approval(events)
+    _print_approvals(events)

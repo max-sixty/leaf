@@ -431,16 +431,17 @@ def _approval_error(view, event: dict, events: list, registry: dict):
     """Why a sign-off cannot record approval of the version it names."""
     if event["kind"] != "done":
         return None
-    if version_revisions(events).get(event["version"]) != event["revision"]:
-        return f"v{event['version']} does not stamp revision r{event['revision']}"
-    document = view.document(event["revision"])
+    revision = version_revisions(events).get(event["version"])
+    if revision is None:
+        return f"v{event['version']} is not a stamped version"
+    document = view.document(revision)
     if review_mode(document) != "sign-off":
         return (
             f"v{event['version']} does not declare "
             '<meta name="lf-review" content="sign-off">, so it has no '
             "approval to record"
         )
-    page = page_reading(document, events, registry, event["revision"])
+    page = page_reading(document, events, registry, revision)
     threads = build_threads(events, page.within)
     document_state = read_document(page, threads, view.data(registry))
     conversation, _reading = browser_conversation(events, registry, threads)

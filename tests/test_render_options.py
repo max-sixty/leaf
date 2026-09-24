@@ -1567,7 +1567,7 @@ def test_working_the_evidence_in_an_option_is_not_a_pick(browser, serve):
     bounds = comparison.bounding_box()
     assert bounds is not None
     page.mouse.click(bounds["x"] + bounds["width"] / 4, bounds["y"] + 80)
-    expect(comparison).to_have_attribute("position", "100")
+    expect(comparison).to_have_attribute("position", "0")
     expect(page.locator("#ro-shot input[type=checkbox]")).to_be_checked()
     assert not option.evaluate(picked), "clicking the shot answered the question"
     page.get_by_role(

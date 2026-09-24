@@ -118,25 +118,20 @@ def _bind_reply(workflows: list[dict], reply: dict | None) -> None:
 
 
 def answer_command(answer: dict) -> str:
-    """The one command that writes an answer, with the id it is addressed to."""
+    """The one operation that writes an answer, with the id it is addressed to."""
     if answer["kind"] == "reply":
         return f"`leaf reply <page> --for {answer['for']}`"
+    if answer["kind"] == "turn":
+        return f"your turn's final message for {answer['for']}"
     if answer["kind"] == "receipt":
         return f"`leaf receipt <page> {answer['request']} succeeded|failed`"
     return f"a stamped version whose markup records action {answer['action']}"
 
 
 def unanswered(obligations: list[dict], of: str = "") -> str:
-    """Say how many user moves have no answer and name what answers each,
-    addressed as its writer takes it: the command, or, for a reply bound to the
-    claimant's App Server turn, that turn's final message. `of` narrows which
-    moves these are, such as the acknowledged ones."""
-    commands = "; ".join(
-        f"your final message answers {item['input']}"
-        if item.get("turn_answers")
-        else answer_command(item["answer"])
-        for item in obligations
-    )
+    """Say how many user moves have no answer and name what answers each. `of`
+    narrows which moves these are, such as the acknowledged ones."""
+    commands = "; ".join(answer_command(item["answer"]) for item in obligations)
     moves = f"user move{'s' if len(obligations) != 1 else ''}"
     return (
         f"{len(obligations)} {of + ' ' if of else ''}{moves} with no answer "
@@ -201,9 +196,11 @@ def canonical_activity(
 ) -> dict:
     """Return the one current reading of agent activity for a page snapshot.
 
-    `bindings` are the stream's reply bindings: a response address bound to the
-    claimant's session is answered by that session's App Server turn, whose
-    final message is the reply, and its workflow says so as `turn_answers`."""
+    `bindings` are the stream's reply bindings. A reply address bound to the
+    claimant's session is that session's App Server turn to write, with its own
+    opening and final messages, so its workflow's answer reads as a `turn` under
+    the binding's attempt: every consumer that holds the agent to an answer, or
+    refuses a second writer, reads that answer rather than the binding."""
     now = datetime.fromisoformat(now_iso)
     status = present["status"]
     stream_quiet = bool(stream and _quiet(stream.get("ts"), now, WORKING_GRACE))
@@ -227,8 +224,17 @@ def canonical_activity(
     _bind_reply(workflows, reply)
     for item in workflows:
         binding = (bindings or {}).get(item.get("input"))
-        if binding and binding["session"] == present.get("claim_session"):
-            item["turn_answers"] = True
+        if (
+            item["answer"] is not None
+            and item["answer"]["kind"] == "reply"
+            and binding
+            and binding["session"] == present.get("claim_session")
+        ):
+            item["answer"] = {
+                **item["answer"],
+                "kind": "turn",
+                "attempt": binding["attempt"],
+            }
 
     deadlines = []
     # Status age and turn closure can change ownership even when the primary label

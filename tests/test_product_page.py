@@ -17,6 +17,7 @@ from leaf import delivery as delivery_model
 from leaf import event_contracts as event_contracts_model
 from leaf import event_log as events_model
 from leaf import service as service_model
+from leaf import session as session_model
 from leaf.registry import validation as registry_validation
 from leaf.registry.contract import event_clauses
 from leaf.registry.storage import active_registry
@@ -225,21 +226,33 @@ def test_how_it_works_delivery_has_the_shape_a_real_delivery_has(page_dir):
     """
     transcript = html.unescape((DOCS / "how-it-works.html").read_text())
     shown = json.loads(
-        next(line for line in transcript.splitlines() if "leaf-delivery-v2" in line)
+        next(
+            line
+            for line in transcript.splitlines()
+            if delivery_model.DELIVERY_FORMAT in line
+        )
     )
     comment = events_model.append_event(
         page_dir, {"kind": "comment", "author": "user", "text": "Please answer"}
     )
     with service_model.PageTransaction(page_dir) as page:
         stored = next(event for event in page.events if event["id"] == comment["id"])
-        real = delivery_model.handled(
-            delivery_model.batch_data(page_dir, page, [stored]), "wait"
+        real = delivery_model.freeze_delivery(
+            [delivery_model.batch_data(page_dir, page, [stored])],
+            carrier="wait",
+            acknowledge=session_model.wait_acknowledgement(None),
         )
-    (real_conversation,) = real["conversations"]
+    # The transcript is Claude Code's direct loop, so its acknowledgement is the
+    # one `leaf wait` writes there, addressed to the envelope's own id.
+    assert shown.keys() == real.keys()
+    assert shown["carrier"] == real["carrier"]
+    assert shown["acknowledge"] == real["acknowledge"].replace(real["id"], shown["id"])
+    [real_batch] = real["batches"]
+    (real_conversation,) = real_batch["conversations"]
     registry = active_registry(page_dir)
 
     for batch in shown["batches"]:
-        assert batch.keys() == real.keys()
+        assert batch.keys() == real_batch.keys()
         named = [c for event in batch["events"] for c in event["conversations"]]
         assert [c["id"] for c in batch["conversations"]] == list(dict.fromkeys(named))
         for conversation in batch["conversations"]:
@@ -247,9 +260,8 @@ def test_how_it_works_delivery_has_the_shape_a_real_delivery_has(page_dir):
         digests = {c["id"]: c for c in batch["conversations"]}
         for event in batch["events"]:
             shown_clauses = [batch["handling"][h] for h in event["handling"]]
-            # The transcript's delivery is `leaf wait`'s, and a clause reads the
-            # event's conversation beside the event.
-            case = {**event, "carrier": "wait"}
+            # A clause reads the event's conversation beside the event.
+            case = dict(event)
             if event["conversations"]:
                 case["conversation"] = digests[event["conversations"][0]]
             told = event_clauses(case, registry)

@@ -4,15 +4,8 @@ Usage: leaf wait [OPTIONS] PAGE
   Watch every page this session holds \u2014 plus PAGE, claimed first, when given.
 
   Print one page's complete ordered batch, conversation context, and response
-  requirements as an immutable delivery. `leaf delivery read <id>` reads that
-  same delivery.
-
-  If output is truncated, acknowledge nothing; rerun with enough output capacity
-  for the whole batch. If you handle the batch yourself, read it fully, then
-  acknowledge it before any other work. If forwarding it, acknowledge once it
-  durably arrives there. Run `leaf wait --ack <delivery-id>` in the background
-  to acknowledge its captured batches and wait for the next batch while the page
-  remains live.
+  requirements as an immutable delivery, whose `acknowledge` says how to confirm
+  it. `leaf delivery read <id>` reads that same delivery.
 
 Options:
   --ack DELIVERY_ID  Confirm receipt of this complete delivery before waiting.

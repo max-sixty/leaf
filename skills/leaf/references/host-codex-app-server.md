@@ -22,9 +22,9 @@ delivers to this task over App Server.
 
 ## Replies
 
-Each slice contains at most one plain reply, and your turn's first message and final
-message write it. Before your first tool call, open with a short message to the user:
-the answer, or what you are about to do. Leaf streams it into the addressed thread at
+Each slice contains at most one thread reply, delivered as a `turn` answer, and
+your turn's first message and final message write it. Before your first tool call,
+open with a short message to the user: the answer, or what you are about to do. Leaf streams it into the addressed thread at
 once, so the user reads it while you work. Later working messages stay in Codex. Your
 final message completes the reply, and Leaf commits the opening and the final message
 together through the same reply contract as `leaf reply`. Do not run `leaf reply` for
@@ -32,13 +32,13 @@ that response, which refuses it. The final message cannot move or detach its
 thread, so the thread keeps its anchor. If the user resolves the thread before the
 turn completes, the reply still posts and reopens it. A later plain reply remains pending for the next slice.
 
-Other obligations in the slice take the operations their delivered `answering`
+Other answers in the slice take the operations their delivered `answering`
 clauses name.
 
 A `leaf-delivery` pointer queued before Leaf observed the task can still arrive as a
-user message; read it with `leaf delivery read <id>`, and Leaf binds its reply to the
-turn's messages the same way. Wherever `leaf reply` refuses an event as answered by
-this turn's messages, answer it in your final message.
+user message. Read it with `leaf delivery read <id>`: it was frozen for the queue, so
+its reply is a plain `reply` for `leaf reply`, as `references/host-codex.md`
+describes.
 
 ## Activity
 

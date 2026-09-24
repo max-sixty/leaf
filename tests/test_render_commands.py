@@ -532,8 +532,32 @@ def test_a_shot_compares_its_frames_with_a_direct_divider(browser, serve):
     handle = comparison.get_by_role("scrollbar")
     expect(handle).to_have_accessible_name("Before and after — the navigation rail")
     expect(handle).to_have_attribute("aria-valuetext", "Before 50%, after 50%")
+    # Each half of the split shows the frame its rail caption names: the image the
+    # user hits below a caption is that caption's own. Web Awesome's `after` slot is
+    # the inline-start side, so wiring the frames to their same-named slots put the
+    # after image under BEFORE.
+    comparison.scroll_into_view_if_needed()
+    under_captions = page.evaluate(
+        """() => {
+          const box = document.querySelector('lf-shot wa-comparison')
+            .getBoundingClientRect();
+          return [...document.querySelectorAll('lf-shot .lf-shotcap')].map(cap => {
+            const x = cap.getBoundingClientRect().left + cap.offsetWidth / 2;
+            const hit = document.elementFromPoint(x, box.top + box.height / 2);
+            return [cap.dataset.lfState, hit?.closest('.lf-shotframe')?.dataset.lfState];
+          });
+        }"""
+    )
+    assert under_captions == [["before", "before"], ["after", "after"]]
     page.emulate_media(media="print")
     assert shown_frames(page) == ["before", "after"]
+    printed_tops = [
+        page.locator(f'lf-shot .lf-shotframe[data-lf-state="{state}"]').bounding_box()[
+            "y"
+        ]
+        for state in ("before", "after")
+    ]
+    assert printed_tops[0] < printed_tops[1], "paper put the after frame on top"
     assert (
         rail.locator('[data-lf-state="before"]').evaluate(
             "cap => getComputedStyle(cap, '::after').content"
@@ -579,7 +603,7 @@ def test_a_shot_compares_its_frames_with_a_direct_divider(browser, serve):
     assert active_midpoint == 1
     page.mouse.down()
     page.mouse.up()
-    expect(comparison).to_have_attribute("position", "100")
+    expect(comparison).to_have_attribute("position", "0")
     page.mouse.move(0, 0)
     quiet_handle = comparison.evaluate(
         """async node => {
@@ -599,7 +623,7 @@ def test_a_shot_compares_its_frames_with_a_direct_divider(browser, serve):
     )
     assert active_handle == 1
     page.mouse.click(*image_point)
-    expect(comparison).to_have_attribute("position", "0")
+    expect(comparison).to_have_attribute("position", "100")
     comparison.evaluate("node => { node.position = 50; }")
     handle.click()
     expect(comparison).to_have_attribute("position", "50")
@@ -617,7 +641,7 @@ def test_a_shot_compares_its_frames_with_a_direct_divider(browser, serve):
     after_caption.focus()
     assert "show after" in shortcut_bar_text(page)
     after_caption.click()
-    expect(comparison).to_have_attribute("position", "100")
+    expect(comparison).to_have_attribute("position", "0")
     expect(before_caption).to_have_attribute("aria-pressed", "false")
     expect(after_caption).to_have_attribute("aria-pressed", "true")
     page.mouse.move(0, 0)
@@ -626,15 +650,15 @@ def test_a_shot_compares_its_frames_with_a_direct_divider(browser, serve):
     )
     assert "show after" not in shortcut_bar_text(page)
     after_caption.click()
-    expect(comparison).to_have_attribute("position", "100")
-    before_caption.click()
     expect(comparison).to_have_attribute("position", "0")
+    before_caption.click()
+    expect(comparison).to_have_attribute("position", "100")
     after_caption.focus()
     page.keyboard.press("Enter")
-    expect(comparison).to_have_attribute("position", "100")
+    expect(comparison).to_have_attribute("position", "0")
     before_caption.focus()
     page.keyboard.press("Space")
-    expect(comparison).to_have_attribute("position", "0")
+    expect(comparison).to_have_attribute("position", "100")
     for locator, bounds in (
         (rail.locator('[data-lf-state="before"]'), before_bounds),
         (rail.locator('[data-lf-state="after"]'), after_bounds),
@@ -648,11 +672,11 @@ def test_a_shot_compares_its_frames_with_a_direct_divider(browser, serve):
     handle.focus()
     expect(handle).to_be_focused()
     assert "adjust the comparison" in shortcut_bar_text(page)
-    page.keyboard.press("ArrowRight")
-    expect(comparison).to_have_attribute("position", "1")
+    page.keyboard.press("ArrowLeft")
+    expect(comparison).to_have_attribute("position", "99")
     expect(handle).to_have_attribute("aria-valuetext", "Before 99%, after 1%")
-    page.keyboard.press("Shift+ArrowRight")
-    expect(comparison).to_have_attribute("position", "11")
+    page.keyboard.press("Shift+ArrowLeft")
+    expect(comparison).to_have_attribute("position", "89")
     page.keyboard.press("End")
     expect(comparison).to_have_attribute("position", "100")
     page.keyboard.press("Home")
@@ -674,11 +698,11 @@ def test_a_shot_compares_its_frames_with_a_direct_divider(browser, serve):
     dragged = float(comparison.get_attribute("position"))
     assert 70 <= dragged <= 80
     expect(handle).to_have_attribute(
-        "aria-valuetext", f"Before {100 - dragged:g}%, after {dragged:g}%"
+        "aria-valuetext", f"Before {dragged:g}%, after {100 - dragged:g}%"
     )
 
-    comparison.evaluate("node => { node.position = 0; }")
-    expect(comparison).to_have_attribute("position", "0")
+    comparison.evaluate("node => { node.position = 100; }")
+    expect(comparison).to_have_attribute("position", "100")
     button = page.get_by_role("button", name="Show after — the navigation rail")
     expect(page.locator(".lf-margin-cluster").filter(has=button)).to_be_visible()
     expect(button.locator(".lf-margin-entry-icon")).to_have_attribute(
@@ -691,7 +715,7 @@ def test_a_shot_compares_its_frames_with_a_direct_divider(browser, serve):
         button_bounds["y"] + button_bounds["height"] / 2,
     )
     page.mouse.click(*button_at)
-    expect(comparison).to_have_attribute("position", "100")
+    expect(comparison).to_have_attribute("position", "0")
     button = page.get_by_role("button", name="Show before — the navigation rail")
     expect(button).to_be_focused()
     assert "show before" in shortcut_bar_text(page)
@@ -702,11 +726,11 @@ def test_a_shot_compares_its_frames_with_a_direct_divider(browser, serve):
     page.mouse.down()
     expect(button).to_be_focused()
     page.mouse.up()
-    expect(comparison).to_have_attribute("position", "0")
-    page.keyboard.press("Enter")
     expect(comparison).to_have_attribute("position", "100")
-    page.keyboard.press("Space")
+    page.keyboard.press("Enter")
     expect(comparison).to_have_attribute("position", "0")
+    page.keyboard.press("Space")
+    expect(comparison).to_have_attribute("position", "100")
 
     handle.focus()
     ring = handle.evaluate(
@@ -787,7 +811,7 @@ def test_a_shot_adopts_a_fallback_choice_when_the_divider_arrives(browser, serve
     )
     page.goto(url)
     comparison = page.locator("lf-shot wa-comparison")
-    expect(comparison).to_have_attribute("position", "0")
+    expect(comparison).to_have_attribute("position", "100")
     assert page.evaluate(
         "() => [window.__lfHadComparison, window.__lfFallbackShown]"
     ) == [False, ["before"]]

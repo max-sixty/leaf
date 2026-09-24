@@ -90,6 +90,13 @@ class Harness:
         """What to do about a live page this session owes a watcher."""
         raise NotImplementedError
 
+    @classmethod
+    def run_ack(cls, delivery_id: str) -> str:
+        """How this session runs the `leaf wait --ack` that confirms one delivery
+        and goes on waiting: the verb phrase the delivery's `acknowledge` ends
+        with. A wait held in a background task is the default."""
+        return f"start `leaf wait --ack {delivery_id}` as the next background task"
+
     def nudge(self, page_dir: Path) -> bool:
         """Put this page's new input in front of the session, and say whether
         anything took it.
@@ -247,6 +254,15 @@ class CodexHarness(EnvironmentHarness):
         return (
             f"Start `leaf codex start {page_dir}` so later updates reach this "
             "task in new turns."
+        )
+
+    @classmethod
+    def run_ack(cls, delivery_id: str) -> str:
+        """A Codex task's own wait lives in unified exec, the same session a
+        watcher task or a direct loop polls."""
+        return (
+            f"run `leaf wait --ack {delivery_id}` in unified exec and poll it with "
+            "`write_stdin`"
         )
 
     def nothing_listening(self, page_dir: Path, *, listening: bool) -> str:

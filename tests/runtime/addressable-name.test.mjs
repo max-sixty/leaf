@@ -44,6 +44,21 @@ test("an element the contract gives no title has no name", () => {
   assert.equal(addressableName(null), "");
 });
 
+test("a leading header holds the title, past an eyebrow above it", () => {
+  assert.equal(
+    named(
+      '<lf-workspace id="it"><header><h1>Review</h1></header><p>Body.</p></lf-workspace>',
+    ),
+    "Review",
+  );
+  assert.equal(
+    named(
+      '<section id="it"><header><p class="eyebrow">Stage 2</p><strong>Migration rehearsal</strong></header></section>',
+    ),
+    "Migration rehearsal",
+  );
+});
+
 test("words before a title mean it is not one", () => {
   // Inline emphasis in prose is not the paragraph's name.
   assert.equal(named('<p id="it">This is <strong>important</strong> text.</p>'), "");

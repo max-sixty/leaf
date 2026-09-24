@@ -81,6 +81,7 @@ item.
 | **Pane** | One reading region in a workspace: an optional header, exactly one body element, an optional footer |
 | **Reading region** | A stable semantic place used by navigation and reading-position recovery |
 | **Effective reading scroller** | The scroll container currently governing one reading region |
+| **Pinned cover** | A sticky box declared through `declareCoverRoom` that stands over an edge of the scroller it sticks in, such as a thread-list run heading, an `lf-diff` file header, or a root `lf-tabs` strip. What passes under it is not on screen, and a landing arrives clear of it |
 | **Reading posture** | Whether a region's body scrolls on its own (`bounded`) or the region is carried by its container (`flow`); a root workspace's container query decides, and the runtime reads the result |
 
 A root `lf-tabs` and an embedded `lf-tabs` remain the same element type; placement
@@ -103,7 +104,8 @@ The current trays are the **Asks tray** and **Leaves tray**. Use *covering auxil
 surface*, not *modal workspace*: a covering surface and a modal dialog are different
 web interaction primitives. A covering surface makes the page inert behind it; a surface
 over the page, such as the thread panel on a desktop window, takes no width from
-it and leaves it live.
+it and leaves it live. A covering surface covers the content frame; a **pinned cover**
+stands over one edge of one scroller, and nothing about it is modal.
 
 ## Page Map and the margin
 

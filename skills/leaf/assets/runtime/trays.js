@@ -51,7 +51,7 @@ const TRAY_COVERING = `(width <= ${TRAY_SLOT_W * 2}px)`;
 // spellings equal, since a stylesheet cannot read a constant.
 export const TRAY_SLOT_PROP = "--lf-tray-slot-width";
 const trayCovering = matchMedia(TRAY_COVERING);
-export const trayCovers = () => trayCovering.matches;
+const trayCovers = () => trayCovering.matches;
 
 // The rows' own box, one per tray. Collected privately as they are made, because what
 // the layout reserves at the foot of one it reserves at the foot of every one — and a

@@ -9,8 +9,9 @@ import { uiInside, under, upFrom } from "./shadow.js";
    `display: contents` descendants paint. `shownParts` returns the visible elements on
    which an outline can be drawn. `shownRect` clips the result through scrolling
    ancestors' visible bands (less the stuck covers over their edges) and the viewport,
-   stopping ancestor clipping at a fixed-position box; it is the one reading of whether
-   something is on screen.
+   stopping ancestor clipping at a fixed-position box, then takes away what a declared
+   occluder stands over (`declareOccluder`); it is the one reading of whether something
+   is on screen.
    `clippedRect` applies that same clipping walk to a box measured some other way for an
    element, and `clippedContents` to a box measured from a Range, starting at the element
    that holds the Range and counting that element's own clip. Use:
@@ -442,5 +443,102 @@ function clipped(box, item, clips, held) {
     }
     if (c.fixed) break;
   }
-  return right > left && bottom > top ? { left, top, right, bottom } : null;
+  return right > left && bottom > top
+    ? occluded({ left, top, right, bottom }, item, clips)
+    : null;
+}
+
+// A surface that stands over the page without clipping it: the thread panel, over the
+// right of a live page at a desktop window. Nothing in the page's own tree says so,
+// since the surface is fixed chrome beside the page rather than an ancestor of what it
+// stands over, so the surface declares itself, as a sticky cover declares its room. The
+// clip walk then takes what it stands over away from any box stacked beneath it, and a
+// travel destination, an exposure reading, and a badge's placement all read the part
+// under it as hidden. What the surface holds is its own to show, and what stacks above
+// it (a door's menu, the key-badge layer, the top layer) is drawn over it rather than
+// hidden by it.
+//
+// What is left of a box is a box: the largest rectangle of it the occluder leaves, so
+// every pixel of the answer is one the user sees, and a box the occluder reaches into
+// reads as less than whole.
+const occluders = new Set();
+export const declareOccluder = (surface) => occluders.add(surface);
+// A clip pass that reads past some occluders. Travel asks what the page shows of a
+// destination beside the surface it leaves standing, which is the most any movement of
+// the page can show while that surface stands.
+const PAST = Symbol("past");
+export const clipsPast = (surfaces) => new Map([[PAST, new Set(surfaces)]]);
+// Whether an occluder hides a destination, an element or a Range, wherever travel lands
+// it: whether it stands over most of it, more than half its width. A block the width of
+// the column keeps most of itself clear of the thread panel at a desktop window and is
+// seen where it stands, beside the panel; words at the right end of a line, or a box in
+// the right margin, land under it. The one kind declared stands the window's height at
+// one side of it, and travel moves a destination along its scroller's block axis only,
+// so the question is the inline one, asked of what the page's clips leave of the
+// destination. One scrolled out of the window is asked it at its own box, which is
+// where the landing will bring it into view.
+export function hides(surface, where) {
+  const holder = placeHolder(where);
+  if (!holder || !occluders.has(surface) || !surface.checkVisibility()) return false;
+  if (under(holder, surface) || stackLevel(holder) >= stackLevel(surface)) return false;
+  const box = where instanceof Range ? where.getBoundingClientRect() : shownBox(where);
+  const seen =
+    where instanceof Range
+      ? clippedContents(box, holder, clipsPast([surface]))
+      : clippedRect(box, holder, clipsPast([surface]));
+  const { left, right } = seen ?? box;
+  const column = surface.getBoundingClientRect();
+  const covered = Math.min(right, column.right) - Math.max(left, column.left);
+  return covered > (right - left) / 2;
+}
+// The element a destination is measured through: itself, or the element holding a
+// Range's start.
+export const placeHolder = (where) =>
+  where instanceof Range
+    ? where.startContainer instanceof Element
+      ? where.startContainer
+      : where.startContainer.parentElement
+    : where;
+// Where a box stacks among the page's root-level layers: the z-index of its outermost
+// positioned ancestor that sets one, and above all of them in the top layer.
+function stackLevel(node) {
+  let level = 0;
+  for (let a = node; a; a = upFrom(a)) {
+    if (a.matches(":popover-open, dialog:modal")) return Infinity;
+    const { position, zIndex } = getComputedStyle(a);
+    if (position !== "static" && zIndex !== "auto") level = Number(zIndex);
+  }
+  return level;
+}
+const OCCLUDERS = Symbol("occluders");
+function standingOccluders(clips) {
+  let standing = clips.get(OCCLUDERS);
+  if (standing) return standing;
+  const past = clips.get(PAST);
+  standing = [...occluders]
+    .filter((surface) => surface.isConnected && surface.checkVisibility())
+    .filter((surface) => !past?.has(surface))
+    .map((surface) => ({
+      surface,
+      box: surface.getBoundingClientRect(),
+      level: stackLevel(surface),
+    }));
+  clips.set(OCCLUDERS, standing);
+  return standing;
+}
+const area = (box) => (box.right - box.left) * (box.bottom - box.top);
+function occluded(rect, item, clips) {
+  for (const { surface, box, level } of standingOccluders(clips)) {
+    if (!overlaps(rect, box) || under(item, surface) || stackLevel(item) >= level)
+      continue;
+    const sides = [
+      { ...rect, right: Math.min(rect.right, box.left) },
+      { ...rect, left: Math.max(rect.left, box.right) },
+      { ...rect, bottom: Math.min(rect.bottom, box.top) },
+      { ...rect, top: Math.max(rect.top, box.bottom) },
+    ].filter((side) => side.right > side.left && side.bottom > side.top);
+    if (!sides.length) return null;
+    rect = sides.reduce((most, side) => (area(side) > area(most) ? side : most));
+  }
+  return rect;
 }

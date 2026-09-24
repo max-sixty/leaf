@@ -7,6 +7,7 @@ import { el } from "../widget-elements.js";
 import { createThreadListView } from "./thread-list-view.js";
 import { createThreadNarrowingView } from "./narrowing-view.js";
 import { under } from "../shadow.js";
+import { declareOccluder } from "../geometry.js";
 
 export const panel = el("dialog", "lf-ui lf-thread-panel");
 panel.id = "lf-threads";
@@ -40,15 +41,11 @@ generalRow.append(generalInput, generalSend);
 export const panelFoot = el("div", "lf-thread-panel-foot");
 panelFoot.append(generalRow);
 panel.append(panelHead, narrowingView, threadsFrame, panelFoot);
+// The open panel stands over the right of the page, so what it stands over is hidden
+// from every reading of what the page shows (geometry.js).
+declareOccluder(panel);
 
 export const inPanel = (panelIsOpen) => panelIsOpen() && under(focused(), panel);
-// Where the open panel's edge stands over a node on the page: the x past which the node
-// is under the panel, or Infinity where nothing of the page is (the panel is shut, or the
-// node is the panel's own). The panel stands over the right of the page without covering
-// it; each reader decides how much of a node under it counts as hidden (chrome-layout.js
-// for travel, read.js for exposure).
-export const panelEdgeOver = (node) =>
-  panel.open && !under(node, panel) ? panel.getBoundingClientRect().left : Infinity;
 
 let mounted = false;
 export function mountPanelReadingRegion() {

@@ -2578,9 +2578,10 @@ def test_recent_order_lists_threads_by_their_latest_message(browser, serve):
 
 
 def test_back_returns_from_a_thread_the_walk_travelled_to(browser, serve):
-    """A walk to threads somewhere else leaves one history entry however far it goes,
-    so Back returns to the place the user was reading before it and Forward to where
-    it ended. Reading somewhere else ends the walk: the next trip records that place."""
+    """A journey of trips to threads somewhere else leaves one history entry however
+    far it goes, so Back returns to the place the user was reading before it and
+    Forward to where it ended. Reading somewhere else ends the journey: the next trip
+    records that place."""
     filler = "".join(f"<p>Filler paragraph {n}.</p>" for n in range(60))
     url = serve(
         leaf_page(

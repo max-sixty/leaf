@@ -187,7 +187,9 @@
      margin-model.js): two entries and the cluster's 4px gap, hung 22px off the column,
      with the focus ring's room at the outer edge. A cluster wider than that borrows the
      room past the rail or docks (margin-layout.js). The rule that spends it is beside
-     .lf-margin-cluster below. */
+     .lf-margin-cluster below.
+     TODO: the rail becomes optional, and margin content wider than it (or with no rail
+     at all) overlays the page rather than borrowing room or docking. */
   --rail: calc(2 * var(--margin-entry) + 4px + 22px + var(--here-ring-room));
   /* A sidenote's strip: a column of text plus its gutter, chosen rather than measured
      off anything the way --rail is. The 360px it leaves the note sets about fifty-six

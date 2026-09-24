@@ -55,10 +55,17 @@ banner, and everything Leaf adds draws over it:
 
 - **Threads and the Asks tray** open over the page, as Threads already does on a column
   page.
-- **Thread cards** stand in the rail when the page leaves one. Leaf publishes the rail's
-  width as a token, a page with no CSS leaves it free, and an agent composing a
-  full-width page decides whether to leave it. Where no rail is free, a card docks into
-  the text, as it does below the margin breakpoint now.
+- **Thread cards** stand in the rail when the page leaves one. Unlike the panels, the
+  rail is not temporary: a card stays beside its passage for as long as the thread is
+  open, so a card drawn over the page would cover the text it annotates. The rail
+  therefore stays a reservation, but a fixed one. Leaf publishes its width as a token, a
+  page with no CSS leaves it free, and an agent composing a full-width page decides
+  whether to leave it. Today the claim can still widen once, when a wider contribution
+  first arrives (`margin-layout.js:4-8`); under this design it never changes. Where no
+  rail is free, a card docks into the text, as it does below the margin breakpoint now.
+- **Margin notes and sidebars** are the agent's own content, so the agent already knows
+  the room they take. They become ordinary composition rather than strips that narrow
+  `main`.
 - **Scroll areas** are the agent's. Leaf restores a position in a scroller it finds at run
   time rather than one the author declared, given a stable id to key on
   (`reading-regions.js` already tracks the scroller a region currently has).

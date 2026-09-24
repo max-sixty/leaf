@@ -155,18 +155,16 @@ export const threadReading = (entry) =>
 const secondaryReadings = (entry, primaryControl) =>
   readingChoices(entry).slice(primaryControl ? 0 : 1);
 
-export const secondaryCount = (entry, primary, { claimedOnly = false } = {}) =>
+export const secondaryCount = (entry, primary) =>
   secondaryReadings(entry, primary).length +
-  (claimedOnly && !entry.claimed
-    ? 0
-    : entry.controls.length -
-      Number(Boolean(primary)) +
-      (claimedOnly ? entry.claimedAfterCount : entry.afterControls.length));
+  entry.controls.length -
+  Number(Boolean(primary)) +
+  entry.afterControls.length;
 // One peer is not overflow. It costs the same second circle as `…`, but the peer says
 // what it does and is immediately usable. Ellipsis earns its place only from the third
 // margin entry onward.
-export const optionsOffered = (entry, primary, options = {}) =>
-  secondaryCount(entry, primary, options) > RESTING_MARGIN_ENTRY_BUDGET - 1;
+export const optionsOffered = (entry, primary) =>
+  secondaryCount(entry, primary) > RESTING_MARGIN_ENTRY_BUDGET - 1;
 
 export function markerFace(entry) {
   const kinds = kindsIn(entry, { markerOnly: true });
@@ -412,9 +410,6 @@ export function marginInventory(groups) {
           controls.length > 0 ||
           afterControls.length > 0 ||
           items.some((item) => item.marker !== false),
-        claimed: group.offers.some((offered) => offered.reading.claim),
-        claimedAfterCount: afterControls.filter((item) => item.offered.reading.claim)
-          .length,
         workflowCarrier,
       });
     }),

@@ -80,6 +80,7 @@ export function threadReading(
   return Object.freeze({
     key: threadKey(thread),
     summary: threadSummary(thread),
+    titlePending: thread.title == null,
     unreadCount: thread.unread.length,
     id: thread.root.id,
     attempt: thread.root.attempt ?? null,
@@ -116,12 +117,21 @@ export function threadReading(
 
 function navigationSummary(navigation, model) {
   if (!navigation) return nothing;
-  const title = model.summary.topic || model.quote?.label || "Thread";
+  const pendingTitle = model.titlePending;
+  const title = pendingTitle ? "..." : model.summary.topic;
   const count = model.summary.count;
   const status = model.resolved ? "Resolved" : model.attention?.label || "";
   const draft = Boolean(loadDraft("reply:" + model.key)?.trim());
-  return html`<summary class="lf-thread-summary" title=${title}>
-    <span class="lf-thread-topic">${title}</span>
+  return html`<summary
+    class="lf-thread-summary"
+    title=${pendingTitle ? "Title pending" : title}
+  >
+    <span
+      class="lf-thread-topic"
+      data-lf-pending-title=${pendingTitle ? "" : nothing}
+      aria-label=${pendingTitle ? "Title pending" : nothing}
+      >${title}</span
+    >
     <span class="lf-thread-meta">
       ${draft ? html`<span class="lf-thread-draft">Draft</span>` : nothing}
       ${

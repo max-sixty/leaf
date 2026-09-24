@@ -1108,11 +1108,11 @@
       "example": "<p class=\"lede\">One paragraph saying what this page decides.</p>"
     },
     ".tag": {
-      "description": "An inline chip label. Add `ok`, `warn` or `danger` to draw it in that status tone. Add `ok`, `warn` or `danger` to draw it in that status tone.",
+      "description": "An inline chip label. Add `ok`, `warn` or `danger` to draw it in that status tone.",
       "example": "<span class=\"tag\">experimental</span>"
     },
     ".callout": {
-      "description": "An aside set off from the prose — a tinted field with a hairline border. For something the user must not miss; a note they lose nothing by skipping goes in the margin (aside.sidenote). Add `ok`, `warn` or `danger` when the callout reports a status, as `class=\"callout warn\"` for a paused release; its tint and title take the tone and its prose stays in the body's ink. Add `ok`, `warn` or `danger` when the callout reports a status, as `class=\"callout warn\"` for a paused release; its tint and title take the tone and its prose stays in the body's ink.",
+      "description": "An aside set off from the prose — a tinted field with a hairline border. For something the user must not miss; a note they lose nothing by skipping goes in the margin (aside.sidenote). Add `ok`, `warn` or `danger` when the callout reports a status, as `class=\"callout warn\"` for a paused release; its tint and title take the tone and its prose stays in the body's ink.",
       "example": "<aside class=\"callout\" id=\"rollback-note\">Rollback is one flag flip; the backfill is idempotent.</aside>"
     },
     "section.panel": {

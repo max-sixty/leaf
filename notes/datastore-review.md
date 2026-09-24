@@ -45,9 +45,9 @@ Proposal:
   `row` takes `{row, exists: true, fields}`; the door validates authored attributes plus folded state
   plus the patch against the whole declaration. Records only: prose is a body field
   the child declares, so `lf-options`' write-in becomes a `row` of an `lf-option`.
-- A `set` verb whose coordinate is keyed per field of a patch (`meaning.coordinates`,
-  one `(owner, row, "set", field)` each), so one gesture sets several cells, a paste
-  is one undo, and a column needs no verb of its own.
+- A `set` verb whose coordinate is keyed per field of a patch, one
+  `(owner, row, "set", field)` for each field the detail carries, so one gesture sets
+  several cells, a paste is one undo, and a column needs no verb of its own.
 - The runtime materialises created children from the declaration; `generated` goes.
 
 A table then declares:
@@ -97,14 +97,5 @@ three more times. Neither warrants snapshots or incremental folding yet.
 
 ## Redundancy
 
-- Stored `meaning` repeats `widget`, `revision`, and `generated`, and
-  `stored_meaning_error` asserts it still equals a recomputation: two mechanisms for
-  one guarantee. Keep the stored `coordinate`, which registry-free readers need.
-- `undo`, `restated`, and a note's `settles` are one relation, "this stops
-  standing"; `restated` differs in naming element ids.
-- `fragments` is `records` plus one deferred field, declared beside it with an
-  agreement rule and four `records or fragments` fallbacks. `records: {items, key,
-  deferred?}`.
-- About 250 lines of Git patch parsing sit in core `data.py` for the diff package,
-  and `data capture --lines` slices text for one contract. Both belong to their
-  contracts and packages, leaving one `leaf data set`.
+`undo`, `restated`, and a note's `settles` are one relation, "this stops standing";
+`restated` differs in naming element ids.

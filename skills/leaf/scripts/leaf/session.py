@@ -15,11 +15,12 @@ from .delivery import (
     receive_batch,
     record_pickup,
 )
-from .files import read_json
+from .files import file_stamp, next_reading, read_json
 from .host import Harness, session_harness
 from .hosting import start_server
 from .leases import take_waiter_lease, waiter_lease_path
 from .locations import path_location, paths_same
+from .machine import state_home
 from .revisioning import activate_source
 from .schema import (
     ACK_BATCH_INSTRUCTION,
@@ -28,6 +29,7 @@ from .schema import (
     STATUS_FILE,
 )
 from .served_state.page import full_state
+from .served_state.reading import page_reading
 from .server import running_server
 from .service import (
     PageTransaction,
@@ -39,6 +41,11 @@ from .service import (
 from .work import standing_work_claims, work_subject
 
 DELIVERY_CLAIM_DETAIL = "Reading your feedback"
+
+# How often a watch rechecks a live page's server. It is also the longest a watch goes
+# without a pass on a page whose files have not moved: nothing else a pass reads
+# changes on the clock alone.
+REVIVAL_CHECK_S = 5
 
 
 def check_local_claim(state: str, detail: str) -> None:
@@ -221,6 +228,12 @@ class Watch:
     crosses that unlocked interval.
     `watch_state` is ownership/lifetime; `lost` separately says the server is
     down with no restart left to make.
+
+    Between passes the watch follows `reading`, the stamps of what a pass reads:
+    the machine's claims, which say which pages the session holds, and each page a
+    pass found. A pass runs when one moves, so an event reaches the watch in a look
+    (`LOOK_S`) rather than on a timer, and a quiet page costs stat calls rather than
+    a locked read of its whole log.
     """
 
     def __init__(self, harness: Harness | None, pages: tuple[Path, ...] = ()):
@@ -235,6 +248,8 @@ class Watch:
         self._revived: set = set()
         self._lost: set = set()
         self._check_at: dict = {}
+        self.claims = state_home() / "claims"
+        self.watched: list[Path] = []
 
     def acquire(self) -> bool:
         """Hold the session lease, or every explicitly watched standalone page."""
@@ -258,11 +273,29 @@ class Watch:
                 locations.add(path_location(page))
         return watched
 
+    def reading(self) -> tuple:
+        """The stamps of everything the last pass read: the claims, and its pages."""
+        return (file_stamp(self.claims), *map(_page_stamp, self.watched))
+
+    def mark(self) -> tuple:
+        """What the next pass starts from, taken before it reads, so a write that
+        lands during the pass moves the stamps `await_news` compares against."""
+        return (list(self.watched), self.reading())
+
+    def await_news(self, mark: tuple, timeout: float = REVIVAL_CHECK_S) -> None:
+        """Return once anything the pass since `mark` read has moved, or after
+        `timeout` with nothing moved. A pass that found a different set of pages
+        returns at once: `mark` stamped the old set."""
+        watched, before = mark
+        if self.watched == watched:
+            next_reading(self.reading, before, timeout=timeout)
+
     def tick(self):
         """Yield each page while its ownership and delivery lock is held."""
         if len(self.leases) != len(self.lease_paths):
             return
-        for page_dir in self.pages():
+        self.watched = self.pages()
+        for page_dir in self.watched:
             # This is only the account returned if ownership is already gone.
             # Every act uses the current reading under the lock below. Keeping
             # the harmless observation outside makes the lock boundary itself
@@ -320,7 +353,7 @@ class Watch:
         if watch_state == "watching" and live and not enabled:
             self._lost.add(key)
         elif watch_state == "watching" and live and now > self._check_at.get(key, 0):
-            self._check_at[key] = now + 5
+            self._check_at[key] = now + REVIVAL_CHECK_S
             if running_server(page_dir):
                 # A server seen running earns the next death its own revival —
                 # one attempt per death, so a server dying on arrival still
@@ -353,6 +386,14 @@ class Watch:
         for lease in self.leases:
             lease.close()
         self.leases.clear()
+
+
+def _page_stamp(page_dir: Path) -> str | None:
+    """A page's reading, or None once its directory is gone."""
+    try:
+        return page_reading(page_dir)
+    except (FileNotFoundError, NotADirectoryError):
+        return None
 
 
 class _WatchPass(NamedTuple):
@@ -519,11 +560,12 @@ def cmd_wait(page_dir: Path | None = None, *, ack: str | None = None) -> int:
         return 2
     try:
         while True:
+            mark = watch.mark()
             reading = read_watch_pass(watch, named)
             if reading.outcome is not None:
                 return reading.outcome
             if not reading.live:
                 return _ended_watch(reading.readings, named)
-            time.sleep(1)
+            watch.await_news(mark)
     finally:
         watch.release()

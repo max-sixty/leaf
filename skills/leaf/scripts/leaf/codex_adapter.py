@@ -897,6 +897,7 @@ def run_adapter(
                 nonlocal captured
                 captured = capture_batch(harness.session, reading)
 
+            mark = watch.mark()
             reading = read_watch_pass(watch, None, deliver=capture)
             if captured:
                 continue
@@ -915,7 +916,9 @@ def run_adapter(
                     lease.close()
                     leases_released = True
                     return reading.outcome or 0
-            time.sleep(1)
+            # A second a pass, as well as each time a page moves: the queued offer
+            # and receipt recovery above answer to Codex, not to the page's files.
+            watch.await_news(mark, timeout=1)
     except BaseException as error:
         if ready_fd is not None:
             os.write(

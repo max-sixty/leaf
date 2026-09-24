@@ -65,9 +65,9 @@ and out of the way of a developer's standing preview.
 
 A slot is its page directory, and `preview.json` in it is what the browser chrome
 and the Stop hook read to know the page is a preview. The lease that says a
-preview is serving the slot is a page lock in the state home, where the page's
-transition lease already lives, so discarding the page cannot replace the inode
-the lease is held on.
+preview is serving the slot is `<slot>.lock` beside that directory, so discarding
+the page cannot replace the inode the lease is held on, and the lease goes with
+the previews root.
 
 Usage: preview.py [page] [options]  (default: triage-board)
 """
@@ -312,15 +312,13 @@ WATCHER_NOTE = "server   preview (no task claim; stops with this process)"
 
 
 def preview_lease(page: Path) -> Path:
-    """The lock a running preview holds on its slot, keyed by the page.
+    """The lock a running preview holds on its slot, beside the slot's page.
 
-    It sits in the state home beside the page's own transition lease, because a
-    lock inside what it guards is an inode a discard unlinks, and a lock on a
-    replaced inode excludes nobody.
+    Not inside it: a discard removes the page, and a lock on a removed inode
+    excludes nobody.
     """
-    from leaf.leases import page_lock
-
-    return page_lock(page, "preview")
+    page.parent.mkdir(parents=True, exist_ok=True)
+    return page.with_name(f"{page.name}.lock")
 
 
 def refresh_media(source: Path, page: Path) -> None:
@@ -657,22 +655,22 @@ def discard_preview(page: Path) -> None:
 
     if page.exists():
         cmd_stop(page)
-    with page_locked(page):
-        if (page / "events.jsonl").is_file():
-            with PageTransaction(page):
+        with page_locked(page):
+            if (page / "events.jsonl").is_file():
+                with PageTransaction(page):
+                    shutil.rmtree(page)
+            else:
                 shutil.rmtree(page)
-        elif page.exists():
-            shutil.rmtree(page)
-        claim_path(page).unlink(missing_ok=True)
+    claim_path(page).unlink(missing_ok=True)
 
 
 def run_preview(
     source: Path, page: Path, launcher: Path, runtime: Path, user: bool
 ) -> None:
     """Take the slot, build it fresh, and serve it until this process ends."""
-    from leaf.leases import take_page_lease
+    from leaf.leases import take_lease
 
-    lease = take_page_lease(page, "preview")
+    lease = take_lease(preview_lease(page))
     if lease is None:
         raise ValueError(
             f"another preview is serving {page}; stop that process, or choose "

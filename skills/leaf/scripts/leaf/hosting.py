@@ -494,7 +494,7 @@ def claim_and_start(
 def cmd_stop(page_dir: Path) -> str:
     """Disable the desired service and wait until its process lease is released.
 
-    The barrier is taking the lease under the transition lock, without waiting:
+    The barrier is taking the lease under the page lock, without waiting:
     held together, they keep a new start out of the gap between the old server's
     exit and this return. The wait between attempts is outside the transition,
     since a serving process may need it to withdraw an uncommitted start."""

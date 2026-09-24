@@ -55,11 +55,32 @@ from .work import widget_work_without_targets
 
 
 def cmd_init(page_dir: Path, selected: tuple[str, ...] | None = None) -> None:
-    # Before the directory exists there is no event log for PageTransaction to
-    # lock. The external transition lease covers that missing first instant and
-    # continues through the complete vendoring.
+    # The page lock is the directory itself, so a page that does not exist yet is
+    # made first, owner-only: the directory holds the discussion and service
+    # state whose URL carries the machine key. A directory the caller already
+    # made keeps the mode they chose. The lock then covers the complete vendoring,
+    # and a refused init takes back the empty directory it made.
+    made = not page_dir.exists()
+    if made:
+        _refuse_package_target(page_dir, layer_inputs(selected or ()))
+        page_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
     with page_locked(page_dir):
-        _init_page(page_dir, selected)
+        try:
+            _init_page(page_dir, selected)
+        except BaseException:
+            if made and not any(page_dir.iterdir()):
+                page_dir.rmdir()
+            raise
+
+
+def _refuse_package_target(page_dir: Path, inputs: list[Path]) -> None:
+    """Refuse a page directory inside one of its own layer's packages.
+
+    This runs before anything is written, since a rejected init must not put page
+    state inside an input it was trying to protect."""
+    target = page_dir.resolve()
+    if package := next((root for root in inputs if path_is_within(target, root)), None):
+        sys.exit(f"{page_dir} is inside package {package}, not a page directory")
 
 
 def _init_page(page_dir: Path, selected: tuple[str, ...] | None) -> None:
@@ -97,14 +118,7 @@ def _init_page(page_dir: Path, selected: tuple[str, ...] | None) -> None:
         selected = tuple(recorded)
     inputs = layer_inputs(selected)
     page_target = page_dir.resolve()
-    # Refuse a package before PageTransaction opens the page log:
-    # this directory is not a page, and a rejected init must not put page state
-    # inside an input it was trying to protect.
-    if package := next(
-        (root for root in inputs if path_is_within(page_target, root)),
-        None,
-    ):
-        sys.exit(f"{page_dir} is inside package {package}, not a page directory")
+    _refuse_package_target(page_dir, inputs)
     if fresh:
         _vendor_page(
             page_dir,
@@ -115,10 +129,10 @@ def _init_page(page_dir: Path, selected: tuple[str, ...] | None) -> None:
             selected=selected,
         )
         return
-    # The transition lease serializes this operation with other inits; an existing
+    # The page lock serializes this operation with other inits; an existing
     # page also has its ordinary transaction, which gives the vocabulary check
     # and contract commit one order against every browser append. No path takes
-    # the page transaction and then the transition lease, so this order cannot invert.
+    # the page transaction and then the page lock, so this order cannot invert.
     with PageTransaction(page_dir) as page:
         _vendor_page(
             page_dir,
@@ -387,15 +401,11 @@ def _commit_layer(
     layer: _VendoredLayer,
     directories: set[Path],
 ) -> None:
-    # Owner-only when this call creates it: the directory holds the discussion
-    # and service state whose URL carries the machine key. A directory the
-    # caller already made keeps the mode they chose.
     if fresh:
         # A page's claim lives outside its directory. Recreating a deleted path
         # creates a new page, so it must not inherit the deleted page's owner.
         # Re-vendoring an existing page preserves that page and its claim.
         claim_path(page_dir).unlink(missing_ok=True)
-    page_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
     for directory in sorted(directories, key=lambda path: len(path.parts)):
         directory.mkdir(exist_ok=True)
     # Stage the whole layer together. The registry is the declaration that
@@ -426,7 +436,7 @@ def _commit_layer(
                 with contextlib.suppress(OSError):
                     stale.rmdir()
     if not (page_dir / STATUS_FILE).exists():
-        # Fresh creation holds only the transition lease. Re-vendoring also
+        # Fresh creation holds only the page lock. Re-vendoring also
         # holds the page transaction. Calling cmd_status would try to re-enter the
         # latter's event-log flock for an existing directory missing status.
         write_json(

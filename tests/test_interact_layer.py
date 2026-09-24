@@ -38,7 +38,6 @@ from leaf import event_log as events_model
 from leaf import files as interact_files
 from leaf import hooks as hooks_model
 from leaf import layer as layer_model
-from leaf import leases as leases_model
 from leaf import locations as interact_locations
 from leaf import machine as machine_model
 from leaf import packages as packages_model
@@ -2449,9 +2448,8 @@ def test_page_commands_do_not_mint_the_successful_init_marker(tmp_path):
 
 
 def test_concurrent_page_init_serializes_creation(tmp_path, monkeypatch):
-    """One transition lease covers creation before the page log exists."""
+    """One page lock covers creation before the page log exists."""
     page = tmp_path / "page"
-    transition = leases_model.transition_lock(page)
     first_entered = threading.Event()
     release_first = threading.Event()
     second_waiting = threading.Event()
@@ -2469,13 +2467,10 @@ def test_concurrent_page_init_serializes_creation(tmp_path, monkeypatch):
         original_init(page_dir, selected)
 
     @contextlib.contextmanager
-    def observed_page_locked(page_dir, purpose="transition"):
-        if (
-            leases_model.page_lock(page_dir, purpose) == transition
-            and threading.current_thread().name == "second-init"
-        ):
+    def observed_page_locked(locked):
+        if locked == page and threading.current_thread().name == "second-init":
             second_waiting.set()
-        with original_page_locked(page_dir, purpose) as held:
+        with original_page_locked(locked) as held:
             yield held
 
     def initialize():

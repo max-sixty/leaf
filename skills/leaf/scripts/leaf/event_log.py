@@ -27,68 +27,22 @@ def require_cross_process_locking() -> None:
 
 
 @contextlib.contextmanager
-def flocked(path: Path, label: str | None = None):
+def flocked(path: Path):
     """An exclusive lock held while the block runs — the one serialization
     primitive here. The log serializes appends, cursor and status updates, and
     claim and delivery transitions. Stable purpose locks serialize contract or service
     transitions; a `.lock` beside a registry of JSON files serializes updates
     to them, since the files themselves are replaced by rename and a lock on a
-    replaced inode holds nothing.
-
-    The same holds of a lock file removed while this waited for it, which
-    `sweep` does to a page lock nobody holds once its page is gone: the lock is
-    taken again on whatever the path names now, so a holder always holds the
-    file every later taker opens (`names_locked`). A `label` is what the lock
-    stands for, written into a file that holds none once it is held
-    (`label_locked`)."""
+    replaced inode holds nothing."""
     require_cross_process_locking()
     # The event log is the successful-init marker as well as a lease. A
     # transaction racing page deletion must not recreate it and turn a deleted
     # directory back into an initialized page. Purpose locks are disposable and
     # may be minted on first use.
     mode = "r+b" if path.name == EVENTS_FILE else "a+b"
-    while True:
-        f = open(path, mode)  # noqa: SIM115 - held across the yield below
-        try:
-            fcntl.flock(f, fcntl.LOCK_EX)
-        except BaseException:
-            f.close()
-            raise
-        if names_locked(path, f):
-            break
-        f.close()
-    with f:
-        label_locked(f, label)
+    with open(path, mode) as f:
+        fcntl.flock(f, fcntl.LOCK_EX)
         yield f
-
-
-def label_locked(locked, label: str | None) -> None:
-    """Write `label` into a held lock file that holds nothing yet.
-
-    A page lock is keyed on a digest of its page's path, so the file itself has
-    to say which page it guards for `sweep` to know when that page is gone. Its
-    holder writes it, since whichever process made the file — this one, or one a
-    sweep's removal raced — the holder is the one that knows the page, and it
-    writes under the lock, so two never both write. A lock an older leaf made
-    gets its label from the first holder that brings one."""
-    if label is not None and os.fstat(locked.fileno()).st_size == 0:
-        locked.write(label.encode())
-        locked.flush()
-
-
-def names_locked(path: Path, locked) -> bool:
-    """Whether `path` still names the file `locked` has just taken a lock on.
-
-    `sweep` removes a page lock nobody holds once its page is gone, and it
-    removes it while holding that lock. A process that opened the file
-    before the removal and waited behind it then holds a file no path names, and
-    every later taker opens a new one. Each taker asks this after its lock
-    succeeds and takes the lock again when the answer is no; that re-check is
-    what makes removing an unheld lock file safe."""
-    try:
-        return os.path.samestat(os.fstat(locked.fileno()), os.stat(path))
-    except FileNotFoundError:
-        return False
 
 
 def now_iso() -> str:

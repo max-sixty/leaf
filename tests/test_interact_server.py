@@ -4625,12 +4625,10 @@ def test_stop_does_not_wait_forever_on_a_server_started_after_its_transition(
     stopping = None
 
     @contextmanager
-    def pause_after_transition(locked_page, purpose="transition"):
-        with original_page_locked(locked_page, purpose):
+    def pause_after_transition(locked):
+        with original_page_locked(locked):
             yield
-        if threading.current_thread() is stopping and leases_model.page_lock(
-            locked_page, purpose
-        ) == leases_model.transition_lock(page_dir):
+        if threading.current_thread() is stopping and locked == page_dir:
             transitioned.set()
             assert resume.wait(10)
 
@@ -5122,11 +5120,14 @@ def test_others_ships_on_a_network_facing_bind_too(page_dir):
     assert [entry["title"] for entry in state["others"]] == ["The other page"]
 
 
-def test_neighbours_follow_their_servers_and_leave_with_their_pages(page_dir, tmp_path):
+def test_neighbours_follow_their_servers_and_a_deleted_pages_claim_retires(
+    page_dir, tmp_path
+):
     """A neighbour appears on the read after its server starts and leaves on the
     read after it stops, though neither moves a file the candidate set is keyed
-    on. A page deleted before a scan or after one listed it is no neighbour,
-    though its claim stays until the state-home sweep removes it."""
+    on. A claim whose page directory is gone is removed by the next scan, whether
+    the page went before the first scan or after one had listed it, so the
+    claims directory holds what is still there to claim."""
     stopped = tmp_path / "stopped"
     neighbour_page(stopped, title="Starts later", dead=True)
     record_claim(stopped, id="later")
@@ -5134,7 +5135,7 @@ def test_neighbours_follow_their_servers_and_leave_with_their_pages(page_dir, tm
     neighbour_page(scratch, title="Scratch")
     record_claim(scratch, id="scratch")
     deleted = tmp_path / "deleted"
-    neighbour_page(deleted, title="Deleted")
+    neighbour_page(deleted, title="Deleted", dead=True)
     record_claim(deleted, id="deleted")
     shutil.rmtree(deleted)
 
@@ -5142,14 +5143,17 @@ def test_neighbours_follow_their_servers_and_leave_with_their_pages(page_dir, tm
         return [entry["title"] for entry in presence_model.other_leaves(page_dir)]
 
     assert titles() == ["Scratch"]
+    assert not service_model.claim_path(deleted).exists()
+    assert service_model.claim_path(stopped).exists()
 
     lease = leases_model.take_lease(stopped / "server.lock")
     assert titles() == ["Scratch", "Starts later"]
     lease.close()
     assert titles() == ["Scratch"]
 
-    shutil.rmtree(scratch)
-    assert titles() == []
+    shutil.rmtree(stopped)
+    assert titles() == ["Scratch"]
+    assert not service_model.claim_path(stopped).exists()
 
 
 def test_state_reads_claims_and_their_log_floor_in_one_transaction(

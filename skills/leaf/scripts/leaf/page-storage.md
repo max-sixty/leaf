@@ -86,17 +86,17 @@ other page files and the external state listed below.
   [session-lifetime.md, “Lifetime”](session-lifetime.md#lifetime) owns the lifetime rule.
   The URL's access key belongs to the machine's state home.
 
+- The page lock is the directory itself: `leases.page_locked` flocks a descriptor on
+  it to serialize service changes, re-vendoring, and contract-bearing writes, so it
+  writes nothing and ends with the page.
+
 - `server.lock` — process-held server lease. `hosting.py` waits for its release on stop,
   after the server has closed its sockets.
 
 - `<state-home>/claims/` — one atomic claim per resolved page, independent of its page
-  directory. [session-lifetime.md](session-lifetime.md) owns claimant identity,
-  release, harness, and lifetime.
-
-Every record the state home keeps about a page — its claim, its transition and
-preview locks under `page-locks/`, a delivery naming it — outlives the directory,
-which is usually deleted from outside leaf. `sweep.py` owns the one rule that
-removes such a record once its page is gone.
+  directory, and removed by the first scan that finds that directory gone
+  (`service.claim_records`). [session-lifetime.md](session-lifetime.md) owns claimant
+  identity, release, harness, and lifetime.
 
 ## Revision delivery
 

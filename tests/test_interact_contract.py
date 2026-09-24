@@ -70,7 +70,6 @@ from leaf import event_log as events_model
 from leaf import events as event_folds_model
 from leaf import files as files_model
 from leaf import host as host_model
-from leaf import leases as leases_model
 from leaf import media as media_model
 from leaf import passages as passages_model
 from leaf import revisioning as revisioning_model
@@ -1276,7 +1275,6 @@ def test_report_validation_and_append_cannot_straddle_revendoring(
     overlay.mkdir(parents=True)
     (overlay / "registry.json").write_text(json.dumps({"lf-task": task}))
 
-    transition = leases_model.transition_lock(page_dir)
     report_validated = threading.Event()
     release_report = threading.Event()
     init_waiting = threading.Event()
@@ -1290,13 +1288,10 @@ def test_report_validation_and_append_cannot_straddle_revendoring(
         return real_append(page, event)
 
     @contextlib.contextmanager
-    def observed_page_locked(locked_page, purpose="transition"):
-        if (
-            leases_model.page_lock(locked_page, purpose) == transition
-            and threading.current_thread().name == "re-vendor"
-        ):
+    def observed_page_locked(locked):
+        if locked == page_dir and threading.current_thread().name == "re-vendor":
             init_waiting.set()
-        with real_page_locked(locked_page, purpose) as held:
+        with real_page_locked(locked) as held:
             yield held
 
     monkeypatch.setattr(service_model.PageTransaction, "_append_record", paused_append)
@@ -1338,18 +1333,14 @@ def test_report_validation_and_append_cannot_straddle_revendoring(
 
 def test_a_preview_holds_one_contract_until_it_closes(page_dir, monkeypatch):
     before = registry_storage.layer_generation(page_dir)
-    transition = leases_model.transition_lock(page_dir)
     init_waiting = threading.Event()
     real_page_locked = vendoring_model.page_locked
 
     @contextlib.contextmanager
-    def observed_page_locked(locked_page, purpose="transition"):
-        if (
-            leases_model.page_lock(locked_page, purpose) == transition
-            and threading.current_thread().name == "re-vendor"
-        ):
+    def observed_page_locked(locked):
+        if locked == page_dir and threading.current_thread().name == "re-vendor":
             init_waiting.set()
-        with real_page_locked(locked_page, purpose) as held:
+        with real_page_locked(locked) as held:
             yield held
 
     monkeypatch.setattr(vendoring_model, "page_locked", observed_page_locked)

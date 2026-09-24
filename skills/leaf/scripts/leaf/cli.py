@@ -74,9 +74,6 @@ def _leaf_root(ctx: click.Context, _param: click.Parameter, value: bool) -> None
 )
 def cli() -> None:
     """Build and run interactive pages a session shares with its user."""
-    from leaf.sweep import sweep_if_due
-
-    sweep_if_due()
 
 
 @cli.command(short_help="Run Leaf's bundled MCP Apps server.")

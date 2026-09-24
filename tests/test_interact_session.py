@@ -75,7 +75,6 @@ from leaf import schema as schema_model
 from leaf import server as server_model
 from leaf import service as service_model
 from leaf import session as session_model
-from leaf import sweep as sweep_model
 from leaf import thread_context as thread_context_model
 from leaf import vendoring as vendoring_model
 from leaf.registry import contract as registry_contract
@@ -1669,6 +1668,61 @@ def test_a_working_claim_can_name_a_widget_until_a_version_completes_it(page_dir
     unearned = stamp(page_dir, "Again", completes=("rollout-card",))
     assert unearned.exit_code == 1
     assert "no active widget work claim" in unearned.output
+
+
+def test_a_delivery_and_its_codex_records_go_once_their_pages_do(
+    claimed, capsys, tmp_path
+):
+    """Envelopes and a Codex task's archived records are read one id at a time, so
+    the writer that adds one removes those whose pages are all gone, and those
+    this version does not read; a task's live records go at the scan that reads
+    them. Pages are deleted from outside leaf, so nothing sees the moment."""
+    gone = tmp_path / "gone"
+
+    def record(path, value):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        files_model.write_json(path, value)
+        return path
+
+    def envelope(delivery_id, page, format=delivery_model.DELIVERY_FORMAT):
+        batches = [{"page": str(page)}]
+        return record(
+            delivery_model.delivery_path(delivery_id),
+            {"format": format, "batches": batches},
+        )
+
+    kept = envelope("0000000a", claimed)
+    retired = [envelope("0000000b", gone), envelope("0000000c", claimed, "v2")]
+    serving(claimed, 1)
+    events_model.append_event(
+        claimed, {"kind": "comment", "author": "user", "text": "new input"}
+    )
+    assert session_model.cmd_wait(claimed) == 0
+    frozen = delivery_model.delivery_path(json.loads(capsys.readouterr().out)["id"])
+    assert kept.exists() and frozen.exists()
+    assert not any(path.exists() for path in retired)
+
+    def task_record(delivery_id, page, **fields):
+        return {
+            "format": codex_model.RECORD_FORMAT,
+            "state": "collecting",
+            "created_at": 0,
+            "batches": [{"page": str(page), "receipted": True}],
+            **fields,
+        }
+
+    live = record(codex_model.record_path("t", "0000000d"), task_record("d", claimed))
+    stale = record(codex_model.record_path("t", "0000000e"), task_record("e", gone))
+    history = live.parent / "history"
+    archived_gone = record(history / "0000000f.json", task_record("f", gone))
+    archived_other = record(history / "00000010.json", {"format": "v1"})
+    archived_kept = record(history / "00000011.json", task_record("g", claimed))
+    with events_model.flocked(codex_model.delivery_lock_path("t")):
+        assert [path for path, _ in codex_model.delivery_records("t")] == [live]
+        assert not stale.exists()
+        codex_model.archive_record(live, task_record("d", claimed, state="accepted"))
+    assert sorted(history.iterdir()) == [history / live.name, archived_kept]
+    assert not archived_gone.exists() and not archived_other.exists()
 
 
 def test_direct_delivery_progress_does_not_become_page_activity(claimed, capsys):
@@ -9503,166 +9557,6 @@ def test_wait_lease_is_exact_and_excludes_another_wait(
     assert not leases_model.lock_is_held(lease_path)
 
 
-def test_the_state_home_retires_what_stands_for_a_gone_page(
-    page_dir, tmp_path, monkeypatch
-):
-    """The first `leaf` command an hour after the last sweep removes each record
-    once every page it names is gone: a claim, a delivery, a Codex task's delivery
-    record, live or archived, and a page lock nobody holds; and a wait's start
-    mark once no wait holds it. What still stands for
-    a page stays, and so does a record naming no page in a shape this version
-    reads, since another version may be reading it: an older leaf's empty lock,
-    or a delivery in another format."""
-    home = machine_model.state_home()
-    gone = tmp_path / "gone"
-    shutil.copytree(page_dir, gone)
-    record_claim(page_dir, id="live")
-    record_claim(gone, id="gone")
-    shutil.rmtree(gone)
-
-    def record(path, value):
-        path.parent.mkdir(parents=True, exist_ok=True)
-        files_model.write_json(path, value)
-        return path
-
-    def delivery(delivery_id, *pages):
-        path = delivery_model.delivery_path(delivery_id)
-        batches = [{"page": str(page), "events": []} for page in pages]
-        return record(path, {"format": "leaf-delivery-v3", "batches": batches})
-
-    live_delivery = delivery("0000000a", page_dir)
-    half_gone = delivery("0000000b", page_dir, gone)
-    gone_delivery = delivery("0000000c", gone)
-    unread = record(home / "deliveries" / "0000000d.json", {"format": "v0"})
-
-    task = record(
-        codex_model.record_path("thread", "0000000c"),
-        {"batches": [{"page": str(gone)}]},
-    )
-    record(
-        task.parent / "history" / "0000000b.json", {"batches": [{"page": str(gone)}]}
-    )
-    kept_task = record(
-        codex_model.record_path("other-thread", "0000000a"),
-        {"batches": [{"page": str(page_dir)}]},
-    )
-
-    # A transition mints its page's lock, which stays after it.
-    # A page's lock, once held, says which page it guards.
-    for page in (page_dir, gone):
-        with leases_model.page_locked(page):
-            pass
-    live_lock, gone_lock, held_lock = (
-        leases_model.transition_lock(page_dir),
-        leases_model.transition_lock(gone),
-        leases_model.page_lock(gone, "preview"),
-    )
-    held = leases_model.take_page_lease(gone, "preview")
-    older = home / "page-locks" / f"{'0' * 32}.transition.lock"
-    older.touch()
-    # A foreground wait that ended unnamed leaves its start mark; a running one
-    # holds its own.
-    for held_file in leases_model.take_session_wait("ended"):
-        held_file.close()
-    running = leases_model.take_session_wait("running")
-    ended_mark, running_mark = (
-        home / "sessions" / f"{session}.started" for session in ("ended", "running")
-    )
-    assert ended_mark.exists()
-    # Any command the fixture ran swept a moment ago; this one is the hour later.
-    (home / "swept").unlink(missing_ok=True)
-
-    result = CliRunner().invoke(cli_model.cli, ["page", "state", str(page_dir)])
-    assert result.exit_code == 0, result.output
-
-    assert service_model.page_claim(page_dir)["id"] == "live"
-    assert not service_model.claim_path(gone).exists()
-    assert live_delivery.exists() and half_gone.exists() and unread.exists()
-    assert not gone_delivery.exists()
-    assert not task.parent.exists()
-    assert kept_task.exists()
-    assert live_lock.exists() and held_lock.exists()
-    assert not gone_lock.exists()
-    assert older.exists()
-    assert not ended_mark.exists() and running_mark.exists()
-
-    # Within the hour a command sweeps nothing.
-    record_claim(gone, id="gone")
-    assert (
-        CliRunner().invoke(cli_model.cli, ["page", "state", str(page_dir)]).exit_code
-        == 0
-    )
-    assert service_model.claim_path(gone).exists()
-    held.close()
-    for held_file in running:
-        held_file.close()
-
-
-def test_a_page_lock_a_sweep_removed_says_its_page_again_once_held(tmp_path):
-    """`page init` names a page that does not exist yet, so a sweep can remove its
-    lock between the naming and the holding. The file the holder then makes still
-    says which page it guards, so a later sweep can remove it too."""
-    page = tmp_path / "page"
-    lock = leases_model.transition_lock(page)
-    with leases_model.page_locked(page):
-        pass
-    sweep_model.sweep()
-    assert not lock.exists()
-    with leases_model.page_locked(page):
-        assert lock.read_text() == str(page.resolve())
-    sweep_model.sweep()
-    assert not lock.exists()
-
-
-def test_sweep_keeps_a_lock_when_its_page_is_recreated_before_retirement(
-    tmp_path, monkeypatch
-):
-    page = tmp_path / "page"
-    lock = leases_model.transition_lock(page)
-    with leases_model.page_locked(page):
-        pass
-    original_retire = sweep_model.retire_lock
-
-    def recreate_then_retire(path, locked_page):
-        if path == lock:
-            with leases_model.page_locked(page):
-                page.mkdir()
-        original_retire(path, locked_page)
-
-    monkeypatch.setattr(sweep_model, "retire_lock", recreate_then_retire)
-    sweep_model.sweep()
-
-    assert lock.exists()
-
-
-def test_a_lock_removed_under_a_waiting_taker_is_taken_again_on_its_successor(
-    tmp_path,
-):
-    """A taker that opened a lock file and waited behind the lock that removed it
-    ends up holding the file the path names, not the removed one, so the next
-    taker is excluded. Without the re-check the two would each hold a lock and
-    exclude nobody."""
-    path = tmp_path / "transition.lock"
-    entered = threading.Event()
-    release = threading.Event()
-
-    def take():
-        with events_model.flocked(path):
-            entered.set()
-            assert release.wait(10)
-
-    taker = threading.Thread(target=take)
-    with open(path, "a+b") as remover:
-        fcntl.flock(remover, fcntl.LOCK_EX)
-        taker.start()
-        time.sleep(0.2)  # the taker opens the file and waits on this lock
-        path.unlink()
-    assert entered.wait(10)
-    assert leases_model.take_lease(path) is None
-    release.set()
-    taker.join(10)
-
-
 def test_a_question_about_a_lease_does_not_turn_its_taker_away(tmp_path):
     """`lock_is_held` asks with a momentary shared lock, which refuses an exclusive
     one as a lease does. A lease taken while a question is open waits the question
@@ -9676,6 +9570,44 @@ def test_a_question_about_a_lease_does_not_turn_its_taker_away(tmp_path):
     assert lease is not None
     assert leases_model.take_lease(path) is None
     lease.close()
+
+
+def test_a_page_lock_is_its_directory_and_follows_a_page_made_again(tmp_path):
+    """The page lock is the page directory, so it leaves nothing in the state home
+    and ends with the page. A taker that waited on a directory deleted and made
+    again at the same path locks the new one, so it excludes the next taker; a
+    page gone for good raises."""
+    page = tmp_path / "page"
+    assert CliRunner().invoke(cli_model.cli, ["page", "init", str(page)]).exit_code == 0
+    assert not (machine_model.state_home() / "page-locks").exists()
+
+    entered = threading.Event()
+    release = threading.Event()
+
+    def take():
+        with leases_model.page_locked(page):
+            entered.set()
+            assert release.wait(10)
+
+    taker = threading.Thread(target=take)
+    with leases_model.page_locked(page):
+        taker.start()
+        time.sleep(0.2)  # the taker opens the directory and waits on this lock
+        shutil.rmtree(page)
+        page.mkdir()
+    assert entered.wait(10)
+    fd = os.open(page, os.O_RDONLY)
+    try:
+        with pytest.raises(BlockingIOError):
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    finally:
+        os.close(fd)
+    release.set()
+    taker.join(10)
+
+    page.rmdir()
+    with pytest.raises(FileNotFoundError), leases_model.page_locked(page):
+        pass
 
 
 def test_a_new_claim_cannot_borrow_the_previous_sessions_wait_lease(
@@ -10804,6 +10736,24 @@ def test_a_background_wait_start_carries_the_closing_guidance(monkeypatch, capsy
     assert hook("uv run leaf wait --ack 64186241") == hooks_model.WAIT_STARTED
     assert looks == [False, True]
     waits.pop().release()
+
+
+def test_a_wait_that_ends_unnamed_leaves_no_start_mark():
+    """A foreground wait returns before any tool hook runs, so nothing names its
+    start; ending takes its mark with it, and the session's next wait is a new
+    start. A named start's mark is already gone, and ending does not mind."""
+    mark = machine_model.state_home() / "sessions" / "s1.started"
+    for named in (False, True):
+        watch = session_model.Watch(
+            host_model.ClaudeCodeHarness(session="s1", agent="Claude")
+        )
+        assert watch.acquire()
+        assert mark.exists()
+        if named:
+            assert leases_model.name_wait_start("s1") is True
+        watch.release()
+        assert not mark.exists()
+        assert leases_model.name_wait_start("s1") is False
 
 
 def test_the_registered_tool_hook_speaks_only_under_claude_code(tmp_path):

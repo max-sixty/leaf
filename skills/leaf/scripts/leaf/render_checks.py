@@ -1,4 +1,4 @@
-"""Named browser probes used by the render and export gates."""
+"""Named browser probes used by the render gate."""
 
 from pathlib import Path
 
@@ -10,11 +10,8 @@ SERVED_TIMEOUT_MS = 30_000
 
 PROBE_ROOT = Path(__file__).with_name("render-checks")
 PROBE_ROUTE = "/_leaf/render-checks/index.js"
-STANDALONE_ROUTE = "/_leaf/render-checks/standalone.js"
-STANDALONE_SOURCE = PROBE_ROOT / "standalone.js"
 DRIVER_SOURCE = PROBE_ROOT / "driver.js"
 WINDOW_ERRORS_SOURCE = PROBE_ROOT / "init.js"
-STANDALONE_FILE_ROUTE = "file:///_leaf/render-checks/standalone.js"
 PROBE_SOURCES = {
     f"/_leaf/render-checks/{source.name}": source
     for source in sorted(PROBE_ROOT.glob("*.js"))
@@ -30,21 +27,13 @@ _PRE_UPGRADE_FINDINGS = "() => globalThis.__leafRenderDriver.preUpgradeFindings(
 
 
 def _call(page, name: str, args: tuple, timeout_ms: int | None = None) -> dict:
-    route = PROBE_ROUTE
-    if page.url.startswith("file:"):
-        if not getattr(page, "_leaf_standalone_probes_prepared", False):
-            raise ValueError(
-                "prepare_standalone_probes must run before file navigation"
-            )
-        route = STANDALONE_FILE_ROUTE
-    else:
-        route = page.evaluate(
-            """route => {
-          const entry = document.querySelector('script[data-lf-entry]')?.dataset.lfEntry;
-          return entry ? new URL(route.slice(1), new URL(entry, location.href)).href : route;
-        }""",
-            route,
-        )
+    route = page.evaluate(
+        """route => {
+      const entry = document.querySelector('script[data-lf-entry]')?.dataset.lfEntry;
+      return entry ? new URL(route.slice(1), new URL(entry, location.href)).href : route;
+    }""",
+        PROBE_ROUTE,
+    )
     return {
         "route": route,
         "name": name,
@@ -52,27 +41,6 @@ def _call(page, name: str, args: tuple, timeout_ms: int | None = None) -> dict:
         "timeoutMs": timeout_ms
         or getattr(page, "_leaf_probe_timeout_ms", SERVED_TIMEOUT_MS),
     }
-
-
-def prepare_standalone_probes(page) -> None:
-    """Expose the import-free probe module before a standalone file navigates.
-
-    Exported files retain the page's CSP, which correctly refuses every script. The
-    probe is test instrumentation rather than part of the copy, so a Playwright page
-    created with ``bypass_csp=True`` routes one synthetic file URL to the real module.
-    """
-    if getattr(page, "_leaf_standalone_probes_prepared", False):
-        return
-    install_driver(page)
-    page.route(
-        STANDALONE_FILE_ROUTE,
-        lambda route: route.fulfill(
-            status=200,
-            content_type="text/javascript; charset=utf-8",
-            body=STANDALONE_SOURCE.read_bytes(),
-        ),
-    )
-    page._leaf_standalone_probes_prepared = True
 
 
 def install_driver(page) -> None:

@@ -27,17 +27,7 @@
    spelling is the value `offer` writes into `data-lf-offer`: the tag or input type for
    a native press, the tag for a custom host that opts into its own press contract, the
    role for a selectable one, and the empty string for the rest of the chrome a widget
-   makes. The theme's one pressable rule reads that value, and the
-   marker outlives the role — a
-   press carrying page words becomes a span in a copy and keeps its words — so the copy
-   clears the value where it strips the role, and the promise leaves with the thing
-   that could have answered it. A guard in the theme would not do: it would have to be
-   written twice, once for the document and once for the sheet a declared shadow tree
-   renders under, where `html:not(.lf-copy)` matches nothing at all.
-
-   A control that keeps its shape in a copy keeps its name too, and the name needs a
-   role that admits one: a glyph whose word is collapsed away is an `img` with a text
-   alternative, not a bare span wearing `aria-label`.
+   makes. The theme's one pressable rule reads that value.
 
    `worksInside` decides whether a container gesture may take a click. It treats
    platform interactive elements as their own controls and uses `x-owners` to
@@ -467,12 +457,7 @@ document.addEventListener(
 // both detach; and it must still print, because it is the only thing naming the row it
 // stands in. `says: "echo"` is that third answer, and it writes data-lf-echo: no
 // passage, and the same bargain on paper that data-lf-said strikes — the press goes,
-// the words stay. Paper is the medium that bargain holds in. A copy divides on the
-// marker's *value* instead, which is a fact about the tag and not about this
-// declaration: bake removes a press by the value `offer` wrote, so an echoed route is
-// empty-valued, slips that pass and stays a real fragment link, while an echo on an
-// `offer("button", …)`, such as lf-activity's route into a thread, is a press that
-// standalone.js turns into its words, as it does a said label.
+// the words stay. Paper is the medium that bargain holds in.
 //
 // It leaves data-lf-offer alone, which it used to clear. That attribute is what `offer`
 // made: this is a control a widget injected, true for the mark's whole life however it

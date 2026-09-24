@@ -188,9 +188,6 @@ export async function loadIcon() {
         "status is painted",
     );
   iconMark = doc.documentElement;
-  // Left where `version export` can find it: a file has no session behind it, so a copy
-  // wears the mark saying nothing rather than the tone it was exported under.
-  tabLink.dataset.lfRest = iconUrl("");
   paintTab();
 }
 // A declaration, and called from two places, because the fetch above can land after the

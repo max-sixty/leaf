@@ -7,8 +7,7 @@
  * what `page state` addresses content by.
  *
  * Written once, for the reason `open-roots.js` is: a probe that names elements its own
- * way reports the same box under two names. `standalone.js` keeps a copy, and has to,
- * because it is served import-free. */
+ * way reports the same box under two names. */
 const tag = (el) => `<${el.localName}${el.id ? " id=" + el.id : ""}>`;
 
 export const at = (el) => {

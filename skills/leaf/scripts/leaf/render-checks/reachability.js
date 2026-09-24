@@ -273,7 +273,7 @@ export function unreachableWords() {
     // read as "not shown" because the browser drops it on the reveal — a
     // hidden="until-found" word the user finds is a word this check sees
     // again, at the moment it is on screen. The two sibling checks that ask what
-    // a box shows (render-checks/widgets.js, render-checks/standalone.js) spell
+    // a box shows (render-checks/widgets.js, render-checks/words.js) spell
     // the same pair.
     if (el.closest(".lf-quiet, [hidden]")) continue;
     found.push(

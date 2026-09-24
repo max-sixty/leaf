@@ -1,7 +1,7 @@
 """The browser the user-path gates launch.
 
-`version check --render` and `version export` both draw the page in a real
-browser, and both should reach whichever one the host has. Playwright's
+`version check --render` draws the page in a real browser, and should reach
+whichever one the host has. Playwright's
 `channel="chrome"` finds a Google Chrome release-channel install at a fixed OS
 path and nothing else, so a Chrome for Testing, a distro or Homebrew Chromium,
 or a self-hosted build is invisible to it — even though every render invariant
@@ -38,7 +38,6 @@ failures above rather than through them.
 """
 
 import os
-import re
 import shutil
 from contextlib import contextmanager
 from pathlib import Path
@@ -60,11 +59,6 @@ COMMANDS = (
     "chromium",
     "chromium-browser",
 )
-
-# `bake()` ends in `root.getHTML({ serializableShadowRoots: true })`, which
-# Chromium grew in 125. Every widget draws into a shadow root, so below this a
-# copy is not partial, it is impossible.
-EXPORT_FLOOR = 125
 
 
 def named_executable() -> tuple[str, str] | None:
@@ -239,20 +233,3 @@ def browser_hint() -> str:
         f"This host has no installed Chrome and none of {', '.join(COMMANDS)} on "
         f"PATH; {' or '.join(VARIABLES)} names one."
     )
-
-
-def below_export_floor(browser) -> str | None:
-    """The version this browser reports where it is too old to copy a page, else
-    None.
-
-    The render gate never bakes, so an older browser passes `--render` and then
-    fails export inside the probe with `root.getHTML is not a function` — which
-    reads as a broken probe module rather than as the host's browser being too
-    old. Discovery makes that more reachable, since a distribution's `chromium`
-    can be any age. A version that does not start with a number is not refused:
-    an unreadable reading is not evidence of an old browser."""
-    version = browser.version
-    major = re.match(r"\d+", version)
-    if major and int(major.group()) < EXPORT_FLOOR:
-        return version
-    return None

@@ -115,8 +115,8 @@ export function alignInlineText(before, after) {
 }
 
 // The alignment as elements: `same` is plain text, what the later text dropped is a
-// <del>, what it gained an <ins>. Semantic rather than classed, so a copy of the passage
-// and a user hearing it keep the two apart with no stylesheet.
+// <del>, what it gained an <ins>. Semantic rather than classed, so a user hearing it
+// keeps the two apart with no stylesheet.
 export function alignedNodes(runs) {
   return runs.map((run) => {
     const node = document.createElement(

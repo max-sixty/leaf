@@ -977,22 +977,6 @@ export default [
     },
   },
   {
-    files: ["skills/leaf/scripts/leaf/render-checks/standalone.js"],
-    rules: {
-      "no-restricted-syntax": [
-        "error",
-        {
-          selector: "ImportDeclaration, ImportExpression, ExportAllDeclaration",
-          message: "Standalone render probes must remain import-free.",
-        },
-        {
-          selector: "ExportNamedDeclaration[source]",
-          message: "Standalone render probes must not reexport another module.",
-        },
-      ],
-    },
-  },
-  {
     files: ["skills/leaf/scripts/leaf/render-checks/init.js"],
     languageOptions: { sourceType: "script" },
   },

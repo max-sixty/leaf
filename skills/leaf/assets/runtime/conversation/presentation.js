@@ -64,8 +64,7 @@ export function createConversationPresentation({
     order: PRESENTATION_ORDER.conversation,
     // Every phase owes a reading, the ones before the log has been read included: what
     // the panel says while it waits is this region's to draw, and a user who opens it
-    // then is asking for exactly that. The one page that owes nothing is a copy with no
-    // chrome to draw into.
+    // then is asking for exactly that.
     current: () => (available ? readApplication().effective.conversation : null),
     failSoft: retainedThreadListProof,
     paint: async (value) => {

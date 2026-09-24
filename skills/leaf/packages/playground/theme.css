@@ -64,11 +64,11 @@ lf-playground:has(> .lf-playground-split) {
   @container lf-workspace (min-width: 720px) and (min-height: 480px) {
     @container style(--lf-held: 1) {
       @container (min-width: 51rem) {
-        html:not(.lf-copy) .lf-playground-split {
+        .lf-playground-split {
           grid-template-rows: minmax(12rem, 1fr) auto;
         }
 
-        html:not(.lf-copy) .lf-playground-instruction-region {
+        .lf-playground-instruction-region {
           align-self: stretch;
         }
       }
@@ -341,12 +341,9 @@ lf-playground-value {
   color: var(--danger-ink);
 }
 
-/* A quoted playground is its preview and instruction as authored; a copy keeps the
- * stage and the instruction and drops what only operates them. */
+/* A quoted playground is its preview and instruction as authored. */
 lf-playground.lf-playground-quoted > lf-playground-control,
-lf-playground.lf-playground-quoted > lf-playground-preset,
-html.lf-copy lf-playground .lf-playground-controls-region,
-html.lf-copy lf-playground .lf-playground-actions {
+lf-playground.lf-playground-quoted > lf-playground-preset {
   display: none;
 }
 

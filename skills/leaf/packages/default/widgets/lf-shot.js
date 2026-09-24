@@ -51,7 +51,6 @@ customElements.define(
     #comparison;
     #chromeState;
     #chose = false;
-    #preparingExport = false;
     #frames = [];
     #captions = new Map();
 
@@ -166,8 +165,6 @@ customElements.define(
     #syncComparison() {
       const enabled =
         this.dataset.lfShotControls !== "off" &&
-        !this.#preparingExport &&
-        !document.documentElement.classList.contains("lf-copy") &&
         this.#box.parentNode === this &&
         customElements.get("wa-comparison");
       if (enabled && !this.#comparison) {
@@ -248,22 +245,15 @@ customElements.define(
       if (
         !this.isConnected ||
         this.#box.parentNode !== this ||
-        this.dataset.lfShotControls === "off" ||
-        this.#preparingExport ||
-        document.documentElement.classList.contains("lf-copy")
+        this.dataset.lfShotControls === "off"
       )
         return;
       await loadComparison();
-      if (this.isConnected && !this.#preparingExport) this.#syncComparison();
+      if (this.isConnected) this.#syncComparison();
     }
 
     #requestComparison() {
-      if (
-        this.dataset.lfShotControls === "off" ||
-        this.#preparingExport ||
-        document.documentElement.classList.contains("lf-copy")
-      )
-        return;
+      if (this.dataset.lfShotControls === "off") return;
       void afterPresentation(() => this.#upgradeComparison()).catch((reason) =>
         failSoft(this, reason),
       );
@@ -364,11 +354,6 @@ customElements.define(
           if (activation === "toggle") this.#show(this.#nextState());
         },
       });
-    }
-
-    lfPrepareExport() {
-      this.#preparingExport = true;
-      this.#syncComparison();
     }
 
     // Both frames render at the frame's width, so a pair shot at two different

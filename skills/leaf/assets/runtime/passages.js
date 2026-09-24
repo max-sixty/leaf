@@ -186,8 +186,7 @@ export function settlementSlots() {
 // corresponding paint and is never read back. One static theme rule hides the marked
 // slots, so a family a project declares hides what a settlement removes the day it
 // declares it — by-name rules in theme.css were the closed list wearing CSS's
-// clothes — and the same pair of marker and rule is what carries the disappearance
-// into an exported copy, which keeps markup and stylesheet and drops every module.
+// clothes.
 export function renderRetired(el, outcome) {
   const outcomes = settlementSlots()[el.localName];
   if (!outcomes) return;

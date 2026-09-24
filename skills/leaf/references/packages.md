@@ -452,9 +452,7 @@ exposes `entry`, `control`, `contains`, `activate`, `focus`, `update`, and `unre
 `update()` replaces the whole reading and may synchronously lay it out or focus a
 surviving key. Keep text fields, history, and other mechanical editing state in the
 widget. Publish only action and status records to the margin, with explicit `element` or
-`entries` relations when a disclosure owns another surface or entry. An entry whose
-interactive name no longer describes its script-free rendering supplies `staticLabel`;
-export removes the action and keeps that name on the resulting static image.
+`entries` relations when a disclosure owns another surface or entry.
 
 ### Commands and keyboard routes
 

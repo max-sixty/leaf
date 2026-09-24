@@ -155,8 +155,9 @@ $ leaf status ./review waiting "Does the API/importer split match what you need?
         <p id="agent-split">
           The agent writes the document to <code>index.html</code>. Replies, comments,
           and version notes go through the <code>leaf</code> command, which appends them
-          to the event log. Browser gestures enter through the same validation and
-          append boundary, giving every event a stable identity and order.
+          to the <a href="/event-log/">event log</a>. Browser gestures enter through the
+          same validation and append boundary, giving every event a stable identity and
+          order.
         </p>
         <p id="agent-render">
           The browser combines the active revision with the log and updates when the
@@ -330,7 +331,8 @@ $ leaf status ./review waiting "Does the API/importer split match what you need?
           Dragging a card or choosing an option records a structured action. The browser
           applies it immediately, and the agent receives it alongside comments. The log
           preserves the choice across reloads and later revisions; other tabs follow the
-          same state.
+          same state. The <a href="/event-log/">event log reference</a> shows the
+          records a pick and its undo write, and how they fold into state.
         </p>
         <p id="undo">
           <code>z</code> withdraws the user's last undoable gesture; pressing it again

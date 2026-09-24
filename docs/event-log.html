@@ -1,0 +1,531 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <title>leaf event log</title>
+    <meta
+      name="description"
+      content="How Leaf records every widget move as an event in an append-only log, how a package declares the verbs, and how the fold turns the standing events into the page's state, shown with a real captured log and a specimen you can operate."
+    />
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+  </head>
+  <body class="site-page">
+    <main>
+      <nav class="sitenav" aria-label="Site">
+        <a class="brand" href="/">leaf</a>
+        <a href="/examples/">Examples</a>
+        <a href="/how-it-works/">How it works</a>
+        <a href="/extending/">Extending</a>
+        <a href="https://github.com/max-sixty/leaf">GitHub</a>
+      </nav>
+
+      <header id="top">
+        <p class="eyebrow">package reference</p>
+        <h1>The event log</h1>
+        <p class="lede" id="lede">
+          Every move a user makes on a Leaf page, and every message, report, and version
+          the agent adds, is one JSON record appended to the page's
+          <code>events.jsonl</code>, and nothing is ever removed from it. A widget's
+          state is the authored markup plus a fold of that log: at each
+          <code>[widget, unit, verb]</code> coordinate, the latest action still standing
+          wins.
+        </p>
+        <p id="lede-contracts">
+          This page explains the mechanism. The rules themselves live in the
+          <a
+            href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/scripts/leaf/events.md"
+            >events contract</a
+          >
+          and the package contract's
+          <a
+            href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/packages.md#user-state"
+            >User state</a
+          >, which agents and package authors read.
+        </p>
+      </header>
+
+      <aside class="sidebar" id="event-log-route">
+        <lf-toc id="event-log-contents"></lf-toc>
+      </aside>
+
+      <section id="layers">
+        <h2>Leaf owns the log, and a package owns its verbs</h2>
+        <p id="layers-lede">
+          A widget sends a verb. Leaf checks it at the one append door, stores it, and
+          folds the log back into the state the widget draws. Nothing in Leaf's server
+          or runtime names a package's verbs.
+        </p>
+        <lf-diagram id="layers-flow" parts="node:Widget node:Door node:Log node:Fold">
+          <pre>
+flowchart LR
+  Widget["Widget"] -- "verb" --&gt; Door{"Append door"}
+  Door -- "record" --&gt; Log[("events.jsonl")]
+  Log -- "fold" --&gt; Fold["State"]
+  Fold -- "renderState" --&gt; Widget
+</pre>
+        </lf-diagram>
+        <table id="layers-table">
+          <thead>
+            <tr>
+              <th>Layer</th>
+              <th>What it holds</th>
+              <th>Owner</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Log</td>
+              <td>
+                One record per line, append-only, in 17 kinds: conversation
+                (<code>comment</code>, <code>reply</code>, <code>resolve</code>, …),
+                state (<code>action</code>, <code>report</code>, <code>undo</code>),
+                versions (<code>note</code>, <code>done</code>), and requests
+              </td>
+              <td>Leaf</td>
+            </tr>
+            <tr>
+              <td>Event</td>
+              <td>
+                The command the sender wrote, plus the envelope and
+                <code>meaning</code> the door stamps
+              </td>
+              <td>Leaf</td>
+            </tr>
+            <tr>
+              <td>Verb</td>
+              <td>
+                A detail schema, a fold <code>unit</code>, and how the state reads in
+                markup, declared under <code>x-state</code>
+              </td>
+              <td>Package, in <code>registry.json</code></td>
+            </tr>
+            <tr>
+              <td>Widget</td>
+              <td>Sends verbs, and draws the folded state, unset values included</td>
+              <td>Package, in its module</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="try">
+        <h2>Try it: each gesture lands as one event</h2>
+        <p id="try-walkthrough">
+          The specimen below is a complete Leaf page with a log of its own, and its feed
+          lists that log newest first. Click into the specimen, type
+          <em>After the canary is healthy</em> into <em>Another option</em>, and press
+          <kbd>Enter</kbd>: the feed gains an <code>add</code> and then a pick. Pick
+          <em>Later</em>. Then press <kbd>z</kbd> three times. The first press brings
+          your own option's pick back, the second leaves nothing picked while your
+          option stays, and the third removes the option. Reset starts the specimen
+          over.
+        </p>
+        <lf-specimen id="try-specimen" label="release question">
+          <template id="try-page" data-specimen>
+            <lf-ask id="ship-ask">
+              <h2>When should this ship?</h2>
+              <lf-options id="ship" choose>
+                <lf-option id="ship-now"
+                  ><strong>Now</strong> Today, behind the flag.</lf-option
+                >
+                <lf-option id="ship-later"
+                  ><strong>Later</strong> Next week, after the load test.</lf-option
+                >
+              </lf-options>
+            </lf-ask>
+            <lf-activity id="specimen-feed"></lf-activity>
+          </template>
+        </lf-specimen>
+      </section>
+
+      <section id="verbs">
+        <h2>A verb is a registry declaration</h2>
+        <p id="verbs-lede">
+          This is everything <code>lf-options</code> tells Leaf about its three verbs
+          and when its question counts as answered.
+        </p>
+        <lf-code id="options-verbs" language="json" data-width="wide">
+          <pre>
+"x-state": {
+  "choose": {
+    "detail": {"type": "object", "properties": {"options": {"type": "array", "items": {"type": "string"}}},
+               "required": ["options"], "additionalProperties": false},
+    "unit": "widget",
+    "record": {"kind": "attribute", "attr": "chosen", "value": "options"}
+  },
+  "add": {
+    "detail": {"type": "object",
+               "properties": {"option": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
+                              "text": {"type": "string", "minLength": 1}},
+               "required": ["option", "text"], "additionalProperties": false},
+    "unit": "option",
+    "creates": {"child": "lf-option", "words": "text"}
+  },
+  "answer": {"detail": {"type": "object", "additionalProperties": false}, "unit": "widget"}
+},
+"x-awaits": {
+  "answered": {
+    "choose": {"when": {"multiple": [false]}},
+    "answer": {"when": {"multiple": [true]}}
+  }
+}
+</pre>
+          <lf-note at="2"
+            >The verb's name, which the widget sends as the event's
+            <code>action</code>.</lf-note
+          >
+          <lf-note at="4"
+            >The JSON Schema every <code>choose</code> detail must satisfy at the
+            door.</lf-note
+          >
+          <lf-note at="5"
+            >One unit for the whole group, so every pick lands on the same coordinate
+            and a later pick replaces an earlier one.</lf-note
+          >
+          <lf-note at="6"
+            >How the standing pick reads in markup: <code>chosen</code> on each picked
+            option. The agent writes it into the next version, and
+            <code>version check</code> refuses a version that contradicts it.</lf-note
+          >
+          <lf-note at="13"
+            >The unit is the value of <code>detail.option</code>, so each added option
+            stands on a coordinate of its own.</lf-note
+          >
+          <lf-note at="14"
+            >The action brings a real <code>lf-option</code> into the group, with
+            <code>detail.text</code> as its words.</lf-note
+          >
+          <lf-note at="16"
+            ><code>answer</code> is the Done press that closes a
+            <code>multiple</code> group.</lf-note
+          >
+          <lf-note at="19"
+            >The Ask is answered while this condition on the standing state holds: a
+            standing pick for a single-choice group, a standing Done for a
+            <code>multiple</code> one.</lf-note
+          >
+        </lf-code>
+        <p id="coordinate">
+          An action's <strong>coordinate</strong> is its widget, its unit, and its verb.
+          <code>unit: "widget"</code> means the widget itself; any other value names the
+          detail field that holds the unit. A pick therefore lands on
+          <code>[ship, ship, choose]</code>, and adding an option lands on
+          <code>[ship, &lt;new option id&gt;, add]</code>. Two actions compete only when
+          their coordinates are equal, so a pick never displaces an added option.
+        </p>
+        <details id="all-verbs-list">
+          <summary>Every verb the kernel and the bundled packages declare</summary>
+          <table id="all-verbs">
+            <thead>
+              <tr>
+                <th>Widget</th>
+                <th>Verb</th>
+                <th>Unit</th>
+                <th>Record in markup</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>lf-suggestion</code></td>
+                <td><code>decide</code></td>
+                <td>widget</td>
+                <td>none</td>
+              </tr>
+              <tr>
+                <td><code>lf-options</code></td>
+                <td><code>choose</code></td>
+                <td>widget</td>
+                <td><code>chosen</code> attribute</td>
+              </tr>
+              <tr>
+                <td><code>lf-options</code></td>
+                <td><code>add</code></td>
+                <td>option</td>
+                <td>creates an <code>lf-option</code></td>
+              </tr>
+              <tr>
+                <td><code>lf-options</code></td>
+                <td><code>answer</code></td>
+                <td>widget</td>
+                <td>none</td>
+              </tr>
+              <tr>
+                <td><code>lf-board</code></td>
+                <td><code>move</code></td>
+                <td>card</td>
+                <td>position in an <code>lf-column</code></td>
+              </tr>
+              <tr>
+                <td><code>lf-draft</code></td>
+                <td><code>edit</code></td>
+                <td>widget</td>
+                <td>body</td>
+              </tr>
+              <tr>
+                <td><code>lf-diff</code></td>
+                <td><code>review</code></td>
+                <td>file</td>
+                <td>none</td>
+              </tr>
+              <tr>
+                <td><code>lf-playground</code></td>
+                <td><code>choose</code></td>
+                <td>widget</td>
+                <td>none</td>
+              </tr>
+              <tr>
+                <td><code>lf-swipe-deck</code></td>
+                <td><code>swipe</code></td>
+                <td>card</td>
+                <td>position in an <code>lf-swipe-pile</code></td>
+              </tr>
+              <tr>
+                <td><code>lf-targeting</code></td>
+                <td><code>submit</code></td>
+                <td>widget</td>
+                <td>none</td>
+              </tr>
+              <tr>
+                <td><code>lf-visual-review</code></td>
+                <td><code>review</code></td>
+                <td>case</td>
+                <td>none</td>
+              </tr>
+              <tr>
+                <td><code>lf-task</code></td>
+                <td><code>status</code></td>
+                <td>widget</td>
+                <td><code>status</code> attribute, written by the agent</td>
+              </tr>
+              <tr>
+                <td><code>lf-agent</code></td>
+                <td><code>state</code></td>
+                <td>widget</td>
+                <td><code>state</code> attribute, written by the agent</td>
+              </tr>
+            </tbody>
+          </table>
+        </details>
+      </section>
+
+      <section id="fold">
+        <h2>The fold keeps the latest standing action at each coordinate</h2>
+        <p id="fold-lede">
+          These are the specimen's gestures above, made in Chrome against a copy of the
+          specimen's page. The group shows the fold of whatever still stands after each
+          one.
+        </p>
+        <table id="fold-steps">
+          <thead>
+            <tr>
+              <th>Gesture</th>
+              <th>Coordinate</th>
+              <th>The group shows</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Enter in <em>Another option</em></td>
+              <td>
+                <code>add</code> on the new option, then <code>choose</code> on
+                <code>ship</code>
+              </td>
+              <td>Now, Later, and the new option, picked</td>
+            </tr>
+            <tr>
+              <td>Pick <em>Later</em></td>
+              <td><code>choose</code> on <code>ship</code></td>
+              <td>
+                Later picked. It supersedes the first pick; the added option stays,
+                because it stands on another coordinate.
+              </td>
+            </tr>
+            <tr>
+              <td><kbd>z</kbd></td>
+              <td>undoes the pick of Later</td>
+              <td>The new option picked again, since the pick it superseded stands</td>
+            </tr>
+            <tr>
+              <td><kbd>z</kbd></td>
+              <td>undoes the first pick</td>
+              <td>Nothing picked; the new option is still there</td>
+            </tr>
+            <tr>
+              <td><kbd>z</kbd></td>
+              <td>undoes the <code>add</code></td>
+              <td>Now and Later, nothing picked</td>
+            </tr>
+          </tbody>
+        </table>
+        <p id="captured-how">
+          <code>leaf events</code> printed the log below, one record per line; here each
+          record is broken over a few lines. The first line of the log, at
+          <code>seq</code> 1, is the <code>note</code> that published the page's first
+          version. The browser minted the added option's id and each
+          <code>attempt</code>.
+        </p>
+        <!-- Captured by driving this page's specimen markup in Chrome on a scratch
+             page and printing its log with `leaf events PAGE`. The suite replays
+             these commands through the append door and fails, printing the records
+             to paste here, when the door would store anything different:
+             tests/test_product_page.py::test_the_event_log_page_shows_the_records_the_door_writes -->
+        <lf-code id="captured-log" language="json" data-width="wide">
+          <pre>
+{"kind": "action", "revision": 1, "widget": "ship", "action": "add",
+ "detail": {"option": "ship-option-1f82bf7ba6828718a418aa6076e29c63",
+   "text": "After the canary is healthy"},
+ "attempt": "1f82bf7ba6828718a418aa6076e29c63", "author": "user",
+ "meaning": {"document": "page",
+   "unit": "ship-option-1f82bf7ba6828718a418aa6076e29c63",
+   "depends": ["ship", "ship-option-1f82bf7ba6828718a418aa6076e29c63"],
+   "creates": "lf-option"},
+ "id": "f541943a", "ts": "2026-09-23T22:09:53-07:00", "seq": 2}
+{"kind": "action", "revision": 1, "widget": "ship", "action": "choose",
+ "detail": {"options": ["ship-option-1f82bf7ba6828718a418aa6076e29c63"]},
+ "attempt": "d10bc95f51e47796494c2aa01b7c872f", "author": "user",
+ "meaning": {"document": "page",
+   "unit": "ship",
+   "depends": ["ship", "ship-option-1f82bf7ba6828718a418aa6076e29c63"],
+   "answer": null},
+ "id": "c47d1659", "ts": "2026-09-23T22:09:53-07:00", "seq": 3}
+{"kind": "action", "revision": 1, "widget": "ship", "action": "choose",
+ "detail": {"options": ["ship-later"]},
+ "attempt": "26e7a30143df35cda03ec8b7b164f2b6", "author": "user",
+ "meaning": {"document": "page",
+   "unit": "ship",
+   "depends": ["ship", "ship-later"],
+   "answer": null},
+ "id": "0450d79c", "ts": "2026-09-23T22:09:54-07:00", "seq": 4}
+{"kind": "undo", "undoes": "0450d79c", "attempt": "abec07d894a0444733756c659d4edafe", "author": "user",
+ "id": "6d9e1f06", "ts": "2026-09-23T22:09:54-07:00", "seq": 5}
+{"kind": "undo", "undoes": "c47d1659", "attempt": "5a3b1fb07f32ba1933b472b288a03e36", "author": "user",
+ "id": "935db19d", "ts": "2026-09-23T22:09:55-07:00", "seq": 6}
+{"kind": "undo", "undoes": "f541943a", "attempt": "7d324c8ea06016e59db0ca09ea0303e4", "author": "user",
+ "id": "b0f9f750", "ts": "2026-09-23T22:09:55-07:00", "seq": 7}
+</pre>
+          <lf-note at="1"
+            >The browser sent <code>kind</code>, <code>revision</code>,
+            <code>widget</code>, <code>action</code>, <code>detail</code>, and
+            <code>attempt</code>, its retry key. The door stamped the rest.</lf-note
+          >
+          <lf-note at="8"
+            >The door derives <code>meaning</code> and refuses a sender that supplies
+            it. It keeps only what a reader without the registry could not recover: the
+            document the action was made in, its fold <code>unit</code>, the element ids
+            it <code>depends</code> on, and the child tag it
+            <code>creates</code>.</lf-note
+          >
+          <lf-note at="9"
+            >The door mints the eight-hex <code>id</code>; <code>seq</code> is the
+            record's line in the log.</lf-note
+          >
+          <lf-note at="16"
+            >This pick makes the Ask's answered condition hold, so it is the answer.
+            <code>null</code> means it closes no thread; a group with a
+            <code>resolves</code> attribute would name one here.</lf-note
+          >
+          <lf-note at="27"
+            >An undo names one gesture and nothing else. The folds drop the gesture it
+            names, and both records stay in the log.</lf-note
+          >
+        </lf-code>
+      </section>
+
+      <section id="taking-back">
+        <h2>Three things take an action back, and none of them deletes it</h2>
+        <ul id="taking-back-ways">
+          <li>
+            <strong>A later action at the same coordinate</strong> supersedes it, as the
+            pick of Later did. Undo the later one and the earlier one stands again.
+          </li>
+          <li>
+            <strong>The user's <code>undo</code></strong> withdraws one gesture of their
+            own: an action, a resolve or reopen, or an approval. Messages and requests
+            stand once sent.
+          </li>
+          <li>
+            <strong>The author's <code>restated</code></strong
+            >: a stamped version lists element ids it deliberately rewrote, and every
+            earlier action that depends on one of them stops standing.
+          </li>
+        </ul>
+        <p id="taking-back-markup">
+          Once the agent writes a standing decision into the markup, such as the added
+          option as an ordinary <code>lf-option</code> with the same id and words, the
+          document carries it and the action no longer changes what the page shows.
+        </p>
+      </section>
+
+      <section id="reports">
+        <h2>An agent's state moves through the same fold</h2>
+        <p id="reports-writer">
+          A verb declaring <code>"writer": "agent"</code> belongs to the agent. A worker
+          posts it with <code>leaf report</code>, which appends a
+          <code>report</code> event on the same coordinate scheme, and the page paints
+          it at once as provisional news. It stands until a stamped version answers it,
+          and the user has no control for it. Every verb has one writer, so no
+          coordinate holds both a user's action and an agent's report. Command Hub's
+          <code>lf-task</code> <code>status</code> is the shipped example.
+        </p>
+      </section>
+
+      <section id="follow">
+        <h2>Other programs read the log as a public format</h2>
+        <p id="follow-feed">
+          <code>leaf events PAGE --follow</code> prints every stored record, the stamped
+          <code>meaning</code> included, and then each record the door admits as it
+          lands. <code>seq</code> is the resume cursor: a reader that restarts with
+          <code>--after</code> the last <code>seq</code> it printed misses nothing and
+          repeats nothing. A reader drops a field or kind it does not recognize, so a
+          newer writer never breaks an older reader.
+        </p>
+        <p id="follow-data">
+          The log holds decisions and conversation. Typed external data that an agent or
+          process supplies lives beside it in <code>data.json</code>, replaced in place
+          with no fold and no undo, so a reader that needs it reads
+          <code>leaf page state</code> instead.
+        </p>
+      </section>
+
+      <section id="sources">
+        <h2>Where each rule is written</h2>
+        <ul id="sources-list">
+          <li>
+            <a
+              href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/scripts/leaf/events.md"
+              >Events and conversation</a
+            >: every event kind, undo, admission and <code>meaning</code>, and the
+            change feed.
+          </li>
+          <li>
+            <a
+              href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/packages.md#user-state"
+              >User state</a
+            >: how a package declares <code>x-state</code> verbs,
+            <code>x-awaits.answered</code>, <code>creates</code>, and agent-written
+            verbs.
+          </li>
+          <li>
+            <a href="/registry/#x-state">Registry keys</a>: the exact definition of
+            <code>x-state</code>, <code>x-awaits</code>, and the keys beside them.
+          </li>
+          <li>
+            <a
+              href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/scripts/leaf/layer-registry.md"
+              >Layer composition</a
+            >: which recorded actions a re-vendored layer must still be able to read.
+          </li>
+        </ul>
+      </section>
+
+      <footer class="site-footer" id="colophon">
+        <p id="links">
+          <a href="/">Home</a> · <a href="/examples/">Examples</a> ·
+          <a href="/how-it-works/">How it works</a> ·
+          <a href="/extending/">Extending</a> ·
+          <a href="https://github.com/max-sixty/leaf">GitHub</a> ·
+          <a href="https://github.com/max-sixty/leaf/blob/main/LICENSE">MIT license</a>
+        </p>
+      </footer>
+    </main>
+  </body>
+</html>

@@ -2277,7 +2277,7 @@ def test_app_server_delivery_id_reads_only_canonical_delivery_inputs():
 
 
 def test_app_server_events_report_semantic_codex_progress():
-    events = codex_model.AppServerEvents("codex-thread")
+    events = codex_model.AppServerEvents("codex-thread", "turn-live")
 
     assert events.read(
         {
@@ -2496,14 +2496,7 @@ def test_app_server_events_report_semantic_codex_progress():
             "method": "turn/completed",
             "params": {"threadId": "codex-thread", "turn": {"id": "turn-live"}},
         }
-    ) == {
-        "turn": "turn-live",
-        "completed": "completed",
-        "text": "",
-    }
-    # A completed turn leaves nothing behind: a next turn adopted without its
-    # `turn/started` gets an opening of its own, not this one's.
-    assert events.opening is None and not events.text
+    ) == {"turn": "turn-live", "completed": "completed"}
     # The committed reply is the opening and the final answer; a turn that never
     # reached a final answer commits nothing on the strength of its opening.
     opening, narration, final = (
@@ -2528,8 +2521,9 @@ def test_app_server_events_report_semantic_codex_progress():
     assert events.final_text({"items": [tool, narration, final]}) == (
         "The page is ready for review."
     )
-    events.restore_turn({"id": "turn-late", "items": [tool]})
-    assert events.read(
+    late = codex_model.AppServerEvents("codex-thread", "turn-late")
+    late.restore_turn({"id": "turn-late", "items": [tool]})
+    assert late.read(
         {
             "method": "item/completed",
             "params": {
@@ -2579,7 +2573,7 @@ def test_app_server_activity_throttles_stream_deltas(monkeypatch):
 
 
 def test_app_server_activity_keeps_waiting_and_concurrent_item_evidence():
-    events = codex_model.AppServerEvents("codex-thread")
+    events = codex_model.AppServerEvents("codex-thread", "turn-live")
     events.read(
         {
             "method": "turn/started",
@@ -2655,14 +2649,15 @@ def test_app_server_activity_keeps_waiting_and_concurrent_item_evidence():
     assert awaiting_input["activity"] == {"kind": "awaiting_input"}
 
 
-def test_app_server_activity_ignores_late_events_from_an_older_turn():
-    events = codex_model.AppServerEvents("codex-thread")
-    events.read(
-        {
-            "method": "turn/started",
-            "params": {"threadId": "codex-thread", "turn": {"id": "turn-old"}},
-        }
-    )
+def test_app_server_activity_reads_only_its_own_turn():
+    """A fold is one turn's, and every other turn's notifications read as nothing.
+
+    One subscription carries every turn of the task, and a turn that started
+    after this one ended, or one still reporting after it, must not move this
+    turn's readings. Routing a notification to its turn is the carrier's; the
+    fold only refuses what is not its own.
+    """
+    events = codex_model.AppServerEvents("codex-thread", "turn-live")
     events.read(
         {
             "method": "turn/started",
@@ -2670,60 +2665,59 @@ def test_app_server_activity_ignores_late_events_from_an_older_turn():
         }
     )
 
-    assert (
-        events.read(
-            {
-                "method": "item/reasoning/summaryTextDelta",
-                "params": {
-                    "threadId": "codex-thread",
-                    "turnId": "turn-old",
-                    "itemId": "old-reasoning",
-                    "delta": "stale thought",
-                },
-            }
-        )
-        is None
-    )
-    assert (
-        events.read(
-            {
-                "method": "thread/status/changed",
-                "params": {
-                    "threadId": "codex-thread",
-                    "turnId": "turn-old",
-                    "status": {"activeFlags": ["waitingOnUserInput"]},
-                },
-            }
-        )
-        is None
-    )
-    assert events.turn_id == "turn-live"
-    assert events.active_items == {}
-    assert events.waiting_kind is None
-
-    events.read(
+    for message in (
+        {
+            "method": "turn/started",
+            "params": {"threadId": "codex-thread", "turn": {"id": "turn-other"}},
+        },
+        {
+            "method": "item/reasoning/summaryTextDelta",
+            "params": {
+                "threadId": "codex-thread",
+                "turnId": "turn-other",
+                "itemId": "other-reasoning",
+                "delta": "another turn's thought",
+            },
+        },
+        {
+            "method": "thread/status/changed",
+            "params": {
+                "threadId": "codex-thread",
+                "turnId": "turn-other",
+                "status": {"activeFlags": ["waitingOnUserInput"]},
+            },
+        },
         {
             "method": "turn/completed",
             "params": {
                 "threadId": "codex-thread",
-                "turn": {"id": "turn-live", "status": "completed"},
+                "turn": {"id": "turn-other", "status": "completed"},
+            },
+        },
+        {
+            "method": "item/started",
+            "params": {
+                "threadId": "another-thread",
+                "turnId": "turn-live",
+                "startedAtMs": 1,
+                "item": {"id": "elsewhere", "type": "commandExecution"},
+            },
+        },
+    ):
+        assert events.read(message) is None
+    assert events.turn_id == "turn-live"
+    assert events.active_items == {}
+    assert events.waiting_kind is None
+
+    assert events.read(
+        {
+            "method": "turn/completed",
+            "params": {
+                "threadId": "codex-thread",
+                "turn": {"id": "turn-live", "status": "interrupted"},
             },
         }
-    )
-    assert (
-        events.read(
-            {
-                "method": "item/commandExecution/outputDelta",
-                "params": {
-                    "threadId": "codex-thread",
-                    "turnId": "turn-live",
-                    "itemId": "late-command",
-                    "delta": "late output",
-                },
-            }
-        )
-        is None
-    )
+    ) == {"turn": "turn-live", "completed": "interrupted"}
 
 
 def test_app_server_client_stays_subscribed_between_ordinary_codex_turns(

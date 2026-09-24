@@ -407,7 +407,11 @@ class TurnStream:
 
 
 class AppServerEvents:
-    """Fold one task's notifications into activity and terminal readings.
+    """Fold one turn's notifications into activity and terminal readings.
+
+    The turn is fixed when the fold is made, and a notification naming any other
+    turn reads as nothing: which turn a notification belongs to is the carrier's
+    routing, not something this fold follows.
 
     A turn's reply is its opening and its final answer. The opening is a `commentary`
     agent message that is the turn's first, written before any item but the turn's
@@ -417,9 +421,9 @@ class AppServerEvents:
     after a tool call by an agent that skipped the opening.
     """
 
-    def __init__(self, thread_id: str):
+    def __init__(self, thread_id: str, turn_id: str):
         self.thread_id = thread_id
-        self.turn_id: str | None = None
+        self.turn_id = turn_id
         self.text: dict[str, str] = {}
         self.message_phases: dict[str, str | None] = {}
         self.message_order: list[str] = []
@@ -430,17 +434,7 @@ class AppServerEvents:
         self.waiting_kind: str | None = None
 
     def restore_turn(self, turn: dict) -> None:
-        """Replace transient message state with one resumed provider turn."""
-        self.turn_id = turn["id"]
-        self._forget_turn()
-        for item in turn.get("items", []):
-            if item.get("type") == "agentMessage":
-                self._record_message(item)
-            else:
-                self._close_opening(item)
-
-    def _forget_turn(self) -> None:
-        """Drop everything one turn's items left, so the next turn starts clean."""
+        """Replace transient message state with a snapshot of this turn."""
         self.text.clear()
         self.message_phases.clear()
         self.message_order.clear()
@@ -449,6 +443,11 @@ class AppServerEvents:
         self.item_started_at.clear()
         self.active_items.clear()
         self.waiting_kind = None
+        for item in turn.get("items", []):
+            if item.get("type") == "agentMessage":
+                self._record_message(item)
+            else:
+                self._close_opening(item)
 
     def read(self, message: dict) -> dict | None:
         """Return one transient activity or turn-completion update."""
@@ -458,24 +457,16 @@ class AppServerEvents:
         if message_thread is not None and message_thread != self.thread_id:
             return None
 
-        if method == "turn/started":
-            self.restore_turn(params["turn"])
-            return {"turn": self.turn_id, "activity": {"kind": "working"}}
-
-        turn_id = params.get("turnId") or self.turn_id
-        if method == "turn/completed":
+        if method in {"turn/started", "turn/completed"}:
             turn = params["turn"]
-            completed = turn["id"]
-            final = self.final_text(turn)
-            if self.turn_id == completed:
-                self.turn_id = None
-                self._forget_turn()
-            return {
-                "turn": completed,
-                "completed": turn.get("status", "completed"),
-                "text": final,
-            }
-        if turn_id is None or turn_id != self.turn_id:
+            if turn["id"] != self.turn_id:
+                return None
+            if method == "turn/started":
+                self.restore_turn(turn)
+                return {"turn": self.turn_id, "activity": {"kind": "working"}}
+            return {"turn": self.turn_id, "completed": turn.get("status", "completed")}
+        turn_id = params.get("turnId") or self.turn_id
+        if turn_id != self.turn_id:
             return None
 
         if method == "turn/plan/updated":
@@ -913,8 +904,7 @@ class TurnFold:
         self.turn_id = turn_id
         self.delivery_id = delivery_id
         self.reply_target = reply_target
-        self.events = AppServerEvents(session_id)
-        self.events.turn_id = turn_id
+        self.events = AppServerEvents(session_id, turn_id)
         self.reply_stream: AppServerReplyStream | None = None
         self.last_activity_update = 0.0
 
@@ -971,11 +961,7 @@ class TurnFold:
 
     def finished(self, message: dict, update: dict | None) -> dict | None:
         """Return the terminal turn when this notification is its completion."""
-        if (
-            update is not None
-            and update.get("completed")
-            and update["turn"] == self.turn_id
-        ):
+        if update is not None and update.get("completed"):
             return message["params"]["turn"]
         return None
 

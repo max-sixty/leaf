@@ -220,19 +220,6 @@ customElements.define(
       this.#load();
     }
 
-    // A static export keeps the drawing but not the script: freeze the first merge.
-    lfPrepareExport() {
-      this.#pause();
-      const first = this.#film.steps.find((s) => s.kind === "copy");
-      if (first) this.#t = first.start + first.dur - 0.01;
-      this.#paint();
-      for (const node of [
-        this.timeline,
-        ...this.querySelectorAll(".sort-bar, .sort-inputs"),
-      ])
-        node.remove();
-    }
-
     #load() {
       this.#values = makeInput(this.#input, this.#seed);
       this.#film = trace(this.#values);

@@ -23,7 +23,6 @@ means for the turn it may have made are each carrier's own policy: the adapter's
 loop and the website's turn follower each keep theirs.
 """
 
-import hashlib
 import json
 import subprocess
 import sys
@@ -58,7 +57,7 @@ from .delivery import (
 from .event_log import flocked
 from .files import read_json, write_json
 from .host import Harness
-from .machine import state_home
+from .leases import session_state_path, sessions_home
 from .schema import THREAD_ANSWER_KINDS
 from .service import (
     PageTransaction,
@@ -1084,23 +1083,12 @@ class CarriedTurn(TurnFold):
         raise NotImplementedError
 
 
-def session_state_path(session_id: str, suffix: str) -> Path:
-    """Address one state-home file belonging to a single Codex task.
-
-    A provider thread id is not a filename, so the task is named by a digest of it.
-    Every file one task owns — its deliveries, their lock, the adapter's log and
-    start lock — is that one name with a different suffix.
-    """
-    key = hashlib.sha256(session_id.encode()).hexdigest()[:32]
-    return state_home() / "sessions" / f"{key}.{suffix}"
-
-
 def delivery_dir(session_id: str) -> Path:
     return session_state_path(session_id, "deliveries")
 
 
 def delivery_lock_path(session_id: str) -> Path:
-    return session_state_path(session_id, "delivery.lock")
+    return delivery_dir(session_id).with_suffix(".delivery.lock")
 
 
 def record_path(session_id: str, delivery_id: str) -> Path:
@@ -1128,6 +1116,27 @@ def write_record(path: Path, record: dict) -> None:
     """Store one delivery record, retiring it once nothing is owed on it."""
     write_json(path, record)
     archive_record(path, record)
+
+
+def retire_gone_task_records() -> None:
+    """Remove every Codex task's delivery record whose pages are all gone, from
+    every task on this machine, and each task directory that leaves empty.
+
+    A task reads its own records, so a task that has ended leaves them unread and
+    nothing else would find its pages gone. An adapter retiring is the reading that
+    does: it enumerates every task's records, each under that task's lock, taken one
+    at a time and never inside another task's, so two retiring adapters cannot wait
+    on each other. A record whose page still stands stays, archived ones included,
+    since a later adapter of its task may yet bind a turn that outlived the first to
+    it (`TaskObserver._reconcile`)."""
+    for directory in sessions_home().glob("*.deliveries"):
+        with flocked(directory.with_suffix(".delivery.lock")):
+            history = directory / "history"
+            for path in (*directory.glob("*.json"), *history.glob("*.json")):
+                retire_if_gone(path, RECORD_FORMAT)
+            for emptied in (history, directory):
+                if emptied.is_dir() and not any(emptied.iterdir()):
+                    emptied.rmdir()
 
 
 def delivery_records(session_id: str) -> list[tuple[Path, dict]]:
@@ -1386,7 +1395,6 @@ def prepare_codex_delivery(page_dir: Path, harness: Harness) -> PreparedDelivery
             if not batch:
                 raise RuntimeError("the page has no Leaf input to deliver")
             lock = delivery_lock_path(session_id)
-            lock.parent.mkdir(parents=True, exist_ok=True)
             with flocked(lock):
                 pending = next(
                     (

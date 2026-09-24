@@ -19,7 +19,7 @@ from .files import read_json, write_json
 from .host import session_harness
 from .http import page_app, page_endpoint
 from .layer import payload_provenance
-from .leases import page_locked, take_lease
+from .leases import page_locked, release_lease, take_lease
 from .registry.storage import layer_metadata
 from .schema import SERVER_LOCK, SERVICE_FILE
 from .server import (
@@ -353,7 +353,7 @@ def _bind_server(page_dir: Path, access: dict, token: str, ports: list, lease):
         except OSError as error:
             if error.errno == errno.EADDRINUSE and "port" not in access:
                 continue
-            lease.close()
+            release_lease(lease)
             sys.exit(
                 f"can't serve {page_dir} on {access['bind']}"
                 f"{':' + str(access['port']) if 'port' in access else ''}: "
@@ -437,7 +437,7 @@ def cmd_serve(
         httpd.serve_forever()
     finally:
         httpd.server_close()
-        lease.close()
+        release_lease(lease)
 
 
 def start_server(
@@ -507,7 +507,7 @@ def cmd_stop(page_dir: Path) -> str:
                 write_json(page_dir / SERVICE_FILE, {**service, "enabled": False})
             lease = take_lease(page_dir / SERVER_LOCK)
             if lease is not None:
-                lease.close()
+                release_lease(lease)
                 return "stopped server" if stopped else "no server running"
         stopped = True
         time.sleep(0.05)

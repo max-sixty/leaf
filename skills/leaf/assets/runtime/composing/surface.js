@@ -164,8 +164,8 @@ export function createResponseSurface({
 
   // ---------- selection → comment ----------
   // Floating UI stays inside the document page shell, whose right edge stops short of the
-  // root scrollport's gutter. The thread panel stands over the page rather than taking a
-  // strip, so an open panel's own left edge bounds it too.
+  // root scrollport's gutter and the strip a sheet yields the thread panel. Over a column
+  // page the panel takes no strip, so an open panel's own left edge bounds it too.
   const rightEdge = (bounds = null) =>
     (bounds?.right ??
       Math.min(

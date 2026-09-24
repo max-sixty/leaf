@@ -840,9 +840,10 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
        left, and both take the bottom. */
     padding: 0 var(--lf-safe-right) var(--lf-safe-bottom) 0; }
   .lf-thread-panel[open] { display: flex; }
-  /* The panel stands over the page at every width. It shares the auxiliary scrim only
-     where it leaves less than a usable page and covers it; elsewhere the page beside it
-     stays live and no scrim shows. The dialog is shown non-modally either way, so it
+  /* The panel stands over a column page and beside a sheet, which yields it a strip
+     (theme.css, at the body strip). It shares the auxiliary scrim only where it leaves
+     less than a usable page and covers it; elsewhere the page beside it stays live and
+     no scrim shows. The dialog is shown non-modally either way, so it
      needs no ::backdrop of its own. */
   /* An edge, offered as a thing to take hold of — the thread panel's on the right of
      the page, the trays' on the left, and nothing here knows which it is drawing except
@@ -1647,8 +1648,9 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      same floor the rail does, of the same box: theme.css, at the margin projection. A
      standing tray takes its strip out of the shell, so a window wide enough for both is
      not a page with room for both, and a user who opened one would otherwise lose the
-     map and the markers together. The thread panel takes no room but stands over the
-     rail below about 1700px; the layout pass marks the root when it does. */
+     map and the markers together. Beside a sheet the thread panel takes its strip the
+     same way; over a column page it takes no room but stands over the rail below about
+     1700px, and the layout pass marks the root when it does. */
   @media screen {
     @container lf-shell (width <= 840px) {
       .lf-page-map-toggle:not([hidden]) { display: inline-flex; }

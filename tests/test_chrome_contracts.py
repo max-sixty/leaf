@@ -1483,6 +1483,94 @@ def test_threads_cover_the_page_and_leave_its_column_where_it_was(
     assert page.evaluate(shape) == pytest.approx(before, abs=0.5)
 
 
+# A sheet laid on one set of tracks: a long body beside a short rail, the rail being the
+# part of a sheet a panel standing over the window's right edge would cover.
+SHEET_PAGE = leaf_page(
+    "sheet",
+    """
+<h1 id="t">Sheet</h1>
+<lf-grid id="tracks" columns="2fr 1fr">
+  <lf-grid id="body" columns="1">{paras}</lf-grid>
+  <lf-grid id="side" columns="1">
+    <section class="panel" id="rail"><h2>Rail</h2><p>Counts beside the body.</p></section>
+  </lf-grid>
+</lf-grid>
+""",
+    width="available",
+).format(
+    paras="\n".join(
+        f"<p id='p{i}'>Paragraph {i}. " + "Filler. " * 40 + "</p>" for i in range(40)
+    )
+)
+
+
+def test_a_sheet_yields_the_open_panel_its_room_where_the_window_leaves_one(
+    browser, serve
+):
+    """On a sheet the open panel takes its room from the page rather than covering the
+    rail: the sheet narrows and its tracks reflow beside the panel, and the page stays
+    live. Where the window would leave less than a usable page, the panel covers it as
+    it does any page, and the sheet keeps the whole window underneath."""
+    page = open_page(browser, serve(SHEET_PAGE))
+    resized(page, 1440, 900)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    panel = page.locator(".lf-thread-panel").bounding_box()
+    rail = page.locator("#rail").bounding_box()
+    assert panel["x"] + panel["width"] == pytest.approx(1440, abs=1)
+    assert rail["x"] + rail["width"] <= panel["x"]
+    assert rail["y"] < page.locator("#p1").bounding_box()["y"], "the rail left the body"
+    assert not page.locator("main").evaluate("el => el.inert")
+    expect(page.locator(".lf-thread-panel")).not_to_have_attribute("aria-modal", "true")
+
+    resized(page, 700, 900)
+    expect(page.locator(".lf-thread-panel")).to_have_attribute("aria-modal", "true")
+    main = page.locator("main").bounding_box()
+    assert (
+        main["x"] + main["width"] > page.locator(".lf-thread-panel").bounding_box()["x"]
+    )
+    assert page.locator("main").evaluate("el => el.inert")
+
+
+def test_the_sheets_strip_for_the_panel_leaves_the_user_on_the_same_words(
+    browser, serve
+):
+    """The strip a sheet yields the open panel reflows the page, and the user stays on
+    the words they were on — carried by the browser's scroll anchoring, as across the
+    Asks tray's strip (the test below says what that rests on)."""
+    page = open_page(browser, serve(SHEET_PAGE))
+    resized(page, 1440, 900)
+    page.evaluate("() => document.scrollingElement.scrollTop = 1500")
+    at_the_top = """
+    () => {
+      const edge = Number.parseFloat(
+        getComputedStyle(document.scrollingElement).scrollPaddingTop) || 0;
+      const p = [...document.querySelectorAll('main p')]
+        .find((p) => p.getBoundingClientRect().bottom > edge);
+      return p && { id: p.id, top: p.getBoundingClientRect().top };
+    }
+    """
+    reading = page.evaluate(at_the_top)
+    assert reading, "the fixture put no paragraph under the top of the window"
+    tall = page.evaluate("() => document.documentElement.scrollHeight")
+
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    assert page.evaluate("() => document.documentElement.scrollHeight") > tall, (
+        "the strip reflowed nothing, so nothing is proved"
+    )
+    opened = page.evaluate(at_the_top)
+    assert opened["id"] == reading["id"]
+    assert opened["top"] == pytest.approx(reading["top"], abs=2)
+
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page, open=False)
+    assert page.evaluate("() => document.documentElement.scrollHeight") == tall
+    closed = page.evaluate(at_the_top)
+    assert closed["id"] == reading["id"]
+    assert closed["top"] == pytest.approx(reading["top"], abs=2)
+
+
 def test_taking_the_asks_trays_strip_leaves_the_user_on_the_same_words(browser, serve):
     """The Asks tray's strip reflows the page; the user stays on the words they were on.
 

@@ -10330,12 +10330,14 @@ def test_a_leaf_wait_launch_under_claude_code_carries_the_closing_guidance(tmp_p
     for starts in [
         "leaf wait",
         'cd /tmp && FOO=1 "$CLAUDE_PLUGIN_ROOT/bin/leaf" wait; echo $?',
+        "echo hi  # don't block on this\nbin/leaf wait --ack 1",
     ]:
         assert run(starts) == guidance, starts
     for mentions in [
         "git status",
         "grep -n 'leaf wait' skills/leaf/SKILL.md",
         "leaf serve page; echo leaf wait",
+        "# leaf wait is running\ngit status",
         "cat > run.sh <<'EOF'\nleaf wait\nEOF\nchmod +x run.sh",
     ]:
         assert run(mentions) is None, mentions

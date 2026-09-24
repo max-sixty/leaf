@@ -14,6 +14,7 @@ any command it cannot parse, and Codex, which runs the same `hooks.json`,
 ignores it. A command that will not tokenize says nothing.
 """
 
+import io
 import json
 import os
 import re
@@ -29,9 +30,21 @@ HEREDOC = re.compile(
 ASSIGNMENT = re.compile(r"[A-Za-z_]\w*=")
 
 
+class Lines(io.StringIO):
+    """shlex skips a comment with `readline()`, which would also take the newline
+    that separates it from the next command; leave that newline to be read."""
+
+    def readline(self):
+        line = super().readline()
+        if line.endswith("\n"):
+            self.seek(self.tell() - 1)
+            return line[:-1]
+        return line
+
+
 def starts_wait(command):
     command = HEREDOC.sub("\n", command)
-    lexer = shlex.shlex(command, posix=True, punctuation_chars=True)
+    lexer = shlex.shlex(Lines(command), posix=True, punctuation_chars=True)
     lexer.whitespace = " \t\r"
     try:
         tokens = list(lexer)

@@ -448,11 +448,20 @@ def declare_data_input(
         assert activated.error is None
 
 
+def stamp_activation(d):
+    """Activate the source as `version stamp` does: checked against the standing
+    log with transitions allowed, ahead of the note that records them."""
+    from leaf.validation.source import check_source
+
+    checked = check_source(d, events_model.read_events(d), allow_transition=True)
+    return revisioning_model.activate_checked_source(d, checked)
+
+
 def publish(d, version=1):
     """Append the note event that makes a version the user-seen baseline:
     `version check` compares against the last *published* version, and an action
     can only ever be made against one the server exposed."""
-    activated = revisioning_model.activate_source(d, allow_transition=True)
+    activated = stamp_activation(d)
     assert activated.error is None and activated.revision is not None
     events_model.append_event(
         d,

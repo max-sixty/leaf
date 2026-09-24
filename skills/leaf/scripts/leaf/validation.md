@@ -32,7 +32,7 @@ has moved, detached, or closed. That release is final — a revision the part ha
 left cannot be asked for it back, so reopening the closed conversation restores
 the thread and not its target. An agent reply may detach a thread in the same
 transition that removes its subject. A declared retirement protects its holder and slots until its
-outcome licenses their removal. Other dropped ids are reported as advice. No fixed-pixel-width
+outcome licenses their removal. Other dropped ids are reported as advice. These carry-over rules judge a candidate. A source whose captured artifact is the active revision's had its transition judged when it activated, and the append door has judged every event since against the revision it names, so neither activation nor `version check` re-judges it against the longer log. No fixed-pixel-width
 element is wider than the readable column (the rule that draws that column claims
 it with `--lf-reading-column: 1`, so the width and the claim come from one block). Near-free
 and deterministic is what makes running it on every save affordable, so keep a new

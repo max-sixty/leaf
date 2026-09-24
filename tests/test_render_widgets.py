@@ -10708,8 +10708,10 @@ def test_an_excerpt_shows_and_answers_to_its_source_line_numbers(browser, serve)
     and jumps where it skips, each skip stands as an elided row saying how much is
     left out, and the gutter widens so four digits still leave the code in line with
     its notes. Everything that points into the block — `hi`, a note's `at`, a driver's
-    indication — names lines by those numbers, and a number the block does not show
-    addresses nothing. A copied excerpt is the quoted source and nothing else."""
+    indication — names lines by those numbers. A left-out number addresses the elided
+    row standing for it, so a note placed there is that row's caption, and a number
+    outside the block addresses nothing. A copied excerpt is the quoted source and the
+    authored notes, never the numbers or the elided rows' counts."""
     url = serve(
         leaf_page(
             "excerpt",
@@ -10725,6 +10727,7 @@ fn merge_sort()
         start -= 1;
 </pre>
 <lf-note at="1551">One run per pass.</lf-note>
+<lf-note id="gap" at="1520">Setup, left out.</lf-note>
 </lf-code>
 <lf-pointer id="film" for="walk"></lf-pointer>
 """,
@@ -10737,14 +10740,14 @@ fn merge_sort()
     expect(rows).to_have_count(8)
     assert rows.evaluate_all(
         """rs => rs.map(r => r.classList.contains('lf-code-elided')
-                   ? ['elided', r.dataset.elided]
+                   ? ['elided', r.dataset.elided, r.textContent]
                    : r.classList.contains('lf-code-note') ? ['note']
                    : [getComputedStyle(r, '::before').content, r.classList.contains('hi')])"""
     ) == [
         ['"1505"', False],
         ['"1506"', False],
         ['"1507"', False],
-        ["elided", "42 lines"],
+        ["elided", "42 lines", "Setup, left out."],
         ['"1550"', True],
         ['"1551"', False],
         ["note"],
@@ -10757,14 +10760,26 @@ fn merge_sort()
           const text = document.querySelector('#walk .lf-code-line');
           range.setStart(text.firstChild.firstChild ?? text.firstChild, 0);
           return [range.getBoundingClientRect().left,
-                  document.querySelector('#walk lf-note').getBoundingClientRect().left];
+                  document.querySelector('#walk .lf-code-note lf-note')
+                    .getBoundingClientRect().left];
         }"""
     )
     assert abs(code_x - note_x) < 1, (code_x, note_x)
 
-    marked = page.locator("#walk .lf-code-line[data-lf-indicated]")
+    # The caption sits after the gutter and the count, on the elided row's own line.
+    gutter, caption = page.evaluate(
+        """() => [document.querySelector('#walk .lf-code-line').getBoundingClientRect(),
+                  document.querySelector('#gap').getBoundingClientRect()]
+                 .map(r => [r.left, r.height])"""
+    )
+    assert caption[0] > code_x and caption[1] < 2 * gutter[1], (gutter, caption)
+
+    marked = page.locator("#walk pre > [data-lf-indicated]")
+    rows_of = "ls => ls.map(l => l.dataset.line ?? `${l.dataset.from}-${l.dataset.to}`)"
     assert page.evaluate("document.querySelector('#film').point('1507-1550')") is True
-    assert marked.evaluate_all("ls => ls.map(l => l.dataset.line)") == ["1507", "1550"]
+    assert marked.evaluate_all(rows_of) == ["1507", "1508-1549", "1550"]
+    assert page.evaluate("document.querySelector('#film').point('1520')") is True
+    assert marked.evaluate_all(rows_of) == ["1508-1549"]
     assert page.evaluate("document.querySelector('#film').point('3')") is False
     expect(marked).to_have_count(0)
 
@@ -10772,7 +10787,10 @@ fn merge_sort()
         """() => { getSelection().selectAllChildren(document.querySelector('#walk pre'));
                    return getSelection().toString(); }"""
     )
-    assert "line" not in copied.replace("let len", "") and "⋮" not in copied
-    assert copied.startswith(
-        "fn merge_sort()\n{\n    let len = v.len();\n    while end"
+    # The notes come along on lines of their own, as authored text; the numbers,
+    # the elided mark and its count do not.
+    assert copied == (
+        "fn merge_sort()\n{\n    let len = v.len();\nSetup, left out.\n"
+        "    while end > 0 {\n        let mut start = end - 1;\nOne run per pass.\n"
+        "        start -= 1;"
     )

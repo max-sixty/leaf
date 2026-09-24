@@ -2331,20 +2331,29 @@ lf-code :is(.lf-code-line, .lf-code-elided)::before {
              text-align: right;
              color: var(--code-muted); font-variant-numeric: tabular-nums; }
 /* The lines an excerpt leaves out: a row of its own with a mark in the gutter and the
-   count beside it, both painted, so the copy and the anchors see only quoted source. */
-lf-code .lf-code-elided { display: block; color: var(--code-muted); user-select: none; }
-lf-code .lf-code-elided::before { content: "\22EE"; }
-lf-code .lf-code-elided::after { content: attr(data-elided); font-family: var(--sans);
-             font-size: var(--t-6); font-style: italic; }
-lf-code .lf-code-line.hi { background: var(--hi-tint); }
-lf-code .lf-code-line.hi::before { border-right-color: var(--warn); }
+   count beside it, both painted, so the copy and the anchors see only quoted source.
+   A note docked in the stretch follows the count as the row's caption, in the same
+   face; it stays selectable, since it is authored text a comment can anchor on. The
+   row is a flex line so a long caption wraps beside the gutter rather than under it. */
+lf-code .lf-code-elided { display: flex; align-items: baseline; padding: 0 14px 0 0;
+             color: var(--code-muted); user-select: none; }
+lf-code .lf-code-elided::before { content: "\22EE"; flex: none; order: -2; }
+lf-code .lf-code-elided::after { content: attr(data-elided); order: -1; flex: none; }
+lf-code .lf-code-elided::after, lf-code .lf-code-elided > lf-note {
+             font-family: var(--sans); font-size: var(--t-6); font-style: italic; }
+lf-code .lf-code-elided > lf-note { display: block; min-width: 0; margin-inline-start: 0.5em;
+             white-space: normal; user-select: text; }
+lf-code .lf-code-elided > lf-note::before { content: "\2014\2002"; }
+lf-code :is(.lf-code-line, .lf-code-elided).hi { background: var(--hi-tint); }
+lf-code :is(.lf-code-line, .lf-code-elided).hi::before { border-right-color: var(--warn); }
 /* The line another widget is indicating (indication.js): an accent bar at the gutter's
    outer edge and an accent number, so it reads apart from an hi line by shape as well as
    hue, and an accent wash that an hi line's own tint keeps. The bar is the gutter's, not
    the line's, because the gutter's own background paints over an inset on the line. */
-lf-code .lf-code-line[data-lf-indicated] { outline: none; }
-lf-code .lf-code-line[data-lf-indicated]:not(.hi) { background: var(--accent-tint); }
-lf-code .lf-code-line[data-lf-indicated]::before {
+lf-code :is(.lf-code-line, .lf-code-elided)[data-lf-indicated] { outline: none; }
+lf-code :is(.lf-code-line, .lf-code-elided)[data-lf-indicated]:not(.hi) {
+             background: var(--accent-tint); }
+lf-code :is(.lf-code-line, .lf-code-elided)[data-lf-indicated]::before {
              box-shadow: inset 3px 0 0 var(--accent); color: var(--accent); font-weight: 600; }
 /* A note is prose about a source line, not another source line. It follows the
    code-review convention: a sans-serif row spanning the source frame, with its text

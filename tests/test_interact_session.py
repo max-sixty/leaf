@@ -8268,6 +8268,7 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
         environment["FAKE_CODEX_QUEUE_FAILURE_ONCE"] = str(
             tmp_path / "uncertain-queue-response"
         )
+    release_start = tmp_path / "release-codex-start"
     started = under_codex(
         shlex.join(
             [
@@ -8280,21 +8281,28 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
             ]
         ),
         environment,
+        hold_until=release_start,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
     )
-    out, err = started.communicate(timeout=60)
-    assert started.returncode == 0, f"{out}{err}"
-    assert "Codex delivery started for task codex-thread" in out
-
     # The fake Codex wrapper models one shell command, while a real task's Codex
     # ancestor remains alive. Keep that already-proven lifetime standing so this
     # test can isolate the detached carrier after its starting shell is gone.
+    # Transfer the claim while that ancestor is still alive.
+    wait_for(
+        lambda: codex_adapter_model.adapter_is_live("codex-thread"),
+        bool,
+        failure="the detached Codex carrier did not start",
+    )
     claim = service_model.page_claim(page)
     files_model.write_json(
         service_model.claim_path(page), {**claim, "pid": os.getpid()}
     )
+    release_start.touch()
+    out, err = started.communicate(timeout=60)
+    assert started.returncode == 0, f"{out}{err}"
+    assert "Codex delivery started for task codex-thread" in out
     try:
         wait_for(
             lambda: (
@@ -8495,6 +8503,7 @@ def test_an_offline_sibling_does_not_stop_browser_comments_reaching_codex(
 
     program, log = fake_codex_cli(tmp_path)
     session_model.cmd_status(live, "waiting", "current review")
+    release_start = tmp_path / "release-codex-start"
     started = under_codex(
         shlex.join(
             [
@@ -8511,16 +8520,23 @@ def test_an_offline_sibling_does_not_stop_browser_comments_reaching_codex(
             "CODEX_THREAD_ID": "codex-thread",
             "FAKE_CODEX_LOG": str(log),
         },
+        hold_until=release_start,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
     )
-    out, err = started.communicate(timeout=60)
-    assert started.returncode == 0, f"{out}{err}"
+    wait_for(
+        lambda: codex_adapter_model.adapter_is_live("codex-thread"),
+        bool,
+        failure="the detached Codex carrier did not start",
+    )
     claim = service_model.page_claim(live)
     files_model.write_json(
         service_model.claim_path(live), {**claim, "pid": os.getpid()}
     )
+    release_start.touch()
+    out, err = started.communicate(timeout=60)
+    assert started.returncode == 0, f"{out}{err}"
 
     try:
         service = files_model.read_json(live / "service.json")

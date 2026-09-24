@@ -1181,14 +1181,26 @@ def under_codex(spawn, codex_program):
         "sys.exit(subprocess.run(['/bin/sh', '-c', sys.argv[-1]]).returncode)"
     )
 
-    def start(command, env, *, app_server=False, **kwargs) -> subprocess.Popen:
+    def start(
+        command, env, *, app_server=False, hold_until=None, **kwargs
+    ) -> subprocess.Popen:
         # `app-server` is the whole difference between the app's shared host and
         # one session's own process — same program, same ancestry, one word in
         # the argv — so it is the one factor this varies. The runner reads the
         # last word either way, which is what keeps that the only difference.
         hosting = ["app-server"] if app_server else []
+        shell_command = f"{command}; exit"
+        if hold_until is not None:
+            # Keep the fake task alive until a test hands its claim to the
+            # worker. Otherwise the adapter can see a dead claimant between
+            # communicate() and that handoff, unlike a real Codex task.
+            shell_command = (
+                f"{command}; result=$?; "
+                f"while [ ! -e {shlex.quote(str(hold_until))} ]; do sleep 0.01; done; "
+                "exit $result"
+            )
         return spawn(
-            [str(codex_program), "-c", runner, *hosting, f"{command}; exit"],
+            [str(codex_program), "-c", runner, *hosting, shell_command],
             env={**env, "PYTHONHOME": sys.base_prefix},
             **kwargs,
         )

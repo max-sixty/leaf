@@ -32,8 +32,6 @@ where neighbouring text tells two identical passages apart; a selection on
 projected data names `datum` (the stable key local to its section) and, when the
 projection names an external input, `source` and `source_revision`; `visual` names
 a declared part of a picture and `part` the control a design comment landed on.
-`response: {kind: version, verb}` on a comment says the originating widget
-requires the agent to revise its declared answer state rather than reply.
 
 A `drawing` is up to 32 freehand strokes (`strokes`, each a list of points) attached to
 an ordinary comment, and may be that comment's only content. Its first stroke decides
@@ -203,11 +201,6 @@ them:
   detached; the root event's anchor is immutable. The transition and its explanatory
   message are one append, so the page never observes a move without the message that
   accounts for it. A thread whose root `holds` a command goal cannot move or detach.
-- A comment carrying `response: {kind: version, verb}` asks for a change to authored
-  state. `leaf reply` into that thread is refused, apart from a host failure receipt,
-  though the user may still write there, and `resolve` is accepted only once a later stamped version's authored state
-  answers the originating Ask, or changes its declared answer where the Ask was
-  already answered; a log action does not substitute.
 - A message body is Markdown, stored as typed and rendered by the page's own vendored
   runtime, so the renderer and the panel's styles version together; raw HTML renders as
   its own characters. A widget in a message rides the `markup` field, whose one door is

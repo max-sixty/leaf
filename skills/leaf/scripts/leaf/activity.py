@@ -120,11 +120,6 @@ def answer_command(answer: dict) -> str:
         return f"`leaf reply <page> --for {answer['for']}`"
     if answer["kind"] == "receipt":
         return f"`leaf receipt <page> {answer['request']} succeeded|failed`"
-    if answer["kind"] == "version":
-        return (
-            "a stamped version, then "
-            f"`leaf resolve <page> --to {answer['conversation']}`"
-        )
     return f"a stamped version whose markup records action {answer['action']}"
 
 

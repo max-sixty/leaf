@@ -5454,55 +5454,6 @@ def test_a_hold_comment_can_only_hold_its_declared_exact_section(server, page_di
         assert "matching x-conversation hold target" in json.loads(body)["error"]
 
 
-def test_a_version_response_comment_requires_its_declared_exact_section(
-    server, page_dir
-):
-    version = page_dir / "index.html"
-    version.write_text(PAGE.replace("<lf-options>", '<lf-options id="choice" choose>'))
-    registry_path = page_dir / "registry.json"
-    registry = json.loads(registry_path.read_text())
-    registry["lf-options"]["x-conversation"] = {
-        "when": {"choose": [True]},
-        "response": {"kind": "version", "verb": "choose"},
-    }
-    registry_path.write_text(json.dumps(registry))
-    publish(page_dir)
-    event = {
-        "kind": "comment",
-        "revision": 1,
-        "text": "Add the camera first.",
-        "anchor": {"section": "choice"},
-        "response": {"kind": "version", "verb": "choose"},
-        "attempt": "version_response_good_1",
-    }
-
-    status, body = fetch(f"{server}/api/event", data=json.dumps(event).encode())
-
-    assert status == 200, body
-    assert event_model.read_events(page_dir)[-1]["response"] == {
-        "kind": "version",
-        "verb": "choose",
-    }
-
-    forged = {
-        **event,
-        "anchor": {"section": "plan"},
-        "attempt": "version_response_forged_1",
-    }
-    status, body = fetch(f"{server}/api/event", data=json.dumps(forged).encode())
-    assert status == 400
-    assert "exact-section x-conversation response target" in json.loads(body)["error"]
-
-    wrong_verb = {
-        **event,
-        "response": {"kind": "version", "verb": "answer"},
-        "attempt": "version_response_wrong_verb_1",
-    }
-    status, body = fetch(f"{server}/api/event", data=json.dumps(wrong_verb).encode())
-    assert status == 400
-    assert "exact-section x-conversation response target" in json.loads(body)["error"]
-
-
 def test_stamp_keeps_its_checked_log_snapshot_until_the_note(monkeypatch, page_dir):
     """A browser action arriving during the check waits behind the publication
     note. Otherwise the successor can go live without ever being checked against

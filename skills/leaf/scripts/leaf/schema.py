@@ -434,15 +434,6 @@ EXTENSION_SCHEMA = {
             "properties": {
                 "when": AWAITING_CONDITION,
                 "hold": {"type": "string", "minLength": 1},
-                "response": {
-                    "type": "object",
-                    "properties": {
-                        "kind": {"const": "version"},
-                        "verb": {"type": "string", "pattern": f"^{HTML_NAME}$"},
-                    },
-                    "required": ["kind", "verb"],
-                    "additionalProperties": False,
-                },
             },
             "required": ["when"],
             "additionalProperties": False,

@@ -298,19 +298,14 @@ on a pinned page even when the document projection remains historical.
 Registry-declared `x-conversation` seats show an exact-section
 textual view while the owner exists in the current document. A declared
 `x-thread-surface` seats the canonical composer and Thread views inside the widget on
-the terms in `../references/packages.md`, "Widget-local Thread surfaces". A root
-declared with `response: {kind: version, verb: <answer>}` keeps that exact-section
-view text-only and refuses an agent reply because the next authored version is its
-response. Dropping the owner drops only the inline seat.
+the terms in `../references/packages.md`, "Widget-local Thread surfaces". Dropping
+the owner drops only the inline seat.
 
 `restated` and answered-report relations persist through version notes. The note
 records the version floor for each affected id or report event; silence in a
 later version does not revive retracted state. Python's projection uses
 containment, not a global id lookup, when deciding which detailed parts an action
 rests on.
-
-Version-response conversations and their resolution rules are defined in
-`../scripts/leaf/events.md`, "Threads".
 
 ## The widget vocabulary stays open
 

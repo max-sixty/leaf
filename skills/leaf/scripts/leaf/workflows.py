@@ -15,8 +15,6 @@ Answers are one of:
 
 - `{"kind": "reply", "to": <message>, "for": <event>}` — a thread input, or a
   move in an answered Ask in frozen thread markup, answered by `leaf reply --for`;
-- `{"kind": "version", "conversation": <thread>}` — a thread the user opened
-  as a request for change, answered by a stamped version and a resolve;
 - `{"kind": "markup", "action": <action>}` — a page action that is part of its
   widget's answered Ask and the authored markup does not yet record, answered by
   a stamped version that writes it in;
@@ -47,7 +45,7 @@ moves again or the markup records the move anyway.
 """
 
 from .asks import answers_ask, ask_answered
-from .events import awaits_agent, seat_root, spoken_turns
+from .events import spoken_turns
 from .projection import (
     NO_RECORD,
     PageReading,
@@ -302,14 +300,6 @@ def canonical_workflows(
         return returned
 
     workflows = []
-    clarifications = [
-        (thread["root"]["seq"], seat)
-        for thread in threads.values()
-        if thread["root"]["author"] == "agent"
-        and not thread["resolved"]
-        and not awaits_agent(thread)
-        and (seat := seat_root(thread))
-    ]
     for thread_id, thread in threads.items():
         turns = spoken_turns(thread)
         unanswered_inputs, response_address = thread_response_batch(turns)
@@ -328,23 +318,14 @@ def canonical_workflows(
             workflows.append(failed(source, target, coordinate, response))
         if response_address is None:
             continue
-        if (thread["root"].get("response") or {}).get("kind") == "version" and any(
-            seat == seat_root(thread) and root_seq > thread["root"]["seq"]
-            for root_seq, seat in clarifications
-        ):
-            continue
         # Every exact input keeps its own transport/work evidence. The response
         # contract deliberately coalesces consecutive user turns onto the newest
         # address, so only that workflow carries the answer.
-        answer = (
-            {"kind": "version", "conversation": thread_id}
-            if (thread["root"].get("response") or {}).get("kind") == "version"
-            else {
-                "kind": "reply",
-                "to": response_address["id"],
-                "for": response_address["id"],
-            }
-        )
+        answer = {
+            "kind": "reply",
+            "to": response_address["id"],
+            "for": response_address["id"],
+        }
         for source in unanswered_inputs:
             workflows.append(
                 workflow(

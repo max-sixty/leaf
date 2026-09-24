@@ -248,8 +248,8 @@ def validate_widget_relations(
         properties, said = _validate_widget_structure(
             tag, entry, registry, declarations, data, path
         )
-        awaits, response = _validate_widget_predicates(tag, entry, properties, path)
-        _validate_widget_interactions(tag, entry, properties, awaits, response, path)
+        awaits = _validate_widget_predicates(tag, entry, properties, path)
+        _validate_widget_interactions(tag, entry, properties, awaits, path)
         validate_widget_state_relations(tag, entry, declarations, path)
         validate_widget_record_contracts(
             tag, entry, properties, said, registry, declarations, path
@@ -483,7 +483,7 @@ def _validate_widget_structure(
 
 def _validate_widget_predicates(
     tag: str, entry: dict, properties: dict, path
-) -> tuple[dict, dict | None]:
+) -> dict:
     # A predicate names attributes and values the page can actually carry, or its
     # widget silently disappears from every consumer. The value's kind follows the
     # attribute's own schema — a flag is there or it isn't, an enum admits what it
@@ -574,12 +574,6 @@ def _validate_widget_predicates(
             f"{path}: <{tag}> x-conversation predicate attributes are authored "
             f"and static, but {dynamic} are written by value records"
         )
-    response = conversation.get("response")
-    if response and (entry.get("x-awaits") is None or awaits.get("rollup")):
-        raise RegistryError(
-            f"{path}: <{tag}> x-conversation requires a version response but "
-            "declares no x-awaits standing Ask"
-        )
     data_bindings = {spec["source"] for spec in entry.get("x-data", {}).values()}
     if dynamic := sorted(data_bindings & mutable_values):
         raise RegistryError(
@@ -592,7 +586,7 @@ def _validate_widget_predicates(
             f"`{measured['at']}` is an authored snapshot instant, but is written "
             "by a value record"
         )
-    return awaits, response
+    return awaits
 
 
 def _validate_widget_interactions(
@@ -600,7 +594,6 @@ def _validate_widget_interactions(
     entry: dict,
     properties: dict,
     awaits: dict,
-    response: dict | None,
     path,
 ) -> None:
     work = entry.get("x-work")
@@ -661,19 +654,6 @@ def _validate_widget_interactions(
             f"{path}: <{tag}> x-awaits holds Asks open until `{until['verb']}`, "
             "which it does not declare as an x-state verb"
         )
-    if response:
-        verb = response["verb"]
-        if verb not in answers:
-            raise RegistryError(
-                f"{path}: <{tag}> x-conversation version response names `{verb}`, "
-                "which x-awaits does not declare as an answer verb"
-            )
-        record = entry.get("x-state", {}).get(verb, {}).get("record") or {}
-        if record.get("kind") not in {"attribute", "value"}:
-            raise RegistryError(
-                f"{path}: <{tag}> x-conversation version response verb `{verb}` "
-                "has no attribute or value record for a version to change"
-            )
     needs_upgrade = [
         key
         for key in (

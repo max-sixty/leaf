@@ -5803,39 +5803,6 @@ def test_a_delivered_request_on_a_sent_widget_carries_its_frozen_contract(
     assert "obligation" not in retried
 
 
-def test_a_delivery_addresses_a_version_response_explicitly(page_dir, capsys):
-    registry_path = page_dir / "registry.json"
-    registry = json.loads(registry_path.read_text())
-    registry["lf-options"]["x-conversation"] = {
-        "when": {"choose": [True]},
-        "response": {"kind": "version", "verb": "choose"},
-    }
-    registry_path.write_text(json.dumps(registry))
-    version = page_dir / "index.html"
-    version.write_text(PAGE.replace("<lf-options>", '<lf-options id="choice" choose>'))
-    publish(page_dir)
-    serving(page_dir, 1)
-    proposal = events_model.append_event(
-        page_dir,
-        {
-            "kind": "comment",
-            "author": "user",
-            "revision": 1,
-            "text": "Add the camera first.",
-            "anchor": {"section": "choice"},
-            "response": {"kind": "version", "verb": "choose"},
-        },
-    )
-
-    assert session_model.cmd_wait(page_dir) == 0
-    _, _, [event] = delivered(capsys.readouterr().out)
-    assert event["id"] == proposal["id"]
-    assert event["obligation"] == {
-        "as_of_seq": event["seq"],
-        "response": {"kind": "version", "conversation": proposal["id"]},
-    }
-
-
 # A page whose suggestion answers c1, which is the one shipped shape where the
 # gesture that settles a conversation is made on a widget standing outside it.
 SETTLING_PAGE = PAGE.replace(
@@ -9858,79 +9825,6 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(claimed, capsys)
     lease.close()
 
 
-def test_a_clarification_thread_carries_a_version_response_while_the_user_owns_it(
-    claimed, capsys
-):
-    version = claimed / "index.html"
-    version.write_text(PAGE.replace("<lf-options>", '<lf-options id="choice" choose>'))
-    publish(claimed)
-    session_model.cmd_status(claimed, "waiting", "")
-    session = service_model.page_claim(claimed)
-    lease = leases_model.take_waiter_lease(
-        leases_model.waiter_lease_path(claimed, session["id"])
-    )
-    assert lease
-    older_question = events_model.append_event(
-        claimed,
-        {
-            "kind": "comment",
-            "author": "agent",
-            "revision": 1,
-            "anchor": {"section": "choice"},
-            "text": "Should the existing camera job include mounting?",
-        },
-    )
-    proposal = events_model.append_event(
-        claimed,
-        {
-            "kind": "comment",
-            "author": "user",
-            "revision": 1,
-            "anchor": {"section": "choice"},
-            "response": {"kind": "version", "verb": "choose"},
-            "text": "Add the camera first.",
-        },
-    )
-    receive_through(claimed, last_deliverable_seq(claimed))
-
-    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
-    assert proposal["id"] in json.loads(capsys.readouterr().out)["reason"]
-    events_model.append_event(
-        claimed,
-        {"kind": "resolve", "author": "agent", "parent": older_question["id"]},
-    )
-
-    question = events_model.append_event(
-        claimed,
-        {
-            "kind": "comment",
-            "author": "agent",
-            "revision": 1,
-            "anchor": {"section": "choice"},
-            "text": "Should the mounting cost be part of the option?",
-        },
-    )
-    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
-    assert capsys.readouterr().out == ""
-
-    answered = events_model.append_event(
-        claimed,
-        {
-            "kind": "reply",
-            "author": "user",
-            "parent": question["id"],
-            "text": "Yes.",
-        },
-    )
-    receive_through(claimed, last_deliverable_seq(claimed))
-    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
-    reason = json.loads(capsys.readouterr().out)["reason"]
-    assert proposal["id"] in reason
-    assert f"--for {answered['id']}" in reason
-
-    lease.close()
-
-
 def test_the_guard_survives_a_page_vendored_before_the_layer_moved(claimed, capsys):
     """A page directory holds the copy of the layer it was created with, and the
     stamp refuses a copy the current layer has outgrown — by design, since that
@@ -11278,21 +11172,13 @@ def _interaction_prompt_evidence(page, value):
     return stable(value)
 
 
-@pytest.mark.parametrize("response", ["reply", "version", "receipt"])
+@pytest.mark.parametrize("response", ["reply", "receipt"])
 def test_agent_sees_the_complete_interaction_recovery(
     claimed, capsys, snapshot, response
 ):
     """The real hook and CLI outputs, from unpicked input through settlement."""
     page = claimed
     source = PAGE.replace("<lf-options>", '<lf-options id="choice" choose>')
-    if response == "version":
-        registry_path = page / "registry.json"
-        registry = json.loads(registry_path.read_text())
-        registry["lf-options"]["x-conversation"] = {
-            "when": {"choose": [True]},
-            "response": {"kind": "version", "verb": "choose"},
-        }
-        registry_path.write_text(json.dumps(registry))
     if response == "receipt":
         source = source.replace(
             "</section>",
@@ -11338,14 +11224,6 @@ def test_agent_sees_the_complete_interaction_recovery(
                 "author": "user",
                 "revision": 1,
                 "text": "Add the camera first.",
-                **(
-                    {
-                        "anchor": {"section": "choice"},
-                        "response": {"kind": "version", "verb": "choose"},
-                    }
-                    if response == "version"
-                    else {}
-                ),
             },
         )
     observations["unpicked at prompt"] = hook("UserPromptSubmit")
@@ -11384,7 +11262,7 @@ def test_agent_sees_the_complete_interaction_recovery(
                 if result.output.startswith("{")
                 else result.output
             )
-        elif response == "receipt":
+        else:
             result = CliRunner().invoke(
                 cli_model.cli,
                 [
@@ -11395,23 +11273,6 @@ def test_agent_sees_the_complete_interaction_recovery(
                     "--text",
                     "Restarted the worker.",
                 ],
-            )
-            assert result.exit_code == 0, result.output
-            observations["answer"] = (
-                json.loads(result.output)
-                if result.output.startswith("{")
-                else result.output
-            )
-        else:
-            (page / "index.html").write_text(
-                source.replace('id="flag-first"', 'id="flag-first" chosen')
-            )
-            # The public version answers the choice; resolve then closes its thread.
-            stamped = stamp(page, "Choose the flag-first rollout.")
-            assert stamped.exit_code == 0, stamped.output
-            observations["stamped answer"] = stamped.output
-            result = CliRunner().invoke(
-                cli_model.cli, ["resolve", str(page), "--to", sent["id"]]
             )
             assert result.exit_code == 0, result.output
             observations["answer"] = (

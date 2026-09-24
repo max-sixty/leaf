@@ -330,31 +330,6 @@ def held_comment_error(event: dict, page_by_id: dict, registry: dict):
     return None
 
 
-def version_response_comment_error(event: dict, page_by_id: dict, registry: dict):
-    """Why a comment cannot require the authored response it names."""
-    response = event.get("response")
-    if not response:
-        return None
-    anchor = event.get("anchor")
-    target = anchor.get("section") if isinstance(anchor, dict) else None
-    rec = page_by_id.get(target)
-    conversation = (
-        (registry.get(rec["tag"]) or {}).get("x-conversation") if rec else None
-    )
-    if (
-        rec is None
-        or not conversation
-        or conversation.get("response") != response
-        or not asking(rec["attrs"], conversation.get("when"))
-        or anchor != {"section": target}
-    ):
-        return (
-            "comment response must match its exact-section x-conversation "
-            "response target"
-        )
-    return None
-
-
 def visual_anchor_error(event: dict, page_by_id: dict, registry: dict):
     """Why a semantic visual coordinate is not authored on its section."""
     anchor = event.get("anchor") or {}
@@ -705,7 +680,6 @@ def _anchored_comment_error(
     if not (
         recapture
         or event.get("holds")
-        or event.get("response")
         or anchor.get("visual")
         or anchor.get("source")
     ):
@@ -715,7 +689,6 @@ def _anchored_comment_error(
     for error in (
         datum_anchor_error(view, event, page_by_id, registry),
         held_comment_error(event, page_by_id, registry),
-        version_response_comment_error(event, page_by_id, registry),
         visual_anchor_error(event, page_by_id, registry),
     ):
         if error:

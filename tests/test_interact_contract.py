@@ -2601,47 +2601,6 @@ def test_one_each_child_declarations_are_checked_whole(page_dir, mutation, messa
     assert message in result.output
 
 
-def test_a_version_response_requires_a_standing_request(page_dir):
-    registry = json.loads((page_dir / "registry.json").read_text())
-    registry["lf-diagram"]["x-conversation"] = {
-        "when": {"id": ["flow"]},
-        "response": {"kind": "version", "verb": "draw"},
-    }
-    (page_dir / "registry.json").write_text(json.dumps(registry))
-
-    result = check(page_dir)
-
-    assert result.exit_code != 0
-    assert "version response but declares no x-awaits standing Ask" in result.output
-
-    del registry["lf-diagram"]["x-conversation"]["response"]
-    registry["lf-diagram"]["x-awaits"] = {"rollup": True}
-    assert registry_validation.validate_registry(registry, "test registry") is registry
-
-
-def test_a_version_response_names_an_authored_answer_record(page_dir):
-    registry = json.loads((page_dir / "registry.json").read_text())
-    registry["lf-options"]["x-conversation"] = {
-        "when": {"choose": [True]},
-        "response": {"kind": "version", "verb": "choose"},
-    }
-    response = registry["lf-options"]["x-conversation"]["response"]
-    response["verb"] = "answer"
-
-    with pytest.raises(
-        registry_contract.RegistryError,
-        match="x-awaits does not declare as an answer verb",
-    ):
-        registry_validation.validate_registry(registry, "test registry")
-
-    registry["lf-options"]["x-awaits"]["answers"].append("answer")
-    with pytest.raises(
-        registry_contract.RegistryError,
-        match="has no attribute or value record for a version to change",
-    ):
-        registry_validation.validate_registry(registry, "test registry")
-
-
 @pytest.mark.parametrize(
     ("mutate", "message"),
     [
@@ -4202,7 +4161,6 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
             "text": "this looks off ![screenshot](/media/0a1b2c.png)",
             **owes("reply"),
         },
-        "comment awaiting a version": {"kind": "comment", **owes("version")},
         "comment a newer message answers through": {"kind": "comment"},
         "suggestion": {"kind": "comment", "suggestion": True, **owes("reply")},
         "design comment": {"kind": "comment", "about": "design", **owes("reply")},
@@ -4213,7 +4171,6 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
             "text": "like this ![sketch](/media/3d4e5f.png)",
             **owes("reply"),
         },
-        "reply in a thread awaiting a version": {"kind": "reply", **owes("version")},
         "reaction on a message": {"kind": "reply", "token": "+1"},
         "pick on the page": {"kind": "action", "meaning": on_page, **owes("markup")},
         "option the user added": {
@@ -5264,51 +5221,6 @@ def test_init_refuses_to_drop_the_contract_of_a_held_comment(page_dir):
     assert result.exit_code != 0
     assert "no longer speaks" in result.output
     assert "x-conversation hold target" in result.output
-
-
-def test_init_refuses_to_drop_the_contract_of_a_version_response(page_dir):
-    version = page_dir / "index.html"
-    version.write_text(PAGE.replace("<lf-options>", '<lf-options id="choice" choose>'))
-    registry_path = page_dir / "registry.json"
-    registry = json.loads(registry_path.read_text())
-    registry["lf-options"]["x-conversation"] = {
-        "when": {"choose": [True]},
-        "response": {"kind": "version", "verb": "choose"},
-    }
-    registry_path.write_text(json.dumps(registry))
-    publish(page_dir)
-    events_model.append_event(
-        page_dir,
-        {
-            "kind": "comment",
-            "author": "user",
-            "revision": 1,
-            "text": "Add the camera first.",
-            "anchor": {"section": "choice"},
-            "response": {"kind": "version", "verb": "choose"},
-        },
-    )
-    registry = json.loads(registry_path.read_text())
-    del registry["lf-options"]["x-conversation"]["response"]
-    overlay = page_dir.parent / ".leaf"
-    overlay.mkdir()
-    (overlay / "registry.json").write_text(
-        json.dumps({"lf-options": registry["lf-options"]})
-    )
-
-    result = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "page",
-            "init",
-            *package_selection_args((*PAGE_PACKAGES, "./.leaf")),
-            str(page_dir),
-        ],
-    )
-
-    assert result.exit_code != 0
-    assert "no longer speaks" in result.output
-    assert "x-conversation response target" in result.output
 
 
 def test_shared_package_declarations_compose_by_member():

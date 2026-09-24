@@ -56,39 +56,15 @@ def thread_obligation(events: list, responses: dict, message: str) -> dict | Non
     """
     roots = thread_roots(events)
     root = roots.get(message, message)
-    standing = next(
+    return next(
         (
             response
             for response in responses.values()
-            if (
-                response["kind"] == "reply"
-                and roots.get(response["to"], response["to"]) == root
-            )
-            or (response["kind"] == "version" and response["conversation"] == root)
+            if response["kind"] == "reply"
+            and roots.get(response["to"], response["to"]) == root
         ),
         None,
     )
-    if standing is not None:
-        return standing
-    # A version-response thread takes a version whether or not one is outstanding:
-    # the obligation clears when the thread resolves and the root's own declaration
-    # stays for the page's life, so a reading that stopped at the obligation would
-    # send a resolved thread to `--initiates`, which refuses it on that declaration.
-    opening = next((event for event in events if event.get("id") == root), None)
-    if ((opening or {}).get("response") or {}).get("kind") == "version":
-        return {"kind": "version", "conversation": root}
-    return None
-
-
-# Where a thread that takes a page version sends an answer instead. The version is
-# the answer, and the Ask the thread opened on stays open to a separate question
-# meanwhile. The Ask is named as a recipe rather than by id: its id is markup, which a
-# later revision may retire, and whether `--section` takes it is the anchor rule's to
-# say against the active revision — a reading the log cannot vouch for.
-VERSION_THREAD_RECOURSE = (
-    "incorporate its request in the next version, or open a separate thread on the "
-    "same Ask with `leaf comment <page> --section <ask-id>` if you need an answer first"
-)
 
 
 def logged_id(events: list, value: str, responses: dict) -> str | None:
@@ -124,18 +100,12 @@ def logged_id(events: list, value: str, responses: dict) -> str | None:
                 f"{held}, and nothing is owed for it — "
                 f"`leaf reply <page> --to {value} --initiates` replies to it"
             )
-        if owed["kind"] == "reply":
-            return (
-                f"{held}, and its conversation is owed a reply — "
-                f"{answer_command(owed)} answers it"
-            )
+        return (
+            f"{held}, and its conversation is owed a reply — "
+            f"{answer_command(owed)} answers it"
+        )
     if owed is None:
         return f"{held}, and nothing is owed for it"
-    if owed["kind"] == "version":
-        return (
-            f"{held} — its thread takes a page version rather than a reply; "
-            f"{VERSION_THREAD_RECOURSE}"
-        )
     return f"{held} — {answer_command(owed)} answers it"
 
 

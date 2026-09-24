@@ -814,7 +814,7 @@ def test_a_start_that_fails_on_its_connection_is_recorded_like_any_other(
     )
 
 
-@pytest.mark.parametrize("response_kind", ["reply", "version", "receipt"])
+@pytest.mark.parametrize("response_kind", ["reply", "receipt"])
 def test_hosted_agent_receives_the_response_instructions_and_delivery(
     page_dir, monkeypatch, snapshot, response_kind
 ):
@@ -824,24 +824,6 @@ def test_hosted_agent_receives_the_response_instructions_and_delivery(
     preparation, response addressing, and both request builders run normally.
     """
     command = {"kind": "comment", "author": "user", "text": "Use backfill first."}
-    if response_kind == "version":
-        registry_path = page_dir / "registry.json"
-        registry = json.loads(registry_path.read_text())
-        registry["lf-options"]["x-conversation"] = {
-            "when": {"choose": [True]},
-            "response": {"kind": "version", "verb": "choose"},
-        }
-        registry_path.write_text(json.dumps(registry))
-        source = page_dir / "index.html"
-        source.write_text(
-            source.read_text().replace(
-                "<lf-options>", '<lf-options id="choice" choose>'
-            )
-        )
-        command.update(
-            anchor={"section": "choice"},
-            response={"kind": "version", "verb": "choose"},
-        )
     if response_kind == "receipt":
         source = page_dir / "index.html"
         controls = (
@@ -1789,18 +1771,7 @@ def _request(page_dir: Path) -> dict:
     )
 
 
-def _version_request(page_dir: Path) -> dict:
-    # No shipped Ask owns a version-response seat any more, so the page declares one.
-    registry_path = page_dir / "registry.json"
-    registry = json.loads(registry_path.read_text())
-    registry["lf-options"]["x-conversation"] = {
-        "when": {"choose": [True]},
-        "response": {"kind": "version", "verb": "choose"},
-    }
-    registry_path.write_text(json.dumps(registry))
-    (page_dir / "index.html").write_text(
-        PAGE.replace("<lf-options>", '<lf-options id="choice" choose>')
-    )
+def _message(page_dir: Path) -> dict:
     publish(page_dir)
     return append_event(
         page_dir,
@@ -1809,15 +1780,13 @@ def _version_request(page_dir: Path) -> dict:
             "author": "user",
             "revision": 1,
             "text": "Add the camera as the first job.",
-            "anchor": {"section": "choice"},
-            "response": {"kind": "version", "verb": "choose"},
         },
     )
 
 
 @pytest.mark.parametrize(
     ("answer", "owed_move"),
-    (("markup", _page_pick), ("receipt", _request), ("version", _version_request)),
+    (("markup", _page_pick), ("receipt", _request), ("reply", _message)),
 )
 def test_a_failed_turn_hands_every_kind_of_owed_move_back(
     page_dir, monkeypatch, answer, owed_move
@@ -1829,8 +1798,8 @@ def test_a_failed_turn_hands_every_kind_of_owed_move_back(
     and each leaves the next step with the user, so none stays owed with no turn
     coming for it. A request's failed receipt is its lifecycle's own outcome and
     reopens its seat. A pick keeps standing on the page, and the workflow says it was
-    not answered until the user answers again. A conversation that asked for a
-    version is told in that conversation.
+    not answered until the user answers again. A message is told in its own
+    conversation.
     """
     move = owed_move(page_dir)
     assert current_responses(page_dir, read_events(page_dir))[move["id"]]["kind"] == (

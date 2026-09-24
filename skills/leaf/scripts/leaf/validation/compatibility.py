@@ -141,15 +141,6 @@ def candidate_vocabulary_gaps(
                     )
                 )
             )
-            or (
-                kind == "comment"
-                and e.get("response")
-                and (
-                    error := event_contracts.version_response_comment_error(
-                        e, document.by_id, incoming
-                    )
-                )
-            )
             or (kind == "comment" and (error := visual_vocabulary_error(e)))
         ):
             key = f"comment contract: {error}"

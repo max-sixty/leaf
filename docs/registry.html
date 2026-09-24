@@ -223,11 +223,7 @@
                   an answer: the widget's state is untouched, so a version still has to
                   record what the words settled, and an action's
                   <code>requires</code> reads the Ask as open. An ordinary reply or
-                  resolve hands the conversation back. A version-response conversation
-                  takes no reply; only authored state in a later version that answers an
-                  originating open Ask, or changes its declared answer when the Ask was
-                  already answered, unlocks the agent's resolve. User actions in the log
-                  do not substitute for that version. A widget inside a thread presents
+                  resolve hands the conversation back. A widget inside a thread presents
                   an Ask like one on the page, with one bound set by frozen thread
                   markup: the thread's own reply box is already that seat, so only an
                   action can answer it there. <code>when</code> selects Leaf elements
@@ -289,23 +285,13 @@
                   rather than being counted a second time under a box they have already
                   used. It is not an answer — the widget's own state is untouched, so
                   its controls still work and an action's <code>requires</code> still
-                  reads the Ask as open. A conversation with
-                  <code>response: {kind: version, verb: &lt;answer&gt;}</code> carries
-                  that declaration on its root comment, has no inline reply control, and
-                  refuses <code>leaf reply</code>: the agent either incorporates it in a
-                  later version or opens a separate thread when that revision depends on
-                  the user. To unlock resolve, authored state in the later version must
-                  answer an originating open Ask, or change the named answer's authored
-                  record when the Ask was already answered. User actions in the log do
-                  not substitute for that version. The named verb must be one of
-                  x-awaits' answers with an attribute or value record, so the resolve
-                  gate can compare the originating and current versions without naming a
-                  widget. A <code>hold</code> comment is such a conversation like any
-                  other. <code>hold</code> labels a stronger send route whose comment
-                  carries <code>holds</code> naming this widget: that route remains
-                  available after ordinary roots, the unresolved held thread is the
-                  hold, resolution releases it, and undoing resolution restores it
-                  atomically. Dropping the widget drops only the inline view.
+                  reads the Ask as open. A <code>hold</code> comment is a seat
+                  conversation like any other. <code>hold</code> labels a stronger send
+                  route whose comment carries <code>holds</code> naming this widget:
+                  that route remains available after ordinary roots, the unresolved held
+                  thread is the hold, resolution releases it, and undoing resolution
+                  restores it atomically. Dropping the widget drops only the inline
+                  view.
                 </p>
               </details>
             </div>

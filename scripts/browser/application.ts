@@ -85,7 +85,7 @@ interface WireWorkflow {
   input: string | null;
   subject: { kind: "conversation" | "widget"; id: string };
   coordinate: unknown;
-  answer: { kind: "reply" | "version" | "markup" | "receipt" } | null;
+  answer: { kind: "reply" | "markup" | "receipt" } | null;
   stage: "sent" | "queued" | "picked_up" | "working" | "replying" | "answered";
   ts: string | null;
   detail: string;

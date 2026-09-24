@@ -4,7 +4,6 @@ import base64
 import io
 import json
 import re
-from copy import deepcopy
 from datetime import datetime, timedelta
 
 import pytest
@@ -739,35 +738,20 @@ def test_a_held_inline_reply_reveal_yields_to_new_user_focus(browser, serve):
     expect(destination).not_to_have_class(re.compile(r"\bflash\b"))
 
 
-@pytest.mark.parametrize("response", ["reply", "version"])
 def test_inline_settlement_retains_focus_when_its_controls_are_replaced(
-    browser, serve, response
+    browser, serve
 ):
-    """A page seat keeps focus through settlement with or without a reply textarea."""
-    layer = deepcopy(SEATED_ASK_LAYER)
-    if response == "version":
-        entry = layer["lf-verdict"]
-        entry["properties"]["answer"] = {"type": "string", "enum": ["yes", "no"]}
-        entry["required"].append("answer")
-        entry["x-example"] = entry["x-example"].replace(" asks", ' answer="no" asks')
-        entry["x-state"]["settle"]["record"] = {
-            "kind": "value",
-            "attr": "answer",
-            "value": "answer",
-        }
-        entry["x-conversation"]["response"] = {"kind": "version", "verb": "settle"}
+    """A page seat keeps focus through settlement when its controls are replaced."""
     page = open_page(
         browser,
         serve(
             leaf_page(
                 "Inline settlement",
-                '<h1>Review the plan</h1><lf-verdict id="proposal"'
-                + (' answer="no"' if response == "version" else "")
-                + " asks>"
+                '<h1>Review the plan</h1><lf-verdict id="proposal" asks>'
                 "Should these jobs share a visit?</lf-verdict>"
                 '<label>Another thought <input id="later"></label>',
             ),
-            layer_registry=layer,
+            layer_registry=SEATED_ASK_LAYER,
             layer_widgets=SEATED_ASK_WIDGETS,
         ),
     )
@@ -780,12 +764,9 @@ def test_inline_settlement_retains_focus_when_its_controls_are_replaced(
         for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "comment"
     )
-    assert root.get("response") == (
-        {"kind": "version", "verb": "settle"} if response == "version" else None
-    )
     thread = page.locator(f'.lf-conversation-thread[data-thread="{root["id"]}"]')
-    destination = thread.locator("textarea") if response == "reply" else thread
-    expect(thread.locator("textarea")).to_have_count(1 if response == "reply" else 0)
+    destination = thread.locator("textarea")
+    expect(destination).to_have_count(1)
     thread.get_by_role("button", name="Resolve thread", exact=True).focus()
     page.keyboard.press("Enter")
     round_trip(page)

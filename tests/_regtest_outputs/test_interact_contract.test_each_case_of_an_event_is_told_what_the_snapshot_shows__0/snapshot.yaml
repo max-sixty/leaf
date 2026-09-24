@@ -375,34 +375,6 @@ comment with a pasted image:
         your reply's prose asks the user something. Your reply renders as Markdown,
         so show code or markup in a fenced block.
 
-comment awaiting a version:
-  event:
-    kind: comment
-    obligation:
-      response:
-        kind: version
-  told:
-    - when: {"not": {"required": ["token"]}}
-      text: >-
-        Acknowledge this delivery before anything else, by your host contract's
-        route where it leaves acknowledgement to you: until then the user's message
-        reads Sent or Queued rather than Picked up.
-    - when: {"not": {"required": ["token"]}}
-      text: >-
-        If this event's conversation has a null `title` in the batch's `conversations`,
-        name it with `leaf conversation title <page> <conversation-id> --text "<a
-        few words>"`, so the thread panel lists its subject rather than its opening
-        words.
-    - text: >-
-        This conversation asks for a new version of the page rather than a reply,
-        and `leaf reply` refuses it. Make the change it asks for, stamp the version,
-        then close it with `leaf resolve <page> --to <conversation-id>`, which refuses
-        until a stamped version's authored state answers the Ask the conversation
-        came from, or changes its declared answer where the Ask was already answered.
-        If the change needs clarification first, ask in a separate thread on the
-        same Ask with `leaf comment <page> --section <ask-id>`; the user's answer
-        there hands both threads back to you.
-
 comment a newer message answers through:
   event:
     kind: comment
@@ -598,39 +570,6 @@ reply with a pasted image:
         or `--detach` it if its subject has left the page. Add `--awaits` only if
         your reply's prose asks the user something. Your reply renders as Markdown,
         so show code or markup in a fenced block.
-
-reply in a thread awaiting a version:
-  event:
-    kind: reply
-    obligation:
-      response:
-        kind: version
-  told:
-    - when: {"not": {"required": ["token"]}}
-      text: >-
-        Acknowledge this delivery before anything else, by your host contract's
-        route where it leaves acknowledgement to you: until then the user's message
-        reads Sent or Queued rather than Picked up.
-    - when: {"not": {"required": ["token"]}}
-      text: >-
-        The user answered in a thread; the batch's `conversations` carries the thread's
-        context, and `leaf conversation read <page> <conversation-id>` reads its
-        history in pages.
-    - when: {"not": {"required": ["token"]}}
-      text: >-
-        If this event's conversation has a null `title` in the batch's `conversations`,
-        name it with `leaf conversation title <page> <conversation-id> --text "<a
-        few words>"`, so the thread panel lists its subject rather than its opening
-        words.
-    - text: >-
-        This conversation asks for a new version of the page rather than a reply,
-        and `leaf reply` refuses it. Make the change it asks for, stamp the version,
-        then close it with `leaf resolve <page> --to <conversation-id>`, which refuses
-        until a stamped version's authored state answers the Ask the conversation
-        came from, or changes its declared answer where the Ask was already answered.
-        If the change needs clarification first, ask in a separate thread on the
-        same Ask with `leaf comment <page> --section <ask-id>`; the user's answer
-        there hands both threads back to you.
 
 reaction on a message:
   event:

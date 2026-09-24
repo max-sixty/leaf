@@ -69,7 +69,7 @@ boundaries. Review the affected specimens when changing interaction guidance:
 | File | Boundary |
 | --- | --- |
 | `test_interact_contract.py` | event handling and browser POST through delivery |
-| `test_interact_session.py` | hooks, watcher recovery, reply/version/receipt lifecycles, summary suggestions |
+| `test_interact_session.py` | hooks, watcher recovery, reply/receipt lifecycles, summary suggestions |
 | `test_interact_layer.py` | command help and reply selection errors |
 | `test_interact_mcp.py` | stdio tool descriptions and metadata |
 | `test_website_server.py` | hosted agent start messages and serialized tool output |

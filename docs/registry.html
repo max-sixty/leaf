@@ -141,6 +141,7 @@
           <a href="#x-lines"><code>x-lines</code></a>
           <a href="#x-measure"><code>x-measure</code></a>
           <a href="#x-measured"><code>x-measured</code></a>
+          <a href="#x-name"><code>x-name</code></a>
           <a href="#x-outline"><code>x-outline</code></a>
           <a href="#x-owners"><code>x-owners</code></a>
           <a href="#x-page-navigation"><code>x-page-navigation</code></a>
@@ -432,6 +433,27 @@
                   <code>page state</code> reports the same debt. The declaration
                   compares runs, not age: a source that never updates creates no
                   warning.
+                </p>
+              </details>
+            </div>
+          </section>
+          <section class="reference-entry" id="x-name">
+            <h3><code>x-name</code></h3>
+            <div class="reference-copy">
+              <p>
+                The attribute whose value is this tag's title: what the page calls one
+                of these elements when it names it away from itself, as the activity
+                feed does for where something happened.
+              </p>
+              <details class="reference-more">
+                <summary aria-label="Full x-name contract">Full contract</summary>
+                <p>
+                  Leave it off where the authoring contract already titles the element:
+                  a section by its heading, a disclosure by its summary, a titled member
+                  by its leading &lt;strong&gt;. Declare it where an attribute is the
+                  title instead, as a column's or a tab's <code>label</code> is. An
+                  attribute the element merely shows first, such as a metric's value or
+                  a chronology entry's time, is not its title.
                 </p>
               </details>
             </div>

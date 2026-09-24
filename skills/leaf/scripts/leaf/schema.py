@@ -509,6 +509,7 @@ EXTENSION_SCHEMA = {
         "x-bound": {"enum": ["start", "end"]},
         "x-withdrawn-as": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "x-word": {"enum": ["module"]},
+        "x-name": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "x-work": WORK_SCHEMA,
     },
     "required": ["x-content", "x-upgrade"],
@@ -527,7 +528,15 @@ EXTENSION_SCHEMA = {
 # name an outcome rather than an attribute, and sharing a spelling is no reason to share
 # a check. x-awaits and x-data name attributes too and keep their own loops, having more
 # to say about each than that it exists.
-ATTRIBUTE_KEYS = ("x-language", "x-lines", "x-paints", "x-refers", "x-says", "x-tone")
+ATTRIBUTE_KEYS = (
+    "x-language",
+    "x-lines",
+    "x-name",
+    "x-paints",
+    "x-refers",
+    "x-says",
+    "x-tone",
+)
 
 SKILL_ROOT = Path(__file__).resolve().parent.parent.parent
 PLUGIN_ROOT = SKILL_ROOT.parent.parent

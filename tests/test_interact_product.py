@@ -1696,11 +1696,13 @@ def test_markup_enters_only_through_the_cli_gate(server, page_dir):
 
 def test_export_prints_threads_and_versions(page_dir):
     # The heading is the page's title as a user sees it, entities and all.
-    titled = PAGE.replace(
-        "<title>t</title>", "<title>Cutoff &amp; backfill</title>"
-    ).replace(
-        '<lf-diagram id="flow">',
-        '<lf-diagram id="flow" parts="node:A node:B">',
+    titled = (
+        PAGE.replace("<title>t</title>", "<title>Cutoff &amp; backfill</title>")
+        .replace(
+            '<lf-diagram id="flow">',
+            '<lf-diagram id="flow" parts="node:A node:B">',
+        )
+        .replace("<lf-options>", '<lf-options id="plan-options">')
     )
     (page_dir / "index.html").write_text(titled)
     CliRunner().invoke(
@@ -1769,6 +1771,22 @@ def test_export_prints_threads_and_versions(page_dir):
             },
         },
     )
+    events_model.append_event(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "plan-options",
+            "action": "choose",
+            "detail": {"options": ["backfill-first"]},
+            "meaning": {
+                "document": {"kind": "page", "revision": 1},
+                "coordinate": ["plan-options", "plan-options", "selection"],
+                "depends": ["backfill-first", "plan-options"],
+            },
+        },
+    )
     # An anchor holds the whole passage, because that is the extent the page marks; a
     # transcript is prose someone pastes into an MR, so a passage of any length is
     # named by its ends and the exchange stays readable under it.
@@ -1795,6 +1813,11 @@ def test_export_prints_threads_and_versions(page_dir):
     # The user's direct edits are outcomes of the exchange, not just events.
     assert "### Edits" in result.output
     assert "- `b`: move card=card-x to=col-done index=0 (on v1)" in result.output
+    # A choice says what was chosen in the words of the version it was made on.
+    assert (
+        "- `plan-options`: choose options=['backfill-first'] — “effort: med risk: low "
+        "Backfill first Verify, then flip. My take: do this first.” (on v1)"
+    ) in result.output
 
     # And one they took back is an outcome under its own name: left out it would
     # read as never made, and shown plainly it would read as final.

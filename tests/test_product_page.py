@@ -228,7 +228,9 @@ def test_how_it_works_delivery_has_the_shape_a_real_delivery_has(page_dir):
     )
     with service_model.PageTransaction(page_dir) as page:
         stored = next(event for event in page.events if event["id"] == comment["id"])
-        real = delivery_model.batch_data(page_dir, page, [stored])
+        real = delivery_model.handled(
+            delivery_model.batch_data(page_dir, page, [stored]), "wait"
+        )
     (real_conversation,) = real["conversations"]
     registry = active_registry(page_dir)
 
@@ -238,9 +240,16 @@ def test_how_it_works_delivery_has_the_shape_a_real_delivery_has(page_dir):
         assert [c["id"] for c in batch["conversations"]] == list(dict.fromkeys(named))
         for conversation in batch["conversations"]:
             assert conversation.keys() == real_conversation.keys()
+        digests = {c["id"]: c for c in batch["conversations"]}
         for event in batch["events"]:
             shown_clauses = [batch["handling"][h] for h in event["handling"]]
-            delivered = [c["text"] for c in event_clauses(event, registry)]
+            # The transcript's delivery is `leaf wait`'s, and a clause reads the
+            # event's conversation beside the event.
+            case = {**event, "carrier": "wait"}
+            if event["conversations"]:
+                case["conversation"] = digests[event["conversations"][0]]
+            told = event_clauses(case, registry)
+            delivered = [c["text"] for c in told]
             assert shown_clauses == delivered, event["id"]
 
 

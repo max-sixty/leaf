@@ -28,18 +28,17 @@ the answer, or what you are about to do. Leaf streams it into the addressed thre
 once, so the user reads it while you work. Later working messages stay in Codex. Your
 final message completes the reply, and Leaf commits the opening and the final message
 together through the same reply contract as `leaf reply`. Do not run `leaf reply` for
-that response, which refuses it as bound to this delivery's final message. The
-final message cannot move or detach its thread, so the thread keeps its anchor. If
-the user resolves the thread before the turn completes, the reply still posts and
-reopens it. A later plain reply remains pending for the next slice.
+that response, which refuses it. The final message cannot move or detach its
+thread, so the thread keeps its anchor. If the user resolves the thread before the
+turn completes, the reply still posts and reopens it. A later plain reply remains pending for the next slice.
 
 Other obligations in the slice take the operations their delivered `answering`
 clauses name.
 
 A `leaf-delivery` pointer queued before Leaf observed the task can still arrive as a
 user message; read it with `leaf delivery read <id>`, and Leaf binds its reply to the
-turn's messages the same way. Wherever `leaf reply` refuses an event as bound to this
-delivery's final message, answer it there.
+turn's messages the same way. Wherever `leaf reply` refuses an event as answered by
+this turn's messages, answer it in your final message.
 
 ## Activity
 

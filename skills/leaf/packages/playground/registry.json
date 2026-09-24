@@ -52,6 +52,7 @@
   },
   "lf-playground-control": {
     "description": "One typed input in a playground. `name` is the stable key in the submitted value map and in the reflected CSS property and data attribute. `label` names the generated control. Every kind declares its initial value as a string: a finite number for range, `true` or `false` for toggle, one child value for choice, a six-digit hex colour for color, and arbitrary text for text. Range controls must add max and may add min, step, and unit. Choice controls contain one or more lf-playground-choice children; other kinds are empty.",
+    "x-name": "label",
     "type": "object",
     "properties": {
       "name": {
@@ -110,6 +111,7 @@
   },
   "lf-playground-choice": {
     "description": "One labeled value in a choice control. The value is stored and reflected; the label is the control text shown to the user.",
+    "x-name": "label",
     "type": "object",
     "properties": {
       "value": {
@@ -129,6 +131,7 @@
   },
   "lf-playground-preset": {
     "description": "One named partial configuration. Activating the generated preset button applies each child setting and leaves controls not named by the preset unchanged. The button remains visibly selected while all of its settings match the current values.",
+    "x-name": "label",
     "type": "object",
     "properties": {
       "label": {

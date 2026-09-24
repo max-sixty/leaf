@@ -3,6 +3,7 @@
    status and waits for each generated control; authored operation nodes never enter a
    template and retain their identity for the page's whole document lifetime. */
 import { LitElement, html } from "../vendor/browser-runtime.js";
+import { addressableName } from "./anchor-resolution.js";
 import { keys as commands } from "./keyboard/scopes.js";
 import { offer, quoted } from "./widget-elements.js";
 import { widgetController } from "./widget-controller.js";
@@ -60,9 +61,9 @@ class RequestControl extends LitElement {
 if (!customElements.get(CONTROL_TAG))
   customElements.define(CONTROL_TAG, RequestControl);
 
+// An offered operation is named as any titled member is, else by its verb.
 const title = (option) =>
-  option.querySelector(":scope > strong")?.textContent.trim() ||
-  option.getAttribute("verb").replaceAll("-", " ");
+  addressableName(option) || option.getAttribute("verb").replaceAll("-", " ");
 
 export function defineRequestElement(
   tagName,

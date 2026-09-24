@@ -580,7 +580,8 @@ def cmd_reply(
                 and binding.get("session") == claim["id"]
             ):
                 sys.exit(
-                    f"event {for_event!r} is bound to this delivery's final message"
+                    f"event {for_event!r} is answered by this turn's messages; "
+                    "finish the reply in your final message"
                 )
         else:
             standing = thread_obligation(events, responses, root_id)

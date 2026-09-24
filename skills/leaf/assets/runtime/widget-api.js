@@ -17,7 +17,13 @@ export async function mountSpecimen(frame, options) {
 }
 
 export { USER_VIEW_RESTORE_CASES } from "./restore-state.js";
-export { addressableWord } from "./anchor-resolution.js";
+export {
+  addressableName,
+  addressableSays,
+  addressableWord,
+} from "./anchor-resolution.js";
+// The name Threads, the margin, and reactions give a comment's anchor.
+export { anchorLabel } from "./conversation/messages.js";
 export { navigateToDatum } from "./application.js";
 export {
   declareCoverRoom,
@@ -67,6 +73,7 @@ export {
   inlineMarkdownFragment,
   loadMarkdown,
   markdownReady,
+  markdownWords,
   renderInlineMarkdown,
   renderMarkdown,
 } from "./markdown.js";

@@ -401,6 +401,9 @@ html:root {
 @media screen and (pointer: coarse) and (width > 840px) {
   :root { --lf-banner-h: calc(53px + var(--lf-safe-top)); }
 }
+/* Only a live page draws the banner. A copy or an export has none, so what sticks
+   below the banner sticks to the top of the window. */
+html:is(:not([data-lf-live]), .lf-copy) { --lf-banner-h: 0px; }
 @media screen and (width <= 600px) {
   html:root { --lf-tray-slot-width: min(100vw, max(220px, var(--lf-tray-slot-choice, 300px))); }
 }

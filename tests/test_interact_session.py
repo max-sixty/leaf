@@ -621,7 +621,7 @@ def test_settling_reaction_closes_an_agent_root_ask(page_dir):
 
 
 def test_frozen_widget_workflow_contributes_to_its_thread_attention(page_dir):
-    activated = revisioning_model.activate_source(page_dir, [])
+    activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None and activated.revision == 1
     asked = events_model.append_event(
         page_dir,
@@ -720,7 +720,7 @@ def test_a_frozen_move_that_answers_no_ask_keeps_a_receipt_and_owes_nothing(
     it keeps its delivery receipt, owes the agent nothing, and leaves the thread
     nobody's turn. A claim makes it Working, and the agent's next turn in the
     thread takes it in."""
-    activated = revisioning_model.activate_source(page_dir, [])
+    activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None and activated.revision == 1
     registry = json.loads((page_dir / "registry.json").read_text())
     asked = events_model.append_event(
@@ -2886,7 +2886,7 @@ def test_a_delivery_turn_streams_and_commits_its_reply_on_its_own_connection(
     says arrives where it was started. The follower knows which turn is its own from
     the response, before it reads any of it.
     """
-    activated = revisioning_model.activate_source(page_dir, [])
+    activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None and activated.revision == 1
     comment = events_model.append_event(
         page_dir,
@@ -4798,7 +4798,7 @@ def test_each_delivered_event_says_only_what_its_own_case_asks(page_dir, capsys)
 
 
 def test_active_handling_survives_a_mutable_layer_edit(page_dir, capsys):
-    activated = revisioning_model.activate_source(page_dir, [])
+    activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None and activated.revision == 1
     registry_path = page_dir / "registry.json"
     registry = json.loads(registry_path.read_text())
@@ -5414,7 +5414,7 @@ def test_reply_is_fenced_to_the_exact_current_obligation(page_dir):
 
 
 def test_a_widget_reply_does_not_settle_newer_conversation_input(page_dir):
-    activated = revisioning_model.activate_source(page_dir, [])
+    activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None and activated.revision == 1
     asked = events_model.append_event(
         page_dir,
@@ -5479,7 +5479,7 @@ def test_settling_a_frozen_widget_move_does_not_revive_its_superseded_move(
         leases_model.waiter_lease_path(page_dir, session["id"])
     )
     assert lease
-    activated = revisioning_model.activate_source(page_dir, [])
+    activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None and activated.revision == 1
     asked = events_model.append_event(
         page_dir,
@@ -12006,7 +12006,7 @@ def test_a_deck_in_a_thread_owes_nothing_until_it_is_finished(page_dir):
     """The page's rule holds in thread markup: a swipe that leaves the queue
     standing is the user still answering, so no reply is owed and the Ask stays
     theirs."""
-    activated = revisioning_model.activate_source(page_dir, [])
+    activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None and activated.revision == 1
     events_model.append_event(
         page_dir,

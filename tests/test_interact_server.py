@@ -696,9 +696,7 @@ def test_deferred_data_sends_a_manifest_then_serves_one_exact_payload(server, pa
             '<lf-test-data id="other-data" source="other-patch"></lf-test-data></main>',
         )
     )
-    activated = revisioning_model.activate_source(
-        page_dir, event_model.read_events(page_dir)
-    )
+    activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None
     with pytest.raises(data_model.DataError, match="record keys must be unique"):
         data_model.cmd_data_set(
@@ -776,9 +774,7 @@ def test_historical_deferred_reads_keep_the_document_revision_and_layer(
         "<pre></pre></lf-diff></section>",
     )
     (page_dir / "index.html").write_text(source)
-    first = revisioning_model.activate_source(
-        page_dir, event_model.read_events(page_dir)
-    )
+    first = revisioning_model.activate_source(page_dir)
     assert first.error is None
     event_model.append_event(
         page_dir,
@@ -802,9 +798,7 @@ def test_historical_deferred_reads_keep_the_document_revision_and_layer(
     # Re-vendoring changes the active layer epoch while preserving the data contract.
     vendoring_model.cmd_init(page_dir)
     (page_dir / "index.html").write_text(source.replace("<h1>A</h1>", "<h1>B</h1>"))
-    second = revisioning_model.activate_source(
-        page_dir, event_model.read_events(page_dir)
-    )
+    second = revisioning_model.activate_source(page_dir)
     assert second.error is None and second.revision != first.revision
     second_layer = artifact_model.read_artifact(page_dir, second.revision).registry[
         "$layer"
@@ -983,7 +977,7 @@ def test_a_page_loads_from_the_external_origins_as_written(server, page_dir):
             '<script type="module" src="/page/app.js"></script>\n</head>',
         )
     )
-    activated = revisioning_model.activate_source(page_dir, [])
+    activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None, activated.error
     resources = activated.check.artifact.resources
     assert resources["/page/app.js"].dependencies == ()
@@ -1009,7 +1003,7 @@ def test_a_page_loads_from_the_external_origins_as_written(server, page_dir):
 
 def test_server_round_trip(server, page_dir):
     registry = json.loads((page_dir / "registry.json").read_text())
-    initial = revisioning_model.activate_source(page_dir, [])
+    initial = revisioning_model.activate_source(page_dir)
     assert initial.error is None and initial.revision == 1
     source = page_dir / "index.html"
     source.write_text(
@@ -1503,7 +1497,7 @@ def test_a_revision_serves_reaction_tokens_in_their_declared_order(page_dir):
         PAGE.replace("<h2>Plan</h2>", "<h2>Revised plan</h2>")
     )
 
-    activated = revisioning_model.activate_source(page_dir, [])
+    activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None, activated.error
     assert activated.created
     artifact = artifact_model.read_artifact(page_dir, activated.revision)
@@ -1763,9 +1757,7 @@ def test_server_makes_attempt_identity_atomic_without_deduplicating_content(
     (page_dir / "index.html").write_text(
         PAGE.replace("<title>t</title>", "<title>Later draft</title>")
     )
-    activated = revisioning_model.activate_source(
-        page_dir, event_model.read_events(page_dir)
-    )
+    activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None and activated.revision == 2
     files_model.revision_path(page_dir, 1).unlink()
     assert live_versions(page_dir) == []
@@ -4219,9 +4211,7 @@ def test_a_page_snapshot_stays_on_one_page_reading(page_dir):
         "deferred": "patch",
     }
     (page_dir / "registry.json").write_text(json.dumps(registry))
-    activated = revisioning_model.activate_source(
-        page_dir, event_model.read_events(page_dir)
-    )
+    activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None
     data_model.cmd_data_set(
         page_dir, "patches", {"files": [{"key": "a.py", "patch": "old"}]}

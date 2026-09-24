@@ -115,7 +115,7 @@ window.addEventListener("message", (event) => {
 def test_process_state_waits_for_a_serialized_activation(
     page_dir, monkeypatch, page_server
 ):
-    initial = activate_source(page_dir, read_events(page_dir))
+    initial = activate_source(page_dir)
     assert initial.error is None and initial.revision == 1
     selected = threading.Event()
     answer = {}
@@ -142,11 +142,11 @@ def test_process_state_waits_for_a_serialized_activation(
         except Exception as error:  # noqa: BLE001 - preserve the thread's answer
             answer.update(error=f"{type(error).__name__}: {error}")
 
-    with PageTransaction(page_dir) as page:
+    with PageTransaction(page_dir):
         request = threading.Thread(target=read_state)
         request.start()
         assert selected.wait(timeout=10)
-        activated = activate_source(page_dir, page.events)
+        activated = activate_source(page_dir)
         assert activated.error is None and activated.revision == 2
     request.join(timeout=10)
     assert not request.is_alive()
@@ -157,7 +157,7 @@ def test_process_state_waits_for_a_serialized_activation(
 def test_process_page_route_runs_the_complete_leaf_interface(
     browser, page_dir, page_server
 ):
-    initial = activate_source(page_dir, read_events(page_dir))
+    initial = activate_source(page_dir)
     assert initial.error is None and initial.revision == 1
     append_event(
         page_dir,
@@ -194,7 +194,7 @@ def test_process_page_route_runs_the_complete_leaf_interface(
         ),
         encoding="utf-8",
     )
-    activated = activate_source(page_dir, read_events(page_dir))
+    activated = activate_source(page_dir)
     assert activated.error is None and activated.revision == 2
     append_event(
         page_dir,
@@ -375,8 +375,8 @@ def test_process_page_route_runs_the_complete_leaf_interface(
         ),
         encoding="utf-8",
     )
-    with PageTransaction(page_dir) as page_transaction:
-        revised = activate_source(page_dir, page_transaction.events)
+    with PageTransaction(page_dir):
+        revised = activate_source(page_dir)
     assert revised.error is None and revised.revision == 3
     page.locator("#late").wait_for()
     page.wait_for_function("() => document.querySelector('#late').naturalWidth > 0")
@@ -416,7 +416,7 @@ window.authoredModulePattern = (/api/);
 </script></head>""",
         )
     )
-    activated = activate_source(page_dir, read_events(page_dir))
+    activated = activate_source(page_dir)
     assert activated.error is None and activated.revision == 1
     page = browser.new_page(viewport={"width": 1100, "height": 900})
     errors = []
@@ -814,7 +814,7 @@ def test_mcp_app_keeps_authored_css_without_running_authored_code(browser, page_
             '<h2>Plan</h2><img src="/page/badge.svg" alt="Captured badge" width="24" height="24">',
         )
     )
-    activated = activate_source(page_dir, read_events(page_dir))
+    activated = activate_source(page_dir)
     assert activated.error is None and activated.revision == 1
     (page_dir / "registry.json").write_text("{broken candidate")
     (styles / "palette.css").write_text("#plan h2 { color: red; }")

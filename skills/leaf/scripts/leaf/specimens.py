@@ -17,7 +17,7 @@ from tempfile import TemporaryDirectory
 from threading import Lock
 
 from .data import source_file
-from .event_log import now_iso, read_events
+from .event_log import now_iso
 from .files import write_json
 from .revision_artifact import RevisionArtifact
 from .revisioning import activate_source
@@ -118,7 +118,7 @@ class Specimens:
                     "stated": False,
                 },
             )
-            activation = activate_source(child, read_events(child))
+            activation = activate_source(child)
             if activation.error:
                 raise ValueError(f"invalid specimen: {activation.error}")
         except BaseException:

@@ -59,14 +59,17 @@ def test_valid_source_activates_once_and_a_bad_save_keeps_it_live(page_dir):
     source = page_dir / "index.html"
     source.write_text(PAGE)
 
-    initial = revisioning_model.activate_source(page_dir, [])
+    initial = revisioning_model.activate_source(page_dir)
     assert initial.error is None and initial.created and initial.revision == 1
-    existing = revisioning_model.activate_source(page_dir, [])
+    existing = revisioning_model.activate_source(page_dir)
     assert existing.error is None and not existing.created and existing.revision == 1
+    # A page whose reading has not moved answers from its last activation rather than
+    # checking the source again.
+    assert revisioning_model.activate_source(page_dir) is existing
 
     changed = PAGE.replace("<title>t</title>", "<title>working</title>")
     source.write_text(changed)
-    first = revisioning_model.activate_source(page_dir, [])
+    first = revisioning_model.activate_source(page_dir)
     assert first.error is None and first.created and first.revision == 2
     revision = files_model.revision_path(page_dir, 2)
     from leaf.revision_artifact import artifact_name
@@ -74,16 +77,22 @@ def test_valid_source_activates_once_and_a_bad_save_keeps_it_live(page_dir):
     assert revision.name == artifact_name(2, first.check.artifact) + ".html"
     assert revision.read_text() == changed
 
-    unchanged = revisioning_model.activate_source(page_dir, [])
+    unchanged = revisioning_model.activate_source(page_dir)
     assert not unchanged.created and unchanged.error is None
     assert unchanged.revision == 2 and files_model.list_revisions(page_dir) == [1, 2]
 
     source.write_text(PAGE.replace("</section>", ""))
-    refused = revisioning_model.activate_source(page_dir, [])
+    refused = revisioning_model.activate_source(page_dir)
     assert refused.revision == 2 and not refused.created
     assert refused.error and "issue" not in refused.error
     assert files_model.list_revisions(page_dir) == [1, 2]
     assert revision.read_text() == changed
+    assert revisioning_model.activate_source(page_dir) is refused
+
+    # Holding the refusal does not hold back the save that repairs it.
+    source.write_text(changed.replace("working", "repaired"))
+    repaired = revisioning_model.activate_source(page_dir)
+    assert repaired.error is None and repaired.created and repaired.revision == 3
 
 
 def test_stamp_assigns_versions_to_the_exact_immutable_revision(page_dir):
@@ -453,9 +462,7 @@ def test_page_fixtures_pass_check(tmp_path, monkeypatch, initialized_page):
         for version in example_versions(example):
             markup = version.read_text()
             (d / "index.html").write_text(markup)
-            activated = revisioning_model.activate_source(
-                d, events_model.read_events(d)
-            )
+            activated = revisioning_model.activate_source(d)
             assert activated.error is None, f"{version.name}: {activated.error}"
             result = check(d)
             assert result.exit_code == 0, f"{version.name}: {result.output}"
@@ -1292,7 +1299,7 @@ def test_edit_uses_the_captured_contract_when_the_candidate_registry_is_invalid(
     page_dir, monkeypatch
 ):
     """An edit uses the active revision's contract, not a broken candidate."""
-    activated = revisioning_model.activate_source(page_dir, [])
+    activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None and activated.revision == 1
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "worker-1")
     message = events_model.append_event(
@@ -1500,7 +1507,7 @@ def test_reply_markup_uses_the_captured_registry_after_candidate_files_disappear
     """Text renders with every raw tag escaped, so a plain reply has nothing to
     validate and posts without the registry; markup is checked against it, so without
     one the gate refuses rather than guessing."""
-    activated = revisioning_model.activate_source(page_dir, [])
+    activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None and activated.revision == 1
     (page_dir / "registry.json").unlink()
     events_model.append_event(

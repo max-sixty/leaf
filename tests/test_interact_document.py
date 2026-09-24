@@ -112,7 +112,7 @@ def test_a_revision_captures_the_complete_dependency_graph(page_dir):
     )
     (page_dir / "index.html").write_text(html)
 
-    first = revisioning_model.activate_source(page_dir, [])
+    first = revisioning_model.activate_source(page_dir)
     assert first.error is None, first.error
     assert first.created
     artifact = artifact_model.read_artifact(page_dir, first.revision)
@@ -135,12 +135,12 @@ def test_a_revision_captures_the_complete_dependency_graph(page_dir):
     assert "/vendor/browser-runtime.js.map" not in artifact.resources
     assert "/vendor/browser-runtime.manifest.json" not in artifact.resources
     assert artifact_model.read_artifact(page_dir, first.revision) is artifact
-    unchanged = revisioning_model.activate_source(page_dir, [])
+    unchanged = revisioning_model.activate_source(page_dir)
     assert not unchanged.created
     assert unchanged.check.artifact is first.check.artifact
 
     (authored / "value.js").write_text("export const value = 2;")
-    second = revisioning_model.activate_source(page_dir, [])
+    second = revisioning_model.activate_source(page_dir)
     assert second.error is None, second.error
     assert second.created and second.revision == first.revision + 1
     changed = artifact_model.read_artifact(page_dir, second.revision)
@@ -149,7 +149,7 @@ def test_a_revision_captures_the_complete_dependency_graph(page_dir):
     files_model.replace_files(
         [(page_dir / "leaf.js", b"// replacement runtime", False)]
     )
-    third = revisioning_model.activate_source(page_dir, [])
+    third = revisioning_model.activate_source(page_dir)
     assert third.error is None, third.error
     assert third.created and third.revision == second.revision + 1
     assert third.check.artifact.resources["/leaf.js"].data == b"// replacement runtime"
@@ -187,7 +187,7 @@ def test_the_captured_executable_digest_separates_code_from_content(page_dir):
 
     def activate():
         (page_dir / "index.html").write_text(document)
-        activated = revisioning_model.activate_source(page_dir, [])
+        activated = revisioning_model.activate_source(page_dir)
         assert activated.error is None, activated.error
         assert activated.created
         return artifact_model.read_artifact(page_dir, activated.revision)
@@ -271,7 +271,7 @@ def test_the_captured_widget_digests_say_which_widgets_a_user_may_keep(page_dir)
 
     def activate():
         (page_dir / "index.html").write_text(document)
-        activated = revisioning_model.activate_source(page_dir, [])
+        activated = revisioning_model.activate_source(page_dir)
         assert activated.error is None, activated.error
         return artifact_model.read_artifact(page_dir, activated.revision)
 
@@ -305,7 +305,7 @@ def test_a_page_whose_history_predates_the_digest_still_serves_it(page_dir):
     reading: state says `null`, every address still serves, and the next save records it.
     """
     (page_dir / "index.html").write_text(PAGE, encoding="utf-8")
-    activated = revisioning_model.activate_source(page_dir, [])
+    activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None, activated.error
     revision = activated.revision
     marker = files_model.revision_path(page_dir, revision)
@@ -347,7 +347,7 @@ def test_a_page_whose_history_predates_the_digest_still_serves_it(page_dir):
     (page_dir / "index.html").write_text(
         PAGE.replace("Backfill plan", "Backfill schedule"), encoding="utf-8"
     )
-    saved = revisioning_model.activate_source(page_dir, [])
+    saved = revisioning_model.activate_source(page_dir)
     assert saved.error is None, saved.error
     assert artifact_model.read_artifact(page_dir, saved.revision).executable
 
@@ -368,7 +368,7 @@ export { value } from "./value.js";
         )
     )
 
-    activated = revisioning_model.activate_source(page_dir, [])
+    activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None, activated.error
     resource = activated.check.artifact.resources["/page/app.js"]
     assert resource.dependencies == ("/page/value.js",)
@@ -386,7 +386,7 @@ def test_invalid_dependencies_leave_the_previous_revision_active(page_dir, tmp_p
     outside = tmp_path / "outside.js"
     outside.write_text("export const value = 1;")
     (authored / "escape.js").symlink_to(outside)
-    initial = revisioning_model.activate_source(page_dir, [])
+    initial = revisioning_model.activate_source(page_dir)
     assert initial.error is None and initial.revision == 1
     previous = files_model.latest_revision(page_dir)
     (page_dir / "index.html").write_text(
@@ -406,7 +406,7 @@ def test_invalid_dependencies_leave_the_previous_revision_active(page_dir, tmp_p
         ("export const = ;", "invalid JavaScript"),
     ]:
         (authored / "app.js").write_text(source)
-        refused = revisioning_model.activate_source(page_dir, [])
+        refused = revisioning_model.activate_source(page_dir)
         assert refused.error and diagnostic in refused.error, (source, refused.error)
         assert refused.revision == previous and not refused.created
         assert files_model.latest_revision(page_dir) == previous
@@ -415,7 +415,7 @@ def test_invalid_dependencies_leave_the_previous_revision_active(page_dir, tmp_p
 def test_an_interrupted_capture_never_publishes_a_partial_revision(
     page_dir, monkeypatch
 ):
-    initial = revisioning_model.activate_source(page_dir, [])
+    initial = revisioning_model.activate_source(page_dir)
     assert initial.error is None and initial.revision == 1
     previous = files_model.latest_revision(page_dir)
     (page_dir / "index.html").write_text(
@@ -428,12 +428,12 @@ def test_an_interrupted_capture_never_publishes_a_partial_revision(
 
     monkeypatch.setattr(artifact_model.os, "link", interrupt_commit)
     with pytest.raises(OSError, match="activation marker"):
-        revisioning_model.activate_source(page_dir, [])
+        revisioning_model.activate_source(page_dir)
     assert files_model.latest_revision(page_dir) == previous
     assert artifact_model.read_artifact(page_dir, previous).html == PAGE.encode()
 
     monkeypatch.setattr(artifact_model.os, "link", link)
-    recovered = revisioning_model.activate_source(page_dir, [])
+    recovered = revisioning_model.activate_source(page_dir)
     assert recovered.error is None and recovered.revision == previous + 1
     assert (
         artifact_model.read_artifact(page_dir, recovered.revision).html
@@ -442,7 +442,7 @@ def test_an_interrupted_capture_never_publishes_a_partial_revision(
 
 
 def test_artifact_cache_refuses_a_replaced_immutable_manifest(page_dir):
-    activated = revisioning_model.activate_source(page_dir, [])
+    activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None and activated.revision == 1
     revision = files_model.latest_revision(page_dir)
     first = artifact_model.read_artifact(page_dir, revision)
@@ -463,7 +463,7 @@ def test_artifact_cache_refuses_a_replaced_immutable_manifest(page_dir):
 def test_stylesheet_dependencies_obey_the_same_capture_boundary(page_dir):
     authored = page_dir / "page"
     (authored / "data.json").write_text('{"value": 1}')
-    initial = revisioning_model.activate_source(page_dir, [])
+    initial = revisioning_model.activate_source(page_dir)
     assert initial.error is None and initial.revision == 1
     (page_dir / "index.html").write_text(
         PAGE.replace("</head>", '<link rel="stylesheet" href="/page/style.css"></head>')
@@ -477,7 +477,7 @@ def test_stylesheet_dependencies_obey_the_same_capture_boundary(page_dir):
         ('main { background: url("./missing.svg"); }', "cannot capture"),
     ]:
         (authored / "style.css").write_text(css)
-        refused = revisioning_model.activate_source(page_dir, [])
+        refused = revisioning_model.activate_source(page_dir)
         assert refused.error and diagnostic in refused.error, (css, refused.error)
         assert refused.revision == previous and not refused.created
 
@@ -488,11 +488,11 @@ def test_an_image_loads_only_from_an_origin_the_policy_admits(page_dir):
     (page_dir / "index.html").write_text(
         PAGE.replace("</section>", image.format(admitted), 1)
     )
-    assert revisioning_model.activate_source(page_dir, []).error is None
+    assert revisioning_model.activate_source(page_dir).error is None
     (page_dir / "index.html").write_text(
         PAGE.replace("</section>", image.format("https://outside.example/a.png"), 1)
     )
-    refused = revisioning_model.activate_source(page_dir, []).error
+    refused = revisioning_model.activate_source(page_dir).error
     assert refused and "https://cdn.jsdelivr.net" in refused, refused
 
 
@@ -543,7 +543,7 @@ def test_a_quote_crosses_an_upgraded_verbatim_wrapper(page_dir):
 
 def test_an_anchorless_comment_uses_the_last_good_revision_during_an_edit(page_dir):
     """A general comment captures no source, so an unfinished edit cannot block it."""
-    initial = revisioning_model.activate_source(page_dir, [])
+    initial = revisioning_model.activate_source(page_dir)
     assert initial.error is None and initial.revision == 1
     revision = files_model.latest_revision(page_dir)
     (page_dir / "index.html").write_text("<main>unfinished")
@@ -2043,7 +2043,7 @@ def test_reply_refuses_a_suggestion(page_dir):
 
 
 def test_reply_infers_one_obligation_and_activates_the_current_source(page_dir):
-    initial = revisioning_model.activate_source(page_dir, [])
+    initial = revisioning_model.activate_source(page_dir)
     assert initial.error is None and initial.revision == 1
     comment = events_model.append_event(
         page_dir,
@@ -2104,7 +2104,7 @@ def test_reply_refuses_an_invalid_current_source(page_dir):
 
 
 def test_reply_uses_for_to_select_one_of_several_obligations(page_dir):
-    initial = revisioning_model.activate_source(page_dir, [])
+    initial = revisioning_model.activate_source(page_dir)
     assert initial.error is None and initial.revision == 1
     comments = []
     for event_id in ("c1", "c2"):
@@ -2861,7 +2861,7 @@ def test_report_validates_at_the_door_and_stamps_identity(page_dir, monkeypatch)
     version.write_text(
         version.read_text().replace("<lf-options>", '<lf-options id="choice">')
     )
-    activation = revisioning_model.activate_source(page_dir, [])
+    activation = revisioning_model.activate_source(page_dir)
     assert activation.error is None and activation.revision == 1
     draft_report = _report(page_dir, "t-parser", "status", "status=review")
     assert draft_report.exit_code == 0, draft_report.output
@@ -4550,9 +4550,7 @@ def test_thread_markup_cannot_rebind_a_draft_only_page_source(page_dir):
             '<lf-test-data id="test-data" source="project-feed"></lf-test-data>\n', ""
         )
     )
-    activation = revisioning_model.activate_source(
-        page_dir, events_model.read_events(page_dir)
-    )
+    activation = revisioning_model.activate_source(page_dir)
     assert activation.error is None
     source.write_text(draft)
     documents = data_contracts_model.page_data_documents(
@@ -5565,7 +5563,7 @@ def test_a_state_read_never_materializes_a_historical_revision_bundle(
         (page_dir / "index.html").write_text(
             PAGE.replace("</main>", f"<p>edit {edit}</p></main>")
         )
-        activated = revisioning_model.activate_source(page_dir, [])
+        activated = revisioning_model.activate_source(page_dir)
         assert activated.error is None, activated.error
     revisions = files_model.list_revisions(page_dir)
     assert len(revisions) == 12  # more revisions than any bundle cache retains
@@ -5590,7 +5588,7 @@ def test_a_state_read_never_materializes_a_historical_revision_bundle(
         return native_open(self, *args, **kwargs)
 
     monkeypatch.setattr(Path, "open", counted_open)
-    activated = revisioning_model.activate_source(page_dir, [])
+    activated = revisioning_model.activate_source(page_dir)
     monkeypatch.undo()
     assert activated.error is None, activated.error
     assert not activated.created

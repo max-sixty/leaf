@@ -95,12 +95,15 @@ test("each driver holds one key per attribute, and the page wears the union", ()
 
   assert.equal(indicate(film, "for", "1,2"), true);
   assert.deepEqual(marked(), ["code:1", "code:2"]);
+  // The target's own ARIA state is its own: a mark neither writes nor clears it.
   const line = code.querySelector('[data-part="1"]');
-  assert.equal(line.getAttribute("aria-current"), "true");
+  line.setAttribute("aria-current", "location");
 
   indicate(film, "for", "3");
   assert.deepEqual(marked(), ["code:3"], "a new key replaces the driver's last one");
-  assert.equal(line.hasAttribute("aria-current"), false);
+  indicate(film, "for", "1");
+  indicate(film, "for", "3");
+  assert.equal(line.getAttribute("aria-current"), "location");
 
   indicate(other, "for", "3,4");
   indicate(film, "for", null);

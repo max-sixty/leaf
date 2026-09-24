@@ -16,10 +16,10 @@ const GRAPH_X = 70;
 const STEP_X = 104;
 const TERM = { x: 790, y: 96, w: 450, h: 470, line: 21, rows: 19 };
 
-// The drawing takes the page's own colours. SVG presentation attributes can't hold the
-// theme's light-dark() tokens, so themePalette resolves each role on a probe inside the
-// host, which is where the page's light or dark choice applies; the widget calls it
-// again when the theme changes. The terminal reads as one of the page's code blocks.
+// The drawing takes the page's own colours. Each role names a theme token as `var(--x)`,
+// which an SVG fill or stroke resolves like any CSS value, so the drawing follows the
+// page's light or dark scheme and the browser re-themes it when the scheme changes. The
+// terminal reads as one of the page's code blocks.
 const ROLES = {
   bg: "--card",
   panel: "--field",
@@ -44,22 +44,11 @@ const TERM_ROLES = {
   bad: "--danger",
 };
 
-export function themePalette(host) {
-  const probe = document.createElement("span");
-  probe.hidden = true;
-  host.append(probe);
-  const read = (token) => {
-    probe.style.color = `var(${token})`;
-    return getComputedStyle(probe).color;
-  };
-  const resolve = (roles) =>
-    Object.fromEntries(
-      Object.entries(roles).map(([role, token]) => [role, read(token)]),
-    );
-  const palette = { ...resolve(ROLES), term: resolve(TERM_ROLES) };
-  probe.remove();
-  return palette;
-}
+const byName = (roles) =>
+  Object.fromEntries(
+    Object.entries(roles).map(([role, token]) => [role, `var(${token})`]),
+  );
+const C = { ...byName(ROLES), term: byName(TERM_ROLES) };
 
 const MONO = "ui-monospace, SFMono-Regular, Menlo, monospace";
 const SANS = "system-ui, -apple-system, 'Segoe UI', sans-serif";
@@ -1018,7 +1007,7 @@ const el = (tag, attrs = {}, parent) => {
   parent?.append(node);
   return node;
 };
-const tone = (C, name) =>
+const tone = (name) =>
   ({
     main: C.main,
     feat: C.feat,
@@ -1037,21 +1026,14 @@ const BOX = [36, 98, 1214, 502];
 let painters = 0;
 
 export class Painter {
-  constructor(svg, palette) {
+  constructor(svg) {
     this.svg = svg;
-    this.setPalette(palette);
-  }
-
-  // A new palette rebuilds the drawing; the next paint fills it in.
-  setPalette(palette) {
-    this.C = palette;
-    this.svg.replaceChildren();
     this.pool = new Map();
     this.#build();
   }
 
   #build() {
-    const { svg, C } = this;
+    const { svg } = this;
     svg.setAttribute("viewBox", BOX.join(" "));
     svg.setAttribute("xmlns", SVG);
     el("rect", { width: W, height: H, fill: C.bg }, svg);
@@ -1166,8 +1148,7 @@ export class Painter {
         return g;
       });
       const [lead, box, text] = g.children;
-      const C = this.C;
-      const col = tone(C, n.tone);
+      const col = tone(n.tone);
       const to = this.#anchor(world, n.at);
       if (!to || n.o < 0.02) {
         g.setAttribute("opacity", 0);
@@ -1262,7 +1243,6 @@ export class Painter {
   }
 
   paint(film, fr, focus = null) {
-    const C = this.C;
     this.stamp = String(Math.random());
     const { world } = fr;
     const lit = focus ? lineage(world, focus) : null;
@@ -1277,7 +1257,7 @@ export class Painter {
       const path = this.keyed("edge", key, () => el("path", {}, this.edges));
       const mx = (a.x + b.x) / 2;
       path.setAttribute("d", `M${a.x},${a.y} C${mx},${a.y} ${mx},${b.y} ${b.x},${b.y}`);
-      path.setAttribute("stroke", tone(C, e.tone));
+      path.setAttribute("stroke", tone(e.tone));
       path.setAttribute(
         "opacity",
         lit && !(lit.has(e.a) && lit.has(e.b))
@@ -1296,7 +1276,7 @@ export class Painter {
             "text-anchor": "middle",
             "font-family": MONO,
             "font-size": 12,
-            fill: this.C.muted,
+            fill: C.muted,
           },
           g,
         );
@@ -1313,7 +1293,7 @@ export class Painter {
         return g;
       });
       const [circle, hash, inner] = g.children;
-      const c = tone(C, n.tone);
+      const c = tone(n.tone);
       circle.setAttribute("cx", n.x);
       circle.setAttribute("cy", n.y);
       circle.setAttribute("r", n.r);
@@ -1345,10 +1325,10 @@ export class Painter {
       rect.setAttribute("y", y);
       rect.setAttribute("width", w);
       rect.setAttribute("fill", C.panel2);
-      rect.setAttribute("stroke", tone(C, r.tone));
+      rect.setAttribute("stroke", tone(r.tone));
       text.setAttribute("x", r.x);
       text.setAttribute("y", y + 17);
-      text.setAttribute("fill", tone(C, r.tone));
+      text.setAttribute("fill", tone(r.tone));
       text.textContent = r.label;
       g.setAttribute("opacity", r.o);
       describe(g, `ref ${r.label}`, r.info);

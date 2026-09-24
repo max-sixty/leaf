@@ -1428,7 +1428,18 @@ def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
 
     copy_widths = read_copy_widths()
     assert len(copy_widths) == 6
-    assert copy_widths == pytest.approx([388, 388, 388, 388, 1210, 1210], abs=1)
+    assert copy_widths[:4] == pytest.approx([388] * 4, abs=1)
+    host_widths = widget.locator(".lf-vr-case .lf-vr-shot-host").evaluate_all(
+        """nodes => nodes.map(node => {
+          const style = getComputedStyle(node);
+          return node.getBoundingClientRect().width
+            - parseFloat(style.borderLeftWidth) - parseFloat(style.borderRightWidth);
+        })"""
+    )
+    assert len(host_widths) == 3
+    assert min(copy_widths[4:]) > 1000
+    # The full-width capture uses the stage's content width, inside its frame's borders.
+    assert copy_widths[4:] == pytest.approx([host_widths[2] - 2] * 2, abs=1)
     # The copy is the whole workspace at its sheet's width on the first frame and every
     # later one: a user who copies a slower page gets the same evidence.
     page.evaluate(ONE_FRAME)

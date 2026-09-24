@@ -13,8 +13,10 @@
 
    Each driver holds at most one key per attribute, and a new key replaces the last. A
    `null` key clears it, which a driver owes in its `disconnectedCallback`. The runtime
-   paints the union of every driver's elements with `data-lf-indicated` and
-   `aria-current`, diffing against the last union so one driver never clears another's.
+   paints the union of every driver's elements with `data-lf-indicated`, diffing against
+   the last union so one driver never clears another's. It writes that attribute alone:
+   a target's ARIA state, such as a table of contents' `aria-current="location"`, stays
+   the target's, and the driver's own narration says what the mark means.
    A target that re-renders what a key addresses states it through `layoutChanged`, and
    every live indication is resolved again then. */
 
@@ -44,15 +46,9 @@ function repaint() {
     for (const [attribute, key] of keys)
       for (const element of resolve(owner, attribute, key)) next.add(element);
   for (const element of painted)
-    if (!next.has(element)) {
-      element.removeAttribute(INDICATED);
-      element.removeAttribute("aria-current");
-    }
+    if (!next.has(element)) element.removeAttribute(INDICATED);
   for (const element of next)
-    if (!painted.has(element)) {
-      element.setAttribute(INDICATED, "");
-      element.setAttribute("aria-current", "true");
-    }
+    if (!painted.has(element)) element.setAttribute(INDICATED, "");
   painted = next;
 }
 

@@ -6015,6 +6015,12 @@ SEEN_STOP = f"""() => {{
       && cs.outlineWidth === cs.getPropertyValue('--here-ring-w').trim()
       && cs.outlineColor === accent;
   }};
+  // Entering a same-origin specimen puts focus on a control in its document.
+  // The parent reports the iframe as active, but Chrome does not match :focus on it.
+  if (e.tagName === 'IFRAME') {{
+    const child = e.contentDocument?.activeElement;
+    if (child && child !== e.contentDocument.body && shown(child)) return null;
+  }}
   // An ancestor answers only for a ring whose rule named it. Every ancestor on this
   // chain contains the focus by construction, so containing it says nothing; what
   // separates a ring drawn because the user is here from one drawn for another

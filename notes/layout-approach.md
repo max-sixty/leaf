@@ -65,9 +65,58 @@ change under the rule:
 - **Opening a surface.** An open surface sets a minimum height on `body`
   (`theme.css:538-543`), which the overlay branch keeps. Under the rule it goes.
 
-What is left is the margin. The rail is a fixed reservation on the right, and it shares
-that side with the agent's margin notes (`theme.css:699`). The rail is the one place
-Leaf takes room from the page, and it takes it before the page is written.
+What is left is the margin and the bottom bar.
+
+### The bottom bar as a band
+
+The banner is already the model. It is fixed at the top at a height the theme states per
+breakpoint (`theme.css:131, 396-399`), content scrolls under it, and the page starts
+below it. A bottom bar held to one stated height works the same way: the page ends that
+far above the window's foot, a workspace is the window less the banner and the band, and
+nothing is measured. What makes the bar measured today is that its height varies: the
+status stacks above the shortcut line when the two would collide
+(`chrome-layout.js:130-141`), and the line wraps when the complete reference is shown
+(`shortcut-bar.js:428`). In a band, the status shares the row, taking the line's place
+while it shows. The complete reference, which the user asks for with `?`, opens upward
+over the page as a temporary overlay, like Threads. On a touch screen, where there are no
+keys to hint, the band holds only the status.
+
+### The margin as a rail or pins
+
+The rail today is narrow: a column of 32px markers, one per annotated target, reserved
+at about 60px (`theme.css:1886`). A marker gathers everything anchored to its target:
+threads, Asks, version changes, delivery receipts, work claims, and package controls
+(`margin-projection.js:1-10`). The thread card is already an overlay. It opens when the
+user arrives at a target, beside the marker when the rail has room and over the column
+otherwise (`margin-projection.js:23-33`). What moves text is where a marker goes when
+there is no rail: it docks into the flow as a line of its own.
+
+So the margin needs two homes for markers, and neither should move content:
+
+- **The rail**, a reserved column at the page's right edge, where markers never cover
+  anything. A page with no layout CSS has one, since a document read top to bottom is
+  where a marker beside each passage reads best and a centred column leaves the room. A
+  page that composes its own layout declares whether it has one, as it declares any other
+  part of its arrangement. Its width is a constant, so the agent knows exactly what it
+  costs.
+- **Pins**, where there is no rail: on a page that declared none, below the width where
+  a rail fits, or inside a pane that scrolls on its own. A pin is the same marker drawn
+  over the content at the right edge of its target's block, as Figma draws comment pins
+  on the canvas. Pressing it opens the same card. Pins replace docking.
+
+One key, `o` (unbound today), shows or hides the annotation layer: markers, pins, and
+the marks on anchored passages. It changes no geometry, since a rail stays reserved
+while its markers are hidden, so it works the same way in both homes. Hiding them is
+view state, like scroll position, and is not written to the log. While they are hidden,
+the banner's count still says when something new arrives.
+
+This also settles who owns the right margin. The rail is a reservation the page declares,
+so an agent that wants margin notes beside its prose places them itself and leaves the
+rail out, or puts its notes on the left.
+
+The costs: pins cover up to 32px of content at a block's right edge, which on a dense
+dashboard can be a number; `o` answers it. And a reader loses the at-a-glance column of
+markers on pages without a rail, keeping the Threads panel as the full index.
 
 ## What the vocabulary is for, once the width is settled
 
@@ -146,10 +195,11 @@ The interaction primitives, widget sizing, and the rail stay under every option.
 
 Adopt #36, after holding Leaf to the rule that nothing it draws moves the page's content.
 
-First, finish what the overlays start: thread cards stand in the rail or overlay, never
-dock or yield; wide blocks stop short of the rail whenever it is shown; the bottom bar
-and tab strip only cover; and an open surface sets no minimum height. Then the page's
-geometry is the agent's to know, which was the goal.
+First, finish what the overlays start. Markers stand in a rail the page declares, or
+as pins over the content, and never dock; `o` shows and hides them. Wide blocks stop short
+of the rail whenever it is shown, replacing `data-lf-yield`. The bottom bar becomes a band
+of one stated height, like the banner. An open surface sets no minimum height. Then the
+page's geometry is the agent's to know, which was the goal.
 
 Then move arrangement into `$idioms`. The case for it is that Leaf's job for
 presentation is to help without constraining. An idiom gives a good default that carries
@@ -160,10 +210,6 @@ holds the window when it is the page's only content.
 
 Keep wide blocks. Figures wider than the text are a layout agents and readers both use,
 and widget sizing depends on them.
-
-Decide one more thing alongside: margin notes and the rail share the right margin
-(`theme.css:699`). Either the right margin is Leaf's alone and notes move to the left or
-into flow, or Leaf places notes and cards together and keeps that layout job.
 
 ## How to decide
 

@@ -8,7 +8,7 @@ from urllib.parse import urlsplit
 
 import pytest
 from interact_support import PAGE
-from leaf.event_log import append_event, read_events
+from leaf.event_log import append_event
 from leaf.files import replace_files, revision_path
 from leaf.hosting import TemporaryPageServer
 from leaf.http import scope_script_routes
@@ -55,7 +55,7 @@ def test_published_shells_bind_documents_and_resources_to_their_revision(
     (page_dir / "index.html").write_text(source)
 
     def publish(version):
-        activation = activate_source(page_dir, read_events(page_dir))
+        activation = activate_source(page_dir)
         assert activation.error is None, activation.error
         append_event(
             page_dir,
@@ -228,7 +228,7 @@ def test_a_browser_executes_the_published_capture_with_live_api_routes(
         '<link rel="stylesheet" href="./page/style.css">',
     )
     (page_dir / "index.html").write_text(source)
-    activation = activate_source(page_dir, [])
+    activation = activate_source(page_dir)
     assert activation.error is None, activation.error
     append_event(
         page_dir,

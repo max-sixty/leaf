@@ -97,7 +97,7 @@ the shipped examples. The suite uses Chromium's headless shell, while its
 end-to-end render-check tests run the launches used here — the installed Chrome
 channel, and the headless shell handed over under each variable that names one —
 and a unit reading covers the PATH search, which is only reached where the channel
-misses. `version export` launches through the same helper, so the two move together.
+misses.
 Playwright's driver runs under its bundled Node, or `PLAYWRIGHT_NODEJS_PATH` when
 set. Driver startup failures report the cause, the Node executable, and that
 variable; `render_gate/browser.py` owns browser and driver launch diagnostics.
@@ -110,22 +110,15 @@ reports only individual attributes or placement facts changed both by the author
 and by those carried decisions; another verb on the same element is independent.
 The runtime keeps no event-to-DOM write history for this check.
 
-Both gates serve their probe modules from the Leaf running the command and the
-runtime those modules import from the page, so the ephemeral server they open refuses
+The render gate serves its probe modules from the Leaf running the command and the
+runtime those modules import from the page, so the ephemeral server it opens refuses
 a page whose recorded `$layer.runtime` is not the identity this payload's kernel
 runtime carries. The kernel is read for that comparison rather than the whole layer,
 because it is the half the probe modules import and the only half a payload can
 identify anywhere: `$layer.packages` was resolved against the project `page init` ran
 in. Without that reading the mismatch arrives as a missing export in the probe module,
 which reads as a defect in the page. The vendored layer is the page's to keep, so
-neither gate re-vendors on its behalf.
-
-The one thing export asks of a browser that the render gate does not is its age. The
-copy ends in `root.getHTML({ serializableShadowRoots: true })`, which Chromium grew
-in 125, so a browser older than that draws every render invariant clean and then
-cannot be copied from. `version export` reads `browser.version` before it opens the
-page and refuses below the floor by name, rather than letting the bake fail inside
-the probe and report a probe module it could not load.
+the gate does not re-vendor on its behalf.
 
 ## Passages
 

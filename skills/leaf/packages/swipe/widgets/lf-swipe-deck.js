@@ -14,7 +14,7 @@
  * painted reading is memoized, so a broad action heartbeat that changes no deck state
  * writes nothing and repaints keyboard scopes only when action availability changes.
  *
- * Piles remain labeled lists in quoted exhibits and static copies. Quoted decks stop at
+ * Piles remain labeled lists in quoted exhibits and on paper. Quoted decks stop at
  * that structure: no controls, tab stops, key scope, or pointer listeners are installed.
  * The active card alone takes horizontal motion. Its exit is a short generated visual
  * echo so the real card can occupy its recorded destination immediately; `motion` makes

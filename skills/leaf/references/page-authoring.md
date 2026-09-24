@@ -219,7 +219,7 @@ has not yet admitted, or has the version menu open.
 
 Page modules follow `references/packages.md`, "What a behavior module owes". In
 particular, its `once()`, `quoted()`, `offer()`, `layoutChanged()`, and durable-state
-rules keep authored controls correct after reconnection, thread quoting, and export.
+rules keep authored controls correct after reconnection and thread quoting.
 
 `leaf version check` runs a page's own code, a module script or a page widget the
 document places, once in the host's browser: through upgrade, presentation, and one
@@ -279,10 +279,8 @@ the child's open controls before returning to the surrounding page. Reset create
 fresh page from the template.
 Child decisions and comments do not change the parent's log or Ask inventory.
 The child is temporary: use an ordinary Leaf page when its history must outlive
-the specimen. A standalone copy keeps the rendered child and its assets as an
-isolated static document; native links and disclosures remain usable.
-Live specimens require a server, so pages declaring them cannot be exported with
-`--interactive`; use the static copy instead.
+the specimen. A live specimen needs a server, so a page declaring one cannot be
+exported (`references/serving-pages.md`, "Exported files").
 
 To begin with conversations from the parent, set `data-specimen-threads` on the
 template to their space-separated root event ids. The declaration selects from the

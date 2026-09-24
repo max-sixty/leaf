@@ -17,7 +17,7 @@ from leaf.structure import SourceDocument
 def _refuse_a_foreign_runtime(page_dir: Path) -> None:
     """Refuse to instrument a page whose runtime came from another Leaf.
 
-    The gates serve their probe modules from the Leaf running the command and the
+    The gate serves its probe modules from the Leaf running the command and the
     runtime those modules import from the page, so the two have to come from one
     kernel. Where they do not, the browser reports an export the page's older runtime
     does not have, which reads as a defect in the page.

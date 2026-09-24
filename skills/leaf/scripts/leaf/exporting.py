@@ -1,4 +1,10 @@
-"""Standalone export of a fully rendered page."""
+"""A stamped version as one HTML file that opens offline.
+
+The export packages the captured revision, its resources, and the page's authoritative
+state reading into one file, and Leaf's normal runtime boots from them. There is no
+second rendering: whatever the page draws when served, the file draws. Asset inlining
+is shared with the MCP App resource, which embeds a page the same way.
+"""
 
 import base64
 import re
@@ -12,7 +18,6 @@ from urllib.parse import urldefrag, urljoin, urlsplit
 import tinycss2
 import turbohtml
 
-from leaf import render_checks as render_checks_model
 from leaf.event_log import read_events
 from leaf.files import (
     published_versions,
@@ -22,23 +27,6 @@ from leaf.files import (
 )
 from leaf.http import head_open_end_offset
 from leaf.page_snapshot import capture_page_snapshot
-from leaf.render_checks import (
-    RENDER_VIEWPORT,
-    evaluate_probe,
-    install_driver,
-    wait_for_presentation,
-    wait_for_probe,
-)
-from leaf.render_gate.browser import (
-    EXPORT_FLOOR,
-    DriverNotStarted,
-    below_export_floor,
-    browser_hint,
-    driver_hint,
-    launch_browser,
-    playwright_driver,
-)
-from leaf.render_gate.preview import preview_server
 from leaf.revision_artifact import (
     RESOURCE_TYPES,
     Resource,
@@ -49,7 +37,6 @@ from leaf.revision_artifact import (
     rewrite_module,
 )
 from leaf.revision_delivery import delivery_prelude, delivery_sheets, json_script
-from leaf.schema import DIR_FILES, MEDIA_DIR
 from leaf.served_state.service import PageStateService
 from leaf.structure import (
     EXTERNAL_SOURCES,
@@ -61,12 +48,6 @@ from leaf.structure import (
 )
 
 ResourceReader = Callable[[str], Resource]
-
-# Export preparation is bulk work rather than an arriving signal: every deferred-data
-# widget materializes the payloads it has been holding, and the page answers no probe
-# while that runs. The corpus's diff alone holds the page for most of a minute, so this
-# budget is what a large document is given to finish rather than the readiness patience.
-PREPARE_TIMEOUT_MS = 180_000
 
 
 def _file_reader(page_dir: Path) -> ResourceReader:
@@ -287,7 +268,7 @@ def inline_assets(
     return html
 
 
-def _interactive_module_urls(artifact: RevisionArtifact) -> dict[str, str]:
+def _module_urls(artifact: RevisionArtifact) -> dict[str, str]:
     urls = {}
     for path, resource in artifact.resources.items():
         if resource.mime == "application/javascript":
@@ -343,7 +324,7 @@ def _bind_authored_modules(html: str, module_urls: dict[str, str], nonce: str) -
     return html
 
 
-def interactive_export_page(
+def export_document(
     artifact: RevisionArtifact,
     state: dict,
     data: dict,
@@ -361,10 +342,10 @@ def interactive_export_page(
     """
     if SourceDocument(artifact.html.decode("utf-8")).specimens:
         sys.exit(
-            "Live specimens need a server; export without --interactive "
-            "to keep their rendered contents in a static copy."
+            "Live specimens need a server, so a page that declares one "
+            "cannot be exported."
         )
-    modules = _interactive_module_urls(artifact)
+    modules = _module_urls(artifact)
     html = inline_assets(
         artifact.html.decode("utf-8"),
         read_resource=artifact.resources.__getitem__,
@@ -424,207 +405,11 @@ def interactive_export_page(
     return UTF8_BOM + html[:offset] + runtime_head + html[offset:]
 
 
-def _document_url(page, url: str, selector: str, missing: str) -> str:
-    """Resolve one runtime-owned document URL without waiting on an absent node."""
-    from playwright.sync_api import Error as PlaywrightError
+def cmd_export(page_dir: Path, out: Path, version) -> int:
+    """One stamped version as a standalone HTML file that opens offline.
 
-    link = page.locator(selector)
-    href = link.get_attribute("href") if link.count() else None
-    if href is None:
-        raise PlaywrightError(missing)
-    return urljoin(url, href)
-
-
-def _state_url(page, url: str) -> str:
-    """Resolve the state endpoint from the document's canonical page root."""
-    root = _document_url(
-        page,
-        url,
-        'link[rel="canonical"][data-lf-runtime]',
-        "document has no canonical page root",
-    )
-    return urljoin(root, "api/state")
-
-
-def export_page(browser, url: str, page_dir: Path, name: str) -> str:
-    """The served document named by `name`, copied as one self-contained file.
-
-    Callers own the browser lifetime: `version export` launches the host's browser,
-    the site builder reuses one across its product documents, and the suite drives
-    shipped examples with its Chromium headless shell. The rendering and bake remain
-    one implementation without claiming those browser launch paths are identical.
-
-    The user's decisions come with it. Replay is what puts them on the page, so
-    this waits for the runtime's caught-up stamp exactly as the gate does, and a page
-    whose board was rearranged copies rearranged.
-
-    The browser's own age is read before the page is opened, because the bake this
-    ends in needs one younger than some of the browsers a host can hand over, and
-    the render gate — which never bakes — passes them. Refusing here says that in
-    one sentence, where the alternative is a TypeError from inside the probe."""
-    if old := below_export_floor(browser):
-        sys.exit(
-            f"{name} needs Chromium {EXPORT_FLOOR} or later to copy, and this "
-            f"browser is {old}. A copy is the drawn page, and the widgets draw "
-            "into shadow roots this browser cannot serialize."
-        )
-
-    page = browser.new_page(viewport=RENDER_VIEWPORT)
-    install_driver(page)
-    try:
-        # See the gate: a page listening for news is never network-idle. The
-        # stamps below are the arrival signal, and they are the precise one.
-        page.goto(url, wait_until="load")
-        return _export_document(page, page.request, url, name)
-    finally:
-        page.close()
-
-
-def _export_document(page, request, url: str, name: str) -> str:
-    """Bake one loaded document and its embedded documents through their own scopes."""
-    from playwright.sync_api import Error as PlaywrightError
-    from playwright.sync_api import TimeoutError as PlaywrightTimeout
-
-    try:
-        wait_for_probe(page, "upgraded")
-        # Read expectations through the same server the browser is applying. A
-        # preview freezes that server at one PageSnapshot; rereading page files
-        # here could otherwise wait for state the browser cannot receive.
-        response = request.get(
-            _state_url(page, url),
-            timeout=render_checks_model.SERVED_TIMEOUT_MS,
-        )
-        try:
-            if not response.ok:
-                raise PlaywrightError(f"state returned {response.status}")
-            try:
-                state = response.json()
-            except ValueError as error:
-                raise PlaywrightError("state returned invalid JSON") from error
-            readiness = {
-                "pageRoot": _document_url(
-                    page,
-                    url,
-                    'link[rel="canonical"][data-lf-runtime]',
-                    "document has no canonical page root",
-                ),
-                "theme": _document_url(
-                    page,
-                    url,
-                    'link[rel="stylesheet"][data-lf-runtime]',
-                    "document has no runtime theme",
-                ),
-                "replayedEvents": sum(
-                    event["kind"] in ("action", "report") for event in state["events"]
-                ),
-            }
-        except (KeyError, TypeError) as error:
-            raise PlaywrightError("state returned an invalid reading") from error
-        finally:
-            response.dispose()
-        failed_stage = wait_for_presentation(page, state, readiness["replayedEvents"])
-        if failed_stage:
-            raise PlaywrightTimeout(f"presentation stopped at {failed_stage}")
-        # A live widget over deferred record fields keeps unopened payloads out of the
-        # DOM. A standalone copy has no deferred door after scripts are removed, so
-        # let any renderer that owns such payloads materialize them before baking.
-        evaluate_probe(page, "prepareExport")
-        wait_for_probe(page, "exportPrepared", timeout_ms=PREPARE_TIMEOUT_MS)
-        # Materializing a deferred value can mount required descendants or overlap a
-        # newer semantic publication. Re-read the coordinator immediately before
-        # baking rather than treating the initial arrival latch as permanent.
-        wait_for_probe(page, "currentPresented")
-        asset_root = readiness["theme"].removesuffix("theme.css")
-        origin = urlsplit(asset_root)
-        page_root = urlsplit(readiness["pageRoot"]).path
-
-        def read_resource(resource_url: str) -> Resource:
-            parsed = urlsplit(resource_url)
-            if (parsed.scheme, parsed.netloc) != (origin.scheme, origin.netloc):
-                raise ValueError(f"export resource is outside the page: {resource_url}")
-            path = parsed.path
-            logical = path.removeprefix(page_root).lstrip("/")
-            message_media = re.fullmatch(
-                rf"{MEDIA_DIR}/{DIR_FILES[MEDIA_DIR]}", logical
-            )
-            if not path.startswith(origin.path):
-                # Runtime-produced markup (including the bake's adopted sheets)
-                # can still name logical page routes. Read those only through
-                # the document's captured namespace, never the mutable alias.
-                # Media added by later conversation events is page-owned and
-                # content-addressed, not an input of the authored revision.
-                resource_url = urljoin(
-                    readiness["pageRoot"] if message_media else asset_root,
-                    logical,
-                )
-            if not message_media and not urlsplit(resource_url).path.startswith(
-                origin.path
-            ):
-                raise ValueError(
-                    f"export resource escapes its revision: {resource_url}"
-                )
-            response = request.get(resource_url, max_redirects=0)
-            try:
-                if not response.ok:
-                    raise ValueError(
-                        f"export resource returned {response.status}: {resource_url}"
-                    )
-                mime = response.headers["content-type"].split(";", 1)[0].strip()
-                return Resource(response.body(), mime)
-            finally:
-                response.dispose()
-
-        # Each embedded document keeps its own DOM and stylesheet scope. Export
-        # it through the same captured-resource path, then embed the result;
-        # importing its custom elements into the parent would upgrade them twice.
-        for frame in page.locator('iframe[data-lf-export="document"]').all():
-            child = frame.element_handle().content_frame()
-            if child is None:
-                raise ValueError("an embedded document has no loaded frame")
-            copied = _export_document(
-                child, request, child.url, frame.get_attribute("title") or name
-            )
-            frame.evaluate(
-                """(frame, source) => {
-                  frame.srcdoc = source;
-                  frame.removeAttribute('src');
-                  frame.removeAttribute('data-lf-contained');
-                  frame.style.removeProperty('height');
-                  frame.removeAttribute('inert');
-                  frame.dataset.lfExported = '';
-                }""",
-                copied,
-            )
-
-        return UTF8_BOM + inline_assets(
-            evaluate_probe(page, "bake"),
-            read_resource=read_resource,
-            document_url=urljoin(asset_root, "index.html"),
-        )
-    except PlaywrightTimeout:
-        sys.exit(
-            f"{name} never finished applying its live state in "
-            "the browser, so a copy would be half-drawn. `leaf version check "
-            "<page> --render` says what is wrong with it."
-        )
-    except PlaywrightError as error:
-        sys.exit(
-            f"{name} could not read its browser state or probe module "
-            f"({str(error).strip().splitlines()[0]}), so Leaf could not make a "
-            "trustworthy copy."
-        )
-    except ValueError as error:
-        sys.exit(f"{name} could not embed its captured assets: {error}")
-
-
-def cmd_export(page_dir: Path, out: Path, version, *, interactive: bool = False) -> int:
-    """One stamped version as a standalone HTML file.
-
-    The static copy is the page as the browser finished drawing it. The interactive
-    copy packages the captured inputs so that same drawing happens when the file opens;
-    its embedded authoritative reading has no host command or transport capability."""
-    from playwright.sync_api import Error as PlaywrightError
-
+    The file carries the captured revision and Leaf's normal runtime, which boots from
+    the embedded authoritative reading. It has no host command or transport capability."""
     events = read_events(page_dir)
     published = published_versions(page_dir, events)
     if not published:
@@ -643,51 +428,17 @@ def cmd_export(page_dir: Path, out: Path, version, *, interactive: bool = False)
     document = SourceDocument(
         revision_path(page_dir, revision).read_text(encoding="utf-8")
     )
-
-    if interactive:
-        artifact = read_artifact(page_dir, revision)
-        active = {
-            "revision": revision,
-            "version": version,
-            "url": f"/versions/{name}",
-        }
-        snapshot = capture_page_snapshot(page_dir, document, active, artifact=artifact)
-        state = PageStateService(
-            page_dir,
-            page_snapshot=snapshot,
-            layer_identity=snapshot.layer,
-        ).page_state(revision)
-        html = interactive_export_page(
-            artifact, state, snapshot.data, revision, version
-        )
-    else:
-        try:
-            with (
-                preview_server(page_dir, document, revision, version=version) as url,
-                playwright_driver() as p,
-            ):
-                try:
-                    browser, _ = launch_browser(p)
-                except PlaywrightError as e:
-                    sys.exit(
-                        "export needs a browser, and none launched "
-                        f"({str(e).strip().splitlines()[0]}). A copy is the drawn page, "
-                        f"so there is nothing to write without one. {browser_hint()}"
-                    )
-                try:
-                    html = export_page(browser, url, page_dir, name)
-                finally:
-                    browser.close()
-        except DriverNotStarted as error:
-            sys.exit(
-                f"export needs a browser, and Playwright's driver did not start "
-                f"({error}), so none was ever asked for. {driver_hint()}"
-            )
+    artifact = read_artifact(page_dir, revision)
+    active = {"revision": revision, "version": version, "url": f"/versions/{name}"}
+    snapshot = capture_page_snapshot(page_dir, document, active, artifact=artifact)
+    state = PageStateService(
+        page_dir,
+        page_snapshot=snapshot,
+        layer_identity=snapshot.layer,
+    ).page_state(revision)
+    html = export_document(artifact, state, snapshot.data, revision, version)
 
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(html, encoding="utf-8")
-    detail = ", offline interactive" if interactive else ""
-    print(
-        f"✓ {name} → {out} ({out.stat().st_size // 1024} KB{detail}, opens with no server)"
-    )
+    print(f"✓ {name} → {out} ({out.stat().st_size // 1024} KB, opens with no server)")
     return 0

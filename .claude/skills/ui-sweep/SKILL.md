@@ -80,8 +80,8 @@ another. Check whether labels and values group and align, text wraps at meaningf
 boundaries, controls and icons remain legible, and space follows the active task. Capture
 the full viewport for composition and native-scale details wherever the full image cannot
 support that judgment. Computed styles and geometry explain a visual result; they do not
-establish that it looks coherent. Test affected paint in both color schemes and affected
-export behavior in print.
+establish that it looks coherent. Test affected paint in both color schemes and in
+print.
 
 Use visual treatments to communicate content hierarchy and state. Avoid rounded
 one-sided borders and reflexive cards, tints, gradients, or soft shadows. Keep

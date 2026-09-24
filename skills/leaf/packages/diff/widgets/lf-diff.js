@@ -1,6 +1,6 @@
 /* lf-diff uses Pierre's static renderer rather than hydrating Pierre's custom
  * element. Its ordinary DOM can live in Leaf's declared shadow root, so the
- * same rendered lines support selection anchors and script-free export. */
+ * rendered lines support selection anchors. */
 import {
   DISCLOSE,
   announce,
@@ -259,7 +259,7 @@ function diffBody(nodes) {
   return body;
 }
 
-// The checkbox is the complete wrap state, including in a scriptless export.
+// The checkbox is the complete wrap state.
 function wrapSwitch() {
   const label = offer("label", "lf-diff-wrap-label");
   const box = offer("input", "lf-diff-wrap", undefined, "checkbox");
@@ -1057,41 +1057,6 @@ customElements.define(
       if (!entry.details || entry.loaded || entry.failed) return null;
       entry.details.open = true;
       return this.loadManifestEntry(entry);
-    }
-
-    async lfPrepareExport() {
-      this.clearFilter();
-      await Promise.all(
-        (this.manifestEntries ?? []).map((entry) => this.loadManifestEntry(entry)),
-      );
-      // The filter, the count and the next-unreviewed press all need the module, so a
-      // copy loses them. The wrap switch does not: it is a checkbox the theme reads, so
-      // it goes on working in a file with its scripts dropped, and the tools row stays
-      // to carry it — a copy of a patch is exactly where a user has no other way to
-      // see the end of a long line.
-      const tools = this.diffTools;
-      tools?.search.closest(".lf-diff-search-label")?.remove();
-      tools?.progress.remove();
-      tools?.next?.remove();
-      this.diffTools = null;
-      for (const entry of this.fileEntries ?? []) {
-        entry.fileComment?.remove();
-        entry.fileComment = null;
-        for (const line of entry.lines) {
-          line.comment?.remove();
-          line.comment = null;
-        }
-        if (!entry.review) continue;
-        if (!entry.reviewed) {
-          entry.review.remove();
-          continue;
-        }
-        const status = document.createElement("span");
-        status.className = "lf-diff-reviewed";
-        relabel(status, "✓ Reviewed", { says: true });
-        entry.review.replaceWith(status);
-        entry.review = status;
-      }
     }
 
     attachReview(entry) {

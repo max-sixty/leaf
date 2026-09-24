@@ -1,6 +1,5 @@
 /* The layer's constructed stylesheets: the comment chrome's (chrome.css) and the marks'
-   (marks.css), which the document and every shadow stage adopt. An adopted sheet stands
-   in no element's markup, so a copy of the page drops it with the rest of the live layer.
+   (marks.css), which the document and every shadow stage adopt.
 
    Every delivery carries their text in the document (`delivery_sheets` in
    revision_delivery.py), so they are constructed while this module evaluates, with no

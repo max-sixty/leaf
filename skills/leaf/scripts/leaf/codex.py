@@ -1098,7 +1098,12 @@ def delivery_dir(session_id: str) -> Path:
 
 
 def delivery_lock_path(session_id: str) -> Path:
-    return session_state_path(session_id, "delivery.lock")
+    return records_lock(delivery_dir(session_id))
+
+
+def records_lock(records: Path) -> Path:
+    """The lock every writer of one task's delivery records holds, beside them."""
+    return records.with_suffix(".delivery.lock")
 
 
 def record_path(session_id: str, delivery_id: str) -> Path:

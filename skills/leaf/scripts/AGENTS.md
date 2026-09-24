@@ -53,6 +53,8 @@ The main owners are:
   terminal host receipts that close one;
 - `machine`: this machine — the state home Leaf keeps on it, and the process readings
   that say whether a recorded pid still runs and what sits above this one;
+- `retirement`: the state home's one rule for removing a record whose page or lock
+  holder is gone, and the hourly sweep that applies it;
 - `host`: the agent harness declarations — session identity, lifetime, delivery
   carrier, hook remedies, and the nudge that reaches a session with nothing watching —
   and the Claude Code messaging socket behind one of them;

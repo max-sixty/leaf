@@ -94,7 +94,7 @@ def state_home() -> Path:
     the one key every page here is served with (`host_key`). State, not config:
     claim records carry pids and absolute paths, while page service records
     carry ports, so this state is bound to this machine, as is the key that
-    reaches it.
+    reaches it. `retirement` removes each record whose page or holder is gone.
 
     Created here, owner-only: the key is what stands between another local user
     and a log that outranks the document, and a 0644 file under a traversable

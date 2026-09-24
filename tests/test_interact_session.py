@@ -9502,6 +9502,115 @@ def test_wait_lease_is_exact_and_excludes_another_wait(
     assert not leases_model.lock_is_held(lease_path)
 
 
+def test_the_state_home_retires_what_stands_for_a_gone_page_or_holder(
+    page_dir, tmp_path, monkeypatch
+):
+    """The first `leaf` command an hour after the last sweep removes each record
+    whose subject is gone: a claim, a delivery or a Codex task's delivery record,
+    live or archived, once every page it names is gone; a lock or lease file once
+    nothing holds it, with a wait's `.told` beside it. What still stands for
+    something stays, and so does a record naming no page in a shape this version
+    reads, since another version may be reading it."""
+    home = machine_model.state_home()
+    gone = tmp_path / "gone"
+    shutil.copytree(page_dir, gone)
+    record_claim(page_dir, id="live")
+    record_claim(gone, id="gone")
+    shutil.rmtree(gone)
+
+    def record(path, value):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        files_model.write_json(path, value)
+        return path
+
+    def delivery(delivery_id, *pages):
+        path = delivery_model.delivery_path(delivery_id)
+        batches = [{"page": str(page), "events": []} for page in pages]
+        return record(path, {"format": "leaf-delivery-v3", "batches": batches})
+
+    live_delivery = delivery("0000000a", page_dir)
+    half_gone = delivery("0000000b", page_dir, gone)
+    gone_delivery = delivery("0000000c", gone)
+    unread = record(home / "deliveries" / "0000000d.json", {"format": "v0"})
+
+    task = record(
+        codex_model.record_path("thread", "0000000c"),
+        {"batches": [{"page": str(gone)}]},
+    )
+    record(
+        task.parent / "history" / "0000000b.json", {"batches": [{"page": str(gone)}]}
+    )
+    kept_task = record(
+        codex_model.record_path("other-thread", "0000000a"),
+        {"batches": [{"page": str(page_dir)}]},
+    )
+
+    # A transition mints its page's lock, which stays after it.
+    for page in (page_dir, gone):
+        with events_model.flocked(leases_model.transition_lock(page)):
+            pass
+    locks = sorted((home / "page-locks").iterdir())
+    assert leases_model.transition_lock(page_dir) in locks
+    held = leases_model.take_lease(leases_model.waiter_lease_path(None, "held"))
+    ended = leases_model.take_lease(leases_model.waiter_lease_path(None, "ended"))
+    ended.close()
+    told = leases_model.waiter_lease_path(None, "ended").with_suffix(".told")
+    told.write_text("token")
+    # Any command the fixture ran swept a moment ago; this one is the hour later.
+    (home / "swept").unlink(missing_ok=True)
+
+    result = CliRunner().invoke(cli_model.cli, ["page", "state", str(page_dir)])
+    assert result.exit_code == 0, result.output
+
+    assert service_model.page_claim(page_dir)["id"] == "live"
+    assert not service_model.claim_path(gone).exists()
+    assert live_delivery.exists() and half_gone.exists() and unread.exists()
+    assert not gone_delivery.exists()
+    assert not task.parent.exists()
+    assert kept_task.exists()
+    assert not any(path.exists() for path in locks)
+    assert leases_model.waiter_lease_path(None, "held").exists()
+    assert not leases_model.waiter_lease_path(None, "ended").exists()
+    assert not told.exists()
+
+    # Within the hour a command sweeps nothing.
+    record_claim(gone, id="gone")
+    assert (
+        CliRunner().invoke(cli_model.cli, ["page", "state", str(page_dir)]).exit_code
+        == 0
+    )
+    assert service_model.claim_path(gone).exists()
+    held.close()
+
+
+def test_a_lock_removed_under_a_waiting_taker_is_taken_again_on_its_successor(
+    tmp_path,
+):
+    """A taker that opened a lock file and waited behind the lock that removed it
+    ends up holding the file the path names, not the removed one, so the next
+    taker is excluded. Without the re-check the two would each hold a lock and
+    exclude nobody."""
+    path = tmp_path / "transition.lock"
+    entered = threading.Event()
+    release = threading.Event()
+
+    def take():
+        with events_model.flocked(path):
+            entered.set()
+            assert release.wait(10)
+
+    taker = threading.Thread(target=take)
+    with open(path, "a+b") as remover:
+        fcntl.flock(remover, fcntl.LOCK_EX)
+        taker.start()
+        time.sleep(0.2)  # the taker opens the file and waits on this lock
+        path.unlink()
+    assert entered.wait(10)
+    assert leases_model.take_lease(path) is None
+    release.set()
+    taker.join(10)
+
+
 def test_a_new_claim_cannot_borrow_the_previous_sessions_wait_lease(
     page_dir, monkeypatch
 ):

@@ -163,31 +163,20 @@ def _touched_recently(page_dir: Path, claimed_at: str) -> bool:
 
 
 def claim_records() -> list:
-    """Every atomic page claim record currently on this machine, retiring each
-    record whose page directory is gone.
+    """Every atomic page claim record currently on this machine.
 
     A claim outlives its session on purpose: it is the provenance of a page that
-    is still there. Once the page is gone it says nothing, and a page is usually
-    removed from outside leaf — a worktree's `.tmp/previews` goes with the
-    worktree, a scratch directory with its session — so no leaf process sees the
-    moment, and without this the record stays to be read by every later scan.
-    This scan is where leaf learns it, so the record goes here, whichever version
-    wrote it: a missing page is the same fact to every reader, and `page init`
-    already keeps a page made again at that path from inheriting the record. A
-    successor claim at that path could only be lost by a `page init` and a claim
-    both landing between this check and the unlink."""
+    is still there. One whose page is gone is `retirement`'s to remove, and
+    until its sweep does, every caller already asks whether the page it names is
+    there."""
     directory = state_home() / "claims"
     if not directory.is_dir():
         return []
-    claims = []
-    for path in directory.glob("*.json"):
-        record = read_json(path)
-        page = record.get("page") if isinstance(record, dict) else None
-        if isinstance(page, str) and not Path(page).is_dir():
-            path.unlink(missing_ok=True)
-        elif claim := readable_claim(record):
-            claims.append(claim)
-    return claims
+    return [
+        claim
+        for path in directory.glob("*.json")
+        if (claim := readable_claim(read_json(path)))
+    ]
 
 
 class PageTransaction:

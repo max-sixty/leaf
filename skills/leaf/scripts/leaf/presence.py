@@ -62,19 +62,17 @@ def neighbor_candidates() -> tuple:
     session's scratch directory. Released and dead claims stay useful here as
     provenance.
 
-    The set moves when an entry in one of those two directories does, or when a
-    page it holds is deleted, which for a claimed scratch page moves neither. So
-    it is read again only then: keyed on the two stamps, the way `leaf wait` keys
-    its ownership set on the claims directory's, and on each held page still
-    being there, so the read that retires a deleted page's claim follows its
-    deletion. Whether each page is serving is the caller's question, asked fresh
-    every time."""
+    The set moves when an entry in one of those two directories does, so it is
+    read again only then: keyed on the two stamps, the way `leaf wait` keys its
+    ownership set on the claims directory's. A page deleted since stays in the set
+    until `retirement` removes its claim, and answers the caller's question —
+    whether each page is serving, asked fresh every time — with no."""
     global _candidates
     home = state_home()
     claims, pages = home / "claims", home / "pages"
     stamp = (home, file_stamp(claims), file_stamp(pages))
     with _presence_cache_lock:
-        if _candidates[0] == stamp and all(page.is_dir() for page in _candidates[1]):
+        if _candidates[0] == stamp:
             return _candidates[1]
         found = [d for d in pages.iterdir() if d.is_dir()] if pages.is_dir() else []
         found += (Path(claim["page"]) for claim in claim_records())
@@ -82,8 +80,7 @@ def neighbor_candidates() -> tuple:
             page for page in (path.resolve() for path in found) if page.is_dir()
         )
         # Keyed on the stamp taken before the read, so an entry written during it
-        # moves the stamp and the next call reads again. A read that retired
-        # records has moved it too, and the call after it settles.
+        # moves the stamp and the next call reads again.
         _candidates = (stamp, tuple(resolved))
         return _candidates[1]
 

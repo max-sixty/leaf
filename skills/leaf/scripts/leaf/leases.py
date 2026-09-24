@@ -5,7 +5,12 @@ import hashlib
 import sys
 from pathlib import Path
 
-from leaf.event_log import EventRefused, flocked, require_cross_process_locking
+from leaf.event_log import (
+    EventRefused,
+    flocked,
+    names_locked,
+    require_cross_process_locking,
+)
 from leaf.machine import state_home
 from leaf.schema import WAITER_LOCK
 
@@ -48,15 +53,46 @@ def take_lease(path: Path):
     disabled has exited. The caller holds the returned file for as long as it
     holds the lease; closing it, or exiting, releases it. The lease's directory
     must already exist, so a stop naming a page that is gone cannot create it.
+
+    A lease file removed between the open and the lock is taken again on the path's
+    new file, as `flocked` does (`names_locked`).
     """
     require_cross_process_locking()
-    record = open(path, "a+b")  # noqa: SIM115 - returned and held by the caller
-    try:
-        fcntl.flock(record, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    except BlockingIOError:
+    while True:
+        record = open(path, "a+b")  # noqa: SIM115 - returned and held by the caller
+        try:
+            fcntl.flock(record, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            record.close()
+            return None
+        if names_locked(path, record):
+            return record
         record.close()
-        return None
-    return record
+
+
+def retire_lock(path: Path) -> None:
+    """Remove this lock or lease file if no process holds it.
+
+    Its lock is taken, without waiting, before the file goes, so a holder keeps
+    it; the file goes while that lock is held, so a process that opened it
+    meanwhile finds it unnamed once its own lock succeeds, and takes the lock
+    again on a new file (`names_locked`). A leaf too old to ask that could hold
+    the removed file beside a new holder of its successor, but only by opening
+    the file inside the few microseconds between this lock and the removal.
+    Those same microseconds are the one moment a `take_lease` or a
+    `lock_is_held` meets this lock rather than a holder's."""
+    require_cross_process_locking()
+    try:
+        record = open(path, "r+b")  # noqa: SIM115 - closed by the with below
+    except FileNotFoundError:
+        return
+    with record:
+        try:
+            fcntl.flock(record, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            return
+        if names_locked(path, record):
+            path.unlink()
 
 
 def page_lock(page_dir: Path, purpose: str) -> Path:
@@ -66,6 +102,8 @@ def page_lock(page_dir: Path, purpose: str) -> Path:
     locks that can meet init cannot live in the prospective page directory. The
     resolved path gives every process the same lock while the purpose keeps the
     contract transition independent from the page's current session claim.
+    One is minted for every page path a command transitions, so `retirement`
+    removes each while nothing holds it.
     """
     locks = state_home() / "page-locks"
     locks.mkdir(exist_ok=True)

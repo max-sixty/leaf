@@ -5068,14 +5068,11 @@ def test_others_ships_on_a_network_facing_bind_too(page_dir):
     assert [entry["title"] for entry in state["others"]] == ["The other page"]
 
 
-def test_neighbours_follow_their_servers_and_a_deleted_pages_claim_retires(
-    page_dir, tmp_path
-):
+def test_neighbours_follow_their_servers_and_leave_with_their_pages(page_dir, tmp_path):
     """A neighbour appears on the read after its server starts and leaves on the
     read after it stops, though neither moves a file the candidate set is keyed
-    on. A claim whose page directory is gone is removed by the next scan, whether
-    the page went before the first scan or after one had listed it, so the
-    claims directory holds what is still there to claim."""
+    on. A page deleted before a scan or after one listed it is no neighbour,
+    though its claim stays until `retirement` sweeps it."""
     stopped = tmp_path / "stopped"
     neighbour_page(stopped, title="Starts later", dead=True)
     record_claim(stopped, id="later")
@@ -5083,7 +5080,7 @@ def test_neighbours_follow_their_servers_and_a_deleted_pages_claim_retires(
     neighbour_page(scratch, title="Scratch")
     record_claim(scratch, id="scratch")
     deleted = tmp_path / "deleted"
-    neighbour_page(deleted, title="Deleted", dead=True)
+    neighbour_page(deleted, title="Deleted")
     record_claim(deleted, id="deleted")
     shutil.rmtree(deleted)
 
@@ -5091,17 +5088,14 @@ def test_neighbours_follow_their_servers_and_a_deleted_pages_claim_retires(
         return [entry["title"] for entry in presence_model.other_leaves(page_dir)]
 
     assert titles() == ["Scratch"]
-    assert not service_model.claim_path(deleted).exists()
-    assert service_model.claim_path(stopped).exists()
 
     lease = leases_model.take_lease(stopped / "server.lock")
     assert titles() == ["Scratch", "Starts later"]
     lease.close()
     assert titles() == ["Scratch"]
 
-    shutil.rmtree(stopped)
-    assert titles() == ["Scratch"]
-    assert not service_model.claim_path(stopped).exists()
+    shutil.rmtree(scratch)
+    assert titles() == []
 
 
 def test_state_reads_claims_and_their_log_floor_in_one_transaction(

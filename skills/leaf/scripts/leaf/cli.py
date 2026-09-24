@@ -74,6 +74,9 @@ def _leaf_root(ctx: click.Context, _param: click.Parameter, value: bool) -> None
 )
 def cli() -> None:
     """Build and run interactive pages a session shares with its user."""
+    from leaf.retirement import retire_if_due
+
+    retire_if_due()
 
 
 @cli.command(short_help="Run Leaf's bundled MCP Apps server.")

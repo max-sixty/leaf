@@ -90,9 +90,13 @@ other page files and the external state listed below.
   after the server has closed its sockets.
 
 - `<state-home>/claims/` — one atomic claim per resolved page, independent of its page
-  directory, and removed by the first scan that finds that directory gone
-  (`service.claim_records`). [session-lifetime.md](session-lifetime.md) owns claimant
-  identity, release, harness, and lifetime.
+  directory. [session-lifetime.md](session-lifetime.md) owns claimant identity,
+  release, harness, and lifetime.
+
+Every record the state home keeps about a page — its claim, its transition and
+preview locks under `page-locks/`, a delivery naming it — outlives the directory,
+which is usually deleted from outside leaf. `retirement.py` owns the one rule that
+removes such a record once its page, or the process holding its lock, is gone.
 
 ## Revision delivery
 

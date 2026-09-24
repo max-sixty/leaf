@@ -33,16 +33,45 @@ def flocked(path: Path):
     claim and delivery transitions. Stable purpose locks serialize contract or service
     transitions; a `.lock` beside a registry of JSON files serializes updates
     to them, since the files themselves are replaced by rename and a lock on a
-    replaced inode holds nothing."""
+    replaced inode holds nothing.
+
+    The same holds of a lock file removed while this waited for it, which is
+    what `retirement` does to one nobody holds: the lock is taken again on
+    whatever the path names now, so a holder always holds the file every later
+    taker opens (`names_locked`)."""
     require_cross_process_locking()
     # The event log is the successful-init marker as well as a lease. A
     # transaction racing page deletion must not recreate it and turn a deleted
     # directory back into an initialized page. Purpose locks are disposable and
     # may be minted on first use.
     mode = "r+b" if path.name == EVENTS_FILE else "a+b"
-    with open(path, mode) as f:
-        fcntl.flock(f, fcntl.LOCK_EX)
+    while True:
+        f = open(path, mode)  # noqa: SIM115 - held across the yield below
+        try:
+            fcntl.flock(f, fcntl.LOCK_EX)
+        except BaseException:
+            f.close()
+            raise
+        if names_locked(path, f):
+            break
+        f.close()
+    with f:
         yield f
+
+
+def names_locked(path: Path, locked) -> bool:
+    """Whether `path` still names the file `locked` has just taken a lock on.
+
+    A lock file means nothing while nobody holds it, so `retirement` removes it,
+    and it removes it while holding that lock. A process that opened the file
+    before the removal and waited behind it then holds a file no path names, and
+    every later taker opens a new one. Each taker asks this after its lock
+    succeeds and takes the lock again when the answer is no; that re-check is
+    what makes removing an unheld lock file safe."""
+    try:
+        return os.path.samestat(os.fstat(locked.fileno()), os.stat(path))
+    except FileNotFoundError:
+        return False
 
 
 def now_iso() -> str:

@@ -3,10 +3,9 @@ import { runtime } from "./context.js";
 
 const registry = runtime.registry;
 
-// Code is colored in the browser, at upgrade, and the spans land in the DOM — which is
-// what makes one answer serve the served page and the standalone one, where the script
-// is gone and only markup and CSS remain. Colouring it in Python instead would put the
-// spans in the file, and the file is what Claude writes the next version from.
+// Code is colored in the browser, at upgrade, and the spans land in the DOM. Colouring it
+// in Python instead would put the spans in the file, and the file is what Claude writes
+// the next version from.
 //
 // What a page ends up wearing is leaf's own vocabulary, not the tokenizer's: six
 // roles on one data-lf-syn attribute, styled from --syn-* like every other surface, so

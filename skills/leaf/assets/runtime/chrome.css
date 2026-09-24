@@ -1,8 +1,7 @@
 /* The comment layer's private stylesheet: everything the runtime draws that is not
    the document, from banner to shortcut bar. The boot module (leaf.js) adopts it as a
    constructed sheet, so it stands in no head node and a version activation's head
-   reconciliation never meets it; a standalone copy gets its text written into a
-   <style> by the bake. */
+   reconciliation never meets it. */
 /* `.lf-chrome` is one fixed runtime root containing the banner, tray panel, thread panel,
    composer, floating comment control, live region, shortcut bar and status, help,
    inspection paint, legend, and Go-to hint layer. The page and panel are separate scroll
@@ -286,18 +285,12 @@ body[data-lf-draw-mode] main .lf-conversation * { cursor: auto !important; }
 /* Element feedback is one hollow contour. Unlike a text highlight, an element mark
    is projected above everything the target draws, so any interior paint can obscure
    the target's own words or picture. The target painter keeps this contour above those
-   descendants; these declarations are the no-JS/export fallback. A reaction and a
+   descendants; these declarations are the no-JS fallback. A reaction and a
    comment share the contour because it locates feedback rather than naming its kind;
    the margin control carries that distinction. */
 :is(.lf-mark-el, .lf-react-el) {
   outline: 1px solid var(--mark-ink); outline-offset: -1px; }
 .lf-mark-el { cursor: pointer; }
-/* A copy carries the wash as a <mark> the export wrote into the words, the highlight
-   registry being script state no file can hold (BAKE). It carries the line with it: the
-   wash alone is 1.08:1 over the light paper, and a copy is the one place the user
-   cannot hover the words to find out whether anything is there. */
-html.lf-copy mark.lf-react { background: var(--react); color: inherit;
-  text-decoration: underline 2px solid var(--mark-ink); text-underline-offset: 3px; }
 /* The glyphs of the reactions standing on a target — a margin entry per reaction,
    revealing a separately named removal action. */
 .lf-react-mark { text-align: center; }
@@ -385,10 +378,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
    Asked of the control itself, not of what it holds: a settled group's disclosure
    names the chosen card, and that word is worth keeping on screen where the row is
    the only place it stands and worth dropping on paper, where the cards are open
-   underneath saying it themselves. An exported copy strikes the same bargain, and
-   takes the control out of the document rather than hiding it, which paper cannot do
-   (BAKE) — it asks the marker's value there, so an echoed route is a link the browser
-   still owns and keeps working. The runtime's own layer hides as one thing, in the
+   underneath saying it themselves. The runtime's own layer hides as one thing, in the
    @scope block below. */
 @media print {
   [data-lf-offer]:not([data-lf-said], [data-lf-echo]) { display: none !important; }

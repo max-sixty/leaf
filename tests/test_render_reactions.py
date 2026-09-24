@@ -7,7 +7,6 @@ import pytest
 from leaf import conversation as conversation_model
 from leaf import data as data_model
 from leaf import event_log as events_model
-from leaf import exporting as exporting_model
 from playwright.sync_api import expect
 from render_cases_interaction import (
     PANEL_PAGE,
@@ -1979,26 +1978,6 @@ def test_a_selection_change_replaces_and_clears_a_visual_target(browser, serve):
     expect(bar).to_be_hidden()
 
 
-def test_a_copy_drops_visual_action_controls_without_rewriting_the_provider(
-    browser, serve, tmp_path
-):
-    """Keyboard parity belongs to the live Leaf layer: an exported drawing keeps
-    neither dead controls nor runtime roles on Mermaid's generated SVG."""
-    url = serve(PART_DIAGRAM_PAGE)
-    out = tmp_path / "diagram-copy.html"
-    out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
-    page = browser.new_page()
-    page.goto(out.as_uri(), wait_until="load")
-    assert page.evaluate(
-        """() => ({
-          controls: document.querySelectorAll('.lf-visual-action').length,
-          rewritten: document.querySelectorAll(
-            '#flow g[role="button"], #flow g[tabindex]'
-          ).length,
-        })"""
-    ) == {"controls": 0, "rewritten": 0}
-
-
 def test_a_thread_at_rest_shows_only_the_marks_that_stand_in_it(browser, serve):
     """A thread at rest gives reactions no row of their own: only marks already left
     stand below a reply. Hover or keyboard focus reveals an overlaid add control on that
@@ -2408,59 +2387,3 @@ def test_escape_clears_selection_and_keeps_actions_dismissed(browser, serve):
     page.evaluate("() => new Promise(resolve => setTimeout(resolve, 0))")
     assert not bar.is_visible()
     assert page.evaluate("() => getSelection().toString()") == ""
-
-
-def test_a_copy_keeps_a_standing_reaction_as_a_mark_and_drops_the_press(
-    browser, serve, tmp_path
-):
-    """Export keeps standing reactions as their painted marks and drops the
-    affordances, like every other control: the glyph stays in the margin with no tab
-    stop and nothing calling it a press, and the wash is written into the words, the
-    highlight registry being script state no file can carry.
-
-    The role it does keep is the picture's. The glyph is aria-hidden paint and the word
-    beside it is collapsed away, so the token is the mark's name or the mark has none,
-    and a name on a role-less span is the one place the platform refuses one."""
-    url = serve(PANEL_PAGE)
-    events_model.append_event(
-        serve.page_dir,
-        {
-            "kind": "comment",
-            "author": "user",
-            "revision": 1,
-            "token": "shorten",
-            "anchor": {"section": "how-store", "quote": "every edit"},
-        },
-    )
-    out = tmp_path / "copy.html"
-    out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
-    page = browser.new_page()
-    page.goto(out.as_uri(), wait_until="load")
-    copy = page.evaluate(
-        """() => ({
-          washed: [...document.querySelectorAll('mark.lf-react')].map(m => m.textContent),
-          glyph: [...document.querySelectorAll(
-            '.lf-margin-cluster[data-lf-margin-for="how-store"] .lf-react-mark'
-          )]
-            .map(m => [m.innerText, m.getAttribute('role'),
-                       m.getAttribute('aria-label'), m.getAttribute('tabindex'),
-                       m.getAttribute('aria-expanded'),
-                       m.getAttribute('aria-controls')]),
-        })"""
-    )
-    assert copy == {
-        "washed": ["every edit"],
-        "glyph": [["✂️", "img", "shorten", None, None, None]],
-    }, copy
-    # The other half of the same promise, and the half no gate can see: the copy's
-    # `offering` reads the cursor and nothing else, so paint that arrives with the
-    # pointer rather than standing on the page is invisible to it. A lifecycle marker
-    # in a file would state a state that nothing in the file can leave.
-    mark = page.locator(
-        '.lf-margin-cluster[data-lf-margin-for="how-store"] .lf-react-mark'
-    )
-    resting = mark.evaluate("el => getComputedStyle(el).backgroundColor")
-    assert mark.evaluate(PAINTS_STATE_MARK) is False
-    mark.hover()
-    assert mark.evaluate("el => getComputedStyle(el).backgroundColor") == resting
-    assert mark.evaluate(PAINTS_STATE_MARK) is False

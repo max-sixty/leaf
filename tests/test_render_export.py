@@ -1,6 +1,5 @@
-"""Standalone export tests."""
+"""Preview and offline export tests."""
 
-import itertools
 import json
 import os
 import re
@@ -27,37 +26,18 @@ from leaf import files as files_model
 from leaf import hooks as hooks_model
 from leaf import leases as leases_model
 from leaf import media as media_model
-from leaf import render_checks as render_checks_model
 from leaf import server as server_model
 from leaf import service as service_model
-from leaf.render_gate import browser as browser_model
-from leaf.render_gate.preview import preview_server
-from leaf.structure import UTF8_BOM, SourceDocument
+from leaf.structure import UTF8_BOM
 from playwright.sync_api import expect
-from render_cases_interaction import (
-    REPORT_PAGE,
-)
-from render_cases_layout import (
-    serious_axe_violations,
-)
 from render_cases_navigation import (
     source_revision,
 )
-from render_cases_widgets import (
-    CUT_BOXES_PAGE,
-)
 from render_harness import (
-    CORPUS_PAGE,
-    CORPUS_SOURCES,
-    LONG_PAGE,
     REPLAYED_PAGE,
     consume_browser_errors,
     leaf_page,
     open_page,
-    panel_settled,
-    primed,
-    refuse,
-    resized,
     restarting,
     round_trip,
     sending,
@@ -1017,7 +997,7 @@ customElements.define("lf-offline-test", class extends LitElement {
   stop = null;
 
   createRenderRoot() {
-    return this.shadowRoot ?? this.attachShadow({mode: "open", serializable: true});
+    return this.shadowRoot ?? this.attachShadow({mode: "open"});
   }
 
   connectedCallback() {
@@ -1138,7 +1118,6 @@ def test_interactive_export_with_an_ask_reaches_application_presentation(
             str(serve.page_dir),
             "--out",
             str(interactive),
-            "--interactive",
         ],
         env={"LEAF_BROWSER_EXECUTABLE": str(tmp_path / "missing-browser")},
     )
@@ -1202,15 +1181,11 @@ def test_interactive_export_runs_captured_local_behavior_without_a_host(
             str(serve.page_dir),
             "--out",
             str(interactive),
-            "--interactive",
         ],
         env={"LEAF_BROWSER_EXECUTABLE": str(tmp_path / "missing-browser")},
     )
     assert result.exit_code == 0, result.output
-    assert "offline interactive" in result.output
-
-    static = exporting_model.export_page(browser, url, serve.page_dir, "v1.html")
-    assert "<script" not in static.lower()
+    assert "opens with no server" in result.output
 
     page = browser.new_page(viewport={"width": 1000, "height": 800})
     external = []
@@ -1227,9 +1202,6 @@ def test_interactive_export_runs_captured_local_behavior_without_a_host(
     expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
     expect(page.locator("#offline-widget #choice")).to_have_text("chosen")
     expect(page.locator(".lf-chrome")).to_have_count(0)
-    assert page.locator("#offline-widget").evaluate(
-        "owner => owner.shadowRoot.serializable"
-    )
     assert (
         page.locator("#offline-widget #local").evaluate(
             "control => getComputedStyle(control).color"
@@ -1286,7 +1258,6 @@ def test_interactive_export_hydrates_captured_deferred_values_offline(
             str(serve.page_dir),
             "--out",
             str(interactive),
-            "--interactive",
         ],
         env={"LEAF_BROWSER_EXECUTABLE": str(tmp_path / "missing-browser")},
     )
@@ -1316,7 +1287,7 @@ def test_interactive_export_hydrates_captured_deferred_values_offline(
     "stem",
     ["notification-playground", "data-explorer", "code-comparison"],
 )
-def test_playground_examples_keep_their_record_and_offline_interaction_modes(
+def test_playground_examples_keep_their_offline_interaction_mode(
     browser, serve, tmp_path, stem
 ):
     source = ROOT / "examples" / f"{stem}.html"
@@ -1335,32 +1306,7 @@ def test_playground_examples_keep_their_record_and_offline_interaction_modes(
         submit = playground.get_by_role("button", name="Apply treatment")
     with sending(live, f"the {stem} configuration"):
         submit.click()
-
-    static_path = tmp_path / f"{stem}-record.html"
-    static_path.write_text(
-        exporting_model.export_page(browser, url, serve.page_dir, "v1.html"),
-        encoding="utf-8",
-    )
     live.close()
-
-    record = browser.new_page(viewport={"width": 480, "height": 700})
-    record.goto(static_path.as_uri(), wait_until="load")
-    expect(record.locator("script")).to_have_count(0)
-    expect(record.locator("lf-playground").get_by_role("button")).to_have_count(0)
-    expect(record.locator("lf-playground-output")).not_to_be_empty()
-    if stem == "notification-playground":
-        expect(record.locator(".notification-demo-card-banner")).to_have_count(4)
-    elif stem == "data-explorer":
-        expect(record.locator(".query-result-count")).to_have_text("1 matching release")
-    else:
-        expect(record.locator("lf-code.lf-rendered")).to_have_count(3)
-        expect(record.locator("#code-comparison-instruction")).to_contain_text(
-            "comfortable reading density"
-        )
-    assert record.evaluate("document.documentElement.scrollWidth") == 480
-    record.emulate_media(media="print")
-    expect(record.locator("lf-playground-output")).to_be_visible()
-    record.close()
 
     interactive_path = tmp_path / f"{stem}-interactive.html"
     result = CliRunner().invoke(
@@ -1371,7 +1317,6 @@ def test_playground_examples_keep_their_record_and_offline_interaction_modes(
             str(serve.page_dir),
             "--out",
             str(interactive_path),
-            "--interactive",
         ],
         env={"LEAF_BROWSER_EXECUTABLE": str(tmp_path / "missing-browser")},
     )
@@ -1420,7 +1365,7 @@ def test_playground_examples_keep_their_record_and_offline_interaction_modes(
 def test_the_example_preview_command_exports_a_file_that_opens_on_its_own(
     browser,
 ):
-    """The handoff command names one file whose drawn page needs no live server."""
+    """The handoff command names one file whose page draws with no live server."""
     out = ROOT / ".tmp" / "example-pr-walkthrough.html"
     result = subprocess.run(
         [
@@ -1447,9 +1392,8 @@ def test_the_example_preview_command_exports_a_file_that_opens_on_its_own(
     source = (ROOT / "examples" / "pr-walkthrough.html").read_text(encoding="utf-8")
     title = re.search(r"<h1>(.*?)</h1>", source, re.DOTALL).group(1).strip()
     expect(page.get_by_role("heading", name=title)).to_be_visible()
+    expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
     assert page.evaluate("document.compatMode") == "CSS1Compat"
-    assert page.locator("body").get_attribute("data-lf-reading") is None
-    assert page.locator("script").count() == 0
     assert page.locator('link[rel="stylesheet"]').count() == 0
     assert page.locator("style").count() > 0
 
@@ -1457,7 +1401,7 @@ def test_the_example_preview_command_exports_a_file_that_opens_on_its_own(
 def test_exporting_an_example_leaves_the_live_preview_untouched(
     monkeypatch, page_dir, standing_server
 ):
-    """A static handoff can be made while its interactive proof stays live."""
+    """An offline handoff can be made while its live preview keeps serving."""
     live_source = (page_dir / "index.html").read_bytes()
     live_server = standing_server(page_dir)
     import preview
@@ -1474,172 +1418,7 @@ def test_exporting_an_example_leaves_the_live_preview_untouched(
         live_server.wait(timeout=5)
 
 
-def test_a_broken_probe_module_stops_export_with_a_named_error(browser, serve):
-    """Export reports its instrumentation boundary instead of leaking a traceback."""
-
-    def break_probe(page):
-        page.route(
-            "**/_leaf/render-checks/index.js",
-            lambda route: route.fulfill(
-                status=200,
-                content_type="text/javascript; charset=utf-8",
-                body='import { missingForTest } from "/runtime/widget-api.js";',
-            ),
-        )
-
-    url = serve(LONG_PAGE)
-    root_url = url.replace("/versions/v1.html", "/")
-    with pytest.raises(
-        SystemExit,
-        match=r"v1\.html could not read its browser state or probe module",
-    ):
-        exporting_model.export_page(
-            primed(browser, break_probe), root_url, serve.page_dir, "v1.html"
-        )
-
-
-def test_export_waits_for_a_current_presentation_opened_after_arrival(
-    browser, serve, monkeypatch
-):
-    """The monotonic arrival latch cannot authorize a later half-drawn copy."""
-    source = leaf_page(
-        "current export readiness",
-        '<h1>Current export readiness</h1><p id="export-reading">initial</p>',
-    )
-
-    def hold_later_presentation(page):
-        page.add_init_script(
-            """addEventListener('DOMContentLoaded', () => {
-              const arm = async () => {
-                if (
-                  window.__lfExportPresentation ||
-                  document.body.dataset.lfPresented !== '1'
-                ) return;
-                const entry = document.querySelector(
-                  'script[data-lf-entry]'
-                ).dataset.lfEntry;
-                const {attachApplicationPresentation} = await import(
-                  new URL(
-                    'runtime/semantic-state.js',
-                    new URL(entry, location.href),
-                  ).href
-                );
-                const target = document.querySelector('#export-reading');
-                const presentation = attachApplicationPresentation(
-                  'test:export-current-readiness', target,
-                );
-                let settle;
-                const completion = new Promise(resolve => { settle = resolve; });
-                window.__lfExportPresentation = presentation;
-                window.__lfReleaseExportPresentation = () => {
-                  target.textContent = 'current';
-                  settle();
-                };
-                void presentation.present('current', completion);
-              };
-              new MutationObserver(arm).observe(document.body, {
-                attributes: true,
-                attributeFilter: ['data-lf-presented'],
-              });
-              void arm();
-            }, {once: true});"""
-        )
-
-    original_wait = render_checks_model.wait_for_probe
-    probed = []
-
-    def release_at_current_probe(page, name, *args):
-        if name == "currentPresented":
-            probed.append(name)
-            page.wait_for_function(
-                "() => Boolean(window.__lfReleaseExportPresentation)"
-            )
-            page.evaluate("() => window.__lfReleaseExportPresentation()")
-        return original_wait(page, name, *args)
-
-    monkeypatch.setattr(render_checks_model, "wait_for_probe", release_at_current_probe)
-    exported = exporting_model.export_page(
-        primed(browser, hold_later_presentation),
-        serve(source),
-        serve.page_dir,
-        "v1.html",
-    )
-
-    assert probed == ["currentPresented"]
-    assert '<p id="export-reading">current</p>' in exported
-
-
-def test_export_waits_for_the_snapshot_the_browser_can_receive(
-    browser, serve, monkeypatch
-):
-    """Later file writes cannot move readiness beyond a frozen preview."""
-    serve(REPORT_PAGE)
-    revision = files_model.latest_revision(serve.page_dir)
-    assert revision is not None
-    document = SourceDocument(
-        files_model.revision_path(serve.page_dir, revision).read_text(encoding="utf-8")
-    )
-    monkeypatch.setattr(render_checks_model, "SERVED_TIMEOUT_MS", 1_000)
-
-    with preview_server(serve.page_dir, document, revision, version=1) as url:
-        events_model.append_event(
-            serve.page_dir,
-            {
-                "kind": "report",
-                "author": "agent",
-                "revision": revision,
-                "text": "Arrived after the preview snapshot.",
-            },
-        )
-        # A source that appears after the snapshot moves the page's data version.
-        files_model.write_json(
-            serve.page_dir / "data.json",
-            {"sources": {"later": {"contract": "text-document"}}},
-        )
-        (serve.page_dir / "data").mkdir(exist_ok=True)
-        files_model.write_json(
-            serve.page_dir / "data" / "later.json", "Arrived after the snapshot."
-        )
-
-        exported = exporting_model.export_page(browser, url, serve.page_dir, "v1.html")
-
-    assert "The feeders" in exported
-    assert exported.startswith(UTF8_BOM)
-
-
-def test_export_state_route_follows_the_canonical_page_root(browser):
-    """A multiplexed page keeps its capability prefix when export reads state."""
-    page = browser.new_page()
-    page.set_content(
-        '<link rel="canonical" href="/p/page-capability/" data-lf-runtime>'
-    )
-    assert (
-        exporting_model._state_url(
-            page,
-            "https://leaf.invalid/p/page-capability/versions/v2.html",
-        )
-        == "https://leaf.invalid/p/page-capability/api/state"
-    )
-
-
-def test_accessibility_probe_inspects_standalone_child_documents(browser, tmp_path):
-    output = tmp_path / "framed.html"
-    output.write_text(
-        '<!doctype html><html lang="en"><title>Parent</title><main>'
-        '<iframe title="Child" srcdoc="&lt;!doctype html&gt;&lt;html lang=en&gt;'
-        "&lt;title&gt;Child&lt;/title&gt;&lt;main&gt;&lt;input type=text&gt;"
-        '&lt;/main&gt;&lt;/html&gt;"></iframe></main></html>'
-    )
-    page = browser.new_page()
-    page.goto(output.as_uri(), wait_until="load")
-    violations, report = serious_axe_violations(page)
-    assert any(
-        violation["id"] == "label" and violation["document"] == "about:srcdoc"
-        for violation in violations
-    ), report
-
-
-def test_interactive_export_refuses_server_dependent_specimens(serve, tmp_path):
+def test_export_refuses_server_dependent_specimens(serve, tmp_path):
     serve(
         leaf_page(
             "Live specimen",
@@ -1657,85 +1436,19 @@ def test_interactive_export_refuses_server_dependent_specimens(serve, tmp_path):
             str(serve.page_dir),
             "--out",
             str(output),
-            "--interactive",
         ],
     )
     assert result.exit_code != 0
-    assert "Live specimens need a server; export without --interactive" in result.output
+    assert "Live specimens need a server" in result.output
     assert not output.exists()
 
 
-@pytest.mark.parametrize("concealed", [False, True])
-def test_a_live_specimen_exports_as_an_isolated_rendered_document(
-    browser, serve, tmp_path, concealed
-):
-    """A copy retains child rendering and assets, with native controls but no server."""
-    source = leaf_page(
-        "Specimen copy",
-        """
-<h1>Specimen copy</h1>
-<p id="shared-name">Parent content</p>
-<lf-specimen id="practice" label="practice code">
-  <template id="practice-source" data-specimen>
-    <h1>Child content</h1>
-    <lf-code id="shared-name" language="python"><pre>print("hello")</pre></lf-code>
-    <img src="/page/badge.svg" alt="Practice badge">
-    <details><summary>More context</summary><p>Native disclosure survives.</p></details>
-  </template>
-</lf-specimen>
-""",
-    )
-    if concealed:
-        source = source.replace(
-            '<lf-specimen id="practice"',
-            '<details id="practice-disclosure"><summary>Show practice</summary>'
-            '<lf-specimen id="practice"',
-        ).replace("</lf-specimen>", "</lf-specimen></details>")
-    url = serve(
-        source,
-        page_files={
-            "badge.svg": '<svg xmlns="http://www.w3.org/2000/svg" width="24" '
-            'height="24"><rect width="24" height="24" fill="navy"/></svg>'
-        },
-    )
-    copied = exporting_model.export_page(browser, url, serve.page_dir, "v1.html")
-    out = tmp_path / "specimen-copy.html"
-    out.write_text(copied, encoding="utf-8")
-    page = browser.new_page()
-    requests = []
-    page.on("request", lambda request: requests.append(request.url))
-    page.goto(out.as_uri(), wait_until="load")
-    if concealed:
-        expect(page.locator("#practice-disclosure")).not_to_have_attribute("open", "")
-        page.get_by_text("Show practice", exact=True).click()
-    child = page.frame_locator("#practice iframe")
-    expect(page.locator("#shared-name")).to_have_text("Parent content")
-    expect(child.get_by_role("heading", name="Child content")).to_be_visible()
-    expect(child.locator("#shared-name .lf-code-line")).to_have_text('print("hello")')
-    expect(child.get_by_role("img", name="Practice badge")).to_have_js_property(
-        "naturalWidth", 24
-    )
-    child.get_by_text("More context", exact=True).click()
-    expect(child.get_by_text("Native disclosure survives.")).to_be_visible()
-    expect(child.locator("script")).to_have_count(0)
-    expect(page.get_by_role("button", name="Reset", exact=True)).to_have_count(0)
-    assert requests == [out.as_uri()]
+def test_an_export_keeps_utf8(browser, serve, tmp_path):
+    serve(leaf_page("Café handoff", "<h1>Café handoff</h1>"))
+    out = tmp_path / "cafe.html"
+    exporting_model.cmd_export(serve.page_dir, out, None)
+    assert out.read_text(encoding="utf-8").startswith(UTF8_BOM)
 
-
-def test_an_export_keeps_utf8_when_root_serialization_expands(browser, serve, tmp_path):
-    source = leaf_page("Café handoff", "<h1>Café handoff</h1>").replace(
-        '<html lang="en">', '<html data-padding="' + "&" * 300 + '">'
-    )
-    exported = exporting_model.export_page(
-        browser, serve(source), serve.page_dir, "v1.html"
-    )
-    charset = exported.index('<meta charset="utf-8"')
-
-    assert len(exported[:charset].encode()) > 1024
-    assert exported.startswith(UTF8_BOM)
-
-    out = tmp_path / "expanded-root.html"
-    out.write_text(exported, encoding="utf-8")
     page = browser.new_page()
     page.goto(out.as_uri(), wait_until="load")
     assert page.evaluate("document.characterSet") == "UTF-8"
@@ -1743,7 +1456,7 @@ def test_an_export_keeps_utf8_when_root_serialization_expands(browser, serve, tm
 
 
 def test_a_historical_export_embeds_its_captured_css_graph(browser, serve, tmp_path):
-    """Nested imports and images come from the drawn revision, not mutable files."""
+    """Nested imports and images come from the captured revision, not mutable files."""
     icon = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"><rect width="24" height="24" fill="navy"/></svg>'
     source = leaf_page(
         "Captured appearance",
@@ -1757,7 +1470,7 @@ def test_a_historical_export_embeds_its_captured_css_graph(browser, serve, tmp_p
 """,
         head='<link rel="stylesheet" href="/page/styles/main.css">',
     )
-    url = serve(
+    serve(
         source,
         page_files={
             "icon.svg": icon,
@@ -1798,15 +1511,16 @@ body { --export-tone: rgb(12, 34, 56); }
             ),
         ]
     )
-    exported = exporting_model.export_page(browser, url, serve.page_dir, "v1.html")
+    out = tmp_path / "captured.html"
+    exporting_model.cmd_export(serve.page_dir, out, None)
+    exported = out.read_text(encoding="utf-8")
     assert "--mutable-theme-only" not in exported
     assert "--mutable-chrome-only" not in exported
-    out = tmp_path / "captured.html"
-    out.write_text(exported, encoding="utf-8")
     page = browser.new_page()
     requests = []
     page.on("request", lambda request: requests.append(request.url))
     page.goto(out.as_uri(), wait_until="load")
+    expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
     expect(page.locator("#title")).to_have_css("color", "rgb(12, 34, 56)")
     expect(page.get_by_role("img", name="Captured badge")).to_have_js_property(
         "naturalWidth", 24
@@ -1829,162 +1543,12 @@ body { --export-tone: rgb(12, 34, 56); }
             .evaluate("el => getComputedStyle(el).backgroundImage")
             .startswith('url("data:image/svg+xml;base64,')
         )
-    assert requests == [out.as_uri()]
+    assert [url for url in requests if not url.startswith("data:")] == [out.as_uri()]
 
 
-def test_export_refuses_a_rendered_asset_outside_the_page(browser, serve):
-    source = leaf_page(
-        "External rendered image",
-        '<h1>External rendered image</h1><img id="external" alt="External evidence">',
-        head="""<script type="module">
-document.querySelector('#external').src = 'https://outside.invalid/evidence.svg';
-</script>""",
-    )
-    url = serve(source)
-    with pytest.raises(
-        SystemExit,
-        match="could not embed its captured assets: export resource is outside the page",
-    ):
-        # The export's own page, which is where the blocked image is reported.
-        exporting_model.export_page(browser.unwatched, url, serve.page_dir, "v1.html")
-
-
-@pytest.mark.parametrize("direction", ["ltr", "rtl"])
-def test_an_exported_scroll_cue_follows_its_native_scroller(
-    direction, browser, serve, tmp_path
-):
-    """A copy drops the runtime that updates live reach marks, but scrolling remains a
-    native browser action. Its cue follows that scroll instead of freezing the edge the
-    exporter's window happened to show."""
-    source = CUT_BOXES_PAGE
-    if direction == "rtl":
-        source = source.replace(
-            "</head>", "<style>html { direction: rtl; }</style></head>"
-        )
-    url = serve(source)
-    out = tmp_path / "scroll-cue.html"
-    out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
-
-    page = browser.new_page(viewport={"width": 1200, "height": 900})
-    page.emulate_media(reduced_motion="reduce")
-    page.goto(out.as_uri(), wait_until="load")
-    flow = page.locator("#flow")
-    expect(flow).to_have_attribute("data-lf-copy-scroll", direction)
-    expect(flow).not_to_have_attribute("data-lf-more-before", "")
-    expect(flow).not_to_have_attribute("data-lf-more-after", "")
-
-    def reading():
-        return flow.evaluate(
-            """el => {
-            const style = getComputedStyle(el);
-            return {
-                position: Number(style.getPropertyValue('--lf-copy-scroll-position')),
-                left: Number(style.getPropertyValue('--lf-copy-left-opacity')),
-                right: Number(style.getPropertyValue('--lf-copy-right-opacity')),
-                mask: style.maskImage,
-            };
-        }"""
-        )
-
-    start = reading()
-    flow.evaluate(
-        """(el, direction) => {
-        const distance = (el.scrollWidth - el.clientWidth) / 2;
-        el.scrollLeft = direction === 'rtl' ? -distance : distance;
-    }""",
-        direction,
-    )
-    page.wait_for_function(
-        "el => Number(getComputedStyle(el).getPropertyValue('--lf-copy-scroll-position')) > .4",
-        arg=flow.element_handle(),
-    )
-    middle = reading()
-    flow.evaluate(
-        "(el, direction) => { el.scrollLeft = direction === 'rtl' ? -el.scrollWidth : el.scrollWidth; }",
-        direction,
-    )
-    page.wait_for_function(
-        "el => Number(getComputedStyle(el).getPropertyValue('--lf-copy-scroll-position')) > .99",
-        arg=flow.element_handle(),
-    )
-    end = reading()
-
-    start_edges = (1, 0) if direction == "ltr" else (0, 1)
-    end_edges = tuple(reversed(start_edges))
-    assert start["position"] == 0, start
-    assert (start["left"], start["right"]) == start_edges, start
-    assert 0.4 < middle["position"] < 0.6, middle
-    assert middle["left"] == 0 and middle["right"] == 0, middle
-    assert end["position"] > 0.99, end
-    assert (end["left"], end["right"]) == end_edges, end
-    assert len({start["mask"], middle["mask"], end["mask"]}) == 3
-
-
-def test_a_browser_too_old_to_copy_a_page_is_refused_by_its_own_version(
-    browser, tmp_path
-):
-    """`bake()` ends in `root.getHTML({ serializableShadowRoots: true })`, which
-    Chromium grew in 125. The render gate never bakes, so an older browser passes
-    `--render` and then dies inside the probe with `root.getHTML is not a function` —
-    which the export reports as a probe module it could not load, sending the user
-    to Leaf's own instrumentation rather than to the browser their host handed over.
-    Asking the browser's age before the page is opened replaces that with one
-    sentence naming the floor and the version.
-
-    The old browser is a reading rather than an install, because what is under test
-    is which sentence a host gets and every browser this suite can reach is younger
-    than the floor. The suite's own is the control: a floor that refused it would
-    turn every export in the corpus into that sentence, so the check that it does not
-    is what keeps the refusal from being free."""
-
-    class Old:
-        version = "122.0.6261.128"
-
-    with pytest.raises(
-        SystemExit,
-        match=r"v1\.html needs Chromium 125 or later to copy, and this browser is "
-        r"122\.0\.6261\.128",
-    ):
-        exporting_model.export_page(Old(), "http://unused", tmp_path, "v1.html")
-
-    assert browser_model.below_export_floor(browser) is None
-
-
-def test_a_table_of_contents_keeps_native_links_in_a_static_copy(
-    browser, serve, tmp_path
-):
-    """A table of contents is navigation rather than a live decision. Its generated
-    links and targets stay in a standalone copy, where the browser can follow them
-    without the runtime that supplied the smoother live-page journey."""
-    source = leaf_page(
-        "contents export",
-        """
-<h1>Migration plan</h1>
-<lf-toc id="contents"></lf-toc>
-<h2>Prepare</h2><p>Take a snapshot.</p>
-<h2 style="margin-top: 110vh">Verify</h2><p>Compare the totals.</p>
-""",
-    )
-    url = serve(source)
-    out = tmp_path / "contents-copy.html"
-    out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
-
-    page = browser.new_page(viewport={"width": 1200, "height": 900})
-    page.goto(out.as_uri(), wait_until="load")
-    links = page.get_by_role("navigation", name="On this page").get_by_role("link")
-    expect(links).to_have_count(2)
-    href = links.nth(1).get_attribute("href")
-    assert href and href.startswith("#lf-contents-section-")
-
-    links.nth(1).click()
-    expect(page.locator(":target")).to_have_attribute("id", href[1:])
-    assert page.locator("script").count() == 0
-
-
-def test_a_gloss_keeps_its_explanation_in_static_media(browser, serve, tmp_path):
-    """Hover is only the live page's presentation. Print and a standalone export have
-    no script or pointer contract, so the author-written x-says tip becomes visible
-    inline and its now-inert keyboard control leaves with the rest of the offers."""
+def test_a_gloss_keeps_its_explanation_in_print(browser, serve):
+    """Hover is only the live page's presentation. Print has no pointer contract, so
+    the author-written tip becomes visible inline."""
     source = leaf_page(
         "gloss export",
         """
@@ -2003,59 +1567,13 @@ def test_a_gloss_keeps_its_explanation_in_static_media(browser, serve, tmp_path)
     live.emulate_media(media="print")
     expect(tip).to_be_visible()
     assert tip.evaluate("el => getComputedStyle(el).position") == "static"
-    live.close()
-
-    out = tmp_path / "gloss-copy.html"
-    out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
-    copy = browser.new_page(viewport={"width": 1200, "height": 900})
-    copy.goto(out.as_uri(), wait_until="load")
-    expect(copy.locator(".lf-gloss-popover")).to_be_visible()
-    expect(copy.locator(".lf-gloss-mark")).to_have_count(0)
-    expect(copy.locator("lf-gloss")).to_contain_text(
-        "walking skeletonA thin path through the real system."
-    )
-
-
-def test_an_export_drops_a_live_widget_work_claim(browser, serve, tmp_path):
-    """A local work claim is live runtime chrome even though its seat is in the page.
-    A standalone copy has no agent behind it, so preserving the rendered sentence
-    would turn a provisional claim into a frozen lie."""
-    work_page = leaf_page(
-        "work export",
-        """
-<h1 id="h">Rollout</h1>
-<lf-board id="rollout"><lf-column id="now" label="Now">
-  <lf-card id="rollout-card"><strong>Ship the rollout</strong> Check the shard.</lf-card>
-</lf-column></lf-board>
-""",
-    )
-    url = serve(work_page)
-    result = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "status",
-            str(serve.page_dir),
-            "working",
-            "checking the shard",
-            "--on",
-            "rollout-card",
-        ],
-    )
-    assert result.exit_code == 0, result.output
-
-    out = tmp_path / "work-copy.html"
-    out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
-    page = browser.new_page()
-    page.goto(out.as_uri(), wait_until="load")
-
-    expect(page.locator("#rollout-card")).not_to_contain_text("checking the shard")
 
 
 @pytest.mark.parametrize("resolved", [False, True], ids=["open", "resolved"])
-def test_inline_threads_keep_their_words_without_live_controls_in_static_media(
+def test_inline_threads_keep_their_words_without_live_controls_in_print(
     browser, serve, tmp_path, resolved
 ):
-    """Copies keep native thread disclosure; paper shows even a closed thread."""
+    """Paper shows even a closed thread, and none of its live controls."""
     url = serve(
         leaf_page(
             "thread export",
@@ -2139,188 +1657,6 @@ def test_inline_threads_keep_their_words_without_live_controls_in_static_media(
         ).count()
         == 0
     )
-    live.close()
-
-    out = tmp_path / "thread-copy.html"
-    out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
-    copy = browser.new_page()
-    copy.goto(out.as_uri(), wait_until="load")
-    thread = copy.locator(selector)
-    expect(thread).to_have_count(1)
-    expect(thread.locator("button, textarea, .lf-msg-sending")).to_have_count(0)
-    expect(
-        copy.locator("script, .lf-chrome, leaf-anchor-note, .lf-mark-note")
-    ).to_have_count(0)
-    if resolved:
-        expect(thread.locator(".lf-conversation-body")).to_be_hidden()
-        thread.locator("summary").click()
-    expect(thread.locator(".lf-conversation-body")).to_be_visible()
-    expect(thread).to_contain_text("Keep this check beside the changed line.")
-    expect(thread.get_by_role("img", name="Review evidence")).to_have_js_property(
-        "naturalWidth", 24
-    )
-    if resolved:
-        thread.locator("summary").click()
-        expect(thread.locator(".lf-conversation-body")).to_be_hidden()
-    copy.emulate_media(media="print")
-    expect(thread.locator(".lf-conversation-body")).to_be_visible()
-
-
-RECEIPT_DRAFT = leaf_page(
-    "draft",
-    """
-<h1 id="h">One note</h1>
-<p id="p-open">The invitation still on its way.</p>
-<lf-draft id="d-open"><pre>The sample workshop is in the blue room.</pre></lf-draft>
-""",
-)
-OPEN_EDIT = {
-    "kind": "action",
-    "author": "user",
-    "revision": 1,
-    "widget": "d-open",
-    "action": "edit",
-    "detail": {"text": "The sample workshop is in the red room."},
-    "meaning": {
-        "scope": "page",
-        "unit": "d-open",
-        "depends": ["d-open"],
-        "answer": None,
-    },
-}
-
-
-def test_a_copy_keeps_applied_widget_state_and_drops_live_handoff_status(
-    browser, serve, tmp_path
-):
-    """The action projection is durable; its delivery report belongs only to the live
-    session. A standalone file therefore carries the edited draft itself, not a second
-    page-map record saying that the move happened or that an agent picked it up."""
-    url = serve(RECEIPT_DRAFT, events=[OPEN_EDIT])
-    in_flight = [
-        event
-        for event in events_model.read_events(serve.page_dir)
-        if event.get("widget") == "d-open"
-    ][-1]
-    events_model.append_event(
-        serve.page_dir,
-        {
-            "kind": "pickup",
-            "author": "page",
-            "events": [in_flight["id"]],
-            "phase": "opened",
-            "session": None,
-            "turn": None,
-        },
-    )
-
-    live = browser.new_page(viewport={"width": 1200, "height": 900})
-    live.goto(url, wait_until="load")
-    resized(live, 1200, 900)
-    # A handoff colors the target's surviving semantic control rather than standing up
-    # a second margin row of its own, so read the exact pencil the draft currently owns.
-    edit = live.get_by_role("button", name="Edit d-open", exact=True)
-    expect(edit).to_be_visible()
-    expect(edit).to_have_attribute("data-lf-agent-workflow", "picked_up")
-    expect(live.get_by_text("Outcome", exact=True)).to_have_count(0)
-    live.close()
-
-    out = tmp_path / "standalone.html"
-    out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
-    page = browser.new_page(viewport={"width": 1200, "height": 900})
-    page.goto(out.as_uri(), wait_until="load")
-
-    expect(page.locator('[data-lf-behavior="status"]')).to_have_count(0)
-    # Both seats a live handoff can speak from: the status row, and the phase on the
-    # control that carries it.
-    expect(page.locator("[data-lf-agent-workflow]")).to_have_count(0)
-    expect(page.get_by_text("Outcome", exact=True)).to_have_count(0)
-    expect(page.locator("#d-open")).to_contain_text(
-        "The sample workshop is in the red room."
-    )
-
-
-def test_a_copy_speaks_user_origin_after_live_map_is_removed(browser, serve, tmp_path):
-    """A standalone copy keeps the decision's origin after removing live chrome.
-
-    Structural state such as a card move still differs from the authored version after
-    export, so the retained origin attribute needs a local spoken word when Page Map is
-    no longer present.
-    """
-    url = serve(REPLAYED_PAGE)
-    live = open_page(browser, url)
-    # The move is drawn in the turn that sends it, so the attribute below says nothing
-    # about the log. The export opens its own page and has only the log to replay from,
-    # and closing this one aborts a send still in the wire.
-    with sending(live, "the card move"):
-        live.get_by_role("button", name="Move: Wire the importer — Doing").focus()
-        live.keyboard.press("Enter")
-        live.keyboard.press("ArrowRight")
-        live.keyboard.press("Enter")
-    expect(live.locator("#card-importer")).to_have_attribute(
-        "data-lf-user-override", "1"
-    )
-    live.close()
-
-    out = tmp_path / "standalone.html"
-    out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
-    page = browser.new_page()
-    page.goto(out.as_uri(), wait_until="load")
-    card = page.locator("#card-importer")
-    expect(card).to_have_attribute("data-lf-user-override", "1")
-    expect(card.locator(":scope > .lf-quiet")).to_have_text("your change")
-    expect(page.locator(".lf-chrome")).to_have_count(0)
-
-
-def test_a_copy_keeps_generated_native_controls_and_their_labels(
-    browser, serve, tmp_path
-):
-    source = leaf_page(
-        "Native controls in a copy",
-        """
-<h1>Native controls in a copy</h1>
-<section id="native-controls">
-  <p id="native-detail">The browser reveals this detail.</p>
-</section>
-<label>Review note <input name="review-note" value="Keep this note"></label>
-""",
-        head="""
-<style>
-  #native-detail { display: none; }
-  #native-toggle:checked ~ #native-detail { display: block; }
-</style>
-<script type="module">
-  import { offer } from '/runtime/widget-api.js';
-  const root = document.querySelector('#native-controls');
-  const wrapper = offer('div', 'native-label-wrapper');
-  const label = offer('label', '', 'Show detail');
-  label.htmlFor = 'native-toggle';
-  wrapper.append(label);
-  const input = offer('input', '', undefined, 'checkbox');
-  input.id = label.htmlFor;
-  root.prepend(wrapper, input, offer('button', '', 'Run scripted action'));
-</script>
-""",
-    )
-    url = serve(source)
-    live = open_page(browser, url)
-    expect(live.get_by_role("checkbox", name="Show detail")).to_be_visible()
-    expect(live.get_by_role("button", name="Run scripted action")).to_be_visible()
-    live.close()
-
-    out = tmp_path / "native-controls-copy.html"
-    out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
-    copy = browser.new_page()
-    copy.goto(out.as_uri(), wait_until="load")
-    expect(copy.get_by_role("button", name="Run scripted action")).to_have_count(0)
-    expect(copy.locator("#native-detail")).to_be_hidden()
-    copy.get_by_text("Show detail", exact=True).click()
-    expect(copy.get_by_role("checkbox", name="Show detail")).to_be_checked()
-    expect(copy.locator("#native-detail")).to_be_visible()
-    copy.get_by_role("textbox", name="Review note").fill("Retained native input")
-    expect(copy.get_by_role("textbox", name="Review note")).to_have_value(
-        "Retained native input"
-    )
 
 
 def test_an_export_keeps_the_non_fetch_policy(browser, serve, tmp_path):
@@ -2336,13 +1672,9 @@ def test_an_export_keeps_the_non_fetch_policy(browser, serve, tmp_path):
 """,
         head='<base href="https://outside.invalid/rebased/">',
     )
-    url = serve(source)
-    out = tmp_path / "standalone.html"
-    # The authored `<base>` is refused on the live page too, and that page is the
-    # export's own to read.
-    out.write_text(
-        exporting_model.export_page(browser.unwatched, url, serve.page_dir, "v1.html")
-    )
+    serve(source)
+    out = tmp_path / "offline.html"
+    exporting_model.cmd_export(serve.page_dir, out, None)
 
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     page.add_init_script(
@@ -2369,424 +1701,3 @@ def test_an_export_keeps_the_non_fetch_policy(browser, serve, tmp_path):
     assert escaped == []
     # Both refusals asserted above are reported on the console as well.
     consume_browser_errors(page, "violates the following Content Security Policy")
-
-
-def test_the_exported_corpus_stands_on_its_own(browser, serve, tmp_path):
-    """The composed page corpus is copied to a file and opened from disk. No server
-    answers, so anything still reaching for one is a hole, and the console is where a
-    hole says so. The generated corpus contains every authored fixture and widget; its
-    outer tabs are revealed before the complete standalone document is read.
-
-    A copy over-promising is the other half of that, and it went unread for as long as
-    there was nothing here asking. Tab into an exported decision page landed on a pick
-    mark, which summoned the binding badge for a key that answers nothing, into a row
-    holding no column for it; a board's ten grips each opened a grab cursor; twenty
-    options lit under a pointer that could not pick one. So the copy is asked what it
-    still offers, in the three registers an offer is made in — a widget's chrome still
-    holding a tab stop or a role, a control standing there with nothing left behind it,
-    and a hand or a grab under the pointer — and every question is put to the markers
-    rather than to any widget."""
-    url = serve(CORPUS_PAGE)
-    live = open_page(browser, url)
-    live_routes = live.locator(".lf-activity-target").count()
-    live.close()
-    out = tmp_path / "standalone.html"
-    out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
-
-    page = browser.new_page(viewport={"width": 1200, "height": 900}, bypass_csp=True)
-    page.on("requestfailed", lambda r: page.lf_errors.append(f"unfetched {r.url}"))
-    render_checks_model.prepare_standalone_probes(page)
-    page.goto(out.as_uri(), wait_until="load")
-    outer_tabs = page.locator("#corpus > lf-tab")
-    assert outer_tabs.count() == len(CORPUS_SOURCES), (
-        "the generated corpus does not contain every authored source"
-    )
-    assert outer_tabs.evaluate_all(
-        "tabs => { tabs.forEach(tab => tab.hidden = false); "
-        "return tabs.every(tab => tab.checkVisibility()); }"
-    ), "the complete exported corpus is not visible to the inspection"
-    state = page.evaluate("""() => ({
-        live: document.documentElement.hasAttribute('data-lf-live'),
-        scripts: document.querySelectorAll('script').length,
-        chrome: document.querySelectorAll('.lf-chrome').length,
-        toServer: [...document.querySelectorAll('[src^="/"], [href^="/"]')]
-            .map(e => e.getAttribute('src') ?? e.getAttribute('href')),
-        links: document.querySelectorAll('link[rel="stylesheet"]').length,
-        // A route whose press the copy drops still names where the row happened.
-        activity: [...document.querySelectorAll('.lf-activity-target')]
-            .map(target => target.textContent.trim()),
-        presented: document.body.dataset.lfPresented,
-        themeMarker: getComputedStyle(document.querySelector('main'))
-            .getPropertyValue('--lf-reading-column').trim(),
-        // A page gives up a CSS shell claim for what it hangs in the margin, and
-        // a copy keeps only the strips whose residents came with it: a suggestion's
-        // controls are gone from a file that can decide nothing, and its rail with them,
-        // while sidenotes are the page's own words and stand in a copy exactly as they
-        // stand on screen. So the reading is not that the column is centred — a page
-        // carrying notes is deliberately not — but that no strip is held open for
-        // nothing. Resolve the shell's custom-property lengths through a probe, then
-        // ask whether anything is actually standing in each claimed band.
-        //
-        // The bands stand against the column's own edges and not against the page's.
-        // A strip is what main gives up beside itself and the shift then re-centres
-        // what is left, so on a window wider than the column plus its strips the
-        // leftover room sits outside both — and a reading taken from body's edges
-        // asks about that leftover instead, which is nobody's claim and always empty.
-        //
-        // And it is put to the residents that make the claim rather than to everything
-        // under main. A widget asking for width is drawn past the column by design and
-        // lands in the band beside it while claiming nothing, so a reading satisfied by
-        // any overlap at all can answer for a board or a diagram while the strip is held
-        // open for nothing. The claimants are the ones the cascade names
-        // — aside.sidebar writes --strip-l, while aside.sidenote and the living
-        // margin's items write --claim-note and --claim-rail. A copy
-        // carries no .lf-chrome, read above, and a project layer's own --lf-claim-right
-        // furniture is outside the corpus this runs over.
-        empty: ((main) => {
-            const box = main.getBoundingClientRect();
-            const length = (name) => {
-                const probe = document.createElement('i');
-                probe.style.cssText = `position:fixed;visibility:hidden;height:0;padding:0;border:0;width:var(${name})`;
-                main.append(probe);
-                const width = probe.getBoundingClientRect().width;
-                probe.remove();
-                return width;
-            };
-            const left = length('--strip-l'), right = length('--strip-r');
-            const residents = 'aside.sidebar, aside.sidenote, .lf-margin-cluster';
-            const held = (lo, hi) => hi - lo > 1
-                && ![...document.querySelectorAll(residents)]
-                .some(el => { const r = el.getBoundingClientRect();
-                              return el.checkVisibility() && r.width > 1
-                                     && r.left < hi - 1 && r.right > lo + 1; });
-            return [
-                held(box.left - left, box.left) && 'left',
-                held(box.right, box.right + right) && 'right',
-            ].filter(Boolean);
-        })(document.querySelector('main')),
-        unshown: [...document.querySelectorAll('main *')]
-            .filter(el => el.textContent.trim() && !el.checkVisibility()
-                          // A disclosure the user can still work, a control's own
-                          // label, a slot a standing decision deliberately retired, a
-                          // slot the markup itself hides, and an element with no box by
-                          // design are all fine; what is not is the page's words with
-                          // nothing to reveal them. A hidden slot is the author's own
-                          // silence and it holds in every medium: the notification
-                          // playground declares its artifact binding before the agent
-                          // captures one, so the live page shows that slot no more than
-                          // the copy does and the copy withholds nothing. Read against
-                          // the corpus, this exempts that slot and nothing else.
-                          && !el.closest('details, [data-lf-offer], [data-lf-retired], '
-                                         + '[hidden], .lf-ui, style, script')
-                          && getComputedStyle(el).display !== 'contents')
-            .map(el => el.tagName.toLowerCase() + (el.id ? '#' + el.id : '')),
-        // A press a widget injected is a tab stop wearing an interactive role, and the
-        // handler that answered both went with the scripts. Asked of the chrome marker
-        // and of any role at all, never of a role by name: offer writes role="button"
-        // and a widget keeping an ARIA pattern writes over it (lf-tabs' presses say
-        // "tab"), so a list of roles here would be a list that stops at the ones it was
-        // taught. The twelfth widget is covered by having used offer.
-        //
-        // The role a control the browser drives wears is the copy telling the truth —
-        // lf-shot's label still flips its frames, its checkbox still takes the keyboard —
-        // so the role half stands down for one of the platform's own controls. The tab
-        // stop's half does not: offer writes that on presses of its own making and on
-        // nothing else.
-        pressable: [...document.querySelectorAll('[data-lf-offer][tabindex]'),
-                    ...[...document.querySelectorAll('[data-lf-offer][role]')]
-                        .filter(el => !el.querySelector(
-                            'input, select, textarea, a[href], button'))]
-            .map(el => el.className || el.tagName.toLowerCase()),
-        // The claim a disarmed attribute leaves standing, since a control nothing can
-        // work is still a control on the page. What a copy may show of a widget's
-        // chrome is one the browser works itself and a label the page speaks through
-        // (data-lf-said), or a copy of words it says elsewhere (data-lf-echo); the rest
-        // belonged to a runtime the file has not got, so a mark reading "choose one"
-        // invites a user who cannot answer it.
-            inert: [...document.querySelectorAll(
-                '[data-lf-offer]:not([data-lf-said], [data-lf-echo])')]
-                .filter(el => el.checkVisibility() && el.textContent.trim()
-                              && !el.matches(':has(input, select, textarea, a[href], button)')
-                              // A label may name a native control outside its offered
-                              // wrapper. `label.control` is the platform's resolved
-                              // association, so this is just as live as a descendant.
-                              && ![...el.querySelectorAll('label')]
-                                  .some(label => label.control)
-                              && !el.closest('label, summary, a[href]'))
-            .map(el => (el.className || el.tagName.toLowerCase()) + ': '
-                       + el.textContent.trim().replace(/\\s+/g, ' ').slice(0, 24)),
-        // The same claim in paint. A hand or a grab says a gesture lands here, and in a
-        // copy one lands nowhere the browser isn't the thing acting: a label's checkbox, a
-        // link, a disclosure. The exemptions are the platform's own controls, so no
-        // widget is named here either.
-        offering: [...document.querySelectorAll('main *')]
-            .filter(el => el.checkVisibility()
-                          && ['pointer', 'grab'].includes(getComputedStyle(el).cursor)
-                          && !el.closest('a[href], label, summary, input, select, textarea'))
-            .map(el => el.tagName.toLowerCase() + '.'
-                       + String(el.className?.baseVal ?? el.className ?? '')),
-    })""")
-    # The gate's own reading, on the medium that most needs it: a copy is laid out by
-    # rules no other medium runs, and the last two ways one went out wrong were both a
-    # widget's words landing on the page's.
-    covered = render_checks_model.evaluate_probe(page, "coveredWords")
-    # The other direction of every question above: not what the copy still offers,
-    # but what it under-delivers. BAKE is a remover, and until this ran the only
-    # gates on it asked whether it removed enough — a wide diagram lost its scroll
-    # stop in every copy, and no sweep read one. 420, because that is the width
-    # where boxes start scrolling, and a scrolling box with no way in from the
-    # keyboard is the exact class that slipped.
-    resized(page, 420, 900)
-    axe_violations, axe_report = serious_axe_violations(page)
-    page.close()
-
-    assert not state["live"], "a copy kept the live server shell"
-    assert state["scripts"] == 0, "a copy with no server behind it keeps no script"
-    assert state["chrome"] == 0, (
-        "the runtime's layer came along — a comment box that swallows what you type"
-    )
-    assert state["toServer"] == [], "the copy still points at a server that isn't there"
-    assert state["links"] == 0, "a stylesheet link survived, pointing at nothing"
-    assert live_routes, "the corpus carries no activity feed to read"
-    assert len(state["activity"]) == live_routes and all(state["activity"]), (
-        "an activity row's route left the copy with the words naming its target"
-    )
-    assert state["presented"] == "1", "the copy was taken before presentation finished"
-    assert state["themeMarker"] == "1", (
-        "the theme didn't inline; the copy opens unstyled"
-    )
-    assert state["empty"] == [], (
-        "the copy holds a strip of its own width open with nothing standing in it, so "
-        "the column sits off to one side of a page it has all of — a rail reserved for "
-        f"something the file hasn't got: {state['empty']}"
-    )
-    assert state["unshown"] == [], (
-        "the copy says less than the page did: content sitting behind a control that "
-        f"needed a handler, and nothing in a file can press one — {state['unshown']}"
-    )
-    assert state["pressable"] == [], (
-        "the copy offers a press nothing can take: Tab reaches it, a screen reader calls "
-        f"it a button, and no handler is left to answer either — {state['pressable']}"
-    )
-    assert state["inert"] == [], (
-        "the copy still shows a control the file has nothing to work with, which asks "
-        f"the user for something they cannot give: {state['inert']}"
-    )
-    assert state["offering"] == [], (
-        "the copy draws a hand over a gesture it cannot take — the pointer promises "
-        f"something the file has no script to do: {state['offering']}"
-    )
-    assert covered == [], f"the copy draws its own words over each other: {covered}"
-    assert axe_violations == [], axe_report
-
-
-def test_comparison_export_keeps_both_results_and_the_recorded_choice(
-    browser, serve, tmp_path
-):
-    """A standalone comparison keeps both policy readings and their decision."""
-    example = ROOT / "tests" / "fixtures" / "pages" / "current-proposed-comparison.html"
-    url = serve(example)
-    out = tmp_path / "comparison.html"
-    out.write_text(
-        exporting_model.export_page(browser, url, serve.page_dir, "comparison.html")
-    )
-
-    page = browser.new_page(viewport={"width": 760, "height": 900}, bypass_csp=True)
-    page.goto(out.as_uri(), wait_until="load")
-    current = page.locator("#comparison-current")
-    proposed = page.locator("#comparison-proposed")
-    expect(current).to_contain_text("5")
-    expect(proposed).to_contain_text("1")
-    boxes = [
-        current.evaluate("el => el.getBoundingClientRect().toJSON()"),
-        proposed.evaluate("el => el.getBoundingClientRect().toJSON()"),
-    ]
-    assert boxes[0]["right"] <= boxes[1]["x"] + 1, boxes
-    assert page.evaluate(
-        "document.scrollingElement.scrollWidth === document.scrollingElement.clientWidth"
-    )
-    expect(page.locator("#comparison-policy")).to_contain_text(
-        "Adopt one shared refresh per tab"
-    )
-    assert page.locator("script, .lf-chrome").count() == 0
-
-
-def test_a_copy_carries_a_workers_standing_report(browser, serve, tmp_path):
-    """The copy is the page as replay left it, and a report is replay's other channel —
-    none of the corpus can say so, because an example is one version with an empty log.
-
-    The gap the wait covers is real and narrow: the first read starts beside widget
-    startup, but the runtime can stamp `lf-upgraded` while that read is still unanswered,
-    so the stamp export opens on is no promise that anything in the log has been painted.
-    Ordinarily the answer is ready by then, which is why the page arrives painted however
-    the wait is written and why the count being wrong stayed invisible. Refusing that
-    first read is the whole difference — replay is left to the state reads on the far side of
-    the stamp: the one the news stream prompts as it opens, and the 2s tick behind it,
-    which is exactly where a loaded machine would have put it. Counting actions alone
-    leaves nothing to wait for on a log holding one report, and the copy goes out blank.
-
-    The refusal is served to export's own page rather than the copy's, through the
-    stand-in `primed` supplies."""
-    url = serve(REPORT_PAGE)
-    sent = CliRunner().invoke(
-        cli_model.cli,
-        ["report", str(serve.page_dir), "t-parser", "status", "status=done"],
-    )
-    assert sent.exit_code == 0, sent.output
-
-    def refuse_the_first_poll(page):
-        polls = itertools.count()
-        page.route(
-            "**/api/state*",
-            lambda route: refuse(route) if next(polls) == 0 else route.continue_(),
-        )
-
-    out = tmp_path / "standalone.html"
-    out.write_text(
-        exporting_model.export_page(
-            primed(browser, refuse_the_first_poll), url, serve.page_dir, "v1.html"
-        )
-    )
-
-    page = browser.new_page()
-    page.goto(out.as_uri(), wait_until="load")
-    expect(page.locator("#t-parser")).to_have_attribute("status", "done")
-    expect(page.locator("#t-feeders > .lf-chips")).to_contain_text("2/2 done")
-    expect(page.locator("#t-parser > .lf-quiet")).to_contain_text("reported update")
-
-
-def test_a_copy_carries_none_of_the_exporters_own_window(browser, serve, tmp_path):
-    """A live page measures the window it is in and states the numbers inline on the
-    root: the room a wide widget may take, the width the margin strips are sized
-    against, where each edge stands. An inline value outranks every rule a stylesheet
-    could write, so a copy keeping one is laid out against the width the exporter's
-    headless window happened to have, on a file whose whole point is being opened
-    somewhere else.
-
-    What separates those from the rail is not where they are written but whether the
-    copy still has the thing they measure. The panel and the tray leave with the chrome;
-    the room is a reading of a window nobody will open this file in. The rail is the
-    width of a margin contribution the copy still carries, and
-    `test_a_copy_keeps_a_wide_widget_inside_its_standing_reaction_rail` is what says so —
-    a sweep of every inline custom property on the root takes it and puts the exported
-    board off the left of the page. So this asks for the named ones and asks the rail's
-    own test for the rail.
-
-    The live half is the non-vacuity: unless this page really states them, a copy that
-    carries none says nothing at all."""
-    url = serve(LONG_PAGE, comments=2)
-
-    inline_custom = """() => {
-        const inline = document.documentElement.style;
-        const found = {};
-        for (let i = 0; i < inline.length; i++)
-            if (inline[i].startsWith('--'))
-                found[inline[i]] = inline.getPropertyValue(inline[i]);
-        return found;
-    }"""
-    session = (
-        "--lf-thread-panel-width",
-        "--lf-tray-slot-width",
-        "--lf-bottom-chrome-clear",
-    )
-
-    live = browser.new_page(viewport={"width": 1200, "height": 900})
-    live.goto(url, wait_until="load")
-    live.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
-    live.locator(".lf-threads-toggle").click()
-    panel_settled(live)
-    measured = live.evaluate(inline_custom)
-    live.close()
-    stated = [name for name in session if name in measured]
-    assert stated, (
-        "the live page states none of the window measurements this is about "
-        f"({measured}), so a copy carrying none of them proves nothing"
-    )
-
-    out = tmp_path / "standalone.html"
-    out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
-    copy = browser.new_page()
-    copy.goto(out.as_uri(), wait_until="load")
-    carried = copy.evaluate(inline_custom)
-    copy.close()
-
-    assert not [name for name in session if name in carried], (
-        "the copy is laid out against the exporter's own window rather than the "
-        f"user's: {carried}"
-    )
-
-
-def test_a_copy_wears_the_mark_and_claims_no_session(browser, serve, tmp_path):
-    """A copy keeps the mark and drops the status painted on it. The live page was
-    exported under a working claim — `page init` leaves one — so the tone it was wearing
-    is a session that does not exist behind a file, which is the same lie the chrome is
-    dropped for. Nothing else on the tab is worth losing over it: the mark still says
-    which product wrote the file, and it is inlined, so it survives the copy leaving the
-    machine that served it (test_the_exported_corpus_stands_on_its_own is what says no
-    link here still points at a server)."""
-    url = serve(LONG_PAGE)
-    out = tmp_path / "standalone.html"
-    out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
-
-    page = browser.new_page()
-    page.goto(out.as_uri(), wait_until="load")
-    assert page.locator('link[rel="icon"]').count() == 1
-    # The tone is a stylesheet the runtime appends to the mark, so what says the copy is
-    # wearing none is the mark carrying only the one its file was written with.
-    icon = page.evaluate("""() => {
-        const el = document.querySelector('link[rel=icon]');
-        const prefix = 'data:image/svg+xml,';
-        const href = el.getAttribute('href');
-        if (!href.startsWith(prefix)) return { inlined: false };
-        const svg = new DOMParser()
-            .parseFromString(decodeURIComponent(href.slice(prefix.length)), 'image/svg+xml')
-            .documentElement;
-        return {
-            inlined: true,
-            rest: el.getAttribute('data-lf-rest'),
-            toned: svg.querySelectorAll('style').length,
-            mark: Boolean(svg.querySelector('.lf-tone')),
-        };
-    }""")
-    page.close()
-
-    assert icon["inlined"], "the copy's tab icon is not a mark the file carries itself"
-    assert icon["mark"], "the copy lost the mark rather than the status painted on it"
-    assert icon["toned"] == 1, (
-        "the copy's tab wears a tone it was exported under, claiming a session no file "
-        f"has — {icon['toned']} stylesheets on a mark authored with one"
-    )
-    assert icon["rest"] is None, "the handover attribute rode along into the copy"
-
-
-def test_a_copy_drops_live_element_projection_state(browser, serve, tmp_path):
-    """The projection belongs to runtime chrome and must leave with that chrome."""
-    source = leaf_page(
-        "projected comment",
-        '<h1>Review</h1><figure id="fig"><p>Annotated figure.</p></figure>',
-    )
-    url = serve(source)
-    events_model.append_event(
-        serve.page_dir,
-        {
-            "kind": "comment",
-            "author": "user",
-            "revision": 1,
-            "text": "Check this figure.",
-            "anchor": {"section": "fig"},
-        },
-    )
-
-    live = open_page(browser, url)
-    figure = live.locator("#fig")
-    expect(figure).to_have_class(re.compile(r"\blf-mark-el\b"))
-    expect(figure).to_have_class(re.compile(r"\blf-projected-mark\b"))
-    live.close()
-
-    out = tmp_path / "projected-comment.html"
-    out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
-    copy = browser.new_page()
-    copy.goto(out.as_uri(), wait_until="load")
-    expect(copy.locator("#fig")).not_to_have_class(
-        re.compile(r"\blf-(?:mark-el|projected-mark)\b")
-    )

@@ -393,10 +393,16 @@
                 Attributes holding line references into the nearest data body — the
                 element's own &lt;pre&gt;, or its enclosing data element's (a note's
                 <code>at</code> names a line of its code block) — which
-                <code>version check</code> refuses outside the body. A reference names a
-                line by the number that body's x-numbering gives it, 1-based when it has
-                none.
+                <code>version check</code> refuses outside the body.
               </p>
+              <details class="reference-more">
+                <summary aria-label="Full x-lines contract">Full contract</summary>
+                <p>
+                  A reference names a line by the number that body's x-numbering gives
+                  it, 1-based when it has none; a number inside a gap the numbering
+                  leaves is in the body.
+                </p>
+              </details>
             </div>
           </section>
           <section class="reference-entry" id="x-measure">

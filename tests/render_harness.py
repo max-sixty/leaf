@@ -1049,7 +1049,7 @@ def clean_browser():
 
     The function-scoped browser fixture owns this collector along with its contexts.
     A worker runs one test at a time, so one process-local collector covers pages made
-    by `WatchedBrowser`, render/export helpers, and tests that navigate a page
+    by `WatchedBrowser`, render helpers, and tests that navigate a page
     themselves.
     """
     global _BROWSER_PROBLEM_LISTS
@@ -1570,7 +1570,7 @@ class WatchedBrowser:
 
 
 def primed(browser, prepare):
-    """Prepare each page before a product render or export call navigates it.
+    """Prepare each page before a product render call navigates it.
 
     The wrapper preserves the supplied browser's instrumentation and real version;
     contexts have no version and are used only by callers that do not need one.

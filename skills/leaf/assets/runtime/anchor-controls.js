@@ -260,7 +260,6 @@ export function createAnchorControls({
                 key: `reaction:${root.id}:open`,
                 glyph: registry.$reactions.tokens[root.token]?.glyph ?? root.token,
                 label: `${root.token} reaction actions`,
-                staticLabel: root.token,
                 behavior: "disclosure",
                 rank: "secondary",
                 className: "lf-react-mark",

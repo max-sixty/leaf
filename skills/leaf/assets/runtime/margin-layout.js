@@ -14,21 +14,7 @@
    made entirely of prose — so the margin projection reserves the rail as it is built and
    never gives it back. The runtime states that reservation as `data-lf-rail` on the root,
    and the cascade spends it there; neither reads what is standing in the margin, because
-   a row's placement depends on the strip it would be answering about. A copy takes no
-   gestures, so the bake drops the reservation unless a margin contribution survived into the
-   file.
-
-   Where a durable margin contribution stands is the same question in every medium, and a file
-   cannot dock: the packing pass placed its rows at the width the page was exported at and
-   left with the scripts. So under that floor and on paper, where no rail is drawn, a
-   copy's remaining margin contributions take the docked shape rather than the absolute seat they
-   were exported into, which hangs off the page box. Not the rows that same pass withheld:
-   an item whose target is not shown wears `lf-withheld` into the file, and a shape taken
-   on the medium's terms would be the only thing standing a record beside a passage the
-   file was folding away when exported. Paper later unfolds that passage through CSS, but
-   a script-free copy cannot rerun the packing pass, so its serialized `lf-withheld`
-   reading remains withheld. Changing that behavior belongs to the live and copied layouts
-   together, not to this export override. */
+   a row's placement depends on the strip it would be answering about. */
 import { shellRight } from "./geometry.js";
 
 const rows = new Map();

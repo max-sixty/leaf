@@ -3998,15 +3998,15 @@ fn merge_sort&lt;T, F&gt;(v: &amp;mut [T], mut compare: F)
     }
 }
 </pre>
-                  <lf-note id="code-merge-sort-skip-1507" at="1507"
-                    >Left out below: zero-sized types return early.</lf-note
+                  <lf-note id="code-merge-sort-skip-1508" at="1508"
+                    >Zero-sized types return early.</lf-note
                   >
-                  <lf-note id="code-merge-sort-skip-1527" at="1527"
-                    >Left out below: len &lt;= max_insertion: plain insertion sort,
-                    return.</lf-note
+                  <lf-note id="code-merge-sort-skip-1528" at="1528"
+                    >Short slices (<code>len &lt;= max_insertion</code>) take plain
+                    insertion sort and return.</lf-note
                   >
-                  <lf-note id="code-merge-sort-skip-1629" at="1629"
-                    >Left out below: struct Run { start, len }.</lf-note
+                  <lf-note id="code-merge-sort-skip-1630" at="1630"
+                    >The <code>Run { start, len }</code> struct.</lf-note
                   >
                 </lf-code>
               </section>
@@ -4047,15 +4047,15 @@ fn insert_head&lt;T, F&gt;(v: &amp;mut [T], compare: &amp;mut F)
     }
 }
 </pre>
-                  <lf-note id="code-insert-head-skip-1314" at="1314"
-                    >Left out below: why method 3 (tmp + hole) won the
-                    benchmarks.</lf-note
+                  <lf-note id="code-insert-head-skip-1315" at="1315"
+                    >Why method 3 (tmp + hole) won the benchmarks.</lf-note
                   >
-                  <lf-note id="code-insert-head-skip-1332" at="1332"
-                    >Left out below: panic safety.</lf-note
+                  <lf-note id="code-insert-head-skip-1333" at="1333"
+                    >Panic safety.</lf-note
                   >
-                  <lf-note id="code-insert-head-skip-1359" at="1359"
-                    >Left out below: NoDrop, InsertionHole.</lf-note
+                  <lf-note id="code-insert-head-skip-1360" at="1360"
+                    >The <code>NoDrop</code> and
+                    <code>InsertionHole</code> helpers.</lf-note
                   >
                 </lf-code>
               </section>
@@ -4134,11 +4134,11 @@ unsafe fn merge&lt;T, F&gt;(v: &amp;mut [T], mid: usize, buf: *mut T, compare: &
     // it will now be copied into the hole in `v`.
 }
 </pre>
-                  <lf-note id="code-merge-skip-1393" at="1393"
-                    >Left out below: how the merge and its hole work.</lf-note
+                  <lf-note id="code-merge-skip-1394" at="1394"
+                    >How the merge and its hole work.</lf-note
                   >
-                  <lf-note id="code-merge-skip-1464" at="1464"
-                    >Left out below: pointer helpers, MergeHole.</lf-note
+                  <lf-note id="code-merge-skip-1465" at="1465"
+                    >Pointer helpers and <code>MergeHole</code>.</lf-note
                   >
                 </lf-code>
               </section>
@@ -6646,6 +6646,7 @@ def seat(guest):
             <lf-note id="bg-code-note" at="41">
               The branch exists only to make the highlighted walkthrough visible.
             </lf-note>
+            <lf-note id="bg-code-skip" at="44">The seating chart, loaded once.</lf-note>
           </lf-code>
           <lf-tree id="bg-tree">
             <pre>

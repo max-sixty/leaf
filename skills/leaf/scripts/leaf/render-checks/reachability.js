@@ -33,8 +33,8 @@ import { at } from "./locate.js";
 // those are the row's width *plus* its padding, so every row ran 28px wider than the
 // group whose `overflow: hidden` keeps its cells' hairlines square. The last cell is the
 // pick mark, so all of it went over the edge: every row-form decision on every live page
-// drew no dot, no "chosen", nothing. Paper and an exported copy were right throughout,
-// the rail being live-pages-only, so no medium outside a browser could see it.
+// drew no dot, no "chosen", nothing. Paper was right throughout, the rail being
+// screen-only, so no medium outside a browser could see it.
 //
 // Only where the clip cannot be scrolled away. A board's columns run past the board and
 // are reached by scrolling, which is the arrangement rather than a fault, so an ancestor
@@ -273,7 +273,7 @@ export function unreachableWords() {
     // read as "not shown" because the browser drops it on the reveal — a
     // hidden="until-found" word the user finds is a word this check sees
     // again, at the moment it is on screen. The two sibling checks that ask what
-    // a box shows (render-checks/widgets.js, render-checks/standalone.js) spell
+    // a box shows (render-checks/widgets.js, render-checks/words.js) spell
     // the same pair.
     if (el.closest(".lf-quiet, [hidden]")) continue;
     found.push(

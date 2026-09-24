@@ -53,16 +53,13 @@ lf-swipe-pile[verdict="unseen"] {
   grid-row: 1;
 }
 
-/* The queue is a stack only where it can be swiped. Three renderings show it flat
- * instead — a deck frozen into thread markup, a standalone copy, and paper — and they do
- * it by never entering the stack rather than by undoing it. Undoing it is what the copy
- * and print paths each used to do, in two near-copies of one block, and the print copy
- * carried one class less weight: `[verdict="unseen"] > lf-swipe-card:nth-of-type(n + 2)`
- * kept `visibility: hidden` through the reset, so paper printed the first card, 308px of
- * void where the other two lay out, and a label still reading "Queue · 3". Stated once as
- * a guard, the three flat renderings cannot come apart from each other again. */
+/* The queue is a stack only where it can be swiped. Two renderings show it flat
+ * instead — a deck frozen into thread markup, and paper — and they do it by never
+ * entering the stack rather than by undoing it: an undo carrying one class less weight
+ * than `[verdict="unseen"] > lf-swipe-card:nth-of-type(n + 2)` kept `visibility: hidden`
+ * through the reset, so paper printed the first card and 308px of void. */
 @media not print {
-  html:not(.lf-copy) lf-swipe-deck:not(.lf-swipe-quoted) {
+  html:root lf-swipe-deck:not(.lf-swipe-quoted) {
     /* The label heads the tray on a row of its own, and the stack sits centred under
      * it at an index card's width. The bottom padding holds the ghosts' offset. */
     & lf-swipe-pile[verdict="unseen"] {
@@ -181,9 +178,9 @@ lf-swipe-pile[verdict="unseen"] > lf-swipe-card:first-of-type:focus-visible {
  *
  * Main's #387 added `margin-inline: 0` to the reset this replaces, so that a quoted queue
  * did not keep the stack's centring. That reset is gone rather than dropped: the centring
- * is `margin-inline: auto` inside the guard above, which a quoted deck and a copy never
- * enter, so there is no longer a margin to take back. */
-:is(lf-swipe-deck.lf-swipe-quoted, html.lf-copy lf-swipe-deck)
+ * is `margin-inline: auto` inside the guard above, which a quoted deck never enters, so
+ * there is no longer a margin to take back. */
+lf-swipe-deck.lf-swipe-quoted
   lf-swipe-pile[verdict="unseen"]
   > lf-swipe-card {
   margin-bottom: var(--sp-2);
@@ -354,10 +351,6 @@ lf-swipe-pile[verdict="keep"]
   .lf-swipe-keep {
     grid-column: 2;
   }
-}
-
-html.lf-copy .lf-swipe-controls {
-  display: none;
 }
 
 /* Wide enough for a rail, the deck is a sheet's body beside its rail on the sheet's own

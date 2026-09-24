@@ -9,7 +9,7 @@
    user who was at the end a moment ago. A scroll event can also trail the change it
    answers by a frame, so a box standing above where this module last put it has been
    scrolled back even before its event arrives. The theme bounds the box; this module
-   only holds its place, so a copy with no script keeps the bound and opens at the top.
+   only holds its place.
 
    The box that scrolls is the bounded element, unless its widget's theme moves the
    bound to a box inside it and says so there with `--lf-bound-box: 1` — a captured

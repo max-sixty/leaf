@@ -1323,11 +1323,9 @@ PANEL_DIFF_MARKUP = WIDE_DIFF_PAGE[
 
 
 def serious_axe_violations(page):
-    """WCAG A/AA violations at serious or critical, as (violations, report) — the
-    one reading both the live sweep and the exported copy's gate assert on."""
-    # Inspect each document directly. Axe's cross-frame postMessage transport
-    # cannot address a standalone srcdoc's opaque origin, and the Python adapter
-    # only injects axe into the document it receives.
+    """WCAG A/AA violations at serious or critical, as (violations, report)."""
+    # Inspect each document directly: the Python adapter only injects axe into the
+    # document it receives.
     options = {
         "iframes": False,
         "runOnly": {
@@ -1436,24 +1434,6 @@ def shown_frames(page):
     return page.evaluate("""() => [...document.querySelectorAll('.lf-shotframe')]
         .filter(f => getComputedStyle(f).visibility === 'visible')
         .map(f => f.dataset.lfState)""")
-
-
-def flip_point(page, sel="lf-shot"):
-    """The middle of a shot's frame — where a user comparing would have the pointer.
-
-    Returned rather than clicked, because what the widget is for is alternating from
-    one place: a helper that clicked would let a test press two different points and
-    still pass, which is the property the old radios failed at.
-
-    Scrolled to first, because `bounding_box` answers in viewport coordinates for an
-    element that may be past the fold — on the long page the shot sits on, the point
-    comes back below the window and `mouse.click` presses whatever is there instead,
-    which reads as the widget refusing the gesture rather than as the test missing it.
-    """
-    frame = page.locator(f"{sel} .lf-shotframe").first
-    frame.scroll_into_view_if_needed()
-    box = frame.bounding_box()
-    return box["x"] + box["width"] / 2, box["y"] + box["height"] / 2
 
 
 # A painted fact whose spoken copy is on the page and drawn nowhere. It is written into

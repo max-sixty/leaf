@@ -9,23 +9,13 @@ main skill's "Operate", step 3), since only a stamped version exports, then run:
 leaf version export <page> -o <file>
 ```
 
-Hand back the `file://` URL. Do not start a server or wait. An export keeps the
-drawn page, standing Asks, and inline conversation messages. It removes
-live chrome and handlers; native disclosures still work. Write it where the
-project keeps user-facing artifacts. A live page can also be exported without
-ending its loop.
-
-When the deliverable needs local controls, page-owned computation, or navigation, use
-the explicit offline-interactive mode instead:
-
-```bash
-leaf version export <page> -o <file> --interactive
-```
-
-It runs the captured revision's modules and normal Leaf renderers without host chrome
-or network access. Accepted page state and deferred data record fields are
-included, while actions and requests that need an agent or server are unavailable
-before dispatch. The default command remains the script-free record.
+Hand back the `file://` URL. Do not start a server or wait. The file opens
+offline and runs the page's own runtime against the captured revision and its
+state: widgets, local controls, and page-owned computation work as served. No host
+stands behind it, so conversation and any action or request that needs an agent or
+server are unavailable. A page that declares a live specimen needs a server and
+cannot be exported. Write the file where the project keeps user-facing artifacts.
+A live page can be exported without ending its loop.
 
 ## Address and authentication
 

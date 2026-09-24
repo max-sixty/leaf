@@ -106,6 +106,40 @@ function chip(text, cls = "") {
   });
 }
 
+// A count the head offers as a view: the number is what the eye compares across tiles,
+// so it stands apart from its word, and the two still read as the one label they are.
+function countTile(count, word, view, open, cls = "") {
+  const node = viewButton(`${count} ${word}`, view, open, cls);
+  node.replaceChildren(chip(String(count), "lf-command-count"), " ", chip(word));
+  return node;
+}
+
+// The done fraction drawn as a length. The fraction beside it says the number, so the
+// bar is hidden from assistive technology rather than said twice.
+function progressBar(done, total) {
+  const bar = document.createElement("span");
+  bar.className = "lf-command-progress";
+  bar.setAttribute("aria-hidden", "true");
+  bar.style.setProperty("--lf-done", total ? done / total : 0);
+  return bar;
+}
+
+// The operator's reading — outcome, counts, stopped work, and the fleet — is one band
+// read across, not prose, so it takes the page's wide room while the tree it summarizes
+// keeps the column. The room is declared the way an authored occurrence declares it, so
+// the layer's arithmetic, margin claims included, sizes it like any other wide block.
+function statusBand(plan) {
+  let band = plan.querySelector(":scope > .lf-command-status[data-lf-gen]");
+  if (band) return band;
+  band = document.createElement("div");
+  band.className = "lf-command-status";
+  band.dataset.lfGen = "1";
+  band.dataset.width = "wide";
+  band.dataset.lfSpace = "wide";
+  plan.prepend(band);
+  return band;
+}
+
 function projectionFocus(plan) {
   const active = document.activeElement;
   if (!(active instanceof HTMLElement) || !plan.contains(active)) return null;
@@ -125,7 +159,7 @@ function projectionFocus(plan) {
   return () => {
     if (active.isConnected) return;
     const replacementRoot = kind
-      ? plan.querySelector(`:scope > .${kind}`)
+      ? plan.querySelector(`:scope > .lf-command-status > .${kind}`)
       : goal?.querySelector(":scope > .lf-task-meta");
     const replacement = href
       ? [...(replacementRoot?.querySelectorAll("a[href]") ?? [])].find(
@@ -143,7 +177,7 @@ function projectionFocus(plan) {
 }
 
 function openStopped(plan) {
-  const box = plan.querySelector(":scope > .lf-stopped-view[data-lf-gen]");
+  const box = statusBand(plan).querySelector(":scope > .lf-stopped-view");
   if (!box) return;
   box.open = true;
   box.querySelector(":scope > summary")?.focus({ preventScroll: true });
@@ -152,7 +186,7 @@ function openStopped(plan) {
 function openFleet(plan, mode) {
   fleetModes.set(plan, mode);
   render(plan);
-  const box = plan.querySelector(":scope > .lf-fleet-view[data-lf-gen]");
+  const box = statusBand(plan).querySelector(":scope > .lf-fleet-view");
   if (!box) return;
   box.open = true;
   box.querySelector(":scope > summary")?.focus({ preventScroll: true });
@@ -265,7 +299,8 @@ function renderGoal(goal) {
 
 function renderHeader(snapshot) {
   const { plan } = snapshot;
-  const old = plan.querySelector(":scope > .lf-command-head[data-lf-gen]");
+  const band = statusBand(plan);
+  const old = band.querySelector(":scope > .lf-command-head");
   const signature = JSON.stringify([
     snapshot.done,
     snapshot.leaves.length,
@@ -287,6 +322,7 @@ function renderHeader(snapshot) {
     Object.assign(document.createElement("strong"), {
       textContent: plan.getAttribute("label") || "Work",
     }),
+    progressBar(snapshot.done, snapshot.leaves.length),
     Object.assign(document.createElement("span"), {
       textContent: `${snapshot.done}/${snapshot.leaves.length} leaves · ${plan.getAttribute("phase") || "in progress"}`,
     }),
@@ -294,25 +330,27 @@ function renderHeader(snapshot) {
   const facts = document.createElement("div");
   facts.className = "lf-command-facts";
   facts.append(
-    viewButton(`${snapshot.running.length} running`, "running", () =>
+    countTile(snapshot.running.length, "running", "running", () =>
       openFleet(plan, "running"),
     ),
-    viewButton(`${snapshot.liveWorkers.length} workers`, "workers", () =>
+    countTile(snapshot.liveWorkers.length, "workers", "workers", () =>
       openFleet(plan, "all"),
     ),
   );
   if (snapshot.quiet.length)
     facts.append(
-      viewButton(
-        `${snapshot.quiet.length} quiet`,
+      countTile(
+        snapshot.quiet.length,
+        "quiet",
         "quiet",
         () => openFleet(plan, "quiet"),
         "warn",
       ),
     );
   facts.append(
-    viewButton(
-      `${snapshot.stopped.length} stopped`,
+    countTile(
+      snapshot.stopped.length,
+      "stopped",
       "stopped",
       () => openStopped(plan),
       snapshot.stopped.length ? "danger" : "",
@@ -320,7 +358,7 @@ function renderHeader(snapshot) {
   );
   head.append(outcome, facts);
   if (old) old.replaceWith(head);
-  else plan.prepend(head);
+  else band.prepend(head);
   return true;
 }
 
@@ -338,7 +376,8 @@ function age(goal) {
 
 function renderStopped(snapshot) {
   const { plan } = snapshot;
-  let box = plan.querySelector(":scope > .lf-stopped-view[data-lf-gen]");
+  const band = statusBand(plan);
+  let box = band.querySelector(":scope > .lf-stopped-view");
   const signature = JSON.stringify(
     snapshot.stopped.map((goal) => [
       goal.element.id,
@@ -362,8 +401,9 @@ function renderStopped(snapshot) {
     box = document.createElement("details");
     box.className = "lf-stopped-view";
     box.dataset.lfGen = "1";
+    box.open = true;
     box.append(speakingOffer("summary", "Nothing is stopped"));
-    plan.querySelector(":scope > .lf-command-head")?.after(box);
+    band.querySelector(":scope > .lf-command-head")?.after(box);
   }
   const label = snapshot.stopped.length
     ? `Stopped work · ${snapshot.stopped.length}, oldest first`
@@ -392,11 +432,15 @@ function renderStopped(snapshot) {
               : "blocked";
         const item = document.createElement("li");
         item.dataset.lfGoal = goal.element.id;
+        item.dataset.lfReason = reason;
         item.append(
           button(goal.title, goal.element),
           " · ",
           chip(age(goal), "lf-stopped-age"),
-          ` — ${reason}; ${downstream.length} downstream goal${downstream.length === 1 ? "" : "s"} unreachable`,
+          chip(
+            `${reason}; ${downstream.length} downstream goal${downstream.length === 1 ? "" : "s"} unreachable`,
+            "lf-stopped-why",
+          ),
         );
         return item;
       },
@@ -421,7 +465,8 @@ function renderFleet(snapshot) {
       : mode === "quiet"
         ? snapshot.quiet
         : snapshot.liveWorkers;
-  const old = plan.querySelector(":scope > .lf-fleet-view[data-lf-gen]");
+  const band = statusBand(plan);
+  const old = band.querySelector(":scope > .lf-fleet-view");
   const signature = JSON.stringify([
     mode,
     workers.map((worker) => [
@@ -437,7 +482,7 @@ function renderFleet(snapshot) {
   const box = document.createElement("details");
   box.className = "lf-fleet-view";
   box.dataset.lfGen = "1";
-  box.open = old?.open || false;
+  box.open = old?.open ?? true;
   box.append(
     speakingOffer(
       "summary",
@@ -463,18 +508,21 @@ function renderFleet(snapshot) {
         worker.element,
       ),
     );
-    item.append(` · ${worker.state} · ${remit}`);
-    if (focus && worker.assignment !== worker.remit)
-      item.append(` · focused on ${focus.title}`);
+    item.append(
+      " · ",
+      chip(worker.state, `lf-state lf-state-${worker.state}`),
+      chip(
+        focus && worker.assignment !== worker.remit
+          ? `${remit} · focused on ${focus.title}`
+          : remit,
+        "lf-fleet-remit",
+      ),
+    );
     list.append(item);
   }
   box.append(list);
   if (old) old.replaceWith(box);
-  else {
-    const stopped = plan.querySelector(":scope > .lf-stopped-view[data-lf-gen]");
-    if (stopped) stopped.after(box);
-    else plan.querySelector(":scope > .lf-command-head")?.after(box);
-  }
+  else band.append(box);
   return true;
 }
 

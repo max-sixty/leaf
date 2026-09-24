@@ -8219,7 +8219,7 @@ def test_a_succeeded_host_request_waits_for_an_authored_plan_revision(browser, s
     )
     assert result.exit_code == 0, result.output
     told(page)
-    stopped = page.locator("#hub-plan > .lf-stopped-view")
+    stopped = page.locator("#hub-plan > .lf-command-status > .lf-stopped-view")
     expect(stopped).to_contain_text("Deduplicate the corpus snapshot")
     expect(page.locator("#atlas-record .lf-activity-row").first).to_contain_text(
         "completed “Park it for tomorrow” in"
@@ -8288,7 +8288,7 @@ def test_a_failed_host_request_reopens_its_commands_without_changing_the_plan(
     assert operations.get_by_role("button").evaluate_all(
         "buttons => buttons.every(button => button.getAttribute('aria-disabled') === 'false')"
     )
-    expect(page.locator("#hub-plan > .lf-stopped-view")).to_contain_text(
+    expect(page.locator("#hub-plan > .lf-command-status > .lf-stopped-view")).to_contain_text(
         "Deduplicate the corpus snapshot"
     )
 
@@ -8335,7 +8335,7 @@ def test_command_hub_derives_the_operator_reading_from_its_goal_tree(browser, se
     d = serve.page_dir
     stale_report(d, "w-2", "stalled without a new commit", 3)
     page = open_page(browser, url)
-    head = page.locator("#hub-plan > .lf-command-head")
+    head = page.locator("#hub-plan > .lf-command-status > .lf-command-head")
     expect(head).to_contain_text("6/18 leaves")
     expect(head).to_contain_text("2 running")
     expect(head).to_contain_text("5 workers")
@@ -8343,12 +8343,12 @@ def test_command_hub_derives_the_operator_reading_from_its_goal_tree(browser, se
     expect(head).to_contain_text("5 stopped")
     expect(page.locator(".lf-asks")).to_have_text("Asks 0/5")
     expect_banner_control_offered(page.locator(".lf-asks"))
-    expect(page.locator("#hub-plan > .lf-fleet-view")).to_contain_text(
+    expect(page.locator("#hub-plan > .lf-command-status > .lf-fleet-view")).to_contain_text(
         "Fleet · 5 live workers"
     )
-    expect(page.locator("#hub-plan > .lf-fleet-view li")).to_have_count(5)
-    expect(page.locator("#hub-plan > .lf-fleet-view")).not_to_contain_text("w-5")
-    stopped = page.locator("#hub-plan > .lf-stopped-view li")
+    expect(page.locator("#hub-plan > .lf-command-status > .lf-fleet-view li")).to_have_count(5)
+    expect(page.locator("#hub-plan > .lf-command-status > .lf-fleet-view")).not_to_contain_text("w-5")
+    stopped = page.locator("#hub-plan > .lf-command-status > .lf-stopped-view li")
     expect(stopped).to_have_count(5)
     assert stopped.evaluate_all("rows => rows.map(row => row.dataset.lfGoal)") == [
         "schema-choice",
@@ -8357,20 +8357,20 @@ def test_command_hub_derives_the_operator_reading_from_its_goal_tree(browser, se
         "ledger-fixture",
         "api-shape",
     ]
-    expect(page.locator("#hub-plan > .lf-stopped-view")).not_to_contain_text(
+    expect(page.locator("#hub-plan > .lf-command-status > .lf-stopped-view")).not_to_contain_text(
         "age unknown"
     )
     expect(
-        page.locator('#hub-plan > .lf-command-head [data-lf-offer="button"]')
+        page.locator('#hub-plan > .lf-command-status > .lf-command-head [data-lf-offer="button"]')
     ).to_have_count(4)
     expect(
         page.locator(
-            '#hub-plan > .lf-command-head [data-lf-offer="button"]:not([data-lf-said])'
+            '#hub-plan > .lf-command-status > .lf-command-head [data-lf-offer="button"]:not([data-lf-said])'
         )
     ).to_have_count(0)
     expect(
         page.locator(
-            "#hub-plan > :is(.lf-stopped-view, .lf-fleet-view) > "
+            "#hub-plan > .lf-command-status > :is(.lf-stopped-view, .lf-fleet-view) > "
             "summary:not([data-lf-offer][data-lf-said])"
         )
     ).to_have_count(0)
@@ -8380,7 +8380,7 @@ def test_command_hub_derives_the_operator_reading_from_its_goal_tree(browser, se
     running = head.get_by_role("button", name="2 running")
     running.focus()
     page.keyboard.press("Enter")
-    fleet = page.locator("#hub-plan > .lf-fleet-view")
+    fleet = page.locator("#hub-plan > .lf-command-status > .lf-fleet-view")
     expect(fleet).to_have_attribute("open", "")
     expect(fleet.locator("summary")).to_be_in_viewport()
     expect(fleet).to_contain_text("Running · 2 workers")
@@ -8397,7 +8397,7 @@ def test_command_hub_derives_the_operator_reading_from_its_goal_tree(browser, se
     expect(fleet.locator("li")).to_have_count(1)
     expect(fleet).to_contain_text("w-2")
     head.get_by_role("button", name="5 stopped").click()
-    stopped_view = page.locator("#hub-plan > .lf-stopped-view")
+    stopped_view = page.locator("#hub-plan > .lf-command-status > .lf-stopped-view")
     expect(stopped_view).to_have_attribute("open", "")
     expect(stopped_view.locator("summary")).to_be_in_viewport()
     expect(coordinator).to_be_visible()
@@ -8450,7 +8450,7 @@ def test_command_hub_reads_one_publication_before_worker_presentation_commits(
     """The hub cannot combine a new semantic epoch with a child's old attributes."""
     page = open_page(browser, serve(COMMAND_HUB_EXAMPLE))
     worker = page.locator("#w-1")
-    head = page.locator("#hub-plan > .lf-command-head")
+    head = page.locator("#hub-plan > .lf-command-status > .lf-command-head")
     expect(worker).to_have_attribute("state", "working")
     expect(head).to_contain_text("3 running")
     page.evaluate(
@@ -8519,16 +8519,14 @@ def test_a_roster_row_names_its_target_without_saying_it_twice(browser, serve):
     reads no text inside a declared offer, so the gate cannot report a word that only
     ever stood in one."""
     page = open_page(browser, serve(COMMAND_HUB_EXAMPLE))
-    fleet = page.locator("#hub-plan > .lf-fleet-view")
-    stopped = page.locator("#hub-plan > .lf-stopped-view")
-    fleet.locator(":scope > summary").click()
-    stopped.locator(":scope > summary").click()
-    names = page.locator("#hub-plan > :is(.lf-fleet-view, .lf-stopped-view) li > a")
+    fleet = page.locator("#hub-plan > .lf-command-status > .lf-fleet-view")
+    stopped = page.locator("#hub-plan > .lf-command-status > .lf-stopped-view")
+    names = page.locator("#hub-plan > .lf-command-status > :is(.lf-fleet-view, .lf-stopped-view) li > a")
     expect(names).to_have_count(10)
     expect(fleet.locator("li > a").first).to_have_text("§ atlas-lead")
     expect(stopped.locator("li > a").first).to_have_text("Choose the additive schema")
     rows = """() => [...document.querySelectorAll(
-         '#hub-plan > :is(.lf-fleet-view, .lf-stopped-view) li')]
+         '#hub-plan > .lf-command-status > :is(.lf-fleet-view, .lf-stopped-view) li')]
        .map((row) => row.innerText.trim())"""
     on_screen = page.evaluate(rows)
     assert on_screen[0].startswith("Choose the additive schema · "), on_screen
@@ -8537,7 +8535,7 @@ def test_a_roster_row_names_its_target_without_saying_it_twice(browser, serve):
     assert (
         page.evaluate(
             """() => getComputedStyle(
-                 document.querySelector('#hub-plan > .lf-fleet-view li > a'),
+                 document.querySelector('#hub-plan > .lf-command-status > .lf-fleet-view li > a'),
                ).textDecorationLine"""
         )
         == "none"
@@ -8600,7 +8598,7 @@ def test_command_hub_input_is_trimmed_before_it_enters_the_record(browser, serve
     saved = page.locator("#atlas-record .lf-activity-row").first
     expect(saved).to_contain_text("You edited")
     expect(saved.locator('a[href="#ledger-cargo"]')).to_have_count(1)
-    expect(page.locator("#hub-plan > .lf-command-head")).to_contain_text("4 stopped")
+    expect(page.locator("#hub-plan > .lf-command-status > .lf-command-head")).to_contain_text("4 stopped")
     expect(page.locator("#ledger-variance")).to_have_attribute("status", "planned")
 
 
@@ -8631,8 +8629,8 @@ def test_command_hub_keeps_a_real_request_outside_a_quoted_decision(browser, ser
     page = open_page(browser, serve(html))
     expect(page.locator(".lf-asks")).to_have_text("Asks 0/1")
     expect_banner_control_offered(page.locator(".lf-asks"))
-    expect(page.locator("#hub-plan > .lf-command-head")).to_contain_text("1 stopped")
-    expect(page.locator("#hub-plan > .lf-stopped-view")).to_contain_text("Blocked goal")
+    expect(page.locator("#hub-plan > .lf-command-status > .lf-command-head")).to_contain_text("1 stopped")
+    expect(page.locator("#hub-plan > .lf-command-status > .lf-stopped-view")).to_contain_text("Blocked goal")
 
 
 def test_command_hub_quotes_host_operations_without_offering_a_request(browser, serve):
@@ -8668,8 +8666,7 @@ def test_command_hub_quotes_host_operations_without_offering_a_request(browser, 
 def test_command_hub_keeps_projection_focus_when_unrelated_news_arrives(browser, serve):
     page = open_page(browser, serve(COMMAND_HUB_EXAMPLE))
     d = serve.page_dir
-    fleet = page.locator("#hub-plan > .lf-fleet-view")
-    fleet.locator(":scope > summary").click()
+    fleet = page.locator("#hub-plan > .lf-command-status > .lf-fleet-view")
     worker = fleet.get_by_role("link", name="§ w-1", exact=True)
     worker.focus()
     sent = CliRunner().invoke(
@@ -8967,7 +8964,7 @@ def test_command_hub_stopped_age_does_not_cross_an_active_publication(
     expect(page.locator(".lf-version")).to_contain_text("v3")
     assert "/versions/" not in page.url
     row = page.locator(
-        "#hub-plan > .lf-stopped-view li", has_text="Deduplicate the corpus snapshot"
+        "#hub-plan > .lf-command-status > .lf-stopped-view li", has_text="Deduplicate the corpus snapshot"
     )
     expect(row).to_contain_text("0m")
     expect(row).not_to_contain_text("3h")
@@ -9033,13 +9030,12 @@ def test_nested_command_projections_stop_at_their_own_boundary(browser, serve):
 
     page = open_page(browser, serve(command))
 
-    expect(page.locator("#outer > .lf-command-head")).to_contain_text("0/1 leaves")
-    expect(page.locator("#outer > .lf-command-head")).to_contain_text("1 workers")
-    expect(page.locator("#inner > .lf-command-head")).to_contain_text("1/1 leaves")
-    expect(page.locator("#inner > .lf-command-head")).to_contain_text("1 running")
+    expect(page.locator("#outer > .lf-command-status > .lf-command-head")).to_contain_text("0/1 leaves")
+    expect(page.locator("#outer > .lf-command-status > .lf-command-head")).to_contain_text("1 workers")
+    expect(page.locator("#inner > .lf-command-status > .lf-command-head")).to_contain_text("1/1 leaves")
+    expect(page.locator("#inner > .lf-command-status > .lf-command-head")).to_contain_text("1 running")
     expect(page.locator("#outer-goal")).not_to_have_attribute("data-lf-open", "")
-    page.locator("#inner > .lf-command-head").click(position={"x": 5, "y": 5})
-    page.locator("#inner > .lf-fleet-view summary").click()
+    page.locator("#inner > .lf-command-status > .lf-command-head").click(position={"x": 5, "y": 5})
     page.get_by_role("link", name="§ inner-worker", exact=True).click()
     expect(page.locator("#outer-goal")).not_to_have_attribute("data-lf-open", "")
 
@@ -9132,9 +9128,9 @@ customElements.define(\"lf-area\", class extends HTMLElement {
 
     page = open_page(browser, url)
 
-    expect(page.locator("#hub > .lf-command-head")).to_contain_text("0/1 leaves")
-    expect(page.locator("#hub > .lf-command-head")).to_contain_text("1 stopped")
-    expect(page.locator("#hub > .lf-stopped-view")).to_contain_text(
+    expect(page.locator("#hub > .lf-command-status > .lf-command-head")).to_contain_text("0/1 leaves")
+    expect(page.locator("#hub > .lf-command-status > .lf-command-head")).to_contain_text("1 stopped")
+    expect(page.locator("#hub > .lf-command-status > .lf-stopped-view")).to_contain_text(
         "Custom project goal"
     )
     expect(page.locator(".lf-asks")).to_have_text("Asks 0/1")

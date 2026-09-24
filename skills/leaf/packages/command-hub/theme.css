@@ -65,9 +65,6 @@ lf-agent[state="reaped"] > strong { color: var(--ink-2); }
  * the milestone's, plus `review` in the warn tint: finished by its holder and
  * ready to be reviewed. A nested Decision assigns that review. */
 lf-tasks, lf-command { display: block; margin: 14px 0; }
-/* A command's head stacks from the room the command has, which a command inside a
-   worker's disclosure or beside an open tray has less of than the window says. */
-lf-command { container: lf-command / inline-size; }
 lf-task { display: block; position: relative; padding-left: 26px; margin: 8px 0; }
 lf-task::before { content: ""; position: absolute; left: 6px; top: 5px;
                   width: 10px; height: 10px; border-radius: 50%;
@@ -83,38 +80,83 @@ lf-task > lf-task { margin-left: 11px; border-left: 1px solid var(--rule);
 lf-task > strong { margin-right: 6px; }
 lf-task[status="done"] > strong { color: var(--muted); }
 
-/* Command tree: the plan is canonical; these are projections generated around it. */
-lf-command > .lf-command-head { display: grid; grid-template-columns: minmax(0, 1fr) auto;
-  gap: var(--sp-3); align-items: end; margin: 0 0 var(--sp-4); padding: var(--sp-4);
-  border: 1px solid var(--rule); border-radius: var(--r); background: var(--paper); }
-.lf-command-outcome { display: grid; gap: 2px; }
-.lf-command-outcome > strong { font-size: var(--t-3); }
-.lf-command-outcome > span { color: var(--muted); font-size: var(--t-6); }
-.lf-command-facts { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--sp-1); }
-.lf-command-facts > a, .lf-command-facts > [role="button"], .lf-command-facts > span,
-.lf-stopped-view a, .lf-fleet-view a { border: 0; border-radius: var(--chip-r);
-  padding: 3px 8px; background: var(--chip); color: var(--ink-2); font: inherit;
-  font-size: var(--t-6); cursor: pointer; text-decoration: none; }
-.lf-command-facts > span { cursor: default; }
-.lf-command-facts > .warn { background: var(--warn-tint); color: var(--warn-ink); }
-.lf-command-facts > .danger { background: var(--danger-tint); color: var(--danger-ink); }
-.lf-stopped-view, .lf-fleet-view { margin: var(--sp-3) 0; padding: 0 var(--sp-3);
-  border-left: 2px solid var(--rule); }
-.lf-stopped-view > summary, .lf-fleet-view > summary { color: var(--ink-2); }
-.lf-stopped-view ol, .lf-fleet-view ul { margin: var(--sp-2) 0; }
-.lf-stopped-view li, .lf-fleet-view li { margin: var(--sp-1) 0; color: var(--muted); }
-.lf-stopped-view a, .lf-fleet-view a { padding: 0; background: none;
-  color: var(--accent); font-size: inherit; text-align: left; }
+/* Command tree: the plan is canonical; these are projections generated around it.
+ *
+ * The projections are one status band read across: the outcome and its counts on one
+ * row, then stopped work beside the fleet. The band stands at the wide width (the widget
+ * declares it) while the tree keeps the column, so the counts and the two lists sit side
+ * by side, and neither list wraps each row onto three lines. The panels are the cards;
+ * the band between them draws nothing, so a narrow room stacks them without a frame
+ * inside a frame. */
+lf-command > .lf-command-status { display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(22rem, 100%), 1fr));
+  gap: var(--sp-3); margin-top: 0; margin-bottom: var(--sp-4);
+  container: lf-command-status / inline-size; }
+.lf-command-status > .lf-command-head { grid-column: 1 / -1; display: grid;
+  grid-template-columns: minmax(0, 1fr) auto; gap: var(--sp-3); align-items: stretch; }
+.lf-command-outcome, .lf-command-facts > [role="button"],
+.lf-stopped-view, .lf-fleet-view { box-sizing: border-box; padding: var(--sp-3) var(--sp-4);
+  border: 1px solid var(--rule); border-radius: var(--r); background: var(--paper);
+  --lf-block-frame: 1; }
+.lf-command-outcome { display: grid; align-content: center; gap: var(--sp-1); }
+.lf-command-outcome > strong { font-size: var(--t-3); line-height: 1.25; }
+.lf-command-outcome > span:last-child { color: var(--muted); font-size: var(--t-6); }
+/* The done fraction as a length: the tree's own green for what is finished. */
+.lf-command-progress { display: block; height: 6px; border-radius: 3px;
+  background: linear-gradient(90deg, var(--ok) calc(var(--lf-done) * 100%),
+    var(--chip) 0); }
+/* Each count is a tile: the number is what the eye compares, set large and in tabular
+ * figures so tiles of one digit and of two line up; the word under it names the view
+ * the tile opens. A tile's tint is its count's meaning, and only a count that needs
+ * attention wears one. */
+.lf-command-facts { display: grid; grid-auto-flow: column; grid-auto-columns: 6.5rem;
+  gap: var(--sp-2); }
+.lf-command-facts > [role="button"] { display: grid; align-content: center; gap: 2px;
+  color: var(--ink-2); font: var(--t-6)/1.2 var(--sans); text-align: left;
+  cursor: pointer; }
+.lf-command-count { color: var(--ink); font: 600 var(--t-2)/1.1 var(--sans);
+  font-variant-numeric: tabular-nums; }
+.lf-command-facts > .warn { border-color: color-mix(in srgb, var(--warn) 45%, var(--rule));
+  background: var(--warn-tint); color: var(--warn-ink); }
+.lf-command-facts > .danger { border-color: color-mix(in srgb, var(--danger) 40%, var(--rule));
+  background: var(--danger-tint); color: var(--danger-ink); }
+.lf-command-facts > :is(.warn, .danger) > .lf-command-count { color: inherit; }
+
+/* The two lists: a panel each, its summary the panel's title, one hairline between rows,
+ * the name leading and the reason or remit on the line under it. */
+.lf-stopped-view > summary, .lf-fleet-view > summary { color: var(--muted);
+  font: 600 var(--t-6)/1.3 var(--sans); letter-spacing: .055em; text-transform: uppercase;
+  cursor: pointer; }
+.lf-stopped-view :is(ol, ul), .lf-fleet-view ul { margin: var(--sp-2) 0 0; padding: 0;
+  list-style: none; }
+.lf-stopped-view li, .lf-fleet-view li { margin: 0; padding: var(--sp-2) 0;
+  border-top: 1px solid var(--rule); color: var(--muted); font-size: var(--t-5); }
+.lf-stopped-view li:first-child, .lf-fleet-view li:first-child { border-top: 0; }
+.lf-stopped-view a, .lf-fleet-view a { color: var(--ink); font-weight: 600;
+  text-decoration: none; }
+.lf-stopped-view a:hover, .lf-fleet-view a:hover { color: var(--accent); }
+.lf-stopped-age { padding: 0 6px; border-radius: var(--chip-r); background: var(--chip);
+  color: var(--ink-2); font-size: var(--t-6); font-variant-numeric: tabular-nums; }
+.lf-stopped-why, .lf-fleet-remit { display: block; margin-top: 2px; font-size: var(--t-6); }
+.lf-stopped-view li:is([data-lf-reason="stalled"], [data-lf-reason="blocked"]) .lf-stopped-why {
+  color: var(--danger-ink); }
+.lf-stopped-view li[data-lf-reason="awaiting review"] .lf-stopped-why { color: var(--warn-ink); }
+.lf-fleet-view li > .lf-state { margin-left: 2px; }
 
 lf-command [data-lf-command-goal] { display: grid;
-  grid-template-columns: minmax(12rem, 1fr) auto auto;
+  grid-template-columns: minmax(min(10rem, 100%), 1fr) minmax(0, max-content);
   column-gap: var(--sp-3); align-items: baseline; }
+/* The chips take their whole line where the row has room and wrap inside their own
+ * track where it does not, so the row needs no reading of how wide the command is. A
+ * command is no size container: one would be what the band's page-room arithmetic,
+ * written in container units, measured instead of the page. */
 lf-command [data-lf-command-goal] > strong { grid-column: 1; }
-lf-command [data-lf-command-goal] > .lf-task-meta { grid-column: 2 / 4;
-  display: flex; align-items: center;
-  justify-content: flex-end; gap: var(--sp-1); min-width: max-content; }
+lf-command [data-lf-command-goal] > .lf-task-meta { grid-column: 2;
+  display: flex; flex-wrap: wrap; align-items: center;
+  justify-content: flex-end; gap: var(--sp-1); min-width: 0; }
 .lf-task-meta > span, .lf-task-crew { border: 0; border-radius: var(--chip-r); padding: 1px 7px;
   background: var(--chip); color: var(--ink-2); font: inherit; font-size: var(--t-6); }
+.lf-task-meta > span { max-width: 100%; overflow-wrap: anywhere; }
 .lf-task-crew { cursor: pointer; color: var(--accent); }
 .lf-task-meta > .lf-task-held { color: var(--warn-ink); background: var(--warn-tint); }
 .lf-task-meta > .lf-task-signal { color: var(--accent); }
@@ -178,13 +220,10 @@ html.lf-copy lf-worktree:not([data-lf-open]) .lf-worktree-snapshot > :not(.lf-wo
     display: block; }
 }
 
-@container lf-command (width <= 520px) {
-  lf-command > .lf-command-head { grid-template-columns: 1fr; align-items: start; }
-  .lf-command-facts { justify-content: flex-start; }
-  lf-command [data-lf-command-goal] { grid-template-columns: minmax(0, 1fr); }
-  lf-command [data-lf-command-goal] > .lf-task-meta {
-    grid-column: 1; justify-content: flex-start; flex-wrap: wrap;
-    min-width: 0; margin-top: 2px; }
-  lf-command [data-lf-command-goal] > .lf-task-meta > span {
-    max-width: 100%; overflow-wrap: anywhere; }
+/* Where the counts no longer fit beside the outcome they stand under it, as a row of
+ * equal tiles that share the width. */
+@container lf-command-status (width <= 44rem) {
+  .lf-command-status > .lf-command-head { grid-template-columns: minmax(0, 1fr); }
+  .lf-command-facts { grid-auto-flow: row;
+    grid-template-columns: repeat(auto-fit, minmax(5.5rem, 1fr)); }
 }

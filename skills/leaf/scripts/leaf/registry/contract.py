@@ -136,8 +136,13 @@ class VisualParts:
     prefixes: tuple[str, ...] = ()
 
     def __contains__(self, part: str) -> bool:
-        return part in self.tokens or any(
-            part.startswith(prefix) and part != prefix for prefix in self.prefixes
+        # A part id is one token, as the browser's registration requires; an authored
+        # token already is one, and a prefixed id must be too.
+        return part in self.tokens or (
+            part.split() == [part]
+            and any(
+                part.startswith(prefix) and part != prefix for prefix in self.prefixes
+            )
         )
 
     def __bool__(self) -> bool:

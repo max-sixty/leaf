@@ -448,12 +448,12 @@ def test_a_visual_admits_the_parts_its_prefixes_begin(page_dir):
         "visual anchor 'edge:B' is not declared on section 'flow'; "
         "ids starting with 'node:'"
     )
-    bare = event_contracts_model.visual_anchor_error(
-        {"anchor": {"section": "flow", "visual": "node:"}},
-        {"flow": {"tag": "lf-diagram", "attrs": {"id": "flow"}}},
-        json.loads((page_dir / "registry.json").read_text()),
-    )
-    assert bare is not None
+    for unrenderable in ("node:", "node:a b"):
+        assert event_contracts_model.visual_anchor_error(
+            {"anchor": {"section": "flow", "visual": unrenderable}},
+            {"flow": {"tag": "lf-diagram", "attrs": {"id": "flow"}}},
+            json.loads((page_dir / "registry.json").read_text()),
+        ), unrenderable
 
     # The file lists none of these parts, so markup cannot drop one; a declaration
     # that stops admitting a part a thread holds is what drops it.

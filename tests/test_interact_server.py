@@ -73,6 +73,7 @@ from leaf.registry import storage as registry_storage
 from leaf.served_state import browser as served_browser
 from leaf.served_state import document as served_document
 from leaf.served_state import page as served_page
+from leaf.served_state import reading as served_reading
 from leaf.served_state import service as served_service
 from leaf.structure import EXTERNAL_ORIGINS
 from page_fixtures import package_selection_args
@@ -3492,6 +3493,14 @@ def test_an_open_stream_records_that_the_page_was_visible(server, page_dir):
     stream.close()
 
 
+def _pass_write_tick() -> None:
+    """Let the filesystem clock move past the last write. A stamp taken inside that
+    write's tick also carries what the file holds, and the one after it does not
+    (`files.file_stamp`), so two readings of one page at rest agree only once both
+    are taken past it."""
+    time.sleep(time.clock_getres(files_model.WRITE_CLOCK))
+
+
 def test_the_news_stream_names_the_reading_and_speaks_on_a_change(server, page_dir):
     """The stream says what reading the page is at, once on arrival and again each
     time it changes, and the reading it names for a page at rest is the one a state
@@ -3499,6 +3508,7 @@ def test_the_news_stream_names_the_reading_and_speaks_on_a_change(server, page_d
     only when they differ. Nothing else rides it: an append is news, and the state
     carrying it still comes by asking."""
     publish(page_dir)
+    _pass_write_tick()
     stream, heard = _news(server)
     first = heard()
     assert first == json.loads(fetch(f"{server}/api/state")[1])["reading"]
@@ -3514,6 +3524,7 @@ def test_the_news_stream_names_the_reading_and_speaks_on_a_change(server, page_d
     # stream's next look puts right. A state read never names one, taking its
     # reading under the log's own lease. So the agreement is read from a stream
     # opened once the append has landed, where both sides stamp a page at rest.
+    _pass_write_tick()
     settled, heard_at_rest = _news(server)
     assert heard_at_rest() == json.loads(fetch(f"{server}/api/state")[1])["reading"]
     settled.close()
@@ -4280,6 +4291,57 @@ def test_a_page_snapshot_stays_on_one_page_reading(page_dir):
         response = stream.getresponse()
         assert response.readline().decode().strip() == f"data: {snapshot.reading}"
         stream.close()
+
+
+def _same_tick(path: Path, write) -> None:
+    """Make `write` land the way a coarse filesystem clock records it: a second write
+    inside one clock tick leaves the modification time where the first put it. Linux
+    stamps inodes from the kernel's coarse clock, so two writes a few milliseconds
+    apart share a time there. Here both are pinned to one time the clock has not yet
+    passed, which is what every reading taken inside that tick sees."""
+    tick = time.time_ns() + 10**9
+    os.utime(path, ns=(tick, tick))
+    write()
+    os.utime(path, ns=(tick, tick))
+
+
+def test_a_page_reading_moves_for_a_second_write_in_one_clock_tick(page_dir):
+    """A data file rewritten in place, to the same size and inside the clock tick
+    that stamped the reading before it, still moves the page's reading: `leaf wait`,
+    the news stream, and source activation all key on that reading, and an unmoved
+    one leaves the write unheard until some later write."""
+    value = page_dir / schema_model.DATA_DIR / "tick.json"
+    files_model.write_json(value, {"n": 1})
+    before = {}
+
+    def rewrite():
+        before["reading"] = served_reading.page_reading(page_dir)
+        with value.open("r+") as stream:
+            stream.write('{"n": 2}')
+
+    _same_tick(value, rewrite)
+    assert json.loads(value.read_text()) == {"n": 2}
+    assert served_reading.page_reading(page_dir) != before["reading"]
+
+
+def test_neighbour_discovery_sees_a_page_made_in_one_clock_tick(page_dir):
+    """A page made in the state home's pages/ inside the clock tick of the scan
+    before it, leaving the directory's size unchanged, is still discovered: the scan
+    is keyed on the directory's stamp, and a stamp the second change left in place
+    would hide the new page until some later write moved it."""
+    pages = machine_model.state_home() / "pages"
+    (pages / "first").mkdir(parents=True)
+    (pages / "placeholder").write_text("")
+    before = {}
+
+    def replace_placeholder():
+        before["found"] = presence_model.neighbor_candidates()
+        (pages / "placeholder").unlink()
+        (pages / "second").mkdir()
+
+    _same_tick(pages, replace_placeholder)
+    assert (pages / "second").resolve() not in before["found"]
+    assert (pages / "second").resolve() in presence_model.neighbor_candidates()
 
 
 def test_a_preview_uses_the_validated_module_graph_after_a_later_edit(page_dir):

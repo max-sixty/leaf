@@ -1,5 +1,6 @@
 """Mutable source, immutable revisions, and public version addresses."""
 
+import hashlib
 import json
 import os
 import re
@@ -9,6 +10,7 @@ import time
 from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path
+from stat import S_ISDIR
 from typing import TypeVar
 
 from .locations import path_location
@@ -20,17 +22,53 @@ from .locations import path_location
 STAGED = re.compile(r"\.[0-9a-f]{16}\.tmp")
 
 
+# The clock a filesystem stamps a write's modification time from. Linux reads the
+# kernel's coarse clock, CLOCK_REALTIME_COARSE, which Python does not name: it moves
+# once a jiffy (1–10ms by kernel build), so every write inside one tick carries the same
+# time, nanosecond fields notwithstanding — measured on a 6.8 kernel, 94% of back-to-back
+# rewrites of one file kept the time the write before set. APFS reads the fine clock,
+# and no two of 20,000 back-to-back rewrites shared a time.
+WRITE_CLOCK = 5 if sys.platform == "linux" else time.CLOCK_REALTIME
+
+
 def file_stamp(path: Path):
-    """What the filesystem says a file is: which file, when it was last written,
-    and how big it is. A page directory holds files that are written once and read
-    on every request, so what each one says is worked out once and kept under this
-    stamp, and a file rewritten since wears a different one. A path with nothing
-    there stamps as None, which keeps nothing and reads every time."""
+    """What the filesystem says a file or directory is: which one, when it was last
+    written, and how big it is. A page directory holds files that are written once and
+    read on every request, so what each one says is worked out once and kept under this
+    stamp, and one rewritten since wears a different one. A path with nothing there
+    stamps as None, which keeps nothing and reads every time.
+
+    Every freshness key in leaf is built from these stamps — the page's reading that
+    `leaf wait`, the news stream and activation follow, neighbour discovery, and the
+    caches of parsed files — so this is where a stamp is made exact. The time alone
+    cannot be: a second write inside the tick of `WRITE_CLOCK` that stamped the first,
+    to the same size, leaves it unmoved — a data file rewritten in place, an entry
+    added beside a removed one, an atomic replace whose staging file reused the inode
+    the one before it freed. A later write can share a time only with one that clock
+    has not yet moved past, so a stamp whose time is not older than that clock's
+    reading before the stat also carries what the path holds (git's rule for a racily
+    clean index entry): a file's bytes, or a directory's entries and their inodes.
+    That costs a read of what was written in the current tick and nothing after it.
+    The stamp taken once the tick has passed drops that part, so a follower that
+    looked inside the tick reads once more, then settles."""
+    looked = time.clock_gettime_ns(WRITE_CLOCK)
     try:
         stat = path.stat()
+        stamp = (stat.st_ino, stat.st_mtime_ns, stat.st_size)
+        if stat.st_mtime_ns >= looked:
+            stamp += (_contents(path, stat.st_mode),)
     except OSError:
         return None
-    return (stat.st_ino, stat.st_mtime_ns, stat.st_size)
+    return stamp
+
+
+def _contents(path: Path, mode: int) -> bytes:
+    """A digest of what a file holds, or of which entries a directory holds."""
+    if S_ISDIR(mode):
+        with os.scandir(path) as entries:
+            held = repr(sorted((entry.name, entry.inode()) for entry in entries))
+        return hashlib.blake2b(held.encode(), digest_size=16).digest()
+    return hashlib.blake2b(path.read_bytes(), digest_size=16).digest()
 
 
 # How often a reader waiting on a page looks for news: the browser's news stream,

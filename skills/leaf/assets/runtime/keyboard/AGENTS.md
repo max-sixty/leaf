@@ -7,13 +7,13 @@ state, widgets, conversations, and chrome.
 ## Ownership
 
 A command is one stable capability. The layer that implements the command's semantic
-result owns it. A binding is a route to that command, and a scope defines where the route
-applies. Contextual surfaces may add routes to an existing command; they do not copy its
-callback or become another command owner.
+result owns it. A binding is a chord that invokes that command, and a scope defines where
+the binding applies. Contextual surfaces may add bindings to an existing command; they do
+not copy its callback or become another command owner.
 
 One register supplies dispatch, the shortcut bar, the command reference, control
 tooltips, announcements, and `aria-keyshortcuts`. Register a capability once and derive
-every route and presentation from that row. A visible control names the same command
+every binding and presentation from that row. A visible control names the same command
 rather than creating a parallel keyboard action.
 
 Core owns commands that act on Leaf's page, chrome, navigation, comments, and shared
@@ -119,7 +119,7 @@ the same intent with a nearer destination; other local commands belong to the wi
 scope. The exact rows, rather than a copied key list, state the current bindings.
 
 While the user stands in an Ask, core projects its widget's ordered Decision commands
-onto `1` through `9`. A widget's declared route wins while focus is in that widget;
+onto `1` through `9`. A widget's declared binding wins while focus is in that widget;
 undeclared digits continue to the Ask projection. The digit and every intrinsic widget
 binding invoke the original command through its stable identity and source scope.
 

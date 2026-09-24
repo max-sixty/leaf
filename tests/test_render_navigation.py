@@ -6355,7 +6355,7 @@ def test_the_reference_runs_the_exact_numbered_ask_action(browser, serve):
 
 
 def test_numbered_ask_routes_follow_replaced_controls(browser, serve):
-    """A widget can replace its action controls without defining another keymap."""
+    """A widget can replace its action controls without declaring its bindings again."""
     page = open_page(
         browser,
         serve(

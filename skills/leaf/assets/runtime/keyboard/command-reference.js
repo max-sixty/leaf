@@ -568,7 +568,7 @@ const commandReferenceItems = () => {
       kind: "heading",
       key: "heading:bindings",
       id: "lf-command-reference-binding-matches",
-      title: "Binding matches",
+      title: "Matching shortcuts",
       order: commandReferenceView.bindingHeading.order,
     });
   for (const heading of commandReferenceView.sectionHeadings)
@@ -596,7 +596,7 @@ const commandReferenceItems = () => {
       kind: "heading",
       key: "heading:bindings",
       id: "lf-command-reference-binding-matches",
-      title: "Binding matches",
+      title: "Matching shortcuts",
     },
     ...commandReferenceCatalog.sections.map((section) => ({
       kind: "heading",

@@ -3,7 +3,8 @@
  * mountTrays installs the controls only after chrome has been attached. */
 import { el } from "./widget-elements.js";
 import { drawnEdge } from "./drawn-edge.js";
-import { motion } from "./motion.js";
+import { slide } from "./motion.js";
+import { declareOccluder } from "./geometry.js";
 import { currentAuxiliarySurface } from "./auxiliary-surfaces.js";
 import { letGo } from "./focus.js";
 import { keys } from "./keyboard/scopes.js";
@@ -17,15 +18,15 @@ import { createLiveLeavesList } from "./live-leaves-list.js";
 import { bannerControlDoor, dismissBannerControls } from "./banner-shelf.js";
 import { createAskTrayList } from "./asks/tray-list.js";
 // The left side holds one tray at a time, selected by the shared auxiliary-surface owner.
-// The leaves tray overlays the document because its
-// rows leave the page. The asks tray stands beside the page, taking a strip, because its
-// rows travel within the page and the user must keep the target visible; where that would
-// leave less than a usable page it covers the page instead, by the rule the thread panel
-// follows on the other side (auxiliary-surfaces.js, `standsBeside`). Both entry controls
+// Both stand over the page and take no room from it. The leaves tray covers the document
+// because its rows leave the page. The asks tray leaves the page live beside it, because
+// its rows travel within the page and the user must keep the target reachable; where that
+// would leave less than a usable page it covers the page instead, by the rule the thread
+// panel follows on the other side (auxiliary-surfaces.js, `standsBeside`). Both entry controls
 // call the same tray setter.
 //
 // Trays declare presentation-time arrival: their first paint needs the state-dependent
-// rows, while their remembered selection reserves the shell geometry during startup.
+// rows.
 //
 // A handle lives inside the region it draws, so a drawn region must not be its own scroll
 // container: a scroller clips a handle straddling its border and carries it away with the
@@ -69,6 +70,9 @@ function trayFurniture(panel, name, list = el("div", "lf-tray-list")) {
   head.append(title, close);
   panel.append(head, list);
   trayLists.push(list);
+  // An open tray stands over the left of the page, so what it stands over is hidden
+  // from every reading of what the page shows (geometry.js).
+  declareOccluder(panel);
   return { list, close };
 }
 export function reserveListClearance(clear) {
@@ -168,23 +172,14 @@ export function createTrays({
         // user watches the list they just closed blank out and an empty card slide away.
         paint?.();
         panel.classList.add("open");
-        if (phase === "gesture")
-          motion(
-            panel,
-            [{ transform: "translateX(-100%)" }, { transform: "translateX(0)" }],
-            200,
-          );
+        if (phase === "gesture") slide(panel, "left", "in");
       },
       hide({ returnFocus }) {
         btn.setAttribute("aria-expanded", "false");
         if (!panel.classList.contains("open")) return;
         // Slid out before hidden, and hidden only if still closed on arrival — a
         // reopen mid-slide leaves the panel standing rather than racing the finish.
-        const out = motion(
-          panel,
-          [{ transform: "translateX(0)" }, { transform: "translateX(-100%)" }],
-          160,
-        );
+        const out = slide(panel, "left", "out");
         const hide = () => {
           if (trayIsOpen(key)) return; // reopened mid-slide; it stays up, list and all
           panel.classList.remove("open");

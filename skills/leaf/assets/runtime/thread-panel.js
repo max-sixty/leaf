@@ -13,6 +13,7 @@ import { narrowed, threadSearchActive } from "./conversation/narrowing.js";
 import { letGo } from "./focus.js";
 import { pageRung } from "./keyboard/register.js";
 import { currentAuxiliarySurface } from "./auxiliary-surfaces.js";
+import { slide } from "./motion.js";
 
 export const panelIsOpen = () => currentAuxiliarySurface() === "threads";
 
@@ -48,7 +49,7 @@ export function createThreadPanelController({
     if (open || panelIsOpen())
       auxiliarySurfaces.select(open ? "threads" : null, options);
   }
-  function paintPanel(open) {
+  function paintPanel(open, phase) {
     // Closing while focus is inside would drop it on body, the user's place lost
     // silently; it lands on the one control that reopens what just closed, which is where
     // the pointer already is. The Escape step below lands the user on the page instead.
@@ -64,9 +65,19 @@ export function createThreadPanelController({
       // a reply resolved to an element with no box, took no mark, and left the thread
       // still open in the panel pointing at nothing on either side.
       showPanelLayer();
+      if (phase === "gesture") slide(panel, "right", "in");
       refreshConversation();
       syncGeneral(); // a restored draft has to reach the Send button's disabled state
-    } else if (panel.open) panel.close();
+    } else if (panel.open) {
+      // Slid out before closed, and closed only if still closed on arrival: a reopen
+      // mid-slide replaces the slide and leaves the panel standing.
+      const out = slide(panel, "right", "out");
+      const close = () => {
+        if (!panelIsOpen()) panel.close();
+      };
+      if (out) out.finished.then(close, () => {});
+      else close();
+    }
     if (open) closePreview();
   }
   auxiliarySurfaces.registerAuxiliarySurface({
@@ -78,7 +89,7 @@ export function createThreadPanelController({
     // takes the covering boundary only where it leaves less than a usable page.
     beside: true,
     focus: () => threadsBox,
-    show: () => paintPanel(true),
+    show: ({ phase }) => paintPanel(true, phase),
     hide: () => paintPanel(false),
   });
   function mountThreadPanel() {

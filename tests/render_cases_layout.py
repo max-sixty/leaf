@@ -502,8 +502,7 @@ SCROLLED_CONTAINER = LONG_PAGE.replace(
 #
 # `html` is a call rather than the markup, because the page the trays need is declared
 # with the other tray readings a long way below here, and a parametrize list is read at
-# import. `strip` says whether the page yields the region a strip: the Asks tray stands
-# beside the page, and the thread panel stands over it and takes nothing. `squeeze` is the
+# import. `squeeze` is the
 # window that has no room for what the user chose and the width the region stands at
 # there, which is the window itself on either side.
 EDGES = [
@@ -516,7 +515,6 @@ EDGES = [
         side="right",
         store="lf-thread-panel-width",
         wide=420,
-        strip=False,
         squeeze=(500, 500),
     ),
     SimpleNamespace(
@@ -528,16 +526,13 @@ EDGES = [
         side="left",
         store="lf-tray-slot-width",
         wide=300,
-        strip=True,
         squeeze=(400, 400),
     ),
 ]
 EDGE_IDS = [edge.name for edge in EDGES]
 
 
-# One Ask, so a page offers the Asks tray: the one auxiliary surface that takes a strip
-# out of the page shell. Threads and Leaves stand over the page and take none, so a
-# reading about the shell yielding room opens this tray.
+# One Ask, so a page offers the Asks tray.
 ONE_ASK = (
     '<lf-ask id="go-decision"><h2>Ship it?</h2>'
     '<lf-options id="go" choose>'
@@ -591,14 +586,8 @@ def edge_settled(page, edge):
 def geometry(page, edge):
     """What the edge reads back as, and what the page has left beside it.
 
-    The two numbers are one fact asked from both sides: the strip is the page shell's and
-    the region's own box, and the whole point of the width being the user's is that
-    nothing may hold a copy of it their gesture doesn't reach.
-
-    The page's own edge is body's content box, not the box it draws. The strip a standing
-    region takes is a transparent border on body (theme.css says why it has to be one,
-    rather than the margin it used to be), so the border box now reaches the window and it
-    is the content edge that meets the region.
+    The region stands over the page, so the page's edge is the window's whatever width
+    the user draws the region to.
     """
     return page.evaluate(
         """([region, side, store]) => {
@@ -634,25 +623,6 @@ def draw_edge(page, edge, by):
     page.mouse.up()
 
 
-# The room sampled across an auxiliary-surface motion. The shell owns the value in CSS, so a
-# harmless probe resolves the custom-property expression to the width a wide exhibit
-# would actually receive.
-ROOM_EVERY_FRAME = """(frames) => {
-  window.__room = [];
-  const main = document.querySelector('main');
-  const probe = document.createElement('i');
-  probe.style.cssText = 'position:fixed;visibility:hidden;height:0;padding:0;border:0;width:var(--lf-room)';
-  main.append(probe);
-  // The first sample is taken now rather than on the first frame, so the width before the
-  // press is always in the trace: a frame is free to land after the keypress that follows
-  // this call, and a trace that opens after the strip is taken has one value in it and
-  // nothing to compare.
-  const tick = () => {
-    window.__room.push(probe.getBoundingClientRect().width);
-    if (window.__room.length < frames) requestAnimationFrame(tick);
-  };
-  tick();
-}"""
 # Enough code for the roles to differ from each other and from the block: a comment, a
 # keyword, a string, a name, a number.
 CODE_BLOCK = """<pre id="snippet"><code class="language-python"># the ceiling doubles per approval

@@ -859,9 +859,7 @@ DIFF_LANDING = """() => {
 # means nothing here except against the column it is or isn't wider than.
 ROOM_GEOMETRY = (
     """() => {
-    // A content box: inside the border as well as the padding. Body's border is the strip a
-    // standing panel or tray takes, so leaving it in would put the room's right edge at the
-    // window and let anything run under the panel.
+    // A content box: inside the border as well as the padding.
     const span = (el) => {
         const s = getComputedStyle(el), b = el.getBoundingClientRect();
         const left = b.left + parseFloat(s.borderLeftWidth) + parseFloat(s.paddingLeft);
@@ -878,7 +876,7 @@ ROOM_GEOMETRY = (
                  centre: (b.left + b.right) / 2 };
     };
     // The CSS shell's box. It is not the window: the root owns document scrolling and
-    // reserves a stable gutter, while body's border yields room to auxiliary surfaces.
+    // reserves a stable gutter.
     // `room` above is the body's content box; this reading includes the full shell so
     // the test can tell which edge that room came out of.
     return { column: span(document.querySelector('main')),

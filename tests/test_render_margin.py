@@ -735,21 +735,13 @@ def test_a_held_marker_reaches_a_folded_map_through_the_door_that_holds_it(
     expect(more).to_be_focused()
 
 
-def test_a_tray_takes_the_markers_and_hands_the_user_the_map(browser, serve):
-    """The rail is drawn in the shell, so what decides whether the margin stands is the
-    room a standing tray leaves rather than the room the window has. This is the case
-    the container query exists for and the one no window query can answer: the window
-    does not move, the markers go, and the Page Map arrives in their place.
-
-    1100 does both halves. The Asks tray's 300px strip leaves an 800px shell, under the
-    floor, while the window stays 260px clear of it — so a reading taken from the window
-    would keep drawing markers in a rail the page has no room for. The Map is read as
-    offered rather than as visible, since the shelf may fold it behind the More door at
-    a width the banner is crowded at; folded or not, the page is stating that the whole
-    map is the way to what the markers held. Threads stands over the page and takes no
-    room, so opening it leaves the rail drawn, but at 1100 it stands over the rail, so
-    the banner offers the map there too; at 1920 the rail stands clear of it and the
-    margin stays the way in."""
+def test_a_surface_over_the_rail_hands_the_user_the_map(browser, serve):
+    """Threads stands over the page and takes no room, so opening it leaves the rail
+    drawn, but at 1100 it stands over the rail, so the banner offers the Page Map in the
+    markers' place; at 1920 the rail stands clear of it and the margin stays the way in.
+    The Map is read as offered rather than as visible, since the shelf may fold it behind
+    the More door at a width the banner is crowded at. The Asks tray stands over the left
+    of the window, away from the rail, so it leaves the markers and the margin alone."""
     comment = {
         "kind": "comment",
         "author": "user",
@@ -795,16 +787,8 @@ def test_a_tray_takes_the_markers_and_hands_the_user_the_map(browser, serve):
 
     toggle_asks(page)
     margins_laid_out(page)
-    expect(marker).to_be_hidden()
-    assert page.evaluate(offered), (
-        "the tray took the rail's room at an unchanged window and the page offered "
-        "the user nothing in its place"
-    )
-
-    toggle_asks(page, open=False)
-    margins_laid_out(page)
     expect(marker).to_be_visible()
-    assert not page.evaluate(offered), "the room came back and the margin did not"
+    assert not page.evaluate(offered), "the tray on the left withdrew the rail"
 
 
 def test_the_rail_is_claimed_only_in_a_shell_that_can_hold_it(browser, serve):
@@ -7437,115 +7421,3 @@ def test_a_version_comparison_joins_the_same_map_and_leaves_with_it(browser, ser
     banner_control(page, ".lf-version").click()
     page.locator('.lf-version-diff[data-lf-version="1"]').click()
     expect(page.locator('.lf-margin-marker[data-lf-kinds~="change"]')).to_have_count(0)
-
-
-def test_closing_the_tray_lands_the_margin_where_the_column_lands(browser, serve):
-    """The margin's rows land with the column, in the gesture that moves it.
-
-    Closing the Asks tray moves the reading column back across the window, and a thread
-    on plain prose stands in the toolbar host, which is placed off the column's box — so
-    a row placed against the column where it was stands over the prose the column moved
-    under it. A resize observer cannot catch that: it hears a box change size, not place.
-
-    The column arrives in the same layout pass as the state change now, and the margin is
-    placed against it before the gesture returns (`moveContentFrame`). So the read is taken
-    in the very task that closes the tray, with no frame between: a repaint deferred to
-    the next frame, which is how this used to be done while the column was still gliding,
-    would leave the row at its open-tray place here. Every route that closes the tray
-    is walked, because each is its own caller."""
-    page = open_page(
-        browser, serve(next(p for p in EXAMPLES if p.stem == "review-a-plan"))
-    )
-    resized(page, 1440, 900)
-    margins_laid_out(page)
-    marker = '.lf-margin-marker[data-lf-kinds="comment"]'
-    rest = page.locator(marker).first.bounding_box()["x"]
-    # Close, then read the row's place in the same task, before any frame can run.
-    close_and_read = {
-        "toggle": "document.querySelector('.lf-asks').click()",
-        "Close asks": (
-            "[...document.querySelectorAll('.lf-asks-panel button')]"
-            ".find(b => b.getAttribute('aria-label') === 'Close asks').click()"
-        ),
-    }
-    for route, close in close_and_read.items():
-        toggle_asks(page)
-        opened = page.locator(marker).first.bounding_box()["x"]
-        assert opened != pytest.approx(rest, abs=1), (
-            "opening the tray did not move the row, so closing it cannot show whether the"
-            f" row follows the column: {opened} against {rest}"
-        )
-        landed = page.evaluate(
-            f"""(sel) => {{
-              {close};
-              return document.querySelector(sel).getBoundingClientRect().x;
-            }}""",
-            marker,
-        )
-        assert landed == pytest.approx(rest, abs=1), (
-            f"after {route}: in the closing task the thread margin entry stands at "
-            f"{landed}, but the column's rest is {rest}"
-        )
-        expect(page.locator(".lf-asks-panel")).to_be_hidden()
-    # Escape reaches the tray through the keyboard dispatcher rather than a click, so it
-    # is the one route walked with a real key, and the one that would catch a keyboard
-    # caller closing the tray without going through `moveContentFrame`.
-    #
-    # Pressing and then reading is two round trips with a frame free between them, which
-    # is enough for a deferred repaint to land and the read to pass whatever the runtime
-    # does. So the read rides the press: the dispatcher's own listener is a plain document
-    # keydown registered at boot that never stops propagation, so one added afterwards
-    # runs after it and inside the same task.
-    toggle_asks(page)
-    page.evaluate(
-        """(sel) => {
-          document.addEventListener("keydown", () => {
-            window.__lfEscapeLanded =
-              document.querySelector(sel).getBoundingClientRect().x;
-          }, { once: true });
-        }""",
-        marker,
-    )
-    page.locator(".lf-asks-panel .lf-tray-list").focus()
-    page.keyboard.press("Escape")
-    landed = page.evaluate("() => window.__lfEscapeLanded")
-    assert landed is not None, "the read never rode the press"
-    assert landed == pytest.approx(rest, abs=1), (
-        f"after Escape: in the closing task the thread margin entry stands at {landed}, "
-        f"but the column's rest is {rest}"
-    )
-
-
-def test_closing_a_tray_places_the_margin_against_the_released_column(browser, serve):
-    """Tray closure finishes its margin projection in the gesture, after releasing room."""
-    url = serve(ASK_PAGE)
-    events_model.append_event(
-        serve.page_dir,
-        {
-            "kind": "comment",
-            "author": "user",
-            "revision": 1,
-            "anchor": {"section": "mounts-p"},
-            "text": "Check the mounts.",
-        },
-    )
-    page = open_page(browser, url)
-    resized(page, 1440, 900)
-    margins_laid_out(page)
-    marker = '.lf-margin-marker[data-lf-kinds="comment"]'
-    resting = page.locator(marker).bounding_box()["x"]
-    banner_control(page, ".lf-asks").click()
-    expect(page.locator(".lf-asks-panel")).to_be_visible()
-    margins_laid_out(page)
-    assert page.locator(marker).bounding_box()["x"] != pytest.approx(resting, abs=1)
-    # The listener reads after the control's handler, before a repaint can mask a stale
-    # margin. The real click is necessary: it exercises focus return and the tray's close.
-    asks = banner_control(page, ".lf-asks")
-    page.evaluate(
-        """selector => document.addEventListener('click', () => {
-          window.trayClosedMargin = document.querySelector(selector).getBoundingClientRect().x;
-        }, {once: true})""",
-        marker,
-    )
-    asks.click()
-    assert page.evaluate("window.trayClosedMargin") == pytest.approx(resting, abs=1)

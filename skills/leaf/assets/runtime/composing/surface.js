@@ -164,14 +164,11 @@ export function createResponseSurface({
 
   // ---------- selection → comment ----------
   // Floating UI stays inside the document page shell, whose right edge stops short of the
-  // root scrollport's gutter and the strip a sheet yields the thread panel. Over a column
-  // page the panel takes no strip, so an open panel's own left edge bounds it too.
+  // root scrollport's gutter. The panel stands over the page, so an open panel's own left
+  // edge bounds it too: where it stands, which offsetLeft reads through its slide.
   const rightEdge = (bounds = null) =>
     (bounds?.right ??
-      Math.min(
-        shellRight(),
-        panel.open ? panel.getBoundingClientRect().left : Infinity,
-      )) - 8;
+      Math.min(shellRight(), panel.open ? panel.offsetLeft : Infinity)) - 8;
   // The response surface lives in the viewport plane and Floating UI follows the passage
   // through every scroll ancestor. Every caller therefore reasons in the same coordinates:
   // rects, the pointer, and the banner's own band. The fixed floor covers the ordinary

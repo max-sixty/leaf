@@ -212,7 +212,6 @@ let goToSequence;
 const auxiliarySurfaces = createAuxiliarySurfaces({
   chromeRoot,
   focusable: FOCUSABLE,
-  takeShell: (surface) => layout.takeShell(surface),
   syncLayout: () => layout.syncLayout(),
   afterChange: () => {
     app.margin.renderMargin();
@@ -644,7 +643,6 @@ layout = createChromeLayout({
   refreshFab: responseSurface.refreshFab,
   dockSeats: anchorControls.dockSeats,
   pageShifted: pageGeometry.pageShifted,
-  layoutMarginRows,
   repaint,
   repaintPage,
 });

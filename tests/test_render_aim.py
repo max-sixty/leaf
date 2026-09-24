@@ -284,9 +284,9 @@ def test_a_compact_comment_carries_its_box_into_the_inline_thread(browser, serve
 
 
 def test_an_aimed_comment_keeps_its_place_with_the_asks_tray_open(browser, serve):
-    """The Asks strip can move the page without moving its coordinate plane.
+    """The Asks tray stands over the page without moving its coordinate plane.
 
-    A broad authored rule may position ordinary divs, and the tray transition may move a
+    A broad authored rule may position ordinary divs, and the tray may arrive over a
     target without another pointer event. Neither may move the chrome's document origin or
     leave its reading of the page behind. Keep the whole comment route on the item the
     user pointed at.
@@ -298,14 +298,14 @@ def test_an_aimed_comment_keeps_its_place_with_the_asks_tray_open(browser, serve
         "div { position: relative; }</style></head>",
     )
     page = open_page(browser, serve(source))
-    resized(page, 1200, 900)
+    # 900 leaves the composer no side lane, so it takes the vertical route.
+    resized(page, 900, 900)
 
     target = page.locator("#lq-keep")
     target.hover()
     page.keyboard.down("Alt")
     expect(page.locator(".lf-aim")).to_have_attribute("data-for", "lq-keep")
-    # Open by script so the pointer remains parked on the target while the shell moves
-    # underneath it. The target is wide enough to remain under that point throughout.
+    # Open by script so the pointer remains parked on the target while the tray arrives.
     page.locator(".lf-asks").evaluate("node => node.click()")
     edge_settled(page, EDGES[1])
     aligned = page.evaluate(
@@ -314,13 +314,11 @@ def test_an_aimed_comment_keeps_its_place_with_the_asks_tray_open(browser, serve
           const aim = document.querySelector('.lf-aim').getBoundingClientRect();
           const chrome = document.querySelector('.lf-chrome');
           return { rootPosition: getComputedStyle(document.documentElement).position,
-                   bodyLeft: document.body.getBoundingClientRect().left,
                    bodyPosition: getComputedStyle(document.body).position,
                    chromePosition: getComputedStyle(chrome).position,
                    dx: aim.left - target.left, dy: aim.top - target.top };
         }"""
     )
-    assert aligned["bodyLeft"] > 0, "the Asks tray took no strip from the page"
     assert aligned["rootPosition"] == "static", (
         "authored root positioning captured the document coordinate plane"
     )
@@ -332,7 +330,6 @@ def test_an_aimed_comment_keeps_its_place_with_the_asks_tray_open(browser, serve
     )
     assert abs(aligned["dx"]) < 2 and abs(aligned["dy"]) < 2, (
         f"the aim moved {aligned['dx']:.1f}px across and {aligned['dy']:.1f}px down "
-        f"from its target with body starting at {aligned['bodyLeft']:.1f}px"
     )
 
     target.click()

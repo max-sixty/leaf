@@ -31,11 +31,8 @@ import { uiInside, under, upFrom } from "./shadow.js";
    declared items with no visible part on which a mark can land. */
 // Where the page's shell ends on the right — the far edge of the room the document has,
 // which is what a margin resident is placed against and what the response surface may not
-// overhang. A strip the shell yields is a border on body — the Asks tray's on the left, the
-// thread panel's on the right beside a sheet — so the room ends inside the right border.
-export const shellRight = () =>
-  document.body.getBoundingClientRect().right -
-  parseFloat(getComputedStyle(document.body).borderRightWidth);
+// overhang. The auxiliary surfaces stand over the page and take none of it.
+export const shellRight = () => document.body.getBoundingClientRect().right;
 // Whether two boxes share any pixel. The one spelling of a question three chrome passes
 // ask: placement, badge reservation, and the clear part left of a box behind furniture.
 export const overlaps = (a, b) =>

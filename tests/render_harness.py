@@ -1632,17 +1632,14 @@ def margins_laid_out(page):
     )
 
 
-# The page shell's box on screen: where the document's room starts and ends. Body's
-# padding box, not the box it draws, because a standing panel or tray takes its strip as a
-# transparent border inside body (theme.css, at the body strip, says why it has to be one),
-# so `getBoundingClientRect()` now reaches the window. The runtime reads the same edge as
-# `shellRight` (geometry.js). This is the suite's one spelling of it, read off the DOM
+# The page shell's box on screen: where the document's room starts and ends. The runtime
+# reads the same edge as `shellRight` (geometry.js). This is the suite's one spelling of it, read off the DOM
 # rather than through that function, so a test comparing it with a region's box compares
 # two independent readings. An expression, so a larger evaluate can embed it and take it in
 # the same pass as what it is compared against.
 SHELL_BOX = """(() => {
-  const b = document.body, s = getComputedStyle(b);
-  const left = b.getBoundingClientRect().left + (parseFloat(s.borderLeftWidth) || 0);
+  const b = document.body;
+  const left = b.getBoundingClientRect().left;
   return { left, right: left + b.clientWidth, width: b.clientWidth,
            centre: left + b.clientWidth / 2 };
 })()"""
@@ -1694,14 +1691,18 @@ def scroll_settled(page, scroller=None, axis="y", frames=SCROLL_STILL_FRAMES):
 
 
 def panel_settled(page, open=True):
-    """Wait for the requested panel class.
+    """Wait for the panel to stand open or to be gone, its slide finished.
 
-    `moveContentFrame` places the column, margin, and marks synchronously, so the
-    class is also the geometry boundary. The regression test
-    `test_closing_the_panel_lands_the_margin_where_the_column_lands` checks this
-    runtime guarantee."""
+    The panel stands over the page, so opening or closing it moves nothing else; its own
+    slide is the one motion, finished rather than waited out for `edge_settled`'s reason.
+    Closed means the dialog itself has closed, which the slide out precedes."""
     page.wait_for_function(
-        "(open) => document.querySelector('.lf-thread-panel').classList.contains('open') === open",
+        """(open) => {
+          const panel = document.querySelector('.lf-thread-panel');
+          for (const move of panel.getAnimations()) move.finish();
+          return panel.classList.contains('open') === open && panel.open === open
+            && panel.getAnimations().length === 0;
+        }""",
         arg=open,
     )
 

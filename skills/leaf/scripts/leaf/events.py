@@ -91,9 +91,11 @@ class UndoReading:
         threads: dict | None = None,
         within: dict | None = None,
         withdrawn: set | None = None,
+        absorbed: frozenset,
     ):
         self.events_by_id = {event["id"]: event for event in events}
         self.withdrawn = taken_back(events) if withdrawn is None else withdrawn
+        self.absorbed = absorbed
         if threads is None:
             if within is None:
                 raise TypeError("within is required when threads are not supplied")
@@ -156,6 +158,14 @@ class UndoReading:
                 f"{target['kind']} events cannot be taken back (the kinds that can "
                 f"are {', '.join(sorted(UNDOABLE_KINDS))} and a reaction)"
             )
+        elif target["kind"] == "action" and target["id"] in self.absorbed:
+            # The newest revision's markup places the unit
+            # (`StateProjection.absorbed`), so taking the move back would restore
+            # nothing; a new move changes where the unit stands.
+            return (
+                f"move {target['id']} was made on r{target['revision']}, and a "
+                "later revision's markup now places its unit; move it again instead"
+            )
         return None
 
 
@@ -163,6 +173,7 @@ def undo_error(
     event: dict,
     events: list,
     within: dict,
+    absorbed: frozenset,
 ) -> str | None:
     """Why this undo may not take back the event it names, or None.
 
@@ -182,8 +193,10 @@ def undo_error(
 
     `within` is the published page's containment, as every other fold of the
     threads takes it: a thread an action settled, and a version's `restated`
-    inside that widget reopened, is open here as it is in `page state`."""
-    return UndoReading(events, within=within).error(event)
+    inside that widget reopened, is open here as it is in `page state`.
+    `absorbed` is the newest revision's absorbed moves, whose units its markup
+    places."""
+    return UndoReading(events, within=within, absorbed=absorbed).error(event)
 
 
 def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -> dict:

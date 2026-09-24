@@ -12,7 +12,7 @@ in `event_meaning`.
 from leaf.anchor_capture import capture_anchor
 from leaf.asks import asking, projected_action_holders, quoted_in
 from leaf.document_reading import read_document
-from leaf.event_log import EventRefused
+from leaf.event_log import EventRefused, Refusal
 from leaf.event_meaning import (
     AdmissionReadings,
     admit_widget_event,
@@ -23,6 +23,7 @@ from leaf.files import version_revisions
 from leaf.page_view import PageView
 from leaf.projection import (
     RANK,
+    authored_positions,
     generated_children,
     page_reading,
     record_members,
@@ -351,6 +352,10 @@ def action_contract_error(view, event: dict, readings: AdmissionReadings):
 
     if page_rec:
         reading = readings.page(document, revision)
+        if record_kind == "position" and (
+            stale := stale_move_error(view, event, spec, reading, readings)
+        ):
+            return stale
         projection, parser, spk = reading.projection, reading.document, reading.spoken
         byid = parser.by_id
         current = parser.by_id[event["widget"]]
@@ -372,6 +377,35 @@ def action_contract_error(view, event: dict, readings: AdmissionReadings):
                 f"member of {event['widget']!r}"
             )
     return None
+
+
+def stale_move_error(view, event: dict, spec: dict, reading, readings):
+    """Why a move made on an older revision cannot land where the user dropped it.
+
+    A rank lies among the authored units of its container on the revision the move
+    was made on. Where the newest revision authors that container the same way, the
+    rank lands in the same gap there and the move stands; where it does not, the
+    newest revision would take the unit's place from its own markup, so the move is
+    refused and made again on the page as it now stands."""
+    revision, newest = event["revision"], view.revisions[-1]
+    if revision == newest:
+        return None
+    record = spec["record"]
+    owner, container = event["widget"], event["detail"][record["value"]]
+    registry = readings.registry
+    now = readings.page(view.document(newest), newest)
+    if authored_positions(
+        owner, record, reading.document.by_id, reading.spoken, registry
+    ).get(container) == authored_positions(
+        owner, record, now.document.by_id, now.spoken, registry
+    ).get(container):
+        return None
+    return Refusal(
+        f"action {event['action']!r} on {owner!r} was made on r{revision}, and "
+        f"r{newest} authors {container!r} differently, so its rank no longer "
+        "names the gap it was dropped into",
+        "The page changed while you moved this; move it again.",
+    )
 
 
 def report_contract_error(event: dict, page, registry: dict):
@@ -581,10 +615,14 @@ def _conversation_presentation_error(view, event: dict, events: list) -> str | N
     return None
 
 
-def _withdrawal_error(view, event: dict, events: list) -> str | None:
+def _withdrawal_error(
+    view, event: dict, events: list, readings: AdmissionReadings
+) -> str | None:
     if event["kind"] != "undo":
         return None
-    return undo_error(event, events, view.within)
+    newest = view.revisions[-1]
+    absorbed = readings.page(view.document(newest), newest).projection.absorbed
+    return undo_error(event, events, view.within, absorbed)
 
 
 def admission_error(
@@ -616,7 +654,7 @@ def admission_error(
         or _parent_error(event, events)
         or _conversation_presentation_error(view, event, events)
         or read_contract_error(event, events)
-        or _withdrawal_error(view, event, events)
+        or _withdrawal_error(view, event, events, readings)
     )
 
 

@@ -1891,6 +1891,10 @@ export function createVersionController({
     // a widget, and travel to a different authored revision where a passage is a better
     // landmark than the old document's pixels.
     const navigationType = performance.getEntriesByType("navigation")[0]?.type;
+    // The fragment the user arrived with, read before widgets upgrade: a widget may
+    // write its own view into the URL (a root tab set names its open panel), and that
+    // is display state, not a destination.
+    const arrivedAt = location.hash;
     const handoff = (() => {
       const serialized = tabStore.get(HANDOFF_KEY);
       tabStore.set(HANDOFF_KEY, null);
@@ -1937,7 +1941,7 @@ export function createVersionController({
       }
       const aimed =
         navigationType === "navigate" &&
-        targetElement(resolveAnchor({ section: fragmentId(location.hash) }));
+        targetElement(resolveAnchor({ section: fragmentId(arrivedAt) }));
       // Native fragment navigation has already landed an ordinary authored target.
       // Keep that position when upgrades left the complete destination readable: moving
       // it to the centre after presentation makes a loaded page visibly jump for no gain.

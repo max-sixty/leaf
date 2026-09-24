@@ -249,6 +249,8 @@ def test_a_block_leaving_the_viewport_keeps_its_focused_comment(browser, serve):
     expect(field).to_be_visible()
     page.keyboard.press("c")
     expect(field).to_be_focused()
+    label = field.get_attribute("aria-label")
+    assert label and label.startswith("Comment on “4 of 5 checks passing")
     draft = "Why does the remaining check need a decision?"
     field.fill(draft)
     resized(page, 420, 850)
@@ -267,9 +269,7 @@ def test_a_block_leaving_the_viewport_keeps_its_focused_comment(browser, serve):
     )
     expect(field).to_be_visible()
     expect(field).to_be_focused()
-    expect(field).to_have_attribute(
-        "aria-label", "Comment on “4 of 5 checks passing -1”"
-    )
+    expect(field).to_have_attribute("aria-label", label)
     page.keyboard.type(" What must Finance decide?")
     expect(field).to_have_value(draft + " What must Finance decide?")
 

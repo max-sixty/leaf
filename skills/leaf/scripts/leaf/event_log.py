@@ -85,7 +85,25 @@ class EventRefused(ValueError):
     Raised by `event_contracts.append_admitted`, the one door every writer
     appends through. It lives beside the log rather than beside the gates so that
     a layer between a writer and the file — `contract_writer`, which answers a
-    command's refusal — can name one without importing the contracts."""
+    command's refusal — can name one without importing the contracts. `user` is
+    what the browser shows the person whose gesture it was: the reason itself,
+    unless the gate worded it for them (`Refusal`)."""
+
+    def __init__(self, reason: str):
+        super().__init__(reason)
+        self.user = getattr(reason, "user", reason)
+
+
+class Refusal(str):
+    """A gate's reason with separate words for the user whose gesture it refuses,
+    where the reason names internals that user never sees."""
+
+    user: str
+
+    def __new__(cls, reason: str, user: str):
+        refusal = super().__new__(cls, reason)
+        refusal.user = user
+        return refusal
 
 
 class AttemptConflict(ValueError):

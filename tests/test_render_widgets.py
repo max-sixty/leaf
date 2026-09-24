@@ -230,70 +230,110 @@ def test_a_root_workspace_bounds_independent_regions_and_flows_when_it_cannot_fi
 ROOT_TABS_PAGE = Path(__file__).parent / "fixtures/pages/root-tabs.html"
 
 
-def test_root_tabs_reach_the_chosen_contents_and_follow_browser_history(browser, serve):
-    """Explicit selection reaches the panel start; history selects its named panel."""
-    page = open_page(browser, serve(ROOT_TABS_PAGE) + "#plan-tab")
+def test_root_tabs_switch_views_without_moving_the_strip_and_follow_history(
+    browser, serve
+):
+    """A tab switch is not fragment travel. The strip stays where it is on screen: a view
+    never read opens at its start when the strip is stuck and leaves the shared header
+    alone when it is not, and a view read past its start reopens where the user left it.
+    Pointer, keyboard, and Back/Forward agree, and a fresh load of the remembered view
+    shows the page's top."""
+    url = serve(ROOT_TABS_PAGE)
+    page = open_page(browser, url)
     resized(page, 1280, 720)
     tabs = page.locator("#root-tabs")
     plan = tabs.get_by_role("tab", name="Plan", exact=True)
     evidence = tabs.get_by_role("tab", name="Evidence", exact=True)
 
-    def arrival(tab, heading):
+    def switch(tab):
+        # Locator.click would scroll a sticky tab back to its static-flow box.
+        box = tab.bounding_box()
+        page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
         expect(tab).to_have_attribute("aria-selected", "true")
+        return settled()
+
+    def settled():
         scroll_settled(page)
-        geometry = page.evaluate(
-            """selector => ({
-          heading: document.querySelector(selector).getBoundingClientRect().top,
-          strip: document.querySelector('#root-tabs > .lf-tabstrip').getBoundingClientRect().bottom
-        })""",
-            heading,
-        )
-        assert geometry["heading"] >= geometry["strip"] - 1, geometry
-        expect(page.locator(heading)).to_be_in_viewport()
         return page.evaluate("scrollY")
 
     def read_at(y):
         page.evaluate("y => scrollTo({top: y, behavior: 'instant'})", y)
-        scroll_settled(page)
-        assert page.evaluate("scrollY") > 100
+        return settled()
 
-    def click_painted(tab):
-        # Locator.click would scroll a sticky tab back to its static-flow box.
-        box = tab.bounding_box()
-        page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+    def stuck_at_start(panel):
+        geometry = page.evaluate(
+            """selector => {
+          const strip = document.querySelector('#root-tabs > .lf-tabstrip');
+          return {
+            panel: document.querySelector(selector).getBoundingClientRect().top,
+            strip: strip.getBoundingClientRect().toJSON(),
+            inset: parseFloat(getComputedStyle(strip).top),
+          };
+        }""",
+            panel,
+        )
+        assert geometry["strip"]["top"] == pytest.approx(geometry["inset"], abs=1)
+        assert geometry["panel"] == pytest.approx(geometry["strip"]["bottom"], abs=1)
 
-    plan_start = arrival(plan, "#plan-return h2")
-    read_at(400)
-    click_painted(evidence)
-    evidence_start = arrival(evidence, "#evidence-summary h2")
-    read_at(450)
+    expect(plan).to_have_attribute("aria-selected", "true")
+    assert settled() == 0
+    # With the header on screen, a switch leaves it there.
+    assert switch(evidence) == 0
+    assert page.url.endswith("#evidence-tab")
+    # Read Evidence past its start; Plan, never read, opens at its start under the
+    # stuck strip rather than at the top of the page.
+    evidence_read = read_at(450)
+    plan_start = switch(plan)
+    assert 0 < plan_start < evidence_read
+    stuck_at_start("#plan-tab")
+    # Evidence reopens where the user left it, and pressing the open tab moves nothing.
+    assert switch(evidence) == pytest.approx(evidence_read, abs=2)
+    assert switch(evidence) == pytest.approx(evidence_read, abs=2)
+
+    # The keyboard walk is the same switch, and focus stays in the strip.
+    expect(evidence).to_be_focused()
+    page.keyboard.press("ArrowLeft")
+    expect(plan).to_have_attribute("aria-selected", "true")
+    expect(plan).to_be_focused()
+    assert settled() == pytest.approx(plan_start, abs=2)
+    page.keyboard.press("ArrowRight")
+    expect(evidence).to_have_attribute("aria-selected", "true")
+    expect(evidence).to_be_focused()
+    assert settled() == pytest.approx(evidence_read, abs=2)
+
+    # Back and Forward select the entry's view at the offset it was left at.
     page.go_back()
     expect(plan).to_have_attribute("aria-selected", "true")
     assert page.url.endswith("#plan-tab")
-    scroll_settled(page)
+    assert settled() == pytest.approx(plan_start, abs=2)
     page.go_forward()
     expect(evidence).to_have_attribute("aria-selected", "true")
     assert page.url.endswith("#evidence-tab")
-    scroll_settled(page)
+    assert settled() == pytest.approx(evidence_read, abs=2)
 
-    read_at(400)
-    click_painted(plan)
-    assert arrival(plan, "#plan-return h2") == pytest.approx(plan_start, abs=2)
-    read_at(450)
-    expect(plan).to_be_focused()
-    page.keyboard.press("ArrowRight")
-    assert arrival(evidence, "#evidence-summary h2") == pytest.approx(
-        evidence_start, abs=2
+    # A link into a hidden view still opens it and lands on the target.
+    page.evaluate("location.hash = 'plan-rollback'")
+    expect(plan).to_have_attribute("aria-selected", "true")
+    settled()
+    expect(page.locator("#plan-rollback h2")).to_be_in_viewport()
+
+    # A reveal (a comment anchor, find-in-page) opens another view, and the entry the
+    # user stands on then names it, so pressing away and coming Back returns there.
+    page.evaluate(
+        "document.querySelector('#evidence-tab').dispatchEvent(new CustomEvent('lf-reveal'))"
     )
-    expect(evidence).to_be_focused()
-    page.keyboard.press("ArrowLeft")
-    assert arrival(plan, "#plan-return h2") == pytest.approx(plan_start, abs=2)
-    expect(plan).to_be_focused()
-    page.keyboard.press("ArrowRight")
-    assert arrival(evidence, "#evidence-summary h2") == pytest.approx(
-        evidence_start, abs=2
-    )
-    expect(evidence).to_be_focused()
+    expect(evidence).to_have_attribute("aria-selected", "true")
+    assert page.url.endswith("#evidence-tab")
+    switch(plan)
+    page.go_back()
+    expect(evidence).to_have_attribute("aria-selected", "true")
+
+    # A fresh load that restores the remembered view opens at the page's top.
+    switch(evidence)
+    page.goto(url)
+    expect(evidence).to_have_attribute("aria-selected", "true")
+    assert page.url.endswith("#evidence-tab")
+    assert settled() == 0
 
 
 def test_a_stuck_root_tab_strip_hides_what_passes_under_it(browser, serve):
@@ -397,6 +437,7 @@ def test_root_tabs_allocate_the_active_workspace_and_preserve_its_pane_scroll(
     page.mouse.wheel(0, 450)
     page.wait_for_function("() => document.scrollingElement.scrollTop > 100")
     scroll_settled(page)
+    plan_read = page.evaluate("scrollY")
     # Locator.click scrolls this sticky descendant back to its static-flow position.
     # A user clicks the strip where it is painted.
     work_box = work.bounding_box()
@@ -439,10 +480,15 @@ def test_root_tabs_allocate_the_active_workspace_and_preserve_its_pane_scroll(
     )
     scroll_settled(page, scroller=detail_body)
     detail_scroll = detail.evaluate("element => element.scrollTop")
-    plan.click()
+    plan_box = plan.bounding_box()
+    page.mouse.click(
+        plan_box["x"] + plan_box["width"] / 2,
+        plan_box["y"] + plan_box["height"] / 2,
+    )
     expect(plan).to_have_attribute("aria-selected", "true")
     scroll_settled(page)
-    expect(page.locator("#plan-return h2")).to_be_in_viewport()
+    # The document view reopens where the user left it.
+    assert page.evaluate("scrollY") == pytest.approx(plan_read, abs=2)
     work_box = work.bounding_box()
     page.mouse.click(
         work_box["x"] + work_box["width"] / 2,
@@ -476,11 +522,10 @@ def test_root_tabs_allocate_the_active_workspace_and_preserve_its_pane_scroll(
     expect(plan).to_have_attribute("aria-selected", "true")
     work.click()
     expect(work).to_have_attribute("aria-selected", "true")
-    scroll_settled(page)
-    workspace_start = page.evaluate("scrollY")
     page.evaluate("scrollTo({top: 550, behavior: 'instant'})")
     scroll_settled(page)
-    assert page.evaluate("scrollY") > 100
+    workspace_read = page.evaluate("scrollY")
+    assert workspace_read > 100
     plan_box = plan.bounding_box()
     page.mouse.click(
         plan_box["x"] + plan_box["width"] / 2,
@@ -488,11 +533,11 @@ def test_root_tabs_allocate_the_active_workspace_and_preserve_its_pane_scroll(
     )
     expect(plan).to_have_attribute("aria-selected", "true")
     scroll_settled(page)
-    expect(page.locator("#plan-return h2")).to_be_in_viewport()
     work.click()
     expect(work).to_have_attribute("aria-selected", "true")
     scroll_settled(page)
-    assert page.evaluate("scrollY") == pytest.approx(workspace_start, abs=2)
+    # A flowing workspace is a view read like any other, and reopens where it was left.
+    assert page.evaluate("scrollY") == pytest.approx(workspace_read, abs=2)
     resized(page, 1440, 900)
     pane_posture(page, queue_pane, "bounded")
 
@@ -5406,7 +5451,8 @@ def test_a_refused_return_restores_the_classification(browser, serve):
 
 
 def test_each_classified_swipe_card_can_return_to_the_queue(browser, serve):
-    """A ledger row withdraws its own classification, including the finishing one."""
+    """A classified card returns to the front of the queue, including the one whose
+    classification finished the deck."""
     page = open_page(browser, serve(SWIPE_PAGE))
     deck = page.locator("#session-triage")
 
@@ -5454,9 +5500,65 @@ def test_each_classified_swipe_card_can_return_to_the_queue(browser, serve):
         "button", name="Return Index account sessions to queue", exact=True
     ).click()
     round_trip(page)
-    expect(page.locator("#session-queue > #swipe-d")).to_have_count(1)
+    # A returned card goes to the front of the queue, so it is the one decided next.
+    assert page.eval_on_selector_all(
+        "#session-queue > lf-swipe-card", "cards => cards.map(card => card.id)"
+    ) == ["swipe-d", "swipe-b"]
     expect(page.locator(".lf-asks")).to_have_text("Asks 0/1")
-    expect(second).to_be_focused()
+    expect(final).to_be_focused()
+
+
+def _kept(card_id: str) -> str:
+    """SWIPE_PAGE with one queued card written into the keep pile, after the card
+    the page already kept: what a version writes after the user kept it."""
+    start = SWIPE_PAGE.index(f'<lf-swipe-card id="{card_id}">')
+    card = SWIPE_PAGE[start : SWIPE_PAGE.index("</lf-swipe-card>", start)]
+    card += "</lf-swipe-card>"
+    return SWIPE_PAGE.replace(card, "").replace(
+        "<p>The revocation primitive.</p></lf-swipe-card>",
+        f"<p>The revocation primitive.</p></lf-swipe-card>{card}",
+    )
+
+
+def test_a_card_a_later_version_wrote_into_its_pile_returns_to_the_queue(
+    browser, serve
+):
+    """Once a version writes a swipe in, its markup places the card and an undo of the
+    swipe would restore nothing. Returning the card is a new swipe to the front of
+    the queue, so it still works, and the earlier swipe is no longer offered."""
+    url = serve(SWIPE_PAGE)
+    swiped = append_command(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "session-triage",
+            "action": "swipe",
+            "detail": {"card": "swipe-a", "to": "session-keep", "rank": "2"},
+        },
+    )
+    stamp_page(serve.page_dir, _kept("swipe-a"), "kept")
+    page = open_page(browser, live_url(url))
+    wait_for_revision(page, 2)
+    expect(page.locator("#session-keep > #swipe-a")).to_have_count(1)
+    offered = """() => window.__lfRuntimeImport('/runtime/widget-api.js').then(
+        ({widgetController}) => widgetController(
+          document.getElementById('session-triage')).read().actions.swipe.undo
+          .map(event => event.id))"""
+    assert swiped["id"] not in page.evaluate(offered)
+
+    page.locator("#swipe-a").get_by_role(
+        "button", name="Return Buffer rolling expiry to queue", exact=True
+    ).click()
+    round_trip(page)
+    assert page.eval_on_selector_all(
+        "#session-queue > lf-swipe-card", "cards => cards.map(card => card.id)"
+    ) == ["swipe-a", "swipe-b", "swipe-c", "swipe-d"]
+    returned = actions(serve.page_dir)[-1]
+    assert (returned["action"], returned["revision"]) == ("swipe", 2)
+    assert returned["detail"]["to"] == "session-queue"
+    expect(page.locator("#swipe-a")).to_be_focused()
 
 
 def test_a_newer_swipe_survives_an_older_swipe_refusal(browser, serve):
@@ -5719,7 +5821,8 @@ def test_swipe_deck_projects_the_same_exit_motion_as_a_local_swipe(browser, serv
 
 
 def test_swipe_deck_activation_restores_a_standing_swipe_without_motion(browser, serve):
-    """A new revision carries an old classification at rest, as an arrival."""
+    """A new revision that writes an old classification shows it at rest, as an
+    arrival."""
     url = serve(SWIPE_PAGE)
     page = open_page(browser, live_url(url), init_script=HOLD_MOTION)
 
@@ -5739,7 +5842,7 @@ def test_swipe_deck_activation_restores_a_standing_swipe_without_motion(browser,
     page.evaluate("window.__lfHeld[0].finish()")
     expect(page.locator(".lf-swipe-exit")).to_have_count(0)
 
-    stamp_page(serve.page_dir, SWIPE_PAGE, "second")
+    stamp_page(serve.page_dir, _kept("swipe-a"), "second")
     wait_for_revision(page, 2)
 
     expect(page.locator("#session-keep > #swipe-a")).to_have_count(1)

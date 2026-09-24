@@ -33,6 +33,8 @@ def browser_projection(
                 "value": folded_value(event, spec) if spec.get("record") else None,
                 "scope": scope,
                 "restated": restated,
+                # A later revision absorbed this move; its markup places the unit.
+                "absorbed": event["id"] in projection.absorbed,
             }
         )
     return {

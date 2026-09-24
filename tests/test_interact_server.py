@@ -5073,8 +5073,9 @@ def test_neighbours_follow_their_servers_and_a_deleted_pages_claim_retires(
 ):
     """A neighbour appears on the read after its server starts and leaves on the
     read after it stops, though neither moves a file the candidate set is keyed
-    on. A claim whose page directory is gone is removed by the scan that finds
-    it, so the claims directory holds what is still there to claim."""
+    on. A claim whose page directory is gone is removed by the next scan, whether
+    the page went before the first scan or after one had listed it, so the
+    claims directory holds what is still there to claim."""
     stopped = tmp_path / "stopped"
     neighbour_page(stopped, title="Starts later", dead=True)
     record_claim(stopped, id="later")
@@ -5097,6 +5098,10 @@ def test_neighbours_follow_their_servers_and_a_deleted_pages_claim_retires(
     assert titles() == ["Scratch", "Starts later"]
     lease.close()
     assert titles() == ["Scratch"]
+
+    shutil.rmtree(stopped)
+    assert titles() == ["Scratch"]
+    assert not service_model.claim_path(stopped).exists()
 
 
 def test_state_reads_claims_and_their_log_floor_in_one_transaction(

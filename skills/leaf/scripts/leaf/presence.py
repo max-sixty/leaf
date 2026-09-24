@@ -62,16 +62,19 @@ def neighbor_candidates() -> tuple:
     session's scratch directory. Released and dead claims stay useful here as
     provenance.
 
-    The set moves only when an entry in one of those two directories does, so it
-    is read again only then, keyed on their stamps the way `leaf wait` keys its
-    ownership set on the claims directory's. Whether each page is serving is the
-    caller's question, asked fresh every time."""
+    The set moves when an entry in one of those two directories does, or when a
+    page it holds is deleted, which for a claimed scratch page moves neither. So
+    it is read again only then: keyed on the two stamps, the way `leaf wait` keys
+    its ownership set on the claims directory's, and on each held page still
+    being there, so the read that retires a deleted page's claim follows its
+    deletion. Whether each page is serving is the caller's question, asked fresh
+    every time."""
     global _candidates
     home = state_home()
     claims, pages = home / "claims", home / "pages"
     stamp = (home, file_stamp(claims), file_stamp(pages))
     with _presence_cache_lock:
-        if _candidates[0] == stamp:
+        if _candidates[0] == stamp and all(page.is_dir() for page in _candidates[1]):
             return _candidates[1]
         found = [d for d in pages.iterdir() if d.is_dir()] if pages.is_dir() else []
         found += (Path(claim["page"]) for claim in claim_records())

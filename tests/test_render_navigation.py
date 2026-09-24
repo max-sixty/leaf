@@ -8646,9 +8646,10 @@ def test_the_ask_walk_measures_from_chrome_only_where_the_chrome_holds_an_ask(
 
 
 def test_back_returns_from_an_ask_the_walk_travelled_to(browser, serve):
-    """The Ask walk records the same history the thread walk does: one entry for a walk
-    to Asks somewhere else however far it goes, so Back returns to where the user was
-    reading before it, and a walk that crosses from threads to Asks is still one walk."""
+    """The Ask walk records the same history the thread walk does: one entry for a
+    journey to Asks somewhere else however far it goes, so Back returns to where the
+    user was reading before it, and a journey that crosses from threads to Asks is still
+    one journey."""
     filler = "".join(f"<p>Filler paragraph {n}.</p>" for n in range(60))
     url = serve(
         leaf_page(
@@ -8707,7 +8708,7 @@ def test_back_returns_from_an_ask_the_walk_travelled_to(browser, serve):
     )
 
     # From the bottom again: `t` travels to the thread just below the first Ask, and
-    # `a` from there to the second continues that walk rather than starting another,
+    # `a` from there to the second continues that journey rather than starting another,
     # so one Back skips the thread's landing and returns to the bottom.
     page.evaluate("document.scrollingElement.scrollTo({top: 1e6, behavior: 'instant'})")
     page.keyboard.press("t")
@@ -8720,6 +8721,78 @@ def test_back_returns_from_an_ask_the_walk_travelled_to(browser, serve):
     page.wait_for_function(
         "top => Math.abs(document.scrollingElement.scrollTop - top) <= 2", arg=reading
     )
+
+
+@pytest.mark.parametrize(("width", "clears"), [(1280, False), (820, True)])
+def test_an_ask_under_the_open_panel_is_shown_beside_it_or_by_clearing_it(
+    browser, serve, width, clears
+):
+    """The open thread panel stands over the right of the page, and what it stands over
+    is not on screen. At 1280px an Ask in the window reaches a little under it and is
+    seen where it stands: `a` leaves the panel and the page alone, and the Ask's badges
+    label only the controls that show, rather than floating over the panel's threads. At 820px
+    the panel stands over most of the same Ask, so `a` clears it. Either way the page,
+    which had the Ask in view, does not move and records no departure."""
+    filler = "".join(
+        f"<p>Filler paragraph {n}. " + "Words. " * 20 + "</p>" for n in range(30)
+    )
+    url = serve(
+        leaf_page(
+            "Under the panel",
+            f"""
+<h1 id="h">Under the panel</h1>
+<section id="above">{filler}</section>
+<lf-ask id="decision"><h2>Where should the feeders go?</h2>
+<lf-options id="spot" choose>
+  <lf-option id="sp-hedge"><strong>Along the hedge</strong></lf-option>
+  <lf-option id="sp-lawn"><strong>Out on the lawn</strong></lf-option>
+</lf-options></lf-ask>
+<section id="below">{filler}</section>
+""",
+        )
+    )
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "anchor": {"section": "above"},
+            "text": "A question about the filler.",
+        },
+    )
+    page = open_page(browser, url)
+    resized(page, width, 800)
+    page.evaluate(
+        "document.getElementById('decision').scrollIntoView({block: 'center'})"
+    )
+    scroll_settled(page)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    panel_left = page.locator(".lf-thread-panel").bounding_box()["x"]
+    ask = page.locator("#decision").bounding_box()
+    under = ask["x"] + ask["width"] - panel_left
+    assert 0 < under, "the Ask must reach under the panel"
+    assert (under > ask["width"] / 2) == clears, (under, ask)
+    page.evaluate("document.activeElement.blur()")
+    reading = page.evaluate("document.scrollingElement.scrollTop")
+    entries = page.evaluate("history.length")
+
+    page.keyboard.press("a")
+    expect(page.locator("#decision")).to_be_focused()
+    panel_settled(page, open=not clears)
+    badges = page.locator(".lf-ask-binding-badge, [data-lf-ask-binding-badge]")
+    if clears:
+        expect(badges).to_have_count(3)
+    else:
+        # A badge labels a control the user can see: the option rows' picks stand
+        # under the panel and wear none, rather than one floating over the threads.
+        expect(badges).not_to_have_count(0)
+        for i in range(badges.count()):
+            box = badges.nth(i).bounding_box()
+            assert box["x"] + box["width"] <= panel_left, box
+    assert page.evaluate("document.scrollingElement.scrollTop") == reading
+    assert page.evaluate("history.length") == entries
 
 
 def test_back_returns_from_an_ask_whose_context_the_arrival_brings_in(browser, serve):

@@ -585,6 +585,7 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
 
     page.keyboard.press("Escape")
     expect(page.locator("#patch [data-line-type]")).to_have_count(0)
+    entries = page.evaluate("history.length")
     lines.nth(1).locator(".lf-call-location").click()
     context = page.locator(
         'lf-diff [data-lf-datum=\'["gateway/limits.py","both",38,38]\']'
@@ -603,7 +604,6 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     expect(context).to_be_hidden()
     lines.nth(2).locator(".lf-call-location").click()
     expect(search).to_have_value("")
-    expect(page).to_have_url(re.compile(r"#patch$"))
     added = page.locator('lf-diff [data-lf-datum=\'["gateway/limits.py","new",40]\']')
     expect(added).to_be_in_viewport()
     expect(page.locator(".lf-live")).to_have_text(
@@ -613,6 +613,10 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
         "() => document.querySelector('#patch').shadowRoot.activeElement"
         ".matches('summary')"
     )
+    # Each line already stood in the window once the diff revealed it, so neither
+    # trip departed: no history entry, and the address kept no fragment.
+    assert page.evaluate("history.length") == entries
+    expect(page).not_to_have_url(re.compile(r"#patch$"))
 
     data_model.cmd_data_set(
         serve.page_dir,

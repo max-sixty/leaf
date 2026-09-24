@@ -377,10 +377,66 @@ def test_the_event_log_page_shows_the_records_the_door_writes(page_dir):
     )
     assert shown_text.rstrip("\n") == shown_log(shown)
 
+    # Each note sits under the last line of what it describes, so it is placed by
+    # the record layout rather than by hand: pasted records that shift the lines
+    # fail here with the lines to write instead.
+    lines = shown_text.rstrip("\n").split("\n")
+    starts = [n for n, line in enumerate(lines, 1) if line.startswith("{")]
+
+    def last_line(record: int) -> int:
+        return starts[record + 1] - 1 if record + 1 < len(starts) else len(lines)
+
+    def line_of(record: int, key: str) -> int:
+        """The line `key` opens in the `record`th shown record; `shown_log` starts a
+        line at each object-valued field and at `id`."""
+        [found] = [
+            n
+            for n in range(starts[record], last_line(record) + 1)
+            if lines[n - 1].lstrip().startswith(f'"{key}": ')
+        ]
+        return found
+
+    answered = next(
+        n for n, record in enumerate(shown) if "answer" in record.get("meaning", {})
+    )
+    undo = next(n for n, record in enumerate(shown) if record["kind"] == "undo")
+    # `id` opens the line after the group `meaning` closes.
+    expected = [
+        starts[0],  # what the browser sent, from the record's first line
+        line_of(0, "id") - 1,  # the stamped meaning, under its last line
+        line_of(0, "id"),  # the minted id and seq
+        line_of(answered, "id") - 1,  # the answer, which closes that record's meaning
+        last_line(undo),  # an undo, under its last line
+    ]
+    notes = re.search(
+        r'<lf-code id="captured-log".*?</pre>(.*?)</lf-code>', source, re.DOTALL
+    )
+    assert notes
+    assert '"answer": ' in lines[expected[3] - 1]
+    assert [int(at) for at in re.findall(r'<lf-note at="(\d+)"', notes.group(1))] == (
+        expected
+    ), f"place #captured-log's notes at {expected}"
+
+
+def record(verb_state: dict) -> str:
+    """What the page's verb table says a verb's standing state reads as in markup."""
+    if "creates" in verb_state:
+        return f"creates an <code>{verb_state['creates']['child']}</code>"
+    shape = verb_state.get("record")
+    if shape is None:
+        return "none"
+    if shape["kind"] == "position":
+        return f"position in an <code>{shape['within']}</code>"
+    if shape["kind"] == "body":
+        return "body"
+    written = ", written by the agent" if verb_state.get("writer") == "agent" else ""
+    return f"<code>{shape['attr']}</code> attribute{written}"
+
 
 def test_the_event_log_page_quotes_the_registry():
     """The declaration the page annotates is `lf-options`' own, and its table of
-    verbs is every verb the kernel and bundled packages declare."""
+    verbs is every verb the kernel and bundled packages declare, each with the
+    unit and markup record its declaration gives it."""
     source = EVENT_LOG.read_text()
     entry = json.loads((DEFAULT_PACKAGE / "registry.json").read_text())["lf-options"]
     shown = json.loads("{" + code_block(source, "options-verbs") + "}")
@@ -394,18 +450,28 @@ def test_the_event_log_page_quotes_the_registry():
         *sorted((ROOT / "skills" / "leaf" / "packages").glob("*/registry.json")),
     ]
     declared = sorted(
-        (tag, verb)
+        (
+            f"<code>{tag}</code>",
+            f"<code>{verb}</code>",
+            verb_state["unit"],
+            record(verb_state),
+        )
         for path in registries
         for tag, element in json.loads(path.read_text()).items()
         if tag.startswith("lf-")
-        for verb in element.get("x-state", {})
+        for verb, verb_state in element.get("x-state", {}).items()
     )
-    table = re.search(r'<table id="all-verbs">(.*?)</table>', source, re.DOTALL)
+    table = re.search(
+        r'<table id="all-verbs">.*?<tbody>(.*?)</tbody>', source, re.DOTALL
+    )
     assert table
-    rows = re.findall(
-        r"<tr>\s*<td><code>(lf-[a-z-]+)</code></td>\s*<td><code>([a-z-]+)</code>",
-        table.group(1),
-    )
+    rows = [
+        tuple(
+            " ".join(cell.split())
+            for cell in re.findall(r"<td>(.*?)</td>", row, re.DOTALL)
+        )
+        for row in re.findall(r"<tr>(.*?)</tr>", table.group(1), re.DOTALL)
+    ]
     assert sorted(rows) == declared
 
 

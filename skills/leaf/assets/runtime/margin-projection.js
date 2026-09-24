@@ -717,8 +717,7 @@ export function createMarginProjection({
   }
 
   function placeThreadPreview({ dismissDetached = false } = {}) {
-    if (!previewOpen() || !previewMarginEntry?.isConnected)
-      return false;
+    if (!previewOpen() || !previewMarginEntry?.isConnected) return false;
     // A row the rail has no room for is withheld and has no box. A card placed against
     // that empty box stood in the boundary's corner over the words the user pressed,
     // and read as detached before it had stood anywhere, so no scroll could dismiss it.
@@ -2758,12 +2757,7 @@ export function createMarginProjection({
     const active = focused();
     const direct = active?.closest?.(".lf-conversation-thread[data-thread]");
     if (direct && !panelIsOpen()) return direct;
-    if (
-      !pinnedKey ||
-      previewEntry?.key !== pinnedKey ||
-      !previewOpen()
-    )
-      return null;
+    if (!pinnedKey || previewEntry?.key !== pinnedKey || !previewOpen()) return null;
     const held = preview.contains(active)
       ? active.closest?.(".lf-conversation-thread")
       : null;

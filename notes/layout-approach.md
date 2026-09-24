@@ -35,37 +35,39 @@ others). Since 1 September, 191 of the 993 commits on main changed the two theme
 
 ## What the overlays settle
 
-With the tray and panel covering and the rail fixed, surface strips are gone and the
-margin reservations are known when the page is written: the rail is a constant, and a
-margin note is the agent's own. The page's width then depends only on the window and a
-few numbers the agent can be told. That is the knowledge the agent was missing.
+The rule the overlays point to is that nothing Leaf draws at run time moves the page's
+content. Everything Leaf adds is an overlay, with one exception fixed before the page is
+written: the rail's reservation. Held to that rule, the page's geometry depends only on
+the window and a few constants the agent can be told, which is the knowledge the agent
+was missing.
 
-Several run-time geometry sources survive both branches, and each needs a decision:
+With the tray and panel covering and the rail fixed, these still move content and would
+change under the rule:
 
-- **A comment narrows a wide block.** When a thread card lands level with a wide block,
-  `margin-layout.js` marks the block (`data-lf-yield`) and the theme removes its growth
-  toward the rail (`theme.css:1957-1960`). With a fixed rail the collision is known in
-  advance, so every wide block can stop short of the rail whenever the rail is shown, and
-  the mark can go.
-- **Two chrome heights are measured.** The bottom bar (the keyboard-shortcut line and
-  the status notices in the window's bottom corners) and the page-tab strip (stuck under
-  the banner on a page with page tabs) both float over the page. Leaf measures each and
-  keeps that much room clear so nothing ends up under them: extra space at the page's
-  end, a scroll stop so a jump lands below the tab strip, and a workspace's height
-  (`chrome-layout.js:137-184`, `lf-tabs.js:318-330`, `default/theme.css:239-250`). They
-  are measured because their height varies: the status stacks above the shortcut line
-  when the two would collide. Neither changes the page's width, and an agent needs them
-  only if it builds its own full-window layout instead of using `lf-workspace`, so they
-  can stay measured.
-- **Opening a surface can lengthen the page.** An open surface sets a minimum height on
-  `body` (`theme.css:538-543`), which the overlay branch keeps.
-- **Docked cards add height.** Below 840px, and in `fixed-rail` for a card wider than
-  the rail at any width, cards dock into the text flow. A comment arriving then pushes
-  the text below it down. This is vertical only, and inherent to showing a card inline.
+- **Thread cards.** A card moves text in two ways today. When one lands level with a wide
+  block, `margin-layout.js` marks the block (`data-lf-yield`) and the theme pulls the
+  block back from the rail (`theme.css:1957-1960`). And where a card cannot stand in
+  the rail (below 840px, or in `fixed-rail` a card wider than the rail) it docks into the
+  text as a line of its own (`theme.css:1649`), pushing everything below it down. Under
+  the rule, a card stands in the rail when the rail is shown and otherwise overlays: a
+  marker at the passage's edge, with the card opening over the page when pressed. Wide
+  blocks stop short of the rail whenever it is shown, so no card can collide with one.
+  Docking and the yield mark both go.
+- **The bottom bar and the page-tab strip.** The bottom bar is the keyboard-shortcut
+  line and the status notices in the window's bottom corners; the page-tab strip is
+  stuck under the banner on a page with page tabs. Both already float over the page, but
+  Leaf measures each and moves content to clear them: room added at the page's end, and
+  a workspace shortened by their heights (`chrome-layout.js:137-184`,
+  `lf-tabs.js:318-330`, `default/theme.css:239-250`). Under the rule they only cover. A
+  pane footer at the window's foot then sits under the shortcut line, which takes no
+  presses, so the footer's controls still work. A scroll stop that lands a jump below
+  the tab strip moves no content and stays.
+- **Opening a surface.** An open surface sets a minimum height on `body`
+  (`theme.css:538-543`), which the overlay branch keeps. Under the rule it goes.
 
-So the accurate claim is that the page's width becomes the agent's to know. The height
-stays open to comments docked inline, which is acceptable, and to the three items above
-it, which can be fixed.
+What is left is the margin. The rail is a fixed reservation on the right, and it shares
+that side with the agent's margin notes (`theme.css:699`). The rail is the one place
+Leaf takes room from the page, and it takes it before the page is written.
 
 ## What the vocabulary is for, once the width is settled
 
@@ -142,11 +144,12 @@ The interaction primitives, widget sizing, and the rail stay under every option.
 
 ## Recommendation
 
-Adopt #36, after making the width fully static.
+Adopt #36, after holding Leaf to the rule that nothing it draws moves the page's content.
 
-First, finish what the overlays start: stop wide blocks at the rail statically instead
-of through `data-lf-yield`, and drop the surface minimum height. Then the page's width is the agent's to
-know, which was the goal.
+First, finish what the overlays start: thread cards stand in the rail or overlay, never
+dock or yield; wide blocks stop short of the rail whenever it is shown; the bottom bar
+and tab strip only cover; and an open surface sets no minimum height. Then the page's
+geometry is the agent's to know, which was the goal.
 
 Then move arrangement into `$idioms`. The case for it is that Leaf's job for
 presentation is to help without constraining. An idiom gives a good default that carries
@@ -164,7 +167,7 @@ into flow, or Leaf places notes and cards together and keeps that layout job.
 
 ## How to decide
 
-The overlays, the fixed rail, and the static-width fixes above are worth landing on
+The overlays, the fixed rail, and the fixes above are worth landing on
 their own. For arrangement, run the backlog's authoring comparison
 (`notes/workspace-followups.md`, #19 there) with #36 and #35 as the arms. Give fresh
 agents the same subjects (a document, a dashboard, a queue with its detail), and compare

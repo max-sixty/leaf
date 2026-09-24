@@ -69,9 +69,9 @@ from render_cases_widgets import (
     GENERIC_VISUAL_LAYER,
     GENERIC_VISUAL_PAGE,
     GENERIC_VISUAL_WIDGETS,
-    PATTERNED_VISUAL_PAGE,
+    PREFIXED_VISUAL_PAGE,
     TYPED_PARTS_PAGE,
-    patterned_visual_layer,
+    prefixed_visual_layer,
 )
 from render_harness import (
     BOTH_STAMPS,
@@ -1278,24 +1278,24 @@ def test_the_render_gate_rejects_invalid_visual_inventory_records(browser, serve
     ]
 
 
-def test_the_render_gate_bounds_a_patterned_inventory_by_its_pattern(browser, serve):
-    """A patterned visual authors no tokens, so the gate has none to resolve; what it
-    holds is the widget to its own grammar, refusing a registered id outside it."""
+def test_the_render_gate_bounds_a_prefixed_inventory_by_its_prefixes(browser, serve):
+    """A prefixed visual authors no tokens, so the gate has none to resolve; what it
+    holds is the widget to its own declaration, refusing a registered id outside it."""
 
-    def gate(pattern):
+    def gate(*prefixes):
         return render_gate_model.render_version(
             browser.unwatched,
             serve(
-                PATTERNED_VISUAL_PAGE,
-                layer_registry=patterned_visual_layer(pattern),
+                PREFIXED_VISUAL_PAGE,
+                layer_registry=prefixed_visual_layer(*prefixes),
                 layer_widgets=GENERIC_VISUAL_WIDGETS,
             ),
         )
 
-    assert gate("^(outer|inner|html)$") == []
-    assert gate("^(outer|inner)$") == [
+    assert gate("out", "inn", "htm") == []
+    assert gate("out", "inn") == [
         f"[{scheme}] <lf-test-visual id='visual'> declares addressable visual parts "
-        "but its module registered parts its pattern does not match html"
+        "but its module registered parts its prefixes do not admit html"
         for scheme in ("light", "dark")
     ]
 

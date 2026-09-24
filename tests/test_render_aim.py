@@ -50,14 +50,14 @@ from render_cases_widgets import (
     GENERIC_VISUAL_WIDGETS,
     PART_DIAGRAM_PAGE,
     PART_DIAGRAM_V2,
-    PATTERNED_VISUAL_PAGE,
     PICTURE_PAGE,
+    PREFIXED_VISUAL_PAGE,
     SHADOW_VISUAL_LAYER,
     SHADOW_VISUAL_PAGE,
     SHADOW_VISUAL_WIDGETS,
     TYPED_PARTS_PAGE,
     TYPED_PARTS_V2,
-    patterned_visual_layer,
+    prefixed_visual_layer,
 )
 from render_harness import (
     BOTH_STAMPS,
@@ -2229,14 +2229,14 @@ def test_a_registered_visual_rebuilds_same_bounds_geometry_on_update(browser, se
     )
 
 
-def test_a_patterned_visual_part_is_marked_and_aimed_like_an_authored_one(
+def test_a_prefixed_visual_part_is_marked_and_aimed_like_an_authored_one(
     browser, serve
 ):
-    """A part admitted by its widget's pattern, with nothing authored on the element,
+    """A part admitted by its widget's prefixes, with nothing authored on the element,
     replays a stored comment onto its own shape and takes a new one from a click."""
     url = serve(
-        PATTERNED_VISUAL_PAGE,
-        layer_registry=patterned_visual_layer("^(outer|inner|html)$"),
+        PREFIXED_VISUAL_PAGE,
+        layer_registry=prefixed_visual_layer("out", "inn", "htm"),
         layer_widgets=GENERIC_VISUAL_WIDGETS,
     )
     events_model.append_event(

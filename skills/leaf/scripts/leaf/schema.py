@@ -400,8 +400,15 @@ EXTENSION_SCHEMA = {
                 },
                 {
                     "type": "object",
-                    "properties": {"pattern": {"type": "string", "format": "regex"}},
-                    "required": ["pattern"],
+                    "properties": {
+                        "prefixes": {
+                            "type": "array",
+                            "items": {"type": "string", "pattern": "^\\S+$"},
+                            "minItems": 1,
+                            "uniqueItems": True,
+                        }
+                    },
+                    "required": ["prefixes"],
                     "additionalProperties": False,
                 },
             ]

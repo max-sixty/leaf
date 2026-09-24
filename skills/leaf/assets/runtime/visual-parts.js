@@ -48,7 +48,7 @@ export function visualPartProblems(source, declared, admits = () => true) {
         ? [`did not register declared parts ${missing.join(", ")}`]
         : []),
       ...(outside.length
-        ? [`registered parts its pattern does not match ${outside.join(", ")}`]
+        ? [`registered parts its prefixes do not admit ${outside.join(", ")}`]
         : []),
     ];
   } catch (error) {

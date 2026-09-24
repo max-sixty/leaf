@@ -82,39 +82,47 @@ export function referencedProjection(owner, attribute) {
 }
 
 // A generated visual part keeps a semantic id the provider declaration bounds: a token
-// authored in its `parts` attribute, or any id its `pattern` matches. Element ids never
-// escape into the event log; the declaration bounds the inventory core will trust. Null
-// when the visual declares no parts at all.
-const admittedVisualPart = (visual) => {
+// authored in its `parts` attribute, or any longer id one of its `prefixes` begins.
+// Element ids never escape into the event log; the declaration bounds the inventory
+// core will trust. The rank is an id's place in that declaration, which orders the
+// visual's targets: its authored token's index, 0 for every prefixed id so they keep
+// registration order, and -1 for an id it does not admit. Null when the visual
+// declares no parts at all.
+const visualPartRank = (visual) => {
   const declaration = registry[visual?.localName]?.["x-visual"];
   if (!declaration || typeof declaration !== "object") return null;
-  if (declaration.pattern) {
-    const pattern = new RegExp(declaration.pattern, "u");
-    return (id) => pattern.test(id);
-  }
-  const tokens = new Set(
-    visual.getAttribute(declaration.parts)?.trim().split(/\s+/).filter(Boolean),
-  );
-  return (id) => tokens.has(id);
+  if (declaration.prefixes)
+    return (id) =>
+      declaration.prefixes.some((prefix) => id !== prefix && id.startsWith(prefix))
+        ? 0
+        : -1;
+  const tokens =
+    visual.getAttribute(declaration.parts)?.trim().split(/\s+/).filter(Boolean) ?? [];
+  return (id) => tokens.indexOf(id);
 };
 
 const wholeVisualSurface = (element) =>
   registry[element?.localName]?.["x-visual"] ? element : null;
 
-/** The registered parts a visual's declaration admits, in registration order. */
+/** The registered parts a visual's declaration admits, in declaration order. */
 export function visualParts(visual) {
-  const admits = admittedVisualPart(visual);
-  return admits ? registeredVisualParts(visual).filter((part) => admits(part.id)) : [];
+  const rank = visualPartRank(visual);
+  if (!rank) return [];
+  return registeredVisualParts(visual)
+    .filter((part) => rank(part.id) >= 0)
+    .sort((a, b) => rank(a.id) - rank(b.id));
 }
 
 export function visualPart(visual, part) {
-  return admittedVisualPart(visual)?.(part) ? registeredVisualPart(visual, part) : null;
+  return visualPartRank(visual)?.(part) >= 0
+    ? registeredVisualPart(visual, part)
+    : null;
 }
 
 export function visualPartAt(visual, target) {
-  const admits = admittedVisualPart(visual);
-  return admits
-    ? registeredVisualPartAt(visual, target, (part) => admits(part.id))
+  const rank = visualPartRank(visual);
+  return rank
+    ? registeredVisualPartAt(visual, target, (part) => rank(part.id) >= 0)
     : null;
 }
 

@@ -127,7 +127,7 @@ def continuity_errors(
     # once every thread on it has moved, detached, or closed, the picture may lose
     # the node with them, the way an id no thread holds is dropped. Held for the
     # life of the widget instead, a diagram could never follow the thing it draws.
-    # A pattern admits ids the file never lists, so for a patterned widget only a
+    # Prefixes admit ids the file never lists, so for such a widget only a
     # declaration that stops admitting a held id drops it here; a part its drawing
     # stops rendering detaches in the browser.
     previous_records, current_records = revision.previous.by_id, parser.by_id

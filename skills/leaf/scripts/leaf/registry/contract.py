@@ -127,24 +127,25 @@ class VisualParts:
     """The part ids one authored element admits as `anchor.visual`.
 
     A widget declares them one of two ways: `tokens` authored in its `parts` attribute,
-    or a `pattern` over the ids its module generates, for a picture drawn from data
-    whose parts the author cannot list. Neither says a part is on screen; the browser
-    resolves that, and an admitted id nothing renders detaches."""
+    or `prefixes` that begin every id its module generates, such as `commit:`, for a
+    picture drawn from data whose parts the author cannot list. A prefix rather than a
+    regex keeps one meaning in Python and the browser. Neither says a part is on screen;
+    the browser resolves that, and an admitted id nothing renders detaches."""
 
     tokens: tuple[str, ...] = ()
-    pattern: str | None = None
+    prefixes: tuple[str, ...] = ()
 
     def __contains__(self, part: str) -> bool:
-        if self.pattern is not None:
-            return re.search(self.pattern, part) is not None
-        return part in self.tokens
+        return part in self.tokens or any(
+            part.startswith(prefix) and part != prefix for prefix in self.prefixes
+        )
 
     def __bool__(self) -> bool:
-        return self.pattern is not None or bool(self.tokens)
+        return bool(self.tokens or self.prefixes)
 
     def __str__(self) -> str:
-        if self.pattern is not None:
-            return f"ids matching {self.pattern!r}"
+        if self.prefixes:
+            return f"ids starting with {' or '.join(map(repr, self.prefixes))}"
         return f"known: {list(self.tokens)}"
 
 
@@ -153,8 +154,8 @@ def visual_parts(record: dict, registry: dict) -> VisualParts:
     visual = registry.get(record.get("tag"), {}).get("x-visual")
     if not isinstance(visual, dict):
         return VisualParts()
-    if "pattern" in visual:
-        return VisualParts(pattern=visual["pattern"])
+    if "prefixes" in visual:
+        return VisualParts(prefixes=tuple(visual["prefixes"]))
     value = record.get("attrs", {}).get(visual["parts"])
     return VisualParts(tokens=tuple(value.split()) if value else ())
 

@@ -414,19 +414,19 @@ def test_a_comment_may_name_a_declared_visual_part(page_dir):
     assert "--part needs --section" in unseated.output
 
 
-def declare_part_pattern(page_dir, pattern):
-    """Give the page's diagram a part-id pattern in place of its authored list."""
+def declare_part_prefixes(page_dir, *prefixes):
+    """Give the page's diagram part-id prefixes in place of its authored list."""
     registry_path = page_dir / "registry.json"
     registry = json.loads(registry_path.read_text())
-    registry["lf-diagram"]["x-visual"] = {"pattern": pattern}
+    registry["lf-diagram"]["x-visual"] = {"prefixes": list(prefixes)}
     registry_path.write_text(json.dumps(registry))
 
 
-def test_a_patterned_visual_admits_the_parts_its_pattern_matches(page_dir):
+def test_a_visual_admits_the_parts_its_prefixes_begin(page_dir):
     """A picture drawn from data cannot list its parts in markup, so its widget
-    declares their grammar: any matching id is a part a comment may name, with
-    nothing authored on the element, and one outside it is refused by name."""
-    declare_part_pattern(page_dir, "^node:[A-Z]$")
+    declares their kinds: any id a prefix begins is a part a comment may name, with
+    nothing authored on the element, and one outside them is refused by name."""
+    declare_part_prefixes(page_dir, "node:")
     published(page_dir)
 
     named = comment(
@@ -437,7 +437,7 @@ def test_a_patterned_visual_admits_the_parts_its_pattern_matches(page_dir):
 
     outside = comment(page_dir, "--section", "flow", "--part", "edge:B", "--text", "x")
     assert outside.exit_code != 0
-    assert "ids matching '^node:[A-Z]$'" in outside.output
+    assert "ids starting with 'node:'" in outside.output
 
     refused = event_contracts_model.visual_anchor_error(
         {"anchor": {"section": "flow", "visual": "edge:B"}},
@@ -446,12 +446,18 @@ def test_a_patterned_visual_admits_the_parts_its_pattern_matches(page_dir):
     )
     assert refused == (
         "visual anchor 'edge:B' is not declared on section 'flow'; "
-        "ids matching '^node:[A-Z]$'"
+        "ids starting with 'node:'"
     )
+    bare = event_contracts_model.visual_anchor_error(
+        {"anchor": {"section": "flow", "visual": "node:"}},
+        {"flow": {"tag": "lf-diagram", "attrs": {"id": "flow"}}},
+        json.loads((page_dir / "registry.json").read_text()),
+    )
+    assert bare is not None
 
-    # The file lists none of these parts, so markup cannot drop one; a pattern that
-    # stops admitting a part a thread holds is what drops it.
-    declare_part_pattern(page_dir, "^edge:[A-Z]$")
+    # The file lists none of these parts, so markup cannot drop one; a declaration
+    # that stops admitting a part a thread holds is what drops it.
+    declare_part_prefixes(page_dir, "edge:")
     dropped = check(page_dir)
     assert dropped.exit_code != 0
     assert "flow · node:B" in dropped.output

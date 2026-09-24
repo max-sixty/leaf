@@ -49,7 +49,6 @@ customElements.define(
     #raf = 0;
     #focus = null;
     #inspected = null;
-    #partSig = "";
     #unwatchTheme = null;
 
     connectedCallback() {
@@ -58,7 +57,6 @@ customElements.define(
       const retheme = () => {
         this.painter.setPalette(themePalette(this));
         this.#paint();
-        this.parts.update();
       };
       const scheme = matchMedia("(prefers-color-scheme: dark)");
       scheme.addEventListener("change", retheme);
@@ -344,7 +342,6 @@ customElements.define(
       this.#playing = false;
       cancelAnimationFrame(this.#raf);
       this.playBtn.textContent = this.#t >= this.#film.total - 0.01 ? "Replay" : "Play";
-      this.#announceParts(true);
     }
 
     #paint() {
@@ -352,7 +349,8 @@ customElements.define(
       this.painter.paint(this.#film, fr, this.#focus);
       this.scrub.value = this.#t;
       if (this.#inspected) this.#placeInspector();
-      this.#announceParts(!this.#playing);
+      // Every paint can move a part, so Leaf re-reads the inventory and its geometry.
+      this.parts.update();
       this.dispatchEvent(
         new CustomEvent("film-frame", {
           bubbles: true,
@@ -364,18 +362,6 @@ customElements.define(
           },
         }),
       );
-    }
-
-    // Leaf re-reads the part inventory and its geometry on update(). While playing,
-    // announce only when the set of parts changes; paused, every paint may have moved them.
-    #announceParts(always) {
-      const sig = this.painter
-        .parts()
-        .map((p) => p.id)
-        .join(" ");
-      if (!always && sig === this.#partSig) return;
-      this.#partSig = sig;
-      this.parts.update();
     }
   },
 );

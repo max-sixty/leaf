@@ -2158,7 +2158,7 @@ def test_revendoring_cannot_forget_a_historical_data_binding(page_dir):
     assert "source 'builds' loses its contract 'builds'" in still_refused.output
 
 
-def _page_owned_fragmented_source(page_dir):
+def _page_owned_deferred_source(page_dir):
     schema = {
         "type": "object",
         "properties": {
@@ -2224,7 +2224,7 @@ def _page_owned_fragmented_source(page_dir):
 
 def test_page_owned_data_contract_meaning_is_fixed_for_the_source_lifetime(page_dir):
     """A same-named contract cannot redirect old readers to a different field."""
-    authored = _page_owned_fragmented_source(page_dir)
+    authored = _page_owned_deferred_source(page_dir)
     declarations = json.loads(authored.read_text())
     declarations["$data"]["contracts"]["local-files"]["records"]["deferred"] = "body"
     authored.write_text(json.dumps(declarations))
@@ -2245,7 +2245,7 @@ def test_page_owned_data_contract_meaning_is_fixed_for_the_source_lifetime(page_
 
 
 def test_page_owned_data_contract_description_can_improve(page_dir):
-    authored = _page_owned_fragmented_source(page_dir)
+    authored = _page_owned_deferred_source(page_dir)
     declarations = json.loads(authored.read_text())
     declarations["$data"]["contracts"]["local-files"]["description"] = (
         "A clearer description of the same file payloads."

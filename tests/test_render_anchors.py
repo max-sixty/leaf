@@ -5450,19 +5450,19 @@ TWO_FILE_MANIFEST = {
     ]
 }
 
-# Hold the second file's fragment until the test releases it.
+# Hold the second file's deferred patch until the test releases it.
 HOLD_SECOND_FILE = """
-          window.__leafFragmentRequests = [];
+          window.__leafDeferredRequests = [];
           const originalFetch = window.fetch.bind(window);
           window.fetch = (input, init) => {
             const url = new URL(input instanceof Request ? input.url : String(input),
                                 location.href);
-            if (url.pathname === '/api/data') {
+            if (url.pathname === '/api/deferred') {
               const key = url.searchParams.get('key');
-              window.__leafFragmentRequests.push(key);
+              window.__leafDeferredRequests.push(key);
               if (key === 'second.py')
                 return new Promise(resolve => {
-                  window.__leafReleaseFragment = () => resolve(originalFetch(input, init));
+                  window.__leafReleaseDeferred = () => resolve(originalFetch(input, init));
                 });
             }
             return originalFetch(input, init);
@@ -5474,17 +5474,17 @@ HOLD_SECOND_FILE = """
     ("activation", "superseded"),
     [("mouse", False), ("keyboard", False), ("mouse", True)],
 )
-def test_a_fragmented_diff_loads_only_opened_files_and_hydrates_comment_travel(
+def test_a_deferred_diff_loads_only_opened_files_and_hydrates_comment_travel(
     browser, serve, activation, superseded
 ):
     """A collapsed manifest is the startup surface, not a hidden fully-rendered patch.
 
     Opening one file fetches and renders only that file. A standing line thread on a
     different unopened file remains attached at its disclosure; pressing its quote
-    hydrates that fragment before ordinary exact-line navigation resumes.
+    hydrates that deferred patch before ordinary exact-line navigation resumes.
     """
     authored = leaf_page(
-        "fragmented diff",
+        "deferred diff",
         '<h1 id="title">Review</h1><lf-diff id="patch" source="review-patch" '
         "collapsed><pre></pre></lf-diff>",
     )
@@ -5514,7 +5514,7 @@ def test_a_fragmented_diff_loads_only_opened_files_and_hydrates_comment_travel(
     expect(page.locator("lf-diff [data-line]")).to_have_count(0)
     expect(page.locator("lf-diff .lf-diff-thread-outlet")).to_have_count(0)
     expect(page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')).to_have_count(1)
-    assert page.evaluate("window.__leafFragmentRequests") == []
+    assert page.evaluate("window.__leafDeferredRequests") == []
 
     page.locator("lf-diff summary").first.click()
     expect(
@@ -5523,7 +5523,7 @@ def test_a_fragmented_diff_loads_only_opened_files_and_hydrates_comment_travel(
     expect(
         page.locator('lf-diff [data-lf-datum=\'["second.py","new",1]\']')
     ).to_have_count(0)
-    assert page.evaluate("window.__leafFragmentRequests") == ["first.py"]
+    assert page.evaluate("window.__leafDeferredRequests") == ["first.py"]
 
     if activation == "keyboard":
         resized(page, 400, 900)
@@ -5537,12 +5537,12 @@ def test_a_fragmented_diff_loads_only_opened_files_and_hydrates_comment_travel(
         page.keyboard.press("Enter")
     else:
         quote.click()
-    page.wait_for_function("typeof window.__leafReleaseFragment === 'function'")
+    page.wait_for_function("typeof window.__leafReleaseDeferred === 'function'")
     search = page.locator("lf-diff .lf-diff-search input")
     if superseded:
         search.click()
         expect(search).to_be_focused()
-    page.evaluate("window.__leafReleaseFragment()")
+    page.evaluate("window.__leafReleaseDeferred()")
     second = page.locator('lf-diff [data-lf-datum=\'["second.py","new",1]\']')
     expect(second).to_be_in_viewport()
     expect(page.locator("lf-diff .lf-diff-thread-outlet")).to_have_count(1)
@@ -5565,19 +5565,19 @@ def test_a_fragmented_diff_loads_only_opened_files_and_hydrates_comment_travel(
     quote.focus()
     page.keyboard.press("Enter")
     expect(reply).to_be_focused()
-    assert page.evaluate("window.__leafFragmentRequests") == ["first.py", "second.py"]
+    assert page.evaluate("window.__leafDeferredRequests") == ["first.py", "second.py"]
 
 
 def test_a_hunk_step_waiting_on_a_file_leaves_a_user_who_moved_on(browser, serve):
     """`]` into a file still loading lands only while the user is where they pressed it.
 
-    The step opens the next file and waits for its fragment. A user who presses
+    The step opens the next file and waits for its deferred patch. A user who presses
     somewhere else in that wait has moved on, and the landing the step owed is dropped
     rather than dragging them back into the diff when the file arrives.
     """
     url = serve(
         leaf_page(
-            "fragmented diff",
+            "deferred diff",
             '<h1 id="title">Review</h1><lf-diff id="patch" source="review-patch" '
             "collapsed><pre></pre></lf-diff>",
         )
@@ -5592,9 +5592,9 @@ def test_a_hunk_step_waiting_on_a_file_leaves_a_user_who_moved_on(browser, serve
     expect(page.locator(".lf-walk-position")).to_have_text("Hunk 1 of 1")
 
     page.keyboard.press("]")
-    page.wait_for_function("typeof window.__leafReleaseFragment === 'function'")
+    page.wait_for_function("typeof window.__leafReleaseDeferred === 'function'")
     page.locator("#title").click()
-    page.evaluate("window.__leafReleaseFragment()")
+    page.evaluate("window.__leafReleaseDeferred()")
     expect(
         page.locator('lf-diff [data-lf-datum=\'["second.py","new",1]\']')
     ).to_have_count(1)
@@ -5607,15 +5607,15 @@ def test_a_hunk_step_waiting_on_a_file_leaves_a_user_who_moved_on(browser, serve
     )
 
 
-def test_a_fragmented_diff_tracks_each_write_and_retries_a_failed_file(browser, serve):
+def test_a_deferred_diff_tracks_each_write_and_retries_a_failed_file(browser, serve):
     """A source write is an identity, not its second-resolution modification time.
 
     Replacing a manifest inside the same second must discard its prior file keys before
-    fragments use the new source revision. A transient fragment refusal remains local
+    deferred loads use the new source revision. A transient deferred refusal remains local
     to that disclosure and closing and reopening it retries the exact current file.
     """
     authored = leaf_page(
-        "changing fragmented diff",
+        "changing deferred diff",
         '<h1 id="title">Review</h1><lf-diff id="patch" source="review-patch" '
         "collapsed><pre></pre></lf-diff>",
     )
@@ -5664,10 +5664,10 @@ def test_a_fragmented_diff_tracks_each_write_and_retries_a_failed_file(browser, 
         else:
             route.continue_()
 
-    page.route("**/api/data*", refuse_once)
+    page.route("**/api/deferred*", refuse_once)
     summary.click()
     expect(page.locator("lf-diff .lf-error")).to_contain_text(
-        "data fragment response does not match its request"
+        "deferred value response does not match its request"
     )
     summary.click()
     summary.click()
@@ -5677,11 +5677,11 @@ def test_a_fragmented_diff_tracks_each_write_and_retries_a_failed_file(browser, 
     assert len(refused) == 1
 
 
-def test_a_fragment_load_keeps_the_manifest_source_revision(browser, serve):
+def test_a_deferred_load_keeps_the_manifest_source_revision(browser, serve):
     """A retained manifest cannot read a replacement's same-key payload."""
     url = serve(
         leaf_page(
-            "fragment provenance",
+            "deferred provenance",
             '<h1 id="title">Review</h1><lf-diff id="patch" source="review-patch" '
             "collapsed><pre></pre></lf-diff>",
         )
@@ -5717,14 +5717,14 @@ def test_a_fragment_load_keeps_the_manifest_source_revision(browser, serve):
     told(page)
     result = page.evaluate(
         """async () => {
-          const {loadDataFragment} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const {loadDeferred} = await window.__lfRuntimeImport('/runtime/widget-api.js');
           let stale;
           try {
-            stale = await loadDataFragment(window.priorManifest, 'app.py');
+            stale = await loadDeferred(window.priorManifest, 'app.py');
           } catch (error) {
             stale = error.message;
           }
-          const current = await loadDataFragment(
+          const current = await loadDeferred(
             document.querySelector('#patch').manifestSnapshot, 'app.py'
           );
           return {stale, current};
@@ -5732,19 +5732,19 @@ def test_a_fragment_load_keeps_the_manifest_source_revision(browser, serve):
     )
     assert result == {
         "stale": f"source review-patch revision {prior} changed before loading "
-        "fragment app.py",
+        "deferred app.py",
         "current": replacement,
     }
 
 
-def test_a_failed_fragment_hydration_waits_for_a_user_retry(browser, serve):
+def test_a_failed_deferred_hydration_waits_for_a_user_retry(browser, serve):
     """Thread travel attempts a failing unopened file once rather than recursing.
 
     Automatic reveal marks the failed entry as terminal for navigation. Closing and
     reopening its disclosure is the user's explicit request to try the file again.
     """
     authored = leaf_page(
-        "failed fragmented diff",
+        "failed deferred diff",
         '<h1 id="title">Review</h1><lf-diff id="patch" source="review-patch" '
         "collapsed><pre></pre></lf-diff>",
     )
@@ -5788,13 +5788,13 @@ def test_a_failed_fragment_hydration_waits_for_a_user_retry(browser, serve):
         route.fulfill(status=200, json={"revision": -1})
 
     page = open_page(browser, url)
-    page.route("**/api/data*", refuse)
+    page.route("**/api/deferred*", refuse)
     page.get_by_role("button", name=re.compile("^Threads")).click()
     panel_settled(page, True)
     page.locator(".lf-thread-summary").click()
     page.locator(".lf-threads > .lf-thread .lf-quote").click()
     expect(page.locator("lf-diff .lf-error")).to_contain_text(
-        "data fragment response does not match its request"
+        "deferred value response does not match its request"
     )
     page.wait_for_timeout(250)
     assert len(requests) == 1, "thread hydration retried without another user gesture"
@@ -5808,7 +5808,7 @@ def test_a_failed_fragment_hydration_waits_for_a_user_retry(browser, serve):
     # them over is not the page's to state and not this test's to depend on. The
     # fulfilled response exists only because the handler ran, so it is the fact this
     # count is made of.
-    with page.expect_response(lambda response: "/api/data" in response.url):
+    with page.expect_response(lambda response: "/api/deferred" in response.url):
         summary.click()
     assert len(requests) == 2
 

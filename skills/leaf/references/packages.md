@@ -396,7 +396,7 @@ the module can already draw is drawn in the gesture rather than after a wait.
 
 A navigation captures `retainUserIntent()` in the gesture that starts it, before its
 first wait, and checks the returned predicate after every wait before moving focus or
-scroll: loading a file, a fragment, or a renderer is a wait, and a user who pressed on
+scroll: loading a file, a deferred value, or a renderer is a wait, and a user who pressed on
 in the meantime is not moved back. A predicate taken after a wait would carry a newer
 gesture's authority. If the navigation itself opens or closes a surface that moves
 focus, `currentIntent.handoff(() => changeSurface())` preserves that synchronous focus
@@ -885,7 +885,7 @@ and each row's key field. A source replacement is accepted only when every row h
 non-empty, unique string key. Rows that each carry a large, independently useful
 payload may name that field `deferred`. The source file still holds the complete value,
 and readings validate all of it, but `/api/state` sends each row with that field
-omitted; a widget uses `loadDataFragment(snapshot, key)` to fetch one row's payload
+omitted; a widget uses `loadDeferred(snapshot, key)` to fetch one row's payload
 using the delivery `watchData` handed it. A request naming a source revision the file
 no longer holds is refused instead of combining a new payload with an old manifest.
 This is how a collapsed `lf-diff` can show thousands of files without transferring or

@@ -225,10 +225,10 @@ export function watchData(element, input, callback) {
   return stop;
 }
 
-// Fragment identity belongs to the delivered manifest. A replacement can be accepted
-// before its subscriber renders; loading through that older manifest must not fetch a
-// same-key fragment from the replacement.
-export async function loadDataFragment(manifest, key) {
+// A deferred value's identity belongs to the delivered manifest. A replacement can be
+// accepted before its subscriber renders; loading through that older manifest must not
+// fetch a same-key deferred value from the replacement.
+export async function loadDeferred(manifest, key) {
   if (
     !manifest ||
     typeof manifest.source !== "string" ||
@@ -236,19 +236,19 @@ export async function loadDataFragment(manifest, key) {
     typeof manifest.revision !== "string" ||
     !manifest.revision
   )
-    throw new TypeError("loadDataFragment needs a source delivery");
+    throw new TypeError("loadDeferred needs a source delivery");
   if (typeof key !== "string" || !key)
-    throw new TypeError("loadDataFragment key must be a non-empty string");
+    throw new TypeError("loadDeferred key must be a non-empty string");
   const records = registry.$data?.contracts?.[manifest.contract]?.records;
   if (!records?.deferred)
     throw new Error(
-      `loadDataFragment contract ${manifest.contract} defers no record field`,
+      `loadDeferred contract ${manifest.contract} defers no record field`,
     );
   const { source, revision } = manifest;
   const current = () => runtime.data.sources[source]?.revision === revision;
   if (!current())
     throw new Error(
-      `source ${source} revision ${revision} changed before loading fragment ${key}`,
+      `source ${source} revision ${revision} changed before loading deferred ${key}`,
     );
   if (offlineInteractive) {
     const reading = offlineData()?.sources?.[source];
@@ -257,26 +257,26 @@ export async function loadDataFragment(manifest, key) {
       reading.contract !== manifest.contract ||
       reading.revision !== revision
     )
-      throw new Error("interactive export fragment does not match its source");
+      throw new Error("interactive export deferred value does not match its source");
     const items = reading.value?.[records.items];
     const matches = Array.isArray(items)
       ? items.filter((item) => item?.[records.key] === key)
       : [];
     if (matches.length !== 1 || !(records.deferred in matches[0]))
-      throw new Error("interactive export fragment does not match its key");
+      throw new Error("interactive export deferred value does not match its key");
     return structuredClone(matches[0][records.deferred]);
   }
   const params = new URLSearchParams({ source, source_revision: revision, key });
-  const response = await fetch(pageUrl(`api/data?${params}`), {
+  const response = await fetch(pageUrl(`api/deferred?${params}`), {
     headers: layerHeaders(),
   });
   if (response.ok && !sameDelivery(response)) {
-    throw new Error("Leaf's data vocabulary changed while loading a fragment");
+    throw new Error("Leaf's data vocabulary changed while loading a deferred value");
   }
   const answer = await response.json().catch(() => ({}));
   if (!response.ok)
     throw new Error(
-      answer.error || `data fragment failed to load (${response.status})`,
+      answer.error || `deferred value failed to load (${response.status})`,
     );
   if (
     answer.revision !== revision ||
@@ -284,10 +284,10 @@ export async function loadDataFragment(manifest, key) {
     answer.contract !== manifest.contract ||
     answer.key !== key
   )
-    throw new Error("data fragment response does not match its request");
+    throw new Error("deferred value response does not match its request");
   if (!current())
     throw new Error(
-      `source ${source} revision ${revision} changed while loading fragment ${key}`,
+      `source ${source} revision ${revision} changed while loading deferred ${key}`,
     );
   return structuredClone(answer.value);
 }

@@ -1275,27 +1275,22 @@ def test_command_hub_exercises_request_failure_retry_and_success(browser, serve)
     expect(restart).to_be_disabled()
 
 
-def test_the_feature_gallery_exercises_live_and_snapshotted_external_data(
-    browser, serve
-):
-    """One captured source supplies a following view, a snapshot, and provenance."""
+def test_the_feature_gallery_exercises_live_external_data(browser, serve):
+    """One captured source supplies a following view under its authored label."""
     page = open_page(browser, live_url(serve(FEATURE_GALLERY)))
     live = page.locator("#bg-source-live")
-    frozen = page.locator("#bg-source-snapshot")
     original = (
         '[route]\nname = "covered terrace"\ndistance_km = 1.8\nstatus = "sample"\n'
     )
 
     expect(live.locator("code")).to_have_text(original)
-    expect(frozen.locator("code")).to_have_text(original)
-    expect(frozen.locator("figcaption")).to_have_text(
-        "feature-gallery-source.toml at sample-1 · lines 1–4 · snapshot 1"
+    expect(live.locator("figcaption")).to_have_text(
+        "feature-gallery-source.toml · lines 1–4"
     )
 
     changed = '[route]\nname = "river path"\ndistance_km = 2.1\nstatus = "updated"\n'
     data_model.cmd_data_set(serve.page_dir, "gallery-source", changed)
     expect(live.locator("code")).to_have_text(changed)
-    expect(frozen.locator("code")).to_have_text(original)
     expect(page.locator("#bg-measurement-guide")).to_contain_text(
         "measurement is behind its source"
     )
@@ -1321,7 +1316,7 @@ def test_the_pr_walkthrough_exercises_an_inline_diff_thread(browser, serve):
                 "section": "pr-exact-patch",
                 "datum": target.get_attribute("data-lf-datum"),
                 "source": target.get_attribute("data-lf-source"),
-                "data_revision": int(target.get_attribute("data-lf-source-revision")),
+                "source_revision": target.get_attribute("data-lf-source-revision"),
             },
         },
     )
@@ -6910,7 +6905,7 @@ def test_global_destinations_switch_from_a_covering_workspace(
     url = serve(ASKS_PAGE, comments=1)
     _publish(serve.page_dir, 2, ASKS_PAGE, "two")
     page = open_page(browser, url)
-    resized(page, 500, 800)
+    resized(page, 420, 800)
 
     page.keyboard.press("g")
     page.keyboard.press("Shift+l")
@@ -6949,9 +6944,11 @@ def test_global_destinations_switch_from_a_covering_workspace(
     assert not versions.evaluate("surface => surface.inert")
     page.evaluate(RENDERED)
     version_hints = {hint["commands"] for hint in page.evaluate(KEY_LINE_HINTS)}
-    assert {"version.later version.earlier", "version.open-v1 version.open-v2"} <= (
-        version_hints
-    ), f"the covering auxiliary surface displaced the versions scope: {version_hints}"
+    # The phone-width line has room for the scope's first hint only; its presence is what
+    # says the covering surface left the versions scope standing.
+    assert "version.later version.earlier" in version_hints, (
+        f"the covering auxiliary surface displaced the versions scope: {version_hints}"
+    )
 
     page.keyboard.press("ArrowUp")
     expect(versions.locator('.lf-version-row[data-lf-version="2"]')).to_be_focused()
@@ -6999,7 +6996,7 @@ def test_entering_a_covering_workspace_dismisses_an_existing_popover(browser, se
     expect(versions).to_be_visible()
     expect(versions.locator('.lf-version-row[data-lf-version="1"]')).to_be_focused()
 
-    resized(page, 500, 800)
+    resized(page, 400, 800)
     panel_settled(page)
     expect(versions).to_be_hidden()
     expect(origin).to_be_focused()
@@ -7076,7 +7073,7 @@ def test_reference_accepts_native_popover_dismissal_across_modal_entry(browser, 
     page.keyboard.press("?")
     expect(reference).to_be_visible()
 
-    resized(page, 500, 800)
+    resized(page, 400, 800)
     panel_settled(page)
     expect(reference).to_be_visible()
     # Every Escape from here lands the user while the panel covers the page, which is
@@ -9470,7 +9467,7 @@ def test_reactionless_other_responses_can_turn_the_compact_field_into_a_suggesti
     box = page.locator(".lf-fab-input")
     expect(page.locator(".lf-fab-bar")).to_be_visible()
     expect(box).not_to_be_focused()
-    expect(box).to_have_attribute("placeholder", "Comment… · c")
+    expect(box).to_have_attribute("placeholder", "Comment… c")
     expect(page.locator(".lf-general textarea")).to_have_attribute(
         "placeholder", "Comment on the page"
     )
@@ -9559,7 +9556,7 @@ def test_focus_paint_releases_every_text_box_crossed_before_a_frame(browser, ser
     page.locator(".lf-threads-toggle").click()
     general = page.locator(".lf-general textarea")
     replies = page.locator(".lf-thread textarea")
-    assert general.get_attribute("placeholder") == "Comment on the page · c"
+    assert general.get_attribute("placeholder") == "Comment on the page c"
     page.get_by_role("searchbox", name="Find in threads").focus()
     shortcut_bar_text(page)
     assert general.get_attribute("placeholder") == "Comment on the page"
@@ -9593,7 +9590,7 @@ def test_focus_paint_releases_every_text_box_crossed_before_a_frame(browser, ser
         "(thread.querySelector(':scope > .lf-thread-summary') ?? thread).focus(); }"
     )
     shortcut_bar_text(page)
-    assert replies.nth(1).get_attribute("placeholder") == "Reply · c"
+    assert replies.nth(1).get_attribute("placeholder") == "Reply c"
     page.keyboard.press("c")
     expect(replies.nth(1)).to_be_focused()
     shortcut_bar_text(page)
@@ -10165,6 +10162,7 @@ def test_escape_on_a_declaring_control_does_exactly_what_it_says(browser, serve)
         {"kind": "comment", "author": "user", "revision": 1, "text": "A thread."},
     )
     page = open_page(browser, url)
+    resized(page, 1920, 900)
     page.wait_for_function("() => document.querySelectorAll('.lf-thread').length === 1")
     page.keyboard.press("c")  # panel open, so the old second action would show
     expect(page.locator(".lf-thread-panel")).to_be_visible()

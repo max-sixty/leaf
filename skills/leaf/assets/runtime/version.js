@@ -733,12 +733,11 @@ export function createVersionController({
       // parentElement, not w itself: an svg a widget rendered stays its widget's.
       if (!authoredHere(w) || inChrome(w) || w.parentElement?.closest(opaque)) continue;
       const entry = registry[w.localName] ?? {};
-      // A data selection is authored semantics even though the generated children
+      // A data binding is authored semantics even though the generated children
       // of an upgraded widget are opaque to comparison.
       const bindingAttrs = new Set();
       for (const input of Object.values(entry["x-data"] ?? {})) {
         bindingAttrs.add(input.source);
-        if (input.snapshot) bindingAttrs.add(input.snapshot);
       }
       const binding = [...bindingAttrs]
         .sort()

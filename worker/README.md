@@ -260,7 +260,12 @@ opened for it. A turn that ends without its user's answer records
 `turn_failure_reported` with the receipts it wrote, and one stopped by its own follower
 records `turn_interrupted`, or `turn_interrupt_failed` where the provider refused —
 which is ordinarily the turn having ended first. Model records carry that
-turn id. Analytics Engine holds aggregate product events rather than a second
+turn id. `page_fault` is the adapter's own copy of a request it answered `500`,
+naming the route, method, page-scoped path, exception class, and the `detail` that
+boundary wrote; Cloudflare's record of that request carries its route and status and
+nothing about what refused it, and the answer itself goes to the one browser that
+asked. A fault raised while handling a value can quote it, so read that `detail` as
+the page's words rather than as certainly none of the user's. Analytics Engine holds aggregate product events rather than a second
 debugging log. Live incidents use
 `wrangler tail`; historical incidents use the REST API or Cloudflare's Observability
 query builder.

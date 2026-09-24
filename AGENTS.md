@@ -229,9 +229,9 @@ independently reclassify accepted workflow evidence. The stop guard consumes the
 same underlying response obligations.
 
 The page directory is the durable record and deployment unit: mutable `index.html`,
-immutable revisions, an append-only event log, and `data.json` as the
-replace-in-place authority for typed external data, whose source ids keep one
-contract for the page's lifetime. `skills/leaf/scripts/leaf/page-storage.md`
+immutable revisions, an append-only event log, and one replaceable JSON file per
+external-data source under `data/`, whose source ids keep the contract `data.json`
+records for the page's lifetime. `skills/leaf/scripts/leaf/page-storage.md`
 defines the complete layout.
 
 A request is a durable, non-undoable one-shot instruction whose external effect

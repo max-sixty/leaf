@@ -1,5 +1,6 @@
 """Authenticated website-journey proof for the visual-review package."""
 
+import hashlib
 import shutil
 
 import pytest
@@ -339,6 +340,10 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
         ],
     }
     data_model.cmd_data_set(review_dir, "journey-run", record)
+    # The draft begun on this value keeps its revision across the replacement below.
+    drafted_revision = hashlib.sha256(
+        data_model.source_file(review_dir, "journey-run").read_bytes()
+    ).hexdigest()[:16]
 
     user = open_page(browser, review_url)
     resized(user, 1366, 768)
@@ -483,7 +488,7 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
         "section": "journey",
         "datum": "follow-release-link",
         "source": "journey-run",
-        "data_revision": 1,
+        "source_revision": drafted_revision,
     }
     review_events = [
         event
@@ -546,7 +551,9 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     standalone = exporting_model.export_page(
         browser, review_url, review_dir, "authenticated navigation review"
     )
-    data_text = (review_dir / "data.json").read_text()
+    data_text = (review_dir / "data.json").read_text() + data_model.source_file(
+        review_dir, "journey-run"
+    ).read_text()
     assert capture_key not in standalone
     assert capture_key not in data_text
     assert "?t=" not in data_text

@@ -63,8 +63,8 @@
    like apparatus and still be a page word the user can quote.
 
    A floor asks about the room its rule governs. One granting a posture out of the room
-   left beside a panel or tray is a container query on `lf-shell`, inside `@media screen`
-   since paper has no panel and no margin to grant: 1152 and 1496 for the sidebar and
+   left beside a standing tray is a container query on `lf-shell`, inside `@media screen`
+   since paper has no tray and no margin to grant: 1152 and 1496 for the sidebar and
    sidenote strips, 840 for the margin projection's rail, 640 for a narrow column's facts.
    One answering to the device, such as a phone's vertical rhythm, asks the window, and a
    package's widget asks its own box (references/packages.md).
@@ -389,14 +389,10 @@
   --series-5: light-dark(#8c2d2a, #b13d54);
 }
 html:root {
-  --lf-thread-panel-width: min(50vw, max(320px, var(--lf-thread-panel-choice, 420px)));
   --lf-tray-slot-width: min(50vw, max(220px, var(--lf-tray-slot-choice, 300px)));
 }
 @media screen and (width <= 840px) {
-  html:root {
-    --lf-banner-h: calc(88px + var(--lf-safe-top));
-    --lf-thread-panel-width: min(100vw, max(320px, var(--lf-thread-panel-choice, 420px)));
-  }
+  html:root { --lf-banner-h: calc(88px + var(--lf-safe-top)); }
 }
 @media screen and (pointer: coarse) and (width > 840px) {
   :root { --lf-banner-h: calc(53px + var(--lf-safe-top)); }
@@ -528,11 +524,26 @@ body { position: static !important; box-sizing: border-box !important;
     body { min-height: 100%; }
     body::before { content: ""; display: block; height: var(--lf-banner-h); }
   }
+  /* A live specimen is a block of its containing page, and its frame takes the body's
+   * height (lf-specimen.js). So the body keeps to its content rather than filling the
+   * frame, which would hold the frame at its tallest, nothing scrolls inside, and a
+   * wheel reaches the containing page. The page's rhythm is set for a window; a block
+   * takes a block's. The banner keeps only its one row of actions (chrome.css). An open
+   * auxiliary surface covers the window, so the page stands at least a window tall
+   * while one is open, or a short specimen's Threads would have no room to list. */
+  html[data-lf-live][data-lf-contained]:not(.lf-copy) {
+    --lf-banner-h: 48px;
+    overflow-y: hidden;
+    body { min-height: 0; }
+    body[data-lf-auxiliary-surface] { min-height: 32rem; }
+    main { padding-block: 24px; }
+  }
 }
-/* A standing workspace narrows the body's page shell on wide screens and covers it on
- * compact ones. Bootstrap root attributes supply the same geometry before the runtime
- * replaces them with body state; stored widths are capped by the same responsive
- * bargain as the live resizable edges.
+/* The Asks tray narrows the body's page shell on wide screens and covers it on compact
+ * ones; the thread panel and the Leaves tray stand over the page at every width and take
+ * no room from it. A bootstrap root attribute supplies the tray's geometry before the
+ * runtime replaces it with body state; the stored width is capped by the same responsive
+ * bargain as the live resizable edge.
  *
  * The strip is a border and not a margin, and that is the whole of what keeps the user
  * where they were standing. Narrowing the shell reflows the page inside it — residents
@@ -541,16 +552,14 @@ body { position: static !important; box-sizing: border-box !important;
  * `padding`, `width` and `height` on the path from the anchor up to the scroller, and
  * body is on every such path, so the page yielding its strip that way switched off the
  * one mechanism that was going to carry the user across the reflow it caused. Measured
- * on a page with both margin residents: the user's paragraph fell 149px at 1728 and
- * 1409px at 900.
+ * when the thread panel still took a 420px strip, on a page with both margin residents:
+ * the user's paragraph fell 149px at 1728 and 1409px at 900.
  *
  * `border-width` is in neither the spec's list nor Chromium's. Body is `border-box`, so
  * the `lf-shell` container's inline size is the same number either way (measured: 1308 at
  * a 1728px window, both spellings), every container query below reads what it read
- * before, and the fixed panel paints over the strip the border reserves. What changes is
- * only that the browser goes on anchoring, which is what it is for. Anything reading the
- * shell's own right edge therefore reads the content box (`shellRight`, geometry.js);
- * `getBoundingClientRect().right` is now the outside of the border.
+ * before, and the fixed tray paints over the strip the border reserves. What changes is
+ * only that the browser goes on anchoring, which is what it is for.
  *
  * The hold also rests on an ordering, and it is worth knowing before moving anything
  * below. `main`'s `left` (through `--lf-shift`) and its `width` do change when the strip
@@ -559,17 +568,8 @@ body { position: static !important; box-sizing: border-box !important;
  * layout (`ScrollAnchor::NotifyBeforeLayout`), and the container-query recalc that moves
  * `main` runs inside layout, after that walk. So a `--lf-shift` or column width set some
  * other way — a class toggled from script, an inline style, an animation — would switch
- * anchoring off again. `test_taking_the_panels_strip_leaves_the_user_on_the_same_words`
+ * anchoring off again. `test_taking_the_trays_strip_leaves_the_user_on_the_same_words`
  * is the guard, and passes with no script holding the user's place. */
-@media screen and (not (width <= 840px)) {
-  :is(
-    html[data-lf-restore-panel],
-    html[data-lf-live]:has(body[data-lf-auxiliary-surface="threads"])
-  ) body { border-right: var(--lf-thread-panel-width) solid transparent; }
-}
-@media screen and (width <= 840px) {
-  html[data-lf-restore-panel] { overflow-y: hidden; }
-}
 /* A workspace that covers the document owns the one visible reading scrollport. The
  * runtime's shared modality boundary states this independently of which workspace is
  * open, including Leaves, whose overlay posture does not depend on viewport width. */
@@ -578,7 +578,7 @@ body { position: static !important; box-sizing: border-box !important;
 }
 @media screen and (not (width <= 600px)) {
   :is(
-    html[data-lf-restore-tray="asks"],
+    html[data-lf-restore-asks],
     html[data-lf-live]:has(body[data-lf-auxiliary-surface="asks"])
   ) body {
     --lf-shell-inset-left: var(--lf-tray-slot-width);
@@ -586,7 +586,7 @@ body { position: static !important; box-sizing: border-box !important;
   }
 }
 @media screen and (width <= 600px) {
-  html[data-lf-restore-tray="asks"] { overflow-y: hidden; }
+  html[data-lf-restore-asks] { overflow-y: hidden; }
 }
 /* Authored HTML is the page's useful initial condition, so it paints from stylesheet
  * parse while JavaScript upgrades widgets and reads the standing log. Generated page
@@ -859,26 +859,6 @@ h3 { font-size: var(--t-3); line-height: 1.3; margin: 32px 0 8px;
 p { margin: 13px 0; }
 ul, ol { margin: 10px 0; padding-left: 24px; }
 li { margin: 6px 0; }
-/* One sequential step keeps one geometry in options, the shortcut bar, banner controls
- * and the reference. A sequence composes these fixed boxes instead of making spaces
- * inside one keycap carry time. A compact choice label such as g / G remains one
- * decision point. A binding is an available key, so this neutral face is also its
- * complete colour statement; completed steps take the pressed face in chrome.css.
- *
- * The badge is worn on both sides of the chrome's scope line — an option's own corner
- * in the page, and the sequence's hints in the Go-to hint layer — and its box is stated
- * here, after the .lf-ui face it overrides in shadow.css. In chrome.css it outranked
- * a component asking for a different badge, for no reason beyond that sheet being
- * adopted; the chrome's own step keys spell the same list again inside the scope
- * (`.lf-binding-sequence > kbd`), because naming them here would put two private names
- * on the document-level surface the coined-class probe pins. Keep the two lists
- * identical. */
-.lf-key-badge { box-sizing: border-box;
-    min-width: var(--lf-key-badge-size); height: var(--lf-key-badge-size); padding: 0 4px;
-    border: 1px solid var(--border-2); border-radius: 4px; background: var(--chip);
-    color: var(--ink-2); font-family: var(--mono); font-size: var(--t-6);
-    line-height: 1.478; text-align: center; white-space: nowrap;
-    display: none; z-index: 1; user-select: none; -webkit-user-select: none; }
 a { color: var(--accent); text-underline-offset: 2px;
     text-decoration-color: color-mix(in srgb, var(--accent) 35%, transparent); }
 a:hover { text-decoration-color: currentColor; }
@@ -1219,13 +1199,14 @@ main > aside.sidebar:nth-child(1 of aside.sidebar) { --lf-sidebar-slot: margin; 
    the float.
 
    The composer opens out there too and covers a note whole while it stands, which is a
-   box the user summoned and dismisses. The panel takes that side of the window
-   entirely, and the note does not give way to it: both the strip and the column come out
-   of the box the panel leaves, so a note moves exactly as far as the paragraph it
-   annotates and no further.
+   box the user summoned and dismisses. The thread panel stands over that side of the
+   window and takes no room from the page, so the note stays where it stands under it;
+   the Asks tray takes a strip on the other side, and both the note's strip and the
+   column come out of the box it leaves, so a note moves exactly as far as the paragraph
+   it annotates and no further.
 
    The strip is a claim on the shell, so the column centres in what is left rather than
-   hanging the note in whatever the centring happened to leave over. A panel or tray
+   hanging the note in whatever the centring happened to leave over. A standing tray
    narrows that named container, and the same query therefore returns the note to flow
    only when the page itself no longer has room.
 
@@ -1315,7 +1296,7 @@ aside.sidenote { font-size: var(--t-5); line-height: 1.45; color: var(--muted);
   @container lf-shell (width <= 640px) {
     /* A long term must not spend most of a phone's line on the first column and leave
        its explanation as a one-word ribbon. Stack each fact while the reading column is
-       narrow, which a panel standing beside makes it at any window; later terms keep
+       narrow, which a tray standing beside makes it at any window; later terms keep
        the ordinary block rhythm through the row gap. */
     .facts { grid-template-columns: minmax(0, 1fr); align-items: start; }
     .facts dd + dt { margin-top: var(--sp-2); }
@@ -1747,17 +1728,15 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
  * (2 x 24) and the claim (59), or 839 where a finger raises the marker to the aim floor —
  * and 840 is also where the banner folds, which asks the window, so with no strip taken
  * the page goes compact at one width, less a classic scrollbar's gutter. The Page Map the
- * folded banner then offers asks this floor of this box (chrome.css), so a panel that
- * takes the markers away hands the user the map in their place. This asks `lf-shell` because the rail is drawn in the shell, and a panel
- * standing beside takes its room as surely as a narrow window does. Asking the window read
- * a room the page did not have: with the panel beside it a 900px window is a 480px shell,
- * the claim still spent 59 of them, and that left a 373px column with every marker flush
- * against the panel's edge.
+ * folded banner then offers asks this floor of this box (chrome.css), so a tray that
+ * takes the markers away hands the user the map in their place. This asks `lf-shell`
+ * because the rail is drawn in the shell, and a tray standing beside takes its room as
+ * surely as a narrow window does. The thread panel takes none: it covers the page.
  *
  * The claim cannot feed back into the answer. It comes out of `main`'s room inside the
  * shell (--strip-r, at the column), while the shell's own inline size is the window less
- * whatever strips a panel and a tray hold, so the container answers the same whether a
- * marker stands in the rail or not. */
+ * whatever strip a tray holds, so the container answers the same whether a marker stands
+ * in the rail or not. */
 @media screen {
   @container lf-shell (width > 840px) {
     :is(
@@ -1766,7 +1745,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
     ) main {
       /* The floor is the generated marker: 32px of glyph, or the aim floor where a finger
          raises it, hanging 22px off the column, with the shared focus-ring room at the
-         outer edge. Claim all three, or opening a side panel leaves that last band past
+         outer edge. Claim all three, or opening a side tray leaves that last band past
          body's room and the layout hides the marker. Over that floor stands the widest
          stable contribution the shared layout has measured, which is wider wherever a
          contributed control takes the marker's place. What the condition reads is stated

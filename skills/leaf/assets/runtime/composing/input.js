@@ -132,6 +132,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     visibleHint.setAttribute("aria-hidden", "true");
     const hintLabel = document.createElement("span");
     const hintKey = document.createElement("kbd");
+    hintKey.className = "lf-key-badge";
     visibleHint.append(hintLabel, hintKey);
     field.append(ta, visibleHint, sendBtn);
     // These two are the press's whole face, and the theme keys the glyph's colour on the
@@ -193,10 +194,10 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
           ? contextualHint.label
           : "";
       const word = label();
-      const placeholder = suffix ? `${word} · ${suffix}` : word;
+      const placeholder = suffix ? `${word} ${suffix}` : word;
       if (ta.placeholder !== placeholder) ta.placeholder = placeholder;
       if (suffix) {
-        hintLabel.textContent = `${word} · `;
+        hintLabel.textContent = `${word} `;
         hintKey.textContent = suffix;
       }
       field.classList.toggle("lf-compose-hinted", Boolean(suffix));

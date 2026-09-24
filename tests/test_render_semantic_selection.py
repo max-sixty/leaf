@@ -608,7 +608,7 @@ def test_selection_hints_do_not_name_page_content_behind_a_covering_panel(
 ):
     """A covering panel removes the inert document from page-target chooser."""
     page = open_page(browser, serve(ROOT / "examples" / "corpus.html"))
-    resized(page, 700, 900)
+    resized(page, 400, 900)
     page.keyboard.press("s")
     expect(page.locator(".lf-target-chooser-hint")).not_to_have_count(0)
     page.keyboard.press("Escape")

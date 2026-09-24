@@ -15,7 +15,7 @@ unpicked at prompt:
       Leaf needs attention:
       - <page>: 1 update you haven't picked up. `leaf wait` prints them.
 
-      If output is truncated, acknowledge nothing; rerun with enough output capacity for the whole batch. If you handle the batch yourself, read it fully, then acknowledge it before any other work. If forwarding it, or if its guidance holds the acknowledgement until a request reaches its executor, acknowledge once it durably arrives there. Run `leaf wait --ack <delivery-id>` in the background to acknowledge its captured batches and wait for the next batch while the page remains live. The agent handling the batch must address every event.
+      If output is truncated, acknowledge nothing; rerun with enough output capacity for the whole batch. If you handle the batch yourself, read it fully, then acknowledge it before any other work. If forwarding it, acknowledge once it durably arrives there. Run `leaf wait --ack <delivery-id>` in the background to acknowledge its captured batches and wait for the next batch while the page remains live. The agent handling the batch must address every event.
 
 unpicked at stop:
   decision: block
@@ -23,12 +23,12 @@ unpicked at stop:
     Leaf needs attention:
     - <page>: 1 update you haven't picked up. `leaf wait` prints them.
 
-    If output is truncated, acknowledge nothing; rerun with enough output capacity for the whole batch. If you handle the batch yourself, read it fully, then acknowledge it before any other work. If forwarding it, or if its guidance holds the acknowledgement until a request reaches its executor, acknowledge once it durably arrives there. Run `leaf wait --ack <delivery-id>` in the background to acknowledge its captured batches and wait for the next batch while the page remains live. The agent handling the batch must address every event.
+    If output is truncated, acknowledge nothing; rerun with enough output capacity for the whole batch. If you handle the batch yourself, read it fully, then acknowledge it before any other work. If forwarding it, acknowledge once it durably arrives there. Run `leaf wait --ack <delivery-id>` in the background to acknowledge its captured batches and wait for the next batch while the page remains live. The agent handling the batch must address every event.
 
 idle before pickup:
   exit: 1
   output: |
-    1 update nobody has picked up; read them with `leaf wait` before idling. If output is truncated, acknowledge nothing; rerun with enough output capacity for the whole batch. If you handle the batch yourself, read it fully, then acknowledge it before any other work. If forwarding it, or if its guidance holds the acknowledgement until a request reaches its executor, acknowledge once it durably arrives there. Run `leaf wait --ack <delivery-id>` in the background to acknowledge its captured batches and wait for the next batch while the page remains live.
+    1 update nobody has picked up; read them with `leaf wait` before idling. If output is truncated, acknowledge nothing; rerun with enough output capacity for the whole batch. If you handle the batch yourself, read it fully, then acknowledge it before any other work. If forwarding it, acknowledge once it durably arrives there. Run `leaf wait --ack <delivery-id>` in the background to acknowledge its captured batches and wait for the next batch while the page remains live.
 
 delivered:
   format: leaf-delivery-v2

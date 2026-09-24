@@ -62,6 +62,7 @@ from render_harness import (
     primed,
     resized,
     round_trip,
+    scroll_settled,
     sending,
     shortcut_bar_text,
     take_browser_errors,
@@ -852,6 +853,7 @@ def test_resolve_acknowledges_the_press_and_recovers_a_refusal(
     expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
     if view == "inline":
         expect(thread.get_by_role("button", name="Resolve thread")).to_have_count(0)
+        expect(page.locator("#bracket")).to_be_focused()
     else:
         expect(page.locator(".lf-threads")).to_contain_text("No open threads.")
         expect(page.locator(".lf-threads")).to_be_focused()
@@ -892,6 +894,7 @@ def test_resolve_acknowledges_the_press_and_recovers_a_refusal(
         expect(page.locator(".lf-thread-panel")).not_to_have_class(
             re.compile(r"\bopen\b")
         )
+        expect(page.locator("#bracket")).to_be_focused()
     else:
         expect(page.locator(".lf-general textarea")).to_be_focused()
 
@@ -1143,6 +1146,7 @@ def test_settlement_controls_share_one_request_across_page_and_panel(
         },
     )["id"]
     page = open_page(browser, url)
+    resized(page, 1920, 900)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     inline = page.locator(f'#jobs .lf-conversation-thread[data-thread="{root}"]')
@@ -1208,6 +1212,7 @@ def test_a_poll_accounted_settlement_repaints_before_its_post_response(
         },
     )["id"]
     page = open_page(browser, url)
+    resized(page, 1920, 900)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     inline = page.locator(f'#jobs .lf-conversation-thread[data-thread="{root}"]')
@@ -1760,7 +1765,7 @@ def test_a_card_moved_on_a_board_in_a_reply_reports_delivery_on_that_reply(
     panel_settled(page)
     status = page.locator(f'.lf-thread[data-id="{root}"] .lf-thread-status')
     receipt = page.locator(f'.lf-msg[data-mid="{board["id"]}"] .lf-msg-sending')
-    expect(status).to_have_text("")
+    expect(status).to_have_count(0)
 
     page.locator("#fb-cache .lf-grip").focus()
     page.keyboard.press("Enter")
@@ -1769,7 +1774,7 @@ def test_a_card_moved_on_a_board_in_a_reply_reports_delivery_on_that_reply(
         page.keyboard.press("Enter")
     expect(page.locator("#fb-done > #fb-cache")).to_be_visible()
     expect(receipt).to_have_text("Sent")
-    expect(status).to_have_text("")
+    expect(status).to_have_count(0)
 
     [moved] = [
         event
@@ -1780,7 +1785,7 @@ def test_a_card_moved_on_a_board_in_a_reply_reports_delivery_on_that_reply(
         delivery_model.record_pickup(transaction, [moved])
     told(page)
     expect(receipt).to_have_text("Picked up")
-    expect(status).to_have_text("")
+    expect(status).to_have_count(0)
 
     events_model.append_event(
         serve.page_dir,
@@ -1938,7 +1943,7 @@ def test_resolving_an_early_thread_keeps_the_rest_in_place(browser, serve):
     expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (2)")
     # The survivor stays the same node.
     expect(page.locator(f'.lf-thread[data-id="{c2}"] textarea')).to_have_attribute(
-        "placeholder", "Reply · c"
+        "placeholder", "Reply c"
     )
     assert page.evaluate(
         """(id) => window.__second === document.querySelector(`.lf-thread[data-id="${id}"]`)""",
@@ -2597,6 +2602,87 @@ def test_recent_order_lists_threads_by_their_latest_message(browser, serve):
     )
 
 
+def test_back_returns_from_a_thread_the_walk_travelled_to(browser, serve):
+    """A walk to threads somewhere else leaves one history entry however far it goes,
+    so Back returns to the place the user was reading before it and Forward to where
+    it ended. Reading somewhere else ends the walk: the next trip records that place."""
+    filler = "".join(f"<p>Filler paragraph {n}.</p>" for n in range(60))
+    url = serve(
+        leaf_page(
+            "Back from a thread",
+            "<h1>Back from a thread</h1>"
+            "<section id=near><p>The first question sits at the top.</p></section>"
+            f"<section id=above>{filler}</section>"
+            "<section id=also><p>A second question sits halfway down.</p></section>"
+            f"<section id=below>{filler}</section>",
+        )
+    )
+    for section in ("near", "also"):
+        events_model.append_event(
+            serve.page_dir,
+            {
+                "kind": "comment",
+                "author": "user",
+                "revision": 1,
+                "anchor": {"section": section},
+                "text": f"A question about {section}.",
+            },
+        )
+    page = open_page(browser, url)
+    page.evaluate("document.scrollingElement.scrollTo({top: 1e6, behavior: 'instant'})")
+    reading = page.evaluate("document.scrollingElement.scrollTop")
+    assert reading > 2000
+    entries = page.evaluate("history.length")
+
+    page.keyboard.press("t")
+    page.wait_for_function("() => document.activeElement?.closest('[data-thread]')")
+    scroll_settled(page)
+    landed = page.evaluate("document.scrollingElement.scrollTop")
+    assert landed < reading - 1000
+    assert page.evaluate("history.length") == entries + 1
+
+    first = page.evaluate(
+        "document.activeElement.closest('[data-thread]').dataset.thread"
+    )
+    page.keyboard.press("t")
+    page.wait_for_function(
+        "first => document.activeElement?.closest('[data-thread]')?.dataset.thread"
+        " !== first",
+        arg=first,
+    )
+    scroll_settled(page)
+    walked = page.evaluate("document.scrollingElement.scrollTop")
+    assert walked > landed + 1000
+    assert page.evaluate("history.length") == entries + 1
+
+    page.go_back()
+    page.wait_for_function(
+        "top => Math.abs(document.scrollingElement.scrollTop - top) <= 2", arg=reading
+    )
+    page.go_forward()
+    page.wait_for_function(
+        "top => Math.abs(document.scrollingElement.scrollTop - top) <= 2",
+        arg=walked,
+    )
+
+    page.evaluate("document.scrollingElement.scrollTo({top: 1e6, behavior: 'instant'})")
+    elsewhere = page.evaluate("document.scrollingElement.scrollTop")
+    assert elsewhere > walked + 1000
+    # Either thread is somewhere else from here; which one Shift+t lands on depends
+    # on whether the walk's card survived the traversal, and the claim does not.
+    page.keyboard.press("Shift+t")
+    page.wait_for_function(
+        "top => document.scrollingElement.scrollTop < top - 1000", arg=elsewhere
+    )
+    scroll_settled(page)
+    assert page.evaluate("history.length") == entries + 2
+    page.go_back()
+    page.wait_for_function(
+        "top => Math.abs(document.scrollingElement.scrollTop - top) <= 2",
+        arg=elsewhere,
+    )
+
+
 def test_a_page_with_no_headings_gets_the_order_and_no_landmarks(browser, serve):
     """The order is the page's whether or not the page has an outline; the landmarks are
     the outline's. A page its author wrote no headings into gets the first without the
@@ -3236,7 +3322,7 @@ def test_an_agent_reply_says_when_the_user_owes_an_answer(browser, serve):
     ).to_have_text("On you")
     expect(
         page.locator(f'.lf-thread[data-id="{answered}"] .lf-thread-status')
-    ).to_have_text("")
+    ).to_have_count(0)
 
     page.locator(".lf-thread-filter-toggle").click()
     page.locator(".lf-needs").click()
@@ -3712,7 +3798,7 @@ def test_a_resolved_thread_gives_its_room_back_as_motion(browser, serve):
         "placeholder", "Reply"
     )
     expect(page.locator(f'.lf-thread[data-id="{c2}"] textarea')).to_have_attribute(
-        "placeholder", "Reply · c"
+        "placeholder", "Reply c"
     )
 
     # Half way down, the metadata-row outcome is still on screen rather than having
@@ -4052,6 +4138,7 @@ def test_an_inline_reply_link_finishes_a_resolution_fold(browser, serve):
         for_event=root,
     )
     page = open_page(browser, url, init_script=HOLD_MOTION)
+    resized(page, 1920, 900)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     inline = page.locator(f'#jobs .lf-conversation-thread[data-thread="{root}"]')
@@ -5579,7 +5666,7 @@ def test_go_page_is_inert_while_the_panel_covers_the_page(browser, serve):
     d = serve.page_dir
     panel_comment(d, "The capacity needs another look.", {"section": "how-cap"})
 
-    context = browser.new_context(viewport={"width": 800, "height": 900})
+    context = browser.new_context(viewport={"width": 400, "height": 900})
     page = open_page(browser, url, context=context)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)

@@ -6,6 +6,11 @@
    The hold is `user-place.js`'s, keyed by each card's thread; this module decides only
    which changes take one. A resolution fold is followed frame by frame until it ends,
    and its completion removes its node through `renderThreads`, under the same hold.
+   A new agent turn, or growth of the last one, follows while the reader has not named
+   another card and the previous last message is visible in the panel's landing band.
+   Where the list scrolls, that conversation's tail must still reach the landing edge.
+   Reading earlier turns keeps the place hold, and a reply in another thread does not
+   move this one.
 
    `pageOutline` reads the page's own headings, and `groupFor` names the run of threads
    under each (conversation/placement.js). A run's heading is one node kept across
@@ -60,7 +65,8 @@
 import { scrollBehavior } from "../motion.js";
 import { narrowingView, threadsBox } from "./panel-elements.js";
 import { placeKeeper } from "../user-place.js";
-import { PINNED, declareCoverRoom } from "../geometry.js";
+import { PINNED, declareCoverRoom, landingBand } from "../geometry.js";
+import { retainUserIntent } from "../user-intent.js";
 import { conversational, threadKey } from "./model.js";
 import { ago } from "../presence.js";
 import { readApplication, whenWidgetsPresented } from "../semantic-state.js";
@@ -144,6 +150,56 @@ const listPlace = (panelIsOpen) =>
 const takeScrollHold = (panelIsOpen) => listPlace(panelIsOpen).take();
 const finishScrollHold = (hold, panelIsOpen) =>
   listPlace(panelIsOpen).finish(hold, hasFolding);
+
+// The list's place hold reports what the reader named. Follow while they have not
+// named another conversation and this conversation's tail meets the landing edge.
+const FOLLOW_ROOM = 80;
+function incomingAtLatest(reading, panelIsOpen, namedCard) {
+  if (!panelIsOpen()) return null;
+  const card = threadsBox.querySelector(":scope > .lf-thread[open]:not([hidden])");
+  if (namedCard && namedCard !== card) return null;
+  const prior = threadsBox.committedReading.rows.find(
+    (row) => row.kind === "thread" && row.descriptor.id === card?.dataset.id,
+  )?.descriptor;
+  const next = reading.rows.find(
+    (row) => row.kind === "thread" && row.descriptor.id === card?.dataset.id,
+  )?.descriptor;
+  if (!prior || !next) return null;
+  const known = new Set(prior.messages.map((message) => message.key));
+  const incoming = next.messages.filter(
+    (message) => message.author === "agent" && !known.has(message.key),
+  );
+  const latest = prior.messages.at(-1);
+  const nextLatest = next.messages.at(-1);
+  const grown =
+    latest?.key === nextLatest?.key &&
+    nextLatest?.author === "agent" &&
+    latest.body.text !== nextLatest.body.text;
+  if (!incoming.length && !grown) return null;
+  const node =
+    latest &&
+    card.querySelector(
+      latest.attempt
+        ? `.lf-msg[data-attempt="${CSS.escape(latest.attempt)}"]`
+        : `.lf-msg[data-mid="${CSS.escape(latest.id)}"]`,
+    );
+  const band = landingBand(threadsBox);
+  if (!node || !band) return null;
+  const tailStart = node.getBoundingClientRect().bottom;
+  const tailEnd = card.getBoundingClientRect().bottom;
+  const scrolls = threadsBox.scrollHeight > threadsBox.clientHeight;
+  if (
+    tailStart < band.top ||
+    tailStart > band.bottom + FOLLOW_ROOM ||
+    (scrolls && tailEnd < band.bottom - FOLLOW_ROOM)
+  )
+    return null;
+  return {
+    id: incoming.at(-1)?.id ?? nextLatest.id,
+    top: threadsBox.scrollTop,
+    current: retainUserIntent({ available: panelIsOpen }),
+  };
+}
 
 // One immutable presentation reading contains the rows, count, and narrowing paint.
 // The list checkpoints it only when the whole conversation batch commits; retention
@@ -340,6 +396,7 @@ export async function renderThreads(collection, commands) {
   let reading = rowModel(all, commands);
   configureList(commands);
   const hold = takeScrollHold(commands.panelIsOpen);
+  const incoming = incomingAtLatest(reading, commands.panelIsOpen, hold?.named);
   let held = true;
   let recovered = null;
   try {
@@ -371,6 +428,13 @@ export async function renderThreads(collection, commands) {
     finishScrollHold(hold, commands.panelIsOpen);
     held = false;
     await prepareFrozenWidgets(current);
+    const newest =
+      current() && incoming?.current() && threadsBox.scrollTop >= incoming.top - 2
+        ? threadsBox.querySelector(`.lf-msg[data-mid="${CSS.escape(incoming.id)}"]`)
+        : null;
+    const fold = newest && landingBand(threadsBox)?.bottom;
+    if (fold && newest.getBoundingClientRect().bottom > fold)
+      newest.scrollIntoView({ behavior: scrollBehavior(), block: "end" });
   } catch (error) {
     if (!current()) return;
     await retainCommitted(current, reading, error);

@@ -2,8 +2,8 @@
 
 ## Exported files
 
-When `$ARGUMENTS` asks for `--export`, initialize, query the page registry,
-author, and stamp as usual, then run:
+When `$ARGUMENTS` asks for `--export`, build the page as a finished record (the
+main skill's "Operate", step 3), since only a stamped version exports, then run:
 
 ```bash
 leaf version export <page> -o <file>
@@ -38,8 +38,16 @@ so sharing one page URL grants access to every Leaf page on that machine.
 Leaf serves only on networks the machine already joins and creates no public
 tunnel. Binding beyond loopback exposes the port to that network.
 
-`<page>/service.json` is what a restart reproduces an open tab's URL from. Delete
-it only when intentionally deriving a new address and lifetime.
+A page's URL is its host and port, which the first serve records in
+`<page>/service.json`, and the machine's key, which the state home keeps. None of
+them belongs to the server process, so every later serve of the page answers at the
+URL the user already has: a stop and start, a re-vendor, a revival by `leaf wait`,
+or a `server start` after a reboot. `--host` is the one thing that moves a URL: it
+replaces the name and keeps the port. Deleting `service.json` makes the next serve
+derive the address and lifetime again from the session running it, which gives the
+same URL only when that session arrived the same way and the port derived from the
+page's path is free. If another process holds the recorded port, `server start`
+refuses rather than moving.
 
 ## Unreachable URLs and `--host`
 
@@ -77,7 +85,7 @@ leaf server start <page>
 Stopping disables desired service and waits for the old process to retire.
 Initialization preserves the recorded address, lifetime, and page status, and
 writes a new layer epoch so an open tab reloads onto the new layer rather than
-posting into it; restarting restores the same URL.
+posting into it.
 
 ## Page lifetime
 
@@ -100,18 +108,16 @@ in agent-task delivery.
 
 ## Resuming a standing or foreign page
 
-The host selects exactly one successor session; neither `page state` nor a bare
-read grants exclusive ownership. The selected successor first runs:
+Resume a page from one session only. A named `leaf wait <page>` moves the claim to
+whichever session runs it, and a watcher another session still runs stops watching
+that page. First read the page:
 
 ```bash
 leaf page state <page>
 ```
 
-Read `content` for the current document and its construction origins, then the
-active revision, open Asks, current conversation state, and `measurement_lag` for
-figures whose sources have run again. Before editing, follow
-`authoring-revisions.md`'s "Read before editing" section. If the state reports a live
-watcher, the host ends that watcher before continuing. The
-successor then runs `leaf wait <page>`, whose named wait claims the page for that
-session. Starting a server when the standing one is already live prints its URL
-without changing its lifetime.
+Read `content` for the current document and its construction origins, then the active
+revision, open Asks, current conversation state, and `measurement_lag` for figures
+whose sources have run again. Before editing, follow `authoring-revisions.md`'s "Read
+before editing" section. Then run `leaf wait <page>` to claim it. Starting a server
+when the standing one is already live prints its URL without changing its lifetime.

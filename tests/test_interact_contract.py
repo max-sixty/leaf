@@ -2001,19 +2001,6 @@ def test_a_data_source_attribute_can_carry_ordinary_schema_metadata(page_dir):
     assert registry_validation.validate_registry(registry, "test registry") is registry
 
 
-def test_a_data_snapshot_selector_is_a_positive_decimal_authored_binding(page_dir):
-    declare_data_input(page_dir, "project-feed", {"type": "array"}, snapshot=True)
-    registry = json.loads((page_dir / "registry.json").read_text())
-
-    assert registry_validation.validate_registry(registry, "test registry") is registry
-
-    registry["lf-test-data"]["properties"]["snapshot"]["pattern"] = "^[0-9]+$"
-    with pytest.raises(
-        registry_contract.RegistryError, match="must be a positive decimal string"
-    ):
-        registry_validation.validate_registry(registry, "test registry")
-
-
 @pytest.mark.parametrize(
     ("change", "message"),
     [
@@ -2231,160 +2218,6 @@ def test_page_owned_data_contract_description_can_improve(page_dir):
     )
 
     assert activation.error is None and activation.created
-
-
-def test_revendoring_cannot_forget_an_immutable_data_selection(page_dir, tmp_path):
-    declare_data_input(
-        page_dir,
-        "leaf-skill",
-        {"type": "string"},
-        contract="text-document",
-        snapshot=True,
-    )
-    text_file = tmp_path / "SKILL.md"
-    text_file.write_text("captured")
-    data_model.cmd_data_capture(page_dir, "leaf-skill", text_file)
-    source = page_dir / "index.html"
-    source.write_text(
-        source.read_text().replace(
-            'source="leaf-skill"', 'source="leaf-skill" snapshot="1"'
-        )
-    )
-    activated = revisioning_model.activate_source(
-        page_dir, events_model.read_events(page_dir)
-    )
-    assert activated.error is None
-    incoming = json.loads((page_dir / "registry.json").read_text())
-    del incoming["lf-test-data"]["x-data"]["data"]["snapshot"]
-
-    with pytest.raises(SystemExit, match="changes immutable snapshot selection"):
-        vendoring_model._refuse_data_contract_drift(
-            page_dir, events_model.read_events(page_dir), incoming
-        )
-
-    outgoing = json.loads((page_dir / "registry.json").read_text())
-    del outgoing["lf-test-data"]["x-data"]["data"]["snapshot"]
-    (page_dir / "registry.json").write_text(json.dumps(outgoing))
-    incoming = json.loads(json.dumps(outgoing))
-    incoming["lf-test-data"]["x-data"]["data"]["snapshot"] = "snapshot"
-    with pytest.raises(SystemExit, match="changes immutable snapshot selection"):
-        vendoring_model._refuse_data_contract_drift(
-            page_dir, events_model.read_events(page_dir), incoming
-        )
-
-
-def test_revendoring_cannot_swap_immutable_selections_between_inputs(
-    page_dir, tmp_path
-):
-    declare_data_input(
-        page_dir,
-        "leaf-skill",
-        {"type": "string"},
-        contract="text-document",
-        snapshot=True,
-    )
-    text_file = tmp_path / "SKILL.md"
-    text_file.write_text("first")
-    data_model.cmd_data_capture(page_dir, "leaf-skill", text_file)
-    text_file.write_text("second")
-    data_model.cmd_data_capture(page_dir, "leaf-skill", text_file)
-
-    registry_path = page_dir / "registry.json"
-    outgoing = json.loads(registry_path.read_text())
-    widget = outgoing["lf-test-data"]
-    del widget["properties"]["snapshot"]
-    widget["properties"].update(
-        {
-            "left-snapshot": {
-                "type": "string",
-                "pattern": "^[1-9][0-9]*$",
-            },
-            "right-snapshot": {
-                "type": "string",
-                "pattern": "^[1-9][0-9]*$",
-            },
-        }
-    )
-    widget["x-data"] = {
-        "left": {
-            "contract": "text-document",
-            "source": "source",
-            "snapshot": "left-snapshot",
-        },
-        "right": {
-            "contract": "text-document",
-            "source": "source",
-            "snapshot": "right-snapshot",
-        },
-    }
-    registry_path.write_text(json.dumps(outgoing))
-    source = page_dir / "index.html"
-    source.write_text(
-        source.read_text().replace(
-            'source="leaf-skill"',
-            'source="leaf-skill" left-snapshot="1" right-snapshot="2"',
-        )
-    )
-    activated = revisioning_model.activate_source(
-        page_dir, events_model.read_events(page_dir)
-    )
-    assert activated.error is None
-
-    incoming = json.loads(json.dumps(outgoing))
-    incoming["lf-test-data"]["x-data"]["left"]["snapshot"] = "right-snapshot"
-    incoming["lf-test-data"]["x-data"]["right"]["snapshot"] = "left-snapshot"
-
-    with pytest.raises(SystemExit, match="changes immutable snapshot selection"):
-        vendoring_model._refuse_data_contract_drift(
-            page_dir, events_model.read_events(page_dir), incoming
-        )
-
-
-def test_revendoring_distinguishes_idless_snapshot_seats_on_one_line(
-    page_dir, tmp_path
-):
-    declare_data_input(
-        page_dir,
-        "leaf-skill",
-        {"type": "string"},
-        contract="text-document",
-        snapshot=True,
-    )
-    text_file = tmp_path / "SKILL.md"
-    text_file.write_text("first")
-    data_model.cmd_data_capture(page_dir, "leaf-skill", text_file)
-    text_file.write_text("second")
-    data_model.cmd_data_capture(page_dir, "leaf-skill", text_file)
-
-    registry_path = page_dir / "registry.json"
-    outgoing = json.loads(registry_path.read_text())
-    widget = outgoing["lf-test-data"]
-    widget["required"].remove("id")
-    widget["properties"]["alternate"] = {
-        "type": "string",
-        "pattern": "^[1-9][0-9]*$",
-    }
-    registry_path.write_text(json.dumps(outgoing))
-    source = page_dir / "index.html"
-    source.write_text(
-        source.read_text().replace(
-            '<lf-test-data id="test-data" source="leaf-skill"></lf-test-data>',
-            '<lf-test-data source="leaf-skill" snapshot="1" '
-            'alternate="2"></lf-test-data><lf-test-data source="leaf-skill" '
-            'snapshot="2" alternate="2"></lf-test-data>',
-        )
-    )
-    activated = revisioning_model.activate_source(
-        page_dir, events_model.read_events(page_dir)
-    )
-    assert activated.error is None
-
-    incoming = json.loads(json.dumps(outgoing))
-    incoming["lf-test-data"]["x-data"]["data"]["snapshot"] = "alternate"
-    with pytest.raises(SystemExit, match="changes immutable snapshot selection"):
-        vendoring_model._refuse_data_contract_drift(
-            page_dir, events_model.read_events(page_dir), incoming
-        )
 
 
 @pytest.mark.parametrize(
@@ -5082,7 +4915,6 @@ def test_specimen_data_bindings_use_copied_data_but_not_parent_history(page_dir)
         {"type": "number"},
         contract="child",
         tag="lf-child-data",
-        snapshot=True,
         activate=False,
     )
     child = '<lf-child-data id="test-data" source="shared"></lf-child-data>'
@@ -5093,24 +4925,13 @@ def test_specimen_data_bindings_use_copied_data_but_not_parent_history(page_dir)
     result = check(page_dir)
     assert result.exit_code == 0, result.output
 
-    # A child may bind the same name differently, but cannot reinterpret a copied
-    # stored value or select a snapshot that the copied store does not contain.
-    (page_dir / "index.html").write_text(
-        markup.replace(
-            'source="shared"></lf-child-data>',
-            'source="shared" snapshot="1"></lf-child-data>',
-        )
-    )
-    result = check(page_dir)
-    assert result.exit_code != 0
-    assert "specimen 'practice'" in result.output
-    assert "selects snapshot '1'" in result.output
-    (page_dir / "index.html").write_text(markup)
+    # A child may bind the same name differently, but cannot reinterpret the stored
+    # value it copies from the parent.
     data_model.cmd_data_set(page_dir, "shared", "parent value")
     result = check(page_dir)
     assert result.exit_code != 0
     assert "specimen 'practice'" in result.output
-    assert "standing snapshot uses 'parent'" in result.output
+    assert "it was recorded with 'parent'" in result.output
 
 
 @pytest.mark.parametrize("seeded", [False, True])

@@ -142,7 +142,7 @@ export function createTrays({
     min: TRAY_SLOT_MIN,
     prop: TRAY_SLOT_PROP,
     key: "lf-tray-slot-width",
-    covering: TRAY_COVERING,
+    over: trayCovers,
     when: () => leavesOffered() || asksOffered(),
     land: landEdge,
   });

@@ -1,6 +1,5 @@
 """The complete state response for one served page."""
 
-import copy
 import time
 from datetime import timedelta
 from pathlib import Path
@@ -86,7 +85,18 @@ def full_state(
         present = presence_override
         live_stream = live_stream_override
     now = now_override or now_iso()
-    stored_data = data_override if data_override is not None else read_data(page_dir)
+    if registry_override is not None:
+        registry = registry_override
+    elif active is not None:
+        registry = read_artifact(page_dir, active["revision"]).registry
+    else:
+        try:
+            registry = load_registry(page_dir)
+        except RegistryError:
+            registry = None
+    stored_data = (
+        data_override if data_override is not None else read_data(page_dir, registry)
+    )
     browser = project_browser_state(
         page_dir,
         events,
@@ -108,15 +118,6 @@ def full_state(
         browser,
         live_stream,
     )
-    if registry_override is not None:
-        registry = registry_override
-    elif active is not None:
-        registry = read_artifact(page_dir, active["revision"]).registry
-    else:
-        try:
-            registry = load_registry(page_dir)
-        except RegistryError:
-            registry = None
     if active is not None:
         selected_revision = view_revision or active["revision"]
         selected_registry = (
@@ -149,9 +150,9 @@ def full_state(
         "working_grace_ms": WORKING_GRACE // timedelta(milliseconds=1),
         # The moment this answer was taken, for a tab holding two. Answers cross — two
         # sockets, one held by a proxy or a test while a later one lands, a POST's
-        # answer beside a read — and the log's sequence and the data's revision order
-        # everything in a state but the reading, which is a hash with no order of its
-        # own. Stamped inside the page transaction every served answer is built under,
+        # answer beside a read — and the log's sequence orders everything in a state
+        # but the reading and its data, which are hashes with no order of their own.
+        # Stamped inside the page transaction every served answer is built under,
         # so the order of these is the order the answers were taken in, whichever
         # order they land. The wall clock rather than a counter: a counter starts over
         # with the server, and a tab open across that restart would refuse every
@@ -164,7 +165,7 @@ def full_state(
             else version_descriptors(page_dir, events)
         ),
         "source_error": source_error,
-        "data": (browser_data_from(copy.deepcopy(stored_data), selected_registry)),
+        "data": browser_data_from(stored_data, selected_registry),
         **present,
         "activity": activity,
         "workflows": workflows,

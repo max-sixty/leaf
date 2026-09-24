@@ -164,6 +164,12 @@
       lf-merge-steps li[data-now] p {
         display: block;
       }
+      html:not([data-lf-live]) lf-merge-steps p {
+        display: block;
+      }
+      html:not([data-lf-live]) lf-merge-steps li {
+        cursor: auto;
+      }
       lf-merge-steps .this-run {
         color: var(--ink-2);
         font-style: italic;

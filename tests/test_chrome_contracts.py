@@ -765,10 +765,9 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_with_its_metadata(
     """Submit belongs to the field while Resolve stands with the root metadata.
 
     Growing the field carries Submit with it and leaves Resolve fixed. Draft words
-    share the sent message's measure; Submit sits below them. Resolve aligns with
-    the root author and time instead of the quoted target. The same geometry holds
-    in the panel's narrowest useful window and with room beside the page, in both
-    palettes."""
+    begin at the sent message's edge and leave room for Submit in the same row.
+    Resolve aligns with the root author and time instead of the quoted target. The
+    same layout holds at narrow and wide panel widths in both palettes."""
     context = browser.new_context(
         viewport={"width": width, "height": 720}, color_scheme=scheme
     )
@@ -853,8 +852,10 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_with_its_metadata(
     )
     assert short["textarea"]["right"] == pytest.approx(short["field"]["right"], abs=1)
     assert short["send"]["right"] < short["textarea"]["right"]
-    assert short["send"]["y"] >= short["textarea"]["bottom"]
-    assert short["padding"] == pytest.approx(7, abs=1)
+    assert short["textarea"]["y"] < short["send"]["y"]
+    assert short["send"]["bottom"] < short["textarea"]["bottom"]
+    assert short["textEnd"] <= short["send"]["x"]
+    assert short["field"]["height"] < 50
     assert short["resolve"]["y"] == pytest.approx(short["metadata"]["y"], abs=1)
     assert short["metadataActions"]["right"] == pytest.approx(
         short["message"]["right"], abs=1
@@ -879,11 +880,10 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_with_its_metadata(
     grown = geometry()
     assert grown["inputFont"] == grown["messageFont"]
     assert grown["textStart"] == pytest.approx(grown["message"]["x"], abs=1)
-    assert grown["textEnd"] == pytest.approx(grown["message"]["right"], abs=1)
+    assert grown["textEnd"] <= grown["send"]["x"]
     assert grown["padding"] == pytest.approx(short["padding"], abs=1)
-    assert grown["send"]["y"] >= grown["textarea"]["bottom"]
+    assert grown["send"]["bottom"] < grown["textarea"]["bottom"]
     assert grown["send"]["x"] == pytest.approx(short["send"]["x"], abs=1)
-    assert grown["send"]["bottom"] > grown["textarea"]["bottom"]
     assert grown["send"]["y"] > short["send"]["y"]
     assert grown["metadataActions"] == short["metadataActions"]
     assert grown["resolve"] == short["resolve"]
@@ -894,11 +894,9 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_with_its_metadata(
     for position in (0, 80, 99999):
         textarea.evaluate("(el, top) => el.scrollTop = top", position)
         scrolling = geometry()
-        assert scrolling["send"]["y"] >= scrolling["textarea"]["bottom"]
+        assert scrolling["send"]["bottom"] < scrolling["textarea"]["bottom"]
         assert scrolling["textStart"] == pytest.approx(scrolling["message"]["x"], abs=1)
-        assert scrolling["textEnd"] == pytest.approx(
-            scrolling["message"]["right"], abs=1
-        )
+        assert scrolling["textEnd"] <= scrolling["send"]["x"]
 
 
 @pytest.mark.parametrize("thread_count", [1, 2])

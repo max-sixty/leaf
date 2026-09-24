@@ -5,7 +5,13 @@ import re
 from jsonschema import Draft202012Validator
 from jsonschema.exceptions import SchemaError
 
-from leaf.schema import ATTRIBUTE_KEYS, DATA_SOURCE_NAME, EXTENSION_SCHEMA, WIDGET_NAME
+from leaf.schema import (
+    ATTRIBUTE_KEYS,
+    DATA_SOURCE_NAME,
+    EXTENSION_SCHEMA,
+    WIDGET_NAME,
+    WIDGET_NAME_RULE,
+)
 
 from .contract import (
     RegistryError,
@@ -34,9 +40,10 @@ def element_declarations(registry: dict, path) -> dict:
     ]
     if invalid_names:
         raise RegistryError(
-            f"{path}: invalid element declaration names: {invalid_names}"
+            f"{path}: invalid element declaration names {invalid_names}: "
+            f"{WIDGET_NAME_RULE}"
         )
-    return {tag: entry for tag, entry in registry.items() if tag.startswith("lf-")}
+    return {tag: entry for tag, entry in registry.items() if not tag.startswith("$")}
 
 
 def _recorded_attributes(entry: dict) -> set[str]:
@@ -448,7 +455,7 @@ def _validate_widget_structure(
     for attribute, reference in entry.get("x-refers", {}).items():
         if error := reference_relation_error(reference, registry, declarations):
             raise RegistryError(f"{path}: <{tag}> x-refers `{attribute}` {error}")
-    if part_attribute := visual_part_attribute(entry):
+    if isinstance(entry.get("x-visual"), dict):
         if not (
             "id" in entry.get("required", [])
             and isinstance(properties.get("id"), dict)
@@ -458,8 +465,9 @@ def _validate_widget_structure(
                 f"{path}: <{tag}> has addressable visual parts but does not "
                 "require a string `id` for their anchor"
             )
+        part_attribute = visual_part_attribute(entry)
         part_schema = properties.get(part_attribute)
-        if not (
+        if part_attribute and not (
             isinstance(part_schema, dict)
             and part_schema.get("type") == "string"
             and part_schema.get("minLength", 0) >= 1

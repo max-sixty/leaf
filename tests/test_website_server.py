@@ -2466,10 +2466,9 @@ def test_the_starting_connection_projects_codex_activity(page_dir, monkeypatch, 
         ("hosted-thread", "initial-turn", {"kind": "replying"}),
         ("hosted-thread", "initial-turn", {"kind": "working"}),
     ]
-    # The turn's own reading and no other. A completed turn's reading is released
-    # both as its completion is folded and again when the follower accounts for the
-    # turn, which is one reading gone rather than two calls worth pinning.
-    assert set(clears) == {("hosted-thread", "initial-turn")}
+    # The turn's own reading and no other, taken off once, when the follower
+    # accounts for the ended turn.
+    assert clears == [("hosted-thread", "initial-turn")]
     assert streamed == [
         (
             "hosted-thread",

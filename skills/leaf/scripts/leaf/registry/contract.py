@@ -3,6 +3,7 @@
 import functools
 import json
 import re
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
@@ -121,11 +122,47 @@ def visual_part_attribute(entry: dict) -> str | None:
     return visual.get("parts") if isinstance(visual, dict) else None
 
 
-def visual_parts(record: dict, registry: dict) -> tuple[str, ...]:
-    """Stable visual-part ids declared by one authored Leaf element."""
-    attribute = visual_part_attribute(registry.get(record.get("tag"), {}))
-    value = record.get("attrs", {}).get(attribute) if attribute else None
-    return tuple(value.split()) if value else ()
+@dataclass(frozen=True)
+class VisualParts:
+    """The part ids one authored element admits as `anchor.visual`.
+
+    A widget declares them one of two ways: `tokens` authored in its `parts` attribute,
+    or `prefixes` that begin every id its module generates, such as `commit:`, for a
+    picture drawn from data whose parts the author cannot list. A prefix rather than a
+    regex keeps one meaning in Python and the browser. Neither says a part is on screen;
+    the browser resolves that, and an admitted id nothing renders detaches."""
+
+    tokens: tuple[str, ...] = ()
+    prefixes: tuple[str, ...] = ()
+
+    def __contains__(self, part: str) -> bool:
+        # A part id is one token, as the browser's registration requires; an authored
+        # token already is one, and a prefixed id must be too.
+        return part in self.tokens or (
+            part.split() == [part]
+            and any(
+                part.startswith(prefix) and part != prefix for prefix in self.prefixes
+            )
+        )
+
+    def __bool__(self) -> bool:
+        return bool(self.tokens or self.prefixes)
+
+    def __str__(self) -> str:
+        if self.prefixes:
+            return f"ids starting with {' or '.join(map(repr, self.prefixes))}"
+        return f"known: {list(self.tokens)}"
+
+
+def visual_parts(record: dict, registry: dict) -> VisualParts:
+    """The visual-part ids one authored Leaf element admits."""
+    visual = registry.get(record.get("tag"), {}).get("x-visual")
+    if not isinstance(visual, dict):
+        return VisualParts()
+    if "prefixes" in visual:
+        return VisualParts(prefixes=tuple(visual["prefixes"]))
+    value = record.get("attrs", {}).get(visual["parts"])
+    return VisualParts(tokens=tuple(value.split()) if value else ())
 
 
 def registry_path(registry: dict, path: str):

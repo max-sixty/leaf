@@ -19,7 +19,7 @@
       </nav>
 
       <header id="top">
-        <p class="eyebrow">package reference</p>
+        <p class="eyebrow">how it works</p>
         <h1>The event log</h1>
         <p class="lede" id="lede">
           Every move a user makes on a Leaf page, and every message, report, and version
@@ -75,18 +75,18 @@ flowchart LR
             <tr>
               <td>Log</td>
               <td>
-                One record per line, append-only, with kinds for conversation
-                (<code>comment</code>, <code>reply</code>, <code>resolve</code>, …),
-                state (<code>action</code>, <code>report</code>, <code>undo</code>),
-                versions (<code>note</code>, <code>done</code>), and requests
+                One record per line, append-only: messages and thread moves, actions and
+                reports, undos, versions and sign-offs, requests and receipts, and
+                bookkeeping such as reads
               </td>
               <td>Leaf</td>
             </tr>
             <tr>
               <td>Event</td>
               <td>
-                The command the sender wrote, plus the envelope and
-                <code>meaning</code> the door stamps
+                The command the sender wrote, plus the <code>author</code>,
+                <code>id</code>, and time the door adds, and a widget event's
+                <code>meaning</code>
               </td>
               <td>Leaf</td>
             </tr>
@@ -455,32 +455,34 @@ flowchart LR
       <section id="reports">
         <h2>An agent's state moves through the same fold</h2>
         <p id="reports-writer">
-          A verb declaring <code>"writer": "agent"</code> belongs to the agent. A worker
-          posts it with <code>leaf report</code>, which appends a
-          <code>report</code> event on the same coordinate scheme, and the page paints
-          it at once as provisional news. It stands until a stamped version answers it,
-          and the user has no control for it. Every verb has one writer, so no
-          coordinate holds both a user's action and an agent's report. Command Hub's
-          <code>lf-task</code> <code>status</code> is the shipped example.
+          A verb that declares <code>"writer": "agent"</code> is the agent's:
+          <code>leaf report</code> appends a <code>report</code> at a coordinate like an
+          action's, and it stands until a stamped version answers it. The package
+          contract's
+          <a
+            href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/packages.md#user-state"
+            >User state</a
+          >
+          gives the whole rule.
         </p>
       </section>
 
       <section id="follow">
-        <h2>Other programs read the log as a public format</h2>
+        <h2>A program can follow the log as it grows</h2>
         <p id="follow-feed">
-          <code>leaf events PAGE --follow</code> prints every stored record, the stamped
-          <code>meaning</code> included, and then each record the door admits as it
-          lands. <code>seq</code> is the resume cursor: a reader that restarts with
-          <code>--after</code> the last <code>seq</code> it printed misses nothing and
-          repeats nothing. A reader drops a field or kind it does not recognize, so a
-          newer writer never breaks an older reader.
+          <code>leaf events PAGE --follow</code> prints every stored record and then
+          each one the door admits as it lands, and a reader that restarts with
+          <code>--after</code> the last <code>seq</code> it printed picks up where it
+          stopped.
         </p>
         <p id="follow-data">
-          The log holds decisions and conversation. Typed external data that an agent or
-          process supplies lives beside it, one file per source at
-          <code>data/&lt;source&gt;.json</code>, replaced in place with no fold, no
-          undo, and no sequence to resume from, so a reader that needs it reads
-          <code>leaf page state</code> or those files instead.
+          Typed external data under <code>data/</code> is replaced in place rather than
+          logged, so the feed does not carry it. The events contract's
+          <a
+            href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/scripts/leaf/events.md#following-the-log"
+            >Following the log</a
+          >
+          gives the feed's whole contract.
         </p>
       </section>
 

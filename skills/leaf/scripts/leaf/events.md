@@ -122,25 +122,6 @@ it standing. Coordinates are independent, so a position record places its unit b
 rank key rather than an index: the key means the same place whichever other units'
 moves stand, and undoing or superseding one unit's move never moves another.
 
-## Following the log
-
-Stored event records are a public format that programs other than Leaf read. A
-reader drops a field or kind it does not recognise rather than refusing the record,
-so a newer writer's additions never break an older reader.
-
-`leaf events PAGE --follow [--after SEQ]` is the change feed for those programs. It
-prints each stored record after `SEQ` (default 0) as one JSON line, server-stamped
-`meaning` included, then keeps printing each event the append door admits, flushed
-as it lands. `seq` is the resume cursor: a reader that restarts with `--after` the
-last seq it printed misses nothing and repeats nothing. SIGINT, SIGTERM, and a
-closed stdout end it with exit 0. The feed wakes on the log's file stamp at the
-browser news stream's `LOOK_S` cadence, so an event any process appends reaches it
-the same way.
-
-The feed carries the log only. External data under `data/` is replaced in place
-with no sequence to resume from, so a reader that needs it reads `leaf page state`
-or the value files directly.
-
 Dependency identities come from the fold unit and the attribute-set and position
 record fields. Literal detail strings do not become dependencies by matching HTML ids. The log does not freeze ancestry:
 retraction tests use the current document's containment of those identities.
@@ -148,6 +129,24 @@ A child a `creates` verb adds is that action's fold unit, so it stands on the ac
 own coordinate until the action is undone or retracted. Admission stamps the child tag
 in `meaning.creates`, and the action rests on its unit whether or not a document holds
 it yet.
+
+## Following the log
+
+`leaf events PAGE --follow [--after SEQ]` is the log's change feed. It prints each
+stored record after `SEQ` (default 0) as one JSON line, server-stamped `meaning`
+included, then keeps printing each event the append door admits, flushed as it
+lands. A reader drops a field or kind it does not recognise rather than refusing the
+record. `seq` is the resume cursor: a reader that restarts with `--after` the last
+seq it printed misses nothing and repeats nothing. SIGINT, SIGTERM, and a closed
+stdout end it with exit 0. A log that is removed, replaced by another file, or
+shorter than what the feed has read ends it with exit 1 and `<log> is gone` on
+stderr, since its positions no longer name that log's lines. The feed wakes on the
+log's file stamp at the browser news stream's `LOOK_S` cadence, so an event any
+process appends reaches it the same way.
+
+The feed carries the log only. External data under `data/` is replaced in place
+with no sequence to resume from, so a reader that needs it reads `leaf page state`
+or the value files directly.
 
 ## Threads
 

@@ -71,8 +71,8 @@ current reading and paginate with `--after`; use `leaf events <page>
 --conversation <conversation-id>` only for raw-log diagnostics. `leaf transcript
 <page>` is the human-facing Markdown export.
 
-Long-thread context may include `summary_hint`; a pointer-only host can surface the
-same suggestion as XML. It names a contiguous message range to consider summarizing.
+Long-thread context may include `summary_hint`, naming a contiguous message range to
+summarize, and a reply in that thread carries a `handling` clause asking for it.
 Treat it as navigation maintenance alongside the user's request, not a request to
 resolve the thread. Follow
 [conversation threads](conversation-threads.md#summarize-a-long-discussion): read

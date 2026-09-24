@@ -1,5 +1,4 @@
-# The summary hint from real conversation events, their wait delivery, and
-# the Codex pointer generated from that same immutable delivery.
+# The summary hint from real conversation events and their wait delivery.
 
 delivery:
   format: leaf-delivery-v2
@@ -62,12 +61,6 @@ delivery:
           summary_hint:
             from: event-2
             through: event-11
-            operation: >-
-              conversation summarize
-            instruction: >-
-              Consider summarizing this older exchange. Read the original messages
-              in the suggested range first; keep the newer exchange outside the
-              summary.
           actions: []
       handling:
         h1: >-
@@ -84,19 +77,28 @@ delivery:
           "<a few words>"`, so the thread panel lists its subject rather than its
           opening words.
         h4: >-
+          This event's thread has grown long, and its entry in the batch's `conversations`
+          carries a `summary_hint`. Once you have replied, read the messages from
+          its `from` through its `through` and summarize them with `leaf conversation
+          summarize <page> <conversation-id> --from <from> --through <through>`,
+          as the Leaf skill's `references/conversation-threads.md`, "Summarize a
+          long discussion", says.
+        h5: >-
           Answer with `leaf reply <page> --for <event-id>`. In a Codex task Leaf
-          observes over App Server, your final message is the reply instead, and
-          `leaf reply` refuses the event. Where you answer with `leaf reply`, reply
-          before any other work, including the work this event asks for: give the
-          answer, or say what you are about to do and where the result will appear.
-          Once that work lands, report it with `leaf reply <page> --to <address>
-          --initiates`, where `<address>` is the event's `obligation.response.to`.
-          `leaf reply` checks any saved page edit and makes it live before posting.
-          If a revision removes what the thread is anchored on, move the thread
-          in the reply that reports it with `--section <id>` (narrowed by `--quote`
-          or `--part` if needed), or `--detach` it if its subject has left the page.
-          Add `--awaits` only if your reply's prose asks the user something. Your
-          reply renders as Markdown, so show code or markup in a fenced block.
+          observes over App Server, your turn's first and final messages are the
+          reply instead, and `leaf reply` refuses the event: open with a message
+          to the user before your first tool call, and finish the reply in your
+          final message. Where you answer with `leaf reply`, reply before any other
+          work, including the work this event asks for: give the answer, or say
+          what you are about to do and where the result will appear. Once that work
+          lands, report it with `leaf reply <page> --to <address> --initiates`,
+          where `<address>` is the event's `obligation.response.to`. `leaf reply`
+          checks any saved page edit and makes it live before posting. If a revision
+          removes what the thread is anchored on, move the thread in the reply that
+          reports it with `--section <id>` (narrowed by `--quote` or `--part` if
+          needed), or `--detach` it if its subject has left the page. Add `--awaits`
+          only if your reply's prose asks the user something. Your reply renders
+          as Markdown, so show code or markup in a fenced block.
       events:
         - kind: reply
           author: user
@@ -110,15 +112,10 @@ delivery:
             kind: conversation
             id: event-2
           conversations: [event-2]
-          handling: [h1, h2, h3, h4]
+          handling: [h1, h2, h3, h4, h5]
           obligation:
             as_of_seq: 14
             response:
               kind: reply
               to: event-14
               for: event-14
-
-Codex task input: |-
-  ```xml
-  <leaf-delivery id="&lt;delivery&gt;" operation="delivery read"><summarize page="<page>" conversation="event-2" from="event-2" through="event-11" operation="conversation summarize">Consider summarizing this older exchange. Read the original messages in the suggested range first; keep the newer exchange outside the summary.</summarize></leaf-delivery>
-  ```

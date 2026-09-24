@@ -2258,46 +2258,6 @@ def test_app_server_delivery_id_reads_only_canonical_delivery_inputs():
     )
 
 
-def test_delivery_pointer_guides_a_long_thread_summary_without_the_newest_exchange():
-    payload = {
-        "format": delivery_model.DELIVERY_FORMAT,
-        "id": "delivery-43",
-        "batches": [
-            {
-                "page": "/tmp/page",
-                "conversations": [
-                    {
-                        "id": "thread-1",
-                        "summary_hint": {
-                            "from": "message-1",
-                            "through": "message-8",
-                            "operation": "conversation summarize",
-                            "instruction": (
-                                "This thread has become long. Read the original "
-                                "messages, then summarize this exact range; keep the "
-                                "newer exchange outside the summary."
-                            ),
-                        },
-                    }
-                ],
-            }
-        ],
-    }
-
-    prompt = codex_model.delivery_pointer_prompt("delivery-43", payload)
-    root = ElementTree.fromstring(prompt.splitlines()[1])
-    [guidance] = root.findall("summarize")
-    assert guidance.attrib == {
-        "page": "/tmp/page",
-        "conversation": "thread-1",
-        "from": "message-1",
-        "through": "message-8",
-        "operation": "conversation summarize",
-    }
-    assert "Read the original messages" in guidance.text
-    assert "newer exchange" in guidance.text
-
-
 def test_app_server_events_report_semantic_codex_progress():
     events = codex_model.AppServerEvents("codex-thread")
 
@@ -2322,6 +2282,39 @@ def test_app_server_events_report_semantic_codex_progress():
     ) == {
         "turn": "turn-live",
         "activity": {"kind": "working", "detail": "Run the browser checks"},
+    }
+    # The turn's first agent message opens the reply and streams at once, even as
+    # commentary; the commentary that follows it is working narration and stays private.
+    assert events.read(
+        {
+            "method": "item/completed",
+            "params": {
+                "threadId": "codex-thread",
+                "turnId": "turn-live",
+                "completedAtMs": 900,
+                "item": {
+                    "id": "opening-live",
+                    "type": "agentMessage",
+                    "phase": "commentary",
+                    "text": "Checking the page now.",
+                },
+            },
+        }
+    ) == {
+        "turn": "turn-live",
+        "item": {
+            "id": "opening-live",
+            "type": "agentMessage",
+            "state": "completed",
+            "atMs": 900,
+        },
+        "activity": {"kind": "working"},
+        "message": {
+            "item": "opening-live",
+            "phase": "commentary",
+            "text": "Checking the page now.",
+            "complete": True,
+        },
     }
     assert events.read(
         {
@@ -2440,7 +2433,7 @@ def test_app_server_events_report_semantic_codex_progress():
         "message": {
             "item": "message-live",
             "phase": None,
-            "text": "The page is ready for review.",
+            "text": "Checking the page now.\n\nThe page is ready for review.",
             "complete": False,
         },
     }
@@ -2476,7 +2469,7 @@ def test_app_server_events_report_semantic_codex_progress():
         "message": {
             "item": "message-live",
             "phase": None,
-            "text": "The page is ready for review.",
+            "text": "Checking the page now.\n\nThe page is ready for review.",
             "complete": True,
         },
     }
@@ -2489,6 +2482,53 @@ def test_app_server_events_report_semantic_codex_progress():
         "turn": "turn-live",
         "completed": "completed",
         "text": "",
+    }
+    # A completed turn leaves nothing behind: a next turn adopted without its
+    # `turn/started` gets an opening of its own, not this one's.
+    assert events.opening is None and not events.text
+    # The committed reply is the opening and the final answer; a turn that never
+    # reached a final answer commits nothing on the strength of its opening.
+    opening, narration, final = (
+        {"type": "agentMessage", "phase": phase, "text": text}
+        for phase, text in (
+            ("commentary", "Checking the page now."),
+            ("commentary", "Running the browser checks."),
+            ("final_answer", "The page is ready for review."),
+        )
+    )
+    assert (
+        events.final_text({"items": [opening, narration, final]})
+        == "Checking the page now.\n\nThe page is ready for review."
+    )
+    assert events.final_text({"items": [opening, narration]}) == ""
+    # A reconnect mid-turn restores the opening already on screen.
+    assert events.reply_so_far({"items": [opening, narration]}) == (
+        "Checking the page now."
+    )
+    # Narration after a tool call is never the opening, even with no message before it.
+    tool = {"type": "commandExecution", "command": "pytest"}
+    assert events.final_text({"items": [tool, narration, final]}) == (
+        "The page is ready for review."
+    )
+    events.restore_turn({"id": "turn-late", "items": [tool]})
+    assert events.read(
+        {
+            "method": "item/completed",
+            "params": {
+                "threadId": "codex-thread",
+                "turnId": "turn-late",
+                "completedAtMs": 2_000,
+                "item": {"id": "narration-late", **narration},
+            },
+        }
+    ) == {
+        "turn": "turn-late",
+        "item": {
+            "id": "narration-late",
+            "type": "agentMessage",
+            "state": "completed",
+            "atMs": 2_000,
+        },
     }
 
 
@@ -5161,12 +5201,6 @@ def test_summary_hint_keeps_the_latest_spoken_exchange_outside_reactions(page_di
     assert digest["summary_hint"] == {
         "from": spoken[0]["id"],
         "through": spoken[7]["id"],
-        "operation": "conversation summarize",
-        "instruction": (
-            "Consider summarizing this older exchange. Read the original messages "
-            "in the suggested range first; "
-            "keep the newer exchange outside the summary."
-        ),
     }
     assert digest["summary_hint"]["through"] not in {
         middle_reaction["id"],
@@ -11500,15 +11534,16 @@ def test_agent_sees_a_real_summary_suggestion(page_dir, capsys, snapshot):
     assert session_model.cmd_wait(page_dir) == 0
     envelope = json.loads(capsys.readouterr().out)
     envelope["id"] = "<delivery>"
-    assert envelope["batches"][0]["conversations"][0]["summary_hint"]
-    pointer = codex_model.delivery_pointer_prompt(envelope["id"], envelope)
+    [batch] = envelope["batches"]
+    assert batch["conversations"][0]["summary_hint"]
+    # The event carries the ask as well as the digest, so an agent that reads only
+    # what is new is still told the thread wants summarizing.
+    [event] = batch["events"]
+    assert any("summary_hint" in batch["handling"][h] for h in event["handling"])
     snapshot.check(
         yaml_document(
-            "The summary hint from real conversation events, their wait delivery, and\n"
-            "the Codex pointer generated from that same immutable delivery.",
-            _interaction_prompt_evidence(
-                page_dir, {"delivery": envelope, "Codex task input": pointer}
-            ),
+            "The summary hint from real conversation events and their wait delivery.",
+            _interaction_prompt_evidence(page_dir, {"delivery": envelope}),
         )
     )
 

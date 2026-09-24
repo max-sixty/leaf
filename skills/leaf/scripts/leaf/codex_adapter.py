@@ -18,10 +18,12 @@ opening and final messages are its reply. The private App Server this transport 
 
 `TaskObserver` holds the other connection, on the turns Leaf did not start: the
 user's own work in the terminal, and a queued pointer the task picks up by itself.
+It folds each of those turns the way `DeliveryTurn` folds its own; the two differ
+only in the connection they read.
 
-`codex.py` owns the protocol, the turn every carrier follows to its reply, the
-delivery records, and the page writers both transports share. What is here is the
-process around them.
+`codex.py` owns the protocol, the per-turn fold every carrier runs, the delivery
+records, and the page writers both transports share. What is here is the process
+around them.
 """
 
 import json
@@ -38,9 +40,8 @@ from pathlib import Path
 from .codex import (
     START_TIMEOUT,
     AppServerDeliveryUncertain,
-    AppServerEvents,
-    AppServerReplyStream,
     CarriedTurn,
+    TurnFold,
     accept_codex_delivery,
     app_server_connect,
     app_server_delivery_id,
@@ -50,14 +51,12 @@ from .codex import (
     archive_record,
     check_app_server_endpoint,
     clear_stream_activity,
-    close_stream_turn,
     delivery_lock_path,
     delivery_record_state,
     delivery_records,
     delivery_stream_reply_target,
     offer_delivery,
     open_stream_turn,
-    project_app_server_activity,
     record_path,
     retry_delay,
     session_state_path,
@@ -131,31 +130,36 @@ class TaskObserver:
 
     This connection resumes the task and keeps the subscription that resume opens,
     so it sees the user's own turns in the terminal and a queued pointer the task
-    picks up by itself. It projects their activity onto every page the task claims,
-    and binds the reply of an adopted App Server delivery whose follower is gone,
-    because no follower of Leaf's ever will. A queued pointer's reply is not the
-    turn's to write: that delivery names a plain reply for `leaf reply`, so the
+    picks up by itself. Each such turn gets a `TurnFold`, the same fold a carried
+    turn is, and each notification goes to the fold of the turn it names. A fold
+    binds a reply only for an App Server delivery whose follower is gone, because
+    no follower of Leaf's ever will write it. A queued pointer's reply is not the
+    turn's to write: that delivery names a plain reply for `leaf reply`, so its
     turn is watched and opened on its pages but binds nothing.
+
+    What is this carrier's own is the subscription. One connection outlives the
+    turns it reports, so losing it does not end them: every fold is disconnected,
+    and the next resume reconciles each against the task's snapshot — taken up
+    again if still running, committed if it ended meanwhile.
 
     Two connections may resume one thread and both then receive everything it says,
     so every notification about a turn a `DeliveryTurn` is carrying arrives here too.
-    Adopting one would give that turn two owners and its answer two writers, so a
-    delivery this process is carrying is held in `carried` from before its
-    `turn/start` is sent, and passed over here until its follower is done.
+    Folding it here as well would give that turn two owners and its answer two
+    writers, so a delivery this process is carrying is held in `carried` from
+    before its `turn/start` is sent, and its turn gets no fold here.
     """
 
     def __init__(self, endpoint: str, thread_id: str):
         check_app_server_endpoint(endpoint)
         self.endpoint = endpoint
         self.thread_id = thread_id
-        self.events = AppServerEvents(thread_id)
+        self.turns: dict[str, TurnFold] = {}
+        self.running: str | None = None
         self.stop_event = threading.Event()
         self.socket = None
-        self.last_activity_update = 0.0
         self.started = False
         self.lock = threading.Lock()
         self.carried: set[str] = set()
-        self.bindings: dict[str, AppServerReplyStream] = {}
         self.ready: queue.Queue[BaseException | None] = queue.Queue(maxsize=1)
         self.thread = threading.Thread(
             target=self._run,
@@ -179,7 +183,7 @@ class TaskObserver:
         if self.socket is not None:
             self.socket.close()
         self.thread.join(timeout=3)
-        self._disconnect_streams()
+        self._disconnect_turns()
 
     def carry(self, delivery_id: str) -> None:
         """Take one delivery as this process's own, before its turn exists.
@@ -208,12 +212,15 @@ class TaskObserver:
         """Whether the last notification read left a turn of the task's running.
 
         This comes off the standing subscription, so the delivery loop can hold back
-        without opening a connection every second to ask. It is a fold and it can
-        lag, which is why it only ever holds a delivery back: the status that lets
-        one start is read on the starting connection itself, one request before the
-        start.
+        without opening a connection every second to ask. It can lag, which is why
+        it only ever holds a delivery back: the status that lets one start is read
+        on the starting connection itself, one request before the start.
         """
-        return self.events.turn_id is not None
+        return self.running is not None
+
+    def _is_carried(self, delivery_id: str | None) -> bool:
+        with self.lock:
+            return delivery_id in self.carried
 
     def _send(self, socket, method: str, request_id: int, params: dict) -> dict:
         """Request on this observer's connection, folding what it does not hold."""
@@ -236,40 +243,7 @@ class TaskObserver:
                 1,
                 {"threadId": self.thread_id, "excludeTurns": False},
             )
-            resumed = result.get("thread", {})
-            self._restore_bindings(resumed)
-            active = next(
-                (
-                    turn["id"]
-                    for turn in reversed(resumed.get("turns", []))
-                    if turn.get("status") == "inProgress"
-                ),
-                None,
-            )
-            if resumed.get("status", {}).get("type") == "active" and active is not None:
-                # Only a turn this can name. A resume that reports the task active
-                # without naming its turn — a paginated thread whose `turns` the
-                # response left out — used to record the word "active" as the turn
-                # id, which no `turn/completed` matches, so both the reading below
-                # and the fold `working` reads stood until the next reconnect.
-                self.events.turn_id = active
-                restored = self.events.read(
-                    {
-                        "method": "thread/status/changed",
-                        "params": {
-                            "threadId": self.thread_id,
-                            "turnId": active,
-                            "status": resumed["status"],
-                        },
-                    }
-                )
-                set_stream_activity(self.thread_id, active, restored["activity"])
-            else:
-                # A previous observer may have died without its disconnect cleanup.
-                # This snapshot does not establish a current provider turn, so an
-                # old thinking, tool, waiting, or replying observation cannot prove
-                # one is still live.
-                clear_stream_activity(self.thread_id)
+            self._resume(result.get("thread", {}))
             if not self.started:
                 self.started = True
                 self.ready.put(None)
@@ -280,17 +254,25 @@ class TaskObserver:
                     continue
                 self._read(json.loads(raw))
 
-    def _bind(self, turn_id: str, delivery_id: str, target: dict) -> None:
-        self.bindings[turn_id] = AppServerReplyStream(
-            self.thread_id,
-            turn_id,
-            delivery_id,
-            target,
-        )
-
-    def _restore_bindings(self, thread: dict) -> None:
+    def _resume(self, thread: dict) -> None:
+        """Reconcile every turn against a resumed snapshot of the task."""
         turns = {turn["id"]: turn for turn in thread.get("turns", [])}
-        active_turn = next(
+        known = set(self.turns)
+        for turn_id in known:
+            turn = turns.get(turn_id)
+            # A turn the snapshot does not list — a paginated thread's `turns` can
+            # leave it out — stays disconnected until it says something.
+            if turn is None:
+                continue
+            if turn.get("status") == "inProgress":
+                self.turns[turn_id].restore(turn)
+            else:
+                self.turns.pop(turn_id).commit(turn)
+        for turn in turns.values():
+            if turn["id"] not in known:
+                self._adopt(turn)
+
+        active = next(
             (
                 turn
                 for turn in reversed(list(turns.values()))
@@ -298,31 +280,39 @@ class TaskObserver:
             ),
             None,
         )
-        self.events = AppServerEvents(self.thread_id)
-        if active_turn is not None:
-            self.events.restore_turn(active_turn)
-        known_turns = set(self.bindings)
-        for turn_id, stream in list(self.bindings.items()):
-            turn = turns.get(turn_id)
-            if turn is None:
-                stream.disconnect()
-                continue
-            if turn.get("status") == "inProgress":
-                stream.restore(self.events.reply_so_far(turn))
-            else:
-                if self.events.turn_id == turn_id:
-                    self.events.turn_id = None
-                self._end_turn(
-                    turn_id,
-                    turn.get("status", "failed"),
-                    self.events.final_text(turn),
+        # Only a turn this can name. A resume that reports the task active without
+        # naming its turn leaves nothing a `turn/completed` could ever clear.
+        self.running = active["id"] if active is not None else None
+        fold = self.turns.get(self.running) if self.running is not None else None
+        if (
+            fold is None
+            and active is not None
+            and not self._is_carried(_turn_delivery_id(active))
+        ):
+            fold = self.turns[active["id"]] = TurnFold(self.thread_id, active["id"])
+            fold.restore(active)
+        status = thread.get("status", {})
+        if status.get("type") == "active" and active is not None:
+            if fold is not None:
+                fold.absorb(
+                    {
+                        "method": "thread/status/changed",
+                        "params": {
+                            "threadId": self.thread_id,
+                            "turnId": active["id"],
+                            "status": status,
+                        },
+                    }
                 )
-        for turn in turns.values():
-            if turn["id"] not in known_turns:
-                self._restore_delivery_binding(turn)
+        else:
+            # A previous observer may have died without its disconnect cleanup.
+            # This snapshot does not establish a current provider turn, so an
+            # old thinking, tool, waiting, or replying observation cannot prove
+            # one is still live.
+            clear_stream_activity(self.thread_id)
 
-    def _restore_delivery_binding(self, turn: dict) -> None:
-        """Recover a provider turn from the immutable delivery it carries.
+    def _adopt(self, turn: dict) -> None:
+        """Take up a resumed turn from the immutable delivery it carries.
 
         A turn reached this way is one nobody is following: a pointer the task
         picked up by itself, or a delivery whose carrier process died while its turn
@@ -331,99 +321,78 @@ class TaskObserver:
         delivery frozen for App Server owes a `turn` answer.
         """
         turn_id = turn["id"]
-        if turn_id in self.bindings:
-            return
-        delivery_id = app_server_delivery_id(
-            {"method": "turn/started", "params": {"turn": turn}}
-        )
+        delivery_id = _turn_delivery_id(turn)
         if delivery_id is None or self._is_carried(delivery_id):
             return
-        path = record_path(self.thread_id, delivery_id)
-        with flocked(delivery_lock_path(self.thread_id)):
-            record = read_json(path)
-        accept_offered_delivery(self.thread_id, delivery_id, turn_id, record)
+        accept_offered_delivery(self.thread_id, delivery_id, turn_id)
         target = delivery_stream_reply_target(self.thread_id, delivery_id)
         if target is None:
             return
-        status = turn.get("status", "failed")
-        if status == "inProgress":
-            open_stream_turn(self.thread_id, turn_id)
-            self._bind(turn_id, delivery_id, target)
-            self.bindings[turn_id].restore(self.events.reply_so_far(turn))
+        fold = TurnFold(self.thread_id, turn_id)
+        if turn.get("status") != "inProgress":
+            fold.bind(delivery_id, target)
+            fold.commit(turn)
             return
-        self._bind(turn_id, delivery_id, target)
-        self._end_turn(turn_id, status, self.events.final_text(turn))
-
-    def _is_carried(self, delivery_id: str) -> bool:
-        with self.lock:
-            return delivery_id in self.carried
+        open_stream_turn(self.thread_id, turn_id)
+        fold.bind(delivery_id, target)
+        fold.restore(turn)
+        self.turns[turn_id] = fold
 
     def _read(self, message: dict) -> None:
-        """Fold one notification about a turn this task is running."""
-        delivery_id = app_server_delivery_id(message)
-        if (
-            self.events.turn_id is None
-            and delivery_id is not None
-            and delivery_record_state(self.thread_id, delivery_id) == "offering"
-        ):
-            # The immutable offered delivery explicitly binds this provider turn.
-            # An ordinary late item cannot reopen an ended turn, but the observer
-            # must be able to adopt a delivery whose `turn/started` notification
-            # another connection consumed before this subscription saw it.
-            self.events.turn_id = (message.get("params") or {}).get("turnId")
-        update = self.events.read(message)
-        if update is None:
+        """Route one notification to the fold of the turn it names."""
+        params = message.get("params") or {}
+        if params.get("threadId") not in {None, self.thread_id}:
             return
-        turn_id = update["turn"]
-        if message.get("method") == "turn/started":
+        method = message.get("method")
+        if method == "turn/started":
+            turn_id = params["turn"]["id"]
+            self.running = turn_id
+        elif method == "turn/completed":
+            turn_id = params["turn"]["id"]
+            if self.running == turn_id:
+                self.running = None
+        else:
+            turn_id = params.get("turnId") or self.running
+        if turn_id is None:
+            return
+
+        fold = self.turns.get(turn_id)
+        delivery_id = app_server_delivery_id(message)
+        if delivery_id is not None and (fold is None or fold.delivery_id is None):
+            if self._is_carried(delivery_id):
+                # Its follower answers for this turn, so nothing here writes it twice.
+                self.turns.pop(turn_id, None)
+                return
+            if (
+                fold is None
+                and method != "turn/started"
+                and delivery_record_state(self.thread_id, delivery_id) == "offering"
+            ):
+                # The offered delivery names this turn, whose `turn/started` reached
+                # the task before this subscription was open to see it.
+                self.running = turn_id
+                fold = self.turns[turn_id] = TurnFold(self.thread_id, turn_id)
+        if fold is None and method == "turn/started":
             open_stream_turn(self.thread_id, turn_id)
-        if (
-            delivery_id is not None
-            and turn_id not in self.bindings
-            and not self._is_carried(delivery_id)
-        ):
+            fold = self.turns[turn_id] = TurnFold(self.thread_id, turn_id)
+        if fold is None:
+            return
+        if delivery_id is not None and fold.delivery_id is None:
             accept_offered_delivery(self.thread_id, delivery_id, turn_id)
-            target = delivery_stream_reply_target(self.thread_id, delivery_id)
-            if target is not None:
-                self._bind(turn_id, delivery_id, target)
-        self.last_activity_update = project_app_server_activity(
-            self.events,
-            message,
-            update,
-            self.last_activity_update,
-        )
-        if stream := self.bindings.get(turn_id):
-            stream.update(update)
-        if completed := update.get("completed"):
-            self._end_turn(turn_id, completed, update.get("text", ""))
+            fold.bind(
+                delivery_id, delivery_stream_reply_target(self.thread_id, delivery_id)
+            )
+        update = fold.absorb(message)
+        if (terminal := fold.finished(message, update)) is not None:
+            del self.turns[turn_id]
+            fold.commit(terminal)
 
-    def _end_turn(self, turn_id: str, state: str, text: str) -> None:
-        """Commit an ended turn's bound answer, then close the turn on every page.
-
-        The close runs whatever the answer did, for the reason `CarriedTurn` gives:
-        until it does, every page the task claims tells its user the agent is
-        still working.
-        """
-        stream = self.bindings.pop(turn_id, None)
-        error = None
-        try:
-            if stream is not None:
-                error = stream.finish(state, text)
-        finally:
-            close_stream_turn(self.thread_id, turn_id)
-        if error is not None:
-            print(f"Codex final reply rejected: {error}", file=sys.stderr, flush=True)
-
-    def _disconnect_streams(self) -> None:
-        """Disconnect projections without breaking the observer recovery boundary."""
+    def _disconnect_turns(self) -> None:
+        """Take every fold's reading down without breaking the recovery boundary."""
         failures = []
-        try:
-            clear_stream_activity(self.thread_id)
-        except Exception as error:  # noqa: BLE001
-            failures.append(error)
-        for stream in list(self.bindings.values()):
+        for fold in list(self.turns.values()):
             try:
-                stream.disconnect()
+                fold.disconnect()
             except Exception as error:  # noqa: BLE001
                 failures.append(error)
         if failures:
@@ -442,7 +411,7 @@ class TaskObserver:
             # This is the observer thread's recovery boundary: nothing it reads may
             # take the process down, and a lost connection is retried.
             except Exception as error:  # noqa: BLE001
-                self._disconnect_streams()
+                self._disconnect_turns()
                 if not self.started:
                     self.ready.put(error)
                     return
@@ -454,6 +423,11 @@ class TaskObserver:
                         flush=True,
                     )
                 self.stop_event.wait(retry_delay(failures))
+
+
+def _turn_delivery_id(turn: dict) -> str | None:
+    """The Leaf delivery a snapshot turn carries, read off its items."""
+    return app_server_delivery_id({"method": "turn/started", "params": {"turn": turn}})
 
 
 def accept_offered_delivery(
@@ -540,9 +514,10 @@ class DeliveryTurn(CarriedTurn):
     """One delivery's turn in the task this adapter watches.
 
     Leaf's names for the turn are the turn opened on every page the task claims and
-    the seat its final answer commits into. The observer holds the delivery as
-    carried for as long as this runs, so the connection watching the task passes
-    over everything this turn says rather than writing it a second time.
+    the seat its final answer commits into, and its ending is the fold's. The
+    observer holds the delivery as carried for as long as this runs, so the
+    connection watching the task gives this turn no fold of its own and writes
+    nothing it says a second time.
     """
 
     def __init__(
@@ -582,23 +557,6 @@ class DeliveryTurn(CarriedTurn):
             return None
         print(f"Codex delivery turn ended: {error}", file=sys.stderr, flush=True)
         return super().ended(error)
-
-    def close(self, terminal: dict, reply_error: BaseException | None) -> None:
-        """Close the turn on every page the task claims, and take its reading off."""
-        if reply_error is not None:
-            print(
-                f"Codex final reply rejected: {reply_error}",
-                file=sys.stderr,
-                flush=True,
-            )
-        close_stream_turn(self.session_id, self.turn_id)
-        clear_stream_activity(self.session_id, self.turn_id)
-
-    def disconnect(self) -> None:
-        """Leave a still-running turn to a later carrier, with its text on the page."""
-        if self.reply_stream is not None:
-            self.reply_stream.disconnect()
-        clear_stream_activity(self.session_id, self.turn_id)
 
 
 def _carry_delivery_turn(turn: DeliveryTurn) -> None:

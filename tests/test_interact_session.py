@@ -5,7 +5,6 @@ import http.client
 import http.cookiejar
 import json
 import os
-import queue
 import re
 import shlex
 import shutil
@@ -2552,30 +2551,24 @@ def test_app_server_events_report_semantic_codex_progress():
 
 
 def test_app_server_activity_throttles_stream_deltas(monkeypatch):
-    events = codex_model.AppServerEvents("codex-thread")
-    events.turn_id = "turn-live"
+    fold = codex_model.TurnFold("codex-thread", "turn-live")
     clock = iter([10.0, 10.1, 10.3])
     monkeypatch.setattr(codex_model.time, "monotonic", lambda: next(clock))
     updates = []
     clears = []
     take_stream_activity(monkeypatch, updates, clears)
-    last_update = 0.0
 
     for delta in ("one", " two", " three"):
-        message = {
-            "method": "item/agentMessage/delta",
-            "params": {
-                "threadId": "codex-thread",
-                "turnId": "turn-live",
-                "itemId": "message-live",
-                "delta": delta,
-            },
-        }
-        last_update = codex_model.project_app_server_activity(
-            events,
-            message,
-            events.read(message),
-            last_update,
+        fold.absorb(
+            {
+                "method": "item/agentMessage/delta",
+                "params": {
+                    "threadId": "codex-thread",
+                    "turnId": "turn-live",
+                    "itemId": "message-live",
+                    "delta": delta,
+                },
+            }
         )
 
     assert updates == [
@@ -3172,7 +3165,7 @@ def test_a_queued_app_server_turn_uses_its_delivery_id_for_the_final_reply(page_
             },
         }
     )
-    assert set(client.bindings) == {"queued-turn"}
+    assert client.turns["queued-turn"].reply_stream is not None
     client._read(
         {
             "method": "turn/completed",
@@ -3247,7 +3240,7 @@ def test_an_observed_queue_pointer_leaves_its_reply_to_leaf_reply(page_dir):
             },
         }
     )
-    assert client.bindings == {}
+    assert client.turns["queued-turn"].reply_stream is None
     [workflow] = served_page.full_state(page_dir, events_model.read_events(page_dir))[
         "activity"
     ]["obligations"]
@@ -3280,7 +3273,7 @@ def test_reconnect_recovers_a_completed_delivery_reply(page_dir):
     )
     client = codex_adapter_model.TaskObserver("ws://127.0.0.1:1", "codex-thread")
 
-    client._restore_bindings(
+    client._resume(
         {
             "turns": [
                 {
@@ -3325,8 +3318,11 @@ def test_reconnect_recovers_a_completed_delivery_reply(page_dir):
     assert [(reply["responds"], reply["text"]) for reply in replies] == [
         (comment["id"], "Recovered reply")
     ]
-    assert client.bindings == {}
-    update = client.events.read(
+    # The recovered turn is committed and gone; the user's own running turn is
+    # followed, and binds no reply.
+    assert set(client.turns) == {"current-turn"}
+    assert client.turns["current-turn"].reply_stream is None
+    update = client.turns["current-turn"].events.read(
         {
             "method": "item/agentMessage/delta",
             "params": {
@@ -3654,28 +3650,31 @@ def test_a_stream_reply_refreshes_its_lease_without_changing_its_message_time(
     assert projected["state"] == "active"
 
 
+def _observer() -> "codex_adapter_model.TaskObserver":
+    """An observer that has not connected, so a test feeds it notifications itself."""
+    return codex_adapter_model.TaskObserver("ws://127.0.0.1:1", "codex-thread")
+
+
 def test_reconnect_closes_a_completed_stream_binding(monkeypatch):
-    observer = codex_adapter_model.TaskObserver.__new__(
-        codex_adapter_model.TaskObserver
-    )
-    observer.thread_id = "codex-thread"
-    observer.events = codex_model.AppServerEvents("codex-thread")
-    observer.events.turn_id = "turn-complete"
+    observer = _observer()
     finished = []
 
     class Stream:
         def finish(self, state, text):
             finished.append((state, text))
 
-    observer.bindings = {"turn-complete": Stream()}
+    fold = codex_model.TurnFold("codex-thread", "turn-complete")
+    fold.reply_stream = Stream()
+    observer.turns = {"turn-complete": fold}
+    observer.running = "turn-complete"
     closed = []
     monkeypatch.setattr(
-        codex_adapter_model,
+        codex_model,
         "close_stream_turn",
         lambda session, turn: closed.append((session, turn)),
     )
 
-    observer._restore_bindings(
+    observer._resume(
         {
             "turns": [
                 {
@@ -3696,8 +3695,8 @@ def test_reconnect_closes_a_completed_stream_binding(monkeypatch):
 
     assert finished == [("completed", "Done.")]
     assert closed == [("codex-thread", "turn-complete")]
-    assert observer.bindings == {}
-    assert observer.events.turn_id is None
+    assert observer.turns == {}
+    assert not observer.working()
 
 
 class _CarriedDeliveries:
@@ -3883,21 +3882,21 @@ def test_a_turn_this_process_carries_is_not_adopted_by_its_observer(page_dir):
     Two connections may resume one thread and both then receive everything it says,
     so a turn a follower started is announced to the observer too. Adopting it there
     would bind a second reply stream to one delivery, and two writers would answer
-    the user once each. The observer holds the delivery from before the turn
-    exists, because the turn's own `turn/started` can arrive before the response
-    naming it does.
+    the user once each, and following it at all would write its activity twice. The
+    observer holds the delivery from before the turn exists, because the turn's own
+    `turn/started` can arrive before the response naming it does.
     """
     prepared = _codex_delivery(page_dir)
     payload = prepared.payload
-    observer = codex_adapter_model.TaskObserver.__new__(
-        codex_adapter_model.TaskObserver
+    observer = _observer()
+    # The turn's start names no delivery, so nothing yet says whose it is.
+    observer._read(
+        {
+            "method": "turn/started",
+            "params": {"threadId": "codex-thread", "turn": {"id": "leaf-turn"}},
+        }
     )
-    observer.thread_id = "codex-thread"
-    observer.events = codex_model.AppServerEvents("codex-thread")
-    observer.bindings = {}
-    observer.lock = threading.Lock()
-    observer.carried = set()
-    observer.last_activity_update = 0.0
+    assert set(observer.turns) == {"leaf-turn"}
     announcement = {
         "method": "item/started",
         "params": {
@@ -3915,7 +3914,9 @@ def test_a_turn_this_process_carries_is_not_adopted_by_its_observer(page_dir):
 
     observer.carry(payload["id"])
     observer._read(announcement)
-    assert observer.bindings == {}
+    assert observer.turns == {}
+    # Still the task's running turn, so the delivery loop goes on holding back.
+    assert observer.working()
     assert (
         codex_model.delivery_record_state("codex-thread", payload["id"]) == "offering"
     )
@@ -3924,7 +3925,7 @@ def test_a_turn_this_process_carries_is_not_adopted_by_its_observer(page_dir):
     # a turn nobody is following is one whose reply nothing else will write.
     observer.release(payload["id"])
     observer._read(announcement)
-    assert set(observer.bindings) == {"leaf-turn"}
+    assert observer.turns["leaf-turn"].reply_stream is not None
     assert (
         codex_model.delivery_record_state("codex-thread", payload["id"]) == "accepted"
     )
@@ -4057,15 +4058,7 @@ def test_an_observed_turn_whose_reply_cannot_be_written_still_closes(
     payload = prepared.payload
     target = codex_model.stream_reply_target(payload)
     conversation_model.reserve_delivery_reply("codex-thread", payload["id"], target)
-    observer = codex_adapter_model.TaskObserver.__new__(
-        codex_adapter_model.TaskObserver
-    )
-    observer.thread_id = "codex-thread"
-    observer.events = codex_model.AppServerEvents("codex-thread")
-    observer.bindings = {}
-    observer.lock = threading.Lock()
-    observer.carried = set()
-    observer.last_activity_update = 0.0
+    observer = _observer()
     observer._read(
         {
             "method": "turn/started",
@@ -4088,7 +4081,7 @@ def test_an_observed_turn_whose_reply_cannot_be_written_still_closes(
             },
         }
     )
-    assert set(observer.bindings) == {"leaf-turn"}
+    assert observer.turns["leaf-turn"].reply_stream is not None
     monkeypatch.setattr(conversation_model.DeliveryReply, "_set_state", _unopenable)
 
     with pytest.raises(OSError, match="could not be opened"):
@@ -4102,7 +4095,7 @@ def test_an_observed_turn_whose_reply_cannot_be_written_still_closes(
             }
         )
 
-    assert observer.bindings == {}
+    assert observer.turns == {}
     assert service_model.page_claim(page_dir)["turn_closed"] is not None
     assert not conversation_model.delivery_reply_reserved(
         "codex-thread", payload["id"], target
@@ -4176,13 +4169,16 @@ def test_a_running_turn_holds_a_delivery_back_without_asking_the_task(
         )
         assert codex_adapter_model.capture_batch("codex-thread", reading)
 
-    observer = codex_adapter_model.TaskObserver.__new__(
-        codex_adapter_model.TaskObserver
+    observer = _observer()
+    observer._read(
+        {
+            "method": "turn/started",
+            "params": {
+                "threadId": "codex-thread",
+                "turn": {"id": "a-turn-the-user-started"},
+            },
+        }
     )
-    observer.lock = threading.Lock()
-    observer.carried = set()
-    observer.events = codex_model.AppServerEvents("codex-thread")
-    observer.events.turn_id = "a-turn-the-user-started"
     monkeypatch.setattr(
         codex_adapter_model,
         "start_delivery_turn",
@@ -4194,7 +4190,15 @@ def test_a_running_turn_holds_a_delivery_back_without_asking_the_task(
     )
 
     # The turn ends and the fold says so, without anything reconnecting to ask.
-    observer.events.turn_id = None
+    observer._read(
+        {
+            "method": "turn/completed",
+            "params": {
+                "threadId": "codex-thread",
+                "turn": {"id": "a-turn-the-user-started", "status": "completed"},
+            },
+        }
+    )
     assert observer.working() is False
 
 
@@ -4207,22 +4211,10 @@ def test_an_active_task_whose_turn_is_not_named_records_no_turn(monkeypatch):
     matches that, so the page's activity reading and the fold the delivery loop
     waits on both stood until the next reconnect.
     """
-    observer = codex_adapter_model.TaskObserver.__new__(
-        codex_adapter_model.TaskObserver
-    )
-    observer.thread_id = "codex-thread"
-    observer.events = codex_model.AppServerEvents("codex-thread")
-    observer.bindings = {}
+    observer = _observer()
     observer.started = True
-    observer.stop_event = threading.Event()
-    observer.ready = queue.Queue(maxsize=1)
-    observer.lock = threading.Lock()
-    observer.carried = set()
-    observer.last_activity_update = 0.0
     updates = []
     take_stream_activity(monkeypatch, updates, [])
-
-    observer._restore_bindings({"turns": []})
     sent = []
 
     def send(_socket, _method, _request_id, params):
@@ -4246,7 +4238,6 @@ def test_an_active_task_whose_turn_is_not_named_records_no_turn(monkeypatch):
     monkeypatch.setattr(
         codex_adapter_model, "app_server_handshake", lambda *_args: None
     )
-    observer.endpoint = "unix:///probe.sock"
     observer._connect()
 
     assert observer.working() is False
@@ -4260,7 +4251,8 @@ def test_an_app_server_failure_cleans_up_its_streams_before_retrying(
 
     A cleanup that fails is reported rather than raised: this is the top of the
     observer thread, and the connection it is going back for is what would repair
-    the reading it could not take down.
+    the reading it could not take down. One turn's failure does not keep the next
+    turn's reading up.
     """
 
     class StopAfterFailure:
@@ -4273,35 +4265,41 @@ def test_an_app_server_failure_cleans_up_its_streams_before_retrying(
             self.stopped = True
             return True
 
-    observer = codex_adapter_model.TaskObserver.__new__(
-        codex_adapter_model.TaskObserver
-    )
-    observer.thread_id = "codex-thread"
+    observer = _observer()
     observer.stop_event = StopAfterFailure()
     cleanup = []
 
     class Stream:
         def disconnect(self):
             cleanup.append("stream")
-            raise OSError("stream cleanup failed")
+            raise OSError("reply cleanup failed")
 
-    observer.bindings = {"turn": Stream()}
+    bound = codex_model.TurnFold("codex-thread", "bound-turn")
+    bound.reply_stream = Stream()
+    observer.turns = {
+        "bound-turn": bound,
+        "user-turn": codex_model.TurnFold("codex-thread", "user-turn"),
+    }
     observer.started = True
-    observer.ready = queue.Queue(maxsize=1)
     observer._connect = lambda: (_ for _ in ()).throw(ConnectionError("offline"))
 
-    def fail_activity_cleanup(*_args):
-        cleanup.append("activity")
+    def fail_activity_cleanup(_session, turn=None):
+        cleanup.append(("activity", turn))
         raise OSError("activity cleanup failed")
 
-    monkeypatch.setattr(
-        codex_adapter_model, "clear_stream_activity", fail_activity_cleanup
-    )
+    monkeypatch.setattr(codex_model, "clear_stream_activity", fail_activity_cleanup)
 
     observer._run()
 
-    assert cleanup == ["activity", "stream"]
-    assert "stream cleanup failed: activity cleanup failed" in capsys.readouterr().err
+    assert cleanup == [
+        "stream",
+        ("activity", "bound-turn"),
+        ("activity", "user-turn"),
+    ]
+    assert (
+        "Codex App Server stream cleanup failed: activity cleanup failed"
+        in capsys.readouterr().err
+    )
 
 
 def test_codex_launch_owns_one_private_app_server(tmp_path, monkeypatch):
@@ -7821,15 +7819,8 @@ def test_an_uncertain_app_server_start_recovers_by_delivery_identity(
     ):
         codex_adapter_model._offer_queued_delivery("codex", "codex-thread", None, None)
 
-    observer = codex_adapter_model.TaskObserver.__new__(
-        codex_adapter_model.TaskObserver
-    )
-    observer.thread_id = "codex-thread"
-    observer.events = codex_model.AppServerEvents("codex-thread")
-    observer.bindings = {}
-    observer.lock = threading.Lock()
-    observer.carried = set()
-    observer._restore_delivery_binding(
+    observer = _observer()
+    observer._adopt(
         {
             "id": "recovered-turn",
             "status": "failed",
@@ -7843,7 +7834,7 @@ def test_an_uncertain_app_server_start_recovers_by_delivery_identity(
         }
     )
 
-    assert observer.bindings == {}
+    assert observer.turns == {}
     history = path.parent / "history" / path.name
     recovered = files_model.read_json(history)
     assert recovered["state"] == "accepted"

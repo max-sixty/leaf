@@ -4,10 +4,10 @@ A carrier is whatever keeps a Codex task reachable on Leaf's behalf: the detache
 process in `codex_adapter.py`, which observes a task it does not own, and the
 website's embedded host in `worker/server.py`, which owns the tasks it starts.
 What both need is here — the App Server connection and the request shapes one Leaf
-turn is opened with, the loop that reads a started turn's connection to its end,
-the fold from a task's notifications into activity and final-answer readings, the
-writers that put those readings on a claimed page, and the durable records a
-delivery passes through.
+turn is opened with, the per-turn fold from a turn's notifications into its
+activity, its reply and its ending (`TurnFold`), the loop that reads a started
+turn's own connection to its end (`CarriedTurn`), the writers that put those
+readings on a claimed page, and the durable records a delivery passes through.
 
 A delivery record under the state home is the handoff between Leaf capturing a
 user's moves and a carrier taking them. One record is offered once, accepted once,
@@ -26,6 +26,7 @@ loop and the website's turn follower each keep theirs.
 import hashlib
 import json
 import subprocess
+import sys
 import time
 from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass, field
@@ -825,37 +826,6 @@ class AppServerReplyStream:
         self.reply.disconnect()
 
 
-def project_app_server_activity(
-    events: AppServerEvents,
-    message: dict,
-    update: dict | None,
-    last_stream_update: float,
-) -> float:
-    """Project one notification with the shared streamed-update throttle.
-
-    The writers below are the only place a user ever sees this, so a caller says
-    when to project rather than where to: what it gets back is the throttle's clock,
-    which is the one piece of this state a caller has to keep.
-    """
-    if update is None:
-        return last_stream_update
-    turn_id = update["turn"]
-    if update.get("completed"):
-        clear_stream_activity(events.thread_id, turn_id)
-        return last_stream_update
-    activity = update.get("activity")
-    if activity is None:
-        return last_stream_update
-    now = time.monotonic()
-    if (
-        message.get("method") in STREAM_THROTTLED_METHODS
-        and now - last_stream_update < STREAM_UPDATE_INTERVAL
-    ):
-        return last_stream_update
-    set_stream_activity(events.thread_id, turn_id, activity)
-    return now
-
-
 @contextmanager
 def _locked_task_pages(session_id: str):
     """Lock this task's current page set in its stable path order.
@@ -906,8 +876,156 @@ def close_stream_turn(session_id: str, turn_id: str) -> None:
             page.close_turn(session_id, turn_id)
 
 
-class CarriedTurn:
-    """One delivery's Codex turn, from the start that made it to its receipt.
+class TurnFold:
+    """One Codex turn, folded onto the pages its task claims from its first
+    notification to its ending.
+
+    Every carrier that watches a turn does this same work with what the turn says.
+    Each notification folds into the turn's activity and final-answer readings,
+    and the activity reaches every page the task claims. The reply streams into
+    the seat of the delivery the turn carries, when that delivery owes a `turn`
+    answer. The completion commits the answer, or gives the seat back, and then
+    closes the turn on the page.
+
+    What differs between carriers is only how notifications reach the fold.
+    `CarriedTurn` reads a connection the turn owns, from the start that made the
+    turn to its end. The adapter's `TaskObserver` reads one subscription the whole
+    task shares and routes each notification to the fold of the turn it names.
+    That is also why the ways a read can stop other than a completion — a lost
+    connection, a silence, an adapter going — belong to each carrier rather than
+    to the fold.
+
+    `close` runs whatever the answer did. Committing the answer re-reads a page
+    the turn's own work may have left unopenable, and the turn has ended either
+    way: until the carrier's account of it is written, the page goes on telling
+    its user the agent is working, with nothing but the claim's fifteen-minute
+    grace to correct it.
+    """
+
+    def __init__(
+        self,
+        session_id: str,
+        turn_id: str,
+        delivery_id: str | None = None,
+        reply_target: dict | None = None,
+    ):
+        self.session_id = session_id
+        self.turn_id = turn_id
+        self.delivery_id = delivery_id
+        self.reply_target = reply_target
+        self.events = AppServerEvents(session_id)
+        self.events.turn_id = turn_id
+        self.reply_stream: AppServerReplyStream | None = None
+        self.last_activity_update = 0.0
+
+    def bind(self, delivery_id: str, reply_target: dict | None) -> None:
+        """Name the delivery this turn carries, and open the reply it owes."""
+        self.delivery_id = delivery_id
+        self.reply_target = reply_target
+        self.open_reply()
+
+    def open_reply(self) -> None:
+        """Bind the seat this turn's final answer commits into."""
+        if self.reply_target is not None:
+            self.reply_stream = AppServerReplyStream(
+                self.session_id,
+                self.turn_id,
+                self.delivery_id,
+                self.reply_target,
+            )
+
+    def restore(self, turn: dict) -> None:
+        """Take up a still-running turn from a snapshot of what it has said."""
+        self.events.restore_turn(turn)
+        if self.reply_stream is not None:
+            self.reply_stream.restore(self.events.reply_so_far(turn))
+
+    def absorb(self, message: dict) -> dict | None:
+        """Fold one notification into this turn's readings, and put them on the page."""
+        update = self.events.read(message)
+        self.observe(message, update)
+        self._project(message, update)
+        published = (
+            self.reply_stream.update(update) if self.reply_stream is not None else False
+        )
+        self.observe_reply(update, published)
+        return update
+
+    def _project(self, message: dict, update: dict | None) -> None:
+        """Show one update's activity, throttling only streamed deltas.
+
+        A completion carries none: `close` takes the reading off, since it runs on
+        every way a turn ends and a completion is only one of them.
+        """
+        activity = update.get("activity") if update is not None else None
+        if activity is None:
+            return
+        now = time.monotonic()
+        if (
+            message.get("method") in STREAM_THROTTLED_METHODS
+            and now - self.last_activity_update < STREAM_UPDATE_INTERVAL
+        ):
+            return
+        set_stream_activity(self.session_id, update["turn"], activity)
+        self.last_activity_update = now
+
+    def finished(self, message: dict, update: dict | None) -> dict | None:
+        """Return the terminal turn when this notification is its completion."""
+        if (
+            update is not None
+            and update.get("completed")
+            and update["turn"] == self.turn_id
+        ):
+            return message["params"]["turn"]
+        return None
+
+    def commit(self, terminal: dict) -> None:
+        """Write what the turn answered, then close Leaf's account of it."""
+        reply_error = None
+        try:
+            reply_error = self.settle_reply(terminal)
+        finally:
+            self.close(terminal, reply_error)
+
+    def settle_reply(self, terminal: dict) -> BaseException | None:
+        """Commit the turn's final answer, or give up the seat held for one."""
+        if self.reply_stream is not None:
+            return self.reply_stream.finish(
+                terminal.get("status") or "failed",
+                self.events.final_text(terminal),
+            )
+        if self.reply_target is not None:
+            release_delivery_reply(self.session_id, self.delivery_id, self.reply_target)
+        return None
+
+    def close(self, terminal: dict, reply_error: BaseException | None) -> None:
+        """Close the ended turn on every page the task claims, and take its reading off."""
+        if reply_error is not None:
+            print(
+                f"Codex final reply rejected: {reply_error}",
+                file=sys.stderr,
+                flush=True,
+            )
+        close_stream_turn(self.session_id, self.turn_id)
+        clear_stream_activity(self.session_id, self.turn_id)
+
+    def disconnect(self) -> None:
+        """Stop reading a turn that may still be running, its text left on the page."""
+        try:
+            if self.reply_stream is not None:
+                self.reply_stream.disconnect()
+        finally:
+            clear_stream_activity(self.session_id, self.turn_id)
+
+    def observe(self, message: dict, update: dict | None) -> None:
+        """Record one notification, before its readings reach a page."""
+
+    def observe_reply(self, update: dict | None, published: bool) -> None:
+        """Record what one notification put in the user's reply."""
+
+
+class CarriedTurn(TurnFold):
+    """One delivery's Codex turn, read on the connection that started it.
 
     The turn exists because `turn/start` answered with it, so a carrier knows
     which turn is its own before reading a notification and nothing recovers the
@@ -915,19 +1033,11 @@ class CarriedTurn:
     whole life: `thread/start` and `thread/resume` subscribe it, `turn/start`
     neither subscribes nor unsubscribes, and losing it is the turn ending.
 
-    Reading that connection to the end is the same work for every carrier and it
-    is here. Each notification folds into the task's activity and final-answer
-    readings; one of them is the turn's completion; every other way the read can
-    stop composes a terminal of its own, so a turn ends exactly once however it
-    ended. What differs is what Leaf calls the turn — the page turn it opens, the
-    seat its answer commits into, the receipt it owes a user — which each
-    carrier opens in `begin` and accounts for in `close`.
-
-    `close` runs whatever the answer did. Committing the answer re-reads a page
-    the turn's own work may have left unopenable, and the turn has ended either
-    way: until the carrier's account of it is written, the page goes on telling
-    its user the agent is working, with nothing but the claim's fifteen-minute
-    grace to correct it.
+    Every way the read can stop other than the completion composes a terminal of
+    its own in `ended`, so a turn ends exactly once however it ended. What each
+    carrier adds is what Leaf calls the turn — the page turn it opens and the seat
+    its answer commits into — which it opens in `begin`, and any account beyond
+    the fold's that it owes in `close`.
     """
 
     silence: float | None = None
@@ -941,16 +1051,9 @@ class CarriedTurn:
         reply_target: dict | None,
         buffered=(),
     ):
-        self.session_id = session_id
+        super().__init__(session_id, turn_id, delivery_id, reply_target)
         self.socket = socket
-        self.turn_id = turn_id
-        self.delivery_id = delivery_id
-        self.reply_target = reply_target
         self.stream = TurnStream(socket, buffered, silence=self.silence)
-        self.events = AppServerEvents(session_id)
-        self.events.turn_id = turn_id
-        self.reply_stream: AppServerReplyStream | None = None
-        self.last_activity_update = 0.0
 
     def follow(self) -> None:
         """Read this turn's connection to its end, and account for how it ended."""
@@ -972,42 +1075,6 @@ class CarriedTurn:
         if terminal is not None:
             self.commit(terminal)
 
-    def open_reply(self) -> None:
-        """Bind the seat this turn's final answer commits into."""
-        if self.reply_target is not None:
-            self.reply_stream = AppServerReplyStream(
-                self.session_id,
-                self.turn_id,
-                self.delivery_id,
-                self.reply_target,
-            )
-
-    def absorb(self, message: dict) -> dict | None:
-        """Fold one notification into this turn's readings."""
-        update = self.events.read(message)
-        self.observe(message, update)
-        self.last_activity_update = project_app_server_activity(
-            self.events,
-            message,
-            update,
-            self.last_activity_update,
-        )
-        published = (
-            self.reply_stream.update(update) if self.reply_stream is not None else False
-        )
-        self.observe_reply(update, published)
-        return update
-
-    def finished(self, message: dict, update: dict | None) -> dict | None:
-        """Return the terminal turn when this notification is its completion."""
-        if (
-            update is not None
-            and update.get("completed")
-            and update["turn"] == self.turn_id
-        ):
-            return message["params"]["turn"]
-        return None
-
     def ended(self, error: BaseException) -> dict | None:
         """Compose the terminal of a turn whose stream ended it.
 
@@ -1024,38 +1091,9 @@ class CarriedTurn:
             "error": {"message": f"App Server turn stream failed: {detail}"},
         }
 
-    def commit(self, terminal: dict) -> None:
-        """Write what the turn answered, then close Leaf's account of it."""
-        reply_error = None
-        try:
-            reply_error = self.settle_reply(terminal)
-        finally:
-            self.close(terminal, reply_error)
-
-    def settle_reply(self, terminal: dict) -> BaseException | None:
-        """Commit the turn's final answer, or give up the seat held for one."""
-        if self.reply_stream is not None:
-            return self.reply_stream.finish(
-                terminal.get("status") or "failed",
-                self.events.final_text(terminal),
-            )
-        if self.reply_target is not None:
-            release_delivery_reply(self.session_id, self.delivery_id, self.reply_target)
-        return None
-
     def begin(self) -> None:
         """Open Leaf's names for this turn, in whatever a carrier writes them."""
         raise NotImplementedError
-
-    def close(self, terminal: dict, reply_error: BaseException | None) -> None:
-        """Account for the ended turn wherever this carrier announced it."""
-        raise NotImplementedError
-
-    def observe(self, message: dict, update: dict | None) -> None:
-        """Record one notification, before its readings reach a page."""
-
-    def observe_reply(self, update: dict | None, published: bool) -> None:
-        """Record what one notification put in the user's reply."""
 
 
 def session_state_path(session_id: str, suffix: str) -> Path:

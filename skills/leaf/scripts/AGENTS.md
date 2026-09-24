@@ -69,8 +69,9 @@ The main owners are:
 - `session` and `hooks`: direct wait delivery and host lifecycle;
 - `codex`: the durable delivery records every Codex carrier prepares, accepts, opens,
   and abandons, and, for the carriers that are App Server clients, the connection, the
-  turn each one carries on the connection that started it, its activity and
-  final-answer readings, and the page writers those readings reach a user through;
+  one fold of a turn's notifications into its activity, reply and ending that every
+  carrier runs, the loop that reads a turn on the connection that started it, and the
+  page writers those readings reach a user through;
 - `codex_adapter`: the detached carrier behind `leaf codex start` — its two
   transports, the default `codex queue` and an observing App Server client with the
   turns it starts for that task, page receipts, adapter leases, and the private App

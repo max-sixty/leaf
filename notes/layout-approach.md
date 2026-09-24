@@ -47,12 +47,16 @@ Several run-time geometry sources survive both branches, and each needs a decisi
   toward the rail (`theme.css:1957-1960`). With a fixed rail the collision is known in
   advance, so every wide block can stop short of the rail whenever the rail is shown, and
   the mark can go.
-- **Two chrome heights are measured, not constant.** The bottom bar's clearance
-  (`--lf-bottom-chrome-clear`) is read from the bar's rendered box on each layout pass
-  (`chrome-layout.js:137-184`), and the root tab strip's clearance (`--lf-root-tab-clear`,
-  `lf-tabs.js:318-330`) likewise. Both set a workspace's height
-  (`default/theme.css:239-250`). The banner's height is already a theme constant
-  (`theme.css:131`); these two can be too.
+- **Two chrome heights are measured.** The bottom bar (the keyboard-shortcut line and
+  the status notices in the window's bottom corners) and the page-tab strip (stuck under
+  the banner on a page with page tabs) both float over the page. Leaf measures each and
+  keeps that much room clear so nothing ends up under them: extra space at the page's
+  end, a scroll stop so a jump lands below the tab strip, and a workspace's height
+  (`chrome-layout.js:137-184`, `lf-tabs.js:318-330`, `default/theme.css:239-250`). They
+  are measured because their height varies: the status stacks above the shortcut line
+  when the two would collide. Neither changes the page's width, and an agent needs them
+  only if it builds its own full-window layout instead of using `lf-workspace`, so they
+  can stay measured.
 - **Opening a surface can lengthen the page.** An open surface sets a minimum height on
   `body` (`theme.css:538-543`), which the overlay branch keeps.
 - **Docked cards add height.** Below 840px, and in `fixed-rail` for a card wider than
@@ -141,8 +145,7 @@ The interaction primitives, widget sizing, and the rail stay under every option.
 Adopt #36, after making the width fully static.
 
 First, finish what the overlays start: stop wide blocks at the rail statically instead
-of through `data-lf-yield`, make the bottom bar's and the tab strip's clearances
-constants, and drop the surface minimum height. Then the page's width is the agent's to
+of through `data-lf-yield`, and drop the surface minimum height. Then the page's width is the agent's to
 know, which was the goal.
 
 Then move arrangement into `$idioms`. The case for it is that Leaf's job for

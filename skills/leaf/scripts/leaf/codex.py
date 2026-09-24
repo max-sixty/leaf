@@ -1108,10 +1108,6 @@ def delivery_records(session_id: str) -> list[tuple[Path, dict]]:
         record = read_json(path)
         if record is None or record.get("format") != RECORD_FORMAT:
             continue
-        if record["state"] == "collecting" and not all(
-            "handling" in batch for batch in record["batches"]
-        ):
-            continue
         if record["state"] == "offering":
             payload = read_json(delivery_path(path.stem))
             if payload is None or payload.get("format") != DELIVERY_FORMAT:
@@ -1165,8 +1161,11 @@ def _readdress_record(path: Path) -> Path:
         return replacement
 
 
-def offer_delivery(path: Path, record: dict) -> PreparedDelivery:
-    """Freeze one payload before offering its permanent pointer."""
+def offer_delivery(path: Path, record: dict, carrier: str) -> PreparedDelivery:
+    """Freeze one payload for `carrier` before offering its permanent pointer.
+
+    A record already offering keeps the payload it froze: its pointer may have
+    reached the task, and a delivery never changes under its id."""
     if record["state"] == "offering":
         payload_path = delivery_path(path.stem)
         payload = read_json(payload_path)
@@ -1180,6 +1179,7 @@ def offer_delivery(path: Path, record: dict) -> PreparedDelivery:
         try:
             payload = freeze_delivery(
                 record["batches"],
+                carrier=carrier,
                 delivery_id=path.stem,
                 created_at=record["created_at"],
             )
@@ -1363,7 +1363,7 @@ def prepare_codex_delivery(page_dir: Path, harness: Harness) -> PreparedDelivery
                     None,
                 )
                 if pending is not None:
-                    offered = offer_delivery(*pending)
+                    offered = offer_delivery(*pending, "app-server")
                     return PreparedDelivery(offered.prompt, offered.payload, transition)
                 captured = append_batch(
                     session_id,
@@ -1374,7 +1374,7 @@ def prepare_codex_delivery(page_dir: Path, harness: Harness) -> PreparedDelivery
                 if captured is None:
                     raise RuntimeError("the page input is already in a Codex delivery")
                 path, _, _ = captured
-                offered = offer_delivery(path, read_json(path))
+                offered = offer_delivery(path, read_json(path), "app-server")
                 return PreparedDelivery(offered.prompt, offered.payload, transition)
     except BaseException:
         restore_page_claim(page_dir, transition)

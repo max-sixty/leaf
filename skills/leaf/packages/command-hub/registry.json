@@ -242,6 +242,7 @@
   },
   "lf-command": {
     "description": "A goal-first command surface. Its nested goals are the one authored plan; each worker lives once at the narrowest tree level matching its durable remit — directly under the command for project-wide coordination, or under any goal for that goal's whole subtree. `on` is only the worker's current focus inside that remit. The orchestration upgrade derives the operator header, stopped-work reading, and live-worker projection from this tree. `label` and `phase` name the outcome and planning horizon. Do not author a second roster or Asks list beside it: those are views of the tree and its log. Later packages may add their own goal or worker widgets under `$command.widgets` without teaching Leaf's kernel their names.",
+    "x-name": "label",
     "type": "object",
     "properties": {
       "id": {

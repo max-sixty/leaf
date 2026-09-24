@@ -5,7 +5,12 @@
    fragment. The fragment is captured inertly before its first upgrade; panel
    presentation waits for preparation before capturing typed authored facets. */
 import { html, render, nothing } from "../../vendor/browser-runtime.js";
-import { loadMarkdown, markdownReady, renderMarkdown } from "../markdown.js";
+import {
+  loadMarkdown,
+  markdownReady,
+  renderMarkdown,
+  renderedWords,
+} from "../markdown.js";
 import { reportPageError } from "../layer-client.js";
 import { isReaction, moved } from "./model.js";
 import { tokenEntry } from "../registry.js";
@@ -56,15 +61,13 @@ function proseReading(message) {
     reading.markdown !== markdown
   ) {
     const html = renderMarkdown(text);
-    const template = document.createElement("template");
-    template.innerHTML = html;
     reading = Object.freeze({
       id: message.id,
       edited,
       text,
       markdown,
       html,
-      plainText: template.content.textContent,
+      plainText: renderedWords(html),
     });
     renderedProse.set(key, reading);
   }

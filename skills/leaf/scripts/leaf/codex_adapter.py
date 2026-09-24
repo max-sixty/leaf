@@ -749,7 +749,9 @@ def _offer_queued_delivery(
         offered = None
         if unoffered is not None:
             path, record = unoffered
-            prepared = offer_delivery(path, record)
+            prepared = offer_delivery(
+                path, record, "queue" if observer is None else "app-server"
+            )
             offered = prepared.record_path, record, prepared
     if offered is None:
         return False

@@ -157,26 +157,15 @@ turn/start:
   input: []
   toolOutput:
     name: leaf_delivery
-    output: '{"format":"leaf-delivery-v2","id":"00000001","created_at":1790096400.0,"batches":[{"page":"/page","through_seq":1,"conversations":[{"id":"user-event","title":null,"anchor":null,"detached_from":null,"resolved":null,"elided":{"messages":0,"actions":0},"messages":[],"summaries":[],"actions":[]}],"handling":{"h1":"Acknowledge
-      this delivery before anything else, by your host contract''s route where it
-      leaves acknowledgement to you: until then the user''s message reads Sent or
-      Queued rather than Picked up.","h2":"If this event''s conversation has a null
-      `title` in the batch''s `conversations`, name it with `leaf conversation title
+    output: '{"format":"leaf-delivery-v2","id":"00000001","created_at":1790096400.0,"batches":[{"page":"/page","through_seq":1,"conversations":[{"id":"user-event","title":null,"anchor":null,"detached_from":null,"resolved":null,"elided":{"messages":0,"actions":0},"messages":[],"summaries":[],"actions":[]}],"handling":{"h1":"This
+      event''s conversation has no title yet: name it with `leaf conversation title
       <page> <conversation-id> --text \"<a few words>\"`, so the thread panel lists
-      its subject rather than its opening words.","h3":"Answer with `leaf reply
-      <page> --for <event-id>`. In a Codex task Leaf observes over App Server, your
-      turn''s first and final messages are the reply instead, and `leaf reply` refuses
-      the event: open with a message to the user before your first tool call, and
-      finish the reply in your final message. Where you answer with `leaf reply`,
-      reply before any other work, including the work this event asks for: give
-      the answer, or say what you are about to do and where the result will appear.
-      Once that work lands, report it with `leaf reply <page> --to <address> --initiates`,
-      where `<address>` is the event''s `obligation.response.to`. `leaf reply` checks
-      any saved page edit and makes it live before posting. If a revision removes
-      what the thread is anchored on, move the thread in the reply that reports
-      it with `--section <id>` (narrowed by `--quote` or `--part` if needed), or
-      `--detach` it if its subject has left the page. Add `--awaits` only if your
-      reply''s prose asks the user something. Your reply renders as Markdown, so
-      show code or markup in a fenced block."},"events":[{"kind":"comment","author":"user","text":"Use
+      its subject rather than its opening words.","h2":"Your turn''s first and final
+      messages are the reply, and `leaf reply` refuses this event. Before your first
+      tool call, open with a short message to the user: the answer, or what you
+      are about to do. Leaf streams it into the thread at once, and later working
+      messages stay in Codex. Finish the reply in your final message: the answer,
+      or what changed and where it appears. The reply leaves the thread on its anchor.","h3":"Your
+      reply renders as Markdown, so show code or markup in a fenced block."},"events":[{"kind":"comment","author":"user","text":"Use
       backfill first.","id":"user-event","ts":"2026-09-22T10:00:00-07:00","seq":1,"subject":{"kind":"conversation","id":"user-event"},"conversations":["user-event"],"handling":["h1","h2","h3"],"obligation":{"as_of_seq":1,"response":{"kind":"reply","to":"user-event","for":"user-event"}}}]}]}'
   turnTrigger: leaf

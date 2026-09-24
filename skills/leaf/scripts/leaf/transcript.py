@@ -6,6 +6,7 @@ from pathlib import Path
 from leaf.event_log import jsonl_line, read_events
 from leaf.events import build_threads, is_reaction, taken_back
 from leaf.files import latest_revision, revision_label
+from leaf.gesture_words import GestureWords
 from leaf.passages import active_enclosing, enclosing_of, spoken
 from leaf.registry.reactions import reaction_tokens
 from leaf.registry.storage import active_registry
@@ -72,13 +73,16 @@ def _print_versions(events: list) -> None:
             print(f"- v{e['version']}: {e['text']}")
 
 
-def _print_edits(events: list) -> None:
+def _print_edits(page_dir: Path, events: list, registry: dict) -> None:
     # The user's direct edits are outcomes of the exchange; without them the transcript
     # understates it whenever a changelog note doesn't restate them. So
     # is a version taking one back, which is the same understatement the other
     # way round — an edit shown as final that a later version overruled.
-    # Widget-agnostic rendering: verb + detail pairs, against the version edited.
+    # Widget-agnostic rendering: verb + detail pairs, against the version edited,
+    # then what the ids it names say there. The widget's own words are left out: it
+    # is named by its id, and a body edit's detail already carries the new words.
     withdrawn = taken_back(events)
+    words = GestureWords(page_dir, events, registry) if registry else None
     edits = [
         e
         for e in events
@@ -96,6 +100,10 @@ def _print_edits(events: list) -> None:
                 continue
             detail = " ".join(f"{k}={v}" for k, v in e["detail"].items())
             verb = f"{e['action']} {detail}".strip()  # a bare answer carries no detail
+            said = words.says(e) if words else {}
+            said.pop(e["widget"], None)
+            if said:
+                verb += " — " + "; ".join(f"“{shown(w)}”" for w in said.values())
             if e["kind"] == "report":
                 # A worker's provisional news is an outcome too, under its own name.
                 print(
@@ -197,7 +205,7 @@ def cmd_transcript(page_dir: Path) -> None:
     revision, title = _revision_title(page_dir)
     print(f"## Leaf: {title or page_dir.name}")
     _print_versions(events)
-    _print_edits(events)
+    _print_edits(page_dir, events, registry)
     spk = _published_reading(page_dir, registry, revision)
     _print_threads(events, spk, registry)
     _print_approval(events)

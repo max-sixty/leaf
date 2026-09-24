@@ -366,7 +366,8 @@ class _WatchPass(NamedTuple):
 def delivery_json(reading: PageTick) -> str:
     """Freeze and serialize a watcher reading as one delivery envelope."""
     payload = freeze_delivery(
-        [batch_data(reading.page_dir, reading.transaction, reading.batch)]
+        [batch_data(reading.page_dir, reading.transaction, reading.batch)],
+        carrier="wait",
     )
     return json.dumps(payload, ensure_ascii=False)
 

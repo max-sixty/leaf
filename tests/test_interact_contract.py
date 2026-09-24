@@ -3727,10 +3727,12 @@ How this text reaches the agent, by example
    delivery records as its `obligation` (step 4). For the instructions, `leaf
    wait` reads the clauses under `$events.handling.comment` in the page's copy of
    registry.json, then those under `$events.answering.reply`, the answer it owes.
-   Each clause has a `text` and may have a `when`, a JSON Schema the log line,
-   with its `obligation`, must satisfy for the clause to apply. There are
-   @COUNT@; here they all are, with whether the line from step 2 satisfies each
-   `when`:
+   Each clause has a `text` and may have a `when`, a JSON Schema that must hold
+   for the clause to apply. It is tested against the log line together with its
+   `obligation`, its `conversation`'s entry in the delivery's `conversations`
+   (step 4), and `carrier`, the route delivering it: `wait` here, `queue` or
+   `app-server` for the two Codex routes. There are @COUNT@; here they all are,
+   with whether the comment satisfies each `when`:
 
 @CLAUSES@
 
@@ -3757,7 +3759,8 @@ skills/leaf/assets/registry.json (the file `leaf page init` copies into a page).
 Each top-level key below names a case and holds:
 
   event:  the input: a log line's `kind`, the kind of answer its delivery
-          says it owes (`obligation`), and the fields some `when` reads, and
+          says it owes (`obligation`), the `carrier` delivering it, and the
+          fields some `when` reads, its `conversation`'s among them, and
           nothing else. A field no `when` names, such as a comment's `anchor`
           or `text`, cannot change what the agent is told, so it is left out;
           the test checks both halves of that.
@@ -3769,8 +3772,9 @@ Each top-level key below names a case and holds:
   text:   the clause's text.
 
 The walkthrough's comment is the first case. No `when` reads any field of its
-log line from step 2 except `kind`, so the case is that line cut down to `kind`
-and the reply it owes, and it gets the clauses marked "applies" in step 3. It is
+log line from step 2 except `kind`, so the case is that line cut down to `kind`,
+the reply it owes, its carrier and its new conversation's missing title, and it
+gets the clauses marked "applies" in step 3. It is
 recorded as:
 
 @RECORDED@
@@ -3815,8 +3819,22 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
     def owes(kind):
         return {"obligation": {"response": {"kind": kind}}}
 
+    untitled = {"conversation": {"title": None}}
+    titled = {"conversation": {"title": "Tuesday backfill"}}
     cases = {
-        "comment": {"kind": "comment", **owes("reply")},
+        "comment": {"kind": "comment", **untitled, **owes("reply")},
+        "comment over the Codex queue": {
+            "kind": "comment",
+            "carrier": "queue",
+            **untitled,
+            **owes("reply"),
+        },
+        "comment over App Server": {
+            "kind": "comment",
+            "carrier": "app-server",
+            **untitled,
+            **owes("reply"),
+        },
         "comment with a drawing": {
             "kind": "comment",
             "drawing": {"format": "leaf-drawing/2", "strokes": [[[0, 0], [9, 9]]]},
@@ -3831,7 +3849,12 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
         "suggestion": {"kind": "comment", "suggestion": True, **owes("reply")},
         "design comment": {"kind": "comment", "about": "design", **owes("reply")},
         "reaction on the page": {"kind": "comment", "token": "+1"},
-        "reply": {"kind": "reply", **owes("reply")},
+        "reply": {"kind": "reply", **titled, **owes("reply")},
+        "reply in an untitled thread": {
+            "kind": "reply",
+            **untitled,
+            **owes("reply"),
+        },
         "reply with a pasted image": {
             "kind": "reply",
             "text": "like this ![sketch](/media/3d4e5f.png)",
@@ -3839,7 +3862,10 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
         },
         "reply in a long thread": {
             "kind": "reply",
-            "summary_hint": {"from": "m1", "through": "m8"},
+            "conversation": {
+                "title": "Tuesday backfill",
+                "summary_hint": {"from": "m1", "through": "m8"},
+            },
             **owes("reply"),
         },
         "reaction on a message": {"kind": "reply", "token": "+1"},
@@ -3869,6 +3895,8 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
         "report": {"kind": "report"},
         "error": {"kind": "error"},
     }
+    # Every case is delivered by `leaf wait` unless it names another carrier.
+    cases = {name: {"carrier": "wait", **event} for name, event in cases.items()}
     told = {
         name: registry_contract.event_clauses(event, registry)
         for name, event in cases.items()
@@ -3926,8 +3954,14 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
         *page_events["handling"]["comment"],
         *page_events["answering"][delivered["obligation"]["response"]["kind"]],
     ]
+    [conversation] = batch["conversations"]
     applying = registry_contract.event_clauses(
-        {**record, "obligation": delivered["obligation"]},
+        {
+            **record,
+            "obligation": delivered["obligation"],
+            "conversation": conversation,
+            "carrier": "wait",
+        },
         registry_storage.load_registry(page_dir),
     )
     assert [clause["text"] for clause in applying] == [
@@ -4032,10 +4066,13 @@ A carrier is the route that takes new user input to the agent's task:
                      delivery once it enters that turn. leaf.page's hosted
                      agent and a `leaf codex launch` terminal use this carrier.
 
-Both Codex carriers deliver the one frozen delivery that Leaf's Codex offer
-prepares; `leaf wait` freezes its own. The agent's standing instructions (its
-host contract, and on leaf.page the developer instructions) are not part of a
-delivery; test_website_server records leaf.page's.
+Each carrier freezes a delivery of its own. The envelope's shape is the same on
+all three, but not its `handling`: a clause's `when` reads which carrier delivers
+it (`wait`, `queue` or `app-server`), so each agent is told only its own route,
+who acknowledges and whether its final message is the reply. The agent's
+standing instructions (its host contract, and on leaf.page the developer
+instructions) are not part of a delivery; test_website_server records
+leaf.page's.
 
 What this file records
 ----------------------
@@ -4083,20 +4120,34 @@ def test_each_carrier_hands_the_agent_what_the_snapshot_shows(
     assert session_model.cmd_wait(page_dir) == 0
     waited = capsys.readouterr().out
 
+    # The adapter's queue route: collect the batch, then offer its pointer.
+    with service_model.PageTransaction(page_dir) as transaction:
+        path, _, _ = codex_model.append_batch(
+            "codex-queue-task",
+            page_dir,
+            transaction,
+            service_model.unacknowledged(transaction.events, transaction.cursor),
+        )
+    queued = codex_model.offer_delivery(path, files_model.read_json(path), "queue")
+    delivery_model.cmd_delivery_read(queued.payload["id"])
+    read = capsys.readouterr().out
+
     thread = "codex-thread"
     prepared = codex_model.prepare_codex_delivery(
         page_dir, host_model.EmbeddedHarness(thread, "Codex", os.getpid())
     )
-    delivery_model.cmd_delivery_read(prepared.payload["id"])
-    read = capsys.readouterr().out
     started = codex_model.app_server_turn_start_params(thread, prepared.payload)
-    assert json.loads(started["toolOutput"]["output"]) == json.loads(read)
+    delivery_model.cmd_delivery_read(prepared.payload["id"])
+    assert json.loads(started["toolOutput"]["output"]) == json.loads(
+        capsys.readouterr().out
+    )
 
     pinned = {
         logged["id"]: "1946b466",
         logged["ts"]: "2026-09-21T20:12:30-07:00",
         json.loads(waited)["id"]: "11111111",
-        prepared.payload["id"]: "22222222",
+        queued.payload["id"]: "22222222",
+        prepared.payload["id"]: "33333333",
         str(page_dir): "/path/to/page",
     }
 
@@ -4122,7 +4173,7 @@ def test_each_carrier_hands_the_agent_what_the_snapshot_shows(
             {
                 "leaf wait": {"output": readable(waited)},
                 "Codex queue": {
-                    "codex queue --message": Prose(pin(prepared.prompt)),
+                    "codex queue --message": Prose(pin(queued.prompt)),
                     "leaf delivery read 22222222": readable(read),
                 },
                 "Codex App Server": {"turn/start": started},

@@ -362,6 +362,16 @@ its passage or widget, and in Threads when it has no place on the page, the same
 mark and `t` make; `focus: "thread"` lands on the thread and the default `"reply"` lands in
 its reply box. A place on the page is an ordinary fragment link.
 
+A module that names an element away from it, in a feed row or a summary, reads the page's
+shared names rather than its own. `addressableName(element)` is the name the authoring
+contract gives the element: the attribute its entry declares with `x-name`, else a
+leading `<summary>`, heading, or titled member's `<strong>`, inside a leading
+`<header>` too; it is empty where the
+contract gives none, and `addressableSays(element)` is the element's whole words. A
+widget whose title is an attribute, as a column's `label` is, declares `x-name`.
+`anchorLabel(anchor, about)` names a comment's anchor the way Threads does, and
+`markdownWords(text)` is the words a Markdown string renders to.
+
 A module that moves something calls `motion(element, keyframes, ms)` rather than
 `element.animate`. The stylesheet's reduced-motion guard reaches CSS animation and
 transitions, not a Web Animations call a module makes for itself, so `motion` is where a

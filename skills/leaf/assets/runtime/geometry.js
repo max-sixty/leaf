@@ -180,6 +180,7 @@ export function landingBand(scroller) {
 // `scroll-padding` it declares. Callers that measure from the scroller's own box take
 // the clearance here rather than reading the style themselves.
 export function landingInsets(scroller) {
+  measureUnseenCovers(scroller);
   const style = getComputedStyle(scroller);
   const inset = (side) => Number.parseFloat(style[`scrollPadding${side}`]) || 0;
   return {
@@ -204,11 +205,16 @@ export function landingInsets(scroller) {
 // landing cannot know which cover will stick
 // over it. A cover that stops rendering (its panel shut) keeps the room it last
 // measured, so a frame that runs before the reopening's observation reads the room
-// rather than none. Called again with the box's current covers, it replaces the set; a
-// cover that leaves the document is let go on its own.
+// rather than none. A cover first declared while its panel was shut has measured
+// nothing, and the frame after that panel's first opening would read its room as none;
+// so a landing's reading of the host's insets measures any cover shown but not yet
+// measured shown, before the observer's first report of it. Called again with the box's
+// current covers, it replaces the set; a cover that leaves the document is let go on its
+// own.
 const declaredCovers = new Set();
 const coverRooms = new WeakMap();
 const coverHosts = new WeakMap();
+const unseenCovers = new WeakSet();
 let coverObserver = null;
 const paintCoverRoom = (host) => {
   const { property, covers } = coverRooms.get(host);
@@ -232,9 +238,10 @@ export function declareCoverRoom(host, property, covers) {
       if (!target.isConnected) {
         letGo(target);
         room.covers.delete(target);
-      } else if (target.checkVisibility())
+      } else if (target.checkVisibility()) {
         room.covers.set(target, borderBoxSize[0]?.blockSize ?? 0);
-      else continue;
+        unseenCovers.delete(target);
+      } else continue;
       touched.add(host);
     }
     for (const host of touched) paintCoverRoom(host);
@@ -247,18 +254,28 @@ export function declareCoverRoom(host, property, covers) {
     next.set(cover, prior.get(cover) ?? kept);
     if (prior.has(cover)) continue;
     fresh.push(cover);
+    unseenCovers.add(cover);
     coverHosts.set(cover, host);
     declaredCovers.add(cover);
     coverObserver.observe(cover);
   }
   const left = [...prior.keys()].filter((cover) => !next.has(cover));
   for (const cover of left) letGo(cover);
-  if (!prior.size)
-    for (const cover of fresh)
-      if (cover.isConnected && cover.checkVisibility())
-        next.set(cover, cover.getBoundingClientRect().height);
   coverRooms.set(host, { property, covers: next });
+  if (!prior.size) measureUnseenCovers(host, false);
   if (fresh.length || left.length) paintCoverRoom(host);
+}
+function measureUnseenCovers(host, paint = true) {
+  const room = coverRooms.get(host);
+  if (!room) return;
+  let measured = false;
+  for (const cover of room.covers.keys())
+    if (unseenCovers.has(cover) && cover.isConnected && cover.checkVisibility()) {
+      room.covers.set(cover, cover.getBoundingClientRect().height);
+      unseenCovers.delete(cover);
+      measured = true;
+    }
+  if (measured && paint) paintCoverRoom(host);
 }
 // A band less the covers standing over its edges. A cover stands over the top edge when
 // it straddles it, and a cover resting on another stuck cover straddles the edge the

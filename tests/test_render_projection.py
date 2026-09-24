@@ -3804,7 +3804,9 @@ def test_told_waits_through_a_document_without_a_body(browser, monkeypatch):
     page = browser.new_page()
     page.set_content('<body data-lf-reading="ready"></body>')
     monkeypatch.setattr(render_harness, "_server_reading", lambda _page: "ready")
-    page.evaluate("() => { window.detachedBody = document.body; document.body.remove(); }")
+    page.evaluate(
+        "() => { window.detachedBody = document.body; document.body.remove(); }"
+    )
     assert page.evaluate("() => document.body === null")
     real_wait = page.wait_for_function
     attempts = 0

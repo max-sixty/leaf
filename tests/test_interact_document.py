@@ -3,6 +3,7 @@
 import hashlib
 import json
 import math
+import os
 import queue
 import re
 import signal
@@ -4593,6 +4594,26 @@ def test_events_follow_resumes_after_the_last_seq_its_reader_saw(page_dir, spawn
     assert resumed["id"] == json.loads(later.output)["id"]
     assert resumed["seq"] == seen + 2
     assert follower.stop(signal.SIGINT) == (0, "")
+
+
+def test_events_follow_ends_when_its_log_is_replaced(page_dir, spawn):
+    """A follower's position is an offset into the file it opened. A log renamed
+    into its place is another file, whose same offset is the middle of a different
+    history under the wrong seqs, so the follower ends with the error a removed
+    log gets rather than stalling or printing from there."""
+    _tasks_version(page_dir, "active")
+    publish(page_dir)
+    follower = Follower(spawn, page_dir)
+    for _ in events_model.read_events(page_dir):
+        follower.next()
+
+    log = page_dir / "events.jsonl"
+    replacement = page_dir / "events.jsonl.new"
+    replacement.write_bytes(log.read_bytes() + log.read_bytes())
+    os.replace(replacement, log)
+
+    follower.process.wait(timeout=STATED_TIMEOUT)
+    assert follower.stop(signal.SIGTERM) == (1, f"{log} is gone\n")
 
 
 def test_page_state_points_to_a_users_suggestion_record(page_dir):

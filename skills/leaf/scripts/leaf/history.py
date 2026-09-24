@@ -65,8 +65,8 @@ def _gesture(event: dict, words: GestureWords) -> dict:
         }
     if record.get("kind") == "body":
         return {"form": "edit"}
-    if creates := spec.get("creates"):
-        return {"form": "add", "words": detail[creates["words"]]}
+    if spec.get("creates"):
+        return {"form": "add", "words": words.name(event, detail[spec["unit"]])}
     return {"form": "verb", "verb": event["action"]}
 
 

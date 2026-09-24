@@ -118,6 +118,14 @@ def inline_markdown_words(source: str, *, added: bool = False) -> str:
     return "".join(reader.parts)
 
 
+def created_words(words: str, entry: dict) -> str:
+    """The words a user-created child shows, from the words its creating action
+    sent: its entry's `x-text-format` applied as an added child renders it."""
+    if entry.get("x-text-format") == "inline-markdown":
+        return inline_markdown_words(words, added=True)
+    return words
+
+
 def collapse(text: str) -> str:
     """One space per whitespace run, none at the edges — the reading every quote and
     state comparison uses, the browser's quoteFrom in Python."""

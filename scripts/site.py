@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Assemble the published site (https://leaf.page/) into .tmp/site.
 
-Every product document under `docs/` is a Leaf source. The build publishes all five as
-complete page directories, alongside the worked examples. The Worker serves the
+Every product document under `docs/` is a Leaf source. The build publishes each one as a
+complete page directory, alongside the worked examples. The Worker serves the
 build-generated initial projection at the edge, then gives an interacting browser a
 private copy through Leaf's canonical Python server. The catalog previews come from the
 external revision pinned in `example-previews.json`.
@@ -72,6 +72,7 @@ PRODUCT_ROUTES = {
     "how-it-works.html": "/how-it-works/",
     "extending.html": "/extending/",
     "registry.html": "/registry/",
+    "event-log.html": "/event-log/",
 }
 SITE_PACKAGE = "./docs/package"
 # The card a link to a product page unfurls into. An example names its own catalog

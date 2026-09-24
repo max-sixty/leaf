@@ -1,6 +1,6 @@
 """Validation of authored changes against standing actions and reports."""
 
-from leaf.passages import EMPTY, collapse, enclosing_of, inline_markdown_words
+from leaf.passages import EMPTY, collapse, created_words, enclosing_of
 from leaf.projection import (
     NO_RECORD,
     StateProjection,
@@ -121,12 +121,10 @@ def restatement_errors(
         # previous reading because the child was absent from the action's revision.
         generated_words = {
             collapse(
-                inline_markdown_words(words, added=True)
-                if registry.get(action_specs[e["id"]]["creates"]["child"], {}).get(
-                    "x-text-format"
+                created_words(
+                    words,
+                    registry.get(action_specs[e["id"]]["creates"]["child"], {}),
                 )
-                == "inline-markdown"
-                else words
             )
             for e in live
             if (created := created_child(e, action_specs[e["id"]]))

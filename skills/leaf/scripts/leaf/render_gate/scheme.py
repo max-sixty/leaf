@@ -185,8 +185,13 @@ def start_with_pre_upgrade_proof(page, url: str) -> list[str]:
         page.remove_listener("requestfailed", settled)
 
 
-def _render_scheme(browser, url, scheme, viewport, served_timeout_ms, opened_pages):
-    """Read and report the browser gate for one color scheme and viewport."""
+def _render_scheme(
+    browser, url, scheme, viewport, served_timeout_ms, opened_pages, then=None
+):
+    """Read and report the browser gate for one color scheme and viewport.
+
+    `then`, when given, is handed the settled page after every reading here, for the
+    readings a version takes once rather than per scheme and viewport."""
     from playwright.sync_api import Error as PlaywrightError
     from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
@@ -390,5 +395,7 @@ def _render_scheme(browser, url, scheme, viewport, served_timeout_ms, opened_pag
         unsettled=unsettled,
     )
     found, notices = _scheme_findings(context)
+    if then is not None:
+        then(page)
     page.close()
     return found, notices, True

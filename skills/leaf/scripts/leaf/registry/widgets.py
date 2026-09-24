@@ -134,7 +134,7 @@ def validate_widget_schemas(declarations: dict, data: dict, path) -> None:
                             f"x-data input {records_input!r}"
                         )
                     contract = data["contracts"][data_input["contract"]]
-                    record_spec = contract.get("records") or contract.get("fragments")
+                    record_spec = contract.get("records")
                     if record_spec is None:
                         raise RegistryError(
                             f"{path}: <{tag}> x-request records input "

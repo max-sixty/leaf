@@ -8,7 +8,7 @@
         }
       },
       "text-document": {
-        "description": "UTF-8 text captured from a file or a selected line range.",
+        "description": "UTF-8 text from a file or a selected line range.",
         "schema": {
           "type": "string"
         }

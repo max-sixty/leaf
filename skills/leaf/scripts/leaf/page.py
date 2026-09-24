@@ -4,7 +4,11 @@ import sys
 from pathlib import Path
 
 from .registry.storage import require_registry
-from .schema import GUIDANCE_DIR
+from .schema import BUNDLED_PACKAGES, GUIDANCE_DIR
+
+# The one placeholder guidance may write for a path on this machine: the bundled
+# packages directory, where a bundled package's producer `scripts/` live.
+PACKAGES_PLACEHOLDER = "<leaf-packages>"
 
 
 def page_guidance(page_dir: Path) -> dict[str, str]:
@@ -13,6 +17,8 @@ def page_guidance(page_dir: Path) -> dict[str, str]:
     The author is the one reader every page has, so the author's guide ends by
     naming the page's other audiences: a role a package defines is reachable
     from what the author reads, without each package pointing at its own.
+    `<leaf-packages>` becomes this install's bundled packages directory, so a
+    command naming a bundled script runs as printed, whoever reads it.
     """
     parts = {}
     directory = page_dir / GUIDANCE_DIR
@@ -47,7 +53,10 @@ def page_guidance(page_dir: Path) -> dict[str, str]:
             "`leaf page guidance <page> <audience>` before acting in it."
         )
     return {
-        audience: "\n\n".join(sections).rstrip() + "\n"
+        audience: "\n\n".join(sections)
+        .rstrip()
+        .replace(PACKAGES_PLACEHOLDER, str(BUNDLED_PACKAGES))
+        + "\n"
         for audience, sections in sorted(parts.items())
     }
 

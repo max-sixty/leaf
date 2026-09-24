@@ -62,9 +62,7 @@ delivered:
             worker: worker
             worktree: tree
           meaning:
-            document:
-              kind: page
-              revision: 1
+            document: page
             unit: commands
           id: event-2
           ts: <time>

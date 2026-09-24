@@ -57,6 +57,6 @@ interrupted load. Source files and standalone exports carry no startup superviso
 `registry.json` remains the source of truth for the current custom vocabulary and
 its explanations; this contract does not mirror that inventory.
 
-The append transaction records state coordinates and direct dependencies in an action
-or report's `meaning`. Identity-bearing detail fields come from the declared fold unit
+The append transaction records the fold unit and direct dependencies in an action or
+report's `meaning`. Identity-bearing detail fields come from the declared fold unit
 and attribute-set or position record; arbitrary detail strings carry no identity.

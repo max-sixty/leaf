@@ -10,7 +10,7 @@ import time
 from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path
-from stat import S_ISDIR
+from stat import S_ISDIR, S_ISREG
 from typing import TypeVar
 
 from .locations import path_location
@@ -62,13 +62,20 @@ def file_stamp(path: Path):
     return stamp
 
 
-def _contents(path: Path, mode: int) -> bytes:
-    """A digest of what a file holds, or of which entries a directory holds."""
+def _contents(path: Path, mode: int) -> bytes | None:
+    """A digest of what a regular file holds, or of which entries a directory holds.
+    Anything else — a FIFO, a socket — holds nothing a read could name without
+    waiting on its writer."""
     if S_ISDIR(mode):
         with os.scandir(path) as entries:
-            held = repr(sorted((entry.name, entry.inode()) for entry in entries))
-        return hashlib.blake2b(held.encode(), digest_size=16).digest()
-    return hashlib.blake2b(path.read_bytes(), digest_size=16).digest()
+            held = repr(
+                sorted((entry.name, entry.inode()) for entry in entries)
+            ).encode()
+    elif S_ISREG(mode):
+        held = path.read_bytes()
+    else:
+        return None
+    return hashlib.blake2b(held, digest_size=16).digest()
 
 
 # How often a reader waiting on a page looks for news: the browser's news stream,

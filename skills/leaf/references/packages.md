@@ -382,6 +382,12 @@ widget whose title is an attribute, as a column's `label` is, declares `x-name`.
 `anchorLabel(anchor, about)` names a comment's anchor the way Threads does, and
 `markdownWords(text)` is the words a Markdown string renders to.
 
+A message's widget markup is a document of its own, and it may repeat the shapes the page
+holds. A module that finds a partner element by reference, as a seat names the widget it
+serves, searches `authoredScope(element)`: the page's `main`, or the body of the message
+whose markup holds the element. A search of the whole `document` lets quoted markup answer
+for the page.
+
 A module that moves something calls `motion(element, keyframes, ms)` rather than
 `element.animate`. The stylesheet's reduced-motion guard reaches CSS animation and
 transitions, not a Web Animations call a module makes for itself, so `motion` is where a

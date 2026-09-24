@@ -4,13 +4,21 @@
  *
  * The three readings are panels that stand open, each titled by what it counts. They
  * head the command, or fill the lf-command-readings that names it, so a sheet lays the
- * tree in its body and the readings in the rail beside it. */
+ * tree in its body and the readings in the rail beside it. The command owns the panels
+ * it drew wherever they stand: each paint puts them at the head of the current seat, so
+ * a seat that arrives or leaves moves them rather than stranding one copy and drawing
+ * another, and a seat tells its command when it connects or disconnects. A command
+ * that disconnects takes its panels with it, so a seat never holds a departed
+ * command's readings beside its replacement's. The seat is
+ * looked up in the command's own authored document, so a message quoting a seat does
+ * not take the page's readings. */
 import {
   PRESS,
   clockValue,
   conversationBox,
   declarationFor,
   addressableWord,
+  authoredScope,
   commands,
   matchesWhen,
   offer,
@@ -54,11 +62,33 @@ function descendants(plan, source) {
 
 const VIEWS = ["lf-command-head", "lf-stopped-view", "lf-fleet-view"];
 
-// Where the readings stand: the lf-command-readings naming this command, or the command.
-const home = (plan) =>
-  document.querySelector(`lf-command-readings[for="${plan.id}"]`) ?? plan;
+// The panels each command drew, by reading, wherever they currently stand.
+const drawn = new WeakMap();
 
-const view = (plan, cls) => home(plan).querySelector(`:scope > .${cls}[data-lf-gen]`);
+const view = (plan, cls) => drawn.get(plan)?.get(cls) ?? null;
+
+function draw(plan, cls, box) {
+  if (!drawn.has(plan)) drawn.set(plan, new Map());
+  const old = view(plan, cls);
+  if (old && old !== box) old.replaceWith(box);
+  drawn.get(plan).set(cls, box);
+}
+
+// Where the readings stand: the lf-command-readings naming this command in its own
+// document, or the command.
+const home = (plan) =>
+  authoredScope(plan).querySelector(`lf-command-readings[for="${plan.id}"]`) ?? plan;
+
+// Put the drawn panels, in reading order, at the head of their home. A panel already in
+// place is not moved, so a paint that changes nothing about the seat moves nothing.
+function seat(plan, at = home(plan)) {
+  let cursor = at.firstChild;
+  for (const cls of VIEWS) {
+    const box = view(plan, cls);
+    if (box === cursor) cursor = cursor.nextSibling;
+    else at.insertBefore(box, cursor);
+  }
+}
 
 // One reading's panel: the layer's titled region, its heading the reading's own count.
 // The heading takes focus when a count in the head opens its view, so the move lands
@@ -159,11 +189,7 @@ function projectionFocus(plan) {
   const root = active.closest(`.${VIEWS.join(", .")}, .lf-task-meta`);
   if (!root) return null;
   const kind = VIEWS.find((cls) => root.classList.contains(cls));
-  if (
-    kind
-      ? root.parentElement !== home(plan)
-      : closestCommandRole(active, "command") !== plan
-  )
+  if (kind ? view(plan, kind) !== root : closestCommandRole(active, "command") !== plan)
     return null;
   const goal = !kind && closestCommandRole(root.parentElement, "goal");
   const href = active.getAttribute("href");
@@ -171,7 +197,12 @@ function projectionFocus(plan) {
   const viewName = active.dataset.lfView;
   const offerClass = [...active.classList].find((cls) => cls.startsWith("lf-task-"));
   return () => {
-    if (active.isConnected) return;
+    if (document.activeElement === active) return;
+    // A panel moved to a new seat keeps its nodes; the move alone dropped focus.
+    if (active.isConnected) {
+      active.focus({ preventScroll: true });
+      return;
+    }
     const replacementRoot = kind
       ? view(plan, kind)
       : goal?.querySelector(":scope > .lf-task-meta");
@@ -369,8 +400,7 @@ function renderHeader(snapshot) {
     ),
   );
   head.append(outcome, facts);
-  if (old) old.replaceWith(head);
-  else home(plan).prepend(head);
+  draw(plan, "lf-command-head", head);
   return true;
 }
 
@@ -410,7 +440,7 @@ function renderStopped(snapshot) {
   stoppedSignatures.set(plan, signature);
   if (!box) {
     box = panel("lf-stopped-view", "Nothing is stopped");
-    view(plan, "lf-command-head").after(box);
+    draw(plan, "lf-stopped-view", box);
   }
   const label = snapshot.stopped.length
     ? `Stopped work · ${snapshot.stopped.length}, oldest first`
@@ -518,8 +548,7 @@ function renderFleet(snapshot) {
     list.append(item);
   }
   box.append(list);
-  if (old) old.replaceWith(box);
-  else view(plan, "lf-stopped-view").after(box);
+  draw(plan, "lf-fleet-view", box);
   return true;
 }
 
@@ -537,6 +566,7 @@ function paint(plan) {
   renderHeader(snapshot);
   renderStopped(snapshot);
   renderFleet(snapshot);
+  seat(plan);
   restoreFocus?.();
 }
 
@@ -550,9 +580,20 @@ customElements.define(
       this.#stop ??= watchUpdates(this, () => render(this));
     }
 
+    // The panels leave with the command: standing in a seat, they would outlive it
+    // there, and a command that connects again repaints them into its current seat.
     disconnectedCallback() {
       this.#stop?.();
       this.#stop = null;
+      if (drawn.has(this)) seat(this, this);
+    }
+
+    // A seat naming this command connected or disconnected in its document.
+    reseat() {
+      if (!this.isConnected || !drawn.has(this)) return;
+      const restoreFocus = projectionFocus(this);
+      seat(this);
+      restoreFocus?.();
     }
   },
 );

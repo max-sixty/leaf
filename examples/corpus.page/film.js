@@ -21,11 +21,28 @@ const TERM = { x: 790, y: 96, w: 450, h: 470, line: 21, rows: 19 };
 // host, which is where the page's light or dark choice applies; the widget calls it
 // again when the theme changes. The terminal reads as one of the page's code blocks.
 const ROLES = {
-  bg: "--card", panel: "--field", panel2: "--paper", rule: "--rule", ink: "--ink",
-  muted: "--muted", faint: "--border-2", main: "--accent", feat: "--warn",
-  squash: "--mark-ink", ok: "--ok", bad: "--danger", warn: "--warn-ink",
+  bg: "--card",
+  panel: "--field",
+  panel2: "--paper",
+  rule: "--rule",
+  ink: "--ink",
+  muted: "--muted",
+  faint: "--border-2",
+  main: "--accent",
+  feat: "--warn",
+  squash: "--mark-ink",
+  ok: "--ok",
+  bad: "--danger",
+  warn: "--warn-ink",
 };
-const TERM_ROLES = { bg: "--pre-bg", rule: "--code-border", ink: "--code-ink", muted: "--code-muted", ok: "--ok", bad: "--danger" };
+const TERM_ROLES = {
+  bg: "--pre-bg",
+  rule: "--code-border",
+  ink: "--code-ink",
+  muted: "--code-muted",
+  ok: "--ok",
+  bad: "--danger",
+};
 
 export function themePalette(host) {
   const probe = document.createElement("span");
@@ -35,7 +52,10 @@ export function themePalette(host) {
     probe.style.color = `var(${token})`;
     return getComputedStyle(probe).color;
   };
-  const resolve = (roles) => Object.fromEntries(Object.entries(roles).map(([role, token]) => [role, read(token)]));
+  const resolve = (roles) =>
+    Object.fromEntries(
+      Object.entries(roles).map(([role, token]) => [role, read(token)]),
+    );
   const palette = { ...resolve(ROLES), term: resolve(TERM_ROLES) };
   probe.remove();
   return palette;
@@ -97,7 +117,12 @@ export const EXAMPLE = {
     { hash: "3e1f0c2", subject: "History main and feature share." },
     { hash: "8a4d7b1", subject: "Where feature forked off main." },
   ],
-  ahead: [{ hash: "e90b4f6", subject: "Another agent's change, landed on main after feature forked." }],
+  ahead: [
+    {
+      hash: "e90b4f6",
+      subject: "Another agent's change, landed on main after feature forked.",
+    },
+  ],
   commits: [
     { hash: "b72c9e4", subject: "wip" },
     { hash: "51e0d3a", subject: "fix" },
@@ -107,7 +132,13 @@ export const EXAMPLE = {
   insertions: 84,
   message: "feat: add merge animation",
   hooks: {
-    "pre-merge": [{ name: "test", command: "cargo test", output: "test result: ok. 214 passed; 0 failed" }],
+    "pre-merge": [
+      {
+        name: "test",
+        command: "cargo test",
+        output: "test result: ok. 214 passed; 0 failed",
+      },
+    ],
     "pre-remove": [{ name: "snapshot", command: "" }],
     "post-merge": [{ name: "install", command: "" }],
   },
@@ -164,7 +195,8 @@ export function compile(f, sc = EXAMPLE) {
   };
   // A callout: `at` is a node id, ref id (`ref:main`), chip id (`chip:pre`), tree id
   // (`tree:feature`) or {x, y}; `from` makes it an arrow from one anchor to another.
-  const note = (id, props) => (world.notes[id] = { o: 1, tone: "ink", side: "up", ...props });
+  const note = (id, props) =>
+    (world.notes[id] = { o: 1, tone: "ink", side: "up", ...props });
   const begin = (key, state, words) => {
     chapter = key;
     status[key] = state;
@@ -184,14 +216,15 @@ export function compile(f, sc = EXAMPLE) {
   const room = MAX_FEATURE_NODES - (sc.dirty ? 1 : 0);
   const shown = sc.commits.slice(-room);
   const folded = sc.commits.length - shown.length;
-  const fork = sc.base.at(-1).hash;
 
   // Setup: the target's history, the branch, its uncommitted edits, and what landed since.
   const pieces = [
     sc.commits.length && plural(sc.commits.length, "commit"),
     sc.dirty && `${plural(sc.dirty, "uncommitted file")}`,
   ].filter(Boolean);
-  caption = `${B}: ${pieces.join(", ")}` + (moved ? ` — and ${T} has moved on.` : `, on top of ${T}.`);
+  caption =
+    `${B}: ${pieces.join(", ")}` +
+    (moved ? ` — and ${T} has moved on.` : `, on top of ${T}.`);
   scene(1.4, (w) => {
     sc.base.slice(-2).forEach((c, i, arr) => {
       node(`m${i + 1}`, {
@@ -199,7 +232,10 @@ export function compile(f, sc = EXAMPLE) {
         y: MAIN_Y,
         tone: "main",
         hash: c.hash,
-        info: i === arr.length - 1 ? `${c.subject} — where ${B} forked off ${T}.` : c.subject,
+        info:
+          i === arr.length - 1
+            ? `${c.subject} — where ${B} forked off ${T}.`
+            : c.subject,
       });
       if (i) edge(`m${i}`, `m${i + 1}`, { tone: "main" });
     });
@@ -210,7 +246,15 @@ export function compile(f, sc = EXAMPLE) {
       label: T,
       info: `The branch wt merge lands on. It moves only in step 5.`,
     });
-    w.trees.repo = { o: 1, i: 0, path: sc.repo, branch: T, dirty: 0, note: "", info: `The primary worktree, on ${T}. The merge ends here.` };
+    w.trees.repo = {
+      o: 1,
+      i: 0,
+      path: sc.repo,
+      branch: T,
+      dirty: 0,
+      note: "",
+      info: `The primary worktree, on ${T}. The merge ends here.`,
+    };
   });
   const forkId = `m${Math.min(2, sc.base.length)}`;
   const featIds = [];
@@ -218,8 +262,15 @@ export function compile(f, sc = EXAMPLE) {
     let prev = forkId;
     shown.forEach((c, i) => {
       const id = `f${i}`;
-      const more = i === 0 && folded ? ` (+${plural(folded, "earlier commit")} before it)` : "";
-      node(id, { x: x(2 + i), y: FEAT_Y, tone: "feat", hash: c.hash, info: `${c.subject}${more}` });
+      const more =
+        i === 0 && folded ? ` (+${plural(folded, "earlier commit")} before it)` : "";
+      node(id, {
+        x: x(2 + i),
+        y: FEAT_Y,
+        tone: "feat",
+        hash: c.hash,
+        info: `${c.subject}${more}`,
+      });
       edge(prev, id, { tone: "feat" });
       featIds.push(id);
       prev = id;
@@ -235,9 +286,19 @@ export function compile(f, sc = EXAMPLE) {
       });
       edge(prev, "wt", { tone: "feat", dash: 1 });
       featIds.push("wt");
-      note("dirty", { at: "wt", text: "not committed yet", side: "right", tone: "warn" });
+      note("dirty", {
+        at: "wt",
+        text: "not committed yet",
+        side: "right",
+        tone: "warn",
+      });
     }
-    note("fork", { at: forkId, text: `${B} forked here`, side: "down-left", tone: "feat" });
+    note("fork", {
+      at: forkId,
+      text: `${B} forked here`,
+      side: "down-left",
+      tone: "feat",
+    });
     ref("feature", {
       at: featIds.at(-1),
       tone: "feat",
@@ -272,7 +333,10 @@ export function compile(f, sc = EXAMPLE) {
       w.refs.main.at = "m3";
       note("ahead", {
         at: "m3",
-        text: ahead.length > 1 ? `${ahead.length} commits landed since` : "landed since the fork",
+        text:
+          ahead.length > 1
+            ? `${ahead.length} commits landed since`
+            : "landed since the fork",
         side: "right",
         tone: "main",
       });
@@ -294,11 +358,19 @@ export function compile(f, sc = EXAMPLE) {
     scene(1.3, null);
   } else {
     const hash = fakeHash(`commit ${sc.worktree}`);
-    begin("commit", "run", "1 · Commit — the uncommitted edits become a commit of their own.");
+    begin(
+      "commit",
+      "run",
+      "1 · Commit — the uncommitted edits become a commit of their own.",
+    );
     scene(
       2.2,
       (w) => {
-        Object.assign(w.nodes.wt, { wip: 0, hash, info: "The uncommitted edits, committed by step 1." });
+        Object.assign(w.nodes.wt, {
+          wip: 0,
+          hash,
+          info: "The uncommitted edits, committed by step 1.",
+        });
         w.edges[`${featIds.at(-2) ?? forkId}>wt`].dash = 0;
         w.trees.feature.dirty = 0;
       },
@@ -331,14 +403,22 @@ export function compile(f, sc = EXAMPLE) {
           });
         }
         w.refs.feature.o = 0;
-        note("sweep", { at: featIds.at(-1), text: "all of this becomes one commit", side: "right", tone: "squash" });
+        note("sweep", {
+          at: featIds.at(-1),
+          text: "all of this becomes one commit",
+          side: "right",
+          tone: "squash",
+        });
       },
       [
         out(
           `◎ Squashing ${plural(sc.commits.length, "commit")}${sc.dirty ? " & working tree changes" : ""}`,
           "muted",
         ),
-        out(`  into a single commit (${plural(sc.files, "file")}, +${sc.insertions})...`, "muted"),
+        out(
+          `  into a single commit (${plural(sc.files, "file")}, +${sc.insertions})...`,
+          "muted",
+        ),
         ...(sc.dirty ? [out(`↳ Backup created @ ${backup}`, "muted")] : []),
       ],
     );
@@ -406,18 +486,32 @@ export function compile(f, sc = EXAMPLE) {
       2.8,
       (w) => {
         const n = w.nodes[first];
-        node(`${first}~`, { ...n, tone: "ghost", o: 0.55, msg: "", info: `The original ${n.hash}, still where it was.` });
+        node(`${first}~`, {
+          ...n,
+          tone: "ghost",
+          o: 0.55,
+          msg: "",
+          info: `The original ${n.hash}, still where it was.`,
+        });
         Object.assign(n, {
           x: x(3),
           tone: "bad",
           hash: "conflict",
           info: `${n.hash} half-applied onto ${hashOf(w, "m3")}: a file has conflict markers.`,
         });
-        lane.slice(1).forEach((id, i) => Object.assign(w.nodes[id], { o: 0.35, x: x(4 + i) }));
+        lane
+          .slice(1)
+          .forEach((id, i) => Object.assign(w.nodes[id], { o: 0.35, x: x(4 + i) }));
         w.edges[`${forkId}>${first}`].o = 0;
         edge("m3", first, { tone: "bad", dash: 1 });
         w.trees.feature.note = "rebase in progress";
-        note("stop", { at: first, text: "✗ stops here: conflict", side: "right", tone: "bad", keep: 1 });
+        note("stop", {
+          at: first,
+          text: "✗ stops here: conflict",
+          side: "right",
+          tone: "bad",
+          keep: 1,
+        });
         w.flash.o = 1;
       },
       [
@@ -428,7 +522,11 @@ export function compile(f, sc = EXAMPLE) {
     );
     failed = "conflict";
   } else if (f.rebase) {
-    begin("rebase", "run", `3 · Rebase — the work is replayed on top of ${T}'s new tip, as new commits.`);
+    begin(
+      "rebase",
+      "run",
+      `3 · Rebase — the work is replayed on top of ${T}'s new tip, as new commits.`,
+    );
     scene(0.8, null, [out(`◎ Rebasing onto ${T}...`, "muted")]);
     scene(
       2.4,
@@ -437,7 +535,13 @@ export function compile(f, sc = EXAMPLE) {
         // tip, with a fading ghost left where the originals stood.
         lane.forEach((id, i) => {
           const n = w.nodes[id];
-          node(`${id}~`, { ...n, tone: "ghost", o: 0.55, msg: "", info: `The original ${n.hash}, left behind by the rebase.` });
+          node(`${id}~`, {
+            ...n,
+            tone: "ghost",
+            o: 0.55,
+            msg: "",
+            info: `The original ${n.hash}, left behind by the rebase.`,
+          });
           Object.assign(n, {
             x: x(3 + i),
             hash: fakeHash(`rebased ${n.hash}`),
@@ -485,7 +589,11 @@ export function compile(f, sc = EXAMPLE) {
   // 4 · Pre-merge hooks run against the exact tree that will land.
   const pre = hooks("pre-merge");
   if (!failed && !pre.length) {
-    begin("premerge", "skip", "4 · Pre-merge hooks — none configured in .config/wt.toml, so nothing runs.");
+    begin(
+      "premerge",
+      "skip",
+      "4 · Pre-merge hooks — none configured in .config/wt.toml, so nothing runs.",
+    );
     scene(1.3, null);
   } else if (!failed) {
     const chipAt = { x: GRAPH_X - 20, y: 420 };
@@ -501,7 +609,12 @@ export function compile(f, sc = EXAMPLE) {
     scene(
       0.6,
       (w) => {
-        note("tested", { at: lane.at(-1), text: "this exact commit is what gets tested", side: "right", tone: "warn" });
+        note("tested", {
+          at: lane.at(-1),
+          text: "this exact commit is what gets tested",
+          side: "right",
+          tone: "warn",
+        });
         w.chips.pre = {
           ...chipAt,
           o: 1,
@@ -524,12 +637,20 @@ export function compile(f, sc = EXAMPLE) {
         (w) => {
           w.chips.pre.state = "fail";
           w.chips.pre.label = `${label} failed`;
-          note("stop", { at: "ref:main", text: `✗ stops here: ${T} never moves`, side: "right", tone: "bad", keep: 1 });
+          note("stop", {
+            at: "ref:main",
+            text: `✗ stops here: ${T} never moves`,
+            side: "right",
+            tone: "bad",
+            keep: 1,
+          });
           w.flash.o = 1;
         },
         [
           out(`✗ pre-merge project:${h.name} failed`, "bad"),
-          ...(status.squash === "run" ? [out("↳ The branch stays squashed.", "muted")] : []),
+          ...(status.squash === "run"
+            ? [out("↳ The branch stays squashed.", "muted")]
+            : []),
         ],
       );
       failed = "premerge";
@@ -563,17 +684,29 @@ export function compile(f, sc = EXAMPLE) {
       (w) => {
         if (w.chips.pre) w.chips.pre.o = 0;
       },
-      [out(`◎ Merging ${plural(count, "commit")} to ${T}${f.ff ? "" : " (--no-ff)"}`, "muted")],
+      [
+        out(
+          `◎ Merging ${plural(count, "commit")} to ${T}${f.ff ? "" : " (--no-ff)"}`,
+          "muted",
+        ),
+      ],
     );
     if (f.ff) {
       scene(
         2.4,
         (w) => {
-          for (const id of lane) Object.assign(w.nodes[id], { y: MAIN_Y, tone: "main" });
+          for (const id of lane)
+            Object.assign(w.nodes[id], { y: MAIN_Y, tone: "main" });
           w.refs.main.at = tipId;
           note("ff", { from: mainTip, at: tipId, text: "", tone: "main" });
-          note("ffto", { at: tipId, text: `${T} moved here: a fast-forward`, side: "right", tone: "main" });
-          for (const e of Object.values(w.edges)) if (lane.includes(e.b) && e.o > 0) e.tone = "main";
+          note("ffto", {
+            at: tipId,
+            text: `${T} moved here: a fast-forward`,
+            side: "right",
+            tone: "main",
+          });
+          for (const e of Object.values(w.edges))
+            if (lane.includes(e.b) && e.o > 0) e.tone = "main";
         },
         [out(`✓ Merged to ${T} (${stats})`, "ok")],
       );
@@ -594,7 +727,12 @@ export function compile(f, sc = EXAMPLE) {
           edge(mainTip, "mm", { tone: "main" });
           edge(tipId, "mm", { tone: "main" });
           w.refs.main.at = "mm";
-          note("mm", { at: "mm", text: "merge commit: two parents", side: "right", tone: "main" });
+          note("mm", {
+            at: "mm",
+            text: "merge commit: two parents",
+            side: "right",
+            tone: "main",
+          });
         },
         [out(`✓ Merged to ${T} (${stats}, --no-ff)`, "ok")],
       );
@@ -606,7 +744,11 @@ export function compile(f, sc = EXAMPLE) {
     const rm = hooks("pre-remove");
     if (f.remove) {
       if (rm.length) {
-        begin("preremove", "run", "6 · Pre-remove hooks — a last chance to act before the worktree goes.");
+        begin(
+          "preremove",
+          "run",
+          "6 · Pre-remove hooks — a last chance to act before the worktree goes.",
+        );
         scene(
           1.6,
           (w) => {
@@ -623,10 +765,18 @@ export function compile(f, sc = EXAMPLE) {
           rm.map((h) => out(`◎ Running pre-remove project:${h.name}`, "muted")),
         );
       } else {
-        begin("preremove", "skip", "6 · Pre-remove hooks — none configured, so nothing runs.");
+        begin(
+          "preremove",
+          "skip",
+          "6 · Pre-remove hooks — none configured, so nothing runs.",
+        );
         scene(1.1, null);
       }
-      begin("cleanup", "run", `7 · Cleanup — the worktree and branch are removed in the background; you land in ${T}.`);
+      begin(
+        "cleanup",
+        "run",
+        `7 · Cleanup — the worktree and branch are removed in the background; you land in ${T}.`,
+      );
       scene(
         2.2,
         (w) => {
@@ -634,7 +784,12 @@ export function compile(f, sc = EXAMPLE) {
           Object.assign(w.trees.feature, { o: 0, gone: 1 });
           w.refs.feature.o = 0;
           w.trees.repo.here = 1;
-          note("gone", { at: "tree:feature", text: "worktree and branch removed", side: "up", tone: "muted" });
+          note("gone", {
+            at: "tree:feature",
+            text: "worktree and branch removed",
+            side: "up",
+            tone: "muted",
+          });
         },
         [
           out(`◎ Removing ${B} worktree & branch`, "muted"),
@@ -643,9 +798,17 @@ export function compile(f, sc = EXAMPLE) {
         ],
       );
     } else {
-      begin("preremove", "skip", "6 · Pre-remove hooks — skipped: nothing is being removed.");
+      begin(
+        "preremove",
+        "skip",
+        "6 · Pre-remove hooks — skipped: nothing is being removed.",
+      );
       scene(1.1, null);
-      begin("cleanup", "skip", "7 · Cleanup — skipped (--no-remove): the worktree stays for more work.");
+      begin(
+        "cleanup",
+        "skip",
+        "7 · Cleanup — skipped (--no-remove): the worktree stays for more work.",
+      );
       scene(1.6, null, [out("○ Worktree preserved (--no-remove)", "ink")]);
     }
     const post = hooks("post-merge");
@@ -667,9 +830,19 @@ export function compile(f, sc = EXAMPLE) {
             label: `post-merge · ${post.map((h) => h.name).join(", ")} (background)`,
             info: `[post-merge] hooks run in the background from ${sc.repo}, after the prompt returns.`,
           };
-          note("bg", { at: "chip:post", text: "runs after your prompt is back", side: "right", tone: "muted" });
+          note("bg", {
+            at: "chip:post",
+            text: "runs after your prompt is back",
+            side: "right",
+            tone: "muted",
+          });
         },
-        [...post.map((h) => out(`◎ Running post-merge: ${h.name} @ ${sc.repo}`, "muted")), out("$ ▍", "ink")],
+        [
+          ...post.map((h) =>
+            out(`◎ Running post-merge: ${h.name} @ ${sc.repo}`, "muted"),
+          ),
+          out("$ ▍", "ink"),
+        ],
       );
     } else {
       begin("postmerge", "skip", "8 · Post-merge hooks — none configured.");
@@ -687,26 +860,36 @@ export function compile(f, sc = EXAMPLE) {
     merge: "merged",
     cleanup: "cleaned up",
   };
-  const ran = Object.keys(verbs).filter((k) => status[k] === "run").map((k) => verbs[k]);
+  const ran = Object.keys(verbs)
+    .filter((k) => status[k] === "run")
+    .map((k) => verbs[k]);
   const kept = ran.filter((v) => v === "squashed" || v === "rebased");
-  const endTitle = {
-    rebase: "Refused before anything ran.",
-    conflict: "Stopped mid-rebase.",
-    premerge: `A hook failed. ${T} never moved.`,
-  }[failed] ?? "Landed.";
+  const endTitle =
+    {
+      rebase: "Refused before anything ran.",
+      conflict: "Stopped mid-rebase.",
+      premerge: `A hook failed. ${T} never moved.`,
+    }[failed] ?? "Landed.";
   const endSub =
     {
       rebase: `--no-rebase keeps the graph as-is, so ${T} must already be its ancestor.`,
       conflict: `Resolve the conflict in ${sc.worktree}, then run wt merge again. ${T} is untouched.`,
       premerge: `Fix it and run wt merge again${kept.length ? ` — it's already ${kept.join(" and ")}` : ""}.`,
-    }[failed] ?? `One command: ${ran.join(", ")}.` + (f.remove ? "" : " The worktree stays.");
+    }[failed] ??
+    `One command: ${ran.join(", ")}.` + (f.remove ? "" : " The worktree stays.");
   caption = `${endTitle} ${endSub}`;
   captionTone = failed ? "bad" : "ok";
   scene(
     1.6,
     (w) => {
       w.flash.o = 0;
-      if (!failed) note("landed", { at: "ref:main", text: `✓ ${T} is here now`, side: "right", tone: "ok" });
+      if (!failed)
+        note("landed", {
+          at: "ref:main",
+          text: `✓ ${T} is here now`,
+          side: "right",
+          tone: "ok",
+        });
     },
     [],
     { ease: easeOut },
@@ -734,8 +917,10 @@ function mix(a, b, p) {
     const va = a?.[k];
     const vb = b?.[k];
     if (typeof va === "number" && typeof vb === "number") outv[k] = lerp(va, vb, p);
-    else if (va === undefined) outv[k] = typeof vb === "number" && k === "o" ? vb * p : vb;
-    else if (vb === undefined) outv[k] = typeof va === "number" && k === "o" ? va * (1 - p) : va;
+    else if (va === undefined)
+      outv[k] = typeof vb === "number" && k === "o" ? vb * p : vb;
+    else if (vb === undefined)
+      outv[k] = typeof va === "number" && k === "o" ? va * (1 - p) : va;
     else outv[k] = p < 0.5 ? va : vb;
   }
   return outv;
@@ -784,7 +969,15 @@ export function frame(film, t) {
       lines.push({ ...l, shown, at: sc.start + lead * sc.dur });
     });
   }
-  return { world, lines, flash, caption: s.caption, captionTone: s.captionTone, chapter: s.chapter, t };
+  return {
+    world,
+    lines,
+    flash,
+    caption: s.caption,
+    captionTone: s.captionTone,
+    chapter: s.chapter,
+    t,
+  };
 }
 
 // ---------------------------------------------------------------------------------
@@ -795,7 +988,8 @@ export function frame(film, t) {
 const PART_KIND = { node: "commit", ref: "ref", tree: "tree", chip: "hook" };
 
 // The terminal is 48 columns of 14px mono; a longer line ends in an ellipsis.
-const fit = (text, cols = 48) => (text.length > cols ? `${text.slice(0, cols - 1)}…` : text);
+const fit = (text, cols = 48) =>
+  text.length > cols ? `${text.slice(0, cols - 1)}…` : text;
 
 const describe = (g, label, info) => {
   g.dataset.label = label;
@@ -825,9 +1019,17 @@ const el = (tag, attrs = {}, parent) => {
   return node;
 };
 const tone = (C, name) =>
-  ({ main: C.main, feat: C.feat, squash: C.squash, ghost: C.faint, ok: C.ok, bad: C.bad, warn: C.warn, ink: C.ink, muted: C.muted })[
-    name
-  ] ?? C.ink;
+  ({
+    main: C.main,
+    feat: C.feat,
+    squash: C.squash,
+    ghost: C.faint,
+    ok: C.ok,
+    bad: C.bad,
+    warn: C.warn,
+    ink: C.ink,
+    muted: C.muted,
+  })[name] ?? C.ink;
 
 // The part of the canvas drawn: the graph, the worktrees and the terminal.
 const BOX = [36, 98, 1214, 502];
@@ -855,19 +1057,54 @@ export class Painter {
     el("rect", { width: W, height: H, fill: C.bg }, svg);
     // Terminal panel.
     const termLayer = el("g", {}, svg);
-    el("rect", { x: TERM.x, y: TERM.y, width: TERM.w, height: TERM.h, rx: 10, fill: C.term.bg, stroke: C.term.rule }, termLayer);
+    el(
+      "rect",
+      {
+        x: TERM.x,
+        y: TERM.y,
+        width: TERM.w,
+        height: TERM.h,
+        rx: 10,
+        fill: C.term.bg,
+        stroke: C.term.rule,
+      },
+      termLayer,
+    );
     const dots = el("g", {}, termLayer);
     ["#ff5f57", "#febc2e", "#28c840"].forEach((c, i) =>
-      el("circle", { cx: TERM.x + 18 + i * 16, cy: TERM.y + 16, r: 5, fill: c, opacity: 0.8 }, dots),
+      el(
+        "circle",
+        { cx: TERM.x + 18 + i * 16, cy: TERM.y + 16, r: 5, fill: c, opacity: 0.8 },
+        dots,
+      ),
     );
-    this.termTitle = el("text", { x: TERM.x + TERM.w / 2, y: TERM.y + 20, "text-anchor": "middle", "font-family": MONO, "font-size": 12, fill: C.term.muted }, termLayer);
+    this.termTitle = el(
+      "text",
+      {
+        x: TERM.x + TERM.w / 2,
+        y: TERM.y + 20,
+        "text-anchor": "middle",
+        "font-family": MONO,
+        "font-size": 12,
+        fill: C.term.muted,
+      },
+      termLayer,
+    );
     this.term = el("g", { "font-family": MONO, "font-size": 14 }, termLayer);
     const clipId = `film-term-clip-${++painters}`;
     this.termClip = el("clipPath", { id: clipId }, el("defs", {}, svg));
-    el("rect", { x: TERM.x, y: TERM.y + 32, width: TERM.w, height: TERM.h - 36 }, this.termClip);
+    el(
+      "rect",
+      { x: TERM.x, y: TERM.y + 32, width: TERM.w, height: TERM.h - 36 },
+      this.termClip,
+    );
     this.term.setAttribute("clip-path", `url(#${clipId})`);
     // Graph layers.
-    this.edges = el("g", { fill: "none", "stroke-width": 3, "stroke-linecap": "round" }, svg);
+    this.edges = el(
+      "g",
+      { fill: "none", "stroke-width": 3, "stroke-linecap": "round" },
+      svg,
+    );
     this.nodes = el("g", {}, svg);
     this.refs = el("g", { "font-family": MONO, "font-size": 13 }, svg);
     this.chips = el("g", { "font-family": MONO, "font-size": 14 }, svg);
@@ -876,12 +1113,28 @@ export class Painter {
     this.arrowId = `film-arrow-${painters}`;
     const marker = el(
       "marker",
-      { id: this.arrowId, viewBox: "0 0 10 10", refX: 9, refY: 5, markerWidth: 7, markerHeight: 7, orient: "auto-start-reverse" },
+      {
+        id: this.arrowId,
+        viewBox: "0 0 10 10",
+        refX: 9,
+        refY: 5,
+        markerWidth: 7,
+        markerHeight: 7,
+        orient: "auto-start-reverse",
+      },
       defs,
     );
     el("path", { d: "M0,0 L10,5 L0,10 z", fill: "context-stroke" }, marker);
-    this.notes = el("g", { "font-family": SANS, "font-size": 14, "pointer-events": "none" }, svg);
-    this.flash = el("rect", { width: W, height: H, fill: C.bad, opacity: 0, "pointer-events": "none" }, svg);
+    this.notes = el(
+      "g",
+      { "font-family": SANS, "font-size": 14, "pointer-events": "none" },
+      svg,
+    );
+    this.flash = el(
+      "rect",
+      { width: W, height: H, fill: C.bad, opacity: 0, "pointer-events": "none" },
+      svg,
+    );
   }
 
   // Where a note's anchor is in this frame: a node's centre, or the top edge of a ref
@@ -929,7 +1182,8 @@ export class Painter {
         // Above the lane by default; `below` keeps it clear of the ref pills and title.
         const dir = n.below ? 1 : -1;
         const mx = (from.x + to.x) / 2;
-        const my = (dir > 0 ? Math.max(from.y, to.y) : Math.min(from.y, to.y)) + dir * 64;
+        const my =
+          (dir > 0 ? Math.max(from.y, to.y) : Math.min(from.y, to.y)) + dir * 64;
         const pad = (to.r ?? 13) + 4;
         const ang = Math.atan2(to.y - my, to.x - mx);
         lead.setAttribute(
@@ -953,7 +1207,8 @@ export class Painter {
         const ex = Math.max(lx, Math.min(to.x, lx + w));
         const ey = Math.max(ly, Math.min(to.y, ly + 26));
         const sx = to.x + Math.sign(ex - to.x) * (n.side === "up" ? 0 : r - 2);
-        const sy = to.y + (n.side === "up" ? -r + 2 : n.side === "down-left" ? r - 2 : 0);
+        const sy =
+          to.y + (n.side === "up" ? -r + 2 : n.side === "down-left" ? r - 2 : 0);
         lead.setAttribute("d", `M${sx},${sy} L${ex},${ey}`);
         lead.removeAttribute("marker-end");
         lead.setAttribute("stroke-dasharray", "3 3");
@@ -994,8 +1249,14 @@ export class Painter {
     for (const [key, element] of this.pool) {
       const [layer, id] = key.split(":");
       const kind = PART_KIND[layer];
-      if (!kind || id.includes("~") || Number(element.getAttribute("opacity")) < 0.3) continue;
-      out.push({ id: `${kind}:${id}`, element, label: element.dataset.label, info: element.dataset.info });
+      if (!kind || id.includes("~") || Number(element.getAttribute("opacity")) < 0.3)
+        continue;
+      out.push({
+        id: `${kind}:${id}`,
+        element,
+        label: element.dataset.label,
+        info: element.dataset.info,
+      });
     }
     return out;
   }
@@ -1019,7 +1280,9 @@ export class Painter {
       path.setAttribute("stroke", tone(C, e.tone));
       path.setAttribute(
         "opacity",
-        lit && !(lit.has(e.a) && lit.has(e.b)) ? 0.08 * e.o : Math.min(e.o, a.o + 0.2, b.o + 0.2),
+        lit && !(lit.has(e.a) && lit.has(e.b))
+          ? 0.08 * e.o
+          : Math.min(e.o, a.o + 0.2, b.o + 0.2),
       );
       path.setAttribute("stroke-dasharray", e.dash > 0.5 ? "6 7" : "none");
     }
@@ -1027,8 +1290,26 @@ export class Painter {
       const g = this.keyed("node", key, () => {
         const g = el("g", {}, this.nodes);
         el("circle", {}, g);
-        el("text", { "text-anchor": "middle", "font-family": MONO, "font-size": 12, fill: this.C.muted }, g);
-        el("text", { "text-anchor": "middle", "font-family": MONO, "font-size": 11, "font-weight": 700 }, g);
+        el(
+          "text",
+          {
+            "text-anchor": "middle",
+            "font-family": MONO,
+            "font-size": 12,
+            fill: this.C.muted,
+          },
+          g,
+        );
+        el(
+          "text",
+          {
+            "text-anchor": "middle",
+            "font-family": MONO,
+            "font-size": 11,
+            "font-weight": 700,
+          },
+          g,
+        );
         return g;
       });
       const [circle, hash, inner] = g.children;
@@ -1082,7 +1363,14 @@ export class Painter {
       });
       const [box, bar, text] = g.children;
       const w = Math.max(250, c.label.length * 8.6 + 32);
-      const col = c.state === "fail" ? C.bad : c.state === "ok" ? C.ok : c.state === "bg" ? C.muted : C.warn;
+      const col =
+        c.state === "fail"
+          ? C.bad
+          : c.state === "ok"
+            ? C.ok
+            : c.state === "bg"
+              ? C.muted
+              : C.warn;
       box.setAttribute("x", c.x);
       box.setAttribute("y", c.y);
       box.setAttribute("width", w);
@@ -1095,7 +1383,8 @@ export class Painter {
       text.setAttribute("x", c.x + 16);
       text.setAttribute("y", c.y + 22);
       text.setAttribute("fill", col);
-      text.textContent = (c.state === "run" ? "◎ " : c.state === "bg" ? "◌ " : "") + c.label;
+      text.textContent =
+        (c.state === "run" ? "◎ " : c.state === "bg" ? "◌ " : "") + c.label;
       g.setAttribute("opacity", c.o);
       describe(g, c.label.replace(/ [✓]$/, ""), c.info);
     }
@@ -1123,7 +1412,11 @@ export class Painter {
       meta.setAttribute("fill", tr.dirty > 0.5 ? C.warn : C.muted);
       meta.textContent =
         `[${tr.branch}]` +
-        (tr.note ? `  ⚠ ${tr.note}` : tr.dirty > 0.5 ? `  ● ${Math.round(tr.dirty)} uncommitted` : "  clean") +
+        (tr.note
+          ? `  ⚠ ${tr.note}`
+          : tr.dirty > 0.5
+            ? `  ● ${Math.round(tr.dirty)} uncommitted`
+            : "  clean") +
         (tr.here > 0.5 ? "  ← you are here" : "");
       meta.setAttribute("fill", tr.note ? C.bad : tr.dirty > 0.5 ? C.warn : C.muted);
       g.setAttribute("opacity", tr.o);
@@ -1143,13 +1436,22 @@ export class Painter {
       const y = TERM.y + 56 + i * TERM.line;
       const link = el("a", {}, this.term);
       link.dataset.at = l.at;
-      const text = el("text", { x: TERM.x + 18, y, fill: C.term[l.tone] ?? C.term.ink }, link);
+      const text = el(
+        "text",
+        { x: TERM.x + 18, y, fill: C.term[l.tone] ?? C.term.ink },
+        link,
+      );
       if (l.kind === "cmd") {
-        const typed = fit(l.text, 46).slice(0, Math.round(fit(l.text, 46).length * l.shown));
+        const typed = fit(l.text, 46).slice(
+          0,
+          Math.round(fit(l.text, 46).length * l.shown),
+        );
         text.textContent = `$ ${typed}${l.shown < 1 ? "▍" : ""}`;
       } else {
         // SVG collapses leading spaces; indentation is part of wt's output format.
-        text.textContent = fit(l.text).replace(/^ +/, (m) => String.fromCharCode(160).repeat(m.length));
+        text.textContent = fit(l.text).replace(/^ +/, (m) =>
+          String.fromCharCode(160).repeat(m.length),
+        );
         text.setAttribute("opacity", l.shown);
       }
     });

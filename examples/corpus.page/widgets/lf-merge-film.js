@@ -15,7 +15,14 @@
 // so the page can tell the current step beside the film.
 
 import { offer, once, registerVisualParts } from "/runtime/widget-api.js";
-import { DEFAULT_FLAGS, EXAMPLE, Painter, compile, frame, themePalette } from "../film.js";
+import {
+  DEFAULT_FLAGS,
+  EXAMPLE,
+  Painter,
+  compile,
+  frame,
+  themePalette,
+} from "../film.js";
 
 const SVG = "http://www.w3.org/2000/svg";
 
@@ -56,7 +63,10 @@ customElements.define(
       const scheme = matchMedia("(prefers-color-scheme: dark)");
       scheme.addEventListener("change", retheme);
       const observer = new MutationObserver(retheme);
-      observer.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+      observer.observe(document.documentElement, {
+        attributes: true,
+        attributeFilter: ["data-theme"],
+      });
       this.#unwatchTheme = () => {
         scheme.removeEventListener("change", retheme);
         observer.disconnect();
@@ -97,8 +107,12 @@ customElements.define(
 
       const bar = offer("div", "film-bar");
       this.playBtn = offer("button", "film-play", "Play");
-      this.playBtn.setAttribute("aria-keyshortcuts", "k ArrowLeft ArrowRight j l i Escape");
-      this.playBtn.title = "k play/pause · ←/→ steps · j/l ±2s · i inspect the next element · Esc close";
+      this.playBtn.setAttribute(
+        "aria-keyshortcuts",
+        "k ArrowLeft ArrowRight j l i Escape",
+      );
+      this.playBtn.title =
+        "k play/pause · ←/→ steps · j/l ±2s · i inspect the next element · Esc close";
       this.playBtn.addEventListener("click", () => this.#toggle());
       this.scrub = offer("input", "film-scrub", "", "range");
       this.scrub.name = "film-position";
@@ -182,7 +196,9 @@ customElements.define(
     #recompile() {
       const chapter = frame(this.#film, this.#t).chapter;
       this.#film = compile(this.#flags, EXAMPLE);
-      this.#t = this.#fresh ? this.#poster() : (this.#film.starts[chapter] ?? Math.min(this.#t, this.#film.total));
+      this.#t = this.#fresh
+        ? this.#poster()
+        : (this.#film.starts[chapter] ?? Math.min(this.#t, this.#film.total));
       this.scrub.max = this.#film.total;
       this.#inspect(null);
       this.#paint();
@@ -224,8 +240,10 @@ customElements.define(
     // The inspector sits beside its part, in stage pixels, and follows it while the
     // film plays; it closes when the part leaves the frame.
     #placeInspector() {
-      const part = this.#inspected && this.painter.parts().find((p) => p.id === this.#inspected);
-      for (const p of this.painter.parts()) p.element.classList.toggle("film-picked", p === part);
+      const part =
+        this.#inspected && this.painter.parts().find((p) => p.id === this.#inspected);
+      for (const p of this.painter.parts())
+        p.element.classList.toggle("film-picked", p === part);
       if (!part) {
         this.inspector.hidden = true;
         return;
@@ -239,8 +257,14 @@ customElements.define(
       body.textContent = part.info;
       this.inspector.append(title, body);
       this.inspector.hidden = false;
-      const left = Math.min(box.right - stage.left + 10, stage.width - this.inspector.offsetWidth - 10);
-      const top = Math.min(box.top - stage.top, stage.height - this.inspector.offsetHeight - 10);
+      const left = Math.min(
+        box.right - stage.left + 10,
+        stage.width - this.inspector.offsetWidth - 10,
+      );
+      const top = Math.min(
+        box.top - stage.top,
+        stage.height - this.inspector.offsetHeight - 10,
+      );
       this.inspector.style.left = `${Math.max(10, left)}px`;
       this.inspector.style.top = `${Math.max(10, top)}px`;
     }
@@ -282,7 +306,9 @@ customElements.define(
 
     #stepChapter(dir) {
       this.#inspect(null);
-      const starts = [...new Set(Object.values(this.#film.starts))].sort((a, b) => a - b);
+      const starts = [...new Set(Object.values(this.#film.starts))].sort(
+        (a, b) => a - b,
+      );
       this.#t =
         dir > 0
           ? (starts.find((s) => s > this.#t + 0.05) ?? this.#t)
@@ -343,7 +369,10 @@ customElements.define(
     // Leaf re-reads the part inventory and its geometry on update(). While playing,
     // announce only when the set of parts changes; paused, every paint may have moved them.
     #announceParts(always) {
-      const sig = this.painter.parts().map((p) => p.id).join(" ");
+      const sig = this.painter
+        .parts()
+        .map((p) => p.id)
+        .join(" ");
       if (!always && sig === this.#partSig) return;
       this.#partSig = sig;
       this.parts.update();

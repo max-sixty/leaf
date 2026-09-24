@@ -3031,8 +3031,8 @@ assert!(offscreen_worktree_preview.is_demand_loaded());
             Worktrunk's <code>wt merge</code> takes a finished branch to main in one
             command: commit, squash, rebase, test, merge, then clean up. The film draws
             each step from the flags below it, so ticking <code>--no-ff</code> or a
-            failing test re-plots the run, including the three ways it stops early. Hover
-            a commit, branch, worktree or hook to see what it is; Alt-click one to
+            failing test re-plots the run, including the three ways it stops early.
+            Hover a commit, branch, worktree or hook to see what it is; Alt-click one to
             comment on it.
           </p>
         </header>
@@ -3055,8 +3055,8 @@ assert!(offscreen_worktree_preview.is_demand_loaded());
                 <li id="step-commit" data-chapter="commit">
                   <h3><span class="step-n">1</span> Commit</h3>
                   <p>
-                    Uncommitted edits become a commit of their own. The default run skips
-                    this, because the squash stages them itself.
+                    Uncommitted edits become a commit of their own. The default run
+                    skips this, because the squash stages them itself.
                   </p>
                   <p class="this-run"></p>
                 </li>
@@ -3073,8 +3073,8 @@ assert!(offscreen_worktree_preview.is_demand_loaded());
                   <h3><span class="step-n">3</span> Rebase</h3>
                   <p>
                     The work is replayed onto main's current tip, which gives it new
-                    hashes. A conflict stops the merge here, with the rebase left open to
-                    resolve.
+                    hashes. A conflict stops the merge here, with the rebase left open
+                    to resolve.
                   </p>
                   <p class="this-run"></p>
                 </li>
@@ -3096,7 +3096,10 @@ assert!(offscreen_worktree_preview.is_demand_loaded());
                 </li>
                 <li id="step-preremove" data-chapter="preremove">
                   <h3><span class="step-n">6</span> Pre-remove hooks</h3>
-                  <p>A last hook before the worktree is deleted; if it fails, the worktree stays.</p>
+                  <p>
+                    A last hook before the worktree is deleted; if it fails, the
+                    worktree stays.
+                  </p>
                   <p class="this-run"></p>
                 </li>
                 <li id="step-cleanup" data-chapter="cleanup">

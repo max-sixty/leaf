@@ -274,7 +274,9 @@ def main() -> None:
         encoding="utf-8",
     )
     CORPUS_EVENTS.write_text(build_events(), encoding="utf-8")
-    for old in sorted(CORPUS_PAGE.rglob("*"), reverse=True) if CORPUS_PAGE.exists() else []:
+    for old in (
+        sorted(CORPUS_PAGE.rglob("*"), reverse=True) if CORPUS_PAGE.exists() else []
+    ):
         old.unlink() if old.is_file() else old.rmdir()
     for name, data in build_page().items():
         (CORPUS_PAGE / name).parent.mkdir(parents=True, exist_ok=True)

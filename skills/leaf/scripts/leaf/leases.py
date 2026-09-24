@@ -2,13 +2,13 @@
 
 import functools
 import hashlib
-import os
 import sys
 from pathlib import Path
 
 from leaf.event_log import (
     EventRefused,
     flocked,
+    label_locked,
     names_locked,
     require_cross_process_locking,
 )
@@ -45,7 +45,7 @@ def lock_is_held(path: Path) -> bool:
         return False
 
 
-def take_lease(path: Path):
+def take_lease(path: Path, label: str | None = None):
     """Take the exclusive lease on this file and return it held, or None when
     another process holds it.
 
@@ -61,7 +61,7 @@ def take_lease(path: Path):
     does not turn that lease away.
 
     A lease file removed between the open and the lock is taken again on the path's
-    new file, as `flocked` does (`names_locked`).
+    new file, and a `label` is written once held, as `flocked` does.
     """
     require_cross_process_locking()
     while True:
@@ -78,6 +78,7 @@ def take_lease(path: Path):
                     return None
                 fcntl.flock(record, fcntl.LOCK_UN)
         if names_locked(path, record):
+            label_locked(record, label)
             return record
         record.close()
 
@@ -114,24 +115,24 @@ def page_lock(page_dir: Path, purpose: str) -> Path:
     resolved path gives every process the same lock while the purpose keeps the
     contract transition independent from the page's current session claim.
 
-    One is minted for every page path a command transitions, and the key says
-    nothing about which, so the file is created holding the path it guards:
-    that is how `sweep` tells a lock whose page is gone. Its creator writes that
-    once and nothing rewrites it, so a lock stays one inode for its life; a
-    reader that meets it before the write sees no page and leaves it.
+    The key says nothing about which page, so a lock is held through
+    `page_locked` or `take_page_lease`, which write the page's path into it for
+    `sweep` to tell when that page is gone.
     """
     locks = state_home() / "page-locks"
     locks.mkdir(exist_ok=True)
-    page = str(page_dir.resolve())
-    key = hashlib.sha256(page.encode()).hexdigest()[:32]
-    path = locks / f"{key}.{purpose}.lock"
-    try:
-        created = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644)
-    except FileExistsError:
-        return path
-    with os.fdopen(created, "w", encoding="utf-8") as record:
-        record.write(page)
-    return path
+    key = hashlib.sha256(str(page_dir.resolve()).encode()).hexdigest()[:32]
+    return locks / f"{key}.{purpose}.lock"
+
+
+def page_locked(page_dir: Path, purpose: str = "transition"):
+    """Hold one of this page's locks while the block runs (`page_lock`)."""
+    return flocked(page_lock(page_dir, purpose), label=str(page_dir.resolve()))
+
+
+def take_page_lease(page_dir: Path, purpose: str):
+    """Take one of this page's locks as a lease (`take_lease`, `page_lock`)."""
+    return take_lease(page_lock(page_dir, purpose), label=str(page_dir.resolve()))
 
 
 def transition_lock(page_dir: Path) -> Path:
@@ -150,7 +151,7 @@ def contract_writer(function):
 
     @functools.wraps(function)
     def locked(page_dir: Path, *args, **kwargs):
-        with flocked(transition_lock(page_dir)):
+        with page_locked(page_dir):
             try:
                 return function(page_dir, *args, **kwargs)
             except EventRefused as error:

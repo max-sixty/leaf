@@ -38,6 +38,7 @@ from leaf import event_log as events_model
 from leaf import files as interact_files
 from leaf import hooks as hooks_model
 from leaf import layer as layer_model
+from leaf import leases as leases_model
 from leaf import locations as interact_locations
 from leaf import machine as machine_model
 from leaf import packages as packages_model
@@ -2450,14 +2451,14 @@ def test_page_commands_do_not_mint_the_successful_init_marker(tmp_path):
 def test_concurrent_page_init_serializes_creation(tmp_path, monkeypatch):
     """One transition lease covers creation before the page log exists."""
     page = tmp_path / "page"
-    transition = vendoring_model.transition_lock(page)
+    transition = leases_model.transition_lock(page)
     first_entered = threading.Event()
     release_first = threading.Event()
     second_waiting = threading.Event()
     calls = 0
     errors = []
     original_init = vendoring_model._init_page
-    original_flocked = vendoring_model.flocked
+    original_page_locked = vendoring_model.page_locked
 
     def paused_init(page_dir, selected):
         nonlocal calls
@@ -2468,10 +2469,13 @@ def test_concurrent_page_init_serializes_creation(tmp_path, monkeypatch):
         original_init(page_dir, selected)
 
     @contextlib.contextmanager
-    def observed_flocked(path):
-        if path == transition and threading.current_thread().name == "second-init":
+    def observed_page_locked(page_dir, purpose="transition"):
+        if (
+            leases_model.page_lock(page_dir, purpose) == transition
+            and threading.current_thread().name == "second-init"
+        ):
             second_waiting.set()
-        with original_flocked(path) as held:
+        with original_page_locked(page_dir, purpose) as held:
             yield held
 
     def initialize():
@@ -2481,7 +2485,7 @@ def test_concurrent_page_init_serializes_creation(tmp_path, monkeypatch):
             errors.append(error)
 
     monkeypatch.setattr(vendoring_model, "_init_page", paused_init)
-    monkeypatch.setattr(vendoring_model, "flocked", observed_flocked)
+    monkeypatch.setattr(vendoring_model, "page_locked", observed_page_locked)
     first = threading.Thread(target=initialize, name="first-init")
     second = threading.Thread(target=initialize, name="second-init")
     first.start()

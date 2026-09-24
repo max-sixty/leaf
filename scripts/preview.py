@@ -651,14 +651,13 @@ def discard_preview(page: Path) -> None:
     service a `--user` preview left behind when it was killed outright is stopped
     first, since its record goes with the page.
     """
-    from leaf.event_log import flocked
     from leaf.hosting import cmd_stop
-    from leaf.leases import transition_lock
+    from leaf.leases import page_locked
     from leaf.service import PageTransaction, claim_path
 
     if page.exists():
         cmd_stop(page)
-    with flocked(transition_lock(page)):
+    with page_locked(page):
         if (page / "events.jsonl").is_file():
             with PageTransaction(page):
                 shutil.rmtree(page)
@@ -671,9 +670,9 @@ def run_preview(
     source: Path, page: Path, launcher: Path, runtime: Path, user: bool
 ) -> None:
     """Take the slot, build it fresh, and serve it until this process ends."""
-    from leaf.leases import take_lease
+    from leaf.leases import take_page_lease
 
-    lease = take_lease(preview_lease(page))
+    lease = take_page_lease(page, "preview")
     if lease is None:
         raise ValueError(
             f"another preview is serving {page}; stop that process, or choose "

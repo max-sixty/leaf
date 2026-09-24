@@ -4566,21 +4566,20 @@ def test_stop_does_not_wait_forever_on_a_server_started_after_its_transition(
     assert hosting_model.start_server(page_dir, standing=True)
     transitioned = threading.Event()
     resume = threading.Event()
-    original_flocked = hosting_model.flocked
+    original_page_locked = hosting_model.page_locked
     stopping = None
 
     @contextmanager
-    def pause_after_transition(path):
-        with original_flocked(path):
+    def pause_after_transition(locked_page, purpose="transition"):
+        with original_page_locked(locked_page, purpose):
             yield
-        if (
-            threading.current_thread() is stopping
-            and path == leases_model.transition_lock(page_dir)
-        ):
+        if threading.current_thread() is stopping and leases_model.page_lock(
+            locked_page, purpose
+        ) == leases_model.transition_lock(page_dir):
             transitioned.set()
             assert resume.wait(10)
 
-    monkeypatch.setattr(hosting_model, "flocked", pause_after_transition)
+    monkeypatch.setattr(hosting_model, "page_locked", pause_after_transition)
     stopped = []
     stopping = threading.Thread(
         target=lambda: stopped.append(hosting_model.cmd_stop(page_dir)), daemon=True

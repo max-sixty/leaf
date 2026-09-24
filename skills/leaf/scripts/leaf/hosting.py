@@ -14,12 +14,12 @@ from urllib.parse import urlsplit
 import uvicorn
 
 from .detached import Handshake, start_detached
-from .event_log import flocked, require_cross_process_locking
+from .event_log import require_cross_process_locking
 from .files import read_json, write_json
 from .host import session_harness
 from .http import page_app, page_endpoint
 from .layer import payload_provenance
-from .leases import take_lease, transition_lock
+from .leases import page_locked, take_lease
 from .registry.storage import layer_metadata
 from .schema import SERVER_LOCK, SERVICE_FILE
 from .server import (
@@ -403,7 +403,7 @@ def cmd_serve(
     lease = None
     httpd = None
     runtime = payload_provenance(include_path=True)
-    with flocked(transition_lock(page_dir)), PageTransaction(page_dir) as page:
+    with page_locked(page_dir), PageTransaction(page_dir) as page:
         service = read_json(page_dir / SERVICE_FILE)
         claimed = _serve_claim(page_dir, page, service, standing, revive)
         if _reuse_server(page_dir, host, standing, handshake):
@@ -426,7 +426,7 @@ def cmd_serve(
             # Whoever started this server left before committing the start, and
             # its cleanup may already have run a stop that found nothing to stop.
             # An uncommitted start withdraws itself.
-            with flocked(transition_lock(page_dir)):
+            with page_locked(page_dir):
                 write_json(page_dir / SERVICE_FILE, {**service, "enabled": False})
             return
         threading.Thread(
@@ -501,7 +501,7 @@ def cmd_stop(page_dir: Path) -> str:
     require_cross_process_locking()
     stopped = False
     while True:
-        with flocked(transition_lock(page_dir)):
+        with page_locked(page_dir):
             service = read_json(page_dir / SERVICE_FILE)
             if service and service["enabled"]:
                 write_json(page_dir / SERVICE_FILE, {**service, "enabled": False})

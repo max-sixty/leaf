@@ -9,9 +9,10 @@ fact to every reader.
 
 The subject is a page. A claim names it as `page`; an immutable delivery, and a
 Codex task's delivery record, live or archived under `history/`, name each
-batch's `page`; a page lock holds the path it guards (`leases.page_lock`). A
-record goes once every page it names is gone, since nothing can act on it again:
-answering a delivery or holding a claim needs the page. A record that names no
+batch's `page`; a page lock holds the path it guards, which its holder writes
+(`leases.page_locked`). A record goes once every page it names is gone, since
+nothing can act on it again: answering a delivery or holding a claim needs the
+page. A record that names no
 page this version can read stays, since another version may be reading it
 (AGENTS.md, "The reader throws it away").
 
@@ -31,11 +32,11 @@ Page locks are why this is a sweep rather than a reading: they are keyed on a
 digest of the path, and nothing ever enumerates them. They are also most of what
 accumulated, since every page path any command transitions mints one, and site
 builds and previews make and discard pages by the dozen. A lock an older leaf
-minted holds no path, so it stays.
+made holds no path until a holder of this version takes it, and stays until then.
 
 What stays: `pages/`, whose entries are pages rather than records about them;
 `packages/`; `access.json`; `deliveries.lock`; `sessions/` but for Codex task
-records; and every name this version does not write, which belongs to the
+records and start marks; and every name this version does not write, which belongs to the
 version that does.
 
 The sweep runs at most once per `SWEEP_INTERVAL_S`, from the first `leaf`

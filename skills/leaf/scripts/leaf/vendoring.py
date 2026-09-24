@@ -13,7 +13,7 @@ from .data_contracts import (
     page_data_documents,
     working_data_bindings,
 )
-from .event_log import flocked, now_iso
+from .event_log import now_iso
 from .files import (
     json_bytes,
     latest_revision,
@@ -31,7 +31,7 @@ from .layer import (
     payload_provenance,
     payload_runtime_fingerprint,
 )
-from .leases import lock_is_held, transition_lock
+from .leases import lock_is_held, page_locked
 from .locations import located, locations_overlap, path_is_within, path_location
 from .projection import page_reading
 from .registry.contract import read_registry_declarations
@@ -58,7 +58,7 @@ def cmd_init(page_dir: Path, selected: tuple[str, ...] | None = None) -> None:
     # Before the directory exists there is no event log for PageTransaction to
     # lock. The external transition lease covers that missing first instant and
     # continues through the complete vendoring.
-    with flocked(transition_lock(page_dir)):
+    with page_locked(page_dir):
         _init_page(page_dir, selected)
 
 

@@ -27,7 +27,7 @@ def require_cross_process_locking() -> None:
 
 
 @contextlib.contextmanager
-def flocked(path: Path):
+def flocked(path: Path, label: str | None = None):
     """An exclusive lock held while the block runs — the one serialization
     primitive here. The log serializes appends, cursor and status updates, and
     claim and delivery transitions. Stable purpose locks serialize contract or service
@@ -38,7 +38,9 @@ def flocked(path: Path):
     The same holds of a lock file removed while this waited for it, which
     `sweep` does to a page lock nobody holds once its page is gone: the lock is
     taken again on whatever the path names now, so a holder always holds the
-    file every later taker opens (`names_locked`)."""
+    file every later taker opens (`names_locked`). A `label` is what the lock
+    stands for, written into a file that holds none once it is held
+    (`label_locked`)."""
     require_cross_process_locking()
     # The event log is the successful-init marker as well as a lease. A
     # transaction racing page deletion must not recreate it and turn a deleted
@@ -56,7 +58,22 @@ def flocked(path: Path):
             break
         f.close()
     with f:
+        label_locked(f, label)
         yield f
+
+
+def label_locked(locked, label: str | None) -> None:
+    """Write `label` into a held lock file that holds nothing yet.
+
+    A page lock is keyed on a digest of its page's path, so the file itself has
+    to say which page it guards for `sweep` to know when that page is gone. Its
+    holder writes it, since whichever process made the file — this one, or one a
+    sweep's removal raced — the holder is the one that knows the page, and it
+    writes under the lock, so two never both write. A lock an older leaf made
+    gets its label from the first holder that brings one."""
+    if label is not None and os.fstat(locked.fileno()).st_size == 0:
+        locked.write(label.encode())
+        locked.flush()
 
 
 def names_locked(path: Path, locked) -> bool:

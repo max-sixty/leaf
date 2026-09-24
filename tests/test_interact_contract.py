@@ -1281,7 +1281,7 @@ def test_report_validation_and_append_cannot_straddle_revendoring(
     release_report = threading.Event()
     init_waiting = threading.Event()
     real_append = service_model.PageTransaction._append_record
-    real_flocked = vendoring_model.flocked
+    real_page_locked = vendoring_model.page_locked
 
     def paused_append(page, event):
         if event["kind"] == "report":
@@ -1290,14 +1290,17 @@ def test_report_validation_and_append_cannot_straddle_revendoring(
         return real_append(page, event)
 
     @contextlib.contextmanager
-    def observed_flocked(path):
-        if path == transition and threading.current_thread().name == "re-vendor":
+    def observed_page_locked(locked_page, purpose="transition"):
+        if (
+            leases_model.page_lock(locked_page, purpose) == transition
+            and threading.current_thread().name == "re-vendor"
+        ):
             init_waiting.set()
-        with real_flocked(path) as held:
+        with real_page_locked(locked_page, purpose) as held:
             yield held
 
     monkeypatch.setattr(service_model.PageTransaction, "_append_record", paused_append)
-    monkeypatch.setattr(vendoring_model, "flocked", observed_flocked)
+    monkeypatch.setattr(vendoring_model, "page_locked", observed_page_locked)
     outcomes, errors = [], []
 
     def report():
@@ -1337,16 +1340,19 @@ def test_a_preview_holds_one_contract_until_it_closes(page_dir, monkeypatch):
     before = registry_storage.layer_generation(page_dir)
     transition = leases_model.transition_lock(page_dir)
     init_waiting = threading.Event()
-    real_flocked = vendoring_model.flocked
+    real_page_locked = vendoring_model.page_locked
 
     @contextlib.contextmanager
-    def observed_flocked(path):
-        if path == transition and threading.current_thread().name == "re-vendor":
+    def observed_page_locked(locked_page, purpose="transition"):
+        if (
+            leases_model.page_lock(locked_page, purpose) == transition
+            and threading.current_thread().name == "re-vendor"
+        ):
             init_waiting.set()
-        with real_flocked(path) as held:
+        with real_page_locked(locked_page, purpose) as held:
             yield held
 
-    monkeypatch.setattr(vendoring_model, "flocked", observed_flocked)
+    monkeypatch.setattr(vendoring_model, "page_locked", observed_page_locked)
     errors = []
 
     def revendoring():

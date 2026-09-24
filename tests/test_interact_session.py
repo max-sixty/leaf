@@ -75,6 +75,7 @@ from leaf import schema as schema_model
 from leaf import server as server_model
 from leaf import service as service_model
 from leaf import session as session_model
+from leaf import sweep as sweep_model
 from leaf import thread_context as thread_context_model
 from leaf import vendoring as vendoring_model
 from leaf.registry import contract as registry_contract
@@ -9547,13 +9548,16 @@ def test_the_state_home_retires_what_stands_for_a_gone_page(
     )
 
     # A transition mints its page's lock, which stays after it.
-    # Naming a page's lock mints it, so each is named once, here.
+    # A page's lock, once held, says which page it guards.
+    for page in (page_dir, gone):
+        with leases_model.page_locked(page):
+            pass
     live_lock, gone_lock, held_lock = (
         leases_model.transition_lock(page_dir),
         leases_model.transition_lock(gone),
         leases_model.page_lock(gone, "preview"),
     )
-    held = leases_model.take_lease(held_lock)
+    held = leases_model.take_page_lease(gone, "preview")
     older = home / "page-locks" / f"{'0' * 32}.transition.lock"
     older.touch()
     # A foreground wait that ended unnamed leaves its start mark; a running one
@@ -9592,6 +9596,22 @@ def test_the_state_home_retires_what_stands_for_a_gone_page(
     held.close()
     for held_file in running:
         held_file.close()
+
+
+def test_a_page_lock_a_sweep_removed_says_its_page_again_once_held(tmp_path):
+    """`page init` names a page that does not exist yet, so a sweep can remove its
+    lock between the naming and the holding. The file the holder then makes still
+    says which page it guards, so a later sweep can remove it too."""
+    page = tmp_path / "page"
+    lock = leases_model.transition_lock(page)
+    with leases_model.page_locked(page):
+        pass
+    sweep_model.sweep()
+    assert not lock.exists()
+    with leases_model.page_locked(page):
+        assert lock.read_text() == str(page.resolve())
+    sweep_model.sweep()
+    assert not lock.exists()
 
 
 def test_a_lock_removed_under_a_waiting_taker_is_taken_again_on_its_successor(

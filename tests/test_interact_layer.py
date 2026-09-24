@@ -4533,10 +4533,11 @@ def test_a_host_that_names_nothing_is_asked_for_its_path_only_after_chrome(
     assert "chromium" in hint and "LEAF_BROWSER_EXECUTABLE" in hint
 
 
-def test_producer_guidance_names_a_bundled_script_by_its_path_here(tmp_path):
+def test_producer_guidance_names_a_package_script_the_run_door_reaches(tmp_path):
     """A reader of `leaf page guidance` with no skill loaded, such as a worker the
-    author assigns, gets a command it can run as printed: the bundled producer
-    script's absolute path on this machine, not a placeholder."""
+    author assigns, gets a pipeline it can run as printed: the producer names a
+    package and a script, and `package run` finds that script by the same lookup
+    `--package` resolves through, with no path on this machine in the text."""
     page = tmp_path / "patch-page"
     initialized = CliRunner().invoke(
         cli_model.cli, ["page", "init", "--package", "diff", str(page)]
@@ -4546,6 +4547,77 @@ def test_producer_guidance_names_a_bundled_script_by_its_path_here(tmp_path):
         cli_model.cli, ["page", "guidance", str(page), "producer"]
     )
     assert producer.exit_code == 0, producer.output
-    assert "<leaf-packages>" not in producer.output
-    [script] = re.findall(r"uv run (\S+patch_manifest\.py)", producer.output)
-    assert Path(script).is_absolute() and Path(script).is_file()
+    [(package, script)] = re.findall(
+        r"\| leaf package run (\S+) (\S+) \| leaf data set ", producer.output
+    )
+    assert (layer_model.named_package(package) / "scripts" / script).is_file()
+    assert not (page / "scripts").exists(), "a page never vendors scripts"
+
+
+def test_an_installed_package_runs_its_own_scripts_by_name(tmp_path, monkeypatch):
+    """`package install` carries `scripts/`, and `package run` runs one in the
+    environment its header declares, handing it stdin, the arguments after the
+    script's name (options included), stdout, and its exit status."""
+    monkeypatch.chdir(tmp_path)
+    source = tmp_path / "src" / "tally"
+    created = CliRunner().invoke(cli_model.cli, ["package", "init", str(source)])
+    assert created.exit_code == 0, created.output
+    (source / "scripts").mkdir()
+    (source / "scripts" / "count.py").write_text(
+        "# /// script\n"
+        "# dependencies = []\n"
+        "# ///\n"
+        "import json, sys\n"
+        "lines = sys.stdin.read().splitlines()\n"
+        "json.dump({'args': sys.argv[1:], 'lines': len(lines)}, sys.stdout)\n"
+        "sys.exit(3 if '--fail' in sys.argv else 0)\n"
+    )
+    installed = CliRunner().invoke(cli_model.cli, ["package", "install", str(source)])
+    assert installed.exit_code == 0, installed.output
+    shutil.rmtree(source)
+
+    def run(*arguments):
+        return subprocess.run(
+            [*LEAF_COMMAND, "package", "run", *arguments],
+            input="one\ntwo\n",
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+    counted = run("tally", "count.py", "--label", "x y")
+    failed = run("tally", "count.py", "--fail")
+    missing = run("tally", "total.py")
+    unknown = run("tallies", "count.py")
+
+    assert counted.returncode == 0, counted.stderr
+    assert json.loads(counted.stdout) == {"args": ["--label", "x y"], "lines": 2}
+    assert failed.returncode == 3
+    assert json.loads(failed.stdout) == {"args": ["--fail"], "lines": 2}
+    assert missing.returncode == 1
+    assert missing.stderr == (
+        "package 'tally' has no script 'total.py'; available: count.py\n"
+    )
+    assert unknown.returncode == 1
+    assert "unknown package 'tallies'" in unknown.stderr
+
+
+def test_the_suite_pins_every_bundled_script_dependency():
+    """A bundled script's header declares its dependencies and ships no lock, so
+    the dev group repeats each one: `uv.lock` then pins what the suite runs the
+    script against, and the suite needs no network to run it."""
+    pyproject = (PLUGIN_ROOT / "pyproject.toml").read_text()
+    declared = {
+        requirement
+        for script in schema_model.BUNDLED_PACKAGES.glob("*/scripts/*.py")
+        for match in re.findall(
+            r"^# dependencies = (\[.*\])$", script.read_text(), flags=re.MULTILINE
+        )
+        for requirement in json.loads(match)
+    }
+    assert "unidiff>=1" in declared
+    assert [
+        requirement
+        for requirement in sorted(declared)
+        if f'  "{requirement}",' not in pyproject
+    ] == []

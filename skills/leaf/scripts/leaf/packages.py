@@ -37,6 +37,7 @@ from .schema import (
     PACKAGE_DIRS,
     PAGE_OWNED_DIRS,
     PAGE_OWNED_FILES,
+    SCRIPTS_DIR,
     VENDORED_FILES,
     WIDGET_NAME,
 )
@@ -254,12 +255,14 @@ def check_package(
 
 
 def copy_package_contract(package: Path, staged: Path) -> None:
-    """Copy exactly what a layer input reads into an empty directory.
+    """Copy exactly what a layer input reads, and the package's scripts, into an
+    empty directory.
 
     The rest of the source directory — a README, the author's own tests, `.git` —
     belongs to the author rather than to the package, so it reaches neither a
     staged candidate nor the store. Absent package directories are created empty,
-    as `package init` creates them.
+    as `package init` creates them; `scripts/` is copied only when it exists,
+    since most packages ship none.
     """
     for name in VENDORED_FILES:
         source = package / name
@@ -272,6 +275,8 @@ def copy_package_contract(package: Path, staged: Path) -> None:
             shutil.copytree(source, target)
         else:
             target.mkdir()
+    if (package / SCRIPTS_DIR).is_dir():
+        shutil.copytree(package / SCRIPTS_DIR, staged / SCRIPTS_DIR)
 
 
 def validate_starter_candidate(package: Path, files: dict[str, bytes]) -> None:
@@ -414,3 +419,32 @@ def cmd_package_install(source: Path) -> Path:
             os.rename(staged, destination)
         print(f"installed {destination}")
         return destination
+
+
+def cmd_package_run(name: str, script: str, arguments: tuple[str, ...]) -> None:
+    """Run one of a package's `scripts/` in the environment its header declares.
+
+    The package is found by the lookup `page init --package NAME` resolves
+    through, so a producer command in guidance names a package and a script
+    rather than a path on this machine, and an installed package's tools run on
+    the same terms as a bundled one's. Each script is a Python file whose inline
+    metadata (PEP 723) declares its dependencies; `uv run --script` builds that
+    environment, apart from Leaf's own. The run replaces this process, so the
+    script owns stdin, stdout, stderr, and the exit status.
+    """
+    if (
+        re.fullmatch(HTML_NAME, name) is None
+        or (package := named_package(name)) is None
+    ):
+        sys.exit(
+            f"unknown package {name!r}; name a bundled package or one "
+            "`leaf package install` added"
+        )
+    scripts = package / SCRIPTS_DIR
+    available = sorted(path.name for path in scripts.glob("*.py") if path.is_file())
+    if script not in available:
+        offered = ", ".join(available) or "none"
+        sys.exit(f"package {name!r} has no script {script!r}; available: {offered}")
+    command = ["uv", "run", "--quiet", "--script", str(scripts / script), *arguments]
+    sys.stdout.flush()
+    os.execvp(command[0], command)

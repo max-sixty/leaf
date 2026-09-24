@@ -2182,7 +2182,7 @@ OPEN_EDIT = {
     "action": "edit",
     "detail": {"text": "The sample workshop is in the red room."},
     "meaning": {
-        "document": "page",
+        "scope": "page",
         "unit": "d-open",
         "depends": ["d-open"],
         "answer": None,

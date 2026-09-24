@@ -5338,7 +5338,7 @@ def test_projected_verbatim_scopes_page_state_to_here_and_thread_state_to_its_lo
                 "unit": identity,
                 "depends": [identity],
                 "answer": None,
-                "document": "page",
+                "scope": "page",
             },
             "seq": seq,
         }
@@ -5402,7 +5402,7 @@ def test_projected_verbatim_includes_generated_children():
             "unit": "new-item",
             "depends": ["list", "new-item"],
             "creates": "lf-item",
-            "document": "page",
+            "scope": "page",
         },
         "seq": 1,
     }

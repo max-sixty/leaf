@@ -1151,7 +1151,7 @@ def test_a_verb_no_captured_registry_speaks_refuses_the_page(page_dir):
             "widget": "note",
             "action": "scribble",
             "meaning": {
-                "document": "page",
+                "scope": "page",
                 "unit": "note",
                 "depends": ["note"],
             },

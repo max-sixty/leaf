@@ -2031,7 +2031,7 @@ def test_undo_offer_keeps_the_doors_active_page_containment(page_dir):
             "action": "choose",
             "detail": {"options": ["flag-first"]},
             "meaning": {
-                "document": "page",
+                "scope": "page",
                 "unit": "picks",
                 "depends": ["flag-first", "picks"],
                 "answer": reaction["id"],
@@ -3401,7 +3401,7 @@ def test_event_ids_are_unique_within_the_log_whatever_the_mint_returns(
             page_dir,
             {
                 "id": first["id"],
-                "meaning": {"document": "page"},
+                "meaning": {"scope": "page"},
                 "kind": "request",
                 "author": "user",
                 "revision": 1,

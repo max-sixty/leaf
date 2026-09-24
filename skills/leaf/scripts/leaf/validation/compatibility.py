@@ -4,7 +4,7 @@ from pathlib import Path
 
 from leaf import event_contracts
 from leaf.event_meaning import admitted_contract_error
-from leaf.events import taken_back
+from leaf.events import event_document, taken_back
 from leaf.registry.contract import RegistryError, read_registry_declarations
 from leaf.registry.layer import merge_layer_declarations
 from leaf.registry.validation import validate_registry
@@ -156,7 +156,7 @@ def candidate_vocabulary_gaps(
         ):
             key = "thread markup contract: " + "; ".join(errors)
         elif kind in {"action", "report", "request"}:
-            scope = e["meaning"]["document"]
+            scope = event_document(e)["kind"]
             participates = scope == "thread" or (
                 kind in {"action", "report"} and page_event_participates(e)
             )

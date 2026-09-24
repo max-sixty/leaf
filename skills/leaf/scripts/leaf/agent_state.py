@@ -8,7 +8,13 @@ from .construction import constructed_content
 from .data import data_errors, read_data
 from .data_contracts import measurement_lag_entries, page_data_binding_inventory
 from .document_reading import DocumentReading, read_document
-from .events import active_summaries, bare_reaction, build_threads, is_reaction
+from .events import (
+    active_summaries,
+    bare_reaction,
+    build_threads,
+    document_identity,
+    is_reaction,
+)
 from .files import (
     active_descriptor,
     revision_path,
@@ -362,7 +368,7 @@ def _write_page_state(
         events,
         thread_reading.elements,
         registry,
-        {"kind": "thread"},
+        document_identity("thread"),
         stored_data,
     )
     state["asks"] += thread_ask_readings(

@@ -165,5 +165,5 @@ turn/start:
       acting.","h2":"Run it at most once, then record its outcome with exactly one
       `leaf receipt <page> <request-id> succeeded|failed --text \"\u2026\"`. The
       receipt does not change the page: refresh any data the page shows, update
-      `index.html` to reflect the result, and stamp it if it is worth a note."},"events":[{"kind":"request","author":"user","revision":1,"widget":"commands","action":"restart","detail":{"target":"goal","worker":"worker","worktree":"tree"},"meaning":{"document":"page","unit":"commands"},"id":"user-event","ts":"2026-09-22T10:00:00-07:00","seq":1,"subject":{"kind":"widget","id":"commands"},"conversations":[],"says":{"commands":"Restart"},"handling":["h1","h2"],"answer":{"kind":"receipt","request":"user-event"}}]}]}'
+      `index.html` to reflect the result, and stamp it if it is worth a note."},"events":[{"kind":"request","author":"user","revision":1,"widget":"commands","action":"restart","detail":{"target":"goal","worker":"worker","worktree":"tree"},"meaning":{"scope":"page","unit":"commands"},"id":"user-event","ts":"2026-09-22T10:00:00-07:00","seq":1,"subject":{"kind":"widget","id":"commands"},"conversations":[],"says":{"commands":"Restart"},"handling":["h1","h2"],"answer":{"kind":"receipt","request":"user-event"}}]}]}'
   turnTrigger: leaf

@@ -571,7 +571,7 @@ def test_an_answer_the_user_took_back_leaves_its_thread_open(page_dir):
             "action": "choose",
             "detail": {"options": ["flag-first"]},
             "meaning": {
-                "document": "page",
+                "scope": "page",
                 "unit": "picks",
                 "depends": ["flag-first", "picks"],
                 "answer": "c1",
@@ -825,7 +825,7 @@ def test_init_refuses_a_log_the_incoming_layer_no_longer_speaks(page_dir):
             "action": "decide",
             "detail": {"decision": "approved"},
             "meaning": {
-                "document": "page",
+                "scope": "page",
                 "unit": "d1",
                 "depends": ["d1"],
                 "answer": None,
@@ -3794,7 +3794,7 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
     registry = json.loads((schema_model.ASSETS / "registry.json").read_text())
     # Each case holds its `kind` and the fields some `when` reads, and nothing else:
     # a field no `when` names cannot change what the agent is told.
-    on_page = {"document": "page"}
+    on_page = {"scope": "page"}
 
     def owes(kind):
         return {"answer": {"kind": kind}}
@@ -3853,12 +3853,12 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
         },
         "pick inside a thread": {
             "kind": "action",
-            "meaning": {"document": "thread"},
+            "meaning": {"scope": "thread"},
             **owes("reply"),
         },
         "pick inside a thread over App Server": {
             "kind": "action",
-            "meaning": {"document": "thread"},
+            "meaning": {"scope": "thread"},
             **owes("turn"),
         },
         "resolve": {"kind": "resolve"},
@@ -5408,7 +5408,7 @@ def test_an_independent_verb_leaves_a_decisions_thread_resolved(page_dir):
         "action": "label",
         "detail": {},
         "meaning": {
-            "document": "page",
+            "scope": "page",
             "unit": "sug-a",
             "depends": ["sug-a"],
         },

@@ -5,6 +5,7 @@ from ..events import (
     active_summaries,
     awaits_agent,
     bare_reaction,
+    document_identity,
     is_reaction,
     seat_root,
     spoken_turns,
@@ -96,7 +97,7 @@ def browser_conversation(
         events,
         reading.elements,
         registry,
-        {"kind": "thread"},
+        document_identity("thread"),
         data,
     )
     asks = thread_ask_readings(

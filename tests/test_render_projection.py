@@ -8978,6 +8978,113 @@ def test_command_hub_keeps_its_command_owners_through_a_live_version(browser, se
     assert available == [True, False]
 
 
+READING_PANELS = ":is(.lf-command-head, .lf-stopped-view, .lf-fleet-view)"
+READINGS_SEAT = (
+    '<lf-command-readings id="hub-readings" for="hub-plan"></lf-command-readings>'
+)
+
+
+def test_command_hub_readings_follow_their_seat_across_revisions(browser, serve):
+    """The command's three readings stand in exactly one place: the seat when the page
+    has one, the command's head when it has none. A revision applied in place that adds
+    or removes the seat moves them there, rather than leaving one copy behind and
+    drawing another.
+
+    The seat stands directly in `main` and a second command keeps its own seat through
+    every revision, so no declared container around the command changes and the module
+    graph stays the same: each revision is applied to the standing command."""
+    assert READINGS_SEAT in COMMAND_HUB_PAGE
+    base = COMMAND_HUB_PAGE.replace(READINGS_SEAT, "").replace(
+        "    </main>",
+        '<lf-command id="side-plan" label="Side plan">'
+        '<lf-task id="side-goal" status="active"><strong>Side goal</strong></lf-task>'
+        "</lf-command>"
+        '<lf-command-readings id="side-readings" for="side-plan"></lf-command-readings>'
+        "\n    </main>",
+    )
+    seated = base.replace("\n    </main>", f"{READINGS_SEAT}\n    </main>")
+    url = serve(COMMAND_HUB_EXAMPLE)
+    page = open_page(browser, live_url(url))
+    hub_panels = page.locator(
+        f"#hub-plan > {READING_PANELS}, #hub-readings > {READING_PANELS}"
+    )
+    stamp_page(serve.page_dir, seated, "the seat below the sheet")
+    told(page)
+    expect(page.locator(f"#side-readings > {READING_PANELS}")).to_have_count(3)
+    expect(page.locator(f"#hub-readings > {READING_PANELS}")).to_have_count(3)
+    page.evaluate("() => { window.__hubPlan = document.getElementById('hub-plan'); }")
+
+    stamp_page(serve.page_dir, base, "no seat")
+    told(page)
+    expect(page.locator("#hub-readings")).to_have_count(0)
+    expect(page.locator(f"#hub-plan > {READING_PANELS}")).to_have_count(3)
+    expect(hub_panels).to_have_count(3)
+
+    stamp_page(serve.page_dir, seated, "seat again")
+    told(page)
+    expect(page.locator(f"#hub-readings > {READING_PANELS}")).to_have_count(3)
+    expect(hub_panels).to_have_count(3)
+    assert hub_panels.evaluate_all("nodes => nodes.map(node => node.classList[1])") == [
+        "lf-command-head",
+        "lf-stopped-view",
+        "lf-fleet-view",
+    ]
+    assert page.evaluate(
+        "() => window.__hubPlan === document.getElementById('hub-plan')"
+    ), "the revisions replaced the command rather than applying in place"
+
+
+def test_command_hub_readings_seat_is_filled_when_it_connects(browser, serve):
+    """A seat that connects after its command is filled then, not at the next state
+    reading: the command answers the seat's arrival rather than waiting on news."""
+    page = open_page(browser, serve(COMMAND_HUB_EXAMPLE))
+    expect(page.locator(f"#hub-readings > {READING_PANELS}")).to_have_count(3)
+    page.evaluate(
+        """() => {
+          const seat = document.getElementById('hub-readings');
+          const rail = seat.parentElement;
+          seat.remove();
+          const fresh = document.createElement('lf-command-readings');
+          fresh.id = 'hub-readings-2';
+          fresh.setAttribute('for', 'hub-plan');
+          rail.prepend(fresh);
+        }"""
+    )
+    expect(page.locator(f"#hub-readings-2 > {READING_PANELS}")).to_have_count(3)
+    expect(page.locator(READING_PANELS)).to_have_count(3)
+
+
+def test_command_hub_readings_stay_in_their_own_document(browser, serve):
+    """A seat quoted in thread markup belongs to that message's document. The page's
+    command, which has no seat of its own on this page, keeps heading itself instead of
+    routing its readings into a message."""
+    url = serve(COMMAND_HUB_EXAMPLE)
+    stamp_page(serve.page_dir, COMMAND_HUB_PAGE.replace(READINGS_SEAT, ""), "no seat")
+    root = events_model.append_event(
+        serve.page_dir,
+        {"kind": "comment", "author": "user", "revision": 2, "text": "Status?"},
+    )
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Codex",
+            "parent": root["id"],
+            "text": "Where the readings would stand.",
+            "markup": '<lf-command-readings id="quoted-readings" for="hub-plan">'
+            "</lf-command-readings>",
+        },
+    )
+    page = open_page(browser, live_url(url))
+    page.locator(".lf-threads-toggle").click()
+    page.locator(".lf-thread-summary").first.click()
+    panel_settled(page)
+    expect(page.locator("#quoted-readings")).to_be_attached()
+    expect(page.locator(f"#hub-plan > {READING_PANELS}")).to_have_count(3)
+    expect(page.locator(f"#quoted-readings > {READING_PANELS}")).to_have_count(0)
+
+
 def test_nested_command_projections_stop_at_their_own_boundary(browser, serve):
     command = leaf_page(
         "nested command boundaries",

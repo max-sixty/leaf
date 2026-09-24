@@ -28,7 +28,7 @@ import {
 } from "../presentation.js";
 import { highlightBlocks } from "../syntax.js";
 import { ago } from "../presence.js";
-import { elementById, pageQueryAll } from "../passages.js";
+import { closestAcross, elementById, pageQueryAll } from "../passages.js";
 import { designName } from "../design-readings.js";
 import {
   addressableSays,
@@ -122,6 +122,13 @@ export function prepareAuthoredMessage(message, thread) {
       throw new TypeError("an authored message changed its frozen document identity");
   return prepared;
 }
+// The root of the authored document a node stands in. A message's widget markup is a
+// document of its own, placed in that message's body; everything else is the page's
+// `main`. A widget resolving a reference among its own document's elements searches
+// here, so markup a message quotes neither answers for the page nor reaches into it.
+export const authoredScope = (node) =>
+  closestAcross(node, ".lf-msg-body") ?? document.querySelector("body > main");
+
 const authoredMessage = (message) => {
   const prepared = authoredMessages.get(message.attempt ?? message.id);
   if (!prepared)

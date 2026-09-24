@@ -125,8 +125,9 @@ the committed browser output without invoking a compiler.
 
 `vendor.py` rebuilds the other third-party bundles — all of them by default, or the
 ones you name. Every version it pins sits in one table there. The page payload the
-browser build bundles (Lit and Signals) is pinned in `package.json` instead, and
-`vendor.py --pins` reads it from there. Each bundle lands in the package whose widget
+browser build bundles (Lit and Signals) is pinned in `package.json` instead, as is
+`esbuild`, which that build and every bundle here share; `vendor.py` reads both
+from there. Each bundle lands in the package whose widget
 imports it, except `mcp-app`, which no widget imports and which lands in
 `skills/leaf/mcp-app/` for an MCP host to read from the install.
 

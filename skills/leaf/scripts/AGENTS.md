@@ -142,7 +142,8 @@ initializer is only a marker.
 
 Within `render_gate/`, `scheme` owns one browser/color lifecycle, `readings`
 owns the probe readings and the finding each becomes, `version` owns retry
-policy, `preview` owns ephemeral servers, `browser` owns the launch the two
+policy, `page_code` owns the run plain `version check` gives a page's own code,
+`preview` owns ephemeral servers, `browser` owns the launch the two
 user-path gates share — `exporting` is its other caller — and `command` owns the
 CLI boundary. Import the owner directly; the package initializer is only a marker.
 

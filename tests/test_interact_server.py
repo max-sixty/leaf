@@ -5072,7 +5072,7 @@ def test_neighbours_follow_their_servers_and_leave_with_their_pages(page_dir, tm
     """A neighbour appears on the read after its server starts and leaves on the
     read after it stops, though neither moves a file the candidate set is keyed
     on. A page deleted before a scan or after one listed it is no neighbour,
-    though its claim stays until `retirement` sweeps it."""
+    though its claim stays until the state-home sweep removes it."""
     stopped = tmp_path / "stopped"
     neighbour_page(stopped, title="Starts later", dead=True)
     record_claim(stopped, id="later")

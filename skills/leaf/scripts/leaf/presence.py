@@ -65,7 +65,7 @@ def neighbor_candidates() -> tuple:
     The set moves when an entry in one of those two directories does, so it is
     read again only then: keyed on the two stamps, the way `leaf wait` keys its
     ownership set on the claims directory's. A page deleted since stays in the set
-    until `retirement` removes its claim, and answers the caller's question —
+    until `sweep` removes its claim, and answers the caller's question —
     whether each page is serving, asked fresh every time — with no."""
     global _candidates
     home = state_home()

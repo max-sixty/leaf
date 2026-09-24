@@ -166,7 +166,7 @@ def claim_records() -> list:
     """Every atomic page claim record currently on this machine.
 
     A claim outlives its session on purpose: it is the provenance of a page that
-    is still there. One whose page is gone is `retirement`'s to remove, and
+    is still there. One whose page is gone is `sweep`'s to remove, and
     until its sweep does, every caller already asks whether the page it names is
     there."""
     directory = state_home() / "claims"

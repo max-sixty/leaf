@@ -59,7 +59,7 @@ LOCKS = (
 )
 
 
-def retire_if_due() -> None:
+def sweep_if_due() -> None:
     """Sweep the state home if the last sweep started `SWEEP_INTERVAL_S` ago.
 
     The stamp is touched before the sweep, so a second process arriving during
@@ -71,10 +71,10 @@ def retire_if_due() -> None:
     except FileNotFoundError:
         pass
     stamp.touch()
-    retire()
+    sweep()
 
 
-def retire() -> None:
+def sweep() -> None:
     """Remove every record whose subject is gone (see the module docstring)."""
     home = state_home()
     for path in [*home.glob("claims/*.json"), *home.glob("deliveries/*.json")]:

@@ -36,7 +36,7 @@ def flocked(path: Path):
     replaced inode holds nothing.
 
     The same holds of a lock file removed while this waited for it, which is
-    what `retirement` does to one nobody holds: the lock is taken again on
+    what `sweep` does to one nobody holds: the lock is taken again on
     whatever the path names now, so a holder always holds the file every later
     taker opens (`names_locked`)."""
     require_cross_process_locking()
@@ -62,7 +62,7 @@ def flocked(path: Path):
 def names_locked(path: Path, locked) -> bool:
     """Whether `path` still names the file `locked` has just taken a lock on.
 
-    A lock file means nothing while nobody holds it, so `retirement` removes it,
+    A lock file means nothing while nobody holds it, so `sweep` removes it,
     and it removes it while holding that lock. A process that opened the file
     before the removal and waited behind it then holds a file no path names, and
     every later taker opens a new one. Each taker asks this after its lock

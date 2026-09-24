@@ -95,7 +95,7 @@ other page files and the external state listed below.
 
 Every record the state home keeps about a page — its claim, its transition and
 preview locks under `page-locks/`, a delivery naming it — outlives the directory,
-which is usually deleted from outside leaf. `retirement.py` owns the one rule that
+which is usually deleted from outside leaf. `sweep.py` owns the one rule that
 removes such a record once its page, or the process holding its lock, is gone.
 
 ## Revision delivery

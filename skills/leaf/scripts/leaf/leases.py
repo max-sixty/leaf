@@ -102,7 +102,7 @@ def page_lock(page_dir: Path, purpose: str) -> Path:
     locks that can meet init cannot live in the prospective page directory. The
     resolved path gives every process the same lock while the purpose keeps the
     contract transition independent from the page's current session claim.
-    One is minted for every page path a command transitions, so `retirement`
+    One is minted for every page path a command transitions, so `sweep`
     removes each while nothing holds it.
     """
     locks = state_home() / "page-locks"

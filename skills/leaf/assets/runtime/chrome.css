@@ -1101,9 +1101,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   :is(.lf-summary-expand, .lf-summary-refold):is(:focus-visible, .lf-focus-visible) {
     outline: var(--here-ring); --lf-here-ring: summary-fold;
     outline-offset: calc(-1 * var(--here-ring-w)); }
-  /* The draft's words start and wrap in the same measure as a sent message.
-     Send has its own row below the textarea's scrollport, so every draft line
-     remains clear of it even when the textarea scrolls internally. */
+  /* Drafts begin at the sent message's text edge. Send shares the field's row;
+     right padding keeps draft text clear of it as the textarea grows. */
   .lf-thread-compact > .lf-compose { margin: 16px 0 8px; }
   .lf-thread-compact > .lf-compose .lf-compose-field {
     border: 1px solid var(--border-2); border-radius: 6px; background: var(--card);
@@ -1114,17 +1113,14 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   }
   .lf-thread-compact > .lf-compose .lf-compose-field > textarea {
     font-size: 13px; line-height: 1.5; padding: 7px;
-    min-height: 0; border: 0; border-radius: 0; background: transparent;
+    padding-inline-end: calc(var(--lf-icon-action-hit) + 12px);
+    border: 0; border-radius: 0; background: transparent;
   }
   .lf-thread-compact > .lf-compose .lf-compose-field > textarea:is(:focus, .lf-focus) {
     outline: none; border: 0;
   }
   .lf-thread-compact > .lf-compose .lf-compose-placeholder {
     padding-block-start: 7px; padding-inline-start: 7px;
-  }
-  .lf-thread-compact > .lf-compose .lf-compose-submit {
-    position: static; grid-area: 2 / 1; justify-self: end;
-    margin: 0 6px 6px 0;
   }
   /* The panel half of the mark the pointer is indicating (paintHover). The quote is
      the bounded panel representation of that passage; painting the card made a long

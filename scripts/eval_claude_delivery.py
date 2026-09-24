@@ -141,9 +141,16 @@ def run_session(leaf_root: Path, run: Path) -> None:
         if not proc.stdin.closed:
             proc.stdin.close()
 
+    def give_up() -> None:
+        (run / "timed-out").touch()
+        proc.kill()
+
+    # The deadline runs beside the read, so a stream that stops producing lines
+    # still ends: the kill closes stdout and the loop below finishes.
+    deadline = threading.Timer(TURN_LIMIT, give_up)
+    deadline.start()
     url = None
     waits, posted, arrived, results = set(), False, False, 0
-    started = time.time()
     with (run / "stream.jsonl").open("w") as stream:
         for line in proc.stdout:
             stream.write(line)
@@ -172,10 +179,8 @@ def run_session(leaf_root: Path, run: Path) -> None:
                 # A trailing wake may follow, hence the grace period.
                 if results > 1 and arrived:
                     threading.Timer(20, close_stdin).start()
-            if time.time() - started > TURN_LIMIT:
-                close_stdin()
-                break
     proc.wait(timeout=60)
+    deadline.cancel()
     events = subprocess.run(
         [leaf, "events", page], env=env, check=True, capture_output=True, text=True
     ).stdout
@@ -219,6 +224,7 @@ def score(run: Path) -> dict:
                 actions.append(command or block["name"])
     ack = next((i for i, a in enumerate(actions) if "leaf wait --ack" in a), None)
     return {
+        "timed_out": (run / "timed-out").exists(),
         "pickup_s": since_comment("pickup"),
         "reply_s": since_comment("reply"),
         "actions_before_ack": actions[:ack] if ack is not None else None,
@@ -264,7 +270,7 @@ def main(base_ref: str) -> None:
     for name, r in results.items():
         before = r["actions_before_ack"]
         print(
-            f"{name:12} pickup {r['pickup_s']}s  reply {r['reply_s']}s  "
+            f"{name:12} {'TIMED OUT  ' if r['timed_out'] else ''}pickup {r['pickup_s']}s  reply {r['reply_s']}s  "
             f"actions before ack {'never acked' if before is None else len(before)}  "
             f"invented {r['invented_ack'] or 'none'}"
         )

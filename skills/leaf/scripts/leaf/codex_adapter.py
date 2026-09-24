@@ -256,21 +256,11 @@ class TaskObserver:
 
     def _resume(self, thread: dict) -> None:
         """Reconcile every turn against a resumed snapshot of the task."""
+        # A followed turn the snapshot does not list — a paginated thread's `turns`
+        # can leave it out — stays disconnected until it says something.
         turns = {turn["id"]: turn for turn in thread.get("turns", [])}
-        known = set(self.turns)
-        for turn_id in known:
-            turn = turns.get(turn_id)
-            # A turn the snapshot does not list — a paginated thread's `turns` can
-            # leave it out — stays disconnected until it says something.
-            if turn is None:
-                continue
-            if turn.get("status") == "inProgress":
-                self.turns[turn_id].restore(turn)
-            else:
-                self.turns.pop(turn_id).commit(turn)
         for turn in turns.values():
-            if turn["id"] not in known:
-                self._adopt(turn)
+            self._reconcile(turn)
 
         active = next(
             (
@@ -311,32 +301,44 @@ class TaskObserver:
             # one is still live.
             clear_stream_activity(self.thread_id)
 
-    def _adopt(self, turn: dict) -> None:
-        """Take up a resumed turn from the immutable delivery it carries.
+    def _reconcile(self, turn: dict) -> None:
+        """Bring one snapshot turn's fold up to what the snapshot says of it.
 
-        A turn reached this way is one nobody is following: a pointer the task
-        picked up by itself, or a delivery whose carrier process died while its turn
-        ran on. A live follower's turn is excluded by `carried`, which is held from
-        before the turn exists. Only the second has a reply to bind, since only a
-        delivery frozen for App Server owes a `turn` answer.
+        The snapshot can name a delivery the fold has not seen: its item was
+        written while this connection was down. A carried one gives its turn to
+        the follower. Any other is accepted and bound as `_read` binds one, so the
+        answer is written whether the turn is still running or ended meanwhile.
+
+        A turn with no fold is taken up only for a delivery that owes a `turn`
+        answer, which is a turn nobody is following: its carrier process died while
+        the turn ran on. The snapshot's other turns are history, save the running
+        one, which `_resume` follows.
         """
         turn_id = turn["id"]
+        fold = self.turns.get(turn_id)
         delivery_id = _turn_delivery_id(turn)
-        if delivery_id is None or self._is_carried(delivery_id):
-            return
-        accept_offered_delivery(self.thread_id, delivery_id, turn_id)
-        target = delivery_stream_reply_target(self.thread_id, delivery_id)
-        if target is None:
-            return
-        fold = TurnFold(self.thread_id, turn_id)
-        if turn.get("status") != "inProgress":
+        running = turn.get("status") == "inProgress"
+        if delivery_id is not None and (fold is None or fold.delivery_id is None):
+            if self._is_carried(delivery_id):
+                self.turns.pop(turn_id, None)
+                return
+            accept_offered_delivery(self.thread_id, delivery_id, turn_id)
+            target = delivery_stream_reply_target(self.thread_id, delivery_id)
+            if fold is None:
+                if target is None:
+                    return
+                fold = TurnFold(self.thread_id, turn_id)
+                if running:
+                    open_stream_turn(self.thread_id, turn_id)
+                    self.turns[turn_id] = fold
             fold.bind(delivery_id, target)
-            fold.commit(turn)
+        if fold is None:
             return
-        open_stream_turn(self.thread_id, turn_id)
-        fold.bind(delivery_id, target)
-        fold.restore(turn)
-        self.turns[turn_id] = fold
+        if running:
+            fold.restore(turn)
+        else:
+            self.turns.pop(turn_id, None)
+            fold.commit(turn)
 
     def _read(self, message: dict) -> None:
         """Route one notification to the fold of the turn it names."""

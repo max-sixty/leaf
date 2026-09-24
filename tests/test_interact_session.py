@@ -3256,6 +3256,75 @@ def test_an_observed_queue_pointer_leaves_its_reply_to_leaf_reply(page_dir):
     assert posted["responds"] == comment["id"]
 
 
+@pytest.mark.parametrize("status", ["inProgress", "completed"])
+def test_reconnect_binds_a_delivery_a_followed_turn_carried_unseen(page_dir, status):
+    """A turn the observer follows can name its delivery while nobody is listening.
+
+    The observer saw the turn start, which names no delivery, and lost its
+    connection before the delivery's item arrived. The resumed snapshot is the
+    only place that item is ever seen, so the turn's answer is bound from it,
+    whether the turn is still running or ended during the disconnect.
+    """
+    comment = events_model.append_event(
+        page_dir,
+        {"kind": "comment", "author": "user", "text": "Answer across a reconnect"},
+    )
+    prepared = codex_model.prepare_codex_delivery(
+        page_dir,
+        host_model.EmbeddedHarness("codex-thread", "Codex", os.getpid()),
+    )
+    observer = _observer()
+    observer._read(
+        {
+            "method": "turn/started",
+            "params": {"threadId": "codex-thread", "turn": {"id": "leaf-turn"}},
+        }
+    )
+    observer._disconnect_turns()
+
+    observer._resume(
+        {
+            "status": {"type": "active" if status == "inProgress" else "idle"},
+            "turns": [
+                {
+                    "id": "leaf-turn",
+                    "status": status,
+                    "items": [
+                        {
+                            "id": "delivery",
+                            "type": "functionCallOutput",
+                            "name": "leaf_delivery",
+                            "output": json.dumps(prepared.payload),
+                        },
+                        {
+                            "id": "answer",
+                            "type": "agentMessage",
+                            "phase": "final_answer",
+                            "text": "Answered across the reconnect",
+                        },
+                    ],
+                }
+            ],
+        }
+    )
+
+    assert (
+        codex_model.delivery_record_state("codex-thread", prepared.payload["id"])
+        == "accepted"
+    )
+    replies = [
+        (event["responds"], event["text"])
+        for event in events_model.read_events(page_dir)
+        if event["kind"] == "reply"
+    ]
+    if status == "inProgress":
+        assert observer.turns["leaf-turn"].reply_stream is not None
+        assert replies == []
+    else:
+        assert observer.turns == {}
+        assert replies == [(comment["id"], "Answered across the reconnect")]
+
+
 def test_reconnect_recovers_a_completed_delivery_reply(page_dir):
     comment = events_model.append_event(
         page_dir,
@@ -7814,7 +7883,7 @@ def test_an_uncertain_app_server_start_recovers_by_delivery_identity(
         codex_adapter_model._offer_queued_delivery("codex", "codex-thread", None, None)
 
     observer = _observer()
-    observer._adopt(
+    observer._reconcile(
         {
             "id": "recovered-turn",
             "status": "failed",

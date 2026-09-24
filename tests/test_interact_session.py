@@ -1696,6 +1696,10 @@ def test_a_delivery_and_its_codex_records_go_once_their_pages_do(
         envelope("0000000b", gone),
         envelope("0000000c", claimed, "v2"),
         record(delivery_model.delivery_path("00000012"), {"batches": []}),
+        record(
+            delivery_model.delivery_path("00000013"),
+            {"format": delivery_model.DELIVERY_FORMAT},
+        ),
     ]
     serving(claimed, 1)
     events_model.append_event(
@@ -1720,6 +1724,9 @@ def test_a_delivery_and_its_codex_records_go_once_their_pages_do(
     history = live.parent / "history"
     archived_gone = record(history / "0000000f.json", task_record("f", gone))
     archived_other = record(history / "00000010.json", {"batches": []})
+    archived_incomplete = record(
+        history / "00000012.json", {"format": codex_model.RECORD_FORMAT}
+    )
     archived_kept = record(history / "00000011.json", task_record("g", claimed))
     with events_model.flocked(codex_model.delivery_lock_path("t")):
         assert [path for path, _ in codex_model.delivery_records("t")] == [live]
@@ -1727,6 +1734,7 @@ def test_a_delivery_and_its_codex_records_go_once_their_pages_do(
         codex_model.archive_record(live, task_record("d", claimed, state="accepted"))
     assert sorted(history.iterdir()) == [history / live.name, archived_kept]
     assert not archived_gone.exists() and not archived_other.exists()
+    assert not archived_incomplete.exists()
 
 
 def test_direct_delivery_progress_does_not_become_page_activity(claimed, capsys):

@@ -106,16 +106,22 @@ def pages_gone(batches: list[dict]) -> bool:
 
 def retire_if_gone(path: Path, record_format: str) -> None:
     """Remove this record unless it is a `record_format` record some page of which
-    still stands. A record without that format is not one this version reads, so
-    it goes rather than taking the reading down."""
+    still stands. A record without this version's required fields goes rather
+    than taking the reading down."""
     try:
         record = read_json(path)
     except ValueError:
         record = None
+    batches = record.get("batches") if isinstance(record, dict) else None
     if (
         not isinstance(record, dict)
         or record.get("format") != record_format
-        or pages_gone(record["batches"])
+        or not isinstance(batches, list)
+        or any(
+            not isinstance(batch, dict) or not isinstance(batch.get("page"), str)
+            for batch in batches
+        )
+        or pages_gone(batches)
     ):
         path.unlink(missing_ok=True)
 

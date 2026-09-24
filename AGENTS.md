@@ -138,38 +138,22 @@ where `uv` syncs `.venv` beside `pyproject.toml`, so the install has to be
 writable by the session running leaf.
 
 `pyproject.toml` states each runtime dependency at the lowest version the suite
-passes on, with no upper cap, and `uv.lock` ships beside it, so an install runs
-the resolution the suite was last green on. Shipping the lock does not take the
-host's index out of the loop. `bin/leaf` passes neither `--frozen` nor
-`--locked`, so on a host whose configured index is not the pypi.org registry
-the lock records, `uv` re-locks against that index, keeps the locked versions,
-installs from it, and rewrites `uv.lock` in the install to name it. A private
-mirror answers, and an offline run installs from `uv`'s cache. `--frozen` would
-fetch the recorded pypi.org URLs whatever index the host sets, as a script lock
-always does. Python arrives on the same terms. The
-host also supplies the `jq` authoring dependency at the minimum version named
-in the README. The dev group — pytest, the accessibility checks, the demo
-recorder's frames — is recorded in that same lock but never installed on a
-host: `bin/leaf` passes `--no-dev`. Playwright is a runtime dependency, since
-the skill's own flow renders pages; browser checks launch the host's installed
-Chrome, or the executable `skills/leaf/scripts/leaf/validation.md`, "Browser
-validation", says comes first, and leaf does not download a browser.
+passes on, with no upper cap. `uv.lock` ships beside it, so an install gets the
+versions the suite last passed on; a host with its own package index gets them
+from that index, and `uv` rewrites the lock to name it. The dev group is in the
+same lock but never installed on a host (`bin/leaf` passes `--no-dev`). The host
+supplies Chrome and the `jq` version the README names: Playwright is a runtime
+dependency, but leaf never downloads a browser
+(`skills/leaf/scripts/leaf/validation.md`, "Browser validation").
 
-A package's `scripts/` are the one exception to the shipped lock. Each script
-declares its dependencies in its own inline header, at floors with no cap, and
-ships no lock beside it: `leaf package run` resolves that header through the
-host's index on first use and runs from `uv`'s cache after, so a host may run a
-newer release than the suite did. The dev group repeats every requirement a
-bundled script declares, and the suite runs those scripts under the project's
-interpreter, so `uv.lock` pins the version the suite passed on and a fresh
-machine needs no network after setup to run them.
+A package's `scripts/` ship no lock. Each script declares floor-only
+dependencies in its inline header, which `leaf package run` resolves through the
+host's index, so a host may run newer releases than the suite did. The dev group
+repeats those requirements so the suite runs the scripts offline.
 
-`uv` owns `.venv/` and, on a mirror host, `uv.lock`; a `.venv` or a re-locked
-`uv.lock` inside an installed copy is uv doing its job, not stray state to
-clean up. Nothing else is written back: no cache leaf keeps for
-itself, no generated file, no repaired state. Plugin updates may replace the
-directory wholesale, so what has to survive one belongs in the page directory
-or the state home.
+`uv` owns `.venv/` and `uv.lock` in an install. Leaf writes nothing else there,
+and a plugin update may replace the directory wholesale, so what has to survive
+one belongs in the page directory or the state home.
 
 Files under `skills/leaf/assets/vendor/`, any package's `vendor/` — `default/`,
 `diagram/`, `diff/` today — and `skills/leaf/mcp-app/` are committed payload

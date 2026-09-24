@@ -8034,8 +8034,7 @@ def test_signoff_uses_its_visible_button_and_g_l_never_falls_through(browser, se
     expect(approve).not_to_have_attribute("aria-keyshortcuts", re.compile(".+"))
     assert "(L)" not in approve.get_attribute("title")
     done = [e for e in events_model.read_events(serve.page_dir) if e["kind"] == "done"]
-    assert len(done) == 1, done
-    assert done[0]["text"] == "Looks good"
+    assert [event["version"] for event in done] == [1], done
 
 
 def test_banner_destinations_use_transient_target_overlays(browser, serve):

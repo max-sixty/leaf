@@ -2460,7 +2460,7 @@ def test_an_effective_report_protects_detail_ids_its_record_needs(page_dir):
     registry_path = page_dir / "registry.json"
     registry = json.loads(registry_path.read_text())
     registry["lf-board"]["properties"]["overruled"] = {"type": "boolean"}
-    registry["lf-board"]["x-report"] = registry["lf-board"]["x-state"]
+    registry["lf-board"]["x-state"]["move"]["writer"] = "agent"
     registry_path.write_text(json.dumps(registry))
 
     board = _board([X], [])
@@ -2491,20 +2491,21 @@ def test_an_effective_report_protects_detail_ids_its_record_needs(page_dir):
     assert standing.exit_code == 1
     assert "protected ids" in standing.output and "'c-done'" in standing.output
 
+    # A newer report at the same coordinate is the state that stands now.
     append_command(
         page_dir,
         {
-            "kind": "action",
-            "author": "user",
+            "kind": "report",
+            "author": "agent",
             "revision": files_model.latest_revision(page_dir),
             "widget": "b1",
             "action": "move",
             "detail": {"card": "card-x", "to": "c-todo", "index": 0},
         },
     )
-    outranked = check(page_dir)
-    assert outranked.exit_code == 0, outranked.output
-    assert "ids dropped from revision r1: ['c-done']" in outranked.output
+    superseded = check(page_dir)
+    assert superseded.exit_code == 0, superseded.output
+    assert "ids dropped from revision r1: ['c-done']" in superseded.output
 
 
 def test_a_version_may_not_quietly_rewrite_what_the_user_decided(page_dir):
@@ -2571,10 +2572,14 @@ def test_restating_a_widget_that_kept_its_words_is_refused(page_dir):
 
 def test_report_validates_at_the_door_and_stamps_identity(page_dir, monkeypatch):
     """`leaf report` is the report event's one door, so the widget, verb, and
-    detail are held to the x-report declaration there — the CLI mirror of the
+    detail are held to the widget's agent verb there — the CLI mirror of the
     POST door's action gate — and the event leaves stamped with the posting
     session's voice and the exact revision the user is looking at."""
     _tasks_version(page_dir, "active")
+    version = page_dir / "index.html"
+    version.write_text(
+        version.read_text().replace("<lf-options>", '<lf-options id="choice">')
+    )
     activation = revisioning_model.activate_source(page_dir, [])
     assert activation.error is None and activation.revision == 1
     draft_report = _report(page_dir, "t-parser", "status", "status=review")
@@ -2592,6 +2597,10 @@ def test_report_validates_at_the_door_and_stamps_identity(page_dir, monkeypatch)
         (("nope", "status", "status=review"), "unknown report widget"),
         (("tree", "status", "status=review"), "does not declare report verb"),
         (("t-parser", "finish", "status=done"), "does not declare report verb"),
+        (
+            ("choice", "choose", "option=flag-first"),
+            "'choose' is a verb the user writes; this report came from the agent",
+        ),
         (("t-parser", "status", "status=shipping"), "detail is invalid"),
         (("t-parser", "status", "status"), "name=value"),
         (("t-parser", "status"), "'status' is a required property"),
@@ -4485,53 +4494,6 @@ def test_page_state_names_the_ask_region_but_keeps_state_on_its_request(page_dir
     state = state_json(page_dir)
     assert state["asks"] == []
     assert state["state"][0]["widget"] == "g1"
-
-
-def test_page_state_prefers_a_user_action_over_a_report_on_the_same_facet(page_dir):
-    """A report remains live for later absorption, but the user's action is
-    the effective state on their shared coordinate."""
-    registry = json.loads((page_dir / "registry.json").read_text())
-    options = registry["lf-options"]
-    options["properties"]["overruled"] = {"type": "boolean"}
-    report_choose = dict(options["x-state"]["choose"])
-    options["x-report"] = {"choose": report_choose}
-    (page_dir / "registry.json").write_text(json.dumps(registry))
-    opts = OPTIONS.format(
-        a="", b="", chip="", shim="Fastest to ship.", stage="Table by table."
-    )
-    (page_dir / "index.html").write_text(
-        PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + opts)
-    )
-    publish(page_dir)
-    append_command(
-        page_dir,
-        {
-            "kind": "report",
-            "author": "agent",
-            "agent": "worker",
-            "revision": 1,
-            "widget": "g1",
-            "action": "choose",
-            "detail": {"options": ["o-stage"]},
-        },
-    )
-    append_command(
-        page_dir,
-        {
-            "kind": "action",
-            "author": "user",
-            "revision": 1,
-            "widget": "g1",
-            "action": "choose",
-            "detail": {"options": ["o-shim"]},
-        },
-    )
-
-    state = state_json(page_dir)
-    assert state["state"][0]["detail"] == {"options": ["o-shim"]}
-    report = next(update for update in state["updates"] if update["source"] == "report")
-    assert report["detail"] == {"options": ["o-stage"]}
-    assert report["disposition"] == "standing"
 
 
 def test_page_state_reads_an_authored_answer_with_no_log(page_dir):

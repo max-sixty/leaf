@@ -14,7 +14,7 @@ from leaf.events import (
     taken_back,
 )
 from leaf.passages import EMPTY, collapse, enclosing_of, spoken
-from leaf.registry.contract import decides, state_specs
+from leaf.registry.contract import WRITERS, decides, event_spec, state_specs
 from leaf.registry.state import retirement_slots
 from leaf.structure import SourceDocument
 from leaf.thread_context import (
@@ -244,8 +244,8 @@ def protected_ids(
     Anchored unresolved threads keep their current target; an explicit detachment
     releases it while retaining the thread. Effective standing state keeps its owner
     and fold unit, plus every page id its canonical liveness reading rests on. An older
-    report hidden by a user action remains in the log, but the action is the state the
-    page must preserve.
+    report superseded by a newer one remains in the log, but the newest is the state
+    the page must preserve.
 
     Declared retirement remains the explicit route for removing decision
     markup. Its holder and slots stay protected until ``retirable_ids`` licenses
@@ -366,14 +366,15 @@ def state_projection(
     upto,
     floors: dict | None = None,
 ) -> StateProjection:
-    """Project both durable channels onto owner-unit-verb coordinates.
+    """Project user actions and agent reports onto owner-unit-verb coordinates.
 
-    `actions` holds the last surviving user action per coordinate. `reports`
-    keeps every live report there because stamping retires all of them.
-    `desired` gives a user action precedence over provisional agent news on
-    the same coordinate.
+    A verb declares one writer, so a coordinate holds actions or reports, never
+    both. `actions` holds the last surviving user action per coordinate.
+    `reports` keeps every live report there because stamping retires all of
+    them. `desired` is the state that stands at each coordinate: its action, or
+    its newest live report.
 
-    Both channels share one classification pass over the window. They end by
+    Both writers share one classification pass over the window. They end by
     different facts: undo or a retraction floor ends an action, while a note
     settling a report ends that report. `report_settlements` retains the answer
     version for gate diagnostics; `classified` retains valid entries for other
@@ -390,18 +391,14 @@ def state_projection(
     # the walk rather than per event.
     within = enclosing_of(spk)
     for event in events:
-        if event["kind"] == "action":
-            channel = "x-state"
-        elif event["kind"] == "report":
-            channel = "x-report"
-        else:
+        if event["kind"] not in WRITERS:
             continue
         if upto is not None and event["revision"] > upto:
             continue
         rec = byid.get(event["widget"])
         if rec is None:
             continue
-        spec = (registry.get(rec["tag"], {}).get(channel) or {}).get(event["action"])
+        spec = event_spec(registry.get(rec["tag"], {}), event)
         if not spec:
             continue
         coordinate = tuple(event["meaning"]["coordinate"])
@@ -468,7 +465,7 @@ def recorded_owner(unit: str, byid: dict, spk: dict, registry: dict):
     for candidate in reversed(spk.get(unit, EMPTY).within):
         rec = byid.get(candidate)
         entry = registry.get(rec["tag"], {}) if rec else {}
-        if any(spec.get("record") for _, _, spec in state_specs(entry)):
+        if any(spec.get("record") for _, spec in state_specs(entry)):
             return candidate
     return None
 

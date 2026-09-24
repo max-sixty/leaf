@@ -810,7 +810,7 @@ class SourceDocument:
     @property
     def overruled(self) -> set:
         """Ids this version declares it keeps its own state on, over a worker's
-        standing report — the agent channel's mirror of `restated`."""
+        standing report — the agent writer's mirror of `restated`."""
         return {
             rec["attrs"]["id"]
             for rec in self.lf_elements

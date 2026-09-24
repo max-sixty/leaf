@@ -1,8 +1,8 @@
 /* The vocabulary's query doors, which is how the layer stays open.
 
    `elementDeclarations` and `tagsDeclaring` are the general iteration doors. `stateSpecs` is
-   the one traversal of both `x-state` and `x-report`. New code that loops over tag names
-   or repeats those channel traversals is a closed list in another form. CSS selectors
+   the one traversal of every tag's `x-state`, whichever side writes each verb. New code
+   that loops over tag names or repeats that traversal is a closed list in another form. CSS selectors
    follow the same rule: a list of framed widget tags is still a closed consumer. */
 
 import { runtime } from "./context.js";
@@ -32,9 +32,8 @@ function indexedState() {
 
   const specs = [];
   for (const [tag, entry] of elementDeclarations())
-    for (const channel of ["x-state", "x-report"])
-      for (const [verb, spec] of Object.entries(entry[channel] ?? {}))
-        specs.push({ tag, channel, verb, spec });
+    for (const [verb, spec] of Object.entries(entry["x-state"] ?? {}))
+      specs.push({ tag, verb, spec });
   stateIndex = {
     generation,
     recordedWidgetSelector: [

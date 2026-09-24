@@ -24,12 +24,7 @@ export function createProjectionCommands({ post, stateApplying, unaccountedGestu
       const event = candidate.event;
       if (event.kind === "resolve" || event.kind === "unresolve" || event.token)
         return event;
-      if (
-        event.kind === "done" &&
-        event.revision === runtime.currentRevision &&
-        event.version === runtime.currentStamp
-      )
-        return event;
+      if (event.kind === "done" && event.version === runtime.currentStamp) return event;
       const widget = event.kind === "action" && elementById(event.widget);
       if (
         widget &&

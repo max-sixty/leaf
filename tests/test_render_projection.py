@@ -5436,8 +5436,7 @@ def test_the_render_gate_applies_every_standing_action_a_second_time(browser, se
         (tag, verb)
         for tag, entry in registry.items()
         if tag.startswith("lf-")
-        for channel in ("x-state", "x-report")
-        for verb in entry.get(channel, {})
+        for verb in entry.get("x-state", {})
     }
     assert {(tag, verb) for _id, tag, _key, verb in standing} == declared, (
         "the gate applies the standing state, so a declared verb missing from it is a "
@@ -5451,13 +5450,13 @@ def test_the_render_gate_applies_every_standing_action_a_second_time(browser, se
 
 
 @pytest.mark.parametrize("authored", [None, "0"])
-def test_a_user_action_outranks_later_news_on_the_same_coordinate(
+def test_a_user_verb_and_an_agent_verb_stand_side_by_side(
     browser, serve, tmp_path, monkeypatch, authored
 ):
-    """The projection, not channel replay order, is the DOM's authority. A worker's
-    later count remains report history, but it cannot paint over the user's action
-    on the same unit and verb; both log records are ready once that one coordinate is
-    committed."""
+    """A verb has one writer, so a user's action and a worker's report on one widget
+    fold on coordinates of their own: each paints its own record, every log record is
+    ready once its coordinate is committed, and undoing the user's action restores
+    the authored value without replacing the node."""
     monkeypatch.chdir(tmp_path)
     author_test_widget(tmp_path, "lf-tally", upgrade=True)
     registry_path = tmp_path / ".leaf" / "registry.json"
@@ -5471,6 +5470,10 @@ def test_a_user_action_outranks_later_news_on_the_same_coordinate(
     )
     declarations["lf-tally"]["properties"]["restated"] = {"type": "boolean"}
     declarations["lf-tally"]["properties"]["overruled"] = {"type": "boolean"}
+    declarations["lf-tally"]["properties"]["seen"] = {
+        "type": "string",
+        "pattern": "^[0-9]+$",
+    }
     record = {"kind": "value", "attr": "count", "value": "count"}
     count_detail = {
         "type": "object",
@@ -5483,14 +5486,13 @@ def test_a_user_action_outranks_later_news_on_the_same_coordinate(
             "detail": count_detail,
             "unit": "widget",
             "record": record,
-        }
-    }
-    declarations["lf-tally"]["x-report"] = {
-        "set": {
+        },
+        "observe": {
+            "writer": "agent",
             "detail": count_detail,
             "unit": "widget",
-            "record": record,
-        }
+            "record": {"kind": "value", "attr": "seen", "value": "count"},
+        },
     }
     registry_path.write_text(json.dumps(declarations, indent=2))
     (tmp_path / ".leaf" / "widgets" / "lf-tally.js").write_text(
@@ -5504,6 +5506,8 @@ customElements.define("lf-tally", class extends HTMLElement {
   renderState(state) {
     if (state.set.value === null) this.removeAttribute("count");
     else this.setAttribute("count", state.set.value);
+    if (state.observe.value === null) this.removeAttribute("seen");
+    else this.setAttribute("seen", state.observe.value);
   }
 });
 """
@@ -5514,7 +5518,7 @@ customElements.define("lf-tally", class extends HTMLElement {
     url = serve(html, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
     for kind, author, widget, action, count in [
         ("action", "user", "tally-fitted", "set", "7"),
-        ("report", "agent", "tally-fitted", "set", "9"),
+        ("report", "agent", "tally-fitted", "observe", "9"),
         ("action", "user", "tally-seen", "set", "5"),
     ]:
         append_command(
@@ -5531,14 +5535,17 @@ customElements.define("lf-tally", class extends HTMLElement {
 
     page = open_page(browser, url)
     expect(page.locator("#tally-fitted")).to_have_attribute("count", "7")
+    expect(page.locator("#tally-fitted")).to_have_attribute("seen", "9")
     expect(page.locator("#tally-seen")).to_have_attribute("count", "5")
     expect(page.locator("body")).to_have_attribute("data-lf-applied", "3")
     standing = page.evaluate(
-        """async () => (await window.__lfRuntimeImport('/runtime/widget-api.js'))
-          .widgetController(document.getElementById('tally-fitted')).read()
-          .state.set.value"""
+        """async () => {
+          const {state} = (await window.__lfRuntimeImport('/runtime/widget-api.js'))
+            .widgetController(document.getElementById('tally-fitted')).read();
+          return [state.set.value, state.observe.value];
+        }"""
     )
-    assert standing == "7"
+    assert standing == ["7", "9"]
 
     original = page.locator("#tally-seen").element_handle()
     page.keyboard.press("z")
@@ -9063,8 +9070,9 @@ def test_project_widget_can_join_the_orchestration_projection(
             "additionalProperties": False,
             "x-owners": ["lf-command", "lf-area"],
             "x-content": "markup",
-            "x-report": {
+            "x-state": {
                 "phase": {
+                    "writer": "agent",
                     "detail": {
                         "type": "object",
                         "properties": {
@@ -9090,7 +9098,6 @@ def test_project_widget_can_join_the_orchestration_projection(
                     "state": "phase",
                     "done": ["done"],
                     "stopped": ["blocked"],
-                    "report": "phase",
                 }
             }
         },

@@ -84,7 +84,7 @@ leaf version stamp <page> --text "…" --completes <widget-id>
 ```
 
 Stamping accepts only widget ids with standing work. `status --on` refuses a
-widget with neither an unsettled action receipt nor an active `x-work` seat; use
+widget with neither an unsettled action receipt nor an `x-work` declaration; use
 the page-wide detail when neither admits a local claim.
 
 Use `status --on` for proactive subject work that did not begin with a delivery. An

@@ -35,8 +35,7 @@ def asking(attrs: dict, when: dict) -> bool:
 
 def replayed_attrs(rec: dict, projection: StateProjection) -> dict:
     """An element's attributes under the declared standing projection: authored
-    markup overlaid with every surviving value record. The user's action holds
-    one coordinate over a standing report, and independent verbs coexist."""
+    markup overlaid with every surviving value record; independent verbs coexist."""
     attrs = rec["attrs"]
     unit = attrs.get("id")
     if not unit:

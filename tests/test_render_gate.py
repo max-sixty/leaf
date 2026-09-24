@@ -1762,10 +1762,9 @@ def _author_stateful_verbatim_widget(tmp_path):
             },
             "unit": "widget",
             "record": {"kind": "value", "attr": "user", "value": "value"},
-        }
-    }
-    stateful["x-report"] = {
+        },
         "status": {
+            "writer": "agent",
             "detail": {
                 "type": "object",
                 "properties": {"value": {"type": "string"}},
@@ -1774,7 +1773,7 @@ def _author_stateful_verbatim_widget(tmp_path):
             },
             "unit": "widget",
             "record": {"kind": "value", "attr": "agent", "value": "value"},
-        }
+        },
     }
     registry_path.write_text(json.dumps(declarations, indent=2))
     (tmp_path / ".leaf" / "widgets" / "lf-stateful.js").write_text(

@@ -17,6 +17,7 @@ from .contract import (
     schema_resource_registry,
     state_specs,
     visual_part_attribute,
+    writer,
 )
 from .state import (
     validate_deciding_verb,
@@ -42,7 +43,7 @@ def element_declarations(registry: dict, path) -> dict:
 def _recorded_attributes(entry: dict) -> set[str]:
     return {
         record["attr"]
-        for _channel, _verb, spec in state_specs(entry)
+        for _verb, spec in state_specs(entry)
         if (record := spec.get("record")) and "attr" in record
     }
 
@@ -71,7 +72,7 @@ def validate_widget_schemas(declarations: dict, data: dict, path) -> None:
                 f"{path}: <{tag}> registry extensions are invalid: {errors[0].message}"
             )
         declared_verbs = [
-            *state_specs(entry),
+            *(("x-state", verb, spec) for verb, spec in state_specs(entry)),
             *(
                 ("x-request", verb, spec)
                 for verb, spec in entry.get("x-request", {}).get("verbs", {}).items()
@@ -216,7 +217,7 @@ def validate_widget_schemas(declarations: dict, data: dict, path) -> None:
                     if not records_input and attribute in recorded_attributes:
                         raise RegistryError(
                             f"{path}: <{tag}> x-request verb `{verb}` binds `{field}` "
-                            f"to `{attribute}`, which is written by x-state or x-report"
+                            f"to `{attribute}`, which is written by x-state"
                         )
             if update := spec.get("update"):
                 detail = spec["detail"]
@@ -372,7 +373,7 @@ def _validate_widget_structure(
             if attribute in _recorded_attributes(member_entry):
                 raise RegistryError(
                     f"{path}: <{tag}> x-request offer <{member}> attribute "
-                    f"`{attribute}` is written by x-state or x-report"
+                    f"`{attribute}` is written by x-state"
                 )
             if unknown := sorted(set(values) - verbs):
                 raise RegistryError(
@@ -517,7 +518,6 @@ def _validate_widget_predicates(tag: str, entry: dict, properties: dict, path) -
             for condition in awaits.get("answered", {}).values()
         ),
         ("x-conversation", entry.get("x-conversation", {}).get("when", {})),
-        ("x-work", entry.get("x-work", {}).get("when", {})),
     ]
     for declaration, condition in conditions:
         for attr, values in condition.items():
@@ -561,8 +561,7 @@ def _validate_widget_predicates(tag: str, entry: dict, properties: dict, path) -
     conversation = entry.get("x-conversation", {})
     mutable_values = {
         spec["record"]["attr"]
-        for channel in ("x-state", "x-report")
-        for spec in entry.get(channel, {}).values()
+        for _verb, spec in state_specs(entry)
         if (spec.get("record") or {}).get("kind") == "value"
     }
     if dynamic := sorted(set(conversation.get("when", {})) & mutable_values):
@@ -592,32 +591,29 @@ def _validate_widget_interactions(
     awaits: dict,
     path,
 ) -> None:
-    work = entry.get("x-work")
-    if work and work["seat"] == "content":
+    if entry.get("x-work"):
         if entry.get("x-inline"):
             raise RegistryError(
-                f"{path}: <{tag}> declares a content work seat but is inline; "
+                f"{path}: <{tag}> declares x-work but is inline; "
                 "local work chrome needs a block slot"
             )
         if entry.get("x-content") != "markup":
             raise RegistryError(
-                f"{path}: <{tag}> declares a content work seat but x-content is "
+                f"{path}: <{tag}> declares x-work but x-content is "
                 f"{entry.get('x-content')}; generated local chrome may only join "
                 "authored prose"
             )
-    if work and work["seat"] == "conversation" and not entry.get("x-conversation"):
-        raise RegistryError(
-            f"{path}: <{tag}> declares a conversation work seat but declares "
-            "no x-conversation"
-        )
     answered = awaits.get("answered", {})
     if entry.get("x-awaits") is not None and not answered:
         raise RegistryError(
             f"{path}: <{tag}> x-awaits local Ask declares no `answered` condition"
         )
-    if unknown := sorted(set(answered) - set(entry.get("x-state", {}))):
+    # The user answers their own Ask, so only a verb the user writes can answer it.
+    user_verbs = {verb for verb, spec in state_specs(entry) if writer(spec) == "user"}
+    if unknown := sorted(set(answered) - user_verbs):
         raise RegistryError(
-            f"{path}: <{tag}> x-awaits answers with undeclared x-state verbs {unknown}"
+            f"{path}: <{tag}> x-awaits answers with verbs {unknown}, which are not "
+            "x-state verbs the user writes"
         )
     # A blanket answer is one decision per Ask, taken through the widget's deciding
     # verb, so it names an outcome that verb declares and the verb answers the Ask.
@@ -632,7 +628,6 @@ def _validate_widget_interactions(
         key
         for key in (
             "x-state",
-            "x-report",
             "x-request",
             "x-language",
             "x-verbatim",
@@ -648,17 +643,19 @@ def _validate_widget_interactions(
             "but has no upgraded handler"
         )
     # A version overrules a standing report with `overruled` on the element,
-    # so a widget with an agent channel that doesn't declare the attribute is
-    # one whose every report contradiction is unpublishable.
-    if entry.get("x-report") and not (
+    # so a widget with an agent-written verb that doesn't declare the attribute
+    # is one whose every report contradiction is unpublishable.
+    agent_verbs = [verb for verb, spec in state_specs(entry) if writer(spec) == "agent"]
+    if agent_verbs and not (
         isinstance(properties.get("overruled"), dict)
         and properties["overruled"].get("type") == "boolean"
     ):
         raise RegistryError(
-            f"{path}: <{tag}> declares x-report but not the boolean `overruled` "
+            f"{path}: <{tag}> declares agent-written x-state verbs {agent_verbs} but "
+            "not the boolean `overruled` "
             "attribute a version overrules a standing report with"
         )
-    # The same rule for the other channel: a version that rewrites what a
+    # The same rule for the user's verbs: a version that rewrites what a
     # decision rested on must say `restated` on the element ($restated),
     # and a closed schema without the attribute is a widget whose every
     # rewrite is unpublishable — the words gate demands an attribute the
@@ -666,14 +663,15 @@ def _validate_widget_interactions(
     # widget itself: a verb folding per child (move's "card") rests its
     # decisions on elements this declaration doesn't name.
     folds_whole = any(
-        spec["unit"] == "widget" for spec in entry.get("x-state", {}).values()
+        spec["unit"] == "widget" and writer(spec) == "user"
+        for _verb, spec in state_specs(entry)
     )
     if folds_whole and not (
         isinstance(properties.get("restated"), dict)
         and properties["restated"].get("type") == "boolean"
     ):
         raise RegistryError(
-            f"{path}: <{tag}> declares x-state verbs that fold on the widget "
+            f"{path}: <{tag}> declares user x-state verbs that fold on the widget "
             "but not the boolean `restated` attribute a version retracts a "
             "decision with"
         )

@@ -131,14 +131,16 @@ def test_stamp_assigns_versions_to_the_exact_immutable_revision(page_dir):
     assert not (page_dir / "versions").exists()
 
 
-def test_page_events_name_revisions_while_stamps_and_signoff_name_both(page_dir):
+def test_page_events_name_revisions_stamps_name_both_and_signoff_a_version(page_dir):
     kinds = registry_storage.load_registry(page_dir)["$events"]["kinds"]
     for kind in ("comment", "action", "report"):
         required = kinds[kind]["record"]["required"]
         assert "revision" in required and "version" not in required
-    for kind in ("note", "done"):
-        required = kinds[kind]["record"]["required"]
-        assert "revision" in required and "version" in required
+    required = kinds["note"]["record"]["required"]
+    assert "revision" in required and "version" in required
+    # A sign-off names the stamp it approves; the note already maps that to a revision.
+    required = kinds["done"]["record"]["required"]
+    assert "version" in required and "revision" not in required
     result = CliRunner().invoke(cli_model.cli, ["version", "--help"])
     assert result.exit_code == 0
     assert "\n  stamp " in result.output and "\n  publish " not in result.output

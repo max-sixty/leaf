@@ -2132,7 +2132,7 @@ def test_local_work_chrome_does_not_take_its_holder_gesture(browser, serve, tmp_
     option = json.loads((schema_model.DEFAULT_PACKAGE / "registry.json").read_text())[
         "lf-option"
     ]
-    option["x-work"] = {"seat": "content"}
+    option["x-work"] = True
     layer = tmp_path / ".leaf"
     layer.mkdir()
     (layer / "registry.json").write_text(json.dumps({"lf-option": option}))

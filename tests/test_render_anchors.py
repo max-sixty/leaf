@@ -1528,7 +1528,7 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
     )
 
     # Through the declared shadow root, where the static Pierre DOM remains visible to
-    # Leaf's passage reader and to a standalone export.
+    # Leaf's passage reader.
     files = page.evaluate("""() => [...document.querySelector('#patch').shadowRoot
       .querySelectorAll('details')].map(d => {
       const path = d.querySelector('.lf-diff-path');

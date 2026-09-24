@@ -818,23 +818,6 @@ def test_a_card_group_taking_a_pick_reads_as_one_control(browser, serve):
         "the generated header state hangs outside the card"
     )
 
-    # The copy medium: scripts are dropped, so the pick cannot be made and the group must
-    # not go on saying one is waiting. The cards come apart and their rings come back, which
-    # is the same page paper gets, and both get it by never being handed the offer.
-    page.evaluate("() => document.documentElement.classList.add('lf-copy')")
-    assert page.locator("#approach").evaluate(edge) == 0, (
-        "a copy still draws the group as a control it has no way to work"
-    )
-    assert page.locator("#opt-stage").evaluate(edge) > 0, (
-        "the cards did not come back apart in a copy"
-    )
-    assert (
-        page.locator("#opt-shim").evaluate(
-            "el => getComputedStyle(el, '::after').content"
-        )
-        == '"✓"'
-    )
-
 
 @pytest.mark.parametrize("color_scheme", ["light", "dark"])
 def test_an_open_option_ring_stays_visible_at_rest(browser, serve, color_scheme):
@@ -1849,9 +1832,6 @@ def test_a_multiple_page_ask_waits_for_done(browser, serve):
         )
         == "LF-OPTIONS-DONE"
     )
-    page.locator("html").evaluate("el => el.classList.add('lf-copy')")
-    expect(page.locator("#jobs lf-options-done")).to_be_hidden()
-    page.locator("html").evaluate("el => el.classList.remove('lf-copy')")
     page.emulate_media(media="print")
     expect(page.locator("#jobs lf-options-done")).to_be_hidden()
     page.emulate_media(media="screen")
@@ -2255,8 +2235,8 @@ def test_the_box_is_offered_only_where_something_can_answer_it(browser, serve):
     """An option field with no handler would invite input the page cannot accept.
 
     So the field is withheld rather than undone: the offer is
-    made once in the live page, and a copy, a printout and a retired question each get
-    the page without it by never being handed it.
+    made once in the live page, and a printout and a retired question each get the
+    page without it by never being handed it.
 
     The collapse is the same rule at a different scale. A settled group's box goes
     behind the disclosure with its options, because the question is retired until the
@@ -2281,10 +2261,6 @@ def test_the_box_is_offered_only_where_something_can_answer_it(browser, serve):
     assert all(
         rows.evaluate_all("els => els.map(e => e.getBoundingClientRect().height > 0)")
     )
-
-    # The copy medium: the same DOM with the affordance never handed to it.
-    page.evaluate("() => document.documentElement.classList.add('lf-copy')")
-    expect(box).to_be_hidden()
 
 
 def test_the_specimen_gutter_is_painted_in_both_schemes(browser, serve):

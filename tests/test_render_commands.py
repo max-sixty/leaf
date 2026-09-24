@@ -26,7 +26,6 @@ from render_cases_layout import (
     SHOT_SRC,
     SHOTS,
     UNPARSABLE_DIAGRAM,
-    flip_point,
     shown_frames,
     solid_png,
 )
@@ -265,16 +264,12 @@ def test_check_render_refuses_what_only_a_browser_can_see(serve, headless_shell)
 def test_a_named_browser_that_is_not_one_names_the_variable(serve, tmp_path):
     """A browser variable is the whole of what a host says about its browser, so a
     value naming no browser has to come back as that variable and that value rather
-    than as Chrome, which the host never asked for. Both user-path launches answer for
-    it, and they have to move together: `serving-pages.md` names export as the fallback
-    for when no network route reaches the page, so a host whose browser cannot launch
-    loses the page twice over.
+    than as Chrome, which the host never asked for.
 
     Whichever variable the host set is the one the message names. Reporting a
     CHROME_PATH browser as LEAF_BROWSER_EXECUTABLE's would be a false statement about
     the host's own configuration, and it points the reader at a variable they never
-    set — so the second half checks the other two by their own names, through the
-    check alone, both launches having already been shown to move together."""
+    set — so the second half checks the other two by their own names."""
     serve(LONG_PAGE)
     d = serve.page_dir
     missing = tmp_path / "not-a-browser"
@@ -293,26 +288,6 @@ def test_a_named_browser_that_is_not_one_names_the_variable(serve, tmp_path):
     )
     assert "Chrome did not launch" not in checked.stderr
 
-    exported = subprocess.run(
-        [
-            *LEAF_COMMAND,
-            "version",
-            "export",
-            str(d),
-            "--out",
-            str(tmp_path / "standalone.html"),
-        ],
-        capture_output=True,
-        text=True,
-        check=False,
-        env=named,
-    )
-    assert exported.returncode == 1, exported.stdout + exported.stderr
-    assert (
-        "LEAF_BROWSER_EXECUTABLE" in exported.stderr and str(missing) in exported.stderr
-    )
-    assert "export needs Chrome" not in exported.stderr
-
     for variable in ("CHROME_PATH", "CHROME_BIN"):
         answered = subprocess.run(
             [*LEAF_COMMAND, "version", "check", str(d), "--render"],
@@ -327,7 +302,7 @@ def test_a_named_browser_that_is_not_one_names_the_variable(serve, tmp_path):
 
 
 def test_a_driver_that_never_starts_is_reported_rather_than_raised(serve, tmp_path):
-    """Under the browser both gates launch sits Playwright's driver, a Node process
+    """Under the browser the render gate launches sits Playwright's driver, a Node process
     leaf never names. Where it ends at startup, no launch is reached, so the guard
     that answers for a browser cannot: `sync_playwright()`'s context entry dies on an
     AttributeError naming a Playwright private, and the connection's own reason
@@ -337,11 +312,9 @@ def test_a_driver_that_never_starts_is_reported_rather_than_raised(serve, tmp_pa
     Two hosts reach it — a glibc older than the bundled Node needs, and a
     PLAYWRIGHT_NODEJS_PATH naming a Node older than the driver bundle needs — and
     both end at the same observable point, which a stub that exits without answering
-    stands in for. What each gate owes is its own one line: the connection's reason,
+    stands in for. What the gate owes is one line: the connection's reason,
     the Node that ran, and the variable that chooses one, since neither real failure
-    names that variable and it is the whole of what settles them. Both gates answer,
-    for the reason the named-browser case gives: export is the fallback when no
-    network route reaches the page, so a host losing one loses the page twice over.
+    names that variable and it is the whole of what settles them.
 
     A third host names a Node it does not have, so the driver never runs at all and
     the spawn fails a step earlier than the silence above. It owes the same line,
@@ -350,7 +323,7 @@ def test_a_driver_that_never_starts_is_reported_rather_than_raised(serve, tmp_pa
     a failed entry answers with a private of its own instead of the missing file.
 
     No traceback is half the subject. The four shapes asserted away are the ones the
-    reader sees where a gate raises instead of answering: either private, the
+    reader sees where the gate raises instead of answering: either private, the
     out-of-order asyncio block, and any traceback at all."""
     serve(LONG_PAGE)
     d = serve.page_dir
@@ -380,18 +353,6 @@ def test_a_driver_that_never_starts_is_reported_rather_than_raised(serve, tmp_pa
 
     ended = "Connection closed while reading from the driver"
     answered(ran(silent, "version", "check", str(d), "--render"), silent, ended)
-    answered(
-        ran(
-            silent,
-            "version",
-            "export",
-            str(d),
-            "--out",
-            str(tmp_path / "standalone.html"),
-        ),
-        silent,
-        ended,
-    )
     answered(
         ran(missing, "version", "check", str(d), "--render"),
         missing,
@@ -815,87 +776,6 @@ def test_a_shot_adopts_a_fallback_choice_when_the_divider_arrives(browser, serve
     assert page.evaluate(
         "() => [window.__lfHadComparison, window.__lfFallbackShown]"
     ) == [False, ["before"]]
-
-
-def test_a_shot_still_flips_with_every_script_removed(
-    browser, serve, tmp_path, headless_shell
-):
-    """Which is the whole reason the target is a native checkbox. A copy is the
-    rendered DOM with the scripts dropped and every press a handler answered taken out
-    with them — the upgrade has already run, so the frames are there, and this switch
-    survives that pass because the browser is what works it. A slider would have
-    frozen at whatever the user left it on; `:has(:checked)` is CSS, and the browser
-    owns a checkbox's state, so its transparent box over the image goes on being the
-    target in a file with nothing running.
-
-    Through `version export` rather than a copy the test makes itself, which is what
-    puts the widget's bargain in front of the code that could break it: a hand-rolled
-    one dropped the script tags and nothing else, so it went on passing however the
-    real export treated a control.
-
-    What it pins is no longer that a state serializes. Setting `checked` as a property
-    left no attribute behind, so the copy opened with neither frame chosen and both of
-    them stacked in the one cell — a fault the frames' own default has since made
-    unrepresentable, the after frame being hidden until something checks the box rather
-    than until something checks the other box. So the state needs nothing serialized at
-    all, and what is left to lose is the gesture: the direct native checkbox and its CSS
-    target must survive. A copy that dropped either would keep every frame and every word
-    and answer no click on the image."""
-    serve(
-        SHOT_PAGE,
-        media={SHOT_SRC[name]: data for name, data in SHOTS.items()},
-    )
-
-    def export(out, executable=""):
-        return subprocess.run(
-            [
-                *LEAF_COMMAND,
-                "version",
-                "export",
-                str(serve.page_dir),
-                "--out",
-                str(out),
-            ],
-            capture_output=True,
-            text=True,
-            check=False,
-            env=os.environ | {"LEAF_BROWSER_EXECUTABLE": executable},
-        )
-
-    standalone = tmp_path / "standalone.html"
-    exported = export(standalone)
-    assert exported.returncode == 0, exported.stdout + exported.stderr
-
-    # The same copy through the browser a host names instead. A file is all this arm
-    # needs from it: what a copy has to keep is the subject below, on the Chrome arm.
-    named = tmp_path / "named.html"
-    from_named = export(named, executable=headless_shell)
-    assert from_named.returncode == 0, from_named.stdout + from_named.stderr
-    assert named.stat().st_size > 0
-    loose = browser.new_page(viewport={"width": 1200, "height": 900})
-    loose.goto(standalone.as_uri(), wait_until="load")
-    assert loose.evaluate("document.querySelectorAll('script').length") == 0
-    assert loose.locator("wa-comparison, [slot=handle]").count() == 0
-    assert loose.locator("lf-shot > .lf-shotframe").count() == 2
-    expect(loose.locator("lf-shot [aria-keyshortcuts]")).to_have_attribute(
-        "aria-keyshortcuts", "Space"
-    )
-    assert shown_frames(loose) == ["before"]
-    loose.mouse.click(*flip_point(loose))
-    assert shown_frames(loose) == ["after"]
-    before_caption = loose.locator('lf-shot .lf-shotcap[data-lf-state="before"]')
-    after_caption = loose.locator('lf-shot .lf-shotcap[data-lf-state="after"]')
-    before_caption.hover()
-    assert before_caption.evaluate(
-        "node => getComputedStyle(node).backgroundColor"
-    ) != (after_caption.evaluate("node => getComputedStyle(node).backgroundColor"))
-    loose.keyboard.press("Space")
-    assert shown_frames(loose) == ["before"]
-    loose.emulate_media(media="print")
-    printed_tops = loose.locator("lf-shot .lf-shotframe").evaluate_all(
-        "nodes => nodes.map(node => node.getBoundingClientRect().top)"
-    )
-    assert printed_tops[0] != printed_tops[1]
 
 
 def test_a_shot_refuses_a_pair_shot_at_two_widths(browser, serve):

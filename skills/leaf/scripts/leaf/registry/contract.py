@@ -13,7 +13,6 @@ from referencing.exceptions import Unresolvable
 from referencing.jsonschema import DRAFT202012
 
 from leaf.files import read_json
-from leaf.schema import ELEMENT_ID
 
 FORMAT_CHECKER = FormatChecker()
 RFC3339_DATE_TIME = re.compile(
@@ -77,22 +76,15 @@ def schema_error(schema: dict, instance) -> str | None:
     return error.message if error else None
 
 
-CREATED_CHILDREN_DETAIL_SCHEMA = {
-    "type": "object",
-    "minProperties": 1,
-    "propertyNames": {"pattern": f"^{ELEMENT_ID}$"},
-    "additionalProperties": {"type": "string", "minLength": 1},
-}
-
-
 def event_clauses(entry: dict, registry: dict | None) -> list[dict]:
     """What the layer asks of the agent for one delivered event, read off the
     vendored `$events`: the event kind's `handling` clauses, then the `answering`
     clauses of the answer it owes, each kept when its `when` schema matches.
 
     `entry` is the event record, plus the `obligation` a delivery captured when the
-    event owns an answer (`workflows` owns that derivation). A `when` can therefore
-    read the obligation as well as the record, and an event owing nothing is told
+    event owns an answer (`workflows` owns that derivation) and the `summary_hint`
+    its thread's digest carries (`thread_context` owns that one). A `when` can
+    therefore read either as well as the record, and an event owing nothing is told
     nothing about answering: a pick before Done, or a message a newer one in its
     thread answers through. A project layer restates a kind's clauses merge-patch
     style, so the event carries the rule the page was vendored with. A missing or
@@ -112,10 +104,13 @@ def event_clauses(entry: dict, registry: dict | None) -> list[dict]:
     ]
 
 
-def created_children(event: dict, spec: dict) -> dict:
-    """The generated child id-to-words map declared by one validated action."""
+def created_child(event: dict, spec: dict) -> tuple[str, str] | None:
+    """The id and words of the child one validated action creates, or None where
+    its verb declares no `creates`. The verb's fold unit names the child."""
     creates = spec.get("creates")
-    return event["detail"].get(creates["field"], {}) if creates else {}
+    if not creates:
+        return None
+    return event["detail"][spec["unit"]], event["detail"][creates["words"]]
 
 
 def visual_part_attribute(entry: dict) -> str | None:

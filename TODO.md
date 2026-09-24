@@ -53,15 +53,24 @@ has tried; settle that before building it.
   multi-step work, and delegation. Show the plan as well as the current step;
   check that the hosted website agent's status is readable without delaying its
   reply. Keep delegated work visible while its watcher is live.
-- **Tell each host only the handling it can act on.** Every delivery carries the
-  same clauses to every host, including "acknowledge this delivery … where your host
-  leaves acknowledgement to you" and "reply with `leaf reply` before any other work".
-  Only `leaf wait` in Claude Code leaves either to the agent: both Codex transports
-  acknowledge themselves, and over App Server the final message is the reply. Paired
+- **Let the carrier say how its delivery is acknowledged.** Every delivery carries
+  the registry clauses "acknowledge this delivery … where your host leaves
+  acknowledgement to you" and "reply with `leaf reply` before any other work" to
+  every host, though only `leaf wait` leaves either to the agent. Paired
   `verify_site.py local` runs on 2026-09-23 had the leaf.page agent invent
   `leaf delivery ack`, `$LEAF ack` and `leaf acknowledge`, and post an early
-  `leaf reply`, on main and after the prompt change alike. Record at freeze time
-  how a delivery is carried, and attach those clauses only where they apply.
+  `leaf reply`, on main and after its prompt change alike. Acknowledgement is per
+  delivery and per carrier, not per event kind, and each delivery is frozen by
+  exactly one carrier: `leaf wait` (`session.delivery_json`), which leaves it to
+  the agent, or the Codex offer (`codex.py`), whose two transports acknowledge
+  themselves. Move the clause out of the registry into a top-level field the
+  freeze writes only on the `leaf wait` path, naming the exact
+  `leaf wait --ack <id>` command, so a Claude Code delivery still says it and a
+  Codex one says nothing. Carry App Server's reply rule the same way, in the
+  wrapper only `app_server_turn_start_params` builds, and cut the registry's reply
+  clause back to how to answer. The carrier snapshot
+  (`test_each_carrier_hands_the_agent_what_the_snapshot_shows`) shows the result per
+  carrier. Check with paired Claude Code runs that acknowledgement stays as prompt.
 
 ## Next
 
@@ -89,6 +98,16 @@ has tried; settle that before building it.
   posture from its own size (#30), then the playground, visual review and Ask onto
   the grid (#31). **Unconfirmed:** that one global threshold suits the comparison and
   queue-with-detail pages.
+- **Trim a heading's margin at the top of a page when a block wraps it.** A page
+  whose first block is an `lf-ask` opens 48px lower than one that starts with its
+  own heading: the Ask's `h2` margin collapses through the boxless `lf-ask` to
+  `main`'s edge, and the `--lf-block-frame` trim reaches only `main`'s direct
+  children. Inside a specimen, whose `main` pads only 24px, it leaves 72px of blank
+  space above the question.
+- **Unconfirmed: scrolling a live specimen sometimes sticks.** A user reported it
+  while a specimen still scrolled inside a fixed-height frame, with no reproduction.
+  The frame now takes its page's height, so nothing scrolls inside it; check that the
+  report no longer reproduces once the scrolling changes land.
 
 ### The agent's text interface
 
@@ -105,10 +124,17 @@ has tried; settle that before building it.
   several open Asks and an informational page before choosing how the banner
   explains who owes the next move. Keep explicit agent status available when the
   Ask alone does not explain the wait.
-- **Give each delivery-loop rule one home.** The acknowledge-then-reply order and
-  what the delivery statuses mean are still written in several places.
-  [The audit](notes/guidance-duplication.md) lists every site and proposes a home
-  for each rule.
+- **Decide whether requests earn their weight.** A request (`x-request`, `leaf
+  receipt`) is a non-undoable one-shot operation the user asks the host to run, with
+  one pending attempt per control and a `succeeded`/`failed` receipt. Leaf never
+  runs it, and a receipt carries no structured result. Its users are Command Hub's
+  `lf-operations`, monitoring's `lf-release-actions` and the developer gallery's
+  `lf-job-requests`, none backed by a real integration, while the lifecycle reaches
+  `requests.py`, workflows, Asks, admission, the runtime's pending model and margin,
+  and the Codex adapter's failure receipts. Once the Command Hub redesign settles
+  whether its operations stay, either remove requests and recast the remaining
+  operations as Asks, or keep them and cut what only the gallery uses: projected
+  holders (`records`, one seat per data row).
 
 ## Etc
 

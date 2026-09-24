@@ -2,27 +2,22 @@
   "$captures": {
     "release-patch": {
       "file": "live-progress.patch",
-      "format": "unified-diff",
-      "label": "checkout-v2 @ 4f8b2d1"
+      "format": "unified-diff"
     },
     "pr-review-patch": {
       "file": "pr-walkthrough.patch",
-      "format": "unified-diff",
-      "label": "max-sixty/worktrunk PR #3865 at 9ca8f78b"
+      "format": "unified-diff"
     },
     "pr-call-diff": {
       "file": "pr-walkthrough-call-diff.txt",
-      "label": "CallDiff 0.5.0 for compute_combined_diff at 9ca8f78b",
       "lines": "1:31"
     },
     "pr-prepared-diff-source": {
       "file": "pr-walkthrough-prepared-diff.rs",
-      "label": "src/git/repository/diff.rs at 9ca8f78b",
       "lines": "1:169"
     },
     "gallery-source": {
       "file": "developer/feature-gallery-source.toml",
-      "label": "feature-gallery-source.toml at sample-1",
       "lines": "1:4"
     }
   },

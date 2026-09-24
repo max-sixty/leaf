@@ -191,6 +191,15 @@ def batch_data(
             )
         return readings[revision]
 
+    threads = batch_threads(events, batch, within)
+    # The digest carries a thread's summary hint, and the clause asking the agent to
+    # act on it rides the event: a reader skimming a batch for what is new reads its
+    # events and can skip the digest.
+    hints = {
+        thread["id"]: thread["summary_hint"]
+        for thread in threads
+        if "summary_hint" in thread
+    }
     captured = []
     clause_ids: dict[str, str] = {}
     for event in batch:
@@ -213,8 +222,14 @@ def batch_data(
             if response is not None
             else None
         )
+        hint = next((hints[c] for c in conversations if c in hints), None)
         if clauses := event_clauses(
-            {**event, **({"obligation": obligation} if obligation else {})}, registry
+            {
+                **event,
+                **({"obligation": obligation} if obligation else {}),
+                **({"summary_hint": hint} if hint else {}),
+            },
+            registry,
         ):
             entry["handling"] = [
                 clause_ids.setdefault(clause["text"], f"h{len(clause_ids) + 1}")
@@ -226,7 +241,7 @@ def batch_data(
     return {
         "page": str(page_dir),
         "through_seq": through_seq,
-        "conversations": batch_threads(events, batch, within),
+        "conversations": threads,
         "handling": {identity: text for text, identity in clause_ids.items()},
         "events": captured,
     }

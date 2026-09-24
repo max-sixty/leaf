@@ -29,12 +29,13 @@ from leaf.projection import (
     frozen_thread_reading,
     generated_children,
     page_reading,
+    record_members,
     retirement_outcomes,
     rewritten_bodies,
 )
 from leaf.read_state import read_contract_error
 from leaf.registry.contract import (
-    created_children,
+    created_child,
     schema_error,
     state_specs,
     visual_parts,
@@ -78,11 +79,9 @@ def browser_command_error(contract: dict, event: dict):
         "properties": {
             key: value
             for key, value in schema["properties"].items()
-            if key not in {"meaning", "generated"}
+            if key != "meaning"
         },
-        "required": [
-            key for key in schema["required"] if key not in {"meaning", "generated"}
-        ],
+        "required": [key for key in schema["required"] if key != "meaning"],
     }
     return schema_error(
         {"allOf": [schema, contract["browser"]]},
@@ -181,8 +180,6 @@ def declared_action_error(
     page_by_id: dict,
     thread_by_id: dict,
     registry: dict,
-    *,
-    stored: bool = True,
 ):
     """Why a stored action violates its sending widget's durable declaration."""
     # Page widgets come from the action's own immutable revision. Thread widgets
@@ -198,26 +195,6 @@ def declared_action_error(
     tag = rec["tag"]
     if error := declared_event_error(event, tag, registry, "action", "x-state"):
         return error
-    spec = registry[tag]["x-state"][event["action"]]
-    creates = spec.get("creates")
-    if creates and stored:
-        if "generated" not in event:
-            return (
-                f"<{tag}> action {event['action']!r} declares generated children "
-                "but the event has no generated snapshot"
-            )
-        expected = sorted(created_children(event, spec))
-        if event["generated"] != expected:
-            return (
-                f"<{tag}> action {event['action']!r} generated snapshot must equal "
-                f"the sorted keys of detail field {creates['field']!r}: "
-                f"expected {expected}, found {event['generated']}"
-            )
-    elif not creates and "generated" in event:
-        return (
-            f"<{tag}> action {event['action']!r} has a generated snapshot but its "
-            "declaration creates no children"
-        )
     # The exhibit rule at the door, not only in the shipped runtime's
     # browser controller: an exhibited widget is a mention, and the log outranks the
     # document — an action taken here would replay as a decision the user
@@ -402,9 +379,9 @@ def visual_anchor_error(event: dict, page_by_id: dict, registry: dict):
 def datum_anchor_error(view, event: dict, page_by_id: dict, registry: dict):
     """Why a source-versioned datum was not displayed by its declared seat.
 
-    Current source values are replaceable, so an older valid revision may race a
-    replacement and is admitted as an already-outdated comment. An authored
-    snapshot selection is immutable and therefore has one exact revision.
+    Source values are replaceable and nothing keeps the ones they replaced, so a
+    revision other than the source's current one is admitted as a comment on a
+    value that has since changed: the reader and a replacement may have raced.
     """
     anchor = event.get("anchor") or {}
     source = anchor.get("source")
@@ -422,31 +399,9 @@ def datum_anchor_error(view, event: dict, page_by_id: dict, registry: dict):
     ]
     if not bindings:
         return f"datum anchor source {source!r} is not bound by section {section!r}"
-
-    stored = view.data
-    revision = anchor["data_revision"]
-    if revision > stored["revision"]:
-        return (
-            f"datum anchor data revision {revision} is newer than page data "
-            f"revision {stored['revision']}"
-        )
-    source_store = stored["sources"].get(source)
-    if source_store is None:
+    if source not in view.contracts:
         return f"datum anchor source {source!r} has never been supplied to this page"
-
-    for binding in bindings:
-        snapshot_attr = binding.get("snapshot")
-        selected = rec["attrs"].get(snapshot_attr) if snapshot_attr else None
-        if selected is None:
-            if revision in source_store["revisions"]:
-                return None
-            continue
-        if revision == int(selected) and selected in source_store.get("snapshots", {}):
-            return None
-    return (
-        f"datum anchor data revision {revision} was never displayed from source "
-        f"{source!r} by section {section!r}"
-    )
+    return None
 
 
 def action_contract_error(view, event: dict, events: list, registry: dict):
@@ -466,14 +421,20 @@ def action_contract_error(view, event: dict, events: list, registry: dict):
     thread = frozen_thread_reading(events, registry)
     thread_projection = thread.projection
     thread_by_id = thread.by_id
-    if error := declared_action_error(
-        event, document.by_id, thread_by_id, registry, stored=False
-    ):
+    if error := declared_action_error(event, document.by_id, thread_by_id, registry):
         return error
     page_rec = document.by_id.get(event["widget"])
     rec = page_rec or thread_by_id[event["widget"]]
     tag = rec["tag"]
     spec = registry[tag]["x-state"][event["action"]]
+    # A created child is new: an id the markup already holds is an authored element,
+    # which a user's gesture can mark or move but never write into being.
+    created = created_child(event, spec)
+    if created and (created[0] in document.by_id or created[0] in thread_by_id):
+        return (
+            f"<{tag}> action {event['action']!r} creates {created[0]!r}, which "
+            "already names an authored element"
+        )
     if spec.get("references"):
         reference_document = (
             document
@@ -491,8 +452,12 @@ def action_contract_error(view, event: dict, events: list, registry: dict):
             return f"<{tag}> action {event['action']!r} is invalid: {error}"
     requirement = spec.get("requires")
     completion = spec.get("completion")
-    position = (spec.get("record") or {}).get("kind") == "position"
-    if not requirement and not completion and not position:
+    record_kind = (spec.get("record") or {}).get("kind")
+    if (
+        not requirement
+        and not completion
+        and record_kind not in {"position", "attribute"}
+    ):
         return None
 
     if page_rec:
@@ -500,51 +465,23 @@ def action_contract_error(view, event: dict, events: list, registry: dict):
         projection, parser, spk = reading.projection, reading.document, reading.spoken
         byid = parser.by_id
         current = parser.by_id[event["widget"]]
-        # This door asks whether the request is answered, not whether it is the
-        # user's to deal with: a conversation standing in the widget's seat
-        # takes it off their list without answering it, and refusing their pick
-        # over their own remark would refuse them the answer they were asked for.
-        awaiting_values = page_awaiting_values(
-            document,
-            projection,
-            spk,
-            registry,
-            request_phases=request_phases(
-                request_lifecycles_for(
-                    events,
-                    parser.lf_elements,
-                    registry,
-                    {"kind": "page", "revision": revision},
-                    view.data,
-                )
-            ),
-        )
     else:
         # Thread markup is frozen in the log: it has no version retraction floor
         # and its actions read the whole conversation window.
-        projection, byid = thread_projection, thread_by_id
+        projection, byid, spk = thread_projection, thread_by_id, thread.spoken
         current = byid[event["widget"]]
-        threads = build_threads(events, enclosing_ids(document))
-        settled = {root for root, value in threads.items() if value["resolved"]}
-        awaiting_values = thread_ask_readings(
-            events,
-            registry,
-            settled,
-            request_phases=request_phases(
-                request_lifecycles_for(
-                    events,
-                    thread.elements,
-                    registry,
-                    {"kind": "thread"},
-                    view.data,
-                )
-            ),
-            reading=thread,
-        )["awaiting"]
 
     holders = projected_action_holders(projection, byid, registry)
     if error := position_record_error(event, spec, current, byid, registry, holders):
         return f"<{tag}> action {event['action']!r} is invalid: {error}"
+    if record_kind == "attribute":
+        members = record_members(event["widget"], projection, byid, spk, registry)
+        named = event["detail"][spec["record"]["value"]]
+        if strangers := sorted(set(named) - members):
+            return (
+                f"<{tag}> action {event['action']!r} is invalid: {strangers} name no "
+                f"member of {event['widget']!r}"
+            )
     if completion:
         record = spec.get("record") or {}
         after_holders = dict(holders)
@@ -570,6 +507,44 @@ def action_contract_error(view, event: dict, events: list, registry: dict):
             )
     if not requirement:
         return None
+    if page_rec:
+        # This door asks whether the request is answered, not whether it is the
+        # user's to deal with: a conversation standing in the widget's seat
+        # takes it off their list without answering it, and refusing their pick
+        # over their own remark would refuse them the answer they were asked for.
+        awaiting_values = page_awaiting_values(
+            document,
+            projection,
+            spk,
+            registry,
+            request_phases=request_phases(
+                request_lifecycles_for(
+                    events,
+                    parser.lf_elements,
+                    registry,
+                    {"kind": "page", "revision": revision},
+                    view.data(registry),
+                )
+            ),
+        )
+    else:
+        threads = build_threads(events, enclosing_ids(document))
+        settled = {root for root, value in threads.items() if value["resolved"]}
+        awaiting_values = thread_ask_readings(
+            events,
+            registry,
+            settled,
+            request_phases=request_phases(
+                request_lifecycles_for(
+                    events,
+                    thread.elements,
+                    registry,
+                    {"kind": "thread"},
+                    view.data(registry),
+                )
+            ),
+            reading=thread,
+        )["awaiting"]
     target = (
         current
         if requirement["target"] == "self"
@@ -660,7 +635,7 @@ def _approval_error(view, event: dict, events: list, registry: dict):
         )
     page = page_reading(document, events, registry, event["revision"])
     threads = build_threads(events, page.within)
-    document_state = read_document(page, threads, view.data)
+    document_state = read_document(page, threads, view.data(registry))
     conversation, _reading = browser_conversation(events, registry, threads)
     unanswered = [
         *document_state.asks["unanswered"],

@@ -13,6 +13,7 @@ from interact_support import (
     append_command,
     running_http_server,
 )
+from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf import hosting as hosting_model
 from leaf import http as http_model
@@ -1482,6 +1483,59 @@ def test_only_a_final_settling_failure_keeps_projection_findings(
     assert any("never stopped moving" in failure for failure in failures) is (
         failed_stage == "pageSettled"
     )
+
+
+def test_the_data_wait_follows_a_source_rewritten_under_it(browser, serve):
+    """Any process may rewrite a source, so the reading the gate took can hold a
+    version the page has already moved past. A data version is a digest with no
+    order; the page presenting a reading the server took later has caught up."""
+    url = serve(
+        leaf_page(
+            "moving source",
+            '<h1>Notes</h1><lf-text-document id="notes" source="notes">'
+            "</lf-text-document>",
+        )
+    )
+    data_model.cmd_data_set(serve.page_dir, "notes", "First.\n")
+    page = open_page(browser, url)
+    held = render_gate_scheme.served(page, url, "/api/state").json()
+    data_model.cmd_data_set(serve.page_dir, "notes", "Second.\n")
+    expect(page.locator("#notes code")).to_have_text("Second.\n")
+    expect(page.locator("body")).not_to_have_attribute(
+        "data-lf-data-version", held["data"]["version"]
+    )
+    page._leaf_probe_timeout_ms = 1_000
+
+    assert render_checks_model.wait_for_presentation(page, held, 0) is None
+
+
+def test_the_data_wait_follows_a_source_back_to_the_version_the_page_shows(
+    browser, serve
+):
+    """A source can move away and back between the gate's read and the page's. The page
+    never sees the version the gate holds, and the reading it does see changes nothing
+    it shows, yet it is a reading the server took later, so the page has caught up."""
+    url = serve(
+        leaf_page(
+            "returning source",
+            '<h1>Notes</h1><lf-text-document id="notes" source="notes">'
+            "</lf-text-document>",
+        )
+    )
+    data_model.cmd_data_set(serve.page_dir, "notes", "First.\n")
+    page = open_page(browser, url)
+    reads = []
+    page.route("**/api/state*", lambda route: reads.append(route))
+    data_model.cmd_data_set(serve.page_dir, "notes", "Second.\n")
+    held = render_gate_scheme.served(page, url, "/api/state").json()
+    data_model.cmd_data_set(serve.page_dir, "notes", "First.\n")
+    for read in reads:
+        read.continue_()
+    page.unroute("**/api/state*")
+    page._leaf_probe_timeout_ms = 5_000
+
+    assert render_checks_model.wait_for_presentation(page, held, 0) is None
+    expect(page.locator("#notes code")).to_have_text("First.\n")
 
 
 def test_the_render_gate_catches_a_lying_verbatim_and_an_undeclared_shadow_root(

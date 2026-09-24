@@ -12,8 +12,8 @@ the node's `vocabulary` tag in the shared vocabulary file when needed.
 When `edit.matches_active` is false, the candidate in `index.html` differs from
 the live revision. Its source locations still refer to the active file; reconcile
 the candidate by stable id and content before editing. `inputs` names external
-values and their mutation route: `data set` for live inputs, `capture-and-rebind`
-for pinned inputs. Inspect frozen conversation content with
+values and the source file that holds each; change one with `leaf data set` or by
+rewriting that file. Inspect frozen conversation content with
 `leaf conversation read <page> <id>`; change it through that conversation.
 
 ## Revisions and user-owned words
@@ -33,22 +33,26 @@ nothing to weigh: write the true thing straight and name the change in the versi
 note.
 
 Use `lf-draft` for a passage whose wording belongs to the user. Their submitted
-words remain effective across revisions. A draft never sits inside a suggestion,
-and a suggestion does not propose a widget's state.
+words remain effective across revisions.
 
 ## Honor user state
 
 The event log preserves user choices, generated options, moves, edits, and
 suggestion outcomes across revisions. Leave their authored inputs unchanged
 unless the content needs revision. The page directory and standalone export
-preserve that state without it being copied into markup. A user's answer to a
-page Ask is the exception: it shows as waiting on you, and holds your turn open,
-until a stamped version's markup records it.
+preserve that state without it being copied into markup.
+
+A user's answer to a page Ask is the exception: it shows as waiting on you, and
+holds your turn open, until a stamped version takes it in. Where the answering
+widget declares a markup form for its state (its `x-state` `record`), that
+version's markup has to show the answer in that form: `chosen` on exactly the
+picked `lf-option` elements, with an option the user added written in as an
+ordinary option under its id and words, or the user's words as the body of a
+`needed` `lf-draft`. The next version you stamp takes in an answer with no such
+form, such as an accepted suggestion or a playground's submitted settings.
 
 When incorporating a decided suggestion into surrounding prose, retain its
-surviving branch and ids. A user-generated option can become an ordinary
-authored option under its owning group; retain its event-supplied id and words.
-Its effective id can also anchor a separate clarification thread directly.
+surviving branch and ids.
 
 A worker's report stays provisional until a stamped version answers it, as its
 delivered `handling` says.
@@ -59,11 +63,10 @@ To deliberately replace state established by an action, follow the registry's
 ## Make changes easy to find
 
 Before handing over a changed page, compare it with the last version handed to
-the user, and point at its material additions on the page with a temporary
-marker. For example, options added for this turn can carry a final
-`<lf-chip>new this turn</lf-chip>` in their chip row, and a new section or
-paragraph a `<span class="tag">new this turn</span>`. Remove the marker from the
-next handed-over revision.
+the user, and mark its material additions so the user finds each one without
+rereading the page, such as a `.tag` reading "new" beside a new section's
+heading. The marker says what changed since the user last looked, so take it off
+in the next handed-over revision.
 
 ## Keep the current page current
 
@@ -78,28 +81,26 @@ open thread or the user's state still rests on, and names the way out. It does
 not guard the words an open thread quotes, so leave those as they stand while the
 thread is open.
 
-A list of work holds what is still to do. When an item of a plan, a backlog, or a
-list of problems found is done, move it out of that list into a `Complete` section
-at the foot, inside a collapsed `<details>` whose summary says what is done, with
-the item cut down to its outcome. A widget that tracks completion itself, such as
-a milestone rail, a board, or a task list, keeps its members and shows them its own
-way. Material the current state replaces, such as a concluded run or a superseded
-section, is removed outright rather than kept beside its successor; keep older
-material only where the current work still needs its context, collapsed the same
-way. Put deferred work in the list of work with enough context to resume it.
+A list of work holds what is still to do. When an item of a plan, a backlog, or a list
+of problems found is done, move it out of that list to the finished work, which sits
+collapsed after the open work, with the item cut down to its outcome, for example in a
+`<details>` at the foot whose summary says what is done. A widget that tracks
+completion itself, such as a milestone rail, a board, or a task list, keeps its
+members and shows them its own way. Material the current state replaces, such as a
+concluded run, a superseded section, or a page tab the current work no longer needs
+(the `lf-tabs` entry says what of it to keep), is removed outright rather than kept
+beside its successor; keep older material only where the current work still needs its
+context, collapsed the same way. Put deferred work in the list of work with enough
+context to resume it.
 
-An Ask the user answered and you have acted on is finished work too. Move it
-into `Complete` with the user's answer standing, and put anything still worth
+An Ask the user answered and you have acted on is finished work too. Move it whole
+to the finished work with the user's answer standing, and put anything still worth
 asking in a new Ask under new ids. An `lf-options` group takes `settled` there,
 which collapses it to the pick. The answered Ask is the record of what the user
-was asked and chose, so a picked option stays under the words it was picked under;
-say what came of the choice, and correct anything those words got wrong, beside
-it. Keep an Ask live while it is being applied, and settle it only after the work
-no longer revisits it. Keep a section live while the user is still commenting
-there.
+was asked and chose: say what came of the choice beside it, and correct its words
+only as the registry's `$restated` says. Keep an Ask live while it is being
+applied, and settle it only after the work no longer revisits it. Keep a section
+live while the user is still commenting there.
 
 Before handing the page back, check that its status and outstanding work agree
 with what you report to the user.
-
-When one page needs several views, use one `lf-tabs` tab set; its entry says how
-to order the views and retire an earlier one.

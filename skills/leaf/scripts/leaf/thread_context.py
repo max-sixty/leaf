@@ -382,15 +382,10 @@ def batch_threads(events: list, batch: list, within: dict) -> list:
         candidate = max(runs, key=len, default=[])
         characters = sum(len(message.get("text", "")) for message in candidate)
         if len(candidate) >= 2 and (len(candidate) >= 8 or characters >= 4000):
+            # The range only: what the agent does with it is a `handling` clause.
             digest["summary_hint"] = {
                 "from": candidate[0]["id"],
                 "through": candidate[-1]["id"],
-                "operation": "conversation summarize",
-                "instruction": (
-                    "Consider summarizing this older exchange. Read the original messages "
-                    "in the suggested range first; "
-                    "keep the newer exchange outside the summary."
-                ),
             }
         digest["elided"]["actions"] = len(gestures.get(t, [])) - len(acted)
         digest["actions"] = acted

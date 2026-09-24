@@ -1102,7 +1102,31 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   :is(.lf-summary-expand, .lf-summary-refold):is(:focus-visible, .lf-focus-visible) {
     outline: var(--here-ring); --lf-here-ring: summary-fold;
     outline-offset: calc(-1 * var(--here-ring-w)); }
-  .lf-thread-compact > .lf-compose { margin: 16px 8px 8px; }
+  /* The draft's words start and wrap in the same measure as a sent message.
+     Send has its own row below the textarea's scrollport, so every draft line
+     remains clear of it even when the textarea scrolls internally. */
+  .lf-thread-compact > .lf-compose { margin: 16px 0 8px; }
+  .lf-thread-compact > .lf-compose .lf-compose-field {
+    border: 1px solid var(--border-2); border-radius: 6px; background: var(--card);
+  }
+  .lf-thread-compact > .lf-compose .lf-compose-field:has(> textarea:is(:focus, .lf-focus)) {
+    outline: var(--here-ring); --lf-here-ring: text-box;
+    border-color: transparent;
+  }
+  .lf-thread-compact > .lf-compose .lf-compose-field > textarea {
+    font-size: 13px; line-height: 1.5; padding: 7px;
+    min-height: 0; border: 0; border-radius: 0; background: transparent;
+  }
+  .lf-thread-compact > .lf-compose .lf-compose-field > textarea:is(:focus, .lf-focus) {
+    outline: none; border: 0;
+  }
+  .lf-thread-compact > .lf-compose .lf-compose-placeholder {
+    padding-block-start: 7px; padding-inline-start: 7px;
+  }
+  .lf-thread-compact > .lf-compose .lf-compose-submit {
+    position: static; grid-area: 2 / 1; justify-self: end;
+    margin: 0 6px 6px 0;
+  }
   /* The panel half of the mark the pointer is indicating (paintHover). The quote is
      the bounded panel representation of that passage; painting the card made a long
      conversation one off-screen wash. The fallback keeps a custom theme without the
@@ -1698,6 +1722,14 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      state the empty line has always had. */
   @media (pointer: coarse) {
     .lf-shortcut-bar { display: none; }
+  }
+  /* A specimen has no agent attending it, and its fixed bar would stand over its own
+     last block, since its window is exactly as tall as its page. Its banner keeps the
+     one row of actions (theme.css sizes the room); the keys remain behind `?`. */
+  html[data-lf-contained] :scope {
+    .lf-banner-status, .lf-shortcut-bar { display: none; }
+    .lf-banner { grid-template-rows: minmax(0, 1fr); }
+    .lf-banner-actions { grid-row: 1; }
   }
   .lf-shortcut-bar .lf-shortcut { display: inline-flex; gap: 5px; align-items: baseline; }
   .lf-shortcut-bar .lf-shortcut[hidden] { display: none; }

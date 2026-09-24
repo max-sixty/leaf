@@ -18,9 +18,9 @@ page and is not a global identifier. The kinds:
 | `resolve` | user or agent | `POST /api/event`, `leaf resolve` | `parent` | closes a thread |
 | `unresolve` | user | `POST /api/event` | `parent` | the user reopens a resolved thread |
 | `done` | user | the banner, only on a page declaring `<meta name="lf-review" content="sign-off">` | | approval of the declared sign-off; a page that asks nothing gets no terminal control |
-| `action` | user | `POST /api/event` from a widget | `widget`, `action`, `detail`, optional declared-role `references`; server-stamped `meaning` and, for a verb declaring `creates`, `generated` | the user edited the document through the widget |
+| `action` | user | `POST /api/event` from a widget | `widget`, `action`, `detail`, optional declared-role `references`; server-stamped `meaning` | the user edited the document through the widget |
 | `report` | agent or worker | `leaf report` | as `action`, validated by the widget's `x-report`; `--references` supplies its declared role map | provisional state that stands until a stamped revision answers it |
-| `request` | user | `POST /api/event` from a widget | `widget`, `action`, `detail`, and `data_revision` for a projected record; validated by the holder's `x-request` | a durable, non-undoable one-shot instruction to the host, seated on its admitted document, widget, and unit |
+| `request` | user | `POST /api/event` from a widget | `widget`, `action`, `detail`, and `source_revision` for a projected record; validated by the holder's `x-request` | a durable, non-undoable one-shot instruction to the host, seated on its admitted document, widget, and unit |
 | `receipt` | agent | `leaf receipt`; a host failure receipt | `request`, `succeeded` or `failed`, `text`; host `failure` with `failed` | exactly one terminal outcome per accepted request |
 | `pickup` | page | the delivery carrier; a host failure receipt | `events`, `phase` (`queued`, `opened`, or `failed`), `session`, `turn`; `failure` with `failed` | the named user events reached the durable Codex queue or entered an exact agent turn, or the host gave up on them with no answer coming; idempotent per event, phase, session, and turn; never a work claim |
 | `note` | agent | `leaf version stamp` | `version`, `revision`, changelog `text`, `restated`, `settles` | one public version mapped to an immutable revision, naming the decisions it took back and the reports or work it answered |
@@ -30,7 +30,7 @@ page and is not a global identifier. The kinds:
 An `anchor` names a passage by `section` and `quote`, with `prefix` and `suffix`
 where neighbouring text tells two identical passages apart; a selection on
 projected data names `datum` (the stable key local to its section) and, when the
-projection names an external input, `source` and `data_revision`; `visual` names
+projection names an external input, `source` and `source_revision`; `visual` names
 a declared part of a picture and `part` the control a design comment landed on.
 `response: {kind: version, verb}` on a comment says the originating widget
 requires the agent to revise its declared answer state rather than reply.
@@ -100,7 +100,7 @@ Transports own only their input boundary: which kinds and fields they accept,
 how they answer retries, and whether their anchors need file-side capture.
 
 Browser POSTs are commands. The append transaction stamps the accepted event with
-server-owned `meaning`; callers cannot send it or `generated`, and retry identity
+server-owned `meaning`; callers cannot send it, and retry identity
 compares the original command fields rather than this enrichment. Actions and
 reports record `document`, the `[owner, unit, facet]` coordinate, and `depends`,
 the direct element identities named by declared state fields. Requests record
@@ -119,8 +119,10 @@ it uniquely inside the sending page revision's authored `<main>` or the sender's
 frozen-markup fragment and checks any `{via, where}` relation. Literal detail strings do
 not become dependencies by matching HTML ids. The log does not freeze ancestry:
 retraction tests use the current document's containment of those identities.
-Generated children retain the durable ownership established by `creates`, whose
-sorted identity snapshot the server stamps in `generated`.
+A child a `creates` verb adds is that action's fold unit, so it stands on the action's
+own coordinate until the action is undone or retracted. Admission stamps the child tag
+in `meaning.creates`, and the action rests on its unit whether or not a document holds
+it yet.
 
 ## Threads
 
@@ -231,8 +233,7 @@ form from a quote by reading authored HTML through `leaf.passages`. The browser'
 anchor pass applies the matching rules to the DOM. Projected data has no file-side
 value to quote: its browser
 anchor adds the projection's section and datum key, and when `projectData` names
-an `x-data` input, the source id and `data_revision`. The append door checks that
-the section displayed that source revision: a racing current-value replacement is
-admitted as an outdated comment; a future revision, another source, or the wrong
-immutable snapshot is refused. A CLI comment can still name the authored
+an `x-data` input, the source id and `source_revision`, that source's revision. The
+append door checks that the section binds that source; a revision other than the
+current one is admitted as a comment on a value that has since been replaced. A CLI comment can still name the authored
 projection seat as an element.

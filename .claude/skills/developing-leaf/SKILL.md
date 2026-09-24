@@ -52,7 +52,7 @@ shipped example or fixture. When the user asks for sketches without implementati
 keep the current surface as a baseline and derive each sketch from its actual controls,
 copy, and styling. Embed an operable current surface with a live `lf-specimen`,
 following `skills/leaf/references/page-authoring.md`: it hosts a complete Leaf page
-with independent state and the ordinary runtime-owned chrome. The developer gallery's
+with independent state, laid out as a block of the containing page. The developer gallery's
 choreographed replays use the same host in passive mode; they demonstrate a sequence
 rather than accept user gestures. Page-local HTML and CSS may frame the comparison
 and build proposed sketches.
@@ -91,13 +91,19 @@ tight semantic container when it has none.
 ## Preview a shipped example
 
 From the repository root, run `scripts/preview.py <example> --export` for a
-standalone static rendering. Start `scripts/preview.py <example>` for an
-interactive preview: `--background` detaches the watcher and prints its URL,
-and a foreground run holds the terminal. The script watches source and runtime
-edits and preserves feedback at `.tmp/previews/<example>`. Repeating the command
-reuses that preview and prints where it answers now; use `--slot <name>` for
-another copy. A refused update appears in the terminal or the background log named at
-startup. Fix the input and the watcher retries.
+standalone static rendering. `scripts/preview.py <example>` serves an interactive
+preview the way a dev server runs: in the foreground, printing its URL and serving
+until it is stopped. Run it as the host runs any long-running command, in Claude
+Code with `run_in_background`, and read the URL from its output; stop it the same
+way, with Ctrl-C or the runner's stop, which ends the server with it. The page lives
+at `.tmp/previews/<example>` for as long as that process does, following source and
+runtime edits at one URL and keeping its feedback across them. Each start builds the
+page fresh from the fixture, discarding what the last run left, and a start into a
+slot another preview is still serving is refused. An unclaimed start answers at a new
+URL; a `--user` start usually comes back at the old one, so a tab left open there
+reads the rebuilt page. Use `--slot <name>`
+for another copy. A refused update appears in the preview's output; fix the input and
+it retries.
 
 A preview takes no task claim: it serves through the browser suite's process-owned
 server, with the real HTTP and event log, and its presses go nowhere but the page's
@@ -109,29 +115,23 @@ click as an unanswered user move, and the Stop hook holds the turn open for it. 
 preview of either kind owes no watcher, so the per-turn reminder to start one skips
 it. Do not idle a preview to quiet the loop: `idle` closes the page in the browser
 and changes the banner a visual check may be reading.
-`--user` also fixes the address: the durable service records it, so the URL
-survives a stop, while an unclaimed preview's server is its watcher's and a new
-watcher answers somewhere else. A slot keeps the mode it was built in; `--reset`
-rebuilds it in the other one. `--reset` discards the slot's `service.json` with the
-rest of the page, and `--slot` names a different page, so after either, hand over
-the URL the command prints. Any other address question about a `--user` preview is
-a served page's, which `<root>/skills/leaf/references/serving-pages.md`, "Address
-and authentication", answers. A subagent's previews stay claimless, and the session
-the user talks to starts any `--user` preview: a subagent's claim is that session's
-claim, so that session's Stop hook would answer for the preview's moves either way.
+A fresh start discards a `--user` page's claim with the rest of it, and with it any
+move the Stop hook was holding the turn for, so answer the user's feedback before
+restarting their preview, and hand over the URL each start prints. A subagent's
+previews stay claimless, and the session the user talks to starts any `--user`
+preview: a subagent's claim is that session's claim, so that session's Stop hook
+would answer for the preview's moves either way.
 
-When finished with a preview, run the matching preview command with `--stop` (and
-`--user` for a user slot); it waits for the watcher and server to stop. Ctrl-C
-stops a foreground preview. A slot refuses a different source or seeded history so
-it keeps the existing page and feedback. Use `--reset` to discard the selected slot
-and rebuild it from the current fixture.
+Stop a preview when finished with it; its page stays readable until the slot's next
+start. A change to the fixture's seeded history is refused while the preview runs;
+restart it to rebuild from the new history.
 
 ### In Codex
 
-1. Start the preview with `--user`, which serves it at
+1. Start the preview with `--user` as a long-running command, which serves it at
    `.tmp/previews/<example>-user`. `codex start` claims the page, and the
-   durable service `--user` puts up is what keeps that URL answering for as
-   long as the task lasts.
+   durable service `--user` puts up keeps that URL answering while the preview
+   runs. A restarted preview is a new page, which needs `codex start` again.
 2. Call `mcp__codex_app__open_in_codex` with the destination's fragment URL as a
    browser target and `placement: "right"`.
 3. Run `<root>/bin/leaf codex start <root>/.tmp/previews/<example>-user` so
@@ -183,22 +183,26 @@ git worktree add --detach "$baseline_root" "$baseline_commit"
 Use `$baseline_root` as the baseline and `$candidate_root` as the candidate.
 Choose the sources that isolate the change: one shared authored source for a
 runtime change, or each checkout's copy when the authored content changed. Give
-the pair a comparison-specific `<slot>` name; `--reset` removes any state left
-by an earlier run. Add `--user` to both when the pair's URLs go to the user,
-or a comment they leave on either page reaches nobody.
+the pair a comparison-specific `<slot>` name; each start discards whatever an
+earlier run left in it. Add `--user` to both when the pair's URLs go to the user,
+or a comment they leave on either page reaches nobody. Each preview holds its shell
+until stopped, so run the two as separate long-running commands:
 
 ```bash
 "$candidate_root/scripts/preview.py" --source <baseline-source.html> \
   --runtime "$baseline_root" \
-  --slot <slot>-baseline --reset --background
-"$candidate_root/scripts/preview.py" --source <candidate-source.html> \
-  --runtime "$candidate_root" \
-  --slot <slot>-candidate --reset --background
+  --slot <slot>-baseline
 ```
 
-Each command verifies the checkout launcher, prepares its independent page,
-watches that runtime and source, and prints its exact URL. After stopping both
-previews, remove the temporary checkout:
+```bash
+"$candidate_root/scripts/preview.py" --source <candidate-source.html> \
+  --runtime "$candidate_root" \
+  --slot <slot>-candidate
+```
+
+Each verifies the checkout launcher,
+prepares its independent page, watches that runtime and source, and prints its exact
+URL. After stopping both previews, remove the temporary checkout:
 
 ```bash
 git worktree remove "$baseline_root"
@@ -218,6 +222,9 @@ read `<root>/skills/leaf/references/serving-pages.md` and re-vendor it with the
 checkout launcher. A served page follows that reference's stop, init, start
 sequence. Fix or report a compatibility refusal without falling back to the
 installed plugin.
+
+A page that explains how a Leaf interface behaves lets the reader operate it;
+`references/specimen-explainers.md` covers that pattern.
 
 ## Refresh the public catalog stills
 

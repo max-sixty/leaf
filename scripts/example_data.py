@@ -92,12 +92,11 @@ def data_operations(source: Path) -> list[dict]:
                 "source": name,
                 "input_file": source.parent / spec["file"],
                 "format": spec.get("format", "text"),
-                "label": spec.get("label"),
                 "lines": spec.get("lines"),
             }
         )
     operations.extend(
-        {"kind": "set", "source": name, "value": value, "capture_label": None}
+        {"kind": "set", "source": name, "value": value}
         for name, value in document.items()
     )
     return operations

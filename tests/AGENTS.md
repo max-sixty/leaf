@@ -263,7 +263,7 @@ Resource ownership is explicit:
 | --- | --- |
 | Child process | `spawn`, which ends survivors and their process groups when given a new session |
 | Page server | `_no_page_outlives_its_test`, which releases held leases and sweeps the test's temporary page and isolated state roots |
-| Preview slot | `preview_slot`, which places pages under `LEAF_PREVIEWS_ROOT` in `tmp_path` and retires detached watchers through `preview.retire_preview` |
+| Preview slot | `preview_slot`, which places pages under `LEAF_PREVIEWS_ROOT` in `tmp_path`; `start_preview` runs one the way a host runner does and `spawn` ends it |
 | In-process HTTP server | `interact_support.running_http_server`, which closes the socket and joins its serving thread within a deadline |
 | Unix socket directory | `socket_dir`, which uses a short system-temporary path to fit `sun_path` |
 

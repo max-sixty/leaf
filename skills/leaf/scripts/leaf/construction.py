@@ -10,7 +10,7 @@ mutable-source locations are offered only when that source is the same document.
 from copy import deepcopy
 from pathlib import Path
 
-from .data import data_fragments, data_manifest
+from .data import data_fragments, data_manifest, source_file
 from .projection import (
     StateProjection,
     generated_children,
@@ -33,64 +33,44 @@ def event_origin(event: dict) -> dict:
 def input_readings(
     attrs: dict, entry: dict, stored: dict, page_dir: Path, registry: dict
 ) -> dict:
-    """Select exactly the current value or capture that constructs each input."""
+    """Read the current value of the source that constructs each input."""
     inputs = {}
     for name, spec in entry.get("x-data", {}).items():
         source = attrs.get(spec["source"])
         if source is None:
             continue
-        snapshot = attrs.get(spec.get("snapshot"))
-        source_store = stored["sources"].get(source, {})
-        selected = (
-            source_store.get("snapshots", {}).get(snapshot, {})
-            if snapshot is not None
-            else source_store
-        )
-        origin = {
-            "input": name,
-            "source": source,
-            "contract": spec["contract"],
-            "data_revision": stored["revision"],
-            "revision": int(snapshot)
-            if snapshot is not None
-            else selected.get("revision"),
-            "path": [],
-        }
-        if snapshot is not None:
-            origin["snapshot"] = snapshot
+        reading = stored["sources"].get(source, {})
         inputs[name] = {
-            "origin": origin,
-            "available": "value" in selected,
+            "origin": {
+                "input": name,
+                "source": source,
+                "contract": spec["contract"],
+                "revision": reading.get("revision"),
+                "path": [],
+            },
+            "available": "value" in reading,
             "edit": {
                 "kind": "data",
                 "page": str(page_dir),
                 "source": source,
+                "file": str(source_file(page_dir, source)),
                 "binding_attribute": spec["source"],
-                "snapshot_attribute": spec.get("snapshot"),
-                "operation": "capture-and-rebind"
-                if snapshot is not None
-                else "data set",
-                "pinned": snapshot is not None,
             },
         }
-        if "value" in selected:
+        if "error" in reading:
+            inputs[name]["error"] = reading["error"]
+        if "value" in reading:
             inputs[name]["value"] = data_manifest(
-                selected["value"], spec["contract"], registry
+                reading["value"], spec["contract"], registry
             )
-            inputs[name]["updated"] = selected["updated"]
-            if "label" in selected:
-                inputs[name]["label"] = selected["label"]
+            inputs[name]["updated"] = reading["updated"]
             if fragments := data_fragments(
-                selected["value"], spec["contract"], registry
+                reading["value"], spec["contract"], registry
             ):
-                path = ["sources", source]
-                if snapshot is not None:
-                    path.extend(["snapshots", snapshot])
                 inputs[name]["fragments"] = {
                     **fragments,
-                    "file": str(page_dir / "data.json"),
-                    "path": [*path, "value"],
-                    "data_revision": stored["revision"],
+                    "file": str(source_file(page_dir, source)),
+                    "revision": reading["revision"],
                 }
     return inputs
 
@@ -145,21 +125,20 @@ def constructed_content(
                 node["vocabulary"] = node["tag"]
             inputs = input_readings(node["attrs"], entry, stored, page_dir, registry)
             if inputs:
-                if conversation is not None:
-                    for reading in inputs.values():
-                        if reading["edit"]["pinned"]:
-                            reading["edit"]["operation"] = "capture-and-reply"
-                            reading["edit"]["conversation"] = conversation
                 node["inputs"] = inputs
             prepare(node["content"])
 
     prepare(roots)
-    for unit, children in generated_children(projection.desired, set(by_id)).items():
-        owner = by_id.get(unit)
+    # Created child id → its owner, so a record the owner states reaches the children
+    # other events created as well as the authored ones.
+    created_in = {}
+    for widget, children in generated_children(projection.desired, set(by_id)).items():
+        owner = by_id.get(widget)
         if owner is None:
             continue
         for generated in children:
             identity = generated["id"]
+            created_in[identity] = widget
             child = {
                 "tag": generated["tag"],
                 "attrs": {"id": identity},
@@ -167,7 +146,7 @@ def constructed_content(
                 "source": event_origin(generated["event"]),
                 "edit": {
                     "kind": "generated",
-                    "owner": unit,
+                    "owner": widget,
                     "id": identity,
                     "operation": "author-in-owner",
                 },
@@ -214,7 +193,7 @@ def constructed_content(
                 owner["attrs"][record["attr"]] = value
         elif kind == "attribute":
             for identity, node in by_id.items():
-                generated = node["source"].get("event") == event["id"]
+                generated = created_in.get(identity) == unit
                 if (
                     not generated
                     and recorded_owner(identity, parser.by_id, spoken, registry) != unit

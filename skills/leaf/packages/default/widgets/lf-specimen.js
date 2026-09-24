@@ -1,15 +1,11 @@
 /* lf-specimen: quoted content, or a complete live page authored in a template.
- * The shared host owns the child page and its independent event log. Entry is
- * explicit so a specimen cannot steal focus while the surrounding page loads.
- * Ordinary children remain static quotation. A disconnect releases the child;
- * moving the retained element within a document does not reset its work. */
-import {
-  mountSpecimen,
-  once,
-  offer,
-  relabel,
-  widgetController,
-} from "/runtime/widget-api.js";
+ * The shared host owns the child page and its independent event log. The frame
+ * takes its child's height, so the surrounding page scrolls the specimen like any
+ * other block and focus moves into it the way it moves into any iframe; the child's
+ * final Escape brings focus back to this element. Ordinary children remain static
+ * quotation. A disconnect releases the child; moving the retained element within a
+ * document does not reset its work. */
+import { mountSpecimen, once, offer, widgetController } from "/runtime/widget-api.js";
 
 customElements.define(
   "lf-specimen",
@@ -17,10 +13,9 @@ customElements.define(
     #host;
     #frame;
     #template;
-    #enter;
     #reset;
     #status;
-    #active = false;
+    #fit;
     #ready;
     #mounting = false;
 
@@ -68,55 +63,60 @@ customElements.define(
       this.#frame = document.createElement("iframe");
       this.#frame.className = "lf-specimen-frame";
       this.#frame.title = this.getAttribute("label") || "Leaf specimen";
-      this.#frame.addEventListener("lf-specimen-enter", () => this.#entered(true));
-      this.#frame.addEventListener("lf-specimen-leave", () => this.#entered(false));
+      this.#frame.addEventListener("lf-specimen-return", () => {
+        this.tabIndex = -1;
+        this.focus({ preventScroll: true });
+      });
 
       const controls = document.createElement("div");
       controls.className = "lf-specimen-controls lf-ui";
       controls.dataset.lfGen = "1";
       const actions = document.createElement("div");
-      this.#enter = offer("button", "lf-btn", "Enter specimen");
-      this.#enter.addEventListener("click", () => {
-        if (this.#active) this.#host.leave();
-        else this.#host.enter(this.#enter);
-      });
       this.#reset = offer("button", "lf-btn", "Reset");
       this.#reset.addEventListener("click", () => {
         this.reset().catch(() => {}); // #track paints the failed operation.
       });
       this.#status = offer("span", "lf-specimen-status");
       this.#status.setAttribute("role", "status");
-      actions.append(this.#enter, this.#reset, this.#status);
+      actions.append(this.#reset, this.#status);
       controls.append(actions);
       this.append(controls, this.#frame);
     }
 
-    #entered(active) {
-      this.#active = active;
-      relabel(this.#enter, active ? "Return to page" : "Enter specimen", {
-        says: false,
-      });
-      this.#status.textContent = active
-        ? "Escape returns to this page after closing open controls."
-        : "Changes stay in this specimen.";
+    // The frame's height follows its child's page, so nothing scrolls inside it. The
+    // write waits a frame: the new height relays out the containing page, which can
+    // reach the child's body again inside the observation that asked for it.
+    #follow(doc) {
+      this.#fit?.disconnect();
+      const frame = this.#frame;
+      const view = doc.defaultView;
+      let queued = 0;
+      const size = () => {
+        view.cancelAnimationFrame(queued);
+        queued = view.requestAnimationFrame(() => {
+          const border = frame.offsetHeight - frame.clientHeight;
+          const height = `${Math.ceil(doc.body.getBoundingClientRect().height) + border}px`;
+          if (frame.style.height !== height) frame.style.height = height;
+        });
+      };
+      this.#fit = new view.ResizeObserver(size);
+      this.#fit.observe(doc.body);
     }
 
     #failure(error) {
       if (error.name === "AbortError") return;
       this.#status.textContent = error.message;
-      this.#enter.disabled = true;
       this.#reset.disabled = false;
     }
 
     #track(promise) {
-      this.#enter.disabled = true;
       this.#reset.disabled = true;
       this.#status.textContent = "Loading specimen…";
       const ready = promise.then((doc) => {
         if (this.#ready !== ready) return doc;
-        this.#enter.disabled = false;
         this.#reset.disabled = false;
-        this.#entered(false);
+        this.#status.textContent = "";
+        this.#follow(doc);
         return doc;
       });
       this.#ready = ready;

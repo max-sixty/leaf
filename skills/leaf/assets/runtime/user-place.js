@@ -7,8 +7,8 @@
    the platform's, and native scroll anchoring holds it (theme.css, at the body strip).
 
    The place is one reference node and its offset in the scroller's content. The
-   reference is chosen by what the user last named: the item under the pointer while
-   the pointer is over the scroller, then the item holding focus, then the items in the
+   reference is chosen by what the user last named: a visible item under the pointer
+   or holding focus, whichever input came last, then the other, then the items in the
    scroller's visible band (`visibleBand`, so an item wholly under a stuck heading is not
    where anyone is reading) from the top down. Every candidate is recorded, so when the
    first leaves, hides, or is renamed out of `items`, the next one still standing holds
@@ -32,16 +32,17 @@
 import { visibleBand } from "./geometry.js";
 import { focused } from "./keyboard/scopes.js";
 import { pointerAt } from "./pointer.js";
+import { recentPlaceInput } from "./user-intent.js";
 
 // The candidates in the order they may hold the place, each once: an inherited
-// reference, the pointer's, focus's, then the visible ones from the lead downward and
+// reference, named items in input order, then the visible ones from the lead downward and
 // wrapping to those above it.
-export function placeCandidates({ inherited, pointer, focus, visible }) {
-  const lead = inherited || pointer || focus || visible[0];
+export function placeCandidates({ inherited, named, visible }) {
+  const lead = inherited || named[0] || visible[0];
   const at = visible.indexOf(lead);
   const rest =
     at < 0 ? visible : [...visible.slice(at + 1), ...visible.slice(0, at + 1)];
-  return [...new Set([inherited, pointer, focus, lead, ...rest].filter(Boolean))];
+  return [...new Set([inherited, ...named, lead, ...rest].filter(Boolean))];
 }
 
 // How far to scroll so a reference whose content offset moved from `was` to `now` stands
@@ -128,22 +129,30 @@ export function placeKeeper(scroller, { items, identity, active = () => true }) 
     const boxes = new Map(nodes.map((node) => [node, node.getBoundingClientRect()]));
     const { x, y } = pointerAt();
     const over = x >= band.left && x <= band.right && y >= band.top && y <= band.bottom;
+    const visible = nodes
+      .filter((node) => {
+        const box = boxes.get(node);
+        return (
+          node.checkVisibility() &&
+          box.width &&
+          box.height &&
+          box.bottom > band.top &&
+          box.top < band.bottom
+        );
+      })
+      .sort((a, b) => boxes.get(a).top - boxes.get(b).top);
+    const shown = new Set(visible);
+    const pointer = over ? document.elementFromPoint(x, y)?.closest?.(items) : null;
+    const focus = focused()?.closest?.(items);
+    const named = (
+      recentPlaceInput() === "pointer" ? [pointer, focus] : [focus, pointer]
+    ).filter((node) => shown.has(node));
     const references = placeCandidates({
-      inherited: prior?.references.find(live)?.node,
-      pointer: over ? document.elementFromPoint(x, y)?.closest?.(items) : null,
-      focus: focused()?.closest?.(items),
-      visible: nodes
-        .filter((node) => {
-          const box = boxes.get(node);
-          return (
-            node.checkVisibility() &&
-            box.width &&
-            box.height &&
-            box.bottom > band.top &&
-            box.top < band.bottom
-          );
-        })
-        .sort((a, b) => boxes.get(a).top - boxes.get(b).top),
+      inherited: prior?.references.find(
+        (candidate) => live(candidate) && shown.has(candidate.node),
+      )?.node,
+      named,
+      visible,
     })
       .filter((node) => scroller.contains(node))
       .map((node) => ({
@@ -153,6 +162,7 @@ export function placeKeeper(scroller, { items, identity, active = () => true }) 
       }));
     if (!references.length) return null;
     standing = {
+      named: named[0] ?? null,
       references,
       at: { scrollTop: scroller.scrollTop, limit: limit() },
     };

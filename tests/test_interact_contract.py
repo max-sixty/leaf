@@ -2,6 +2,7 @@
 
 import contextlib
 import json
+import os
 import re
 import shutil
 import textwrap
@@ -56,6 +57,7 @@ from interact_support import (
     yaml_document,
 )
 from leaf import cli as cli_model
+from leaf import codex as codex_model
 from leaf import conversation as conversation_model
 from leaf import data as data_model
 from leaf import delivery as delivery_model
@@ -63,6 +65,7 @@ from leaf import event_contracts as event_contracts_model
 from leaf import event_log as events_model
 from leaf import events as event_folds_model
 from leaf import files as files_model
+from leaf import host as host_model
 from leaf import leases as leases_model
 from leaf import media as media_model
 from leaf import passages as passages_model
@@ -277,6 +280,37 @@ STATED_FINISH = {
 }
 
 
+def test_a_pick_names_only_options_its_group_holds():
+    """A `choose` names authored options or ones a standing `add` created.
+
+    The user's own option travels as two sends, the `add` and then the pick of it.
+    Were the `add` refused, the pick behind it would otherwise answer the Ask with an
+    option nobody can see.
+    """
+    page = ModelPage(STATED_KIT)
+    pick = {**STATED_PICK, "widget": "live-pick", "detail": {"options": ["live-mine"]}}
+
+    def admit(log, event):
+        return event_contracts_model.admitted_event(page, log, dict(event))
+
+    with pytest.raises(events_model.EventRefused) as refused:
+        admit(STATED_LOG, pick)
+    assert "['live-mine'] name no member of 'live-pick'" in str(refused.value)
+
+    add = admit(
+        STATED_LOG,
+        {
+            **STATED_PICK,
+            "widget": "live-pick",
+            "action": "add",
+            "detail": {"option": "live-mine", "text": "My own way"},
+        },
+    )
+    assert add["meaning"]["coordinate"] == ["live-pick", "live-mine", "added"]
+    added = {**add, "id": "a1", "ts": "2026-09-19T12:01:00+00:00", "seq": 2}
+    assert admit([*STATED_LOG, added], pick)["detail"] == {"options": ["live-mine"]}
+
+
 def test_a_crafted_finish_cannot_close_a_swipe_ask_with_an_unknown_card():
     """A verb that carries its own result is checked against the deck it claims.
 
@@ -344,27 +378,27 @@ def test_admission_decides_from_the_markup_and_the_standing_log_alone():
     assert admit({**answer, "parent": "c1"})["parent"] == "c1"
 
 
-def test_only_declared_generated_children_add_mapping_keys_to_liveness():
+def test_a_created_child_is_its_actions_unit_and_its_words_stay_payload():
+    # Words that happen to spell an element id never become a dependency; the
+    # created id does once the markup holds it inside the sender.
     event = {
         "widget": "group",
-        "detail": {
-            "part": "authored-child",
-            "metadata": {"coincidental-id": "ordinary mapping payload"},
-            "additions": {"user-child": "User supplied words"},
-        },
-        "generated": ["user-child", "user-child"],
-        "meaning": {"depends": ["group", "authored-child"]},
+        "detail": {"option": "user-child", "text": "authored-child"},
+        "meaning": {"depends": ["group", "user-child"]},
     }
-    spec = {"creates": {"field": "additions", "child": "lf-option"}}
+    spec = {"unit": "option", "creates": {"child": "lf-option", "words": "text"}}
 
-    assert registry_contract.created_children(event, spec) == {
-        "user-child": "User supplied words"
-    }
-    assert event_folds_model.action_rests_on(event, {"authored-child": ("group",)}) == [
-        "group",
-        "authored-child",
+    assert registry_contract.created_child(event, spec) == (
         "user-child",
+        "authored-child",
+    )
+    assert registry_contract.created_child(event, {"unit": "option"}) is None
+    assert event_folds_model.action_rests_on(event, {"authored-child": ("group",)}) == [
+        "group"
     ]
+    assert event_folds_model.action_rests_on(
+        event, {"authored-child": ("group",), "user-child": ("group",)}
+    ) == ["group", "user-child"]
 
 
 # Two suggestions on one page, and the decisions a user takes on them. The
@@ -440,7 +474,6 @@ def test_an_answer_the_user_took_back_leaves_its_thread_open(page_dir):
             "widget": "picks",
             "action": "choose",
             "detail": {"options": ["flag-first"], "resolves": "c1"},
-            "generated": [],
             "meaning": {
                 "document": {"kind": "page", "revision": 1},
                 "coordinate": ["picks", "picks", "selection"],
@@ -987,7 +1020,7 @@ def test_init_refuses_an_incoming_detail_contract_that_rejects_logged_actions(
     assert "detail" in result.output
 
 
-@pytest.mark.parametrize("mutation", ["drop", "field", "child"])
+@pytest.mark.parametrize("mutation", ["drop", "words", "child"])
 def test_init_refuses_changed_generated_child_semantics(page_dir, mutation):
     registry = json.loads((page_dir / "registry.json").read_text())
     options = (
@@ -1008,27 +1041,23 @@ def test_init_refuses_changed_generated_child_semantics(page_dir, mutation):
             "author": "user",
             "revision": 1,
             "widget": "route",
-            "action": "choose",
-            "detail": {
-                "options": ["route-user"],
-                "additions": {"route-user": "User route"},
-            },
-            "generated": ["route-user"],
+            "action": "add",
+            "detail": {"option": "route-user", "text": "User route"},
         },
     )
 
-    choose = registry["lf-options"]["x-state"]["choose"]
+    add = registry["lf-options"]["x-state"]["add"]
     overlay_entries = {"lf-options": registry["lf-options"]}
     if mutation == "drop":
-        del choose["creates"]
-    elif mutation == "field":
-        choose["creates"]["field"] = "extras"
-        choose["detail"]["properties"]["extras"] = choose["detail"]["properties"][
-            "additions"
-        ]
+        del add["creates"]
+    elif mutation == "words":
+        add["creates"]["words"] = "words"
+        fields = add["detail"]["properties"]
+        fields["words"] = fields.pop("text")
+        add["detail"]["required"] = ["option", "words"]
     else:
         registry["lf-option-alt"] = registry["lf-option"]
-        choose["creates"]["child"] = "lf-option-alt"
+        add["creates"]["child"] = "lf-option-alt"
         overlay_entries["lf-option-alt"] = registry["lf-option-alt"]
     overlay = page_dir.parent / ".leaf"
     overlay.mkdir()
@@ -2001,19 +2030,6 @@ def test_a_data_source_attribute_can_carry_ordinary_schema_metadata(page_dir):
     assert registry_validation.validate_registry(registry, "test registry") is registry
 
 
-def test_a_data_snapshot_selector_is_a_positive_decimal_authored_binding(page_dir):
-    declare_data_input(page_dir, "project-feed", {"type": "array"}, snapshot=True)
-    registry = json.loads((page_dir / "registry.json").read_text())
-
-    assert registry_validation.validate_registry(registry, "test registry") is registry
-
-    registry["lf-test-data"]["properties"]["snapshot"]["pattern"] = "^[0-9]+$"
-    with pytest.raises(
-        registry_contract.RegistryError, match="must be a positive decimal string"
-    ):
-        registry_validation.validate_registry(registry, "test registry")
-
-
 @pytest.mark.parametrize(
     ("change", "message"),
     [
@@ -2231,160 +2247,6 @@ def test_page_owned_data_contract_description_can_improve(page_dir):
     )
 
     assert activation.error is None and activation.created
-
-
-def test_revendoring_cannot_forget_an_immutable_data_selection(page_dir, tmp_path):
-    declare_data_input(
-        page_dir,
-        "leaf-skill",
-        {"type": "string"},
-        contract="text-document",
-        snapshot=True,
-    )
-    text_file = tmp_path / "SKILL.md"
-    text_file.write_text("captured")
-    data_model.cmd_data_capture(page_dir, "leaf-skill", text_file)
-    source = page_dir / "index.html"
-    source.write_text(
-        source.read_text().replace(
-            'source="leaf-skill"', 'source="leaf-skill" snapshot="1"'
-        )
-    )
-    activated = revisioning_model.activate_source(
-        page_dir, events_model.read_events(page_dir)
-    )
-    assert activated.error is None
-    incoming = json.loads((page_dir / "registry.json").read_text())
-    del incoming["lf-test-data"]["x-data"]["data"]["snapshot"]
-
-    with pytest.raises(SystemExit, match="changes immutable snapshot selection"):
-        vendoring_model._refuse_data_contract_drift(
-            page_dir, events_model.read_events(page_dir), incoming
-        )
-
-    outgoing = json.loads((page_dir / "registry.json").read_text())
-    del outgoing["lf-test-data"]["x-data"]["data"]["snapshot"]
-    (page_dir / "registry.json").write_text(json.dumps(outgoing))
-    incoming = json.loads(json.dumps(outgoing))
-    incoming["lf-test-data"]["x-data"]["data"]["snapshot"] = "snapshot"
-    with pytest.raises(SystemExit, match="changes immutable snapshot selection"):
-        vendoring_model._refuse_data_contract_drift(
-            page_dir, events_model.read_events(page_dir), incoming
-        )
-
-
-def test_revendoring_cannot_swap_immutable_selections_between_inputs(
-    page_dir, tmp_path
-):
-    declare_data_input(
-        page_dir,
-        "leaf-skill",
-        {"type": "string"},
-        contract="text-document",
-        snapshot=True,
-    )
-    text_file = tmp_path / "SKILL.md"
-    text_file.write_text("first")
-    data_model.cmd_data_capture(page_dir, "leaf-skill", text_file)
-    text_file.write_text("second")
-    data_model.cmd_data_capture(page_dir, "leaf-skill", text_file)
-
-    registry_path = page_dir / "registry.json"
-    outgoing = json.loads(registry_path.read_text())
-    widget = outgoing["lf-test-data"]
-    del widget["properties"]["snapshot"]
-    widget["properties"].update(
-        {
-            "left-snapshot": {
-                "type": "string",
-                "pattern": "^[1-9][0-9]*$",
-            },
-            "right-snapshot": {
-                "type": "string",
-                "pattern": "^[1-9][0-9]*$",
-            },
-        }
-    )
-    widget["x-data"] = {
-        "left": {
-            "contract": "text-document",
-            "source": "source",
-            "snapshot": "left-snapshot",
-        },
-        "right": {
-            "contract": "text-document",
-            "source": "source",
-            "snapshot": "right-snapshot",
-        },
-    }
-    registry_path.write_text(json.dumps(outgoing))
-    source = page_dir / "index.html"
-    source.write_text(
-        source.read_text().replace(
-            'source="leaf-skill"',
-            'source="leaf-skill" left-snapshot="1" right-snapshot="2"',
-        )
-    )
-    activated = revisioning_model.activate_source(
-        page_dir, events_model.read_events(page_dir)
-    )
-    assert activated.error is None
-
-    incoming = json.loads(json.dumps(outgoing))
-    incoming["lf-test-data"]["x-data"]["left"]["snapshot"] = "right-snapshot"
-    incoming["lf-test-data"]["x-data"]["right"]["snapshot"] = "left-snapshot"
-
-    with pytest.raises(SystemExit, match="changes immutable snapshot selection"):
-        vendoring_model._refuse_data_contract_drift(
-            page_dir, events_model.read_events(page_dir), incoming
-        )
-
-
-def test_revendoring_distinguishes_idless_snapshot_seats_on_one_line(
-    page_dir, tmp_path
-):
-    declare_data_input(
-        page_dir,
-        "leaf-skill",
-        {"type": "string"},
-        contract="text-document",
-        snapshot=True,
-    )
-    text_file = tmp_path / "SKILL.md"
-    text_file.write_text("first")
-    data_model.cmd_data_capture(page_dir, "leaf-skill", text_file)
-    text_file.write_text("second")
-    data_model.cmd_data_capture(page_dir, "leaf-skill", text_file)
-
-    registry_path = page_dir / "registry.json"
-    outgoing = json.loads(registry_path.read_text())
-    widget = outgoing["lf-test-data"]
-    widget["required"].remove("id")
-    widget["properties"]["alternate"] = {
-        "type": "string",
-        "pattern": "^[1-9][0-9]*$",
-    }
-    registry_path.write_text(json.dumps(outgoing))
-    source = page_dir / "index.html"
-    source.write_text(
-        source.read_text().replace(
-            '<lf-test-data id="test-data" source="leaf-skill"></lf-test-data>',
-            '<lf-test-data source="leaf-skill" snapshot="1" '
-            'alternate="2"></lf-test-data><lf-test-data source="leaf-skill" '
-            'snapshot="2" alternate="2"></lf-test-data>',
-        )
-    )
-    activated = revisioning_model.activate_source(
-        page_dir, events_model.read_events(page_dir)
-    )
-    assert activated.error is None
-
-    incoming = json.loads(json.dumps(outgoing))
-    incoming["lf-test-data"]["x-data"]["data"]["snapshot"] = "alternate"
-    with pytest.raises(SystemExit, match="changes immutable snapshot selection"):
-        vendoring_model._refuse_data_contract_drift(
-            page_dir, events_model.read_events(page_dir), incoming
-        )
 
 
 @pytest.mark.parametrize(
@@ -2843,8 +2705,9 @@ def test_check_refuses_an_invalid_action_detail_schema(page_dir):
     [
         ("missing-member", "registry extensions are invalid"),
         ("unknown-child", "creates unknown child <lf-missing>"),
-        ("required-field", "creates detail field `additions` must be optional"),
-        ("wrong-map", "canonical non-empty element-id to non-empty string map"),
+        ("optional-words", "detail must be exactly the required element id"),
+        ("extra-field", "detail must be exactly the required element id"),
+        ("widget-unit", "fold unit must name the detail field"),
         ("wrong-owner", "x-owners does not admit the sender"),
         ("non-markup", "must declare x-content markup"),
         ("extra-required", "must require id and no other authored attributes"),
@@ -2854,16 +2717,18 @@ def test_check_refuses_an_invalid_action_detail_schema(page_dir):
 )
 def test_generated_child_declaration_closes_its_boundary(page_dir, mutation, message):
     registry = json.loads((page_dir / "registry.json").read_text())
-    choose = registry["lf-options"]["x-state"]["choose"]
+    add = registry["lf-options"]["x-state"]["add"]
     option = registry["lf-option"]
     if mutation == "missing-member":
-        del choose["creates"]["child"]
+        del add["creates"]["child"]
     elif mutation == "unknown-child":
-        choose["creates"]["child"] = "lf-missing"
-    elif mutation == "required-field":
-        choose["detail"]["required"].append("additions")
-    elif mutation == "wrong-map":
-        choose["detail"]["properties"]["additions"]["minProperties"] = 0
+        add["creates"]["child"] = "lf-missing"
+    elif mutation == "optional-words":
+        add["detail"]["required"] = ["option"]
+    elif mutation == "extra-field":
+        add["detail"]["properties"]["note"] = {"type": "string"}
+    elif mutation == "widget-unit":
+        add["unit"] = "widget"
     elif mutation == "wrong-owner":
         option["x-owners"] = ["lf-board"]
     elif mutation == "non-markup":
@@ -2874,8 +2739,8 @@ def test_generated_child_declaration_closes_its_boundary(page_dir, mutation, mes
         option["properties"]["id"]["pattern"] = "^option-.+$"
     elif mutation == "report-creates":
         registry["lf-agent"]["x-report"]["state"]["creates"] = {
-            "field": "doing",
             "child": "lf-option",
+            "words": "doing",
         }
     (page_dir / "registry.json").write_text(json.dumps(registry))
 
@@ -4352,13 +4217,17 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
             **owes("reply"),
         },
         "reply in a thread awaiting a version": {"kind": "reply", **owes("version")},
+        "reply in a long thread": {
+            "kind": "reply",
+            "summary_hint": {"from": "m1", "through": "m8"},
+            **owes("reply"),
+        },
         "reaction on a message": {"kind": "reply", "token": "+1"},
         "pick on the page": {"kind": "action", "meaning": on_page, **owes("markup")},
-        "pick adding an option": {
+        "option the user added": {
             "kind": "action",
-            "detail": {"additions": {"mine": "My own way"}},
+            "action": "add",
             "meaning": on_page,
-            **owes("markup"),
         },
         "pick before Done": {"kind": "action", "meaning": on_page},
         "pick inside a thread": {
@@ -4503,6 +4372,137 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
         "@RECORDED@", indented(yaml_block({"comment": recorded["comment"]}).rstrip())
     )
     snapshot.check(yaml_document(header, recorded))
+
+
+CARRIER_WALKTHROUGH = """\
+What each carrier hands the agent for one comment
+===================================================
+
+A test records this file; nobody writes it by hand. The lines starting with `#`
+explain it, and everything else is the recorded data. The run below serves the
+page from test_each_case_of_an_event_is_told_what_the_snapshot_shows, posts the
+same comment ("why here?" on "moves to Tuesdays") through POST /api/event, and
+then lets each of Leaf's three carriers deliver it. Only ids, times and the
+page's path are pinned, so the file stays the same from run to run.
+
+A carrier is the route that takes new user input to the agent's task:
+
+  leaf wait          The agent runs `leaf wait` in the background. It prints
+                     the delivery as JSON and exits, and the host hands that
+                     output to the agent as the command's result, which wakes
+                     it. The agent acknowledges the delivery itself, with
+                     `leaf wait --ack <delivery-id>`, and answers with
+                     `leaf reply`. Claude Code uses this carrier, and so does a
+                     Codex task running without Leaf's adapter.
+  Codex queue        Leaf's adapter freezes the delivery and runs `codex queue`
+                     with a pointer to it as the task's next user message. The
+                     agent reads the delivery with `leaf delivery read <id>`,
+                     which prints it as indented JSON, and answers with
+                     `leaf reply`. The adapter acknowledges the delivery once
+                     Codex's queue accepts it.
+  Codex App Server   Leaf starts a turn with `turn/start`, carrying the
+                     delivery as a `leaf_delivery` tool output, and binds the
+                     turn's final message as the reply. Leaf acknowledges the
+                     delivery once it enters that turn. leaf.page's hosted
+                     agent and a `leaf codex launch` terminal use this carrier.
+
+Both Codex carriers deliver the one frozen delivery that Leaf's Codex offer
+prepares; `leaf wait` freezes its own. The agent's standing instructions (its
+host contract, and on leaf.page the developer instructions) are not part of a
+delivery; test_website_server records leaf.page's.
+
+What this file records
+----------------------
+
+One top-level key per carrier, holding exactly what reaches the agent's task:
+
+  leaf wait:         its output.
+  Codex queue:       the `--message` given to `codex queue`, and the output of
+                     the `leaf delivery read` it points at.
+  Codex App Server:  the `turn/start` params. `toolOutput.output` is the
+                     delivery serialized as one line of JSON; it is shown
+                     decoded here.
+
+JSON is shown as YAML, and each clause in a batch's `handling` as wrapped prose,
+so the three read side by side. Every text is exactly what the agent receives.
+
+After changing what a carrier sends, re-record this file and review the diff:
+
+  uv run pytest --regtest-reset -n0 tests/test_interact_contract.py::test_each_carrier_hands_the_agent_what_the_snapshot_shows"""
+
+
+def test_each_carrier_hands_the_agent_what_the_snapshot_shows(
+    snapshot, page_dir, server, capsys
+):
+    """The snapshot is the page a developer reads to compare what one comment puts
+    in front of the agent on each carrier: `leaf wait`, the Codex
+    queue's pointer and the delivery it names, and the Codex App Server turn. Each
+    is taken from the code that carrier runs, after one real POST, so a change to
+    any carrier's framing or to a delivery's contents shows up as a diff under the
+    carrier it reaches."""
+    (page_dir / "index.html").write_text(WALKTHROUGH_PAGE)
+    publish(page_dir)
+    posted = {
+        "kind": "comment",
+        "revision": 1,
+        "text": "why here?",
+        "anchor": {"section": "plan", "quote": "moves to Tuesdays"},
+    }
+    status, answer = fetch(f"{server}/api/event", data=json.dumps(posted).encode())
+    assert status == 200, answer
+    logged = json.loads((page_dir / "events.jsonl").read_text().splitlines()[-1])
+
+    session_model.cmd_status(page_dir, "waiting", "")
+    capsys.readouterr()
+    assert session_model.cmd_wait(page_dir) == 0
+    waited = capsys.readouterr().out
+
+    thread = "codex-thread"
+    prepared = codex_model.prepare_codex_delivery(
+        page_dir, host_model.EmbeddedHarness(thread, "Codex", os.getpid())
+    )
+    delivery_model.cmd_delivery_read(prepared.payload["id"])
+    read = capsys.readouterr().out
+    started = codex_model.app_server_turn_start_params(thread, prepared.payload)
+    assert json.loads(started["toolOutput"]["output"]) == json.loads(read)
+
+    pinned = {
+        logged["id"]: "1946b466",
+        logged["ts"]: "2026-09-21T20:12:30-07:00",
+        json.loads(waited)["id"]: "11111111",
+        prepared.payload["id"]: "22222222",
+        str(page_dir): "/path/to/page",
+    }
+
+    def pin(shown: str) -> str:
+        for actual, steady in pinned.items():
+            shown = shown.replace(actual, steady)
+        return shown
+
+    def readable(printed: str) -> dict:
+        delivery = json.loads(pin(printed))
+        delivery["created_at"] = 1790046750.29
+        for batch in delivery["batches"]:
+            batch["handling"] = {
+                ref: Prose(text) for ref, text in batch["handling"].items()
+            }
+        return delivery
+
+    started = json.loads(pin(json.dumps(started)))
+    started["toolOutput"]["output"] = readable(started["toolOutput"]["output"])
+    snapshot.check(
+        yaml_document(
+            CARRIER_WALKTHROUGH,
+            {
+                "leaf wait": {"output": readable(waited)},
+                "Codex queue": {
+                    "codex queue --message": Prose(pin(prepared.prompt)),
+                    "leaf delivery read 22222222": readable(read),
+                },
+                "Codex App Server": {"turn/start": started},
+            },
+        )
+    )
 
 
 def fields_named(schema: dict) -> set[str]:
@@ -5077,7 +5077,6 @@ def test_specimen_data_bindings_use_copied_data_but_not_parent_history(page_dir)
         {"type": "number"},
         contract="child",
         tag="lf-child-data",
-        snapshot=True,
         activate=False,
     )
     child = '<lf-child-data id="test-data" source="shared"></lf-child-data>'
@@ -5088,24 +5087,13 @@ def test_specimen_data_bindings_use_copied_data_but_not_parent_history(page_dir)
     result = check(page_dir)
     assert result.exit_code == 0, result.output
 
-    # A child may bind the same name differently, but cannot reinterpret a copied
-    # stored value or select a snapshot that the copied store does not contain.
-    (page_dir / "index.html").write_text(
-        markup.replace(
-            'source="shared"></lf-child-data>',
-            'source="shared" snapshot="1"></lf-child-data>',
-        )
-    )
-    result = check(page_dir)
-    assert result.exit_code != 0
-    assert "specimen 'practice'" in result.output
-    assert "selects snapshot '1'" in result.output
-    (page_dir / "index.html").write_text(markup)
+    # A child may bind the same name differently, but cannot reinterpret the stored
+    # value it copies from the parent.
     data_model.cmd_data_set(page_dir, "shared", "parent value")
     result = check(page_dir)
     assert result.exit_code != 0
     assert "specimen 'practice'" in result.output
-    assert "standing snapshot uses 'parent'" in result.output
+    assert "it was recorded with 'parent'" in result.output
 
 
 @pytest.mark.parametrize("seeded", [False, True])

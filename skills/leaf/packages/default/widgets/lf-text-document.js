@@ -57,12 +57,8 @@ function sourceNode(widget, { snapshot, tokens }, prior) {
     pre.append(document.createElement("code"));
     figure.replaceChildren(caption, pre);
   }
-  const label = snapshot?.label ?? widget.getAttribute("source");
-  const details = [];
-  if (snapshot?.lines) details.push(`lines ${snapshot.lines.replace(":", "–")}`);
-  if (snapshot?.snapshot) details.push(`snapshot ${snapshot.snapshot}`);
-  if (!snapshot) details.push("no data");
-  const heading = details.length ? `${label} · ${details.join(" · ")}` : label;
+  const label = widget.getAttribute("label") ?? widget.getAttribute("source");
+  const heading = snapshot ? label : `${label} · no data`;
   if (caption.textContent !== heading) caption.textContent = heading;
   const code = pre.querySelector("code");
   const source = tokens.map(({ text }) => text).join("");

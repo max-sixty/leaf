@@ -714,9 +714,7 @@ def test_offscreen_specimen_cannot_acknowledge_child_viewport(browser, serve):
     frame = specimen.locator("iframe")
     child = frame.element_handle().content_frame()
     expect(child.locator(".lf-first-unread")).to_have_text("Unread 1")
-    assert child.locator("body").evaluate("element => element.inert")
-    specimen.get_by_role("button", name="Enter specimen").click()
-    expect(child.locator("body")).not_to_have_attribute("inert", "")
+    child.locator(".lf-threads-toggle").focus()
     frame.evaluate("element => element.style.transform = 'translateY(1200px)'")
     child.locator(".lf-threads-toggle").evaluate("element => element.click()")
     child.locator(".lf-first-unread").evaluate("element => element.click()")
@@ -731,10 +729,29 @@ def test_offscreen_specimen_cannot_acknowledge_child_viewport(browser, serve):
     page.set_viewport_size({"width": 1280, "height": 1400})
     page.wait_for_timeout(100)
     expect(child.locator(".lf-first-unread")).to_have_text("Unread 1")
+    # Below the first screen and taller than the window, the specimen is read through
+    # the band the containing page shows as it scrolls: its edge coming into view shows
+    # nothing, and a later scroll of the containing page shows the message.
     clip.evaluate(
-        "element => { element.style.height = ''; element.style.overflow = ''; }"
+        "element => { element.style.height = ''; element.style.overflow = '';"
+        " element.style.marginTop = '2000px'; }"
     )
-    frame.scroll_into_view_if_needed()
+    child.evaluate("""() => {
+        const spacer = document.createElement('div');
+        spacer.style.height = '3000px';
+        document.querySelector('main').append(spacer);
+    }""")
+    page.wait_for_function(
+        "() => document.querySelector('#read-practice iframe').offsetHeight > 3000"
+    )
+    page.evaluate("""() => {
+        const top = document.querySelector('#read-practice iframe')
+            .getBoundingClientRect().top;
+        scrollBy(0, top - innerHeight + 20);
+    }""")
+    page.wait_for_timeout(200)
+    expect(child.locator(".lf-first-unread")).to_have_text("Unread 1")
+    page.evaluate("scrollBy(0, 700)")
     expect(child.locator(".lf-first-unread")).to_be_hidden()
 
 

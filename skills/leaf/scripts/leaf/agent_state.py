@@ -5,7 +5,7 @@ from pathlib import Path
 
 from .asks import thread_ask_readings
 from .construction import constructed_content
-from .data import read_data
+from .data import data_errors, read_data
 from .data_contracts import measurement_lag_entries, page_data_binding_inventory
 from .document_reading import DocumentReading, read_document
 from .events import active_summaries, bare_reaction, build_threads, is_reaction
@@ -27,7 +27,7 @@ from .registry.reactions import described
 from .registry.storage import layer_metadata, require_registry
 from .requests import request_lifecycles, request_lifecycles_for, request_phases
 from .revisioning import activate_source
-from .schema import DATA_FILE
+from .schema import DATA_DIR, DATA_FILE
 from .served_state.page import full_state
 from .server import running_server
 from .service import PageTransaction, unacknowledged
@@ -143,7 +143,11 @@ def _base_state(
         "state": [],
         "updates": [],
         "requests": requests,
-        "data": {"file": DATA_FILE, "revision": stored_data["revision"]},
+        "data": {
+            "file": DATA_FILE,
+            "dir": DATA_DIR,
+            "errors": data_errors(stored_data),
+        },
         "data_bindings": page_data_binding_inventory(page_dir, registry, events),
         "measurement_lag": [],
         "asks": [],
@@ -325,7 +329,7 @@ def _write_page_state(
             "session_cwd",
         )
     }
-    stored_data = read_data(page_dir)
+    stored_data = read_data(page_dir, registry)
     document = _read_active_document(page_dir, events, registry, revision, stored_data)
     spoken = document.spoken if document is not None else {}
     threads = build_threads(events, enclosing_of(spoken))

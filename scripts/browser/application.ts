@@ -167,7 +167,7 @@ export interface AuthoritativeState {
         basis: { revision: number; through_seq: number };
         document: {
           projection: WireProjection;
-          requests?: { seat: { document?: object; widget: string; unit: string; data_revision?: number; offered?: boolean }; phase: string }[];
+          requests?: { seat: { document?: object; widget: string; unit: string; source_revision?: string; offered?: boolean }; phase: string }[];
           asks?: WireAsks;
         };
         undo?: { event: Event }[];
@@ -179,7 +179,7 @@ export interface AuthoritativeState {
     conversation: {
       threads: Thread[];
       projection: WireProjection;
-      requests?: { seat: { document?: object; widget: string; unit: string; data_revision?: number; offered?: boolean }; phase: string }[];
+      requests?: { seat: { document?: object; widget: string; unit: string; source_revision?: string; offered?: boolean }; phase: string }[];
       asks?: WireAsks;
       done?: Event[];
     };
@@ -407,7 +407,7 @@ function widgetReading(
       ? root.effective.lifecycle.conversation.requests
       : root.effective.lifecycle.page.requests;
   const requestUnits: Record<string, {
-    seat: { document?: object; widget: string; unit: string; data_revision?: number; offered?: boolean };
+    seat: { document?: object; widget: string; unit: string; source_revision?: string; offered?: boolean };
     phase: string;
     attempts?: unknown[];
     latest?: unknown;
@@ -528,7 +528,7 @@ export function createSemanticApplication({
     markingRead: [] as ContentVersion[],
     phase: "waiting",
     hostAvailable: true,
-    data: { revision: -1, sources: {} },
+    data: { version: null as string | null, sources: {} as Record<string, unknown> },
     effective: derive(
       {
         revision: null,
@@ -545,6 +545,7 @@ export function createSemanticApplication({
     semanticEpoch: 0,
   };
   const publisher = createApplicationPublisher(initial);
+  let dataTaken = -Infinity;
   let order = 0;
   let signature = semanticSignature([initial.effective, initial.data, initial.phase]);
   let publicationDepth = 0;
@@ -899,10 +900,20 @@ export function createSemanticApplication({
     setPhase(phase: string) {
       return publish({ phase });
     },
-    acceptData(data: typeof initial.data) {
-      if (data.revision <= publisher.read().data.revision) return false;
+    // Source revisions are digests with no order, so a reading's data is ordered by
+    // the moment the server took it: an answer taken before the one already accepted
+    // is older, whichever order the two arrive in.
+    acceptData(data: typeof initial.data, taken: number) {
+      if (taken < dataTaken) return false;
+      dataTaken = taken;
+      if (data.version === publisher.read().data.version) return false;
       publish({ data: structuredClone(data) });
       return true;
+    },
+    // When the server took the newest data reading accepted, whether or not it changed
+    // the data. Order is not semantic content, so it stays out of the publication.
+    dataTaken() {
+      return dataTaken;
     },
     // Whether this answer could be adopted with `revision` showing, asked without
     // adopting it. A live activation patches the document before it adopts, and a patch

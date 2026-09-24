@@ -57,9 +57,9 @@ interrupted load. Source files and standalone exports carry no startup superviso
 `registry.json` remains the source of truth for the current custom vocabulary and
 its explanations; this contract does not mirror that inventory.
 
-The append transaction records state coordinates and direct dependencies in an
-action or report's `meaning`. Identity-bearing detail fields come from the declared
-fold unit and attribute-set or position record. A verb's declared `references` roles
-(`../../references/packages.md`, "A widget") are resolved at the append door in the
-command's immutable source document. Id records and structural anchors join direct
-dependencies; arbitrary detail strings carry no identity.
+The append transaction records state coordinates and direct dependencies in an action
+or report's `meaning`. Identity-bearing detail fields come from the declared fold unit
+and attribute-set or position record. A verb's declared `references` roles
+(`../../references/packages.md`, "Semantic references") are resolved at the append
+door in the command's immutable source document. Id records and structural anchors
+join direct dependencies; arbitrary detail strings carry no identity.

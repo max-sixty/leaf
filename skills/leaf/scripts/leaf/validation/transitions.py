@@ -8,7 +8,7 @@ from leaf.projection import (
     folded_facet,
     markup_facet,
 )
-from leaf.registry.contract import created_children
+from leaf.registry.contract import created_child
 
 from .markup import at
 
@@ -117,21 +117,21 @@ def restatement_errors(
             for field, v in e["detail"].items()
             if field != "resolves" and isinstance(v, str)
         }
-        # A creates declaration names the one mapping whose values are generated
-        # child prose. The event is their previous reading because those children
-        # were absent from the action's authored revision.
+        # A created child's words are its creating action's. The event is their
+        # previous reading because the child was absent from the action's revision.
         generated_words = {
             collapse(
-                inline_markdown_words(value, added=True)
+                inline_markdown_words(words, added=True)
                 if registry.get(action_specs[e["id"]]["creates"]["child"], {}).get(
                     "x-text-format"
                 )
                 == "inline-markdown"
-                else value
+                else words
             )
             for e in live
-            for identity, value in created_children(e, action_specs[e["id"]]).items()
-            if identity == sid and isinstance(value, str)
+            if (created := created_child(e, action_specs[e["id"]]))
+            for identity, words in [created]
+            if identity == sid
         }
         said = now.get(sid, EMPTY).words
         changed = (sid in was and said != was[sid].words and said not in echoed) or (

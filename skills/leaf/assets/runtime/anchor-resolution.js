@@ -238,6 +238,28 @@ export function addressableSays(addressable, omitted = null) {
   );
 }
 
+// What names an element, where the authoring contract gives it a name
+// (`../../references/page-authoring.md`): the attribute its registry entry declares
+// with `x-name`, else a leading disclosure summary, heading, or titled member's
+// <strong>. Leading means no words come before it; elements may, as a titled member's
+// comparison chips stand in the band above its title. The words are read the way
+// `addressableSays` reads them, and generated chrome is skipped, so it never names
+// anything. An element the contract gives no name answers "", and a caller that
+// needs words for it takes `addressableSays`.
+const TITLES = "summary, h1, h2, h3, h4, h5, h6, strong";
+export function addressableName(element) {
+  if (!element) return "";
+  const attribute = registry[element.localName]?.["x-name"];
+  const declared = attribute && element.getAttribute(attribute)?.trim();
+  if (declared) return declared;
+  for (const node of element.childNodes) {
+    if (node.nodeType === Node.TEXT_NODE && node.data.trim()) return "";
+    if (node.nodeType !== Node.ELEMENT_NODE || inUi(node)) continue;
+    if (node.matches(TITLES)) return quoteFrom(textNodesUnder(node));
+  }
+  return "";
+}
+
 const aimLabel = (
   addressable,
   says = addressableSays(addressable) ||

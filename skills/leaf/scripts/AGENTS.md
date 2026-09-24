@@ -21,6 +21,8 @@ The main owners are:
   presence, and change reading served by one browser preview;
 - `construction`: effective document content with source, state, and data origins;
 - `transcript`: raw-event selection and the human-facing Markdown export;
+- `gesture_words`: what the ids a widget gesture names say in the gesture's own
+  document, the one reading deliveries and the transcript state a gesture through;
 - `event_log`: append-only JSONL storage, locking, and attempt identity;
 - `event_contracts`: the one append door every writer admits an event through,
   and the per-kind contracts it runs;

@@ -96,6 +96,7 @@
   },
   "lf-text-document": {
     "description": "A file-backed text document supplied through Leaf data. `source` binds the page-owned feed. `language` colors the document with one of $languages. `label` names the document above the exact text; without it the source id does. Lines longer than the column wrap, since a capture has no alignment to keep, and print wraps them too so nothing is cut off on paper. Put the widget inside ordinary details or an lf-tab when the document should begin collapsed or in a separate view.",
+    "x-name": "label",
     "type": "object",
     "properties": {
       "id": {
@@ -700,6 +701,7 @@
   },
   "lf-column": {
     "description": "One column on a board. `label` is the column heading, and the name a screen reader announces for the list of cards beneath it — so it has to read as the column's name on its own. Children are lf-card elements only; an empty column is a valid drop target.",
+    "x-name": "label",
     "type": "object",
     "properties": {
       "id": {
@@ -768,6 +770,7 @@
   },
   "lf-tab": {
     "description": "One view in a tab set. `label` names its tab in the strip (and the stacked heading before upgrade). In page navigation, its content is an ordinary document view or one workspace; page tabs in the same set may mix those forms. In a tabbed section, prose, sections, and widgets nest freely. Ids inside share the page's one universe, so keep them distinct across tabs.",
+    "x-name": "label",
     "type": "object",
     "properties": {
       "id": {
@@ -849,6 +852,7 @@
   },
   "lf-specimen": {
     "description": "A specimen of page content. Ordinary children render as static quotation: a muted gutter and a small-caps quoted label, with widget actions disabled. For an operable complete Leaf page, put its main content in one direct template[data-specimen] with a stable id. The optional label names the specimen and its frame. Keep invented content visibly fictional. See page-authoring.md, Live specimens, for child-page authoring, interaction, reset, and isolation.",
+    "x-name": "label",
     "type": "object",
     "properties": {
       "id": {
@@ -913,6 +917,7 @@
   },
   "lf-pane": {
     "description": "One reading region in a workspace. Its label names the region accessibly; an authored header supplies any visible heading. Put action widgets in its direct footer when they should stay reachable while the body scrolls. Its body may scroll independently in bounded posture and returns to its containing reading flow when space is constrained.",
+    "x-name": "label",
     "type": "object",
     "properties": {
       "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},

@@ -8898,7 +8898,9 @@ def test_command_hub_send_and_pause_is_one_thread_fold(browser, serve):
     expect(goal).to_have_attribute("data-lf-held")
     expect(goal.locator(":scope > .lf-task-meta")).to_contain_text("paused by you")
     paused = page.locator("#atlas-record .lf-activity-row").first
-    expect(paused).to_contain_text("You paused Replace the XML parser")
+    # The goal is named by its leading <strong>, not the words under it.
+    expect(paused).to_contain_text("You paused")
+    expect(paused.locator(".lf-activity-target")).to_have_text("Replace the XML parser")
     expect(paused).to_contain_text("Finish the current hunk, then park here.")
     root = next(
         event
@@ -8914,11 +8916,17 @@ def test_command_hub_send_and_pause_is_one_thread_fold(browser, serve):
             "agent": "Relay",
             "parent": root["id"],
             "revision": 1,
-            "text": "The hunk is complete; see https://example.com/run and park.",
+            "text": "The hunk is **complete**; see [the run](https://example.com/run) and park.",
         },
     )
     told(page)
     expect(goal).to_have_attribute("data-lf-held", root["id"])
+    # The feed quotes the reply in the words its Markdown renders, not its source.
+    replied = page.locator("#atlas-record .lf-activity-row").first
+    expect(replied.locator(".lf-activity-line")).to_contain_text("Relay replied")
+    expect(replied.locator(".lf-activity-excerpt")).to_have_text(
+        "The hunk is complete; see the run and park."
+    )
     inline_link = conversation.locator('a[href="https://example.com/run"]')
     expect(inline_link).to_have_attribute("target", "_blank")
     expect(inline_link.locator(":scope > svg.lf-external-mark")).to_be_visible()

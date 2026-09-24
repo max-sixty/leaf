@@ -24,17 +24,15 @@ from pathlib import Path
 from .event_contracts import append_admitted
 from .event_log import flocked
 from .files import read_json, write_json
+from .gesture_words import GestureWords
 from .machine import state_home
-from .passages import active_enclosing, spoken
-from .projection import frozen_thread_reading
+from .passages import active_enclosing
 from .registry.contract import RegistryError, event_clauses
 from .registry.reactions import described
 from .registry.storage import active_registry
-from .revision_artifact import read_registry
 from .schema import CURSOR_FILE
 from .served_state.page import full_state
 from .service import PageTransaction, requires_agent_attention
-from .structure import parse_revision
 from .thread_context import (
     batch_threads,
     thread_memberships,
@@ -101,39 +99,6 @@ def _subject(event: dict, conversations: list[str], by_id: dict[str, dict]) -> d
     return {"kind": "page"}
 
 
-def _says(event: dict, by_id: dict[str, dict], reading) -> dict[str, str]:
-    """The words of the elements one widget gesture names, id → what it says.
-
-    A gesture is recorded as ids: the widget, the unit it folds on, the options
-    it picked. They are words only to whoever still holds the document, and an
-    agent meeting the batch after a compaction, or from another session, holds
-    none of it. The reading is the gesture's own document, the revision it
-    names or the frozen message that sent the widget, under the vocabulary that
-    document was written in, so a later version that reworded an option does
-    not change what the user chose. A child a user wrote is in no document;
-    the event's own detail carries its words. An element that only encloses
-    another named one is left out: its words repeat theirs, and a list would
-    otherwise travel whole with every row pressed in it.
-    """
-    if event["kind"] == "undo":
-        event = by_id.get(event["undoes"], event)
-    meaning = event.get("meaning")
-    if meaning is None:
-        return {}
-    said = reading(meaning["document"])
-    named = {
-        identity: said[identity]
-        for identity in meaning.get("depends", [event["widget"]])
-        if identity in said
-    }
-    enclosing = {outer for element in named.values() for outer in element.within[:-1]}
-    return {
-        identity: element.words
-        for identity, element in named.items()
-        if element.words and identity not in enclosing
-    }
-
-
 def current_responses(page_dir: Path, events: list[dict]) -> dict[str, dict]:
     """Map every event that owns an answer to its exact response address.
 
@@ -173,23 +138,7 @@ def batch_data(
     by_id = {event["id"]: event for event in events}
     through_seq = max(event["seq"] for event in batch)
     evidence_seq = through_seq if as_of_seq is None else as_of_seq
-    readings: dict[int | None, dict] = {}
-
-    def reading(document: dict) -> dict:
-        """What one gesture's document says, read once for the whole batch. A
-        page revision keeps the registry captured with it; frozen thread markup
-        lives for the page's whole lifetime and reads under the active one."""
-        revision = document.get("revision")
-        if revision not in readings:
-            readings[revision] = (
-                frozen_thread_reading(events, registry).spoken
-                if document["kind"] == "thread"
-                else spoken(
-                    parse_revision(page_dir, revision),
-                    read_registry(page_dir, revision),
-                )
-            )
-        return readings[revision]
+    words = GestureWords(page_dir, events, registry)
 
     captured = []
     clause_ids: dict[str, str] = {}
@@ -205,7 +154,7 @@ def batch_data(
         entry.pop("attempt", None)
         # What an element says is a registry's word, and a page whose active layer
         # does not read is not read for its words at all.
-        if registry is not None and (says := _says(event, by_id, reading)):
+        if registry is not None and (says := words.says(event)):
             entry["says"] = says
         response = responses.get(event["id"])
         obligation = (

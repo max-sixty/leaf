@@ -267,7 +267,6 @@ def delivery_prelude(
     Authors can supply their own viewport. Otherwise every delivery starts at the
     device width, so a phone uses responsive layout instead of a scaled desktop page.
     Edge-to-edge layout lets the chrome use the device's safe-area insets.
-    The rendered document carries this metadata into standalone exports too.
     """
     viewport = (
         ""

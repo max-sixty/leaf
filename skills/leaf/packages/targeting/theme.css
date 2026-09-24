@@ -1,5 +1,5 @@
 /* Targeting keeps the authored preview primary. Its generated editor is compact,
- * and live outlines disappear from static copies and quoted examples. */
+ * and live outlines disappear from quoted examples. */
 lf-targeting {
   --lf-block-frame: 1;
   display: grid;
@@ -136,7 +136,7 @@ lf-targeting[data-lf-targeting-armed] lf-target-preview {
   border-color: var(--accent);
 }
 
-html:not(.lf-copy)
+html:root
   lf-targeting
   lf-target-preview
   :is(.lf-targeting-candidate, .lf-targeting-selected) {
@@ -144,15 +144,14 @@ html:not(.lf-copy)
   outline-offset: 2px;
 }
 
-html:not(.lf-copy)
+html:root
   lf-targeting
   lf-target-preview
   .lf-targeting-candidate {
   background-color: var(--accent-faint);
 }
 
-lf-targeting.lf-targeting-quoted .lf-targeting-editor,
-html.lf-copy lf-targeting .lf-targeting-editor {
+lf-targeting.lf-targeting-quoted .lf-targeting-editor {
   display: none;
 }
 

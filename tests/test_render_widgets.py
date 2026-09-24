@@ -11,7 +11,6 @@ from leaf import conversation as conversation_model
 from leaf import data as data_model
 from leaf import delivery as delivery_model
 from leaf import event_log as events_model
-from leaf import exporting as exporting_model
 from leaf import render_checks as render_checks_model
 from leaf import service as service_model
 from leaf import session as session_model
@@ -649,10 +648,8 @@ def test_root_tabs_allocate_the_active_workspace_and_preserve_its_pane_scroll(
     pane_posture(page, queue_pane, "bounded")
 
 
-def test_root_tab_targets_remain_global_and_export_in_authored_order(
-    browser, serve, tmp_path
-):
-    """Ask travel crosses hidden tabs and a static record contains all destinations."""
+def test_root_tab_targets_remain_global(browser, serve):
+    """Ask travel crosses hidden tabs."""
     url = serve(ROOT_TABS_PAGE)
     page = open_page(
         browser,
@@ -679,41 +676,6 @@ def test_root_tab_targets_remain_global_and_export_in_authored_order(
     expect(page.locator("#plan-return")).to_be_in_viewport()
     tabs.get_by_role("tab", name="Workbench", exact=True).click()
     pane_posture(page, page.locator("#queue-pane"), "bounded")
-
-    copies = []
-    for entry in ("plan-tab", "workbench-tab"):
-        out = tmp_path / f"root-tabs-copy-{entry}.html"
-        out.write_text(
-            exporting_model.export_page(
-                browser, url + f"#{entry}", serve.page_dir, "v1.html"
-            )
-        )
-        copy = browser.new_page(viewport={"width": 900, "height": 800})
-        copy.goto(out.as_uri(), wait_until="load")
-        for panel in ("plan-tab", "evidence-tab", "workbench-tab"):
-            expect(copy.locator(f"#{panel}")).to_be_visible()
-        positions = copy.locator("#root-tabs > lf-tab").evaluate_all(
-            "panels => panels.map(panel => panel.getBoundingClientRect().top)"
-        )
-        assert positions == sorted(positions) and len(set(positions)) == 3, positions
-        expect(copy.locator(".lf-tabstrip")).to_be_hidden()
-        copies.append(
-            copy.locator("main").evaluate("""main => {
-              const box = main.getBoundingClientRect();
-              const style = getComputedStyle(main);
-              return {width: box.width, marginLeft: style.marginLeft,
-                      marginRight: style.marginRight,
-                      paddingBottom: style.paddingBottom};
-            }""")
-        )
-        copy.close()
-    assert copies[0] == copies[1]
-    assert copies[0] == {
-        "width": 900,
-        "marginLeft": "0px",
-        "marginRight": "0px",
-        "paddingBottom": "96px",
-    }
 
 
 def test_an_ordinary_two_part_ask_retains_document_flow(browser, serve):
@@ -2630,17 +2592,6 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
     page.evaluate(RENDERED)
     expect(prepare).to_have_css("opacity", "1")
     expect(start).to_be_visible()
-
-    page.emulate_media(media="screen")
-    page.evaluate(RENDERED)
-    page.locator("html").evaluate("node => node.classList.add('lf-copy')")
-    page.evaluate(RENDERED)
-    expect(prepare).to_have_css("opacity", "1")
-    expect(prepare).to_have_css("pointer-events", "auto")
-    expect(start).to_be_hidden()
-    expect(page.locator("aside.sidebar")).to_have_css("position", "static")
-    page.locator("html").evaluate("node => node.classList.remove('lf-copy')")
-    page.evaluate(RENDERED)
 
     page.emulate_media(media="screen", forced_colors="active")
     page.evaluate(RENDERED)
@@ -4608,110 +4559,6 @@ def test_a_playground_rejects_range_values_that_do_not_land_on_its_step(browser,
     )
 
 
-def test_a_playground_export_keeps_the_chosen_preview_and_instruction(
-    browser, serve, tmp_path
-):
-    url = serve(PLAYGROUND_PAGE)
-    append_command(
-        serve.page_dir,
-        {
-            "kind": "action",
-            "author": "user",
-            "revision": 1,
-            "widget": "card-playground",
-            "action": "choose",
-            "detail": {
-                "values": {
-                    "accent": "#8b4a5f",
-                    "compact": True,
-                    "radius": 17,
-                    "title": "Ridge note",
-                    "tone": "bold",
-                },
-                "instruction": "Use the chosen card settings.",
-            },
-        },
-    )
-    out = tmp_path / "playground-copy.html"
-    out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
-    copy = browser.new_page(viewport={"width": 900, "height": 800})
-    copy.goto(out.as_uri(), wait_until="load")
-
-    expect(copy.locator("script")).to_have_count(0)
-    expect(copy.locator("#card-playground .lf-playground-controls")).to_be_hidden()
-    expect(copy.locator("#card-playground").get_by_role("button")).to_have_count(0)
-    expect(copy.locator("#playground-card")).to_have_css("border-radius", "17px")
-    expect(copy.locator("#playground-card")).to_have_css("padding", "8px")
-    expect(copy.locator("#card-instruction")).to_contain_text("Ridge note")
-
-
-def test_notification_playground_export_flows_at_another_width_and_on_paper(
-    browser, serve, tmp_path
-):
-    source = Path(__file__).parents[1] / "examples" / "notification-playground.html"
-    url = serve(source)
-    append_command(
-        serve.page_dir,
-        {
-            "kind": "action",
-            "author": "user",
-            "revision": 1,
-            "widget": "notification-playground",
-            "action": "choose",
-            "detail": {
-                "values": {
-                    "accent": "#b6533c",
-                    "compact": True,
-                    "events": 4,
-                    "format": "status strip",
-                    "radius": 10,
-                    "show-owner": True,
-                    "title": "Escalation sent",
-                    "tone": "urgent",
-                },
-                "instruction": "Send the configured escalation notification.",
-            },
-        },
-    )
-    page = open_page(browser, url)
-    out = tmp_path / "notification-playground-copy.html"
-    out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
-    page.close()
-
-    copy = browser.new_page(viewport={"width": 480, "height": 700})
-    copy.goto(out.as_uri(), wait_until="load")
-    playground = copy.locator("#notification-playground")
-    expect(playground.locator(".lf-playground-actions")).to_be_hidden()
-    expect(playground.locator("lf-playground-control:visible")).to_have_count(0)
-    expect(playground.locator("#notification-instruction")).to_contain_text(
-        "deployment-notification.html"
-    )
-    expect(
-        playground.locator(".notification-demo-card-banner").first
-    ).to_have_accessible_name("Escalation sent")
-    expect(playground.locator(".notification-demo-card-banner").first).to_be_visible()
-    assert copy.evaluate("document.documentElement.scrollWidth") == 480
-    bodies = """root => [...root.querySelectorAll(
-      '[data-lf-reading-role="pane"] > :not(header, footer)')]"""
-    assert playground.evaluate(
-        f"""root => {{
-          const found = ({bodies})(root);
-          return found.length === 3
-            && found.every(body => getComputedStyle(body).overflowY === 'visible');
-        }}"""
-    )
-
-    copy.emulate_media(media="print")
-    assert playground.evaluate(
-        f"""root => {{
-          const found = ({bodies})(root);
-          return found.length === 3
-            && found.every(body => getComputedStyle(body).overflowY === 'visible'
-              && body.scrollHeight === body.clientHeight);
-        }}"""
-    )
-
-
 def test_a_quoted_playground_is_a_static_preview_with_its_authored_output(
     browser, serve
 ):
@@ -6029,26 +5876,6 @@ def test_an_empty_quoted_swipe_queue_says_it_is_empty(browser, serve):
     assert labels.all_inner_texts() == ["QUEUE · 0", "PASSED · 0", "KEPT · 1"]
 
 
-def test_a_swipe_deck_export_is_a_static_labeled_copy(browser, serve, tmp_path):
-    url = serve(SWIPE_PAGE)
-    out = tmp_path / "swipe-copy.html"
-    out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
-    copy = browser.new_page(viewport={"width": 1200, "height": 900})
-    copy.goto(out.as_uri(), wait_until="load")
-    deck = copy.locator("#session-triage")
-
-    expect(copy.locator("script")).to_have_count(0)
-    expect(deck.locator(".lf-swipe-controls")).to_be_hidden()
-    expect(deck.get_by_role("button")).to_have_count(0)
-    expect(deck.locator("lf-swipe-card[tabindex]")).to_have_count(0)
-    expect(deck.locator("lf-swipe-card:visible")).to_have_count(6)
-    assert deck.locator(".lf-swipe-pile-label").all_inner_texts() == [
-        "QUEUE · 4",
-        "PASSED · 1",
-        "KEPT · 1",
-    ]
-
-
 def test_a_reduced_motion_swipe_moves_without_an_exit_animation(browser, serve):
     context = browser.new_context(reduced_motion="reduce")
     page = open_page(browser, serve(SWIPE_PAGE), context=context)
@@ -6155,13 +5982,12 @@ def test_suggestion_controls_stay_out_of_the_column(browser, serve, reduced_moti
         ), "a docked row belongs under the block whose change it decides"
 
 
-def test_a_copy_says_a_change_is_only_proposed(browser, serve, tmp_path):
+def test_the_page_says_a_change_is_only_proposed(browser, serve):
     """Who says the change is still a proposal, in each medium the page reaches.
 
     On screen the ✓/✗ row hanging on the change's own line says it, and the word is
-    for whoever is listening, so it stays clipped. A copy and paper have no row —
-    both strip controls the page does not speak through — so each pending slot needs
-    visible words distinguishing a proposal from ordinary settled content.
+    for whoever is listening, so it stays clipped. Paper has no row, so each pending
+    slot needs visible words distinguishing a proposal from ordinary settled content.
 
     The word also had to change to be worth showing. Pendingness was carried by the
     word's mere presence, which no user can perceive — nothing sits alongside to
@@ -6187,26 +6013,17 @@ def test_a_copy_says_a_change_is_only_proposed(browser, serve, tmp_path):
         assert q["w"] <= 1 and q["h"] <= 1, (
             f"on screen the row says it; `{q['word']}` must hold no room, got {q}"
         )
-    # And the row is there to say it — the fact the copy is about to lose.
+    # And the row is there to say it — the fact paper is about to lose.
     expect(page.locator(".lf-margin-cluster")).to_have_count(3)
-    page.close()
 
-    out = tmp_path / "standalone.html"
-    out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
-    copy = browser.new_page(viewport={"width": 1200, "height": 900})
-    copy.goto(out.as_uri(), wait_until="load")
-    assert copy.locator(".lf-margin-cluster").count() == 0, (
-        "stripping pending controls left their generated target item claiming a rail"
-    )
-    for medium in ("screen", "print"):
-        copy.emulate_media(media=medium)
-        shown = copy.evaluate(read, quiet)
-        assert [q["word"] for q in shown] == [q["word"] for q in live], shown
-        for q in shown:
-            assert q["shown"] and q["w"] > 1, (
-                f"[{medium}] with no row on the page, `{q['word']}` is the only thing "
-                f"saying the change is unmade, and it is not on screen: {q}"
-            )
+    page.emulate_media(media="print")
+    shown = page.evaluate(read, quiet)
+    assert [q["word"] for q in shown] == [q["word"] for q in live], shown
+    for q in shown:
+        assert q["shown"] and q["w"] > 1, (
+            f"with no row on paper, `{q['word']}` is the only thing saying the "
+            f"change is unmade, and it is not printed: {q}"
+        )
 
 
 def test_a_moved_change_takes_its_controls_with_it(browser, serve):
@@ -6388,44 +6205,6 @@ def test_the_ask_walk_lands_on_a_suggestion_the_reveal_just_opened(browser, serv
     expect(
         page.locator("[data-lf-margin-for='sug-boxes'] .lf-sug-accept")
     ).to_be_visible()
-
-
-def test_the_rail_survives_every_script_being_removed(browser, serve, tmp_path):
-    """A standalone copy of a leaf page is its rendered DOM with the script tags
-    dropped, and the pass that placed these rows is script. It doesn't have to run
-    again: the row is a child of <main> in the serialized markup, and `left: 100%`
-    against the column with `top: anchor(top)` against the change re-solve wherever
-    the copy is opened and at whatever width. Including the change inside the card,
-    whose positioned ancestor is exactly what a placement done in script would have
-    had to correct for — and could not, with no script left to run."""
-    page = open_page(browser, serve(SUGGESTION_PAGE))
-    baked = page.evaluate(
-        """theme => {
-          const style = document.createElement('style');
-          style.textContent = theme;
-          document.querySelector('link[data-lf-runtime][rel="stylesheet"]')
-            .replaceWith(style);
-          document.querySelectorAll('script').forEach(script => script.remove());
-          return document.documentElement.outerHTML;
-        }""",
-        (serve.page_dir / "theme.css").read_text(),
-    )
-    page.close()
-
-    standalone = tmp_path / "standalone.html"
-    standalone.write_text(baked)
-    loose = browser.new_page(viewport={"width": 1500, "height": 900})
-    loose.goto(standalone.as_uri(), wait_until="load")
-    assert loose.evaluate("document.querySelectorAll('script').length") == 0
-    box = "el => el.getBoundingClientRect()"
-    column = loose.locator("main").evaluate(box)["right"]
-    for widget in ("sug-refill", "sug-in-card"):
-        row = loose.locator(f"[data-lf-margin-for='{widget}']").evaluate(box)
-        assert row["left"] > column, f"{widget}'s row lost the rail without its script"
-        assert (
-            abs(row["top"] - loose.locator(f"#{widget} lf-old").evaluate(box)["top"])
-            <= 5
-        ), f"{widget}'s row lost its change's line without its script"
 
 
 def test_accepting_a_suggestion_settles_it_and_reaches_claude(browser, serve):
@@ -10498,37 +10277,6 @@ def test_a_control_a_widget_built_is_told_from_a_label_it_wrote(browser, serve):
     assert ring[0] == "solid" and ring[1] == ring[2] and ring[3] != "none", (
         f"nothing draws a named here ring where the keyboard is standing: {ring}"
     )
-
-
-def test_diff_export_keeps_native_soft_wrap_without_scripted_search(
-    browser, serve, tmp_path
-):
-    patch = (
-        "--- a/app.py\n+++ b/app.py\n@@ -1 +1 @@\n-old\n+" + "long_line " * 40 + "\n"
-    )
-    url = serve(
-        leaf_page(
-            "Diff export",
-            '<h1>Review</h1><lf-diff id="patch"><pre>' + patch + "</pre></lf-diff>",
-        )
-    )
-    live = open_page(browser, url)
-    expect(live.locator("#patch .lf-diff-search input")).to_be_visible()
-    out = tmp_path / "diff.html"
-    out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
-    copy = browser.new_page(
-        viewport={"width": 540, "height": 720}, java_script_enabled=False
-    )
-    copy.goto(out.as_uri(), wait_until="load")
-    expect(copy.locator(".lf-diff-search-label")).to_have_count(0)
-    switch = copy.get_by_role("checkbox", name="Soft wrap")
-    line = copy.locator("lf-diff [data-line]").last
-    expect(line).to_have_css("white-space", "pre")
-    switch.check()
-    expect(line).to_have_css("white-space", "pre-wrap")
-    switch.focus()
-    copy.keyboard.press("Space")
-    expect(line).to_have_css("white-space", "pre")
 
 
 def test_a_phone_can_wrap_diff_lines_by_tapping_the_label(iphone, serve):

@@ -160,8 +160,7 @@ export function reachScrollers(root) {
       )
         continue;
       // Not a textarea, which scrolls its own value and can hold nothing laid out inside
-      // it: the mark would claim containment of a box that contains nothing, in every
-      // page's rendered DOM and every exported copy. Written once, because the attribute
+      // it: the mark would claim containment of a box that contains nothing. Written once, because the attribute
       // is observed (design.js) and this runs on every panel reconcile.
       if (
         style.position === "static" &&

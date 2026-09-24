@@ -11,7 +11,7 @@
    On `<html>` rather than `<body>` because the body is what the page's observers watch —
    design mode relays every page mutation into a legend layout — and a counter that
    moves on every trip is not a page movement. The root carries no authored share that
-   activation would replace, and the bake drops the attribute from a copy.
+   activation would replace.
 
    `sends` and `acked` are posts to /api/event, counted as issued and as ended whichever
    way — answered, refused, or failed — so a retry is a second send. `asked` and `heard`

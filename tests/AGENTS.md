@@ -149,12 +149,9 @@ belongs here, where it is imported the way a page imports it.
 
 The authored-source render gate runs every public example, regression page, and
 developer gallery independently. The broad Axe baseline uses the feature gallery at
-both widths and color schemes. The exported corpus's 420px Axe pass reads the specialist
-package pages in their non-live form; focused tests read live chrome surfaces. Standalone
-export runs once on generated `examples/corpus.html`, revealing its outer tabs before
-inspecting the whole payload composition. File-to-browser anchor parity uses four unlike
-authored pages that contain file passages. A source gets its own case only when its
-content is the cause under test.
+both widths and color schemes; focused tests read live chrome surfaces. File-to-browser
+anchor parity uses four unlike authored pages that contain file passages. A source gets
+its own case only when its content is the cause under test.
 
 That comparison is the whole of what a test over prose can prove. An assertion
 that some sentence stands in a file a model reads fails only when somebody
@@ -348,12 +345,12 @@ Nothing should be injected into the page merely to make ordinary observation
 easier. Traffic is read off the delivery ledger the runtime itself paints on the root
 element (`data-lf-traffic`, `runtime/traffic.js`). Network conditions come from
 `page.route`. `watched` listens to the
-browser's error surfaces. `primed` lets a render or export call create its own
+browser's error surfaces. `primed` lets a render call create its own
 page while the test attaches those external controls before navigation.
 
 A page the product opens to read for itself is the product's: `render_version`
-collects that page's console and `pageerror` and reports them as findings. A gate or
-export test whose page is meant to be faulty therefore hands over `browser.unwatched`,
+collects that page's console and `pageerror` and reports them as findings. A gate
+test whose page is meant to be faulty therefore hands over `browser.unwatched`,
 rather than asserting the same errors twice — once against the gate's report and once
 against the suite's collector. A product call whose page should be clean takes the
 ordinary browser, where an unexpected error fails the test that caused it.

@@ -846,8 +846,8 @@ mechanism, or the two existing host hooks.
   application calls for users who never see a terminal, none of the loop applies; that is
   what CopilotKit and AG-UI are for.
 - **A page that has to outlive the session.** The server and the wait go down with it.
-  The page directory stays on disk and `version export` makes a standalone copy, but
-  nothing is live afterwards. A Claude Code artifact is hosted and outlives the session
+  The page directory stays on disk and `version export` writes a file that opens
+  offline, but no agent answers it afterwards. A Claude Code artifact is hosted and outlives the session
   that published it; a document a team will edit for months belongs in the repository.
 - **Editing the document yourself.** The user works the affordances the page offers —
   comment, drag a card, pick an option, rewrite a draft, accept a proposed change — and

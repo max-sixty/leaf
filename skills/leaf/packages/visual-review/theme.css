@@ -362,7 +362,7 @@ lf-visual-review {
 }
 
 @media screen {
-  html:not(.lf-copy) {
+  html:root {
     lf-visual-review[data-inspection-mode="compare"] .lf-vr-shot-host lf-shot,
     lf-visual-review[data-inspection-mode="overlay"] .lf-vr-shot-host lf-shot {
       display: grid;
@@ -583,42 +583,6 @@ lf-visual-review {
   .lf-vr-opacity-control {
     margin-top: 2px;
   }
-}
-
-html.lf-copy .lf-vr-dispositions,
-html.lf-copy .lf-vr-queue,
-html.lf-copy .lf-vr-inspector {
-  display: none !important;
-}
-
-html.lf-copy .lf-vr-case {
-  height: auto;
-}
-
-html.lf-copy .lf-vr-case[hidden] {
-  display: grid !important;
-}
-
-html.lf-copy .lf-vr-case + .lf-vr-case {
-  border-top: 1px solid var(--rule);
-}
-
-html.lf-copy .lf-vr-shot-host {
-  contain: none;
-  overflow: visible;
-}
-
-html.lf-copy .lf-vr-shot-host lf-shot {
-  width: min(100%, var(--lf-vr-capture-width, 100%));
-  max-width: 100%;
-}
-
-html.lf-copy .lf-vr-details > summary {
-  display: none;
-}
-
-html.lf-copy .lf-vr-details > .lf-vr-provenance {
-  display: grid;
 }
 
 @media print {

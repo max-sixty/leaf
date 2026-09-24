@@ -210,16 +210,16 @@ lf-ask:has(> :is(h1, h2, h3, h4, h5, h6):first-child:nth-last-child(2)) {
    * the workspace adds only the height, the window's below the banner and above the
    * bottom chrome, and the chain of held boxes starts at it. A workspace in a column
    * page, or beside other blocks, flows like any block. */
-  html:not(.lf-copy)
+  html:root
     body
     > main:is([data-width="wide"], [data-width="available"]):has(> lf-workspace):not(:has(> :not(lf-workspace, script, style, template, .lf-ui, [data-lf-gen]))) {
     padding-block: 0;
   }
-  html:not(.lf-copy)
+  html:root
     body
     > main:is([data-width="wide"], [data-width="available"]):has(> lf-workspace):not(:has(> :not(lf-workspace, script, style, template, .lf-ui, [data-lf-gen])))
     > lf-workspace,
-  html:not(.lf-copy)
+  html:root
     body
     > main
     > lf-tabs[data-lf-tabs-context="root"]
@@ -228,7 +228,7 @@ lf-ask:has(> :is(h1, h2, h3, h4, h5, h6):first-child:nth-last-child(2)) {
     container-type: size;
     --lf-held: 1;
   }
-  html:not(.lf-copy)
+  html:root
     body
     > main:is([data-width="wide"], [data-width="available"]):has(> lf-workspace):not(:has(> :not(lf-workspace, script, style, template, .lf-ui, [data-lf-gen])))
     > lf-workspace {
@@ -240,7 +240,7 @@ lf-ask:has(> :is(h1, h2, h3, h4, h5, h6):first-child:nth-last-child(2)) {
   }
   /* A root tab's workspace ends the page and stands under the sticky tab strip:
    * scrolled to its end, the page puts it between the strip and the bottom chrome. */
-  html:not(.lf-copy)
+  html:root
     body
     > main
     > lf-tabs[data-lf-tabs-context="root"]
@@ -249,12 +249,12 @@ lf-ask:has(> :is(h1, h2, h3, h4, h5, h6):first-child:nth-last-child(2)) {
     block-size: calc(100dvh - var(--lf-banner-h) - var(--lf-bottom-chrome-clear, 0px)
       - var(--lf-root-tab-clear, 0px));
   }
-  html:not(.lf-copy)
+  html:root
     body
     > main:has(> lf-tabs[data-lf-tabs-context="root"] > lf-tab[data-lf-root-reading] > lf-workspace:only-child) {
     padding-bottom: 0;
   }
-  html:not(.lf-copy)
+  html:root
     body
     > main
     > lf-tabs[data-lf-tabs-context="root"]:has(> lf-tab[data-lf-root-reading] > lf-workspace:only-child) {
@@ -272,22 +272,22 @@ lf-ask:has(> :is(h1, h2, h3, h4, h5, h6):first-child:nth-last-child(2)) {
    * on. */
   @container lf-workspace (min-width: 720px) and (min-height: 480px) {
     @container style(--lf-held: 1) {
-      html:not(.lf-copy) * {
+      html:root * {
         --lf-track-min: 0px;
       }
-      html:not(.lf-copy) :not(lf-workspace) > * {
+      html:root :not(lf-workspace) > * {
         min-height: 0;
       }
-      html:not(.lf-copy) :is(lf-pane, [data-lf-reading-role="pane"]) > :not(header, footer) {
+      html:root :is(lf-pane, [data-lf-reading-role="pane"]) > :not(header, footer) {
         overflow: auto;
         overscroll-behavior: contain;
         scrollbar-gutter: stable;
       }
-      html:not(.lf-copy) :is(lf-grid, [data-lf-reading-role="grid"]) {
+      html:root :is(lf-grid, [data-lf-reading-role="grid"]) {
         align-items: stretch;
         grid-auto-rows: minmax(0, 1fr);
       }
-      html:not(.lf-copy)
+      html:root
         lf-ask:has(> :is(h1, h2, h3, h4, h5, h6):first-child:nth-last-child(2)) {
         display: grid;
         grid-template-rows: auto minmax(0, 1fr);
@@ -305,7 +305,7 @@ lf-ask:has(> :is(h1, h2, h3, h4, h5, h6):first-child:nth-last-child(2)) {
    * none. */
   @container lf-workspace not ((min-width: 720px) and (min-height: 480px)) {
     @container style(--lf-held: 1) {
-      html:not(.lf-copy) lf-workspace::after {
+      html:root lf-workspace::after {
         content: "";
         grid-row: 4;
         block-size: var(--lf-bottom-chrome-clear, 0px);
@@ -314,7 +314,7 @@ lf-ask:has(> :is(h1, h2, h3, h4, h5, h6):first-child:nth-last-child(2)) {
   }
   @container lf-workspace (min-width: 720px) and (min-height: 480px) {
     @container style(--lf-held: 1) {
-      html:not(.lf-copy) lf-workspace > :not(header, footer) {
+      html:root lf-workspace > :not(header, footer) {
         padding-block-end: calc(var(--lf-bottom-chrome-clear, 0px)
           * (1 - var(--lf-passes-hold)));
       }
@@ -322,30 +322,18 @@ lf-ask:has(> :is(h1, h2, h3, h4, h5, h6):first-child:nth-last-child(2)) {
   }
 }
 
-/* A copy of a root tab set is the whole set at the page's width. A copy of a workspace
- * is its sheet's, which the sheet's own rule already draws. */
-html.lf-copy body > main:has(> lf-tabs[data-lf-tabs-context="root"]) {
-  box-sizing: border-box;
-  width: 100cqi;
-  max-width: none;
-  margin: 0;
-  padding: 72px var(--col-pad) 96px;
-  left: 0;
-}
-
 /* lf-gloss: the prose stays prose, and its underline is the whole visible
  * affordance. The words keep the page's ink while the underline uses the accent —
  * this phrase goes nowhere — and the top-layer card uses the page's ordinary paper,
- * ink, and rule rather than inventing a tooltip palette. Static copies and paper put
- * the explanation after the phrase, where they can honour its words. */
+ * ink, and rule rather than inventing a tooltip palette. Paper puts the explanation
+ * after the phrase, where it can honour its words. */
 lf-gloss { display: inline; }
 /* The no-script rendering of x-says. Once the runtime writes the selectable span, that
- * span takes over; a static exported copy keeps the span and gives it the same inline
- * fallback below. */
+ * span takes over. */
 lf-gloss[tip]::after { content: " (" attr(tip) ")"; color: var(--muted); }
 lf-gloss:has(> [data-lf-said="tip"])::after { content: none; }
 @media screen {
-  html:not(.lf-copy) lf-gloss {
+  html:root lf-gloss {
     text-decoration-line: underline;
     text-decoration-color: var(--accent);
     text-decoration-thickness: 1px;
@@ -375,13 +363,6 @@ lf-gloss:has(> .lf-gloss-mark:is(:focus-visible, .lf-focus-visible)) {
   overflow-wrap: anywhere;
 }
 .lf-gloss-popover::backdrop { background: transparent; }
-html.lf-copy lf-gloss > .lf-gloss-popover {
-  display: inline; position: static; width: auto; max-width: none;
-  margin: 0; padding: 0; border: 0; background: none; color: var(--muted);
-  box-shadow: none; font: inherit;
-}
-html.lf-copy lf-gloss > .lf-gloss-popover::before { content: " ("; }
-html.lf-copy lf-gloss > .lf-gloss-popover::after { content: ")"; }
 @media print {
   lf-gloss > .lf-gloss-popover {
     display: inline; position: static; width: auto; max-width: none;
@@ -473,9 +454,9 @@ lf-chip, .lf-chips span {
  * and no width to reserve: they wrap along the band like the words they are. */
 /* Whether a group stands as one control is a second axis, across the form it takes: the
  * cards and the rows alike become cells when the group is joined, and both come apart
- * again under `settled`, in an exhibit, in a copy and on paper. The axis is declared here
- * and read by style queries, because half of what decides it — the medium, and the copy's
- * class on the root — cannot be written into a `:not()` at all. Undeclared, the dressing
+ * again under `settled`, in an exhibit and on paper. The axis is declared here
+ * and read by style queries, because half of what decides it — the medium — cannot be
+ * written into a `:not()` at all. Undeclared, the dressing
  * an option wears standing alone arrived on every option and was undone cell by cell, and
  * the undoing was a race the joined block won on class columns: one attribute selector in
  * the card's hover turned it, and a status lost its stripe and grew a ring the group's
@@ -652,12 +633,9 @@ lf-compare:has(> lf-variant > :not(a, abbr, area, audio, b, bdi, bdo, br, button
                          border-color: var(--ok); }
 }
 /* The pick is the group's own gesture rather than a press on any one thing — a click
- * lands anywhere in the option — so nothing here wears the role `version export` strips
- * from a control, and the medium is what has to say it. `choose` is the author's word and
- * stands in every copy of the page; what does not stand is a handler to answer it, so a
- * copy that kept the hand and the lift invited a click on twenty cards and answered none
- * of them. Live pages only, which is where these are true, and the joined shape below is
- * withheld in exactly the same breath for exactly the same reason.
+ * lands anywhere in the option — so the medium is what has to say it: on screen, where a
+ * handler can answer, and the joined shape below is withheld from paper in exactly the
+ * same breath for exactly the same reason.
  *
  * Every option lifts on hover, the pick included — clicking it clears it, so it has to
  * keep looking clickable. The chosen border remains while the card lifts. The joined
@@ -705,17 +683,15 @@ lf-compare:has(> lf-variant > :not(a, abbr, area, audio, b, bdi, bdo, br, button
  * What the tag bought that the marker does not is the page that never runs the runtime,
  * where nothing paints the mark and a quoted group would keep the whole offer. No shipped
  * page is that page. No shipped authored page does: each reaches the runtime through
- * its Leaf scaffold. A copy and paper are already out by the guards above. */
+ * its Leaf scaffold. Paper is already out by the guards above. */
 @media screen {
- :where(html:not(.lf-copy)) {
-  lf-options[choose]:not(:where([data-lf-exhibit]) *) > lf-option { cursor: pointer;
-                         transition: box-shadow .12s ease, transform .12s ease; }
-  @container style(--lf-joined: 0) {
-    lf-options[choose]:not(:where([data-lf-exhibit]) *):has(> lf-option > strong)
-                         > lf-option:hover {
-                           transform: translateY(-1px);
-                           --lf-lift: 0 3px 10px var(--shade); }
-  }
+ lf-options[choose]:not(:where([data-lf-exhibit]) *) > lf-option { cursor: pointer;
+                        transition: box-shadow .12s ease, transform .12s ease; }
+ @container style(--lf-joined: 0) {
+   lf-options[choose]:not(:where([data-lf-exhibit]) *):has(> lf-option > strong)
+                        > lf-option:hover {
+                          transform: translateY(-1px);
+                          --lf-lift: 0 3px 10px var(--shade); }
  }
 }
 /* The mark the upgrade injects is both the keyboard path and the state. Each form gives
@@ -738,7 +714,7 @@ lf-options:has(> lf-option > strong) > lf-option[chosen] { padding-bottom: 32px;
 lf-options:has(> lf-option > strong) > lf-option > .lf-pick {
                      position: absolute; left: var(--sp-3); bottom: 9px; }
 @media screen {
- html:not(.lf-copy)
+ html:root
  lf-options[choose]:not(:where([data-lf-exhibit]) *):has(> lf-option > strong) {
    --lf-card-state-room: 80px;
    & > :is(lf-option, .lf-another) { padding-inline-start: var(--sp-3); }
@@ -827,9 +803,8 @@ lf-option .lf-pick::before { content: ""; width: 11px; height: 11px; flex: none;
 lf-options:not([multiple]) > lf-option > .lf-pick::before { border-radius: 50%; }
 lf-options[multiple] > lf-option > .lf-pick::before { border-radius: 3px; }
 /* Keyed on the selection role rather than on the class, because only one of the mark's
- * two shapes is a control — and the same attribute answers for the medium, `version
- * export` taking it off a control whose handler has gone. So this needs no guard of its
- * own: the hand is on the mark exactly while the mark can take a selection. */
+ * two shapes is a control: the hand is on the mark exactly while the mark can take a
+ * selection. */
 lf-option .lf-pick[role="checkbox"] { cursor: pointer; }
 /* An offer says nothing on screen, so its word is not drawn. "Choose one" or "choose any"
  * remains the mark's accessible name because shape reaches no screen reader. A picked
@@ -845,11 +820,9 @@ lf-option .lf-pick:not([data-lf-said]) { font-size: 0; gap: 0; }
  * mark the next toggle will take. Guarded with the group's other answers to the pointer, and free of
  * specificity for the same reason they are. */
 @media screen {
- :where(html:not(.lf-copy)) {
-  lf-options[choose]:not(:where([data-lf-exhibit]) *) > lf-option:not([chosen]):is(:hover,
-                     :has(> .lf-pick:is(:focus-visible, .lf-focus-visible))) > .lf-pick::before {
-                     border-color: var(--ink-2); }
- }
+ lf-options[choose]:not(:where([data-lf-exhibit]) *) > lf-option:not([chosen]):is(:hover,
+                    :has(> .lf-pick:is(:focus-visible, .lf-focus-visible))) > .lf-pick::before {
+                    border-color: var(--ink-2); }
 }
 /* Child combinators, for the same reason the corner rules reach only the options the
  * group owns: a question nests inside another question's option, and a descendant rule
@@ -857,13 +830,10 @@ lf-option .lf-pick:not([data-lf-said]) { font-size: 0; gap: 0; }
 lf-option[chosen] > .lf-pick { color: var(--ok-ink); }
 lf-option[chosen] > .lf-pick::before { content: "✓"; border-color: var(--ok);
                      background: var(--ok); }
-/* A standalone copy and paper have no live mark, but authored selection is still part
- * of the document. Keep the same compact check without reviving a dead control or its
- * former status caption. */
+/* Paper has no live mark, but authored selection is still part of the document. Keep
+ * the same compact check without reviving a dead control or its former status caption. */
 @media print { lf-option[chosen]::after { content: "✓"; color: var(--ok-ink);
                                         font-family: var(--sans); font-weight: 700; } }
-html.lf-copy lf-option[chosen]::after { content: "✓"; color: var(--ok-ink);
-                                       font-family: var(--sans); font-weight: 700; }
 lf-option .lf-pick:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: options-pick;
                      outline-offset: var(--here-ring-gap); border-radius: 4px; }
 /* The Ask's action keys, worn on the option cells they bind. The gutter reads status,
@@ -910,9 +880,8 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge { position: absolute; z-
  * form, the offer has to be visible before the pointer is committed, and that is the same
  * fact this rule was written for.
  *
- * The live page only, which is the same reason twice. On paper nothing can be picked, and
- * an exported copy has had its scripts dropped, so a group drawn as a control in either
- * would be offering what the medium cannot take. Both get the page without the offer by
+ * Screen only. On paper nothing can be picked, so a group drawn as a control there
+ * would be offering what the medium cannot take. Paper gets the page without the offer by
  * never being handed it rather than by undoing it — the bargain the user's own cell already
  * makes — so the cards come apart again and wear the rings they print. Not `settled`
  * either, for the same reason in a different medium: a retired decision is a line the
@@ -940,15 +909,13 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge { position: absolute; z-
  * cards behind its disclosure. Room above and below is the frame's, so only the joined
  * control asks for it. */
 @media screen {
- :where(html:not(.lf-copy)) {
-  :where(lf-options[choose]:not(:where([data-lf-exhibit]) *)) > * {
-                     padding-inline-start: var(--lf-key-badge-col); }
-  :where(lf-options[choose]:not([settled]):not(:where([data-lf-exhibit]) *)) > * {
-                     padding-block: var(--sp-2); padding-inline-end: var(--sp-3); }
- }
+ :where(lf-options[choose]:not(:where([data-lf-exhibit]) *)) > * {
+                    padding-inline-start: var(--lf-key-badge-col); }
+ :where(lf-options[choose]:not([settled]):not(:where([data-lf-exhibit]) *)) > * {
+                    padding-block: var(--sp-2); padding-inline-end: var(--sp-3); }
 }
 @media screen {
- html:not(.lf-copy) {
+ html:root {
   lf-options[choose]:not([settled]):not(:where([data-lf-exhibit]) *) {
     display: grid; background: var(--card);
     border: 1px solid var(--border-2); border-radius: var(--r); overflow: hidden;
@@ -1094,7 +1061,7 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge { position: absolute; z-
    * column with the badge. The final 6px keeps the badge off the prose. This room is held
    * before the key badge appears, so focusing an option moves nothing.
    *
-   * Live pages only: copies and paper receive no key badge. The column is named
+   * Screen only: paper receives no key badge. The column is named
    * because options and generated cells all begin on it. */
   lf-options[choose]:not(:where([data-lf-exhibit]) *) {
                      --lf-key-badge-start: var(--sp-2);
@@ -1103,7 +1070,6 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge { position: absolute; z-
                      padding-inline-start: var(--lf-key-badge-col); }
  }
 }
-html.lf-copy lf-options > :is(.lf-another, lf-options-done) { display: none; }
 @media print {
   lf-options > :is(.lf-another, lf-options-done) { display: none; }
 }
@@ -1197,17 +1163,13 @@ lf-options:not(:has(> lf-option > strong)) > .lf-another {
 }
 /* The wash is this form's whole answer to the pointer, where a card has a lift — so it
  * goes where the lift goes, behind the live-page guard and free of specificity for the
- * reasons stated there. It is also the only thing that ever draws a row's own box, so a
- * copy of a question was a list of bare labels with nothing to say it took an answer,
- * every one of which lit under a pointer that could not give one. */
+ * reasons stated there. It is also the only thing that ever draws a row's own box. */
 @media screen {
- :where(html:not(.lf-copy)) {
-  @container style(--lf-joined: 0) {
-    lf-options[choose]:not(:where([data-lf-exhibit]) *):not(:has(> lf-option > strong))
-                     > lf-option:hover { background: var(--chip); }
-    lf-options[choose]:not(:where([data-lf-exhibit]) *):not(:has(> lf-option > strong))
-                     > lf-option[chosen]:hover { background: var(--ok-tint); }
-  }
+ @container style(--lf-joined: 0) {
+   lf-options[choose]:not(:where([data-lf-exhibit]) *):not(:has(> lf-option > strong))
+                    > lf-option:hover { background: var(--chip); }
+   lf-options[choose]:not(:where([data-lf-exhibit]) *):not(:has(> lf-option > strong))
+                    > lf-option[chosen]:hover { background: var(--ok-tint); }
  }
 }
 /* The apparatus takes a cell each and claims none of the row's free width, so what is
@@ -1304,7 +1266,7 @@ lf-options[settled] > .lf-settled:is(:focus-visible, .lf-focus-visible) { outlin
  * handed it, rather than by undoing a hide. A page left holding the row elsewhere
  * would state a decision and offer no way to the options it was made among. */
 @media screen {
-  html:not(.lf-copy) {
+  html:root {
     lf-options[settled] > .lf-settled { display: flex; }
     /* until-found keeps the card's own box in flow, and a card is bordered,
      * padded, and (stacked) margined — zero it all, or the collapse leaves a
@@ -1320,8 +1282,8 @@ lf-options[settled] > .lf-settled:is(:focus-visible, .lf-focus-visible) { outlin
     lf-options[settled] > lf-option[hidden]:not([hidden="until-found"]) { display: none; }
   }
 }
-/* Paper cannot edit the document the way `version export` does, so collapsed cards keep
- * their hidden attribute and the content-visibility it carries is undone here. */
+/* Paper cannot edit the document, so collapsed cards keep their hidden attribute and the
+ * content-visibility it carries is undone here. */
 @media print {
   lf-options[settled] > lf-option { content-visibility: visible !important; }
 }
@@ -1492,7 +1454,7 @@ lf-column { display: block; background: var(--field); box-sizing: border-box;
    it is the list's accessible name as well as its visible words and the pass
    knows nothing about names. Where the upgrade ran, the column carries those
    words as its name and the span is aria-hidden, so they reach the tree once;
-   where no script runs at all there is no name either, and the generated copy
+   where no script runs at all there is no name either, and the generated text
    is the whole rendering, audible as well as visible. */
 lf-column::before,
 lf-column > [data-lf-said="label"] { display: block; font-size: var(--t-working-label);
@@ -1527,14 +1489,12 @@ lf-card { display: block; position: relative; background: var(--card);
    own grip's box and states the room (--lf-grip-room, lf-board.js), the same answer the
    pick column already is, so the ladder moving or a platform substituting a different
    glyph re-measures itself. The number this replaces was 34px read out of a browser
-   once — and stated unconditionally, so paper, exported copies and quoted boards, none
-   of which ever grow a grip, all carried a dead column beside every card. No module, no
-   var, no room; the copy keeps the var in the serialized style attribute, which is why
-   the rule asks the medium too. */
+   once — and stated unconditionally, so paper and quoted boards, neither of which ever
+   grows a grip, carried a dead column beside every card. No module, no var, no room;
+   paper keeps the var in the style attribute, which is why the rule asks the medium
+   too. */
 @media screen {
- :where(html:not(.lf-copy)) {
-  lf-card { padding-right: calc(var(--lf-card-inset) + var(--lf-grip-room, 0px)); }
- }
+ lf-card { padding-right: calc(var(--lf-card-inset) + var(--lf-grip-room, 0px)); }
 }
 lf-card:last-child { margin-bottom: 0; }
 lf-card > strong { display: block; font-weight: 600; line-height: 1.4; margin: 0 0 2px; }
@@ -1609,7 +1569,7 @@ lf-tabs.lf-rendered > lf-tab { margin-top: 14px; }
  * A control whose state the browser owns needs no such block and has none;
  * that is the whole difference between this widget and lf-shot's checkbox. */
 @media screen {
-  html:not(.lf-copy) {
+  html:root {
     /* :where keeps the frame face below the generic edge trim's specificity. */
     :where(lf-tabs.lf-rendered) { margin: var(--sp-4) 0 32px;
       border: 1px solid var(--border-2); border-radius: var(--r);
@@ -1726,8 +1686,8 @@ lf-tabs.lf-rendered > lf-tab { margin-top: 14px; }
     );
   }
 }
-/* Paper cannot edit the document the way `version export` does, so inactive panels keep
- * their hidden attribute and the content-visibility it carries is undone here. */
+/* Paper cannot edit the document, so inactive panels keep their hidden attribute and the
+ * content-visibility it carries is undone here. */
 @media print {
   lf-tabs.lf-rendered > lf-tab { content-visibility: visible !important; }
 }
@@ -1735,9 +1695,9 @@ lf-tabs.lf-rendered > lf-tab { margin-top: 14px; }
 /* lf-shot: Web Awesome owns the live draggable divider. The pair's natural-width
  * validation supplies an aspect ratio based on its taller image, so unequal heights
  * still reserve one fixed frame and move nothing below it. The rail's endpoint buttons
- * stay outside the component. Before the upgrade lands, and again after export unwinds
- * it, the frames are direct children of the host and the transparent native checkbox
- * covers them — one fallback for loading, controls-off, and a script-free copy alike.
+ * stay outside the component. Before the upgrade lands, the frames are direct children
+ * of the host and the transparent native checkbox covers them — one fallback for loading
+ * and controls-off alike.
  * Print stacks both frames. */
 lf-shot { display: block; margin: 16px 0; }
 lf-shot:has(.lf-shotframe) { display: grid; }
@@ -1778,14 +1738,14 @@ lf-shot .lf-shotcap { display: flex; align-items: center; align-self: stretch;
     font-size: var(--t-6); font-weight: 650; text-transform: uppercase;
     letter-spacing: .04em; padding: 0 5px; margin: 0 -5px; color: var(--muted); }
 lf-shot .lf-shotcap[data-lf-state] { outline-offset: -2px; }
-:where(html:not(.lf-copy)) lf-shot .lf-shotcap:hover { background: var(--chip); }
+lf-shot .lf-shotcap:hover { background: var(--chip); }
 lf-shot .lf-shotcap[aria-pressed="true"] { color: var(--ink); background: var(--chip);
     box-shadow: inset 0 -2px var(--accent); }
 lf-shot .lf-shotcap[aria-pressed="false"] {
     color: var(--muted); box-shadow: none; }
 
-/* Before the progressive comparison arrives — and after export unwinds it — the image
-   is itself the native target. The one fallback covers loading, controls-off, and copy. */
+/* Before the progressive comparison arrives the image is itself the native target. The
+   one fallback covers loading and controls-off. */
 lf-shot > input.lf-shotflip { display: none; grid-area: 2 / 1; z-index: 2;
     align-self: stretch; justify-self: stretch; width: 100%; height: 100%;
     min-width: 0; min-height: 0; margin: 0; padding: 0; border: 0;
@@ -1855,12 +1815,11 @@ lf-shot:has(> input.lf-shotflip:is(:focus-visible, .lf-focus-visible)) {
  * weight and ink distinguish it within the same sans voice as the section labels. Their common inset then reads as one route rather than two typographic systems.
  * Depth changes only the labels' inset. Labels stop at two lines, so prose never
  * distorts the document-scale rows.
- * The open, paper, and copy forms retain the complete words.
+ * The open and paper forms retain the complete words.
  *
- * The one-pixel sibling target is what leaves native fragment navigation behind in a
- * standalone copy. Its negative end margin gives it no net height, while the real box
- * lets the shared arrival pass align a copied link precisely rather than stopping as
- * soon as a zero-height point enters the viewport. */
+ * The one-pixel sibling target has a negative end margin that gives it no net height,
+ * while the real box lets the shared arrival pass align a link precisely rather than
+ * stopping as soon as a zero-height point enters the viewport. */
 lf-toc { display: block; margin: var(--sp-4) 0 30px; }
 lf-toc:empty { display: none; }
 lf-toc .lf-toc-nav { position: relative; border-left: 1px solid var(--border-2);
@@ -2203,7 +2162,7 @@ lf-specimen[data-lf-specimen-live] > [data-lf-said="label"]::before { content: "
                     border: 1px solid var(--border-2); border-radius: var(--r);
                     background: var(--paper); }
 @media print {
-  .lf-specimen-controls, .lf-specimen-frame:not([data-lf-exported]) { display: none; }
+  .lf-specimen-controls, .lf-specimen-frame { display: none; }
 }
 /* A quoted choose group renders as one that never declared `choose`. That promise is
  * kept where each pressable look is granted, not undone here: every affordance rule in
@@ -2244,7 +2203,7 @@ lf-tree:not(.lf-rendered) > pre, lf-code:not(.lf-rendered) > pre, lf-draft > pre
  * one — it gives each series' marks a class and nothing else — so `color` on that class
  * paints the bars, the line and the dots of one series at once. What it buys is that the
  * drawing is painted by the same cascade as the page: a scheme flipped mid-read repaints
- * it, an export opens honestly for a user whose scheme is not the exporter's, and a
+ * it, and a
  * project overriding --series-N gets its own charts without touching a widget. A
  * diagram's CSS-variable palette has the same live behavior, but assigns semantic
  * surfaces rather than data series.
@@ -2456,7 +2415,7 @@ lf-draft { font-size: max(var(--entry-floor), 1em); }
            --lf-here-ring: none; }
 .lf-draft-history { display: none; }
 @media screen {
-  html:not(.lf-copy) {
+  html:root {
     /* The box is the door (lf-draft.js), so the box answers the pointer: the dashed
        edge it already wears to say "editable" sharpens under the aim, the way the
        layer's own pressables warm their ground. Not the ground here — the user is
@@ -2475,7 +2434,7 @@ lf-draft { font-size: max(var(--entry-floor), 1em); }
   }
 }
 @media (forced-colors: active) {
-  html:not(.lf-copy) lf-draft:has(.lf-draft-edit:focus-visible) {
+  html:root lf-draft:has(.lf-draft-edit:focus-visible) {
     outline: 2px solid Highlight; outline-offset: -5px; box-shadow: none;
   }
 }

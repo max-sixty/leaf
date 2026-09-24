@@ -11,10 +11,7 @@
  * Written once, because it is one claim about the page and two copies of it are two
  * things to keep level. Every probe that crosses a shadow boundary imports it rather
  * than restating it, for the same reason UNMARKABLE_ITEMS imports its two readings
- * from the runtime: what one probe walks and what another walks cannot come apart.
- *
- * `standalone.js` keeps a walk of its own, and has to: it is served import-free so a
- * BAKE'd copy can be probed from a file:// URL with no module graph behind it. */
+ * from the runtime: what one probe walks and what another walks cannot come apart. */
 export const openRoots = (root) => [
   root,
   ...[...root.querySelectorAll("*")]

@@ -2860,11 +2860,6 @@ def test_a_draft_explains_its_change_and_restores_history_as_an_edit(browser, se
     assert "before" in second_deleted and "deploying" in second_deleted
     assert "afterthebackup" in re.sub(r"\s+", "", second_inserted)
 
-    page.evaluate("document.documentElement.classList.add('lf-copy')")
-    expect(draft.locator(".lf-draft-history")).not_to_be_visible()
-    expect(draft.locator(".lf-draft-body")).to_be_visible()
-    page.evaluate("document.documentElement.classList.remove('lf-copy')")
-
     draft.get_by_role("button", name="Restore edit 1 · v1").focus()
     page.keyboard.press("Enter")
     round_trip(page)

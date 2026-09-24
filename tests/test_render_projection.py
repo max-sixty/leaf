@@ -1419,35 +1419,6 @@ def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
     ) == pytest.approx(350, abs=1)
     shot_host.evaluate("node => node.style.removeProperty('height')")
     expect(widget).to_have_attribute("data-compare-layout", "side")
-    page.locator("html").evaluate("node => node.classList.add('lf-copy')")
-
-    def read_copy_widths():
-        return widget.locator(".lf-vr-case lf-shot img").evaluate_all(
-            "images => images.map(image => image.getBoundingClientRect().width)"
-        )
-
-    copy_widths = read_copy_widths()
-    assert len(copy_widths) == 6
-    assert copy_widths[:4] == pytest.approx([388] * 4, abs=1)
-    host_widths = widget.locator(".lf-vr-case .lf-vr-shot-host").evaluate_all(
-        """nodes => nodes.map(node => {
-          const style = getComputedStyle(node);
-          return node.getBoundingClientRect().width
-            - parseFloat(style.borderLeftWidth) - parseFloat(style.borderRightWidth);
-        })"""
-    )
-    assert len(host_widths) == 3
-    assert min(copy_widths[4:]) > 1000
-    # The full-width capture uses the stage's content width, inside its frame's borders.
-    assert copy_widths[4:] == pytest.approx([host_widths[2] - 2] * 2, abs=1)
-    # The copy is the whole workspace at its sheet's width on the first frame and every
-    # later one: a user who copies a slower page gets the same evidence.
-    page.evaluate(ONE_FRAME)
-    assert read_copy_widths() == pytest.approx(copy_widths, abs=1)
-    assert widget.locator(".lf-vr-case lf-shot img").evaluate_all(
-        "images => images.every(image => getComputedStyle(image).transform === 'none')"
-    )
-    page.locator("html").evaluate("node => node.classList.remove('lf-copy')")
     widget.locator(".lf-vr-shot-host").evaluate_all(
         "nodes => nodes.forEach(node => node.style.setProperty('--lf-vr-capture-width', '300px'))"
     )

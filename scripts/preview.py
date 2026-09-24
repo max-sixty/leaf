@@ -6,8 +6,8 @@ runtime when serving from the layer `page init` vendors. Opening one
 from disk gets a dead page, because Chrome refuses ES modules from a file://
 origin — nothing upgrades, and a tabbed page renders as every tab at once. This
 script builds the directory the runtime expects, then watches the fixture and
-selected runtime until stopped. `--export` writes the browser-drawn result as one
-standalone HTML file instead.
+selected runtime until stopped. `--export` instead writes the page as one HTML file
+that opens offline and runs the same runtime with no server.
 
 The live result is a page, not a picture of one: it takes comments. They cross the
 real HTTP and event-log boundary and settle in the page's log, which is all a
@@ -189,7 +189,7 @@ def arguments() -> tuple[argparse.ArgumentParser, argparse.Namespace]:
     parser.add_argument(
         "--export",
         action="store_true",
-        help="write a standalone HTML file instead of serving the page",
+        help="write an offline HTML file instead of serving the page",
     )
     parser.add_argument("--_worker", action="store_true", help=argparse.SUPPRESS)
     parsed = parser.parse_args()

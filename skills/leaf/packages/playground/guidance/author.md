@@ -146,7 +146,7 @@ Before handoff, manually operate every custom gesture the page claims. Check tha
 candidates reach the same input state, the measurements update, the complete typed value
 map is still present, and the copied instruction can be acted on without the preview.
 Operate every control and preset, then reset, restore, copy, and submit. Check wide,
-narrow, and short viewports plus both the static and offline-interactive exports.
+narrow, and short viewports plus the exported file.
 
 ## Task-shaped recipes
 
@@ -189,6 +189,5 @@ without depending on display order. Verify a decision survives filter, reorder, 
 and reset before the final submission.
 
 Any real fixture the playground needs is captured at build time so reopening and export
-do not depend on a network fetch. Static export is the readable script-free record;
-interactive export retains local controls, gestures, derived output, reset, and copy but
-honestly disables submission because no agent or server is present.
+do not depend on a network fetch. The export keeps local controls, gestures, derived
+output, reset, and copy, and disables submission because no agent or server is present.

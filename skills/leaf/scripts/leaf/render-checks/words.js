@@ -141,7 +141,99 @@ export function paperWords() {
 // for, and words nobody can see are not drawn over anything, so [hidden] is held out here
 // the way the size check holds it out. The coin comes down the same side every time on a
 // group that has been opened and closed, which is where the test pins it.
-export { coveredWords } from "./standalone.js";
+export function coveredWords({
+  holdFloating = true,
+  holdHidden = true,
+  holdLabelLines = true,
+} = {}) {
+  const runs = [];
+  const outOfFlow = (style) =>
+    style.position === "absolute" || style.position === "fixed";
+  const floating = (el) => {
+    // The offer may be only one contribution inside a shared positioned host. Walk
+    // its actual ancestry rather than jumping from offer to offer, so the geometry
+    // owner can remain a generated container without making its children's words
+    // look like ordinary in-flow prose.
+    for (let ancestor = el.closest("[data-lf-offer]"); ancestor;) {
+      if (outOfFlow(getComputedStyle(ancestor))) return true;
+      ancestor = ancestor.parentElement;
+    }
+    return false;
+  };
+  // What a run paints, which is not the whole of its rect. A box that clips its overflow
+  // shows only the part inside it, so a name ellipsised in a narrow column reads as
+  // covering whatever stands beside it while the user sees the ellipsis and nothing
+  // else. Every content ancestor is intersected in, so the reading is the one the
+  // user is given. The document scrollport is the page's route to the rest of those
+  // words, not a content clip; stop before body just as the control reachability probe
+  // does. The walk below stays in the light DOM, so the climb does too.
+  const painted = (el, drawn) => {
+    let box = drawn;
+    for (
+      let ancestor = el;
+      ancestor && ancestor !== document.body && box;
+      ancestor = ancestor.parentElement
+    ) {
+      const style = getComputedStyle(ancestor);
+      if (style.overflowX !== "visible" || style.overflowY !== "visible") {
+        const bounds = ancestor.getBoundingClientRect();
+        const left = Math.max(box.left, bounds.left);
+        const right = Math.min(box.right, bounds.right);
+        const top = Math.max(box.top, bounds.top);
+        const bottom = Math.min(box.bottom, bounds.bottom);
+        box =
+          right > left && bottom > top
+            ? new DOMRect(left, top, right - left, bottom - top)
+            : null;
+      }
+      // An out-of-flow box is laid out against its containing block rather than against
+      // the ancestry, so a hidden overflow further out need not reach it at all. Stop
+      // climbing there and keep the rect whole: over-reporting a cover is this reading's
+      // safe direction, and missing one is the fault it was written for.
+      if (style.position === "absolute" || style.position === "fixed") break;
+    }
+    return box;
+  };
+  const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  for (let node = walk.nextNode(); node; node = walk.nextNode()) {
+    const el = node.parentElement;
+    if (
+      !node.data.trim() ||
+      el.closest(".lf-chrome, .lf-quiet") ||
+      (holdHidden && el.closest("[hidden]"))
+    )
+      continue;
+    if (!el.checkVisibility({ visibilityProperty: true, opacityProperty: true }))
+      continue;
+    if (holdFloating && floating(el)) continue;
+    const range = document.createRange();
+    range.selectNodeContents(node);
+    const label = el.closest("text");
+    for (const drawn of range.getClientRects()) {
+      const box = painted(el, drawn);
+      if (box && box.width > 1 && box.height > 1)
+        runs.push({ el, label, box, text: node.data.trim().slice(0, 40) });
+    }
+  }
+  const found = [];
+  for (let i = 0; i < runs.length; i++)
+    for (let j = i + 1; j < runs.length; j++) {
+      const a = runs[i];
+      const b = runs[j];
+      if (a.el === b.el || a.el.contains(b.el) || b.el.contains(a.el)) continue;
+      if (holdLabelLines && a.label && a.label === b.label) continue;
+      const across =
+        Math.min(a.box.right, b.box.right) - Math.max(a.box.left, b.box.left);
+      const down =
+        Math.min(a.box.bottom, b.box.bottom) - Math.max(a.box.top, b.box.top);
+      if (across <= 2 || down <= 2) continue;
+      found.push(
+        `${at(a.el)} draws ${JSON.stringify(a.text)} in the same place as ` +
+          `${at(b.el)}'s ${JSON.stringify(b.text)}`,
+      );
+    }
+  return [...new Set(found)];
+}
 
 // Room on paper that prints nothing. `visibility: hidden` is how a live page holds a box
 // open for something that has not arrived yet — the card behind the one being swiped, a

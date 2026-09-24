@@ -31,8 +31,7 @@
 // resolved on `main`, which is the named `lf-content-frame` style container a margin
 // resident asks for them; `--lf-bottom-chrome-clear`
 // carries the bottom chrome's band to whatever has to end above it; `--lf-claim-right` is the
-// project-layer extension claim. A script-free copy therefore answers the same layout
-// from its own viewport without exporting session geometry.
+// project-layer extension claim.
 
 // Application composition supplies feature-local geometry. This owner cannot open
 // auxiliary surfaces, send commands, or reconcile conversation DOM.

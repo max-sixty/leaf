@@ -18,7 +18,6 @@ from leaf import cli as cli_model
 from leaf import data as data_model
 from leaf import delivery as delivery_model
 from leaf import event_log as events_model
-from leaf import exporting as exporting_model
 from leaf import files as files_model
 from leaf import hosting as hosting_model
 from leaf import render_checks as render_checks_model
@@ -4078,37 +4077,10 @@ customElements.define('lf-derived', class extends HTMLElement {
     expect(page.locator(".lf-thread .lf-anchor-status")).to_have_count(0)
 
 
-def test_an_export_carries_runtime_data_as_a_labelled_snapshot(
-    browser, serve, tmp_path
-):
-    """Export cannot refresh data after its scripts leave, so it preserves the rendered
-    snapshot and the projection/key labels that say what kind of words these are. Dropping
-    the generated rows would make the file incomplete; keeping the widget module would
-    make it pretend the dead snapshot was still live.
-    """
-    url = data_projection_page(serve)
-    out = tmp_path / "data-copy.html"
-    out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
-
-    page = browser.new_page()
-    watched(page)
-    page.goto(out.as_uri(), wait_until="load")
-    rows = page.locator('#deployments > [data-lf-projection="deployments"]')
-    expect(rows).to_have_count(2)
-    assert rows.evaluate_all(
-        "els => els.map(el => [el.dataset.lfDatum, el.textContent])"
-    ) == [["api", "Ready"], ["worker", "Ready"]]
-    assert page.locator("script").count() == 0, (
-        "the snapshot still claims it can refresh"
-    )
-
-
-def test_a_captured_source_stays_pointable_and_pinned_in_an_export(
-    browser, serve, tmp_path
-):
+def test_a_captured_source_stays_pointable_and_pinned(browser, serve):
     """A captured file reads under its authored label and follows its source. A
     revision that binds a source id nothing rewrites keeps the reviewed words through
-    later writes to the first source, and an export carries that pinned provenance."""
+    later writes to the first source."""
     long_label = "a-very-long-unbroken-source-label-" * 8 + "SKILL.md"
     source_page = leaf_page(
         "captured source",
@@ -4204,23 +4176,6 @@ def test_a_captured_source_stays_pointable_and_pinned_in_an_export(
     expect(page.locator("lf-text-document code")).to_have_text(
         "# Leaf\n\nOriginal instructions.\n"
     )
-
-    out = tmp_path / "source-copy.html"
-    out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
-    copy = browser.new_page()
-    watched(copy)
-    copy.goto(out.as_uri(), wait_until="load")
-    assert copy.locator('[data-lf-datum="document"]').evaluate(
-        "node => JSON.parse(node.dataset.lfOrigin)"
-    ) == {
-        **origin,
-        "source": "leaf-skill-reviewed",
-        "revision": source_revision(serve.page_dir, "leaf-skill-reviewed"),
-    }
-    expect(copy.locator('[data-lf-datum="document"] code')).to_have_text(
-        "# Leaf\n\nOriginal instructions.\n"
-    )
-    assert copy.locator("script").count() == 0
 
 
 def test_an_older_data_response_cannot_replace_a_newer_reading(browser, serve):

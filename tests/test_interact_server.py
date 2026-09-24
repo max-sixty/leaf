@@ -1140,7 +1140,7 @@ def test_server_round_trip(server, page_dir):
                 "revision": 2,
                 "widget": "feeder-board",
                 "action": "move",
-                "detail": {"card": "card-baffle", "to": "col-doing", "index": 0},
+                "detail": {"card": "card-baffle", "to": "col-doing", "rank": "0i"},
             }
         ).encode(),
     )
@@ -1386,7 +1386,7 @@ def test_server_round_trip(server, page_dir):
             "kind": "report",
             "widget": "feeder-board",
             "action": "move",
-            "detail": {"card": "card-baffle", "to": "col-doing", "index": 0},
+            "detail": {"card": "card-baffle", "to": "col-doing", "rank": "0i"},
             "revision": 2,
         },
         # Message revisions are agent-authored too. The browser cannot turn the
@@ -2395,7 +2395,7 @@ def test_server_validates_an_action_against_its_version_and_widget(server, page_
                 "revision": 1,
                 "widget": "feeder-board",
                 "action": "move",
-                "detail": {"card": "card-baffle", "to": "col-doing", "index": 0},
+                "detail": {"card": "card-baffle", "to": "col-doing", "rank": "0i"},
             },
             "unknown action widget",
         ),
@@ -2405,7 +2405,7 @@ def test_server_validates_an_action_against_its_version_and_widget(server, page_
                 "revision": 2,
                 "widget": "flow",
                 "action": "move",
-                "detail": {"card": "card-baffle", "to": "col-doing", "index": 0},
+                "detail": {"card": "card-baffle", "to": "col-doing", "rank": "0i"},
             },
             "<lf-diagram> does not declare action verb",
         ),
@@ -2415,9 +2415,19 @@ def test_server_validates_an_action_against_its_version_and_widget(server, page_
                 "revision": 2,
                 "widget": "feeder-board",
                 "action": "move",
-                "detail": {"card": "card-baffle", "to": "col-doing", "index": -1},
+                "detail": {"card": "card-baffle", "to": "col-doing", "rank": 0},
             },
             "detail is invalid",
+        ),
+        (
+            {
+                "kind": "action",
+                "revision": 2,
+                "widget": "feeder-board",
+                "action": "move",
+                "detail": {"card": "card-baffle", "to": "col-doing", "rank": "10"},
+            },
+            "rank '10' is not a rank key",
         ),
     ]
     before = len(event_model.read_events(page_dir))
@@ -2434,7 +2444,7 @@ def test_server_validates_an_action_against_its_version_and_widget(server, page_
         "revision": 2,
         "widget": "feeder-board",
         "action": "move",
-        "detail": {"card": "card-baffle", "to": "col-doing", "index": 0},
+        "detail": {"card": "card-baffle", "to": "col-doing", "rank": "0i"},
     }
     assert fetch(f"{server}/api/event", data=json.dumps(valid).encode())[0] == 200
 
@@ -3113,7 +3123,7 @@ def test_server_preserves_the_active_vocabulary_when_candidate_registry_is_broke
                 "revision": 1,
                 "widget": "feeder-board",
                 "action": "move",
-                "detail": {"card": "card-baffle", "to": "col-doing", "index": 0},
+                "detail": {"card": "card-baffle", "to": "col-doing", "rank": "0i"},
             }
         ).encode(),
     )

@@ -750,7 +750,7 @@ def test_a_frozen_move_that_answers_no_ask_keeps_a_receipt_and_owes_nothing(
             "revision": 1,
             "widget": "feeder-board",
             "action": "move",
-            "detail": {"card": "card-baffle", "to": "col-doing", "index": 0},
+            "detail": {"card": "card-baffle", "to": "col-doing", "rank": "0i"},
         },
     )
 
@@ -815,7 +815,7 @@ def test_a_frozen_move_that_answers_no_ask_keeps_a_receipt_and_owes_nothing(
             "revision": 1,
             "widget": "feeder-board",
             "action": "move",
-            "detail": {"card": "card-heater", "to": "col-done", "index": 0},
+            "detail": {"card": "card-heater", "to": "col-done", "rank": "0i"},
         },
     )
     state, attention = reading()
@@ -4803,7 +4803,7 @@ def test_wait_prints_unacknowledged_input_without_receipt_or_pickup(page_dir, ca
             "revision": 1,
             "widget": "b",
             "action": "move",
-            "detail": {"card": "x", "to": "y", "index": 0},
+            "detail": {"card": "x", "to": "y", "rank": "0i"},
             "meaning": {
                 "document": "page",
                 "unit": "x",
@@ -11669,7 +11669,7 @@ def test_a_finished_deck_owes_every_card_the_user_sorted(page_dir):
     (page_dir / "index.html").write_text(DECK_PAGE)
     publish(page_dir)
 
-    def sort(card, index):
+    def sort(card, rank):
         return append_command(
             page_dir,
             {
@@ -11678,15 +11678,15 @@ def test_a_finished_deck_owes_every_card_the_user_sorted(page_dir):
                 "revision": 1,
                 "widget": "triage",
                 "action": "swipe",
-                "detail": {"card": card, "to": "keep", "index": index},
+                "detail": {"card": card, "to": "keep", "rank": rank},
             },
         )
 
-    sort("card-a", 0)
-    sort("card-b", 1)
+    sort("card-a", "i")
+    sort("card-b", "r")
     assert state_json(page_dir)["workflows"] == []
 
-    sort("card-c", 2)
+    sort("card-c", "w")
     owed_cards = sorted(item["coordinate"][1] for item in owed(state_json(page_dir)))
     assert owed_cards == ["card-a", "card-b", "card-c"]
 
@@ -11715,7 +11715,7 @@ def test_a_deck_in_a_thread_owes_nothing_until_it_is_finished(page_dir):
         },
     )
 
-    def sort(card, index):
+    def sort(card, rank):
         return append_command(
             page_dir,
             {
@@ -11724,16 +11724,16 @@ def test_a_deck_in_a_thread_owes_nothing_until_it_is_finished(page_dir):
                 "revision": 1,
                 "widget": "triage",
                 "action": "swipe",
-                "detail": {"card": card, "to": "keep", "index": index},
+                "detail": {"card": card, "to": "keep", "rank": rank},
             },
         )
 
-    sort("card-a", 0)
+    sort("card-a", "i")
     sorting = state_json(page_dir)
     assert sorting["workflows"] == []
     assert [ask["source"] for ask in sorting["asks"]] == ["triage"]
 
-    sort("card-b", 1)
+    sort("card-b", "r")
     finished = state_json(page_dir)
     assert finished["asks"] == []
     assert sorted(item["coordinate"][1] for item in owed(finished)) == [

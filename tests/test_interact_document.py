@@ -688,6 +688,42 @@ def construction_nodes(content):
     return nodes
 
 
+def test_undoing_one_cards_move_leaves_the_other_cards_order(page_dir):
+    """Card d goes to the top, card c right under it, then d's move is undone: c
+    keeps its place above a, since the move that put it there still stands. An index
+    re-read against the column d's undo left would put c under a."""
+    cards = [(c, "", c.upper()) for c in ("a", "b", "c", "d")]
+    (page_dir / "index.html").write_text(
+        PAGE.replace("</main>", _board(cards, []) + "</main>")
+    )
+    publish(page_dir)
+    moved = [
+        append_command(
+            page_dir,
+            {
+                "kind": "action",
+                "author": "user",
+                "revision": 1,
+                "widget": "b1",
+                "action": "move",
+                "detail": {"card": card, "to": "c-todo", "rank": rank},
+            },
+        )
+        # The ranks lf-board sends: d before a's "1", then c between d and a.
+        for card, rank in (("d", "0i"), ("c", "0r"))
+    ]
+
+    def order():
+        todo = construction_nodes(state_json(page_dir)["content"])["c-todo"]
+        return [n["attrs"]["id"] for n in todo["content"] if isinstance(n, dict)]
+
+    assert order() == ["d", "c", "a", "b"]
+    append_command(
+        page_dir, {"kind": "undo", "author": "user", "undoes": moved[0]["id"]}
+    )
+    assert order() == ["c", "a", "b", "d"]
+
+
 def test_page_inspection_preserves_exact_user_state_and_its_edit_routes(page_dir):
     markup = PAGE.replace(
         "</main>",
@@ -704,8 +740,8 @@ def test_page_inspection_preserves_exact_user_state_and_its_edit_routes(page_dir
         ("g1", "add", {"option": "o-user", "text": "Try a canary."}),
         ("g1", "choose", {"options": ["o-user"]}),
         ("summary", "edit", {"text": "  Ship after migration.\n\nKeep  two spaces.\n"}),
-        ("b1", "move", {"card": "card-y", "to": "c-done", "index": 0}),
-        ("b1", "move", {"card": "card-x", "to": "c-done", "index": 0}),
+        ("b1", "move", {"card": "card-y", "to": "c-done", "rank": "i"}),
+        ("b1", "move", {"card": "card-x", "to": "c-done", "rank": "9"}),
     ]
     for widget, action, detail in actions:
         append_command(
@@ -2441,7 +2477,7 @@ def test_a_standing_action_protects_its_fold_unit_until_undone(page_dir):
             "revision": files_model.latest_revision(page_dir),
             "widget": "b1",
             "action": "move",
-            "detail": {"card": "card-x", "to": "c-done", "index": 0},
+            "detail": {"card": "card-x", "to": "c-done", "rank": "0i"},
         },
     )
     write([])
@@ -2478,7 +2514,7 @@ def test_an_effective_report_protects_detail_ids_its_record_needs(page_dir):
             "revision": files_model.latest_revision(page_dir),
             "widget": "b1",
             "action": "move",
-            "detail": {"card": "card-x", "to": "c-done", "index": 0},
+            "detail": {"card": "card-x", "to": "c-done", "rank": "0i"},
         },
     )
 
@@ -2502,7 +2538,7 @@ def test_an_effective_report_protects_detail_ids_its_record_needs(page_dir):
             "revision": files_model.latest_revision(page_dir),
             "widget": "b1",
             "action": "move",
-            "detail": {"card": "card-x", "to": "c-todo", "index": 0},
+            "detail": {"card": "card-x", "to": "c-todo", "rank": "0i"},
         },
     )
     superseded = check(page_dir)
@@ -3089,7 +3125,7 @@ def test_the_gate_asks_about_the_card_that_was_moved_and_not_the_board(page_dir)
             "revision": 1,
             "widget": "b1",
             "action": "move",
-            "detail": {"card": "card-x", "to": "c-done", "index": 0},
+            "detail": {"card": "card-x", "to": "c-done", "rank": "0i"},
         },
     )
     assert check(page_dir).exit_code == 0
@@ -5159,7 +5195,7 @@ def test_page_inspection_places_cards_among_identified_siblings(page_dir):
             "revision": initial["active"]["revision"],
             "widget": "reading-board",
             "action": "move",
-            "detail": {"card": "reading-a", "to": "reading-done", "index": 0},
+            "detail": {"card": "reading-a", "to": "reading-done", "rank": "0i"},
         },
     )
     nodes = construction_nodes(state_json(page_dir)["content"])

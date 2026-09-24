@@ -293,7 +293,7 @@ def test_page_round_trip(browser, serve):
     assert {k: events[2][k] for k in ("widget", "action", "detail")} == {
         "widget": "board",
         "action": "move",
-        "detail": {"card": "card-x", "to": "col-done", "index": 0},
+        "detail": {"card": "card-x", "to": "col-done", "rank": "i"},
     }
     assert {k: events[3][k] for k in ("widget", "action", "detail")} == {
         "widget": "draft-ops",
@@ -512,7 +512,7 @@ def test_a_foreign_edit_waits_for_a_live_draft_and_replays_in_order(browser, ser
             "revision": 1,
             "widget": "board",
             "action": "move",
-            "detail": {"card": "card-x", "to": "col-done", "index": 0},
+            "detail": {"card": "card-x", "to": "col-done", "rank": "0i"},
         },
     )
 
@@ -2974,7 +2974,7 @@ def test_an_acknowledged_decision_still_survives_the_next_version(browser, serve
             "revision": 1,
             "widget": "board",
             "action": "move",
-            "detail": {"card": "card-x", "to": "col-done", "index": 0},
+            "detail": {"card": "card-x", "to": "col-done", "rank": "0i"},
         },
     )
     append_command(

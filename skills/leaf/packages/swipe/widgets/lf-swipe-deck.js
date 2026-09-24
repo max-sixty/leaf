@@ -24,6 +24,7 @@ import {
   offer,
   paintKeys,
   quoted,
+  rankAt,
   widgetController,
   worksInside,
 } from "/runtime/widget-api.js";
@@ -291,12 +292,13 @@ customElements.define(
       const focusWasCard = card === document.activeElement;
       this.#exit(card, direction);
       this.#restorePointer(false);
+      const end = this.#cards(destination).length;
       const detail = {
         card: card.id,
         to: destination.id,
-        index: this.#cards(destination).length,
+        rank: rankAt(this.#controller.read().state.swipe, destination.id, end, card.id),
       };
-      this.#place(card, destination, detail.index);
+      this.#place(card, destination, end);
       this.#render();
       layoutChanged(this);
 
@@ -507,7 +509,7 @@ export const interactionGalleryScenario = {
             [card.id]: {
               action: "swipe",
               value: keepPile.id,
-              detail: { card: card.id, to: keepPile.id, index: 0 },
+              detail: { card: card.id, to: keepPile.id, rank: "i" },
             },
           },
           value: Object.fromEntries(

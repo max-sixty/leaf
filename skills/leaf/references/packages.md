@@ -251,7 +251,11 @@ detail}`: `action` is null for authored state; `value` is the typed record value
 the verb's name for a recordless verb that stands (null means undecided); `detail`
 retains generated-child labels and other declared event data. A per-part verb's state
 contains `units`, keyed by unit id, and a position verb's also contains `value`, a map
-from container id to the complete ordered ids it holds. Missing recordless units are
+from container id to the complete ordered ids it holds, and `ranks`, each listed unit's
+rank. A position record carries a rank rather than an index, so a unit's placement
+stands whichever other moves stand: dispatch `rankAt(state.<verb>, container, index,
+unit)` from `runtime/widget-api.js` for a unit dropped at `index` among the container's
+other units. Missing recordless units are
 undecided. Render the final composition and keep independent
 nested widgets mounted; never recreate the owner to restore an initial state.
 The controller ignores the renderer's return value. A live editor or pointer/keyboard
@@ -554,13 +558,13 @@ declares one verb on `lf-swipe-deck` and the condition that answers its Ask, and
         "properties": {
           "card": { "type": "string" },
           "to": { "type": "string" },
-          "index": { "type": "integer", "minimum": 0 }
+          "rank": { "type": "string" }
         },
-        "required": ["card", "to", "index"],
+        "required": ["card", "to", "rank"],
         "additionalProperties": false
       },
       "unit": "card",
-      "record": { "kind": "position", "within": "lf-swipe-pile", "value": "to", "order": "index" }
+      "record": { "kind": "position", "within": "lf-swipe-pile", "value": "to", "rank": "rank" }
     }
   },
   "x-awaits": {

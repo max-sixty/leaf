@@ -105,6 +105,11 @@ class RevisionArtifact:
         return json.loads(self.resources["/registry.json"].data)
 
     @cached_property
+    def entries(self) -> list[str]:
+        """The captured resources the authored document names directly."""
+        return json.loads(self.manifest)["entries"]
+
+    @cached_property
     def implementations(self) -> dict:
         return json.loads(self.manifest)["implementations"]
 
@@ -718,41 +723,41 @@ def _read_artifact_stamped(
     return artifact
 
 
-def rewrite_module(data: bytes, logical_path: str, prefix: str) -> bytes:
-    """Bind authored literal imports to the same revision's HTTP resource prefix."""
-    for start, end, specifier in reversed(
-        list(_javascript_imports(data, logical_path))
-    ):
+def _authored_imports(data: bytes, logical_path: str):
+    for start, end, specifier in _javascript_imports(data, logical_path):
         target = resolve_dependency(specifier, logical_path, module=True)
         if target is not None:
-            data = data[:start] + _json(prefix.rstrip("/") + target) + data[end:]
+            yield start, end, target
+
+
+def rewrite_module(data: bytes, logical_path: str, prefix: str) -> bytes:
+    """Bind authored literal imports to the same revision's HTTP resource prefix."""
+    return bind_imports(data, _authored_imports(data, logical_path), prefix)
+
+
+def bind_imports(data: bytes, imports, prefix: str) -> bytes:
+    """Rewrite each ``(start, end, target)`` import span to ``prefix + target``."""
+    for start, end, target in sorted(imports, reverse=True):
+        data = data[:start] + _json(prefix.rstrip("/") + target) + data[end:]
     return data
 
 
-def rewrite_captured_module(
-    data: bytes,
-    logical_path: str,
-    prefix: str,
-    resources: Mapping[str, Resource],
-) -> bytes:
-    """Bind one trusted captured layer module to an offline resource namespace.
+def captured_imports(data: bytes, logical_path: str, resources: Mapping[str, Resource]):
+    """Yield each literal import of one captured module as its span and target.
 
-    Page modules continue through :func:`rewrite_module`, whose public-import boundary
-    is intentionally narrower. The vendored layer is already the captured trusted
-    graph; this pass only gives its literal imports addresses that remain usable from
-    ``data:`` modules. Its one computed door is widget loading, which the runtime binds
-    from the captured registry at execution time.
+    Page modules resolve through :func:`resolve_dependency`, whose public-import
+    boundary is intentionally narrower. The vendored layer is already the captured
+    trusted graph, so its imports need only be local and captured. A computed import,
+    such as widget loading from the captured registry, binds at execution time and is
+    not yielded.
     """
     if logical_path.startswith("/page/"):
-        return rewrite_module(data, logical_path, prefix)
-    for start, end, specifier in reversed(
-        list(
-            _javascript_imports(
-                data,
-                logical_path,
-                allow_computed_imports=True,
-            )
-        )
+        yield from _authored_imports(data, logical_path)
+        return
+    for start, end, specifier in _javascript_imports(
+        data,
+        logical_path,
+        allow_computed_imports=True,
     ):
         parsed = urlsplit(specifier)
         if (
@@ -776,5 +781,4 @@ def rewrite_captured_module(
             raise ArtifactError(
                 f"{logical_path}: {specifier!r}: captured layer import is missing"
             )
-        data = data[:start] + _json(prefix.rstrip("/") + target) + data[end:]
-    return data
+        yield start, end, target

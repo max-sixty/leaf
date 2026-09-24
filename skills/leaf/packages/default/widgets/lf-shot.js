@@ -331,8 +331,6 @@ customElements.define(
             subject: null,
             state: "idle",
             side: "before",
-            claim: true,
-            reserve: 0,
             notice: null,
             entries: [
               marginEntry({

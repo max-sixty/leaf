@@ -5111,38 +5111,21 @@ def test_a_mark_in_the_layer_promises_no_press_the_layer_will_not_take(browser, 
     ), "a press on a mark in the layer reached its thread after all"
 
 
-def test_a_control_in_a_reply_holds_its_room_and_leaves_the_page_s_rail_alone(
-    browser, serve
-):
-    """A change sent in a reply keeps the canonical circular control and states nothing
-    about the page's margin.
+def test_a_control_in_a_reply_holds_the_page_s_control_shape(browser, serve):
+    """A change sent in a reply keeps the canonical circular control.
 
-    A suggestion's controls and the document rail used to be measured together at
-    upgrade. A reply is upgraded inside a closed comment panel, where its box is zero:
-    that made its controls collapse and let a row outside the page's margin state the
-    page's rail. The fixed circular control no longer depends on that measurement, and
-    only an on-page contribution may claim rail space.
+    A reply is upgraded inside a closed comment panel, where its box is zero, and its
+    controls used to be measured there and collapse. The control's circle is fixed,
+    so it is the same shape in the reply as on the page.
 
-    The page's own change is the geometry reference and the author of that rail."""
+    The page's own change is the geometry reference."""
     reply_url = serve(REPLY_TRAVEL_PAGE)
     seed_reply(serve.page_dir, REPLY_CHANGE, "tv-msg-sug")
     page = open_page(browser, reply_url)
     resized(page, 1280, 900)
-
-    rail = "() => getComputedStyle(document.documentElement).getPropertyValue('--rail')"
-    assert page.evaluate(rail).strip() == "", (
-        "a row standing in the panel stated the page's rail; the page has no change "
-        "of its own and wants no margin for one"
-    )
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     focus_panel_thread(page.locator('.lf-thread[data-id="tv-decisioned"]'))
-    # Again now the row has a box: the guard's whole subject is a row that measures,
-    # and read only while the panel was shut this said nothing about it.
-    assert page.evaluate(rail).strip() == "", (
-        "a row standing in the panel stated the page's rail once it had a box of "
-        "its own to state it from"
-    )
     geometries = (
         "() => [...document.querySelectorAll("
         "'.lf-margin-entry[data-lf-margin-entry-owner^=\"suggestion:\"]')]"
@@ -5161,9 +5144,6 @@ def test_a_control_in_a_reply_holds_its_room_and_leaves_the_page_s_rail_alone(
     on_page = page.evaluate(geometries)
     assert in_reply == on_page, (
         f"the same control measures {in_reply} in a reply and {on_page} on the page"
-    )
-    assert page.evaluate(rail).strip(), (
-        "the page's own row states no rail, so the absence read above says nothing"
     )
 
 

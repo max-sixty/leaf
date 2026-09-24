@@ -3142,12 +3142,12 @@ def test_the_render_gate_tells_a_fixed_margin_resident_from_a_fixed_spill(
     moves beneath the pointer. The second differs only in its horizontal position and
     straddles the readable column, so exempting fixed boxes outright would make the gate
     blind to the same spill it catches in flow and in floats. Only the desktop viewport
-    leaves an outer gutter 204px wide, so neither synthetic resident stands narrower."""
+    leaves an outer gutter wider than the 174px the margin resident takes."""
     source = leaf_page(
         "fixed margin residents",
         """
 <style>
-#fixed-margin { position: fixed; top: 80px; left: 24px; width: 180px; }
+#fixed-margin { position: fixed; top: 80px; left: 24px; width: 150px; }
 #fixed-half { position: fixed; top: 500px; left: 180px; width: 180px; }
 @media (max-width: 1199px) {
   #fixed-margin, #fixed-half { display: none; }

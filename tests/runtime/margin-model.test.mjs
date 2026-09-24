@@ -254,27 +254,21 @@ test("long subjects stay visible and searchable while spoken controls stay conci
   }
 });
 
-test("placement counts claimed after controls while an unclaimed cluster keeps only readings", () => {
-  for (const claimed of [false, true]) {
-    const entry = inventory({
-      offers: [
-        offer("direct", [control("primary"), control("peer")], { claim: claimed }),
-        offer("after", [control("after-peer")], { side: "after", claim: false }),
-      ],
-      items: [marker("question", "ask")],
-    });
-    assert.equal(secondaryCount(entry, choosePrimary(entry)), 3);
-    assert.equal(
-      secondaryCount(entry, choosePrimary(entry), { claimedOnly: true }),
-      claimed ? 2 : 1,
-    );
-    assert.equal(entryHasMarginHost(entry), true);
-  }
+test("placement counts every secondary control beside the primary", () => {
   const entry = inventory({
+    offers: [
+      offer("direct", [control("primary"), control("peer")]),
+      offer("after", [control("after-peer")], { side: "after" }),
+    ],
+    items: [marker("question", "ask")],
+  });
+  assert.equal(secondaryCount(entry, choosePrimary(entry)), 3);
+  assert.equal(entryHasMarginHost(entry), true);
+  const after = inventory({
     offers: [offer("after", [control("peer")], { side: "after" })],
   });
-  assert.equal(choosePrimary(entry), null);
-  assert.equal(secondaryCount(entry, null, { claimedOnly: true }), 1);
+  assert.equal(choosePrimary(after), null);
+  assert.equal(secondaryCount(after, null), 1);
 });
 
 test("focused owner exposes only its controls and retains the six-seat budget", () => {

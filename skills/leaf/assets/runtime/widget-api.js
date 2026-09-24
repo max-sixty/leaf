@@ -17,7 +17,6 @@ export async function mountSpecimen(frame, options) {
 }
 
 export { USER_VIEW_RESTORE_CASES } from "./restore-state.js";
-export { arrangeReadingElement, defineReadingPaneElement } from "./reading-layout.js";
 export {
   addressableName,
   addressableSays,
@@ -85,12 +84,10 @@ export {
   compoundReadingRegionId,
   effectiveScroller,
   preserveReadingRegions,
-  readingAllocation,
   readingPosture,
   readingRegion,
   readingRegionFor,
   readingRegions,
-  registerReadingArrangement,
   registerReadingRegion,
   scrollerFor,
   shownRegionBounds,

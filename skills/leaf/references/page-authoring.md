@@ -108,10 +108,10 @@ check` advises against one.
 
 A workspace holds its regions in view together only as the page's, or a page tab's,
 sole content element, and elsewhere stays in document flow; the `lf-workspace` entry
-says where the title goes and which elements its body can be. Put prose in an
-`lf-pane`, and several named panes in one `lf-partition`. Let Leaf allocate the
-space: page-specific positioning should not be needed to keep a pane or footer
-reachable.
+says where the title goes and which elements its body can be, and the `lf-pane` entry
+what a pane holds. Place several panes with an `lf-grid`, such as `columns="1fr 2fr"`
+for a queue beside its detail. Let Leaf allocate the space: page-specific positioning
+should not be needed to keep a pane or footer reachable.
 
 Choose width separately from document or workspace form. Keep prose at a readable
 measure and let declared visual surfaces use the room their task needs. A wide comparison

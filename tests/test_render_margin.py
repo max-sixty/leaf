@@ -136,18 +136,22 @@ DUPLICATE_REGION_PAGE = leaf_page(
     "duplicate Page Map subjects",
     """
 <lf-workspace id="duplicate-map-workspace">
-  <lf-partition id="duplicate-map-split" direction="columns">
+  <lf-grid id="duplicate-map-split" columns="2">
     <lf-pane id="current-pane" label="Current">
-      <h2 id="current-deployment">Deployment</h2>
-      <p>The current release remains available to users.</p>
-      <h2 id="current-summary">Summary</h2>
-      <p>The current result has one unique subject.</p>
+      <div>
+        <h2 id="current-deployment">Deployment</h2>
+        <p>The current release remains available to users.</p>
+        <h2 id="current-summary">Summary</h2>
+        <p>The current result has one unique subject.</p>
+      </div>
     </lf-pane>
     <lf-pane id="proposed-pane" label="Proposed">
-      <h2 id="proposed-deployment">Deployment</h2>
-      <p>The proposed release remains available to users.</p>
+      <div>
+        <h2 id="proposed-deployment">Deployment</h2>
+        <p>The proposed release remains available to users.</p>
+      </div>
     </lf-pane>
-  </lf-partition>
+  </lf-grid>
 </lf-workspace>
 """,
 )

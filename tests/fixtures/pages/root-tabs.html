@@ -184,31 +184,43 @@
               <p class="eyebrow">migration workbench · eight cohorts</p>
               <h2>Prepare and inspect each cohort</h2>
             </header>
-            <lf-partition id="workbench-regions" direction="columns">
+            <lf-grid id="workbench-regions" columns="1fr 2fr">
               <lf-pane id="queue-pane" label="Cohort queue">
                 <header><h3>Cohort queue</h3></header>
-                <nav aria-label="Migration cohorts">
-                  <ul>
-                    <li><a href="#cohort-staff">Staff and test tenants</a> · ready</li>
-                    <li><a href="#cohort-na-free">North America free</a> · waiting</li>
-                    <li><a href="#cohort-na-paid">North America paid</a> · waiting</li>
-                    <li><a href="#cohort-eu-free">Europe free</a> · waiting</li>
-                    <li><a href="#cohort-eu-paid">Europe paid</a> · waiting</li>
-                    <li><a href="#cohort-apac-free">Asia Pacific free</a> · waiting</li>
-                    <li><a href="#cohort-apac-paid">Asia Pacific paid</a> · waiting</li>
-                    <li>
-                      <a href="#cohort-remaining">Remaining accounts</a> · waiting
-                    </li>
-                  </ul>
-                </nav>
-                <section id="queue-guidance">
-                  <h4>Queue order</h4>
-                  <p>
-                    Staff accounts lead. Regional free cohorts follow before paid
-                    cohorts, keeping the first customer group small while still covering
-                    every authentication method.
-                  </p>
-                </section>
+                <div>
+                  <nav aria-label="Migration cohorts">
+                    <ul>
+                      <li>
+                        <a href="#cohort-staff">Staff and test tenants</a> · ready
+                      </li>
+                      <li>
+                        <a href="#cohort-na-free">North America free</a> · waiting
+                      </li>
+                      <li>
+                        <a href="#cohort-na-paid">North America paid</a> · waiting
+                      </li>
+                      <li><a href="#cohort-eu-free">Europe free</a> · waiting</li>
+                      <li><a href="#cohort-eu-paid">Europe paid</a> · waiting</li>
+                      <li>
+                        <a href="#cohort-apac-free">Asia Pacific free</a> · waiting
+                      </li>
+                      <li>
+                        <a href="#cohort-apac-paid">Asia Pacific paid</a> · waiting
+                      </li>
+                      <li>
+                        <a href="#cohort-remaining">Remaining accounts</a> · waiting
+                      </li>
+                    </ul>
+                  </nav>
+                  <section id="queue-guidance">
+                    <h4>Queue order</h4>
+                    <p>
+                      Staff accounts lead. Regional free cohorts follow before paid
+                      cohorts, keeping the first customer group small while still
+                      covering every authentication method.
+                    </p>
+                  </section>
+                </div>
                 <footer>
                   <p><a href="#evidence-question">Review the observation window</a></p>
                 </footer>
@@ -216,82 +228,88 @@
 
               <lf-pane id="detail-pane" label="Cohort detail">
                 <header><h3>Selected cohort</h3></header>
-                <section id="cohort-staff">
-                  <h4>Staff and test tenants</h4>
-                  <dl class="facts">
-                    <dt>Accounts</dt>
-                    <dd>1,284</dd>
-                    <dt>Regions</dt>
-                    <dd>All</dd>
-                    <dt>Authentication</dt>
-                    <dd>Password, passkey, enterprise</dd>
-                    <dt>Owner</dt>
-                    <dd>Identity platform</dd>
-                  </dl>
-                  <p>
-                    This cohort covers every account shape while keeping the first move
-                    inside teams that can report a broken journey directly.
-                  </p>
-                  <h4>Before migration</h4>
-                  <ul>
-                    <li>Capture account and permission totals by region.</li>
-                    <li>Confirm the rollback writer is healthy.</li>
-                    <li>Notify support of the cohort start and observation window.</li>
-                    <li>Record the current sign-in and settings-save rates.</li>
-                  </ul>
-                  <h4>After migration</h4>
-                  <ul>
-                    <li>Compare copied account, tenant, and permission rows.</li>
-                    <li>Run password, passkey, and enterprise sign-in checks.</li>
-                    <li>Run the daily permissions sync against migrated accounts.</li>
-                    <li>Review migration-related support contacts.</li>
-                    <li>Record the advancement decision with its evidence.</li>
-                  </ul>
-                  <details id="cohort-staff-commands">
-                    <summary>Inspect the operator sequence</summary>
-                    <pre><code>capture --cohort staff
+                <div>
+                  <section id="cohort-staff">
+                    <h4>Staff and test tenants</h4>
+                    <dl class="facts">
+                      <dt>Accounts</dt>
+                      <dd>1,284</dd>
+                      <dt>Regions</dt>
+                      <dd>All</dd>
+                      <dt>Authentication</dt>
+                      <dd>Password, passkey, enterprise</dd>
+                      <dt>Owner</dt>
+                      <dd>Identity platform</dd>
+                    </dl>
+                    <p>
+                      This cohort covers every account shape while keeping the first
+                      move inside teams that can report a broken journey directly.
+                    </p>
+                    <h4>Before migration</h4>
+                    <ul>
+                      <li>Capture account and permission totals by region.</li>
+                      <li>Confirm the rollback writer is healthy.</li>
+                      <li>
+                        Notify support of the cohort start and observation window.
+                      </li>
+                      <li>Record the current sign-in and settings-save rates.</li>
+                    </ul>
+                    <h4>After migration</h4>
+                    <ul>
+                      <li>Compare copied account, tenant, and permission rows.</li>
+                      <li>Run password, passkey, and enterprise sign-in checks.</li>
+                      <li>Run the daily permissions sync against migrated accounts.</li>
+                      <li>Review migration-related support contacts.</li>
+                      <li>Record the advancement decision with its evidence.</li>
+                    </ul>
+                    <details id="cohort-staff-commands">
+                      <summary>Inspect the operator sequence</summary>
+                      <pre><code>capture --cohort staff
 copy --cohort staff
 compare --cohort staff
 switch-reads --cohort staff
 observe --cohort staff</code></pre>
-                  </details>
-                </section>
-                <section id="cohort-na-free">
-                  <h4>North America free</h4>
-                  <p>Begins after the staff cohort passes every advancement gate.</p>
-                </section>
-                <section id="cohort-na-paid">
-                  <h4>North America paid</h4>
-                  <p>Adds subscription and invoice settings to the comparison.</p>
-                </section>
-                <section id="cohort-eu-free">
-                  <h4>Europe free</h4>
-                  <p>Adds regional residency and consent settings.</p>
-                </section>
-                <section id="cohort-eu-paid">
-                  <h4>Europe paid</h4>
-                  <p>Adds regional tax and billing permissions.</p>
-                </section>
-                <section id="cohort-apac-free">
-                  <h4>Asia Pacific free</h4>
-                  <p>Adds the longest replication route in the release.</p>
-                </section>
-                <section id="cohort-apac-paid">
-                  <h4>Asia Pacific paid</h4>
-                  <p>Adds subscription records across the longest replication route.</p>
-                </section>
-                <section id="cohort-remaining">
-                  <h4>Remaining accounts</h4>
-                  <p>
-                    Completes the migration in four equal batches after every regional
-                    cohort passes.
-                  </p>
-                </section>
+                    </details>
+                  </section>
+                  <section id="cohort-na-free">
+                    <h4>North America free</h4>
+                    <p>Begins after the staff cohort passes every advancement gate.</p>
+                  </section>
+                  <section id="cohort-na-paid">
+                    <h4>North America paid</h4>
+                    <p>Adds subscription and invoice settings to the comparison.</p>
+                  </section>
+                  <section id="cohort-eu-free">
+                    <h4>Europe free</h4>
+                    <p>Adds regional residency and consent settings.</p>
+                  </section>
+                  <section id="cohort-eu-paid">
+                    <h4>Europe paid</h4>
+                    <p>Adds regional tax and billing permissions.</p>
+                  </section>
+                  <section id="cohort-apac-free">
+                    <h4>Asia Pacific free</h4>
+                    <p>Adds the longest replication route in the release.</p>
+                  </section>
+                  <section id="cohort-apac-paid">
+                    <h4>Asia Pacific paid</h4>
+                    <p>
+                      Adds subscription records across the longest replication route.
+                    </p>
+                  </section>
+                  <section id="cohort-remaining">
+                    <h4>Remaining accounts</h4>
+                    <p>
+                      Completes the migration in four equal batches after every regional
+                      cohort passes.
+                    </p>
+                  </section>
+                </div>
                 <footer>
                   <p><a href="#plan-return">Return to the rollout plan</a></p>
                 </footer>
               </lf-pane>
-            </lf-partition>
+            </lf-grid>
           </lf-workspace>
         </lf-tab>
       </lf-tabs>

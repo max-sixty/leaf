@@ -270,23 +270,17 @@ def test_the_captured_widget_digests_say_which_widgets_a_user_may_keep(page_dir)
     # it or, where they named nothing, by its tag and place among the others of that tag.
     # An unnamed widget is as much the user's as a named one; without a key it could
     # never answer that its markup was unchanged, so every revision rebuilt it.
-    assert set(base.widgets) == {"plan-choice-decision", "flow", "lf-options#0"}
+    assert set(base.widgets) == {"flow", "lf-options#0"}
 
     document = document.replace("The cutoff lives in", "The cutoff now lives in")
     reworded = activate()
     assert reworded.digest != base.digest, "the prose edit made no new revision"
     assert reworded.widgets == base.widgets
 
-    document = document.replace("Which plan should lead?", "Which plan leads?")
+    document = document.replace("Ship dark.", "Ship it dark.")
     rewritten = activate()
-    assert (
-        rewritten.widgets["plan-choice-decision"]
-        != base.widgets["plan-choice-decision"]
-    )
+    assert rewritten.widgets["lf-options#0"] != base.widgets["lf-options#0"]
     assert rewritten.widgets["flow"] == base.widgets["flow"]
-    # The unnamed group inside the rewritten question is its own widget, and the heading
-    # that changed is not inside it.
-    assert rewritten.widgets["lf-options#0"] == base.widgets["lf-options#0"]
 
 
 def test_a_page_whose_history_predates_the_digest_still_serves_it(page_dir):
@@ -1303,16 +1297,13 @@ def test_layout_grammar_follows_declared_roles_across_packages(page_dir):
     registry_path = page_dir / "registry.json"
     registry = json.loads(registry_path.read_text())
     registry["lf-deck"] = {
-        "description": "A project package's differently named partition.",
+        "description": "A project package's differently named grid.",
         "type": "object",
-        "properties": {
-            "id": {"type": "string"},
-            "direction": {"enum": ["rows", "columns"]},
-        },
-        "required": ["id", "direction"],
+        "properties": {"id": {"type": "string"}},
+        "required": ["id"],
         "additionalProperties": False,
         "x-content": "markup",
-        "x-reading-role": "partition",
+        "x-reading-role": "grid",
         "x-upgrade": False,
     }
     registry["lf-zone"] = {
@@ -1334,7 +1325,7 @@ def test_layout_grammar_follows_declared_roles_across_packages(page_dir):
         "<h2>Plan</h2>",
         """<lf-workspace id="review-space">
   <header><h2>Plan</h2></header>
-  <lf-deck id="regions" direction="columns">
+  <lf-deck id="regions">
     <lf-zone id="queue" label="Queue"><p>First</p></lf-zone>
     <lf-pane id="detail" label="Detail"><p>Second</p></lf-pane>
   </lf-deck>
@@ -1352,20 +1343,20 @@ def test_layout_grammar_rejects_invalid_slots_and_split_content(page_dir):
             "<h2>Plan</h2>",
             """<lf-workspace id="review-space">
   <p>Before the misplaced header.</p><header><h2>Plan</h2></header>
-  <lf-partition id="regions" direction="columns">
-    <lf-pane id="queue" label="Queue"><p>First</p></lf-pane>
+  <lf-grid id="regions">
+    <lf-pane id="queue" label="Queue"><p>First</p><p>Split</p></lf-pane>
     <lf-pane id="detail" label="Detail"><p>Second</p></lf-pane>
-    <p>Loose</p>
-  </lf-partition>
+    Loose
+  </lf-grid>
 </lf-workspace>""",
         )
     )
     result = check(page_dir)
     assert result.exit_code == 1
     assert "direct <header> must be first" in result.output
-    assert (
-        "exactly two direct pane or partition widgets and no loose content"
-        in result.output
+    assert "x-reading-role grid holds its cells as elements" in result.output
+    assert "x-reading-role pane must contain exactly one direct body element" in (
+        result.output
     )
 
 

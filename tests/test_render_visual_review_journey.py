@@ -17,6 +17,7 @@ from render_cases_layout import (
 from render_harness import (
     CORPUS_SOURCES,
     consume_browser_errors,
+    holds_the_window,
     leaf_page,
     open_page,
     resized,
@@ -51,7 +52,6 @@ def test_embedded_visual_review_uses_native_scroll_chaining(browser, serve):
     page = open_page(browser, url)
     resized(page, 1000, 700)
     widget = page.locator("#visual-review-run")
-    expect(widget).to_have_attribute("data-lf-reading-posture", "flow")
     expect(widget.get_by_role("button", name="Expand inspection")).to_have_count(0)
     widget.scroll_into_view_if_needed()
     host = widget.locator(".lf-vr-case:not([hidden]) .lf-vr-shot-host")
@@ -228,7 +228,9 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     review_url = serve(
         leaf_page(
             "authenticated navigation review",
-            '<lf-visual-review id="journey" source="journey-run"></lf-visual-review>',
+            '<lf-workspace id="journey-workspace">'
+            '<lf-visual-review id="journey" source="journey-run"></lf-visual-review>'
+            "</lf-workspace>",
         ),
         packages=("visual-review",),
     )
@@ -350,6 +352,7 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     response = user.context.request.get(f"{target_base}v1.html")
     assert response.status == 403
     widget = user.locator("#journey")
+    holds_the_window(user, widget, True)
     first = widget.locator('[data-lf-datum="open-release-list"]')
     second = widget.locator('[data-lf-datum="follow-release-link"]')
     first_images = first.locator("lf-shot img")
@@ -416,7 +419,7 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     expect(field).to_be_focused()
     user.keyboard.type("Restore Back to releases")
     resized(user, 390, 760)
-    expect(widget).to_have_attribute("data-lf-reading-posture", "flow")
+    holds_the_window(user, widget, False)
     expect(field).to_have_value("Restore Back to releases")
     assert_keyboard_focus(user, field)
     field.evaluate("node => node.setSelectionRange(8, 12, 'backward')")
@@ -455,7 +458,7 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     assert_keyboard_focus(user, field)
 
     resized(user, 1366, 768)
-    expect(widget).to_have_attribute("data-lf-reading-posture", "bounded")
+    holds_the_window(user, widget, True)
     expect(field).to_have_value("Restore Back to releases")
     assert_keyboard_focus(user, field)
     user.keyboard.press("Escape")

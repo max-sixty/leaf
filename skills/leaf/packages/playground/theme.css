@@ -1,11 +1,22 @@
 /* A playground is an instrument inside the page: controls stay compact and quiet while
- * the real preview owns the larger field. */
+ * the real preview owns the larger field. It is a workspace whose relationship is
+ * declared, controls beside the preview they operate, built from the layout layer's
+ * grammar: a grid of two panes (data-lf-reading-role, packages/default/theme.css) above
+ * the actions. That grammar decides who scrolls. Here the playground only places its
+ * rows and columns and quiets the panes' chrome inside its own card. The rows are
+ * `1fr auto` for the reason a workspace's are: in a bounded workspace the grid gives up
+ * its height and the panes scroll, and anywhere else it holds its content's. */
 lf-playground {
   --lf-block-frame: 1;
-  display: block;
+  /* Passes a held workspace's height to its grid of regions (default theme). */
+  --lf-passes-hold: 1;
+  min-height: var(--lf-track-min);
+  display: grid;
+  grid-template-rows: 1fr auto;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--sp-4);
   box-sizing: border-box;
   width: min(100%, 58rem);
-  max-height: 100%;
   margin: var(--sp-4) auto;
   padding: var(--sp-4);
   border: 1px solid var(--border-2);
@@ -14,31 +25,39 @@ lf-playground {
   container-type: inline-size;
 }
 
-lf-playground > .lf-workspace-content,
-lf-playground .lf-playground-split,
-lf-playground .lf-playground-split > .lf-partition-content {
-  min-height: 0;
+/* In a workspace the playground is the task's regions and takes its frame's width, as
+ * a workspace's grid does. In a document it keeps its card width. */
+lf-workspace lf-playground {
+  width: 100%;
 }
 
-lf-playground .lf-playground-split > .lf-partition-content {
-  gap: var(--sp-4);
+/* Two equal columns where each gets 28rem, and one column where they don't: a card in a
+ * document's column stacks its controls above the preview, while a playground that
+ * fills a wide workspace sets them side by side. */
+.lf-playground-split {
+  --lf-grid-count: 2;
+  --lf-grid-min: min(28rem, 100%);
+}
+
+lf-playground :is(.lf-playground-controls-region, .lf-playground-preview-region) {
+  border: 0;
+  border-radius: 0;
   background: transparent;
 }
 
-lf-playground
-  :is(.lf-playground-controls-region, .lf-playground-preview-region)
-  > .lf-pane-content
-  > .lf-pane-body {
+lf-playground :is(.lf-playground-controls-region, .lf-playground-preview-region) > * {
   padding: 0;
 }
 
-.lf-playground-controls-region > .lf-pane-content > .lf-pane-body {
-  display: grid;
-  align-content: start;
-  gap: var(--sp-3);
+.lf-playground-controls-region > .lf-playground-presets {
+  padding-bottom: var(--sp-3);
 }
 
-.lf-playground-preview-region > .lf-pane-content > .lf-pane-body {
+.lf-playground-presets + .lf-playground-controls {
+  padding-top: var(--sp-3);
+}
+
+.lf-playground-preview-body {
   display: grid;
   grid-auto-rows: max-content;
   align-content: start;

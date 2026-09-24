@@ -91,6 +91,7 @@ import {
   readingPosture,
   readingRegionFor,
   readingRegions,
+  scrollersSettled,
   shownRegionBounds,
   watchReadingRegionTransitions,
 } from "./reading-regions.js";
@@ -1508,14 +1509,13 @@ export function createVersionController({
   // walk over the page's Asks starts when they have pointed at nothing.
   // A block's landmark is the top of its first line (a range), not its border box; restore
   // measures the matched text the same way, so the line box's leading cancels out.
-  function textBlocks() {
-    const main = document.querySelector("body > main");
+  function textBlocks(root = document.querySelector("body > main")) {
     const seen = new Set();
     // Walk the page's composed text rather than querying only its light DOM. A declared
     // shadow root renders authored words at its host's place in reading order; those
     // words are pointable and resolvable through the shared passage reading, so version
     // continuity must be able to choose the same blocks as landmarks.
-    return textNodesUnder(main)
+    return textNodesUnder(root)
       .map(({ node }) => closestAcross(node.parentElement, TEXT_BLOCK))
       .filter((block) => block && !seen.has(block) && seen.add(block));
   }
@@ -1523,10 +1523,18 @@ export function createVersionController({
   function* blocksOnScreen(region = null, blocks = textBlocks()) {
     // Read the painted edge directly. The declared height may contain a safe-area
     // `calc()`, whose serialized value is not a number even though its box is exact.
-    const bounds = region
-      ? shownRegionBounds(region)
-      : { top: banner.getBoundingClientRect().bottom, bottom: innerHeight };
-    if (!bounds) return;
+    const page = { top: banner.getBoundingClientRect().bottom, bottom: innerHeight };
+    const shown = region ? shownRegionBounds(region) : page;
+    if (!shown) return;
+    // A flowing region is read through the page, whose visible band starts below the
+    // banner: a line hidden under it is not where the user is.
+    const bounds =
+      region && effectiveScroller(region) === pageScroller
+        ? {
+            top: Math.max(shown.top, page.top),
+            bottom: Math.min(shown.bottom, page.bottom),
+          }
+        : shown;
     for (const block of blocks) {
       // [hidden] needs an explicit skip: hidden="until-found" resolves to
       // content-visibility, under which descendants still report real rects —
@@ -1559,10 +1567,12 @@ export function createVersionController({
   // to the section, which doesn't absorb content added above the user inside it.
   function captureRegion(region = null, blocks = textBlocks()) {
     const box = region ? effectiveScroller(region) : pageScroller;
-    const boxTop = shownBox(box).top;
-    const inset = landingInsets(box).top;
+    // Places are measured from the top of the box's visible band, below whatever covers
+    // its top edge (the page's banner), so a region handed from the page to its own body
+    // keeps the landmark at the same distance below what the user can see.
+    const boxTop = shownBox(box).top + landingInsets(box).top;
     const landmarkTop = (top, block, blockTop = top) =>
-      block?.matches(HEADING) ? top + Math.max(0, inset - blockTop) : top;
+      block?.matches(HEADING) ? top + Math.max(0, -blockTop) : top;
     const view = { y: box.scrollTop, scroller: scrollerIdentity(box) };
     for (const [block, rect] of blocksOnScreen(region, blocks)) {
       const section = closestAcross(block, "[id]");
@@ -1634,7 +1644,7 @@ export function createVersionController({
   function restoreRegion(view, region, currentIntent) {
     if (!view) return;
     const box = region ? effectiveScroller(region) : pageScroller;
-    const boxTop = shownBox(box).top;
+    const boxTop = shownBox(box).top + landingInsets(box).top;
     const text = pageText();
     const found = view.quote && resolveAnchor(view, text);
     const segments = targetSegments(found);
@@ -1685,6 +1695,15 @@ export function createVersionController({
       restoreRegion(view, null, currentIntent);
       restored.add(pageScroller);
     }
+    // A bounded region can stand in a page that scrolls as well, as a root tab's workspace
+    // does under the tab set's header: the page keeps its own place beside the region's.
+    if (
+      !restored.has(pageScroller) &&
+      (hasLandmark(view) || rawOffsetFits(view, pageScroller))
+    ) {
+      restoreRegion(view, null, currentIntent);
+      restored.add(pageScroller);
+    }
     for (const [id, reading] of Object.entries(view.regions ?? {})) {
       const region = regions.get(id);
       if (!region || !shownRegionBounds(region)) continue;
@@ -1696,12 +1715,47 @@ export function createVersionController({
     }
   }
 
-  // A posture change replaces scroll containers without replacing the document. Keep each
-  // semantic region's last reading so a pane that becomes inactive does not inherit the
-  // shared page offset when it becomes bounded again. In flow, only the region the user
-  // is working represents the shared page scroller.
+  // A posture change replaces scroll containers without replacing the document, and it
+  // happens in layout, with no moment before it to read the user's place in. So the
+  // place is recorded as the user moves — each scroll, a frame later — and a region
+  // whose scroller shifts is restored from that record. Keep each semantic region's last
+  // reading so a pane that becomes inactive does not inherit the shared page offset when
+  // it becomes bounded again. In flow, only the region the user is working represents
+  // the shared page scroller.
   const regionViews = new Map();
   let lastReadingRegionId = null;
+
+  // Only the page's own regions, only those a scroll moved, and only their own words: a
+  // scroll is frequent, and a page with no regions (most documents) records nothing and
+  // reads no text at all. `moved` names the scrollers that moved; none names every one.
+  function recordRegions(moved = null) {
+    const main = document.querySelector("body > main");
+    const shown = readingRegions().filter(
+      (region) =>
+        under(region.host, main) &&
+        (!moved || moved.has(effectiveScroller(region))) &&
+        shownRegionBounds(region),
+    );
+    if (!shown.length) return;
+    const words = new Map(shown.map((region) => [region.id, textBlocks(region.body)]));
+    const active = activeReadingRegion(shown, [...words.values()].flat());
+    for (const region of shown)
+      if (readingPosture(region) === "bounded" || region.id === active?.id)
+        regionViews.set(region.id, captureRegion(region, words.get(region.id)));
+  }
+  let recordQueued = false;
+  const scrolled = new Set();
+  const queueRecord = (event) => {
+    scrolled.add(event?.target === document ? pageScroller : event?.target);
+    if (recordQueued) return;
+    recordQueued = true;
+    requestAnimationFrame(() => {
+      recordQueued = false;
+      const moved = scrolled.has(undefined) ? null : new Set(scrolled);
+      scrolled.clear();
+      if (!postureTransitions.size && scrollersSettled()) recordRegions(moved);
+    });
+  };
 
   // Continuity restores scroll geometry, not the reading-key subject. Frame furniture
   // still names its own pane to d/u through readingRegionFor; because the furniture does
@@ -1724,6 +1778,37 @@ export function createVersionController({
   };
 
   const postureTransitions = new Map();
+
+  // A region handed to another scroller keeps the place recorded before the handover.
+  // The composition bracket below owns any shift inside it.
+  function restoreShifted(shifted) {
+    if (postureTransitions.size) return;
+    const currentIntent = retainUserIntent();
+    if (!currentIntent()) return;
+    const candidates = shifted
+      .map(({ region }) => region)
+      .filter((region) => shownRegionBounds(region));
+    const active = activeReadingRegion(candidates);
+    const ordered = active
+      ? [active, ...candidates.filter(({ id }) => id !== active.id)]
+      : candidates;
+    const restored = new Set();
+    for (const region of ordered) {
+      const reading = regionViews.get(region.id);
+      const box = effectiveScroller(region);
+      if (!reading || restored.has(box)) continue;
+      if (!hasLandmark(reading) && !rawOffsetFits(reading, box)) continue;
+      restoreRegion(reading, region, currentIntent);
+      restored.add(box);
+    }
+    // A control the user is standing on is where they are, more exactly than any
+    // passage near it: keep it in view in whichever box scrolls it now.
+    const held = focused();
+    if (held && candidates.some(({ host }) => under(held, host)))
+      held.scrollIntoView({ block: "nearest", inline: "nearest" });
+    recordRegions();
+  }
+
   function readingRegionTransition({
     phase,
     owner,
@@ -1732,7 +1817,14 @@ export function createVersionController({
     regions,
     cancelled,
     retained,
+    shifted,
   }) {
+    // Announced from a resize observer's delivery; restoring there could reveal a
+    // region and resize what the observer watches, so it waits for the next frame.
+    if (phase === "shift") {
+      requestAnimationFrame(() => restoreShifted(shifted));
+      return;
+    }
     // A composition swap captures the intact view before hiding any region. Its
     // eventual restore owns the whole change; nested posture probes must not replace
     // that reading with an intermediate layout.
@@ -1797,6 +1889,8 @@ export function createVersionController({
     if (readingContinuityInstalled) return;
     readingContinuityInstalled = true;
     watchReadingRegionTransitions(readingRegionTransition);
+    document.addEventListener("scroll", queueRecord, { capture: true, passive: true });
+    queueRecord();
   }
 
   function installArrival() {

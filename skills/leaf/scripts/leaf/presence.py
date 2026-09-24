@@ -14,7 +14,7 @@ from .files import (
     latest_revision,
     read_json,
 )
-from .leases import wait_is_live
+from .leases import wait_is_live, waiter_lease_path
 from .machine import state_home
 from .schema import STATUS_FILE, UNCLAIMED_AGENT, VIEWED_FILE, WAITER_LOCK
 from .server import running_server
@@ -50,7 +50,7 @@ def _page_stamp(page_dir: Path, claim: dict | None = None) -> tuple:
         # stamp of its own. Its boolean is checked below on every cache refresh;
         # including the file here still invalidates a page when the lease is first
         # created or removed.
-        lease_stamp = file_stamp(state_home() / "sessions" / f"{claim['id']}.wait")
+        lease_stamp = file_stamp(waiter_lease_path(None, claim["id"]))
     else:
         lease_stamp = file_stamp(page_dir / WAITER_LOCK)
     return entries + (("$claim", claim_stamp), ("$wait", lease_stamp))

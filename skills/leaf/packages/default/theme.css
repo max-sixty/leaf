@@ -1473,11 +1473,12 @@ lf-column > [data-lf-said="label"] { display: block; font-size: var(--t-working-
             padding: 2px var(--lf-card-inset) 10px; }
 lf-column::before { content: attr(label); }
 /* The column's heading row: a status dot, the name, and its card count at the far
-   edge. A tone says what landing in the column means, in the page's status tones;
+   edge. A tone says what landing in the column means, in the page's three status tones;
    only the dot takes it, so a board reads as one surface with its blocking column
    marked rather than as blocks of colour. A column without a tone keeps a quiet dot so
    every heading starts at the same place. */
 lf-column { position: relative; --lf-tone-dot: var(--border-2); }
+lf-column[tone="ok"] { --lf-tone-dot: var(--ok); }
 lf-column[tone="warn"] { --lf-tone-dot: var(--warn); }
 lf-column[tone="danger"] { --lf-tone-dot: var(--danger); }
 lf-column::before,

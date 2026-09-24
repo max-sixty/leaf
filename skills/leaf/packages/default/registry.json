@@ -711,7 +711,7 @@
     "x-example": "<lf-board id=\"feeder-board\">\n  <lf-column id=\"col-todo\" label=\"To do\">\n    <lf-card id=\"card-heater\"><strong>Heated perch</strong> Wire the south feeder.</lf-card>\n    <lf-card id=\"card-baffle\"><strong>Squirrel baffle</strong></lf-card>\n  </lf-column>\n  <lf-column id=\"col-doing\" label=\"Doing\">\n    <lf-card id=\"card-camera\"><strong>Camera mount</strong></lf-card>\n  </lf-column>\n  <lf-column id=\"col-done\" label=\"Done\"></lf-column>\n</lf-board>"
   },
   "lf-column": {
-    "description": "One column on a board. `label` is the column heading, and the name a screen reader announces for the list of cards beneath it — so it has to read as the column's name on its own. Children are lf-card elements only; an empty column is a valid drop target. `tone` marks what landing in the column means (danger for a column that blocks, warn for one that needs a look); a dot before the column's heading carries it, so leave it off a column whose name says nothing about status. The heading row also shows how many cards the column holds.",
+    "description": "One column on a board. `label` is the column heading, and the name a screen reader announces for the list of cards beneath it — so it has to read as the column's name on its own. Children are lf-card elements only; an empty column is a valid drop target. `tone` marks what landing in the column means (danger for a column that blocks, warn for one that needs a look, ok for done); a dot before the column's heading carries it, so leave it off a column whose name says nothing about status. The heading row also shows how many cards the column holds.",
     "x-name": "label",
     "type": "object",
     "properties": {
@@ -724,6 +724,7 @@
       },
       "tone": {
         "enum": [
+          "ok",
           "warn",
           "danger"
         ]

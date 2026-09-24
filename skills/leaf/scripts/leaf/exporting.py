@@ -31,9 +31,10 @@ from leaf.revision_artifact import (
     RESOURCE_TYPES,
     Resource,
     RevisionArtifact,
+    bind_imports,
+    captured_imports,
     read_artifact,
     resolve_dependency,
-    rewrite_captured_module,
     rewrite_module,
 )
 from leaf.revision_delivery import delivery_prelude, delivery_sheets, json_script
@@ -268,17 +269,47 @@ def inline_assets(
     return html
 
 
-def _module_urls(artifact: RevisionArtifact) -> dict[str, str]:
+def _module_urls(artifact: RevisionArtifact, markup: list[str]) -> dict[str, str]:
+    """Embed the module graph this file can reach, and no other module.
+
+    The one computed import an exported page makes is a widget's module, asked for only
+    where the widget's tag stands in markup about to be upgraded (`importWidgets` in
+    `runtime/widget-loader.js`). Offline that markup is the captured page and the frozen
+    markup its messages carry, since the embedded reading never activates another
+    revision. Every other import is literal, so the runtime entry, the page's own
+    modules, and the modules of the widgets that markup names close the graph: a page
+    that draws no diff carries no diff renderer.
+    """
+    tags = {
+        record["tag"]
+        for source in markup
+        for record in SourceDocument(source).lf_elements
+    }
+    widgets = {
+        f"/widgets/{tag}.js": implementation["path"]
+        for tag, implementation in artifact.implementations.items()
+        if tag in tags
+    }
+    pending = [
+        "/leaf.js",
+        *(
+            path
+            for path in artifact.entries
+            if artifact.resources[path].mime == "application/javascript"
+        ),
+        *widgets.values(),
+    ]
     urls = {}
-    for path, resource in artifact.resources.items():
-        if resource.mime == "application/javascript":
-            source = rewrite_captured_module(
-                resource.data, path, "leaf:", artifact.resources
-            )
-            urls[path] = _data_url(Resource(source, resource.mime))
-    for tag, implementation in artifact.implementations.items():
-        urls[f"/widgets/{tag}.js"] = urls[implementation["path"]]
-    return urls
+    while pending:
+        path = pending.pop()
+        if path in urls:
+            continue
+        resource = artifact.resources[path]
+        imports = list(captured_imports(resource.data, path, artifact.resources))
+        pending.extend(target for _, _, target in imports)
+        source = bind_imports(resource.data, imports, "leaf:")
+        urls[path] = _data_url(Resource(source, resource.mime))
+    return urls | {alias: urls[path] for alias, path in widgets.items()}
 
 
 def _bind_authored_modules(html: str, module_urls: dict[str, str], nonce: str) -> str:
@@ -345,7 +376,13 @@ def export_document(
             "Live specimens need a server, so a page that declares one "
             "cannot be exported."
         )
-    modules = _module_urls(artifact)
+    modules = _module_urls(
+        artifact,
+        [
+            artifact.html.decode("utf-8"),
+            *(event["markup"] for event in state["events"] if event.get("markup")),
+        ],
+    )
     html = inline_assets(
         artifact.html.decode("utf-8"),
         read_resource=artifact.resources.__getitem__,

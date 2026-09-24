@@ -1455,6 +1455,54 @@ def test_an_export_keeps_utf8(browser, serve, tmp_path):
     expect(page.get_by_role("heading", name="Café handoff")).to_be_visible()
 
 
+def test_an_export_embeds_only_the_widgets_its_markup_names(browser, serve, tmp_path):
+    """A widget the page and its messages never name brings none of its modules.
+
+    The page draws code and a reply carries a diagram; nothing names a diff, so
+    Pierre's renderer, the largest bundle the layer vendors, stays out of the file.
+    """
+    serve(
+        leaf_page(
+            "Reachable modules",
+            '<h1>Reachable</h1><lf-code id="snippet" language="python">'
+            "<pre>print('hi')</pre></lf-code>",
+        )
+    )
+    root = events_model.append_event(
+        serve.page_dir,
+        {"kind": "comment", "author": "user", "revision": 1, "text": "Sketch it?"},
+    )
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "parent": root["id"],
+            "revision": 1,
+            "text": "Here:",
+            "markup": '<lf-diagram id="sketch"><pre>flowchart LR\n  A --> B\n'
+            "</pre></lf-diagram>",
+        },
+    )
+    assert (serve.page_dir / "vendor" / "pierre-diffs.esm.js").is_file()
+    out = tmp_path / "reachable.html"
+    exporting_model.cmd_export(serve.page_dir, out, None)
+    html = out.read_text(encoding="utf-8")
+    imports = json.loads(
+        re.search(r'<script type="importmap"[^>]*>(.*?)</script>', html, re.S)[1]
+    )["imports"]
+    assert {"leaf:/widgets/lf-code.js", "leaf:/widgets/lf-diagram.js"} <= set(imports)
+    assert not {
+        "leaf:/widgets/lf-diff.js",
+        "leaf:/vendor/pierre-diffs.esm.js",
+    } & set(imports)
+
+    page = browser.new_page()
+    page.goto(out.as_uri(), wait_until="load")
+    expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
+    expect(page.locator("#snippet")).to_contain_text("print")
+
+
 def test_a_historical_export_embeds_its_captured_css_graph(browser, serve, tmp_path):
     """Nested imports and images come from the captured revision, not mutable files."""
     icon = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"><rect width="24" height="24" fill="navy"/></svg>'

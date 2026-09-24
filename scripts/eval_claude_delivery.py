@@ -142,12 +142,14 @@ def run_session(leaf_root: Path, run: Path) -> None:
             proc.stdin.close()
 
     url = None
-    waiting = posted = False
+    waits, posted, arrived = set(), False, False
     started = time.time()
     with (run / "stream.jsonl").open("w") as stream:
         for line in proc.stdout:
             stream.write(line)
             record = json.loads(line)
+            if record.get("subtype") == "task_notification":
+                arrived = arrived or (posted and record["tool_use_id"] in waits)
             content = (record.get("message") or {}).get("content")
             for block in content if isinstance(content, list) else ():
                 if block.get("type") == "tool_use" and block["name"] == "Bash":
@@ -155,16 +157,17 @@ def run_session(leaf_root: Path, run: Path) -> None:
                     if "leaf wait" in command and block["input"].get(
                         "run_in_background"
                     ):
-                        waiting = True
+                        waits.add(block["id"])
                 elif block.get("type") == "tool_result" and not url:
                     if found := URL.search(json.dumps(block.get("content"))):
                         url = found.group(0)
-            if url and waiting and not posted:
+            if url and waits and not posted:
                 posted = True
                 time.sleep(5)
                 post_comment(url)
-            if record.get("type") == "result" and posted:
-                # The turn that handled the comment has ended; a trailing wake may follow.
+            if record.get("type") == "result" and arrived:
+                # A turn the delivered comment woke has ended; a trailing wake may
+                # follow. The setup turn's own result never starts this timer.
                 threading.Timer(20, close_stdin).start()
             if time.time() - started > TURN_LIMIT:
                 close_stdin()

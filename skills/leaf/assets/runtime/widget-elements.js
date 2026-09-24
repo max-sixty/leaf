@@ -22,8 +22,7 @@
    the pointer landed beside selected text.
 
    Paint that promises a gesture — the pointer hand above all — hangs on how a press is
-   spelled, never on a control class alone. Export takes the role off and leaves the
-   class, so a hand hung on the class is a hand a file cannot answer. The layer's own
+   spelled, never on a control class alone. The layer's own
    spelling is the value `offer` writes into `data-lf-offer`: the tag or input type for
    a native press, the tag for a custom host that opts into its own press contract, the
    role for a selectable one, and the empty string for the rest of the chrome a widget

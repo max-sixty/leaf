@@ -268,7 +268,7 @@ def inline_assets(
     return html
 
 
-def _interactive_module_urls(artifact: RevisionArtifact) -> dict[str, str]:
+def _module_urls(artifact: RevisionArtifact) -> dict[str, str]:
     urls = {}
     for path, resource in artifact.resources.items():
         if resource.mime == "application/javascript":
@@ -345,7 +345,7 @@ def export_document(
             "Live specimens need a server, so a page that declares one "
             "cannot be exported."
         )
-    modules = _interactive_module_urls(artifact)
+    modules = _module_urls(artifact)
     html = inline_assets(
         artifact.html.decode("utf-8"),
         read_resource=artifact.resources.__getitem__,

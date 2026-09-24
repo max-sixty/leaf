@@ -28,8 +28,7 @@ def _in_browser(
     artifact: RevisionArtifact,
 ) -> tuple[list[str], str] | None:
     """Serve the candidate source to the host's browser and return what `read`
-    finds there, with the browser's name. A browser is part of each gate that
-    calls this: where none launches, it reports that and returns None."""
+    finds there, with the browser's name. A browser is part of the gate: where none launches, it reports that and returns None."""
     from playwright.sync_api import Error as PlaywrightError
 
     try:

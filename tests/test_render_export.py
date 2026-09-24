@@ -997,7 +997,7 @@ customElements.define("lf-offline-test", class extends LitElement {
   stop = null;
 
   createRenderRoot() {
-    return this.shadowRoot ?? this.attachShadow({mode: "open", serializable: true});
+    return this.shadowRoot ?? this.attachShadow({mode: "open"});
   }
 
   connectedCallback() {
@@ -1185,7 +1185,7 @@ def test_interactive_export_runs_captured_local_behavior_without_a_host(
         env={"LEAF_BROWSER_EXECUTABLE": str(tmp_path / "missing-browser")},
     )
     assert result.exit_code == 0, result.output
-    assert "offline interactive" in result.output
+    assert "opens with no server" in result.output
 
     page = browser.new_page(viewport={"width": 1000, "height": 800})
     external = []
@@ -1202,9 +1202,6 @@ def test_interactive_export_runs_captured_local_behavior_without_a_host(
     expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
     expect(page.locator("#offline-widget #choice")).to_have_text("chosen")
     expect(page.locator(".lf-chrome")).to_have_count(0)
-    assert page.locator("#offline-widget").evaluate(
-        "owner => owner.shadowRoot.serializable"
-    )
     assert (
         page.locator("#offline-widget #local").evaluate(
             "control => getComputedStyle(control).color"

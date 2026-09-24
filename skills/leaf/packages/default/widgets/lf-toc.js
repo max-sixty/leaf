@@ -5,7 +5,7 @@
  * heading titles an identified section, that section is the destination: an eyebrow and
  * heading arrive as one title, and the public fragment names the section rather than its
  * label. Otherwise the heading's id is the destination, or a generated sibling supplies
- * a native fragment target. That target remains useful after export removes this module.
+ * a native fragment target.
  * max-level bounds the authored outline before the module creates either links or targets.
  *
  * In the roomy margin the outline becomes a reading map. Each row receives the length
@@ -22,7 +22,7 @@
  * can shorten without the document moving at all; a widget whose view rearranges
  * descendants without changing its own size emits the shared layout signal. The map
  * writes only to itself, never the main box it observes, and never the track either. The
- * ordinary in-flow list remains the script-free, narrow, and paper form.
+ * ordinary in-flow list remains the narrow and paper form.
  *
  * Every link is a real fragment link. The
  * browser owns its navigation, history, :target state, wheel input, and scroll

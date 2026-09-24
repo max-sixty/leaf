@@ -36,7 +36,7 @@ records three deliberately different identities under `$layer`:
   ask its running payload for the same source identity with `leaf --version`.
 - `runtime` is the SHA-256 identity of the kernel runtime modules the payload vendored
   from, read from its own `assets/runtime/` rather than recomposed from the page's
-  selections. It is the half the browser gates' probe modules import: both gates serve
+  selections. It is the half the render gate's probe modules import: the gate serves
   those probes from the Leaf running the command and the runtime those probes import
   from the page, so the ephemeral server compares this identity and refuses a page
   carrying another Leaf's runtime, rather than letting the mismatch arrive in the

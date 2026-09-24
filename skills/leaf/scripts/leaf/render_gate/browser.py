@@ -1,4 +1,4 @@
-"""The browser the user-path gates launch.
+"""The browser the render gate launches.
 
 `version check --render` draws the page in a real browser, and should reach
 whichever one the host has. Playwright's
@@ -83,7 +83,7 @@ def discovered_executable() -> str | None:
 
 class DriverNotStarted(Exception):
     """Playwright's driver ended before it answered the connection, so no browser
-    was ever asked for. Carries that connection's own first line, which each gate
+    was ever asked for. Carries that connection's own first line, which the gate
     reports in its own words as it does a failed launch."""
 
 
@@ -103,7 +103,7 @@ def driver_node() -> str:
 
 
 def driver_hint() -> str:
-    """The line each gate appends when the driver never started.
+    """The line the gate appends when the driver never started.
 
     The two hosts this reaches are a glibc older than the bundled Node needs and a
     DRIVER_VARIABLE naming a Node older than the driver bundle needs. The first
@@ -196,12 +196,12 @@ def launch_browser(p):
     """The host's browser, and what to call it in a message that reports
     success: whichever executable a browser variable names, else the installed
     Chrome release channel, else the first browser on PATH. Raises
-    PlaywrightError, which each gate reports in its own words.
+    PlaywrightError, which the gate reports in its own words.
 
     A host that named an executable, or whose channel missed, never ran Chrome,
     so naming Chrome there would be the same false claim the failure messages
     stopped making."""
-    # Imported where a browser is about to launch, here and in the other gates,
+    # Imported where a browser is about to launch, here and in the gate,
     # rather than at module top: playwright.sync_api is half of what a `leaf`
     # command spends importing, and most commands never open a browser.
     from playwright.sync_api import Error as PlaywrightError
@@ -220,7 +220,7 @@ def launch_browser(p):
 
 
 def browser_hint() -> str:
-    """The line each gate appends when the launch failed."""
+    """The line the gate appends when the launch failed."""
     if named := named_executable():
         name, executable = named
         return f"{name} named {executable}."

@@ -481,7 +481,7 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
     )
     assert replied, (
         "no shipped log carries an agent reply, so no example exercises the live "
-        "thread exchange that authored markup and static export cannot represent"
+        "thread exchange that authored markup cannot represent"
     )
 
 

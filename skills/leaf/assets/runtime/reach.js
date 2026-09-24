@@ -120,7 +120,6 @@ const sideways = new Set();
 // because the pane's fixed lower edge would otherwise keep promising another part of
 // the reading after the user reaches the end.
 const downwards = new Set();
-export const runtimeOwnsScrollerStop = (el) => mayScroll.has(el);
 const readingScrolled = (event) => paintReadingReach(event.currentTarget);
 const sidewaysScrolled = (event) => paintSidewaysReach(event.currentTarget);
 export function reachReadingScroller(el) {

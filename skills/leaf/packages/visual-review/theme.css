@@ -5,7 +5,7 @@
  * the stage takes what the case leaves; everywhere else the same order flows with the
  * document and the stage takes a height from the review's width. */
 lf-visual-review {
-  --lf-frame: 1;
+  --lf-block-frame: 1;
   /* Passes a held workspace's height to its evidence pane (default theme). */
   --lf-passes-hold: 1;
   min-height: var(--lf-track-min);
@@ -41,7 +41,7 @@ lf-visual-review {
 }
 
 .lf-vr-head {
-  --lf-frame: 1;
+  --lf-block-frame: 1;
   display: flex;
   align-items: center;
   justify-content: space-between;

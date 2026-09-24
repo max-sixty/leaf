@@ -218,14 +218,17 @@ const presentStatus = ({
 }) => {
   let publicationModel = null;
   if (publication) {
-    // A publication's introduction and install link remain an ordinary reading row.
+    // A publication's introduction and links remain an ordinary reading row.
     // Links never become children of the status disclosure button.
     const [said, installs] = publicationWords(publication);
-    explanation = said + installs;
+    const examples = publication.kind === "example" ? "Other examples" : null;
+    explanation = said + (examples ? `${examples} ` : "") + installs;
     publicationModel = Object.freeze({
       copy: said,
+      examples,
       install: installs,
       installUrl: publication.install_url,
+      examplesUrl: examples ? "/examples/" : null,
     });
   }
   bannerStatus.present(

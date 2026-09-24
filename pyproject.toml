@@ -11,8 +11,8 @@
 # into the tree and finds `assets/` and `packages/` beside it.
 #
 # Dependencies state the lowest version the suite passes on, with no upper cap.
-# `uv.lock` ships in the install, so a host runs the resolution the suite was
-# last green on; AGENTS.md carries why that keeps the host's index in the loop.
+# `uv.lock` ships in the install, so a host runs the versions the suite last
+# passed on.
 #
 # The dev group is what the suite and `scripts/` need on top of the runtime:
 # pytest, the accessibility checks, the demo recorder's frames, and the filesystem
@@ -32,6 +32,9 @@
 # rather than pure Python. It is a runtime dependency because every page claim
 # reads the process tree above it (`machine.py`).
 #
+# packaging and tomli (tomllib before 3.11) read a package script's inline
+# metadata when `package check` holds it to the dependency policy (`packages.py`).
+#
 # Playwright is a runtime dependency because the skill's own flow runs the
 # browser: `version check --render` gates every finished page and `version
 # export` copies one. Its wheel lands in each version's environment as links
@@ -49,10 +52,12 @@ dependencies = [
   "jsonschema>=4",
   "markdown-it-py>=4",
   "mcp>=2.1.1",
+  "packaging>=22",
   "playwright>=1.51",
   "psutil>=6",
   "starlette>=0.48",
   "tinycss2>=1.4",
+  "tomli>=1.1; python_version < '3.11'",
   "tree-sitter>=0.25.2",
   "tree-sitter-javascript>=0.25.0",
   "turbohtml>=1.7",
@@ -85,6 +90,10 @@ dev = [
   # scripts/preview.py's watcher. 1.1.0 is the first release with a wheel for the
   # interpreter this project runs on; earlier ones would build Rust from source.
   "watchfiles>=1.1.0",
+  # Every requirement a bundled package script's header declares, repeated here so
+  # this lock pins what the suite runs those scripts against and a fresh machine
+  # needs no network after setup.
+  "unidiff>=1",
 ]
 
 # The suite is round trips through a real browser rather than computation, so tests

@@ -29,8 +29,9 @@ Answers are one of:
 Two kinds of move are delivered with no answer of their own. A user input a
 newer input in the same thread covers is answered through the newest, whose one
 answer settles both. A widget move that answers no Ask, such as an edit to a
-user-owned draft or a moved card, owes nothing: the log carries it onto every
-later reading of its document. Its receipt stands until that document takes it
+user-owned draft or a moved card, owes nothing: the log carries it onto later
+readings of its document, and `version check` holds the next version to any part
+of it that version must write. Its receipt stands until that document takes it
 in: on the page, until the markup records it or a later version supersedes it
 (`page_action_unsettled`); in frozen thread markup, which no version rewrites,
 until the agent's next spoken turn in that thread or a resolution after it.
@@ -55,8 +56,7 @@ from .projection import (
     NO_RECORD,
     PageReading,
     canonical_updates,
-    folded_value,
-    markup_value,
+    recorded_state,
 )
 
 
@@ -109,10 +109,7 @@ def page_action_unsettled(
     coordinate: tuple,
     source: dict,
     spec: dict,
-    parser,
-    spk: dict,
-    registry: dict,
-    events: list,
+    page: PageReading,
     *,
     owed: bool,
 ) -> bool:
@@ -127,20 +124,23 @@ def page_action_unsettled(
     acted on was written before the move reached anyone.
     """
     _widget, unit, _verb = coordinate
-    if unit not in parser.by_id:
+    byid = page.document.by_id
+    if unit not in byid:
         return False
-    authored = markup_value(unit, spec, parser.by_id, spk, registry)
-    if owed and authored is not NO_RECORD:
-        return authored != folded_value(source, spec)
+    document = (byid, page.spoken)
+    reading = recorded_state(
+        coordinate, source, spec, document, document, page.registry, page.projection
+    )
+    recorded = reading is not NO_RECORD and reading[0] == reading[1]
+    if owed and reading is not NO_RECORD:
+        return not recorded
     versioned = any(
         event["kind"] == "note"
         and event["seq"] > source["seq"]
         and event["revision"] > source["revision"]
-        for event in events
+        for event in page.events
     )
-    return not versioned and (
-        authored is NO_RECORD or authored != folded_value(source, spec)
-    )
+    return not versioned and not recorded
 
 
 def canonical_workflows(
@@ -352,10 +352,7 @@ def canonical_workflows(
             coordinate,
             source,
             spec,
-            page.document,
-            page.spoken,
-            page.registry,
-            page.events,
+            page,
             owed=owed,
         )
         return unsettled, {"kind": "markup", "action": source["id"]} if owed else None

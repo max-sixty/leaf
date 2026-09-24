@@ -6,9 +6,14 @@
    need the first server reading declares presentation-time arrival, so its rendering
    and covering boundary wait for that reading without postponing the shell geometry.
 
-   Responsive layout decides whether surfaces stand beside the page or over it. In the covering
-   posture this owner makes every sibling reading surface inert, dims that entire
-   background, gives the surface modal semantics, and moves focus in only when it was
+   A surface either always covers the page or declares that it may stand `beside` it. One
+   that may stand beside covers the page only where it would leave less than a usable page
+   beside it, and the stylesheet states that once for every such surface, as the width the
+   selected one stands at beside the page or nothing where it covers (theme.css,
+   `--lf-auxiliary-beside`); `standsBeside` is the runtime's one reading of it.
+
+   In the covering posture this owner makes every sibling reading surface inert, dims that
+   entire background, gives the surface modal semantics, and moves focus in only when it was
    outside. It re-derives those siblings when the live version replaces the authored
    page. Leaving that posture restores exactly the inert and role state it found; it
    does not rebuild, hide, or scroll either side.
@@ -31,6 +36,15 @@ import { pagePresented } from "./presentation.js";
 export const AUXILIARY_SURFACE_KEY = "lf-auxiliary-surface";
 let selectedKey = null;
 export const currentAuxiliarySurface = () => selectedKey;
+// Whether the selected surface stands beside the page: the room it takes there, which the
+// stylesheet answers from its width and the window's, is more than nothing. The strip the
+// page yields is drawn with the same length, so where the page yields none the surface
+// covers it. Read rather than recomputed, because the first paint of a reloaded page needs
+// the answer before this module exists.
+export const standsBeside = () =>
+  parseFloat(
+    getComputedStyle(document.body).getPropertyValue("--lf-auxiliary-beside"),
+  ) > 0;
 
 export function createAuxiliarySurfaces({
   chromeRoot,
@@ -149,15 +163,15 @@ export function createAuxiliarySurfaces({
     key,
     surface,
     scroller,
-    covers,
+    beside = false,
     focus,
     show,
     hide,
     arrival = "mount",
   }) {
-    if (!key || !surface?.id || !scroller || !covers || !focus || !show || !hide)
+    if (!key || !surface?.id || !scroller || !focus || !show || !hide)
       throw new Error(
-        "leaf: an auxiliary surface needs a key, named surface, scroller, covering reading, focus destination, and visibility callbacks",
+        "leaf: an auxiliary surface needs a key, named surface, scroller, focus destination, and visibility callbacks",
       );
     if (controllers.has(key))
       throw new Error(`leaf: duplicate auxiliary surface ${key}`);
@@ -165,7 +179,7 @@ export function createAuxiliarySurfaces({
       key,
       surface,
       scroller,
-      covers,
+      covers: () => !beside || !standsBeside(),
       focus,
       show,
       hide,

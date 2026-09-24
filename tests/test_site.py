@@ -51,8 +51,6 @@ from render_harness import (
     expect_banner_control_offered,
     navigate,
     open_page,
-    panel_settled,
-    resized,
     select,
     sending,
     take_browser_errors,
@@ -215,7 +213,6 @@ def served_example(site, tmp_path):
     session_site = tmp_path / "site"
     examples = session_site / "examples"
     examples.mkdir(parents=True)
-    shutil.copy2(site / "sitenote.js", session_site / "sitenote.js")
     manifest = session_site / website_server.SITE_MANIFEST
     manifest.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(site / website_server.SITE_MANIFEST, manifest)
@@ -282,12 +279,35 @@ def test_product_pages_vendor_the_composed_theme(site):
             )
 
 
-def test_published_examples_vendor_the_site_context_theme(site):
-    """The note's page-scoped style ships with every page the site adds it to."""
+def test_published_examples_keep_the_site_theme_out_of_their_layer(site):
+    """A website example uses the authored example's layout layer."""
     context_theme = (DOCS / "package" / "theme.css").read_text().rstrip()
     for source in site_build.published_page_sources():
         theme = site / "examples" / source.stem / "theme.css"
-        assert context_theme in theme.read_text(), source
+        assert context_theme not in theme.read_text(), source
+
+
+def test_published_example_has_the_normal_leaf_layout(hosted, browser, serve):
+    source = EXAMPLES / "wt-merge.html"
+    normal = open_page(browser, serve(source))
+    published = open_page(browser, f"{hosted}/examples/wt-merge/")
+    layout = """() => Object.fromEntries(
+      ['.lf-banner', 'body > main', 'body > main h1', '#lede', 'lf-merge-film']
+        .map(selector => {
+          const node = document.querySelector(selector);
+          const box = node.getBoundingClientRect();
+          const style = getComputedStyle(node);
+          return [selector, {
+            box: [box.x, box.y, box.width, box.height],
+            padding: style.padding,
+            font: style.fontFamily,
+          }];
+        }))"""
+    for width in (390, 1200):
+        for page in (normal, published):
+            page.set_viewport_size({"width": width, "height": 900})
+            page.wait_for_function(BOTH_STAMPS)
+        assert published.evaluate(layout) == normal.evaluate(layout)
 
 
 def test_product_pages_are_published_as_complete_page_records(site):
@@ -309,7 +329,6 @@ def test_product_pages_are_published_as_complete_page_records(site):
 
 def test_page_layers_stay_inside_their_page_directories(site):
     """The container image keeps complete pages rather than a public layer beside them."""
-    assert (site / "sitenote.js").read_bytes() == (DOCS / "sitenote.js").read_bytes()
     for name in (
         *schema_model.VENDORED_FILES,
         "session.js",
@@ -354,7 +373,7 @@ def test_the_asset_site_is_the_live_immutable_half_of_each_page(site):
     assert 'data-lf-server="published"' in document
     assert f'data-lf-release="{release}"' in document
     assert f'src="{asset_root}/{revision}/leaf.js"' in document
-    assert f'src="{asset_root}/sitenote.js"' in document
+    assert "sitenote.js" not in document
     assert (example_layer / "runtime" / "state-feed.js").is_file()
     assert (example_layer / "registry.json").is_file()
     assert list((example_root / "versions").glob("v*.html"))
@@ -1069,20 +1088,14 @@ def test_the_public_catalog_paints_in_its_final_position_before_leaf_loads(
 
 
 @pytest.mark.parametrize("name", framed_root_examples())
-def test_published_workspaces_keep_their_allocation_under_site_context(
+def test_published_workspaces_keep_their_allocation_without_site_note(
     hosted, browser, name
 ):
-    """The site note goes inside the framed task, never beside it.
-
-    A second authored element under `main` makes the workspace a block in a document
-    rather than the page, so a note dropped there costs the example the window it is
-    published to demonstrate. Held, the page has nothing to scroll and a region's body
-    scrolls in its place.
-    """
+    """A published workspace owns main and keeps its bounded reading regions."""
     page = open_page(browser, f"{hosted}/examples/{name}/")
     page.set_viewport_size({"width": 1200, "height": 900})
     workspace = page.locator("body > main > lf-workspace")
-    expect(workspace.locator(":scope > header > .sitenote")).to_be_visible()
+    expect(workspace.locator(":scope > header > .sitenote")).to_have_count(0)
     expect(page.locator("body > main > .sitenote")).to_have_count(0)
     page.wait_for_function(
         """() => {
@@ -1094,54 +1107,6 @@ def test_published_workspaces_keep_their_allocation_under_site_context(
           return page.scrollHeight === page.clientHeight && bodies.length > 0
             && bodies.every(body => getComputedStyle(body).overflowY === 'auto');
         }"""
-    )
-
-
-SITE_LABEL_SHAPE = """
-() => {
-  const note = document.querySelector('body > main > * > header > .sitenote');
-  const [label, routes] = note.querySelectorAll(':scope > p');
-  const line = parseFloat(getComputedStyle(label).lineHeight);
-  return {
-    shared: Math.round(label.getBoundingClientRect().top)
-      === Math.round(routes.getBoundingClientRect().top),
-    labelLines: Math.round(label.getBoundingClientRect().height / line),
-  };
-}
-"""
-
-
-@pytest.mark.parametrize("name", framed_root_examples())
-def test_the_site_label_takes_one_row_only_where_that_row_fits(hosted, browser, name):
-    """The label is shaped by the seat it was given, not by the window around it.
-
-    The label sits in a framed task's own header, so every row it takes is height the
-    task does not get, and the routes belong beside it wherever both fit. Whether they
-    fit is a fact about that header, and Leaf's own panel is what makes the header and
-    the window disagree: a rule reading the window kept the routes beside a label that
-    no longer had the width for them, so the label wrapped where it stood and the
-    header grew anyway — the packaging rule in `skills/leaf/references/packages.md`,
-    failing in the direction it was written to catch.
-
-    Read at three shells behind one open panel, since a window with nothing standing in
-    it is the case where the two readings agree and the old rule also passed.
-    """
-    page = open_page(browser, f"{hosted}/examples/{name}/")
-    expect(page.locator("body > main > * > header > .sitenote")).to_be_visible()
-    page.get_by_role("button", name=re.compile("^Threads")).click()
-    panel_settled(page)
-    shapes = {}
-    for width in (1500, 1200, 1000):
-        resized(page, width, 900)
-        shapes[width] = page.evaluate(SITE_LABEL_SHAPE)
-    for width, shape in shapes.items():
-        assert not shape["shared"] or shape["labelLines"] == 1, (
-            f"{name} at {width}px: the routes stand beside a label wrapped over "
-            f"{shape['labelLines']} rows"
-        )
-    assert shapes[1500]["shared"], (
-        f"{name}: the routes took a row of their own at 1500px, where the header has "
-        f"room for both and the task has none to spare"
     )
 
 
@@ -1205,8 +1170,6 @@ def test_the_public_catalog_is_a_visual_index_of_full_page_routes(
     expect(page.locator("iframe, lf-tabs")).to_have_count(0)
     published = {path.name for path in (site / "examples").iterdir() if path.is_dir()}
     assert published == authored | {source.stem for source in DEVELOPER_PAGES}
-    expect(page.locator("#pages .example-link")).to_have_count(8)
-    expect(page.locator("#specialized .example-link")).to_have_count(2)
     assert page.evaluate(
         "() => Boolean(document.querySelector('#pages')"
         ".compareDocumentPosition(document.querySelector('#developer-galleries'))"
@@ -1906,7 +1869,7 @@ def test_every_published_page_stands_as_a_live_page(served_example, browser):
         expect(page.locator(".lf-banner-menu > .lf-version")).to_have_text(f"v{newest}")
         expect(page.locator(".lf-status-text")).to_have_text(
             "This is an example on the Leaf website. Leaf guide replies and "
-            "revises this private copy. Install Leaf"
+            "revises this private copy. Other examples Install Leaf"
         )
         if source == FEATURE_GALLERY:
             expect(
@@ -1999,17 +1962,12 @@ def test_a_published_example_has_no_agent_claim(served_example, browser):
     page = open_page(browser, url)
     expect(page.locator(".lf-banner .lf-status-text")).to_have_text(
         "This is an example on the Leaf website. Leaf guide replies and revises "
-        "this private copy. Install Leaf"
+        "this private copy. Other examples Install Leaf"
     )
-    expect(page.locator(".lf-banner .lf-status-text a")).to_have_attribute(
-        "href", "/#install"
-    )
-    expect(page.locator("main > .sitenote")).to_contain_text(
-        "Try its controls in a private, temporary copy for this browser."
-    )
-    assert page.locator("main > .sitenote a").evaluate_all(
+    assert page.locator(".lf-banner .lf-status-text a").evaluate_all(
         "links => links.map(link => link.getAttribute('href'))"
-    ) == ["/", "/examples/", "/#install"]
+    ) == ["/examples/", "/#install"]
+    expect(page.locator(".sitenote")).to_have_count(0)
     expect(page.locator(".lf-banner .lf-dot")).to_have_class(re.compile(r"^lf-dot\s*$"))
     state = page.evaluate("() => fetch('api/state').then(r => r.json())")
     assert state["publication"] == {

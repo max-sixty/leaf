@@ -1509,7 +1509,7 @@ def test_banner_status_lit_owner_moves_one_native_surface_between_layouts(
 
 WEBSITE_LINE = (
     "This is an example on the Leaf website. Leaf guide replies and revises this "
-    "private copy. Install Leaf"
+    "private copy. Other examples Install Leaf"
 )
 
 # Measure the real status and its complete hover text in the same rendering turn.
@@ -1600,13 +1600,17 @@ def test_preview_diagnostics_keep_their_fixed_banner_overflow_seat(browser, serv
     assert read["title"] == WEBSITE_LINE, read
     for width in (900, 390):
         resized(site, width, 900)
+        examples = site.get_by_role("link", name="Other examples")
+        expect(examples).to_be_visible()
+        expect(examples).to_have_attribute("href", "/examples/")
         install = site.get_by_role("link", name="Install Leaf")
-        expect(install).to_be_visible()
-        bounds = install.bounding_box()
-        assert 0 <= bounds["x"] < bounds["x"] + bounds["width"] <= width, bounds
-        assert install.evaluate("el => el.clientWidth === el.scrollWidth")
-        install.focus()
-        expect(install).to_be_focused()
+        for link in (examples, install):
+            expect(link).to_be_visible()
+            bounds = link.bounding_box()
+            assert 0 <= bounds["x"] < bounds["x"] + bounds["width"] <= width, bounds
+            assert link.evaluate("el => el.clientWidth === el.scrollWidth")
+            link.focus()
+            expect(link).to_be_focused()
 
 
 def test_a_selection_that_reaches_the_layer_stops_at_the_page(browser, serve):
@@ -5511,8 +5515,8 @@ RING_SCOPE_SURFACE = {
     ),
     "the thread list": (".lf-thread-panel.open", None),
     "a walked thread": (".lf-thread-panel.open", None),
-    "an inline thread": (".lf-margin-preview:popover-open", None),
-    "a thread card": (".lf-margin-preview:popover-open", None),
+    "an inline thread": (".lf-margin-preview:not([hidden])", None),
+    "a thread card": (".lf-margin-preview:not([hidden])", None),
     "the Page Map dialog": (".lf-page-map-dialog[open]", None),
     "passage search": (".lf-page-search:not([hidden])", None),
     # The hint the keyboard is browsing, and the field the chosen item's bar opens with.

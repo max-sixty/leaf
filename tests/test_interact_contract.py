@@ -35,6 +35,7 @@ from interact_support import (
     _report_body_record,
     _report_detail_drift,
     _report_no_record,
+    _report_position_record,
     _report_says_attr,
     _report_undeclared_attr,
     _report_without_overruled,
@@ -53,6 +54,7 @@ from interact_support import (
     publish,
     published,
     stamp,
+    stamp_activation,
     styled,
     trial_version,
     yaml_block,
@@ -347,6 +349,53 @@ def test_history_reaches_only_a_page_that_renders_it_and_keeps_a_pick_as_made():
     assert "history" not in model.reading(unwatched, events)
 
 
+def test_history_words_a_pick_of_an_added_option_by_what_the_user_wrote():
+    """An added option is in no document, so its words come from the `add` that
+    wrote it, as its inline Markdown shows them. The pick of it reads by those
+    words even after the add is undone, since that is what the user picked, and an
+    id an undone add freed and a later add reused reads each gesture by the add
+    standing when that gesture was made."""
+    question = model.leaf_page(
+        "Route",
+        """<h1>Route</h1>
+<lf-options id="route" choose>
+  <lf-option id="fast"><strong>Fast path</strong> ships on Friday.</lf-option>
+</lf-options>
+<lf-activity id="feed"></lf-activity>""",
+    )
+
+    def add(text):
+        return {
+            "kind": "action",
+            "widget": "route",
+            "action": "add",
+            "detail": {"option": "route-mine", "text": text},
+        }
+
+    pick = {
+        "kind": "action",
+        "widget": "route",
+        "action": "choose",
+        "detail": {"options": ["route-mine"]},
+    }
+    events = (
+        add("**Ship** half"),
+        pick,
+        {"kind": "undo", "undoes": "e2"},
+        {"kind": "undo", "undoes": "e1"},
+        add("Ship everything"),
+        pick,
+    )
+
+    history = model.reading(question, events)["history"]
+    assert [(row["id"], row["gesture"]) for row in history] == [
+        ("e6", {"form": "choice", "chosen": ["Ship everything"]}),
+        ("e5", {"form": "add", "words": "Ship everything"}),
+        ("e2", {"form": "choice", "chosen": ["Ship half"]}),
+        ("e1", {"form": "add", "words": "Ship half"}),
+    ]
+
+
 def test_the_swipe_that_empties_the_queue_is_the_decks_answer():
     """A deck's Ask is answered by its standing state, so admission marks the swipe
     that empties the queue as the answer and no swipe before it.
@@ -524,7 +573,7 @@ def test_an_answer_the_user_took_back_leaves_its_thread_open(page_dir):
             "action": "choose",
             "detail": {"options": ["flag-first"]},
             "meaning": {
-                "document": "page",
+                "scope": "page",
                 "unit": "picks",
                 "depends": ["flag-first", "picks"],
                 "answer": "c1",
@@ -645,9 +694,9 @@ def test_two_concurrent_undos_cannot_both_take_back_one_gesture(
     second_validation = threading.Event()
     validation_calls = 0
 
-    def expose_validation_gap(event, events, within):
+    def expose_validation_gap(event, events, within, absorbed):
         nonlocal validation_calls
-        error = real_undo_error(event, events, within)
+        error = real_undo_error(event, events, within, absorbed)
         with validation_lock:
             validation_calls += 1
             call = validation_calls
@@ -778,7 +827,7 @@ def test_init_refuses_a_log_the_incoming_layer_no_longer_speaks(page_dir):
             "action": "decide",
             "detail": {"decision": "approved"},
             "meaning": {
-                "document": "page",
+                "scope": "page",
                 "unit": "d1",
                 "depends": ["d1"],
                 "answer": None,
@@ -1409,7 +1458,7 @@ def test_revendoring_cannot_turn_logged_thread_markup_into_a_settlement(
     page_dir,
 ):
     """Frozen thread markup keeps the admission rules of its vendored vocabulary."""
-    activated = revisioning_model.activate_source(page_dir, [])
+    activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None and activated.revision == 1
     events_model.append_event(
         page_dir,
@@ -1730,7 +1779,7 @@ def test_candidate_vocabulary_keeps_every_page_action_an_undo_can_expose(page_di
 
     declaration["x-state"]["second"] = declaration["x-state"].pop("first")
     authored.write_text(json.dumps({"lf-local": declaration}))
-    refused = revisioning_model.activate_source(page_dir, events)
+    refused = revisioning_model.activate_source(page_dir)
 
     assert refused.error and "does not declare action verb 'first'" in refused.error
     assert refused.revision == revision and not refused.created
@@ -1764,9 +1813,7 @@ def test_candidate_vocabulary_leaves_removed_page_widgets_to_captured_history(pa
     )
     restated = original.replace('value="author"', 'value="author-next" restated')
     (page_dir / "index.html").write_text(restated)
-    second = revisioning_model.activate_source(
-        page_dir, events_model.read_events(page_dir), allow_transition=True
-    )
+    second = stamp_activation(page_dir)
     assert second.error is None and second.created
     events_model.append_event(
         page_dir,
@@ -1783,7 +1830,7 @@ def test_candidate_vocabulary_leaves_removed_page_widgets_to_captured_history(pa
     authored.write_text("{}")
     (page_dir / "index.html").write_text(PAGE)
     events = events_model.read_events(page_dir)
-    activated = revisioning_model.activate_source(page_dir, events)
+    activated = revisioning_model.activate_source(page_dir)
 
     assert activated.error is None and activated.created
     revendored = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
@@ -1861,9 +1908,7 @@ def test_candidate_vocabulary_preserves_commands_in_frozen_thread_markup(page_di
     declaration["x-state"]["second"] = declaration["x-state"].pop("first")
     authored.write_text(json.dumps({"lf-thread-local": declaration}))
 
-    refused = revisioning_model.activate_source(
-        page_dir, events_model.read_events(page_dir)
-    )
+    refused = revisioning_model.activate_source(page_dir)
 
     assert refused.error and "does not declare action verb 'first'" in refused.error
     assert refused.revision == revision and not refused.created
@@ -2111,7 +2156,7 @@ def test_revendoring_cannot_forget_a_historical_data_binding(page_dir):
     assert "source 'builds' loses its contract 'builds'" in still_refused.output
 
 
-def _page_owned_fragmented_source(page_dir):
+def _page_owned_deferred_source(page_dir):
     schema = {
         "type": "object",
         "properties": {
@@ -2163,9 +2208,7 @@ def _page_owned_fragmented_source(page_dir):
             '<lf-local-data id="local-data" source="files"></lf-local-data></section>',
         )
     )
-    activated = revisioning_model.activate_source(
-        page_dir, events_model.read_events(page_dir)
-    )
+    activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None and activated.created
     data_model.cmd_data_set(
         page_dir,
@@ -2177,14 +2220,12 @@ def _page_owned_fragmented_source(page_dir):
 
 def test_page_owned_data_contract_meaning_is_fixed_for_the_source_lifetime(page_dir):
     """A same-named contract cannot redirect old readers to a different field."""
-    authored = _page_owned_fragmented_source(page_dir)
+    authored = _page_owned_deferred_source(page_dir)
     declarations = json.loads(authored.read_text())
     declarations["$data"]["contracts"]["local-files"]["records"]["deferred"] = "body"
     authored.write_text(json.dumps(declarations))
 
-    activation = revisioning_model.activate_source(
-        page_dir, events_model.read_events(page_dir)
-    )
+    activation = revisioning_model.activate_source(page_dir)
     assert "schema or record declaration changes" in activation.error
     with pytest.raises(data_model.DataError, match="schema or record declaration"):
         data_model.cmd_data_set(
@@ -2198,16 +2239,14 @@ def test_page_owned_data_contract_meaning_is_fixed_for_the_source_lifetime(page_
 
 
 def test_page_owned_data_contract_description_can_improve(page_dir):
-    authored = _page_owned_fragmented_source(page_dir)
+    authored = _page_owned_deferred_source(page_dir)
     declarations = json.loads(authored.read_text())
     declarations["$data"]["contracts"]["local-files"]["description"] = (
         "A clearer description of the same file payloads."
     )
     authored.write_text(json.dumps(declarations))
 
-    activation = revisioning_model.activate_source(
-        page_dir, events_model.read_events(page_dir)
-    )
+    activation = revisioning_model.activate_source(page_dir)
 
     assert activation.error is None and activation.created
 
@@ -2534,6 +2573,9 @@ def test_one_each_child_declarations_are_checked_whole(page_dir, mutation, messa
         # A report moves declared state only, never body words — the schema is
         # where the paint-only constraint lives, so a body record never parses.
         (_report_body_record, "registry extensions are invalid"),
+        # Nor a part's place: the stamped version owns where a unit stands, and a
+        # rank is read between the neighbours a widget shows the user.
+        (_report_position_record, "registry extensions are invalid"),
         # The gate compares record forms, so a recordless report declares
         # nothing a version could be checked against.
         (_report_no_record, "registry extensions are invalid"),
@@ -2571,7 +2613,8 @@ def test_check_refuses_a_widget_name_that_cannot_form_a_selector(page_dir, tag):
 
     result = check(page_dir)
     assert result.exit_code != 0
-    assert f"invalid element declaration names: ['{tag}']" in result.output
+    assert f"invalid element declaration names ['{tag}']" in result.output
+    assert "an element name is `lf-` followed by" in result.output
 
 
 def test_check_refuses_an_invalid_action_detail_schema(page_dir):
@@ -3747,7 +3790,7 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
     registry = json.loads((schema_model.ASSETS / "registry.json").read_text())
     # Each case holds its `kind` and the fields some `when` reads, and nothing else:
     # a field no `when` names cannot change what the agent is told.
-    on_page = {"document": "page"}
+    on_page = {"scope": "page"}
 
     def owes(kind):
         return {"answer": {"kind": kind}}
@@ -3806,12 +3849,12 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
         },
         "pick inside a thread": {
             "kind": "action",
-            "meaning": {"document": "thread"},
+            "meaning": {"scope": "thread"},
             **owes("reply"),
         },
         "pick inside a thread over App Server": {
             "kind": "action",
-            "meaning": {"document": "thread"},
+            "meaning": {"scope": "thread"},
             **owes("turn"),
         },
         "resolve": {"kind": "resolve"},
@@ -4360,12 +4403,12 @@ def test_activation_rechecks_changed_css_while_the_document_stays_identical(page
 
     def activate(css):
         theme.write_text(original + css)
-        return revisioning_model.activate_source(page_dir, [])
+        return revisioning_model.activate_source(page_dir)
 
     css = ":root { --pin: 700px; --col: 720px } main { --lf-reading-column: 1; max-width: var(--col) }"
     initial = activate(css)
     assert initial.error is None
-    assert activate(css).check.errors == []
+    assert activate(css).error is None
 
     overwide = activate(css.replace("700px", "900px"))
     assert "style> (line " in overwide.error
@@ -4375,7 +4418,9 @@ def test_activation_rechecks_changed_css_while_the_document_stays_identical(page
     wider_column = css.replace("700px", "900px").replace("720px", "960px")
     widened = activate(wider_column)
     assert widened.error is None
-    assert widened.check.column == 960
+    from leaf.validation.source import check_source
+
+    assert check_source(page_dir, []).column == 960
     assert widened.created
     assert widened.revision == initial.revision + 1
 
@@ -5361,7 +5406,7 @@ def test_an_independent_verb_leaves_a_decisions_thread_resolved(page_dir):
         "action": "label",
         "detail": {},
         "meaning": {
-            "document": "page",
+            "scope": "page",
             "unit": "sug-a",
             "depends": ["sug-a"],
         },

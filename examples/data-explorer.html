@@ -59,8 +59,12 @@
         font: 650 var(--t-5) / 1.3 var(--sans);
       }
 
+      /* A table on the stage takes the stage's width; its frame scrolls it when the
+         stage is narrower than its columns. */
       .query-results {
-        min-width: 34rem;
+        display: table;
+        width: 100%;
+        min-width: 30rem;
       }
 
       .query-table-frame {
@@ -335,14 +339,15 @@
     </script>
   </head>
   <body>
-    <main>
+    <main data-width="available">
       <p class="eyebrow">structured data explorer</p>
+      <h1>Shape a release query</h1>
+      <p class="lede">
+        Compose ordered filters against a captured release set. The table and final
+        instruction derive from the same structured configuration.
+      </p>
       <lf-ask id="release-query-ask">
-        <h1>Which release query should the agent build?</h1>
-        <p class="lede">
-          Compose ordered filters against a captured release set. The table and final
-          instruction derive from the same structured configuration.
-        </p>
+        <h2>Which release query should the agent build?</h2>
         <lf-playground id="release-query-playground" submit-label="Build query">
           <lf-playground-control
             name="limit"

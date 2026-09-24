@@ -8,7 +8,13 @@ referenced element still changes containment without changing an old event.
 from functools import cached_property
 
 from leaf.asks import answer_verbs, answering_action
-from leaf.projection import frozen_thread_reading, page_reading, with_action
+from leaf.events import event_document
+from leaf.projection import (
+    authored_positions,
+    frozen_thread_reading,
+    page_reading,
+    with_action,
+)
 from leaf.thread_context import thread_structure
 
 
@@ -52,18 +58,18 @@ def direct_dependencies(event: dict, spec: dict) -> list[str]:
     return dependencies
 
 
-def state_meaning(event: dict, entry: dict, document: str) -> dict:
+def state_meaning(event: dict, entry: dict, scope: str) -> dict:
     """Resolve one validated verb using its sending document's declaration.
 
     Only what a registry-free reader cannot recover from the event is stored: the
     fold unit, the identities the declared record fields name, and a created
-    child's tag. The owner and verb are the event's `widget` and `action`, and a
-    page document is the revision the event names (`events.event_coordinate`,
+    child's tag. The owner and verb are the event's `widget` and `action`, and the
+    scope with the event's revision names its document (`events.event_coordinate`,
     `events.event_document`)."""
     spec = entry["x-state"][event["action"]]
     dependencies = direct_dependencies(event, spec)
     meaning = {
-        "document": document,
+        "scope": scope,
         "unit": dependencies[1],
         "depends": sorted(set(dependencies)),
     }
@@ -92,7 +98,7 @@ def answer_meaning(
         return False, None
     withdrawn = entry.get("x-withdrawn-as")
     declined = withdrawn is not None and event["detail"].get("outcome") == withdrawn
-    if event["meaning"]["document"] == "page":
+    if event_document(event)["kind"] == "page":
         reading = readings.page(sender, event["revision"])
         byid = sender.by_id
     else:
@@ -127,18 +133,32 @@ def admit_widget_event(sender, event: dict, readings: AdmissionReadings) -> dict
     `sender` is the authored document of the revision the command names."""
     events, registry = readings.events, readings.registry
     record = sender.by_id.get(event["widget"])
-    document = "page"
+    scope = "page"
     if record is None:
         record = thread_structure(events).by_id[event["widget"]]
-        document = "thread"
+        scope = "thread"
     entry = registry[record["tag"]]
     admitted = dict(event)
     if event["kind"] == "request":
         spec = entry["x-request"]["verbs"][event["action"]]
         unit = request_unit(event, spec)
-        admitted["meaning"] = {"document": document, "unit": unit}
+        admitted["meaning"] = {"scope": scope, "unit": unit}
     else:
-        admitted["meaning"] = state_meaning(event, entry, document)
+        admitted["meaning"] = state_meaning(event, entry, scope)
+        position = entry["x-state"][event["action"]].get("record") or {}
+        if position.get("kind") == "position":
+            # The authored units the rank lies among, in their order on the sending
+            # document: a later document that authors them differently has placed
+            # the unit itself (`projection.move_absorbed`).
+            reading = (
+                readings.page(sender, event["revision"])
+                if scope == "page"
+                else readings.thread
+            )
+            byid = reading.document.by_id if scope == "page" else reading.by_id
+            admitted["meaning"]["among"] = authored_positions(
+                event["widget"], position, byid, reading.spoken, registry
+            )[event["detail"][position["value"]]]
         answers, closes = answer_meaning(sender, record, admitted, readings)
         if answers:
             admitted["meaning"]["answer"] = closes
@@ -158,7 +178,7 @@ def admitted_contract_error(
     candidate side comes from the document being checked, except that thread widgets
     live in their frozen markup for the page's whole lifetime.
     """
-    if event["meaning"]["document"] == "page":
+    if event_document(event)["kind"] == "page":
         record = page.by_id[event["widget"]]
         recorded = recorded_page.by_id[event["widget"]]
     else:

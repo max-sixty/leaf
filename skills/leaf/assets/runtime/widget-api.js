@@ -26,6 +26,8 @@ export {
 } from "./anchor-resolution.js";
 // The name Threads, the margin, and reactions give a comment's anchor.
 export { anchorLabel } from "./conversation/messages.js";
+// The page's `main`, or the body of the message whose markup a node stands in.
+export { authoredScope } from "./conversation/messages.js";
 export { navigateToDatum } from "./application.js";
 export {
   declareCoverRoom,
@@ -81,6 +83,9 @@ export {
 } from "./markdown.js";
 export { isCanonicalMediaUrl, scopedMediaUrl } from "./media.js";
 export { pageScroller } from "./scrolling.js";
+// The user's place as a landmark, and the history entries a widget adds.
+export { capturePlace, restorePlace } from "./reading-place.js";
+export { claimTraversals, pushEntry, replaceEntry } from "./history.js";
 export { removeRuntimeRootStyle, setRuntimeRootStyle } from "./root-state.js";
 export {
   compoundReadingRegionId,
@@ -112,7 +117,7 @@ export { ago, clocked, clockValue, quietSince } from "./presence.js";
 export { shallowSigs } from "./application.js";
 export { shadowStage } from "./shadow-stage.js";
 export { agentName, revisionLabel } from "./context.js";
-export { loadDataFragment, watchData } from "./data.js";
+export { loadDeferred, watchData } from "./data.js";
 export { clearDraft, loadDraft, saveDraft, sendDraft, watchDraft } from "./drafts.js";
 export {
   declarationFor,

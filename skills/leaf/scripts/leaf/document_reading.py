@@ -8,7 +8,7 @@ reading does no file I/O and stores no derived state.
 from typing import NamedTuple
 
 from .asks import page_ask_readings
-from .events import retractions, seats_with_agent
+from .events import document_identity, retractions, seats_with_agent
 from .passages import Passages, enclosing_of, page_passages
 from .projection import PageReading, StateProjection, retirement_outcomes
 from .requests import request_lifecycles_for, request_phases
@@ -52,7 +52,7 @@ def read_document(
         events,
         parser.lf_elements,
         registry,
-        {"kind": "page", "revision": revision},
+        document_identity("page", revision),
         data,
     )
     asks = page_ask_readings(

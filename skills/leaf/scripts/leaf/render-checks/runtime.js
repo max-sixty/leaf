@@ -82,3 +82,12 @@ export function requestFrame() {
   return requested;
 }
 export const framePresented = (requested) => presentedFrame >= requested;
+
+// Every post this tab has made to /api/event has ended, the page's error reports
+// among them (`runtime/traffic.js`). A page that has posted nothing paints no ledger.
+export function sendsAcked() {
+  const traffic = document.documentElement.dataset.lfTraffic;
+  if (traffic === undefined) return true;
+  const { sends, acked } = JSON.parse(traffic);
+  return sends === acked;
+}

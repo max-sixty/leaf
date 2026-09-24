@@ -16,6 +16,7 @@ and requests another reading at its next deadline; it does not run a second fold
 | turn identity and open or closed state | the page's claim record | a prompt or direct delivery opens an opaque `turn`; the Stop hook stamps `turn_closed` | the next opening mints a turn; the next closing stamps it |
 | the closed turn this page nudged its session in | `messaged_turn` in the page's claim record | browser-event admission, once the harness's nudge lands | a later closed turn carries a different `turn` |
 | wait lease | `waiter.lock`, or `sessions/<id>.wait` for a host session | the live `leaf wait` process, held open for its life | process exit |
+| a host wait's start that no tool hook has named | a lock on `sessions/<id>.started` | the `leaf wait` process, taken with the session's wait lease under `sessions/<id>.started.lock` and held for its life | the `PostToolUse` hook removes the file under that same lock when it names the start; process exit |
 | acknowledgement cursor | `cursor.json` | `leaf wait --ack`, after the complete delivery reached its durable consumer | when its seq is past the log's end, or a fresh log replaces the one it named; monotonic within one log |
 | pickup transition | a `pickup` event in `events.jsonl` | an unobserved carrier records `queued` when Codex accepts a batch; whichever carrier puts the batch into a turn records `opened` with session and turn identity: a direct `leaf wait --ack` confirmation, the prompt hook re-presenting an acknowledged unanswered move, or an App Server turn start | never; each event/phase/session/turn transition is idempotent |
 | page claim: session, display name, harness, carrier, lifetime | `~/.local/state/leaf/claims/<page>` | `server start` from an agent host; released by the hook when the session exits | `released` is set, or the lifetime it rests on is gone: the pid, the background job's directory, or — for a host that multiplexes every session into one process, where there is no pid to name — the page going untouched for ACTIVITY_GRACE_SECS, which a *visible* tab's `viewed.json` writes keep renewing — a backgrounded tab closes the news stream and stops renewing |
@@ -126,6 +127,8 @@ The `hook` command, registered on Stop, UserPromptSubmit, and SessionEnd,
 refuses to let a turn end with one of this session's pages unwatched, stamps
 that turn's ending and the next one's opening, surfaces unacknowledged user
 events at the next prompt, and releases the session's page claims when it exits.
+Registered on Claude Code's `PostToolUse` too, it names a wait that a background
+command started, read off the wait's start mark rather than the command.
 Its unanswered-work guard reads `activity.obligations`, selected from the same
 `workflows` projection the browser reads; it does not reconstruct conversations
 itself. The App Server adapter presents at most one thread reply in each turn's

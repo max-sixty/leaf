@@ -638,7 +638,6 @@ def test_claude_and_codex_load_the_same_plugin_payload():
         "uv.lock",
         "hooks/hooks.json",
         "hooks/scripts/loop-guard.py",
-        "hooks/scripts/wait-started.py",
         "skills/leaf/SKILL.md",
         "skills/leaf/references/authoring-asks.md",
         "skills/leaf/references/authoring-evidence.md",
@@ -897,12 +896,12 @@ def test_an_installed_payload_is_complete_and_launches_outside_the_checkout(tmp_
     ]
 
 
-@pytest.mark.nightly  # the sync asks the host's index for the payload's wheels
+@pytest.mark.nightly  # the sync resolves the payload against the host's index
 def test_the_launcher_resolves_through_the_hosts_own_index(tmp_path):
     """The index a host configures is the only place leaf may look for its
     dependencies, and syncing the payload project is the only way it gets a
-    wheel. The lock it ships pins which versions, never where they come from:
-    the sync asks the configured index for the versions the lock names.
+    wheel. The shipped lock names versions, but a sync against another index
+    re-locks against that index rather than fetch the lock's pypi.org URLs.
 
     Both halves need a cache directory of their own, because a wheel already in
     the developer's cache answers before any index is consulted and the run would
@@ -1444,10 +1443,10 @@ def test_the_injected_control_face_is_a_default_only_the_document_reads():
 
 
 def test_the_layer_sheets_spell_the_runtime_s_layout_numbers():
-    """A media query cannot read a custom property, so the sheets state the tray's
-    covering width, the strip-taking tray, the width properties, and the Ask stamp as
-    literals while the runtime lays out and paints by the constants. Held equal here rather than
-    trusted to stay so."""
+    """A stylesheet cannot read a runtime constant, so the sheets state the strip-taking
+    surfaces, the width properties, the room the runtime reads covering from, and the Ask
+    stamp as literals while the runtime lays out and paints by the constants. Held equal
+    here rather than trusted to stay so."""
     runtime = schema_model.ASSETS / "runtime"
     layout = (runtime / "chrome-layout.js").read_text()
     trays = (runtime / "trays.js").read_text()
@@ -1459,18 +1458,19 @@ def test_the_layer_sheets_spell_the_runtime_s_layout_numbers():
     def constant(pattern, source):
         return re.search(pattern, source, re.MULTILINE | re.DOTALL).group(1)
 
-    tray = int(constant(r"^const TRAY_SLOT_W = (\d+);", trays))
-    assert 'covers: () => key !== "asks" || trayCovers(),' in trays
+    surfaces = (runtime / "auxiliary-surfaces.js").read_text()
     for spelling in (
-        f"(width <= {tray * 2}px)",
+        "--lf-" + constant(r'getPropertyValue\("--lf-([a-z-]+)"\)', surfaces) + ":",
         "var(" + constant(r'^const THREAD_PANEL_PROP = "([^"]+)";', layout) + ")",
         "var(" + constant(r'^export const TRAY_SLOT_PROP = "([^"]+)";', trays) + ")",
         "[" + constant(r'^  ask: "([^"]+)",', presentation) + "]",
     ):
         assert spelling in sheet, f"the layer sheets no longer spell {spelling}"
     for spelling in (
-        "html[data-lf-restore-asks]",
-        'html[data-lf-live]:has(body[data-lf-auxiliary-surface="asks"])',
+        'html[data-lf-restore-surface="asks"] body',
+        'html[data-lf-live] body[data-lf-auxiliary-surface="asks"]',
+        'html[data-lf-restore-surface="threads"] body',
+        'html[data-lf-live] body[data-lf-auxiliary-surface="threads"]',
     ):
         assert spelling in sheet, f"the layer sheets no longer spell {spelling}"
 
@@ -1511,17 +1511,25 @@ def test_the_prepaint_shell_matches_the_runtime_s_saved_arrangements():
         return re.search(pattern, source, re.MULTILINE).group(1)
 
     auxiliary_surfaces = (assets / "runtime" / "auxiliary-surfaces.js").read_text()
+    layout = (assets / "runtime" / "chrome-layout.js").read_text()
     for pattern, source in (
         (r'^export const AUXILIARY_SURFACE_KEY = "([^"]+)";', auxiliary_surfaces),
         (r'key: "(lf-tray-slot-width)"', trays),
+        (r'key: "(lf-thread-panel-width)"', layout),
     ):
         key = constant(pattern, source)
         assert f'localStorage.getItem(scope + "{key}")' in bootstrap
 
+    panel_prop = constant(r'^const THREAD_PANEL_PROP = "([^"]+)";', layout)
+    tray_prop = constant(r'^export const TRAY_SLOT_PROP = "([^"]+)";', trays)
+    for prop in (panel_prop, tray_prop):
+        assert f'root.style.setProperty("{prop}"' in bootstrap
+    panel_default = constant(r"^const THREAD_PANEL_W = (\d+);", layout)
+    tray_default = constant(r"^const TRAY_SLOT_W = (\d+);", trays)
     for literal in (
-        constant(r"^const TRAY_SLOT_W = (\d+);", trays),
-        constant(r"^const TRAY_SLOT_MIN = (\d+);", trays),
-        "data-lf-restore-asks",
+        f"var({panel_prop}, {panel_default}px)",
+        f"var({tray_prop}, {tray_default}px)",
+        "data-lf-restore-surface",
     ):
         assert literal in theme
 
@@ -3644,7 +3652,7 @@ def test_package_init_widget_validates_its_tag_without_writing(tmp_path, monkeyp
     )
 
     assert result.exit_code != 0
-    assert "must match" in result.output
+    assert "invalid widget tag 'risk-note': an element name is `lf-`" in result.output
     assert not package.exists()
 
 
@@ -4533,10 +4541,11 @@ def test_a_host_that_names_nothing_is_asked_for_its_path_only_after_chrome(
     assert "chromium" in hint and "LEAF_BROWSER_EXECUTABLE" in hint
 
 
-def test_producer_guidance_names_a_bundled_script_by_its_path_here(tmp_path):
+def test_producer_guidance_names_a_package_script_the_run_door_reaches(tmp_path):
     """A reader of `leaf page guidance` with no skill loaded, such as a worker the
-    author assigns, gets a command it can run as printed: the bundled producer
-    script's absolute path on this machine, not a placeholder."""
+    author assigns, gets a pipeline it can run as printed: the producer names a
+    package and a script, and `package run` finds that script by the same lookup
+    `--package` resolves through, with no path on this machine in the text."""
     page = tmp_path / "patch-page"
     initialized = CliRunner().invoke(
         cli_model.cli, ["page", "init", "--package", "diff", str(page)]
@@ -4546,6 +4555,152 @@ def test_producer_guidance_names_a_bundled_script_by_its_path_here(tmp_path):
         cli_model.cli, ["page", "guidance", str(page), "producer"]
     )
     assert producer.exit_code == 0, producer.output
-    assert "<leaf-packages>" not in producer.output
-    [script] = re.findall(r"uv run (\S+patch_manifest\.py)", producer.output)
-    assert Path(script).is_absolute() and Path(script).is_file()
+    [(package, script)] = re.findall(
+        r"\| leaf package run (\S+) (\S+) \| leaf data set ", producer.output
+    )
+    assert (layer_model.named_package(package) / "scripts" / script).is_file()
+    assert not (page / "scripts").exists(), "a page never vendors scripts"
+
+
+def test_an_installed_package_runs_its_own_scripts_by_name(tmp_path, monkeypatch):
+    """`package install` carries `scripts/`, and `package run` runs one in the
+    environment its header declares, handing it stdin, the arguments after the
+    script's name (options included), stdout, and its exit status."""
+    monkeypatch.chdir(tmp_path)
+    source = tmp_path / "src" / "tally"
+    created = CliRunner().invoke(cli_model.cli, ["package", "init", str(source)])
+    assert created.exit_code == 0, created.output
+    (source / "scripts").mkdir()
+    (source / "scripts" / "count.py").write_text(
+        "# /// script\n"
+        "# dependencies = []\n"
+        "# ///\n"
+        "import json, sys\n"
+        "lines = sys.stdin.read().splitlines()\n"
+        "json.dump({'args': sys.argv[1:], 'lines': len(lines)}, sys.stdout)\n"
+        "sys.exit(3 if '--fail' in sys.argv else 0)\n"
+    )
+    installed = CliRunner().invoke(cli_model.cli, ["package", "install", str(source)])
+    assert installed.exit_code == 0, installed.output
+    shutil.rmtree(source)
+
+    def run(*arguments):
+        return subprocess.run(
+            [*LEAF_COMMAND, "package", "run", *arguments],
+            input="one\ntwo\n",
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+    counted = run("tally", "count.py", "--label", "x y")
+    failed = run("tally", "count.py", "--fail")
+    missing = run("tally", "total.py")
+    unknown = run("tallies", "count.py")
+
+    assert counted.returncode == 0, counted.stderr
+    assert json.loads(counted.stdout) == {"args": ["--label", "x y"], "lines": 2}
+    assert failed.returncode == 3
+    assert json.loads(failed.stdout) == {"args": ["--fail"], "lines": 2}
+    assert missing.returncode == 1
+    assert missing.stderr == (
+        "package 'tally' has no script 'total.py'; available: count.py\n"
+    )
+    assert unknown.returncode == 1
+    assert "unknown package 'tallies'" in unknown.stderr
+
+
+@pytest.mark.parametrize(
+    ("header", "message"),
+    [
+        ("", "needs one inline `# /// script` metadata block"),
+        (
+            '# /// script\n# dependencies = ["unidiff>=1,<2"]\n# ///\n',
+            "dependency 'unidiff<2,>=1' must state a floor (>=) and nothing else",
+        ),
+        (
+            '# /// script\n# dependencies = ["unidiff==1.0.1"]\n# ///\n',
+            "dependency 'unidiff==1.0.1' must state a floor",
+        ),
+        (
+            '# /// script\n# dependencies = ["unidiff"]\n# ///\n',
+            "dependency 'unidiff' must state a floor",
+        ),
+        (
+            '# /// script\n# requires-python = "<3.13"\n# ///\n',
+            "requires-python must state a floor",
+        ),
+        (
+            '# /// script\n# dependencies = "unidiff>=1"\n# ///\n',
+            "invalid script metadata",
+        ),
+    ],
+)
+def test_package_check_refuses_a_script_that_would_run_in_the_callers_project(
+    tmp_path, monkeypatch, header, message
+):
+    """Without an inline `script` block, `uv run --script` runs a file in whatever
+    project the caller's directory reaches, so check and install refuse one; a
+    declared constraint must be a floor with no cap, since no lock ships beside it.
+    """
+    monkeypatch.chdir(tmp_path)
+    source = tmp_path / "src" / "tally"
+    created = CliRunner().invoke(cli_model.cli, ["package", "init", str(source)])
+    assert created.exit_code == 0, created.output
+    (source / "scripts").mkdir()
+    script = source / "scripts" / "count.py"
+    script.write_text(f"{header}print('counted')\n")
+
+    checked = CliRunner().invoke(cli_model.cli, ["package", "check", str(source)])
+    installed = CliRunner().invoke(cli_model.cli, ["package", "install", str(source)])
+
+    assert checked.exit_code == 1
+    assert checked.output.startswith(str(script))
+    assert message in checked.output
+    assert installed.exit_code == 1
+    assert message in installed.output
+    assert not (machine_model.package_store() / "tally").exists()
+
+
+def test_script_requirements_read_a_multiline_dependency_list(tmp_path):
+    """The reading `package check` applies is the one the suite's pin guard uses, so
+    a header written across several comment lines is read whole by both."""
+    script = tmp_path / "tool.py"
+    script.write_text(
+        "# /// script\n"
+        "# dependencies = [\n"
+        '#   "unidiff>=1",\n'
+        '#   "rich>=13",\n'
+        "# ]\n"
+        "# ///\n"
+    )
+    assert [str(r) for r in packages_model.script_requirements(script)] == [
+        "unidiff>=1",
+        "rich>=13",
+    ]
+
+
+def test_the_suite_pins_every_bundled_script_dependency():
+    """A bundled script's header declares its dependencies and ships no lock, so
+    the dev group repeats each one: `uv.lock` then pins what the suite runs the
+    script against, and the suite needs no network to run it."""
+    pyproject = (PLUGIN_ROOT / "pyproject.toml").read_text()
+    declared = {
+        str(requirement)
+        for script in schema_model.BUNDLED_PACKAGES.glob("*/scripts/*.py")
+        for requirement in packages_model.script_requirements(script)
+    }
+    assert "unidiff>=1" in declared
+    # Bundled packages never pass through `package install`, so hold their scripts
+    # to the same check here.
+    for package in {
+        script.parent.parent
+        for script in schema_model.BUNDLED_PACKAGES.glob("*/scripts/*.py")
+    }:
+        checked = CliRunner().invoke(cli_model.cli, ["package", "check", str(package)])
+        assert checked.exit_code == 0, checked.output
+    assert [
+        requirement
+        for requirement in sorted(declared)
+        if f'  "{requirement}",' not in pyproject
+    ] == []

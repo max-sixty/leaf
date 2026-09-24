@@ -9,8 +9,8 @@ re-vendoring.
 
 ## Static validation
 
-`version check` is a deterministic check of the exact mutable `index.html` (no
-browser, near-free; activation and `version stamp` run the same boundary): the HTML parses with balanced
+`version check` starts with a deterministic check of the exact mutable `index.html`
+(no browser, near-free; activation and `version stamp` run the same boundary): the HTML parses with balanced
 tags; one direct `<body><main>` contains all authored content; page-authored behavior
 appears only in inline modules or literal local module graphs rooted below `/page/`,
 never classic scripts, network imports, event-handler attributes, or `javascript:` URLs;
@@ -32,11 +32,19 @@ has moved, detached, or closed. That release is final — a revision the part ha
 left cannot be asked for it back, so reopening the closed conversation restores
 the thread and not its target. An agent reply may detach a thread in the same
 transition that removes its subject. A declared retirement protects its holder and slots until its
-outcome licenses their removal. Other dropped ids are reported as advice. No fixed-pixel-width
+outcome licenses their removal. Other dropped ids are reported as advice. These carry-over rules judge a candidate. A source whose captured artifact is the active revision's had its transition judged when it activated, and the append door has judged every event since against the revision it names, so neither activation nor `version check` re-judges it against the longer log. No fixed-pixel-width
 element is wider than the readable column (the rule that draws that column claims
 it with `--lf-reading-column: 1`, so the width and the claim come from one block). Near-free
 and deterministic is what makes running it on every save affordable, so keep a new
-check that way; anything needing a browser belongs in `--render`.
+check that way; anything needing a browser belongs in the command's browser half.
+
+That half has one piece plain `version check` runs too. A page that runs code of its
+own, a module script or a page widget the document places, is served and run once at
+the render viewport through upgrade, presentation, and one frame after it, and fails on
+each `error` event its runtime posts in that time: the event `leaf wait` would deliver,
+intercepted rather than read off the browser's own error channels, so the check and the
+watcher fail on one set in one wording. A quick page never reaches `--render`, and no
+static reading says whether a module throws. `render_gate/page_code.py` owns the run.
 
 An ordinary document's comment namespace is the roots present in its log. A
 specimen template's namespace is its `data-specimen-threads` declaration, so a
@@ -65,7 +73,7 @@ can become a script module.
 
 ## Browser validation
 
-`version check --render` adds the browser half, run once before a page's URL is first
+`version check --render` adds the rest of the browser half, run once before a page's URL is first
 handed over: the exact current source loads in the host's browser (whichever
 executable `LEAF_BROWSER_EXECUTABLE`, `CHROME_PATH`, or `CHROME_BIN` names, else
 Playwright's `channel="chrome"`, else the first browser `PATH` answers with) and the
@@ -75,7 +83,15 @@ values that resolve, and given real space; words a user can mark, reach, and
 select, with the registry's verbatim and shadow declarations honored; no sideways
 scroll, clipped control, squeezed table, trapped margin, or misplaced box; a print
 rendering that covers and drops nothing; and standing state that replays without
-conflict and idempotently. `render_gate/readings.py` is the list.
+conflict and idempotently. `render_gate/readings.py` is the list. Those readings run
+at a desktop and a phone viewport; once they are done, the loaded desktop page is
+resized through the widths from 360px to 1200px and the two sideways readings are taken
+again at each: a version holds at every width from the narrowest phone to the desktop,
+not only at the two the gate renders, and each fault the sweep alone finds is reported
+with the widths it spans. The gate also gives
+advice, which never refuses a version: at the desktop viewport, a page whose layout
+grids split at more places than its busiest grid needs is told to lay a sheet on one
+set of tracks.
 The invariants live in render_version, which the tests/test_render_*.py modules drive over
 the shipped examples. The suite uses Chromium's headless shell, while its
 end-to-end render-check tests run the launches used here — the installed Chrome

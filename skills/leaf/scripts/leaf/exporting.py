@@ -62,7 +62,7 @@ from leaf.structure import (
 
 ResourceReader = Callable[[str], Resource]
 
-# Export preparation is bulk work rather than an arriving signal: every fragmented
+# Export preparation is bulk work rather than an arriving signal: every deferred-data
 # widget materializes the payloads it has been holding, and the page answers no probe
 # while that runs. The corpus's diff alone holds the page for most of a minute, so this
 # budget is what a large document is given to finish rather than the readiness patience.
@@ -525,12 +525,12 @@ def _export_document(page, request, url: str, name: str) -> str:
         failed_stage = wait_for_presentation(page, state, readiness["replayedEvents"])
         if failed_stage:
             raise PlaywrightTimeout(f"presentation stopped at {failed_stage}")
-        # A live fragmented widget deliberately keeps unopened payloads out of the
-        # DOM. A standalone copy has no fragment door after scripts are removed, so
+        # A live widget over deferred record fields keeps unopened payloads out of the
+        # DOM. A standalone copy has no deferred door after scripts are removed, so
         # let any renderer that owns such payloads materialize them before baking.
         evaluate_probe(page, "prepareExport")
         wait_for_probe(page, "exportPrepared", timeout_ms=PREPARE_TIMEOUT_MS)
-        # Materializing a live fragment can mount required descendants or overlap a
+        # Materializing a deferred value can mount required descendants or overlap a
         # newer semantic publication. Re-read the coordinator immediately before
         # baking rather than treating the initial arrival latch as permanent.
         wait_for_probe(page, "currentPresented")

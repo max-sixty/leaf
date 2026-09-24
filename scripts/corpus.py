@@ -5,7 +5,10 @@ The corpus is derived test content — edit an example, regression page, or the
 developer feature gallery and rerun this script (tests fail on a stale corpus). Each page's
 <main> body keeps its ids but not its document-level contents sidebar. Every source
 must therefore keep its ids disjoint, which this script enforces.
-Usage: corpus.py  (no arguments; writes examples/corpus.html)
+An example that owns an element (a page/registry.json declaration with its module under
+page/widgets/) brings that element into the corpus through examples/corpus.page/, the
+corpus's own page directory, so its markup still names a declared element there.
+Usage: corpus.py  (no arguments; writes examples/corpus.html and its companions)
 """
 
 import json
@@ -21,6 +24,7 @@ EXAMPLES_DIR = Path(__file__).resolve().parent.parent / "examples"
 CORPUS = EXAMPLES_DIR / "corpus.html"
 CORPUS_DATA = EXAMPLES_DIR / "corpus.data.json"
 CORPUS_EVENTS = EXAMPLES_DIR / "corpus.jsonl"
+CORPUS_PAGE = EXAMPLES_DIR / "corpus.page"
 # Keep the short core pages first; specialist and regression surfaces follow.
 PUBLIC_TABS = [
     ("review-a-plan", "Plan review"),
@@ -34,7 +38,9 @@ PUBLIC_TABS = [
     ("data-explorer", "Data explorer"),
     ("code-comparison", "Code comparison"),
     ("live-progress", "Live"),
+    ("alert-review", "Alerts"),
     ("pr-walkthrough", "PR"),
+    ("wt-merge", "Merge film"),
     ("security-boundary", "Security"),
     ("command-hub", "Command"),
 ]
@@ -47,8 +53,8 @@ DEVELOPER_TABS = [
         "Visual review package",
     ),
 ]
-CONTENTS_SIDEBAR = re.compile(
-    r'\s*<aside class="sidebar" id="[^"]+">\s*' r"<lf-toc\b[^>]*></lf-toc>\s*</aside>"
+CONTENTS_MAP = re.compile(
+    r"\s*<(aside|section)\b[^>]*>\s*<lf-toc\b[^>]*></lf-toc>\s*</\1>"
 )
 TABS = [
     *((EXAMPLES_DIR / f"{stem}.html", label) for stem, label in PUBLIC_TABS),
@@ -58,6 +64,8 @@ TABS = [
     ),
     *DEVELOPER_TABS,
 ]
+
+MAIN_OPEN = re.compile(r"<main(?:\s[^>]*)?>")
 
 HEAD = """\
 <!doctype html>
@@ -154,11 +162,12 @@ def build() -> str:
                     f"id '{i}' is in both {owner[i]} and {source.name}; rename one"
                 )
             owner[i] = source.name
-        if text.count("<main>") != 1 or text.count("</main>") != 1:
+        # A page's own width (`<main data-width>`, a sheet) is its document's to declare;
+        # a tab in the corpus is part of the corpus's page, so only the body carries over.
+        opens = list(MAIN_OPEN.finditer(text))
+        if len(opens) != 1 or text.count("</main>") != 1:
             sys.exit(f"{source.name}: expected exactly one <main>…</main>")
-        body = text[
-            text.index("<main>") + len("<main>") : text.rindex("</main>")
-        ].strip()
+        body = text[opens[0].end() : text.rindex("</main>")].strip()
         # The tab's label is the example's own eyebrow, title-cased, so embedding both
         # makes the panel say its name twice. On screen the strip carries it; wherever
         # there is no strip — unupgraded, in print, in a copy — the theme paints the
@@ -167,11 +176,50 @@ def build() -> str:
         # lf-toc maps its closest main. After composition that is the corpus's outer
         # document, so retaining a source page's map would repeat one whole-corpus
         # outline in every tab rather than navigate that source page.
-        body = CONTENTS_SIDEBAR.sub("", body)
+        body = CONTENTS_MAP.sub("", body)
         tabs.append(f'<lf-tab id="corpus-{stem}" label="{label}">\n{body}\n</lf-tab>\n')
 
     head = HEAD.replace("</head>", "\n".join(authored_assets) + "\n</head>")
     return head + "\n" + "\n".join(tabs) + "\n" + FOOT
+
+
+def build_page() -> dict[str, bytes]:
+    """The corpus's page directory: every element an example owns, with its modules.
+
+    An element is the example's own when it ships the module that defines it,
+    `widgets/<tag>.js`; a declaration without one narrows a layer widget for that page
+    alone (a playground's fixed id) and stays out of the corpus. An owning example's
+    other page files come along, since its modules import them.
+    """
+    declarations = {}
+    files = {}
+    for source, _ in TABS:
+        page = source.with_suffix(".page")
+        if not page.is_dir():
+            continue
+        registry = json.loads((page / "registry.json").read_text(encoding="utf-8"))
+        owned = {
+            tag: entry
+            for tag, entry in registry.items()
+            if (page / "widgets" / f"{tag}.js").is_file()
+        }
+        if not owned:
+            continue
+        for tag, entry in owned.items():
+            if tag in declarations:
+                sys.exit(f"corpus examples both declare {tag!r}")
+            declarations[tag] = entry
+        for path in sorted(page.rglob("*")):
+            name = path.relative_to(page).as_posix()
+            if not path.is_file() or name == "registry.json":
+                continue
+            if name in files and files[name] != path.read_bytes():
+                sys.exit(f"corpus examples contribute conflicting page file {name!r}")
+            files[name] = path.read_bytes()
+    if not declarations:
+        return {}
+    registry = json.dumps(declarations, indent=2, ensure_ascii=False) + "\n"
+    return {"registry.json": registry.encode(), **files}
 
 
 def build_data() -> dict:
@@ -227,6 +275,13 @@ def main() -> None:
         encoding="utf-8",
     )
     CORPUS_EVENTS.write_text(build_events(), encoding="utf-8")
+    for old in (
+        sorted(CORPUS_PAGE.rglob("*"), reverse=True) if CORPUS_PAGE.exists() else []
+    ):
+        old.unlink() if old.is_file() else old.rmdir()
+    for name, data in build_page().items():
+        (CORPUS_PAGE / name).parent.mkdir(parents=True, exist_ok=True)
+        (CORPUS_PAGE / name).write_bytes(data)
     print(CORPUS)
     print(CORPUS_DATA)
     print(CORPUS_EVENTS)

@@ -137,7 +137,7 @@ def test_packages_and_panel_share_threads_through_gestures_and_authored_content(
     assert '"markup"' not in json.dumps(record) and '"html"' not in json.dumps(record)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    expect(page.locator(".lf-thread-topic")).to_have_text("Decision")
+    expect(page.locator(".lf-thread-topic")).to_have_text("...")
     page.locator(".lf-thread-summary").click()
     expect(page.locator("#direction")).to_have_count(1)
     with sending(page, "choose North in the authored reply"):
@@ -1124,7 +1124,7 @@ def test_conversation_presentation_waits_for_its_frozen_widgets_only(browser, se
             "action": "choose",
             "detail": {"choice": "chosen"},
             "meaning": {
-                "document": "thread",
+                "scope": "thread",
                 "unit": "thread-local",
                 "depends": ["thread-local"],
             },

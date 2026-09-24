@@ -1,5 +1,4 @@
-/* Shared product-site furniture. Product rules require the authored site-page class,
- * so composing this package into the public examples cannot restyle their documents. */
+/* Product-site furniture. Published examples keep their authored Leaf layer. */
 
 /* Leaf's banner already opens every product page, so the column starts at the runtime's
  * narrow-screen top padding at every width. */
@@ -67,63 +66,4 @@ body.site-page footer.site-footer p {
 
 body.site-page footer.site-footer p + p {
   margin-top: 6px;
-}
-
-/* This label is injected only on published example versions. It is site chrome rather
- * than authored page content, so it deliberately has no $idioms entry. */
-body:has(> main > .sitenote) > main {
-  padding-top: 32px;
-}
-
-/* The label and its routes take one row wherever both fit and a row each where they do
- * not, so the seat the label is given decides its shape and no width is named. That
- * matters most in a framed example, where the label sits in the task's own header and
- * every row it takes is height the task does not get. */
-.sitenote {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--sp-1) var(--sp-4);
-  margin: 0 0 36px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid var(--rule);
-}
-
-.sitenote p {
-  margin: 0;
-  color: var(--ink-2);
-}
-
-.sitenote strong {
-  color: var(--ink);
-  font-weight: 600;
-}
-
-.sitenote p.sitenote-nav {
-  color: var(--muted-2);
-}
-
-.sitenote a {
-  color: var(--accent);
-  text-decoration: none;
-}
-
-.sitenote a:hover {
-  text-decoration: underline;
-}
-
-/* A framed example seats the label in the task's own header, where it is furniture
- * beside the task rather than the page's opening: smaller, and close to what follows. */
-main > :only-child > header > .sitenote {
-  margin-bottom: 4px;
-  padding-bottom: 4px;
-  font-size: var(--t-6);
-  line-height: 1.3;
-}
-
-@media print {
-  .sitenote {
-    display: none;
-  }
 }

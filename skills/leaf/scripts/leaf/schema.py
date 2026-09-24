@@ -38,6 +38,11 @@ WAIT_BATCH_OUTPUT_INSTRUCTION = (
 
 HTML_NAME = r"[a-z][a-z0-9-]*"
 WIDGET_NAME = r"lf-[a-z0-9]+(?:-[a-z0-9]+)*"
+# What a refused element name is told, so the author need not read WIDGET_NAME.
+WIDGET_NAME_RULE = (
+    "an element name is `lf-` followed by hyphen-separated words of lowercase "
+    f"letters and digits, such as `lf-merge-film` ({WIDGET_NAME})"
+)
 ELEMENT_ID = r"[a-z0-9][a-z0-9-]*"
 DATA_SOURCE_NAME = HTML_NAME
 DATA_CONTRACT_NAME = r"[a-z0-9][a-z0-9-]*(?:/[a-z0-9][a-z0-9-]*)*"
@@ -200,15 +205,17 @@ STATE_SCHEMA = {
         "required": ["detail", "unit"],
         "additionalProperties": False,
         # An agent's verb moves declared state only, never body words — so the
-        # passage reading never has to model one — and its record is required: the
-        # gate compares record forms, and a recordless report would be a claim nothing
-        # could check a version against. Only the user adds children, and only a
-        # report carries update prose.
+        # passage reading never has to model one — and never a part's place, which
+        # the stamped version owns and a rank reads between the neighbours a widget
+        # shows the user. Its record is required: the gate compares record forms,
+        # and a recordless report would be a claim nothing could check a version
+        # against. Only the user adds children, and only a report carries update
+        # prose.
         "if": {"required": ["writer"]},
         "then": {
             "required": ["record"],
             "properties": {
-                "record": {"properties": {"kind": {"not": {"const": "body"}}}},
+                "record": {"properties": {"kind": {"enum": ["attribute", "value"]}}},
                 "creates": False,
             },
         },
@@ -398,6 +405,19 @@ EXTENSION_SCHEMA = {
                     "required": ["parts"],
                     "additionalProperties": False,
                 },
+                {
+                    "type": "object",
+                    "properties": {
+                        "prefixes": {
+                            "type": "array",
+                            "items": {"type": "string", "pattern": "^\\S+$"},
+                            "minItems": 1,
+                            "uniqueItems": True,
+                        }
+                    },
+                    "required": ["prefixes"],
+                    "additionalProperties": False,
+                },
             ]
         },
         "x-space": {"enum": ["wide", "available"]},
@@ -447,6 +467,9 @@ VENDORED_FILES = ("leaf.js", "theme.css", "shadow.css", "registry.json", "icon.s
 BROWSER_DIRS = ("runtime", "widgets", "vendor")
 GUIDANCE_DIR = "guidance"
 PACKAGE_DIRS = (*BROWSER_DIRS, GUIDANCE_DIR)
+# A package's own command-line tools, run by `leaf package run` from wherever the
+# package is installed or bundled. A page never vendors them: they are the agent's.
+SCRIPTS_DIR = "scripts"
 GUIDANCE_FILE = re.compile(rf"{HTML_NAME}\.md")
 LAYER_PLACEHOLDER = b'"__LEAF_LAYER_GENERATION__"'
 # Images the page shows, named by the hash of their bytes (`page media`). Not vendored

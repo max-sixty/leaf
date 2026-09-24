@@ -18,6 +18,7 @@ from interact_support import (
 from leaf import cli as cli_model
 from leaf import data as data_model
 from leaf import event_log as events_model
+from leaf import files as files_model
 from leaf import hosting as hosting_model
 from leaf import http as http_model
 from leaf import render_checks as render_checks_model
@@ -1328,7 +1329,9 @@ def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
     assert geometry["widget"]["width"] > 1000
     assert geometry["widget"]["bottom"] <= 768
     assert geometry["decision"]["bottom"] <= geometry["evidence"]["top"]
-    assert geometry["evidence"]["height"] >= 360, geometry
+    # 340 rather than 360 since a sheet's workspace keeps its title clear of the banner
+    # (the sp-4 it pads its own top by comes out of the stage at a 768px laptop).
+    assert geometry["evidence"]["height"] >= 340, geometry
     assert geometry["evidence"]["bottom"] <= 768, geometry
     assert widget.get_attribute("data-compare-layout") == "side", geometry
     assert geometry["frames"][1]["left"] >= geometry["frames"][0]["right"]
@@ -1425,8 +1428,8 @@ def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
 
     copy_widths = read_copy_widths()
     assert len(copy_widths) == 6
-    assert copy_widths == pytest.approx([388, 388, 388, 388, 1278, 1278], abs=1)
-    # The copy is the whole workspace at the page's width on the first frame and every
+    assert copy_widths == pytest.approx([388, 388, 388, 388, 1210, 1210], abs=1)
+    # The copy is the whole workspace at its sheet's width on the first frame and every
     # later one: a user who copies a slower page gets the same evidence.
     page.evaluate(ONE_FRAME)
     assert read_copy_widths() == pytest.approx(copy_widths, abs=1)
@@ -3107,7 +3110,7 @@ def test_revision_remembers_the_active_region_when_a_workspace_reflows(browser, 
   </lf-grid>
 </lf-workspace>
 """
-    first = leaf_page("Active region continuity", workspace_markup)
+    first = leaf_page("Active region continuity", workspace_markup, width="available")
     page = open_page(browser, live_url(serve(first)))
     resized(page, 900, 760)
     right_pane = page.locator("#right-reading")
@@ -3248,7 +3251,9 @@ def test_revision_does_not_move_a_page_offset_into_a_new_bounded_region(browser,
     before = page.evaluate("document.scrollingElement.scrollTop")
     assert before == 300
 
-    revised = leaf_page("Changing offset ownership", workspace_markup)
+    revised = leaf_page(
+        "Changing offset ownership", workspace_markup, width="available"
+    )
     stamp_page(serve.page_dir, revised, "make the workspace the page")
     wait_for_revision(page, 2)
 
@@ -5219,7 +5224,7 @@ def test_the_render_gate_reports_a_server_that_stops_answering(
             failures = render_gate_model.render_version(
                 browser,
                 f"http://127.0.0.1:{httpd.server_address[1]}/versions/v2.html?t={TOKEN}",
-            )
+            ).failures
         finally:
             release.set()
 
@@ -5231,13 +5236,16 @@ def test_the_render_gate_reports_a_server_that_stops_answering(
 
 def test_render_reports_markup_the_log_replays_over(browser, serve):
     """The static gate refuses a version that rewords what a decision rests on,
-    but `chosen`, a card's column, and their kind say nothing a text diff can
-    see — a version asserting them against the log used to lose silently, replay
-    painting the user's state back over the author's intent. The render gate
-    reports exactly that: an id the author changed since the previous version
-    and replay then wrote. Silence (carrying the old markup forward) and honor
-    (authoring the decided state) both stay clean, because silence changes no
-    id and honor makes the replay a no-op."""
+    but `chosen` and its kind say nothing a text diff can see — a version asserting
+    one against the log used to lose silently, replay painting the user's state back
+    over the author's intent. The render gate reports exactly that: an id the author
+    changed since the previous version and replay then wrote. Silence (carrying the
+    old markup forward) and honor (authoring the decided state) both stay clean,
+    because silence changes no id and honor makes the replay a no-op.
+
+    A move is not that case. Any later revision absorbs it and places the card
+    itself, so replay never writes a card over a version; the static gate is what
+    holds the version to where the move put it."""
     url = serve(REPLAYED_PAGE)
     d = serve.page_dir
     for widget, action, detail in [
@@ -5260,35 +5268,32 @@ def test_render_reports_markup_the_log_replays_over(browser, serve):
         stamp_page(d, html, "t")
         return url.replace("v1.html", f"v{n}.html")
 
-    # v2 says nothing about either decision; both stand, and nothing is reported.
-    assert render_gate_model.render_version(browser, stamp(2, REPLAYED_PAGE)) == []
+    def preview(html):
+        document = structure_model.SourceDocument(html)
+        with preview_server(d, document, files_model.latest_revision(d) + 1) as at:
+            return render_gate_model.render_version(browser, at).failures
 
-    # v3 honors both: the pick authored, the card in its dragged-to column.
-    honored = REPLAYED_PAGE.replace('id="opt-shim"', 'id="opt-shim" chosen')
-    honored = honored.replace(IMPORTER_CARD, "").replace(
+    moved = REPLAYED_PAGE.replace(IMPORTER_CARD, "").replace(
         'label="Done">', f'label="Done">{IMPORTER_CARD}'
     )
-    assert render_gate_model.render_version(browser, stamp(3, honored)) == []
 
-    # A different order in the same column is a real placement conflict too.
-    reordered = honored.replace(IMPORTER_CARD, "")
-    reordered = reordered.replace(
+    # v2 writes the move and says nothing about the pick; v3 honors both.
+    assert render_gate_model.render_version(browser, stamp(2, moved)).failures == []
+    honored = moved.replace('id="opt-shim"', 'id="opt-shim" chosen')
+    assert render_gate_model.render_version(browser, stamp(3, honored)).failures == []
+
+    # v4 asserts the other option and reorders the moved card's column: replay
+    # overrides the pick, so the author must hear; the order is v4's own.
+    contradicted = honored.replace('id="opt-shim" chosen', 'id="opt-shim"')
+    contradicted = contradicted.replace(
+        'id="opt-stage"', 'id="opt-stage" chosen'
+    ).replace(IMPORTER_CARD, "")
+    contradicted = contradicted.replace(
         "</lf-card></lf-column>", f"</lf-card>{IMPORTER_CARD}</lf-column>"
     )
-    with preview_server(d, structure_model.SourceDocument(reordered), 4) as preview_url:
-        failures = render_gate_model.render_version(browser, preview_url)
-    assert len(failures) == 1 and "id=work" in failures[0], failures
-
-    # v4 asserts the other option and re-authors the card into Doing: both
-    # widgets changed since v3 and replay overrides both — the author must hear.
-    contradicted = REPLAYED_PAGE.replace('id="opt-stage"', 'id="opt-stage" chosen')
-    with preview_server(
-        d, structure_model.SourceDocument(contradicted), 4
-    ) as preview_url:
-        failures = render_gate_model.render_version(browser, preview_url)
-    assert len(failures) == 2, failures
-    assert any("id=approach" in f and "opt-stage" in f for f in failures), failures
-    assert any("id=work" in f and "card-importer" in f for f in failures), failures
+    failures = preview(contradicted)
+    assert len(failures) == 1, failures
+    assert "id=approach" in failures[0] and "opt-stage" in failures[0], failures
 
 
 @pytest.mark.parametrize(
@@ -5319,7 +5324,9 @@ def test_render_accepts_actions_made_after_the_authored_change(
         },
     )
     assert (
-        render_gate_model.render_version(browser, url.replace("v1.html", "v2.html"))
+        render_gate_model.render_version(
+            browser, url.replace("v1.html", "v2.html")
+        ).failures
         == []
     )
 
@@ -5392,7 +5399,9 @@ customElements.define("lf-pair", class extends HTMLElement {
     act(2, "second")
     # Both renderState writes hit the same id. Only the newer verb was authored.
     assert (
-        render_gate_model.render_version(browser, url.replace("v1.html", "v2.html"))
+        render_gate_model.render_version(
+            browser, url.replace("v1.html", "v2.html")
+        ).failures
         == []
     )
     # The same older verb really is contradicted when its own record changes.
@@ -5401,7 +5410,7 @@ customElements.define("lf-pair", class extends HTMLElement {
         structure_model.SourceDocument(current.replace('first="a"', 'first="b"')),
         3,
     ) as preview_url:
-        failures = render_gate_model.render_version(browser, preview_url)
+        failures = render_gate_model.render_version(browser, preview_url).failures
     assert len(failures) == 1 and "id=pair" in failures[0], failures
 
 
@@ -5480,7 +5489,7 @@ def test_the_render_gate_applies_every_standing_action_a_second_time(browser, se
     assert {
         (key, action) for widget, _tag, key, action in standing if widget == "ab-pick"
     } == {("choose", "choose"), ("answer", "answer"), ("add", "add")}
-    assert render_gate_model.render_version(browser, url) == []
+    assert render_gate_model.render_version(browser, url).failures == []
 
 
 @pytest.mark.parametrize("authored", [None, "0"])
@@ -5823,7 +5832,7 @@ def test_the_render_gate_catches_a_relative_state_renderer(
             },
         )
 
-    failures = render_gate_model.render_version(browser, url)
+    failures = render_gate_model.render_version(browser, url).failures
 
     assert [f for f in failures if "is relative" in f] == [
         (
@@ -5854,7 +5863,9 @@ def test_a_widget_standing_out_of_place_is_a_page_the_gate_reports(
     )
 
     covered = [
-        f for f in render_gate_model.render_version(browser, url) if "same place" in f
+        f
+        for f in render_gate_model.render_version(browser, url).failures
+        if "same place" in f
     ]
 
     assert covered and all("drift-note" in f for f in covered), covered
@@ -6011,7 +6022,7 @@ def test_the_render_gate_reads_a_page_that_has_finished_arriving(
     )
     with running_http_server(httpd):
         late = f"http://127.0.0.1:{httpd.server_address[1]}/versions/v1.html?t={TOKEN}"
-        failures = render_gate_model.render_version(browser, late)
+        failures = render_gate_model.render_version(browser, late).failures
     # The window first, because the gate's verdict on a window that never opened says
     # nothing: an empty log is a page with nothing to replay and nothing to report.
     assert landed and "/versions/v1.html" in landed[0], (
@@ -6517,7 +6528,7 @@ def test_the_render_gate_holds_a_settled_slot_to_the_logs_decision(
             "detail": {"outcome": "shelve"},
         },
     )
-    assert render_gate_model.render_version(browser, url) == []
+    assert render_gate_model.render_version(browser, url).failures == []
 
     hide = "[data-lf-retired] { display: none; }"
     vendored = serve.page_dir / "theme.css"
@@ -6529,7 +6540,7 @@ def test_the_render_gate_holds_a_settled_slot_to_the_logs_decision(
         (serve.page_dir / "index.html").read_text(),
         "capture the visible settled slot",
     )
-    failures = render_gate_model.render_version(browser, live_url(url))
+    failures = render_gate_model.render_version(browser, live_url(url)).failures
     assert any(
         "<lf-trial id='th-cache'> settled `shelve` and its <lf-proposed> still shows"
         in failure
@@ -6587,7 +6598,7 @@ customElements.define("lf-trial", class extends HTMLElement {
         (serve.page_dir / "index.html").read_text(),
         "capture the false settlement mark",
     )
-    failures = render_gate_model.render_version(browser, live_url(url))
+    failures = render_gate_model.render_version(browser, live_url(url)).failures
     assert any(
         "<lf-trial id='th-spare'> wears data-lf-state=\"shelve\" where the log "
         "records no decision" in failure
@@ -6779,7 +6790,7 @@ def test_a_message_reference_travels_or_says_it_cant(browser, serve, one_user):
 
     # The other half of a link: opened in its own tab it is an arrival, which the
     # browser answers before any widget has upgraded — so the runtime is what aims it
-    # (landArrival). Nothing of this tab travels with it; the new one starts empty.
+    # (aimArrival). Nothing of this tab travels with it; the new one starts empty.
     # Which sequence opens that tab is the platform's answer rather than one this suite
     # holds — ⌘ where it was written, ⌃ where CI runs it — so the press names the
     # gesture and the browser's target record proves where it opened.
@@ -6818,8 +6829,8 @@ def test_an_arrival_lands_where_the_url_aimed(browser, serve):
     The browser answers it at parse time, when no widget has upgraded and nothing is
     collapsed yet — so the tab holding the target is still open, the document is
     still its unupgraded height, and both facts stop being true a moment later. Leaf
-    therefore re-aims a fresh fragment after upgrades, while ordinary reload and history
-    restoration remain native on the root scrollport.
+    therefore re-aims a fresh fragment after upgrades, while a reload or a history
+    traversal keeps the offset the browser restores.
 
     Arriving somewhere named is what a fragment is for, and an older semantic landmark
     from another revision must not paint over it. On reload the fragment is left over
@@ -8163,7 +8174,7 @@ def test_a_succeeded_host_request_waits_for_an_authored_plan_revision(browser, s
     )
     assert result.exit_code == 0, result.output
     told(page)
-    stopped = page.locator("#hub-plan > .lf-stopped-view")
+    stopped = page.locator("#hub-readings > .lf-stopped-view")
     expect(stopped).to_contain_text("Deduplicate the corpus snapshot")
     expect(page.locator("#atlas-record .lf-activity-row").first).to_contain_text(
         "completed “Park it for tomorrow” in"
@@ -8232,7 +8243,7 @@ def test_a_failed_host_request_reopens_its_commands_without_changing_the_plan(
     assert operations.get_by_role("button").evaluate_all(
         "buttons => buttons.every(button => button.getAttribute('aria-disabled') === 'false')"
     )
-    expect(page.locator("#hub-plan > .lf-stopped-view")).to_contain_text(
+    expect(page.locator("#hub-readings > .lf-stopped-view")).to_contain_text(
         "Deduplicate the corpus snapshot"
     )
 
@@ -8279,7 +8290,7 @@ def test_command_hub_derives_the_operator_reading_from_its_goal_tree(browser, se
     d = serve.page_dir
     stale_report(d, "w-2", "stalled without a new commit", 3)
     page = open_page(browser, url)
-    head = page.locator("#hub-plan > .lf-command-head")
+    head = page.locator("#hub-readings > .lf-command-head")
     expect(head).to_contain_text("6/18 leaves")
     expect(head).to_contain_text("2 running")
     expect(head).to_contain_text("5 workers")
@@ -8287,12 +8298,12 @@ def test_command_hub_derives_the_operator_reading_from_its_goal_tree(browser, se
     expect(head).to_contain_text("5 stopped")
     expect(page.locator(".lf-asks")).to_have_text("Asks 0/5")
     expect_banner_control_offered(page.locator(".lf-asks"))
-    expect(page.locator("#hub-plan > .lf-fleet-view")).to_contain_text(
+    expect(page.locator("#hub-readings > .lf-fleet-view")).to_contain_text(
         "Fleet · 5 live workers"
     )
-    expect(page.locator("#hub-plan > .lf-fleet-view li")).to_have_count(5)
-    expect(page.locator("#hub-plan > .lf-fleet-view")).not_to_contain_text("w-5")
-    stopped = page.locator("#hub-plan > .lf-stopped-view li")
+    expect(page.locator("#hub-readings > .lf-fleet-view li")).to_have_count(5)
+    expect(page.locator("#hub-readings > .lf-fleet-view")).not_to_contain_text("w-5")
+    stopped = page.locator("#hub-readings > .lf-stopped-view li")
     expect(stopped).to_have_count(5)
     assert stopped.evaluate_all("rows => rows.map(row => row.dataset.lfGoal)") == [
         "schema-choice",
@@ -8301,32 +8312,33 @@ def test_command_hub_derives_the_operator_reading_from_its_goal_tree(browser, se
         "ledger-fixture",
         "api-shape",
     ]
-    expect(page.locator("#hub-plan > .lf-stopped-view")).not_to_contain_text(
+    expect(page.locator("#hub-readings > .lf-stopped-view")).not_to_contain_text(
         "age unknown"
     )
     expect(
-        page.locator('#hub-plan > .lf-command-head [data-lf-offer="button"]')
+        page.locator('#hub-readings > .lf-command-head [data-lf-offer="button"]')
     ).to_have_count(4)
     expect(
         page.locator(
-            '#hub-plan > .lf-command-head [data-lf-offer="button"]:not([data-lf-said])'
+            '#hub-readings > .lf-command-head [data-lf-offer="button"]:not([data-lf-said])'
         )
     ).to_have_count(0)
-    expect(
-        page.locator(
-            "#hub-plan > :is(.lf-stopped-view, .lf-fleet-view) > "
-            "summary:not([data-lf-offer][data-lf-said])"
-        )
-    ).to_have_count(0)
+    titles = page.locator(
+        "#hub-readings > :is(.lf-command-head, .lf-stopped-view, .lf-fleet-view) > h2"
+    )
+    expect(titles).to_have_text(
+        ["Outcome", "Stopped work · 5, oldest first", "Fleet · 5 live workers"]
+    )
+    expect(titles.and_(page.locator(":not([data-lf-said])"))).to_have_count(0)
 
     coordinator = page.locator("#atlas-lead")
     expect(coordinator).to_be_visible()
     running = head.get_by_role("button", name="2 running")
     running.focus()
     page.keyboard.press("Enter")
-    fleet = page.locator("#hub-plan > .lf-fleet-view")
-    expect(fleet).to_have_attribute("open", "")
-    expect(fleet.locator("summary")).to_be_in_viewport()
+    fleet = page.locator("#hub-readings > .lf-fleet-view")
+    expect(fleet.locator(":scope > h2")).to_be_focused()
+    expect(fleet.locator(":scope > h2")).to_be_in_viewport()
     expect(fleet).to_contain_text("Running · 2 workers")
     expect(fleet.locator("li")).to_have_count(2)
     expect(fleet).to_contain_text("atlas-lead")
@@ -8341,9 +8353,9 @@ def test_command_hub_derives_the_operator_reading_from_its_goal_tree(browser, se
     expect(fleet.locator("li")).to_have_count(1)
     expect(fleet).to_contain_text("w-2")
     head.get_by_role("button", name="5 stopped").click()
-    stopped_view = page.locator("#hub-plan > .lf-stopped-view")
-    expect(stopped_view).to_have_attribute("open", "")
-    expect(stopped_view.locator("summary")).to_be_in_viewport()
+    stopped_view = page.locator("#hub-readings > .lf-stopped-view")
+    expect(stopped_view.locator(":scope > h2")).to_be_focused()
+    expect(stopped_view.locator(":scope > h2")).to_be_in_viewport()
     expect(coordinator).to_be_visible()
     workers = page.locator("#goal-parser > lf-agent")
     expect(workers.first).to_be_hidden()
@@ -8394,7 +8406,7 @@ def test_command_hub_reads_one_publication_before_worker_presentation_commits(
     """The hub cannot combine a new semantic epoch with a child's old attributes."""
     page = open_page(browser, serve(COMMAND_HUB_EXAMPLE))
     worker = page.locator("#w-1")
-    head = page.locator("#hub-plan > .lf-command-head")
+    head = page.locator("#hub-readings > .lf-command-head")
     expect(worker).to_have_attribute("state", "working")
     expect(head).to_contain_text("3 running")
     page.evaluate(
@@ -8455,7 +8467,7 @@ def test_a_roster_row_names_its_target_without_saying_it_twice(browser, serve):
     route rather than a second place the page says it: two fenced passages carrying the
     same text and the same empty context cannot be told apart, and a drag across either
     detaches. The row is also nothing but that name and a chip, so a sheet that drops it
-    prints "· 12d — awaiting review" with no subject at all.
+    prints "12d awaiting review" with no subject at all.
 
     `says: "echo"` is both answers at once — no passage, and the words survive the
     medium that takes the press away. Read on paper because the loss is silent
@@ -8463,25 +8475,23 @@ def test_a_roster_row_names_its_target_without_saying_it_twice(browser, serve):
     reads no text inside a declared offer, so the gate cannot report a word that only
     ever stood in one."""
     page = open_page(browser, serve(COMMAND_HUB_EXAMPLE))
-    fleet = page.locator("#hub-plan > .lf-fleet-view")
-    stopped = page.locator("#hub-plan > .lf-stopped-view")
-    fleet.locator(":scope > summary").click()
-    stopped.locator(":scope > summary").click()
-    names = page.locator("#hub-plan > :is(.lf-fleet-view, .lf-stopped-view) li > a")
+    fleet = page.locator("#hub-readings > .lf-fleet-view")
+    stopped = page.locator("#hub-readings > .lf-stopped-view")
+    names = page.locator("#hub-readings > :is(.lf-fleet-view, .lf-stopped-view) li > a")
     expect(names).to_have_count(10)
     expect(fleet.locator("li > a").first).to_have_text("§ atlas-lead")
     expect(stopped.locator("li > a").first).to_have_text("Choose the additive schema")
     rows = """() => [...document.querySelectorAll(
-         '#hub-plan > :is(.lf-fleet-view, .lf-stopped-view) li')]
+         '#hub-readings > :is(.lf-fleet-view, .lf-stopped-view) li')]
        .map((row) => row.innerText.trim())"""
     on_screen = page.evaluate(rows)
-    assert on_screen[0].startswith("Choose the additive schema · "), on_screen
+    assert on_screen[0].startswith("Choose the additive schema\n"), on_screen
     page.emulate_media(media="print")
     assert page.evaluate(rows) == on_screen, "paper dropped a row's only subject"
     assert (
         page.evaluate(
             """() => getComputedStyle(
-                 document.querySelector('#hub-plan > .lf-fleet-view li > a'),
+                 document.querySelector('#hub-readings > .lf-fleet-view li > a'),
                ).textDecorationLine"""
         )
         == "none"
@@ -8544,7 +8554,9 @@ def test_command_hub_input_is_trimmed_before_it_enters_the_record(browser, serve
     saved = page.locator("#atlas-record .lf-activity-row").first
     expect(saved).to_contain_text("You edited")
     expect(saved.locator('a[href="#ledger-cargo"]')).to_have_count(1)
-    expect(page.locator("#hub-plan > .lf-command-head")).to_contain_text("4 stopped")
+    expect(page.locator("#hub-readings > .lf-command-head")).to_contain_text(
+        "4 stopped"
+    )
     expect(page.locator("#ledger-variance")).to_have_attribute("status", "planned")
 
 
@@ -8575,8 +8587,12 @@ def test_command_hub_keeps_a_real_request_outside_a_quoted_decision(browser, ser
     page = open_page(browser, serve(html))
     expect(page.locator(".lf-asks")).to_have_text("Asks 0/1")
     expect_banner_control_offered(page.locator(".lf-asks"))
-    expect(page.locator("#hub-plan > .lf-command-head")).to_contain_text("1 stopped")
-    expect(page.locator("#hub-plan > .lf-stopped-view")).to_contain_text("Blocked goal")
+    expect(page.locator("#hub-readings > .lf-command-head")).to_contain_text(
+        "1 stopped"
+    )
+    expect(page.locator("#hub-readings > .lf-stopped-view")).to_contain_text(
+        "Blocked goal"
+    )
 
 
 def test_command_hub_quotes_host_operations_without_offering_a_request(browser, serve):
@@ -8612,8 +8628,7 @@ def test_command_hub_quotes_host_operations_without_offering_a_request(browser, 
 def test_command_hub_keeps_projection_focus_when_unrelated_news_arrives(browser, serve):
     page = open_page(browser, serve(COMMAND_HUB_EXAMPLE))
     d = serve.page_dir
-    fleet = page.locator("#hub-plan > .lf-fleet-view")
-    fleet.locator(":scope > summary").click()
+    fleet = page.locator("#hub-readings > .lf-fleet-view")
     worker = fleet.get_by_role("link", name="§ w-1", exact=True)
     worker.focus()
     sent = CliRunner().invoke(
@@ -8631,8 +8646,8 @@ def test_command_hub_keeps_projection_focus_when_unrelated_news_arrives(browser,
     told(page)
     expect(worker).to_be_focused()
 
-    summary = fleet.locator(":scope > summary")
-    summary.focus()
+    title = fleet.locator(":scope > h2")
+    title.focus()
     sent = CliRunner().invoke(
         cli_model.cli,
         [
@@ -8646,7 +8661,7 @@ def test_command_hub_keeps_projection_focus_when_unrelated_news_arrives(browser,
     )
     assert sent.exit_code == 0, sent.output
     told(page)
-    expect(summary).to_be_focused()
+    expect(title).to_be_focused()
 
 
 def test_command_hub_repaints_anchors_after_generated_projections_change(
@@ -8659,6 +8674,7 @@ def test_command_hub_repaints_anchors_after_generated_projections_change(
     expect(page.locator("#goal-parser > .lf-task-meta .lf-task-crew")).to_be_visible()
     page.locator("#goal-parser > .lf-task-meta .lf-task-crew").click()
     head = page.locator("#tree-w-1 > .lf-worktree-snapshot > .lf-worktree-head")
+    head.scroll_into_view_if_needed()
     head.evaluate(
         """(el) => {
           const quote = 'atlas/xml-declarations';
@@ -8911,7 +8927,8 @@ def test_command_hub_stopped_age_does_not_cross_an_active_publication(
     expect(page.locator(".lf-version")).to_contain_text("v3")
     assert "/versions/" not in page.url
     row = page.locator(
-        "#hub-plan > .lf-stopped-view li", has_text="Deduplicate the corpus snapshot"
+        "#hub-readings > .lf-stopped-view li",
+        has_text="Deduplicate the corpus snapshot",
     )
     expect(row).to_contain_text("0m")
     expect(row).not_to_contain_text("3h")
@@ -8959,6 +8976,113 @@ def test_command_hub_keeps_its_command_owners_through_a_live_version(browser, se
     assert available == [True, False]
 
 
+READING_PANELS = ":is(.lf-command-head, .lf-stopped-view, .lf-fleet-view)"
+READINGS_SEAT = (
+    '<lf-command-readings id="hub-readings" for="hub-plan"></lf-command-readings>'
+)
+
+
+def test_command_hub_readings_follow_their_seat_across_revisions(browser, serve):
+    """The command's three readings stand in exactly one place: the seat when the page
+    has one, the command's head when it has none. A revision applied in place that adds
+    or removes the seat moves them there, rather than leaving one copy behind and
+    drawing another.
+
+    The seat stands directly in `main` and a second command keeps its own seat through
+    every revision, so no declared container around the command changes and the module
+    graph stays the same: each revision is applied to the standing command."""
+    assert READINGS_SEAT in COMMAND_HUB_PAGE
+    base = COMMAND_HUB_PAGE.replace(READINGS_SEAT, "").replace(
+        "    </main>",
+        '<lf-command id="side-plan" label="Side plan">'
+        '<lf-task id="side-goal" status="active"><strong>Side goal</strong></lf-task>'
+        "</lf-command>"
+        '<lf-command-readings id="side-readings" for="side-plan"></lf-command-readings>'
+        "\n    </main>",
+    )
+    seated = base.replace("\n    </main>", f"{READINGS_SEAT}\n    </main>")
+    url = serve(COMMAND_HUB_EXAMPLE)
+    page = open_page(browser, live_url(url))
+    hub_panels = page.locator(
+        f"#hub-plan > {READING_PANELS}, #hub-readings > {READING_PANELS}"
+    )
+    stamp_page(serve.page_dir, seated, "the seat below the sheet")
+    told(page)
+    expect(page.locator(f"#side-readings > {READING_PANELS}")).to_have_count(3)
+    expect(page.locator(f"#hub-readings > {READING_PANELS}")).to_have_count(3)
+    page.evaluate("() => { window.__hubPlan = document.getElementById('hub-plan'); }")
+
+    stamp_page(serve.page_dir, base, "no seat")
+    told(page)
+    expect(page.locator("#hub-readings")).to_have_count(0)
+    expect(page.locator(f"#hub-plan > {READING_PANELS}")).to_have_count(3)
+    expect(hub_panels).to_have_count(3)
+
+    stamp_page(serve.page_dir, seated, "seat again")
+    told(page)
+    expect(page.locator(f"#hub-readings > {READING_PANELS}")).to_have_count(3)
+    expect(hub_panels).to_have_count(3)
+    assert hub_panels.evaluate_all("nodes => nodes.map(node => node.classList[1])") == [
+        "lf-command-head",
+        "lf-stopped-view",
+        "lf-fleet-view",
+    ]
+    assert page.evaluate(
+        "() => window.__hubPlan === document.getElementById('hub-plan')"
+    ), "the revisions replaced the command rather than applying in place"
+
+
+def test_command_hub_readings_seat_is_filled_when_it_connects(browser, serve):
+    """A seat that connects after its command is filled then, not at the next state
+    reading: the command answers the seat's arrival rather than waiting on news."""
+    page = open_page(browser, serve(COMMAND_HUB_EXAMPLE))
+    expect(page.locator(f"#hub-readings > {READING_PANELS}")).to_have_count(3)
+    page.evaluate(
+        """() => {
+          const seat = document.getElementById('hub-readings');
+          const rail = seat.parentElement;
+          seat.remove();
+          const fresh = document.createElement('lf-command-readings');
+          fresh.id = 'hub-readings-2';
+          fresh.setAttribute('for', 'hub-plan');
+          rail.prepend(fresh);
+        }"""
+    )
+    expect(page.locator(f"#hub-readings-2 > {READING_PANELS}")).to_have_count(3)
+    expect(page.locator(READING_PANELS)).to_have_count(3)
+
+
+def test_command_hub_readings_stay_in_their_own_document(browser, serve):
+    """A seat quoted in thread markup belongs to that message's document. The page's
+    command, which has no seat of its own on this page, keeps heading itself instead of
+    routing its readings into a message."""
+    url = serve(COMMAND_HUB_EXAMPLE)
+    stamp_page(serve.page_dir, COMMAND_HUB_PAGE.replace(READINGS_SEAT, ""), "no seat")
+    root = events_model.append_event(
+        serve.page_dir,
+        {"kind": "comment", "author": "user", "revision": 2, "text": "Status?"},
+    )
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Codex",
+            "parent": root["id"],
+            "text": "Where the readings would stand.",
+            "markup": '<lf-command-readings id="quoted-readings" for="hub-plan">'
+            "</lf-command-readings>",
+        },
+    )
+    page = open_page(browser, live_url(url))
+    page.locator(".lf-threads-toggle").click()
+    page.locator(".lf-thread-summary").first.click()
+    panel_settled(page)
+    expect(page.locator("#quoted-readings")).to_be_attached()
+    expect(page.locator(f"#hub-plan > {READING_PANELS}")).to_have_count(3)
+    expect(page.locator(f"#quoted-readings > {READING_PANELS}")).to_have_count(0)
+
+
 def test_nested_command_projections_stop_at_their_own_boundary(browser, serve):
     command = leaf_page(
         "nested command boundaries",
@@ -8983,7 +9107,6 @@ def test_nested_command_projections_stop_at_their_own_boundary(browser, serve):
     expect(page.locator("#inner > .lf-command-head")).to_contain_text("1 running")
     expect(page.locator("#outer-goal")).not_to_have_attribute("data-lf-open", "")
     page.locator("#inner > .lf-command-head").click(position={"x": 5, "y": 5})
-    page.locator("#inner > .lf-fleet-view summary").click()
     page.get_by_role("link", name="§ inner-worker", exact=True).click()
     expect(page.locator("#outer-goal")).not_to_have_attribute("data-lf-open", "")
 
@@ -9089,12 +9212,11 @@ def test_a_spent_request_and_a_static_badge_say_so_before_the_press(browser, ser
     """Two readings of the same fault on one page: the command hub told the user
     nothing, at rest, about what could be pressed and what had already been.
 
-    The chip. A chip that opens a worker list and a badge that counts finished tasks
-    computed the same ground (238,234,222), the same ink, the same 999px corner and the
-    same 11.5px size. Nothing separated them until the pointer was already on one, and
-    the ink they differ in is a fact about their content rather than about being
-    pressable. What separates them now is the marker the runtime writes on a control it
-    built, which is the one thing on the page that already knows the answer.
+    The count. A count that opens a worker list and a badge that counts finished tasks
+    once computed the same ground, ink, corner and size, and nothing separated them until
+    the pointer was already on one. The count is a tile now, but what says it can be
+    pressed is still the marker the runtime writes on a control it built, which is the
+    one thing on the page that already knows the answer.
 
     The request. A one-shot request is spent for good the moment its receipt lands, and a
     spent one kept its border at full strength and differed from a live one only by ink -
@@ -9112,11 +9234,6 @@ def test_a_spent_request_and_a_static_badge_say_so_before_the_press(browser, ser
     chip = page.locator('.lf-command-facts > [role="button"]').first
     badge = page.locator(".lf-task-progress").first
     worn, still = chip.evaluate(face), badge.evaluate(face)
-    assert (worn["background"], worn["radius"], worn["size"]) == (
-        still["background"],
-        still["radius"],
-        still["size"],
-    ), "the fixture no longer has two pills that look alike, so this proves nothing"
     assert worn["offer"] == "button" and still["offer"] is None
     assert worn["cursor"] == "pointer" and still["cursor"] != "pointer", (
         f"a chip that opens a section and one that counts something read the same: "

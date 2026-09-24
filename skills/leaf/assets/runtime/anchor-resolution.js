@@ -8,7 +8,6 @@
  */
 
 import { sameAnchor } from "./anchor-coordinate.js";
-import { runtimeOwnsScrollerStop } from "./reach.js";
 import { resolvedElement, resolvedPassage } from "./resolved-target.js";
 import { inUi, under, upFrom } from "./shadow.js";
 import {
@@ -16,6 +15,7 @@ import {
   revealVisualPart as revealRegisteredVisualPart,
   visualPart as registeredVisualPart,
   visualPartAt as registeredVisualPartAt,
+  visualParts as registeredVisualParts,
 } from "./visual-parts.js";
 import {
   blockAt,
@@ -30,7 +30,7 @@ import {
   textNodesUnder,
 } from "./passages.js";
 import { registry, tagsDeclaring } from "./registry.js";
-import { WORKS_WITHOUT_TAB_STOP } from "./widget-elements.js";
+import { PRESSABLE, PRESSES } from "./widget-elements.js";
 
 // Anchors are durable coordinates, so every route that can mint one begins only after
 // replay has reconciled the authored document. The presentation root owns the writer.
@@ -82,35 +82,55 @@ export function referencedProjection(owner, attribute) {
   return id ? elementById(id) : null;
 }
 
-// A generated visual part keeps an authored semantic token. Generated ids never escape
-// into the event log; the provider declaration bounds the inventory core will trust.
-const visualPartAttribute = (visual) => {
+// A generated visual part keeps a semantic id the provider declaration bounds: a token
+// authored in its `parts` attribute, or any longer id one of its `prefixes` begins.
+// Element ids never escape into the event log; the declaration bounds the inventory
+// core will trust. The rank is an id's place in that declaration, which orders the
+// visual's targets: its authored token's index, 0 for every prefixed id so they keep
+// registration order, and -1 for an id it does not admit. Null when the visual
+// declares no parts at all.
+const visualPartRank = (visual) => {
   const declaration = registry[visual?.localName]?.["x-visual"];
-  return declaration && typeof declaration === "object" ? declaration.parts : null;
+  if (!declaration || typeof declaration !== "object") return null;
+  if (declaration.prefixes)
+    return (id) =>
+      declaration.prefixes.some((prefix) => id !== prefix && id.startsWith(prefix))
+        ? 0
+        : -1;
+  const tokens =
+    visual.getAttribute(declaration.parts)?.trim().split(/\s+/).filter(Boolean) ?? [];
+  return (id) => tokens.indexOf(id);
 };
 
 const wholeVisualSurface = (element) =>
   registry[element?.localName]?.["x-visual"] ? element : null;
 
-export const declaredVisualParts = (visual) => {
-  const attribute = visualPartAttribute(visual);
-  const value = attribute ? visual?.getAttribute(attribute) : "";
-  return new Set(value?.trim().split(/\s+/).filter(Boolean) ?? []);
-};
+/** The registered parts a visual's declaration admits, in declaration order. */
+export function visualParts(visual) {
+  const rank = visualPartRank(visual);
+  if (!rank) return [];
+  return registeredVisualParts(visual)
+    .filter((part) => rank(part.id) >= 0)
+    .sort((a, b) => rank(a.id) - rank(b.id));
+}
+
+const admitsVisualPart = (visual, part) => visualPartRank(visual)?.(part) >= 0;
 
 export function visualPart(visual, part) {
-  if (!declaredVisualParts(visual).has(part)) return null;
-  return registeredVisualPart(visual, part);
+  return admitsVisualPart(visual, part) ? registeredVisualPart(visual, part) : null;
 }
 
 export function revealVisualPart(visual, part) {
-  if (!declaredVisualParts(visual).has(part)) return null;
-  return revealRegisteredVisualPart(visual, part);
+  return admitsVisualPart(visual, part)
+    ? revealRegisteredVisualPart(visual, part)
+    : null;
 }
 
 export function visualPartAt(visual, target) {
-  const declared = declaredVisualParts(visual);
-  return registeredVisualPartAt(visual, target, (part) => declared.has(part.id));
+  const rank = visualPartRank(visual);
+  return rank
+    ? registeredVisualPartAt(visual, target, (part) => rank(part.id) >= 0)
+    : null;
 }
 
 export const visualPartLabel = (visual, part) =>
@@ -123,9 +143,6 @@ const genericVisualSelector = "svg, img, figure";
 export const visualSelector = () =>
   [declaredVisualSelector(), genericVisualSelector].filter(Boolean).join(",");
 
-const interactiveWithoutTabStopSelector = () =>
-  `${WORKS_WITHOUT_TAB_STOP},[data-lf-offer]`;
-
 const outermostAcross = (element, selector) => {
   for (let parent = upFrom(element); parent;) {
     const outer = closestAcross(parent, selector);
@@ -136,11 +153,11 @@ const outermostAcross = (element, selector) => {
   return element;
 };
 
-const claimsVisualGesture = (element) =>
-  element.matches(interactiveWithoutTabStopSelector()) ||
-  (element.hasAttribute("tabindex") &&
-    element.tabIndex >= 0 &&
-    !runtimeOwnsScrollerStop(element));
+// A picture inside a press is that control's rendering, so the control keeps the
+// gesture and no visual reading is offered for it. A region that holds content — a tab
+// panel, a scroll region, a stage that takes keys, a grid — leaves its pictures
+// pictures (widget-elements.js, PRESSES).
+const claimsVisualGesture = (element) => element.matches(`${PRESSES},${PRESSABLE}`);
 
 export const unclaimedVisualGesture = (target) => {
   if (inChrome(target) || inUi(target)) return false;
@@ -334,10 +351,7 @@ export function aimTargets() {
     ...pageQueryAll(ADDRESSABLE).filter(isAddressable),
     ...pageQueryAll(DATUM),
     ...pageQueryAll(declaredVisualSelector()).flatMap((visual) =>
-      [...declaredVisualParts(visual)].flatMap((token) => {
-        const part = visualPart(visual, token);
-        return part ? [part.element] : [];
-      }),
+      visualParts(visual).map((part) => part.element),
     ),
   ];
   const targets = candidates.map(aimTargetAt).filter(Boolean);
@@ -415,7 +429,7 @@ export function resolveAnchor(anchor, text = "") {
     const section = sectionOf(anchor);
     // A missing declaration or provider detaches instead of silently widening a visual
     // part coordinate to the containing widget.
-    if (!section || !visualPartAttribute(section) || settledAway(section)) return null;
+    if (!section || settledAway(section)) return null;
     const found = visualPart(section, anchor.visual);
     if (found)
       return resolvedElement({
@@ -425,8 +439,7 @@ export function resolveAnchor(anchor, text = "") {
       });
     // A declared part the visual draws only in another state stands in for the whole
     // visual, as a lazy datum does, until travel reveals it.
-    return declaredVisualParts(section).has(anchor.visual) &&
-      revealsVisualParts(section)
+    return admitsVisualPart(section, anchor.visual) && revealsVisualParts(section)
       ? {
           ...resolvedElement({
             element: section,

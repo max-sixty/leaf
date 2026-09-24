@@ -236,11 +236,13 @@ def test_a_website_example_names_its_limited_agent(browser, serve):
     status = page.locator(".lf-banner .lf-status-text")
     expect(status).to_have_text(
         "This is an example on the Leaf website. Leaf guide replies and revises "
-        "this private copy. Install Leaf"
+        "this private copy. Other examples Install Leaf"
     )
-    expect(status.locator("a")).to_have_attribute("href", "/#install")
+    assert status.locator("a").evaluate_all(
+        "links => links.map(link => link.getAttribute('href'))"
+    ) == ["/examples/", "/#install"]
     expect(page.locator(".lf-status-button .lf-publication-install")).to_have_count(0)
-    expect(status).to_have_attribute("title", status.text_content())
+    expect(status).to_have_attribute("title", " ".join(status.text_content().split()))
     expect(page.locator(".lf-banner .lf-dot")).to_have_class(re.compile(r"^lf-dot\s*$"))
 
 
@@ -459,25 +461,64 @@ def test_authored_html_paints_while_runtime_startup_is_held(
         page.unroute_all(behavior="wait")
 
 
+RESTORED_PROSE = "".join(
+    f"<p id='p{n}'>" + "Words the reader was partway through, " * 24 + "</p>"
+    for n in range(12)
+)
+
+
 @pytest.mark.parametrize(
-    "saved",
+    ("saved", "sheet", "window", "strip"),
     [
-        {"lf-auxiliary-surface": "threads", "lf-thread-panel-width": "500"},
-        {"lf-auxiliary-surface": "asks", "lf-tray-slot-width": "280"},
+        # The Asks tray takes its strip on the left at every page shape.
+        (
+            {"lf-auxiliary-surface": "asks", "lf-tray-slot-width": "280"},
+            False,
+            1600,
+            280,
+        ),
+        # The thread panel stands over a column page and takes nothing from it.
+        (
+            {"lf-auxiliary-surface": "threads", "lf-thread-panel-width": "500"},
+            False,
+            1600,
+            0,
+        ),
+        # Beside a sheet it takes a strip, at its default width and at a drawn one.
+        ({"lf-auxiliary-surface": "threads"}, True, 1440, 420),
+        (
+            {"lf-auxiliary-surface": "threads", "lf-thread-panel-width": "500"},
+            True,
+            1440,
+            500,
+        ),
+        # Where it would leave less than a usable page it covers the sheet instead.
+        ({"lf-auxiliary-surface": "threads"}, True, 700, 0),
+        # The Asks tray by the same rule: 300 of a 600px window leaves 300.
+        ({"lf-auxiliary-surface": "asks"}, False, 600, 0),
+    ],
+    ids=[
+        "asks",
+        "threads-column",
+        "threads-sheet",
+        "threads-sheet-drawn",
+        "covering",
+        "asks-covering",
     ],
 )
 @pytest.mark.parametrize("contained", [False, True])
 def test_a_restored_auxiliary_surface_has_final_geometry_before_runtime_loads(
-    browser, serve, saved, contained
+    browser, serve, saved, sheet, window, strip, contained
 ):
-    """Returning users do not watch saved auxiliary chrome move the document: the
-    Asks tray's strip is reserved before the runtime loads, and Threads covers the page
-    and takes nothing from it."""
-    root_attribute = "data-lf-restore-asks"
-    body_attribute = "data-lf-auxiliary-surface"
-    # Only the strip-taking tray has a shape to hold before the runtime arrives.
-    reserves = saved["lf-auxiliary-surface"] == "asks"
-    content = "<h1>Restored surface</h1>"
+    """Returning users do not watch saved auxiliary chrome move the document: a surface
+    that takes a strip has it reserved before the runtime loads, so the paragraph they
+    were reading stands at the same place from first paint to presentation, and one that
+    stands over or covers the page takes nothing from it either time."""
+    if contained and sheet:
+        pytest.skip("a specimen's child page is the column its template writes")
+    surface = saved["lf-auxiliary-surface"]
+    side = "left" if surface == "asks" else "right"
+    content = "<h1>Restored surface</h1>" + RESTORED_PROSE
     if contained:
         content = (
             '<lf-specimen id="practice" label="Practice">'
@@ -485,8 +526,10 @@ def test_a_restored_auxiliary_surface_has_final_geometry_before_runtime_loads(
             + content
             + "</template></lf-specimen>"
         )
-    url = serve(leaf_page("Restored surface", content))
-    context = browser.new_context(viewport={"width": 1600, "height": 900})
+    url = serve(
+        leaf_page("Restored surface", content, width="available" if sheet else None)
+    )
+    context = browser.new_context(viewport={"width": window, "height": 900})
     if contained:
         host = context.new_page()
         host.goto(url, wait_until="load")
@@ -508,28 +551,50 @@ def test_a_restored_auxiliary_surface_has_final_geometry_before_runtime_loads(
     page = context.new_page()
     watched(page)
     page.route("**/leaf.js", lambda route: held.append(route))
+
+    def geometry():
+        return page.evaluate(
+            """side => {
+                const main = document.querySelector('body > main').getBoundingClientRect();
+                return {
+                    strip: parseFloat(
+                        getComputedStyle(document.body)[`border-${side}-width`]),
+                    x: main.x,
+                    width: main.width,
+                    reading: document.querySelector('#p6').getBoundingClientRect().y,
+                };
+            }""",
+            side,
+        )
+
     try:
         with page.expect_request("**/leaf.js"):
             page.goto(url, wait_until="commit")
         displayed(page)
         expect(page.locator("h1")).to_be_visible()
-        root = expect(page.locator("html"))
-        if reserves:
-            root.to_have_attribute(root_attribute, re.compile(".*"))
-        else:
-            root.not_to_have_attribute(root_attribute, re.compile(".*"))
-        initial = page.locator("body > main").bounding_box()
+        expect(page.locator("html")).to_have_attribute(
+            "data-lf-restore-surface", surface
+        )
+        initial = geometry()
+        assert initial["strip"] == pytest.approx(strip, abs=1), (
+            f"the first paint reserved {initial['strip']}px on the {side}"
+        )
 
         held.pop().continue_()
         page.wait_for_function(BOTH_STAMPS)
         expect(page.locator("html")).not_to_have_attribute(
-            root_attribute, re.compile(".*")
+            "data-lf-restore-surface", re.compile(".*")
         )
-        expect(page.locator("body")).to_have_attribute(body_attribute, re.compile(".*"))
-        presented = page.locator("body > main").bounding_box()
-        assert {key: presented[key] for key in ("x", "y", "width")} == pytest.approx(
-            {key: initial[key] for key in ("x", "y", "width")}, abs=1
-        ), f"restoring {body_attribute} moved the shell"
+        expect(page.locator("body")).to_have_attribute(
+            "data-lf-auxiliary-surface", surface
+        )
+        expect(page.locator("body[data-lf-covering-surface]")).to_have_count(
+            1 if window < {"asks": 620, "threads": 740}[surface] else 0
+        )
+        presented = geometry()
+        assert presented == pytest.approx(initial, abs=1), (
+            f"restoring {surface} moved the page between first paint and presentation"
+        )
     finally:
         for route in held:
             route.continue_()
@@ -1919,8 +1984,9 @@ def test_a_page_loads_only_the_widget_modules_its_markup_uses(browser, serve):
 
     Every declared `x-upgrade` tag used to import on every page, so a triage board
     with no diff anywhere on it fetched Pierre's renderer, and that one module was
-    more than half the bytes the page moved. The board's own module is the
-    population: a page that asked for nothing would satisfy every refusal below and
+    more than half the bytes the page moved. The board page's own modules, the board,
+    its grid and its activity feed, are the population: a page that asked for nothing
+    would satisfy every refusal below and
     say nothing about which of them holds.
 
     The shadow rules follow the same line: `/shadow.css` is what an `x-shadow` widget
@@ -1933,7 +1999,11 @@ def test_a_page_loads_only_the_widget_modules_its_markup_uses(browser, serve):
     page = open_page(browser, serve(example), context=context)
 
     modules = sorted(p for p in asked if p.startswith("/widgets/"))
-    assert modules == ["/widgets/lf-board.js"], modules
+    assert modules == [
+        "/widgets/lf-activity.js",
+        "/widgets/lf-board.js",
+        "/widgets/lf-grid.js",
+    ], modules
     assert not [p for p in asked if "pierre-diffs" in p], asked
     assert not [p for p in asked if "agentic-mermaid" in p], asked
     assert asked.count("/theme.css") == 1, [p for p in asked if p == "/theme.css"]

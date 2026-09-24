@@ -1,4 +1,5 @@
-"""Browser probe readings for one settled color scheme, and the finding each becomes."""
+"""Browser probe readings for one settled color scheme, the once-per-version width
+sweep and alignment advice, and the finding each becomes."""
 
 import json
 from dataclasses import dataclass
@@ -321,9 +322,7 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
         " element that takes a box"
         for u in unmarkable
     ]
-    if overflow > 0:
-        found.append(f"[{scheme}] the page scrolls sideways by {overflow}px")
-    found += [f"[{scheme}] {s}" for s in misplaced]
+    found += [f"[{scheme}] {text}" for _key, text in _overflow(overflow, misplaced)]
     found += [f"[{scheme}] {w}" for w in withheld]
     found += [f"[{scheme}] {c}" for c in silent_cuts]
     found += [f"[{scheme}] {s}" for s in squeezed]
@@ -384,3 +383,78 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
     found += on_paper
     notices = [f"[{scheme}] console: {e}" for e in resize_notices]
     return found, notices
+
+
+def _overflow(overflow: int, misplaced: list) -> list[tuple[tuple[str, str], str]]:
+    """The sideways readings at one width, each keyed by its element and kind."""
+    found = []
+    if overflow > 0:
+        found.append(
+            (
+                ("<root scrollport>", "scroll"),
+                f"the page scrolls sideways by {overflow}px",
+            )
+        )
+    return found + [((m["at"], m["kind"]), m["text"]) for m in misplaced]
+
+
+# The widths the sweep takes a loaded page through: a version holds at every width from
+# the narrowest phone to the desktop viewport, and the fixed viewports read it at two. A
+# grid that stacks at one width can leave its narrow track narrower than what it holds
+# just above it, a band neither viewport lands in.
+SWEEP_WIDTHS = range(360, 1201, 40)
+
+
+def swept_overflow(page, viewports) -> list[str]:
+    """Sideways overflow the fixed viewports miss, at the narrowest width it starts.
+
+    Resizes the loaded page rather than rendering it again, and re-reads only the two
+    sideways readings, which are geometry: the rest of the gate reads words, paint and
+    state, which the fixed viewports already see. The fixed widths are swept too, and a
+    fault met at one of them is dropped here, because that viewport's own reading
+    already reports it in both schemes. The sweep runs at the desktop height, so a fault
+    only a phone-height workspace posture shows is the phone viewport's to report."""
+    height = viewports[0]["height"]
+    fixed = {viewport["width"] for viewport in viewports}
+    seen = {}
+    # Widest first, in steps, so a layout script settles from the width before rather
+    # than from the desktop: a jump from 1200px straight to 360px left an lf-shot laid
+    # out for the desktop for a frame under load, and the sweep read that frame.
+    for width in sorted({*SWEEP_WIDTHS, *fixed}, reverse=True):
+        page.set_viewport_size({"width": width, "height": height})
+        # Two frames, so what a resize sets moving in script (a ResizeObserver, and the
+        # layout that observer's write causes) has run and been laid out.
+        for _ in range(2):
+            wait_for_probe(page, "framePresented", evaluate_probe(page, "requestFrame"))
+        for key, text in _overflow(
+            evaluate_probe(page, "rootOverflow"), evaluate_probe(page, "misplacedBoxes")
+        ):
+            widths, _text = seen.setdefault(key, ([], text))
+            widths.append(width)
+    found = []
+    for widths, text in seen.values():
+        if fixed & set(widths):
+            continue
+        low, high = min(widths), max(widths)
+        span = f"{low}px" if low == high else f"{low}–{high}px"
+        found.append(f"at {span} wide, {text}")
+    return found
+
+
+def alignment_advice(page) -> list[str]:
+    """Advice when a page's grids split on more lines than any one of them needs."""
+    reading = evaluate_probe(page, "misalignedSplits")
+    if reading["unshared"] < 1:
+        return []
+    width = page.viewport_size["width"]
+    named = ", ".join(
+        f"{grid['at']} at {', '.join(f'{x}px' for x in grid['splits'])}"
+        for grid in reading["grids"]
+    )
+    return [
+        (
+            f"at {width}px wide the page's grids split at {reading['unshared']} more "
+            f"place(s) than its busiest grid needs — {named}: lay a sheet on one set "
+            "of tracks (page-authoring.md, the sheet)"
+        )
+    ]

@@ -6618,7 +6618,12 @@ def test_agent_titles_update_without_losing_the_users_draft(browser, serve):
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     thread = page.locator(f'.lf-threads > .lf-thread[data-id="{root}"]')
-    expect(thread.locator(".lf-thread-topic")).to_have_text(opening)
+    topic = thread.locator(".lf-thread-topic")
+    expect(topic).to_have_text("...")
+    expect(topic).to_have_attribute("aria-label", "Title pending")
+    assert (
+        topic.evaluate("element => getComputedStyle(element).animationName") != "none"
+    )
     focus_panel_thread(thread)
     editor = thread.locator("textarea")
     editor.fill("Keep this unfinished reply")
@@ -6637,6 +6642,7 @@ def test_agent_titles_update_without_losing_the_users_draft(browser, serve):
         assert result.exit_code == 0, result.output
         told(page)
         expect(thread.locator(".lf-thread-topic")).to_have_text(title)
+        expect(topic).not_to_have_attribute("data-lf-pending-title", "")
         expect(editor).to_have_value("Keep this unfinished reply")
         expect(thread.get_by_text(opening, exact=True)).to_be_visible()
     find = page.get_by_role("searchbox", name="Find in threads")

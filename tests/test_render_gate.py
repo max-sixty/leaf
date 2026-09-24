@@ -69,8 +69,10 @@ from render_cases_widgets import (
     GENERIC_VISUAL_LAYER,
     GENERIC_VISUAL_PAGE,
     GENERIC_VISUAL_WIDGETS,
+    PREFIXED_VISUAL_PAGE,
     STAGED_VISUAL_WIDGETS,
     TYPED_PARTS_PAGE,
+    prefixed_visual_layer,
 )
 from render_harness import (
     BOTH_STAMPS,
@@ -110,6 +112,7 @@ BOUNDED_WORKSPACE_PAGE = leaf_page(
   <footer>End of queue</footer>
 </lf-workspace>
 """,
+    width="available",
 )
 
 
@@ -126,7 +129,7 @@ def test_the_render_gate_exercises_both_schemes_at_both_viewports(browser, serve
     assert (
         render_gate_model.render_version(
             primed(browser, record_page), serve(BOUNDED_WORKSPACE_PAGE, packages=())
-        )
+        ).failures
         == []
     )
     assert seen == [
@@ -153,7 +156,9 @@ def test_the_render_gate_reports_a_defect_specific_to_the_compact_viewport(
 """,
     )
 
-    failures = render_gate_model.render_version(browser, serve(source, packages=()))
+    failures = render_gate_model.render_version(
+        browser, serve(source, packages=())
+    ).failures
 
     overflow = [failure for failure in failures if "page scrolls sideways" in failure]
     assert len(overflow) == 2, failures
@@ -162,6 +167,74 @@ def test_the_render_gate_reports_a_defect_specific_to_the_compact_viewport(
         "[light]",
         "[dark]",
     }
+
+
+def _sheet(title: str, body: str, head: str = "") -> str:
+    return leaf_page(title, body, head=head).replace(
+        "<main>", '<main data-width="available">', 1
+    )
+
+
+def _panel(name: str) -> str:
+    return f'<section class="panel" id="{name}"><h2>{name}</h2><p>Words.</p></section>'
+
+
+def test_the_render_gate_fails_a_sheet_that_scrolls_sideways_only_between_its_viewports(
+    browser, serve
+):
+    """Two tracks, each stacking its regions, and a row that spills only from 600 to
+    900px: both fixed viewports read the page clean, and only the sweep between them
+    sees it. The same page is the aligned control for the advice below."""
+    source = _sheet(
+        "mid-width overflow",
+        f"""
+<h1>Mid-width spill</h1>
+<lf-grid id="tracks" columns="1fr 1fr">
+  <lf-grid id="body" columns="1">{_panel("plan")}{_panel("steps")}</lf-grid>
+  <lf-grid id="rail" columns="1">{_panel("checks")}{_panel("log")}</lf-grid>
+</lf-grid>
+<p id="mid-spill">{"A line that wraps at both viewports and runs on unbroken between them. " * 4}</p>
+""",
+        head="""<style>
+@media (min-width: 600px) and (max-width: 900px) { #mid-spill { white-space: nowrap; } }
+</style>""",
+    )
+
+    reading = render_gate_model.render_version(browser, serve(source, packages=()))
+
+    (failure,) = reading.failures
+    assert failure.startswith("at 600–880px wide, the page scrolls sideways by "), (
+        failure
+    )
+    assert reading.advice == []
+
+
+def test_a_sheet_whose_rows_split_anywhere_gets_advice_and_still_passes(browser, serve):
+    """Each row its own grid, splitting where its template puts it: the page draws three
+    split lines where its busiest grid needs one. The count row of tiles is not a
+    region boundary and draws none."""
+    tiles = "".join(
+        f'<lf-metric id="m{i}" value="{i}">count</lf-metric>' for i in range(4)
+    )
+    source = _sheet(
+        "jumbled sheet",
+        f"""
+<h1>Jumbled</h1>
+<lf-grid id="lp-status" columns="4">{tiles}</lf-grid>
+<lf-grid id="lp-now" columns="3fr 2fr">{_panel("decision")}{_panel("steps")}</lf-grid>
+<lf-grid id="lp-evidence" columns="1fr 1fr">{_panel("checks")}{_panel("log")}</lf-grid>
+<lf-grid id="lp-release" columns="1fr 2fr">{_panel("summary")}{_panel("detail")}</lf-grid>
+""",
+    )
+
+    reading = render_gate_model.render_version(browser, serve(source, packages=()))
+
+    assert reading.failures == []
+    (advice,) = reading.advice
+    assert "split at 2 more place(s)" in advice, advice
+    for grid in ("lp-now", "lp-evidence", "lp-release"):
+        assert f"<lf-grid id={grid}> at " in advice, advice
+    assert "lp-status" not in advice, advice
 
 
 def test_the_pre_upgrade_proof_reads_the_held_authored_document(browser, serve):
@@ -408,7 +481,7 @@ def test_the_render_gate_arms_every_page_it_opens_against_an_empty_route_list(
     assert (
         render_gate_model.render_version(
             primed(browser, record_page), serve(BOUNDED_WORKSPACE_PAGE, packages=())
-        )
+        ).failures
         == []
     )
     arm = render_gate_scheme.INTERCEPTION_ARM
@@ -422,7 +495,10 @@ def test_the_render_gate_reads_content_through_bounded_pane_regions(browser, ser
     """Pane bounds are real scroll bounds, so content past a pane's first fold remains
     reachable without being exempted from the ordinary geometry checks."""
     assert (
-        render_gate_model.render_version(browser, serve(BOUNDED_WORKSPACE_PAGE)) == []
+        render_gate_model.render_version(
+            browser, serve(BOUNDED_WORKSPACE_PAGE)
+        ).failures
+        == []
     )
 
 
@@ -439,6 +515,7 @@ RECURSIVE_ROWS_PAGE = leaf_page(
   </lf-grid>
 </lf-workspace>
 """,
+    width="available",
 )
 
 
@@ -496,7 +573,7 @@ def test_a_broken_probe_module_is_a_gate_finding(browser, serve):
 
     failures = render_gate_model.render_version(
         primed(browser, break_probe), serve(LONG_PAGE)
-    )
+    ).failures
 
     assert failures
     assert all("browser probe module failed" in failure for failure in failures)
@@ -520,7 +597,7 @@ def test_an_async_wait_probe_is_refused_instead_of_passing_as_a_promise(browser,
         primed(browser.unwatched, make_readiness_async),
         serve(LONG_PAGE),
         served_timeout_ms=500,
-    )
+    ).failures
 
     assert failures
     assert all("must be synchronous" in failure for failure in failures)
@@ -579,7 +656,7 @@ def test_a_probe_module_that_stops_loading_is_a_gate_finding(browser, serve):
 
     failures = render_gate_model.render_version(
         primed(browser, hold_probe), serve(LONG_PAGE), served_timeout_ms=500
-    )
+    ).failures
 
     assert asked, "the probe route was never requested, so no module load stalled"
     assert failures
@@ -606,7 +683,7 @@ def test_an_async_reading_probe_is_refused_instead_of_awaited(browser, serve):
 
     failures = render_gate_model.render_version(
         primed(browser, hold_probe), serve(LONG_PAGE), served_timeout_ms=3000
-    )
+    ).failures
 
     assert failures
     assert all(
@@ -620,7 +697,7 @@ def test_the_gate_reports_a_form_field_chrome_cannot_identify(browser, serve):
         '<h1 id="t">Long</h1><label>Search <input class="unnamed" name=""></label>',
     )
 
-    failures = render_gate_model.render_version(browser, serve(source))
+    failures = render_gate_model.render_version(browser, serve(source)).failures
 
     assert [failure for failure in failures if "Chrome cannot identify" in failure] == [
         (
@@ -653,7 +730,7 @@ def test_a_rendering_turn_is_polled_from_the_driver(browser, serve):
         primed(browser, stop_presenting_frames),
         serve(LONG_PAGE),
         served_timeout_ms=3000,
-    )
+    ).failures
 
     assert failures
     assert all("wait probe framePresented" in failure for failure in failures)
@@ -769,7 +846,7 @@ def test_every_restore_case_a_user_can_return_to_is_arrived_in(browser, serve):
                 "action": "decide",
                 "detail": {"outcome": "accept"},
                 "meaning": {
-                    "document": "page",
+                    "scope": "page",
                     "unit": "sug-rewrite",
                     "depends": ["sug-rewrite"],
                     "answer": None,
@@ -997,7 +1074,7 @@ def test_a_transient_resize_notice_gets_a_complete_confirmation(browser, serve):
 
     failures = render_gate_model.render_version(
         primed(browser.unwatched, prepare), serve(LONG_PAGE)
-    )
+    ).failures
 
     assert failures == []
     assert len(pages) == 8, "the complete gate was not confirmed once"
@@ -1018,7 +1095,7 @@ def test_an_ordinary_error_survives_a_successful_resize_confirmation(browser, se
 
     failures = render_gate_model.render_version(
         primed(browser.unwatched, prepare), serve(LONG_PAGE)
-    )
+    ).failures
 
     assert len(pages) == 8
     assert sum("ordinary error from first attempt" in f for f in failures) == 1
@@ -1033,7 +1110,7 @@ def test_a_console_warning_fails_the_render_gate(browser, serve):
 
     failures = render_gate_model.render_version(
         primed(browser.unwatched, prepare), serve(LONG_PAGE)
-    )
+    ).failures
 
     warnings = [
         failure for failure in failures if "warning: authored warning" in failure
@@ -1050,7 +1127,7 @@ def test_a_recurring_resize_notice_fails_the_render_gate(browser, serve):
 
     failures = render_gate_model.render_version(
         primed(browser.unwatched, prepare), serve(LONG_PAGE)
-    )
+    ).failures
 
     assert len(pages) == 8
     recurring = [
@@ -1081,7 +1158,7 @@ def test_an_ordinary_error_survives_an_incomplete_resize_confirmation(browser, s
 
     failures = render_gate_model.render_version(
         primed(browser.unwatched, prepare), serve(LONG_PAGE)
-    )
+    ).failures
 
     assert any(
         "ordinary error from first attempt" in failure for failure in failures
@@ -1133,7 +1210,7 @@ def test_the_render_gate_rejects_an_upgrade_that_defines_no_element(
 
     failures = render_gate_model.render_version(
         browser, serve(CUSTOM_WIDGET_PAGE, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
-    )
+    ).failures
 
     assert any(
         "upgraded widgets did not define their elements: <lf-callout>" in failure
@@ -1175,7 +1252,7 @@ def test_the_render_gate_requires_a_declared_conversations_host(
     module.write_text(source)
 
     url = serve(CUSTOM_WIDGET_PAGE, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
-    assert render_gate_model.render_version(browser, url) == []
+    assert render_gate_model.render_version(browser, url).failures == []
 
     source = module.read_text()
     assert source.count(placement) == 1
@@ -1183,7 +1260,7 @@ def test_the_render_gate_requires_a_declared_conversations_host(
 
     failures = render_gate_model.render_version(
         browser, serve(CUSTOM_WIDGET_PAGE, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
-    )
+    ).failures
     assert (
         "[light] <lf-callout id='custom-note'> declares x-conversation but rendered 0 "
         "matching hosts; its module must place exactly one conversationBox"
@@ -1212,7 +1289,7 @@ def test_the_render_gate_requires_a_visual_parts_provider(
 
     failures = render_gate_model.render_version(
         browser, serve(CUSTOM_WIDGET_PAGE, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
-    )
+    ).failures
 
     assert any(
         "declares addressable visual parts but its module did not call "
@@ -1231,7 +1308,7 @@ def test_the_render_gate_validates_a_registered_visual_inventory(browser, serve)
                 layer_registry=GENERIC_VISUAL_LAYER,
                 layer_widgets=GENERIC_VISUAL_WIDGETS,
             ),
-        )
+        ).failures
         == []
     )
 
@@ -1296,7 +1373,7 @@ def test_the_render_gate_rejects_invalid_visual_inventory_records(browser, serve
             layer_registry=GENERIC_VISUAL_LAYER,
             layer_widgets=module,
         ),
-    )
+    ).failures
     assert failures == [
         (
             "[light] <lf-test-visual id='missing'> declares addressable visual parts "
@@ -1317,6 +1394,28 @@ def test_the_render_gate_rejects_invalid_visual_inventory_records(browser, serve
     ]
 
 
+def test_the_render_gate_bounds_a_prefixed_inventory_by_its_prefixes(browser, serve):
+    """A prefixed visual authors no tokens, so the gate has none to resolve; what it
+    holds is the widget to its own declaration, refusing a registered id outside it."""
+
+    def gate(*prefixes):
+        return render_gate_model.render_version(
+            browser.unwatched,
+            serve(
+                PREFIXED_VISUAL_PAGE,
+                layer_registry=prefixed_visual_layer(*prefixes),
+                layer_widgets=GENERIC_VISUAL_WIDGETS,
+            ),
+        ).failures
+
+    assert gate("out", "inn", "htm") == []
+    assert gate("out", "inn") == [
+        f"[{scheme}] <lf-test-visual id='visual'> declares addressable visual parts "
+        "but its module registered parts its prefixes do not admit html"
+        for scheme in ("light", "dark")
+    ]
+
+
 def test_the_gate_passes_every_diagram_type_that_carries_addressable_parts(
     browser, serve
 ):
@@ -1327,7 +1426,10 @@ def test_the_gate_passes_every_diagram_type_that_carries_addressable_parts(
     would catch a renderer-specific failure, and the structural types also exercise
     every kind of source id accepted by `parts`.
     """
-    assert render_gate_model.render_version(browser, serve(TYPED_PARTS_PAGE)) == []
+    assert (
+        render_gate_model.render_version(browser, serve(TYPED_PARTS_PAGE)).failures
+        == []
+    )
 
 
 def test_a_class_named_for_its_namespace_keeps_its_part(browser, serve):
@@ -1348,7 +1450,7 @@ classDiagram
   Runner --&gt; Job
 </pre></lf-diagram>""",
     )
-    assert render_gate_model.render_version(browser, serve(page)) == []
+    assert render_gate_model.render_version(browser, serve(page)).failures == []
 
 
 DIAGRAM_FAMILIES = {
@@ -1382,7 +1484,7 @@ def test_the_gate_passes_what_the_renderer_draws(browser, serve):
             ),
         )
     )
-    assert render_gate_model.render_version(browser, url) == []
+    assert render_gate_model.render_version(browser, url).failures == []
 
 
 def test_a_diagram_link_draws_no_tab_stop(browser, serve):
@@ -1468,7 +1570,7 @@ flowchart LR
         },
     )
 
-    failures = render_gate_model.render_version(browser, url)
+    failures = render_gate_model.render_version(browser, url).failures
     unresolved = [f for f in failures if "does not resolve to valid fill" in f]
 
     assert len(unresolved) == 4, failures
@@ -1607,7 +1709,7 @@ def test_the_render_gate_catches_a_lying_verbatim_and_an_undeclared_shadow_root(
 
     failures = render_gate_model.render_version(
         browser, serve(CUSTOM_WIDGET_PAGE, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
-    )
+    ).failures
 
     assert any("x-verbatim" in f for f in failures), failures
     assert any("shadow roots the registry doesn't declare" in f for f in failures), (
@@ -1704,7 +1806,7 @@ def test_the_render_gate_checks_verbatim_words_in_each_color_scheme(
 
     failures = render_gate_model.render_version(
         browser, serve(CUSTOM_WIDGET_PAGE, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
-    )
+    ).failures
 
     dishonest = [failure for failure in failures if "x-verbatim" in failure]
     assert len(dishonest) == 1, failures
@@ -1769,7 +1871,7 @@ def test_anonymous_verbatim_owners_keep_distinct_page_and_reply_provenance(
         },
     )
 
-    failures = render_gate_model.render_version(browser, url)
+    failures = render_gate_model.render_version(browser, url).failures
 
     dishonest = [failure for failure in failures if "x-verbatim" in failure]
     assert len(dishonest) == 4, failures
@@ -1859,7 +1961,7 @@ def test_action_and_report_state_do_not_excuse_unrelated_verbatim_corruption(
         command["agent"] = "worker"
     append_command(serve.page_dir, command)
 
-    failures = render_gate_model.render_version(browser, url)
+    failures = render_gate_model.render_version(browser, url).failures
 
     dishonest = [failure for failure in failures if "x-verbatim" in failure]
     assert len(dishonest) == 2, failures
@@ -1923,7 +2025,7 @@ def test_projected_rewrite_retirement_and_undo_are_honest_verbatim_changes(
         {"kind": "undo", "author": "user", "undoes": withdrawn["id"]},
     )
 
-    failures = render_gate_model.render_version(browser, url)
+    failures = render_gate_model.render_version(browser, url).failures
 
     assert not [failure for failure in failures if "x-verbatim" in failure], failures
 
@@ -1989,7 +2091,7 @@ def test_a_child_action_does_not_excuse_its_verbatim_wrappers_prose(
         },
     )
 
-    failures = render_gate_model.render_version(browser, url)
+    failures = render_gate_model.render_version(browser, url).failures
 
     dishonest = [failure for failure in failures if "x-verbatim" in failure]
     assert len(dishonest) == 2, failures
@@ -2087,7 +2189,7 @@ def test_verbatim_wrapper_owns_prose_and_order_but_not_nested_widget_rendering(
             ),
         },
     )
-    failures = render_gate_model.render_version(browser, url)
+    failures = render_gate_model.render_version(browser, url).failures
     dishonest = [failure for failure in failures if "x-verbatim" in failure]
     assert len(dishonest) == 4, failures
     assert all("honest-shell" not in failure for failure in dishonest)
@@ -2141,7 +2243,7 @@ def test_the_render_gate_catches_a_declared_word_that_never_reached_the_page(
 
     failures = render_gate_model.render_version(
         browser, serve(CUSTOM_WIDGET_PAGE, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
-    )
+    ).failures
 
     assert any('never says "09:00"' in f for f in failures), failures
     assert any('paints kind="failure" and says nothing' in f for f in failures), (
@@ -2188,7 +2290,7 @@ def test_the_render_gate_catches_a_shadow_host_whose_own_words_never_render(
 
     failures = render_gate_model.render_version(
         browser, serve(SHADOW_HOST_PAGE, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
-    )
+    ).failures
 
     assert any('never says "Escalated"' in f for f in failures), failures
     assert any('paints urgent="" and says nothing' in f for f in failures), failures
@@ -2203,7 +2305,7 @@ def test_page_fixture_renders(browser, serve, source):
     is the shape of failure a static lint cannot see. The invariants live in
     render_gate.version.render_version — the pass `version check --render` runs on
     agent-authored pages — so this sweep also proves the gate a user's page goes through."""
-    assert render_gate_model.render_version(browser, serve(source)) == []
+    assert render_gate_model.render_version(browser, serve(source)).failures == []
 
 
 def test_every_idiom_in_the_catalog_stands_in_a_corpus_source(browser):
@@ -2503,7 +2605,7 @@ def test_a_table_too_wide_to_wrap_scrolls_inside_the_column(browser, serve):
     assert measured["scrolls"] > 0, "this table fits, so it proves nothing"
     assert measured["sideways"] == 0
     page.close()
-    assert render_gate_model.render_version(browser, url) == []
+    assert render_gate_model.render_version(browser, url).failures == []
 
 
 def test_an_identifier_in_a_cell_breaks_rather_than_holding_its_column(browser, serve):
@@ -2536,7 +2638,7 @@ def test_an_identifier_in_a_cell_breaks_rather_than_holding_its_column(browser, 
         scrolls = page.locator("#held").evaluate("(t) => t.scrollWidth - t.clientWidth")
         assert scrolls == 0, (width, scrolls)
     page.close()
-    assert render_gate_model.render_version(browser, url) == []
+    assert render_gate_model.render_version(browser, url).failures == []
 
 
 def test_the_render_gate_reports_a_table_squeezed_by_what_cannot_break(browser, serve):
@@ -2554,7 +2656,7 @@ def test_the_render_gate_reports_a_table_squeezed_by_what_cannot_break(browser, 
     scrolls = page.locator("#held").evaluate("(t) => t.scrollWidth - t.clientWidth")
     assert scrolls > 1, "the names fit the measure here, so the reading is never asked"
     page.close()
-    failures = render_gate_model.render_version(browser, url)
+    failures = render_gate_model.render_version(browser, url).failures
 
     squeezed = [f for f in failures if "<table id=held> scrolls" in f]
     assert squeezed, failures
@@ -2627,7 +2729,9 @@ def test_the_squeeze_reading_sees_a_wrap_between_two_links(browser, serve):
     line's glyph box overlaps the first's, and a reading of line boxes lost it
     again. The table without that column is
     `test_a_table_too_wide_to_wrap_scrolls_inside_the_column`'s, and passes."""
-    failures = render_gate_model.render_version(browser, serve(LINKED_CELLS_PAGE))
+    failures = render_gate_model.render_version(
+        browser, serve(LINKED_CELLS_PAGE)
+    ).failures
 
     squeezed = [f for f in failures if "<table id=sessions> scrolls" in f]
     assert squeezed, failures
@@ -2641,7 +2745,10 @@ def test_a_line_the_author_drew_is_not_a_wrap(browser, serve):
     and told the author to write the <code> they had written), a <br>, a newline
     under <pre>, and words either side of a nested table. A wrap is what goes away
     with soft wrapping turned off, and none of these does."""
-    assert render_gate_model.render_version(browser, serve(AUTHORED_LINES_PAGE)) == []
+    assert (
+        render_gate_model.render_version(browser, serve(AUTHORED_LINES_PAGE)).failures
+        == []
+    )
 
 
 def test_a_comment_on_a_cell_is_not_a_wrap_in_it(browser, serve):
@@ -2655,7 +2762,7 @@ def test_a_comment_on_a_cell_is_not_a_wrap_in_it(browser, serve):
     contain what it scrolls, and a commented page has nothing left to report."""
     url = serve(WIDE_TABLE_PAGE, anchored=[("sessions", "value_number_7")])
 
-    assert render_gate_model.render_version(browser, url) == []
+    assert render_gate_model.render_version(browser, url).failures == []
 
 
 def test_a_comment_inside_a_scrolling_table_leaves_the_page_its_own_width(
@@ -2731,7 +2838,7 @@ def test_a_comment_inside_a_scrolling_table_leaves_the_page_its_own_width(
     )
     assert reached == {"held": True, "said": "1 comment", "inTheWindow": True}
     page.close()
-    assert render_gate_model.render_version(browser, url) == []
+    assert render_gate_model.render_version(browser, url).failures == []
 
 
 def test_the_runtime_holds_a_scroller_the_page_wrote(browser, serve):
@@ -2844,7 +2951,7 @@ def test_the_render_gate_reports_content_set_past_the_column(browser, serve):
     static lint reads pinned pixels, which a vw width is not. The failure names
     the element and how far out it is, because "something overflows" sends its
     reader back to the browser to find out what."""
-    failures = render_gate_model.render_version(browser, serve(SPILLING_PAGE))
+    failures = render_gate_model.render_version(browser, serve(SPILLING_PAGE)).failures
 
     assert [
         f
@@ -2888,7 +2995,10 @@ def test_misplaced_boxes_checks_page_overflow_but_not_leaf_chrome(browser, serve
           };
         }"""
     )
-    misplaced = render_checks_model.evaluate_probe(page, "misplacedBoxes")
+    misplaced = [
+        finding["text"]
+        for finding in render_checks_model.evaluate_probe(page, "misplacedBoxes")
+    ]
     overflow = render_checks_model.evaluate_probe(page, "rootOverflow")
     page.locator(".lf-margin-cluster").evaluate(
         """cluster => {
@@ -2898,7 +3008,10 @@ def test_misplaced_boxes_checks_page_overflow_but_not_leaf_chrome(browser, serve
           });
         }"""
     )
-    visible_chrome = render_checks_model.evaluate_probe(page, "misplacedBoxes")
+    visible_chrome = [
+        finding["text"]
+        for finding in render_checks_model.evaluate_probe(page, "misplacedBoxes")
+    ]
     page.close()
 
     assert measured["labelPast"] > 1, "the Leaf label stayed inside the column"
@@ -2931,7 +3044,9 @@ def test_the_render_gate_reports_words_no_mark_can_be_shown_on(browser, serve):
 
     TINY_BOXES stands next to this reading and cannot take it: `checkVisibility()` is false
     for an element with no box, so it filters out exactly the elements at issue."""
-    failures = render_gate_model.render_version(browser, serve(UNMARKABLE_PAGE))
+    failures = render_gate_model.render_version(
+        browser, serve(UNMARKABLE_PAGE)
+    ).failures
 
     assert [f for f in failures if "<div id='ghost'>" in f and "no box to mark" in f], (
         f"the gate said nothing about words no mark can be shown on: {failures}"
@@ -2959,7 +3074,7 @@ def test_the_render_gate_tells_a_float_in_the_margin_from_one_spilling_out_of_it
     And the side is resolved rather than string-matched: `float` computes to whichever
     of its four values was written, so `inline-start` — the same left edge — read as
     neither 'left' nor 'right' and failed the page for it."""
-    failures = render_gate_model.render_version(browser, serve(FLOATING_PAGE))
+    failures = render_gate_model.render_version(browser, serve(FLOATING_PAGE)).failures
 
     assert [
         f
@@ -2986,17 +3101,14 @@ def test_the_render_gate_tells_a_float_in_the_margin_from_one_spilling_out_of_it
 def test_the_render_gate_measures_sideways_room_at_the_root_scrollport(browser, serve):
     """A narrow authored body is not the page's viewport. Its child can be wider than
     that body while still fitting on screen, so measuring body would invent sideways
-    document overflow where the canonical root scrollport has none. The compact rule
-    preserves that same body-versus-scrollport contrast within its smaller viewport."""
+    document overflow where the canonical root scrollport has none. Sized in vw, the page
+    keeps that contrast at every width the gate reads."""
     source = leaf_page(
         "root scrollport width",
         """
 <style>
-body { width: 400px; }
-#wide-inside-window { width: 700px; }
-@media (max-width: 600px) {
-  #wide-inside-window { width: 500px; }
-}
+body { width: 40vw; }
+#wide-inside-window { width: 70vw; }
 </style>
 <h1>Capacity plan</h1>
 <div id="wide-inside-window">This box still fits in the viewport.</div>
@@ -3016,7 +3128,7 @@ body { width: 400px; }
     assert overflow["root"] == 0, overflow
     page.close()
 
-    failures = render_gate_model.render_version(browser, url)
+    failures = render_gate_model.render_version(browser, url).failures
 
     assert not [f for f in failures if "page scrolls sideways" in f], failures
 
@@ -3029,15 +3141,15 @@ def test_the_render_gate_tells_a_fixed_margin_resident_from_a_fixed_spill(
     The first shape is the roomy sidebar posture: it starts in the outer gutter and never
     moves beneath the pointer. The second differs only in its horizontal position and
     straddles the readable column, so exempting fixed boxes outright would make the gate
-    blind to the same spill it catches in flow and in floats. The compact posture has no
-    outer gutter, so neither synthetic resident applies there."""
+    blind to the same spill it catches in flow and in floats. Only the desktop viewport
+    leaves an outer gutter 204px wide, so neither synthetic resident stands narrower."""
     source = leaf_page(
         "fixed margin residents",
         """
 <style>
 #fixed-margin { position: fixed; top: 80px; left: 24px; width: 180px; }
 #fixed-half { position: fixed; top: 500px; left: 180px; width: 180px; }
-@media (max-width: 600px) {
+@media (max-width: 1199px) {
   #fixed-margin, #fixed-half { display: none; }
 }
 </style>
@@ -3048,7 +3160,7 @@ def test_the_render_gate_tells_a_fixed_margin_resident_from_a_fixed_spill(
 """,
     )
 
-    failures = render_gate_model.render_version(browser, serve(source))
+    failures = render_gate_model.render_version(browser, serve(source)).failures
 
     assert not [f for f in failures if "fixed-margin" in f], (
         f"the fixed margin resident was reported for standing where it was put: {failures}"
@@ -3171,7 +3283,7 @@ def test_the_render_gate_reports_a_sidenote_a_box_clips_away(browser, serve):
         return {painted: !!mid && (n === mid || n.contains(mid)),
                 at: mid && mid.tagName};
     }""")
-    failures = render_gate_model.render_version(browser, url)
+    failures = render_gate_model.render_version(browser, url).failures
     page.close()
 
     assert not seen["painted"], (
@@ -3197,7 +3309,9 @@ def test_the_render_gate_reports_a_box_its_container_clips_away(browser, serve):
     too, being what makes a static box the containing block of the box it then cuts —
     the converse of the box hung off `holding`, which is placed out of a clip that never
     held it."""
-    failures = render_gate_model.render_version(browser, serve(OVER_ITS_CONTAINER))
+    failures = render_gate_model.render_version(
+        browser, serve(OVER_ITS_CONTAINER)
+    ).failures
 
     assert [
         f
@@ -3260,7 +3374,9 @@ def test_the_render_gate_reads_a_scrolled_container_from_its_content(browser, se
         )
 
     url = serve(SCROLLED_CONTAINER.replace("width: 900px", "width: 100%"))
-    failures = render_gate_model.render_version(primed(browser, scroll_it), url)
+    failures = render_gate_model.render_version(
+        primed(browser, scroll_it), url
+    ).failures
 
     assert not [f for f in failures if "riding" in f or "rolled" in f], (
         f"a scrolled box was read as having lost what it was scrolled past: {failures}"
@@ -3524,11 +3640,10 @@ def test_edge_resizing_belongs_to_one_primary_pointer(browser, serve, edge):
 def test_a_window_with_no_room_for_a_chosen_width_does_not_un_choose_it(
     browser, serve, edge
 ):
-    """A region may take half of a window it stands beside and no more — the same bargain
-    the covering breakpoint strikes one window down, that the page keeps at least what the
-    region takes — and a region over the page may take the window and no more. A window
-    that shrinks past that is a window, not a retraction: the user said 580 once, and a
-    laptop lid opened narrower is not them saying 400 instead.
+    """A region may take the window and no more, and one that leaves no usable page
+    beside it covers the page rather than taking a strip from it. A window that shrinks
+    past what the user chose is a window, not a retraction: the user said 580 once, and a
+    laptop lid opened narrower is not them saying 500 instead.
 
     So the choice and the standing width are two facts. Clamping the stored one would read
     identically on the narrow window and lose the user's answer for good on the wide one
@@ -3543,6 +3658,7 @@ def test_a_window_with_no_room_for_a_chosen_width_does_not_un_choose_it(
 
     resized(page, narrow, 900)
     squeezed = geometry(page, edge)
+    covering = page.locator("body[data-lf-covering-surface]").count()
 
     resized(page, 1400, 900)
     roomy = geometry(page, edge)
@@ -3552,8 +3668,9 @@ def test_a_window_with_no_room_for_a_chosen_width_does_not_un_choose_it(
     assert squeezed["width"] == stands, (
         f"a {narrow}px window left the page less than the region took: {squeezed}"
     )
-    assert not edge.strip or squeezed["page"] == squeezed["edge"], (
-        f"the page yielded a strip the region was not standing in: {squeezed}"
+    assert covering, f"a region leaving no page beside it stood beside it: {squeezed}"
+    assert squeezed["page"] == (0 if edge.side == "left" else narrow), (
+        f"the page yielded a strip to a region covering it: {squeezed}"
     )
     assert squeezed["chosen"] == str(edge.wide + 160), (
         f"the narrow window un-said what the user had said: {squeezed}"
@@ -3674,7 +3791,9 @@ def test_the_render_gate_reports_code_the_user_cannot_tell_from_its_block(
     assert {"cm", "kw", "st"} <= set(population["document"]), population
     assert "nu" in population["shadow"], population
 
-    failures = render_gate_model.render_version(browser, serve(CODE_FAULT_PAGE))
+    failures = render_gate_model.render_version(
+        browser, serve(CODE_FAULT_PAGE)
+    ).failures
     syntax = [finding for finding in failures if "] code marked " in finding]
     assert failures == syntax, failures
     assert len(syntax) == 4, failures
@@ -3702,7 +3821,10 @@ def test_the_render_gate_reports_code_the_user_cannot_tell_from_its_block(
     )
     page.close()
     assert population["document"] > 0 and population["shadow"] > 0, population
-    assert render_gate_model.render_version(browser, serve(CODE_CONTROL_PAGE)) == []
+    assert (
+        render_gate_model.render_version(browser, serve(CODE_CONTROL_PAGE)).failures
+        == []
+    )
 
 
 def test_an_authored_project_widget_loads_through_the_real_layer(
@@ -3919,7 +4041,7 @@ def test_the_gate_replays_a_decision_made_on_a_widget_no_version_holds(browser, 
     )
     page.close()
 
-    assert render_gate_model.render_version(browser, url) == []
+    assert render_gate_model.render_version(browser, url).failures == []
 
 
 TRAP_PAIR_PAGE = leaf_page(
@@ -3971,7 +4093,7 @@ def test_the_gate_reports_a_trapped_margin_in_the_page_and_not_in_the_layer(
         anchored=[("tp-first", "signed-cookie fallback")],
         packages=(*EXAMPLE_PACKAGES, "./.leaf"),
     )
-    failures = render_gate_model.render_version(browser, url)
+    failures = render_gate_model.render_version(browser, url).failures
     trapped = [f for f in failures if "of inset and shows" in f]
     assert any("tp-inset" in f for f in trapped), (
         "the author's own trapped margin went unreported, so the silence below is "

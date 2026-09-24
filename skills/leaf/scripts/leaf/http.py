@@ -25,7 +25,7 @@ from . import presence as presence_model
 from .data import (
     DataError,
     StaleDataError,
-    data_fragment,
+    deferred_value,
     read_contracts,
     read_data,
     read_source,
@@ -573,7 +573,7 @@ class PageEndpoint:
             raise ValueError("view sequence is required")
         return _query_int(raw, "view sequence", 0)
 
-    def data_fragment(self) -> dict:
+    def deferred_value(self) -> dict:
         """One contract-declared payload from the source revision the tab holds."""
         source = self.query.get("source", [None])[-1]
         revision = self.query.get("source_revision", [None])[-1]
@@ -606,7 +606,7 @@ class PageEndpoint:
             reading = read_source(self.page_dir, source, contract, registry)
         else:
             reading = None
-        return data_fragment(
+        return deferred_value(
             reading, registry, source=source, revision=revision, key=key
         )
 
@@ -908,7 +908,7 @@ class PageEndpoint:
             version = self.page_snapshot.active["version"]
         else:
             with PageTransaction(self.page_dir) as page:
-                activate_source(self.page_dir, page.events)
+                activate_source(self.page_dir)
                 events = page.events
             revision = latest_revision(self.page_dir)
             if revision is None:
@@ -1132,14 +1132,14 @@ class PageEndpoint:
             except ValueError as error:
                 return self._json({"error": str(error)}, 400)
             return self._json(state)
-        if path == "/api/data":
+        if path == "/api/deferred":
             try:
-                fragment = self.data_fragment()
+                deferred = self.deferred_value()
             except StaleDataError as error:
                 return self._json({"error": str(error)}, 409)
             except (DataError, ValueError) as error:
                 return self._json({"error": str(error)}, 400)
-            return self._json(fragment)
+            return self._json(deferred)
         if path == "/api/view":
             try:
                 revision = self.requested_view_revision()

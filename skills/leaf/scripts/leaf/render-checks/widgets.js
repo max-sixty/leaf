@@ -112,12 +112,14 @@ const visualProviderProblems = (declarations, check) =>
     .filter(([, entry]) => entry["x-visual"] && typeof entry["x-visual"] === "object")
     .flatMap(([tag, entry]) =>
       [...document.querySelectorAll(tag)].map((el) => {
-        const attribute = entry["x-visual"].parts;
-        const declared = (el.getAttribute(attribute) ?? "")
-          .trim()
-          .split(/\s+/)
-          .filter(Boolean);
-        return { tag, id: el.id, problems: check(el, declared) };
+        const { parts, prefixes } = entry["x-visual"];
+        const declared = prefixes
+          ? []
+          : (el.getAttribute(parts) ?? "").trim().split(/\s+/).filter(Boolean);
+        const admits = prefixes
+          ? (id) => prefixes.some((p) => id !== p && id.startsWith(p))
+          : undefined;
+        return { tag, id: el.id, problems: check(el, declared, admits) };
       }),
     )
     .filter((instance) => instance.problems.length);

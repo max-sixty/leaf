@@ -3,6 +3,7 @@
 import json
 import re
 import subprocess
+import sys
 from html.parser import HTMLParser
 from pathlib import Path
 
@@ -84,11 +85,13 @@ def example_versions(source: Path) -> list[Path]:
 def patch_manifest(patch: str) -> dict:
     """The `diff` package's producer script's manifest for one patch.
 
-    It runs the way an agent runs it, `uv run` in the environment its inline
-    metadata declares, so the fixtures and the suite exercise that command rather
-    than an import of it. A refused patch raises with the script's stderr."""
+    It runs as a process, reading stdin and writing stdout as an agent's pipeline
+    does, but under this project's interpreter rather than `leaf package run`: the
+    dev group carries the script's `unidiff` at the version `uv.lock` pins, so the
+    fixtures and the suite read the same manifest on every machine and fetch nothing.
+    A refused patch raises with the script's stderr."""
     produced = subprocess.run(
-        ["uv", "run", "--quiet", str(PATCH_MANIFEST)],
+        [sys.executable, str(PATCH_MANIFEST)],
         input=patch.encode("utf-8"),
         capture_output=True,
         check=False,
@@ -100,9 +103,15 @@ def patch_manifest(patch: str) -> dict:
 
 def captured_value(file: Path, spec: dict):
     """One `$captures` entry's value: the file's text, an inclusive `lines` range of
-    it, or, for `"format": "unified-diff"`, the patch's file manifest."""
+    it, or, for `"format": "unified-diff"`, the whole patch's file manifest. A
+    patch is captured whole, so a `lines` range beside that format is refused."""
     text = file.read_text(encoding="utf-8")
     if spec.get("format") == "unified-diff":
+        if "lines" in spec:
+            raise ValueError(
+                f"{file}: a unified-diff capture takes the whole patch, not lines "
+                f"{spec['lines']}"
+            )
         return patch_manifest(text)
     if (lines := spec.get("lines")) is None:
         return text
@@ -113,12 +122,23 @@ def captured_value(file: Path, spec: dict):
     return "".join(selected)
 
 
-def data_operations(source: Path) -> list[dict]:
-    """Every source value one example sets: captures first, then written values."""
+def data_companion(source: Path) -> dict:
+    """The example's `.data.json` companion, or nothing when it has none."""
     companion = source.with_suffix(".data.json")
     if not companion.exists():
-        return []
-    document = json.loads(companion.read_text(encoding="utf-8"))
+        return {}
+    return json.loads(companion.read_text(encoding="utf-8"))
+
+
+def capture_files(source: Path) -> list[Path]:
+    """The files the companion's `$captures` read, which its values depend on."""
+    captures = data_companion(source).get("$captures", {})
+    return [source.parent / spec["file"] for spec in captures.values()]
+
+
+def data_operations(source: Path) -> list[dict]:
+    """Every source value one example sets: captures first, then written values."""
+    document = data_companion(source)
     captures = [
         {"source": name, "value": captured_value(source.parent / spec["file"], spec)}
         for name, spec in document.pop("$captures", {}).items()

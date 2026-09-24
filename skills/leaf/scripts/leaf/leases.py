@@ -48,15 +48,25 @@ def take_lease(path: Path):
     disabled has exited. The caller holds the returned file for as long as it
     holds the lease; closing it, or exiting, releases it. The lease's directory
     must already exist, so a stop naming a page that is gone cannot create it.
+
+    A refused exclusive lock means a lease or a `lock_is_held` question, whose
+    shared lock is momentary. A shared lock of its own tells them apart, since
+    only a lease refuses one, so a question asked at the instant a lease is taken
+    does not turn that lease away.
     """
     require_cross_process_locking()
     record = open(path, "a+b")  # noqa: SIM115 - returned and held by the caller
-    try:
-        fcntl.flock(record, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    except BlockingIOError:
-        record.close()
-        return None
-    return record
+    while True:
+        try:
+            fcntl.flock(record, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            return record
+        except BlockingIOError:
+            try:
+                fcntl.flock(record, fcntl.LOCK_SH | fcntl.LOCK_NB)
+            except BlockingIOError:
+                record.close()
+                return None
+            fcntl.flock(record, fcntl.LOCK_UN)
 
 
 def page_lock(page_dir: Path, purpose: str) -> Path:
@@ -131,6 +141,46 @@ def _session_lease(session_id: str, purpose: str) -> Path:
 def adapter_is_live(session_id: str) -> bool:
     """Whether this session has a detached delivery carrier right now."""
     return lock_is_held(adapter_lease_path(session_id))
+
+
+def take_session_wait(session_id: str):
+    """Take this session's wait lease and mark the wait started, returning both
+    held, or None when another wait holds the lease.
+
+    The mark is a lock on `sessions/<id>.started`, held for the wait's life and
+    removed when a tool hook names the start (`name_wait_start`). Lease and mark
+    are taken under the lock naming takes, so a reader sees a wait either not yet
+    started or started and marked, never the lease without its mark."""
+    lease_path = waiter_lease_path(None, session_id)
+    mark_path = _session_lease(session_id, "started")
+    with flocked(_session_lease(session_id, "started.lock")):
+        lease = take_lease(lease_path)
+        if lease is None:
+            return None
+        mark = open(mark_path, "a+b")  # noqa: SIM115 - held by the wait
+        # Readers ask about the mark only under the lock held here, and a wait
+        # lets its mark go before its lease, so this never waits.
+        fcntl.flock(mark, fcntl.LOCK_EX)
+        return lease, mark
+
+
+def name_wait_start(session_id: str) -> bool | None:
+    """Whether a wait has started for this session that nothing has named yet,
+    naming it if so; None when the wait holding the lease is already named, so no
+    other can start while it runs.
+
+    Naming removes the mark, which the wait goes on holding, so a start is named
+    once. The question and the removal share one lock across readers: two
+    unlinks of one name can both succeed on macOS, so a removal alone does not
+    say which reader named it."""
+    mark_path = _session_lease(session_id, "started")
+    with flocked(_session_lease(session_id, "started.lock")):
+        if lock_is_held(mark_path):
+            mark_path.unlink()
+            return True
+        if lock_is_held(waiter_lease_path(None, session_id)):
+            return None
+        return False
 
 
 def wait_is_live(page_dir: Path, session_id: str | None) -> bool:

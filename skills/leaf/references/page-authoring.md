@@ -78,26 +78,74 @@ stands alone, since whoever reads it there has none of the page around it.
 
 ## Composing a page
 
-Start from a sequential explanation and insert the other compositions where they
-help, keeping the prose around them. A report that gains live status gains a grid;
-it does not become another kind of page, so its comments and anchors stay put.
+Choose the page's form from the shape of its subject, before anything else:
 
-- **A sequential explanation** is the default: plans, reviews, write-ups. Nothing is
-  declared.
+- **A document** is an argument read in order: a plan, a review, a write-up, a
+  decision. It stays in the reading column, and nothing is declared. Most pages are
+  documents.
+- **A sheet** is a set of regions read side by side: a board with its status, a
+  release dashboard, a queue sorted into buckets, a long review whose contents and
+  verdict stay beside the code. Write `<main data-width="available">`.
+- **A workspace** is a sheet whose regions must stay in view together while each
+  scrolls on its own: a queue beside its detail, a playground's controls beside its
+  preview. Write `<main data-width="available">` with an `lf-workspace` as its only
+  block.
+
+A page can move between forms as it grows without changing kind: a report that gains
+live status gains a grid, and its comments and anchors stay put. Width alone is not a
+reason to change form: a wide comparison or diagram stays in a document at the width it
+declares.
+
+### A document
+
+Within the column, compose with these:
+
 - **Independent status tiles** are an `lf-grid` inside the explanation. Each cell
   holds a surface — a metric, chart, table, list or log, with at most a caption —
   rather than paragraphs; a row of headline numbers is a grid of `lf-metric` tiles.
   A grid of paragraphs is prose cut into columns, and reads worse than the column.
+  A grid in a document stands at the wide width, centred on the column; when the
+  tiles are the page, the page is a sheet.
 - **A comparison** is `lf-compare`, which keeps its variants paired at any width.
 - **Controls beside evidence** is a playground, which declares how its controls
-  operate its preview. Use an `lf-workspace` of plain panes for task regions that
-  must stay visible together with no such relationship, such as a queue beside its
-  detail.
+  operate its preview.
 - **Several views of one artifact** are one `lf-tabs` set: page tabs for
   project-scale views that share one history, Threads panel, Ask inventory, and
   revision sequence, and a tabbed section for local alternatives within the
   surrounding view. The `lf-tabs` entry says which placement makes which, and how to
   order and retire views.
+
+### A sheet
+
+On a sheet every block, the title included, starts at one left edge and takes the
+sheet's width, while text keeps the reading measure; the title is set larger. A sheet
+reads as one structure when every region stands on the same vertical lines, so give it
+one set of tracks: typically a body beside a rail as one `lf-grid` of
+`columns="2fr 1fr"` (`3fr 1fr` for a board), each track a nested `columns="1"` grid
+stacking its regions, rather than a new grid per row whose splits land somewhere new
+each time (`version check --render` advises on those). Put what the reader works
+through in the body and what they keep an eye on — status, counts, the verdict's
+follow-ups, the contents — in the rail. The tracks stack where the rail would become
+too narrow.
+
+Draw each region the same way, as a `section.panel` with a short heading, and keep a
+`.callout` with a status tone (`warn`, `danger`, `ok`) for the one thing the reader must
+act on; a row of `.tag` chips in the same tones under the lede says the page's state at a
+glance. `data-width="wide"` caps the sheet at the shared evidence width instead of the
+window.
+
+### A workspace
+
+A workspace holds its regions in view together only as a sheet's, or a page tab's,
+sole content element, and elsewhere stays in document flow; `version check` refuses a
+page made of one workspace that is not a sheet. The `lf-workspace` entry says where the
+title goes and which elements its body can be, and the `lf-pane` entry what a pane
+holds. Place several panes with an `lf-grid`, such as `columns="1fr 2fr"` for a queue
+beside its detail. Let Leaf allocate the space: page-specific positioning should not be
+needed to keep a pane or footer reachable. Where the window cannot hold the regions,
+the workspace flows like a sheet and the page scrolls.
+
+### Bounds and widths
 
 A log, feed, or long listing bounds its own height with `data-bound="end"`, which
 keeps it on its newest line while the user is at the end and leaves them where
@@ -105,18 +153,6 @@ they scrolled back to otherwise; `data-bound="start"` opens it at the top. Some
 widgets bound themselves by default. Don't make a box scroll vertically with page
 CSS: Leaf keeps no reading position in a scroller it did not make, and `version
 check` advises against one.
-
-A workspace holds its regions in view together only as the page's, or a page tab's,
-sole content element, and elsewhere stays in document flow; the `lf-workspace` entry
-says where the title goes and which elements its body can be, and the `lf-pane` entry
-what a pane holds. Place several panes with an `lf-grid`, such as `columns="1fr 2fr"`
-for a queue beside its detail. Let Leaf allocate the space: page-specific positioning
-should not be needed to keep a pane or footer reachable.
-
-Choose width separately from document or workspace form. Keep prose at a readable
-measure and let declared visual surfaces use the room their task needs. A wide comparison
-can remain part of a scrolling document. Use a workspace when the user benefits from
-keeping task regions together, rather than merely to obtain more width.
 
 An individual block or section may request a responsive allocation with
 `data-width="column"`, `data-width="wide"`, or `data-width="available"`. `column`
@@ -184,6 +220,14 @@ has not yet admitted, or has the version menu open.
 Page modules follow `references/packages.md`, "What a behavior module owes". In
 particular, its `once()`, `quoted()`, `offer()`, `layoutChanged()`, and durable-state
 rules keep authored controls correct after reconnection, thread quoting, and export.
+
+`leaf version check` runs a page's own code, a module script or a page widget the
+document places, once in the host's browser: through upgrade, presentation, and one
+frame after it. It fails on every error the page would report to you through the
+watcher, an uncaught exception or a rejected promise with the source location it came
+from, so a module that throws on its first paint is found before the URL goes out.
+Code that runs only after a gesture or a timer is not reached; operate it in the
+pre-handover review. A page with no code of its own is checked without a browser.
 
 `page/registry.json` may contribute declarations using the package registry language.
 Its element entry replaces the selected layer's complete entry; shared `$` declarations
@@ -341,4 +385,6 @@ Without a way to inspect the rendered page, read `leaf page state <page>`'s
 available choices. Report the render command's result separately from the visual
 and keyboard review you could not perform. If the command cannot launch a browser,
 run `leaf version check <page>` for the markup and report the render check as
-unfinished. A text reading does not establish layout or interaction quality.
+unfinished; for a page with code of its own, that check needs the browser too, so
+report the run of its code as unfinished as well. A text reading does not establish
+layout or interaction quality.

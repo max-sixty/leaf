@@ -45,7 +45,7 @@ from leaf.conversation import (
 from leaf.delivery import read_delivery
 from leaf.host import EmbeddedHarness
 from leaf.hosting import LeafHTTPServer
-from leaf.http import PageEndpoint, scope_page_urls, scope_script_routes
+from leaf.http import PageEndpoint, scope_page_urls
 from leaf.leases import take_lease, waiter_lease_path
 from leaf.registry.storage import layer_metadata
 from leaf.revisioning import activate_source
@@ -89,7 +89,7 @@ SITE_ORIGIN = "https://leaf.page"
 SITE_NAME = "leaf"
 PAGE_RESOURCE = re.compile(
     r"^/(?:api|guidance|media|revisions|runtime|vendor|versions|widgets)(?:/|$)"
-    rf"|^/(?:{'|'.join(map(re.escape, (*VENDORED_FILES, 'sitenote.js')))})$"
+    rf"|^/(?:{'|'.join(map(re.escape, VENDORED_FILES))})$"
 )
 AGENT_EVENT_ID = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
 # A healthy App Server stream is quiet between items, so a running turn says nothing
@@ -273,21 +273,6 @@ def site_metadata(page_root: str, page: dict) -> str:
     )
 
 
-def site_head(page_root: str, page: dict, *, asset_root: str | None = None) -> str:
-    """Return the website metadata and user chrome for delivery composition.
-
-    The build materializes the edge shell and the container serves the same page, so
-    both hand this fragment to Leaf's one document composer.
-    """
-    assets = asset_root if asset_root is not None else page_root
-    additions = [site_metadata(page_root, page)]
-    if page["kind"] == "example":
-        additions.append(
-            f'<script type="module" src="{assets}/sitenote.js" data-lf-site></script>'
-        )
-    return "".join(additions)
-
-
 def agent_attempt(event_id: str) -> str:
     """The durable reply attempt owned by one user message."""
     return f"website-agent-{event_id}"
@@ -341,7 +326,7 @@ def write_failure_receipt(
 def agent_event_pending(page_dir: Path, event_id: str) -> bool:
     """Whether one accepted user event still belongs to the agent's next turn."""
     with PageTransaction(page_dir) as page:
-        activation = activate_source(page_dir, page.events)
+        activation = activate_source(page_dir)
         if activation.error:
             raise ValueError(activation.error)
         events = page.events
@@ -356,7 +341,7 @@ def agent_event_pending(page_dir: Path, event_id: str) -> bool:
 def agent_event_thread(page_dir: Path, event_id: str) -> str | None:
     """Return the Codex task that has already accepted one pending event."""
     with PageTransaction(page_dir) as page:
-        activation = activate_source(page_dir, page.events)
+        activation = activate_source(page_dir)
         if activation.error:
             raise ValueError(activation.error)
         workflow = next(
@@ -877,7 +862,7 @@ class WebsiteCodexHost:
             )
 
         with PageTransaction(page_dir) as page:
-            activation = activate_source(page_dir, page.events)
+            activation = activate_source(page_dir)
             claim = page.claim
             if (
                 claim
@@ -1303,14 +1288,12 @@ class WebsitePageEndpoint(PageEndpoint):
         *,
         site_root: Path,
         pages: dict,
-        sitenote: bytes,
         release: str,
         agent_host: WebsiteCodexHost,
     ) -> None:
         super().__init__(request, server, release=release)
         self.site_root = site_root
         self.pages = pages
-        self.sitenote = sitenote
         self.agent_host = agent_host
 
     def page_state(self, view_revision: int | None = None) -> dict:
@@ -1345,7 +1328,7 @@ class WebsitePageEndpoint(PageEndpoint):
         return {"Leaf-Session": "active", **super()._delivery_headers()}
 
     def _document_head(self) -> str:
-        return site_head(self.page_root, self.pages[self.page_root or "/"])
+        return site_metadata(self.page_root, self.pages[self.page_root or "/"])
 
     def _specimen_asset_root(self, revision: int) -> str:
         page = self.pages[self.page_root or "/"]
@@ -1355,15 +1338,6 @@ class WebsitePageEndpoint(PageEndpoint):
             name = self._revision_name(revision).removesuffix(".html")
             return f"{page['assets']}/revisions/{name}"
         return super()._specimen_asset_root(revision)
-
-    def _get(self) -> Response:
-        if self.path == "/sitenote.js":
-            return self._content(
-                200,
-                "text/javascript; charset=utf-8",
-                scope_script_routes(self.sitenote, self.page_root),
-            )
-        return super()._get()
 
     def _post(self) -> Response:
         path = self.path
@@ -1431,7 +1405,6 @@ def site_endpoint(
         WebsitePageEndpoint,
         site_root=root,
         pages=manifest["pages"],
-        sitenote=(root / "sitenote.js").read_bytes(),
         release=manifest["release"],
         agent_host=agent_host or website_codex_host(),
     )

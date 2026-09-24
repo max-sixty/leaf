@@ -394,6 +394,7 @@ export function mountApplication(dependencies) {
     panelIsOpen: dependencies.panelIsOpen,
     bottomChromeBoxes: dependencies.margin.bottomChromeBoxes,
     designModeActive: dependencies.margin.designModeActive,
+    pointerModeActive: dependencies.margin.pointerModeActive,
     comparisonBase: dependencies.margin.comparisonBase,
     comparisonChanges: dependencies.margin.comparisonChanges,
     inlineComparison: dependencies.margin.inlineComparison,

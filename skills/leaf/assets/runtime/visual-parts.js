@@ -56,19 +56,27 @@ export function revealVisualPart(source, id) {
   return visualPart(source, id);
 }
 
-// The current state's inventory. A declared part it lacks is a problem only when the
-// visual cannot reveal it; `unrevealedVisualParts` asks the reveal, once nothing else
-// needs the state the page opened in.
-export function visualPartProblems(source, declared) {
+/** Why one source's registration breaks its declaration: `declared` ids it must
+ * register, and `admits`, which every registered id must pass. The current state's
+ * inventory is read; a declared part it lacks is a problem only when the visual cannot
+ * reveal it, and `unrevealedVisualParts` asks the reveal once nothing else needs the
+ * state the page opened in. */
+export function visualPartProblems(source, declared, admits = () => true) {
   if (!hasVisualParts(source)) return ["did not call registerVisualParts"];
   try {
-    const ids = new Set(visualParts(source).map((part) => part.id));
+    const ids = visualParts(source).map((part) => part.id);
     const missing = revealsVisualParts(source)
       ? []
-      : [...declared].filter((id) => !ids.has(id));
-    return missing.length
-      ? [`did not register declared parts ${missing.join(", ")}`]
-      : [];
+      : [...declared].filter((id) => !ids.includes(id));
+    const outside = ids.filter((id) => !admits(id));
+    return [
+      ...(missing.length
+        ? [`did not register declared parts ${missing.join(", ")}`]
+        : []),
+      ...(outside.length
+        ? [`registered parts its prefixes do not admit ${outside.join(", ")}`]
+        : []),
+    ];
   } catch (error) {
     return [String(error?.message ?? error)];
   }
@@ -87,7 +95,7 @@ export function unrevealedVisualParts(source, declared) {
   }
 }
 
-function visualParts(source) {
+export function visualParts(source) {
   const read = registrations.get(source)?.read;
   if (!read) return [];
   const seenIds = new Set();

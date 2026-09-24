@@ -38,7 +38,7 @@ type Event = Thread["root"];
 interface ActionSpec {
   unit: string;
   record?: { kind: string; value: string; attr?: string };
-  writer?: "agent";
+  writer: "user" | "agent";
 }
 
 interface WireProjection {
@@ -46,8 +46,9 @@ interface WireProjection {
     event: Event;
     coordinate: [string, string, string];
     restated?: string[];
+    absorbed: boolean;
     scope: string;
-    spec: ActionSpec;
+    spec: Omit<ActionSpec, "writer">;
     value: unknown;
   }[];
   actions: string[];
@@ -204,6 +205,7 @@ function normalizedProjection(
         coordinate,
         e,
         restated: wire.restated ?? [],
+        absorbed: wire.absorbed,
         scope: wire.scope,
         spec: wire.spec,
         unit: wire.coordinate[1],
@@ -313,7 +315,7 @@ function widgetReading(
   // state and never as a control.
   const actions = Object.fromEntries(
     Object.entries(actionSpecs)
-      .filter(([, spec]) => spec.writer !== "agent")
+      .filter(([, spec]) => spec.writer === "user")
       .map(([verb]) => [
         verb,
         {

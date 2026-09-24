@@ -1,12 +1,15 @@
-"""Stop and prompt hooks that enforce the agent conversation loop."""
+"""Stop and prompt hooks that enforce the agent conversation loop, and the tool
+hook that tells a Claude Code session how to close a turn a background wait
+outlives."""
 
 import json
 
 from .activity import unanswered
 from .delivery import record_pickup
 from .event_log import read_events
-from .files import read_json
+from .files import next_reading, read_json
 from .host import claim_harness
+from .leases import name_wait_start
 from .schema import (
     ANSWER_ASK_INSTRUCTION,
     PREVIEW_FILE,
@@ -165,8 +168,60 @@ def unattended_pages(
     return reasons
 
 
+# How long a tool hook looks for a wait to start. The hook fires as soon as the host
+# has spawned a background command, and a `leaf wait` takes its lease about 0.3s
+# later warm, 2.5s after a plugin update leaves uv to sync first. While no wait runs,
+# nothing but the clock says a command will start none, so one that starts none
+# holds its result this long.
+WAIT_START_S = 3
+
+# Claude Code's session list reads a session's closing line, and a background wait
+# holds the session at Working whatever that line says
+# (`references/host-claude-code.md`, "Session list").
+WAIT_STARTED = (
+    "`leaf wait` is now watching your pages in the background. Claude Code's "
+    "session list shows this session as Working while it runs, and groups it by "
+    "the closing line of your reply. If this turn leaves anything only the user "
+    "can give (an answer on the page, or a decision about other work), end your "
+    "closing reply with a line `needs input: <what you want back>`. Only when "
+    "nothing waits on the user or on work you still have running (this watcher "
+    "aside), end it instead with a line `result: <what you delivered>`, which "
+    "files the session under Completed. Keep either line to 200 characters or "
+    "fewer, on its own line, not in a code block."
+)
+
+
+def announce_wait(session_id: str) -> bool:
+    """Whether a wait has started for this session that no tool hook has named,
+    naming it if so.
+
+    The wait's own mark says so (`leases.name_wait_start`), not the command the
+    hook follows. A wait already named settles it at once: a second wait is
+    refused while one holds the lease. Otherwise the hook looks for
+    `WAIT_START_S`, since the command it follows may be one still starting."""
+    return (
+        next_reading(lambda: name_wait_start(session_id), False, timeout=WAIT_START_S)
+        is True
+    )
+
+
 def cmd_hook(payload: dict) -> None:
     event, sid = payload.get("hook_event_name"), payload.get("session_id") or ""
+    if event == "PostToolUse":
+        # A foreground wait has returned before the hook runs, so only a
+        # background command can leave one running past the turn.
+        if payload["tool_input"].get("run_in_background") and announce_wait(sid):
+            print(
+                json.dumps(
+                    {
+                        "hookSpecificOutput": {
+                            "hookEventName": "PostToolUse",
+                            "additionalContext": WAIT_STARTED,
+                        }
+                    }
+                )
+            )
+        return
     if event == "SessionEnd":
         for page_dir in owned_pages(sid):
             try:

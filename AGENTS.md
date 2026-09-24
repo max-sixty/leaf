@@ -133,29 +133,16 @@ An install is this tracked tree, copied into a host's plugin cache. Claude Code
 copies exactly the tracked files; Codex copies its marketplace clone wholesale,
 `.git` included, and a local-directory marketplace would sweep in a checkout's
 `.venv` too — measured, 163M — so point Codex at the git source. Nothing is
-built at install time; the environment appears on the first `bin/leaf` run,
-where `uv` syncs `.venv` beside `pyproject.toml`, so the install has to be
-writable by the session running leaf.
+built at install time: `bin/leaf` is `uv run --no-dev` on this tree, and `uv`
+owns what that writes, so the install has to be writable by the session running
+leaf. Leaf writes nothing else there, and a plugin update may replace the
+directory wholesale, so what has to survive one belongs in the page directory or
+the state home.
 
-`pyproject.toml` states each runtime dependency at the lowest version the suite
-passes on, with no upper cap, and `uv.lock` ships beside it, so an install runs
-the resolution the suite was last green on. Shipping the lock does not take the
-host's index out of the loop: it records versions and hashes, and `uv sync`
-asks the host's configured index for them, so a private mirror answers and an
-offline run installs from `uv`'s cache. Python arrives on the same terms. The
-host also supplies the `jq` authoring dependency at the minimum version named
-in the README. The dev group — pytest, the accessibility checks, the demo
-recorder's frames — is recorded in that same lock but never installed on a
-host: `bin/leaf` passes `--no-dev`. Playwright is a runtime dependency, since
-the skill's own flow renders pages; browser checks launch the host's installed
-Chrome, or the executable `skills/leaf/scripts/leaf/validation.md`, "Browser
-validation", says comes first, and leaf does not download a browser.
-
-`uv` owns `.venv/`; a `.venv` inside an installed copy is uv doing its job, not
-stray state to clean up. Nothing else is written back: no cache leaf keeps for
-itself, no generated file, no repaired state. Plugin updates may replace the
-directory wholesale, so what has to survive one belongs in the page directory
-or the state home.
+Runtime dependencies, and those a package script declares, state a floor and no
+cap. The host supplies Chrome and the `jq` version the README names; leaf never
+downloads a browser (`skills/leaf/scripts/leaf/validation.md`, "Browser
+validation").
 
 Files under `skills/leaf/assets/vendor/`, any package's `vendor/` — `default/`,
 `diagram/`, `diff/` today — and `skills/leaf/mcp-app/` are committed payload

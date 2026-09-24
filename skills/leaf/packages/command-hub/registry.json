@@ -240,7 +240,7 @@
     "x-example": "<lf-tasks id=\"aviary-plan\">\n  <lf-task id=\"t-feeders\" status=\"active\" owner=\"wren\">\n    <strong>Rebuild the feeders</strong> Two of four mounted.\n    <lf-task id=\"t-mounts\" status=\"done\" owner=\"wren\"><strong>Replace the mounts</strong></lf-task>\n    <lf-task id=\"t-baffles\" status=\"review\" owner=\"finch\" when=\"aug 4\">\n      <strong>Fit squirrel baffles</strong> Ready for review.\n      <lf-ask id=\"t-baffles-decision\"><h3>Are the baffles ready?</h3>\n        <lf-options id=\"t-baffles-review\" choose>\n          <lf-option id=\"t-baffles-approve\"><strong>Approve</strong></lf-option>\n          <lf-option id=\"t-baffles-revise\"><strong>Request changes</strong></lf-option>\n        </lf-options>\n      </lf-ask>\n    </lf-task>\n  </lf-task>\n  <lf-task id=\"t-bath\" status=\"blocked\">\n    <strong>Heat the bird bath</strong> Waiting on a transformer delivery.\n  </lf-task>\n</lf-tasks>"
   },
   "lf-command": {
-    "description": "A goal-first command surface. Its nested goals are the one authored plan; each worker lives once at the narrowest tree level matching its durable remit — directly under the command for project-wide coordination, or under any goal for that goal's whole subtree. `on` is only the worker's current focus inside that remit. The orchestration upgrade derives the operator header, stopped-work reading, and live-worker projection from this tree. `label` and `phase` name the outcome and planning horizon. Do not author a second roster or Asks list beside it: those are views of the tree and its log. Later packages may add their own goal or worker widgets under `$command.widgets` without teaching Leaf's kernel their names.",
+    "description": "A goal-first command surface. Its nested goals are the one authored plan; each worker lives once at the narrowest tree level matching its durable remit — directly under the command for project-wide coordination, or under any goal for that goal's whole subtree. `on` is only the worker's current focus inside that remit. The orchestration upgrade derives the operator header, stopped-work reading, and live-worker projection from this tree. `label` and `phase` name the outcome and planning horizon. The readings stand as open panels at the head of the command, or in the `lf-command-readings` that names it. Do not author a second roster or Asks list beside it: those are views of the tree and its log. Later packages may add their own goal or worker widgets under `$command.widgets` without teaching Leaf's kernel their names.",
     "x-name": "label",
     "type": "object",
     "properties": {
@@ -262,6 +262,36 @@
     "x-content": "members",
     "x-upgrade": true,
     "x-example": "<lf-command id=\"aviary-command\" label=\"A squirrel-proof garden\" phase=\"week 2 of 4\">\n  <lf-agent id=\"lead\" state=\"working\"><strong>lead</strong> Coordinates the whole garden.</lf-agent>\n  <lf-task id=\"goal-feeders\" status=\"active\">\n    <strong>Rebuild the feeders</strong>\n    <lf-agent id=\"w-1\" state=\"working\" on=\"goal-feeders\"><strong>w-1</strong> Fitting the baffles.</lf-agent>\n  </lf-task>\n</lf-command>"
+  },
+  "lf-command-readings": {
+    "description": "Where a command's readings stand when they belong beside its tree rather than at its head: the outcome with its done fraction and counts, the stopped work oldest first, and the live workers. Author it empty, with `for` naming the lf-command, in the rail of a sheet whose body holds the tree; the command fills it and keeps it current. Without one, the command heads itself with the same panels.",
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      },
+      "for": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      }
+    },
+    "required": [
+      "for"
+    ],
+    "additionalProperties": false,
+    "x-content": "empty",
+    "x-measure": "group",
+    "x-refers": {
+      "for": {
+        "via": "$command.widgets",
+        "where": {
+          "role": "command"
+        }
+      }
+    },
+    "x-upgrade": true,
+    "x-example": "<lf-grid id=\"plan-sheet\" columns=\"2fr 1fr\">\n  <lf-command id=\"garden-command\" label=\"A squirrel-proof garden\" phase=\"week 2 of 4\">\n    <lf-task id=\"goal-feeders\" status=\"active\"><strong>Rebuild the feeders</strong></lf-task>\n  </lf-command>\n  <lf-command-readings for=\"garden-command\"></lf-command-readings>\n</lf-grid>"
   },
   "lf-task": {
     "description": "One piece of the work. Lead with a <strong> title; prose follows, and child lf-task elements after the prose are its decomposition. `status` colors the marker: planned, active, blocked (stuck — the prose says on what), review (finished by whoever held it and ready to be reviewed), stalled (work produced no durable progress), or done. Status describes the work. User work is a nested Ask whose widget supplies the answer control; the task rolls that Ask through the plan but never originates one. `owner` names who holds the work, `when` is a free-text schedule label, and `tags` adds one chip per entry. A parent with children gets a generated done-fraction chip. The `status` report is provisional agent state (`leaf report <page> <task-id> status status=review`); a stamped version absorbs or overrules it through `overruled` (see $report).",
@@ -317,6 +347,7 @@
       "lf-task"
     ],
     "x-content": "markup",
+    "x-measure": "group",
     "x-paints": [
       "status"
     ],
@@ -456,213 +487,213 @@
       },
       "verbs": {
         "restart": {
-        "bind": {
-          "target": "target",
-          "worker": "worker",
-          "worktree": "worktree"
-        },
-        "detail": {
-          "type": "object",
-          "properties": {
-            "target": {
-              "type": "string",
-              "minLength": 1
-            },
-            "worker": {
-              "type": "string",
-              "minLength": 1
-            },
-            "worktree": {
-              "type": "string",
-              "minLength": 1
-            }
+          "bind": {
+            "target": "target",
+            "worker": "worker",
+            "worktree": "worktree"
           },
-          "required": [
-            "target",
-            "worker",
-            "worktree"
-          ],
-          "additionalProperties": false
-        }
-      },
-      "park": {
-        "bind": {
-          "target": "target",
-          "worker": "worker",
-          "worktree": "worktree"
+          "detail": {
+            "type": "object",
+            "properties": {
+              "target": {
+                "type": "string",
+                "minLength": 1
+              },
+              "worker": {
+                "type": "string",
+                "minLength": 1
+              },
+              "worktree": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "target",
+              "worker",
+              "worktree"
+            ],
+            "additionalProperties": false
+          }
         },
-        "detail": {
-          "type": "object",
-          "properties": {
-            "target": {
-              "type": "string",
-              "minLength": 1
-            },
-            "worker": {
-              "type": "string",
-              "minLength": 1
-            },
-            "worktree": {
-              "type": "string",
-              "minLength": 1
-            }
+        "park": {
+          "bind": {
+            "target": "target",
+            "worker": "worker",
+            "worktree": "worktree"
           },
-          "required": [
-            "target",
-            "worker",
-            "worktree"
-          ],
-          "additionalProperties": false
-        }
-      },
-      "drop": {
-        "bind": {
-          "target": "target",
-          "worker": "worker",
-          "worktree": "worktree"
+          "detail": {
+            "type": "object",
+            "properties": {
+              "target": {
+                "type": "string",
+                "minLength": 1
+              },
+              "worker": {
+                "type": "string",
+                "minLength": 1
+              },
+              "worktree": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "target",
+              "worker",
+              "worktree"
+            ],
+            "additionalProperties": false
+          }
         },
-        "detail": {
-          "type": "object",
-          "properties": {
-            "target": {
-              "type": "string",
-              "minLength": 1
-            },
-            "worker": {
-              "type": "string",
-              "minLength": 1
-            },
-            "worktree": {
-              "type": "string",
-              "minLength": 1
-            }
+        "drop": {
+          "bind": {
+            "target": "target",
+            "worker": "worker",
+            "worktree": "worktree"
           },
-          "required": [
-            "target",
-            "worker",
-            "worktree"
-          ],
-          "additionalProperties": false
-        }
-      },
-      "land": {
-        "bind": {
-          "target": "target",
-          "worker": "worker",
-          "worktree": "worktree"
+          "detail": {
+            "type": "object",
+            "properties": {
+              "target": {
+                "type": "string",
+                "minLength": 1
+              },
+              "worker": {
+                "type": "string",
+                "minLength": 1
+              },
+              "worktree": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "target",
+              "worker",
+              "worktree"
+            ],
+            "additionalProperties": false
+          }
         },
-        "detail": {
-          "type": "object",
-          "properties": {
-            "target": {
-              "type": "string",
-              "minLength": 1
-            },
-            "worker": {
-              "type": "string",
-              "minLength": 1
-            },
-            "worktree": {
-              "type": "string",
-              "minLength": 1
-            }
+        "land": {
+          "bind": {
+            "target": "target",
+            "worker": "worker",
+            "worktree": "worktree"
           },
-          "required": [
-            "target",
-            "worker",
-            "worktree"
-          ],
-          "additionalProperties": false
-        }
-      },
-      "hold": {
-        "bind": {
-          "target": "target",
-          "worker": "worker",
-          "worktree": "worktree"
+          "detail": {
+            "type": "object",
+            "properties": {
+              "target": {
+                "type": "string",
+                "minLength": 1
+              },
+              "worker": {
+                "type": "string",
+                "minLength": 1
+              },
+              "worktree": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "target",
+              "worker",
+              "worktree"
+            ],
+            "additionalProperties": false
+          }
         },
-        "detail": {
-          "type": "object",
-          "properties": {
-            "target": {
-              "type": "string",
-              "minLength": 1
-            },
-            "worker": {
-              "type": "string",
-              "minLength": 1
-            },
-            "worktree": {
-              "type": "string",
-              "minLength": 1
-            }
+        "hold": {
+          "bind": {
+            "target": "target",
+            "worker": "worker",
+            "worktree": "worktree"
           },
-          "required": [
-            "target",
-            "worker",
-            "worktree"
-          ],
-          "additionalProperties": false
-        }
-      },
-      "request-changes": {
-        "bind": {
-          "target": "target",
-          "worker": "worker",
-          "worktree": "worktree"
+          "detail": {
+            "type": "object",
+            "properties": {
+              "target": {
+                "type": "string",
+                "minLength": 1
+              },
+              "worker": {
+                "type": "string",
+                "minLength": 1
+              },
+              "worktree": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "target",
+              "worker",
+              "worktree"
+            ],
+            "additionalProperties": false
+          }
         },
-        "detail": {
-          "type": "object",
-          "properties": {
-            "target": {
-              "type": "string",
-              "minLength": 1
-            },
-            "worker": {
-              "type": "string",
-              "minLength": 1
-            },
-            "worktree": {
-              "type": "string",
-              "minLength": 1
-            }
+        "request-changes": {
+          "bind": {
+            "target": "target",
+            "worker": "worker",
+            "worktree": "worktree"
           },
-          "required": [
-            "target",
-            "worker",
-            "worktree"
-          ],
-          "additionalProperties": false
-        }
-      },
+          "detail": {
+            "type": "object",
+            "properties": {
+              "target": {
+                "type": "string",
+                "minLength": 1
+              },
+              "worker": {
+                "type": "string",
+                "minLength": 1
+              },
+              "worktree": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "target",
+              "worker",
+              "worktree"
+            ],
+            "additionalProperties": false
+          }
+        },
         "land-as-is": {
-        "bind": {
-          "target": "target",
-          "worker": "worker",
-          "worktree": "worktree"
-        },
-        "detail": {
-          "type": "object",
-          "properties": {
-            "target": {
-              "type": "string",
-              "minLength": 1
-            },
-            "worker": {
-              "type": "string",
-              "minLength": 1
-            },
-            "worktree": {
-              "type": "string",
-              "minLength": 1
-            }
+          "bind": {
+            "target": "target",
+            "worker": "worker",
+            "worktree": "worktree"
           },
-          "required": [
-            "target",
-            "worker",
-            "worktree"
-          ],
-          "additionalProperties": false
+          "detail": {
+            "type": "object",
+            "properties": {
+              "target": {
+                "type": "string",
+                "minLength": 1
+              },
+              "worker": {
+                "type": "string",
+                "minLength": 1
+              },
+              "worktree": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "target",
+              "worker",
+              "worktree"
+            ],
+            "additionalProperties": false
           }
         }
       }

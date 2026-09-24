@@ -403,7 +403,9 @@
               <details class="reference-more">
                 <summary aria-label="Full x-measure contract">Full contract</summary>
                 <p>
-                  Undeclared, it is text and keeps the reading measure inside a frame
+                  Undeclared, an element made of members (<code>x-content: members</code
+                  >) groups them, since an element made of other elements is never text,
+                  and anything else is text and keeps the reading measure inside a frame
                   wider than the column. <code>surface</code> (a chart, table, log or
                   listing) fills the frame; x-space wide or available implies it.
                   <code>group</code> only holds other blocks (tabs, a comparison, a
@@ -757,11 +759,12 @@
                   <code>version check</code>'s state gate (a version whose markup
                   actively contradicts the fold without <code>restated</code> is
                   refused; writing the folded state is honoring; re-emitting the
-                  previous version's state is blessed silence), construction-linked
-                  inspection, the runtime's user- and report-origin readings, and the
-                  version diff's state half. When an action's admission makes its
-                  widget's x-awaits <code>answered</code> condition hold, admission
-                  records meaning.answer on it: the widget's authored
+                  previous version's state is blessed silence, except for a position
+                  whose container the version changes, which it writes),
+                  construction-linked inspection, the runtime's user- and report-origin
+                  readings, and the version diff's state half. When an action's
+                  admission makes its widget's x-awaits <code>answered</code> condition
+                  hold, admission records meaning.answer on it: the widget's authored
                   <code>resolves</code> attribute, read from the sending document, names
                   the comment thread the answer closes, and null answers without closing
                   one, which is also what a decision whose outcome is the widget's
@@ -870,30 +873,35 @@
                   <code>whole</code> anchors the picture on the authored widget. Every
                   declared provider also supplies its own visual surface for
                   whole-widget aim and marks, so chrome paint stays above the widget's
-                  drawing. For <code>{parts: ATTR}</code>, its module calls
+                  drawing. For <code>{parts: ATTR}</code> or
+                  <code>{prefixes: [PREFIX, …]}</code>, its module calls
                   <code>registerVisualParts(source, read)</code> once;
                   <code>read</code> returns the complete current
                   <code>{id, element, label, surface?}</code> inventory. Core admits
-                  only ids authored in ATTR and derives token lookup and deepest-part
-                  hit testing from that inventory. <code>surface</code> defaults to
-                  <code>element</code> and may name one descendant whose native paint
-                  excludes decoration from the contour. It changes paint only:
-                  <code>element</code> remains the semantic hit and travel target. Marks
-                  and aim follow an SVG surface's painted geometry primitives; a surface
-                  with none, and every other element, uses the shown box. Targeting a
-                  mapped part stores its id as <code>anchor.visual</code> while the
-                  widget remains the semantic seat. A missing token or registration
-                  detaches on replay rather than widening to the whole picture. A visual
-                  that draws its parts over time passes
-                  <code>registerVisualParts(source, read, {reveal})</code>:
+                  only ids authored in ATTR or, under <code>prefixes</code>, any longer
+                  id one of them begins, such as <code>commit:3f2a</code> under
+                  <code>commit:</code>: a picture drawn from data whose parts the author
+                  cannot list declares their kinds rather than enumerating them. Core
+                  derives token lookup and deepest-part hit testing from that inventory.
+                  <code>surface</code> defaults to <code>element</code> and may name one
+                  descendant whose native paint excludes decoration from the contour. It
+                  changes paint only: <code>element</code> remains the semantic hit and
+                  travel target. Marks and aim follow an SVG surface's painted geometry
+                  primitives; a surface with none, and every other element, uses the
+                  shown box. Targeting a mapped part stores its id as
+                  <code>anchor.visual</code> while the widget remains the semantic seat.
+                  A missing token or registration detaches on replay rather than
+                  widening to the whole picture. A visual that draws its parts over time
+                  passes <code>registerVisualParts(source, read, {reveal})</code>:
                   <code>reveal(id)</code> synchronously draws a state whose inventory
                   holds that declared part. A declared part absent from the current
                   state then places its threads on the whole picture, and thread travel
                   calls <code>reveal</code> before landing on the part. The
                   registration's <code>update()</code> signals any rendering or geometry
                   change, including an in-place attribute or style change. The render
-                  gate validates every record and requires each authored token to
-                  resolve, in the current state or after its <code>reveal</code>.
+                  gate validates every record, requires each authored token to resolve,
+                  in the current state or after its <code>reveal</code>, and refuses a
+                  registered id its prefixes do not admit.
                 </p>
               </details>
             </div>

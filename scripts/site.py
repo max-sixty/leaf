@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Assemble the published site (https://leaf.page/) into .tmp/site.
 
-Every product document under `docs/` is a Leaf source. The build publishes all five as
-complete page directories, alongside the worked examples. The Worker serves the
+Every product document under `docs/` is a Leaf source. The build publishes each one as a
+complete page directory, alongside the worked examples. The Worker serves the
 build-generated initial projection at the edge, then gives an interacting browser a
 private copy through Leaf's canonical Python server. The catalog previews come from the
 external revision pinned in `example-previews.json`.
@@ -29,7 +29,6 @@ import shutil
 import subprocess
 import sys
 import tempfile
-from dataclasses import replace
 from functools import partial
 from html.parser import HTMLParser
 from importlib import import_module
@@ -53,7 +52,7 @@ worker_server = import_module("worker.server")
 SITE_MANIFEST = worker_server.SITE_MANIFEST
 SITE_ORIGIN = worker_server.SITE_ORIGIN
 initial_state = worker_server.initial_state
-site_head = worker_server.site_head
+site_metadata = worker_server.site_metadata
 
 LEAF = ROOT / "bin" / "leaf"
 DOCS = ROOT / "docs"
@@ -72,6 +71,7 @@ PRODUCT_ROUTES = {
     "how-it-works.html": "/how-it-works/",
     "extending.html": "/extending/",
     "registry.html": "/registry/",
+    "event-log.html": "/event-log/",
 }
 SITE_PACKAGE = "./docs/package"
 # The card a link to a product page unfurls into. An example names its own catalog
@@ -371,13 +371,12 @@ def publish_product_pages(
 
 def publish_examples(out: Path, env: dict) -> None:
     """Publish worked examples and developer references without product pages."""
-    shutil.copy2(DOCS / "sitenote.js", out / "sitenote.js")
     for source in published_page_sources():
         published = out / "examples" / source.stem
         fixture = read_fixture(source)
         prepare_page(
             published,
-            replace(fixture, packages=(*fixture.packages, SITE_PACKAGE)),
+            fixture,
             partial(leaf, env),
             final_status="idle",
             current_note="As published",
@@ -477,11 +476,8 @@ def publish_live_shells(
             page_root=page_root,
             release_id=release,
             asset_root=asset_root,
-            before_runtime=site_head(page_root, entry, asset_root=asset_root),
+            before_runtime=site_metadata(page_root, entry),
         )
-        if kind == "example":
-            shutil.copy2(out / "sitenote.js", destination / "sitenote.js")
-    shutil.copy2(out / "sitenote.js", assets / "sitenote.js")
     write_crawler_directives(assets, sorted(manifest["pages"]))
     manifest_text = json.dumps(manifest, indent=2, sort_keys=True) + "\n"
     private_manifest = out / SITE_MANIFEST

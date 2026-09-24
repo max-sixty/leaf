@@ -14,6 +14,7 @@ from click.testing import CliRunner
 from jsonschema import Draft202012Validator
 from leaf import cli as cli_model
 from leaf import delivery as delivery_model
+from leaf import event_contracts as event_contracts_model
 from leaf import event_log as events_model
 from leaf import service as service_model
 from leaf import session as session_model
@@ -62,6 +63,7 @@ def test_docs_pages_leave_delivery_markup_to_leaf():
         "extending.html",
         "how-it-works.html",
         "registry.html",
+        "event-log.html",
     }
     for page in pages:
         text = page.read_text()
@@ -146,6 +148,8 @@ def test_extension_references_follow_the_concepts_they_explain():
     assert 'href="/registry/"' in extending
     assert '<a href="/registry/">registry</a>' in how_it_works
     assert 'href="/extending/"' in registry
+    assert 'href="/event-log/"' in extending
+    assert '<a href="/event-log/">event log</a>' in how_it_works
 
 
 def test_package_catalog_routes_every_optional_package_to_inspectable_content():
@@ -263,6 +267,212 @@ def test_how_it_works_delivery_has_the_shape_a_real_delivery_has(page_dir):
             told = event_clauses(case, registry)
             delivered = [c["text"] for c in told]
             assert shown_clauses == delivered, event["id"]
+
+
+EVENT_LOG = DOCS / "event-log.html"
+
+
+def code_block(source: str, block_id: str) -> str:
+    """The unescaped body of one authored `lf-code`'s `<pre>`."""
+    found = re.search(
+        rf'<lf-code id="{block_id}"[^>]*>\s*<pre>\n?(.*?)</pre>', source, re.DOTALL
+    )
+    assert found, block_id
+    return html.unescape(found.group(1))
+
+
+def shown_log(records: list[dict]) -> str:
+    """Stored records as the event-log page prints them: each record's JSON as
+    `leaf events` writes it, broken before and after each object-valued field and
+    before `id`, so a record reads in a few lines rather than one wide one. An
+    object too long for one line puts each of its members on a line of its own."""
+    width = 96
+
+    def field(key, value):
+        line = f"{json.dumps(key)}: {json.dumps(value)}"
+        if not isinstance(value, dict) or len(line) <= width:
+            return line
+        members = [f"{json.dumps(k)}: {json.dumps(v)}" for k, v in value.items()]
+        return f"{json.dumps(key)}: {{" + ",\n   ".join(members) + "}"
+
+    shown = []
+    for record in records:
+        groups, current = [], []
+        for key, value in record.items():
+            nested = isinstance(value, dict)
+            if current and (nested or key == "id"):
+                groups.append(current)
+                current = []
+            current.append(field(key, value))
+            if nested:
+                groups.append(current)
+                current = []
+        if current:
+            groups.append(current)
+        shown.append("{" + ",\n ".join(", ".join(group) for group in groups) + "}")
+    return "\n".join(shown)
+
+
+def test_the_event_log_page_shows_the_records_the_door_writes(page_dir):
+    """The page's log was captured from its own specimen driven in a browser. The
+    commands it records go back through the append door on the same markup, and
+    what the door stores now has to be what the page shows, `id` and `ts` aside.
+    A changed field, meaning, or refusal fails here with the records to paste."""
+    source = EVENT_LOG.read_text()
+    template = re.search(
+        r'<template id="try-page" data-specimen>(.*?)</template>', source, re.DOTALL
+    )
+    assert template
+    (page_dir / "index.html").write_text(
+        '<!doctype html><html lang="en"><head><title>Release question</title>'
+        '<meta name="description" content="The specimen."></head>'
+        f"<body><main>{template.group(1)}</main></body></html>"
+    )
+    stamped = CliRunner().invoke(
+        cli_model.cli, ["version", "stamp", str(page_dir), "--text", "v1"]
+    )
+    assert stamped.exit_code == 0, stamped.output
+
+    shown_text = code_block(source, "captured-log")
+    decoder, shown, at = json.JSONDecoder(), [], 0
+    while shown_text[at:].strip():
+        at += len(shown_text[at:]) - len(shown_text[at:].lstrip())
+        record, at = decoder.raw_decode(shown_text, at)
+        shown.append(record)
+    assert [record["kind"] for record in shown] == [
+        "action",
+        "action",
+        "action",
+        "undo",
+        "undo",
+        "undo",
+    ]
+
+    # The browser's command: what it posts, before the door stamps anything.
+    command_fields = ("kind", "revision", "widget", "action", "detail", "attempt")
+    ids = {}
+    with service_model.PageTransaction(page_dir) as page:
+        for record in shown:
+            command = {k: record[k] for k in command_fields if k in record}
+            if "undoes" in record:
+                command["undoes"] = ids[record["undoes"]]
+            accepted = event_contracts_model.append_admitted(
+                page, {**command, "author": "user"}
+            )
+            ids[record["id"]] = accepted["id"]
+    stored = events_model.read_events(page_dir)[1:]
+    # The shown ids and times stand in for the replay's own, which are fresh.
+    comparable = [
+        {
+            **replayed,
+            "id": record["id"],
+            "ts": record["ts"],
+            **({"undoes": record["undoes"]} if "undoes" in record else {}),
+        }
+        for replayed, record in zip(stored, shown, strict=True)
+    ]
+    assert comparable == shown, (
+        "the door now stores these records; paste them into #captured-log:\n"
+        + shown_log(comparable)
+    )
+    assert shown_text.rstrip("\n") == shown_log(shown)
+
+    # Each note sits under the last line of what it describes, so it is placed by
+    # the record layout rather than by hand: pasted records that shift the lines
+    # fail here with the lines to write instead.
+    lines = shown_text.rstrip("\n").split("\n")
+    starts = [n for n, line in enumerate(lines, 1) if line.startswith("{")]
+
+    def last_line(record: int) -> int:
+        return starts[record + 1] - 1 if record + 1 < len(starts) else len(lines)
+
+    def line_of(record: int, key: str) -> int:
+        """The line `key` opens in the `record`th shown record; `shown_log` starts a
+        line at each object-valued field and at `id`."""
+        [found] = [
+            n
+            for n in range(starts[record], last_line(record) + 1)
+            if lines[n - 1].lstrip().startswith(f'"{key}": ')
+        ]
+        return found
+
+    answered = next(
+        n for n, record in enumerate(shown) if "answer" in record.get("meaning", {})
+    )
+    undo = next(n for n, record in enumerate(shown) if record["kind"] == "undo")
+    # `id` opens the line after the group `meaning` closes.
+    expected = [
+        starts[0],  # what the browser sent, from the record's first line
+        line_of(0, "id") - 1,  # the stamped meaning, under its last line
+        line_of(0, "id"),  # the minted id and seq
+        line_of(answered, "id") - 1,  # the answer, which closes that record's meaning
+        last_line(undo),  # an undo, under its last line
+    ]
+    notes = re.search(
+        r'<lf-code id="captured-log".*?</pre>(.*?)</lf-code>', source, re.DOTALL
+    )
+    assert notes
+    assert '"answer": ' in lines[expected[3] - 1]
+    assert [int(at) for at in re.findall(r'<lf-note at="(\d+)"', notes.group(1))] == (
+        expected
+    ), f"place #captured-log's notes at {expected}"
+
+
+def record(verb_state: dict) -> str:
+    """What the page's verb table says a verb's standing state reads as in markup."""
+    if "creates" in verb_state:
+        return f"creates an <code>{verb_state['creates']['child']}</code>"
+    shape = verb_state.get("record")
+    if shape is None:
+        return "none"
+    if shape["kind"] == "position":
+        return f"position in an <code>{shape['within']}</code>"
+    if shape["kind"] == "body":
+        return "body"
+    written = ", written by the agent" if verb_state.get("writer") == "agent" else ""
+    return f"<code>{shape['attr']}</code> attribute{written}"
+
+
+def test_the_event_log_page_quotes_the_registry():
+    """The declaration the page annotates is `lf-options`' own, and its table of
+    verbs is every verb the kernel and bundled packages declare, each with the
+    unit and markup record its declaration gives it."""
+    source = EVENT_LOG.read_text()
+    entry = json.loads((DEFAULT_PACKAGE / "registry.json").read_text())["lf-options"]
+    shown = json.loads("{" + code_block(source, "options-verbs") + "}")
+    assert shown == {
+        "x-state": entry["x-state"],
+        "x-awaits": {"answered": entry["x-awaits"]["answered"]},
+    }
+
+    registries = [
+        ASSETS / "registry.json",
+        *sorted((ROOT / "skills" / "leaf" / "packages").glob("*/registry.json")),
+    ]
+    declared = sorted(
+        (
+            f"<code>{tag}</code>",
+            f"<code>{verb}</code>",
+            verb_state["unit"],
+            record(verb_state),
+        )
+        for path in registries
+        for tag, element in json.loads(path.read_text()).items()
+        if tag.startswith("lf-")
+        for verb, verb_state in element.get("x-state", {}).items()
+    )
+    table = re.search(
+        r'<table id="all-verbs">.*?<tbody>(.*?)</tbody>', source, re.DOTALL
+    )
+    assert table
+    rows = [
+        tuple(
+            " ".join(cell.split())
+            for cell in re.findall(r"<td>(.*?)</td>", row, re.DOTALL)
+        )
+        for row in re.findall(r"<tr>(.*?)</tr>", table.group(1), re.DOTALL)
+    ]
+    assert sorted(rows) == declared
 
 
 def test_every_command_the_docs_show_is_one_leaf_has():

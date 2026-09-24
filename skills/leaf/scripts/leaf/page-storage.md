@@ -62,7 +62,7 @@ other page files and the external state listed below.
 
 - `data/` — one JSON file per source, `<source>.json`, holding its current value.
   Any process may rewrite one; readings validate it against the recorded contract.
-  Fragment payloads served by `/api/data` come from these same files.
+  Deferred record fields served by `/api/deferred` come from these same files.
 
 - `status.json` — work declarations and transient delivery handling, observed activity,
   and reply bindings. [session-lifetime.md](session-lifetime.md) owns their writers and
@@ -90,8 +90,9 @@ other page files and the external state listed below.
   after the server has closed its sockets.
 
 - `<state-home>/claims/` — one atomic claim per resolved page, independent of its page
-  directory. [session-lifetime.md](session-lifetime.md) owns claimant identity,
-  release, harness, and lifetime.
+  directory, and removed by the first scan that finds that directory gone
+  (`service.claim_records`). [session-lifetime.md](session-lifetime.md) owns claimant
+  identity, release, harness, and lifetime.
 
 ## Revision delivery
 
@@ -137,8 +138,8 @@ conversation and vocabulary file; message identities locate the frozen source. D
 
 Widget `inputs` join each binding to its source's current value, contract, source
 id, and revision, or to the `error` a failing value reads as. Each input's `edit`
-names the value file to rewrite. Fragmented contracts expose the manifest plus that
-file and its revision for their payload. The compact
+names the value file to rewrite. Contracts with a deferred record field expose the
+manifest plus that file and its revision for their payload. The compact
 `elements`, `state`, and lifecycle indexes remain available for machine queries.
 Raw diagnostic history belongs to `leaf events --conversation`, and the page's
 `registry.json` owns the vocabulary.

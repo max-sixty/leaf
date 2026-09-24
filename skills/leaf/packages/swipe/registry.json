@@ -1,6 +1,6 @@
 {
   "lf-swipe-deck": {
-    "description": "One rapid pass-or-keep classification Ask. Put it inside lf-ask, whose heading becomes the deck's accessible name. Cards begin in the `unseen` pile; the user sends each active card to the `pass` or `keep` pile with the labeled buttons, ArrowLeft/ArrowRight, or a horizontal pointer swipe. A classified card's Return to queue button withdraws that classification, including after completion, when returning any card reopens the Ask. Each classification reaches the agent as an absolute `swipe` action, and the Ask is answered once `unseen` is empty, so the swipe that empties it answers. Children are exactly one lf-swipe-pile for each verdict. Re-emit the authored starting order unchanged on later versions: recorded classifications carry forward by card id. A rewrite that invalidates a classification takes `restated` on that card, and one that invalidates the completed deck takes it on the deck (see `$restated` in `registry.json`).",
+    "description": "One rapid pass-or-keep classification Ask. Put it inside lf-ask, whose heading becomes the deck's accessible name. Cards begin in the `unseen` pile; the user sends each active card to the `pass` or `keep` pile with the labeled buttons, ArrowLeft/ArrowRight, or a horizontal pointer swipe. A card the user classified has a Return to queue button, which swipes it back to the front of `unseen`, including after completion, when returning any card reopens the Ask. Each classification reaches the agent as an absolute `swipe` action, and the Ask is answered once `unseen` is empty, so the swipe that empties it answers. Children are exactly one lf-swipe-pile for each verdict. A version that changes a pile's cards writes each card the user classified into it where the classification put it, and later versions keep it there unless they mark it `restated` (`authoring-revisions.md`, Honor user state). A rewrite that invalidates a classification takes `restated` on that card, and one that invalidates the completed deck takes it on the deck (see `$restated` in `registry.json`).",
     "type": "object",
     "properties": {
       "id": {
@@ -21,6 +21,7 @@
       }
     },
     "x-content": "members",
+    "x-measure": "surface",
     "x-upgrade": true,
     "x-state": {
       "swipe": {

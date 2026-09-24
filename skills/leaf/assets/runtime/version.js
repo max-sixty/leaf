@@ -10,7 +10,7 @@
  * base; the row for the displayed version clears comparison. Block marks show changes,
  * and `inlineComparison` / `toggleInlineComparison` disclose a block's text diff on
  * request. `comparisonBase`, `comparisonChanges`, and `closeVersionMenu` serve other
- * surfaces. `readingBlock` supplies the page landmark for decision walks and Escape.
+ * surfaces.
  *
  * Executable identity selects the install. An unchanged registry, module graph, and
  * inline module bodies permit an in-place patch; changed executable inputs require a
@@ -36,14 +36,15 @@
  * mechanical carry or Ask standing. State application serializes responses and remains
  * pending after navigation starts until the old document is discarded.
  *
- * `captureView` records a passage landmark, its viewport correction, and the decision
- * landmark. `restoreView` restores ordinary passages at their exact viewport coordinate
- * and headings at their scroller's scroll-padding edge. `landArrival` runs after final
- * geometry: a valid revision handoff restores continuity; otherwise fresh navigation
- * follows its fragment or restores a saved view from a different revision. Ordinary
- * reloads and history travel retain native browser restoration. Comparison is restored
- * after activation because its base must be fetched again. Reading position is restored
- * even after a patch because content above it may have changed height.
+ * `captureView` records a place (reading-place.js) for the page and each reading
+ * region, and the decision landmark. `restoreView` returns the user to them. A fresh
+ * navigation aimed at an element keeps it landed while the page arrives (`aimArrival`).
+ * `landArrival` runs after presentation: a valid revision handoff restores continuity;
+ * otherwise a fresh navigation aimed nowhere restores a saved view from a different
+ * revision. Ordinary reloads and history travel keep the browser's restored offset
+ * (history.js). Comparison is restored after activation because its base must be
+ * fetched again. Reading position is restored even after a patch because content above
+ * it may have changed height.
  *
  * `versionsOffered` controls the destination, chooser, and button; `versionsToWalk`
  * controls the menu's local scope. Keep chooser rows available wherever the menu can
@@ -61,7 +62,6 @@ import { captureCarry, restoreCarry } from "./carry.js";
 import { retainUserIntent } from "./user-intent.js";
 import { patchTree } from "./dom-children.js";
 import { letGo } from "./focus.js";
-import { clippedContents, landingInsets, shownBox } from "./geometry.js";
 import { labelOf, PRESS } from "./keyboard/bindings.js";
 import { commandShortcut } from "./keyboard/control-keys.js";
 import { focused, keys, paintKeys, pruneScopedElements } from "./keyboard/scopes.js";
@@ -69,22 +69,17 @@ import { repaint } from "./repaint.js";
 import { notice } from "./notifications.js";
 import {
   authored,
-  closestAcross,
-  cut,
   elementById,
   inChrome,
-  pageText,
-  quoteFrom,
   readingFrom,
-  rangeOf,
   TEXT_BLOCK,
   textNodesUnder,
   wrote,
 } from "./passages.js";
 import { registry, stateSpecs, tagsDeclaring } from "./registry.js";
 import { prepareDeclaredInlineMarkdown } from "./markdown.js";
-import { targetElement, targetSegments } from "./resolved-target.js";
-import { moveScrollerBy, pageScroller } from "./scrolling.js";
+import { targetElement } from "./resolved-target.js";
+import { pageScroller } from "./scrolling.js";
 import {
   containingReadingRegionFor,
   effectiveScroller,
@@ -135,6 +130,16 @@ import {
   rememberPassageParts,
 } from "./widget-loader.js";
 import { under } from "./shadow.js";
+import { replaceEntry } from "./history.js";
+import {
+  blocksOnScreen,
+  capturePlace,
+  hasLandmark,
+  rawOffsetFits,
+  readingBlock,
+  restorePlace,
+  textBlocks,
+} from "./reading-place.js";
 
 const PRIVATE_REVISION_PARAM = "_leaf-revision";
 
@@ -214,11 +219,8 @@ export function createVersionController({
   midComposition,
   hasPending,
   readAndApply,
-  banner,
   landedAt,
   setLanded,
-  readableDestination,
-  scrollToElement,
   forgetAuthoredOwners,
   retireProjectionCoverage,
   syncLayout,
@@ -238,8 +240,6 @@ export function createVersionController({
   // Semantic reading position preserved across authored-document replacement.
   const VIEW_KEY = "lf-view";
   const HANDOFF_KEY = "lf-revision-handoff";
-  const LANDMARK_CAP = 160;
-  const HEADING = "h1, h2, h3, h4, h5, h6";
 
   // ---------- the version chooser ----------
   // Version facts are selectors of the accepted application reading.
@@ -1491,7 +1491,7 @@ export function createVersionController({
     );
     const marked = new URL(location.href);
     marked.searchParams.set(PRIVATE_REVISION_PARAM, String(target.revision));
-    history.replaceState(history.state, "", marked);
+    replaceEntry(marked);
     location.reload();
     // The new document owns the continuation. Keeping this activation pending
     // prevents the old realm from applying state while navigation commits.
@@ -1503,117 +1503,10 @@ export function createVersionController({
   // a passage first, then its section, then a raw offset in the same scroller. Document
   // travel stores this reading per tab; restored chrome layout precedes scroll recovery.
 
-  // The page's own text blocks the user can see, in document order, with the rect of each
-  // one's first line — one reading of what is in front of them, for the two questions that
-  // ask it: which passage a version change should land them back on (below), and where a
-  // walk over the page's Asks starts when they have pointed at nothing.
-  // A block's landmark is the top of its first line (a range), not its border box; restore
-  // measures the matched text the same way, so the line box's leading cancels out.
-  function textBlocks(root = document.querySelector("body > main")) {
-    const seen = new Set();
-    // Walk the page's composed text rather than querying only its light DOM. A declared
-    // shadow root renders authored words at its host's place in reading order; those
-    // words are pointable and resolvable through the shared passage reading, so version
-    // continuity must be able to choose the same blocks as landmarks.
-    return textNodesUnder(root)
-      .map(({ node }) => closestAcross(node.parentElement, TEXT_BLOCK))
-      .filter((block) => block && !seen.has(block) && seen.add(block));
-  }
-
-  function* blocksOnScreen(region = null, blocks = textBlocks()) {
-    // Read the painted edge directly. The declared height may contain a safe-area
-    // `calc()`, whose serialized value is not a number even though its box is exact.
-    const page = { top: banner.getBoundingClientRect().bottom, bottom: innerHeight };
-    const shown = region ? shownRegionBounds(region) : page;
-    if (!shown) return;
-    // A flowing region is read through the page, whose visible band starts below the
-    // banner: a line hidden under it is not where the user is.
-    const bounds =
-      region && effectiveScroller(region) === pageScroller
-        ? {
-            top: Math.max(shown.top, page.top),
-            bottom: Math.min(shown.bottom, page.bottom),
-          }
-        : shown;
-    for (const block of blocks) {
-      // [hidden] needs an explicit skip: hidden="until-found" resolves to
-      // content-visibility, under which descendants still report real rects —
-      // but what's behind an inactive tab isn't what the user is reading.
-      if (
-        inChrome(block) ||
-        closestAcross(block, "[hidden]") ||
-        (region && !under(block, region.body)) ||
-        (!region &&
-          readingRegionFor(block) &&
-          readingPosture(readingRegionFor(block)) === "bounded")
-      )
-        continue;
-      const range = document.createRange();
-      range.selectNodeContents(block);
-      const rect = range.getBoundingClientRect();
-      const seen = clippedContents(rect, block, new Map());
-      if (seen && seen.bottom > bounds.top && seen.top < bounds.bottom)
-        yield [block, rect];
-    }
-  }
-  // The one block the user is on, which is the first the walk above yields. Two
-  // things outside ask it — where an Ask walk starts, and where the keyboard
-  // reference hands a user back to — and they were asking it in two places with the
-  // same expression written out twice.
-  const readingBlock = () => blocksOnScreen().next().value?.[0] ?? null;
-
-  // The quote and the section it's searched in come from the same block, or the search is
-  // filtered to a section the text isn't in and can only ever fail — restore then falls back
-  // to the section, which doesn't absorb content added above the user inside it.
-  function captureRegion(region = null, blocks = textBlocks()) {
-    const box = region ? effectiveScroller(region) : pageScroller;
-    // Places are measured from the top of the box's visible band, below whatever covers
-    // its top edge (the page's banner), so a region handed from the page to its own body
-    // keeps the landmark at the same distance below what the user can see.
-    const boxTop = shownBox(box).top + landingInsets(box).top;
-    const landmarkTop = (top, block, blockTop = top) =>
-      block?.matches(HEADING) ? top + Math.max(0, -blockTop) : top;
-    const view = { y: box.scrollTop, scroller: scrollerIdentity(box) };
-    for (const [block, rect] of blocksOnScreen(region, blocks)) {
-      const section = closestAcross(block, "[id]");
-      if (!view.section && section) {
-        // The first on-screen block's section, kept only until a quotable block supplies
-        // its own: a page with nothing quotable on screen still has somewhere to land.
-        view.section = section.id;
-        view.sectionTop = landmarkTop(
-          shownBox(section).top - boxTop,
-          block,
-          rect.top - boxTop,
-        );
-      }
-      // Written down the way a comment's quote is, so the search that re-finds it is
-      // looking for a string of the same kind.
-      const text = cut(quoteFrom(textNodesUnder(block)), 0, LANDMARK_CAP);
-      // A short line ("Risks") would match anywhere; keep scanning for a quotable block.
-      if (text.length >= 24) {
-        // Unconditionally, so a quotable block under no section clears the earlier one
-        // rather than sending the search into a subtree its text isn't in.
-        view.section = section?.id;
-        view.sectionTop =
-          section &&
-          landmarkTop(shownBox(section).top - boxTop, block, rect.top - boxTop);
-        view.quote = text;
-        // A partially covered paragraph is still a reading place: its visible lines
-        // should stay where the user left them. A heading identifies the place as a
-        // whole, so a coordinate that hides its opening words is not a valid heading
-        // landmark. Normalize both quote and fallback section state here, once, rather
-        // than teaching every restore path to repair it after document replacement.
-        view.quoteTop = landmarkTop(rect.top - boxTop, block);
-        break;
-      }
-    }
-    return view;
-  }
-
   function captureView() {
     const blocks = textBlocks();
     const active = activeReadingRegion(readingRegions(), blocks);
-    const view = Object.assign(captureRegion(null, blocks), {
+    const view = Object.assign(capturePlace(null, blocks), {
       revision: runtime.currentRevision,
       ask: landedAt()?.id,
       activeRegion: active?.id,
@@ -1621,52 +1514,13 @@ export function createVersionController({
     });
     for (const region of readingRegions()) {
       if (!shownRegionBounds(region)) continue;
-      const reading = captureRegion(region, blocks);
+      const reading = capturePlace(region, blocks);
       if (readingPosture(region) === "bounded" || region.id === active?.id) {
         regionViews.set(region.id, reading);
         view.regions[region.id] = reading;
       }
     }
     return view;
-  }
-
-  // A restore jumps rather than glides: a page is free to set scroll-behavior: smooth, and
-  // animating from the replacement's raw position is worse than the jump it replaces.
-  // Moving to a mark the user asked for is the other case, and says so.
-  const hasLandmark = (reading) => Boolean(reading?.quote || reading?.section);
-  const rawOffsetFits = (reading, scroller) =>
-    reading.scroller !== undefined && reading.scroller === scrollerIdentity(scroller);
-  function scrollerIdentity(scroller) {
-    if (scroller === pageScroller) return "$page";
-    return readingRegions().find(({ body }) => body === scroller)?.id;
-  }
-
-  function restoreRegion(view, region, currentIntent) {
-    if (!view) return;
-    const box = region ? effectiveScroller(region) : pageScroller;
-    const boxTop = shownBox(box).top + landingInsets(box).top;
-    const text = pageText();
-    const found = view.quote && resolveAnchor(view, text);
-    const segments = targetSegments(found);
-    if (segments.length) {
-      reveal(segments[0].node.parentElement, currentIntent); // the passage may sit behind a tab
-      moveScrollerBy(
-        box,
-        rangeOf(segments).getBoundingClientRect().top - boxTop - view.quoteTop,
-      );
-      return;
-    }
-    const section = targetElement(resolveAnchor({ section: view.section }, text));
-    if (section) {
-      reveal(section, currentIntent);
-      // The shown reading on both sides of the subtraction, because the landmark is
-      // whatever id stands nearest the block the user was on, and a section that
-      // generates no box of its own is one a suggestion wrapping whole sections leaves
-      // there. Read raw, both sides come back 0 and the correction is 0 — so the restore
-      // that had somewhere to land did nothing, silently, and left the user at the top.
-      moveScrollerBy(box, shownBox(section).top - boxTop - view.sectionTop);
-    } else if (rawOffsetFits(view, box))
-      box.scrollTo({ top: view.y, behavior: "instant" });
   }
 
   function restoreView(view, currentIntent) {
@@ -1689,10 +1543,10 @@ export function createVersionController({
         (rawOffsetFits(activeReading, activeScroller) &&
           activeScroller !== pageScroller))
     ) {
-      restoreRegion(activeReading, regions.get(active.id), currentIntent);
+      restorePlace(activeReading, regions.get(active.id), currentIntent);
       restored.add(activeScroller);
     } else {
-      restoreRegion(view, null, currentIntent);
+      restorePlace(view, null, currentIntent);
       restored.add(pageScroller);
     }
     // A bounded region can stand in a page that scrolls as well, as a root tab's workspace
@@ -1701,7 +1555,7 @@ export function createVersionController({
       !restored.has(pageScroller) &&
       (hasLandmark(view) || rawOffsetFits(view, pageScroller))
     ) {
-      restoreRegion(view, null, currentIntent);
+      restorePlace(view, null, currentIntent);
       restored.add(pageScroller);
     }
     for (const [id, reading] of Object.entries(view.regions ?? {})) {
@@ -1710,7 +1564,7 @@ export function createVersionController({
       const box = effectiveScroller(region);
       if (restored.has(box)) continue;
       if (!hasLandmark(reading) && !rawOffsetFits(reading, box)) continue;
-      restoreRegion(reading, region, currentIntent);
+      restorePlace(reading, region, currentIntent);
       restored.add(box);
     }
   }
@@ -1741,7 +1595,7 @@ export function createVersionController({
     const active = activeReadingRegion(shown, [...words.values()].flat());
     for (const region of shown)
       if (readingPosture(region) === "bounded" || region.id === active?.id)
-        regionViews.set(region.id, captureRegion(region, words.get(region.id)));
+        regionViews.set(region.id, capturePlace(region, words.get(region.id)));
   }
   let recordQueued = false;
   const scrolled = new Set();
@@ -1797,7 +1651,7 @@ export function createVersionController({
       if (owner && !under(box, owner)) continue;
       if (!reading || restored.has(box)) continue;
       if (!hasLandmark(reading) && !rawOffsetFits(reading, box)) continue;
-      restoreRegion(reading, region, currentIntent);
+      restorePlace(reading, region, currentIntent);
       restored.add(box);
     }
   }
@@ -1854,7 +1708,7 @@ export function createVersionController({
       const blocks = textBlocks();
       for (const region of regions)
         if (shownRegionBounds(region))
-          regionViews.set(region.id, captureRegion(region, blocks));
+          regionViews.set(region.id, capturePlace(region, blocks));
       compositionChanges.set(owner, {
         currentIntent: retainUserIntent(),
         regions: regions.map(({ id }) => id),
@@ -1884,12 +1738,13 @@ export function createVersionController({
 
   function installArrival() {
     installReadingContinuity();
-    // Ordinary reload and history travel belong to the browser. The root is its document
-    // scrollport, so native restoration is both more complete and less surprising than a
-    // parallel session-store reading. Leaf intervenes after upgrades only for two semantic
-    // cases the platform cannot know: a fresh URL aimed at a target generated or hidden by
-    // a widget, and travel to a different authored revision where a passage is a better
-    // landmark than the old document's pixels.
+    // Ordinary reload and history travel keep the offset the browser restores
+    // (history.js). The root is its document scrollport, so native restoration is both
+    // more complete and less surprising than a parallel session-store reading. Leaf
+    // intervenes for two semantic cases the platform cannot know: a fresh URL aimed at a
+    // target a widget generates, hides, or moves (`aimArrival`), and travel to a
+    // different authored revision, where a passage is a better landmark than the old
+    // document's pixels.
     const navigationType = performance.getEntriesByType("navigation")[0]?.type;
     const handoff = (() => {
       const serialized = tabStore.get(HANDOFF_KEY);
@@ -1935,24 +1790,45 @@ export function createVersionController({
           showComparison(handoff.comparison);
         return;
       }
-      const aimed =
+      // A URL aimed somewhere has already landed there (`aimArrival`).
+      if (
         navigationType === "navigate" &&
-        targetElement(resolveAnchor({ section: fragmentId(location.hash) }));
-      // Native fragment navigation has already landed an ordinary authored target.
-      // Keep that position when upgrades left the complete destination readable: moving
-      // it to the centre after presentation makes a loaded page visibly jump for no gain.
-      // A generated, collapsed, clipped, or displaced target still needs the semantic
-      // arrival pass because the browser could not land its final geometry at parse time.
-      if (aimed) {
-        if (!readableDestination(aimed)) scrollToElement(aimed, "instant");
-      } else if (
-        navigationType === "navigate" &&
+        !aimedAt &&
         savedView &&
         savedView.revision !== runtime.currentRevision
       )
         restoreView(savedView, currentIntent);
     }
     return { landArrival, savedView };
+  }
+
+  // A fresh URL aimed at an element stays landed while the page arrives. The browser
+  // lands it at parse time, before a widget hides the tabs around it, collapses a
+  // disclosure over it, or declares a strip that covers it, and before presentation
+  // adds controls above it; so the arrival lands it again at each step that changes
+  // the page's geometry: once widgets upgrade, before the first state read, and once
+  // the page presents. Each landing is the browser's own rule, the target's start at
+  // its scroller's landing edge, taken in the geometry of that step, so a target nothing
+  // moved stays where it is. The fragment is read before widgets upgrade, since a widget
+  // may write its own view into the URL (a root tab set names its open panel), and that
+  // is display state, not a destination. A reload or history traversal keeps the
+  // browser's restored offset instead, and input during the arrival ends it.
+  let aimedAt = null;
+  function aimArrival() {
+    const fresh = performance.getEntriesByType("navigation")[0]?.type === "navigate";
+    const arrivedAt = location.hash;
+    const currentIntent = retainUserIntent();
+    return function landFragment() {
+      aimedAt ??=
+        fresh && targetElement(resolveAnchor({ section: fragmentId(arrivedAt) }));
+      if (!aimedAt || !currentIntent()) return;
+      reveal(aimedAt, currentIntent);
+      aimedAt.scrollIntoView({
+        block: "start",
+        inline: "nearest",
+        behavior: "instant",
+      });
+    };
   }
 
   function mount() {
@@ -2022,7 +1898,7 @@ export function createVersionController({
     comparisonBase,
     comparisonChanges,
     prepareActivation,
-    readingBlock,
+    aimArrival,
     installArrival,
     mount,
   };

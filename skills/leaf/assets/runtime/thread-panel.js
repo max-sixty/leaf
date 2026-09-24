@@ -18,7 +18,6 @@ export const panelIsOpen = () => currentAuxiliarySurface() === "threads";
 
 export function createThreadPanelController({
   auxiliarySurfaces,
-  panelCovers,
   elements: { panel, toggleBtn, threadsBox },
   widen,
   activeInlineThread,
@@ -77,7 +76,7 @@ export function createThreadPanelController({
     // The panel stands over the right of the page, and the page beside it stays live: a
     // user presses the marks and passages its threads are about while it is open. It
     // takes the covering boundary only where it leaves less than a usable page.
-    covers: panelCovers,
+    beside: true,
     focus: () => threadsBox,
     show: () => paintPanel(true),
     hide: () => paintPanel(false),

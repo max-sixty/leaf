@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Stop / UserPromptSubmit / SessionEnd hook — keeps the loop honest.
+"""Stop / UserPromptSubmit / SessionEnd / PostToolUse hook — keeps the loop honest.
 
 The loop asks the agent to restart `leaf wait` after every round, and a page
 whose watcher never came back is invisible from the browser: it looks exactly like a
@@ -10,7 +10,10 @@ turn polling the exact wait session. A named wait transfers that duty to the tas
 that runs it.
 UserPromptSubmit opens the turn and surfaces waiting input; SessionEnd releases the
 session's claims, behind which a session-lifetime server retires once no live
-successor has taken the page.
+successor has taken the page. In Claude Code, PostToolUse after a background
+command names a `leaf wait` that command started, with how to close the turn it
+outlives. Codex runs the same `hooks.json` and ignores its `if` filter, so that
+registration keeps a `$CLAUDECODE` gate ahead of this script.
 
 This script decides nothing. Both questions — whether this session holds a page
 at all, and what to say about the ones it holds — belong to the `leaf` CLI, which

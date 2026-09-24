@@ -765,10 +765,9 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_with_its_metadata(
     """Submit belongs to the field while Resolve stands with the root metadata.
 
     Growing the field carries Submit with it and leaves Resolve fixed. Draft words
-    share the sent message's measure; Submit sits below them. Resolve aligns with
-    the root author and time instead of the quoted target. The same geometry holds
-    in the panel's narrowest useful window and with room beside the page, in both
-    palettes."""
+    begin at the sent message's edge and leave room for Submit in the same row.
+    Resolve aligns with the root author and time instead of the quoted target. The
+    same layout holds at narrow and wide panel widths in both palettes."""
     context = browser.new_context(
         viewport={"width": width, "height": 720}, color_scheme=scheme
     )
@@ -853,8 +852,10 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_with_its_metadata(
     )
     assert short["textarea"]["right"] == pytest.approx(short["field"]["right"], abs=1)
     assert short["send"]["right"] < short["textarea"]["right"]
-    assert short["send"]["y"] >= short["textarea"]["bottom"]
-    assert short["padding"] == pytest.approx(7, abs=1)
+    assert short["textarea"]["y"] < short["send"]["y"]
+    assert short["send"]["bottom"] < short["textarea"]["bottom"]
+    assert short["textEnd"] <= short["send"]["x"]
+    assert short["field"]["height"] < 50
     assert short["resolve"]["y"] == pytest.approx(short["metadata"]["y"], abs=1)
     assert short["metadataActions"]["right"] == pytest.approx(
         short["message"]["right"], abs=1
@@ -879,11 +880,10 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_with_its_metadata(
     grown = geometry()
     assert grown["inputFont"] == grown["messageFont"]
     assert grown["textStart"] == pytest.approx(grown["message"]["x"], abs=1)
-    assert grown["textEnd"] == pytest.approx(grown["message"]["right"], abs=1)
+    assert grown["textEnd"] <= grown["send"]["x"]
     assert grown["padding"] == pytest.approx(short["padding"], abs=1)
-    assert grown["send"]["y"] >= grown["textarea"]["bottom"]
+    assert grown["send"]["bottom"] < grown["textarea"]["bottom"]
     assert grown["send"]["x"] == pytest.approx(short["send"]["x"], abs=1)
-    assert grown["send"]["bottom"] > grown["textarea"]["bottom"]
     assert grown["send"]["y"] > short["send"]["y"]
     assert grown["metadataActions"] == short["metadataActions"]
     assert grown["resolve"] == short["resolve"]
@@ -894,11 +894,9 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_with_its_metadata(
     for position in (0, 80, 99999):
         textarea.evaluate("(el, top) => el.scrollTop = top", position)
         scrolling = geometry()
-        assert scrolling["send"]["y"] >= scrolling["textarea"]["bottom"]
+        assert scrolling["send"]["bottom"] < scrolling["textarea"]["bottom"]
         assert scrolling["textStart"] == pytest.approx(scrolling["message"]["x"], abs=1)
-        assert scrolling["textEnd"] == pytest.approx(
-            scrolling["message"]["right"], abs=1
-        )
+        assert scrolling["textEnd"] <= scrolling["send"]["x"]
 
 
 @pytest.mark.parametrize("thread_count", [1, 2])
@@ -914,7 +912,7 @@ def test_page_thread_dismiss_and_resolve_share_the_metadata_row(
         panel_comment(serve.page_dir, f"Comment {index}.", {"section": "p0"})
     page = open_page(browser, url, context=context)
     page.locator('.lf-margin-marker[data-lf-kinds~="comment"]').first.click()
-    preview = page.locator(".lf-margin-preview[data-lf-thread]:popover-open")
+    preview = page.locator(".lf-margin-preview:not([hidden])")
     resolve = preview.get_by_role("button", name="Resolve thread")
     dismiss = preview.get_by_role("button", name="Dismiss conversation view")
     expect(resolve).to_be_visible()
@@ -1481,6 +1479,94 @@ def test_threads_cover_the_page_and_leave_its_column_where_it_was(
     page.locator(".lf-threads-toggle").click()
     panel_settled(page, open=False)
     assert page.evaluate(shape) == pytest.approx(before, abs=0.5)
+
+
+# A sheet laid on one set of tracks: a long body beside a short rail, the rail being the
+# part of a sheet a panel standing over the window's right edge would cover.
+SHEET_PAGE = leaf_page(
+    "sheet",
+    """
+<h1 id="t">Sheet</h1>
+<lf-grid id="tracks" columns="2fr 1fr">
+  <lf-grid id="body" columns="1">{paras}</lf-grid>
+  <lf-grid id="side" columns="1">
+    <section class="panel" id="rail"><h2>Rail</h2><p>Counts beside the body.</p></section>
+  </lf-grid>
+</lf-grid>
+""",
+    width="available",
+).format(
+    paras="\n".join(
+        f"<p id='p{i}'>Paragraph {i}. " + "Filler. " * 40 + "</p>" for i in range(40)
+    )
+)
+
+
+def test_a_sheet_yields_the_open_panel_its_room_where_the_window_leaves_one(
+    browser, serve
+):
+    """On a sheet the open panel takes its room from the page rather than covering the
+    rail: the sheet narrows and its tracks reflow beside the panel, and the page stays
+    live. Where the window would leave less than a usable page, the panel covers it as
+    it does any page, and the sheet keeps the whole window underneath."""
+    page = open_page(browser, serve(SHEET_PAGE))
+    resized(page, 1440, 900)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    panel = page.locator(".lf-thread-panel").bounding_box()
+    rail = page.locator("#rail").bounding_box()
+    assert panel["x"] + panel["width"] == pytest.approx(1440, abs=1)
+    assert rail["x"] + rail["width"] <= panel["x"]
+    assert rail["y"] < page.locator("#p1").bounding_box()["y"], "the rail left the body"
+    assert not page.locator("main").evaluate("el => el.inert")
+    expect(page.locator(".lf-thread-panel")).not_to_have_attribute("aria-modal", "true")
+
+    resized(page, 700, 900)
+    expect(page.locator(".lf-thread-panel")).to_have_attribute("aria-modal", "true")
+    main = page.locator("main").bounding_box()
+    assert (
+        main["x"] + main["width"] > page.locator(".lf-thread-panel").bounding_box()["x"]
+    )
+    assert page.locator("main").evaluate("el => el.inert")
+
+
+def test_the_sheets_strip_for_the_panel_leaves_the_user_on_the_same_words(
+    browser, serve
+):
+    """The strip a sheet yields the open panel reflows the page, and the user stays on
+    the words they were on — carried by the browser's scroll anchoring, as across the
+    Asks tray's strip (the test below says what that rests on)."""
+    page = open_page(browser, serve(SHEET_PAGE))
+    resized(page, 1440, 900)
+    page.evaluate("() => document.scrollingElement.scrollTop = 1500")
+    at_the_top = """
+    () => {
+      const edge = Number.parseFloat(
+        getComputedStyle(document.scrollingElement).scrollPaddingTop) || 0;
+      const p = [...document.querySelectorAll('main p')]
+        .find((p) => p.getBoundingClientRect().bottom > edge);
+      return p && { id: p.id, top: p.getBoundingClientRect().top };
+    }
+    """
+    reading = page.evaluate(at_the_top)
+    assert reading, "the fixture put no paragraph under the top of the window"
+    tall = page.evaluate("() => document.documentElement.scrollHeight")
+
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    assert page.evaluate("() => document.documentElement.scrollHeight") > tall, (
+        "the strip reflowed nothing, so nothing is proved"
+    )
+    opened = page.evaluate(at_the_top)
+    assert opened["id"] == reading["id"]
+    assert opened["top"] == pytest.approx(reading["top"], abs=2)
+
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page, open=False)
+    assert page.evaluate("() => document.documentElement.scrollHeight") == tall
+    closed = page.evaluate(at_the_top)
+    assert closed["id"] == reading["id"]
+    assert closed["top"] == pytest.approx(reading["top"], abs=2)
 
 
 def test_taking_the_asks_trays_strip_leaves_the_user_on_the_same_words(browser, serve):

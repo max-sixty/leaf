@@ -8,6 +8,7 @@ import json
 import os
 import re
 import select
+import shutil
 import socket
 import subprocess
 import sys
@@ -657,9 +658,7 @@ def test_api_state_carries_each_sources_current_value(server, page_dir):
     )
 
 
-def test_fragmented_data_sends_a_manifest_then_serves_one_exact_payload(
-    server, page_dir
-):
+def test_deferred_data_sends_a_manifest_then_serves_one_exact_payload(server, page_dir):
     schema = {
         "type": "object",
         "properties": {
@@ -698,9 +697,7 @@ def test_fragmented_data_sends_a_manifest_then_serves_one_exact_payload(
             '<lf-test-data id="other-data" source="other-patch"></lf-test-data></main>',
         )
     )
-    activated = revisioning_model.activate_source(
-        page_dir, event_model.read_events(page_dir)
-    )
+    activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None
     with pytest.raises(data_model.DataError, match="record keys must be unique"):
         data_model.cmd_data_set(
@@ -743,10 +740,8 @@ def test_fragmented_data_sends_a_manifest_then_serves_one_exact_payload(
     }
 
     held = data["sources"]["review-patch"]["revision"]
-    fragment_url = (
-        f"{server}/api/data?source_revision={held}&source=review-patch&key=src%2Fa.py"
-    )
-    status, body = fetch(fragment_url)
+    deferred_url = f"{server}/api/deferred?source_revision={held}&source=review-patch&key=src%2Fa.py"
+    status, body = fetch(deferred_url)
     assert status == 200
     assert json.loads(body) == {
         "revision": held,
@@ -758,19 +753,19 @@ def test_fragmented_data_sends_a_manifest_then_serves_one_exact_payload(
 
     # Each source keeps its own revision, so replacing another leaves this one read.
     data_model.cmd_data_set(page_dir, "other-patch", {"files": []})
-    assert fetch(fragment_url)[0] == 200
+    assert fetch(deferred_url)[0] == 200
 
     data_model.cmd_data_set(
         page_dir,
         "review-patch",
         {"files": [{"key": "src/a.py", "path": "src/a.py", "patch": "new"}]},
     )
-    status, body = fetch(fragment_url)
+    status, body = fetch(deferred_url)
     assert status == 409
     assert f"no longer holds revision {held!r}" in json.loads(body)["error"]
 
 
-def test_historical_fragment_reads_keep_the_document_revision_and_layer(
+def test_historical_deferred_reads_keep_the_document_revision_and_layer(
     server, page_dir
 ):
     """A pinned document reads current data through its captured data contract."""
@@ -780,9 +775,7 @@ def test_historical_fragment_reads_keep_the_document_revision_and_layer(
         "<pre></pre></lf-diff></section>",
     )
     (page_dir / "index.html").write_text(source)
-    first = revisioning_model.activate_source(
-        page_dir, event_model.read_events(page_dir)
-    )
+    first = revisioning_model.activate_source(page_dir)
     assert first.error is None
     event_model.append_event(
         page_dir,
@@ -806,9 +799,7 @@ def test_historical_fragment_reads_keep_the_document_revision_and_layer(
     # Re-vendoring changes the active layer epoch while preserving the data contract.
     vendoring_model.cmd_init(page_dir)
     (page_dir / "index.html").write_text(source.replace("<h1>A</h1>", "<h1>B</h1>"))
-    second = revisioning_model.activate_source(
-        page_dir, event_model.read_events(page_dir)
-    )
+    second = revisioning_model.activate_source(page_dir)
     assert second.error is None and second.revision != first.revision
     second_layer = artifact_model.read_artifact(page_dir, second.revision).registry[
         "$layer"
@@ -832,16 +823,17 @@ def test_historical_fragment_reads_keep_the_document_revision_and_layer(
     held = historical["data"]["sources"]["review-patch"]["revision"]
     connection.request(
         "GET",
-        f"/api/data?source_revision={held}&source=review-patch&key=app.py&t=" + TOKEN,
+        f"/api/deferred?source_revision={held}&source=review-patch&key=app.py&t="
+        + TOKEN,
         headers={"Leaf-View-Revision": str(first.revision)},
     )
     response = connection.getresponse()
-    fragment = json.loads(response.read())
+    deferred = json.loads(response.read())
     connection.close()
 
     assert response.status == 200
     assert response.getheader("Leaf-Layer") == first_layer
-    assert fragment["value"] == patch
+    assert deferred["value"] == patch
 
 
 def test_a_bad_source_save_keeps_the_last_revision_live_and_reports_the_error(
@@ -986,9 +978,9 @@ def test_a_page_loads_from_the_external_origins_as_written(server, page_dir):
             '<script type="module" src="/page/app.js"></script>\n</head>',
         )
     )
-    activated = revisioning_model.activate_source(page_dir, [])
+    activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None, activated.error
-    resources = activated.check.artifact.resources
+    resources = artifact_model.read_artifact(page_dir, activated.revision).resources
     assert resources["/page/app.js"].dependencies == ()
     assert not any(path.startswith("http") for path in resources)
 
@@ -1012,7 +1004,7 @@ def test_a_page_loads_from_the_external_origins_as_written(server, page_dir):
 
 def test_server_round_trip(server, page_dir):
     registry = json.loads((page_dir / "registry.json").read_text())
-    initial = revisioning_model.activate_source(page_dir, [])
+    initial = revisioning_model.activate_source(page_dir)
     assert initial.error is None and initial.revision == 1
     source = page_dir / "index.html"
     source.write_text(
@@ -1133,12 +1125,14 @@ def test_server_round_trip(server, page_dir):
     assert state["cursor"] == 0  # no user event acknowledged yet
     assert state["events"][-1]["id"] == posted["id"]
     # A widget action rides the same channel; half-formed ones are refused at the edge.
+    # A move is made on the newest revision, which the vendored file above made r3.
+    newest = files_model.list_revisions(page_dir)[-1]
     status, _ = fetch(
         f"{server}/api/event",
         data=json.dumps(
             {
                 "kind": "action",
-                "revision": 2,
+                "revision": newest,
                 "widget": "feeder-board",
                 "action": "move",
                 "detail": {"card": "card-baffle", "to": "col-doing", "rank": "0i"},
@@ -1504,7 +1498,7 @@ def test_a_revision_serves_reaction_tokens_in_their_declared_order(page_dir):
         PAGE.replace("<h2>Plan</h2>", "<h2>Revised plan</h2>")
     )
 
-    activated = revisioning_model.activate_source(page_dir, [])
+    activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None, activated.error
     assert activated.created
     artifact = artifact_model.read_artifact(page_dir, activated.revision)
@@ -1764,9 +1758,7 @@ def test_server_makes_attempt_identity_atomic_without_deduplicating_content(
     (page_dir / "index.html").write_text(
         PAGE.replace("<title>t</title>", "<title>Later draft</title>")
     )
-    activated = revisioning_model.activate_source(
-        page_dir, event_model.read_events(page_dir)
-    )
+    activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None and activated.revision == 2
     files_model.revision_path(page_dir, 1).unlink()
     assert live_versions(page_dir) == []
@@ -2031,7 +2023,7 @@ def test_undo_offer_keeps_the_doors_active_page_containment(page_dir):
             "action": "choose",
             "detail": {"options": ["flag-first"]},
             "meaning": {
-                "document": "page",
+                "scope": "page",
                 "unit": "picks",
                 "depends": ["flag-first", "picks"],
                 "answer": reaction["id"],
@@ -2112,8 +2104,10 @@ def test_undo_candidates_keep_only_standing_user_gestures():
             "text": "answered",
         },
     ]
-    empty = projection_model.StateProjection({}, {}, {}, {}, {})
-    undo_reading = event_folds_model.UndoReading(events, within={})
+    empty = projection_model.StateProjection({}, {}, {}, {}, {}, frozenset())
+    undo_reading = event_folds_model.UndoReading(
+        events, within={}, absorbed=frozenset()
+    )
 
     candidates = served_document.browser_undo_candidates(
         events, empty, empty, undo_reading=undo_reading
@@ -3401,7 +3395,7 @@ def test_event_ids_are_unique_within_the_log_whatever_the_mint_returns(
             page_dir,
             {
                 "id": first["id"],
-                "meaning": {"document": "page"},
+                "meaning": {"scope": "page"},
                 "kind": "request",
                 "author": "user",
                 "revision": 1,
@@ -4218,9 +4212,7 @@ def test_a_page_snapshot_stays_on_one_page_reading(page_dir):
         "deferred": "patch",
     }
     (page_dir / "registry.json").write_text(json.dumps(registry))
-    activated = revisioning_model.activate_source(
-        page_dir, event_model.read_events(page_dir)
-    )
+    activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None
     data_model.cmd_data_set(
         page_dir, "patches", {"files": [{"key": "a.py", "patch": "old"}]}
@@ -4277,11 +4269,11 @@ def test_a_page_snapshot_stays_on_one_page_reading(page_dir):
             json.loads(fetch(f"{server.origin}/registry.json")[1]) == snapshot.registry
         )
         held = projection["data"]["sources"]["patches"]["revision"]
-        status, fragment = fetch(
-            f"{server.origin}/api/data?source_revision={held}&source=patches&key=a.py"
+        status, deferred = fetch(
+            f"{server.origin}/api/deferred?source_revision={held}&source=patches&key=a.py"
         )
         assert status == 200
-        assert json.loads(fragment)["value"] == "old"
+        assert json.loads(deferred)["value"] == "old"
 
         stream = http.client.HTTPConnection("127.0.0.1", server.port, timeout=5)
         stream.request("GET", f"/api/news?t={TOKEN}")
@@ -5076,6 +5068,42 @@ def test_others_ships_on_a_network_facing_bind_too(page_dir):
     assert [entry["title"] for entry in state["others"]] == ["The other page"]
 
 
+def test_neighbours_follow_their_servers_and_a_deleted_pages_claim_retires(
+    page_dir, tmp_path
+):
+    """A neighbour appears on the read after its server starts and leaves on the
+    read after it stops, though neither moves a file the candidate set is keyed
+    on. A claim whose page directory is gone is removed by the next scan, whether
+    the page went before the first scan or after one had listed it, so the
+    claims directory holds what is still there to claim."""
+    stopped = tmp_path / "stopped"
+    neighbour_page(stopped, title="Starts later", dead=True)
+    record_claim(stopped, id="later")
+    scratch = tmp_path / "scratch"
+    neighbour_page(scratch, title="Scratch")
+    record_claim(scratch, id="scratch")
+    deleted = tmp_path / "deleted"
+    neighbour_page(deleted, title="Deleted", dead=True)
+    record_claim(deleted, id="deleted")
+    shutil.rmtree(deleted)
+
+    def titles():
+        return [entry["title"] for entry in presence_model.other_leaves(page_dir)]
+
+    assert titles() == ["Scratch"]
+    assert not service_model.claim_path(deleted).exists()
+    assert service_model.claim_path(stopped).exists()
+
+    lease = leases_model.take_lease(stopped / "server.lock")
+    assert titles() == ["Scratch", "Starts later"]
+    lease.close()
+    assert titles() == ["Scratch"]
+
+    shutil.rmtree(stopped)
+    assert titles() == ["Scratch"]
+    assert not service_model.claim_path(stopped).exists()
+
+
 def test_state_reads_claims_and_their_log_floor_in_one_transaction(
     page_dir, server, monkeypatch
 ):
@@ -5228,14 +5256,14 @@ def test_stamp_keeps_its_checked_log_snapshot_until_the_note(monkeypatch, page_d
     )
     entered = threading.Event()
     release = threading.Event()
-    original = publishing_model.activate_source
+    original = publishing_model.check_source
 
-    def paused_activation(*args, **kwargs):
+    def paused_check(*args, **kwargs):
         entered.set()
         assert release.wait(5)
         return original(*args, **kwargs)
 
-    monkeypatch.setattr(publishing_model, "activate_source", paused_activation)
+    monkeypatch.setattr(publishing_model, "check_source", paused_check)
     failures = []
 
     def run_stamp():

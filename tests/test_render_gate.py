@@ -79,6 +79,7 @@ from render_harness import (
     EXAMPLES,
     FEATURE_GALLERY,
     LONG_PAGE,
+    RECURRING_RESIZE_NOTICE,
     REPLY_HOST_PAGE,
     TOKEN,
     _traffic,
@@ -1118,7 +1119,7 @@ def test_page_navigation_reports_a_recurring_resize_notice(browser, serve):
     page = open_page(browser, serve(LONG_PAGE), init_script=every_load)
 
     errors = take_browser_errors(page)
-    assert errors == [render_gate_scheme.recurring_resize_observer_error("navigation")]
+    assert errors == [RECURRING_RESIZE_NOTICE]
 
 
 def test_the_render_gate_rejects_an_upgrade_that_defines_no_element(

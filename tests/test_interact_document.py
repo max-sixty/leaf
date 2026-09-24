@@ -41,6 +41,7 @@ from interact_support import (
     stamp,
     state_json,
     suggest,
+    write_revision,
 )
 from leaf import anchor_capture as anchor_capture_model
 from leaf import cli as cli_model
@@ -4743,7 +4744,7 @@ def test_page_state_carries_a_report_until_a_version_answers_it(page_dir):
             "<h2>Plan</h2>", "<h2>Plan</h2>" + tasks.replace('"review"', '"done"')
         )
     )
-    files_model.write_revision(
+    write_revision(
         page_dir,
         2,
         (page_dir / "index.html").read_bytes(),

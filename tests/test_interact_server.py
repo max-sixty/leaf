@@ -16,6 +16,7 @@ import time
 import urllib.parse
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -4524,6 +4525,53 @@ def test_a_stop_ends_a_server_whose_caller_left_while_it_announced(page_dir, spa
     assert stopped == ["stopped server"]
     assert child.wait(timeout=10) is not None
     assert not json.loads(service.read_text())["enabled"]
+
+
+def test_stop_does_not_wait_forever_on_a_server_started_after_its_transition(
+    page_dir, monkeypatch
+):
+    assert service_model.claim_page(page_dir)
+    assert hosting_model.start_server(page_dir, standing=True)
+    transitioned = threading.Event()
+    resume = threading.Event()
+    original_flocked = hosting_model.flocked
+    stopping = None
+
+    @contextmanager
+    def pause_after_transition(path):
+        with original_flocked(path):
+            yield
+        if (
+            threading.current_thread() is stopping
+            and path == leases_model.transition_lock(page_dir)
+        ):
+            transitioned.set()
+            assert resume.wait(10)
+
+    monkeypatch.setattr(hosting_model, "flocked", pause_after_transition)
+    stopped = []
+    stopping = threading.Thread(
+        target=lambda: stopped.append(hosting_model.cmd_stop(page_dir)), daemon=True
+    )
+    try:
+        stopping.start()
+        assert transitioned.wait(10)
+        wait_for(
+            lambda: not leases_model.lock_is_held(page_dir / "server.lock"),
+            bool,
+            failure="the first server did not release its lease",
+        )
+        assert hosting_model.start_server(page_dir, standing=True)
+        resume.set()
+        stopping.join(timeout=3)
+        assert stopped == ["stopped server"]
+    finally:
+        resume.set()
+        files_model.write_json(
+            page_dir / "service.json",
+            {**files_model.read_json(page_dir / "service.json"), "enabled": False},
+        )
+        stopping.join(timeout=10)
 
 
 def test_an_upgrade_is_answered_by_the_key_gate_like_any_other_request(server):

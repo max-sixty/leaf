@@ -481,7 +481,8 @@ def line_ref_errors(lf_elements: list, registry: dict) -> list:
     number it has in the source it quotes, as ascending ranges; x-lines names the
     attributes holding line numbers or ranges of the nearest data body — the element's
     own, or its enclosing data element's (lf-note's `at` anchors in its lf-code) — by
-    those numbers. The modules miss silently in both directions — a reversed range
+    those numbers, a line the body leaves out included (it addresses the elided row
+    standing for it). The modules miss silently in both directions — a reversed range
     paints nothing, a note past the end docks at the block's foot, a numbering one line
     short leaves the last line unnumbered — and version-to-version drift is exactly how
     one goes stale, so the door refuses what no user would ever see."""
@@ -515,16 +516,19 @@ def line_ref_errors(lf_elements: list, registry: dict) -> list:
             value, numbers = _numbering(body_owner, registry)
             if numbers is None:
                 continue
-            shown = set(numbers)
+            # A line the body leaves out still has a row: the elided one standing for
+            # its stretch. So a reference may name any number from the first shown
+            # line to the last, and only one past either end misses.
+            first, last = min(numbers), max(numbers)
             where = at(rec, f'{attr}="{ref}"')
             for part, lo, hi in _spans(ref):
                 if hi < lo:
                     errors.append(f"{where}: range {part} runs backwards")
-                elif lo not in shown or hi not in shown:
+                elif lo < first or hi > last:
                     errors.append(
                         f"{where}: line {part} is outside the {len(numbers)}-line body"
                         if value is None
-                        else f"{where}: line {part} is not among the body's "
+                        else f"{where}: line {part} is outside the body's "
                         f'{registry[body_owner["tag"]]["x-numbering"]}="{value}"'
                     )
     return errors

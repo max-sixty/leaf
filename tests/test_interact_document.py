@@ -1351,15 +1351,17 @@ fn merge_sort()
         # A snippet: no numbering, so its five lines are 1..5.
         ("", "2-3", "5", []),
         # An excerpt: two stretches of the file, referenced by the file's numbers,
-        # a range free to span the gap between them.
+        # a range free to span the gap between them, and a left-out line addressing
+        # the elided row that stands for it.
         ("1505-1506,1550-1552", "1506-1550", "1552", []),
+        ("1505-1506,1550-1552", "1520-1530", "1507", []),
         (
             "1505-1506,1550-1552",
             "3",
-            "1507",
+            "1553",
             [
-                'hi="3"> (line 10): line 3 is not among the body\'s lines="1505-1506,1550-1552"',
-                'at="1507"> (line 17): line 1507 is not among the body\'s lines=',
+                'hi="3"> (line 10): line 3 is outside the body\'s lines="1505-1506,1550-1552"',
+                'at="1553"> (line 17): line 1553 is outside the body\'s lines=',
             ],
         ),
         (
@@ -1386,9 +1388,10 @@ def test_an_excerpt_is_referenced_by_the_numbers_it_quotes(
 ):
     """`lines` gives a code block's body the numbers it has in its source file, and
     every line reference into the block — its `hi`, a note's `at` — names lines by
-    them. The check holds the numbering to one ascending number per body line, and a
-    reference to a line the excerpt does not show, which the module would silently
-    paint nowhere, is refused."""
+    them. The check holds the numbering to one ascending number per body line. A line
+    the excerpt leaves out is still in it, as the elided row standing for its stretch,
+    so only a reference past either end, which the module would silently paint
+    nowhere, is refused."""
     block = EXCERPT.format(lines=lines, hi=hi, at=at)
     if not lines:
         block = block.replace(' lines=""', "")

@@ -17,9 +17,14 @@
  * number and nothing else to be called by: a driver that wants readable names keeps
  * them in its own vocabulary, where it uses them.
  *
+ * Every number from the first shown line to the last addresses a row: its own line,
+ * or the elided row standing in for the stretch it falls in. So a left-out line is
+ * referenced like any other — `hi` tints the elided row, an indication lights it, and
+ * a note whose `at` falls there becomes that row's caption, saying what was left out.
+ *
  * `lfElementsFor(key)` answers another widget's indication (runtime/indication.js,
- * experimental) in that same grammar. A number this block does not show addresses
- * nothing, so a driver can offer one key to several excerpts of the same file. */
+ * experimental) in that same grammar. A number outside the block addresses nothing,
+ * so a driver can offer one key to several excerpts of the same file. */
 import {
   dataBody,
   once,
@@ -39,12 +44,20 @@ const spans = (spec) =>
     return [from, to ?? from];
   });
 
-// Whether line n is among a range spec's lines. A range may run across a gap in an
-// excerpt, and then addresses the lines on either side of it.
+// Whether a range spec names any of the lines lo..hi: one line, or the stretch an
+// elided row stands for. A range may run across a gap in an excerpt, and then
+// addresses the lines on either side of it and the elided row between.
 const within = (spec) => {
   const ranges = spans(spec);
-  return (n) => ranges.some(([from, to]) => from <= n && n <= to);
+  return (lo, hi = lo) => ranges.some(([from, to]) => from <= hi && lo <= to);
 };
+
+// The rows a range addresses: a numbered line by its number, an elided row by the
+// stretch it stands for.
+const rowSpan = (row) =>
+  row.classList.contains("lf-code-elided")
+    ? [Number(row.dataset.from), Number(row.dataset.to)]
+    : [Number(row.dataset.line)];
 
 // The numbers the body's lines carry, in body order. `version check` holds `lines` to
 // one strictly ascending number per body line (x-numbering), so the two agree here.
@@ -62,9 +75,9 @@ customElements.define(
     // states their arrival through layoutChanged, and an indication resolves again then.
     lfElementsFor(key) {
       const addressed = within(key);
-      return [...this.querySelectorAll(":scope > pre > .lf-code-line")].filter((line) =>
-        addressed(Number(line.dataset.line)),
-      );
+      return [
+        ...this.querySelectorAll(":scope > pre > :is(.lf-code-line, .lf-code-elided)"),
+      ].filter((row) => addressed(...rowSpan(row)));
     }
 
     connectedCallback() {
@@ -103,11 +116,18 @@ customElements.define(
         // The gutter fits the widest number, so an excerpt from deep in a file keeps
         // its code aligned with its notes.
         pre.style.setProperty("--lf-code-digits", String(numbers.at(-1)).length);
-        // Every note's line exists: `version check` refuses an `at` outside the
-        // body (x-lines), so there is no leftover to sweep up.
+        // Every note's line has a row: `version check` refuses an `at` outside the
+        // block (x-lines), so there is no leftover to sweep up.
         lines.forEach((tokens, i) => {
           const n = numbers[i];
-          if (i && n > numbers[i - 1] + 1) pre.append(elided(n - numbers[i - 1] - 1));
+          if (i && n > numbers[i - 1] + 1) {
+            const [from, to] = [numbers[i - 1] + 1, n - 1];
+            const captions = [...byLine]
+              .filter(([at]) => from <= at && at <= to)
+              .sort(([a], [b]) => a - b)
+              .flatMap(([, list]) => list);
+            pre.append(elided(from, to, hi(from, to), captions));
+          }
           const line = document.createElement("span");
           line.className = `lf-code-line${hi(n) ? " hi" : ""}`;
           line.dataset.line = n;
@@ -135,13 +155,19 @@ customElements.define(
   },
 );
 
-// The row standing for the lines an excerpt leaves out. Its words are painted from the
+// The row standing for the lines an excerpt leaves out. Its count is painted from the
 // attribute, as the gutter's numbers are, so a copied excerpt is still only source and
-// no passage anchors on text the author never wrote.
-function elided(count) {
+// no passage anchors on text the author never wrote. A note docked in the stretch is
+// the row's caption: moved in whole, so its authored text stays quotable.
+function elided(from, to, highlighted, captions) {
   const row = document.createElement("span");
-  row.className = "lf-code-elided";
+  row.className = `lf-code-elided${highlighted ? " hi" : ""}`;
+  row.dataset.from = from;
+  row.dataset.to = to;
+  const count = to - from + 1;
   row.dataset.elided = `${count} line${count === 1 ? "" : "s"}`;
+  if (highlighted) quietWord(row, "highlighted");
+  row.append(...captions);
   return row;
 }
 

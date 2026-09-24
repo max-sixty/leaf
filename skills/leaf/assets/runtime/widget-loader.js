@@ -8,7 +8,7 @@ import {
 } from "./presentation.js";
 import { reachScrollers } from "./reach.js";
 import { followBounds } from "./bounds.js";
-import { registry, tagsDeclaring } from "./registry.js";
+import { adoptRegistry, registry, tagsDeclaring } from "./registry.js";
 import { loadShadowRules } from "./shadow.js";
 import { revealLayer, sameDelivery, sameLayer } from "./layer-client.js";
 import {
@@ -224,7 +224,7 @@ export async function upgradeWidgets({ buildReactionBar }) {
   if (!response.ok)
     throw new Error(`leaf: registry failed to load (${response.status})`);
   if (!sameDelivery(response)) return false;
-  Object.assign(registry, await response.json());
+  adoptRegistry(await response.json());
   const registryGeneration = registry.$layer?.generation;
   if (typeof registryGeneration !== "string" || !registryGeneration)
     throw new Error("leaf: registry lacks $layer.generation");

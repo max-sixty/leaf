@@ -11,11 +11,16 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { recordedWidgetSelector, registry, stateSpecs } from "/runtime/registry.js";
+import {
+  adoptRegistry,
+  recordedWidgetSelector,
+  registry,
+  stateSpecs,
+} from "/runtime/registry.js";
 
 const load = (generation, declarations) => {
   for (const tag of Object.keys(registry)) delete registry[tag];
-  Object.assign(registry, declarations, { $layer: { generation } });
+  adoptRegistry({ ...declarations, $layer: { generation } });
 };
 
 test("a vocabulary that has not loaded has no state index to give", () => {
@@ -29,7 +34,7 @@ test("a vocabulary that has not loaded has no state index to give", () => {
 
 // The generation is the index's cache key, and in the product it is a content
 // fingerprint, so no two vocabularies here share one either.
-test("both writers contribute, and only recorded declarations own a selector", () => {
+test("both writers contribute, each resolved, and only recorded declarations own a selector", () => {
   load("writers", {
     "lf-index-action": { "x-state": { set: { record: { role: "value" } } } },
     "lf-index-report": {
@@ -39,11 +44,16 @@ test("both writers contribute, and only recorded declarations own a selector", (
   });
 
   assert.deepEqual(
-    stateSpecs().map(({ tag, verb, spec }) => [tag, verb, Boolean(spec.record)]),
+    stateSpecs().map(({ tag, verb, spec }) => [
+      tag,
+      verb,
+      spec.writer,
+      Boolean(spec.record),
+    ]),
     [
-      ["lf-index-action", "set", true],
-      ["lf-index-report", "measure", true],
-      ["lf-index-recordless", "settle", false],
+      ["lf-index-action", "set", "user", true],
+      ["lf-index-report", "measure", "agent", true],
+      ["lf-index-recordless", "settle", "user", false],
     ],
   );
   assert.deepEqual(recordedWidgetSelector().split(","), [

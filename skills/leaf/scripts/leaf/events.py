@@ -21,12 +21,21 @@ def event_coordinate(event: dict) -> tuple[str, str, str]:
     return (event["widget"], event["meaning"]["unit"], event["action"])
 
 
-def event_document(event: dict) -> dict:
-    """The document an admitted widget event was made in: the page revision it
-    names, or the frozen thread markup that sent its widget (`meaning.document`)."""
-    if event["meaning"]["document"] == "thread":
+def document_identity(scope: str, revision: int | None = None) -> dict:
+    """The document a widget event is made in, from its scope and revision.
+
+    A `page` event's document is the revision it names; a `thread` event's is the
+    frozen thread markup, which lasts the page's whole lifetime and so carries no
+    revision. Admission, request seats, and the browser all key documents on this
+    identity."""
+    if scope == "thread":
         return {"kind": "thread"}
-    return {"kind": "page", "revision": event["revision"]}
+    return {"kind": "page", "revision": revision}
+
+
+def event_document(event: dict) -> dict:
+    """The document an admitted widget event was made in (`meaning.scope`)."""
+    return document_identity(event["meaning"]["scope"], event["revision"])
 
 
 def standing_approvals(events: list) -> list:

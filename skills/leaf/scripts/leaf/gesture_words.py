@@ -23,7 +23,7 @@ from functools import cached_property
 from pathlib import Path
 
 from .events import event_document
-from .passages import collapse, created_words, spoken
+from .passages import collapse, shown_words, spoken
 from .projection import frozen_thread_reading
 from .revision_artifact import read_registry
 from .structure import SourceDocument, parse_revision
@@ -148,6 +148,8 @@ class GestureWords:
         if not creators:
             return None
         creator = creators[-1]
+        # Admission stored the child's tag; only the name of the detail field that
+        # carries its words is left to the creator's declaration.
         creates = (
             self.declaration(creator)
             .get("x-state", {})
@@ -156,8 +158,9 @@ class GestureWords:
         )
         if not creates:
             return None
-        entry = self._document(creator).registry.get(creates["child"], {})
-        return collapse(created_words(creator["detail"][creates["words"]], entry))
+        entry = self._document(creator).registry.get(creator["meaning"]["creates"], {})
+        words = creator["detail"][creates["words"]]
+        return collapse(shown_words(words, entry, added=True))
 
     def says(self, event: dict) -> dict[str, str]:
         """id → what it says, for the elements one gesture names.

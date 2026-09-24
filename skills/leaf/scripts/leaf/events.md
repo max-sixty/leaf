@@ -104,9 +104,10 @@ Browser POSTs are commands. The append transaction stamps the accepted event wit
 server-owned `meaning`; callers cannot send it, and retry identity
 compares the original command fields rather than this enrichment. Meaning holds
 only what a reader without the sending registry cannot recover from the event
-itself. Every widget event records `document`, `page` or `thread`: a page event's
-document is the revision the event names, and a thread event's is the frozen
-markup that sent its widget. It also records `unit`, the fold unit or request
+itself. Every widget event records `scope`, `page` or `thread`, and its document
+identity is read from that scope and the event's revision (`events.event_document`):
+a page event's document is the revision the event names, and a thread event's is
+the frozen markup that sent its widget. It also records `unit`, the fold unit or request
 seat, so an action or report stands on the `[widget, unit, action]` coordinate.
 Actions and reports add `depends`, the direct element identities named by the
 owner, the unit, and declared state fields. An action whose admission

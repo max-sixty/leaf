@@ -38,7 +38,7 @@ type Event = Thread["root"];
 interface ActionSpec {
   unit: string;
   record?: { kind: string; value: string; attr?: string };
-  writer?: "agent";
+  writer: "user" | "agent";
 }
 
 interface WireProjection {
@@ -48,7 +48,7 @@ interface WireProjection {
     restated?: string[];
     absorbed: boolean;
     scope: string;
-    spec: ActionSpec;
+    spec: Omit<ActionSpec, "writer">;
     value: unknown;
   }[];
   actions: string[];
@@ -315,7 +315,7 @@ function widgetReading(
   // state and never as a control.
   const actions = Object.fromEntries(
     Object.entries(actionSpecs)
-      .filter(([, spec]) => spec.writer !== "agent")
+      .filter(([, spec]) => spec.writer === "user")
       .map(([verb]) => [
         verb,
         {

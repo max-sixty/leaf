@@ -8,7 +8,7 @@ const descriptor = {
   id: "choice",
   tag: "lf-choice",
   document: { kind: "page", revision: 1 },
-  declaration: { "x-state": { decide: spec } },
+  declaration: { "x-state": { decide: { ...spec, writer: "user" } } },
   parent: null,
   ancestors: [],
   quoted: false,
@@ -79,7 +79,7 @@ const capture = (extraDescriptors = [], extraAuthored = []) => {
   app.captureDocument({
     ...app.read().document,
     registry: Object.fromEntries([
-      ["lf-choice", { "x-state": { decide: spec } }],
+      ["lf-choice", { "x-state": { decide: { ...spec, writer: "user" } } }],
       ...extraDescriptors.map(([, captured]) => [captured.tag, captured.declaration]),
     ]),
     authored: new Map([

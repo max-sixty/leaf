@@ -201,6 +201,14 @@ Page modules follow `references/packages.md`, "What a behavior module owes". In
 particular, its `once()`, `quoted()`, `offer()`, `layoutChanged()`, and durable-state
 rules keep authored controls correct after reconnection, thread quoting, and export.
 
+`leaf version check` runs a page's own code, a module script or a page widget the
+document places, once in the host's browser: through upgrade, presentation, and one
+frame after it. It fails on every error the page would report to you through the
+watcher, an uncaught exception or a rejected promise with the source location it came
+from, so a module that throws on its first paint is found before the URL goes out.
+Code that runs only after a gesture or a timer is not reached; operate it in the
+pre-handover review. A page with no code of its own is checked without a browser.
+
 `page/registry.json` may contribute declarations using the package registry language.
 Its element entry replaces the selected layer's complete entry; shared `$` declarations
 compose at their declared grain. Declaration and implementation ownership are separate:
@@ -357,4 +365,6 @@ Without a way to inspect the rendered page, read `leaf page state <page>`'s
 available choices. Report the render command's result separately from the visual
 and keyboard review you could not perform. If the command cannot launch a browser,
 run `leaf version check <page>` for the markup and report the render check as
-unfinished. A text reading does not establish layout or interaction quality.
+unfinished; for a page with code of its own, that check needs the browser too, so
+report the run of its code as unfinished as well. A text reading does not establish
+layout or interaction quality.

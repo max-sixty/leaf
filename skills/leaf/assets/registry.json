@@ -265,10 +265,10 @@
                   "properties": {
                     "meaning": {
                       "required": [
-                        "document"
+                        "scope"
                       ],
                       "properties": {
-                        "document": {
+                        "scope": {
                           "const": "thread"
                         }
                       }
@@ -301,10 +301,10 @@
                   "properties": {
                     "meaning": {
                       "required": [
-                        "document"
+                        "scope"
                       ],
                       "properties": {
-                        "document": {
+                        "scope": {
                           "const": "thread"
                         }
                       }
@@ -338,10 +338,10 @@
               "properties": {
                 "meaning": {
                   "required": [
-                    "document"
+                    "scope"
                   ],
                   "properties": {
-                    "document": {
+                    "scope": {
                       "const": "thread"
                     }
                   }
@@ -399,10 +399,10 @@
             "properties": {
               "meaning": {
                 "required": [
-                  "document"
+                  "scope"
                 ],
                 "properties": {
-                  "document": {
+                  "scope": {
                     "const": "thread"
                   }
                 }
@@ -427,10 +427,10 @@
             "properties": {
               "meaning": {
                 "required": [
-                  "document"
+                  "scope"
                 ],
                 "properties": {
-                  "document": {
+                  "scope": {
                     "const": "thread"
                   }
                 }
@@ -780,7 +780,7 @@
             "widget": {"type": "string", "minLength": 1},
             "action": {"type": "string", "minLength": 1},
             "detail": {"type": "object"},
-            "meaning": {"type": "object", "properties": {"document": {"enum": ["page", "thread"]}, "unit": {"type": "string", "minLength": 1}, "depends": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true}, "answer": {"type": ["string", "null"], "minLength": 1}, "creates": {"type": "string", "pattern": "^lf-[a-z0-9]+(-[a-z0-9]+)*$"}, "places": {"const": true}}, "required": ["document", "unit", "depends"], "additionalProperties": false},
+            "meaning": {"type": "object", "properties": {"scope": {"enum": ["page", "thread"]}, "unit": {"type": "string", "minLength": 1}, "depends": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true}, "answer": {"type": ["string", "null"], "minLength": 1}, "creates": {"type": "string", "pattern": "^lf-[a-z0-9]+(-[a-z0-9]+)*$"}, "places": {"const": true}}, "required": ["scope", "unit", "depends"], "additionalProperties": false},
             "revision": {"type": "integer", "minimum": 1},
             "attempt": {"type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$"}
           },
@@ -801,7 +801,7 @@
             "widget": {"type": "string", "minLength": 1},
             "action": {"type": "string", "minLength": 1},
             "detail": {"type": "object"},
-            "meaning": {"type": "object", "properties": {"document": {"enum": ["page", "thread"]}, "unit": {"type": "string", "minLength": 1}}, "required": ["document", "unit"], "additionalProperties": false},
+            "meaning": {"type": "object", "properties": {"scope": {"enum": ["page", "thread"]}, "unit": {"type": "string", "minLength": 1}}, "required": ["scope", "unit"], "additionalProperties": false},
             "source_revision": {"type": "string", "pattern": "^[0-9a-f]{16}$"},
             "revision": {"type": "integer", "minimum": 1},
             "attempt": {"type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$"}
@@ -890,7 +890,7 @@
             "widget": {"type": "string", "minLength": 1},
             "action": {"type": "string", "minLength": 1},
             "detail": {"type": "object"},
-            "meaning": {"type": "object", "properties": {"document": {"enum": ["page", "thread"]}, "unit": {"type": "string", "minLength": 1}, "depends": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true}}, "required": ["document", "unit", "depends"], "additionalProperties": false},
+            "meaning": {"type": "object", "properties": {"scope": {"enum": ["page", "thread"]}, "unit": {"type": "string", "minLength": 1}, "depends": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true}}, "required": ["scope", "unit", "depends"], "additionalProperties": false},
             "revision": {"type": "integer", "minimum": 1},
             "agent": {"type": "string", "minLength": 1},
             "session": {"type": "string", "minLength": 1}

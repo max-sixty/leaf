@@ -61,7 +61,11 @@ def file_stamp(path: Path):
 
     A time the clock does not pass within `SETTLE_NS` — a file dated ahead of the
     clock, or one rewritten on every tick — is not waited out. Its stamp carries what
-    the path holds instead, the rule git applies to a racily clean index entry."""
+    the path holds instead, the rule git applies to a racily clean index entry, until
+    the clock passes that time and the stamp drops it. That is one move for an
+    unchanged file, once per such time, and the price of exactness: a stamp without
+    the contents would match one taken after a same-size rewrite in the tick the
+    clock reaches the file's time."""
     settle_by = time.monotonic_ns() + SETTLE_NS
     while True:
         looked = write_clock()

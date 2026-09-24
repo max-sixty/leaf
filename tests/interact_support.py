@@ -388,7 +388,14 @@ def page_dir(tmp_path, monkeypatch, initialized_page):
 
 
 def check(d):
-    return CliRunner().invoke(cli_model.cli, ["version", "check", str(d)])
+    """`version check`, in-process. A page that runs its own code has the check start
+    Playwright, whose sync API refuses a thread already driving another instance —
+    which a worker holding the session `browser` fixture is — so the command gets a
+    thread of its own."""
+    with ThreadPoolExecutor(1) as pool:
+        return pool.submit(
+            CliRunner().invoke, cli_model.cli, ["version", "check", str(d)]
+        ).result()
 
 
 def read_page_data(page_dir) -> dict:

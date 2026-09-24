@@ -1140,3 +1140,86 @@ def test_the_shim_runs_the_gate_from_anywhere(serve, tmp_path, headless_shell):
         assert "<lf-diagram id='d-broken'> failed soft:" in run.stderr
         assert "is unsupported" in run.stderr
         assert "Ada,Review,3" not in run.stderr
+
+
+FILM_DECLARATION = {
+    tag: {
+        "description": f"A <{tag}> page widget.",
+        "type": "object",
+        "properties": {"id": {"type": "string"}},
+        "required": ["id"],
+        "additionalProperties": False,
+        "x-content": "empty",
+        "x-upgrade": True,
+    }
+    for tag in ("lf-film", "lf-loader")
+}
+FILM_PAGE = LONG_PAGE.replace(
+    "</main>", '<lf-film id="film"></lf-film><lf-loader id="loader"></lf-loader></main>'
+)
+
+
+def test_plain_check_runs_the_code_a_page_authored(serve, tmp_path, headless_shell):
+    """A quick page takes plain `version check` and nothing else, so that is the check
+    that has to run the page's own code: a widget that throws on its first paint, or
+    a load that rejects, is otherwise heard of only once the user's browser reports
+    it to the watcher. The check fails on those reports, worded as the watcher gets
+    them — the painter's throw names the module under `page/` that threw, not the
+    widget that called it — and passes the same page once its modules run clean.
+
+    A page without code of its own is still checked without a browser: the missing
+    executable named below is never launched."""
+    serve(
+        LONG_PAGE,
+        page_files={
+            "registry.json": json.dumps(FILM_DECLARATION),
+            "film.js": "export const paint = (el, step) =>\n"
+            "  (el.textContent = (step.cmp ?? []).map(String).join());\n",
+            "widgets/lf-film.js": 'import { paint } from "../film.js";\n'
+            "customElements.define('lf-film', class extends HTMLElement {\n"
+            "  connectedCallback() { paint(this, { cmp: 3 }); }\n"
+            "});\n",
+            "widgets/lf-loader.js": "customElements.define('lf-loader', class extends HTMLElement {\n"
+            "  connectedCallback() { this.load(); }\n"
+            "  async load() { await null; throw new Error('the trace never loaded'); }\n"
+            "});\n",
+        },
+    )
+    d = serve.page_dir
+
+    def check(**env):
+        return subprocess.run(
+            [*LEAF_COMMAND, "version", "check", str(d)],
+            capture_output=True,
+            text=True,
+            check=False,
+            env=unnamed_browser() | env,
+        )
+
+    no_browser = check(LEAF_BROWSER_EXECUTABLE=str(tmp_path / "not-a-browser"))
+    assert no_browser.returncode == 0, no_browser.stdout + no_browser.stderr
+    assert "page code" not in no_browser.stdout + no_browser.stderr
+
+    (d / "index.html").write_text(FILM_PAGE)
+    broken = check(LEAF_BROWSER_EXECUTABLE=headless_shell)
+    assert broken.returncode == 1, broken.stdout + broken.stderr
+    assert "✗ page code: 2 error(s)" in broken.stderr
+    assert "map is not a function" in broken.stderr
+    assert "/page/film.js:2)" in broken.stderr
+    assert "Error: the trace never loaded" in broken.stderr
+    assert "/page/widgets/lf-loader.js:3" in broken.stderr
+
+    (d / "page" / "film.js").write_text(
+        "export const paint = (el, step) =>\n"
+        "  (el.textContent = [step.cmp].flat().map(String).join());\n"
+    )
+    (d / "page" / "widgets" / "lf-loader.js").write_text(
+        "customElements.define('lf-loader', class extends HTMLElement {\n"
+        "  connectedCallback() { this.textContent = 'loaded'; }\n"
+        "});\n"
+    )
+    clean = check(LEAF_BROWSER_EXECUTABLE=headless_shell)
+    assert clean.returncode == 0, clean.stdout + clean.stderr
+    assert f"✓ page code: runs through upgrade and first paint in {headless_shell}" in (
+        clean.stdout
+    )

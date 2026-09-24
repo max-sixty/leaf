@@ -183,10 +183,12 @@ def test_terminating_a_preview_stops_its_claimed_service(tmp_path, preview_slot,
 def test_terminating_a_preview_while_its_service_starts_leaves_none(
     tmp_path, preview_slot, spawn
 ):
-    """A stop that lands before the durable service has announced itself leaves
-    it disabled. The serving child runs in a session of its own, so the group
-    signal never reaches it, and the preview's stop can run before the child has
-    taken the page; the start used to stand behind that stop, enabled."""
+    """A stop that lands before the durable service has committed leaves none.
+    The serving child runs in a session of its own, so the group signal never
+    reaches it, and the preview's stop can run before the child has taken the
+    page; the start used to stand behind that stop, enabled. Now the preview's
+    interrupted start gives its claim back and closes the handshake, so the child
+    either refuses before recording a service or withdraws the one it recorded."""
     slot, page = preview_slot
     with (tmp_path / "preview.log").open("w", encoding="utf-8") as output:
         process = spawn(
@@ -217,7 +219,8 @@ def test_terminating_a_preview_while_its_service_starts_leaves_none(
     process.wait(timeout=30)
     wait_for(serving_child, lambda pids: not pids, failure="the service outlived it")
     assert server_model.running_server(page) is None
-    assert not json.loads((page / "service.json").read_text())["enabled"]
+    service = files_model.read_json(page / "service.json")
+    assert service is None or not service["enabled"], service
 
 
 def test_a_leaf_failure_exits_the_preview_without_a_wrapper_traceback(

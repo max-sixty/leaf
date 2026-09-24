@@ -128,17 +128,22 @@ def codex_start(
 
 @codex.command("run", hidden=True)
 @click.option("--codex-path", required=True)
-@click.option("--ready-fd", type=int)
+@click.option("--handshake", type=int)
 @click.option("--app-server", hidden=True)
 def codex_run(
     codex_path: str,
-    ready_fd: int | None,
+    handshake: int | None,
     app_server: str | None,
 ) -> None:
     """Run the detached carrier child."""
-    from leaf.codex_adapter import run_adapter
+    from contextlib import nullcontext
 
-    sys.exit(run_adapter(codex_path, ready_fd, app_server))
+    from leaf.codex_adapter import run_adapter
+    from leaf.detached import Handshake
+
+    # Tests run the carrier in the foreground, where nobody waits on a handshake.
+    with Handshake(handshake) if handshake is not None else nullcontext() as answer:
+        sys.exit(run_adapter(codex_path, answer, app_server))
 
 
 @cli.group(short_help="Create pages and add media.")
@@ -607,28 +612,13 @@ def start(dir: str, host: str | None, standing: bool) -> None:
     goes down with the session that claimed it besides. A page already served
     prints that server's URL and is left alone.
     """
-    from leaf.host import session_harness
-    from leaf.hosting import start_server
-    from leaf.service import PageTransaction, restore_page_claim, take_page_claim
+    from leaf.detached import StartRefused
+    from leaf.hosting import claim_and_start
 
-    page_dir = resolve_dir(dir)
-    claim_transition = None if standing else take_page_claim(page_dir)
-    if claim_transition:
-        # Check the claim after taking it. The child checks it again under its
-        # own transaction, so SessionEnd winning the spawn gap makes startup
-        # fail instead of reviving a released page.
-        with PageTransaction(page_dir) as page:
-            if not page.owned_by(session_harness()):
-                raise SystemExit(
-                    f"this session no longer owns {page_dir}; the server was not started"
-                )
-    started = start_server(page_dir, host, standing)
-    if not started:
-        # A refusal or failed bind never transfers the page. Restore the prior
-        # provenance only if nobody replaced this startup's exact claim.
-        restore_page_claim(page_dir, claim_transition)
-        raise SystemExit(1)
-    url, note = started
+    try:
+        url, note = claim_and_start(resolve_dir(dir), host, standing)
+    except StartRefused as error:
+        raise SystemExit(str(error)) from None
     print(url)
     print(note, file=sys.stderr)
 
@@ -649,7 +639,7 @@ def run(dir: str, host: str | None, standing: bool, temporary: bool) -> None:
     `server start`. A page already served prints that server's URL and exits.
     """
     from leaf.hosting import cmd_serve, cmd_serve_temporary
-    from leaf.service import restore_page_claim, take_page_claim
+    from leaf.service import starting_claim
 
     page_dir = resolve_dir(dir)
     if temporary:
@@ -659,23 +649,24 @@ def run(dir: str, host: str | None, standing: bool, temporary: bool) -> None:
             raise click.UsageError("--temporary is loopback-only; omit --host")
         cmd_serve_temporary(page_dir)
         return
-    claim_transition = None if standing else take_page_claim(page_dir)
-    try:
+    with starting_claim(page_dir, standing=standing):
         cmd_serve(page_dir, host, standing)
-    except BaseException:
-        restore_page_claim(page_dir, claim_transition)
-        raise
 
 
 @server.command("_serve", hidden=True)
 @click.argument("dir", metavar="PAGE")
 @serve_flags
 @click.option("--revive", is_flag=True, hidden=True)
-def _serve(dir: str, host: str | None, standing: bool, revive: bool) -> None:
+@click.option("--handshake", type=int, required=True, hidden=True)
+def _serve(
+    dir: str, host: str | None, standing: bool, revive: bool, handshake: int
+) -> None:
     """Private child process spawned by server start and Watch revival."""
+    from leaf.detached import Handshake
     from leaf.hosting import cmd_serve
 
-    cmd_serve(resolve_dir(dir), host, standing, revive, detached=True)
+    with Handshake(handshake) as answer:
+        cmd_serve(resolve_dir(dir), host, standing, revive, handshake=answer)
 
 
 @server.command(short_help="Stop a page's server.")

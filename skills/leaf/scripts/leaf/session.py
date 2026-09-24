@@ -15,10 +15,11 @@ from .delivery import (
     receive_batch,
     record_pickup,
 )
+from .detached import StartRefused
 from .files import read_json
 from .host import Harness, session_harness
 from .hosting import start_server
-from .leases import take_waiter_lease, waiter_lease_path
+from .leases import take_lease, waiter_lease_path
 from .locations import path_location, paths_same
 from .revisioning import activate_source
 from .schema import (
@@ -240,7 +241,7 @@ class Watch:
         if self.leases:
             return True
         for path in self.lease_paths:
-            lease = take_waiter_lease(path)
+            lease = take_lease(path)
             if lease is None:
                 self.release()
                 return False
@@ -278,7 +279,11 @@ class Watch:
                 # Discovery can race deletion; a missing marker is no page.
                 continue
 
-            started = start_server(page_dir, revive=True)
+            try:
+                started = start_server(page_dir, revive=True)
+            except StartRefused as error:
+                print(error, file=sys.stderr)
+                started = None
             key = str(page_dir)
             if started:
                 self._revived.add(key)

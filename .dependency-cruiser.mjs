@@ -52,6 +52,7 @@ const exactClosures = {
     "keyboard/text-entry.js",
     "user-intent.js",
     "registry.js",
+    "rendering.js",
     "repaint.js",
     "shadow.js",
   ],

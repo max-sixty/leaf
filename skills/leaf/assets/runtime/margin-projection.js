@@ -57,6 +57,7 @@
    Boot supplies version, map, travel, and semantic thread-render capabilities.
    mount reserves the rail and binds the lifecycle after those owners exist; every
    later render reads the same bound capabilities, including event-driven repaints. */
+import { cancelRender, nextRender, sizeObserver } from "./rendering.js";
 import { labelWords, spokenSubject } from "./margin-entry-model.js";
 import {
   registerMarginRow,
@@ -347,7 +348,7 @@ export function createMarginProjection({
       !stands &&
       (holdsMargin() || (marginHeld && document.activeElement === document.body))
     )
-      requestAnimationFrame(() => focusMapControl());
+      nextRender(() => focusMapControl());
     schedulePostureRender();
   }
   // The card is the margin's, as the cluster it hangs from is, rather than a layer over
@@ -499,7 +500,7 @@ export function createMarginProjection({
     // Margin packing finishes on the next frame, so the card is placed again from its
     // cluster's settled position before the carried shell reads where to aim.
     return new Promise((resolve) => {
-      requestAnimationFrame(() => {
+      nextRender(() => {
         if (
           epoch !== threadTransitionEpoch ||
           previewEntry?.key !== entry.key ||
@@ -647,7 +648,7 @@ export function createMarginProjection({
   const placedThreadPreview = () =>
     placeThreadPreview() ? Promise.resolve(true) : threadPreviewPositioned();
   function resetThreadPreviewPosition() {
-    cancelAnimationFrame(previewPositionFrame);
+    cancelRender(previewPositionFrame);
     previewPositionFrame = 0;
     previewPositionDismissDetached = false;
     previewReferenceSeen = false;
@@ -657,7 +658,7 @@ export function createMarginProjection({
   }
   function schedulePostureRender() {
     if (postureFrame) return;
-    postureFrame = requestAnimationFrame(() => {
+    postureFrame = nextRender(() => {
       postureFrame = 0;
       renderMargin.refresh();
     });
@@ -761,7 +762,7 @@ export function createMarginProjection({
   function scheduleThreadPreviewPosition(dismissDetached = false) {
     previewPositionDismissDetached ||= dismissDetached;
     if (previewPositionFrame) return;
-    previewPositionFrame = requestAnimationFrame(() => {
+    previewPositionFrame = nextRender(() => {
       previewPositionFrame = 0;
       const dismiss = previewPositionDismissDetached;
       previewPositionDismissDetached = false;
@@ -1442,8 +1443,8 @@ export function createMarginProjection({
   }
 
   function scheduleRoving() {
-    cancelAnimationFrame(rovingFrame);
-    rovingFrame = requestAnimationFrame(() => {
+    cancelRender(rovingFrame);
+    rovingFrame = nextRender(() => {
       rovingFrame = 0;
       syncRoving();
     });
@@ -1966,9 +1967,7 @@ export function createMarginProjection({
           hoveredHost = null;
           refreshHighlight();
         });
-        host.addEventListener("focusout", () =>
-          requestAnimationFrame(refreshHighlight),
-        );
+        host.addEventListener("focusout", () => nextRender(refreshHighlight));
         const takePointerOwnership = (event) => {
           const control = document
             .elementFromPoint(event.clientX, event.clientY)
@@ -2885,7 +2884,7 @@ export function createMarginProjection({
     // given back both move. The repaint that follows a flip waits a frame, since this
     // observer must not move body itself.
     let railStood = railStands();
-    new ResizeObserver(() => {
+    sizeObserver(() => {
       const stands = railStands();
       if (stands === railStood) return;
       railStood = stands;

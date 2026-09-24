@@ -4,6 +4,8 @@
    Pending work is cleared before the phases run. An invalidation raised by a phase
    therefore schedules another frame instead of being lost in the frame being flushed. */
 
+import { nextRender } from "./rendering.js";
+
 let phases = null;
 let frame = 0;
 let movePage = false;
@@ -30,7 +32,7 @@ function requestFrame() {
   // constructed. Mount owns the first frame; until then only the page-shift bit is
   // recorded. The initial full paint reads the latest standing when it can run.
   if (!phases || frame) return;
-  frame = requestAnimationFrame(() => {
+  frame = nextRender(() => {
     frame = 0;
     const shiftPage = movePage;
     movePage = false;

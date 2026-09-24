@@ -27,6 +27,7 @@ from render_cases_layout import (
 from render_cases_navigation import _publish
 from render_harness import (
     LONG_PAGE,
+    RENDERED,
     CutOff,
     Traffic,
     _until,
@@ -1644,3 +1645,28 @@ def test_a_page_map_update_keeps_the_row_the_user_was_on(browser, serve):
     assert row.evaluate("node => node.getBoundingClientRect().top") == pytest.approx(
         top, abs=1
     )
+
+
+def test_a_repaint_unsettles_the_rendering_until_it_lands(browser, serve):
+    """The settled reading turns false in the same turn as a gesture that queues a
+    repaint, and true once that repaint has landed, so a reader after the gesture waits
+    on the page rather than on a guessed number of frames."""
+    url = serve(leaf_page("Settled", '<h1 id="h">Settled</h1><p id="p">Words.</p>'))
+    page = open_page(browser, url)
+    settled = (
+        "() => document.querySelector('script[data-lf-entry]').lfRenderingSettled()"
+    )
+    assert page.evaluate(settled), "a page handed over by open_page is settled"
+
+    assert (
+        page.evaluate(
+            """() => {
+              document.querySelector('.lf-threads-toggle').click();
+              return document.querySelector('script[data-lf-entry]').lfRenderingSettled();
+            }"""
+        )
+        is False
+    )
+    page.evaluate(RENDERED)
+    assert page.evaluate(settled)
+    expect(page.locator(".lf-thread-panel")).to_have_class(re.compile(r"\bopen\b"))

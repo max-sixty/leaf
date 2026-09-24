@@ -983,6 +983,7 @@ BOTH_STAMPS = """() => {
   ) return false;
   const entry = document.querySelector('script[data-lf-entry]');
   if (!(entry?.lfCurrentPresentationReady?.() ?? false)) return false;
+  if (!(entry.lfRenderingSettled?.() ?? false)) return false;
   return entry.lfPageArrived?.() ?? false;
 }"""
 FIRST_PAINT = """() => performance
@@ -1187,12 +1188,31 @@ FRAMES = (
     "  requestAnimationFrame(step);\n"
     "})"
 )
-# One turn is the frame a write has been through; two is a turn whose own consequences
-# have been through one, which is what a read after a coalesced repaint needs. Nested
-# animation-frame callbacks have one complete rendering turn between them, so this states
-# rendered progress rather than elapsed time between two frame polls.
+# One turn is the frame a write has been through: nested animation-frame callbacks have one
+# complete rendering turn between them, so this states rendered progress rather than
+# elapsed time between two frame polls.
 ONE_FRAME = f"() => ({FRAMES})(1)"
-RENDERED = f"() => ({FRAMES})(2)"
+# The runtime has rendered what the input asked for: its own settled reading
+# (runtime/rendering.js) says nothing it queued is waiting and its last rendering update
+# was quiet. A read after a coalesced repaint, however many updates that repaint chains
+# through, waits here instead of guessing a count. The first check comes after one whole
+# update, observers included, so a change no Leaf callback took part in — a wheel, a
+# resize — has had its turn to unsettle the reading before it is read.
+RENDERED = (
+    "() => new Promise((rendered, ranOut) => {\n"
+    "  const entry = document.querySelector('script[data-lf-entry]');\n"
+    "  const deadline = setTimeout(\n"
+    "    () => ranOut(new Error('rendering did not settle')),\n"
+    f"    {FRAME_DEADLINE_MS});\n"
+    "  const check = () => {\n"
+    "    if (!entry.lfRenderingSettled()) return requestAnimationFrame(afterUpdate);\n"
+    "    clearTimeout(deadline);\n"
+    "    rendered();\n"
+    "  };\n"
+    "  const afterUpdate = () => setTimeout(check);\n"
+    "  requestAnimationFrame(afterUpdate);\n"
+    "})"
+)
 
 
 # What navigate reports when a ResizeObserver loop notice comes back on the confirming
@@ -1245,11 +1265,10 @@ def navigate(page, url, *, wait_until="load", ready=BOTH_STAMPS):
 
 
 def shortcut_bar_text(page):
-    """What the shortcut bar says, once the runtime has had its frame to say it.
+    """What the shortcut bar says, once the runtime's rendering has settled.
 
-    The shared repaint coalesces to a `requestAnimationFrame`, so a read taken in the same
-    round-trip as the press that caused it is a read of the frame before. Two frames,
-    because the repaint's own rAF may be queued behind this one's.
+    The shared repaint coalesces to a rendering update, so a read taken in the same
+    round-trip as the press that caused it is a read of the update before.
 
     Read once and never retried, which is the point of it: a disclosure's word is either
     what the watch painted within the press or what the two-second heartbeat paints

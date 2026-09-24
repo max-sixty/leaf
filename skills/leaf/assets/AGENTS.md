@@ -52,7 +52,7 @@ relative to `runtime/` unless stated otherwise.
 | Vocabulary and public helpers | `registry.js`, `widget-api.js`, `widget-elements.js`, `request-elements.js` |
 | External data and authored projections | `data.js`, `projection/data.js`, `projection/authored.js` |
 | Revision installs and continuity | `version.js`, `version-chooser.js`, `carry.js`, `dom-children.js`, `root-state.js`, `restore-state.js` |
-| Shared repaint and geometry | `repaint.js`, `standing.js`, `page-geometry.js`, `geometry.js`, `pointer.js` |
+| Shared repaint and geometry | `rendering.js`, `repaint.js`, `standing.js`, `page-geometry.js`, `geometry.js`, `pointer.js` |
 | Chrome assembly and available room | `chrome.js`, `chrome-layout.js`, `auxiliary-surfaces.js`, `drawn-edge.js` |
 | Reading regions and scrolling | `reading-regions.js`, `reading-place.js`, `bounds.js`, `scrolling.js`, `reach.js`, `user-place.js` |
 | Keyboard commands and their projections | `keyboard/AGENTS.md` |
@@ -247,6 +247,16 @@ synchronous `PRESENTATION` signal lets box-derived page apparatus replace provis
 geometry before the browser can paint the presented state. After it, a state change may
 animate only where motion helps the user follow a change. A failed startup does not
 stamp the page presented as if it had read the log.
+
+`data-lf-presented` is stamped before the chrome that presentation paints has landed,
+and stays that way: a host may hide or scroll away the frame it is loading until the
+page says it has presented, and such a frame gets no rendering updates to settle in.
+Whether chrome and geometry have caught up is a separate, live reading,
+`renderingSettled` in `runtime/rendering.js`. Every rendering callback and size observer
+in the runtime and in packages goes through its `nextRender`, `cancelRender`, and
+`sizeObserver`, which lint enforces, and it reads settled once none of them is pending
+and one rendering update has passed with no counted observer delivery. Its module header
+owns the frame-ordering argument and what the reading cannot see.
 
 ## What crosses to the server
 

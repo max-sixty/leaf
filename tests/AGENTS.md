@@ -374,6 +374,10 @@ event, and then waits on `BOTH_STAMPS`:
 - The current presentation probe says every required renderer for the active semantic
   epoch has settled. A later publication or same-epoch replacement can make it false
   while `data-lf-presented` remains set.
+- The rendering-settled probe says the runtime's chrome and geometry have caught up with
+  everything it has handled: nothing it queued for a rendering update is waiting, and
+  its last update was quiet (`runtime/rendering.js`). Any later input can make it false
+  again.
 - The page-arrived probe says the page has stopped arriving: an owner may put work after
   presentation deliberately — a widget's progressive upgrade, the gallery's contained
   documents — and it declares that work to the runtime, so a fixture carrying one is not
@@ -481,9 +485,13 @@ The causal helpers:
   between instant placement and smooth scrolling. `scroller=` and `axis=` select
   a nested scrollport; the helper resets its own record.
 
-- `shortcut_bar_text(page)` reads what the shortcut bar says, once, after the repaint's own
-  frame. `repaint` coalesces to a `requestAnimationFrame`, so a read taken in
-  the same round-trip as the press is a read of the frame before.
+- `RENDERED` waits one rendering update and then for the rendering-settled probe, so a
+  read after a gesture sees every repaint the gesture queued, however many updates they
+  chain through. A fixed number of frames only guesses at that; count frames
+  (`ONE_FRAME`) only where one update is the claim.
+- `shortcut_bar_text(page)` reads what the shortcut bar says, once, after `RENDERED`.
+  `repaint` coalesces to a rendering update, so a read taken in the same round-trip as
+  the press is a read of the update before.
 - `ask_actions_hint(digits)` supplies the runtime wording for an Ask's numbered
   routes. Keep shared wording in one helper beside its reading rather than
   copying strings across tests.
@@ -628,10 +636,10 @@ checks both the interruption and recovery.
 ### A repeated gesture has to let the repaint it causes land
 
 Pressing the same key twice inside one round-trip is not a user pressing it
-twice. Work coalesced into a `requestAnimationFrame` runs between a person's two
+twice. Work coalesced into a rendering update runs between a person's two
 presses and between none of a test's, so a fault the repaint itself causes is
 invisible at exactly the rhythm a suite presses at. A walk, or any repeated press
-a repaint could answer, waits a frame between presses and says why. Where
+a repaint could answer, waits for `RENDERED` between presses and says why. Where
 waiting is what changes the outcome, the contrast is the assertion:
 `test_the_walk_reaches_more_and_goes_on_after_the_line_has_repainted` runs one
 walk both ways and holds the two to being the same walk, since a count of lost

@@ -874,6 +874,28 @@ export default [
     rules: { "no-undef": "error" },
   },
   {
+    // The settled reading answers only for the rendering callbacks and size observers it
+    // counts, so the layer and its packages reach both through runtime/rendering.js.
+    files: ["skills/leaf/assets/**/*.js", "skills/leaf/packages/*/**/*.js"],
+    ignores: [
+      "skills/leaf/assets/vendor/**",
+      "skills/leaf/packages/*/vendor/**",
+      "skills/leaf/assets/runtime/rendering.js",
+    ],
+    rules: {
+      "no-restricted-globals": [
+        "error",
+        ...["requestAnimationFrame", "cancelAnimationFrame", "ResizeObserver"].map(
+          (name) => ({
+            name,
+            message:
+              "Use nextRender, cancelRender, or sizeObserver (runtime/rendering.js) so the settled reading counts it.",
+          }),
+        ),
+      ],
+    },
+  },
+  {
     files: ["skills/leaf/assets/runtime/**/*.js"],
     plugins: { architecture: architecturePlugin },
     rules: {
@@ -905,12 +927,14 @@ export default [
     // would make every caller acquire that owner's initialization and paint graph.
     // A vendored bundle is not an owner: it initializes nothing, paints nothing, and
     // reaches no other module, so a primitive may take an algorithm from one rather
-    // than write a second copy of it beside the layer's.
+    // than write a second copy of it beside the layer's. Nor is `rendering.js`, the
+    // primitive every rendering callback is counted through.
     files: [
       "skills/leaf/assets/runtime/anchor-coordinate.js",
       "skills/leaf/assets/runtime/chrome.js",
       "skills/leaf/assets/runtime/dom-children.js",
       "skills/leaf/assets/runtime/focus.js",
+      "skills/leaf/assets/runtime/rendering.js",
       "skills/leaf/assets/runtime/repaint.js",
       "skills/leaf/assets/runtime/root-state.js",
       "skills/leaf/assets/runtime/conversation/identity.js",
@@ -921,9 +945,9 @@ export default [
         {
           patterns: [
             {
-              regex: "^(?!/vendor/)",
+              regex: "^(?!/vendor/|\\./rendering\\.js$)",
               message:
-                "Runtime primitives must remain independent of other owners; only a /vendor/ bundle may be imported.",
+                "Runtime primitives must remain independent of other owners; only a /vendor/ bundle or rendering.js may be imported.",
             },
           ],
         },

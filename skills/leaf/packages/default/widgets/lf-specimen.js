@@ -5,7 +5,14 @@
  * final Escape brings focus back to this element. Ordinary children remain static
  * quotation. A disconnect releases the child; moving the retained element within a
  * document does not reset its work. */
-import { mountSpecimen, once, offer, widgetController } from "/runtime/widget-api.js";
+import {
+  cancelRender,
+  mountSpecimen,
+  nextRender,
+  once,
+  offer,
+  widgetController,
+} from "/runtime/widget-api.js";
 
 customElements.define(
   "lf-specimen",
@@ -92,8 +99,8 @@ customElements.define(
       const view = doc.defaultView;
       let queued = 0;
       const size = () => {
-        view.cancelAnimationFrame(queued);
-        queued = view.requestAnimationFrame(() => {
+        cancelRender(queued);
+        queued = nextRender(() => {
           const border = frame.offsetHeight - frame.clientHeight;
           const height = `${Math.ceil(doc.body.getBoundingClientRect().height) + border}px`;
           if (frame.style.height !== height) frame.style.height = height;

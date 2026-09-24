@@ -13,7 +13,7 @@ immutable input through `leaf delivery read` and answers with explicit commands,
 reply included. Over App Server, `start_delivery_turn` opens a turn on a connection of
 its own as soon as the task is idle and `DeliveryTurn` follows it there until it ends,
 which is also how the user sees activity and a streamed answer, and why the turn's
-final message is its reply. The private App Server this transport needs is what
+opening and final messages are its reply. The private App Server this transport needs is what
 `leaf codex launch` runs.
 
 `TaskObserver` holds the other connection, on the turns Leaf did not start: the
@@ -27,7 +27,6 @@ process around them.
 import json
 import os
 import queue
-import select
 import shutil
 import subprocess
 import sys
@@ -72,17 +71,17 @@ from .conversation import (
     delivery_reply_reserved,
 )
 from .delivery import ReceiptRefused, receive_batch, record_pickup
+from .detached import Handshake, start_detached
 from .event_log import flocked, read_cursor
 from .files import read_json
 from .host import CodexHarness, session_harness
-from .leases import adapter_is_live, adapter_lease_path, take_waiter_lease
+from .leases import adapter_is_live, adapter_lease_path, take_lease
 from .machine import state_home
 from .schema import EVENTS_FILE
 from .service import (
     PageTransaction,
     owned_pages,
-    restore_page_claim,
-    take_page_claim,
+    starting_claim,
 )
 from .session import Watch, read_watch_pass
 
@@ -133,7 +132,10 @@ class TaskObserver:
     This connection resumes the task and keeps the subscription that resume opens,
     so it sees the user's own turns in the terminal and a queued pointer the task
     picks up by itself. It projects their activity onto every page the task claims,
-    and binds a pointer turn's reply, because no follower of Leaf's ever will.
+    and binds the reply of an adopted App Server delivery whose follower is gone,
+    because no follower of Leaf's ever will. A queued pointer's reply is not the
+    turn's to write: that delivery names a plain reply for `leaf reply`, so the
+    turn is watched and opened on its pages but binds nothing.
 
     Two connections may resume one thread and both then receive everything it says,
     so every notification about a turn a `DeliveryTurn` is carrying arrives here too.
@@ -306,7 +308,7 @@ class TaskObserver:
                 stream.disconnect()
                 continue
             if turn.get("status") == "inProgress":
-                stream.restore(self.events.final_text(turn))
+                stream.restore(self.events.reply_so_far(turn))
             else:
                 if self.events.turn_id == turn_id:
                     self.events.turn_id = None
@@ -325,7 +327,8 @@ class TaskObserver:
         A turn reached this way is one nobody is following: a pointer the task
         picked up by itself, or a delivery whose carrier process died while its turn
         ran on. A live follower's turn is excluded by `carried`, which is held from
-        before the turn exists.
+        before the turn exists. Only the second has a reply to bind, since only a
+        delivery frozen for App Server owes a `turn` answer.
         """
         turn_id = turn["id"]
         if turn_id in self.bindings:
@@ -346,7 +349,7 @@ class TaskObserver:
         if status == "inProgress":
             open_stream_turn(self.thread_id, turn_id)
             self._bind(turn_id, delivery_id, target)
-            self.bindings[turn_id].restore(self.events.final_text(turn))
+            self.bindings[turn_id].restore(self.events.reply_so_far(turn))
             return
         self._bind(turn_id, delivery_id, target)
         self._end_turn(turn_id, status, self.events.final_text(turn))
@@ -749,7 +752,9 @@ def _offer_queued_delivery(
         offered = None
         if unoffered is not None:
             path, record = unoffered
-            prepared = offer_delivery(path, record)
+            prepared = offer_delivery(
+                path, record, "queue" if observer is None else "app-server"
+            )
             offered = prepared.record_path, record, prepared
     if offered is None:
         return False
@@ -797,14 +802,18 @@ def _has_delivery_work(session_id: str) -> bool:
 
 def run_adapter(
     codex_path: str,
-    ready_fd: int | None = None,
+    handshake: Handshake | None = None,
     app_server: str | None = None,
 ) -> int:
-    """Own the session watch until every claimed page ends or transfers."""
+    """Own the session watch until every claimed page ends or transfers.
+
+    A detached adapter announces its readiness through `handshake` once it holds
+    its leases and its transport answers, and exits if `leaf codex start` left
+    without committing that start."""
     harness = session_harness()
     if harness is None or harness.name != CodexHarness.name:
         raise RuntimeError("the Codex adapter needs a Codex task identity")
-    lease = take_waiter_lease(adapter_lease_path(harness.session))
+    lease = take_lease(adapter_lease_path(harness.session))
     if lease is None:
         raise RuntimeError("a Codex delivery adapter is already active")
     # The lease record names this adapter's transport, so a later `leaf codex start`
@@ -849,10 +858,8 @@ def run_adapter(
             observer.start()
         else:
             check_queue_command(codex_path)
-        if ready_fd is not None:
-            os.write(ready_fd, b'{"ready":true}\n')
-            os.close(ready_fd)
-            ready_fd = None
+        if handshake is not None and not handshake.announce():
+            return 1
         failures = 0
         while True:
             try:
@@ -895,6 +902,7 @@ def run_adapter(
                 nonlocal captured
                 captured = capture_batch(harness.session, reading)
 
+            mark = watch.mark()
             reading = read_watch_pass(watch, None, deliver=capture)
             if captured:
                 continue
@@ -913,15 +921,9 @@ def run_adapter(
                     lease.close()
                     leases_released = True
                     return reading.outcome or 0
-            time.sleep(1)
-    except BaseException as error:
-        if ready_fd is not None:
-            os.write(
-                ready_fd,
-                (json.dumps({"ready": False, "error": str(error)}) + "\n").encode(),
-            )
-            os.close(ready_fd)
-        raise
+            # A second a pass, as well as each time a page moves: the queued offer
+            # and receipt recovery above answer to Codex, not to the page's files.
+            watch.await_news(mark, timeout=1)
     finally:
         # A turn goes on running in the task whatever happens here, so the follower
         # is told the adapter is going and its connection is closed under it. It
@@ -956,70 +958,38 @@ def cmd_codex_start(
     app_server = app_server or os.environ.get(APP_SERVER_ENV)
     if app_server is not None:
         check_app_server_endpoint(app_server)
-    transition = take_page_claim(page_dir)
     launch_lock = adapter_start_lock_path(session_id)
     launch_lock.parent.mkdir(parents=True, exist_ok=True)
-    try:
-        with flocked(launch_lock):
-            if adapter_is_live(session_id):
-                record = adapter_lease_path(session_id).read_text()
-                try:
-                    running = json.loads(record)["app_server"]
-                except (ValueError, KeyError, TypeError):
-                    # An adapter built before the record named its transport.
-                    return f"Codex delivery is already active for task {session_id}"
-                if app_server is not None and app_server != running:
-                    raise RuntimeError(
-                        f"Codex delivery is already active for task {session_id}"
-                        f"{_transport(running)}, not through App Server {app_server}"
-                    )
-                return (
-                    f"Codex delivery is already active for task {session_id}"
-                    f"{_transport(running)}"
-                )
-            read_fd, write_fd = os.pipe()
-            log_path = adapter_log_path(session_id)
-            with open(log_path, "ab", buffering=0) as log:
-                arguments = [
-                    sys.executable,
-                    "-m",
-                    "leaf",
-                    "codex",
-                    "run",
-                    "--codex-path",
-                    executable,
-                    "--ready-fd",
-                    str(write_fd),
-                ]
-                if app_server is not None:
-                    arguments.extend(["--app-server", app_server])
-                process = subprocess.Popen(
-                    arguments,
-                    cwd=state_home(),
-                    stdin=subprocess.DEVNULL,
-                    stdout=log,
-                    stderr=log,
-                    start_new_session=True,
-                    pass_fds=(write_fd,),
-                )
-            os.close(write_fd)
+    with starting_claim(page_dir), flocked(launch_lock):
+        if adapter_is_live(session_id):
+            record = adapter_lease_path(session_id).read_text()
             try:
-                ready, _, _ = select.select([read_fd], [], [], START_TIMEOUT)
-                if not ready:
-                    process.terminate()
-                    process.wait(timeout=5)
-                    raise RuntimeError("Codex delivery did not become ready")
-                answer = json.loads(os.read(read_fd, 65536))
-            finally:
-                os.close(read_fd)
-            if not answer.get("ready"):
-                process.wait(timeout=5)
+                running = json.loads(record)["app_server"]
+            except (ValueError, KeyError, TypeError):
+                # An adapter built before the record named its transport.
+                return f"Codex delivery is already active for task {session_id}"
+            if app_server is not None and app_server != running:
                 raise RuntimeError(
-                    answer.get("error") or "Codex delivery failed to start"
+                    f"Codex delivery is already active for task {session_id}"
+                    f"{_transport(running)}, not through App Server {app_server}"
                 )
-    except BaseException:
-        restore_page_claim(page_dir, transition)
-        raise
+            return (
+                f"Codex delivery is already active for task {session_id}"
+                f"{_transport(running)}"
+            )
+        start_detached(
+            [
+                "codex",
+                "run",
+                "--codex-path",
+                executable,
+                *(["--app-server", app_server] if app_server is not None else []),
+            ],
+            what="Codex delivery",
+            log=adapter_log_path(session_id),
+            cwd=state_home(),
+            timeout=START_TIMEOUT,
+        )
     return f"Codex delivery started for task {session_id}{_transport(app_server)}"
 
 

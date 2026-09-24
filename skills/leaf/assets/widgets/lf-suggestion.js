@@ -1,6 +1,7 @@
 /* lf-suggestion: an edit to content the user has already seen, offered as a
  * proposal rather than shipped as a fait accompli. Accept or Reject rides the action
- * channel; the next version eventually carries the settled markup.
+ * channel as one `decide` with its outcome; the next version eventually carries the
+ * settled markup.
  *
  * The log owns the absolute outcome, so reloads and tabs converge. Once that outcome
  * stands, the surviving slot remains and the retired slot folds away as trackable
@@ -38,6 +39,8 @@ import {
 } from "/runtime/widget-api.js";
 
 const WORDS = { accept: "Accept", reject: "Reject" };
+// The standing decision's outcome, or null while the suggestion is undecided.
+const outcomeOf = (state) => state.decide?.detail?.outcome ?? null;
 const FACE = {
   accept: { icon: "check", tone: "positive", rank: "primary" },
   reject: { icon: "cross", tone: "negative", rank: "secondary" },
@@ -165,7 +168,7 @@ customElements.define(
         if (quoted(this) || !this.#margin) return;
         if (
           this.#margin.contains(document.activeElement) &&
-          (reading.state.settlement.value ?? null) !== this.#presentedOutcome
+          outcomeOf(reading.state) !== this.#presentedOutcome
         ) {
           // Signals publish before the projection adapter. Keep the currently focused
           // entry until that adapter applies the new state: the next complete reading can
@@ -265,7 +268,7 @@ customElements.define(
           disabled:
             this.#staging ||
             Boolean(this.#deciding) ||
-            !this.#controller.read().actions[kind]?.available,
+            !this.#controller.read().actions.decide?.available,
           activation: kind,
           className: `lf-sug-${kind}`,
           scope: this.#commandScope,
@@ -383,8 +386,9 @@ customElements.define(
       return before || after || this.id;
     }
 
-    accept() {
-      return this.#decide("accept");
+    // The banner's blanket answer (x-awaits.all) calls the deciding verb by name.
+    decide(outcome) {
+      return this.#decide(outcome);
     }
 
     // A press makes the reversible decision locally and the outbox carries that exact
@@ -392,8 +396,8 @@ customElements.define(
     // winner and reconciles the authored state before this continuation paints the repair
     // controls, so the user returns to a pending suggestion with Failed, Retry, Cancel.
     #decide(outcome, focus = null) {
-      if (this.#controller.read().state.settlement.value) return Promise.resolve(true);
-      if (!this.#controller.read().actions[outcome]?.available)
+      if (outcomeOf(this.#controller.read().state)) return Promise.resolve(true);
+      if (!this.#controller.read().actions.decide?.available)
         return Promise.resolve(false);
       if (this.#staging || this.#deciding)
         return this.#deciding ?? Promise.resolve(false);
@@ -401,13 +405,6 @@ customElements.define(
       // reading, and `says` on what has left the reading answers nothing — the notice
       // then named the widget's id instead of the words the user just judged.
       const label = this.#label();
-      // Accepting the fix answers the thread it was written for, so the same
-      // event carries it: the mapping is snapshotted into the action, because
-      // the honoring version retires this wrapper — attribute and all — and a
-      // second POST could fail alone, leaving the outcome and the resolution
-      // disagreeing with no repair path.
-      const comment = this.getAttribute("resolves");
-      const detail = outcome === "accept" && comment ? { resolves: comment } : {};
       this.#failed = null;
       // This decision replaces words the user may still have selected. Clear that
       // page range before moving its nodes, independent of whether activation came from
@@ -421,8 +418,8 @@ customElements.define(
       const sent = (
         this.#controller.dispatch({
           kind: "action",
-          verb: outcome,
-          detail,
+          verb: "decide",
+          detail: { outcome },
         })?.delivery ?? Promise.resolve(null)
       ).then((accepted) => {
         this.#deciding = null;
@@ -466,7 +463,7 @@ customElements.define(
     #undoable(outcome) {
       return this.#controller
         .read()
-        .actions[outcome]?.undo.find((event) => event.action === outcome);
+        .actions.decide?.undo.find((event) => event.detail?.outcome === outcome);
     }
 
     // The field refuses a second press while the first is unresolved. A pending result
@@ -497,7 +494,7 @@ customElements.define(
     }
 
     async #undoOutcome() {
-      const outcome = this.#controller.read().state.settlement.value;
+      const outcome = outcomeOf(this.#controller.read().state);
       if (!outcome || this.#undoing) return;
       if (this.#staging || this.#deciding) {
         notice("Wait for the current change to finish before undoing");
@@ -679,7 +676,7 @@ customElements.define(
     }
 
     renderState(state) {
-      const outcome = state.settlement.value;
+      const outcome = outcomeOf(state);
       if (outcome) return this.#settle(outcome);
       if (!this.#presentedOutcome) return;
       for (const slot of this.querySelectorAll(":scope > lf-old, :scope > lf-new"))
@@ -696,7 +693,8 @@ customElements.define(
     }
 
     #outcome() {
-      return this.#controller?.read().state?.settlement?.value ?? null;
+      const state = this.#controller?.read().state;
+      return state ? outcomeOf(state) : null;
     }
   },
 );

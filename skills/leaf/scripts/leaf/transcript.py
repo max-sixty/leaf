@@ -1,11 +1,14 @@
 """Raw event and Markdown transcript readings."""
 
+import os
+import signal
 import sys
 from pathlib import Path
 
-from leaf.event_log import jsonl_line, read_events
-from leaf.events import build_threads, is_reaction, taken_back
+from leaf.event_log import follow_events, jsonl_line, read_events
+from leaf.events import build_threads, is_reaction, standing_approvals, taken_back
 from leaf.files import latest_revision, revision_label
+from leaf.gesture_words import GestureWords, revisions_on_disk
 from leaf.passages import active_enclosing, enclosing_of, spoken
 from leaf.registry.reactions import reaction_tokens
 from leaf.registry.storage import active_registry
@@ -37,6 +40,28 @@ def cmd_events(page_dir: Path, after: int, conversation: str | None = None) -> N
     for event in events:
         if event["seq"] > after:
             print(jsonl_line(event))
+
+
+def cmd_follow_events(page_dir: Path, after: int) -> None:
+    """Print each event after `after`, then each one appended, until stopped.
+
+    A follower is stopped by its consumer, so a stop is the ordinary end rather
+    than a failure: SIGINT and SIGTERM exit 0, and so does a reader that goes away,
+    after which nothing more can be said to it. Each line is flushed as it is
+    printed, since a follower's stdout is a pipe whose reader waits on that line.
+    """
+    signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
+    try:
+        for event in follow_events(page_dir, after):
+            print(jsonl_line(event), flush=True)
+    except KeyboardInterrupt:
+        sys.exit(0)
+    except BrokenPipeError:
+        # The interpreter flushes stdout again on exit, into the same closed pipe.
+        os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())
+        sys.exit(0)
+    except FileNotFoundError as error:
+        sys.exit(str(error))
 
 
 # A quote as a transcript names it. The anchor stores the passage whole, because that
@@ -72,13 +97,20 @@ def _print_versions(events: list) -> None:
             print(f"- v{e['version']}: {e['text']}")
 
 
-def _print_edits(events: list) -> None:
+def _print_edits(page_dir: Path, events: list, registry: dict) -> None:
     # The user's direct edits are outcomes of the exchange; without them the transcript
     # understates it whenever a changelog note doesn't restate them. So
     # is a version taking one back, which is the same understatement the other
     # way round — an edit shown as final that a later version overruled.
-    # Widget-agnostic rendering: verb + detail pairs, against the version edited.
+    # Widget-agnostic rendering: verb + detail pairs, against the version edited,
+    # then what the ids it names say there. The widget's own words are left out: it
+    # is named by its id, and a body edit's detail already carries the new words.
     withdrawn = taken_back(events)
+    words = (
+        GestureWords(events, registry, revisions_on_disk(page_dir))
+        if registry
+        else None
+    )
     edits = [
         e
         for e in events
@@ -95,7 +127,11 @@ def _print_edits(events: list) -> None:
                     )
                 continue
             detail = " ".join(f"{k}={v}" for k, v in e["detail"].items())
-            verb = f"{e['action']} {detail}".strip()  # a bare reject carries no detail
+            verb = f"{e['action']} {detail}".strip()  # a bare answer carries no detail
+            said = words.says(e) if words else {}
+            said.pop(e["widget"], None)
+            if said:
+                verb += " — " + "; ".join(f"“{shown(w)}”" for w in said.values())
             if e["kind"] == "report":
                 # A worker's provisional news is an outcome too, under its own name.
                 print(
@@ -183,11 +219,9 @@ def _print_threads(events: list, spk: dict, registry: dict) -> None:
         print()
 
 
-def _print_approval(events: list) -> None:
-    for e in events:
-        if e["kind"] == "done":
-            print(f"Approved at {e['ts']}.")
-            break
+def _print_approvals(events: list) -> None:
+    for approval in standing_approvals(events):
+        print(f"Approved v{approval['version']} at {approval['ts']}.")
 
 
 def cmd_transcript(page_dir: Path) -> None:
@@ -197,7 +231,7 @@ def cmd_transcript(page_dir: Path) -> None:
     revision, title = _revision_title(page_dir)
     print(f"## Leaf: {title or page_dir.name}")
     _print_versions(events)
-    _print_edits(events)
+    _print_edits(page_dir, events, registry)
     spk = _published_reading(page_dir, registry, revision)
     _print_threads(events, spk, registry)
-    _print_approval(events)
+    _print_approvals(events)

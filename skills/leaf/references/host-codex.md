@@ -34,8 +34,8 @@ acknowledges the delivery once Codex's queue accepts it, so do not run `leaf wai
 `leaf wait --ack` while it holds the task. The same delivery id may return after an
 uncertain queue response, which is the retry `references/event-batches.md` describes.
 
-Answer every obligation with its explicit operation: `leaf reply` for a plain reply,
-a stamped version, `resolve`, and `receipt`. Your final message stays in the Codex
+Answer every obligation with the operation its delivered `answering` clause names,
+`leaf reply` for a plain reply. Your final message stays in the Codex
 chat and never reaches the page. Leaf does not observe the task's turns either, so
 the banner shows only the status you declare.
 

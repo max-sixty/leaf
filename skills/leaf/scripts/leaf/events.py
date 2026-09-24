@@ -13,6 +13,32 @@ def taken_back(events: list) -> set:
     return {e["undoes"] for e in events if e.get("undoes")}
 
 
+def event_coordinate(event: dict) -> tuple[str, str, str]:
+    """The owner-unit-verb coordinate an admitted action or report stands on.
+
+    Admission stores the one part a registry-free reader cannot recover,
+    `meaning.unit`; the owner and verb are the event's own `widget` and `action`."""
+    return (event["widget"], event["meaning"]["unit"], event["action"])
+
+
+def event_document(event: dict) -> dict:
+    """The document an admitted widget event was made in: the page revision it
+    names, or the frozen thread markup that sent its widget (`meaning.document`)."""
+    if event["meaning"]["document"] == "thread":
+        return {"kind": "thread"}
+    return {"kind": "page", "revision": event["revision"]}
+
+
+def standing_approvals(events: list) -> list:
+    """The sign-off approvals no later undo took back, in log order."""
+    withdrawn = taken_back(events)
+    return [
+        event
+        for event in events
+        if event["kind"] == "done" and event["id"] not in withdrawn
+    ]
+
+
 def is_reaction(event: dict) -> bool:
     """A message carrying a token in place of words ($events, $reactions)."""
     return bool(event.get("token"))
@@ -155,7 +181,7 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
     """Fold conversations using the admitted answer coordinate.
 
     Answer effects survive retirement of their source widget. An unrelated action
-    on another facet cannot supersede one, while an explicit answer with null
+    of another verb cannot supersede one, while an explicit answer with null
     effect replaces a closing answer without itself closing a thread. ``anchor`` is
     the thread's current page location, and ``detached_from`` retains the last real
     anchor only when an explicit null replacement leaves the thread detached.
@@ -174,7 +200,7 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
             and e["id"] not in withdrawn
             and not action_retracted(e, floors, within)
         ):
-            winners[tuple(e["meaning"]["coordinate"])] = e
+            winners[event_coordinate(e)] = e
     threads = {}
     thread_for = {}
     messages = {}
@@ -201,7 +227,7 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
         # resolve remains the latest closure even after an answer is superseded.
         if e["kind"] == "action":
             answered = threads.get(e["meaning"].get("answer"))
-            if answered and winners.get(tuple(e["meaning"]["coordinate"])) is e:
+            if answered and winners.get(event_coordinate(e)) is e:
                 answered["resolved"] = e
             continue
         if e["kind"] == "conversation_title":
@@ -462,8 +488,9 @@ def action_rests_on(event: dict, within: dict) -> list:
 
     The event keeps the identities the command named, not their ancestor path.
     Moving a named element out of the owner therefore changes its applicability.
-    Generated identities have durable ownership even before markup records them.
-    Literal detail values never acquire identity by coinciding with an HTML id.
+    A child the action created (`meaning.creates`) is its fold unit, which it rests
+    on whether or not a document holds it yet. Literal detail values never acquire
+    identity by coinciding with an HTML id.
     """
     widget = event["widget"]
     return list(
@@ -475,7 +502,11 @@ def action_rests_on(event: dict, within: dict) -> list:
                     for identity in event["meaning"]["depends"]
                     if widget in within.get(identity, ())
                 ),
-                *event.get("generated", []),
+                *(
+                    [event["meaning"]["unit"]]
+                    if event["meaning"].get("creates")
+                    else []
+                ),
             ]
         )
     )
@@ -488,7 +519,7 @@ def action_retracted(event: dict, floors: dict, within: dict) -> bool:
     One predicate for every reader of liveness — the fold's survival test, the
     words gate's, and the thread a decision settles — because a decision the log
     has taken back has to be absent everywhere at once. It was written out twice
-    and a third reader went without: `build_threads` settled a thread on an accept
+    and a third reader went without: `build_threads` settled a thread on a decision
     and never asked, so a suggestion the next version rewrote came back pending
     with the thread it had answered still filed away, and the user was never asked
     the question again."""

@@ -8,8 +8,7 @@ from .layer import (
 )
 from .state import (
     retirement_slots,
-    validate_awaiting_units,
-    validate_retirement_facets,
+    validate_answered_conditions,
 )
 from .widgets import (
     element_declarations,
@@ -31,6 +30,5 @@ def validate_registry(registry: dict, source) -> dict:
     validate_widget_schemas(declarations, data, path)
     slots = retirement_slots(registry)
     validate_widget_relations(registry, declarations, data, slots, path)
-    validate_retirement_facets(slots, declarations, path)
-    validate_awaiting_units(declarations, path)
+    validate_answered_conditions(declarations, path)
     return registry

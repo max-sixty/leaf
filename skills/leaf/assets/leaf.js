@@ -101,7 +101,6 @@ import {
   currentTray,
   othersPanel,
   reserveListClearance,
-  trayCovers,
 } from "./runtime/trays.js";
 import { createAuxiliarySurfaces } from "./runtime/auxiliary-surfaces.js";
 import { restoreUserView } from "./runtime/restore-state.js";
@@ -309,6 +308,7 @@ pageGeometry = createPageGeometry({
 });
 const anchorTravel = createAnchorTravel({
   anchors: anchorPaint,
+  surfaces: auxiliarySurfaces,
   currentThreads: allThreads,
   refreshConversation: () => app.refreshConversation(),
   announce,
@@ -393,9 +393,7 @@ app = mountApplication({
   },
   landInConversation: (...args) => landing.landInConversation(...args),
   showThread: (...args) => landing.showThread(...args),
-  setPanel: (...args) => threadPanelController.setPanel(...args),
   panelIsOpen,
-  panelHides: (where) => layout.panelHides(where),
   onConversationChanged: repaint,
   retainPanelLanding: (source) => retainPanelLanding(source, panelIsOpen),
   retainThreadNarrowing: () => retainNarrowing(app.presentConversation),
@@ -490,9 +488,7 @@ asks = createAskView({
   presentedControl: app.margin.presentedControl,
   projectionTarget: app.margin.marginTargetAt,
   setPanel: (...args) => threadPanelController.setPanel(...args),
-  setOpenTray: (...args) => trays.setOpenTray(...args),
-  trayCovers,
-  readableDestination: anchorTravel.readableDestination,
+  trip: anchorTravel.trip,
   scrollToElement: anchorTravel.scrollToElement,
   refreshConversation: () => app.refreshConversation(),
   announce,
@@ -759,13 +755,7 @@ if (!offlineInteractive) {
   mountPanelReadingRegion();
   version.mount();
   mountBanner({
-    approveVersion: () =>
-      app.post({
-        kind: "done",
-        revision: runtime.currentRevision,
-        version: runtime.currentStamp,
-        text: "Looks good",
-      }),
+    approveVersion: () => app.post({ kind: "done", version: runtime.currentStamp }),
     paintApproval: paintVersionApproval,
   });
   auxiliarySurfaces.mount();

@@ -942,7 +942,7 @@ _CARD_BOXES = """card => {
 
 def test_reading_a_thread_moves_nothing_in_it(browser, serve):
     """Read state is bookkeeping: a read receipt takes a thread's rails, boundaries,
-    labels and Mark read control away without moving anything the reader is looking
+    labels and Mark read control away without moving anything the user is looking
     at. Only a row that loses a label or control may close up sideways."""
     url = serve(PANEL_PAGE)
     root = conversation_model.cmd_comment(

@@ -389,12 +389,15 @@ def test_option_words_render_markdown_without_losing_the_user_draft(browser, ser
 
     group.locator("#job-heater").click()
     round_trip(page)
-    choices = [
+    adds = [
         event["detail"]
         for event in sent_events(serve.page_dir)
-        if event.get("kind") == "action" and event.get("widget") == "jobs"
+        if event.get("kind") == "action" and event.get("action") == "add"
     ]
-    assert choices[-1]["additions"][added.get_attribute("id")] == "Keep **both** routes"
+    assert adds == [
+        {"option": added.get_attribute("id"), "text": "Keep **both** routes"}
+    ]
+    expect(added.locator("strong")).to_have_text("both")
 
 
 @pytest.mark.parametrize(
@@ -1024,8 +1027,8 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
                 "author": "user",
                 "revision": 1,
                 "widget": "quoted-suggestion",
-                "action": "accept",
-                "detail": {},
+                "action": "decide",
+                "detail": {"outcome": "accept"},
             },
         )
     page = open_page(browser, url)
@@ -1517,7 +1520,7 @@ def test_a_nested_questions_commands_belong_only_to_their_own_ask(browser, serve
 
 def test_a_nested_questions_pick_is_not_part_of_its_outers_record(browser, serve):
     """Attribute records are sets owned by one recorded widget. A chosen option in a
-    nested question must not enter the outer question's authored facet, or an outer log
+    nested question must not enter the outer question's authored state, or an outer log
     choice that exactly matches its markup is falsely painted as awaiting the author."""
     nested_choices = NESTED_ASK_PAGE.replace(
         '<lf-option id="out-drill">', '<lf-option id="out-drill" chosen>'
@@ -1564,7 +1567,7 @@ def test_working_the_evidence_in_an_option_is_not_a_pick(browser, serve):
     bounds = comparison.bounding_box()
     assert bounds is not None
     page.mouse.click(bounds["x"] + bounds["width"] / 4, bounds["y"] + 80)
-    expect(comparison).to_have_attribute("position", "100")
+    expect(comparison).to_have_attribute("position", "0")
     expect(page.locator("#ro-shot input[type=checkbox]")).to_be_checked()
     assert not option.evaluate(picked), "clicking the shot answered the question"
     page.get_by_role(
@@ -2129,7 +2132,7 @@ def test_local_work_chrome_does_not_take_its_holder_gesture(browser, serve, tmp_
     option = json.loads((schema_model.DEFAULT_PACKAGE / "registry.json").read_text())[
         "lf-option"
     ]
-    option["x-work"] = {"seat": "content"}
+    option["x-work"] = True
     layer = tmp_path / ".leaf"
     layer.mkdir()
     (layer / "registry.json").write_text(json.dumps({"lf-option": option}))

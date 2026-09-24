@@ -20,7 +20,12 @@ def test_live_response_evidence_keeps_its_attempt_without_text():
     assert evidence["has_text"] is True
     assert "text" not in evidence
 
-    workflow = {"input": "user-input", "response": None, "condition": None}
+    workflow = {
+        "input": "user-input",
+        "stage": "picked_up",
+        "response": None,
+        "condition": None,
+    }
     activity._bind_reply(
         [workflow],
         {
@@ -134,10 +139,11 @@ def test_request_outcomes_keep_receipts_after_the_seat_is_removed():
         {
             "kind": "request",
             "id": "first",
+            "revision": 1,
             "widget": "old-seat",
             "action": "submit",
             "meaning": {
-                "document": {"kind": "page", "revision": 1},
+                "document": "page",
                 "unit": "old-seat",
             },
         },
@@ -151,10 +157,11 @@ def test_request_outcomes_keep_receipts_after_the_seat_is_removed():
         {
             "kind": "request",
             "id": "second",
+            "revision": 1,
             "widget": "old-seat",
             "action": "submit",
             "meaning": {
-                "document": {"kind": "page", "revision": 1},
+                "document": "page",
                 "unit": "old-seat",
             },
         },

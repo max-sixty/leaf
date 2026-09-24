@@ -16,6 +16,7 @@ import time
 import urllib.parse
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -23,6 +24,7 @@ import pytest
 import tinycss2
 from click.testing import CliRunner
 from conftest import LEAF_COMMAND
+from example_data import patch_manifest
 from interact_support import (
     COMMAND_SUBJECTS,
     PAGE,
@@ -33,16 +35,17 @@ from interact_support import (
     check,
     declare_data_input,
     fetch,
-    let_a_pick_settle_a_thread,
     live_versions,
     neighbour_page,
     publish,
     read_page_data,
     record_claim,
     running_http_server,
+    wait_for,
 )
 from leaf import cli as cli_model
 from leaf import data as data_model
+from leaf import detached as detached_model
 from leaf import event_log as event_model
 from leaf import events as event_folds_model
 from leaf import files as files_model
@@ -682,10 +685,10 @@ def test_fragmented_data_sends_a_manifest_then_serves_one_exact_payload(
     )
     registry_path = page_dir / "registry.json"
     registry = json.loads(registry_path.read_text())
-    registry["$data"]["contracts"]["diff-files"]["fragments"] = {
+    registry["$data"]["contracts"]["diff-files"]["records"] = {
         "items": "files",
         "key": "key",
-        "value": "patch",
+        "deferred": "patch",
     }
     registry_path.write_text(json.dumps(registry))
     index = page_dir / "index.html"
@@ -699,7 +702,7 @@ def test_fragmented_data_sends_a_manifest_then_serves_one_exact_payload(
         page_dir, event_model.read_events(page_dir)
     )
     assert activated.error is None
-    with pytest.raises(data_model.DataError, match="fragment keys must be unique"):
+    with pytest.raises(data_model.DataError, match="record keys must be unique"):
         data_model.cmd_data_set(
             page_dir,
             "review-patch",
@@ -795,9 +798,7 @@ def test_historical_fragment_reads_keep_the_document_revision_and_layer(
         "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n"
         '@@ -1 +1 @@\n-return "old"\n+return "new"\n'
     )
-    data_model.cmd_data_set(
-        page_dir, "review-patch", data_model.unified_diff_manifest(patch)
-    )
+    data_model.cmd_data_set(page_dir, "review-patch", patch_manifest(patch))
     first_layer = artifact_model.read_artifact(page_dir, first.revision).registry[
         "$layer"
     ]["generation"]
@@ -1140,7 +1141,7 @@ def test_server_round_trip(server, page_dir):
                 "revision": 2,
                 "widget": "feeder-board",
                 "action": "move",
-                "detail": {"card": "card-baffle", "to": "col-doing", "index": 0},
+                "detail": {"card": "card-baffle", "to": "col-doing", "rank": "0i"},
             }
         ).encode(),
     )
@@ -1386,7 +1387,7 @@ def test_server_round_trip(server, page_dir):
             "kind": "report",
             "widget": "feeder-board",
             "action": "move",
-            "detail": {"card": "card-baffle", "to": "col-doing", "index": 0},
+            "detail": {"card": "card-baffle", "to": "col-doing", "rank": "0i"},
             "revision": 2,
         },
         # Message revisions are agent-authored too. The browser cannot turn the
@@ -1564,9 +1565,7 @@ def test_server_takes_an_approval_only_where_the_version_asked_for_one(
 
     status, body = fetch(
         f"{server}/api/event",
-        data=json.dumps(
-            {"kind": "done", "version": 1, "revision": 1, "text": "Looks good"}
-        ).encode(),
+        data=json.dumps({"kind": "done", "version": 1}).encode(),
     )
     assert status == 400
     assert json.loads(body)["error"] == (
@@ -1582,9 +1581,7 @@ def test_server_takes_an_approval_only_where_the_version_asked_for_one(
     publish(page_dir, version=2)
     status, body = fetch(
         f"{server}/api/event",
-        data=json.dumps(
-            {"kind": "done", "version": 2, "revision": 2, "text": "Looks good"}
-        ).encode(),
+        data=json.dumps({"kind": "done", "version": 2}).encode(),
     )
     assert status == 400
     assert json.loads(body)["error"] == (
@@ -1638,9 +1635,7 @@ def test_server_takes_an_approval_only_where_the_version_asked_for_one(
     assert reply.exit_code == 0, reply.output
     status, body = fetch(
         f"{server}/api/event",
-        data=json.dumps(
-            {"kind": "done", "version": 2, "revision": 2, "text": "Looks good"}
-        ).encode(),
+        data=json.dumps({"kind": "done", "version": 2}).encode(),
     )
     assert status == 400
     assert json.loads(body)["error"] == (
@@ -1662,12 +1657,37 @@ def test_server_takes_an_approval_only_where_the_version_asked_for_one(
     assert status == 200, body
     status, body = fetch(
         f"{server}/api/event",
-        data=json.dumps(
-            {"kind": "done", "version": 2, "revision": 2, "text": "Looks good"}
-        ).encode(),
+        data=json.dumps({"kind": "done", "version": 2}).encode(),
     )
     assert status == 200, body
     assert event_model.read_events(page_dir)[-1]["kind"] == "done"
+
+
+def test_the_transcript_reports_only_an_approval_that_stands(page_dir):
+    """A withdrawn approval is not one: the transcript reads approvals through the
+    same withdrawal every other fold honours, so it names the version approved and
+    says nothing once the user takes the approval back."""
+    signoff = PAGE.replace(
+        "<title>t</title>",
+        '<title>t</title>\n<meta name="lf-review" content="sign-off">',
+    )
+    (page_dir / "index.html").write_text(signoff)
+    publish(page_dir, version=1)
+    approval = event_model.append_event(
+        page_dir, {"kind": "done", "author": "user", "version": 1}
+    )
+
+    def transcript():
+        result = CliRunner().invoke(cli_model.cli, ["transcript", str(page_dir)])
+        assert result.exit_code == 0, result.output
+        return result.output
+
+    assert f"Approved v1 at {approval['ts']}." in transcript()
+
+    event_model.append_event(
+        page_dir, {"kind": "undo", "author": "user", "undoes": approval["id"]}
+    )
+    assert "Approved" not in transcript()
 
 
 def test_server_makes_attempt_identity_atomic_without_deduplicating_content(
@@ -1839,7 +1859,7 @@ def test_an_accepted_event_response_is_state_through_that_event(server, page_dir
     assert answer["state"]["events"][-1]["attempt"] == sent["attempt"]
 
 
-def test_action_door_owns_generated_child_snapshots(server, page_dir):
+def test_action_door_owns_created_child_meaning(server, page_dir):
     version = page_dir / "index.html"
     version.write_text(
         version.read_text().replace(
@@ -1855,31 +1875,34 @@ def test_action_door_owns_generated_child_snapshots(server, page_dir):
         "kind": "action",
         "revision": 1,
         "widget": "delivery",
-        "action": "choose",
-        "detail": {
-            "options": ["delivery-user-z"],
-            "additions": {
-                "delivery-user-z": "After the health check",
-                "delivery-user-a": "Before the maintenance window",
-            },
-        },
+        "action": "add",
+        "detail": {"option": "delivery-user", "text": "After the health check"},
     }
 
     command = {**base, "attempt": "attempt-generated-good"}
     status, body = fetch(f"{server}/api/event", data=json.dumps(command).encode())
     assert status == 200, body
     accepted = json.loads(body)["state"]["events"][-1]
-    assert accepted["generated"] == ["delivery-user-a", "delivery-user-z"]
-    assert accepted["meaning"]["coordinate"] == ["delivery", "delivery", "selection"]
+    # The created option is the action's own unit, and the stamp names its tag.
+    assert accepted["meaning"]["unit"] == "delivery-user"
+    assert accepted["meaning"]["creates"] == "lf-option"
     # The server's enrichment does not alter retry identity.
     status, body = fetch(f"{server}/api/event", data=json.dumps(command).encode())
     assert status == 200, body
     assert json.loads(body)["state"]["events"][-1]["id"] == accepted["id"]
-    for field, value in (("generated", []), ("meaning", accepted["meaning"])):
-        forged = {**base, field: value, "attempt": "attempt-forged-" + field}
-        status, body = fetch(f"{server}/api/event", data=json.dumps(forged).encode())
-        assert status == 400, body
-        assert field in json.loads(body)["error"]
+    forged = {
+        **base,
+        "meaning": accepted["meaning"],
+        "attempt": "attempt-forged-meaning",
+    }
+    status, body = fetch(f"{server}/api/event", data=json.dumps(forged).encode())
+    assert status == 400, body
+    assert "meaning" in json.loads(body)["error"]
+    # An authored option is not the user's to write into being.
+    authored = {**base, "detail": {"option": "delivery-now", "text": "Now again"}}
+    status, body = fetch(f"{server}/api/event", data=json.dumps(authored).encode())
+    assert status == 400, body
+    assert "already names an authored element" in json.loads(body)["error"]
 
 
 def test_browser_state_is_the_same_snapshot_as_an_accepted_action(server, page_dir):
@@ -1921,13 +1944,12 @@ def test_browser_state_is_the_same_snapshot_as_an_accepted_action(server, page_d
     assert view["basis"] == {"revision": 1, "through_seq": accepted["seq"]}
     assert browser["receipts"][-1]["id"] == accepted["id"]
     assert entry["event"]["id"] == accepted["id"]
-    assert entry["coordinate"] == ["delivery", "delivery", "selection"]
-    assert entry["spec"]["facet"] == "selection"
+    assert entry["coordinate"] == ["delivery", "delivery", "choose"]
     assert entry["value"] == ["delivery-now"]
     assert view["document"]["projection"]["actions"] == [accepted["id"]]
     assert view["undo"][0]["event"]["id"] == accepted["id"]
     assert view["coverage"] == [
-        {"event": accepted, "coordinate": ["delivery", "delivery", "selection"]}
+        {"event": accepted, "coordinate": ["delivery", "delivery", "choose"]}
     ]
 
 
@@ -1993,7 +2015,6 @@ def test_undo_offer_keeps_the_doors_active_page_containment(page_dir):
         1: structure_model.SourceDocument(old_page),
         2: structure_model.SourceDocument(new_page),
     }
-    let_a_pick_settle_a_thread(page_dir)
     (page_dir / "index.html").write_text(old_page)
     publish(page_dir, 1)
     reaction = event_model.append_event(
@@ -2008,11 +2029,10 @@ def test_undo_offer_keeps_the_doors_active_page_containment(page_dir):
             "revision": 1,
             "widget": "picks",
             "action": "choose",
-            "detail": {"options": ["flag-first"], "resolves": reaction["id"]},
-            "generated": [],
+            "detail": {"options": ["flag-first"]},
             "meaning": {
-                "document": {"kind": "page", "revision": 1},
-                "coordinate": ["picks", "picks", "selection"],
+                "document": "page",
+                "unit": "picks",
                 "depends": ["flag-first", "picks"],
                 "answer": reaction["id"],
             },
@@ -2376,7 +2396,7 @@ def test_server_validates_an_action_against_its_version_and_widget(server, page_
                 "revision": 1,
                 "widget": "feeder-board",
                 "action": "move",
-                "detail": {"card": "card-baffle", "to": "col-doing", "index": 0},
+                "detail": {"card": "card-baffle", "to": "col-doing", "rank": "0i"},
             },
             "unknown action widget",
         ),
@@ -2386,7 +2406,7 @@ def test_server_validates_an_action_against_its_version_and_widget(server, page_
                 "revision": 2,
                 "widget": "flow",
                 "action": "move",
-                "detail": {"card": "card-baffle", "to": "col-doing", "index": 0},
+                "detail": {"card": "card-baffle", "to": "col-doing", "rank": "0i"},
             },
             "<lf-diagram> does not declare action verb",
         ),
@@ -2396,9 +2416,19 @@ def test_server_validates_an_action_against_its_version_and_widget(server, page_
                 "revision": 2,
                 "widget": "feeder-board",
                 "action": "move",
-                "detail": {"card": "card-baffle", "to": "col-doing", "index": -1},
+                "detail": {"card": "card-baffle", "to": "col-doing", "rank": 0},
             },
             "detail is invalid",
+        ),
+        (
+            {
+                "kind": "action",
+                "revision": 2,
+                "widget": "feeder-board",
+                "action": "move",
+                "detail": {"card": "card-baffle", "to": "col-doing", "rank": "10"},
+            },
+            "rank '10' is not a rank key",
         ),
     ]
     before = len(event_model.read_events(page_dir))
@@ -2415,7 +2445,7 @@ def test_server_validates_an_action_against_its_version_and_widget(server, page_
         "revision": 2,
         "widget": "feeder-board",
         "action": "move",
-        "detail": {"card": "card-baffle", "to": "col-doing", "index": 0},
+        "detail": {"card": "card-baffle", "to": "col-doing", "rank": "0i"},
     }
     assert fetch(f"{server}/api/event", data=json.dumps(valid).encode())[0] == 200
 
@@ -2470,6 +2500,25 @@ def test_server_admits_only_a_widget_declared_host_request(server, page_dir):
         )
         assert status == 400, body
         assert message in json.loads(body)["error"]
+
+    # The task's status is the worker's verb; the browser door refuses a user's.
+    status, body = fetch(
+        f"{server}/api/event",
+        data=json.dumps(
+            {
+                "kind": "action",
+                "revision": 1,
+                "widget": "goal",
+                "action": "status",
+                "detail": {"status": "done"},
+            }
+        ).encode(),
+    )
+    assert status == 400, body
+    assert (
+        "'status' is a verb the agent writes; this action came from the user"
+        in (json.loads(body)["error"])
+    )
 
     status, body = fetch(
         f"{server}/api/event",
@@ -3075,7 +3124,7 @@ def test_server_preserves_the_active_vocabulary_when_candidate_registry_is_broke
                 "revision": 1,
                 "widget": "feeder-board",
                 "action": "move",
-                "detail": {"card": "card-baffle", "to": "col-doing", "index": 0},
+                "detail": {"card": "card-baffle", "to": "col-doing", "rank": "0i"},
             }
         ).encode(),
     )
@@ -3164,360 +3213,6 @@ def test_server_resolves_actions_from_agent_thread_widgets(server, page_dir):
     )
     assert status == 400
     assert "unknown action widget" in json.loads(body)["error"]
-
-
-@pytest.mark.parametrize("in_thread", [False, True])
-def test_server_refuses_a_stale_action_after_a_selection_facet_is_answered(
-    server, page_dir, in_thread
-):
-    """A child attribute record closes the sender's standing decision."""
-    registry = json.loads((page_dir / "registry.json").read_text())
-    registry["lf-options"]["x-state"]["defer"] = {
-        "detail": {"type": "object", "additionalProperties": False},
-        "facet": "deferral",
-        "unit": "widget",
-        "requires": {"target": "self", "awaiting": True},
-    }
-    (page_dir / "registry.json").write_text(json.dumps(registry))
-    version = page_dir / "index.html"
-    version.write_text(
-        version.read_text().replace(
-            "</section>",
-            '<lf-ask id="eligibility-decision"><h3>Which option?</h3>'
-            '<lf-options id="eligibility-options" choose>'
-            '<lf-option id="eligibility-a">A</lf-option>'
-            '<lf-option id="eligibility-b">B</lf-option>'
-            "</lf-options></lf-ask></section>",
-        )
-    )
-
-    publish(page_dir)
-    revision = files_model.latest_revision(page_dir)
-    widget = "eligibility-options"
-    option = "eligibility-a"
-    if in_thread:
-        event_model.append_event(
-            page_dir,
-            {
-                "kind": "comment",
-                "id": "c-eligibility",
-                "author": "user",
-                "revision": revision,
-                "text": "change this task",
-            },
-        )
-        reply = CliRunner().invoke(
-            cli_model.cli,
-            [
-                "reply",
-                str(page_dir),
-                "--to",
-                "c-eligibility",
-                "--for",
-                "c-eligibility",
-                "--text",
-                "Here it is:",
-                "--markup",
-                (
-                    '<lf-ask id="thread-options-decision"><h3>Which option?</h3>'
-                    '<lf-options id="thread-options" choose>'
-                    '<lf-option id="thread-a">A</lf-option>'
-                    '<lf-option id="thread-b">B</lf-option>'
-                    "</lf-options></lf-ask>"
-                ),
-            ],
-        )
-        assert reply.exit_code == 0, reply.output
-        widget = "thread-options"
-        option = "thread-a"
-
-    choose = {
-        "kind": "action",
-        "revision": revision,
-        "widget": widget,
-        "action": "choose",
-        "detail": {"options": [option]},
-    }
-    nonanswer = {**choose, "action": "defer", "detail": {}}
-    assert fetch(f"{server}/api/event", data=json.dumps(nonanswer).encode())[0] == 200
-    assert fetch(f"{server}/api/event", data=json.dumps(nonanswer).encode())[0] == 200
-    assert fetch(f"{server}/api/event", data=json.dumps(choose).encode())[0] == 200
-    before = len(event_model.read_events(page_dir))
-
-    status_code, body = fetch(
-        f"{server}/api/event", data=json.dumps(nonanswer).encode()
-    )
-
-    assert status_code == 400
-    assert "action 'defer' is unavailable" in json.loads(body)["error"]
-    assert "no longer awaiting the user" in json.loads(body)["error"]
-    assert len(event_model.read_events(page_dir)) == before
-
-
-def test_a_seat_conversation_does_not_lock_out_the_answer_it_is_about(server, page_dir):
-    """A remark in the widget's own seat leaves the pick that would answer it open.
-
-    Two readings of one reducer, and this door takes the one that asks whether the
-    request is *answered*. A conversation standing in the seat takes the request off
-    the user's list — the banner stops counting it, and
-    `test_page_state_takes_a_seated_question_off_the_users_list` holds that — but
-    it records nothing: the group still holds no pick and its controls still offer
-    one. A gate reading the user's list instead would refuse the pick for the
-    user's having written in the box the page put under the question, which is
-    refusing them the answer they were asked for. It would also refuse it silently:
-    `lf-options` paints a pick before this door sees it, so the option would flip,
-    nothing would be logged, no notice would fire, and the next poll would put it
-    back."""
-    registry = json.loads((page_dir / "registry.json").read_text())
-    registry["lf-options"]["x-state"]["choose"]["requires"] = {
-        "target": "self",
-        "awaiting": True,
-    }
-    (page_dir / "registry.json").write_text(json.dumps(registry))
-    version = page_dir / "index.html"
-    version.write_text(
-        version.read_text().replace(
-            "</section>",
-            '<lf-ask id="seated-decision"><h3>Which option?</h3>'
-            '<lf-options id="seated-options" choose>'
-            '<lf-option id="seated-a">A</lf-option>'
-            '<lf-option id="seated-b">B</lf-option>'
-            "</lf-options></lf-ask></section>",
-        )
-    )
-    publish(page_dir)
-    revision = files_model.latest_revision(page_dir)
-    event_model.append_event(
-        page_dir,
-        {
-            "kind": "comment",
-            "author": "user",
-            "revision": revision,
-            "anchor": {"section": "seated-options"},
-            "text": "neither — cap the retries instead",
-        },
-    )
-    choose = {
-        "kind": "action",
-        "revision": revision,
-        "widget": "seated-options",
-        "action": "choose",
-        "detail": {"options": ["seated-a"]},
-    }
-    status_code, body = fetch(f"{server}/api/event", data=json.dumps(choose).encode())
-    assert status_code == 200, body
-    # And the answer does close it, so the gate is reading the request rather than
-    # ignoring the declaration outright.
-    again = {**choose, "detail": {"options": ["seated-b"]}}
-    status_code, body = fetch(f"{server}/api/event", data=json.dumps(again).encode())
-    assert status_code == 400
-    assert "no longer awaiting the user" in json.loads(body)["error"]
-
-
-def test_server_checks_recursive_parent_prerequisite_under_append_lock(
-    server, page_dir
-):
-    """A custom scalar reads the declared roll-up, including request phases."""
-    registry = json.loads((page_dir / "registry.json").read_text())
-    registry["lf-task"]["x-awaits"]["rollup"] = True
-    scalar = {"type": "string", "pattern": "^[0-9]+$"}
-    detail = {
-        "type": "object",
-        "properties": {"slots": scalar},
-        "required": ["slots"],
-        "additionalProperties": False,
-    }
-    record = {"kind": "value", "attr": "slots", "value": "slots"}
-    registry["lf-quota"] = {
-        "description": "A project-defined absolute scalar control.",
-        "type": "object",
-        "properties": {
-            "id": {"type": "string"},
-            "slots": scalar,
-            "restated": {"type": "boolean"},
-        },
-        "required": ["id", "slots"],
-        "additionalProperties": False,
-        "x-owners": ["lf-task"],
-        "x-content": "empty",
-        "x-upgrade": True,
-        "x-state": {
-            "move": {
-                "detail": {
-                    "type": "object",
-                    "properties": {
-                        "to": {"type": "string"},
-                        "index": {"type": "integer", "minimum": 0},
-                    },
-                    "required": ["to", "index"],
-                    "additionalProperties": False,
-                },
-                "facet": "placement",
-                "unit": "widget",
-                "record": {
-                    "kind": "position",
-                    "within": "lf-task",
-                    "value": "to",
-                    "order": "index",
-                },
-            },
-            "increase": {
-                "detail": detail,
-                "facet": "capacity",
-                "unit": "widget",
-                "record": record,
-                "requires": {
-                    "target": "owner",
-                    "awaiting": False,
-                },
-            },
-            "decrease": {
-                "detail": detail,
-                "facet": "capacity",
-                "unit": "widget",
-                "record": record,
-            },
-        },
-    }
-    (page_dir / "registry.json").write_text(json.dumps(registry))
-    (page_dir / "widgets" / "lf-quota.js").write_text("export default class {}\n")
-    version = page_dir / "index.html"
-    version.write_text(
-        version.read_text().replace(
-            "</section>",
-            '<lf-tasks id="quota-tasks"><lf-task id="quota-task" status="blocked">'
-            "<strong>Task</strong>"
-            '<lf-agent id="quota-worker" state="waiting" on="quota-task">'
-            '<strong>Worker</strong><lf-worktree id="quota-tree" '
-            'source="project-worktrees"></lf-worktree></lf-agent>'
-            '<lf-quota id="quota" slots="1"></lf-quota>'
-            '<lf-ask id="quota-intervention-decision"><h3>Proceed?</h3>'
-            '<lf-options id="quota-intervention" choose>'
-            '<lf-option id="quota-ready" chosen>Ready</lf-option>'
-            "</lf-options></lf-ask>"
-            '<lf-ask id="quota-operations-decision"><h3>Restart?</h3>'
-            '<lf-operations id="quota-operations" target="quota-task" '
-            'worker="quota-worker" worktree="quota-tree">'
-            '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
-            "</lf-operations></lf-ask>"
-            '<lf-task id="quota-child" status="active"><strong>Child</strong>'
-            '<lf-ask id="quota-child-decision"><h3>Is the child ready?</h3>'
-            '<lf-options id="quota-child-review" choose>'
-            '<lf-option id="quota-child-ready">Ready</lf-option>'
-            "</lf-options></lf-ask></lf-task>"
-            "</lf-task>"
-            '<lf-task id="quota-destination" status="active">'
-            "<strong>Destination</strong></lf-task>"
-            "</lf-tasks></section>",
-        )
-    )
-    publish(page_dir)
-    revision = files_model.latest_revision(page_dir)
-
-    event = {
-        "kind": "action",
-        "revision": revision,
-        "widget": "quota",
-        "action": "increase",
-        "detail": {"slots": "2"},
-    }
-    # The policy choice is answered, but the ready host operation is still the
-    # user's turn and therefore closes an action requiring the parent not to ask.
-    status, body = fetch(f"{server}/api/event", data=json.dumps(event).encode())
-    assert status == 400
-    assert "still awaiting the user" in json.loads(body)["error"]
-
-    requested = {
-        "kind": "request",
-        "revision": revision,
-        "widget": "quota-operations",
-        "action": "restart",
-        "detail": {
-            "target": "quota-task",
-            "worker": "quota-worker",
-            "worktree": "quota-tree",
-        },
-    }
-    assert fetch(f"{server}/api/event", data=json.dumps(requested).encode())[0] == 200
-
-    append_command(
-        page_dir,
-        {
-            "kind": "report",
-            "author": "agent",
-            "revision": revision,
-            "widget": "quota-task",
-            "action": "status",
-            "detail": {"status": "blocked"},
-        },
-    )
-    append_command(
-        page_dir,
-        {
-            "kind": "report",
-            "author": "agent",
-            "revision": revision,
-            "widget": "quota-child",
-            "action": "status",
-            "detail": {"status": "blocked"},
-        },
-    )
-    # Work status remains orthogonal, while the open child request keeps the parent
-    # aggregate awaiting even though its direct intervention is answered.
-    status, body = fetch(f"{server}/api/event", data=json.dumps(event).encode())
-    assert status == 400
-    assert "still awaiting the user" in json.loads(body)["error"]
-
-    child_choice = {
-        "kind": "action",
-        "revision": revision,
-        "widget": "quota-child-review",
-        "action": "choose",
-        "detail": {"options": ["quota-child-ready"]},
-    }
-    assert (
-        fetch(f"{server}/api/event", data=json.dumps(child_choice).encode())[0] == 200
-    )
-    assert fetch(f"{server}/api/event", data=json.dumps(event).encode())[0] == 200
-
-    # Clearing the direct answer reopens that intervention and closes capacity under
-    # the same lock.
-    choose = {
-        "kind": "action",
-        "revision": revision,
-        "widget": "quota-intervention",
-        "action": "choose",
-        "detail": {"options": []},
-    }
-    assert fetch(f"{server}/api/event", data=json.dumps(choose).encode())[0] == 200
-    increase = {**event, "detail": {"slots": "4"}}
-    status, body = fetch(f"{server}/api/event", data=json.dumps(increase).encode())
-    assert status == 400
-    assert "still awaiting the user" in json.loads(body)["error"]
-
-    decrease = {**event, "action": "decrease", "detail": {"slots": "0"}}
-    assert fetch(f"{server}/api/event", data=json.dumps(decrease).encode())[0] == 200
-
-    # Placement is projected too. After the absolute move, admission reads the
-    # active destination rather than the blocked parent in authored markup.
-    move = {
-        "kind": "action",
-        "revision": revision,
-        "widget": "quota",
-        "action": "move",
-        "detail": {"to": "quota-destination", "index": 0},
-    }
-    assert fetch(f"{server}/api/event", data=json.dumps(move).encode())[0] == 200
-    increase_after_move = {**event, "detail": {"slots": "1"}}
-    assert (
-        fetch(f"{server}/api/event", data=json.dumps(increase_after_move).encode())[0]
-        == 200
-    )
-    assert [
-        logged["action"]
-        for logged in event_model.read_events(page_dir)
-        if logged["kind"] == "action"
-    ] == ["choose", "increase", "choose", "decrease", "move", "increase"]
 
 
 def test_server_admits_an_action_using_its_captured_vocabulary_after_revendoring(
@@ -3706,7 +3401,7 @@ def test_event_ids_are_unique_within_the_log_whatever_the_mint_returns(
             page_dir,
             {
                 "id": first["id"],
-                "meaning": {"document": {"kind": "page", "revision": 1}},
+                "meaning": {"document": "page"},
                 "kind": "request",
                 "author": "user",
                 "revision": 1,
@@ -4517,10 +4212,10 @@ def test_a_page_snapshot_stays_on_one_page_reading(page_dir):
         page_dir, "patches", schema, contract="patch-list", activate=False
     )
     registry = json.loads((page_dir / "registry.json").read_text())
-    registry["$data"]["contracts"]["patch-list"]["fragments"] = {
+    registry["$data"]["contracts"]["patch-list"]["records"] = {
         "items": "files",
         "key": "key",
-        "value": "patch",
+        "deferred": "patch",
     }
     (page_dir / "registry.json").write_text(json.dumps(registry))
     activated = revisioning_model.activate_source(
@@ -4793,41 +4488,130 @@ def test_a_stated_host_binds_every_interface_without_recording_before_serve(
     assert server_model.page_access(page_dir) == service
 
 
-def test_a_refused_request_line_writes_nothing_into_the_pipe_nobody_drains(page_dir):
-    """A detached serve's streams are pipes its parent stops reading once the URL is
-    in hand, so anything the server says after that accumulates until the pipe is full
-    and the write blocks. On the serving loop, that write stops the page answering at
-    all. The page's own routes say nothing there, and the server under them is silenced
-    where it is built, so the refusals a scanner or a stray client provokes cost the
-    pipe nothing.
+def test_a_stop_ends_a_server_whose_caller_left_while_it_announced(page_dir, spawn):
+    """A serving child whose caller goes away before committing its start
+    withdraws it, and that withdrawal is a transition of its own. A stop arriving
+    after the child took its lease must wait for the lease without holding the
+    transition, or the two block each other forever.
+
+    A caller that reads the announcement and never acknowledges it holds the child
+    there with its lease taken and its record enabled; closing its end of the
+    handshake is the caller leaving.
     """
     assert service_model.claim_page(page_dir)
-    started = hosting_model.start_server(page_dir)
-    assert started, "the detached server did not start"
+    caller, end = socket.socketpair()
+    child = spawn(
+        [
+            *LEAF_COMMAND,
+            "server",
+            "_serve",
+            str(page_dir),
+            "--handshake",
+            str(end.fileno()),
+        ],
+        pass_fds=(end.fileno(),),
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        start_new_session=True,
+    )
+    end.close()
+    caller.settimeout(30)
     try:
-        url = started[0]
-        netloc = urllib.parse.urlsplit(url).netloc
-        host, _, port = netloc.partition(":")
-        # More refusals than the 64 KiB pipe would hold of uvicorn's own line about
-        # them: at 31 bytes each, 2,500 is past where a talking server would stall.
-        for _ in range(2500):
-            speaker = socket.create_connection((host, int(port)), timeout=10)
-            try:
-                speaker.sendall(b"NOT-A-REQUEST\r\n\r\n")
-            except (BrokenPipeError, ConnectionResetError):
-                pass
-            finally:
-                speaker.close()
-        # Read with an end of its own: a page stopped by a full pipe leaves the
-        # kernel accepting from the backlog and nothing answering, so a read without
-        # one would hang here rather than name what it was waiting for.
-        key = urllib.parse.parse_qs(urllib.parse.urlsplit(url).query)["t"][0]
-        with urllib.request.urlopen(
-            f"http://{netloc}/api/state?t={key}", timeout=30
-        ) as answered:
-            assert answered.status == 200
+        assert "url" in json.loads(caller.makefile("rb").readline())
+        service = page_dir / "service.json"
+        assert json.loads(service.read_text())["enabled"]
+        stopped = []
+        stopping = threading.Thread(
+            target=lambda: stopped.append(hosting_model.cmd_stop(page_dir)),
+            daemon=True,
+        )
+        stopping.start()
+        wait_for(
+            lambda: not json.loads(service.read_text())["enabled"],
+            bool,
+            failure="the stop did not disable the record",
+        )
     finally:
-        hosting_model.cmd_stop(page_dir)
+        caller.close()
+    stopping.join(timeout=30)
+    assert stopped == ["stopped server"]
+    assert child.wait(timeout=10) is not None
+    assert not json.loads(service.read_text())["enabled"]
+
+
+def test_a_start_whose_caller_left_before_committing_leaves_no_service(
+    page_dir, monkeypatch
+):
+    """The caller's acknowledgement is the start's commit. One interrupted after
+    the child announced, but before it acknowledged, gives the claim back — and the
+    server it started withdraws rather than staying up unclaimed behind a start
+    its caller reported as failed."""
+    claim_file = service_model.claim_path(page_dir)
+    assert not claim_file.exists()
+
+    def interrupted(_socket, _data):
+        # The caller has read the announcement; the commit is its next write.
+        raise KeyboardInterrupt
+
+    with monkeypatch.context() as patched:
+        patched.setattr(detached_model.socket.socket, "sendall", interrupted)
+        with pytest.raises(KeyboardInterrupt):
+            hosting_model.claim_and_start(page_dir)
+
+    assert not claim_file.exists(), "the uncommitted start kept its claim"
+    wait_for(
+        lambda: not leases_model.lock_is_held(page_dir / "server.lock"),
+        bool,
+        failure="the server stayed up after its caller left uncommitted",
+    )
+    assert not json.loads((page_dir / "service.json").read_text())["enabled"]
+
+
+def test_stop_does_not_wait_forever_on_a_server_started_after_its_transition(
+    page_dir, monkeypatch
+):
+    assert service_model.claim_page(page_dir)
+    assert hosting_model.start_server(page_dir, standing=True)
+    transitioned = threading.Event()
+    resume = threading.Event()
+    original_flocked = hosting_model.flocked
+    stopping = None
+
+    @contextmanager
+    def pause_after_transition(path):
+        with original_flocked(path):
+            yield
+        if (
+            threading.current_thread() is stopping
+            and path == leases_model.transition_lock(page_dir)
+        ):
+            transitioned.set()
+            assert resume.wait(10)
+
+    monkeypatch.setattr(hosting_model, "flocked", pause_after_transition)
+    stopped = []
+    stopping = threading.Thread(
+        target=lambda: stopped.append(hosting_model.cmd_stop(page_dir)), daemon=True
+    )
+    try:
+        stopping.start()
+        assert transitioned.wait(10)
+        wait_for(
+            lambda: not leases_model.lock_is_held(page_dir / "server.lock"),
+            bool,
+            failure="the first server did not release its lease",
+        )
+        assert hosting_model.start_server(page_dir, standing=True)
+        resume.set()
+        stopping.join(timeout=3)
+        assert stopped == ["stopped server"]
+    finally:
+        resume.set()
+        files_model.write_json(
+            page_dir / "service.json",
+            {**files_model.read_json(page_dir / "service.json"), "enabled": False},
+        )
+        stopping.join(timeout=10)
 
 
 def test_an_upgrade_is_answered_by_the_key_gate_like_any_other_request(server):
@@ -4971,25 +4755,14 @@ def test_a_failed_host_key_publish_removes_its_staged_secret(monkeypatch):
     assert not (machine_model.state_home() / "access.json").exists()
 
 
-def test_start_server_spawns_the_public_entrypoint(page_dir, monkeypatch):
+def test_start_server_forwards_its_flags_to_the_serving_child(page_dir, monkeypatch):
     calls = []
 
-    class Pipe:
-        def readline(self):
-            return "http://127.0.0.1:41234/?t=test\n"
+    def start_detached(arguments, **options):
+        calls.append(arguments)
+        return {"url": "http://127.0.0.1:41234/?t=test"}
 
-        def read(self):
-            return ""
-
-    class Child:
-        stdout = Pipe()
-        stderr = Pipe()
-
-    def popen(command, **options):
-        calls.append((command, options))
-        return Child()
-
-    monkeypatch.setattr(hosting_model.subprocess, "Popen", popen)
+    monkeypatch.setattr(hosting_model, "start_detached", start_detached)
 
     started = hosting_model.start_server(
         page_dir,
@@ -5000,24 +4773,15 @@ def test_start_server_spawns_the_public_entrypoint(page_dir, monkeypatch):
 
     assert started[0] == "http://127.0.0.1:41234/?t=test"
     assert calls == [
-        (
-            [
-                *LEAF_COMMAND,
-                "server",
-                "_serve",
-                str(page_dir),
-                "--host",
-                "page.example",
-                "--standing",
-                "--revive",
-            ],
-            {
-                "stdout": subprocess.PIPE,
-                "stderr": subprocess.PIPE,
-                "text": True,
-                "start_new_session": True,
-            },
-        )
+        [
+            "server",
+            "_serve",
+            str(page_dir),
+            "--host",
+            "page.example",
+            "--standing",
+            "--revive",
+        ]
     ]
 
 
@@ -5450,55 +5214,6 @@ def test_a_hold_comment_can_only_hold_its_declared_exact_section(server, page_di
         status, body = fetch(f"{server}/api/event", data=json.dumps(bad).encode())
         assert status == 400
         assert "matching x-conversation hold target" in json.loads(body)["error"]
-
-
-def test_a_version_response_comment_requires_its_declared_exact_section(
-    server, page_dir
-):
-    version = page_dir / "index.html"
-    version.write_text(PAGE.replace("<lf-options>", '<lf-options id="choice" choose>'))
-    registry_path = page_dir / "registry.json"
-    registry = json.loads(registry_path.read_text())
-    registry["lf-options"]["x-conversation"] = {
-        "when": {"choose": [True]},
-        "response": {"kind": "version", "verb": "choose"},
-    }
-    registry_path.write_text(json.dumps(registry))
-    publish(page_dir)
-    event = {
-        "kind": "comment",
-        "revision": 1,
-        "text": "Add the camera first.",
-        "anchor": {"section": "choice"},
-        "response": {"kind": "version", "verb": "choose"},
-        "attempt": "version_response_good_1",
-    }
-
-    status, body = fetch(f"{server}/api/event", data=json.dumps(event).encode())
-
-    assert status == 200, body
-    assert event_model.read_events(page_dir)[-1]["response"] == {
-        "kind": "version",
-        "verb": "choose",
-    }
-
-    forged = {
-        **event,
-        "anchor": {"section": "plan"},
-        "attempt": "version_response_forged_1",
-    }
-    status, body = fetch(f"{server}/api/event", data=json.dumps(forged).encode())
-    assert status == 400
-    assert "exact-section x-conversation response target" in json.loads(body)["error"]
-
-    wrong_verb = {
-        **event,
-        "response": {"kind": "version", "verb": "answer"},
-        "attempt": "version_response_wrong_verb_1",
-    }
-    status, body = fetch(f"{server}/api/event", data=json.dumps(wrong_verb).encode())
-    assert status == 400
-    assert "exact-section x-conversation response target" in json.loads(body)["error"]
 
 
 def test_stamp_keeps_its_checked_log_snapshot_until_the_note(monkeypatch, page_dir):

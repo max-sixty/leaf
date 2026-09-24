@@ -144,7 +144,7 @@ def test_packages_and_panel_share_threads_through_gestures_and_authored_content(
         page.locator("#north .lf-pick").click()
     round_trip(page)
     assert reader.evaluate("""node => node.reading.threads[0].msgs[1].body.units
-      .find(unit => unit.id === 'direction').state.selection.value""") == ["north"]
+      .find(unit => unit.id === 'direction').state.choose.value""") == ["north"]
 
     held = []
     page.route("**/api/event", lambda route: held.append(route))
@@ -339,9 +339,6 @@ customElements.define("lf-local", class extends LitElement {
       kind: "action",
       verb: "choose",
       detail: { choice: "chosen" },
-      references: {
-        source: this.controller.reference(document.getElementById("live-reading")),
-      },
     });
     if (!sent) return;
     this.reading = sent.reading;
@@ -358,7 +355,7 @@ customElements.define("lf-local", class extends LitElement {
         Number(globalThis.__failedLocalRenders || 0) + 1;
       throw new Error("deliberate render failure");
     }
-    this.dataset.renderedChoice = state.choice.value;
+    this.dataset.renderedChoice = state.choose.value;
     this.dataset.renderOrder = `${this.dataset.renderOrder || ""}render,`;
     this.requestUpdate();
   }
@@ -371,7 +368,7 @@ customElements.define("lf-local", class extends LitElement {
   }
 
   render() {
-    const choice = this.reading.state.choice?.value ?? this.getAttribute("choice");
+    const choice = this.reading.state.choose?.value ?? this.getAttribute("choice");
     const available = this.reading.actions.choose?.available ?? false;
     return html`<button ?disabled=${!available} @click=${this.choose}>Choose</button>
       <output>${choice}</output>`;
@@ -388,9 +385,9 @@ STARTUP_PROJECTION_WIDGET = PAGE_WIDGET.replace(
     }
     const held = globalThis.__heldLocalPresentations?.get(this.id);""",
 ).replace(
-    "    this.dataset.renderedChoice = state.choice.value;",
+    "    this.dataset.renderedChoice = state.choose.value;",
     """\
-    this.dataset.renderedChoice = state.choice.value;
+    this.dataset.renderedChoice = state.choose.value;
     this.dataset.controllerRenders = String(
       Number(this.dataset.controllerRenders || 0) + 1
     );""",
@@ -622,10 +619,8 @@ PAGE_DECLARATION = {
                     "required": ["choice"],
                     "additionalProperties": False,
                 },
-                "facet": "choice",
                 "unit": "widget",
                 "record": {"kind": "value", "attr": "choice", "value": "choice"},
-                "references": {"source": {}},
             }
         },
         "x-example": '<lf-local id="local-example" choice="idle"></lf-local>',
@@ -725,8 +720,6 @@ def test_page_owned_registry_and_widget_use_the_captured_public_api(browser, ser
     source = LIVE_V1.replace(
         '<h1 id="live-title">Live first</h1>',
         '<h1 id="live-title">Live first</h1>'
-        '<section id="reference-section"><p data-reference-source>Source</p>'
-        "<strong data-reference-removal>Removal</strong></section>"
         '<lf-local id="page-local" choice="idle"></lf-local>'
         '<lf-ask id="package-ask"><h2>Package choice</h2>'
         '<lf-options id="package-options" choose>'
@@ -746,75 +739,8 @@ def test_page_owned_registry_and_widget_use_the_captured_public_api(browser, ser
 
     expect(page.locator("#page-local")).to_have_attribute("data-page-widget", "ready")
     expect(page.locator("#package-options .lf-pick")).to_have_count(2)
-    reference_contract = page.evaluate(
-        """() => {
-          const controller = document.querySelector('#page-local').controller;
-          const invalid = [];
-          for (const references of [
-            undefined,
-            {source: {kind: 'id', id: 'live-reading'}, extra: {kind: 'id', id: 'x'}},
-            {source: {kind: 'id', id: ''}},
-          ]) {
-            try {
-              controller.dispatch({
-                kind: 'action', verb: 'choose', detail: {choice: 'chosen'}, references,
-              });
-              invalid.push(false);
-            } catch (error) {
-              invalid.push(error instanceof TypeError);
-            }
-          }
-          return {
-            invalid,
-            source: controller.reference(document.getElementById('live-reading')),
-            structural: controller.reference(document.querySelector('[data-reference-source]')),
-            ambiguous: (() => {
-              const section = document.getElementById('reference-section');
-              section.append(document.createElement('p'));
-              try {
-                controller.reference(section.querySelector('p'));
-                return false;
-              } catch (error) {
-                return error instanceof TypeError;
-              }
-            })(),
-          };
-        }"""
-    )
-    assert reference_contract == {
-        "invalid": [True, True, True],
-        "source": {"kind": "id", "id": "live-reading"},
-        "structural": {
-            "kind": "structure",
-            "anchor": "reference-section",
-            "path": [{"tree": "light", "tag": "p"}],
-        },
-        "ambiguous": True,
-    }
-
     held = []
     page.route("**/api/event", lambda route: held.append(route))
-    stale_references = page.evaluate(
-        """(structural) => {
-          const controller = document.querySelector('#page-local').controller;
-          const removal = document.querySelector('[data-reference-removal]');
-          const detached = controller.reference(removal);
-          removal.remove();
-          const dispatch = (reference) => controller.dispatch({
-            kind: 'action',
-            verb: 'choose',
-            detail: {choice: 'chosen'},
-            references: {source: reference},
-          });
-          return {
-            ambiguous: dispatch(structural),
-            detached: dispatch(detached),
-          };
-        }""",
-        reference_contract["structural"],
-    )
-    assert stale_references == {"ambiguous": None, "detached": None}
-    assert held == []
     deferred_at = page.evaluate(
         "window.pageLocal = document.querySelector('#page-local'); "
         "window.resumeLocal = pageLocal.controller.defer(); "
@@ -831,9 +757,6 @@ def test_page_owned_registry_and_widget_use_the_captured_public_api(browser, ser
     assert resumed_at == [deferred_at + 1, deferred_at + 1]
     holding(page, held, 1, "the resumed choose")
     assert len(held) == 1
-    assert held[0].request.post_data_json["references"] == {
-        "source": {"kind": "id", "id": "live-reading"}
-    }
     attempt = held[0].request.post_data_json["attempt"]
     held[0].fulfill(
         status=200,
@@ -885,7 +808,7 @@ def test_page_owned_registry_and_widget_use_the_captured_public_api(browser, ser
           });
           window.undoDelivery = sent.delivery;
           return {
-            reading: sent.reading.state.choice.value,
+            reading: sent.reading.state.choose.value,
             objectTarget,
             stale: controller.dispatch({
               kind: 'undo',
@@ -1200,12 +1123,10 @@ def test_conversation_presentation_waits_for_its_frozen_widgets_only(browser, se
             "widget": "thread-local",
             "action": "choose",
             "detail": {"choice": "chosen"},
-            "generated": [],
             "meaning": {
-                "document": {"kind": "thread"},
-                "coordinate": ["thread-local", "thread-local", "choice"],
-                "depends": ["live-reading", "thread-local"],
-                "answer": None,
+                "document": "thread",
+                "unit": "thread-local",
+                "depends": ["thread-local"],
             },
         },
     )

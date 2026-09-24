@@ -6,6 +6,7 @@ from leaf.events import (
     action_rests_on,
     active_summaries,
     build_threads,
+    event_coordinate,
     spoken_turns,
     taken_back,
 )
@@ -39,7 +40,7 @@ def specimen_events(
     memberships = thread_memberships(
         events, roots, thread_widgets(thread_structure(events), roots), document.within
     )
-    seeded = [
+    return [
         {
             **{key: value for key, value in event.items() if key != "seq"},
             **({"revision": 1} if "revision" in event else {}),
@@ -47,13 +48,6 @@ def specimen_events(
         for event in events
         if selected.intersection(memberships[event["id"]])
     ]
-    for event in seeded:
-        if event.get("meaning", {}).get("document", {}).get("kind") == "page":
-            event["meaning"] = {
-                **event["meaning"],
-                "document": {"kind": "page", "revision": 1},
-            }
-    return seeded
 
 
 def thread_roots(events: list) -> dict:
@@ -124,7 +118,7 @@ def event_threads(event: dict, roots: dict, widgets: dict) -> list:
     its frozen contract. An action also belongs to the conversation it settles,
     which admitted `meaning.answer` names — the same key `build_threads` folds on to close
     one. Those are usually different threads and often only the second exists: the
-    shipped settling verb is `lf-suggestion`'s accept, whose widget stands on the
+    shipped settling verb is `lf-suggestion`'s decide, whose widget stands on the
     page and in no conversation at all. Reading the widget alone left the gesture
     that closes a thread as the one gesture arriving with nothing behind it.
 
@@ -176,7 +170,7 @@ def thread_memberships(
         else:
             named = event_threads(event, roots, widgets)
         if event["kind"] == "action":
-            coordinate = tuple(event["meaning"]["coordinate"])
+            coordinate = event_coordinate(event)
             named = [*named, *settled_by_coordinate.get(coordinate, [])]
             if root := event["meaning"].get("answer"):
                 settled_by_coordinate.setdefault(coordinate, []).append(root)
@@ -311,7 +305,7 @@ def batch_threads(events: list, batch: list, within: dict) -> list:
     told it was answered, and neither side can see the disagreement.
 
     The actions are unfolded because folding wants the declarations that say
-    what a verb's unit and facet are, and they need no window: thread markup is
+    what a verb's unit is, and they need no window: thread markup is
     frozen, so no version bounds it and no retraction floor reaches it, and undo
     is the whole of what unseats one."""
     roots = thread_roots(events)
@@ -382,15 +376,10 @@ def batch_threads(events: list, batch: list, within: dict) -> list:
         candidate = max(runs, key=len, default=[])
         characters = sum(len(message.get("text", "")) for message in candidate)
         if len(candidate) >= 2 and (len(candidate) >= 8 or characters >= 4000):
+            # The range only: what the agent does with it is a `handling` clause.
             digest["summary_hint"] = {
                 "from": candidate[0]["id"],
                 "through": candidate[-1]["id"],
-                "operation": "conversation summarize",
-                "instruction": (
-                    "Consider summarizing this older exchange. Read the original messages "
-                    "in the suggested range first; "
-                    "keep the newer exchange outside the summary."
-                ),
             }
         digest["elided"]["actions"] = len(gestures.get(t, [])) - len(acted)
         digest["actions"] = acted

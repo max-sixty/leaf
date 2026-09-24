@@ -786,11 +786,11 @@ def told(page):
             raise AssertionError(
                 f"the page never took in what the server holds: waiting for {began}, "
                 f"the page last applied "
-                f"{page.evaluate('() => document.body.dataset.lfReading')}"
+                f"{page.evaluate('() => document.body?.dataset.lfReading')}"
             )
         try:
             page.wait_for_function(
-                "want => document.body.dataset.lfReading === want",
+                "want => document.body?.dataset.lfReading === want",
                 arg=want,
                 timeout=min(500, remaining * 1000),
                 polling=50,
@@ -1197,6 +1197,13 @@ ONE_FRAME = f"() => ({FRAMES})(1)"
 RENDERED = f"() => ({FRAMES})(2)"
 
 
+# What navigate reports when a ResizeObserver loop notice comes back on the confirming
+# navigation, so a one-off notice is dropped and a recurring one fails the test.
+RECURRING_RESIZE_NOTICE = (
+    "window error: ResizeObserver loop notice recurred on the confirming navigation"
+)
+
+
 def navigate(page, url, *, wait_until="load", ready=BOTH_STAMPS):
     """Navigate through a complete page handover, classifying only the
     ResizeObserver notices raised during that navigation.
@@ -1236,7 +1243,7 @@ def navigate(page, url, *, wait_until="load", ready=BOTH_STAMPS):
         errors.extend(notice for notice in notices if notice not in errors)
         raise
     if confirming_notices:
-        errors.append(render_gate_model.recurring_resize_observer_error("navigation"))
+        errors.append(RECURRING_RESIZE_NOTICE)
 
 
 def shortcut_bar_text(page):
@@ -1698,6 +1705,41 @@ def panel_settled(page, open=True):
     page.wait_for_function(
         "(open) => document.querySelector('.lf-thread-panel').classList.contains('open') === open",
         arg=open,
+    )
+
+
+def pane_posture(page, pane, posture):
+    """Wait until a pane is `bounded` (its body scrolls) or in `flow` (it does not).
+
+    The body is the pane's one element between its optional header and footer. Whether
+    it scrolls is the stylesheet's answer to the workspace's size, and the same fact
+    `readingPosture` reads, so this waits on the composed style rather than on any
+    attribute a script would have to keep in step with it."""
+    page.wait_for_function(
+        """([node, posture]) => {
+          const body = [...node.children].find(c => !c.matches('header, footer'));
+          const scrolls = /auto|scroll/.test(getComputedStyle(body).overflowY);
+          return (scrolls ? 'bounded' : 'flow') === posture;
+        }""",
+        arg=[pane.element_handle(), posture],
+    )
+
+
+def holds_the_window(page, block, held):
+    """Wait until a block does, or does not, fill the window with the page at rest.
+
+    A held block is the whole page: its bottom edge is inside the window and the
+    document has nothing to scroll, so the block's own panes carry what overflows. A
+    flowing block runs past the window and the page scrolls it.
+    """
+    page.wait_for_function(
+        """([node, held]) => {
+          const bottom = node.getBoundingClientRect().bottom;
+          const page = document.scrollingElement;
+          return (bottom <= innerHeight + 1
+            && page.scrollHeight <= page.clientHeight + 1) === held;
+        }""",
+        arg=[block.element_handle(), held],
     )
 
 

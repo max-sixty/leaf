@@ -22,10 +22,11 @@ import { setChildren } from "./dom-children.js";
 import { watchPassageRoot } from "./passages.js";
 import { watchExternalLinks } from "./presentation.js";
 
-// A package stylesheet that arrives with an on-demand widget module belongs wherever
-// that module can draw: the document and every declared shadow stage. Keep one
-// constructable sheet per package so a page parses it once, existing stages receive a
-// late-loaded module, and stages built after registration inherit the same sheet.
+// A third-party stylesheet that arrives with an on-demand bundle belongs wherever that
+// bundle can draw: the document and every declared shadow stage. The vendored Web
+// Awesome bundle calls this as it evaluates (scripts/vendor-src/webawesome/build.mjs).
+// Keep one constructable sheet per name so a page parses it once, existing stages
+// receive a late-loaded bundle, and stages built after registration inherit the sheet.
 // Adopted rather than written in as a <style>, against the rule the header states for a
 // stage's own two sheets: these rules dress an interface that is absent from a
 // script-free copy, so a copy has nothing left to keep them for.

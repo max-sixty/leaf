@@ -10,6 +10,16 @@ page transaction before advancing its cursor. Pickup records host acceptance or
 turn entry separately; neither settles the user's response requirement.
 Each batch carries distinct handling clause texts once, with ordered references
 on the events they apply to. Clause identities belong only to that batch.
+
+The envelope names the carrier that brings it into an agent's context, and the
+two facts that differ by carrier are stated once for the whole delivery rather
+than per event. `acknowledge` says who confirms receipt: the reader of a `leaf
+wait`, in the way its harness runs that command, or nobody, where the carrier
+confirmed it itself. And a carrier whose turn speaks for the delivery, App Server,
+turns the one thread reply the delivery owes into a `turn` answer, which that
+turn's own messages write; every other carrier leaves it a `reply` for `leaf
+reply`. Each event's `answer` is that same address, so its `answering` clauses
+follow from the answer rather than from the carrier.
 """
 
 import json
@@ -17,24 +27,26 @@ import re
 import secrets
 import sys
 import time
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
 from .event_contracts import append_admitted
 from .event_log import flocked
 from .files import read_json, write_json
+from .gesture_words import GestureWords, revisions_on_disk
 from .machine import state_home
-from .passages import active_enclosing, spoken
-from .projection import frozen_thread_reading
+from .passages import active_enclosing
 from .registry.contract import RegistryError, event_clauses
 from .registry.reactions import described
 from .registry.storage import active_registry
-from .revision_artifact import read_registry
 from .schema import CURSOR_FILE
 from .served_state.page import full_state
-from .service import PageTransaction, requires_agent_attention
-from .structure import parse_revision
+from .service import (
+    PageTransaction,
+    delivery_reply_attempt,
+    requires_agent_attention,
+)
 from .thread_context import (
     batch_threads,
     thread_memberships,
@@ -43,7 +55,13 @@ from .thread_context import (
     thread_widgets,
 )
 
-DELIVERY_FORMAT = "leaf-delivery-v2"
+DELIVERY_FORMAT = "leaf-delivery-v3"
+# The routes that carry a delivery to an agent: `leaf wait`'s output, a pointer
+# queued with `codex queue`, and a turn Leaf starts over Codex App Server.
+CARRIERS = ("wait", "queue", "app-server")
+# The one carrier whose turn writes the delivery's thread reply with its own
+# messages.
+TURN_CARRIER = "app-server"
 DELIVERY_ID = re.compile(r"[0-9a-f]{8}")
 _BATCH_FIELDS = (
     "page",
@@ -101,39 +119,6 @@ def _subject(event: dict, conversations: list[str], by_id: dict[str, dict]) -> d
     return {"kind": "page"}
 
 
-def _says(event: dict, by_id: dict[str, dict], reading) -> dict[str, str]:
-    """The words of the elements one widget gesture names, id → what it says.
-
-    A gesture is recorded as ids: the widget, the unit it folds on, the options
-    it picked. They are words only to whoever still holds the document, and an
-    agent meeting the batch after a compaction, or from another session, holds
-    none of it. The reading is the gesture's own document, the revision it
-    names or the frozen message that sent the widget, under the vocabulary that
-    document was written in, so a later version that reworded an option does
-    not change what the user chose. A child a user wrote is in no document;
-    the event's own detail carries its words. An element that only encloses
-    another named one is left out: its words repeat theirs, and a list would
-    otherwise travel whole with every row pressed in it.
-    """
-    if event["kind"] == "undo":
-        event = by_id.get(event["undoes"], event)
-    meaning = event.get("meaning")
-    if meaning is None:
-        return {}
-    said = reading(meaning["document"])
-    named = {
-        identity: said[identity]
-        for identity in meaning.get("depends", [event["widget"]])
-        if identity in said
-    }
-    enclosing = {outer for element in named.values() for outer in element.within[:-1]}
-    return {
-        identity: element.words
-        for identity, element in named.items()
-        if element.words and identity not in enclosing
-    }
-
-
 def current_responses(page_dir: Path, events: list[dict]) -> dict[str, dict]:
     """Map every event that owns an answer to its exact response address.
 
@@ -149,14 +134,10 @@ def current_responses(page_dir: Path, events: list[dict]) -> dict[str, dict]:
     }
 
 
-def batch_data(
-    page_dir: Path,
-    transaction,
-    batch: list[dict],
-    *,
-    as_of_seq: int | None = None,
-) -> dict:
-    """Freeze one complete ordered page batch for every delivery carrier."""
+def batch_data(page_dir: Path, transaction, batch: list[dict]) -> dict:
+    """Capture one complete ordered page batch, less what `freeze_delivery` writes
+    for its carrier: the route of a thread reply, and the `handling` that follows
+    from it."""
     registry = _registry(page_dir)
     events = transaction.events
     within = active_enclosing(page_dir)
@@ -171,28 +152,9 @@ def batch_data(
     )
     responses = current_responses(page_dir, events)
     by_id = {event["id"]: event for event in events}
-    through_seq = max(event["seq"] for event in batch)
-    evidence_seq = through_seq if as_of_seq is None else as_of_seq
-    readings: dict[int | None, dict] = {}
-
-    def reading(document: dict) -> dict:
-        """What one gesture's document says, read once for the whole batch. A
-        page revision keeps the registry captured with it; frozen thread markup
-        lives for the page's whole lifetime and reads under the active one."""
-        revision = document.get("revision")
-        if revision not in readings:
-            readings[revision] = (
-                frozen_thread_reading(events, registry).spoken
-                if document["kind"] == "thread"
-                else spoken(
-                    parse_revision(page_dir, revision),
-                    read_registry(page_dir, revision),
-                )
-            )
-        return readings[revision]
+    words = GestureWords(events, registry, revisions_on_disk(page_dir))
 
     captured = []
-    clause_ids: dict[str, str] = {}
     for event in batch:
         conversations = memberships.get(event["id"], [])
         entry = {
@@ -205,40 +167,99 @@ def batch_data(
         entry.pop("attempt", None)
         # What an element says is a registry's word, and a page whose active layer
         # does not read is not read for its words at all.
-        if registry is not None and (says := _says(event, by_id, reading)):
+        if registry is not None and (says := words.says(event)):
             entry["says"] = says
-        response = responses.get(event["id"])
-        obligation = (
-            {"as_of_seq": evidence_seq, "response": response}
-            if response is not None
-            else None
-        )
-        if clauses := event_clauses(
-            {**event, **({"obligation": obligation} if obligation else {})}, registry
-        ):
-            entry["handling"] = [
-                clause_ids.setdefault(clause["text"], f"h{len(clause_ids) + 1}")
-                for clause in clauses
-            ]
-        if obligation is not None:
-            entry["obligation"] = obligation
+        if (answer := responses.get(event["id"])) is not None:
+            entry["answer"] = answer
         captured.append(entry)
     return {
         "page": str(page_dir),
-        "through_seq": through_seq,
+        "through_seq": max(event["seq"] for event in batch),
         "conversations": batch_threads(events, batch, within),
-        "handling": {identity: text for text, identity in clause_ids.items()},
         "events": captured,
+    }
+
+
+def carried_answer(answer: dict, carrier: str, delivery_id: str) -> dict:
+    """The answer one captured event owes once `carrier` delivers it.
+
+    A plain reply delivered into a turn of its own is that turn's to write, with
+    its opening and final messages, under the reply attempt the delivery names; the
+    same reply reaching an agent any other way stays `leaf reply`'s. Every other
+    answer is the same on every carrier."""
+    if answer["kind"] == "reply" and carrier == TURN_CARRIER:
+        return {
+            **answer,
+            "kind": "turn",
+            "attempt": delivery_reply_attempt(delivery_id),
+        }
+    return answer
+
+
+def handled(batch: dict, carrier: str, delivery_id: str) -> dict:
+    """One captured batch as `carrier` delivers it: each answer routed for that
+    carrier, and the `handling` its page's layer gives each event.
+
+    A clause's `when` reads the event, the answer it owes, and its thread's
+    digest, so each event is told only its own case and the answer it owes. The
+    answer's route is a fact of the freeze, not of the capture: a Codex record
+    collects batches before it knows which transport will offer it, and only the
+    freeze does."""
+    registry = _registry(Path(batch["page"]))
+    # A clause asking the agent to act on a thread (name it, summarize it) rides the
+    # event and reads the thread's digest, so the event says only what applies to
+    # its own thread: a reader skimming a batch for what is new reads its events and
+    # can skip the digest.
+    digests = {thread["id"]: thread for thread in batch["conversations"]}
+    clause_ids: dict[str, str] = {}
+    events = []
+    for event in batch["events"]:
+        entry = {
+            key: value
+            for key, value in event.items()
+            if key not in {"handling", "answer"}
+        }
+        owed = (
+            {"answer": carried_answer(event["answer"], carrier, delivery_id)}
+            if "answer" in event
+            else {}
+        )
+        digest = next(
+            (digests[c] for c in event["conversations"] if c in digests), None
+        )
+        read = {**entry, **owed}
+        if digest is not None:
+            read["conversation"] = digest
+        clauses = event_clauses(read, registry)
+        refs = [
+            clause_ids.setdefault(clause["text"], f"h{len(clause_ids) + 1}")
+            for clause in clauses
+        ]
+        events.append({**entry, **({"handling": refs} if refs else {}), **owed})
+    return {
+        **batch,
+        "handling": {identity: text for text, identity in clause_ids.items()},
+        "events": events,
     }
 
 
 def freeze_delivery(
     batches: list[dict],
     *,
+    carrier: str,
+    acknowledge: Callable[[str], str] | None = None,
     delivery_id: str | None = None,
     created_at: float | None = None,
 ) -> dict:
-    """Persist and return one immutable delivery envelope."""
+    """Persist and return one immutable delivery envelope, as the `carrier` that
+    will deliver it hands it over.
+
+    `acknowledge` writes, for the delivery's id, what the reader does to confirm
+    it: a `leaf wait`'s reader acknowledges, in the way its harness runs the
+    command, and every other carrier confirms receipt itself, so its envelope says
+    `null`."""
+    if carrier not in CARRIERS:
+        raise ValueError(f"unknown delivery carrier {carrier!r}")
     lock = _delivery_lock_path()
     lock.parent.mkdir(parents=True, exist_ok=True)
     with flocked(lock):
@@ -254,8 +275,11 @@ def freeze_delivery(
             "format": DELIVERY_FORMAT,
             "id": delivery_id,
             "created_at": created_at if created_at is not None else time.time(),
+            "carrier": carrier,
+            "acknowledge": acknowledge(delivery_id) if acknowledge else None,
             "batches": [
-                {field: batch[field] for field in _BATCH_FIELDS} for batch in batches
+                {field: batch[field] for field in _BATCH_FIELDS}
+                for batch in (handled(batch, carrier, delivery_id) for batch in batches)
             ],
         }
         existing = read_json(path)

@@ -174,14 +174,17 @@ customElements.define(
         const comparison = document.createElement("wa-comparison");
         comparison.className = "lf-shotcomparison";
         comparison.dataset.lfGen = "1";
-        comparison.position = this.#chose ? this.#position() : 50;
+        comparison.position = 100 - (this.#chose ? this.#position() : 50);
         const handle = document.createElement("span");
         handle.className = "lf-shot-handle";
         handle.slot = "handle";
         handle.ariaHidden = "true";
         comparison.append(handle);
+        // Web Awesome draws its `after` slot on the inline-start side of the divider,
+        // which is the side the rail labels before, so each frame takes the other's
+        // slot and the component's position is the before frame's share.
         for (const frame of this.#frames) {
-          frame.slot = frame.dataset.lfState;
+          frame.slot = frame.dataset.lfState === "before" ? "after" : "before";
           comparison.append(frame);
         }
         let dragged = false;
@@ -269,7 +272,7 @@ customElements.define(
     #show(state) {
       this.#chose = true;
       if (this.#comparison) {
-        const position = state === "after" ? 100 : 0;
+        const position = state === "after" ? 0 : 100;
         if (this.#comparison.position !== position)
           this.#comparison.position = position;
         else this.#paint();
@@ -288,8 +291,10 @@ customElements.define(
       return this.#position() > 50 ? "before" : "after";
     }
 
+    // The after frame's share of the pair: 0 shows before whole, 100 after.
     #position() {
-      return this.#comparison?.position ?? (this.#box.checked ? 100 : 0);
+      if (this.#comparison) return Number((100 - this.#comparison.position).toFixed(2));
+      return this.#box.checked ? 100 : 0;
     }
 
     #paint() {

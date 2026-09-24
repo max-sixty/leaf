@@ -3,7 +3,7 @@
 import sys
 from pathlib import Path
 
-from .asks import asking, quoted_in, replayed_attrs
+from .asks import quoted_in
 from .events import awaits_agent, build_threads, note_settlements, spoken_turns
 from .files import latest_revision
 from .passages import enclosing_of, page_passages
@@ -65,22 +65,6 @@ def standing_work_claims(status: dict, events: list) -> list:
     return standing
 
 
-def widget_work_seat(
-    rec: dict, projection: "StateProjection", registry: dict
-) -> str | None:
-    """The active, validated local-work seat declared by this widget's layer."""
-    entry = registry.get(rec["tag"]) or {}
-    work = entry.get("x-work")
-    attrs = replayed_attrs(rec, projection)
-    if not work or not asking(attrs, work.get("when", {})):
-        return None
-    if work["seat"] == "conversation" and not asking(
-        attrs, entry["x-conversation"].get("when", {})
-    ):
-        return None
-    return work["seat"]
-
-
 def widget_work_without_targets(
     document,
     projection: "StateProjection",
@@ -91,7 +75,7 @@ def widget_work_without_targets(
 ) -> list[str]:
     """Standing widget work with no live page target for its target margin entry."""
     ignored = set(ignored)
-    decided = retirement_outcomes(projection.actions, registry)
+    decided = retirement_outcomes(projection.actions)
     passages = page_passages(
         document, registry, decided, rewritten_bodies(projection.actions)
     )
@@ -165,7 +149,7 @@ def work_subject(page_dir: Path, events: list, target: str) -> dict:
         assert (
             registry is not None and widget_projection is not None and html is not None
         )
-        decided = retirement_outcomes(widget_projection.actions, registry)
+        decided = retirement_outcomes(widget_projection.actions)
         passages = page_passages(
             document,
             registry,
@@ -181,13 +165,10 @@ def work_subject(page_dir: Path, events: list, target: str) -> dict:
             and item["subject"] == {"kind": "widget", "id": target}
             for item in canonical_workflows([], threads, None, page=page)
         )
-        if (
-            not widget_work_seat(widget, widget_projection, registry)
-            and not has_receipt
-        ):
+        if not registry[widget["tag"]].get("x-work") and not has_receipt:
             sys.exit(
-                f"{target} has no local work seat; its widget declaration "
-                "does not provide one in this state and it has no unsettled action receipt"
+                f"{target} has no local work seat; its widget declares no x-work "
+                "and it has no unsettled action receipt"
             )
         return {
             "subject": {"kind": "widget", "id": target},

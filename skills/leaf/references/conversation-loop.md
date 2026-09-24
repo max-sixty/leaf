@@ -43,13 +43,10 @@ nothing the banner's dot does not already say.
 User input comes before the work in hand, in this order:
 
 1. Acknowledge the delivery by the host's receipt route, so the user's moves read
-   **Picked up**. Where a package's guidance says to hold the acknowledgement until a
-   request reaches its executor, hand the request over first, then acknowledge.
+   **Picked up**.
 2. Reply to each move that owes a reply, before starting the work it asks for. The
-   delivered `answering` clause for a reply says how to write the reply now and how
-   to report the result later. In a Codex task Leaf observes over App Server, your
-   final message is the reply, so it is fixed at the end of the turn instead, as
-   `references/host-codex-app-server.md`, "Replies", describes.
+   delivered `answering` clause for a reply says how to write the reply now, on your
+   host, and how to report the result later.
 3. Write the page status again, so the banner describes the work that continues
    rather than the last step before the interruption.
 
@@ -87,7 +84,7 @@ leaf version stamp <page> --text "…" --completes <widget-id>
 ```
 
 Stamping accepts only widget ids with standing work. `status --on` refuses a
-widget with neither an unsettled action receipt nor an active `x-work` seat; use
+widget with neither an unsettled action receipt nor an `x-work` declaration; use
 the page-wide detail when neither admits a local claim.
 
 Use `status --on` for proactive subject work that did not begin with a delivery. An

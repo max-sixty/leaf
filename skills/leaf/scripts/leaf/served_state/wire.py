@@ -1,7 +1,7 @@
 """Wire serialization for one declared state projection."""
 
 from ..events import action_rests_on
-from ..projection import StateProjection, folded_facet
+from ..projection import StateProjection, folded_value
 
 
 def browser_projection(
@@ -30,7 +30,7 @@ def browser_projection(
                 # admitted meaning carried here instead of reinterpreting history
                 # through whichever registry the current DOM selected.
                 "spec": spec,
-                "value": folded_facet(event, spec) if spec.get("record") else None,
+                "value": folded_value(event, spec) if spec.get("record") else None,
                 "scope": scope,
                 "restated": restated,
             }

@@ -181,7 +181,7 @@ the decision rests on. Use `restated` when a rewrite invalidates one. An `undo`
 event names the gesture withdrawn; it never deletes or invents a counter-event.
 
 Actions and reports share the registry-declared coordinate of owner widget,
-fold unit, and facet. Admission records the command's declared meaning in the
+fold unit, and verb. Admission records the command's declared meaning in the
 event, so historical readers do not need a surviving widget to recover it.
 Python derives winners, retractions, settlement, asks, threads, and updates in
 one transaction-consistent browser view. JavaScript combines that view with
@@ -307,6 +307,12 @@ npm run typecheck --prefix worker
 npm test --prefix worker
 ```
 
+The root `package-lock.json` has a gate of its own too. It is what every committed
+browser bundle is built from, so a pull request's `test` job rebuilds them all and
+fails on any byte they differ by; `wt merge` does not. Before landing a change to
+`package.json` or its lock directly, run `npm ci`, `npm run build:browser`, and
+`uv run scripts/vendor.py`, and commit what they change.
+
 `tests/runtime/` is the other thing `uv run pytest tests` does not reach, and the one
 both landing paths run anyway: the shipped runtime's folds, which `npm run test:runtime`
 answers in under a second against the modules under `skills/leaf/assets/runtime/`
@@ -323,16 +329,18 @@ varies with the machine and network. If a change adds work before presentation,
 state the user-visible benefit and why that work cannot wait until after presentation.
 
 Land through a pull request or with `wt merge`, which squash-merges directly to
-`main`. Landing requires the user's authorization. For a local merge, if a newer
-`main` dislodges the merge after this branch passed the local gate,
+`main`. User-directed landing requires the user's authorization; Tend sessions
+follow **Landing** in `.claude/skills/running-tend/SKILL.md`. For a local merge,
+if a newer `main` dislodges the merge after this branch passed the local gate,
 `wt merge --no-hooks` may reuse that result; finish with
 `git push origin main:main` because the skipped hook normally pushes.
 `✗ Can't push to local main branch` is a fast-forward failure instead.
 
-A branch lands with a red gate when every failure in it is one the branch did
-not cause. Establish that from the failing node ids on the exact merge-base SHA,
-under the same CI job and selection: a case can fail on CI's Linux fonts and pass
-on a Mac, or fail inside the whole suite under the default `-n 2` and pass alone
+For user-directed landing, a branch lands with a red gate when every failure in
+it is one the branch did not cause. Establish that from the failing node ids on
+the exact merge-base SHA, under the same CI job and selection: a case can fail
+on CI's Linux fonts and pass on a Mac, or fail inside the whole suite under the
+default `-n 2` and pass alone
 under `-n0`. Use the base SHA's GitHub Actions run as the control; a local Docker
 image is not the hosted runner, and an Apple-silicon image must either emulate the
 CPU or give up installed Chrome. A green run several commits behind the base is
@@ -343,8 +351,9 @@ a branch and dispatch `ci` on it: a dispatch holds a slot per branch and does no
 wait behind main's. Until the
 failure reproduces on the base SHA, treat it as this branch's. Once it does, the
 branch lands the ordinary way, and a red hook takes
-the `--no-hooks` route above. `lint` is the only required check, so a red `test`
-does not block a merge and this rule is all that gates one.
+the `--no-hooks` route above. `lint` is the only required GitHub check, so a red
+`test` does not technically block a merge; this procedure gates user-directed
+landing.
 
 Installed sessions load host caches, not the checkout. After pushing, Claude
 Code updates on its marketplace sweep. The post-merge hook refreshes an installed

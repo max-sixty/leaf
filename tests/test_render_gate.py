@@ -69,7 +69,9 @@ from render_cases_widgets import (
     GENERIC_VISUAL_LAYER,
     GENERIC_VISUAL_PAGE,
     GENERIC_VISUAL_WIDGETS,
+    PREFIXED_VISUAL_PAGE,
     TYPED_PARTS_PAGE,
+    prefixed_visual_layer,
 )
 from render_harness import (
     BOTH_STAMPS,
@@ -79,6 +81,7 @@ from render_harness import (
     EXAMPLES,
     FEATURE_GALLERY,
     LONG_PAGE,
+    RECURRING_RESIZE_NOTICE,
     REPLY_HOST_PAGE,
     TOKEN,
     _traffic,
@@ -87,6 +90,7 @@ from render_harness import (
     consume_browser_errors,
     leaf_page,
     open_page,
+    pane_posture,
     panel_settled,
     primed,
     resized,
@@ -100,10 +104,10 @@ BOUNDED_WORKSPACE_PAGE = leaf_page(
     """
 <lf-workspace id="gate-workspace">
   <header><h1>Queue</h1></header>
-  <lf-partition id="gate-split" direction="columns">
-    <lf-pane id="gate-list" label="Items"><p>First</p><div style="height:900px"></div><p>Last</p></lf-pane>
-    <lf-pane id="gate-detail" label="Detail"><p>Subject</p><div style="height:900px"></div><button>Finish</button></lf-pane>
-  </lf-partition>
+  <lf-grid id="gate-split" columns="2">
+    <lf-pane id="gate-list" label="Items"><div><p>First</p><div style="height:900px"></div><p>Last</p></div></lf-pane>
+    <lf-pane id="gate-detail" label="Detail"><div><p>Subject</p><div style="height:900px"></div><button>Finish</button></div></lf-pane>
+  </lf-grid>
   <footer>End of queue</footer>
 </lf-workspace>
 """,
@@ -424,40 +428,53 @@ def test_the_render_gate_reads_content_through_bounded_pane_regions(browser, ser
 
 
 RECURSIVE_ROWS_PAGE = leaf_page(
-    "recursive row fit",
+    "recursive rows",
     """
 <lf-workspace id="rows-workspace">
-  <lf-partition id="rows" direction="rows">
-    <lf-pane id="upper" label="Upper"><p>Upper body</p><footer style="height:120px">Tall actions</footer></lf-pane>
-    <lf-partition id="lower" direction="columns">
-      <lf-pane id="lower-left" label="Lower left"><p>Left body</p></lf-pane>
-      <lf-pane id="lower-right" label="Lower right"><p>Right body</p></lf-pane>
-    </lf-partition>
-  </lf-partition>
+  <lf-grid id="rows" columns="1">
+    <lf-pane id="upper" label="Upper"><div><p>Upper body</p><div style="height:600px"></div></div><footer style="height:120px">Tall actions</footer></lf-pane>
+    <lf-grid id="lower" columns="2">
+      <lf-pane id="lower-left" label="Lower left"><div><p>Left body</p></div></lf-pane>
+      <lf-pane id="lower-right" label="Lower right"><div><p>Right body</p></div></lf-pane>
+    </lf-grid>
+  </lf-grid>
 </lf-workspace>
 """,
 )
 
 
-def test_recursive_rows_flow_before_short_height_hides_pane_furniture(browser, serve):
+def test_recursive_rows_share_the_window_and_keep_pane_furniture_in_view(
+    browser, serve
+):
+    """Rows nested in a bounded workspace split its height, and a pane's footer stays
+    inside its row while the body above it scrolls. A window too short for the
+    workspace hands the scroll to the page, where each pane takes its full height."""
     page = open_page(browser, serve(RECURSIVE_ROWS_PAGE))
-    workspace = page.locator("#rows-workspace")
-    expect(workspace).to_have_attribute("data-lf-reading-posture", "bounded")
-
-    # The children's summed minima fit here, but equal rows cannot each give the
-    # taller upper pane its minimum. The workspace must therefore choose flow.
-    page.set_viewport_size({"width": 1200, "height": 700})
-    expect(workspace).to_have_attribute("data-lf-reading-posture", "flow")
-    rows = page.evaluate(
+    resized(page, 1200, 700)
+    upper = page.locator("#upper")
+    pane_posture(page, upper, "bounded")
+    held = page.evaluate(
         """() => {
-          const upper = document.querySelector('#upper').getBoundingClientRect();
-          const lower = document.querySelector('#lower').getBoundingClientRect();
-          const footer = document.querySelector('#upper > footer').getBoundingClientRect();
-          return {upper, lower, footer};
+          const box = selector => document.querySelector(selector).getBoundingClientRect();
+          return {upper: box('#upper'), lower: box('#lower'),
+                  footer: box('#upper > footer'), workspace: box('#rows-workspace')};
         }"""
     )
-    assert rows["lower"]["top"] >= rows["upper"]["bottom"] - 1, rows
-    assert rows["footer"]["bottom"] <= 700, rows
+    assert held["lower"]["top"] >= held["upper"]["bottom"] - 1, held
+    assert held["footer"]["bottom"] <= held["upper"]["bottom"] + 1, held
+    assert held["workspace"]["bottom"] <= 700, held
+    assert abs(held["upper"]["height"] - held["lower"]["height"]) <= 1, held
+
+    resized(page, 1200, 420)
+    pane_posture(page, upper, "flow")
+    flow = page.evaluate(
+        """() => {
+          const box = selector => document.querySelector(selector).getBoundingClientRect();
+          return {upper: box('#upper'), lower: box('#lower')};
+        }"""
+    )
+    assert flow["lower"]["top"] >= flow["upper"]["bottom"] - 1, flow
+    assert flow["upper"]["height"] > 720, flow
 
 
 def test_a_broken_probe_module_is_a_gate_finding(browser, serve):
@@ -750,11 +767,11 @@ def test_every_restore_case_a_user_can_return_to_is_arrived_in(browser, serve):
                 "author": "user",
                 "revision": 1,
                 "widget": "sug-rewrite",
-                "action": "accept",
-                "detail": {},
+                "action": "decide",
+                "detail": {"outcome": "accept"},
                 "meaning": {
-                    "document": {"kind": "page", "revision": 1},
-                    "coordinate": ["sug-rewrite", "sug-rewrite", "settlement"],
+                    "document": "page",
+                    "unit": "sug-rewrite",
                     "depends": ["sug-rewrite"],
                     "answer": None,
                 },
@@ -1104,7 +1121,7 @@ def test_page_navigation_reports_a_recurring_resize_notice(browser, serve):
     page = open_page(browser, serve(LONG_PAGE), init_script=every_load)
 
     errors = take_browser_errors(page)
-    assert errors == [render_gate_scheme.recurring_resize_observer_error("navigation")]
+    assert errors == [RECURRING_RESIZE_NOTICE]
 
 
 def test_the_render_gate_rejects_an_upgrade_that_defines_no_element(
@@ -1258,6 +1275,28 @@ def test_the_render_gate_rejects_invalid_visual_inventory_records(browser, serve
             "[dark] <lf-test-visual id='outside'> declares addressable visual parts "
             "but its module Visual part outer has no descendant Element surface"
         ),
+    ]
+
+
+def test_the_render_gate_bounds_a_prefixed_inventory_by_its_prefixes(browser, serve):
+    """A prefixed visual authors no tokens, so the gate has none to resolve; what it
+    holds is the widget to its own declaration, refusing a registered id outside it."""
+
+    def gate(*prefixes):
+        return render_gate_model.render_version(
+            browser.unwatched,
+            serve(
+                PREFIXED_VISUAL_PAGE,
+                layer_registry=prefixed_visual_layer(*prefixes),
+                layer_widgets=GENERIC_VISUAL_WIDGETS,
+            ),
+        )
+
+    assert gate("out", "inn", "htm") == []
+    assert gate("out", "inn") == [
+        f"[{scheme}] <lf-test-visual id='visual'> declares addressable visual parts "
+        "but its module registered parts its prefixes do not admit html"
+        for scheme in ("light", "dark")
     ]
 
 
@@ -1746,23 +1785,20 @@ def _author_stateful_verbatim_widget(tmp_path):
                 "required": ["value"],
                 "additionalProperties": False,
             },
-            "facet": "user",
             "unit": "widget",
             "record": {"kind": "value", "attr": "user", "value": "value"},
-        }
-    }
-    stateful["x-report"] = {
+        },
         "status": {
+            "writer": "agent",
             "detail": {
                 "type": "object",
                 "properties": {"value": {"type": "string"}},
                 "required": ["value"],
                 "additionalProperties": False,
             },
-            "facet": "agent",
             "unit": "widget",
             "record": {"kind": "value", "attr": "agent", "value": "value"},
-        }
+        },
     }
     registry_path.write_text(json.dumps(declarations, indent=2))
     (tmp_path / ".leaf" / "widgets" / "lf-stateful.js").write_text(
@@ -1773,7 +1809,7 @@ def _author_stateful_verbatim_widget(tmp_path):
         "  connectedCallback() { once(this); this.stop ??= this.controller.subscribe(() => {}); }\n"
         "  disconnectedCallback() { this.stop?.(); this.stop = null; }\n"
         "  renderState(state) {\n"
-        '    if (state.user.value === "corrupt" || state.agent.value === "corrupt")\n'
+        '    if (state.change.value === "corrupt" || state.status.value === "corrupt")\n'
         '      this.querySelector("p").textContent = "State replaced unrelated prose.";\n'
         "  }\n"
         "});\n"
@@ -1850,8 +1886,8 @@ def test_projected_rewrite_retirement_and_undo_are_honest_verbatim_changes(
             "author": "user",
             "revision": 1,
             "widget": "retired",
-            "action": "accept",
-            "detail": {},
+            "action": "decide",
+            "detail": {"outcome": "accept"},
         },
     )
     withdrawn = append_command(
@@ -1861,8 +1897,8 @@ def test_projected_rewrite_retirement_and_undo_are_honest_verbatim_changes(
             "author": "user",
             "revision": 1,
             "widget": "undone",
-            "action": "accept",
-            "detail": {},
+            "action": "decide",
+            "detail": {"outcome": "accept"},
         },
     )
     events_model.append_event(
@@ -1908,7 +1944,7 @@ def test_a_child_action_does_not_excuse_its_verbatim_wrappers_prose(
         "  connectedCallback() { once(this); this.stop ??= this.controller.subscribe(() => {}); }\n"
         "  disconnectedCallback() { this.stop?.(); this.stop = null; }\n"
         "  renderState(state) {\n"
-        '    if (state.user.value === "corrupt")\n'
+        '    if (state.change.value === "corrupt")\n'
         '      this.closest("lf-shell").querySelector(":scope > p").textContent = '
         '"Child state replaced wrapper prose.";\n'
         "  }\n"
@@ -3858,7 +3894,7 @@ def test_the_gate_replays_a_decision_made_on_a_widget_no_version_holds(browser, 
     resized(page, 1280, 900)
     standing = page.evaluate(
         "async () => (await window.__lfRuntimeImport('/runtime/validation.js')).validationWidgetStates()"
-        ".flatMap(({widget, state}) => Object.values(state).map(facet => [widget.id, facet.action]))"
+        ".flatMap(({widget, state}) => Object.values(state).map(standing => [widget.id, standing.action]))"
     )
     assert ["an-set", "choose"] in standing and ["an-set", "answer"] in standing, (
         f"the user's decisions are not among what the runtime hands the gate: "

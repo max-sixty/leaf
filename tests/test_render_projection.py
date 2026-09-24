@@ -7,6 +7,7 @@ from copy import deepcopy
 from datetime import datetime, timedelta
 
 import pytest
+import render_harness
 from click.testing import CliRunner
 from interact_support import (
     COMMAND_HUB_PACKAGE,
@@ -26,6 +27,7 @@ from leaf import structure as structure_model
 from leaf.render_gate import version as render_gate_model
 from leaf.render_gate.preview import preview_server
 from leaf.validation import compatibility as validation_model
+from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_cases_interaction import (
     ASKS_IN_ORDER,
@@ -101,10 +103,12 @@ from render_harness import (
     consume_browser_errors,
     expect_banner_control_offered,
     holding,
+    holds_the_window,
     leaf_page,
     open_page,
     opened_tab,
     page_registry,
+    pane_posture,
     panel_settled,
     post_event,
     refuse,
@@ -581,6 +585,7 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
 
     page.keyboard.press("Escape")
     expect(page.locator("#patch [data-line-type]")).to_have_count(0)
+    entries = page.evaluate("history.length")
     lines.nth(1).locator(".lf-call-location").click()
     context = page.locator(
         'lf-diff [data-lf-datum=\'["gateway/limits.py","both",38,38]\']'
@@ -599,7 +604,6 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     expect(context).to_be_hidden()
     lines.nth(2).locator(".lf-call-location").click()
     expect(search).to_have_value("")
-    expect(page).to_have_url(re.compile(r"#patch$"))
     added = page.locator('lf-diff [data-lf-datum=\'["gateway/limits.py","new",40]\']')
     expect(added).to_be_in_viewport()
     expect(page.locator(".lf-live")).to_have_text(
@@ -609,6 +613,10 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
         "() => document.querySelector('#patch').shadowRoot.activeElement"
         ".matches('summary')"
     )
+    # Each line already stood in the window once the diff revealed it, so neither
+    # trip departed: no history entry, and the address kept no fragment.
+    assert page.evaluate("history.length") == entries
+    expect(page).not_to_have_url(re.compile(r"#patch$"))
 
     data_model.cmd_data_set(
         serve.page_dir,
@@ -1302,8 +1310,7 @@ def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
     page = open_page(browser, serve(VISUAL_REVIEW_GALLERY))
     resized(page, 1366, 768)
     widget = page.locator("#visual-review-run")
-    expect(widget).to_have_attribute("data-lf-workspace-context", "root")
-    expect(widget).to_have_attribute("data-lf-reading-posture", "bounded")
+    holds_the_window(page, widget, True)
     gallery_scope = widget.get_by_role("radiogroup", name="Scope")
     expect(gallery_scope).to_be_visible()
     expect(widget).to_have_attribute("data-inspection-scope", "focus")
@@ -1391,7 +1398,6 @@ def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
         "node => node.scrollWidth <= node.clientWidth"
     )
     resized(page, 560, 720)
-    expect(widget).to_have_attribute("data-lf-reading-posture", "flow")
     assert page.evaluate(
         "() => document.documentElement.scrollWidth <= document.documentElement.clientWidth"
     )
@@ -1400,7 +1406,7 @@ def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
         "() => document.documentElement.scrollWidth <= document.documentElement.clientWidth"
     )
     resized(page, 1366, 768)
-    expect(widget).to_have_attribute("data-lf-reading-posture", "bounded")
+    holds_the_window(page, widget, True)
     shot_host = widget.locator(".lf-vr-case:not([hidden]) .lf-vr-shot-host")
     assert shot_host.evaluate("node => node.scrollWidth == node.clientWidth")
     shot_host.evaluate("node => node.style.height = '120px'")
@@ -1420,10 +1426,9 @@ def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
     copy_widths = read_copy_widths()
     assert len(copy_widths) == 6
     assert copy_widths == pytest.approx([388, 388, 388, 388, 1278, 1278], abs=1)
-    # Entering copy mode resizes the body, so the root fit answers on a later frame and
-    # leaves the unbounded copy in flow posture. The copy is the whole workspace at the
-    # page's width either way: a user who copies a slower page gets the same evidence.
-    expect(widget).to_have_attribute("data-lf-reading-posture", "flow")
+    # The copy is the whole workspace at the page's width on the first frame and every
+    # later one: a user who copies a slower page gets the same evidence.
+    page.evaluate(ONE_FRAME)
     assert read_copy_widths() == pytest.approx(copy_widths, abs=1)
     assert widget.locator(".lf-vr-case lf-shot img").evaluate_all(
         "images => images.every(image => getComputedStyle(image).transform === 'none')"
@@ -2773,31 +2778,26 @@ def test_a_projected_attribute_opens_an_ask_captured_from_authored_markup(
         "x-content": "markup",
         "x-upgrade": True,
         "x-state": {
-            phase: {
+            "phase": {
                 "detail": {
                     "type": "object",
                     "properties": {"phase": {"enum": ["closed", "open"]}},
                     "required": ["phase"],
                     "additionalProperties": False,
                 },
-                "facet": "visibility",
                 "unit": "widget",
                 "record": {"kind": "value", "attr": "phase", "value": "phase"},
-            }
-            for phase in ("open", "close")
-        }
-        | {
+            },
             "answer": {
                 "detail": {
                     "type": "object",
                     "properties": {},
                     "additionalProperties": False,
                 },
-                "facet": "decision",
                 "unit": "widget",
-            }
+            },
         },
-        "x-awaits": {"when": {"phase": ["open"]}, "answers": ["answer"]},
+        "x-awaits": {"when": {"phase": ["open"]}, "answered": {"answer": {}}},
         "x-example": '<lf-conditional id="example" phase="closed">Choose.</lf-conditional>',
     }
     module = """\
@@ -2807,7 +2807,7 @@ customElements.define("lf-conditional", class extends HTMLElement {
   #stop;
   connectedCallback() { once(this); this.#stop ??= this.#controller.subscribe(() => {}); }
   disconnectedCallback() { this.#stop?.(); this.#stop = null; }
-  renderState(state) { this.setAttribute("phase", state.visibility.value); }
+  renderState(state) { this.setAttribute("phase", state.phase.value); }
 });
 """
     page = open_page(
@@ -2823,7 +2823,7 @@ customElements.define("lf-conditional", class extends HTMLElement {
     )
     expect_banner_control_offered(page.locator(".lf-asks"), offered=False)
 
-    for action, phase, count in (("open", "open", 1), ("close", "closed", 0)):
+    for phase, count in (("open", 1), ("closed", 0)):
         append_command(
             serve.page_dir,
             {
@@ -2831,7 +2831,7 @@ customElements.define("lf-conditional", class extends HTMLElement {
                 "author": "user",
                 "revision": 1,
                 "widget": "question",
-                "action": action,
+                "action": "phase",
                 "detail": {"phase": phase},
             },
         )
@@ -2972,9 +2972,11 @@ def test_revision_changes_keep_the_complete_heading_below_user_chrome(browser, s
         }"""
     )
     assert view["quote"].startswith(title), view
-    assert view["quoteTop"] >= clipped["inset"], view
+    # A view measures its places from the top of the scroller's visible band, which
+    # scroll-padding declares: a heading's is never above it.
+    assert view["quoteTop"] >= 0, view
     assert view["section"] == "summary", view
-    assert view["sectionTop"] > clipped["summary"]["top"], view
+    assert view["sectionTop"] > clipped["summary"]["top"] - clipped["inset"], view
 
     stamp_page(
         serve.page_dir,
@@ -3079,11 +3081,14 @@ customElements.define("lf-shadow-reading", class extends HTMLElement {
 
 
 def test_revision_remembers_the_active_region_when_a_workspace_reflows(browser, serve):
-    """One active semantic reading wins when several regions begin sharing the page."""
+    """One active semantic reading wins when several regions begin sharing the page.
+
+    The revision puts prose before the workspace, so it stops being the page and flows,
+    and every pane's reading moves onto the one page scroll."""
 
     def pane(side):
         return f"""
-    <lf-pane id="{side}-reading" label="{side.title()} reading">
+    <lf-pane id="{side}-reading" label="{side.title()} reading"><div>
       <p id="{side}-start">{side.title()} start with enough words for a landmark.</p>
       <div style="height: 320px"></div>
       <p id="{side}-landmark">The current {side} reading has a stable semantic landmark.
@@ -3091,57 +3096,44 @@ def test_revision_remembers_the_active_region_when_a_workspace_reflows(browser, 
       </p>
       <div style="height: 700px"></div>
       <p>{side.title()} end.</p>
-    </lf-pane>"""
+    </div></lf-pane>"""
 
-    first = leaf_page(
-        "Active region continuity",
-        f"""
+    workspace_markup = f"""
 <lf-workspace id="reading-workspace">
   <header><h1>Reading workspace</h1></header>
-  <lf-partition id="reading-split" direction="columns">
+  <lf-grid id="reading-split" columns="2">
     {pane("left")}
     {pane("right")}
-  </lf-partition>
+  </lf-grid>
 </lf-workspace>
-""",
-    )
+"""
+    first = leaf_page("Active region continuity", workspace_markup)
     page = open_page(browser, live_url(serve(first)))
     resized(page, 900, 760)
-    workspace = page.locator("#reading-workspace")
-    expect(workspace).to_have_attribute("data-lf-reading-posture", "bounded")
-    left = page.locator("#left-reading .lf-pane-body")
-    right = page.locator("#right-reading .lf-pane-body")
+    right_pane = page.locator("#right-reading")
+    pane_posture(page, right_pane, "bounded")
+    left = page.locator("#left-reading > div")
+    right = page.locator("#right-reading > div")
     left.evaluate("el => el.scrollTop = 180")
     right.evaluate("el => el.scrollTop = 360")
     page.locator("#right-subject").focus()
     before = page.locator("#right-landmark").evaluate(
         """el => el.getBoundingClientRect().top -
-          el.closest('.lf-pane-body').getBoundingClientRect().top"""
+          el.closest('lf-pane > div').getBoundingClientRect().top"""
     )
 
     revised = leaf_page(
         "Active region continuity",
-        f"""
-<lf-workspace id="reading-workspace">
-  <header><h1>Reading workspace</h1></header>
-  <lf-partition id="reading-split" direction="columns">
-    <lf-partition id="first-pair" direction="columns">
-      {pane("left")}
-      {pane("right")}
-    </lf-partition>
-    <lf-partition id="second-pair" direction="columns">
-      {pane("third")}
-      {pane("fourth")}
-    </lf-partition>
-  </lf-partition>
-</lf-workspace>
-""",
+        "<p>The revision adds context before the workspace.</p>" + workspace_markup,
     )
-    stamp_page(serve.page_dir, revised, "add two reading regions")
+    stamp_page(serve.page_dir, revised, "put the workspace in the document")
     wait_for_revision(page, 2)
-    expect(workspace).to_have_attribute("data-lf-reading-posture", "flow")
+    pane_posture(page, right_pane, "flow")
+    # The page's band starts below the banner, where scroll-padding says; the landmark
+    # keeps its distance below the top of what the user can see.
     after = page.locator("#right-landmark").evaluate(
-        "el => el.getBoundingClientRect().top"
+        """el => el.getBoundingClientRect().top -
+          parseFloat(getComputedStyle(document.scrollingElement).scrollPaddingTop)"""
     )
     assert abs(after - before) <= 4, (before, after)
 
@@ -3217,7 +3209,11 @@ def test_revision_reveals_an_active_region_without_any_reading_landmark(browser,
 
 
 def test_revision_does_not_move_a_page_offset_into_a_new_bounded_region(browser, serve):
-    """A raw offset belongs to the scrollport that supplied it."""
+    """A raw offset belongs to the scrollport that supplied it.
+
+    The workspace flows under prose in the first version and is the page in the second,
+    so the scroll the user left on the page has no place in the pane that now scrolls.
+    """
 
     def pane(name, *, standing=False):
         control = (
@@ -3225,31 +3221,26 @@ def test_revision_does_not_move_a_page_offset_into_a_new_bounded_region(browser,
         )
         return f"""
 <lf-pane id="{name}-pane" label="{name.title()}">
-  {control}<div style="height: 700px"></div>
+  <div>{control}<div style="height: 1100px"></div></div>
 </lf-pane>
 """
 
+    workspace_markup = f"""
+<lf-workspace id="reading-workspace">
+  <lf-grid id="all-panes" columns="2">
+    {pane("active", standing=True)}
+    {pane("second")}
+  </lf-grid>
+</lf-workspace>
+"""
     first = leaf_page(
         "Changing offset ownership",
-        f"""
-<lf-workspace id="reading-workspace">
-  <lf-partition id="all-panes" direction="columns">
-    <lf-partition id="first-pair" direction="columns">
-      {pane("active", standing=True)}
-      {pane("second")}
-    </lf-partition>
-    <lf-partition id="second-pair" direction="columns">
-      {pane("third")}
-      {pane("fourth")}
-    </lf-partition>
-  </lf-partition>
-</lf-workspace>
-""",
+        "<p>Context before the workspace.</p>" + workspace_markup,
     )
     page = open_page(browser, live_url(serve(first)))
     resized(page, 900, 760)
-    workspace = page.locator("#reading-workspace")
-    expect(workspace).to_have_attribute("data-lf-reading-posture", "flow")
+    active = page.locator("#active-pane")
+    pane_posture(page, active, "flow")
     page.locator("#standing-control").evaluate(
         "control => control.focus({preventScroll: true})"
     )
@@ -3257,25 +3248,12 @@ def test_revision_does_not_move_a_page_offset_into_a_new_bounded_region(browser,
     before = page.evaluate("document.scrollingElement.scrollTop")
     assert before == 300
 
-    revised = leaf_page(
-        "Changing offset ownership",
-        f"""
-<lf-workspace id="reading-workspace">
-  <lf-partition id="remaining-panes" direction="columns">
-    {pane("active", standing=True)}
-    {pane("second")}
-  </lf-partition>
-</lf-workspace>
-""",
-    )
-    stamp_page(serve.page_dir, revised, "remove two reading regions")
+    revised = leaf_page("Changing offset ownership", workspace_markup)
+    stamp_page(serve.page_dir, revised, "make the workspace the page")
     wait_for_revision(page, 2)
 
-    expect(workspace).to_have_attribute("data-lf-reading-posture", "bounded")
-    assert (
-        page.locator("#active-pane .lf-pane-body").evaluate("pane => pane.scrollTop")
-        == 0
-    )
+    pane_posture(page, active, "bounded")
+    assert page.locator("#active-pane > div").evaluate("pane => pane.scrollTop") == 0
 
 
 def test_revision_does_not_move_an_offset_between_bounded_region_owners(browser, serve):
@@ -3285,40 +3263,34 @@ def test_revision_does_not_move_an_offset_between_bounded_region_owners(browser,
         "type": "object",
         "properties": {
             "id": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
-            "posture": {"enum": ["flow", "bounded"]},
         },
-        "required": ["id", "posture"],
+        "required": ["id"],
         "additionalProperties": False,
         "x-content": "markup",
         "x-upgrade": True,
         "x-example": (
-            '<lf-owned-scroll id="example" posture="flow">'
+            '<lf-owned-scroll id="example">'
             "<div data-scroll-body><button>Control</button></div>"
             "</lf-owned-scroll>"
         ),
     }
     module = """
-import {registerReadingArrangement} from '/runtime/widget-api.js';
+import {registerReadingRegion} from '/runtime/widget-api.js';
 customElements.define('lf-owned-scroll', class extends HTMLElement {
-  #reading = null;
+  #stop = null;
   connectedCallback() {
     const body = this.querySelector(':scope > [data-scroll-body]');
-    this.#reading = registerReadingArrangement({
-      owner: this,
-      content: body,
-      regions: [{id: this.id, host: this, body}],
-    });
-    void this.#reading.setReadingPosture(this.getAttribute('posture'));
+    this.#stop = registerReadingRegion({id: this.id, host: this, body});
   }
   disconnectedCallback() {
-    this.#reading?.cleanup();
-    this.#reading = null;
+    this.#stop?.();
+    this.#stop = null;
   }
 });
 """
     active = """
 <div style="height: 250px"></div>
-<lf-owned-scroll id="active-region" posture="flow">
+<lf-owned-scroll id="active-region">
   <div data-scroll-body>
     <section id="removed-landmark">
       <p>The nested region landmark disappears in the arriving revision.</p>
@@ -3337,7 +3309,7 @@ customElements.define('lf-owned-scroll', class extends HTMLElement {
 
     def parent(name, content=""):
         return f"""
-<lf-owned-scroll id="{name}-region" posture="bounded">
+<lf-owned-scroll id="{name}-region">
   <div data-scroll-body style="height: 240px; overflow: auto">
     {content}<div style="height: 700px"></div>
   </div>
@@ -3829,6 +3801,34 @@ def test_a_revision_that_rewrites_a_draft_leaves_the_user_where_they_stand(
     # The rewritten draft has connected and read its edit back: the words are kept.
     expect(editor).to_have_value("Ship it, but louder.")
     expect(pick).to_be_focused()
+
+
+def test_told_waits_through_a_document_without_a_body(browser, monkeypatch):
+    """The replacement navigation can be between its html and body while told polls."""
+    page = browser.new_page()
+    page.set_content('<body data-lf-reading="ready"></body>')
+    monkeypatch.setattr(render_harness, "_server_reading", lambda _page: "ready")
+    page.evaluate(
+        "() => { window.detachedBody = document.body; document.body.remove(); }"
+    )
+    assert page.evaluate("() => document.body === null")
+    real_wait = page.wait_for_function
+    attempts = 0
+
+    def wait_for_function(*args, **kwargs):
+        nonlocal attempts
+        attempts += 1
+        try:
+            return real_wait(*args, **kwargs)
+        except PlaywrightTimeout:
+            page.evaluate("() => document.documentElement.append(window.detachedBody)")
+            raise
+
+    monkeypatch.setattr(page, "wait_for_function", wait_for_function)
+
+    told(page)
+    assert attempts == 2
+    assert page.evaluate("() => document.body.dataset.lfReading") == "ready"
 
 
 def test_the_replacing_install_gives_back_the_same_apparatus(browser, serve):
@@ -4551,9 +4551,6 @@ def test_the_ask_walk_follows_registry_declarations(browser, serve):
     registry = json.loads((serve.page_dir / "registry.json").read_text())
     del registry["lf-suggestion"]["x-awaits"]
     del registry["lf-suggestion"]["properties"]["resolves"]
-    del registry["lf-suggestion"]["x-state"]["accept"]["detail"]["properties"][
-        "resolves"
-    ]
     (serve.page_dir / "registry.json").write_text(json.dumps(registry))
     stamp_page(
         serve.page_dir,
@@ -4648,7 +4645,7 @@ def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
 
     # The diff's state half, mirror-image: v1's markup also said `active`, but
     # the user last saw v1 wearing the report's `done`, so the overrule is a
-    # change since the base — the report-layered base facet is what says so.
+    # change since the base — the report-layered base state is what says so.
     compare_with(page)
     page.wait_for_function(
         "() => document.querySelectorAll('.lf-ins-block').length > 0"
@@ -5245,7 +5242,7 @@ def test_render_reports_markup_the_log_replays_over(browser, serve):
     d = serve.page_dir
     for widget, action, detail in [
         ("approach", "choose", {"options": ["opt-shim"]}),
-        ("work", "move", {"card": "card-importer", "to": "col-done", "index": 0}),
+        ("work", "move", {"card": "card-importer", "to": "col-done", "rank": "0i"}),
     ]:
         append_command(
             d,
@@ -5327,7 +5324,7 @@ def test_render_accepts_actions_made_after_the_authored_change(
     )
 
 
-def test_render_separates_old_and_new_facets_on_one_element(
+def test_render_separates_old_and_new_verbs_on_one_element(
     browser, serve, tmp_path, monkeypatch
 ):
     monkeypatch.chdir(tmp_path)
@@ -5341,18 +5338,17 @@ def test_render_separates_old_and_new_facets_on_one_element(
         restated={"type": "boolean"},
     )
     declaration["x-state"] = {
-        facet: {
+        verb: {
             "detail": {
                 "type": "object",
                 "properties": {"value": {"type": "string"}},
                 "required": ["value"],
                 "additionalProperties": False,
             },
-            "facet": facet,
             "unit": "widget",
-            "record": {"kind": "value", "attr": facet, "value": "value"},
+            "record": {"kind": "value", "attr": verb, "value": "value"},
         }
-        for facet in ("first", "second")
+        for verb in ("first", "second")
     }
     registry_path.write_text(json.dumps(declarations))
     (package / "widgets" / "lf-pair.js").write_text(
@@ -5363,21 +5359,21 @@ customElements.define("lf-pair", class extends HTMLElement {
   connectedCallback() { once(this); this.#stop ??= this.#controller.subscribe(() => {}); }
   disconnectedCallback() { this.#stop?.(); this.#stop = null; }
   renderState(state) {
-    for (const [facet, reading] of Object.entries(state)) {
-      if (reading.value === null) this.removeAttribute(facet);
-      else this.setAttribute(facet, reading.value);
+    for (const [verb, reading] of Object.entries(state)) {
+      if (reading.value === null) this.removeAttribute(verb);
+      else this.setAttribute(verb, reading.value);
     }
   }
 });
 """
     )
     previous = leaf_page(
-        "Two facets", '<lf-pair id="pair" first="a" second="a">Two facts.</lf-pair>'
+        "Two verbs", '<lf-pair id="pair" first="a" second="a">Two facts.</lf-pair>'
     )
     url = serve(previous, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
     d = serve.page_dir
 
-    def act(revision, facet):
+    def act(revision, verb):
         append_command(
             d,
             {
@@ -5385,7 +5381,7 @@ customElements.define("lf-pair", class extends HTMLElement {
                 "author": "user",
                 "revision": revision,
                 "widget": "pair",
-                "action": facet,
+                "action": verb,
                 "detail": {"value": "picked"},
             },
         )
@@ -5394,12 +5390,12 @@ customElements.define("lf-pair", class extends HTMLElement {
     current = previous.replace('second="a"', 'second="b"')
     stamp_page(d, current, "t")
     act(2, "second")
-    # Both renderState writes hit the same id. Only the newer facet was authored.
+    # Both renderState writes hit the same id. Only the newer verb was authored.
     assert (
         render_gate_model.render_version(browser, url.replace("v1.html", "v2.html"))
         == []
     )
-    # The same older facet really is contradicted when its own record changes.
+    # The same older verb really is contradicted when its own record changes.
     with preview_server(
         d,
         structure_model.SourceDocument(current.replace('first="a"', 'first="b"')),
@@ -5460,10 +5456,10 @@ def test_the_render_gate_applies_every_standing_action_a_second_time(browser, se
           return ids.flatMap(id => {
             const widget = document.getElementById(id);
             const state = widgetController(widget).read().state;
-            return Object.entries(state).flatMap(([facet, value]) =>
+            return Object.entries(state).flatMap(([verb, value]) =>
               (value.units ? Object.values(value.units) : [value])
                 .filter(({action}) => action)
-                .map(({action}) => [widget.id, widget.localName, facet, action]));
+                .map(({action}) => [widget.id, widget.localName, verb, action]));
           });
         }""",
         standing_ids,
@@ -5474,30 +5470,27 @@ def test_the_render_gate_applies_every_standing_action_a_second_time(browser, se
         (tag, verb)
         for tag, entry in registry.items()
         if tag.startswith("lf-")
-        for channel in ("x-state", "x-report")
-        for verb in entry.get(channel, {})
+        for verb in entry.get("x-state", {})
     }
-    assert {(tag, verb) for _id, tag, _facet, verb in standing} == declared, (
+    assert {(tag, verb) for _id, tag, _key, verb in standing} == declared, (
         "the gate applies the standing state, so a declared verb missing from it is a "
         f"verb nothing here re-applies: page holds {standing}, registry declares "
         f"{sorted(declared)}"
     )
     assert {
-        (facet, action)
-        for widget, _tag, facet, action in standing
-        if widget == "ab-pick"
-    } == {("selection", "choose"), ("completion", "answer")}
+        (key, action) for widget, _tag, key, action in standing if widget == "ab-pick"
+    } == {("choose", "choose"), ("answer", "answer"), ("add", "add")}
     assert render_gate_model.render_version(browser, url) == []
 
 
 @pytest.mark.parametrize("authored", [None, "0"])
-def test_a_user_action_outranks_later_news_on_the_same_coordinate(
+def test_a_user_verb_and_an_agent_verb_stand_side_by_side(
     browser, serve, tmp_path, monkeypatch, authored
 ):
-    """The projection, not channel replay order, is the DOM's authority. A worker's
-    later count remains report history, but it cannot paint over the user's action
-    on the same unit and facet; both log records are ready once that one coordinate is
-    committed."""
+    """A verb has one writer, so a user's action and a worker's report on one widget
+    fold on coordinates of their own: each paints its own record, every log record is
+    ready once its coordinate is committed, and undoing the user's action restores
+    the authored value without replacing the node."""
     monkeypatch.chdir(tmp_path)
     author_test_widget(tmp_path, "lf-tally", upgrade=True)
     registry_path = tmp_path / ".leaf" / "registry.json"
@@ -5511,6 +5504,10 @@ def test_a_user_action_outranks_later_news_on_the_same_coordinate(
     )
     declarations["lf-tally"]["properties"]["restated"] = {"type": "boolean"}
     declarations["lf-tally"]["properties"]["overruled"] = {"type": "boolean"}
+    declarations["lf-tally"]["properties"]["seen"] = {
+        "type": "string",
+        "pattern": "^[0-9]+$",
+    }
     record = {"kind": "value", "attr": "count", "value": "count"}
     count_detail = {
         "type": "object",
@@ -5521,18 +5518,15 @@ def test_a_user_action_outranks_later_news_on_the_same_coordinate(
     declarations["lf-tally"]["x-state"] = {
         "set": {
             "detail": count_detail,
-            "facet": "count",
             "unit": "widget",
             "record": record,
-        }
-    }
-    declarations["lf-tally"]["x-report"] = {
-        "measure": {
+        },
+        "observe": {
+            "writer": "agent",
             "detail": count_detail,
-            "facet": "count",
             "unit": "widget",
-            "record": record,
-        }
+            "record": {"kind": "value", "attr": "seen", "value": "count"},
+        },
     }
     registry_path.write_text(json.dumps(declarations, indent=2))
     (tmp_path / ".leaf" / "widgets" / "lf-tally.js").write_text(
@@ -5544,8 +5538,10 @@ customElements.define("lf-tally", class extends HTMLElement {
   connectedCallback() { once(this); this.#stop ??= this.#controller.subscribe(() => {}); }
   disconnectedCallback() { this.#stop?.(); this.#stop = null; }
   renderState(state) {
-    if (state.count.value === null) this.removeAttribute("count");
-    else this.setAttribute("count", state.count.value);
+    if (state.set.value === null) this.removeAttribute("count");
+    else this.setAttribute("count", state.set.value);
+    if (state.observe.value === null) this.removeAttribute("seen");
+    else this.setAttribute("seen", state.observe.value);
   }
 });
 """
@@ -5556,7 +5552,7 @@ customElements.define("lf-tally", class extends HTMLElement {
     url = serve(html, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
     for kind, author, widget, action, count in [
         ("action", "user", "tally-fitted", "set", "7"),
-        ("report", "agent", "tally-fitted", "measure", "9"),
+        ("report", "agent", "tally-fitted", "observe", "9"),
         ("action", "user", "tally-seen", "set", "5"),
     ]:
         append_command(
@@ -5573,14 +5569,17 @@ customElements.define("lf-tally", class extends HTMLElement {
 
     page = open_page(browser, url)
     expect(page.locator("#tally-fitted")).to_have_attribute("count", "7")
+    expect(page.locator("#tally-fitted")).to_have_attribute("seen", "9")
     expect(page.locator("#tally-seen")).to_have_attribute("count", "5")
     expect(page.locator("body")).to_have_attribute("data-lf-applied", "3")
     standing = page.evaluate(
-        """async () => (await window.__lfRuntimeImport('/runtime/widget-api.js'))
-          .widgetController(document.getElementById('tally-fitted')).read()
-          .state.count.value"""
+        """async () => {
+          const {state} = (await window.__lfRuntimeImport('/runtime/widget-api.js'))
+            .widgetController(document.getElementById('tally-fitted')).read();
+          return [state.set.value, state.observe.value];
+        }"""
     )
-    assert standing == "7"
+    assert standing == ["7", "9"]
 
     original = page.locator("#tally-seen").element_handle()
     page.keyboard.press("z")
@@ -5589,12 +5588,12 @@ customElements.define("lf-tally", class extends HTMLElement {
     assert original.evaluate("node => node === document.getElementById('tally-seen')")
 
 
-def test_a_part_and_its_own_widget_keep_same_named_facets_independent(
+def test_a_part_and_its_own_widget_keep_same_named_verbs_independent(
     browser, serve, tmp_path, monkeypatch
 ):
-    """Facet names are local to their owning widget contract. A container's
-    placement of part `piece` and that element's own `placement` facet therefore
-    coexist even though unit and facet text are identical; both owners reconcile."""
+    """Verbs are local to their owning widget contract. A container's `move` of part
+    `piece` and that element's own `move` therefore coexist even though unit and verb
+    text are identical; both owners reconcile."""
     monkeypatch.chdir(tmp_path)
     for tag, upgrade in (
         ("lf-owner", True),
@@ -5614,18 +5613,17 @@ def test_a_part_and_its_own_widget_keep_same_named_facets_independent(
                 "properties": {
                     "piece": {"type": "string"},
                     "to": {"type": "string"},
-                    "index": {"type": "integer", "minimum": 0},
+                    "rank": {"type": "string"},
                 },
-                "required": ["piece", "to", "index"],
+                "required": ["piece", "to", "rank"],
                 "additionalProperties": False,
             },
-            "facet": "placement",
             "unit": "piece",
             "record": {
                 "kind": "position",
                 "within": "lf-zone",
                 "value": "to",
-                "order": "index",
+                "rank": "rank",
             },
         }
     }
@@ -5646,14 +5644,13 @@ def test_a_part_and_its_own_widget_keep_same_named_facets_independent(
     }
     piece.setdefault("required", []).append("pinned")
     piece["x-state"] = {
-        "pin": {
+        "move": {
             "detail": {
                 "type": "object",
                 "properties": {"pinned": {"type": "string"}},
                 "required": ["pinned"],
                 "additionalProperties": False,
             },
-            "facet": "placement",
             "unit": "widget",
             "record": {"kind": "value", "attr": "pinned", "value": "pinned"},
         }
@@ -5669,7 +5666,7 @@ customElements.define("lf-owner", class extends HTMLElement {
   connectedCallback() { once(this); this.#stop ??= this.#controller.subscribe(() => {}); }
   disconnectedCallback() { this.#stop?.(); this.#stop = null; }
   renderState(state) {
-    for (const [id, order] of Object.entries(state.placement.value)) {
+    for (const [id, order] of Object.entries(state.move.value)) {
       const zone = document.getElementById(id);
       for (const child of order) zone.append(document.getElementById(child));
     }
@@ -5685,7 +5682,7 @@ customElements.define("lf-piece", class extends HTMLElement {
   #stop;
   connectedCallback() { once(this); this.#stop ??= this.#controller.subscribe(() => {}); }
   disconnectedCallback() { this.#stop?.(); this.#stop = null; }
-  renderState(state) { this.setAttribute("pinned", state.placement.value); }
+  renderState(state) { this.setAttribute("pinned", state.move.value); }
 });
 """
     )
@@ -5703,14 +5700,14 @@ customElements.define("lf-piece", class extends HTMLElement {
             "revision": 1,
             "widget": "owner",
             "action": "move",
-            "detail": {"piece": "piece", "to": "zone-b", "index": 0},
+            "detail": {"piece": "piece", "to": "zone-b", "rank": "0i"},
         },
         {
             "kind": "action",
             "author": "user",
             "revision": 1,
             "widget": "piece",
-            "action": "pin",
+            "action": "move",
             "detail": {"pinned": "yes"},
         },
     ):
@@ -5725,11 +5722,11 @@ customElements.define("lf-piece", class extends HTMLElement {
           return ['owner', 'piece'].map(id => {
             const widget = document.getElementById(id);
             const {state} = widgetController(widget).read();
-            return [id, (state.placement.units?.piece ?? state.placement).action];
+            return [id, (state.move.units?.piece ?? state.move).action];
           });
         }"""
     )
-    assert standing == [["owner", "move"], ["piece", "pin"]]
+    assert standing == [["owner", "move"], ["piece", "move"]]
     expect(page.locator("body")).to_have_attribute("data-lf-applied", "2")
     # A data renderer can remount a part while retaining its owner. Both owning
     # coordinates must render onto the new node even when no winning event changed.
@@ -5755,104 +5752,6 @@ customElements.define("lf-piece", class extends HTMLElement {
     expect(page.locator("#piece")).to_have_attribute("pinned", "yes")
 
 
-def test_complete_positions_compose_across_independent_widget_owners(
-    browser, serve, tmp_path, monkeypatch
-):
-    """Four independently recorded siblings share one physical order. A fresh tab
-    must render their final positions in that order, rather than reapply each
-    owner's index in the original DOM order; undo retains those same nodes."""
-    monkeypatch.chdir(tmp_path)
-    author_test_widget(tmp_path, "lf-lane")
-    author_test_widget(tmp_path, "lf-token", upgrade=True)
-    path = tmp_path / ".leaf" / "registry.json"
-    declarations = json.loads(path.read_text())
-    declarations["lf-lane"]["x-content"] = "members"
-    declarations["lf-lane"].pop("x-example")
-    token = declarations["lf-token"]
-    token.pop("x-example")
-    token["properties"]["restated"] = {"type": "boolean"}
-    token["x-owners"] = ["lf-lane"]
-    token["x-state"] = {
-        "move": {
-            "detail": {
-                "type": "object",
-                "properties": {
-                    "to": {"type": "string"},
-                    "index": {"type": "integer", "minimum": 0},
-                },
-                "required": ["to", "index"],
-                "additionalProperties": False,
-            },
-            "facet": "placement",
-            "unit": "widget",
-            "record": {
-                "kind": "position",
-                "within": "lf-lane",
-                "value": "to",
-                "order": "index",
-            },
-        }
-    }
-    path.write_text(json.dumps(declarations))
-    (
-        path.parent / "widgets" / "lf-token.js"
-    ).write_text("""import { once, widgetController } from "/runtime/widget-api.js";
-customElements.define("lf-token", class extends HTMLElement {
-  #controller = widgetController(this);
-  #stop;
-  connectedCallback() { once(this); this.#stop ??= this.#controller.subscribe(() => {}); }
-  disconnectedCallback() { this.#stop?.(); this.#stop = null; }
-  renderState(state) {
-    const {to, index} = state.placement.detail;
-    const parent = document.getElementById(to);
-    const rest = [...parent.children].filter(child => child !== this);
-    if (parent.children[index] !== this) parent.insertBefore(this, rest[index] ?? null);
-  }
-});
-""")
-    html = leaf_page(
-        "Shared order",
-        '<h1>Shared order</h1><lf-lane id="lane">'
-        + "".join(f'<lf-token id="token-{name}">{name}</lf-token>' for name in "abcd")
-        + "</lf-lane>",
-    )
-    url = serve(html, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
-    sender = open_page(browser, url)
-    for name, index in [("d", 0), ("c", 1)]:
-        response = post_event(
-            sender,
-            url.rsplit("/versions/", 1)[0] + "/api/event",
-            data={
-                "kind": "action",
-                "revision": 1,
-                "widget": f"token-{name}",
-                "action": "move",
-                "detail": {"to": "lane", "index": index},
-                "attempt": f"move-token-{name}-test-case",
-            },
-        )
-        assert response.ok, response.text()
-    page = open_page(browser, url)
-    order = "nodes => nodes.map(node => node.id)"
-    assert page.locator("#lane > lf-token").evaluate_all(order) == [
-        "token-d",
-        "token-c",
-        "token-a",
-        "token-b",
-    ]
-    original = page.locator("#token-c").element_handle()
-    undo(page)
-    assert page.locator("#lane > lf-token").evaluate_all(order) == [
-        "token-d",
-        "token-a",
-        "token-b",
-        "token-c",
-    ]
-    assert original.evaluate("node => node === document.getElementById('token-c')")
-    assert render_checks_model.evaluate_probe(page, "relativeReplays") == []
-    told(sender)
-
-
 def test_the_render_gate_catches_a_relative_state_renderer(
     browser, serve, tmp_path, monkeypatch
 ):
@@ -5863,9 +5762,9 @@ def test_the_render_gate_catches_a_relative_state_renderer(
     poll replays the user's own gestures back at them. The finding names the widget,
     both verbs, and what moved.
 
-    Two facets on one unit prove both can stand while exercising the two readings that
+    Two verbs on one unit prove both can stand while exercising the two readings that
     catch different things. The count is markup, so `shallowSigs` sees it; the caption
-    is text, which that signature excludes on purpose, so only the facet's declared
+    is text, which that signature excludes on purpose, so only the verb's declared
     record form reaches it — a limb of the gate that would otherwise never have fired."""
     monkeypatch.chdir(tmp_path)
     author_test_widget(tmp_path, "lf-tally", upgrade=True)
@@ -5891,7 +5790,6 @@ def test_the_render_gate_catches_a_relative_state_renderer(
                 "required": ["count"],
                 "additionalProperties": False,
             },
-            "facet": "count",
             "unit": "widget",
             "record": {"kind": "value", "attr": "count", "value": "count"},
         },
@@ -5902,7 +5800,6 @@ def test_the_render_gate_catches_a_relative_state_renderer(
                 "required": ["text"],
                 "additionalProperties": False,
             },
-            "facet": "caption",
             "unit": "widget",
             "record": {"kind": "body", "value": "text"},
         },
@@ -6142,8 +6039,8 @@ def test_replay_signatures_exclude_settlement_and_other_runtime_paint(browser, s
             "author": "user",
             "revision": 1,
             "widget": "sug-refill",
-            "action": "accept",
-            "detail": {},
+            "action": "decide",
+            "detail": {"outcome": "accept"},
         },
     )
     page = open_page(browser, url)
@@ -6368,8 +6265,8 @@ def test_a_decision_already_in_the_log_retires_its_slot_at_load(browser, serve):
             "author": "user",
             "revision": 1,
             "widget": "sug-refill",
-            "action": "accept",
-            "detail": {},
+            "action": "decide",
+            "detail": {"outcome": "accept"},
         },
     )
     page = open_page(browser, url)
@@ -6426,9 +6323,9 @@ def test_a_settled_third_party_holder_wears_the_layers_mark(
     module's own duty, stated in the module contract and the key table and enforced
     nowhere, and the first family that forgot would have split the page's reading
     from the file's in silence. The second half drives it all back out: the fold
-    keeps the last surviving action per facet and unit, so a widget-unit verb on
-    the settlement facet that settles nothing displaces the decision, and the mark,
-    the marker and the hide follow it."""
+    keeps the last surviving action per verb and unit, so a decision on an outcome
+    that settles nothing displaces the one before it, and the mark, the marker and
+    the hide follow it."""
     monkeypatch.chdir(tmp_path)
     trial_family(tmp_path)
 
@@ -6444,8 +6341,8 @@ def test_a_settled_third_party_holder_wears_the_layers_mark(
             "author": "user",
             "revision": 1,
             "widget": "th-cache",
-            "action": "shelve",
-            "detail": {},
+            "action": "decide",
+            "detail": {"outcome": "shelve"},
         },
     )
     page = open_page(browser, url)
@@ -6461,9 +6358,9 @@ def test_a_settled_third_party_holder_wears_the_layers_mark(
     page.close()
 
     # The mark follows the fold out as well as in: the file's standing state is the
-    # last surviving action per facet and unit, so a widget-unit verb on the same
-    # facet that settles nothing displaces the decision, and a mark left standing
-    # would silence a slot the log has handed back.
+    # last surviving action per verb and unit, so a decision on an outcome that
+    # settles nothing displaces the one before it, and a mark left standing would
+    # silence a slot the log has handed back.
     append_command(
         serve.page_dir,
         {
@@ -6471,8 +6368,8 @@ def test_a_settled_third_party_holder_wears_the_layers_mark(
             "author": "user",
             "revision": 1,
             "widget": "th-cache",
-            "action": "pause",
-            "detail": {},
+            "action": "decide",
+            "detail": {"outcome": "pause"},
         },
     )
     page = open_page(browser, url)
@@ -6491,8 +6388,8 @@ def test_withdrawing_a_recorded_settlement_clears_the_layers_mark(
     browser, serve, tmp_path, monkeypatch
 ):
     """Authored reconstruction states markup, not a logged decision. A holder may
-    validly record the value carried by its settlement facet; restoring that value
-    after undo must not re-mark the withdrawn action or keep its slot retired."""
+    validly record a value its deciding verb carries; restoring that value after
+    undo must not re-mark the withdrawn action or keep its slot retired."""
     monkeypatch.chdir(tmp_path)
     trial_family(tmp_path)
     registry_path = tmp_path / ".leaf" / "registry.json"
@@ -6503,16 +6400,10 @@ def test_withdrawing_a_recorded_settlement_clears_the_layers_mark(
     holder["x-example"] = holder["x-example"].replace(
         'id="x-trial"', 'id="x-trial" decision="open"'
     )
-    detail = {
-        "type": "object",
-        "properties": {"decision": {"enum": ["open", "shelved"]}},
-        "required": ["decision"],
-        "additionalProperties": False,
-    }
-    record = {"kind": "value", "attr": "decision", "value": "decision"}
-    for spec in holder["x-state"].values():
-        spec["detail"] = detail
-        spec["record"] = record
+    decide = holder["x-state"]["decide"]
+    decide["detail"]["properties"]["decision"] = {"enum": ["open", "shelved"]}
+    decide["detail"]["required"].append("decision")
+    decide["record"] = {"kind": "value", "attr": "decision", "value": "decision"}
     registry_path.write_text(json.dumps(declarations))
     (tmp_path / ".leaf" / "widgets" / "lf-trial.js").write_text(
         """import { once, widgetController } from "/runtime/widget-api.js";
@@ -6521,7 +6412,7 @@ customElements.define("lf-trial", class extends HTMLElement {
   #stop;
   connectedCallback() { once(this); this.#stop ??= this.#controller.subscribe(() => {}); }
   disconnectedCallback() { this.#stop?.(); this.#stop = null; }
-  renderState(state) { this.setAttribute("decision", state.settlement.value); }
+  renderState(state) { this.setAttribute("decision", state.decide.value); }
 });
 """
     )
@@ -6536,8 +6427,8 @@ customElements.define("lf-trial", class extends HTMLElement {
             "author": "user",
             "revision": 1,
             "widget": "th-cache",
-            "action": "shelve",
-            "detail": {"decision": "shelved"},
+            "action": "decide",
+            "detail": {"outcome": "shelve", "decision": "shelved"},
         },
     )
     page = open_page(browser, url)
@@ -6585,8 +6476,8 @@ customElements.define("lf-trial", class extends HTMLElement {
             "author": "user",
             "revision": 1,
             "widget": "th-cache",
-            "action": "shelve",
-            "detail": {},
+            "action": "decide",
+            "detail": {"outcome": "shelve"},
         },
     )
 
@@ -6622,8 +6513,8 @@ def test_the_render_gate_holds_a_settled_slot_to_the_logs_decision(
             "author": "user",
             "revision": 1,
             "widget": "th-cache",
-            "action": "shelve",
-            "detail": {},
+            "action": "decide",
+            "detail": {"outcome": "shelve"},
         },
     )
     assert render_gate_model.render_version(browser, url) == []
@@ -6719,8 +6610,8 @@ def test_a_label_in_a_retired_slot_leaves_the_page_with_the_slot(browser, serve)
             "author": "user",
             "revision": 1,
             "widget": "sug-swap",
-            "action": "accept",
-            "detail": {},
+            "action": "decide",
+            "detail": {"outcome": "accept"},
         },
     )
     page = open_page(browser, url)
@@ -7041,7 +6932,6 @@ def test_thread_body_initial_state_comes_from_source_before_upgrade(
                     "x-state": {
                         "edit": {
                             "unit": "widget",
-                            "facet": "body",
                             "record": {"kind": "body", "value": "text"},
                             "detail": {
                                 "type": "object",
@@ -7070,7 +6960,7 @@ customElements.define('lf-delayed-body', class extends HTMLElement {
     this.#stop ??= this.#controller.subscribe(() => {});
   }
   disconnectedCallback() { this.#stop?.(); this.#stop = null; }
-  renderState(state) { this.querySelector('pre').textContent = state.body.value; }
+  renderState(state) { this.querySelector('pre').textContent = state.edit.value; }
 });
 """
             },
@@ -7219,7 +7109,7 @@ def test_crossed_responses_wait_for_the_same_frozen_widget_module(browser, serve
       return {
         descriptor: root.document.descriptors.has('crossed-draft'),
         authored: root.document.authored.has('crossed-draft'),
-        body: root.effective.widgets.get('crossed-draft')?.state.body?.value ?? null,
+        body: root.effective.widgets.get('crossed-draft')?.state.edit?.value ?? null,
         mounted: Boolean(document.getElementById('crossed-draft')),
       };
     }"""
@@ -7333,7 +7223,7 @@ def test_a_thread_question_asks_until_answered(browser, serve):
         wherever it stands — and `a` reaches it. A single-answer group
     is answered by its pick, as on the page; a `multiple` group's toggles each
     reach the agent live, so only its Done press closes it, as an `answer` action
-    the decision stands until (x-awaits.until). The thread's own reply box is the words'
+    x-awaits.answered names for a `multiple` group. The thread's own reply box is the words'
         home, so the group brings no box of its own. `g T` leaves option-digit scope for
     Threads, while `t` reaches a particular thread and `c` reaches its reply box.
 
@@ -7444,10 +7334,10 @@ def test_a_thread_question_asks_until_answered(browser, serve):
 
     # Taking back a recordless chrome answer rebuilds its authored controls at once —
     # the withdrawal is the user's own gesture on their own widget. The selection is
-    # another facet, so it survives that rebuild. Whether the decision is open again is
+    # another verb, so it survives that rebuild. Whether the decision is open again is
     # the log's reading, so the count moves when the withdrawal reaches it and not while
     # it is held at the wire. In particular, the surviving `choose` action cannot answer
-    # a thread set whose `x-awaits.until` names `answer`.
+    # a `multiple` set, whose x-awaits.answered condition is a standing `answer`.
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     with page.expect_request("**/api/event"):
@@ -7562,7 +7452,7 @@ def test_a_refused_thread_choice_replays_recorded_and_recordless_history(
 ):
     """A recordless accepted action still belongs to the widget's history.
     Reconstructing after a later refusal must replay both the recorded selection and
-    the separate completion facet, retaining both visible facts."""
+    the separate `answer` verb, retaining both visible facts."""
     url = serve(REPLY_HOST_PAGE)
     events_model.append_event(serve.page_dir, THREAD_ASKS[1])
     page = open_page(browser, url)
@@ -8540,7 +8430,7 @@ def test_command_hub_reads_one_publication_before_worker_presentation_commits(
               const {widgetController} = await window.__lfRuntimeImport(
                 '/runtime/widget-api.js');
               return widgetController(document.querySelector('#w-1'))
-                .read().state.activity.value === 'waiting';
+                .read().state.state.value === 'waiting';
             }"""
         )
         expect(worker).to_have_attribute("state", "working")
@@ -8898,7 +8788,9 @@ def test_command_hub_send_and_pause_is_one_thread_fold(browser, serve):
     expect(goal).to_have_attribute("data-lf-held")
     expect(goal.locator(":scope > .lf-task-meta")).to_contain_text("paused by you")
     paused = page.locator("#atlas-record .lf-activity-row").first
-    expect(paused).to_contain_text("You paused Replace the XML parser")
+    # The goal is named by its leading <strong>, not the words under it.
+    expect(paused).to_contain_text("You paused")
+    expect(paused.locator(".lf-activity-target")).to_have_text("Replace the XML parser")
     expect(paused).to_contain_text("Finish the current hunk, then park here.")
     root = next(
         event
@@ -8914,11 +8806,17 @@ def test_command_hub_send_and_pause_is_one_thread_fold(browser, serve):
             "agent": "Relay",
             "parent": root["id"],
             "revision": 1,
-            "text": "The hunk is complete; see https://example.com/run and park.",
+            "text": "The hunk is **complete**; see [the run](https://example.com/run) and park.",
         },
     )
     told(page)
     expect(goal).to_have_attribute("data-lf-held", root["id"])
+    # The feed quotes the reply in the words its Markdown renders, not its source.
+    replied = page.locator("#atlas-record .lf-activity-row").first
+    expect(replied.locator(".lf-activity-line")).to_contain_text("Relay replied")
+    expect(replied.locator(".lf-activity-excerpt")).to_have_text(
+        "The hunk is complete; see the run and park."
+    )
     inline_link = conversation.locator('a[href="https://example.com/run"]')
     expect(inline_link).to_have_attribute("target", "_blank")
     expect(inline_link.locator(":scope > svg.lf-external-mark")).to_be_visible()
@@ -9109,9 +9007,9 @@ def test_project_widget_can_join_the_orchestration_projection(
             "additionalProperties": False,
             "x-owners": ["lf-command", "lf-area"],
             "x-content": "markup",
-            "x-awaits": {"rollup": True},
-            "x-report": {
+            "x-state": {
                 "phase": {
+                    "writer": "agent",
                     "detail": {
                         "type": "object",
                         "properties": {
@@ -9120,7 +9018,6 @@ def test_project_widget_can_join_the_orchestration_projection(
                         "required": ["phase"],
                         "additionalProperties": False,
                     },
-                    "facet": "phase",
                     "unit": "widget",
                     "record": {
                         "kind": "value",
@@ -9138,7 +9035,6 @@ def test_project_widget_can_join_the_orchestration_projection(
                     "state": "phase",
                     "done": ["done"],
                     "stopped": ["blocked"],
-                    "report": "phase",
                 }
             }
         },
@@ -9340,3 +9236,38 @@ def test_datum_travel_resolves_the_destination_after_reveal(
         expect(page.locator(".lf-live")).to_have_text(
             "app.py:2 is not present in the exact patch"
         )
+
+
+def test_the_activity_feed_words_a_pick_in_the_document_it_was_made_in(browser, serve):
+    """A later version rewording or removing an option leaves the feed's row as made."""
+
+    def page_with(question):
+        return leaf_page(
+            "Route",
+            f"<h1>Route</h1>{question}"
+            '<section id="recent"><h2>Recent</h2>'
+            '<lf-activity id="feed"></lf-activity></section>',
+        )
+
+    def ask(fast, restated=""):
+        return f"""<lf-ask id="route-ask"><h2>Which route?</h2>
+  <lf-options id="route" choose>
+    <lf-option id="route-fast"{restated}>{fast}</lf-option>
+    <lf-option id="route-slow">Slow path</lf-option>
+  </lf-options>
+</lf-ask>"""
+
+    page = open_page(browser, live_url(serve(page_with(ask("Fast path")))))
+    page.locator("#route-fast .lf-pick").click()
+    round_trip(page)
+    row = page.locator("#feed .lf-activity-row", has_text="chose")
+    expect(row).to_contain_text("chose “Fast path” in")
+
+    reworded = page_with(ask("Quick route", " restated"))
+    stamp_page(serve.page_dir, reworded, "reword the option")
+    wait_for_revision(page, 2)
+    expect(row).to_contain_text("chose “Fast path” in")
+
+    stamp_page(serve.page_dir, page_with(""), "drop the question")
+    wait_for_revision(page, 3)
+    expect(row).to_contain_text("chose “Fast path” in")

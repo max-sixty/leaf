@@ -1,5 +1,6 @@
 """Declaration-driven state and retirement projections."""
 
+import re
 from datetime import datetime
 from itertools import chain
 from typing import NamedTuple
@@ -8,13 +9,14 @@ from leaf.events import (
     action_rests_on,
     action_retracted,
     anchored_ids,
+    event_coordinate,
     note_settlements,
     report_settlements,
     retractions,
     taken_back,
 )
 from leaf.passages import EMPTY, collapse, enclosing_of, spoken
-from leaf.registry.contract import state_specs
+from leaf.registry.contract import WRITERS, decides, event_spec, state_specs
 from leaf.registry.state import retirement_slots
 from leaf.structure import SourceDocument
 from leaf.thread_context import (
@@ -199,13 +201,13 @@ def retirable_ids(
 
     A widget no one has answered can still be withdrawn — no decision rested on
     it — where the entry says what withdrawing it means (`x-withdrawn-as`:
-    taking a suggestion back leaves the page as a `reject` would). That is the
+    taking a suggestion back leaves the page as a `reject` outcome would). That is the
     author asserting a state the user never gave, so it is hedged where a
     decision is not: only whole, every id under the slots it retires going with
     the widget, so a version can't quietly keep an unanswered proposal as
     settled content — and not while an unresolved thread is anchored in any of
     it. What the withdrawal doesn't name stays: the markup a pending deletion
-    wraps is the page's own, and only the user's own `accept` consents to losing
+    wraps is the page's own, and only the user's own `accept` outcome consents to losing
     it.
 
     The outcomes are replay's own (`retirement_outcomes`, folded over the version these
@@ -244,8 +246,8 @@ def protected_ids(
     Anchored unresolved threads keep their current target; an explicit detachment
     releases it while retaining the thread. Effective standing state keeps its owner
     and fold unit, plus every page id its canonical liveness reading rests on. An older
-    report hidden by a user action remains in the log, but the action is the state the
-    page must preserve.
+    report superseded by a newer one remains in the log, but the newest is the state
+    the page must preserve.
 
     Declared retirement remains the explicit route for removing decision
     markup. Its holder and slots stay protected until ``retirable_ids`` licenses
@@ -255,7 +257,7 @@ def protected_ids(
     needed: dict = {}
     for identity in anchored_ids(events, within):
         needed.setdefault(identity, set()).add("thread")
-    for (widget, unit, _facet), (event, _spec) in projection.desired.items():
+    for (widget, unit, _verb), (event, _spec) in projection.desired.items():
         # A user's action and a worker's report stand the same way and leave
         # differently: one is retracted, the other absorbed or overruled.
         why = "report" if event["kind"] == "report" else "state"
@@ -268,7 +270,7 @@ def protected_ids(
         holders,
         events,
         dropped,
-        retirement_outcomes(projection.actions, registry),
+        retirement_outcomes(projection.actions),
         spk,
     )
     return {
@@ -288,7 +290,7 @@ def action_subjects(event: dict, byid: dict, within: dict, registry: dict) -> li
     the column a card landed in is where the decision *put* it, not what it was
     about, and holding a version to a column's contents would refuse it for
     adding an unrelated card. Where a detail names no part of the widget (an
-    `edit` carries text, an `accept` carries nothing) the widget is its own
+    `edit` carries text, a `decide` carries its outcome) the widget is its own
     subject.
 
     Admission records the direct identities declared by the verb. This reading
@@ -305,6 +307,18 @@ def action_subjects(event: dict, byid: dict, within: dict, registry: dict) -> li
 
 
 NO_RECORD = object()
+
+# A position record's rank: a base-36 fraction written as its digits after the point,
+# never ending in 0, so string order is numeric order. The runtime's
+# `projection/model.js` owns the reasoning and computes the keys between neighbours;
+# these two rules are the ones both runtimes must read the same way.
+RANK = re.compile(r"[0-9a-z]*[1-9a-z]")
+_RANK_DIGITS = "0123456789abcdefghijklmnopqrstuvwxyz"
+
+
+def authored_rank(index: int) -> str:
+    """The rank of the unit at `index` in its authored container."""
+    return "z" * (index // 35) + _RANK_DIGITS[index % 35 + 1]
 
 
 class StateProjection(NamedTuple):
@@ -366,14 +380,15 @@ def state_projection(
     upto,
     floors: dict | None = None,
 ) -> StateProjection:
-    """Project both durable channels onto owner-unit-facet coordinates.
+    """Project user actions and agent reports onto owner-unit-verb coordinates.
 
-    `actions` holds the last surviving user action per coordinate. `reports`
-    keeps every live report there because stamping retires all of them.
-    `desired` gives a user action precedence over provisional agent news on
-    the same coordinate.
+    A verb declares one writer, so a coordinate holds actions or reports, never
+    both. `actions` holds the last surviving user action per coordinate.
+    `reports` keeps every live report there because stamping retires all of
+    them. `desired` is the state that stands at each coordinate: its action, or
+    its newest live report.
 
-    Both channels share one classification pass over the window. They end by
+    Both writers share one classification pass over the window. They end by
     different facts: undo or a retraction floor ends an action, while a note
     settling a report ends that report. `report_settlements` retains the answer
     version for gate diagnostics; `classified` retains valid entries for other
@@ -390,21 +405,17 @@ def state_projection(
     # the walk rather than per event.
     within = enclosing_of(spk)
     for event in events:
-        if event["kind"] == "action":
-            channel = "x-state"
-        elif event["kind"] == "report":
-            channel = "x-report"
-        else:
+        if event["kind"] not in WRITERS:
             continue
         if upto is not None and event["revision"] > upto:
             continue
         rec = byid.get(event["widget"])
         if rec is None:
             continue
-        spec = (registry.get(rec["tag"], {}).get(channel) or {}).get(event["action"])
+        spec = event_spec(registry.get(rec["tag"], {}), event)
         if not spec:
             continue
-        coordinate = tuple(event["meaning"]["coordinate"])
+        coordinate = event_coordinate(event)
         entry = (event, spec)
         classified[event["id"]] = (coordinate, entry)
         if event["kind"] == "action":
@@ -426,6 +437,22 @@ def state_projection(
         desired,
         settlement_versions,
         classified,
+    )
+
+
+def with_action(
+    projection: StateProjection, event: dict, spec: dict
+) -> StateProjection:
+    """The projection with one newer action standing at its admitted coordinate.
+
+    An action made against the window this projection folds is the latest at its
+    coordinate and no floor of that window can have retracted it, so admission
+    reads a candidate this way instead of folding the whole log again."""
+    coordinate = event_coordinate(event)
+    entry = (event, spec)
+    return projection._replace(
+        actions={**projection.actions, coordinate: entry},
+        desired={**projection.desired, coordinate: entry},
     )
 
 
@@ -452,12 +479,12 @@ def recorded_owner(unit: str, byid: dict, spk: dict, registry: dict):
     for candidate in reversed(spk.get(unit, EMPTY).within):
         rec = byid.get(candidate)
         entry = registry.get(rec["tag"], {}) if rec else {}
-        if any(spec.get("record") for _, _, spec in state_specs(entry)):
+        if any(spec.get("record") for _, spec in state_specs(entry)):
             return candidate
     return None
 
 
-def markup_facet(unit: str, spec: dict, byid: dict, spk: dict, registry: dict):
+def markup_value(unit: str, spec: dict, byid: dict, spk: dict, registry: dict):
     """What one version's markup shows for a unit's declared record form: every
     element inside it carrying the attribute, the unit's own attribute's value,
     the declared container enclosing it, or its body's words — the empty list
@@ -490,7 +517,7 @@ def markup_facet(unit: str, spec: dict, byid: dict, spk: dict, registry: dict):
     return collapse(spk.get(unit, EMPTY).words)  # "body"
 
 
-def folded_facet(e: dict, spec: dict):
+def folded_value(e: dict, spec: dict):
     """The state the folded action left: the detail field the record declares,
     collapsed the way `spoken` collapses where it compares against words, and
     sorted where it compares against a set of marked elements."""
@@ -533,50 +560,58 @@ def rewritten_bodies(actions: dict) -> dict:
     those words where the authored body was."""
     return {
         unit: (e["action"], e["detail"][spec["record"]["value"]])
-        for (_widget, unit, _facet), (e, spec) in actions.items()
+        for (_widget, unit, _verb), (e, spec) in actions.items()
         if (spec.get("record") or {}).get("kind") == "body"
     }
 
 
 def generated_children(desired: dict, authored_ids: set) -> dict:
-    """Owner id → declared children supplied by its current winning event.
+    """Owner id → the children standing creating actions supply, in log order.
 
-    The event carries the complete generated set. An authored element with the
-    same id already supplies that construction and keeps its authored content.
+    Each created child is its action's fold unit, so it stands on a coordinate of its
+    own: a later action of another verb leaves it standing, and only an undo or a
+    retraction of that action takes it away. An authored element with the same id
+    already supplies that construction and keeps its authored content.
     """
     children = {}
-    for (_widget, unit, _facet), (event, spec) in sorted(
+    for (widget, unit, _verb), (event, spec) in sorted(
         desired.items(), key=lambda item: item[1][0]["seq"]
     ):
-        if creates := spec.get("creates"):
-            children.setdefault(unit, []).extend(
+        if (creates := spec.get("creates")) and unit not in authored_ids:
+            children.setdefault(widget, []).append(
                 {
-                    "id": identity,
+                    "id": unit,
                     "tag": creates["child"],
-                    "text": text,
+                    "text": event["detail"][creates["words"]],
                     "event": event,
                 }
-                for identity, text in event["detail"].get(creates["field"], {}).items()
-                if identity not in authored_ids
             )
     return children
 
 
-def retirement_outcomes(actions: dict, registry: dict) -> dict:
-    """widget id → the accept/reject its action projection leaves standing.
-
-    Which verbs decide is the registry's word too: `x-retired-when` names the
-    outcome under which an element leaves the page, so nothing here knows a
-    widget or verb by name."""
-    # Widgets only: $keys spells its members in the x- keys' own names, so a sweep
-    # over every entry would take its paragraph on x-retired-when for a verb.
-    deciding = {
-        e["x-retired-when"]
-        for tag, e in registry.items()
-        if tag.startswith("lf-") and "x-retired-when" in e
+def record_members(
+    owner: str, projection: StateProjection, byid: dict, spk: dict, registry: dict
+) -> set:
+    """The ids an attribute record on `owner` may name: the authored elements it
+    records, and the children its standing actions created."""
+    authored = {
+        oid
+        for oid in byid
+        if owner in spk.get(oid, EMPTY).within[:-1]
+        and recorded_owner(oid, byid, spk, registry) == owner
     }
+    created = generated_children(projection.desired, set(byid)).get(owner, [])
+    return authored | {child["id"] for child in created}
+
+
+def retirement_outcomes(actions: dict) -> dict:
+    """widget id → the outcome its standing deciding action names.
+
+    Which verb decides is the registry's word: the one whose detail declares the
+    reserved `outcome` (`decides`), whose value `x-retired-when` and
+    `x-withdrawn-as` name, so nothing here knows a widget or verb by name."""
     return {
-        unit: e["action"]
-        for (_widget, unit, _facet), (e, _) in actions.items()
-        if e["action"] in deciding
+        widget: e["detail"]["outcome"]
+        for (widget, _unit, _verb), (e, spec) in actions.items()
+        if decides(spec)
     }

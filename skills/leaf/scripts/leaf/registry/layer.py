@@ -208,50 +208,27 @@ def validate_layer_declarations(
         if (
             not isinstance(declaration, dict)
             or not {"description", "schema"} <= set(declaration)
-            or set(declaration)
-            - {"description", "schema", "guidance", "fragments", "records"}
+            or set(declaration) - {"description", "schema", "guidance", "records"}
             or not isinstance(declaration.get("description"), str)
             or not declaration["description"]
             or not isinstance(declaration.get("schema"), dict)
         ):
             raise RegistryError(
                 f"{path}: $data contract {contract!r} must carry a description and "
-                "schema, with optional guidance, records and fragments"
+                "schema, with optional guidance and records"
             )
         records = declaration.get("records")
         if records is not None and (
             not isinstance(records, dict)
-            or set(records) != {"items", "key"}
+            or not {"items", "key"} <= set(records) <= {"items", "key", "deferred"}
             or any(
                 not isinstance(field, str) or not field for field in records.values()
             )
-            or records["items"] == records["key"]
+            or len(set(records.values())) != len(records)
         ):
             raise RegistryError(
                 f"{path}: $data contract {contract!r} records must name distinct "
-                "non-empty items and key fields"
-            )
-        fragments = declaration.get("fragments")
-        if fragments is not None and (
-            not isinstance(fragments, dict)
-            or set(fragments) != {"items", "key", "value"}
-            or any(
-                not isinstance(field, str) or not field for field in fragments.values()
-            )
-            or len(set(fragments.values())) != 3
-        ):
-            raise RegistryError(
-                f"{path}: $data contract {contract!r} fragments must name distinct "
-                "non-empty items, key, and value fields"
-            )
-        if (
-            records
-            and fragments
-            and any(records[field] != fragments[field] for field in ("items", "key"))
-        ):
-            raise RegistryError(
-                f"{path}: $data contract {contract!r} records and fragments "
-                "must share their items and key fields"
+                "non-empty items and key fields, and optionally a deferred field"
             )
         guidance_errors = sorted(
             json_validator(GUIDANCE_SCHEMA).iter_errors(

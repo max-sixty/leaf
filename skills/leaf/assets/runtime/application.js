@@ -298,9 +298,6 @@ export function mountApplication(dependencies) {
         action: command.verb,
         detail: structuredClone(command.detail ?? {}),
         ...(sourceRevision != null && { source_revision: sourceRevision }),
-        ...(command.references && {
-          references: structuredClone(command.references),
-        }),
         ...(command.attempt && { attempt: command.attempt }),
       })?.answer ?? null
     );
@@ -371,10 +368,7 @@ export function mountApplication(dependencies) {
     },
     travel: {
       focusSurface,
-      panelHides: dependencies.panelHides,
-      setPanel: dependencies.setPanel,
       scrollToThread: dependencies.anchorTravel.scrollToThread,
-      threadDestination: dependencies.anchorTravel.threadDestination,
       retainPanelLanding: dependencies.retainPanelLanding,
       retainNarrowing: dependencies.retainThreadNarrowing,
       showThread: dependencies.showThread,

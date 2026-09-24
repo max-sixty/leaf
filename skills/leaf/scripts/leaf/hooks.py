@@ -1,14 +1,16 @@
-"""Stop and prompt hooks that enforce the agent conversation loop."""
+"""Stop and prompt hooks that enforce the agent conversation loop, and the tool
+hook that tells a Claude Code session how to close a turn a background wait
+outlives."""
 
 import json
 
 from .activity import unanswered
 from .delivery import record_pickup
 from .event_log import read_events
-from .files import read_json
+from .files import next_reading, read_json
 from .host import claim_harness
+from .leases import started_wait, waiter_lease_path
 from .schema import (
-    ACK_BATCH_INSTRUCTION,
     ANSWER_ASK_INSTRUCTION,
     PREVIEW_FILE,
     STATUS_FILE,
@@ -24,16 +26,20 @@ from .service import (
 )
 
 
-def _stream_answers(reply: dict | None, obligation: dict, state: dict) -> bool:
-    """Whether App Server finished the exact answer this Stop is closing."""
+def _turn_wrote(obligation: dict, state: dict) -> bool:
+    """Whether the turn this Stop is closing finished the reply it owes this move.
+
+    A `turn` answer is written by the claimant's own turn, and the carrier commits
+    it once the turn ends, which is after this hook runs. So the move is answered
+    here when the turn's final message is complete, with text, in the reply draft
+    bound to it."""
+    draft = obligation.get("response") or {}
     return bool(
-        reply
-        and reply.get("state") == "active"
-        and reply.get("settles")
-        and reply.get("has_text")
-        and reply.get("session") == state["claim_session"]
-        and reply.get("turn") == state["claim_turn"]
-        and reply.get("responds") == obligation["input"]
+        obligation["answer"]["kind"] == "turn"
+        and draft.get("state") == "active"
+        and draft.get("settles")
+        and draft.get("has_text")
+        and draft.get("turn") == state["claim_turn"]
     )
 
 
@@ -83,14 +89,13 @@ def unattended_pages(
         # Queue acceptance belongs to the originating turn, so it is not debt
         # there. The later UserPromptSubmit still opens it below; from that
         # point its ordinary unanswered debt is enforced again.
-        # A draft reply counts as the answer only while the carrier that would
-        # commit it is alive; otherwise nothing will finish it.
-        reply = state["activity"].get("reply") if carried else None
+        # A finished turn answer counts only while the carrier that would commit
+        # it is alive; otherwise nothing will.
         stale = [
             obligation
             for obligation in acknowledged
             if obligation["stage"] != "queued"
-            and not _stream_answers(reply, obligation, state)
+            and not (carried and _turn_wrote(obligation, state))
         ]
         if stale:
             page_reasons.append(
@@ -109,15 +114,13 @@ def unattended_pages(
             if n:
                 # The harness's own remedy names this page, so it stays on the
                 # line; what follows it is the same for every page in the batch.
+                # The delivery that carries them says how to acknowledge it.
                 page_reasons.append(
                     (
                         f"{page_dir}: {n} update{'s' if n != 1 else ''} you haven't "
                         "picked up. "
                         + harness.input_unpicked(page_dir, listening=listening),
-                        (
-                            f"{ACK_BATCH_INSTRUCTION} The agent handling the batch "
-                            "must address every event."
-                        ),
+                        None,
                     )
                 )
             # Nothing is owed and nothing is listening. That is a debt on a page
@@ -165,8 +168,62 @@ def unattended_pages(
     return reasons
 
 
+# How long a tool hook looks for a wait to take this session's lease. The hook fires
+# as soon as the host has spawned a background command, and a `leaf wait` takes the
+# lease about 0.3s later warm, 2.5s after a plugin update leaves uv to sync first.
+WAIT_START_S = 3
+
+# Claude Code's session list reads a session's closing line, and a background wait
+# holds the session at Working whatever that line says
+# (`references/host-claude-code.md`, "Session list").
+WAIT_STARTED = (
+    "`leaf wait` is now watching your pages in the background. Claude Code's "
+    "session list shows this session as Working while it runs, and groups it by "
+    "the closing line of your reply. If this turn leaves anything only the user "
+    "can give (an answer on the page, or a decision about other work), end your "
+    "closing reply with a line `needs input: <what you want back>`. Only when "
+    "nothing waits on the user or on work you still have running (this watcher "
+    "aside), end it instead with a line `result: <what you delivered>`, which "
+    "files the session under Completed. Keep either line to 200 characters or "
+    "fewer, on its own line, not in a code block."
+)
+
+
+def announce_wait(session_id: str) -> bool:
+    """Whether a wait has started for this session that no tool hook has named yet.
+
+    The wait's own lease says so (`started_wait`), not the command the hook
+    follows. A wait already named when the hook looks means this command started
+    none: a second wait is refused while one holds the lease. With no wait at all,
+    the hook looks for `WAIT_START_S`, since the command it follows may be one
+    still starting."""
+    told = waiter_lease_path(None, session_id).with_suffix(".told")
+    started = started_wait(session_id) or next_reading(
+        lambda: started_wait(session_id), None, timeout=WAIT_START_S
+    )
+    if started is None or (told.is_file() and told.read_text() == started):
+        return False
+    told.write_text(started)
+    return True
+
+
 def cmd_hook(payload: dict) -> None:
     event, sid = payload.get("hook_event_name"), payload.get("session_id") or ""
+    if event == "PostToolUse":
+        # A foreground wait has returned before the hook runs, so only a
+        # background command can leave one running past the turn.
+        if payload["tool_input"].get("run_in_background") and announce_wait(sid):
+            print(
+                json.dumps(
+                    {
+                        "hookSpecificOutput": {
+                            "hookEventName": "PostToolUse",
+                            "additionalContext": WAIT_STARTED,
+                        }
+                    }
+                )
+            )
+        return
     if event == "SessionEnd":
         for page_dir in owned_pages(sid):
             try:

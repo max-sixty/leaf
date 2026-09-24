@@ -110,6 +110,26 @@ def append_command(page_dir, command):
         return event_contracts_model.append_admitted(page, command)
 
 
+def write_revision(page_dir: Path, revision: int, data: bytes) -> Path:
+    """Write revision `revision` of `data` under the page's current registry.
+
+    A shortcut past `version stamp` for a test that stages history directly: it
+    runs no gate and no activation, and refuses a revision number already taken."""
+    from leaf.registry.storage import read_page_registry
+    from leaf.revision_artifact import capture_artifact, write_artifact
+    from leaf.structure import SourceDocument
+
+    candidate = read_page_registry(page_dir)
+    artifact = capture_artifact(
+        page_dir,
+        SourceDocument(data.decode("utf-8")),
+        candidate.registry,
+        declaration_sources=candidate.declaration_sources,
+        widget_sources=candidate.widget_sources,
+    )
+    return write_artifact(page_dir, revision, artifact)
+
+
 @cache
 def model_layer(*packages: str) -> dict:
     """The vocabulary `page init` vendors for one package selection.
@@ -443,22 +463,32 @@ def publish(d, version=1):
     )
 
 
-def let_a_pick_settle_a_thread(page_dir):
-    """Declare `resolves` on `lf-options`' `choose`, before the page publishes.
+def let_a_pick_settle_a_thread(page_dir, thread):
+    """Declare `resolves` on `lf-options` and point the page's `picks` group at
+    `thread`, before the page publishes.
 
     A settling answer rests on its widget and on the ids that widget's detail
     names inside itself, so a version rewriting one of those takes the answer
-    back. Nothing shipped exercises both halves: of every verb in an
-    `x-awaits.answers` list, only `lf-suggestion`'s `accept` declares a
-    `resolves` detail, and its answer rests on the widget alone. A test of the
-    two together declares the verb it needs on the page it is about to publish,
-    which is where the append door reads the vocabulary that admits an action.
+    back. Nothing shipped exercises both halves: only `lf-suggestion` declares
+    `resolves`, and its answer rests on the widget alone. A test of the two
+    together declares the attribute it needs on the page it is about to publish,
+    which is where the append door reads the vocabulary and the markup that
+    admit an action.
     """
     registry = files_model.read_json(page_dir / "registry.json")
-    registry["lf-options"]["x-state"]["choose"]["detail"]["properties"]["resolves"] = {
-        "type": "string"
-    }
+    registry["lf-options"]["properties"]["resolves"] = {"type": "string"}
     files_model.write_json(page_dir / "registry.json", registry)
+    # An Ask, so a pick answers it; the markup already records that pick, so the
+    # answer owes no version of its own and only the thread is left to settle.
+    source = page_dir / "index.html"
+    source.write_text(
+        source.read_text()
+        .replace(
+            '<lf-options id="picks">',
+            f'<lf-options id="picks" choose resolves="{thread}">',
+        )
+        .replace('<lf-option id="flag-first">', '<lf-option id="flag-first" chosen>')
+    )
 
 
 def stamp(d, text="stamped", completes=()):
@@ -554,8 +584,8 @@ def decide(page_dir, outcome, widget="sug-refill"):
             "author": "user",
             "revision": files_model.latest_revision(page_dir),
             "widget": widget,
-            "action": outcome,
-            "detail": {},
+            "action": "decide",
+            "detail": {"outcome": outcome},
         },
     )
 
@@ -653,7 +683,7 @@ def owed(state):
 # A question and the accept that answers it, written as a stored log holds them:
 # ids of their own and the `meaning` admission stamped on the action. For a test
 # that needs an answered thread in a page directory and is about something else —
-# what a floored widget retracts, what a second facet joins — so the pair is
+# what a floored widget retracts, what a second verb joins — so the pair is
 # premise rather than subject. A test whose subject is the settlement states its
 # page and its log instead, and lets the door derive the meaning.
 COMMENT = {"kind": "comment", "id": "c1", "author": "user", "text": "cameras are flaky"}
@@ -662,11 +692,11 @@ ACCEPT = {
     "author": "user",
     "revision": 1,
     "widget": "sug-a",
-    "action": "accept",
-    "detail": {"resolves": "c1"},
+    "action": "decide",
+    "detail": {"outcome": "accept"},
     "meaning": {
-        "document": {"kind": "page", "revision": 1},
-        "coordinate": ["sug-a", "sug-a", "settlement"],
+        "document": "page",
+        "unit": "sug-a",
         "depends": ["sug-a"],
         "answer": "c1",
     },
@@ -729,39 +759,39 @@ def _mutated_registry_check(page_dir, mutate):
 
 
 def _report_body_record(registry):
-    registry["lf-task"]["x-report"]["status"]["record"] = {
+    registry["lf-task"]["x-state"]["status"]["record"] = {
         "kind": "body",
         "value": "status",
     }
 
 
 def _report_no_record(registry):
-    del registry["lf-task"]["x-report"]["status"]["record"]
+    del registry["lf-task"]["x-state"]["status"]["record"]
 
 
 def _report_undeclared_attr(registry):
-    registry["lf-task"]["x-report"]["status"]["record"]["attr"] = "phase"
+    registry["lf-task"]["x-state"]["status"]["record"]["attr"] = "phase"
 
 
 def _report_says_attr(registry):
     task = registry["lf-task"]
     task["required"].append("owner")
     task["x-says"] = {"owner": "before"}
-    task["x-report"]["status"] = {
+    task["x-state"]["status"] = {
+        "writer": "agent",
         "detail": {
             "type": "object",
             "properties": {"owner": {"type": "string"}},
             "required": ["owner"],
             "additionalProperties": False,
         },
-        "facet": "status",
         "unit": "widget",
         "record": {"kind": "value", "attr": "owner", "value": "owner"},
     }
 
 
 def _report_detail_drift(registry):
-    registry["lf-task"]["x-report"]["status"]["detail"]["properties"]["status"] = {
+    registry["lf-task"]["x-state"]["status"]["detail"]["properties"]["status"] = {
         "type": "string"
     }
 
@@ -772,6 +802,15 @@ def _report_without_overruled(registry):
 
 def _report_without_upgrade(registry):
     registry["lf-task"]["x-upgrade"] = False
+
+
+def _user_verb_update(registry):
+    registry["lf-options"]["x-state"]["choose"]["update"] = "options"
+
+
+def _agent_verb_answers(registry):
+    registry["lf-options"]["x-state"]["choose"]["writer"] = "agent"
+    registry["lf-options"]["properties"]["overruled"] = {"type": "boolean"}
 
 
 def _body_record_with_prose(registry):
@@ -804,6 +843,19 @@ ADOPTED = '<p id="cache-hourly">Rebuild the cache each hour.</p>'
 SHELVED = '<p id="log-daily">Logs roll over at midnight.</p>'
 
 
+def deciding_verb(outcomes):
+    """The one verb whose `outcome` settles which of a holder's slots retire."""
+    return {
+        "detail": {
+            "type": "object",
+            "properties": {"outcome": {"enum": outcomes}},
+            "required": ["outcome"],
+            "additionalProperties": False,
+        },
+        "unit": "widget",
+    }
+
+
 def trial_version(*markup):
     return PAGE.replace("<lf-options>", "\n".join([*markup, "<lf-options>"]))
 
@@ -829,18 +881,13 @@ def trial_page(tmp_path, monkeypatch):
 
     source = tmp_path / ".leaf" / "registry.json"
     declarations = json.loads(source.read_text())
-    verb = {
-        "detail": {"type": "object", "additionalProperties": False},
-        "facet": "settlement",
-        "unit": "widget",
-    }
-    for tag, state, example in (
-        ("lf-trial", ("adopt", "shelve"), TRIAL_CACHE),
-        ("lf-pilot", ("run", "shelve"), PILOT_PURGE),
+    for tag, outcomes, example in (
+        ("lf-trial", ["adopt", "shelve"], TRIAL_CACHE),
+        ("lf-pilot", ["run", "shelve"], PILOT_PURGE),
     ):
         declarations[tag] |= {
             "x-content": "members",
-            "x-state": {name: dict(verb) for name in state},
+            "x-state": {"decide": deciding_verb(outcomes)},
             "x-example": example,
         }
         declarations[tag]["properties"]["restated"] = {"type": "boolean"}
@@ -1012,7 +1059,7 @@ def neighbour_page(directory, title=None, dead=False, published=True):
     (directory / "index.html").write_text(html)
     initialized = CliRunner().invoke(cli_model.cli, ["page", "init", str(directory)])
     assert initialized.exit_code == 0, initialized.output
-    files_model.write_revision(directory, 1, html.encode())
+    write_revision(directory, 1, html.encode())
     # What `page init` writes: a page always has a status record.
     files_model.write_json(
         directory / "status.json",

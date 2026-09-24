@@ -2,9 +2,9 @@
  * The Pass and Keep buttons own the semantic action. Arrow keys and pointer swipes call
  * those buttons, whose click handler first places one card optimistically and then sends
  * the same absolute action the runtime replays after reload, sync, or undo. A classified
- * card can withdraw its own action and return to the queue. The final classification is
- * `finish`: that one event both places its card and completes the deck's Ask, so returning
- * that card restores both. Complete projection supplies the ordered cards in every pile;
+ * card can withdraw its own action and return to the queue. Every classification is one
+ * `swipe`; the deck's Ask is answered while the queue stands empty, so returning any card
+ * reopens it. Complete projection supplies the ordered cards in every pile;
  * this module places the retained nodes and carries only the live pointer gesture. A
  * card's parent pile presents whether it is unseen, passed, or kept. The complete
  * painted reading is memoized, so a broad action heartbeat that changes no deck state
@@ -24,6 +24,7 @@ import {
   offer,
   paintKeys,
   quoted,
+  rankAt,
   widgetController,
   worksInside,
 } from "/runtime/widget-api.js";
@@ -170,23 +171,15 @@ customElements.define(
     }
 
     #canSwipe() {
-      const action = this.#action();
-      return Boolean(action && this.#controller.read().actions[action]?.available);
-    }
-
-    #action() {
-      const queued = this.#cards(this.#pile("unseen")).length;
-      if (!queued) return null;
-      return queued === 1 ? "finish" : "swipe";
+      return Boolean(
+        this.#active() && this.#controller.read().actions.swipe?.available,
+      );
     }
 
     #render = () => {
       if (!this.#interactive) return;
       const active = this.#active();
-      const action = this.#action();
-      const available = Boolean(
-        active && action && this.#controller.read().actions[action]?.available,
-      );
+      const available = this.#canSwipe();
       const unseen = this.#cards(this.#pile("unseen"));
       const classified =
         this.#cards(this.#pile("pass")).length + this.#cards(this.#pile("keep")).length;
@@ -240,10 +233,9 @@ customElements.define(
     };
 
     #returnable(card) {
-      const { actions } = this.#controller.read();
-      return ["finish", "swipe"]
-        .flatMap((action) => actions[action]?.undo ?? [])
-        .find((event) => event.detail?.card === card.id);
+      return this.#controller
+        .read()
+        .actions.swipe?.undo.find((event) => event.detail?.card === card.id);
     }
 
     #returnControl(card) {
@@ -291,8 +283,7 @@ customElements.define(
     }
 
     #swipe(verdict, direction) {
-      const action = this.#action();
-      if (!action || !this.#controller.read().actions[action]?.available) return;
+      if (!this.#canSwipe()) return;
       const card = this.#active();
       const destination = this.#pile(verdict);
       if (!card || !destination) return;
@@ -301,19 +292,20 @@ customElements.define(
       const focusWasCard = card === document.activeElement;
       this.#exit(card, direction);
       this.#restorePointer(false);
+      const end = this.#cards(destination).length;
       const detail = {
         card: card.id,
         to: destination.id,
-        index: this.#cards(destination).length,
+        rank: rankAt(this.#controller.read().state.swipe, destination.id, end, card.id),
       };
-      this.#place(card, destination, detail.index);
+      this.#place(card, destination, end);
       this.#render();
       layoutChanged(this);
 
       const next = this.#active();
       if (focusWasCard && next) next.focus({ preventScroll: true });
       else if (focusWasInside && !next) this.#progress.focus({ preventScroll: true });
-      const sent = this.#controller.dispatch({ kind: "action", verb: action, detail });
+      const sent = this.#controller.dispatch({ kind: "action", verb: "swipe", detail });
       this.#resumePresentation();
       void sent?.delivery;
     }
@@ -439,18 +431,18 @@ customElements.define(
         focused?.localName === "lf-swipe-card" &&
         focused.closest("lf-swipe-deck") === this;
       const cards = this.#piles().flatMap((pile) => this.#cards(pile));
-      // A position facet keeps action metadata on its units. Work newest-first so one
+      // A position record keeps action metadata on its units. Work newest-first so one
       // state read that brings several classifications animates the last arrival; all
       // cards still reach their complete projected placement below. During initial
       // projection motion() returns null, so standing units load directly at rest.
-      const transitions = Object.values(state.verdict.units ?? {}).reverse();
+      const transitions = Object.values(state.swipe.units ?? {}).reverse();
       const transition = transitions.find(({ action, detail }) => {
         const card = detail?.card
           ? cards.find((candidate) => candidate.id === detail.card)
           : null;
         const destination = detail?.to ? document.getElementById(detail.to) : null;
         return (
-          ["swipe", "finish"].includes(action) &&
+          action === "swipe" &&
           card?.parentElement?.getAttribute("verdict") === "unseen" &&
           destination?.closest("lf-swipe-deck") === this &&
           ["pass", "keep"].includes(destination.getAttribute("verdict"))
@@ -466,7 +458,7 @@ customElements.define(
         ? this.#exit(movingCard, verdict === "pass" ? -1 : 1)
         : null;
       let moved = false;
-      for (const [id, order] of Object.entries(state.verdict.value)) {
+      for (const [id, order] of Object.entries(state.swipe.value)) {
         const destination = document.getElementById(id);
         if (destination?.closest("lf-swipe-deck") !== this) continue;
         order.forEach((id, index) => {
@@ -491,7 +483,7 @@ export const interactionGalleryScenario = {
     const card = deck.querySelector("lf-swipe-card");
     const piles = [...deck.querySelectorAll(":scope > lf-swipe-pile")];
     deck.renderState({
-      verdict: {
+      swipe: {
         units: {},
         value: Object.fromEntries(
           piles.map((pile) => [
@@ -512,12 +504,12 @@ export const interactionGalleryScenario = {
     const keepPile = piles.find((pile) => pile.getAttribute("verdict") === "keep");
     await track(
       deck.renderState({
-        verdict: {
+        swipe: {
           units: {
             [card.id]: {
-              action: "finish",
+              action: "swipe",
               value: keepPile.id,
-              detail: { card: card.id, to: keepPile.id, index: 0 },
+              detail: { card: card.id, to: keepPile.id, rank: "i" },
             },
           },
           value: Object.fromEntries(

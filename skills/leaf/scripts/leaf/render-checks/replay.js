@@ -4,9 +4,9 @@ import { at } from "./locate.js";
 
 // Measure the state painted by surviving decisions made before this revision.
 // A decision made on this markup cannot contradict its authoring, even when the
-// widget or facet changed since the previous stamp. Render the authored baseline
+// widget or its state changed since the previous stamp. Render the authored baseline
 // and those carried winners through the same complete-state fold, then restore
-// the full current state. This also separates old and new facets on one owner.
+// the full current state. This also separates old and new verbs on one owner.
 // Run after the observational probes: these temporary renders change the page.
 export function replayOverrides({ curHtml, prevHtml, carriedActions }) {
   if (!carriedActions.length) return [];
@@ -72,7 +72,7 @@ export function replayOverrides({ curHtml, prevHtml, carriedActions }) {
 
 // The complete renderer must be idempotent. Invoke it directly rather than the
 // reconciler, whose committed-state checkpoint would skip an unchanged value.
-// Compare both id-bearing structure and body facets: text is absent from shallowSigs.
+// Compare both id-bearing structure and body records: text is absent from shallowSigs.
 export function relativeReplays() {
   const standing = validationWidgetStates().filter((s) => s.widget?.renderState);
   if (!standing.length) return [];

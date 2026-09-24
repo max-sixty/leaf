@@ -11,14 +11,21 @@ import { defineRequestElement } from "./request-elements.js";
 
 export { LitElement, html } from "../vendor/browser-runtime.js";
 export { widgetController } from "./widget-controller.js";
+// The rank a position record carries for a unit dropped at an index in a container.
+export { rankAt } from "./projection/model.js";
 export async function mountSpecimen(frame, options) {
   const owner = await import("./specimen.js");
   return owner.mountSpecimen(frame, options);
 }
 
 export { USER_VIEW_RESTORE_CASES } from "./restore-state.js";
-export { arrangeReadingElement, defineReadingPaneElement } from "./reading-layout.js";
-export { addressableWord } from "./anchor-resolution.js";
+export {
+  addressableName,
+  addressableSays,
+  addressableWord,
+} from "./anchor-resolution.js";
+// The name Threads, the margin, and reactions give a comment's anchor.
+export { anchorLabel } from "./conversation/messages.js";
 export { navigateToDatum } from "./application.js";
 export {
   declareCoverRoom,
@@ -68,6 +75,7 @@ export {
   inlineMarkdownFragment,
   loadMarkdown,
   markdownReady,
+  markdownWords,
   renderInlineMarkdown,
   renderMarkdown,
 } from "./markdown.js";
@@ -78,12 +86,10 @@ export {
   compoundReadingRegionId,
   effectiveScroller,
   preserveReadingRegions,
-  readingAllocation,
   readingPosture,
   readingRegion,
   readingRegionFor,
   readingRegions,
-  registerReadingArrangement,
   registerReadingRegion,
   scrollerFor,
   shownRegionBounds,
@@ -104,7 +110,7 @@ export {
 } from "./passages.js";
 export { ago, clocked, clockValue, quietSince } from "./presence.js";
 export { shallowSigs } from "./application.js";
-export { registerWidgetStyles, shadowStage } from "./shadow-stage.js";
+export { shadowStage } from "./shadow-stage.js";
 export { agentName, revisionLabel } from "./context.js";
 export { loadDataFragment, watchData } from "./data.js";
 export { clearDraft, loadDraft, saveDraft, sendDraft, watchDraft } from "./drafts.js";

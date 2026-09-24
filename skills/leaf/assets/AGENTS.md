@@ -54,7 +54,7 @@ relative to `runtime/` unless stated otherwise.
 | Revision installs and continuity | `version.js`, `version-chooser.js`, `carry.js`, `dom-children.js`, `root-state.js`, `restore-state.js` |
 | Shared repaint and geometry | `repaint.js`, `standing.js`, `page-geometry.js`, `geometry.js`, `pointer.js` |
 | Chrome assembly and available room | `chrome.js`, `chrome-layout.js`, `auxiliary-surfaces.js`, `drawn-edge.js` |
-| Reading arrangements and scrolling | `reading-regions.js`, `reading-layout.js`, `scrolling.js`, `reach.js`, `user-place.js` |
+| Reading regions and scrolling | `reading-regions.js`, `bounds.js`, `scrolling.js`, `reach.js`, `user-place.js` |
 | Keyboard commands and their projections | `keyboard/AGENTS.md` |
 | Focus and navigation | `focus.js`, `navigation.js`, `user-intent.js`, `walk-position.js` |
 | Asks | `asks/view.js`, `asks/view-elements.js`, `asks/model.js` |
@@ -115,9 +115,9 @@ A standing Asks tray reserves its strip with a transparent body border (`theme.c
 preserving native scroll anchoring during reflow. The thread panel and the Leaves tray
 stand over the page and reserve nothing. `chrome-layout.js` must not override the user's
 position.
-Reading arrangements measure available room and minimum size in the bounded candidate
-without changing current geometry, so responsive posture does not depend on the posture
-from which the measurement began.
+A workspace's posture is the stylesheet's: one container query on the workspace's own
+box decides whether each pane's body scrolls, and the runtime reads which box scrolls
+a region from that result rather than choosing it (`reading-regions.js`).
 
 The widget layer loads the vendored
 registry, imports modules declared by `x-upgrade`, renders registry-declared
@@ -131,7 +131,7 @@ Each mutable fact has one writer:
 
 | Fact | Authority | Browser writer |
 | --- | --- | --- |
-| authored widget state | validated source markup before widget upgrade | `stageAuthoredFacets` decodes typed initial values; the application admits them atomically with descriptors, revision identity, and a matching server reading |
+| authored widget state | validated source markup before widget upgrade | `stageAuthoredStates` decodes typed initial values; the application admits them atomically with descriptors, revision identity, and a matching server reading |
 | external data | the page data reading taken latest | `receiveState` replaces the source values; `watchData` delivers each bound source's value to widget modules |
 | projected data | an external snapshot or other records the widget is currently given | `projectData` reconciles their keyed rendering; the DOM does not become another record store |
 | version shown by the live document | the immutable revision named by its delivery prelude | a newer active revision whose executable identity is this document's is patched onto the authored page in place; one whose differs navigates the stable live address into a fresh document; a public version address derives the version number from its URL |
@@ -160,6 +160,8 @@ Each mutable fact has one writer:
 | whether the margin card shows, and which target's threads | the user's standing target: focus on the target or inside it, its margin cluster, or the card | `margin-projection.js`'s `followStanding` on focus arrival, the standing scope's `release` (`focus.js`), `pressAway` for a press outside the card, its target, and its cluster, and the explicit opens (`t`, a marker, a mark); with Threads open, `followStanding` expands the target's thread in the list instead (`accompanyThread`, `conversation/landing.js`) |
 | the margin card's place in its transcript | the card list's own scroll, held through a re-render of the same thread by the place hold above | a landing through `revealConversation`, a send revealing its reply, and `buildThreadCard` starting another thread at the top; placing the card writes none |
 | how much of a scroller the user can see, and where a landing may put something | the scroller's shown band less the covers declared through `declareCoverRoom` that stick in it, or less its declared `scroll-padding` | `visibleBand` and `landingBand` in `geometry.js`; `shownRect`'s clip walk applies `visibleBand` at every ancestor, so whether something is on screen has one answer |
+| what a surface standing over the page hides | the surface's own box, for what stacks beneath it and outside it | the surface declares itself once through `declareOccluder` (`geometry.js`); the thread panel does, and `shownRect` takes what it stands over away, so exposure, travel, and badge placement read it alike |
+| which surface a trip clears to show its destination | the selected auxiliary surface, where it covers the page or stands over most of the destination (`hides`, `geometry.js`) | `clearFor` on the auxiliary-surface owner, called from travel's one `trip` entry (`anchor-travel.js`), which then reads past whatever surface still stands |
 | region width the user drew | the user's store, per edge | `drawnEdge`'s `set` and `restore` |
 | keyboard meaning | registered scope and row objects, tiered over the layer stack the popovers and modal dialogs pushed; for Escape, inner steps, then the surface holding focus with whatever stands inside it, then every step rooted outside it | the dispatcher and each visible key surface read the same binding-specific ownership |
 | draft generation | the user's draft record | draft-store helpers and `watchDraft` |
@@ -198,7 +200,7 @@ Startup order is load-bearing:
 3. Restore the user's arrangement from storage, and let focus go to the page.
 4. Fetch and validate the registry.
 5. Index passage fences and authored parent identities, then capture each widget's
-   immutable descriptor and typed authored facets from the source DOM.
+   immutable descriptor and typed authored state from the source DOM.
 6. Publish that complete document contract once. No component is connected because
    Leaf still needs it to discover semantic input.
 7. Import the modules declared by `x-upgrade` for the tags this document contains, and
@@ -259,13 +261,9 @@ those readings and combines them with authored state and unresolved gestures;
 coverage and provenance. Widget controllers keep desired state separate from proof of
 rendering.
 
-Action prerequisites use the registry's `x-state.requires` declaration. The controller
-paints eligibility, the common browser dispatch checks it, and POST checks the same
-prerequisite against the log under the append lock. Eligibility uses the ordinary Ask
-projection without conversation seats: handing an Ask to the agent does not answer it.
-The registry's `$keys` entries own `requires`, `x-awaits.answers`, and `x-awaits.rollup`;
-`../references/packages.md`, "A widget", owns position-answer completion. Keep those
-readings shared rather than adding an eligibility cache or a browser Ask fold.
+Whether an Ask is answered is the registry's `$awaits.answered` condition over standing
+state, which Python evaluates. Keep that reading on the server rather than adding a
+browser Ask fold.
 
 The server supplies page and conversation Ask collections through each view's
 `document.asks` and the conversation's `asks`. The publisher combines them page first;
@@ -299,19 +297,14 @@ on a pinned page even when the document projection remains historical.
 Registry-declared `x-conversation` seats show an exact-section
 textual view while the owner exists in the current document. A declared
 `x-thread-surface` seats the canonical composer and Thread views inside the widget on
-the terms in `../references/packages.md`, "Widget-local Thread surfaces". A root
-declared with `response: {kind: version, verb: <answer>}` keeps that exact-section
-view text-only and refuses an agent reply because the next authored version is its
-response. Dropping the owner drops only the inline seat.
+the terms in `../references/packages.md`, "Widget-local Thread surfaces". Dropping
+the owner drops only the inline seat.
 
 `restated` and answered-report relations persist through version notes. The note
 records the version floor for each affected id or report event; silence in a
 later version does not revive retracted state. Python's projection uses
 containment, not a global id lookup, when deciding which detailed parts an action
 rests on.
-
-Version-response conversations and their resolution rules are defined in
-`../scripts/leaf/events.md`, "Threads".
 
 ## The widget vocabulary stays open
 
@@ -462,8 +455,8 @@ Each Thread's `unread` is the one reading of what the user has not read. The
 Threads toggle's dot and label, the panel's **Unread** jump and per-thread counts, the
 **New since you last looked** boundaries, a margin entry's dot and its Page Map row
 all paint it, so they change together. Reading is bookkeeping and never moves the
-reader: a mark inside a conversation is drawn in room the content keeps whether or not
-it is unread, so a receipt changes no box the reader is looking at. The server counts
+user: a mark inside a conversation is drawn in room the content keeps whether or not
+it is unread, so a receipt changes no box the user is looking at. The server counts
 a reply, reaction, widget answer, resolve, or reopen as reading what the thread held
 before it; the page adds exposure: a whole prose body shown in one surface, whatever
 its own scrollers still hold, since geometry cannot tell how much of a wide code line

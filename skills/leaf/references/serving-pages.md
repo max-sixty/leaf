@@ -2,8 +2,8 @@
 
 ## Exported files
 
-When `$ARGUMENTS` asks for `--export`, initialize, query the page registry,
-author, and stamp as usual, then run:
+When `$ARGUMENTS` asks for `--export`, build the page as a finished record (the
+main skill's "Operate", step 3), since only a stamped version exports, then run:
 
 ```bash
 leaf version export <page> -o <file>
@@ -23,7 +23,7 @@ leaf version export <page> -o <file> --interactive
 ```
 
 It runs the captured revision's modules and normal Leaf renderers without host chrome
-or network access. Accepted page state and contract-declared data fragments are
+or network access. Accepted page state and deferred data record fields are
 included, while actions and requests that need an agent or server are unavailable
 before dispatch. The default command remains the script-free record.
 
@@ -108,18 +108,16 @@ in agent-task delivery.
 
 ## Resuming a standing or foreign page
 
-The host selects exactly one successor session; neither `page state` nor a bare
-read grants exclusive ownership. The selected successor first runs:
+Resume a page from one session only. A named `leaf wait <page>` moves the claim to
+whichever session runs it, and a watcher another session still runs stops watching
+that page. First read the page:
 
 ```bash
 leaf page state <page>
 ```
 
-Read `content` for the current document and its construction origins, then the
-active revision, open Asks, current conversation state, and `measurement_lag` for
-figures whose sources have run again. Before editing, follow
-`authoring-revisions.md`'s "Read before editing" section. If the state reports a live
-watcher, the host ends that watcher before continuing. The
-successor then runs `leaf wait <page>`, whose named wait claims the page for that
-session. Starting a server when the standing one is already live prints its URL
-without changing its lifetime.
+Read `content` for the current document and its construction origins, then the active
+revision, open Asks, current conversation state, and `measurement_lag` for figures
+whose sources have run again. Before editing, follow `authoring-revisions.md`'s "Read
+before editing" section. Then run `leaf wait <page>` to claim it. Starting a server
+when the standing one is already live prints its URL without changing its lifetime.

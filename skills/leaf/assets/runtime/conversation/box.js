@@ -37,7 +37,6 @@ export const conversationBox = (
         anchor: { section: el.id },
         text,
         attempt,
-        ...(declaration.response && { response: declaration.response }),
         ...(holds && { holds: el.id }),
       }),
     );

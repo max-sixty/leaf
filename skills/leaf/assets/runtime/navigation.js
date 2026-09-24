@@ -10,6 +10,7 @@ import { pageScroller } from "./scrolling.js";
 import { landingInsets } from "./geometry.js";
 import { effectiveScroller, readingRegionFor } from "./reading-regions.js";
 import { closestAcross } from "./passages.js";
+import { under } from "./shadow.js";
 import { announce } from "./notifications.js";
 import { focusThread } from "./conversation/focus.js";
 import { beginWalk, listWalkPosition, walkPositionLabel } from "./walk-position.js";
@@ -60,12 +61,14 @@ function stepThread(
   // Both halves of the press go where they were pointed. The list lands the thread off
   // the focus it is about to take, so a press at either end of the walk, which names the
   // thread the user already stands on, moves no focus and gives the list nothing to
-  // land: the press lands that thread itself. The page half travels either way.
+  // land: the press lands that thread itself. The page half travels either way, and
+  // keeps the panel the walk is in: it moves the page only where moving it shows the
+  // passage better beside the panel (anchor-travel.js, `arrived`).
   threadsBox.revealNavigation(next.dataset.id);
   const standing = next.contains(document.activeElement);
   focusThread(next, { preventScroll: true });
   if (standing) next.scrollIntoView({ behavior: scrollBehavior(), block: "nearest" });
-  scrollToThread(next.dataset.id);
+  scrollToThread(next.dataset.id, { keep: true });
   announce(
     beginWalk("thread", "Thread", () =>
       threadPosition(activeInlineThread, panelIsOpen),
@@ -132,7 +135,8 @@ const seenScroller = (coveringAuxiliaryScroller) =>
 const stepScroller = (coveringAuxiliaryScroller) => {
   const covering = coveringAuxiliaryScroller();
   const region = readingRegionFor(document.activeElement);
-  if (covering && !coveringAuxiliarySurface()?.contains(region?.host)) return covering;
+  if (covering && !(region && under(region.host, coveringAuxiliarySurface())))
+    return covering;
   return effectiveScroller(region);
 };
 function stepReading(amount, unit, coveringAuxiliaryScroller) {

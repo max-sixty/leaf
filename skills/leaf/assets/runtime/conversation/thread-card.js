@@ -100,7 +100,7 @@ export function threadReading(
           ? ""
           : "✓ Resolved",
     settlement: Object.freeze({ kind, word, label, pending: settling }),
-    reply: !resolved && (panel || thread.root.response?.kind !== "version"),
+    reply: !resolved,
     summaries: panel ? Object.freeze(thread.summaries ?? []) : Object.freeze([]),
     messages: Object.freeze(
       turns(thread).map((message) =>
@@ -575,10 +575,8 @@ export class ThreadView {
     if (!model.quote?.anchored || !model.quote.found) return;
     if (event.detail !== 0 && reachedForWords(event.currentTarget)) return;
     const travel = this.#commands.travel;
-    // A passage the open panel stands over would land out of sight, so the panel makes
-    // way for it; one clear of the panel lands with the panel still open beside it.
-    const where = travel.threadDestination(model.id);
-    if (where && travel.panelHides(where)) travel.setPanel(false);
+    // The trip promises to show the passage, so it clears the panel where the panel
+    // stands over most of it and leaves the panel open beside one seen where it stands.
     travel.scrollToThread(model.id, {
       land: () => travel.focusSurface(this.#model.id),
     });

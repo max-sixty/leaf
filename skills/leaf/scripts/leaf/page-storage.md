@@ -34,7 +34,8 @@ other page files and the external state listed below.
   identity are defined in [layer-registry.md](layer-registry.md).
 
 - `guidance/` — package-owned guidance grouped by audience. Files with the same name
-  concatenate in package order; `page guidance` reads any audience
+  concatenate in package order, each under a heading naming its package;
+  `page guidance` reads any audience
 
 - `icon.svg` — tab icon; its lf-tone element follows the banner's status colour
 
@@ -76,9 +77,9 @@ other page files and the external state listed below.
 - `cursor.json` — acknowledged position in this page's event log. Acknowledgement and
   log replacement rules are defined in [session-lifetime.md](session-lifetime.md).
 
-- `preview.json` — watcher-owned preview identity and lifecycle, managed by
-  `scripts/preview.py`. The server exposes only preview chrome fields, never the file
-  or its private paths. Its presence exempts the page from the handoff's watcher guard.
+- `preview.json` — the preview identity browser chrome labels, written by
+  `scripts/preview.py`, which decides what a preview tells the browser: the server
+  hands the file to the page whole. Its presence exempts the page from the handoff's watcher guard.
 
 - `service.json` — desired server address, enabled state, lifetime, and runtime
   provenance. `hosting.py` owns start/stop and revival;
@@ -145,7 +146,8 @@ Raw diagnostic history belongs to `leaf events --conversation`, and the page's
 Immutable deliveries live outside page directories at
 `<state-home>/deliveries/<id>.json`, because one envelope can contain complete
 batches from several pages and must resolve identically in every host. The file's
-`leaf-delivery-v2` format, id, capture time, and batches never change. Delivery
+`leaf-delivery-v3` format, id, capture time, carrier, acknowledgement, and
+batches never change. Delivery
 records are separate mutable transport state; acknowledgement can archive
 those records without moving or rewriting the delivery addressed by `leaf
 delivery read <id>`.

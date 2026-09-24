@@ -3,6 +3,7 @@
 import functools
 import json
 import re
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
@@ -13,7 +14,6 @@ from referencing.exceptions import Unresolvable
 from referencing.jsonschema import DRAFT202012
 
 from leaf.files import read_json
-from leaf.schema import ELEMENT_ID
 
 FORMAT_CHECKER = FormatChecker()
 RFC3339_DATE_TIME = re.compile(
@@ -77,34 +77,29 @@ def schema_error(schema: dict, instance) -> str | None:
     return error.message if error else None
 
 
-CREATED_CHILDREN_DETAIL_SCHEMA = {
-    "type": "object",
-    "minProperties": 1,
-    "propertyNames": {"pattern": f"^{ELEMENT_ID}$"},
-    "additionalProperties": {"type": "string", "minLength": 1},
-}
-
-
 def event_clauses(entry: dict, registry: dict | None) -> list[dict]:
     """What the layer asks of the agent for one delivered event, read off the
     vendored `$events`: the event kind's `handling` clauses, then the `answering`
     clauses of the answer it owes, each kept when its `when` schema matches.
 
-    `entry` is the event record, plus the `obligation` a delivery captured when the
-    event owns an answer (`workflows` owns that derivation). A `when` can therefore
-    read the obligation as well as the record, and an event owing nothing is told
-    nothing about answering: a pick before Done, or a message a newer one in its
-    thread answers through. A project layer restates a kind's clauses merge-patch
-    style, so the event carries the rule the page was vendored with. A missing or
-    invalid registry leaves the event unexplained; it never substitutes instructions
-    from a different layer. What each case of each kind receives from the shipped
-    layer, clause by clause, is snapshotted in `tests/_regtest_outputs/`, by
+    `entry` is the event record, plus the `answer` a delivery captured when the
+    event owes one, routed for the carrier delivering it (`workflows` and
+    `delivery` own those derivations), and the `conversation` digest of the thread
+    it belongs to (`thread_context` owns that one). A `when` can therefore read any
+    of them as well as the record, so a clause states the case a delivery is in
+    rather than naming a condition the delivery already settles, such as a
+    thread's missing title. An event owing nothing is told nothing about
+    answering: a pick before Done, or a message a newer one in its thread answers
+    through. A project layer restates a kind's clauses merge-patch style, so the
+    event carries the rule the page was vendored with. A missing or invalid
+    registry leaves the event unexplained; it never substitutes instructions from a
+    different layer. What each case of each kind receives from the shipped layer,
+    clause by clause, is snapshotted in `tests/_regtest_outputs/`, by
     `test_each_case_of_an_event_is_told_what_the_snapshot_shows`."""
     declared = (registry or {}).get("$events", {})
     clauses = list(declared.get("handling", {}).get(entry["kind"]) or [])
-    if obligation := entry.get("obligation"):
-        answer = obligation["response"]["kind"]
-        clauses += declared.get("answering", {}).get(answer) or []
+    if answer := entry.get("answer"):
+        clauses += declared.get("answering", {}).get(answer["kind"]) or []
     return [
         clause
         for clause in clauses
@@ -112,10 +107,13 @@ def event_clauses(entry: dict, registry: dict | None) -> list[dict]:
     ]
 
 
-def created_children(event: dict, spec: dict) -> dict:
-    """The generated child id-to-words map declared by one validated action."""
+def created_child(event: dict, spec: dict) -> tuple[str, str] | None:
+    """The id and words of the child one validated action creates, or None where
+    its verb declares no `creates`. The verb's fold unit names the child."""
     creates = spec.get("creates")
-    return event["detail"].get(creates["field"], {}) if creates else {}
+    if not creates:
+        return None
+    return event["detail"][spec["unit"]], event["detail"][creates["words"]]
 
 
 def visual_part_attribute(entry: dict) -> str | None:
@@ -124,11 +122,47 @@ def visual_part_attribute(entry: dict) -> str | None:
     return visual.get("parts") if isinstance(visual, dict) else None
 
 
-def visual_parts(record: dict, registry: dict) -> tuple[str, ...]:
-    """Stable visual-part ids declared by one authored Leaf element."""
-    attribute = visual_part_attribute(registry.get(record.get("tag"), {}))
-    value = record.get("attrs", {}).get(attribute) if attribute else None
-    return tuple(value.split()) if value else ()
+@dataclass(frozen=True)
+class VisualParts:
+    """The part ids one authored element admits as `anchor.visual`.
+
+    A widget declares them one of two ways: `tokens` authored in its `parts` attribute,
+    or `prefixes` that begin every id its module generates, such as `commit:`, for a
+    picture drawn from data whose parts the author cannot list. A prefix rather than a
+    regex keeps one meaning in Python and the browser. Neither says a part is on screen;
+    the browser resolves that, and an admitted id nothing renders detaches."""
+
+    tokens: tuple[str, ...] = ()
+    prefixes: tuple[str, ...] = ()
+
+    def __contains__(self, part: str) -> bool:
+        # A part id is one token, as the browser's registration requires; an authored
+        # token already is one, and a prefixed id must be too.
+        return part in self.tokens or (
+            part.split() == [part]
+            and any(
+                part.startswith(prefix) and part != prefix for prefix in self.prefixes
+            )
+        )
+
+    def __bool__(self) -> bool:
+        return bool(self.tokens or self.prefixes)
+
+    def __str__(self) -> str:
+        if self.prefixes:
+            return f"ids starting with {' or '.join(map(repr, self.prefixes))}"
+        return f"known: {list(self.tokens)}"
+
+
+def visual_parts(record: dict, registry: dict) -> VisualParts:
+    """The visual-part ids one authored Leaf element admits."""
+    visual = registry.get(record.get("tag"), {}).get("x-visual")
+    if not isinstance(visual, dict):
+        return VisualParts()
+    if "prefixes" in visual:
+        return VisualParts(prefixes=tuple(visual["prefixes"]))
+    value = record.get("attrs", {}).get(visual["parts"])
+    return VisualParts(tokens=tuple(value.split()) if value else ())
 
 
 def registry_path(registry: dict, path: str):
@@ -246,8 +280,51 @@ def declares_string(field_schema) -> bool:
     return allowed == {"string"}
 
 
+def decides(spec: dict) -> bool:
+    """Whether one verb is a deciding verb: its detail declares the reserved
+    `outcome`, which says which retirable members leave the page (x-retired-when,
+    x-withdrawn-as). The runtime's `decidingVerb` reads the same field."""
+    return "outcome" in spec["detail"].get("properties", {})
+
+
+def deciding_verbs(entry: dict) -> list[str]:
+    """Every x-state verb of one declaration that decides; validation holds it to one."""
+    return [verb for verb, spec in entry.get("x-state", {}).items() if decides(spec)]
+
+
+def deciding_verb(entry: dict) -> str | None:
+    """The one deciding x-state verb, or None."""
+    return next(iter(deciding_verbs(entry)), None)
+
+
+def deciding_outcomes(entry: dict) -> list[str]:
+    """The outcomes the deciding verb may stand under; empty without one."""
+    verb = deciding_verb(entry)
+    if verb is None:
+        return []
+    schema = entry["x-state"][verb]["detail"]["properties"]["outcome"]
+    return list(schema.get("enum", [])) if isinstance(schema, dict) else []
+
+
+# Who writes a verb's state, by the event kind that carries it: the user's gesture
+# is an `action`, the agent's news a `report`. A verb declares one writer, so its
+# coordinate is only ever written from one side.
+WRITERS = {"action": "user", "report": "agent"}
+
+
+def writer(spec: dict) -> str:
+    """The side that writes one x-state verb: `agent` where it says so, else `user`."""
+    return spec.get("writer", "user")
+
+
 def state_specs(entry: dict):
-    """The state and report verb declarations on one element declaration."""
-    for channel in ("x-state", "x-report"):
-        for verb, spec in entry.get(channel, {}).items():
-            yield channel, verb, spec
+    """The x-state verb declarations on one element declaration, as (verb, spec)."""
+    yield from entry.get("x-state", {}).items()
+
+
+def event_spec(entry: dict, event: dict) -> dict | None:
+    """The x-state verb an action or report names, when its writer sent it."""
+    spec = entry.get("x-state", {}).get(event["action"])
+    if spec is None or writer(spec) != WRITERS[event["kind"]]:
+        return None
+    return spec

@@ -51,31 +51,32 @@ export function closestCommandRole(element, role) {
   return null;
 }
 
+// The role's state verb is also its report verb when the agent writes it.
 function stateReport(element, role) {
-  const spec = commandRole(element, role);
-  const report = declarationFor(element, "x-report")?.[spec?.report];
-  return report ? [spec.report, report] : [null, null];
+  const verb = stateVerb(element, role);
+  const spec = declarationFor(element, "x-state")[verb];
+  return spec.writer === "agent" ? [verb, spec] : [null, null];
 }
 
-function stateFacet(element, role) {
+function stateVerb(element, role) {
   const attribute = commandRole(element, role)?.state;
-  const matches = ["x-state", "x-report"].flatMap((channel) =>
-    Object.values(declarationFor(element, channel) ?? {}).filter(
-      (spec) =>
+  const matches = Object.entries(declarationFor(element, "x-state") ?? {})
+    .filter(
+      ([, spec]) =>
         spec.unit === "widget" &&
         spec.record?.kind === "value" &&
         spec.record.attr === attribute,
-    ),
-  );
+    )
+    .map(([verb]) => verb);
   if (matches.length !== 1)
     throw new Error(
-      `leaf: $command ${role} <${element.localName}> state ${attribute} needs one recorded widget facet`,
+      `leaf: $command ${role} <${element.localName}> state ${attribute} needs one recorded widget verb`,
     );
-  return matches[0].facet;
+  return matches[0];
 }
 
 const roleState = (element, role, read) =>
-  read(element).state[stateFacet(element, role)]?.value ?? null;
+  read(element).state[stateVerb(element, role)]?.value ?? null;
 
 const reportUpdates = (element, action) =>
   updateSequence(element).filter(

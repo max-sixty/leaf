@@ -14,6 +14,7 @@ import { inUi, under, upFrom } from "./shadow.js";
 import {
   visualPart as registeredVisualPart,
   visualPartAt as registeredVisualPartAt,
+  visualParts as registeredVisualParts,
 } from "./visual-parts.js";
 import {
   blockAt,
@@ -80,30 +81,49 @@ export function referencedProjection(owner, attribute) {
   return id ? elementById(id) : null;
 }
 
-// A generated visual part keeps an authored semantic token. Generated ids never escape
-// into the event log; the provider declaration bounds the inventory core will trust.
-const visualPartAttribute = (visual) => {
+// A generated visual part keeps a semantic id the provider declaration bounds: a token
+// authored in its `parts` attribute, or any longer id one of its `prefixes` begins.
+// Element ids never escape into the event log; the declaration bounds the inventory
+// core will trust. The rank is an id's place in that declaration, which orders the
+// visual's targets: its authored token's index, 0 for every prefixed id so they keep
+// registration order, and -1 for an id it does not admit. Null when the visual
+// declares no parts at all.
+const visualPartRank = (visual) => {
   const declaration = registry[visual?.localName]?.["x-visual"];
-  return declaration && typeof declaration === "object" ? declaration.parts : null;
+  if (!declaration || typeof declaration !== "object") return null;
+  if (declaration.prefixes)
+    return (id) =>
+      declaration.prefixes.some((prefix) => id !== prefix && id.startsWith(prefix))
+        ? 0
+        : -1;
+  const tokens =
+    visual.getAttribute(declaration.parts)?.trim().split(/\s+/).filter(Boolean) ?? [];
+  return (id) => tokens.indexOf(id);
 };
 
 const wholeVisualSurface = (element) =>
   registry[element?.localName]?.["x-visual"] ? element : null;
 
-export const declaredVisualParts = (visual) => {
-  const attribute = visualPartAttribute(visual);
-  const value = attribute ? visual?.getAttribute(attribute) : "";
-  return new Set(value?.trim().split(/\s+/).filter(Boolean) ?? []);
-};
+/** The registered parts a visual's declaration admits, in declaration order. */
+export function visualParts(visual) {
+  const rank = visualPartRank(visual);
+  if (!rank) return [];
+  return registeredVisualParts(visual)
+    .filter((part) => rank(part.id) >= 0)
+    .sort((a, b) => rank(a.id) - rank(b.id));
+}
 
 export function visualPart(visual, part) {
-  if (!declaredVisualParts(visual).has(part)) return null;
-  return registeredVisualPart(visual, part);
+  return visualPartRank(visual)?.(part) >= 0
+    ? registeredVisualPart(visual, part)
+    : null;
 }
 
 export function visualPartAt(visual, target) {
-  const declared = declaredVisualParts(visual);
-  return registeredVisualPartAt(visual, target, (part) => declared.has(part.id));
+  const rank = visualPartRank(visual);
+  return rank
+    ? registeredVisualPartAt(visual, target, (part) => rank(part.id) >= 0)
+    : null;
 }
 
 export const visualPartLabel = (visual, part) =>
@@ -238,6 +258,32 @@ export function addressableSays(addressable, omitted = null) {
   );
 }
 
+// What names an element, where the authoring contract gives it a name
+// (`../../references/page-authoring.md`): the attribute its registry entry declares
+// with `x-name`, else a leading disclosure summary, heading, or titled member's
+// <strong>, looked for inside a leading <header> too. Leading means no words come
+// before it; elements may, as a titled member's comparison chips stand in the band
+// above its title and an eyebrow above a header's heading. The words are read the way
+// `addressableSays` reads them, and generated chrome is skipped, so it never names
+// anything. An element the contract gives no name answers "", and a caller that
+// needs words for it takes `addressableSays`.
+const TITLES = "summary, h1, h2, h3, h4, h5, h6, strong";
+function leadingTitle(container) {
+  for (const node of container.childNodes) {
+    if (node.nodeType === Node.TEXT_NODE && node.data.trim()) return "";
+    if (node.nodeType !== Node.ELEMENT_NODE || inUi(node)) continue;
+    if (node.matches(TITLES)) return quoteFrom(textNodesUnder(node));
+    if (node.localName === "header") return leadingTitle(node);
+  }
+  return "";
+}
+export function addressableName(element) {
+  if (!element) return "";
+  const attribute = registry[element.localName]?.["x-name"];
+  const declared = attribute && element.getAttribute(attribute)?.trim();
+  return declared || leadingTitle(element);
+}
+
 const aimLabel = (
   addressable,
   says = addressableSays(addressable) ||
@@ -301,10 +347,7 @@ export function aimTargets() {
     ...pageQueryAll(ADDRESSABLE).filter(isAddressable),
     ...pageQueryAll(DATUM),
     ...pageQueryAll(declaredVisualSelector()).flatMap((visual) =>
-      [...declaredVisualParts(visual)].flatMap((token) => {
-        const part = visualPart(visual, token);
-        return part ? [part.element] : [];
-      }),
+      visualParts(visual).map((part) => part.element),
     ),
   ];
   const targets = candidates.map(aimTargetAt).filter(Boolean);
@@ -382,7 +425,7 @@ export function resolveAnchor(anchor, text = "") {
     const section = sectionOf(anchor);
     // A missing declaration or provider detaches instead of silently widening a visual
     // part coordinate to the containing widget.
-    if (!section || !visualPartAttribute(section) || settledAway(section)) return null;
+    if (!section || settledAway(section)) return null;
     const found = visualPart(section, anchor.visual);
     return found
       ? resolvedElement({

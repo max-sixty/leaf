@@ -15,7 +15,8 @@ and requests another reading at its next deadline; it does not run a second fold
 | live App Server reply: one displayed draft plus delivery attempt bindings by response address | optional `stream.reply` and `stream.reply_bindings` in `status.json` | an App Server connection bound to a delivery's plain reply | the displayed draft remains on failure or disconnect and is retired by a logged event naming its delivery attempt or its response address; each binding clears after durable commit or terminal failure, and survives connection and turn transitions until then |
 | turn identity and open or closed state | the page's claim record | a prompt or direct delivery opens an opaque `turn`; the Stop hook stamps `turn_closed` | the next opening mints a turn; the next closing stamps it |
 | the closed turn this page nudged its session in | `messaged_turn` in the page's claim record | browser-event admission, once the harness's nudge lands | a later closed turn carries a different `turn` |
-| wait lease | `waiter.lock`, or `sessions/<id>.wait` for a host session | the live `leaf wait` process, held open for its life | process exit |
+| wait lease, holding the holder's start token | `waiter.lock`, or `sessions/<id>.wait` for a host session | the live `leaf wait` process, held open for its life; each holder writes a fresh token on taking it | process exit |
+| the wait start a tool hook last named | `sessions/<id>.told` | the `PostToolUse` hook, when it names a token the lease holds | a later start token in the lease |
 | acknowledgement cursor | `cursor.json` | `leaf wait --ack`, after the complete delivery reached its durable consumer | when its seq is past the log's end, or a fresh log replaces the one it named; monotonic within one log |
 | pickup transition | a `pickup` event in `events.jsonl` | an unobserved carrier records `queued` when Codex accepts a batch; whichever carrier puts the batch into a turn records `opened` with session and turn identity: a direct `leaf wait --ack` confirmation, the prompt hook re-presenting an acknowledged unanswered move, or an App Server turn start | never; each event/phase/session/turn transition is idempotent |
 | page claim: session, display name, harness, carrier, lifetime | `~/.local/state/leaf/claims/<page>` | `server start` from an agent host; released by the hook when the session exits | `released` is set, or the lifetime it rests on is gone: the pid, the background job's directory, or — for a host that multiplexes every session into one process, where there is no pid to name — the page going untouched for ACTIVITY_GRACE_SECS, which a *visible* tab's `viewed.json` writes keep renewing — a backgrounded tab closes the news stream and stops renewing |
@@ -126,12 +127,15 @@ The `hook` command, registered on Stop, UserPromptSubmit, and SessionEnd,
 refuses to let a turn end with one of this session's pages unwatched, stamps
 that turn's ending and the next one's opening, surfaces unacknowledged user
 events at the next prompt, and releases the session's page claims when it exits.
+Registered on Claude Code's `PostToolUse` too, it names a wait that a background
+command started, read off the session's wait lease rather than the command.
 Its unanswered-work guard reads `activity.obligations`, selected from the same
 `workflows` projection the browser reads; it does not reconstruct conversations
-itself. The App Server adapter presents at most one plain reply in each turn's
-chronological delivery slice. Its completed final-answer item finishes that exact
-response; the hook lets the provider turn close, and the observer commits the same text
-through the canonical reply writer when the terminal notification arrives.
+itself. The App Server adapter presents at most one thread reply in each turn's
+chronological delivery slice, frozen as a `turn` answer; once the turn binds it, its
+workflow's `answer` reads `turn` too. Its completed final-answer item finishes that
+exact response; the hook lets the provider turn close, and the observer commits the
+same text through the canonical reply writer when the terminal notification arrives.
 When the prompt hook opens a turn, it records a new `opened` transition for its
 acknowledged, unanswered moves. A plugin-free embedded host records the same
 transition from the queued turn's App Server `turn/started` notification. A
@@ -230,7 +234,8 @@ enter a later Codex turn. Leaf's unobserved queue command never calls `turn/star
 With an App Server the adapter holds two connections instead. One observes: it resumes
 the task, keeps the subscription that resume opens, and projects the turns Leaf did not
 start — the user's own work in the terminal, and a queued pointer the task picks up by
-itself. The other belongs to one delivery for one turn: it resumes, reads the task's
+itself. It binds a reply only to a delivery frozen for App Server: a queued pointer's
+delivery owes a plain `reply`, which its agent writes with `leaf reply`. The other belongs to one delivery for one turn: it resumes, reads the task's
 status, starts the turn while the task is idle, and follows that turn to its reply on
 the connection it started it on. Two connections may resume one thread and both then
 receive everything it says, so the observer passes over a delivery this process is
@@ -263,8 +268,16 @@ the same delivery, page claim, event log, and activity projection, not another
 conversation store or response policy.
 
 `server start` spawns the service into a session of its own and hands back the
-URL that process printed and the lifetime it recorded, so a killed carrier costs
-only delivery and leaves every page up.
+URL that process announced and the lifetime it recorded, so a killed carrier costs
+only delivery and leaves every page up. `leaf codex start` spawns its adapter the
+same way. Both go through `detached`, whose handshake makes the caller's commit the
+end of a start: the child announces, and the caller acknowledges as the last thing
+it does. A child whose caller leaves before acknowledging withdraws — a service
+disables the record it wrote, an adapter releases its leases — since the caller's
+cleanup may already have run: a stop that found nothing to stop, or the claim the
+start took given back. That claim is `service.starting_claim`, the one transition
+`server start`, `server run`, a `--user` preview's first start, and `leaf codex
+start` take, and it is restored only if no successor has replaced it.
 
 ## Lifetime
 

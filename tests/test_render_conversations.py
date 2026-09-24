@@ -4,7 +4,6 @@ import base64
 import io
 import json
 import re
-from copy import deepcopy
 from datetime import datetime, timedelta
 
 import pytest
@@ -178,7 +177,7 @@ def test_a_durable_answer_retires_the_placeholder_its_attempt_reserved(
     claim = record_claim(
         serve.page_dir, id="codex-thread", harness="codex", agent="Codex"
     )
-    lease = leases_model.take_waiter_lease(
+    lease = leases_model.take_lease(
         leases_model.waiter_lease_path(serve.page_dir, claim["id"])
     )
     assert lease
@@ -244,7 +243,7 @@ def test_a_durable_reply_completes_an_empty_stream_placeholder(browser, serve, r
         harness="codex",
         agent="Codex",
     )
-    lease = leases_model.take_waiter_lease(
+    lease = leases_model.take_lease(
         leases_model.waiter_lease_path(serve.page_dir, claim["id"])
     )
     assert lease
@@ -739,35 +738,18 @@ def test_a_held_inline_reply_reveal_yields_to_new_user_focus(browser, serve):
     expect(destination).not_to_have_class(re.compile(r"\bflash\b"))
 
 
-@pytest.mark.parametrize("response", ["reply", "version"])
-def test_inline_settlement_retains_focus_when_its_controls_are_replaced(
-    browser, serve, response
-):
-    """A page seat keeps focus through settlement with or without a reply textarea."""
-    layer = deepcopy(SEATED_ASK_LAYER)
-    if response == "version":
-        entry = layer["lf-verdict"]
-        entry["properties"]["answer"] = {"type": "string", "enum": ["yes", "no"]}
-        entry["required"].append("answer")
-        entry["x-example"] = entry["x-example"].replace(" asks", ' answer="no" asks')
-        entry["x-state"]["settle"]["record"] = {
-            "kind": "value",
-            "attr": "answer",
-            "value": "answer",
-        }
-        entry["x-conversation"]["response"] = {"kind": "version", "verb": "settle"}
+def test_inline_settlement_retains_focus_when_its_controls_are_replaced(browser, serve):
+    """A page seat keeps focus through settlement when its controls are replaced."""
     page = open_page(
         browser,
         serve(
             leaf_page(
                 "Inline settlement",
-                '<h1>Review the plan</h1><lf-verdict id="proposal"'
-                + (' answer="no"' if response == "version" else "")
-                + " asks>"
+                '<h1>Review the plan</h1><lf-verdict id="proposal" asks>'
                 "Should these jobs share a visit?</lf-verdict>"
                 '<label>Another thought <input id="later"></label>',
             ),
-            layer_registry=layer,
+            layer_registry=SEATED_ASK_LAYER,
             layer_widgets=SEATED_ASK_WIDGETS,
         ),
     )
@@ -780,12 +762,9 @@ def test_inline_settlement_retains_focus_when_its_controls_are_replaced(
         for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "comment"
     )
-    assert root.get("response") == (
-        {"kind": "version", "verb": "settle"} if response == "version" else None
-    )
     thread = page.locator(f'.lf-conversation-thread[data-thread="{root["id"]}"]')
-    destination = thread.locator("textarea") if response == "reply" else thread
-    expect(thread.locator("textarea")).to_have_count(1 if response == "reply" else 0)
+    destination = thread.locator("textarea")
+    expect(destination).to_have_count(1)
     thread.get_by_role("button", name="Resolve thread", exact=True).focus()
     page.keyboard.press("Enter")
     round_trip(page)
@@ -2325,7 +2304,7 @@ def test_a_failed_reopen_reveal_still_processes_its_durable_answer(held_events, 
 def test_an_approval_made_elsewhere_reaches_the_panel_and_the_banner(browser, serve):
     """An accepted approval is a semantic fact, so it moves the epoch on its own.
 
-    Nothing else about this state read changes: no thread, no Ask, no widget facet, no
+    Nothing else about this state read changes: no thread, no Ask, no widget state, no
     pending gesture of this user's. The approval is another tab's, so there is no
     receipt to account and no ledger entry to remove — the two paints that show it have
     only the published fold to hear it from.
@@ -2353,9 +2332,7 @@ def test_an_approval_made_elsewhere_reaches_the_panel_and_the_banner(browser, se
         {
             "kind": "done",
             "author": "user",
-            "revision": 1,
             "version": 1,
-            "text": "Looks good",
         },
     )
     told(page)
@@ -2375,9 +2352,7 @@ def test_the_conversation_clock_reopens_its_same_epoch_ticket(browser, serve):
         {
             "kind": "done",
             "author": "user",
-            "revision": 1,
             "version": 1,
-            "text": "Looks good",
         },
     )
     page = open_page(browser, url)
@@ -2603,9 +2578,10 @@ def test_recent_order_lists_threads_by_their_latest_message(browser, serve):
 
 
 def test_back_returns_from_a_thread_the_walk_travelled_to(browser, serve):
-    """A walk to threads somewhere else leaves one history entry however far it goes,
-    so Back returns to the place the user was reading before it and Forward to where
-    it ended. Reading somewhere else ends the walk: the next trip records that place."""
+    """A journey of trips to threads somewhere else leaves one history entry however
+    far it goes, so Back returns to the place the user was reading before it and
+    Forward to where it ended. Reading somewhere else ends the journey: the next trip
+    records that place."""
     filler = "".join(f"<p>Filler paragraph {n}.</p>" for n in range(60))
     url = serve(
         leaf_page(
@@ -4990,8 +4966,8 @@ def test_a_settlement_in_a_reply_leaves_its_own_anchor_on_the_page(browser, serv
                 "author": "user",
                 "revision": 1,
                 "widget": wid,
-                "action": "accept",
-                "detail": {},
+                "action": "decide",
+                "detail": {"outcome": "accept"},
             },
         )
         page = open_page(browser, url)
@@ -6352,9 +6328,12 @@ def test_the_line_offers_the_list_its_own_keys_rather_than_the_way_deeper_in(
     expect(shown.nth(1)).to_contain_text("close threads")
 
     # And the press it displaced still works, from the placeholder that advertises it.
-    expect(page.locator(".lf-general textarea")).to_have_attribute(
-        "placeholder", re.compile(r"·\s*c$")
-    )
+    # The badge inside the painted placeholder is where the box states that key, and
+    # it stands only while the box is hinted and empty, so reading it holds what the
+    # user can see rather than how the hint's two parts happen to be joined.
+    advertised = page.locator(".lf-general .lf-compose-placeholder kbd")
+    expect(advertised).to_be_visible()
+    expect(advertised).to_have_text("c")
     page.keyboard.press("c")
     expect(page.locator(".lf-general textarea")).to_be_focused()
 

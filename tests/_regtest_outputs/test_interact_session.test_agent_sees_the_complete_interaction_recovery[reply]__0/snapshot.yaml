@@ -15,25 +15,29 @@ unpicked at prompt:
       Leaf needs attention:
       - <page>: 1 update you haven't picked up. `leaf wait` prints them.
 
-      If output is truncated, acknowledge nothing; rerun with enough output capacity for the whole batch. If you handle the batch yourself, read it fully, then acknowledge it before any other work. If forwarding it, or if its guidance holds the acknowledgement until a request reaches its executor, acknowledge once it durably arrives there. Run `leaf wait --ack <delivery-id>` in the background to acknowledge its captured batches and wait for the next batch while the page remains live. The agent handling the batch must address every event.
-
 unpicked at stop:
   decision: block
   reason: |-
     Leaf needs attention:
     - <page>: 1 update you haven't picked up. `leaf wait` prints them.
 
-    If output is truncated, acknowledge nothing; rerun with enough output capacity for the whole batch. If you handle the batch yourself, read it fully, then acknowledge it before any other work. If forwarding it, or if its guidance holds the acknowledgement until a request reaches its executor, acknowledge once it durably arrives there. Run `leaf wait --ack <delivery-id>` in the background to acknowledge its captured batches and wait for the next batch while the page remains live. The agent handling the batch must address every event.
-
 idle before pickup:
   exit: 1
   output: |
-    1 update nobody has picked up; read them with `leaf wait` before idling. If output is truncated, acknowledge nothing; rerun with enough output capacity for the whole batch. If you handle the batch yourself, read it fully, then acknowledge it before any other work. If forwarding it, or if its guidance holds the acknowledgement until a request reaches its executor, acknowledge once it durably arrives there. Run `leaf wait --ack <delivery-id>` in the background to acknowledge its captured batches and wait for the next batch while the page remains live.
+    1 update nobody has picked up; read them with `leaf wait` before idling
 
 delivered:
-  format: leaf-delivery-v2
+  format: leaf-delivery-v3
   id: <delivery>
   created_at: <time>
+  carrier: wait
+  acknowledge: >-
+    Whoever ran the `leaf wait` that printed this delivery acknowledges it; until
+    then the user's moves read Sent rather than Picked up. If the output was cut
+    off, acknowledge nothing and rerun the wait with room for the whole envelope.
+    If you handle it, acknowledge before any other work; if you forward it, acknowledge
+    once it durably arrives there. To acknowledge, start `leaf wait --ack <delivery>`
+    as the next background task: it confirms this delivery and waits for the next.
   batches:
     - page: <page>
       through_seq: 2
@@ -51,28 +55,22 @@ delivered:
           actions: []
       handling:
         h1: >-
-          Acknowledge this delivery before anything else, by your host contract's
-          route where it leaves acknowledgement to you: until then the user's message
-          reads Sent or Queued rather than Picked up.
+          This event's conversation has no title yet: name it with `leaf conversation
+          title <page> <conversation-id> --text "<a few words>"`, so the thread
+          panel lists its subject rather than its opening words.
         h2: >-
-          If this event's conversation has a null `title` in the batch's `conversations`,
-          name it with `leaf conversation title <page> <conversation-id> --text
-          "<a few words>"`, so the thread panel lists its subject rather than its
-          opening words.
+          Answer with `leaf reply <page> --for <event-id>` before any other work,
+          including the work this event asks for: give the answer, or say what you
+          are about to do and where the result will appear. Once that work lands,
+          report it with `leaf reply <page> --to <address> --initiates`, where `<address>`
+          is the event's `answer.to`. `leaf reply` checks any saved page edit and
+          makes it live before posting. If a revision removes what the thread is
+          anchored on, move the thread in the reply that reports it with `--section
+          <id>` (narrowed by `--quote` or `--part` if needed), or `--detach` it
+          if its subject has left the page. Add `--awaits` only if your reply's
+          prose asks the user something.
         h3: >-
-          Answer with `leaf reply <page> --for <event-id>`. In a Codex task Leaf
-          observes over App Server, your final message is the reply instead, and
-          `leaf reply` refuses the event. Where you answer with `leaf reply`, reply
-          before any other work, including the work this event asks for: give the
-          answer, or say what you are about to do and where the result will appear.
-          Once that work lands, report it with `leaf reply <page> --to <address>
-          --initiates`, where `<address>` is the event's `obligation.response.to`.
-          `leaf reply` checks any saved page edit and makes it live before posting.
-          If a revision removes what the thread is anchored on, move the thread
-          in the reply that reports it with `--section <id>` (narrowed by `--quote`
-          or `--part` if needed), or `--detach` it if its subject has left the page.
-          Add `--awaits` only if your reply's prose asks the user something. Your
-          reply renders as Markdown, so show code or markup in a fenced block.
+          Your reply renders as Markdown, so show code or markup in a fenced block.
       events:
         - kind: comment
           author: user
@@ -87,12 +85,10 @@ delivered:
             id: event-2
           conversations: [event-2]
           handling: [h1, h2, h3]
-          obligation:
-            as_of_seq: 2
-            response:
-              kind: reply
-              to: event-2
-              for: event-2
+          answer:
+            kind: reply
+            to: event-2
+            for: event-2
 
 acknowledged at stop:
   decision: block
@@ -100,12 +96,12 @@ acknowledged at stop:
     Leaf needs attention:
     - <page>: 1 acknowledged user move with no answer (`leaf reply <page> --for event-2`).
 
-    Each named command writes the answer its move is owed; in a Codex task Leaf observes over App Server, the reply is your final message instead. Read current obligations with `leaf page state <page>` and conversation history with `leaf conversation read <page> <id>`.
+    Each move takes the answer named for it. Read current obligations with `leaf page state <page>` and conversation history with `leaf conversation read <page> <id>`.
 
 idle before answer:
   exit: 1
   output: |
-    1 acknowledged user move with no answer (`leaf reply <page> --for event-2`); answer before idling. Each named command writes the answer its move is owed; in a Codex task Leaf observes over App Server, the reply is your final message instead. Read current obligations with `leaf page state <page>` and conversation history with `leaf conversation read <page> <id>`.
+    1 acknowledged user move with no answer (`leaf reply <page> --for event-2`); answer before idling. Each move takes the answer named for it. Read current obligations with `leaf page state <page>` and conversation history with `leaf conversation read <page> <id>`.
 
 answer: |
   replied in event-2

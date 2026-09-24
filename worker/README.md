@@ -131,6 +131,7 @@ environment, which the agent inherits, so any code the agent runs can read it.
 poll reviews fork pull requests — run with it empty. An agent answering an issue can
 still fetch a pull request's code for itself, and `running-tend` has it drop the token
 before running that code; that is an instruction, not a mechanism.
+In yolo mode, code Tend merges to `main` can run in a later token-bearing job.
 
 On the maintainer's machine, the `Cloudflare Leaf agent administration` item in the
 `Max` 1Password vault holds the token of the same name. An agent reads it through the
@@ -442,6 +443,10 @@ gh secret set CLOUDFLARE_API_TOKEN \
 cd worker
 npx wrangler secret put OPENAI_API_KEY
 ```
+
+In yolo mode, the next `publish-site` run can use code Tend merged to `main`
+with the `cloudflare-deploy` credential. The environment's `main` policy is not
+an approval gate.
 
 Create each token from **Manage Account → Account API Tokens** with exactly the
 permissions in the token table above, setting the Workers scope to the named Workers

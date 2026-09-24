@@ -13,6 +13,14 @@ let renderInline = escapedSource;
 let ready;
 
 export const renderMarkdown = (text) => render(text);
+// The words a user sees in rendered Markdown, for a surface that shows them as plain
+// text: an excerpt, a label, a passage. Until the parser lands they are the source.
+export function renderedWords(html) {
+  const parsed = document.createElement("template");
+  parsed.innerHTML = html;
+  return parsed.content.textContent;
+}
+export const markdownWords = (text) => renderedWords(render(text));
 export const renderInlineMarkdown = (text, breaks = true) => renderInline(text, breaks);
 // A hard break is visible separation in passage readings, too. Text-node based
 // capture cannot otherwise see a <br> between two words.

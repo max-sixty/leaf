@@ -4,11 +4,22 @@ import sys
 from pathlib import Path
 
 from .registry.storage import require_registry
-from .schema import GUIDANCE_DIR
+from .schema import BUNDLED_PACKAGES, GUIDANCE_DIR
+
+# The one placeholder guidance may write for a path on this machine: the bundled
+# packages directory, where a bundled package's producer `scripts/` live.
+PACKAGES_PLACEHOLDER = "<leaf-packages>"
 
 
 def page_guidance(page_dir: Path) -> dict[str, str]:
-    """Compose package-wide, contract, and widget guidance by audience."""
+    """Compose package-wide, contract, and widget guidance by audience.
+
+    The author is the one reader every page has, so the author's guide ends by
+    naming the page's other audiences: a role a package defines is reachable
+    from what the author reads, without each package pointing at its own.
+    `<leaf-packages>` becomes this install's bundled packages directory, so a
+    command naming a bundled script runs as printed, whoever reads it.
+    """
     parts = {}
     directory = page_dir / GUIDANCE_DIR
     if directory.is_dir():
@@ -31,8 +42,21 @@ def page_guidance(page_dir: Path) -> dict[str, str]:
             parts.setdefault(audience, []).append(
                 f"# Widget `<{tag}>`\n\n{text.strip()}"
             )
+    if "author" in parts and (others := sorted(parts.keys() - {"author"})):
+        names = [f"`{audience}`" for audience in others]
+        named = " and ".join(
+            [", ".join(names[:-1]), names[-1]] if len(names) > 1 else names
+        )
+        parts["author"].append(
+            f"# Other audiences\n\nThis page also carries guidance for {named}. "
+            "Whoever takes one of those roles, you or an agent you assign, reads "
+            "`leaf page guidance <page> <audience>` before acting in it."
+        )
     return {
-        audience: "\n\n".join(sections).rstrip() + "\n"
+        audience: "\n\n".join(sections)
+        .rstrip()
+        .replace(PACKAGES_PLACEHOLDER, str(BUNDLED_PACKAGES))
+        + "\n"
         for audience, sections in sorted(parts.items())
     }
 

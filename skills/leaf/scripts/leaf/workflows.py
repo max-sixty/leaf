@@ -15,8 +15,11 @@ Answers are one of:
 
 - `{"kind": "reply", "to": <message>, "for": <event>}` — a thread input, or a
   move in an answered Ask in frozen thread markup, answered by `leaf reply --for`;
-- `{"kind": "version", "conversation": <thread>}` — a thread the user opened
-  as a request for change, answered by a stamped version and a resolve;
+- `{"kind": "turn", "to", "for", "attempt": <reply attempt>}` — the same reply
+  once it is bound to the claimant's App Server turn, which writes it with its own
+  opening and final messages. The binding lives in the page's stream status, so
+  `activity` routes the answer, and a delivery frozen for App Server routes it
+  ahead of the binding; `leaf reply` refuses every writer but that attempt;
 - `{"kind": "markup", "action": <action>}` — a page action that is part of its
   widget's answered Ask and the authored markup does not yet record, answered by
   a stamped version that writes it in;
@@ -32,11 +35,11 @@ in: on the page, until the markup records it or a later version supersedes it
 (`page_action_unsettled`); in frozen thread markup, which no version rewrites,
 until the agent's next spoken turn in that thread or a resolution after it.
 
-A user move on an Ask the user has not finished answering — a pick before
-the Done its group declares, a swipe before the deck's finish — has not been
-handed over yet, so it is no workflow at all: the user is still composing the
-answer, and the finishing move carries the receipt. Once the Ask is answered,
-every move in its answer is owed.
+A user move on a widget whose own Ask the user has not finished answering — a
+pick before the Done its group declares, a swipe before the deck's queue is empty —
+has not been handed over yet, so it is no workflow at all: the user is still
+composing the answer, and the finishing move carries the receipt. Once the Ask is
+answered, every move on that widget is owed (`asks.part_of_ask`).
 
 A host that gives up on a move writes the failure its answer takes
 (`conversation.fail_answer`), each carrying `failure`: a reply in the
@@ -46,14 +49,14 @@ answered with a failed response, whose next actor is the user, until the user
 moves again or the markup records the move anyway.
 """
 
-from .asks import answers_ask, ask_answered
-from .events import awaits_agent, seat_root, spoken_turns
+from .asks import ask_answered, part_of_ask
+from .events import spoken_turns
 from .projection import (
     NO_RECORD,
     PageReading,
     canonical_updates,
-    folded_facet,
-    markup_facet,
+    folded_value,
+    markup_value,
 )
 
 
@@ -123,12 +126,12 @@ def page_action_unsettled(
     revision it was made on; a note stamped over the very revision the user
     acted on was written before the move reached anyone.
     """
-    _widget, unit, _facet = coordinate
+    _widget, unit, _verb = coordinate
     if unit not in parser.by_id:
         return False
-    authored = markup_facet(unit, spec, parser.by_id, spk, registry)
+    authored = markup_value(unit, spec, parser.by_id, spk, registry)
     if owed and authored is not NO_RECORD:
-        return authored != folded_facet(source, spec)
+        return authored != folded_value(source, spec)
     versioned = any(
         event["kind"] == "note"
         and event["seq"] > source["seq"]
@@ -136,7 +139,7 @@ def page_action_unsettled(
         for event in events
     )
     return not versioned and (
-        authored is NO_RECORD or authored != folded_facet(source, spec)
+        authored is NO_RECORD or authored != folded_value(source, spec)
     )
 
 
@@ -302,14 +305,6 @@ def canonical_workflows(
         return returned
 
     workflows = []
-    clarifications = [
-        (thread["root"]["seq"], seat)
-        for thread in threads.values()
-        if thread["root"]["author"] == "agent"
-        and not thread["resolved"]
-        and not awaits_agent(thread)
-        and (seat := seat_root(thread))
-    ]
     for thread_id, thread in threads.items():
         turns = spoken_turns(thread)
         unanswered_inputs, response_address = thread_response_batch(turns)
@@ -328,23 +323,14 @@ def canonical_workflows(
             workflows.append(failed(source, target, coordinate, response))
         if response_address is None:
             continue
-        if (thread["root"].get("response") or {}).get("kind") == "version" and any(
-            seat == seat_root(thread) and root_seq > thread["root"]["seq"]
-            for root_seq, seat in clarifications
-        ):
-            continue
         # Every exact input keeps its own transport/work evidence. The response
         # contract deliberately coalesces consecutive user turns onto the newest
         # address, so only that workflow carries the answer.
-        answer = (
-            {"kind": "version", "conversation": thread_id}
-            if (thread["root"].get("response") or {}).get("kind") == "version"
-            else {
-                "kind": "reply",
-                "to": response_address["id"],
-                "for": response_address["id"],
-            }
-        )
+        answer = {
+            "kind": "reply",
+            "to": response_address["id"],
+            "for": response_address["id"],
+        }
         for source in unanswered_inputs:
             workflows.append(
                 workflow(
@@ -424,7 +410,7 @@ def canonical_workflows(
             # and whose tag declares the verb.
             record = by_id[source["widget"]]
             entry = page.registry[record["tag"]]
-            owed = answers_ask(record, entry, source["action"])
+            owed = part_of_ask(record, entry)
             if owed and not ask_answered(
                 record, entry, projection, by_id, spoken, page.registry
             ):
@@ -441,7 +427,7 @@ def canonical_workflows(
             )
 
     # One receipt per widget and unit, for the user's newest move on it. A tick and
-    # the Done press that followed are two facets of one unit, and each minted a line:
+    # the Done press that followed are two verbs on one unit, and each minted a line:
     # the thread showed "✓ Sent · just now" twice under one question. The later move
     # supersedes the earlier for what the user is owed — that the press landed.
     # Units stay apart: two moved cards, two reviewed files, are two subjects with a

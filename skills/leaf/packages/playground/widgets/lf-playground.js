@@ -17,7 +17,6 @@
  * The last projection signature distinguishes those cases without making the DOM or a
  * second event history authoritative. */
 import {
-  arrangeReadingElement,
   commands,
   compoundReadingRegionId,
   failSoft,
@@ -29,6 +28,7 @@ import {
   once,
   paintKeys,
   quoted,
+  registerReadingRegion,
   reserve,
   says,
   tabStore,
@@ -103,12 +103,13 @@ customElements.define(
     #projected = undefined;
     #ready = false;
     #interactive = false;
-    #layouts = [];
+    #regions = [];
+    #unregister = [];
     #stop = null;
 
     connectedCallback() {
       if (!once(this)) {
-        for (const layout of this.#layouts) layout.connect();
+        this.#registerRegions();
         if (this.#interactive)
           this.#stop ??= this.#controller.subscribe(() => this.#paintAvailability());
         this.#paintAvailability();
@@ -120,7 +121,7 @@ customElements.define(
         if (this.#interactive)
           this.#stop ??= this.#controller.subscribe(() => this.#paintAvailability());
       } catch (error) {
-        this.#cleanupLayout();
+        this.#unregisterRegions();
         failSoft(this, error);
       }
     }
@@ -128,7 +129,7 @@ customElements.define(
     disconnectedCallback() {
       this.#stop?.();
       this.#stop = null;
-      this.#cleanupLayout();
+      this.#unregisterRegions();
     }
 
     get values() {
@@ -216,7 +217,7 @@ customElements.define(
         panel.append(panelTitle, ...this.#controls);
         let presetBar = null;
         if (presets.length) {
-          presetBar = offer("div", "lf-playground-presets");
+          presetBar = offer("header", "lf-playground-presets");
           const presetTitle = offer(
             "span",
             "lf-playground-presets-title",
@@ -536,49 +537,45 @@ customElements.define(
       return actions;
     }
 
+    // The playground is a workspace whose relationship is declared: controls operate the
+    // preview. It composes the layout layer's own grammar out of boxes it generates, a
+    // grid of two panes (packages/default/theme.css, at lf-workspace), so the theme alone
+    // decides whether each pane's body scrolls or the page does. Each pane is a reading
+    // region under the playground's id.
     #buildLayout({ panel, presetBar, preview, actions }) {
-      const controlsHost = document.createElement("div");
-      controlsHost.className = "lf-playground-controls-region";
-      controlsHost.setAttribute("role", "region");
-      controlsHost.setAttribute("aria-label", "Controls");
-      controlsHost.append(panel);
-      const controlsId = compoundReadingRegionId(this, "controls");
-      const controls = arrangeReadingElement({
-        owner: controlsHost,
-        role: "pane",
-        header: presetBar,
-        regions: [{ id: controlsId, host: controlsHost }],
-      });
-
-      const previewHost = document.createElement("div");
-      previewHost.className = "lf-playground-preview-region";
-      previewHost.setAttribute("role", "region");
-      previewHost.setAttribute("aria-label", "Preview");
-      previewHost.append(preview, this.#output);
-      const previewId = compoundReadingRegionId(this, "preview");
-      const previewRegion = arrangeReadingElement({
-        owner: previewHost,
-        role: "pane",
-        regions: [{ id: previewId, host: previewHost }],
-      });
+      const pane = (name, label, header, body) => {
+        const host = document.createElement("div");
+        host.className = `lf-playground-${name}-region`;
+        host.dataset.lfReadingRole = "pane";
+        host.setAttribute("role", "region");
+        host.setAttribute("aria-label", label);
+        if (header) host.append(header);
+        host.append(body);
+        this.#regions.push({ id: compoundReadingRegionId(this, name), host, body });
+        return host;
+      };
+      const previewBody = document.createElement("div");
+      previewBody.className = "lf-playground-preview-body";
+      previewBody.append(preview, this.#output);
 
       const split = document.createElement("div");
       split.className = "lf-playground-split";
-      split.dataset.lfDirection = "columns";
-      split.append(controlsHost, previewHost);
-      const splitRegion = arrangeReadingElement({ owner: split, role: "partition" });
-
+      split.dataset.lfReadingRole = "grid";
+      split.append(
+        pane("controls", "Controls", presetBar, panel),
+        pane("preview", "Preview", null, previewBody),
+      );
       this.append(split, actions);
-      const workspace = arrangeReadingElement({
-        owner: this,
-        role: "workspace",
-        footer: actions,
-      });
-      this.#layouts = [controls, previewRegion, splitRegion, workspace];
+      this.#registerRegions();
     }
 
-    #cleanupLayout() {
-      for (const layout of this.#layouts) layout.disconnect();
+    #registerRegions() {
+      this.#unregister = this.#regions.map((region) => registerReadingRegion(region));
+    }
+
+    #unregisterRegions() {
+      for (const stop of this.#unregister) stop();
+      this.#unregister = [];
     }
 
     #commands() {
@@ -768,7 +765,7 @@ customElements.define(
 
     renderState(state) {
       if (!this.#ready) return true;
-      const configuration = state.configuration;
+      const configuration = state.choose;
       const projected =
         configuration?.action === "choose"
           ? JSON.stringify(configuration.detail.values)

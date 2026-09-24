@@ -1,12 +1,10 @@
 """Control stability, browser shell, accessibility, and ring tests."""
 
-import json
 import os
 import re
 
 import pytest
 from interact_support import (
-    COMMAND_HUB_PACKAGE,
     append_command,
     record_claim,
 )
@@ -15,7 +13,6 @@ from leaf import delivery as delivery_model
 from leaf import event_log as events_model
 from leaf import files as files_model
 from leaf import leases as leases_model
-from leaf import schema as schema_model
 from leaf import service as service_model
 from leaf import session as session_model
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
@@ -73,7 +70,6 @@ from render_harness import (
     BOARD_PAGE,
     BOTH_STAMPS,
     CORPUS_SOURCES,
-    EXAMPLE_PACKAGES,
     EXAMPLES,
     FEATURE_GALLERY,
     LONG_PAGE,
@@ -85,7 +81,6 @@ from render_harness import (
     _traffic,
     _until,
     consume_browser_errors,
-    held_stale,
     holding,
     leaf_page,
     nudge,
@@ -695,7 +690,6 @@ def test_a_page_asking_for_sign_off_records_the_approval(browser, serve):
     round_trip(page)
     event = events_model.read_events(serve.page_dir)[-1]
     assert (event["kind"], event["author"], event["version"]) == ("done", "user", 1)
-    assert event["text"]
     expect(button).to_be_disabled()
 
 
@@ -1945,7 +1939,7 @@ def test_a_status_kind_change_is_announced_in_the_banners_own_words(browser, ser
     )
 
     claim = record_claim(serve.page_dir, id="s", pid=os.getpid())
-    lease = leases_model.take_waiter_lease(
+    lease = leases_model.take_lease(
         leases_model.waiter_lease_path(serve.page_dir, claim["id"])
     )
     assert lease
@@ -2485,72 +2479,6 @@ def test_each_control_archetype_holds_its_neighbours_still(browser, serve, arche
     )
 
 
-def test_a_self_eligibility_check_reads_state_before_its_optimistic_gesture(
-    browser, serve, tmp_path, monkeypatch
-):
-    """The common send door must not mistake a gesture's paint for prior state."""
-    monkeypatch.chdir(tmp_path)
-    overlay = tmp_path / ".leaf"
-    overlay.mkdir()
-    standard = json.loads((schema_model.DEFAULT_PACKAGE / "registry.json").read_text())
-    options = standard["lf-options"]
-    options["x-state"]["choose"]["requires"] = {
-        "target": "self",
-        "awaiting": True,
-    }
-    (overlay / "registry.json").write_text(json.dumps({"lf-options": options}))
-    url = serve(
-        leaf_page(
-            "self eligibility",
-            '<h1 id="heading">Choose</h1><lf-ask id="pick-decision"><h2>Which option?</h2>'
-            '<lf-options id="pick" choose>'
-            '<lf-option id="pick-a">A</lf-option>'
-            '<lf-option id="pick-b">B</lf-option></lf-options></lf-ask>',
-        ),
-        packages=(*EXAMPLE_PACKAGES, "./.leaf"),
-    )
-    page = open_page(browser, url)
-
-    page.get_by_role("checkbox", name=re.compile(r"^choose one: A")).click()
-    round_trip(page)
-
-    expect(page.locator("#pick-a")).to_have_attribute("chosen", "")
-    assert [event["action"] for event in actions(serve.page_dir)] == ["choose"]
-
-    held = []
-
-    def hold_undo(route):
-        if route.request.post_data_json["kind"] == "undo":
-            held.append(route)
-        else:
-            route.continue_()
-
-    page.route("**/api/event", hold_undo)
-    try:
-        page.keyboard.press("z")
-        holding(page, held, 1, "the undo that reopens the choice")
-        # The user sees their withdrawal in the widget at once. Whether the Ask is
-        # open again is the log's reading, and this withdrawal has not reached it, so
-        # the prerequisite this verb declares is still unmet and its control shut.
-        expect(page.locator("#pick-a")).not_to_have_attribute("chosen", "")
-        expect(
-            page.get_by_role("checkbox", name=re.compile(r"^choose one: B"))
-        ).to_be_disabled()
-    finally:
-        for route in held:
-            route.continue_()
-        page.unroute("**/api/event", hold_undo)
-    round_trip(page)
-    # With the withdrawal in the log the Ask is open again and the same press lands.
-    page.get_by_role("checkbox", name=re.compile(r"^choose one: B")).click()
-    round_trip(page)
-    expect(page.locator("#pick-b")).to_have_attribute("chosen", "")
-    assert [event["action"] for event in actions(serve.page_dir)] == [
-        "choose",
-        "choose",
-    ]
-
-
 def test_a_seat_conversation_leaves_the_pick_it_is_about_live(browser, serve):
     """The user's own remark must not lock the control it is a remark about.
 
@@ -2701,8 +2629,8 @@ def test_the_poll_leaves_the_banner_where_it_was(browser, serve):
                     "author": "user",
                     "revision": 1,
                     "widget": widget,
-                    "action": "accept",
-                    "detail": {},
+                    "action": "decide",
+                    "detail": {"outcome": "accept"},
                 },
             )
 
@@ -4781,321 +4709,6 @@ def test_a_covering_composer_keeps_its_controls_inside_the_safe_area(browser, se
     )
 
 
-def test_a_stale_package_widget_uses_recursive_parent_eligibility(
-    browser, serve, one_user, tmp_path, monkeypatch
-):
-    """A project widget gets honest controls and authoritative stale rejection.
-
-    A fresh tab projects a nested stopped plan and disables Increase. A deliberately
-    stale tab still offers it, so its real press reaches POST; the same registry
-    prerequisite must reject it there. A separate absolute `decrease` action remains
-    available while the parent is blocked.
-    """
-    monkeypatch.chdir(tmp_path)
-    overlay = tmp_path / ".leaf"
-    (overlay / "widgets").mkdir(parents=True)
-    task = json.loads((COMMAND_HUB_PACKAGE / "registry.json").read_text())["lf-task"]
-    task["x-awaits"]["rollup"] = True
-    (overlay / "registry.json").write_text(
-        json.dumps(
-            {
-                "lf-task": task,
-                "lf-quota": {
-                    "description": "A project-defined absolute scalar control.",
-                    "type": "object",
-                    "properties": {
-                        "id": {"type": "string"},
-                        "slots": {"type": "string", "pattern": "^[0-9]+$"},
-                        "restated": {"type": "boolean"},
-                    },
-                    "required": ["id", "slots"],
-                    "additionalProperties": False,
-                    "x-owners": ["lf-task"],
-                    "x-content": "empty",
-                    "x-upgrade": True,
-                    "x-state": {
-                        "move": {
-                            "detail": {
-                                "type": "object",
-                                "properties": {
-                                    "to": {"type": "string"},
-                                    "index": {"type": "integer", "minimum": 0},
-                                },
-                                "required": ["to", "index"],
-                                "additionalProperties": False,
-                            },
-                            "facet": "placement",
-                            "unit": "widget",
-                            "record": {
-                                "kind": "position",
-                                "within": "lf-task",
-                                "value": "to",
-                                "order": "index",
-                            },
-                        },
-                        "increase": {
-                            "detail": {
-                                "type": "object",
-                                "properties": {
-                                    "slots": {
-                                        "type": "string",
-                                        "pattern": "^[0-9]+$",
-                                    }
-                                },
-                                "required": ["slots"],
-                                "additionalProperties": False,
-                            },
-                            "facet": "capacity",
-                            "unit": "widget",
-                            "record": {
-                                "kind": "value",
-                                "attr": "slots",
-                                "value": "slots",
-                            },
-                            "requires": {
-                                "target": "owner",
-                                "awaiting": False,
-                            },
-                        },
-                        "decrease": {
-                            "detail": {
-                                "type": "object",
-                                "properties": {
-                                    "slots": {
-                                        "type": "string",
-                                        "pattern": "^[0-9]+$",
-                                    }
-                                },
-                                "required": ["slots"],
-                                "additionalProperties": False,
-                            },
-                            "facet": "capacity",
-                            "unit": "widget",
-                            "record": {
-                                "kind": "value",
-                                "attr": "slots",
-                                "value": "slots",
-                            },
-                        },
-                    },
-                    "x-example": (
-                        '<lf-tasks id="quota-example-tasks">'
-                        '<lf-task id="quota-example-task" status="active">'
-                        "<strong>Task</strong>"
-                        '<lf-quota id="quota-example" slots="1"></lf-quota>'
-                        '<lf-task id="quota-example-child" status="active">'
-                        "<strong>Child</strong></lf-task>"
-                        "</lf-task></lf-tasks>"
-                    ),
-                },
-            }
-        )
-    )
-    (overlay / "widgets" / "lf-quota.js").write_text(
-        """\
-import { offer, once, widgetController } from "/runtime/widget-api.js";
-
-const detail = (quota, delta) => ({
-  slots: String(Number(quota.getAttribute("slots")) + delta),
-});
-
-const paint = quota => {
-  const reading = quota.controller.read();
-  for (const [name, delta] of [["decrease", -1], ["increase", 1]])
-    quota.querySelector(`[data-lf-quota="${name}"]`)?.setAttribute(
-      "aria-disabled",
-      String(!reading.actions[name].available),
-    );
-};
-
-async function change(quota, delta) {
-  const action = delta > 0 ? "increase" : "decrease";
-  const next = detail(quota, delta);
-  if (!quota.controller.read().actions[action].available) return;
-  const previous = quota.getAttribute("slots");
-  quota.setAttribute("slots", next.slots);
-  paint(quota);
-  const sent = quota.controller.dispatch({
-    kind: "action", verb: action, detail: next,
-  });
-  if (!sent || !await sent.delivery) quota.setAttribute("slots", previous);
-  paint(quota);
-}
-
-customElements.define("lf-quota", class extends HTMLElement {
-  connectedCallback() {
-    this.controller ??= widgetController(this);
-    if (!once(this)) {
-      this.stopReading ??= this.controller.subscribe(() => paint(this));
-      return;
-    }
-    const decrease = offer("button", "lf-btn", "Decrease");
-    decrease.dataset.lfQuota = "decrease";
-    decrease.addEventListener("click", () => void change(this, -1));
-    const increase = offer("button", "lf-btn", "Increase");
-    increase.dataset.lfQuota = "increase";
-    increase.addEventListener("click", () => void change(this, 1));
-    this.append(decrease, increase);
-    this.stopReading ??= this.controller.subscribe(() => paint(this));
-    document.getElementById("destination")?.append(this);
-  }
-  disconnectedCallback() {
-    this.stopReading?.();
-    this.stopReading = null;
-  }
-  renderState(state) {
-    const { to, index } = state.placement.detail;
-    const parent = document.getElementById(to);
-    const placed = [...parent.children].filter(child => child.id);
-    // Idempotent, as a total render owes. Moving an element already in place still
-    // fires the platform's disconnect and connect reactions, and this module renews
-    // its subscription there, so an unconditional move renders itself again.
-    if (placed[index] !== this) {
-      const rest = placed.filter(child => child !== this);
-      parent.insertBefore(this, rest[index] ?? null);
-    }
-    this.setAttribute("slots", state.capacity.value);
-    paint(this);
-  }
-});
-"""
-    )
-    quota_v1 = leaf_page(
-        "quota",
-        '<h1 id="heading">Quota</h1><lf-tasks id="tasks">'
-        '<lf-task id="task" status="active"><strong>Task</strong>'
-        '<lf-quota id="quota" slots="1"></lf-quota>'
-        '<lf-ask id="quota-intervention-decision"><h2>Proceed?</h2>'
-        '<lf-options id="quota-intervention" choose>'
-        '<lf-option id="quota-ready" chosen>Ready</lf-option></lf-options></lf-ask>'
-        '<lf-task id="child" status="active"><strong>Child</strong>'
-        '<lf-ask id="quota-child-decision"><h2>Is the child ready?</h2>'
-        '<lf-options id="quota-child-review" choose>'
-        '<lf-option id="quota-child-ready" chosen>Ready</lf-option>'
-        "</lf-options></lf-ask></lf-task>"
-        "</lf-task>"
-        '<lf-task id="destination" status="active">'
-        "<strong>Destination</strong></lf-task>"
-        "</lf-tasks>",
-    )
-    url = serve(quota_v1, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
-    stale_held = held_stale(one_user)
-    stale = open_page(browser, url, context=stale_held)
-    current = open_page(browser, live_url(url), context=one_user)
-
-    append_command(
-        serve.page_dir,
-        {
-            "kind": "report",
-            "author": "agent",
-            "revision": 1,
-            "widget": "task",
-            "action": "status",
-            "detail": {"status": "blocked"},
-        },
-    )
-    told(current)
-    expect(current.locator("#task")).to_have_attribute("status", "blocked")
-    # Status describes work only, so reports cannot create a user prerequisite.
-    expect(current.get_by_role("button", name="Increase")).to_have_attribute(
-        "aria-disabled", "false"
-    )
-    append_command(
-        serve.page_dir,
-        {
-            "kind": "report",
-            "author": "agent",
-            "revision": 1,
-            "widget": "child",
-            "action": "status",
-            "detail": {"status": "blocked"},
-        },
-    )
-    told(current)
-    expect(current.locator("#child")).to_have_attribute("status", "blocked")
-    expect(current.get_by_role("button", name="Increase")).to_have_attribute(
-        "aria-disabled", "false"
-    )
-    # The direct intervention remains answered. Reopening the child request alone
-    # makes the parent aggregate await and closes capacity in the current tab.
-    current.locator("#quota-child-ready").click()
-    round_trip(current)
-    expect(current.locator("#quota-child-ready")).not_to_have_attribute("chosen", "")
-    expect(current.get_by_role("button", name="Increase")).to_have_attribute(
-        "aria-disabled", "true"
-    )
-    expect(current.get_by_role("button", name="Decrease")).to_have_attribute(
-        "aria-disabled", "false"
-    )
-
-    # A live activation imports fresh element identities, and inserting them upgrades
-    # quota on the spot, so the module moves it into #destination. v2's authored
-    # placement was decoded from its source before that insertion: the widget's own
-    # render puts quota back under #task, and eligibility reads that same parent.
-    quota_v2 = (
-        quota_v1.replace(
-            '<lf-task id="task" status="active">',
-            '<lf-task id="task" status="blocked">',
-        )
-        .replace(
-            '<lf-task id="child" status="active">',
-            '<lf-task id="child" status="blocked">',
-        )
-        .replace('id="quota-ready" chosen', 'id="quota-ready"')
-    )
-    stamp_page(serve.page_dir, quota_v2, "same plan")
-    told(current)
-    expect(current.locator(".lf-version")).to_contain_text("v2")
-    expect(current.locator("#task")).not_to_have_attribute("data-lf-reported", "1")
-    expect(current.locator("#child")).not_to_have_attribute("data-lf-reported", "1")
-    expect(current.locator("#task > #quota")).to_have_count(1)
-    expect(current.get_by_role("button", name="Increase")).to_have_attribute(
-        "aria-disabled", "true"
-    )
-
-    expect(stale.locator("#task")).to_have_attribute("status", "active")
-    expect(stale.get_by_role("button", name="Increase")).to_have_attribute(
-        "aria-disabled", "false"
-    )
-    stale.get_by_role("button", name="Increase").click()
-    round_trip(stale)
-
-    assert [event["action"] for event in actions(serve.page_dir)] == ["choose"]
-    stale_held.restore()
-    told(stale)
-    expect(stale.locator("#quota")).to_have_attribute("slots", "1")
-    expect(stale.get_by_role("button", name="Increase")).to_have_attribute(
-        "aria-disabled", "true"
-    )
-
-    append_command(
-        serve.page_dir,
-        {
-            "kind": "action",
-            "author": "user",
-            "revision": 1,
-            "widget": "quota",
-            "action": "move",
-            "detail": {"to": "destination", "index": 0},
-        },
-    )
-    told(current)
-    expect(current.locator("#destination > #quota")).to_have_count(1)
-    expect(current.get_by_role("button", name="Increase")).to_have_attribute(
-        "aria-disabled", "false"
-    )
-
-    current.get_by_role("button", name="Decrease").click()
-    round_trip(current)
-    expect(current.locator("#quota")).to_have_attribute("slots", "0")
-    assert [event["action"] for event in actions(serve.page_dir)] == [
-        "choose",
-        "move",
-        "decrease",
-    ]
-    consume_browser_errors(stale, "400")
-
-
 def test_the_ring_reading_names_every_way_a_box_can_draw_nothing_past_its_edge(
     browser, serve
 ):
@@ -6139,6 +5752,19 @@ def test_every_base_corpus_tab_stop_has_a_visible_focus_indicator(browser, serve
     assert not failures, "keyboard stops with no visible indication: " + "; ".join(
         failures
     )
+
+
+def test_the_focus_sweep_distinguishes_stops_inside_a_live_frame(browser):
+    page = browser.new_page()
+    page.set_content(
+        '<iframe srcdoc="<button id=first>First</button>'
+        '<button id=second>Second</button>"></iframe>'
+    )
+    page.evaluate("() => { window.__lfSeen = new WeakSet(); }")
+    page.frame_locator("iframe").locator("#first").focus()
+    assert page.evaluate(RING_NEW_STOP) == "new"
+    page.frame_locator("iframe").locator("#second").focus()
+    assert page.evaluate(RING_NEW_STOP) == "new"
 
 
 def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(

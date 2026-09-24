@@ -1,4 +1,8 @@
 bot_name: leaf-agent
+harness: codex
+model: gpt-6-sol
+merge: yolo
+control_plane_owner: "@max-sixty"
 
 # Everything in this repo runs through `uv` (AGENTS.md): the suite is
 # `uv run pytest tests`, and `leaf` itself is a uv project that syncs its own
@@ -24,7 +28,7 @@ setup:
     run: 'uv run python -c "from playwright.sync_api import sync_playwright; p = sync_playwright().start(); p.chromium.launch().close(); p.webkit.launch().close(); p.stop()"'
   # The `tend` environment's Cloudflare token reads every Worker's logs and
   # Analytics Engine events on the account and cannot change a Worker or a
-  # zone (`worker/README.md`). Tend's proxy injects only GitHub and Anthropic
+  # zone (`worker/README.md`). Tend's proxy injects GitHub and harness
   # credentials, so this token reaches the agent through the job's
   # environment. Every step after this export can read it, and so can
   # anything the agent runs, which is why it comes last.

@@ -1,13 +1,16 @@
 version: 2
 
-# Nothing watched anything here before this file. The pinned versions that stay
-# outside it are the browser bundles', in `scripts/vendor.py`'s PINS table, and the
-# page payload `package.json` pins for the browser framework build; `tend-weekly`
-# reads both through `scripts/vendor.py --pins`.
-#
-# The uv entry watches the repository's one lock. Its runtime packages are what
+# The uv entry watches the repository's Python lock. Its runtime packages are what
 # an install of leaf actually resolves — a bump there changes what every host
 # runs — and the dev group is the suite's; the lock records both.
+#
+# The npm entry watches the root `package.json`, which names every JavaScript
+# package the committed browser output is built from: the browser framework build's
+# page payload and every bundle `scripts/vendor.py` makes. Its PR moves the pins and
+# the lock but not the output, so CI stays red on it until the rebuilt bundles are
+# committed to the same branch; `running-tend` says how. `esbuild` is left out: it is
+# the tool every bundle shares rather than payload, so it moves when a bundle needs
+# it rather than on every release.
 #
 # Grouped so each ecosystem opens one PR a week rather than one per dependency;
 # on a repo this size the review cost of a group is the same as a single bump.
@@ -24,6 +27,16 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    groups:
+      dependencies:
+        patterns: ["*"]
+
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    ignore:
+      - dependency-name: esbuild
     groups:
       dependencies:
         patterns: ["*"]

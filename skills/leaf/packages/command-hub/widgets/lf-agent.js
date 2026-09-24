@@ -107,7 +107,7 @@ function heard(el, updates) {
   say(row, "lf-heard", ts ? `last heard ${ago(ts)}` : null);
 }
 
-/* The report field x-report declared as its human-readable update, first in the tail.
+/* The report field its agent verb declared as its human-readable update, first in the tail.
  * Replay states semantic attributes; the update feed says which source is effective and
  * when it was heard. A version answering the report therefore removes this clause
  * without pretending the report vanished from history. */
@@ -235,7 +235,7 @@ customElements.define(
     }
 
     renderState(state) {
-      const value = state.activity.value;
+      const value = state.state.value;
       if (value === this.getAttribute("state")) return;
       if (value === null) this.removeAttribute("state");
       else this.setAttribute("state", value);

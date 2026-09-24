@@ -1,13 +1,15 @@
 """Mutable source, immutable revisions, and public version addresses."""
 
-import hashlib
 import json
 import os
 import re
 import secrets
 import sys
+import time
+from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import TypeVar
 
 from .locations import path_location
 
@@ -31,6 +33,40 @@ def file_stamp(path: Path):
     return (stat.st_ino, stat.st_mtime_ns, stat.st_size)
 
 
+# How often a reader waiting on a page looks for news: the browser's news stream,
+# `leaf events --follow`, and `leaf wait`. The look is a re-stat rather than an
+# in-process signal because an append does not have to come from the reader's process —
+# `leaf reply` and every other command write these same files from outside a server,
+# and a follower has no server at all — so one mechanism covers a browser's POST and an
+# agent's command alike. Measured at 70us a look of the whole page, 0.14% of a core per
+# open tab, against the full state read and log parse a timed poll cost every two
+# seconds whether or not anything had happened.
+LOOK_S = 0.05
+
+
+Reading = TypeVar("Reading")
+
+
+def next_reading(
+    look: Callable[[], Reading], seen: Reading, timeout: float | None = None
+) -> Reading:
+    """The first reading `look` gives that differs from `seen`, looking every
+    `LOOK_S` — the one wait a synchronous follower of page files makes. With
+    `timeout`, the reading at that many seconds is returned whether or not it moved,
+    for a follower that also owes something to the clock rather than the files.
+
+    `look` is a stamp, never the content: the follower reads what moved only once
+    this says something did, so a quiet page costs stat calls and nothing more."""
+    deadline = None if timeout is None else time.monotonic() + timeout
+    while True:
+        reading = look()
+        if reading != seen:
+            return reading
+        if deadline is not None and time.monotonic() >= deadline:
+            return reading
+        time.sleep(LOOK_S)
+
+
 VERSION_FILE = re.compile(r"v([1-9][0-9]*)\.html")
 REVISION_FILE = re.compile(r"r([1-9][0-9]*)-([a-f0-9]{16})\.html")
 
@@ -52,15 +88,6 @@ def version_name(version: int) -> str:
 def revision_num(name: str) -> int:
     """The ordered identity carried by an immutable revision file."""
     return int(REVISION_FILE.fullmatch(name).group(1))
-
-
-def revision_digest(data: bytes) -> str:
-    """The short content address recorded beside a revision's order."""
-    return hashlib.sha256(data).hexdigest()[:16]
-
-
-def revision_name(revision: int, data: bytes) -> str:
-    return f"r{revision}-{revision_digest(data)}.html"
 
 
 def list_revisions(page_dir: Path) -> list[int]:
@@ -104,29 +131,6 @@ def require_revision(page_dir: Path) -> int:
     if revision is None:
         sys.exit(missing_revision(page_dir))
     return revision
-
-
-def write_revision(page_dir: Path, revision: int, data: bytes) -> Path:
-    """Write one new immutable revision after its caller has validated it.
-
-    Page transactions serialize order assignment. Refusing an existing target
-    keeps a revision immutable even if a caller is accidentally repeated.
-    """
-    from leaf.registry.storage import read_page_registry
-    from leaf.revision_artifact import capture_artifact, write_artifact
-    from leaf.structure import SourceDocument
-
-    candidate = read_page_registry(page_dir)
-    if candidate is None:
-        sys.exit(f"no registry.json in {page_dir}; run `leaf page init` first")
-    artifact = capture_artifact(
-        page_dir,
-        SourceDocument(data.decode("utf-8")),
-        candidate.registry,
-        declaration_sources=candidate.declaration_sources,
-        widget_sources=candidate.widget_sources,
-    )
-    return write_artifact(page_dir, revision, artifact)
 
 
 def version_revisions(events: list) -> dict[int, int]:
@@ -207,14 +211,6 @@ def revision_label(events: list, revision: int) -> str:
 def published_versions(page_dir: Path, events: list) -> list:
     """Public versions whose stamp and mapped immutable revision both exist."""
     return [item["version"] for item in version_descriptors(page_dir, events)]
-
-
-def latest_published(page_dir: Path, events: list) -> int:
-    """The newest stamped version, for callers that specifically need a stamp."""
-    published = published_versions(page_dir, events)
-    if not published:
-        sys.exit("no stamped version; run `leaf version stamp` first")
-    return published[-1]
 
 
 def read_json(path: Path):

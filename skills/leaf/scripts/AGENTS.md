@@ -21,6 +21,11 @@ The main owners are:
   presence, and change reading served by one browser preview;
 - `construction`: effective document content with source, state, and data origins;
 - `transcript`: raw-event selection and the human-facing Markdown export;
+- `gesture_words`: what the ids a widget gesture names say and are called in the
+  gesture's own document, the one reading deliveries, the transcript, and the
+  history state a gesture through;
+- `history`: the page's newest moves as served rows, for a page holding a widget
+  that declares `x-history`;
 - `event_log`: append-only JSONL storage, locking, and attempt identity;
 - `event_contracts`: the one append door every writer admits an event through,
   and the per-kind contracts it runs;
@@ -51,10 +56,14 @@ The main owners are:
 - `host`: the agent harness declarations — session identity, lifetime, delivery
   carrier, hook remedies, and the nudge that reaches a session with nothing watching —
   and the Claude Code messaging socket behind one of them;
-- `leases`: process-backed page, transition, and waiter leases;
+- `leases`: process-backed page, transition, and waiter leases, and `take_lease`,
+  the one non-blocking take every lease holder uses;
 - `service`: page claims, serialized transactions, and status;
 - `server` and `hosting`: server address and lifetime state, plus durable and
   process-owned HTTP servers;
+- `detached`: a leaf process started in a session of its own, and the handshake
+  whose acknowledgement commits its start — the page server's and the Codex
+  adapter's;
 - `specimens`: disposable child pages built from captured templates and selected
   conversations, with independent event logs and server-owned lifetimes;
 - `session` and `hooks`: direct wait delivery and host lifecycle;

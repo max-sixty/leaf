@@ -13,15 +13,15 @@ single validating append door, per-event attribution, undo, and `version check`,
 and Leaf already has the coordinator a CRDT exists to avoid. SQLite as the authority
 would be the derived current-state file `AGENTS.md` rules out.
 
-What is wrong sits below that boundary. Most findings reduce to two missing
-identities: a row and a position.
+What is wrong sits below that boundary. Most findings reduce to one missing
+identity: a row.
 
 ## Row identity
 
 Leaf has three row models and no row primitive:
 
-- `creates` children, whose existence is carried inside whichever action currently
-  wins the owner's facet (`projection.py` `generated_children`). Every later pick
+- `creates` children, whose existence is carried by the `add` action standing at
+  the child's own coordinate (`projection.py` `generated_children`). Every later pick
   must repeat the whole additions map (`lf-options.js` header), undoing a pick also
   withdraws the write-in, and the browser builds the children in `lf-options.js`
   rather than generically. One consumer. (read)
@@ -34,18 +34,20 @@ Proposal:
 
 - A typed unit: `{element: FIELD}` or `{record: FIELD, input: X-DATA-INPUT}`, the form
   `x-request.records` already uses.
-- Row existence as its own coordinate `(owner, row, exists)`, with competing `add`
-  and `remove` verbs. Undo of `add` removes the row; `remove` also deletes authored
-  rows. Cell actions on a removed row stay in the log and return if the removal is
+- Row existence as one verb, `row`, on its own coordinate `(owner, row, "row")`,
+  whose detail carries `exists: bool`: `true` adds the row, `false` removes it, and
+  the latest standing `row` action wins because a coordinate is keyed by verb. Undo
+  of an adding `row` removes the row; `exists: false` also deletes authored rows. Cell actions on a removed row stay in the log and return if the removal is
   undone. The browser mints the row id so the row draws in the gesture; the door
-  refuses an id any revision or earlier `add` used.
+  refuses an id any revision or earlier adding `row` used.
 - The child's element declaration is the record schema, extending the `value`
-  record's rule that the detail field carries the attribute's own schema. `add`
-  takes `{row, fields}`; the door validates authored attributes plus folded state
+  record's rule that the detail field carries the attribute's own schema. An adding
+  `row` takes `{row, exists: true, fields}`; the door validates authored attributes plus folded state
   plus the patch against the whole declaration. Records only: prose is a body field
-  the child declares, so `lf-options`' write-in becomes an `add` of an `lf-option`.
-- A facet taken from each field of a patch (`meaning.coordinates`), so one gesture
-  sets several cells, a paste is one undo, and a column needs no verb of its own.
+  the child declares, so `lf-options`' write-in becomes a `row` of an `lf-option`.
+- A `set` verb whose coordinate is keyed per field of a patch, one
+  `(owner, row, "set", field)` for each field the detail carries, so one gesture sets
+  several cells, a paste is one undo, and a column needs no verb of its own.
 - The runtime materialises created children from the declaration; `generated` goes.
 
 A table then declares:
@@ -54,10 +56,9 @@ A table then declares:
 {
   "lf-table": {
     "x-state": {
-      "add": { "unit": { "element": "row" }, "facet": "exists", "creates": "lf-row" },
-      "remove": { "unit": { "element": "row" }, "facet": "exists" },
-      "set": { "unit": { "element": "row" }, "facet": { "fields": "fields" }, "record": { "kind": "value" } },
-      "rank": { "unit": { "element": "row" }, "facet": "rank", "record": { "kind": "value", "attr": "rank" } }
+      "row": { "unit": { "element": "row" }, "creates": "lf-row" },
+      "set": { "unit": { "element": "row" }, "fields": "fields", "record": { "kind": "value" } },
+      "rank": { "unit": { "element": "row" }, "record": { "kind": "value", "attr": "rank" } }
     }
   }
 }
@@ -74,16 +75,8 @@ row from the key and `bind`, at the door only (`lf-job-requests.js` repeats it).
 
 ## Position
 
-A `position` record stores an integer sibling index. The fold replays only winning
-moves, each splicing at an index measured against a list that included the moves it
-dropped, so undoing one card's move can shift another. (inferred; no reproducer yet)
-`markup_facet` compares only the container, so a reorder within one container is
-invisible to `version check`. (read)
-
-Proposal: order as a `value` facet holding a fractional rank string (Figma's
-fractional indexing). Each row's order stands on its own coordinate, undo is exact,
-and `version check` compares it like any value. Boards keep the container record and
-take the rank in place of `index`. Write the undo reproducer before changing it.
+`markup_value` compares only a position record's container, so a reorder within one
+container is invisible to `version check`. (read)
 
 ## Read cost
 
@@ -96,22 +89,5 @@ three more times. Neither warrants snapshots or incremental folding yet.
 
 ## Redundancy
 
-- Stored `meaning` repeats `widget`, `revision`, and `generated`, and
-  `stored_meaning_error` asserts it still equals a recomputation: two mechanisms for
-  one guarantee. Keep the stored `coordinate`, which registry-free readers need.
-- `x-state` and `x-report` declare one shape; `"x-state" if action else "x-report"`
-  recurs. One verb declaration with `by: [user, agent]`.
-- `undo`, `restated`, and a note's `settles` are one relation, "this stops
-  standing"; `restated` differs in naming element ids.
-- `fragments` is `records` plus one deferred field, declared beside it with an
-  agreement rule and four `records or fragments` fallbacks. `records: {items, key,
-  deferred?}`.
-- About 250 lines of Git patch parsing sit in core `data.py` for the diff package,
-  and `data capture --lines` slices text for one contract. Both belong to their
-  contracts and packages, leaving one `leaf data set`.
-
-## Other processes
-
-`seq` is already a sync id and `leaf events --after SEQ` the catch-up read. Add
-`--follow` on the trigger `/api/news` uses, and state that stored event records are a
-public format whose readers drop what they do not recognise.
+`undo`, `restated`, and a note's `settles` are one relation, "this stops standing";
+`restated` differs in naming element ids.

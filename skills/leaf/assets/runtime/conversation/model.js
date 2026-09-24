@@ -222,7 +222,6 @@ export function readThreadRecords(
         "about",
         "drawing",
         "holds",
-        "response",
         "token",
         "text",
         "edited",

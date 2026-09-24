@@ -3,7 +3,7 @@
 import json
 from datetime import datetime, timedelta
 
-from interact_support import append_command
+from interact_support import append_command, deciding_verb
 from leaf import event_log as events_model
 from render_harness import (
     EXAMPLES,
@@ -1067,11 +1067,11 @@ def backdate_note(page_dir, version, hours):
 
 
 # One instance for every verb the vocabulary declares an action or a report for, so a
-# log holding one event apiece leaves the whole of it standing at once. Selection and
-# completion share one option-group unit but occupy distinct facets, so both stand;
-# accept and reject share the settlement facet, so two suggestions let both competing
-# verbs stand. The floor below derives the list from the registry, so a newly declared
-# verb fails here rather than passing unexercised.
+# log holding one event apiece leaves the whole of it standing at once. `choose` and
+# `answer` share one option-group unit but are distinct verbs, so both stand; two
+# suggestions let both of `decide`'s outcomes stand. The floor below derives the list
+# from the registry, so a newly declared verb fails here rather than passing
+# unexercised.
 STANDING_PAGE = leaf_page(
     "standing state",
     """
@@ -1150,26 +1150,22 @@ diff --git a/ab/bracket.py b/ab/bracket.py
 # the verb's own shape and a schema is no help in inventing one.
 #
 # Two moves into one column, both to its head, because one move cannot say what this
-# gate has to get right. `move` folds by card, so each is its own standing entry, and
-# an absolute `#place` states one card's index and nothing about its neighbours: the
-# column ends up holding the second above the first, and re-applying the first *alone*
-# is supposed to lift it back over. Measured that way the gate called lf-board relative
-# and refused a page with nothing wrong with it. The set has to be re-applied in the
-# log's order, and with a single move on the page it passed either way.
+# gate has to get right. `move` folds by card, so each is its own standing entry with
+# its own rank: the column holds the second above the first, and re-applying either
+# set of them puts each card where its own rank says, whichever other moves stand. The
+# ranks are the ones lf-board sends: importer before the authored notes ("1"), then
+# notes before importer.
 STANDING_ACTIONS = [
     ("ab-pick", "choose", {"options": ["ab-stage"]}),
     ("ab-pick", "answer", {}),
-    ("ab-work", "move", {"card": "ab-importer", "to": "ab-done", "index": 0}),
-    ("ab-work", "move", {"card": "ab-notes", "to": "ab-done", "index": 0}),
+    ("ab-pick", "add", {"option": "ab-rewrite", "text": "Rewrite the callers first"}),
+    ("ab-work", "move", {"card": "ab-importer", "to": "ab-done", "rank": "0i"}),
+    ("ab-work", "move", {"card": "ab-notes", "to": "ab-done", "rank": "09"}),
     ("ab-email", "edit", {"text": "The words as the user rewrote them."}),
-    ("ab-sug-410", "accept", {}),
-    ("ab-sug-logs", "reject", {}),
-    ("ab-triage", "swipe", {"card": "ab-expiry", "to": "ab-pass", "index": 0}),
-    (
-        "ab-triage",
-        "finish",
-        {"card": "ab-capacity", "to": "ab-keep", "index": 0},
-    ),
+    ("ab-sug-410", "decide", {"outcome": "accept"}),
+    ("ab-sug-logs", "decide", {"outcome": "reject"}),
+    ("ab-triage", "swipe", {"card": "ab-expiry", "to": "ab-pass", "rank": "i"}),
+    ("ab-triage", "swipe", {"card": "ab-capacity", "to": "ab-keep", "rank": "i"}),
     ("ab-patch", "review", {"file": "ab/bracket.py", "reviewed": True}),
     (
         "ab-visual",
@@ -1238,7 +1234,7 @@ customElements.define(
     }
     disconnectedCallback() { this.#stop?.(); this.#stop = null; }
     renderState(state) {
-      this.setAttribute("count", Number(this.getAttribute("count")) + Number(state.count.value));
+      this.setAttribute("count", Number(this.getAttribute("count")) + Number(state.step.value));
       this.querySelector("pre").append(state.caption.value);
     }
   },
@@ -1301,8 +1297,8 @@ customElements.define(
     // Absolute, as every renderState is: the offset is stated, never stepped.
     renderState(state) {
       const from = this.getAttribute("offset");
-      if (from === String(state.offset.value)) return;
-      this.setAttribute("offset", String(state.offset.value));
+      if (from === String(state.settle.value)) return;
+      this.setAttribute("offset", String(state.settle.value));
       this.#place();
       // Held at the old offset for nine tenths of the run, so the words are over
       // their neighbour's for as long as the motion lasts. A move that eased the
@@ -1360,7 +1356,6 @@ def drifting_widget(tmp_path, monkeypatch, deep=False, bare=False):
                 "required": ["offset"],
                 "additionalProperties": False,
             },
-            "facet": "offset",
             "unit": "widget",
             "record": {"kind": "value", "attr": "offset", "value": "offset"},
         }
@@ -1426,24 +1421,19 @@ def trial_family(tmp_path):
         author_test_widget(tmp_path, tag, upgrade=upgrade)
     source = tmp_path / ".leaf" / "registry.json"
     declarations = json.loads(source.read_text())
-    verb = {
-        "detail": {"type": "object", "additionalProperties": False},
-        "facet": "settlement",
-        "unit": "widget",
-    }
     example = {
         "lf-trial": '<lf-trial id="x-trial"><lf-current><p>As it stands.</p></lf-current>'
         "<lf-proposed><p>As proposed.</p></lf-proposed></lf-trial>",
         "lf-pilot": '<lf-pilot id="x-pilot"><lf-proposed><p>As proposed.</p>'
         "</lf-proposed></lf-pilot>",
     }
-    # `pause` settles nothing: the widget-unit verb that displaces a decision in
-    # the fold, there for the test that holds the mark to following it out.
-    for tag, state in (
-        ("lf-trial", ("adopt", "shelve", "pause")),
-        ("lf-pilot", ("run", "shelve")),
+    # `pause` retires nothing: an outcome that displaces a decision in the fold,
+    # there for the test that holds the mark to following it out.
+    for tag, outcomes in (
+        ("lf-trial", ["adopt", "shelve", "pause"]),
+        ("lf-pilot", ["run", "shelve"]),
     ):
-        declarations[tag]["x-state"] = {name: dict(verb) for name in state}
+        declarations[tag]["x-state"] = {"decide": deciding_verb(outcomes)}
         declarations[tag]["properties"]["restated"] = {"type": "boolean"}
         declarations[tag]["x-content"] = "members"
         declarations[tag]["x-example"] = example[tag]
@@ -1575,15 +1565,10 @@ SEATED_ASK_ENTRY = {
                 "required": ["answer"],
                 "additionalProperties": False,
             },
-            "facet": "verdict",
             "unit": "widget",
-            # The prerequisite the split is about. Read off the user's list this
-            # refuses a press on a widget whose seat is mid-conversation; read off the
-            # unanswered decisions, which is what the door owes it, it lets one through.
-            "requires": {"target": "self", "awaiting": True},
         }
     },
-    "x-awaits": {"when": {"asks": [True]}, "answers": ["settle"]},
+    "x-awaits": {"when": {"asks": [True]}, "answered": {"settle": {}}},
     "x-conversation": {"when": {"asks": [True]}},
     "x-example": '<lf-verdict id="verdict-example" asks>Ship it?</lf-verdict>',
 }
@@ -1630,7 +1615,7 @@ customElements.define(
     }
 
     renderState(state) {
-      if (state.verdict.value) this.settled();
+      if (state.settle.value) this.settled();
       else {
         this.press.textContent = "Accept";
         this.press.setAttribute("aria-pressed", "false");

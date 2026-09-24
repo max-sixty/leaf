@@ -1,18 +1,18 @@
 """Validation of authored changes against standing actions and reports."""
 
-from leaf.passages import EMPTY, collapse, enclosing_of, inline_markdown_words
+from leaf.passages import EMPTY, collapse, created_words, enclosing_of
 from leaf.projection import (
     NO_RECORD,
     StateProjection,
     action_subjects,
-    folded_facet,
-    markup_facet,
+    folded_value,
+    markup_value,
 )
-from leaf.registry.contract import created_children
+from leaf.registry.contract import created_child
 
 from .markup import at
 
-# A verb with no declared record form (accept/reject — the honoring version
+# A verb with no declared record form (decide — the honoring version
 # retires the wrapper, so there is no markup value to compare) has no record.
 
 
@@ -47,7 +47,7 @@ def restatement_errors(
 
     Words are one divergence kind; declared state is the other. For each verb
     the registry declares (x-state), the fold gives the user's standing
-    state per owner, unit, and facet, and a version whose markup actively changes that unit's
+    state per owner, unit, and verb, and a version whose markup actively changes that unit's
     record away from both the previous version's and the fold is refused the
     same way a silent rewrite of words is. Writing the folded state is the
     state-level echo (honoring); re-emitting the previous version's state is
@@ -72,23 +72,23 @@ def restatement_errors(
 
     # The state gate, beside the words gate: one gate, two divergence kinds.
     prev_byid = prev.by_id
-    facet_earned = set()
+    state_earned = set()
     for coordinate in sorted(projection.actions):
-        _widget, unit, _facet = coordinate
+        _widget, unit, _verb = coordinate
         e, spec = projection.actions[coordinate]
         rec = byid.get(unit)
         # A unit either version lacks is id-survival's business, not this gate's.
         if rec is None or unit not in prev_byid:
             continue
-        f_cur = markup_facet(unit, spec, byid, now, registry)
-        f_prev = markup_facet(unit, spec, prev_byid, was, registry)
+        f_cur = markup_value(unit, spec, byid, now, registry)
+        f_prev = markup_value(unit, spec, prev_byid, was, registry)
         if f_cur is NO_RECORD or f_cur == f_prev:
             continue  # no record form, or no active change — replay resolves silence
-        f_fold = folded_facet(e, spec)
+        f_fold = folded_value(e, spec)
         if f_cur == f_fold:
             continue  # writing the folded state is honoring: the state-level echo
         if unit in declared:
-            facet_earned.add(unit)
+            state_earned.add(unit)
             continue
         where = at(rec, f"id={unit!r}")
         errors.append(
@@ -117,21 +117,19 @@ def restatement_errors(
             for field, v in e["detail"].items()
             if field != "resolves" and isinstance(v, str)
         }
-        # A creates declaration names the one mapping whose values are generated
-        # child prose. The event is their previous reading because those children
-        # were absent from the action's authored revision.
+        # A created child's words are its creating action's. The event is their
+        # previous reading because the child was absent from the action's revision.
         generated_words = {
             collapse(
-                inline_markdown_words(value, added=True)
-                if registry.get(action_specs[e["id"]]["creates"]["child"], {}).get(
-                    "x-text-format"
+                created_words(
+                    words,
+                    registry.get(action_specs[e["id"]]["creates"]["child"], {}),
                 )
-                == "inline-markdown"
-                else value
             )
             for e in live
-            for identity, value in created_children(e, action_specs[e["id"]]).items()
-            if identity == sid and isinstance(value, str)
+            if (created := created_child(e, action_specs[e["id"]]))
+            for identity, words in [created]
+            if identity == sid
         }
         said = now.get(sid, EMPTY).words
         changed = (sid in was and said != was[sid].words and said not in echoed) or (
@@ -141,7 +139,7 @@ def restatement_errors(
         # `restated` is earned by either divergence kind — words on the leaf, or
         # declared state at the unit — else a words-unchanged relocation would
         # be refused both with the attribute and without it.
-        if restated and not ((live and changed) or sid in facet_earned):
+        if restated and not ((live and changed) or sid in state_earned):
             # An already-retracted widget is the case an author lands on by being
             # careful — carrying the attribute forward the way state used to have
             # to be carried — so it gets its own answer rather than the
@@ -211,10 +209,10 @@ def report_errors(
     }
     earned = set()
     for coordinate in sorted(effective_standing):
-        _widget, unit, _facet = coordinate
+        _widget, unit, _verb = coordinate
         e, spec = effective_standing[coordinate][-1]
-        f_cur = markup_facet(unit, spec, byid, now, registry)
-        f_rep = folded_facet(e, spec)
+        f_cur = markup_value(unit, spec, byid, now, registry)
+        f_rep = folded_value(e, spec)
         # Whether an `overruled` is earned is this version's markup against the
         # report, so it is settled ahead of the skip below: a unit the gate declines
         # to adjudicate would otherwise land in `unearned` and be told it writes the
@@ -228,7 +226,7 @@ def report_errors(
             continue
         if f_cur == f_rep:
             continue  # honoring: stamping absorbs the report by id
-        if f_cur == markup_facet(unit, spec, prev_byid, was, registry):
+        if f_cur == markup_value(unit, spec, prev_byid, was, registry):
             continue  # blessed silence: the report keeps painting
         where = at(rec, f"id={unit!r}")
         who = e.get("agent", "a worker")
@@ -244,14 +242,14 @@ def report_errors(
     # answered the unit's reports, for the message that says to drop it.
     answered_at = {}
     if unearned:
-        for (_widget, unit, _facet), revision in projection.report_settlements.items():
+        for (_widget, unit, _verb), revision in projection.report_settlements.items():
             answered_at[unit] = max(answered_at.get(unit, 0), revision)
     for sid in sorted(unearned):
         rec = byid.get(sid)
         if rec is None:
             continue
         where = at(rec, f"id={sid!r}")
-        if any(unit == sid for _widget, unit, _facet in effective_standing):
+        if any(unit == sid for _widget, unit, _verb in effective_standing):
             errors.append(
                 f"{where}: overruled, but this version writes the reported state — "
                 f"that is absorption, which stamping records on its own. "

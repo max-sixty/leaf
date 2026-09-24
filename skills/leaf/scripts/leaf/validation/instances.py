@@ -116,7 +116,9 @@ def widget_errors(lf_elements: list, registry: dict) -> list:
 
 
 def layout_errors(lf_elements: list, registry: dict) -> list:
-    """Validate the direct grammar of registry-declared structural elements."""
+    """Validate the direct grammar of registry-declared structural elements: a workspace
+    or pane is an optional header, exactly one body element, and an optional footer; a
+    grid holds its cells as elements."""
     errors = []
     for rec in lf_elements:
         role = registry.get(rec["tag"], {}).get("x-reading-role")
@@ -124,30 +126,6 @@ def layout_errors(lf_elements: list, registry: dict) -> list:
             continue
         where = at(rec)
         direct = rec["direct"]
-        if role in {"workspace", "pane"}:
-            headers = [i for i, child in enumerate(direct) if child == "header"]
-            footers = [i for i, child in enumerate(direct) if child == "footer"]
-            if len(headers) > 1 or len(footers) > 1:
-                errors.append(
-                    f"{where}: x-reading-role {role} admits at most one direct <header> "
-                    "and one direct <footer>"
-                )
-            if headers and headers[0] != 0:
-                errors.append(
-                    f"{where}: x-reading-role {role} direct <header> must be first"
-                )
-            if footers and footers[0] != len(direct) - 1:
-                errors.append(
-                    f"{where}: x-reading-role {role} direct <footer> must be last"
-                )
-            if role == "workspace":
-                body = [child for child in direct if child not in {"header", "footer"}]
-                if len(body) != 1 or body[0] == "#text":
-                    errors.append(
-                        f"{where}: x-reading-role workspace must contain exactly one direct "
-                        f"body element, found {body or 'nothing'}"
-                    )
-            continue
         if role == "grid":
             # Every direct child is a cell, so loose text would be a cell nobody wrote.
             if "#text" in direct:
@@ -156,29 +134,27 @@ def layout_errors(lf_elements: list, registry: dict) -> list:
                     "loose text in one"
                 )
             continue
-
-        direct_widgets = [
-            child
-            for child in lf_elements
-            if child.get("holder") is rec and child.get("parent") == rec["tag"]
-        ]
-        roles = [
-            registry.get(child["tag"], {}).get("x-reading-role")
-            for child in direct_widgets
-        ]
-        if (
-            len(direct) != 2
-            or len(direct_widgets) != 2
-            or any(child_role not in {"pane", "partition"} for child_role in roles)
-        ):
-            found = [
-                f"<{child['tag']}> "
-                f"({registry.get(child['tag'], {}).get('x-reading-role') or 'not structural'})"
-                for child in direct_widgets
-            ]
+        headers = [i for i, child in enumerate(direct) if child == "header"]
+        footers = [i for i, child in enumerate(direct) if child == "footer"]
+        if len(headers) > 1 or len(footers) > 1:
             errors.append(
-                f"{where}: x-reading-role partition must contain exactly two direct pane or "
-                f"partition widgets and no loose content, found {found or direct or 'nothing'}"
+                f"{where}: x-reading-role {role} admits at most one direct <header> "
+                "and one direct <footer>"
+            )
+        if headers and headers[0] != 0:
+            errors.append(
+                f"{where}: x-reading-role {role} direct <header> must be first"
+            )
+        if footers and footers[0] != len(direct) - 1:
+            errors.append(
+                f"{where}: x-reading-role {role} direct <footer> must be last"
+            )
+        body = [child for child in direct if child not in {"header", "footer"}]
+        if len(body) != 1 or body[0] == "#text":
+            errors.append(
+                f"{where}: x-reading-role {role} must contain exactly one direct body "
+                f"element between its header and footer, found {body or 'nothing'}; wrap "
+                "several blocks in one <div> or <section>"
             )
     return errors
 
@@ -187,7 +163,7 @@ def visual_part_errors(lf_elements: list, registry: dict) -> list:
     """A visual's authored part tokens each name one stable generated target."""
     errors = []
     for rec in lf_elements:
-        parts = visual_parts(rec, registry)
+        parts = visual_parts(rec, registry).tokens
         duplicates = sorted({part for part in parts if parts.count(part) > 1})
         if duplicates:
             errors.append(
@@ -202,7 +178,7 @@ def ask_surface_errors(lf_elements: list, registry: dict) -> list:
     One leading direct heading is the question's visible title and the region owns its
     reading and arrival, while the x-awaits or request widget owns the answer. Requiring
     both a title and one structural source makes that split unambiguous for the browser
-    walk and for `page state`; aggregate-only rollups are targets rather than sources.
+    walk and for `page state`.
     Liveness still comes from the source's canonical Ask projection.
     """
 

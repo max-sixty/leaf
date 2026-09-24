@@ -93,9 +93,10 @@
    tree. The travel moves the page's scroller, so the ask's own box is brought into
    view first for the sake of an ask inside a nested scroller, which that placement
    would never reach. An Ask whose region already stands clear of the banner, and
-   which `readableDestination` reads as unclipped on every edge, is not travelled to at
-   all: the press moves the ring and the focus and leaves the page still. A thread
-   ask keeps its centred arrival in the panel's own list. */
+   which travel reads as whole on every edge once whatever surface hid it is cleared
+   (anchor-travel.js, `trip`), is not travelled to at all: the press moves the ring and
+   the focus and leaves the page still. A thread ask keeps its centred arrival in the
+   panel's own list. */
 
 import { landingInsets, shownBox, shownParts } from "../geometry.js";
 import { askProgressModel, createAskBannerControls } from "./banner-controls.js";
@@ -118,7 +119,7 @@ import {
 import { scrollerFor } from "../reading-regions.js";
 import { el, reserve, reveal } from "../widget-elements.js";
 import { asksBtn, asksList, asksOffered, asksPanel, trayIsOpen } from "../trays.js";
-import { registry, tagsDeclaring } from "../registry.js";
+import { decidingVerb, registry, tagsDeclaring } from "../registry.js";
 import {
   allAsks as readAllAsks,
   askEntry,
@@ -139,7 +140,7 @@ import { scrollBehavior } from "../motion.js";
 import { ASK_CONTROL, askActionLayer } from "./view-elements.js";
 import { ASK_AT } from "./tray-list.js";
 import { availableCommandRoutes } from "../keyboard/dispatch.js";
-import { pageCommand } from "../keyboard/register.js";
+import { coveringAuxiliarySurface, pageCommand } from "../keyboard/register.js";
 import { PRESENTATION } from "../presentation.js";
 import { retainUserIntent } from "../user-intent.js";
 import {
@@ -158,9 +159,7 @@ import { hostIn, under } from "../shadow.js";
 export function createAskView({
   panelIsOpen,
   setPanel,
-  setOpenTray,
-  trayCovers,
-  readableDestination,
+  trip,
   scrollToElement,
   refreshConversation,
   focusForNavigation,
@@ -201,20 +200,20 @@ export function createAskView({
   const presentedActionControl = (control) => presentedControl(control) ?? control;
   const answeringAll = new Set();
   const bulkAnswers = new Map();
-  const bannerControls = createAskBannerControls(asksBtn, async (verb) => {
-    if (answeringAll.has(verb)) return;
-    answeringAll.add(verb);
+  const bannerControls = createAskBannerControls(asksBtn, async (outcome) => {
+    if (answeringAll.has(outcome)) return;
+    answeringAll.add(outcome);
     void syncAsks();
     try {
       // Resolve the current open inventory at activation. A control can survive several
       // publications and shelf moves; it never captures an earlier Ask or DOM node.
       for (const ask of openAsks()) {
-        if (askEntry(ask)?.all !== verb) continue;
+        if (askEntry(ask)?.all !== outcome) continue;
         const { source } = await materializeAsk(ask);
-        await source?.[verb]?.();
+        await source?.[decidingVerb(ask.sourceTag)]?.(outcome);
       }
     } finally {
-      answeringAll.delete(verb);
+      answeringAll.delete(outcome);
       void syncAsks();
     }
   });
@@ -236,10 +235,11 @@ export function createAskView({
     paint: (epoch, current) => paintAsks(current),
   });
 
-  // One blanket answer per verb a widget declares one for (x-awaits.all), each deciding
-  // its asks one at a time so the log records what was consented to rather than one
-  // blanket yes — accepting the rest after rejecting one stays honest. The widget
-  // exposes a method named for the verb; the label is built from the same word.
+  // One blanket answer per outcome a widget declares one for (x-awaits.all), each
+  // deciding its asks one at a time so the log records what was consented to rather than
+  // one blanket yes — accepting the rest after rejecting one stays honest. The widget's
+  // module exposes a method named for its deciding verb that takes the outcome; the
+  // label is built from the outcome's word.
   //
   // Built when the registry lands rather than written out above, so the second widget to
   // declare one gets its control by declaring it. Each takes its place in the row rather
@@ -248,11 +248,11 @@ export function createAskView({
   // room of anything to its right.
   function buildBulkAnswers() {
     for (const tag of tagsDeclaring((entry) => entry["x-awaits"]?.all)) {
-      const verb = registry[tag]["x-awaits"].all;
-      if (bulkAnswers.has(verb)) continue;
-      const label = verb[0].toUpperCase() + verb.slice(1);
-      const btn = bannerControls.registerBulk(verb, label);
-      bulkAnswers.set(verb, label);
+      const outcome = registry[tag]["x-awaits"].all;
+      if (bulkAnswers.has(outcome)) continue;
+      const label = outcome[0].toUpperCase() + outcome.slice(1);
+      const btn = bannerControls.registerBulk(outcome, label);
+      bulkAnswers.set(outcome, label);
       // In the row now, so it holds the widest it reaches below a thousand — the same
       // words syncAsks writes, measured in the face it will render in (see reserve).
       reserve(btn, [`${label} all (999)`]);
@@ -260,17 +260,17 @@ export function createAskView({
   }
 
   // Each blanket answer with the asks it would take, from the list above. The banner
-  // writes its controls and counts from this one reading, without naming a verb in core;
-  // which verbs exist is the registry's answer.
+  // writes its controls and counts from this one reading, without naming an outcome in
+  // core; which outcomes exist is the registry's answer.
   function blanketAnswers(asks) {
-    return [...bulkAnswers].map(([verb, label]) => {
-      const n = asks.filter((ask) => askEntry(ask)?.all === verb).length;
+    return [...bulkAnswers].map(([outcome, label]) => {
+      const n = asks.filter((ask) => askEntry(ask)?.all === outcome).length;
       return Object.freeze({
-        busy: answeringAll.has(verb),
+        busy: answeringAll.has(outcome),
         offered: Boolean(n),
         text: `${label} all (${n})`,
         title: `${label} every one still waiting on you`,
-        verb,
+        outcome,
       });
     });
   }
@@ -566,8 +566,9 @@ export function createAskView({
         control.getAttribute("aria-disabled") !== "true" &&
         control.getAttribute("aria-busy") !== "true",
     );
-  const availableActions = () => {
-    const ask = standingAsk();
+  // The actions an Ask offers under their contextual bindings, whether or not the user
+  // stands in it yet: an arrival asks it of the Ask it is bringing them to.
+  const actionsOf = (ask) => {
     if (!ask) return [];
     const source = sourceNode(ask);
     if (!source) return [];
@@ -579,6 +580,7 @@ export function createAskView({
       .slice(0, contextual.length)
       .map((action, index) => ({ ...action, binding: contextual[index] }));
   };
+  const availableActions = () => actionsOf(standingAsk());
   // A binding with a different result is a different command. Keep each action as a
   // route under one compact row, so the dispatcher, command reference, shortcut bar, and the
   // control-facing projections all consume the same binding-to-control identity.
@@ -684,9 +686,12 @@ export function createAskView({
       askActionLayer.replaceChildren();
       return;
     }
-    // A covering tray does not invalidate the commands or their accessible shortcuts,
-    // but it does hide the page controls that inline binding-badge faces claim to label.
-    const bindingBadgesVisible = !(trayIsOpen("asks") && trayCovers());
+    // A covering auxiliary surface does not invalidate the commands or their accessible
+    // shortcuts, but it does hide the page controls outside it that binding-badge faces
+    // claim to label. What a surface standing over the page hides is shownRect's to say,
+    // which the placement below reads.
+    const covering = coveringAuxiliarySurface();
+    const covered = (control) => covering && !under(control, covering);
     const placement = keyBadgePlacement();
     const bindingBadgeClaims = new Map();
     for (const { bindingBadge } of routes)
@@ -732,7 +737,7 @@ export function createAskView({
       });
       control.setAttribute("aria-keyshortcuts", projectedShortcut);
       if (
-        !bindingBadgesVisible ||
+        covered(control) ||
         !bindingBadge?.isConnected ||
         bindingBadgeClaims.get(bindingBadge) !== 1
       )
@@ -758,9 +763,8 @@ export function createAskView({
     }
 
     const chips = [];
-    for (const { binding, control, bindingBadge } of bindingBadgesVisible
-      ? routes
-      : []) {
+    for (const { binding, control, bindingBadge } of routes) {
+      if (covered(control)) continue;
       if (bindingBadge && wornBindingBadges.has(bindingBadge)) continue;
       const presented = presentedActionControl(control);
       if (!presented.checkVisibility()) continue;
@@ -1080,25 +1084,26 @@ export function createAskView({
   // leaves the page where it stands: they can see the ask and the words around it, and
   // scrolling to rebuild a view they are already looking at is motion that says nothing.
   //
-  // Whether the ask itself is readable is `readableDestination`'s question, asked of
-  // every edge through whatever clips it — an ask half cut off by a board's own
-  // scroller is not in front of the user for having a box inside the window. This adds
-  // the one thing that reading cannot know: the arrival is the region's start, so the
-  // start has to be standing clear of the banner too.
-  function framed(region, ask, box, readableDestination) {
+  // Whether the ask itself is readable is travel's question (`readable`), asked of
+  // every edge through whatever clips it or stands over it — an ask half cut off by a
+  // board's own scroller, or reaching under the thread panel, is not in front of the
+  // user for having a box inside the window. This adds the one thing that reading
+  // cannot know: the arrival is the region's start, so the start has to be standing
+  // clear of the banner too.
+  function framed(record, region, ask, box, readable) {
     return (
-      readableDestination(ask) &&
+      readable(ask) &&
       shownBox(region).top >= shownBox(box).top + clearanceOf(box) &&
-      availableActions().every(({ control }) =>
-        readableDestination(presentedActionControl(control)),
+      actionsOf(record).every(({ control }) =>
+        readable(presentedActionControl(control)),
       )
     );
   }
 
-  // Standing on one ask: what d and D do once they have decided which, and what a press on
-  // a tray row does having been told outright. One function because it is one act — a
-  // second would be a second answer to "how do I put the user on an ask", and the two
-  // would drift the first time either the reveal or the focus rule changed.
+  // Standing on one ask: what a and Shift+a do once they have decided which, and what a
+  // press on a tray row does having been told outright. One function because it is one
+  // act — a second would be a second answer to "how do I put the user on an ask", and the
+  // two would drift the first time either the reveal or the focus rule changed.
   //
   // The list comes with the ask, because the announcement names a place in it and the caller
   // is the one that knows which list it walked: the walk's own or the tray's.
@@ -1118,12 +1123,6 @@ export function createAskView({
       source = sourceNode(next);
       if (!target) return false;
     }
-    // A tray beside the page stays standing as a working index. A covering tray has
-    // become the whole visible surface, so selecting a page destination closes it
-    // before the reveal and focus land; otherwise the correct navigation happens
-    // invisibly behind the very sheet that offered it.
-    if (!inChrome(target) && trayIsOpen("asks") && trayCovers())
-      if (!mayArrive.handoff(() => setOpenTray(null))) return false;
     await reveal(target, mayArrive); // a settled group or an inactive tab has no geometry until it opens
     if (!mayArrive()) return false;
     target = askNode(next);
@@ -1133,34 +1132,44 @@ export function createAskView({
     if (!mayArrive() || !source.isConnected) return false;
     target = askNode(next);
     if (!target) return false;
+    // A page Ask starts below the banner so its context comes before its control, and
+    // what counts as its context is arrivalRegion's answer: the region an author declared,
+    // or the one the document supplies for a change that cannot declare one. Whether this
+    // press moves the page is `framed`'s answer, and travel's `trip` owns what follows
+    // from it: clearing a surface that hides the Ask (a covering tray, or the thread
+    // panel standing over it), and whether the press is a departure. It runs before the
+    // focus lands, since focus sent behind a covering surface is sent back into it.
+    // Nothing above has moved the page: reveal opens what holds the Ask in place, so the
+    // entry a departure records still holds where the user was reading. A thread Ask is
+    // in the panel's own list, whose arrival stays centred in that region and is no
+    // trip. Which box either travel moves is the travel's own question (scrollerFor)
+    // rather than a second one asked here.
+    const box = !inChrome(target) && scrollerFor(target);
+    const region = box && arrivalRegion(target, box);
+    const moving =
+      box &&
+      trip(target, {
+        landing: () => askNode(next),
+        intent: mayArrive,
+        there: (readable) => framed(next, region, target, box, readable),
+      });
     landed = target;
     // The ring follows: the focus move is what paints it, so the walk says where to stand
     // and markHere says where the user is standing, rather than both saying the second.
     arriveAt(next, !unansweredIds().has(next.id));
-    // A page Ask starts below the banner so its context comes before its control, and
-    // what counts as its context is arrivalRegion's answer: the region an author declared,
-    // or the one the document supplies for a change that cannot declare one. A thread
-    // Ask is in the panel's own list, whose arrival stays centred in that region.
-    // Which box either travel moves is the travel's own question (scrollerFor) rather than
-    // a second one asked here.
-    //
     // A page arrival the user already has is left alone. The ring and the focus have
     // moved to the next ask, which is the whole of what this press had left to say.
-    if (inChrome(target)) scrollToElement(target, scrollBehavior(), "center");
-    else {
-      const box = scrollerFor(target);
-      const region = arrivalRegion(target, box);
-      if (!framed(region, target, box, readableDestination)) {
-        // The ask's own box first, which is the only pass that moves a scroller
-        // other than the page's: the placement below moves whichever box scrolls the
-        // region, and for a region out on the page that is never the board's own
-        // scroller. Handing that placement the region alone left an ask inside a
-        // card unscrolled in its card, with the ring and focus on a change the user
-        // could not see. `nearest` is a request to reveal only, which is exactly
-        // what this needs and what the placement then builds on.
-        scrollToElement(target, "instant", "nearest");
-        scrollToElement(region, scrollBehavior(), "start");
-      }
+    if (!box) scrollToElement(target, scrollBehavior(), "center");
+    else if (moving) {
+      // The ask's own box first, which is the only pass that moves a scroller other
+      // than the page's: the placement below moves whichever box scrolls the region,
+      // and for a region out on the page that is never the board's own scroller.
+      // Handing that placement the region alone left an ask inside a card unscrolled in
+      // its card, with the ring and focus on a change the user could not see.
+      // `nearest` is a request to reveal only, which is exactly what this needs and
+      // what the placement then builds on.
+      scrollToElement(target, "instant", "nearest");
+      scrollToElement(region, scrollBehavior(), "start");
     }
     const state = unansweredIds().has(next.id) ? "waiting on you" : "answered";
     const index = asks.findIndex((ask) => ask.id === next.id);

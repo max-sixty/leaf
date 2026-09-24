@@ -5,19 +5,12 @@
    while the revision's markup is still intact. Later physical reparenting is layout;
    semantic commands keep using this captured document coordinate. A data renderer may
    replace a widget node while preserving its authored id; that replacement reuses the
-   same revision-bound descriptor and target boundary. */
+   same revision-bound descriptor. */
 import { runtime } from "./context.js";
 import { authoredParents } from "./projection/authored.js";
-import {
-  captureTargetReference,
-  resolveTargetReference,
-  targetReferenceBoundary,
-} from "./target-references.js";
 
 const byElement = new WeakMap();
-const referenceBoundaryByElement = new WeakMap();
 const byId = new Map();
-const referenceBoundaryById = new Map();
 
 const declaredTags = () =>
   Object.keys(runtime.registry).filter((tag) => !tag.startsWith("$"));
@@ -71,26 +64,12 @@ const quotedBy = (element) => {
   return false;
 };
 
-// `boundary` is the document region this markup's target references resolve within.
-// It is derived from the markup itself wherever the markup is already standing in that
-// region. A live revision activation is the one caller that holds them apart: it reads
-// the incoming revision off an inert copy so each widget's declaration is captured
-// before a controller can rewrite it, while the references those widgets capture belong
-// to the `main` they are about to be patched into.
 export function stageWidgetDescriptors(
   root = document,
   documentContext = { kind: "page", revision: runtime.currentRevision },
-  boundary = null,
 ) {
   const captured = new Map();
   const bindings = [];
-  const referenceBoundary =
-    boundary ??
-    (documentContext.kind === "thread"
-      ? targetReferenceBoundary(root.children)
-      : root.matches?.("main")
-        ? root
-        : root.querySelector("main"));
   for (const element of candidates(root)) {
     if (!element.id) continue;
     const standing = byElement.get(element);
@@ -116,7 +95,7 @@ export function stageWidgetDescriptors(
       bindings: requestBindings(element, declaration),
       offers: requestOffers(element, declaration),
     };
-    bindings.push({ element, descriptor, referenceBoundary });
+    bindings.push({ element, descriptor });
     captured.set(element.id, descriptor);
   }
   return Object.freeze({
@@ -130,15 +109,10 @@ export function commitWidgetDescriptors(stage, retired = new Set()) {
   // from the markup it replaced. The id survives the revision and the element does not,
   // so the id-keyed readings are the ones that would otherwise answer for a document
   // nobody is reading; the element-keyed ones leave with their elements.
-  for (const id of retired) {
-    byId.delete(id);
-    referenceBoundaryById.delete(id);
-  }
-  for (const { element, descriptor, referenceBoundary } of stage.bindings) {
+  for (const id of retired) byId.delete(id);
+  for (const { element, descriptor } of stage.bindings) {
     byElement.set(element, descriptor);
-    referenceBoundaryByElement.set(element, referenceBoundary);
     byId.set(descriptor.id, descriptor);
-    referenceBoundaryById.set(descriptor.id, referenceBoundary);
   }
 }
 
@@ -148,23 +122,8 @@ export function widgetDescriptor(owner) {
   const replacement = byId.get(owner.id);
   if (!replacement || !descriptorStillMatches(owner, replacement)) return null;
   byElement.set(owner, replacement);
-  referenceBoundaryByElement.set(owner, referenceBoundaryById.get(owner.id));
   return replacement;
 }
-
-export function captureWidgetReference(owner, target) {
-  const boundary = referenceBoundaryByElement.get(owner);
-  const reference = captureTargetReference(boundary, target);
-  const resolution = resolveTargetReference(boundary, reference);
-  if (resolution.status !== "resolved" || resolution.element !== target)
-    throw new TypeError(
-      `leaf: target reference is ${resolution.status} in its authored document`,
-    );
-  return reference;
-}
-
-export const resolveWidgetReference = (owner, reference) =>
-  resolveTargetReference(referenceBoundaryByElement.get(owner), reference);
 
 export function descriptorStillMatches(owner, descriptor) {
   if (owner.id !== descriptor.id || owner.localName !== descriptor.tag) return false;

@@ -73,6 +73,7 @@ from render_harness import (
     open_page,
     open_versions,
     opened_tab,
+    pane_posture,
     panel_settled,
     post_event,
     refuse,
@@ -110,25 +111,29 @@ READING_REGIONS_PAGE = leaf_page(
     """
 <lf-workspace id="reading-workspace">
   <header><h1>Reading workspace</h1></header>
-  <lf-partition id="reading-split" direction="columns">
+  <lf-grid id="reading-split" columns="2">
     <lf-pane id="left-reading" label="Left reading">
       <header><button id="left-head">Left header</button></header>
-      <p id="left-start">Left start with enough words to preserve this landmark.</p>
-      <div style="height: 260px"></div>
-      <p id="left-landmark">The current left reading has a stable semantic landmark.</p>
-      <div style="height: 800px"></div>
-      <p id="left-end">Left end</p>
+      <div>
+        <p id="left-start">Left start with enough words to preserve this landmark.</p>
+        <div style="height: 260px"></div>
+        <p id="left-landmark">The current left reading has a stable semantic landmark.</p>
+        <div style="height: 800px"></div>
+        <p id="left-end">Left end</p>
+      </div>
       <footer><button id="left-foot">Left footer</button></footer>
     </lf-pane>
     <lf-pane id="right-reading" label="Right reading">
       <header><button id="right-head">Right header</button></header>
-      <p id="right-start">Right start with enough words to preserve this landmark.</p>
-      <div style="height: 320px"></div>
-      <p id="right-landmark">The current right reading has a stable semantic landmark.</p>
-      <div style="height: 740px"></div>
-      <p id="right-end"><button id="right-subject">Right subject</button></p>
+      <div>
+        <p id="right-start">Right start with enough words to preserve this landmark.</p>
+        <div style="height: 320px"></div>
+        <p id="right-landmark">The current right reading has a stable semantic landmark.</p>
+        <div style="height: 740px"></div>
+        <p id="right-end"><button id="right-subject">Right subject</button></p>
+      </div>
     </lf-pane>
-  </lf-partition>
+  </lf-grid>
 </lf-workspace>
 """,
 )
@@ -138,11 +143,11 @@ def test_reading_keys_follow_the_focused_pane_without_moving_its_sibling(
     browser, serve
 ):
     page = open_page(browser, serve(READING_REGIONS_PAGE))
-    left = page.locator("#left-reading > .lf-pane-content > .lf-pane-body")
-    right = page.locator("#right-reading > .lf-pane-content > .lf-pane-body")
+    left = page.locator("#left-reading > :not(header, footer)")
+    right = page.locator("#right-reading > :not(header, footer)")
     ranges = page.evaluate(
         """() => Object.fromEntries(['left-reading', 'right-reading'].map(id => {
-          const body = document.querySelector(`#${id} > .lf-pane-content > .lf-pane-body`);
+          const body = document.querySelector(`#${id} > :not(header, footer)`);
           return [id, body.scrollHeight - body.clientHeight];
         }))"""
     )
@@ -151,7 +156,7 @@ def test_reading_keys_follow_the_focused_pane_without_moving_its_sibling(
     page.locator("#left-head").focus()
     page.keyboard.press("d")
     page.wait_for_function(
-        "() => document.querySelector('#left-reading .lf-pane-body').scrollTop > 0"
+        "() => document.querySelector('#left-reading > :not(header, footer)').scrollTop > 0"
     )
     page.wait_for_timeout(250)
     assert right.evaluate("el => el.scrollTop") == 0
@@ -160,7 +165,7 @@ def test_reading_keys_follow_the_focused_pane_without_moving_its_sibling(
     page.locator("#right-head").focus()
     page.keyboard.press("d")
     page.wait_for_function(
-        "() => document.querySelector('#right-reading .lf-pane-body').scrollTop > 0"
+        "() => document.querySelector('#right-reading > :not(header, footer)').scrollTop > 0"
     )
     page.wait_for_timeout(250)
     assert left.evaluate("el => el.scrollTop") == left_position
@@ -170,7 +175,7 @@ def test_reading_keys_follow_the_focused_pane_without_moving_its_sibling(
     page.locator("#left-foot").focus()
     page.keyboard.press("u")
     page.wait_for_function(
-        f"() => document.querySelector('#left-reading .lf-pane-body').scrollTop < {left_position}"
+        f"() => document.querySelector('#left-reading > :not(header, footer)').scrollTop < {left_position}"
     )
 
 
@@ -186,7 +191,7 @@ def test_covering_panel_keeps_focus_on_a_nested_reading_region(browser, serve):
     expect(panel).to_have_attribute("aria-modal", "true")
     page.evaluate(
         """async () => {
-          const { registerReadingArrangement } = await window.__lfRuntimeImport(
+          const { registerReadingRegion } = await window.__lfRuntimeImport(
             '/runtime/reading-regions.js');
           const list = document.querySelector('.lf-threads');
           const nested = document.createElement('div');
@@ -198,11 +203,7 @@ def test_covering_panel_keeps_focus_on_a_nested_reading_region(browser, serve):
           const filler = document.createElement('div');
           filler.style.height = '1000px';
           list.append(filler);
-          const arrangement = registerReadingArrangement({
-            owner: nested, content: nested,
-            regions: [{ id: 'nested-reading', host: nested, body: nested }],
-          });
-          await arrangement.setReadingPosture('bounded');
+          registerReadingRegion({ id: 'nested-reading', host: nested, body: nested });
         }"""
     )
     nested = page.locator("#nested-reading")
@@ -231,19 +232,18 @@ def test_covering_panel_keeps_focus_on_a_nested_reading_region(browser, serve):
 
 def test_workspace_posture_changes_keep_each_panes_reading(browser, serve):
     page = open_page(browser, serve(READING_REGIONS_PAGE))
-    workspace = page.locator("#reading-workspace")
-    left = page.locator("#left-reading > .lf-pane-content > .lf-pane-body")
-    right = page.locator("#right-reading > .lf-pane-content > .lf-pane-body")
+    left = page.locator("#left-reading > :not(header, footer)")
+    right = page.locator("#right-reading > :not(header, footer)")
+    pane_posture(page, page.locator("#left-reading"), "bounded")
     left.evaluate("el => el.scrollTop = 180")
     right.evaluate("el => el.scrollTop = 380")
     page.locator("#right-subject").focus()
-    expect(workspace).to_have_attribute("data-lf-reading-posture", "bounded")
 
     resized(page, 520, 900)
-    expect(workspace).to_have_attribute("data-lf-reading-posture", "flow")
+    pane_posture(page, page.locator("#left-reading"), "flow")
     expect(page.locator("#right-subject")).to_be_focused()
     resized(page, 1200, 900)
-    expect(workspace).to_have_attribute("data-lf-reading-posture", "bounded")
+    pane_posture(page, page.locator("#left-reading"), "bounded")
     readings = [
         left.evaluate("el => el.scrollTop"),
         right.evaluate("el => el.scrollTop"),
@@ -259,11 +259,10 @@ def test_a_tall_local_comment_survives_its_panes_posture_and_return(browser, ser
         '<footer style="min-height: 220px"><button id="left-foot">',
     )
     page = open_page(browser, serve(source))
-    workspace = page.locator("#reading-workspace")
-    left = page.locator("#left-reading > .lf-pane-content > .lf-pane-body")
-    right = page.locator("#right-reading > .lf-pane-content > .lf-pane-body")
+    left = page.locator("#left-reading > :not(header, footer)")
+    right = page.locator("#right-reading > :not(header, footer)")
     target = page.locator("#left-end")
-    expect(workspace).to_have_attribute("data-lf-reading-posture", "bounded")
+    pane_posture(page, page.locator("#left-reading"), "bounded")
 
     left.evaluate("body => body.scrollTop = body.scrollHeight")
     right.evaluate("body => body.scrollTop = 320")
@@ -299,13 +298,13 @@ def test_a_tall_local_comment_survives_its_panes_posture_and_return(browser, ser
     ), "the complete multiline draft was not reachable in its field"
 
     resized(page, 520, 900)
-    expect(workspace).to_have_attribute("data-lf-reading-posture", "flow")
+    pane_posture(page, page.locator("#left-reading"), "flow")
     expect(field).to_be_focused()
     expect(field).to_have_value(draft)
     expect(page.get_by_role("button", name="Comment", exact=True)).to_be_visible()
 
     resized(page, 1200, 900)
-    expect(workspace).to_have_attribute("data-lf-reading-posture", "bounded")
+    pane_posture(page, page.locator("#left-reading"), "bounded")
     expect(field).to_be_focused()
     expect(field).to_have_value(draft)
     assert right.evaluate("body => body.scrollTop") == pytest.approx(
@@ -324,32 +323,59 @@ def test_a_tall_local_comment_survives_its_panes_posture_and_return(browser, ser
 
 
 def test_a_wheel_reading_without_focus_becomes_the_bounded_pane_subject(browser, serve):
-    page = open_page(browser, serve(READING_REGIONS_PAGE))
-    workspace = page.locator("#reading-workspace")
+    # A short run between the right pane's opening line and its landmark, so the opening
+    # line can sit under the banner while the landmark stands high enough in the window
+    # for the pane, once it scrolls on its own, to put it back at the same height.
+    source = READING_REGIONS_PAGE.replace(
+        '<div style="height: 320px"></div>', '<div style="height: 60px"></div>'
+    )
+    page = open_page(browser, serve(source))
     resized(page, 520, 900)
-    expect(workspace).to_have_attribute("data-lf-reading-posture", "flow")
+    pane_posture(page, page.locator("#left-reading"), "flow")
     right_landmark = page.locator("#right-landmark")
     right_landmark.scroll_into_view_if_needed()
     page.evaluate("() => document.activeElement?.blur()")
     box = right_landmark.bounding_box()
     page.mouse.move(box["x"] + 8, box["y"] + 8)
-    before = page.evaluate("() => scrollY")
-    page.mouse.wheel(0, 240)
-    page.wait_for_function("before => scrollY > before", arg=before)
-    relative = right_landmark.evaluate("el => el.getBoundingClientRect().top")
+    # Leave the pane's opening line inside the window but hidden by the banner. The
+    # user is on the landmark below it, not on a line they cannot see.
+    start = page.locator("#right-start")
+    goal = page.evaluate(
+        """() => document.querySelector('.lf-banner').getBoundingClientRect().bottom -
+          document.querySelector('#right-start').getBoundingClientRect().height - 10"""
+    )
+    page.mouse.wheel(0, start.bounding_box()["y"] - goal)
+    page.wait_for_function(
+        "([el, goal]) => Math.abs(el.getBoundingClientRect().top - goal) < 2",
+        arg=[start.element_handle(), goal],
+    )
+    scroll_settled(page)
+    covered = page.evaluate(
+        """() => [document.querySelector('#right-start').getBoundingClientRect().toJSON(),
+          document.querySelector('.lf-banner').getBoundingClientRect().bottom]"""
+    )
+    assert 0 < covered[0]["bottom"] < covered[1], covered
+    # How far the landmark stands below the top of what its scroller shows: the page's
+    # banner covers the top of the window, and scroll-padding says by how much.
+    below_band = """([landmark, box]) => landmark.getBoundingClientRect().top -
+      (box === document.scrollingElement ? 0 : box.getBoundingClientRect().top) -
+      (parseFloat(getComputedStyle(box).scrollPaddingTop) || 0)"""
+    relative = page.evaluate(
+        below_band,
+        [
+            right_landmark.element_handle(),
+            page.evaluate_handle("() => document.scrollingElement"),
+        ],
+    )
 
     resized(page, 1200, 900)
-    expect(workspace).to_have_attribute("data-lf-reading-posture", "bounded")
-    readings = page.evaluate(
-        """() => ({
-          left: document.querySelector('#left-reading .lf-pane-body').scrollTop,
-          right: document.querySelector('#right-reading .lf-pane-body').scrollTop,
-          rightRelative: document.querySelector('#right-landmark').getBoundingClientRect().top -
-            document.querySelector('#right-reading .lf-pane-body').getBoundingClientRect().top,
-        })"""
+    pane_posture(page, page.locator("#left-reading"), "bounded")
+    right = page.locator("#right-reading > :not(header, footer)")
+    assert right.evaluate("el => el.scrollTop") > 0
+    after = page.evaluate(
+        below_band, [right_landmark.element_handle(), right.element_handle()]
     )
-    assert readings["right"] > readings["left"] + 100, readings
-    assert abs(readings["rightRelative"] - relative) < 3, (relative, readings)
+    assert after == pytest.approx(relative, abs=3)
 
 
 def test_a_pane_comment_stays_in_its_reading_region(browser, serve):
@@ -382,10 +408,10 @@ def test_a_pane_comment_stays_in_its_reading_region(browser, serve):
     expect(cluster).to_have_class(re.compile(r"\blf-docked\b"))
     placement = cluster.evaluate(
         """el => ({
-          inOwner: document.querySelector('#left-reading .lf-pane-body').contains(el),
+          inOwner: document.querySelector('#left-reading > :not(header, footer)').contains(el),
           inSibling: document.querySelector('#right-reading').contains(el),
           cluster: el.getBoundingClientRect().toJSON(),
-          body: document.querySelector('#left-reading .lf-pane-body')
+          body: document.querySelector('#left-reading > :not(header, footer)')
             .getBoundingClientRect().toJSON(),
         })"""
     )
@@ -405,7 +431,7 @@ def test_a_pane_comment_stays_in_its_reading_region(browser, serve):
         """el => {
           const card = el.getBoundingClientRect();
           const history = el.querySelector('.lf-margin-preview-list');
-          const body = document.querySelector('#left-reading .lf-pane-body')
+          const body = document.querySelector('#left-reading > :not(header, footer)')
             .getBoundingClientRect();
           return {card: card.toJSON(), body: body.toJSON(),
                   scrollHeight: history.scrollHeight, clientHeight: history.clientHeight};
@@ -468,8 +494,8 @@ def test_revision_restoration_yields_to_input_while_a_diagram_loads(
             "</main>",
             '</lf-tab><lf-tab id="second-tab" label="Second">'
             '<lf-pane id="other-reading" label="Other reading">'
-            '<p id="other-start">Another reading with enough words to preserve its landmark.</p>'
-            '<div style="height: 1000px"></div></lf-pane></lf-tab></lf-tabs></main>',
+            '<div><p id="other-start">Another reading with enough words to preserve its landmark.</p>'
+            '<div style="height: 1000px"></div></div></lf-pane></lf-tab></lf-tabs></main>',
         )
     )
     page = open_page(browser, live_url(serve(source)))
@@ -478,7 +504,7 @@ def test_revision_restoration_yields_to_input_while_a_diagram_loads(
         page.get_by_role("tab", name="Second", exact=True).click()
         page.get_by_role("tab", name="First", exact=True).click()
     page.locator("#reading-draft").fill("kept draft")
-    left = page.locator("#left-reading .lf-pane-body")
+    left = page.locator("#left-reading > :not(header, footer)")
     left.evaluate("el => el.scrollTop = 300")
     page.locator("#reading-draft").evaluate("el => el.setSelectionRange(4, 4)")
     held = []
@@ -507,7 +533,7 @@ def test_revision_restoration_yields_to_input_while_a_diagram_loads(
             left.hover()
             page.mouse.wheel(0, 220)
             page.wait_for_function(
-                "() => document.querySelector('#left-reading .lf-pane-body').scrollTop > 150"
+                "() => document.querySelector('#left-reading > :not(header, footer)').scrollTop > 150"
             )
         elif gesture == "focus":
             page.locator("#right-head").click()
@@ -587,25 +613,37 @@ def test_revision_carries_apparatus_when_an_arriving_element_takes_focus(
     assert page.locator("#reading-inner").evaluate("el => el.scrollTop") == 220
 
 
-def test_a_new_revision_restores_each_panes_semantic_landmark(browser, serve):
-    url = serve(READING_REGIONS_PAGE)
+@pytest.mark.parametrize("named", [False, True], ids=["unnamed-bodies", "named-bodies"])
+def test_a_new_revision_restores_each_panes_semantic_landmark(browser, serve, named):
+    """A pane body is the region's scroller whether or not its author named it.
+
+    A named element's scroll offset otherwise crosses a revision as a raw number, which
+    would undo the landmark: the new material above it moves the passage, not the pixel.
+    """
+    source = READING_REGIONS_PAGE
+    if named:
+        for side in ("left", "right"):
+            source = source.replace(
+                f'<div>\n        <p id="{side}-start">',
+                f'<div id="{side}-body">\n        <p id="{side}-start">',
+            )
+        assert source.count('-body">') == 2
+    url = serve(source)
     page = open_page(browser, live_url(url))
-    expect(page.locator("#reading-workspace")).to_have_attribute(
-        "data-lf-reading-posture", "bounded"
-    )
-    left = page.locator("#left-reading > .lf-pane-content > .lf-pane-body")
-    right = page.locator("#right-reading > .lf-pane-content > .lf-pane-body")
+    pane_posture(page, page.locator("#left-reading"), "bounded")
+    left = page.locator("#left-reading > :not(header, footer)")
+    right = page.locator("#right-reading > :not(header, footer)")
     left.evaluate("el => el.scrollTop = 300")
     right.evaluate("el => el.scrollTop = 360")
     before = page.evaluate(
         """() => ['left-landmark', 'right-landmark'].map(id => {
           const landmark = document.getElementById(id);
           return landmark.getBoundingClientRect().top -
-            landmark.closest('.lf-pane-body').getBoundingClientRect().top;
+            landmark.closest('lf-pane > :not(header, footer)').getBoundingClientRect().top;
         })"""
     )
 
-    revised = READING_REGIONS_PAGE.replace(
+    revised = source.replace(
         '<p id="left-start">',
         '<p>New left material above the saved reading.</p><p id="left-start">',
     ).replace(
@@ -618,7 +656,7 @@ def test_a_new_revision_restores_each_panes_semantic_landmark(browser, serve):
         """() => ['left-landmark', 'right-landmark'].map(id => {
           const landmark = document.getElementById(id);
           return landmark.getBoundingClientRect().top -
-            landmark.closest('.lf-pane-body').getBoundingClientRect().top;
+            landmark.closest('lf-pane > :not(header, footer)').getBoundingClientRect().top;
         })"""
     )
     scrolls = [
@@ -639,9 +677,11 @@ def test_review_queue_links_are_its_only_navigator_and_keep_both_readings(
 ):
     example = next(e for e in CORPUS_SOURCES if e.stem == "review-queue")
     page = open_page(browser, serve(example))
-    resized(page, 1100, 520)
-    queue = page.locator("#review-queue .lf-pane-body")
-    detail = page.locator("#review-detail .lf-pane-body")
+    # Short, but tall enough to hold the workspace, so each pane scrolls on its own.
+    resized(page, 1100, 640)
+    pane_posture(page, page.locator("#review-detail"), "bounded")
+    queue = page.locator("#review-queue > :not(header, footer)")
+    detail = page.locator("#review-detail > :not(header, footer)")
     links = queue.locator('nav[aria-label="Review items"] a')
     assert links.count() == 8
     assert page.get_by_role("tab").count() == 0
@@ -680,8 +720,13 @@ def test_thread_travel_reveals_a_review_detail_in_its_pane_only(browser, serve):
         ),
     )
     resized(page, 1400, 900)
-    queue = page.locator("#review-queue .lf-pane-body")
-    detail = page.locator("#review-detail .lf-pane-body")
+    # Open Threads first: the panel narrows the page, and the panes' reflow is not the
+    # travel under test.
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    pane_posture(page, page.locator("#review-detail"), "bounded")
+    queue = page.locator("#review-queue > :not(header, footer)")
+    detail = page.locator("#review-detail > :not(header, footer)")
     queue.evaluate(
         "el => el.scrollTop = Math.min(120, el.scrollHeight - el.clientHeight)"
     )
@@ -691,7 +736,6 @@ def test_thread_travel_reveals_a_review_detail_in_its_pane_only(browser, serve):
     assert detail_before > 0
     expect(page.locator("#review-cache")).not_to_be_in_viewport()
 
-    page.locator(".lf-threads-toggle").click()
     page.locator(".lf-thread-summary").click()
     page.locator(".lf-thread .lf-quote").click()
     expect(page.locator("#review-cache")).to_be_in_viewport()
@@ -776,12 +820,11 @@ def test_current_and_proposed_results_share_one_review_and_flow_in_order(
     """The comparison is simultaneous when room permits and sequential when it does not."""
     example = next(e for e in CORPUS_SOURCES if e.stem == "current-proposed-comparison")
     page = open_page(browser, serve(example))
-    workspace = page.locator("#comparison-workspace")
     current = page.locator("#comparison-current")
     proposed = page.locator("#comparison-proposed")
 
     resized(page, 1200, 900)
-    expect(workspace).to_have_attribute("data-lf-reading-posture", "bounded")
+    pane_posture(page, current, "bounded")
     expect(current).to_be_visible()
     expect(proposed).to_be_visible()
     boxes = [
@@ -793,7 +836,7 @@ def test_current_and_proposed_results_share_one_review_and_flow_in_order(
     assert page.locator("lf-options[choose]").count() == 1
 
     resized(page, 420, 900)
-    expect(workspace).to_have_attribute("data-lf-reading-posture", "flow")
+    pane_posture(page, current, "flow")
     boxes = [
         current.evaluate("el => el.getBoundingClientRect().toJSON()"),
         proposed.evaluate("el => el.getBoundingClientRect().toJSON()"),
@@ -825,8 +868,13 @@ def test_each_comparison_result_keeps_its_own_comment_destination(browser, serve
         ),
     )
     resized(page, 1600, 700)
-    current = page.locator("#comparison-current .lf-pane-body")
-    proposed = page.locator("#comparison-proposed .lf-pane-body")
+    # Open Threads first: the panel narrows the page, and the panes' reflow is not the
+    # travel under test.
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    pane_posture(page, page.locator("#comparison-current"), "bounded")
+    current = page.locator("#comparison-current > :not(header, footer)")
+    proposed = page.locator("#comparison-proposed > :not(header, footer)")
     notes = page.locator(".lf-mark-note")
     expect(notes).to_have_count(2)
     assert notes.evaluate_all("els => els.map(el => el.closest('lf-pane').id)") == [
@@ -835,13 +883,12 @@ def test_each_comparison_result_keeps_its_own_comment_destination(browser, serve
     ]
     initial_scrolls = page.evaluate("""() => {
         const panes = ["comparison-current", "comparison-proposed"].map(id =>
-            document.querySelector(`#${id} .lf-pane-body`));
+            document.querySelector(`#${id} > :not(header, footer)`));
         for (const pane of panes) pane.scrollTop = pane.scrollHeight;
         return panes.map(pane => pane.scrollTop);
     }""")
     assert min(initial_scrolls) > 0
 
-    page.locator(".lf-threads-toggle").click()
     page.locator(".lf-thread", has_text="starts its own credential refresh").locator(
         ".lf-thread-summary"
     ).click()
@@ -849,7 +896,7 @@ def test_each_comparison_result_keeps_its_own_comment_destination(browser, serve
         ".lf-quote"
     ).click()
     expect(page.locator("#comparison-current-behavior")).to_be_in_viewport()
-    page.wait_for_function("el => el.scrollTop === 0", arg=current.element_handle())
+    scroll_settled(page, "#comparison-current > :not(header, footer)")
     current_after_current = current.evaluate("el => el.scrollTop")
     proposed_after_current = proposed.evaluate("el => el.scrollTop")
     assert current_after_current < initial_scrolls[0]
@@ -862,7 +909,7 @@ def test_each_comparison_result_keeps_its_own_comment_destination(browser, serve
         ".lf-quote"
     ).click()
     expect(page.locator("#comparison-proposed-behavior")).to_be_in_viewport()
-    page.wait_for_function("el => el.scrollTop === 0", arg=proposed.element_handle())
+    scroll_settled(page, "#comparison-proposed > :not(header, footer)")
     assert proposed.evaluate("el => el.scrollTop") < proposed_after_current
     assert current.evaluate("el => el.scrollTop") == current_after_current
 
@@ -920,7 +967,7 @@ def test_a_nested_pane_footer_travels_in_the_outer_region_that_contains_it(
         '<p id="left-end">Left end</p>',
         """<lf-workspace id="nested-workspace">
   <lf-pane id="nested-pane" label="Nested reading">
-    <p>Nested body context stays in ordinary flow.</p>
+    <div><p>Nested body context stays in ordinary flow.</p></div>
     <footer><p id="nested-footer">Nested footer destination with enough words to anchor.</p></footer>
   </lf-pane>
 </lf-workspace>
@@ -930,13 +977,35 @@ def test_a_nested_pane_footer_travels_in_the_outer_region_that_contains_it(
         browser,
         serve(source, anchored=[("nested-footer", "footer destination")]),
     )
-    outer = page.locator("#left-reading > .lf-pane-content > .lf-pane-body")
-    inner = page.locator("#nested-pane > .lf-pane-content > .lf-pane-body")
-    sibling = page.locator("#right-reading > .lf-pane-content > .lf-pane-body")
+    outer = page.locator("#left-reading > :not(header, footer)")
+    inner = page.locator("#nested-pane > :not(header, footer)")
+    sibling = page.locator("#right-reading > :not(header, footer)")
     assert outer.evaluate("el => el.scrollHeight - el.clientHeight") > 300
     assert inner.evaluate("el => el.scrollTop") == 0
 
+    page.add_style_tag(
+        content="#nested-pane > :not(header, footer) { overflow: visible !important }"
+    )
     page.keyboard.press("t")
+    page.wait_for_timeout(1000)
+    print(
+        "PROBE nested",
+        page.evaluate(
+            "() => { const b = document.querySelector('#nested-pane > :not(header, footer)'); return [b.scrollHeight, b.clientHeight, getComputedStyle(document.querySelector('#nested-workspace')).containerType]; }"
+        ),
+    )
+    print(
+        "PROBE margin",
+        page.evaluate(
+            "() => [...document.querySelectorAll('[data-lf-margin-for]')].map(e => [e.dataset.lfMarginFor, e.className, e.getBoundingClientRect().top])"
+        ),
+    )
+    print(
+        "PROBE",
+        page.evaluate(
+            """() => ({active: document.activeElement.outerHTML.slice(0,120), footer: document.querySelector('#nested-footer').getBoundingClientRect().toJSON(), outer: document.querySelector('#left-reading > :not(header, footer)').scrollTop, outerRect: document.querySelector('#left-reading > :not(header, footer)').getBoundingClientRect().toJSON(), marks: document.querySelectorAll('.lf-mark, lf-mark, mark').length, ov: getComputedStyle(document.querySelector('#nested-pane > :not(header, footer)')).overflowY, scrollY})"""
+        ),
+    )
     expect(page.locator("#nested-footer")).to_be_in_viewport()
     assert outer.evaluate("el => el.scrollTop") > 0
     assert inner.evaluate("el => el.scrollTop") == 0
@@ -1457,7 +1526,7 @@ def test_a_pane_frame_comment_preview_is_not_confined_to_its_body(browser, serve
     geometry = preview.evaluate(
         """card => {
           const box = card.getBoundingClientRect();
-          const pane = document.querySelector('#left-reading .lf-pane-body')
+          const pane = document.querySelector('#left-reading > :not(header, footer)')
             .getBoundingClientRect();
           return {
             box: box.toJSON(),
@@ -7953,8 +8022,7 @@ def test_signoff_uses_its_visible_button_and_g_l_never_falls_through(browser, se
     expect(approve).not_to_have_attribute("aria-keyshortcuts", re.compile(".+"))
     assert "(L)" not in approve.get_attribute("title")
     done = [e for e in events_model.read_events(serve.page_dir) if e["kind"] == "done"]
-    assert len(done) == 1, done
-    assert done[0]["text"] == "Looks good"
+    assert [event["version"] for event in done] == [1], done
 
 
 def test_banner_destinations_use_transient_target_overlays(browser, serve):
@@ -8563,6 +8631,198 @@ def test_the_ask_walk_measures_from_chrome_only_where_the_chrome_holds_an_ask(
     expect(pick).to_be_focused()
     page.keyboard.press("Shift+a")
     expect(page.locator("#second-decision")).to_be_focused()
+
+
+def test_back_returns_from_an_ask_the_walk_travelled_to(browser, serve):
+    """The Ask walk records the same history the thread walk does: one entry for a
+    journey to Asks somewhere else however far it goes, so Back returns to where the
+    user was reading before it, and a journey that crosses from threads to Asks is still
+    one journey."""
+    filler = "".join(f"<p>Filler paragraph {n}.</p>" for n in range(60))
+    url = serve(
+        leaf_page(
+            "Back from an ask",
+            f"""
+<h1 id="h">Back from an ask</h1>
+<section id="near"><p>A question sits at the top.</p></section>
+<lf-ask id="first-decision"><h2>Where should the feeders go?</h2>
+<lf-options id="first" choose>
+  <lf-option id="fi-hedge"><strong>Along the hedge</strong></lf-option>
+  <lf-option id="fi-lawn"><strong>Out on the lawn</strong></lf-option>
+</lf-options></lf-ask>
+<section id="above">{filler}</section>
+<lf-ask id="second-decision"><h2>Who fills them?</h2>
+<lf-options id="second" choose>
+  <lf-option id="se-rota"><strong>A rota</strong></lf-option>
+  <lf-option id="se-camera"><strong>Whoever the camera calls</strong></lf-option>
+</lf-options></lf-ask>
+<section id="below">{filler}</section>
+""",
+        )
+    )
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "anchor": {"section": "above"},
+            "text": "A question about the filler.",
+        },
+    )
+    page = open_page(browser, url)
+    page.evaluate("document.scrollingElement.scrollTo({top: 1e6, behavior: 'instant'})")
+    reading = page.evaluate("document.scrollingElement.scrollTop")
+    assert reading > 2000
+    entries = page.evaluate("history.length")
+
+    page.keyboard.press("Shift+a")
+    expect(page.locator("#second-decision")).to_be_focused()
+    scroll_settled(page)
+    landed = page.evaluate("document.scrollingElement.scrollTop")
+    assert landed < reading - 1000
+    assert page.evaluate("history.length") == entries + 1
+
+    page.keyboard.press("Shift+a")
+    expect(page.locator("#first-decision")).to_be_focused()
+    scroll_settled(page)
+    walked = page.evaluate("document.scrollingElement.scrollTop")
+    assert walked < landed - 1000
+    assert page.evaluate("history.length") == entries + 1
+
+    page.go_back()
+    page.wait_for_function(
+        "top => Math.abs(document.scrollingElement.scrollTop - top) <= 2", arg=reading
+    )
+
+    # From the bottom again: `t` travels to the thread just below the first Ask, and
+    # `a` from there to the second continues that journey rather than starting another,
+    # so one Back skips the thread's landing and returns to the bottom.
+    page.evaluate("document.scrollingElement.scrollTo({top: 1e6, behavior: 'instant'})")
+    page.keyboard.press("t")
+    page.wait_for_function("() => document.activeElement?.closest('[data-thread]')")
+    scroll_settled(page)
+    page.keyboard.press("a")
+    expect(page.locator("#second-decision")).to_be_focused()
+    scroll_settled(page)
+    page.go_back()
+    page.wait_for_function(
+        "top => Math.abs(document.scrollingElement.scrollTop - top) <= 2", arg=reading
+    )
+
+
+@pytest.mark.parametrize(("width", "clears"), [(1280, False), (820, True)])
+def test_an_ask_under_the_open_panel_is_shown_beside_it_or_by_clearing_it(
+    browser, serve, width, clears
+):
+    """The open thread panel stands over the right of the page, and what it stands over
+    is not on screen. At 1280px an Ask in the window reaches a little under it and is
+    seen where it stands: `a` leaves the panel and the page alone, and the Ask's badges
+    label only the controls that show, rather than floating over the panel's threads. At 820px
+    the panel stands over most of the same Ask, so `a` clears it. Either way the page,
+    which had the Ask in view, does not move and records no departure."""
+    filler = "".join(
+        f"<p>Filler paragraph {n}. " + "Words. " * 20 + "</p>" for n in range(30)
+    )
+    url = serve(
+        leaf_page(
+            "Under the panel",
+            f"""
+<h1 id="h">Under the panel</h1>
+<section id="above">{filler}</section>
+<lf-ask id="decision"><h2>Where should the feeders go?</h2>
+<lf-options id="spot" choose>
+  <lf-option id="sp-hedge"><strong>Along the hedge</strong></lf-option>
+  <lf-option id="sp-lawn"><strong>Out on the lawn</strong></lf-option>
+</lf-options></lf-ask>
+<section id="below">{filler}</section>
+""",
+        )
+    )
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "anchor": {"section": "above"},
+            "text": "A question about the filler.",
+        },
+    )
+    page = open_page(browser, url)
+    resized(page, width, 800)
+    page.evaluate(
+        "document.getElementById('decision').scrollIntoView({block: 'center'})"
+    )
+    scroll_settled(page)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    panel_left = page.locator(".lf-thread-panel").bounding_box()["x"]
+    ask = page.locator("#decision").bounding_box()
+    under = ask["x"] + ask["width"] - panel_left
+    assert 0 < under, "the Ask must reach under the panel"
+    assert (under > ask["width"] / 2) == clears, (under, ask)
+    page.evaluate("document.activeElement.blur()")
+    reading = page.evaluate("document.scrollingElement.scrollTop")
+    entries = page.evaluate("history.length")
+
+    page.keyboard.press("a")
+    expect(page.locator("#decision")).to_be_focused()
+    panel_settled(page, open=not clears)
+    badges = page.locator(".lf-ask-binding-badge, [data-lf-ask-binding-badge]")
+    if clears:
+        expect(badges).to_have_count(3)
+    else:
+        # A badge labels a control the user can see: the option rows' picks stand
+        # under the panel and wear none, rather than one floating over the threads.
+        expect(badges).not_to_have_count(0)
+        for i in range(badges.count()):
+            box = badges.nth(i).bounding_box()
+            assert box["x"] + box["width"] <= panel_left, box
+    assert page.evaluate("document.scrollingElement.scrollTop") == reading
+    assert page.evaluate("history.length") == entries
+
+
+def test_back_returns_from_an_ask_whose_context_the_arrival_brings_in(browser, serve):
+    """An Ask in front of the user whose arrival region is not still moves the page,
+    since the arrival puts the region's start at the top of the window, and a press
+    that moves the page records where the user was reading. A draft declares no region,
+    so its region runs up from the heading its context starts under."""
+    context = "".join(f"<p>Context paragraph {n}.</p>" for n in range(8))
+    filler = "".join(f"<p>Filler paragraph {n}.</p>" for n in range(40))
+    url = serve(
+        leaf_page(
+            "Back from a draft",
+            f"""
+<h1 id="h">Back from a draft</h1>
+<section id="above">{filler}</section>
+<h2 id="context">The invitation</h2>
+{context}
+<lf-draft id="note" needed><pre>The sample workshop is in the blue room.</pre></lf-draft>
+<section id="below">{filler}</section>
+""",
+        )
+    )
+    page = open_page(browser, url)
+    page.evaluate(
+        "document.scrollingElement.scrollBy({top: document.getElementById('note')"
+        ".getBoundingClientRect().top - 70, behavior: 'instant'})"
+    )
+    assert page.evaluate(
+        "document.getElementById('context').getBoundingClientRect().bottom < 0"
+    )
+    reading = page.evaluate("document.scrollingElement.scrollTop")
+    entries = page.evaluate("history.length")
+
+    page.keyboard.press("a")
+    expect(page.locator("#note")).to_be_focused()
+    scroll_settled(page)
+    assert page.evaluate("document.scrollingElement.scrollTop") < reading - 100
+    assert page.evaluate("history.length") == entries + 1
+    page.go_back()
+    page.wait_for_function(
+        "top => Math.abs(document.scrollingElement.scrollTop - top) <= 2", arg=reading
+    )
 
 
 def test_the_key_line_keeps_local_and_page_hints_and_progressively_reveals_the_rest(
@@ -9760,12 +10020,17 @@ def test_submitting_a_reply_reveals_its_new_message(browser, serve):
         """node => {
           const list = document.querySelector('.lf-threads').getBoundingClientRect();
           const message = node.getBoundingClientRect();
-          const top = list.top + parseFloat(getComputedStyle(document.querySelector('.lf-threads')).scrollPaddingTop || 0);
-          return {top: message.top, bottom: message.bottom, bandTop: top, bandBottom: list.bottom};
+          const style = getComputedStyle(document.querySelector('.lf-threads'));
+          const top = list.top + parseFloat(style.scrollPaddingTop || 0);
+          const ringRoom = parseFloat(style.getPropertyValue('--here-ring-w'))
+            + parseFloat(style.getPropertyValue('--here-ring-gap'));
+          return {top: message.top, bottom: message.bottom, bandTop: top,
+                  textTop: top - ringRoom, bandBottom: list.bottom};
         }"""
     )
     assert shown["bottom"] - shown["top"] < shown["bandBottom"] - shown["bandTop"]
-    assert shown["top"] >= shown["bandTop"] - 1, shown
+    # The reserved ring room protects focusable controls; a posted message has no ring.
+    assert shown["top"] >= shown["textTop"] - 1, shown
     assert shown["bottom"] <= shown["bandBottom"] + 1, shown
     expect(box).to_be_focused()
     in_threads_scrollport(page, f'.lf-thread[data-id="{root}"] .lf-compose textarea')

@@ -3,15 +3,20 @@
    Generated metadata, prose, workflow and reaction placement have one owner. An
    immutable descriptor changes prose without reconnecting the validated authored
    fragment. The fragment is captured inertly before its first upgrade; panel
-   presentation waits for preparation before capturing typed authored facets. */
+   presentation waits for preparation before capturing typed authored state. */
 import { html, render, nothing } from "../../vendor/browser-runtime.js";
-import { loadMarkdown, markdownReady, renderMarkdown } from "../markdown.js";
+import {
+  loadMarkdown,
+  markdownReady,
+  renderMarkdown,
+  renderedWords,
+} from "../markdown.js";
 import { reportPageError } from "../layer-client.js";
 import { isReaction, moved } from "./model.js";
 import { tokenEntry } from "../registry.js";
 import {
   rememberAuthoredParents,
-  stageAuthoredFacets,
+  stageAuthoredStates,
 } from "../projection/authored.js";
 import { stageWidgetDescriptors } from "../widget-descriptors.js";
 import { strongestWorkflow, workflowLabel, workflowTitle } from "./workflow.js";
@@ -56,15 +61,13 @@ function proseReading(message) {
     reading.markdown !== markdown
   ) {
     const html = renderMarkdown(text);
-    const template = document.createElement("template");
-    template.innerHTML = html;
     reading = Object.freeze({
       id: message.id,
       edited,
       text,
       markdown,
       html,
-      plainText: template.content.textContent,
+      plainText: renderedWords(html),
     });
     renderedProse.set(key, reading);
   }
@@ -95,7 +98,7 @@ export function prepareAuthoredMessage(message, thread) {
       thread,
       message: message.id,
     });
-    const authored = stageAuthoredFacets(template.content, new Map());
+    const authored = stageAuthoredStates(template.content, new Map());
     rememberPassageParts(template.content, ["event", message.id]);
     const nodes = Object.freeze([...template.content.childNodes]);
     authoredMessages.set(key, {

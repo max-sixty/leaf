@@ -41,11 +41,10 @@ def standing_entry(coordinate, e: dict, conversation: str | None = None) -> dict
     sent is a fact about the gesture and none about the widget: thread markup is
     frozen in the log, so no page version bounds one of these.
     """
-    widget, unit, facet = coordinate
+    widget, unit, _verb = coordinate
     return {
         "widget": widget,
         "unit": unit,
-        "facet": facet,
         "action": e["action"],
         "detail": e["detail"],
         "revision": e["revision"],
@@ -275,7 +274,7 @@ def _apply_thread_state(state: dict, thread: FrozenThreadReading) -> None:
         for coordinate, (event, _) in thread_actions.actions.items()
     ]
     state["state"].sort(
-        key=lambda reading: (reading["widget"], reading["unit"], reading["facet"])
+        key=lambda reading: (reading["widget"], reading["unit"], reading["action"])
     )
 
 
@@ -485,7 +484,7 @@ def _write_page_state(
             passages = page_passages(
                 SourceDocument(event["markup"]),
                 registry,
-                retirement_outcomes(thread_reading.projection.actions, registry),
+                retirement_outcomes(thread_reading.projection.actions),
             )
             message["content"] = constructed_content(
                 fragment,

@@ -32,13 +32,14 @@ delivery carries each conversation's current title, null until named. Titles are
 80 characters. The same command sets or replaces the title without changing
 messages or adding a conversational turn.
 
-Use `--markup` for a small question: an `lf-ask` containing one heading and
-its `lf-options` group. Thread markup is frozen in the log and has no revision
-boundary: every immutable historical document shows the same markup. It must
-therefore validate against every pinned revision's captured registry, not only
-the active registry. Use only widget vocabulary shared by those registries. If
-no shared widget fits, ask in prose with `--text` (and `--awaits` on a reply), or
-use a page widget when the question and its answer belong in the final record.
+Use `--markup` for a small question: an `lf-ask` containing one heading and its
+`lf-options` group; it follows the reply's text, and its ids must not appear in any
+version or earlier message. Thread markup is frozen in the log and has no revision
+boundary: every immutable historical document shows the same markup. It must therefore
+validate against every pinned revision's captured registry, not only the active
+registry. Use only widget vocabulary shared by those registries. If no shared widget
+fits, ask in prose with `--text` (and `--awaits` on a reply), or use a page widget
+when the question and its answer belong in the final record.
 
 The thread panel is a narrow column over the right of the page, so a paragraph that
 reads fine in chat is a wall there. A reply says what changed or where to look: a sentence or
@@ -46,18 +47,13 @@ two, or one short paragraph or list item per point when there are several. The p
 carries the evidence, and a stamp's changelog carries the full list of changes.
 When a discussion produces a decision or defers work, record the outcome on the page
 and link it from the reply that reports it, with a fragment link such as
-`[the decision](#decision)`. When the rationale matters to a user using the
-result, keep the thread anchored to that page section. Keep the discussion active
-if the outcome is not yet incorporated or the user still owes an explicit review.
+`[the decision](#decision)`, which opens whatever tab or group hides its target; the
+runtime marks a fragment link the current version cannot follow. When the rationale
+matters to a user using the result, keep the thread anchored to that page section.
+Keep the discussion active if the outcome is not yet incorporated or the user still
+owes an explicit review.
 
-A user may paste an image into any thread text box, and a delivered message that
-carries one says how to read it. To send one, run `leaf page media <page> <file>` and
-write the printed path as an ordinary Markdown image in the message's text. The door refuses a `/media/…` the page
-directory cannot answer, in text as in markup, because the log is append-only and a
-broken image posted to it stays broken. It reads the link and image destinations the
-runtime resolves, so a path written about in a sentence stays prose.
-
-Both routes render as Markdown. `--text` is for a one-liner; write anything longer to
+A reply renders as Markdown. `--text` is for a one-liner; write anything longer to
 a file and redirect it to stdin, where its paragraphs and list items are visible as
 you write them.
 
@@ -66,17 +62,21 @@ leaf reply <page> --text "…"
 leaf reply <page> < reply.md
 ```
 
+A user may paste an image into any thread text box, and a delivered message that
+carries one says how to read it. To send one, run `leaf page media <page> <file>` and
+write the printed path as an ordinary Markdown image in the message's text. The door
+refuses a `/media/…` link or image the page directory cannot answer, in text as in
+markup, because the log is append-only and a broken image posted to it stays broken;
+a path mentioned in a sentence stays prose.
+
 With one reply obligation in the current turn's opened delivery, Leaf infers its event
 and address. When that delivery contains several, select one with `--for <event-id>`;
-Leaf derives its response address and rechecks both against current state, so a response
-captured before a newer user correction cannot settle the correction. `leaf
-conversation read` exposes the same response on the workflow that its current
-`activity.obligations` names, when the delivery is no longer the freshest reading.
-`activity.obligations` is a list of ids into `workflows`, where each move's stage and
-subject are canonical and `answer` names the current writer operation.
-Provisional response progress remains separately available as `response`. When the source changed, the reply
-validates and activates it before posting, so an edit and its answer cross one command
-boundary.
+Leaf derives its response address and rechecks both against current state, so a
+response captured before a newer user correction cannot settle the correction. When
+the delivery is no longer the freshest reading, `leaf conversation read` shows what
+each move in the thread still owes as its workflow's `answer`. When the source
+changed, the reply validates and activates it before posting, so an edit and its
+answer cross one command boundary.
 
 When the change leaves the same subject at a new passage, move the open thread onto
 that result in the same reply. If the edit also removes the old target, name the
@@ -101,12 +101,7 @@ The reply records the active revision and its anchor transition atomically. The 
 comment keeps its original anchor in `leaf events --conversation`. The panel keeps a
 detached thread open under **No longer in this version**, and `page state` reports its
 null current anchor and the prior anchor as `detached_from`. A later reply may move it
-to a genuine replacement. Open a new thread for a different subject. Held command-goal
-threads cannot move or detach.
-
-A thread the user opened as a request for change is delivered with a `version`
-obligation: the next stamped version is its answer rather than a reply, and its
-delivered `answering` clause says when it can be resolved.
+to a genuine replacement. Open a new thread for a different subject.
 
 A declared visual part is held only while a live conversation's current anchor names
 it, so a version may drop the part once every thread on it has moved, detached, or
@@ -116,9 +111,6 @@ user can reopen a resolved thread, and it comes back pointing at a coordinate no
 revision declares any more, while a detached thread reads as **No longer in this
 version** and a later reply may still move it to a replacement.
 
-A fragment link takes the user to page content, opening whatever tab or group hides
-it, and the runtime marks one the current version cannot follow. `--markup` adds a
-validated widget after reply text; its ids must be new.
 An ordinary reply answers the thread without adding it to the outstanding Ask
 list. Add `--awaits` when the reply's prose asks the user to answer:
 

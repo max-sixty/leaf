@@ -6,7 +6,6 @@ import "/widgets/lf-shot.js";
 import "../vendor/webawesome.esm.js";
 
 import {
-  arrangeReadingElement,
   commands,
   compoundReadingRegionId,
   failSoft,
@@ -94,11 +93,11 @@ customElements.define(
   "lf-visual-review",
   class extends HTMLElement {
     #controller = widgetController(this);
-    #layouts = [];
     #caseEntries = new Map();
     #casesBody = null;
     #commands = null;
     #evidenceHost = null;
+    #stopEvidence = null;
     #inspector = null;
     #layoutFrame = null;
     #mode = "compare";
@@ -112,14 +111,17 @@ customElements.define(
     #scope = "focus";
     #selected = null;
     #snapshot = null;
-    #partition = null;
     #sizes = null;
     #threadSurface = null;
     #title = null;
 
     connectedCallback() {
       if (once(this)) this.#buildLayout();
-      for (const layout of this.#layouts) this.#controller.present(layout.connect());
+      this.#stopEvidence ??= registerReadingRegion({
+        id: compoundReadingRegionId(this, "evidence"),
+        host: this.#evidenceHost,
+        body: this.#casesBody,
+      });
       for (const [id, entry] of this.#caseEntries) this.#registerCaseRegion(id, entry);
       this.#sizes = new ResizeObserver(() => this.#scheduleEvidenceLayout());
       this.#sizes.observe(this);
@@ -156,9 +158,15 @@ customElements.define(
       window.removeEventListener("resize", this.#onResize);
       if (this.#layoutFrame !== null) cancelAnimationFrame(this.#layoutFrame);
       this.#layoutFrame = null;
-      this.#cleanupLayout();
+      this.#stopEvidence?.();
+      this.#stopEvidence = null;
     }
 
+    // The review composes the layer's pane grammar rather than choosing a posture: a
+    // heading, then one evidence pane whose header is the case navigation and whose
+    // body holds the cases. The theme decides whether that body scrolls, from the
+    // workspace the review stands in, so the same boxes fill a bounded root workspace
+    // and flow in a document.
     #buildLayout() {
       const header = make("header", "lf-vr-head");
       this.#title = make("h2", "lf-vr-title", "Waiting for a visual run");
@@ -180,48 +188,17 @@ customElements.define(
       next.type = "button";
       next.addEventListener("click", () => this.#step(1));
       this.#queueHost.append(previous, this.#queue, next);
-      const queue = arrangeReadingElement({
-        owner: this.#queueHost,
-        role: "pane",
-        regions: [
-          {
-            id: compoundReadingRegionId(this, "cases"),
-            host: this.#queueHost,
-          },
-        ],
-      });
+      const queue = make("header", "lf-vr-queue");
+      queue.append(this.#queueHost);
 
       this.#evidenceHost = make("section", "lf-vr-evidence-region");
+      this.#evidenceHost.dataset.lfReadingRole = "pane";
       this.#evidenceHost.setAttribute("aria-label", "Selected visual evidence");
       this.#inspector = this.#buildInspector();
       this.#casesBody = make("div", "lf-vr-cases");
-      this.#evidenceHost.append(this.#casesBody);
-      const evidence = arrangeReadingElement({
-        owner: this.#evidenceHost,
-        role: "pane",
-        regions: [
-          {
-            id: compoundReadingRegionId(this, "evidence"),
-            host: this.#evidenceHost,
-          },
-        ],
-      });
+      this.#evidenceHost.append(queue, this.#casesBody);
 
-      this.#partition = make("div", "lf-vr-partition");
-      this.#partition.append(this.#queueHost, this.#evidenceHost);
-      const partition = arrangeReadingElement({
-        owner: this.#partition,
-        role: "partition",
-      });
-
-      this.append(header, this.#partition);
-      const workspace = arrangeReadingElement({
-        owner: this,
-        role: "workspace",
-        header,
-        minimumSize: () => ({ width: 720, height: 600 }),
-      });
-      this.#layouts = [queue, evidence, partition, workspace];
+      this.append(header, this.#evidenceHost);
       this.#registerCommands();
       this.#paintInspector();
     }
@@ -437,13 +414,11 @@ customElements.define(
       const visibleHeights = activeFocus
         ? [activeFocus.height, activeFocus.height]
         : heights;
+      // The theme sizes the stage: the height the pane leaves it where the pane's body
+      // is bounded, and a height from the widget's own width in flow, so a paint-only
+      // inspection control never resizes the evidence and moves the document.
       const stageWidth = entry.shotHost.clientWidth;
-      const bounded = this.dataset.lfReadingPosture === "bounded";
-      // Flow layout follows the widget's own width, so scrolling cannot make a later
-      // paint-only inspection control resize the evidence and move the document.
-      const stageHeight = bounded
-        ? entry.shotHost.clientHeight
-        : Math.max(220, Math.min(560, stageWidth / 2));
+      const stageHeight = entry.shotHost.clientHeight;
       if (stageHeight <= 0) return;
 
       const gap = 8;
@@ -508,14 +483,6 @@ customElements.define(
         "--lf-vr-frame-width",
         `${Math.max(1, width * scale)}px`,
       );
-      entry.shotHost.style.setProperty(
-        "--lf-vr-stage-height",
-        bounded ? "100%" : `${stageHeight}px`,
-      );
-    }
-
-    #cleanupLayout() {
-      for (const layout of this.#layouts) layout.disconnect();
     }
 
     #registerCommands() {
@@ -564,7 +531,6 @@ customElements.define(
           this.#selected = fallback?.id ?? ids[0];
         this.#select(this.#selected);
         this.#paintInspector();
-        this.#controller.present(this.#layouts.at(-1)?.update());
       } catch (error) {
         failSoft(this, error);
       } finally {
@@ -980,7 +946,7 @@ customElements.define(
     }
 
     renderState(state) {
-      const units = state?.disposition?.units ?? {};
+      const units = state?.review?.units ?? {};
       for (const id of this.#caseEntries.keys())
         this.#setDisposition(id, units[id]?.detail?.disposition ?? null);
       this.#paintAvailability();

@@ -8,7 +8,7 @@ from ..events import (
     is_reaction,
     seat_root,
     spoken_turns,
-    taken_back,
+    standing_approvals,
     unanswered_agent_turn,
 )
 from ..projection import FrozenThreadReading, frozen_thread_reading
@@ -184,23 +184,17 @@ def browser_conversation(
                     "pending": live_reply.get("state") == "active",
                 },
             ]
-    withdrawn = taken_back(events)
     return (
         {
             "projection": browser_projection(
                 reading.projection, scope="conversation", within={}, floors={}
             ),
-            "asks": asks,
+            "asks": {key: asks[key] for key in ("all", "user", "unanswered")},
             "requests": requests,
             "threads": rendered_threads,
-            # Through the withdrawal, like every other fold: an approval a user
-            # took back is not one, and this list is what the banner's own button
-            # reads to say whether the version has been signed off.
-            "done": [
-                event
-                for event in events
-                if event["kind"] == "done" and event["id"] not in withdrawn
-            ],
+            # What the banner's own button reads to say whether the version has
+            # been signed off.
+            "done": standing_approvals(events),
         },
         reading,
     )

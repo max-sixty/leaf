@@ -7,8 +7,12 @@ description: Project-specific guidance loaded by tend workflows alongside AGENTS
 
 ## Landing
 
-Work from Tend lands as a pull request that a maintainer merges. The bot has
-write access, and the `Merge access` ruleset holds merging to admins.
+Tend uses `merge: yolo`. Merge a pull request without waiting for maintainer
+approval when it makes a modest change that fixes tests, the relevant CI checks
+pass on the exact pull request head, and the claimed fix is verified by those
+checks. This includes test-owned failures and small product fixes needed to make
+the tests pass. Changes to workflows, Tend's configuration, CODEOWNERS, or agent
+instructions require the control-plane owner's fresh approval.
 
 Merging squashes, and the repository is set to `PR_TITLE` / `PR_BODY`, so a
 description is `main`'s commit message for that change rather than review
@@ -142,35 +146,35 @@ judgment stays in the run report.
 
 ## Weekly: vendored browser dependencies
 
-`.github/dependabot.yml` watches the action refs and `uv.lock`. It cannot watch
-the browser dependencies, whose versions live in `scripts/vendor.py`'s PINS
-table rather than a manifest, or the page payload the browser framework build
-bundles (Lit and Signals), pinned in `package.json`. They drift silently, and
-this is the step that catches it.
+`.github/dependabot.yml` watches the root `package.json`, which pins every
+JavaScript package the committed browser output is built from: the page payload
+the browser framework build bundles (Lit and Signals) and each package a
+`scripts/vendor.py` bundle imports. It opens one grouped PR a week that moves
+`package.json` and `package-lock.json` but not the output, so CI's
+`check:browser` and vendored-bundle steps stay red on it until the output is
+rebuilt. On that PR's branch:
 
 ```bash
-scripts/vendor.py --pins
+npm ci
+npm run build:browser
+uv run scripts/vendor.py
 ```
 
-Each row is a package, its pin, the bundle to rebuild if it has moved, and the
-newest release that pin could take where that differs. A pin that is there because
-something Leaf chose imports it is not Leaf's to move, and `HELD_BY` in that script
-names its dependant, so its row already reads against the range that dependant
-declares and what the report calls movement is movement that can be taken. A pin
-whose holder the table is missing is the one that reads wrong: check a surprising
-offer against the declaring package before taking it, and add the row.
-`esbuild` is the tool the builds share rather than payload, so it moves when
-a bundle needs it rather than on every release.
+Commit what that changes to the same branch; the rebuilt bundle is the change,
+not the version string on its own. Read the diff of each `*.LICENSES.txt`: one
+package listed at two versions means the bump split a closure, the likely case
+being Shiki: its packages pin each other exactly, and the two Pierre depends on
+(`shiki` and `@shikijs/transformers`) stay at their locked versions while the
+ones Leaf imports move. `npm update <package>` moves a locked dependency within
+its dependant's range; rerun the rebuild after it. Where the webawesome build
+refuses a Lit outside Web Awesome's declared range, drop that bump from the PR.
 
-On drift, bump the entry in PINS and run `scripts/vendor.py <bundle>` — the
-rebuilt bundle is the commit, not the version string on its own. A `browser` row
-is a `package.json` pin: bump it there, run `npm install` and
-`npm run build:browser`, and run any bundle the row also names. A copy's output tracks its version directly.
-`highlight` and `pierre` also read the language list out of the registry's
-`$languages.names`, so their output is a function of both the pin and the
-registry: rerunning them after an unrelated registry change is how the bundle
-and the lint stay unable to disagree. Pierre and Shiki must move together when
-their compatibility requires it.
+`esbuild` is the tool the builds share rather than payload, so Dependabot leaves
+it alone and it moves when a bundle needs it: bump it in `package.json` and
+rebuild everything. `highlight` and `pierre` also read the language list out of
+the registry's `$languages.names`, so their output is a function of both the
+lock and the registry: rerunning them after an unrelated registry change is how
+the bundle and the lint stay unable to disagree.
 
 Run the suite afterwards. The browser tests load the bundles, so a bad rebuild
 surfaces there rather than in review.

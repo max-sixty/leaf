@@ -1197,19 +1197,20 @@ gallery/
       </section>
 
       <section id="bg-layout-family">
-        <p class="eyebrow bg-feature-elements">lf-workspace · lf-pane · lf-partition</p>
+        <p class="eyebrow bg-feature-elements">lf-workspace · lf-pane · lf-grid</p>
         <h2>
           <strong>Workspace regions</strong
           ><span class="bg-feature-detail">: nested reading areas</span>
         </h2>
         <p id="bg-layout-guide">
           This workspace is embedded in a document, so its list, detail regions, and
-          action footer stay in document flow. The same pane and partition markup can
-          divide a root workspace into columns and rows when the window has room.
+          action footer stay in document flow. The same panes in a grid fill a root
+          workspace in columns and rows when the window has room, each scrolling on its
+          own.
         </p>
         <lf-workspace id="bg-layout-workspace">
           <header><h3>Release candidate review</h3></header>
-          <lf-partition id="bg-layout-columns" direction="columns">
+          <lf-grid id="bg-layout-columns" columns="1fr 1fr">
             <lf-pane id="bg-layout-list" label="Changes">
               <header><h4>Changes</h4></header>
               <lf-tabs id="bg-layout-tabs">
@@ -1231,7 +1232,7 @@ gallery/
               </lf-tabs>
             </lf-pane>
 
-            <lf-partition id="bg-layout-rows" direction="rows">
+            <lf-grid id="bg-layout-rows" columns="1">
               <lf-pane id="bg-layout-evidence" label="Evidence">
                 <header><h4>Evidence</h4></header>
                 <article id="bg-layout-article">
@@ -1277,8 +1278,8 @@ switch --readers checkout-api,orders-api</code></pre>
                   </lf-ask>
                 </footer>
               </lf-pane>
-            </lf-partition>
-          </lf-partition>
+            </lf-grid>
+          </lf-grid>
         </lf-workspace>
       </section>
 
@@ -1331,7 +1332,7 @@ switch --readers checkout-api,orders-api</code></pre>
               reach it.
             </lf-card>
           </lf-column>
-          <lf-column id="bg-work-done" label="Done"></lf-column>
+          <lf-column id="bg-work-done" label="Done" tone="ok"></lf-column>
         </lf-board>
         <p id="bg-feedback">
           To ask for a refinement, comment on the sample that shows it and say what

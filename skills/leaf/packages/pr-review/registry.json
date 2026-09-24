@@ -5,7 +5,7 @@
       "pull-request": {
         "description": "One observed pull request, including its Markdown author description, revision, diff statistics, and checks.",
         "guidance": {
-          "producer": "Replace the complete source whenever the pull request or its checks change:\n\n```bash\nleaf data set \"$PAGE\" <source-id> --file pull-request.json\n```\n\nThe JSON object carries `repository`, positive integer `number`, `title`, `author`, `base`, `head`, `revision`, `status`, a Markdown `description`, RFC 3339 `observedAt`, a complete `diff` object, and a `checks` map from check name to status. Keep the source id on the same pull request for the page's lifetime. Leaf presents these supplied facts; it does not query a forge."
+          "producer": "Replace the complete source whenever the pull request or its checks change:\n\n```bash\nleaf data set \"$PAGE\" <source-id> --file pull-request.json\n```\n\nThe JSON object carries `repository`, positive integer `number`, `title`, `author`, `base`, `head`, `revision`, `status`, a Markdown `description`, RFC 3339 `observedAt`, a `diff` object counting the change's `files`, `additions`, `deletions`, and `commits`, and a `checks` map from check name to status. Keep the source id on the same pull request for the page's lifetime. Leaf presents these supplied facts; it does not query a forge."
         },
         "schema": {
           "type": "object",
@@ -180,7 +180,7 @@
       }
     },
     "x-guidance": {
-      "author": "Capture authentic CallDiff plain-text output as a `text-document` and bind `lf-call-diff` to it. Keep unchanged tree items in the capture: they are the stable landmarks that make the structural change readable. Prefer one focused file or entry point per widget for a large repository. Do not transcribe the output into page markup, invent attribute reads as calls, or redraw it as separate before and after diagrams."
+      "author": "Select the `diff` package beside `pr-review`, and point the required `diff` attribute at the `lf-diff` that holds the exact patch. Set authentic CallDiff plain-text output as that source's string value with `jq -Rs . calldiff.txt | leaf data set \"$PAGE\" <source-id>` and bind `lf-call-diff` to that source. Keep unchanged tree items in the capture: they are the stable landmarks that make the structural change readable. Prefer one focused file or entry point per widget for a large repository. Do not transcribe the output into page markup, invent attribute reads as calls, or redraw it as separate before and after diagrams."
     },
     "x-refers": {
       "diff": {}

@@ -5,13 +5,14 @@
 import { recordedWidgetSelector, stateSpecs } from "../registry.js";
 import { quoteFrom, textNodesUnder } from "../passages.js";
 import { readApplication } from "../semantic-state.js";
+import { authoredRank } from "./model.js";
 
 /* The authored initial condition, read once from validated source before upgrade.
    These typed values are inputs to the complete widget projection; no cloned DOM,
    inverse action, or restoration statement is retained.
 
    `rememberAuthoredParents` records parent identities before imports for anchor
-   ownership. `stageAuthoredFacets` decodes source elements while their validated
+   ownership. `stageAuthoredStates` decodes source elements while their validated
    attributes, member order, and data bodies are intact. The complete staged document
    enters the application publisher before its content modules render. Page revisions
    and frozen thread markup use the same boundary, so presentation never becomes a
@@ -25,10 +26,10 @@ import { readApplication } from "../semantic-state.js";
 
    - `attribute`: sorted owned ids carrying the declared attribute;
    - `value`: the attribute string, or `null` when absent;
-   - `position`: ordered id lists per container; an individual widget also names its
-     containing id and index;
+   - `position`: ordered id lists per container and each listed unit's authored rank
+     (projection/model.js);
    - `body`: the data body's exact words, with source-layout indentation removed;
-   - no record: `null` for a widget facet, an empty unit map otherwise.
+   - no record: `null` for a widget verb, an empty unit map otherwise.
 
    Ownership of record members stops at `recordedOwner`, the nearest widget with a
    declared record. A custom outer container must not capture or restore a nested
@@ -44,7 +45,7 @@ const ownedRecordMembers = (widget, selector) =>
     (member) => recordedOwner(member) === widget,
   );
 
-export function domFacet(el, record) {
+export function domValue(el, record) {
   if (record.kind === "attribute")
     return ownedRecordMembers(el, `[${record.attr}]`)
       .map((o) => o.id)
@@ -84,17 +85,20 @@ function decodeBodyRecord(widget) {
   return lines.map((line) => line.slice(cut)).join("\n");
 }
 
-function initialFacet(widget, spec) {
+function initialState(widget, spec) {
   const record = spec.record;
   if (spec.unit !== "widget") {
     const value = {};
-    if (record?.kind === "position" && spec.unit !== "widget")
-      for (const container of widget.querySelectorAll(record.within))
-        if (container.id && recordedOwner(container) === widget)
-          value[container.id] = [...container.children]
-            .filter((part) => part.id)
-            .map((part) => part.id);
-    return { value, units: {} };
+    if (record?.kind !== "position") return { value, units: {} };
+    const ranks = {};
+    for (const container of widget.querySelectorAll(record.within))
+      if (container.id && recordedOwner(container) === widget) {
+        value[container.id] = [...container.children]
+          .filter((part) => part.id)
+          .map((part) => part.id);
+        value[container.id].forEach((id, index) => (ranks[id] = authoredRank(index)));
+      }
+    return { value, ranks, units: {} };
   }
   let value = null;
   if (record?.kind === "attribute")
@@ -103,53 +107,28 @@ function initialFacet(widget, spec) {
       .filter(Boolean)
       .sort();
   else if (record?.kind === "value") value = widget.getAttribute(record.attr);
-  else if (record?.kind === "position") {
-    const container = widget.closest(record.within);
-    value = container?.id ?? null;
-    return {
-      action: null,
-      value,
-      detail: {
-        [record.value]: value,
-        [record.order]: container
-          ? [...container.children].filter((part) => part.id).indexOf(widget)
-          : 0,
-      },
-    };
-  } else if (record?.kind === "body") value = decodeBodyRecord(widget);
+  else if (record?.kind === "body") value = decodeBodyRecord(widget);
   return { action: null, value, detail: record ? { [record.value]: value } : {} };
 }
 
-export function stageAuthoredFacets(root = document, existing = authoredStates()) {
+export function stageAuthoredStates(root = document, existing = authoredStates()) {
   const captured = new Map();
   const byTag = new Map();
-  for (const { tag, spec } of stateSpecs()) {
-    const facets = byTag.get(tag) ?? new Map();
-    facets.set(spec.facet, spec);
-    byTag.set(tag, facets);
+  for (const { tag, verb, spec } of stateSpecs()) {
+    const specs = byTag.get(tag) ?? new Map();
+    specs.set(verb, spec);
+    byTag.set(tag, specs);
   }
-  const positions = {};
   for (const [tag, specs] of byTag) {
     const widgets = [...root.querySelectorAll(tag)];
     if (root.nodeType === Node.ELEMENT_NODE && root.matches(tag)) widgets.unshift(root);
     for (const widget of widgets) {
       if (!widget.id || existing.has(widget.id)) continue;
-      for (const spec of specs.values())
-        if (spec.unit === "widget" && spec.record?.kind === "position")
-          for (const container of [
-            ...root.querySelectorAll(spec.record.within),
-            widget.closest(spec.record.within),
-          ].filter(Boolean))
-            if (container.id && !positions[container.id])
-              positions[container.id] = [...container.children]
-                .filter((part) => part.id)
-                .map((part) => part.id);
       captured.set(widget.id, {
         tag,
         specs,
-        positions,
         state: Object.fromEntries(
-          [...specs].map(([facet, spec]) => [facet, initialFacet(widget, spec)]),
+          [...specs].map(([verb, spec]) => [verb, initialState(widget, spec)]),
         ),
       });
     }
@@ -157,5 +136,5 @@ export function stageAuthoredFacets(root = document, existing = authoredStates()
   return captured;
 }
 
-export const stateCoordinate = (owner, unit, spec) =>
-  JSON.stringify([owner, unit, spec.facet]);
+export const stateCoordinate = (owner, unit, verb) =>
+  JSON.stringify([owner, unit, verb]);

@@ -85,13 +85,16 @@ def _reply_evidence(reply: dict) -> dict:
 
 
 def _bind_reply(workflows: list[dict], reply: dict | None) -> None:
-    """Bind provisional response progress only to the exact input it names."""
+    """Bind provisional response progress only to the exact input it names.
+
+    A durable response outranks it: a host's failure reply has already answered
+    the input, and the turn's leftover stream must not paint it as still replying."""
     if reply is None or not reply.get("responds"):
         return
     workflow = next(
         (item for item in workflows if item.get("input") == reply["responds"]), None
     )
-    if workflow is None:
+    if workflow is None or workflow["stage"] == "answered":
         return
     workflow["response"] = _reply_evidence(reply)
     workflow["stage"] = "replying"
@@ -115,23 +118,19 @@ def _bind_reply(workflows: list[dict], reply: dict | None) -> None:
 
 
 def answer_command(answer: dict) -> str:
-    """The one command that writes an answer, with the id it is addressed to."""
+    """The one operation that writes an answer, with the id it is addressed to."""
     if answer["kind"] == "reply":
         return f"`leaf reply <page> --for {answer['for']}`"
+    if answer["kind"] == "turn":
+        return f"your turn's final message for {answer['for']}"
     if answer["kind"] == "receipt":
         return f"`leaf receipt <page> {answer['request']} succeeded|failed`"
-    if answer["kind"] == "version":
-        return (
-            "a stamped version, then "
-            f"`leaf resolve <page> --to {answer['conversation']}`"
-        )
     return f"a stamped version whose markup records action {answer['action']}"
 
 
 def unanswered(obligations: list[dict], of: str = "") -> str:
-    """Say how many user moves have no answer and name the command that answers
-    each, addressed as its writer takes it. `of` narrows which moves these are,
-    such as the acknowledged ones."""
+    """Say how many user moves have no answer and name what answers each. `of`
+    narrows which moves these are, such as the acknowledged ones."""
     commands = "; ".join(answer_command(item["answer"]) for item in obligations)
     moves = f"user move{'s' if len(obligations) != 1 else ''}"
     return (
@@ -193,8 +192,15 @@ def canonical_activity(
     now_iso: str,
     stream: dict | None = None,
     reply: dict | None = None,
+    bindings: dict | None = None,
 ) -> dict:
-    """Return the one current reading of agent activity for a page snapshot."""
+    """Return the one current reading of agent activity for a page snapshot.
+
+    `bindings` are the stream's reply bindings. A reply address bound to the
+    claimant's session is that session's App Server turn to write, with its own
+    opening and final messages, so its workflow's answer reads as a `turn` under
+    the binding's attempt: every consumer that holds the agent to an answer, or
+    refuses a second writer, reads that answer rather than the binding."""
     now = datetime.fromisoformat(now_iso)
     status = present["status"]
     stream_quiet = bool(stream and _quiet(stream.get("ts"), now, WORKING_GRACE))
@@ -216,6 +222,19 @@ def canonical_activity(
     held = not present.get("unattended") and not unheld
     workflows = _canonical_workflows(interaction_evidence, present, now, held=held)
     _bind_reply(workflows, reply)
+    for item in workflows:
+        binding = (bindings or {}).get(item.get("input"))
+        if (
+            item["answer"] is not None
+            and item["answer"]["kind"] == "reply"
+            and binding
+            and binding["session"] == present.get("claim_session")
+        ):
+            item["answer"] = {
+                **item["answer"],
+                "kind": "turn",
+                "attempt": binding["attempt"],
+            }
 
     deadlines = []
     # Status age and turn closure can change ownership even when the primary label

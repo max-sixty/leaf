@@ -14,7 +14,7 @@
       "author": "Both candidates are built lf-code widgets. Shared controls drive both, while the page-owned contributor keeps and copies explicit candidate settings."
     },
     "x-upgrade": true,
-    "x-awaits": {"region": true, "answers": ["choose"]},
+    "x-awaits": {"region": true, "answered": {"choose": {}}},
     "x-state": {
       "choose": {
         "detail": {
@@ -59,7 +59,6 @@
           "required": ["values", "instruction"],
           "additionalProperties": false
         },
-        "facet": "configuration",
         "unit": "widget"
       }
     },

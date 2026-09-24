@@ -5,6 +5,8 @@ from pathlib import Path
 from ..activity import canonical_activity, canonical_stream_reply
 from ..events import UndoReading, build_threads, taken_back
 from ..files import list_revisions, revision_path
+from ..gesture_words import GestureWords, RevisionReader, revisions_on_disk
+from ..history import history, wants_history
 from ..projection import canonical_updates, page_reading
 from ..registry.contract import RegistryError
 from ..registry.storage import load_registry
@@ -114,12 +116,14 @@ def browser_state(
     live_stream: dict | None = None,
     registries: dict[int, dict] | None = None,
     data: dict | None = None,
+    revisions: RevisionReader | None = None,
 ) -> dict:
     """The browser's derived reading of one transaction-consistent page snapshot.
 
     Documents and the append-only log remain the authorities. This object is an
     ephemeral transport projection, keyed by the exact log sequence and revisions
-    from which it was read.
+    from which it was read. `revisions` reads a revision a gesture names that is
+    not among `documents`; without it every such revision must be there.
     """
     through_seq = events[-1]["seq"] if events else 0
 
@@ -205,6 +209,7 @@ def browser_state(
         now,
         (live_stream or {}).get("activity"),
         live_reply,
+        (live_stream or {}).get("reply_bindings"),
     )
     workflows = activity.pop("workflows")
     _apply_thread_attention(
@@ -213,8 +218,20 @@ def browser_state(
         workflows,
         conversation_reading.thread_by_widget,
     )
+    served = [(revision, documents[revision]) for revision in view_revisions]
+    if wants_history(served, registry_for):
+        words = GestureWords(
+            events,
+            active_registry,
+            revisions
+            or (lambda revision: (documents[revision], registry_for(revision))),
+        )
+        page_history = {"history": history(events, threads, words)}
+    else:
+        page_history = {}
     return {
         "basis": {"through_seq": through_seq},
+        **page_history,
         "views": views,
         "conversation": conversation,
         "activity": activity,
@@ -299,4 +316,5 @@ def project_browser_state(
         live_stream,
         registries,
         data,
+        revisions_on_disk(page_dir),
     )

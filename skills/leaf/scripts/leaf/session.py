@@ -1,6 +1,7 @@
 """Agent status, waiting, and acknowledgement policy."""
 
 import json
+import secrets
 import sys
 import time
 from collections.abc import Callable
@@ -15,19 +16,21 @@ from .delivery import (
     receive_batch,
     record_pickup,
 )
-from .files import read_json
+from .detached import StartRefused
+from .files import file_stamp, next_reading, read_json
 from .host import Harness, session_harness
 from .hosting import start_server
-from .leases import take_waiter_lease, waiter_lease_path
+from .leases import take_lease, waiter_lease_path
 from .locations import path_location, paths_same
+from .machine import state_home
 from .revisioning import activate_source
 from .schema import (
-    ACK_BATCH_INSTRUCTION,
     ANSWER_ASK_INSTRUCTION,
     SERVICE_FILE,
     STATUS_FILE,
 )
 from .served_state.page import full_state
+from .served_state.reading import page_reading
 from .server import running_server
 from .service import (
     PageTransaction,
@@ -39,6 +42,11 @@ from .service import (
 from .work import standing_work_claims, work_subject
 
 DELIVERY_CLAIM_DETAIL = "Reading your feedback"
+
+# How often a watch rechecks a live page's server. It is also the longest a watch goes
+# without a pass on a page whose files have not moved: nothing else a pass reads
+# changes on the clock alone.
+REVIVAL_CHECK_S = 5
 
 
 def check_local_claim(state: str, detail: str) -> None:
@@ -181,7 +189,7 @@ def cmd_idle(page_dir: Path, detail: str, on: str | None) -> None:
         if pending:
             sys.exit(
                 f"{pending} update{'s' if pending != 1 else ''} nobody has picked up; "
-                "read them with `leaf wait` before idling. " + ACK_BATCH_INSTRUCTION
+                "read them with `leaf wait` before idling"
             )
         owed = [
             obligation
@@ -221,6 +229,12 @@ class Watch:
     crosses that unlocked interval.
     `watch_state` is ownership/lifetime; `lost` separately says the server is
     down with no restart left to make.
+
+    Between passes the watch follows `reading`, the stamps of what a pass reads:
+    the machine's claims, which say which pages the session holds, and each page a
+    pass found. A pass runs when one moves, so an event reaches the watch in a look
+    (`LOOK_S`) rather than on a timer, and a quiet page costs stat calls rather than
+    a locked read of its whole log.
     """
 
     def __init__(self, harness: Harness | None, pages: tuple[Path, ...] = ()):
@@ -235,16 +249,24 @@ class Watch:
         self._revived: set = set()
         self._lost: set = set()
         self._check_at: dict = {}
+        self.claims = state_home() / "claims"
+        self.watched: list[Path] = []
 
     def acquire(self) -> bool:
         """Hold the session lease, or every explicitly watched standalone page."""
         if self.leases:
             return True
         for path in self.lease_paths:
-            lease = take_waiter_lease(path)
+            lease = take_lease(path)
             if lease is None:
                 self.release()
                 return False
+            # Each wait writes its own start over the last one's, so a reader can
+            # tell this wait from the one before it on the same lease
+            # (`leases.started_wait`).
+            lease.truncate(0)
+            lease.write(secrets.token_hex(8).encode())
+            lease.flush()
             self.leases.append(lease)
         return True
 
@@ -258,11 +280,29 @@ class Watch:
                 locations.add(path_location(page))
         return watched
 
+    def reading(self) -> tuple:
+        """The stamps of everything the last pass read: the claims, and its pages."""
+        return (file_stamp(self.claims), *map(_page_stamp, self.watched))
+
+    def mark(self) -> tuple:
+        """What the next pass starts from, taken before it reads, so a write that
+        lands during the pass moves the stamps `await_news` compares against."""
+        return (list(self.watched), self.reading())
+
+    def await_news(self, mark: tuple, timeout: float = REVIVAL_CHECK_S) -> None:
+        """Return once anything the pass since `mark` read has moved, or after
+        `timeout` with nothing moved. A pass that found a different set of pages
+        returns at once: `mark` stamped the old set."""
+        watched, before = mark
+        if self.watched == watched:
+            next_reading(self.reading, before, timeout=timeout)
+
     def tick(self):
         """Yield each page while its ownership and delivery lock is held."""
         if len(self.leases) != len(self.lease_paths):
             return
-        for page_dir in self.pages():
+        self.watched = self.pages()
+        for page_dir in self.watched:
             # This is only the account returned if ownership is already gone.
             # Every act uses the current reading under the lock below. Keeping
             # the harmless observation outside makes the lock boundary itself
@@ -279,7 +319,11 @@ class Watch:
                 # Discovery can race deletion; a missing marker is no page.
                 continue
 
-            started = start_server(page_dir, revive=True)
+            try:
+                started = start_server(page_dir, revive=True)
+            except StartRefused as error:
+                print(error, file=sys.stderr)
+                started = None
             key = str(page_dir)
             if started:
                 self._revived.add(key)
@@ -320,7 +364,7 @@ class Watch:
         if watch_state == "watching" and live and not enabled:
             self._lost.add(key)
         elif watch_state == "watching" and live and now > self._check_at.get(key, 0):
-            self._check_at[key] = now + 5
+            self._check_at[key] = now + REVIVAL_CHECK_S
             if running_server(page_dir):
                 # A server seen running earns the next death its own revival —
                 # one attempt per death, so a server dying on arrival still
@@ -355,6 +399,14 @@ class Watch:
         self.leases.clear()
 
 
+def _page_stamp(page_dir: Path) -> str | None:
+    """A page's reading, or None once its directory is gone."""
+    try:
+        return page_reading(page_dir)
+    except (FileNotFoundError, NotADirectoryError):
+        return None
+
+
 class _WatchPass(NamedTuple):
     """What one complete pass observed, or the outcome that ended it early."""
 
@@ -363,23 +415,42 @@ class _WatchPass(NamedTuple):
     outcome: int | None
 
 
-def delivery_json(reading: PageTick) -> str:
+def wait_acknowledgement(harness: Harness | None) -> Callable[[str], str]:
+    """What a `leaf wait` delivery tells its reader about acknowledging it.
+
+    Printing is not receipt, so the reader of the wait confirms it, in the way its
+    harness runs the next wait. It is stated once for the delivery, ahead of the
+    batches, where output cut off partway still shows it."""
+    run_ack = (harness or Harness).run_ack
+
+    def acknowledge(delivery_id: str) -> str:
+        return (
+            "Whoever ran the `leaf wait` that printed this delivery acknowledges "
+            "it; until then the user's moves read Sent rather than Picked up. If "
+            "the output was cut off, acknowledge nothing and rerun the wait with room "
+            "for the whole envelope. If you handle it, acknowledge before any other "
+            "work; if you forward it, acknowledge once it durably arrives there. To "
+            f"acknowledge, {run_ack(delivery_id)}: it confirms this delivery and "
+            "waits for the next."
+        )
+
+    return acknowledge
+
+
+def delivery_json(reading: PageTick, harness: Harness | None) -> str:
     """Freeze and serialize a watcher reading as one delivery envelope."""
     payload = freeze_delivery(
-        [batch_data(reading.page_dir, reading.transaction, reading.batch)]
+        [batch_data(reading.page_dir, reading.transaction, reading.batch)],
+        carrier="wait",
+        acknowledge=wait_acknowledgement(harness),
     )
     return json.dumps(payload, ensure_ascii=False)
-
-
-def _deliver_batch(reading: PageTick) -> None:
-    """Print immutable input; only the consumer can confirm receipt."""
-    print(delivery_json(reading), flush=True)
 
 
 def read_watch_pass(
     watch: Watch,
     named: Path | None,
-    deliver: Callable[[PageTick], None] = _deliver_batch,
+    deliver: Callable[[PageTick], None],
 ) -> _WatchPass:
     """Read pages until this pass completes or one page ends the wait."""
     readings = []
@@ -516,13 +587,19 @@ def cmd_wait(page_dir: Path | None = None, *, ack: str | None = None) -> int:
         target = "this session" if harness else ", ".join(map(str, explicit))
         print(f"another `leaf wait` is already active for {target}", file=sys.stderr)
         return 2
+
+    def print_delivery(reading: PageTick) -> None:
+        """Print immutable input; only the consumer can confirm receipt."""
+        print(delivery_json(reading, harness), flush=True)
+
     try:
         while True:
-            reading = read_watch_pass(watch, named)
+            mark = watch.mark()
+            reading = read_watch_pass(watch, named, print_delivery)
             if reading.outcome is not None:
                 return reading.outcome
             if not reading.live:
                 return _ended_watch(reading.readings, named)
-            time.sleep(1)
+            watch.await_news(mark)
     finally:
         watch.release()

@@ -3,7 +3,8 @@
 These scripts are developer tooling: the installed plugin is the whole tracked tree,
 so a host copies these along with it, but nothing under `skills/leaf` reads them at
 runtime. Python tools use the environment pinned by the root `pyproject.toml` and
-`uv.lock`; the browser contributor build uses `package.json` and `package-lock.json`.
+`uv.lock`; the JavaScript builds — the browser framework and every vendored bundle —
+use `package.json` and `package-lock.json`.
 
 Because the payload is the tracked tree, what a script generates lands under `.tmp/`
 unless a committed path is where the output's reader finds it: the vendored bundles
@@ -27,9 +28,9 @@ file says which script owns what, and the rules that hold across them.
   arriving as a fresh document, which is the half of the behavior a user is least
   likely to be looking for.
   `--export` writes the browser-drawn result as one standalone file instead.
-  A preview takes no task claim; `--user` claims the page so a user's presses
-  reach this session, and `--background` detaches either. `/developing-leaf` states
-  which to choose.
+  A preview runs in the foreground like a dev server, and each start builds its page
+  fresh. It takes no task claim; `--user` claims the page so a user's presses reach
+  this session. `/developing-leaf` states which to choose.
 - `corpus.py` generates the internal `examples/corpus.html` stress fixture and its
   companion data from the examples, regression pages under `tests/fixtures/pages/`, and the developer feature gallery.
 - `example_assets.py` fetches the immutable `max-sixty/leaf-assets` commit named by
@@ -94,6 +95,10 @@ rules a new or changed example has to meet.
   with the canonical event id or visible session reference; once the Container starts
   a Codex turn, its `turnId` also finds the model-request timings. Analytics Engine is
   aggregate product telemetry, not a log index.
+- `eval_claude_delivery.py [BASE_REF]` is a basic, imperfect paired eval of the
+  `leaf wait` carrier. It runs headless Claude Code sessions with BASE_REF's plugin
+  and this checkout's at the same time, and compares how promptly each acknowledges
+  and replies to one real comment. Its docstring lists what it does not yet measure.
 - `record-demo.sh` regenerates `docs/demo.gif`; `record-demo.py` draws it and the three
   photographs of the same staged scene beside it — the README's light and dark
   session stills, and `session-card.png` at the 1.91:1 an unfurler draws a card at.
@@ -124,9 +129,11 @@ installation, page initialization, source activation, and export copy or consume
 the committed browser output without invoking a compiler.
 
 `vendor.py` rebuilds the other third-party bundles — all of them by default, or the
-ones you name. Every version it pins sits in one table there. The page payload the
-browser build bundles (Lit and Signals) is pinned in `package.json` instead, and
-`vendor.py --pins` reads it from there. Each bundle lands in the package whose widget
+ones you name — from the same install. `package.json` is the one manifest for every
+JavaScript version that ships: it pins each package a build's own source imports,
+`esbuild` among them, and `package-lock.json` settles the rest of every closure, so
+a package another one depends on is held where its dependant's range and the lock
+put it. Each bundle lands in the package whose widget
 imports it, except `mcp-app`, which no widget imports and which lands in
 `skills/leaf/mcp-app/` for an MCP host to read from the install.
 
@@ -135,12 +142,10 @@ contains exactly one `/* LEAF_PIERRE_LANGUAGES */` sentinel; `vendor.py` replace
 with one `"<name>": () => import("@shikijs/langs/<name>"),` entry for every registry
 language before bundling.
 
-A bundle reproduces its tracked bytes exactly when every input it fetches is pinned,
-which holds for `marked`, `sortable`, `agentic-mermaid`, `floating-ui`, `highlight`,
-`jsdiff`, and `webawesome`, so a clean `git status` after a run is the check that the
-bundle still matches the script. `plot`, `pierre`, and `mcp-app` reach npm's resolver for transitive
-dependencies and inherit its ranges, so a diff from one of those can be an upstream
-patch rather than drift.
+Run `npm ci` first. After it, every bundle reproduces its tracked bytes exactly, so a
+clean `git status` after `vendor.py` is the check that the bundles still match the
+lock and the script; CI's `test` job runs it. A diff means the lock moved without a
+rebuild, or the script or registry changed.
 
 `webawesome` builds a chrome entry and an optional-widget entry with shared chunks.
 The chrome entry loads the standard search and copy controls; optional widgets
@@ -149,5 +154,6 @@ are registered once in the document and declared shadow stages. The chrome entry
 shared chunks live under `assets/vendor/`; the optional entry remains in the default
 package's vendor directory. Page vendoring composes both into the page's vendor root.
 
-Rerun a bundle after changing its pin or the registry input it reads; do not patch a
-generated bundle or `examples/corpus.html` directly.
+Rerun `vendor.py` after `npm install` moves a pin or the lock, or after changing the
+registry input a bundle reads; do not patch a generated bundle or
+`examples/corpus.html` directly.

@@ -56,6 +56,7 @@ from .event_log import flocked
 from .files import read_json, write_json
 from .host import Harness
 from .machine import state_home
+from .schema import THREAD_ANSWER_KINDS
 from .service import (
     PageTransaction,
     owned_pages,
@@ -64,10 +65,15 @@ from .service import (
 )
 
 START_TIMEOUT = 20
-RECORD_FORMAT = "leaf-codex-delivery-v1"
+# A collecting record holds captured events in the delivery's own shape, so the
+# version moves with it; a record of another version is dropped, and the events
+# its page has not acknowledged are captured afresh.
+RECORD_FORMAT = "leaf-codex-delivery-v2"
 STREAM_UPDATE_INTERVAL = 0.2
 STREAM_TEXT_METHODS = {"item/reasoning/summaryTextDelta"}
 STREAM_MESSAGE_METHOD = "item/agentMessage/delta"
+# The items a turn's opening may follow: its input, and the model's reasoning.
+OPENING_PRELUDE_ITEM_TYPES = {"userMessage", "functionCallOutput", "reasoning"}
 STREAM_HEARTBEAT_METHODS = {
     "item/commandExecution/outputDelta",
     "item/fileChange/outputDelta",
@@ -232,7 +238,7 @@ def start_app_server_delivery(send, thread_id: str, payload: dict) -> str:
     its own request ids.
 
     The seat is reserved before `turn/start` goes out, so no other writer answers
-    the delivery its final message is about to answer. What happens to the seat when
+    the delivery its turn is about to answer. What happens to the seat when
     the start fails depends on what the failure says. A definitive refusal
     (`AppServerRequestRejected`) or an answer naming no turn means no turn exists,
     so the seat goes back before this raises. A request that went out with no answer
@@ -400,7 +406,15 @@ class TurnStream:
 
 
 class AppServerEvents:
-    """Fold one task's notifications into activity and terminal readings."""
+    """Fold one task's notifications into activity and terminal readings.
+
+    A turn's reply is its opening and its final answer. The opening is a `commentary`
+    agent message that is the turn's first, written before any item but the turn's
+    input and reasoning: the agent writes it to the user before its first tool call,
+    so the reply starts streaming as soon as the turn does. Every other commentary is
+    the agent's working narration and stays in Codex, including narration written
+    after a tool call by an agent that skipped the opening.
+    """
 
     def __init__(self, thread_id: str):
         self.thread_id = thread_id
@@ -408,23 +422,32 @@ class AppServerEvents:
         self.text: dict[str, str] = {}
         self.message_phases: dict[str, str | None] = {}
         self.message_order: list[str] = []
+        self.opening: str | None = None
+        self.opening_open = True
         self.item_started_at: dict[str, int] = {}
         self.active_items: dict[str, dict] = {}
         self.waiting_kind: str | None = None
 
-    def restore_turn(self, turn: dict) -> str:
+    def restore_turn(self, turn: dict) -> None:
         """Replace transient message state with one resumed provider turn."""
         self.turn_id = turn["id"]
-        self.text.clear()
-        self.message_phases.clear()
-        self.message_order.clear()
-        self.item_started_at.clear()
-        self.active_items.clear()
-        self.waiting_kind = None
+        self._forget_turn()
         for item in turn.get("items", []):
             if item.get("type") == "agentMessage":
                 self._record_message(item)
-        return self.final_text(turn)
+            else:
+                self._close_opening(item)
+
+    def _forget_turn(self) -> None:
+        """Drop everything one turn's items left, so the next turn starts clean."""
+        self.text.clear()
+        self.message_phases.clear()
+        self.message_order.clear()
+        self.opening = None
+        self.opening_open = True
+        self.item_started_at.clear()
+        self.active_items.clear()
+        self.waiting_kind = None
 
     def read(self, message: dict) -> dict | None:
         """Return one transient activity or turn-completion update."""
@@ -445,9 +468,7 @@ class AppServerEvents:
             final = self.final_text(turn)
             if self.turn_id == completed:
                 self.turn_id = None
-                self.item_started_at.clear()
-                self.active_items.clear()
-                self.waiting_kind = None
+                self._forget_turn()
             return {
                 "turn": completed,
                 "completed": turn.get("status", "completed"),
@@ -484,7 +505,7 @@ class AppServerEvents:
             lifecycle = self._item_lifecycle(params, "started")
             if item["type"] == "agentMessage":
                 self._record_message(item)
-                if item.get("phase") == "commentary":
+                if not self._in_reply(item["id"]):
                     return {"turn": turn_id, "item": lifecycle}
                 self._set_active(item["id"], {"kind": "replying"})
                 if item.get("text"):
@@ -499,6 +520,7 @@ class AppServerEvents:
                     "item": lifecycle,
                     "activity": self._standing_activity(),
                 }
+            self._close_opening(item)
             detail = self._item_detail(item)
             if detail:
                 self._set_active(item["id"], {"kind": "tool", "detail": detail})
@@ -514,7 +536,7 @@ class AppServerEvents:
             self.active_items.pop(item["id"], None)
             if item["type"] == "agentMessage":
                 self._record_message(item)
-                if item.get("phase") == "commentary":
+                if not self._in_reply(item["id"]):
                     return {"turn": turn_id, "item": lifecycle}
                 return {
                     "turn": turn_id,
@@ -533,9 +555,11 @@ class AppServerEvents:
             combined = self.text.get(item_id, "") + params["delta"]
             self.text[item_id] = combined
             if item_id not in self.message_order:
-                self.message_order.append(item_id)
+                self._note_message(item_id)
                 self.message_phases[item_id] = None
-            if self.message_phases.get(item_id) == "commentary":
+            if self.message_phases.get(item_id) == "commentary" and not self._in_reply(
+                item_id
+            ):
                 return None
             self._set_active(item_id, {"kind": "replying"})
             return {
@@ -599,39 +623,65 @@ class AppServerEvents:
         self.active_items.pop(item_id, None)
         self.active_items[item_id] = activity
 
+    def _note_message(self, item_id: str) -> None:
+        self.message_order.append(item_id)
+        if self.opening is None and self.opening_open:
+            self.opening = item_id
+        self.opening_open = False
+
+    def _close_opening(self, item: dict) -> None:
+        if item["type"] not in OPENING_PRELUDE_ITEM_TYPES:
+            self.opening_open = False
+
     def _record_message(self, item: dict) -> None:
         item_id = item["id"]
         if item_id not in self.message_order:
-            self.message_order.append(item_id)
+            self._note_message(item_id)
         self.message_phases[item_id] = item.get("phase")
         self.text[item_id] = item.get("text", "")
 
+    def _in_reply(self, item_id: str) -> bool:
+        """Whether one agent message is part of the turn's reply."""
+        phase = self.message_phases.get(item_id)
+        return phase != "commentary" or item_id == self.opening
+
     def _visible_text(self) -> str:
+        opening = (
+            [self.text[self.opening]]
+            if self.opening is not None
+            and self.message_phases.get(self.opening) == "commentary"
+            and self.text.get(self.opening)
+            else []
+        )
         final = [
             self.text[item_id]
             for item_id in self.message_order
             if self.message_phases.get(item_id) == "final_answer"
             and self.text.get(item_id)
         ]
-        if final:
-            return "\n\n".join(final)
-        unknown = [
-            self.text[item_id]
-            for item_id in self.message_order
-            if self.message_phases.get(item_id) is None and self.text.get(item_id)
-        ]
-        return unknown[-1] if unknown else ""
+        if not final:
+            unknown = [
+                self.text[item_id]
+                for item_id in self.message_order
+                if self.message_phases.get(item_id) is None and self.text.get(item_id)
+            ]
+            final = unknown[-1:]
+        return "\n\n".join(opening + final)
 
-    def final_text(self, turn: dict) -> str:
-        """Return only completed final-answer content suitable for publication."""
-        items = [
-            item for item in turn.get("items", []) if item.get("type") == "agentMessage"
-        ]
-        return "\n\n".join(
-            item.get("text", "")
-            for item in items
-            if item.get("phase") == "final_answer" and item.get("text")
-        )
+    @staticmethod
+    def final_text(turn: dict) -> str:
+        """Return a completed turn's reply: its opening and final answer.
+
+        A turn with no final answer has no reply to publish, whatever its opening said.
+        """
+        opening, final = _reply_parts(turn)
+        return "\n\n".join(opening + final) if final else ""
+
+    @staticmethod
+    def reply_so_far(turn: dict) -> str:
+        """Return the reply a still-running turn has written, opening included."""
+        opening, final = _reply_parts(turn)
+        return "\n\n".join(opening + final)
 
     def _message_update(self, item_id: str, *, complete: bool) -> dict:
         return {
@@ -701,8 +751,33 @@ class AppServerEvents:
         return None
 
 
+def _reply_parts(turn: dict) -> tuple[list[str], list[str]]:
+    """Split one turn's items into its reply's opening and final-answer texts."""
+    items = turn.get("items", [])
+    first = next(
+        (item for item in items if item["type"] not in OPENING_PRELUDE_ITEM_TYPES),
+        None,
+    )
+    opening = (
+        [first["text"]]
+        if first is not None
+        and first["type"] == "agentMessage"
+        and first.get("phase") == "commentary"
+        and first.get("text")
+        else []
+    )
+    final = [
+        item["text"]
+        for item in items
+        if item["type"] == "agentMessage"
+        and item.get("phase") == "final_answer"
+        and item.get("text")
+    ]
+    return opening, final
+
+
 class AppServerReplyStream:
-    """Project and commit one App Server final answer as its Leaf reply."""
+    """Project and commit one App Server turn's opening and final answer as its reply."""
 
     def __init__(
         self,
@@ -715,9 +790,12 @@ class AppServerReplyStream:
         self.last_update = 0.0
 
     def update(self, update: dict | None) -> bool:
-        """Publish a final-answer item update, throttling only partial deltas."""
+        """Publish a reply message's update, throttling only partial deltas.
+
+        Only the final answer's completion settles the reply; the opening streams it.
+        """
         message = update.get("message") if update is not None else None
-        if message is None or message["phase"] != "final_answer":
+        if message is None or message["phase"] not in {"final_answer", "commentary"}:
             return False
         now = time.monotonic()
         if not message["complete"] and now - self.last_update < STREAM_UPDATE_INTERVAL:
@@ -725,13 +803,15 @@ class AppServerReplyStream:
         published = self.reply.replace(
             message["item"],
             message["text"],
-            settles=message["complete"] and bool(message["text"]),
+            settles=message["complete"]
+            and message["phase"] == "final_answer"
+            and bool(message["text"]),
         )
         self.last_update = now
         return published
 
     def restore(self, text: str) -> bool:
-        """Restore a still-running final answer after reconnecting."""
+        """Restore a still-running reply after reconnecting."""
         return self.reply.replace(None, text)
 
     def finish(
@@ -1032,10 +1112,6 @@ def delivery_records(session_id: str) -> list[tuple[Path, dict]]:
         record = read_json(path)
         if record is None or record.get("format") != RECORD_FORMAT:
             continue
-        if record["state"] == "collecting" and not all(
-            "handling" in batch for batch in record["batches"]
-        ):
-            continue
         if record["state"] == "offering":
             payload = read_json(delivery_path(path.stem))
             if payload is None or payload.get("format") != DELIVERY_FORMAT:
@@ -1058,26 +1134,10 @@ def _collecting_record(session_id: str) -> tuple[Path, dict] | None:
     return current[0] if current else None
 
 
-def delivery_pointer_prompt(delivery_id: str, payload: dict | None = None) -> str:
+def delivery_pointer_prompt(delivery_id: str) -> str:
     delivery = ElementTree.Element(
         "leaf-delivery", {"id": delivery_id, "operation": "delivery read"}
     )
-    if payload is not None:
-        for batch in payload["batches"]:
-            for conversation in batch["conversations"]:
-                if hint := conversation.get("summary_hint"):
-                    guidance = ElementTree.SubElement(
-                        delivery,
-                        "summarize",
-                        {
-                            "page": batch["page"],
-                            "conversation": conversation["id"],
-                            "from": hint["from"],
-                            "through": hint["through"],
-                            "operation": hint["operation"],
-                        },
-                    )
-                    guidance.text = hint["instruction"]
     pointer = ElementTree.tostring(delivery, encoding="unicode")
     return f"```xml\n{pointer}\n```"
 
@@ -1105,21 +1165,25 @@ def _readdress_record(path: Path) -> Path:
         return replacement
 
 
-def offer_delivery(path: Path, record: dict) -> PreparedDelivery:
-    """Freeze one payload before offering its permanent pointer."""
+def offer_delivery(path: Path, record: dict, carrier: str) -> PreparedDelivery:
+    """Freeze one payload for `carrier` before offering its permanent pointer.
+
+    A record already offering keeps the payload it froze: its pointer may have
+    reached the task, and a delivery never changes under its id."""
     if record["state"] == "offering":
         payload_path = delivery_path(path.stem)
         payload = read_json(payload_path)
         if payload is None:
             raise RuntimeError("the Codex delivery payload is missing")
         return PreparedDelivery(
-            delivery_pointer_prompt(path.stem, payload), payload, record_path=path
+            delivery_pointer_prompt(path.stem), payload, record_path=path
         )
 
     while True:
         try:
             payload = freeze_delivery(
                 record["batches"],
+                carrier=carrier,
                 delivery_id=path.stem,
                 created_at=record["created_at"],
             )
@@ -1140,7 +1204,7 @@ def offer_delivery(path: Path, record: dict) -> PreparedDelivery:
     record["state"] = "offering"
     write_record(path, record)
     return PreparedDelivery(
-        delivery_pointer_prompt(path.stem, payload), payload, record_path=path
+        delivery_pointer_prompt(path.stem), payload, record_path=path
     )
 
 
@@ -1181,17 +1245,19 @@ def append_batch(
     if not fresh:
         return None
 
+    # A record carries at most one thread reply, so the turn an App Server offer
+    # starts has one reply to write with its messages.
     replies = sum(
-        obligation["response"]["kind"] == "reply"
+        event["answer"]["kind"] in THREAD_ANSWER_KINDS
         for entry in record["batches"]
         for event in entry["events"]
-        if (obligation := event.get("obligation")) is not None
+        if "answer" in event
     )
     responses = current_responses(page_dir, transaction.events)
     selected = []
     for event in fresh:
         response = responses.get(event["id"])
-        if response is not None and response["kind"] == "reply":
+        if response is not None and response["kind"] in THREAD_ANSWER_KINDS:
             if replies:
                 break
             replies += 1
@@ -1199,12 +1265,7 @@ def append_batch(
     if not selected:
         return None
 
-    data = batch_data(
-        page_dir,
-        transaction,
-        selected,
-        as_of_seq=max(event["seq"] for event in fresh),
-    )
+    data = batch_data(page_dir, transaction, selected)
     entry = {
         **data,
         "session": session_id,
@@ -1222,40 +1283,36 @@ def delivery_owed_moves(payload: dict) -> list[dict]:
         {"page": batch["page"], "responds": event["id"]}
         for batch in payload["batches"]
         for event in batch["events"]
-        if event.get("obligation") is not None
-    ]
-
-
-def delivery_reply_targets(payload: dict) -> list[dict]:
-    """Every plain reply address the moves in one delivery are owed.
-
-    A move's response address is not the move: a widget gesture inside a frozen
-    conversation is answered on the conversation that holds it. Reading both halves
-    from the delivery keeps every writer — the provider's own final answer and a
-    host receipt written when there will be no final answer — addressing the same
-    place.
-    """
-    return [
-        {
-            "page": batch["page"],
-            "reply_to": obligation["response"]["to"],
-            "responds": obligation["response"]["for"],
-        }
-        for batch in payload["batches"]
-        for event in batch["events"]
-        if (obligation := event.get("obligation")) is not None
-        and obligation["response"]["kind"] == "reply"
+        if "answer" in event
     ]
 
 
 def stream_reply_target(payload: dict) -> dict | None:
-    """Return the one plain reply address a provider message may answer."""
-    targets = delivery_reply_targets(payload)
+    """The one reply address a delivery's turn writes with its own messages.
+
+    It is the delivery's `turn` answer, which only a delivery frozen for App
+    Server holds: a pointer queued for `leaf reply` names a plain reply even when
+    a turn Leaf observes picks it up. A move's response address is not the move: a
+    widget gesture inside a frozen conversation is answered on the conversation
+    that holds it. Reading both halves from the delivery keeps every writer — the
+    provider's own final answer and a host receipt written when there will be no
+    final answer — addressing the same place.
+    """
+    targets = [
+        {
+            "page": batch["page"],
+            "reply_to": event["answer"]["to"],
+            "responds": event["answer"]["for"],
+        }
+        for batch in payload["batches"]
+        for event in batch["events"]
+        if "answer" in event and event["answer"]["kind"] == "turn"
+    ]
     return targets[0] if len(targets) == 1 else None
 
 
 def delivery_stream_reply_target(session_id: str, delivery_id: str) -> dict | None:
-    """Resolve one task-owned delivery identity to its plain reply address."""
+    """Resolve one task-owned delivery identity to the reply its turn writes."""
     path = record_path(session_id, delivery_id)
     records = (path, path.parent / "history" / path.name)
     if not any(
@@ -1303,7 +1360,7 @@ def prepare_codex_delivery(page_dir: Path, harness: Harness) -> PreparedDelivery
                     None,
                 )
                 if pending is not None:
-                    offered = offer_delivery(*pending)
+                    offered = offer_delivery(*pending, "app-server")
                     return PreparedDelivery(offered.prompt, offered.payload, transition)
                 captured = append_batch(
                     session_id,
@@ -1314,7 +1371,7 @@ def prepare_codex_delivery(page_dir: Path, harness: Harness) -> PreparedDelivery
                 if captured is None:
                     raise RuntimeError("the page input is already in a Codex delivery")
                 path, _, _ = captured
-                offered = offer_delivery(path, read_json(path))
+                offered = offer_delivery(path, read_json(path), "app-server")
                 return PreparedDelivery(offered.prompt, offered.payload, transition)
     except BaseException:
         restore_page_claim(page_dir, transition)

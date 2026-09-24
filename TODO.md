@@ -53,15 +53,6 @@ has tried; settle that before building it.
   multi-step work, and delegation. Show the plan as well as the current step;
   check that the hosted website agent's status is readable without delaying its
   reply. Keep delegated work visible while its watcher is live.
-- **Tell each host only the handling it can act on.** Every delivery carries the
-  same clauses to every host, including "acknowledge this delivery … where your host
-  leaves acknowledgement to you" and "reply with `leaf reply` before any other work".
-  Only `leaf wait` in Claude Code leaves either to the agent: both Codex transports
-  acknowledge themselves, and over App Server the final message is the reply. Paired
-  `verify_site.py local` runs on 2026-09-23 had the leaf.page agent invent
-  `leaf delivery ack`, `$LEAF ack` and `leaf acknowledge`, and post an early
-  `leaf reply`, on main and after the prompt change alike. Record at freeze time
-  how a delivery is carried, and attach those clauses only where they apply.
 
 ## Next
 
@@ -84,11 +75,18 @@ has tried; settle that before building it.
 
 ### Layout
 
-- **Replace the document/workspace choice with layout axes.** Follow the
-  [layout model](notes/layout-model.md): a two-state `lf-workspace` that picks its
-  posture from its own size (#30), then the playground, visual review and Ask onto
-  the grid (#31). **Unconfirmed:** that one global threshold suits the comparison and
-  queue-with-detail pages.
+- **Test the layout recipes on agents.** Give fresh agents tasks across the recipes in
+  `page-authoring.md` ("Composing a page"), then ask them to revise the results: turn
+  a report into a report with live status while keeping its comments. The recipes hold
+  if revisions happen by ordinary composition, with no page-wide CSS and no wholesale
+  restructuring. Include a cold agent asked for "a dashboard", the likeliest trigger
+  for over-tiling. Run it with the agent-usability baseline (#19). **Unconfirmed:**
+  that one global threshold (720×480) suits the comparison and queue-with-detail
+  pages.
+- **Layout values that wait for a task:** row and column spans in `lf-grid` with a
+  narrow-width rule; a selection-and-detail component whose phone form shows one side
+  at a time; canvas regions, whose reading position is two-dimensional; slides as a
+  presentation of `lf-tabs`.
 - **Trim a heading's margin at the top of a page when a block wraps it.** A page
   whose first block is an `lf-ask` opens 48px lower than one that starts with its
   own heading: the Ask's `h2` margin collapses through the boxless `lf-ask` to
@@ -115,10 +113,17 @@ has tried; settle that before building it.
   several open Asks and an informational page before choosing how the banner
   explains who owes the next move. Keep explicit agent status available when the
   Ask alone does not explain the wait.
-- **Give each delivery-loop rule one home.** The acknowledge-then-reply order and
-  what the delivery statuses mean are still written in several places.
-  [The audit](notes/guidance-duplication.md) lists every site and proposes a home
-  for each rule.
+- **Decide whether requests earn their weight.** A request (`x-request`, `leaf
+  receipt`) is a non-undoable one-shot operation the user asks the host to run, with
+  one pending attempt per control and a `succeeded`/`failed` receipt. Leaf never
+  runs it, and a receipt carries no structured result. Its users are Command Hub's
+  `lf-operations`, monitoring's `lf-release-actions` and the developer gallery's
+  `lf-job-requests`, none backed by a real integration, while the lifecycle reaches
+  `requests.py`, workflows, Asks, admission, the runtime's pending model and margin,
+  and the Codex adapter's failure receipts. Once the Command Hub redesign settles
+  whether its operations stay, either remove requests and recast the remaining
+  operations as Asks, or keep them and cut what only the gallery uses: projected
+  holders (`records`, one seat per data row).
 
 ## Etc
 
@@ -166,18 +171,12 @@ Revisit these when their stated trigger becomes real; they are not an active que
   `tests/runtime/dom.mjs` only when a test needs another module.
 - **Claude Code tool observation:** consider a cheap hook for sessions holding
   pages if status evaluations show that agent declarations are insufficient.
-- **Tool-result guidance in code:** `hooks/wait-started.json` is static text a
-  shell gate prints after a `leaf wait` launch. If a second piece of guidance
-  needs a tool-result hook, or this one should depend on page state (only while
-  the user owes an Ask), route `PostToolUse` through `leaf hook`, which reads
-  the harness off the session's claims. Codex ignores the hook's `if` filter and
-  runs it on every shell call, so keep a cheap gate ahead of `uv run`.
 - **A cheap `leaf hook`:** every hook Leaf registers pays `uv run leaf hook`,
   about 0.3–0.5s warm and 2.5s cold, and the host waits for it. That cost is why
-  tool-result guidance above stays static text, and it limits what else hooks
-  can carry. Most of the warm time is Python startup and imports: `leaf.hooks`
-  alone pulls in `delivery`, `event_contracts` and `anchor_capture`, about
-  120ms. Get the hook path off those imports, then consider a `leaf` filter in
+  the `PostToolUse` registration keeps its `if` prefilter, and it limits what
+  else hooks can carry. Most of the warm time is Python startup and imports:
+  `leaf.hooks` alone pulls in `delivery`, `event_contracts` and
+  `anchor_capture`, about 120ms. Get the hook path off those imports, then consider a `leaf` filter in
   front of every tool-result hook, so Leaf can answer more events itself.
   Rewriting the hook path in a compiled language is the further step if that
   is not enough.

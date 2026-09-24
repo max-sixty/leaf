@@ -103,7 +103,7 @@ def test_cli_help_groups_commands_with_complete_summaries(regtest):
     regtest.write("\n".join(outputs))
 
 
-def test_wait_help_requires_a_complete_batch():
+def test_wait_help_says_where_a_delivery_says_how_to_confirm_it():
     result = CliRunner().invoke(
         cli_model.cli,
         ["wait", "--help"],
@@ -113,11 +113,8 @@ def test_wait_help_requires_a_complete_batch():
     assert result.exit_code == 0
     assert "--forward" not in result.output
     normalized = " ".join(result.output.split())
-    for instruction in (
-        schema_model.WAIT_BATCH_OUTPUT_INSTRUCTION,
-        schema_model.ACK_BATCH_INSTRUCTION,
-    ):
-        assert " ".join(instruction.split()) in normalized
+    instruction = schema_model.WAIT_BATCH_OUTPUT_INSTRUCTION
+    assert " ".join(instruction.split()) in normalized
 
 
 def test_agent_interaction_command_help(regtest):
@@ -261,51 +258,6 @@ def test_the_python_instructions_name_every_module_they_own():
         )
     ]
     assert not unnamed, f"unnamed in scripts/AGENTS.md: {unnamed}"
-
-
-def test_the_tooling_instructions_place_every_vendored_bundle():
-    """Whether a rebuild reproduces its bytes must be named where sessions read.
-
-    `scripts/AGENTS.md` says a clean `git status` after `vendor.py <bundle>` is the
-    check that the bundle still matches the script, and that the check holds only for
-    the bundles whose every fetched input is pinned. That sentence is what a session
-    consults before reading a rebuild's diff as drift or as an upstream patch, so a
-    bundle it never places has no answer either way — which is how `floating-ui`, whose
-    pins cover its whole closure, and `mcp-app`, whose do not, both went unplaced. The
-    names come from `vendor.py` rather than a list here, for the reason the routing
-    above states: a list is the second copy, and the bundle added without the sentence
-    would stay green.
-    """
-    tree = ast.parse((ROOT / "scripts" / "vendor.py").read_text(encoding="utf-8"))
-    bundles = {
-        key.value
-        for node in ast.walk(tree)
-        for target in (
-            node.targets
-            if isinstance(node, ast.Assign)
-            else [node.target]
-            if isinstance(node, ast.AnnAssign)
-            else []
-        )
-        if isinstance(target, ast.Name) and target.id in {"BUILDS", "COPIES"}
-        for key in node.value.keys
-        if isinstance(key, ast.Constant)
-    }
-    paragraphs = [
-        paragraph
-        for paragraph in (ROOT / "scripts" / "AGENTS.md")
-        .read_text(encoding="utf-8")
-        .split("\n\n")
-        if paragraph.startswith("A bundle reproduces its tracked bytes exactly")
-    ]
-
-    assert bundles, "no bundles read — an empty set places itself"
-    assert len(paragraphs) == 1, (
-        "scripts/AGENTS.md no longer opens one paragraph with "
-        f"'A bundle reproduces its tracked bytes exactly': {len(paragraphs)} found"
-    )
-    unplaced = sorted(name for name in bundles if f"`{name}`" not in paragraphs[0])
-    assert not unplaced, f"unplaced in scripts/AGENTS.md: {unplaced}"
 
 
 def test_the_root_instructions_name_every_directory_ci_gates_on_its_own():
@@ -4160,23 +4112,15 @@ def test_page_init_selects_the_same_directory_contract_at_any_cardinality(
     )
     (widget_package / "vendor" / "solo.json").write_text('{"accent":"plum"}\n')
     (widget_package / "guidance").mkdir()
-    (widget_package / "guidance" / "author.md").write_text(
-        "# Solo widget\n\nUse one solo.\n"
-    )
-    (widget_package / "guidance" / "worker.md").write_text(
-        "# Solo worker\n\nReport the result.\n"
-    )
+    (widget_package / "guidance" / "author.md").write_text("Use one solo.\n")
+    (widget_package / "guidance" / "worker.md").write_text("Report the result.\n")
 
     theme_package = tmp_path / "night"
     theme_package.mkdir()
     (theme_package / "theme.css").write_text(":root { --solo-night: 1; }\n")
     (theme_package / "guidance").mkdir()
-    (theme_package / "guidance" / "author.md").write_text(
-        "# Night theme\n\nUse after dusk.\n"
-    )
-    (theme_package / "guidance" / "reviewer.md").write_text(
-        "# Night reviewer\n\nCheck the contrast.\n"
-    )
+    (theme_package / "guidance" / "author.md").write_text("Use after dusk.\n")
+    (theme_package / "guidance" / "reviewer.md").write_text("Check the contrast.\n")
 
     page = tmp_path / "page"
     initialized = CliRunner().invoke(
@@ -4204,7 +4148,9 @@ def test_page_init_selects_the_same_directory_contract_at_any_cardinality(
         "--solo-night: 1"
     )
     guidance = (page / "guidance" / "author.md").read_text()
-    assert guidance.index("# Solo widget") < guidance.index("# Night theme")
+    assert guidance == (
+        "# Package `solo`\n\nUse one solo.\n\n# Package `night`\n\nUse after dusk.\n"
+    )
     assert "Report the result." in (page / "guidance" / "worker.md").read_text()
     assert "Check the contrast." in (page / "guidance" / "reviewer.md").read_text()
 
@@ -4215,7 +4161,16 @@ def test_page_init_selects_the_same_directory_contract_at_any_cardinality(
     assert audiences.exit_code == 0, audiences.output
     assert audiences.output.splitlines() == ["author", "reviewer", "worker"]
     assert worker.exit_code == 0, worker.output
-    assert worker.output == "# Solo worker\n\nReport the result.\n"
+    assert worker.output == "# Package `solo`\n\nReport the result.\n"
+    author = CliRunner().invoke(
+        cli_model.cli, ["page", "guidance", str(page), "author"]
+    )
+    assert author.exit_code == 0, author.output
+    assert author.output.endswith(
+        "# Other audiences\n\nThis page also carries guidance for `reviewer` "
+        "and `worker`. Whoever takes one of those roles, you or an agent you assign, "
+        "reads `leaf page guidance <page> <audience>` before acting in it.\n"
+    )
 
     revendored = CliRunner().invoke(cli_model.cli, ["page", "init", str(page)])
     assert revendored.exit_code == 0, revendored.output
@@ -4260,7 +4215,7 @@ def test_page_init_vendors_an_explicit_package_without_privileging_it(
     assert not (plain / "widgets" / "lf-command.js").exists()
     assert (command / "widgets" / "lf-command.js").is_file()
     assert list((plain / "guidance").iterdir()) == []
-    assert "# Command Hub package" in (command / "guidance" / "author.md").read_text()
+    assert "# Package `command-hub`" in (command / "guidance" / "author.md").read_text()
     plain_audiences = CliRunner().invoke(
         cli_model.cli, ["page", "guidance", str(plain)]
     )
@@ -4273,7 +4228,7 @@ def test_page_init_vendors_an_explicit_package_without_privileging_it(
     assert audiences.exit_code == 0, audiences.output
     assert audiences.output.splitlines() == ["author", "coordinator", "worker"]
     assert coordinator.exit_code == 0, coordinator.output
-    assert "# Command Hub coordinator" in coordinator.output
+    assert "# Package `command-hub`" in coordinator.output
     assert "# Data contract `lf-worktree`" in coordinator.output
     assert (
         packaged_registry["$data"]["contracts"]["lf-worktree"]["guidance"][
@@ -4575,3 +4530,21 @@ def test_a_host_that_names_nothing_is_asked_for_its_path_only_after_chrome(
     assert browser_model.discovered_executable() is None
     hint = browser_model.browser_hint()
     assert "chromium" in hint and "LEAF_BROWSER_EXECUTABLE" in hint
+
+
+def test_producer_guidance_names_a_bundled_script_by_its_path_here(tmp_path):
+    """A reader of `leaf page guidance` with no skill loaded, such as a worker the
+    author assigns, gets a command it can run as printed: the bundled producer
+    script's absolute path on this machine, not a placeholder."""
+    page = tmp_path / "patch-page"
+    initialized = CliRunner().invoke(
+        cli_model.cli, ["page", "init", "--package", "diff", str(page)]
+    )
+    assert initialized.exit_code == 0, initialized.output
+    producer = CliRunner().invoke(
+        cli_model.cli, ["page", "guidance", str(page), "producer"]
+    )
+    assert producer.exit_code == 0, producer.output
+    assert "<leaf-packages>" not in producer.output
+    [script] = re.findall(r"uv run (\S+patch_manifest\.py)", producer.output)
+    assert Path(script).is_absolute() and Path(script).is_file()

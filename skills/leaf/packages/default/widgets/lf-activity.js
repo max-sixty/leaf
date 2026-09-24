@@ -1,36 +1,50 @@
 /* lf-activity: the page's history as a feed, newest first.
  *
- * The event log is the only input and this list stores nothing: every reading of
- * `watchHistory` restates the whole feed. A row says who moved (You for the user, the
- * agent's own voice for an agent, Page for what the page did by itself), what they did,
- * the thing they did it to, and how long ago. The thing is the row's way there: a
- * widget or section is an ordinary fragment link, so the browser owns that travel as it
- * does for lf-toc, and a conversation is a button onto `openThread`, which chooses the
- * thread's inline destination or Threads the same way a mark and t/T do. Links and
- * buttons are the keyboard route: each is a Tab stop and a go-to target.
+ * The server's history reading is the only input and this list stores nothing: every
+ * reading of `watchHistory` restates the whole feed. A row says who moved (You for the
+ * user, the agent's own voice for an agent, Page for what the page did by itself), what
+ * they did, the thing they did it to, and how long ago.
  *
- * Bookkeeping stays out: `read`, `pickup` (a delivery fact the banner already reports as
- * activity), `summary`, `conversation_title`, and `error`. An `undo` is not its own row;
- * it marks the gesture it took back, which is what a user scanning the feed needs to
- * know about that gesture.
+ * What a move was is the server's: the thread it belongs to and that thread's title,
+ * whether a later undo took it back, and for a widget gesture the words its ids had in
+ * the document it was made in, under that document's declaration of the widget. A
+ * version that rewords or removes an option therefore leaves the row as the user made
+ * it. This module words those facts and names the places on the page it links to.
+ *
+ * A place is named on the page the user is reading, since that is where the row leads.
+ * An element is named by `addressableName`, the name the authoring contract gives it;
+ * where something happened is the nearest element from there up to the column that has
+ * one. A quoted passage is named as Threads names its anchor (`anchorLabel`). An element
+ * the contract names nowhere is named by its own words (`addressableSays`), cut short.
+ *
+ * The thing is the row's way there: a widget or section is an ordinary fragment link,
+ * so the browser owns that travel as it does for lf-toc, and a conversation is a button
+ * onto `openThread`, which chooses the thread's inline destination or Threads the same
+ * way a mark and t/T do. Links and buttons are the keyboard route: each is a Tab stop
+ * and a go-to target.
+ *
+ * An excerpt is the words its Markdown renders, never the source.
  *
  * Rows are keyed by event id and only new rows are inserted, so a user tabbing down
  * the feed keeps their place when the log grows or the clock moves a timestamp. */
 import {
+  addressableName,
+  addressableSays,
   agentName,
   ago,
-  declarationFor,
+  anchorLabel,
   layerFact,
+  loadMarkdown,
+  markdownReady,
+  markdownWords,
   offer,
   once,
   openThread,
   relabel,
   watchHistory,
-  wrote,
 } from "/runtime/widget-api.js";
 
-const LIMIT = 50;
-const NAMING = ":scope > :is(strong, h1, h2, h3, h4, h5, h6, header)";
+const NAME = 60;
 
 const clip = (text, length) => {
   const flat = String(text ?? "")
@@ -39,139 +53,84 @@ const clip = (text, length) => {
   return flat.length > length ? `${flat.slice(0, length - 1).trimEnd()}…` : flat;
 };
 
-// An element's own name: its label, else the heading or lead words it opens with.
-function ownName(element) {
-  const lead = element.querySelector(NAMING);
-  return clip(element.getAttribute("label"), 60) || (lead ? clip(wrote(lead), 60) : "");
-}
-
 // Where something happened: the nearest named element from it up to the column, else
-// its id.
+// the thing's own words, else its id.
 function nameOf(id) {
   const element = id ? document.getElementById(id) : null;
   if (!element) return id || "the page";
   for (let at = element; at && at.localName !== "main"; at = at.parentElement) {
-    const name = ownName(at);
+    const name = clip(addressableName(at), NAME);
     if (name) return name;
   }
-  return id;
+  return clip(addressableSays(element), NAME) || id;
 }
 
-// A choice or a moved item is named by its own words, since it is the thing itself.
-function itemName(id) {
-  const element = id ? document.getElementById(id) : null;
-  if (!element) return id;
-  return ownName(element) || clip(wrote(element), 60) || id;
+// A comment's place: a passage, a drawing's part, a datum, or a design subject as
+// Threads names it; a whole element by where it is.
+function placeName(anchor, about) {
+  // A bare quote is cut inside its marks, so a long one still reads as a quote.
+  if (anchor?.quote && !anchor.datum && about !== "design")
+    return quoted(clip(anchor.quote, NAME));
+  if (anchor?.visual || anchor?.datum || about === "design")
+    return clip(anchorLabel(anchor, about), NAME);
+  return nameOf(anchor?.section ?? null);
 }
 
 const reaction = (token) => layerFact("$reactions")?.tokens?.[token]?.glyph ?? token;
 
-const actorOf = (event) =>
-  event.author === "user"
+const actorOf = (row) =>
+  row.author === "user"
     ? "You"
-    : event.author === "page"
+    : row.author === "page"
       ? "Page"
-      : event.agent || (event.author === "agent" ? agentName() : event.author);
-
-function threadRoot(event, byId) {
-  let current = event;
-  const seen = new Set();
-  while (current?.parent && !seen.has(current.id)) {
-    seen.add(current.id);
-    current = byId.get(current.parent);
-  }
-  return current?.kind === "comment" ? current : null;
-}
+      : row.agent || (row.author === "agent" ? agentName() : row.author);
 
 const quoted = (words) => `“${words}”`;
+const named = (words) => quoted(clip(words, NAME));
 
 // The conversation's name as Threads states it: its latest title, else its opening words.
-function topicOf(root, titles) {
-  if (!root) return "a thread";
-  return titles.get(root.id) ?? clip(root.text || root.token || "a drawing", 48);
-}
+const topicOf = (thread) =>
+  !thread
+    ? "a thread"
+    : (thread.title ?? (clip(markdownWords(thread.opening), 48) || "a drawing"));
 
-function actionPhrase(event) {
-  const element = document.getElementById(event.widget);
-  const state = declarationFor(element, "x-state")?.[event.action];
-  const record = state?.record;
-  const detail = event.detail ?? {};
-  if (record?.kind === "attribute") {
-    const ids = [detail[record.value]].flat().filter(Boolean);
-    const chosen = ids.map((id) => quoted(itemName(id))).join(", ") || "nothing";
-    return { what: `chose ${chosen} in`, widget: event.widget };
+function gesturePhrase(gesture) {
+  switch (gesture.form) {
+    case "choice":
+      return `chose ${gesture.chosen.map(named).join(", ") || "nothing"} in`;
+    case "move":
+      return `moved ${named(gesture.unit)} to ${named(gesture.to)} in`;
+    case "edit":
+      return "edited";
+    case "add":
+      return `added ${named(gesture.words)} to`;
+    default:
+      return `recorded ${quoted(gesture.verb)} on`;
   }
-  if (record?.kind === "position")
-    return {
-      what: `moved ${quoted(itemName(detail[state.unit]))} to ${quoted(itemName(detail[record.value]))} in`,
-      widget: event.widget,
-    };
-  if (record?.kind === "body") return { what: "edited", widget: event.widget };
-  return { what: `recorded ${quoted(event.action)} on`, widget: event.widget };
 }
 
-function reportPhrase(event) {
-  const element = document.getElementById(event.widget);
-  const report = declarationFor(element, "x-report")?.[event.action];
-  const detail = event.detail ?? {};
-  const value = report?.record?.value ? detail[report.record.value] : null;
-  return {
-    what: `reported ${quoted(value ?? event.action)} on`,
-    widget: event.widget,
-    excerpt: report?.update ? detail[report.update] : null,
-  };
-}
-
-// A request names its operation the way the holder offers it: the offered child's words.
-function operationName(request) {
-  const holder = document.getElementById(request?.widget);
-  const offers = declarationFor(holder, "x-request")?.offers ?? {};
-  for (const [tag, attribute] of Object.entries(offers)) {
-    const child = [...(holder?.children ?? [])].find(
-      (candidate) =>
-        candidate.localName === tag &&
-        candidate.getAttribute(attribute) === request.action,
-    );
-    const words = child && clip(wrote(child.querySelector(NAMING) ?? child), 60);
-    if (words) return words;
-  }
-  return request?.action?.replaceAll("-", " ") ?? "request";
-}
-
-// One event as a row description, or null for an event the feed leaves out: `read`,
-// `pickup`, `summary`, `conversation_title`, `error`, and `undo` reach the default.
-function describe(event, context) {
-  const { byId, titles } = context;
-  const root = threadRoot(
-    event.kind === "edit" ? byId.get(event.message) : event,
-    byId,
-  );
-  const thread = (what, label, excerpt) => ({
+// One served row as the words and the way there it is drawn with.
+function describe(row) {
+  const thread = (what, label) => ({
     what,
-    thread: root?.id,
-    label: label ?? quoted(topicOf(root, titles)),
-    excerpt,
+    thread: row.thread?.id,
+    label: label ?? quoted(topicOf(row.thread)),
   });
-  switch (event.kind) {
-    case "comment": {
-      const where = event.holds ?? event.anchor?.section ?? null;
-      if (event.token)
+  switch (row.kind) {
+    case "comment":
+      if (row.token)
         return {
-          what: `reacted ${reaction(event.token)} on`,
-          widget: where,
-          label: nameOf(where),
+          what: `reacted ${reaction(row.token)} on`,
+          widget: row.anchor?.section ?? null,
+          label: placeName(row.anchor, row.about),
         };
-      if (event.holds) return thread("paused", nameOf(where), event.text);
+      if (row.holds) return thread("paused", nameOf(row.holds));
       return thread(
-        event.drawing && !event.text ? "drew on" : "commented on",
-        nameOf(where),
-        event.text,
+        row.drawing && !row.excerpt ? "drew on" : "commented on",
+        placeName(row.anchor, row.about),
       );
-    }
     case "reply":
-      return event.token
-        ? thread(`reacted ${reaction(event.token)} in`)
-        : thread("replied in", undefined, event.text);
+      return thread(row.token ? `reacted ${reaction(row.token)} in` : "replied in");
     case "edit":
       return thread("edited a message in");
     case "resolve":
@@ -179,28 +138,20 @@ function describe(event, context) {
     case "unresolve":
       return thread("reopened");
     case "action":
-      return actionPhrase(event);
+      return { what: gesturePhrase(row.gesture), widget: row.widget };
     case "report":
-      return reportPhrase(event);
+      return { what: `reported ${quoted(row.value)} on`, widget: row.widget };
     case "request":
+      return { what: `requested ${quoted(row.operation)} in`, widget: row.widget };
+    case "receipt":
       return {
-        what: `requested ${quoted(operationName(event))} in`,
-        widget: event.widget,
+        what: `${row.status === "succeeded" ? "completed" : "failed"} ${quoted(row.operation)} in`,
+        widget: row.widget,
       };
-    case "receipt": {
-      const request = byId.get(event.request);
-      return {
-        what: `${event.status === "succeeded" ? "completed" : "failed"} ${quoted(operationName(request))} in`,
-        widget: request?.widget,
-        excerpt: event.text,
-      };
-    }
     case "note":
-      return { what: `published v${event.version}`, excerpt: event.text };
-    case "done":
-      return { what: `approved v${event.version}` };
+      return { what: `published v${row.version}` };
     default:
-      return null;
+      return { what: `approved v${row.version}` };
   }
 }
 
@@ -273,6 +224,7 @@ customElements.define(
     #empty = null;
     // Event id to its row and the description it was last filled from.
     #rows = new Map();
+    #history = [];
 
     connectedCallback() {
       if (once(this)) {
@@ -285,7 +237,15 @@ customElements.define(
         this.#empty.textContent = "Nothing has happened on this page yet.";
         this.replaceChildren(this.#list, this.#empty);
       }
-      this.#stop ??= watchHistory(this, (events) => this.#render(events));
+      this.#stop ??= watchHistory(this, (history) => {
+        this.#history = history;
+        this.#render(history);
+        // Excerpts painted from the source take the parser's words once it lands.
+        if (!markdownReady())
+          loadMarkdown().then((loaded) => {
+            if (loaded && this.#stop) this.#render(this.#history);
+          });
+      });
     }
 
     disconnectedCallback() {
@@ -293,30 +253,16 @@ customElements.define(
       this.#stop = null;
     }
 
-    #render(events) {
-      const byId = new Map(events.map((event) => [event.id, event]));
-      const titles = new Map();
-      const undone = new Set();
-      for (const event of events) {
-        if (event.kind === "conversation_title")
-          titles.set(event.conversation, event.title);
-        if (event.kind === "undo") undone.add(event.undoes);
-      }
-      const context = { byId, titles };
-      const rows = [];
-      for (let at = events.length - 1; at >= 0 && rows.length < LIMIT; at -= 1) {
-        const event = events[at];
-        const described = describe(event, context);
-        if (!described) continue;
-        rows.push({
-          ...described,
-          id: event.id,
-          ts: event.ts,
-          author: event.author,
-          actor: actorOf(event),
-          undone: undone.has(event.id),
-        });
-      }
+    #render(history) {
+      const rows = history.map((served) => ({
+        ...describe(served),
+        excerpt: served.excerpt ? markdownWords(served.excerpt) : null,
+        id: served.id,
+        ts: served.ts,
+        author: served.author,
+        actor: actorOf(served),
+        undone: served.undone,
+      }));
 
       const kept = new Set();
       let next = this.#list.firstElementChild;

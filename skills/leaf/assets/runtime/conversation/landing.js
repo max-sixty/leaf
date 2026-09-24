@@ -465,7 +465,9 @@ export function createConversationLanding({ setPanel, scrollToThread, revealThre
     box.lfRevealReply?.();
     box.focus({ preventScroll: true });
     revealConversation(held, box);
-    if (held.dataset.id) scrollToThread(held.dataset.id);
+    // The page half follows the conversation the user is in, and keeps the surface
+    // holding it rather than clearing it for the passage.
+    if (held.dataset.id) scrollToThread(held.dataset.id, { keep: true });
     return true;
   };
   const landInConversation = (box, route = null) => landIn({ box, route });

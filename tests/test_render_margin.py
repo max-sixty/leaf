@@ -6249,7 +6249,9 @@ def test_standing_on_a_commented_element_opens_its_thread_in_threads(browser, se
     # A pointer on the other element focuses it without keyboard arrival.
     page.locator("#heater-p").click()
     expect(page.locator("#heater-p")).to_be_focused()
-    assert not page.locator("#heater-p").evaluate("node => node.matches(':focus-visible')")
+    assert not page.locator("#heater-p").evaluate(
+        "node => node.matches(':focus-visible')"
+    )
     expect(expanded).to_have_attribute("data-id", third["id"])
 
 

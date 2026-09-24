@@ -126,13 +126,7 @@ import { versionBtn } from "./version-chooser.js";
 import { motion, scrollBehavior } from "./motion.js";
 import { panel } from "./conversation/panel-elements.js";
 import { accompanyThread } from "./conversation/landing.js";
-import {
-  blockAt,
-  closestAcross,
-  containsAcross,
-  elementById,
-  inChrome,
-} from "./passages.js";
+import { blockAt, closestAcross, elementById, inChrome } from "./passages.js";
 import { addressableSays, addressableWord, visualAt } from "./anchor-resolution.js";
 import { paintTrace } from "./target-paint.js";
 import { updateSequence } from "./updates.js";
@@ -160,7 +154,7 @@ import {
   threadAttention,
   workflowLabel,
 } from "./conversation/workflow.js";
-import { renderedParent } from "./shadow.js";
+import { renderedParent, under } from "./shadow.js";
 import { retainUserIntent } from "./user-intent.js";
 
 // Whether the margin's rail stands, as the stylesheet decided it: theme.css states the
@@ -2675,9 +2669,9 @@ export function createMarginProjection({
     let standing = null;
     for (const entry of pageInventory) {
       const target = targetFor(entry);
-      if (!target || !threadReading(entry) || !containsAcross(target, node)) continue;
+      if (!target || !threadReading(entry) || !under(node, target)) continue;
       if (seatedOnPage(threadIdOf(entry))) continue;
-      if (!standing || containsAcross(targetFor(standing), target)) standing = entry;
+      if (!standing || under(target, targetFor(standing))) standing = entry;
     }
     return standing;
   };

@@ -83,8 +83,8 @@ def take_lease(path: Path, label: str | None = None):
         record.close()
 
 
-def retire_lock(path: Path) -> None:
-    """Remove this lock or lease file if no process holds it.
+def retire_lock(path: Path, page: Path) -> None:
+    """Remove an unheld page lock only while its page is still gone.
 
     Its lock is taken, without waiting, before the file goes, so a holder keeps
     it; the file goes while that lock is held, so a process that opened it
@@ -92,7 +92,8 @@ def retire_lock(path: Path) -> None:
     again on a new file (`names_locked`). A leaf too old to ask that would hold
     the removed file beside a new holder of its successor if it opened the file
     between this lock and the removal, so a caller removes only a lock no such
-    leaf has reason to open (`sweep`)."""
+    leaf has reason to open (`sweep`). Check the page under the lock: an init
+    may have recreated it since the sweep found this file."""
     require_cross_process_locking()
     try:
         record = open(path, "r+b")  # noqa: SIM115 - closed by the with below
@@ -103,7 +104,7 @@ def retire_lock(path: Path) -> None:
             fcntl.flock(record, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
             return
-        if names_locked(path, record):
+        if names_locked(path, record) and not page.is_dir():
             path.unlink()
 
 

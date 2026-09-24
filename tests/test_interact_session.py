@@ -9614,6 +9614,27 @@ def test_a_page_lock_a_sweep_removed_says_its_page_again_once_held(tmp_path):
     assert not lock.exists()
 
 
+def test_sweep_keeps_a_lock_when_its_page_is_recreated_before_retirement(
+    tmp_path, monkeypatch
+):
+    page = tmp_path / "page"
+    lock = leases_model.transition_lock(page)
+    with leases_model.page_locked(page):
+        pass
+    original_retire = sweep_model.retire_lock
+
+    def recreate_then_retire(path, locked_page):
+        if path == lock:
+            with leases_model.page_locked(page):
+                page.mkdir()
+        original_retire(path, locked_page)
+
+    monkeypatch.setattr(sweep_model, "retire_lock", recreate_then_retire)
+    sweep_model.sweep()
+
+    assert lock.exists()
+
+
 def test_a_lock_removed_under_a_waiting_taker_is_taken_again_on_its_successor(
     tmp_path,
 ):

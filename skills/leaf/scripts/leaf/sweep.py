@@ -16,8 +16,8 @@ page. A record that names no
 page this version can read stays, since another version may be reading it
 (AGENTS.md, "The reader throws it away").
 
-A page lock also has to be unheld, and it is removed under its own lock
-(`leases.retire_lock`), so a taker of this version that opened it meanwhile
+A page lock also has to be unheld and still name a missing page when the sweep
+holds it (`leases.retire_lock`), so a taker of this version that opened it meanwhile
 takes the lock again on a new file (`event_log.names_locked`). A leaf too old to
 re-check could end up holding the removed file beside another process's new
 one; with the page gone, the only command that opens its lock is one making the
@@ -82,8 +82,8 @@ def sweep() -> None:
             page = lock.read_text(encoding="utf-8")
         except (FileNotFoundError, UnicodeDecodeError):
             continue
-        if page and not Path(page).is_dir():
-            retire_lock(lock)
+        if page:
+            retire_lock(lock, Path(page))
     for mark in home.glob("sessions/*.started"):
         retire_start_mark(mark)
 

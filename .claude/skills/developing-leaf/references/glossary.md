@@ -98,7 +98,7 @@ A compound widget may own reading regions without being a pane.
 | **Banner** | The persistent chrome row carrying page status and the primary Approval and Threads controls, with secondary global controls in its overflow disclosure. While a user's gesture holds a next step, such as Comment on selection after a touch selection, that step stands on the row in Approval and Threads' place |
 | **Auxiliary surface** | Chrome opened `beside`, `over`, or `covering` the content frame |
 | **Thread panel** | The right-side auxiliary surface containing threads; it stands over a column page and takes no width from it, stands beside a sheet, which yields it a strip, and covers either only where it leaves less than a usable page beside it |
-| **Tray** | A mutually exclusive auxiliary surface admitted by the one left-side tray position; the Asks tray stands beside the content frame where the window holds it, and the Leaves tray always covers |
+| **Tray** | A mutually exclusive auxiliary surface admitted by the one left-side tray position; the Asks tray stands beside the content frame, which yields it a strip, and covers it only where it leaves less than a usable page beside it, as the thread panel does; the Leaves tray always covers |
 
 The current trays are the **Asks tray** and **Leaves tray**. Use *covering auxiliary
 surface*, not *modal workspace*: a covering surface and a modal dialog are different
@@ -156,6 +156,7 @@ spine instead.
 | **Trip** | One travel to a destination, a thread's passage, an Ask, or a datum: it clears the auxiliary surface hiding the destination, then stays when the user already has it or departs, leaving a history entry |
 | **Journey** | Consecutive trips each leaving from the last one's landing, which share one history entry so Back returns to where the first began; it may mix threads and Asks, and is not a walk |
 | **Standing** | Holding a destination or a control inside it: a conversation on the page or in the panel, an Ask, or authored page content. A panel thread's title and conversation are one destination. Chrome controls, margin markers, mark notes, and contents-outline links are apparatus rather than destinations |
+| **Standing target** | The addressable element a user stands at, from whichever side they hold it: the element or anything inside it, its margin cluster, or the thread card showing its conversations. The element is a conversation's parent, so the card shows while the user stands at its target and goes when they stand elsewhere on the page or let go. With Threads open, the list's expanded thread plays the card's part |
 | **Floor** | The place in a layer where the user stands on nothing: the page's body, the whole thread panel |
 | **Unwind** | What Escape takes off, read from what stands in front of the user rather than from how they reached it: the innermost step of the ladder `skills/leaf/assets/runtime/keyboard/AGENTS.md` states, with containment before kind, each landing them at the parent of what it closed |
 | **Landing** | Where a step leaves the user: a box at its container, a standing at its floor, a surface at the document, which is the block they are reading, focused and then blurred |

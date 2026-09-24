@@ -87,7 +87,7 @@ from functools import partial
 from pathlib import Path
 from typing import NamedTuple
 
-from example_data import TEST_PAGES, example_versions
+from example_data import TEST_PAGES, capture_files, example_versions
 from page_fixtures import (
     DEFAULT_PACKAGES,
     media_source,
@@ -354,16 +354,11 @@ def digest(path: Path) -> str | None:
 
 def fixture_seed(source: Path) -> dict:
     """Seed history is installed once, never replayed over user feedback."""
-    capture_inputs = [
-        operation["input_file"]
-        for operation in read_fixture(source).data
-        if operation["kind"] == "capture"
-    ]
     paths = [
         source.with_suffix(".jsonl"),
         source.with_suffix(".data.json"),
         *example_versions(source)[:-1],
-        *capture_inputs,
+        *capture_files(source),
     ]
     return {str(path): digest(path) for path in paths}
 

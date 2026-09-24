@@ -73,7 +73,7 @@ def cmd_status(
     """Write the declaration and return the user moves still owed an answer,
     which the page goes on showing over a `waiting` written ahead of them."""
     with PageTransaction(page_dir) as page:
-        activate_source(page_dir, page.events)
+        activate_source(page_dir)
         work = None
         if on is not None:
             check_local_claim(state, detail)

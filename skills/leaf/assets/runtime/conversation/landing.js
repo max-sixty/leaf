@@ -436,6 +436,27 @@ async function showThreadNow(id, focus, revealThread) {
   return true;
 }
 
+// The open panel's side of standing at a target: the list's one expanded thread becomes
+// the thread about where the user stands, as the margin card does with the panel shut.
+// It accompanies rather than arrives, so it takes no focus, draws no flash, widens no
+// narrowing that hides the thread, and moves the list only as far as shows it. `ids` are
+// the target's threads: one of them already expanded is where the user is on that
+// target, perhaps mid-reply, so it stays; otherwise the first the list shows expands.
+export function accompanyThread(ids) {
+  const shown = ids
+    .map((id) => listNode(id))
+    .filter((node) => node?.matches(".lf-thread") && !node.closest(".lf-going"));
+  const thread = shown.find((node) => node.open) ?? shown[0];
+  if (!thread) return;
+  threadsBox.revealNavigation(thread.dataset.id);
+  const room = landingBand(threadsBox);
+  const fits = !room || shownBox(thread).height <= room.bottom - room.top;
+  thread.scrollIntoView({
+    behavior: scrollBehavior(),
+    block: fits ? "nearest" : "start",
+  });
+}
+
 export function createConversationLanding({ setPanel, scrollToThread, revealThread }) {
   const landIn = (destination) => {
     const prepared = prepareLanding(destination);

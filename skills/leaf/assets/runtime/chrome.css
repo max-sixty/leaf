@@ -1522,7 +1522,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     box-sizing: border-box; overflow: hidden; scroll-padding-block: var(--here-ring-room);
     margin: 0; padding: 12px; border: 1px solid var(--border-2); border-radius: 10px;
     background: var(--paper); color: var(--ink); box-shadow: 0 12px 36px var(--shade); }
-  .lf-margin-preview:popover-open { display: flex; flex-direction: column; }
+  .lf-margin-preview:not([hidden]) { display: flex; flex-direction: column; }
   .lf-thread-transition { position: fixed; z-index: var(--lf-z-thread-transition); margin: 0;
     padding-inline: 12px; overflow: hidden; pointer-events: none;
     white-space: pre-wrap; }

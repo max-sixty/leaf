@@ -6790,7 +6790,7 @@ def test_a_message_reference_travels_or_says_it_cant(browser, serve, one_user):
 
     # The other half of a link: opened in its own tab it is an arrival, which the
     # browser answers before any widget has upgraded — so the runtime is what aims it
-    # (landArrival). Nothing of this tab travels with it; the new one starts empty.
+    # (aimArrival). Nothing of this tab travels with it; the new one starts empty.
     # Which sequence opens that tab is the platform's answer rather than one this suite
     # holds — ⌘ where it was written, ⌃ where CI runs it — so the press names the
     # gesture and the browser's target record proves where it opened.
@@ -6829,8 +6829,8 @@ def test_an_arrival_lands_where_the_url_aimed(browser, serve):
     The browser answers it at parse time, when no widget has upgraded and nothing is
     collapsed yet — so the tab holding the target is still open, the document is
     still its unupgraded height, and both facts stop being true a moment later. Leaf
-    therefore re-aims a fresh fragment after upgrades, while ordinary reload and history
-    restoration remain native on the root scrollport.
+    therefore re-aims a fresh fragment after upgrades, while a reload or a history
+    traversal keeps the offset the browser restores.
 
     Arriving somewhere named is what a fragment is for, and an older semantic landmark
     from another revision must not paint over it. On reload the fragment is left over

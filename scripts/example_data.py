@@ -122,12 +122,23 @@ def captured_value(file: Path, spec: dict):
     return "".join(selected)
 
 
-def data_operations(source: Path) -> list[dict]:
-    """Every source value one example sets: captures first, then written values."""
+def data_companion(source: Path) -> dict:
+    """The example's `.data.json` companion, or nothing when it has none."""
     companion = source.with_suffix(".data.json")
     if not companion.exists():
-        return []
-    document = json.loads(companion.read_text(encoding="utf-8"))
+        return {}
+    return json.loads(companion.read_text(encoding="utf-8"))
+
+
+def capture_files(source: Path) -> list[Path]:
+    """The files the companion's `$captures` read, which its values depend on."""
+    captures = data_companion(source).get("$captures", {})
+    return [source.parent / spec["file"] for spec in captures.values()]
+
+
+def data_operations(source: Path) -> list[dict]:
+    """Every source value one example sets: captures first, then written values."""
+    document = data_companion(source)
     captures = [
         {"source": name, "value": captured_value(source.parent / spec["file"], spec)}
         for name, spec in document.pop("$captures", {}).items()

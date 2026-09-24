@@ -838,7 +838,7 @@ def test_hosted_agent_receives_the_response_instructions_and_delivery(
         source.write_text(
             source.read_text().replace("</section>", controls + "</section>")
         )
-        activated = activate_source(page_dir, [])
+        activated = activate_source(page_dir)
         assert activated.error is None
         command = {
             "kind": "request",
@@ -2013,7 +2013,7 @@ def test_a_host_failure_receipt_answers_a_gesture_on_its_conversation(page_dir):
     page, gets the gesture back, and refuses its own earlier receipt as another
     event's. The durable attempt is the answer, and the writer reads it first.
     """
-    website_server.activate_source(page_dir, read_events(page_dir))
+    website_server.activate_source(page_dir)
     asked = append_event(
         page_dir,
         {
@@ -2093,7 +2093,7 @@ def test_an_unanswered_widget_gesture_is_receipted_on_its_conversation(
     turn below starts, takes the gesture, and then loses its stream, which is the
     ending that owes this receipt.
     """
-    website_server.activate_source(page_dir, read_events(page_dir))
+    website_server.activate_source(page_dir)
     asked = append_event(
         page_dir,
         {

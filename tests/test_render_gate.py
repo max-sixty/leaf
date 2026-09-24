@@ -3599,11 +3599,10 @@ def test_edge_resizing_belongs_to_one_primary_pointer(browser, serve, edge):
 def test_a_window_with_no_room_for_a_chosen_width_does_not_un_choose_it(
     browser, serve, edge
 ):
-    """A region may take half of a window it stands beside and no more — the same bargain
-    the covering breakpoint strikes one window down, that the page keeps at least what the
-    region takes — and a region over the page may take the window and no more. A window
-    that shrinks past that is a window, not a retraction: the user said 580 once, and a
-    laptop lid opened narrower is not them saying 400 instead.
+    """A region may take the window and no more, and one that leaves no usable page
+    beside it covers the page rather than taking a strip from it. A window that shrinks
+    past what the user chose is a window, not a retraction: the user said 580 once, and a
+    laptop lid opened narrower is not them saying 500 instead.
 
     So the choice and the standing width are two facts. Clamping the stored one would read
     identically on the narrow window and lose the user's answer for good on the wide one
@@ -3618,6 +3617,7 @@ def test_a_window_with_no_room_for_a_chosen_width_does_not_un_choose_it(
 
     resized(page, narrow, 900)
     squeezed = geometry(page, edge)
+    covering = page.locator("body[data-lf-covering-surface]").count()
 
     resized(page, 1400, 900)
     roomy = geometry(page, edge)
@@ -3627,8 +3627,9 @@ def test_a_window_with_no_room_for_a_chosen_width_does_not_un_choose_it(
     assert squeezed["width"] == stands, (
         f"a {narrow}px window left the page less than the region took: {squeezed}"
     )
-    assert not edge.strip or squeezed["page"] == squeezed["edge"], (
-        f"the page yielded a strip the region was not standing in: {squeezed}"
+    assert covering, f"a region leaving no page beside it stood beside it: {squeezed}"
+    assert squeezed["page"] == (0 if edge.side == "left" else narrow), (
+        f"the page yielded a strip to a region covering it: {squeezed}"
     )
     assert squeezed["chosen"] == str(edge.wide + 160), (
         f"the narrow window un-said what the user had said: {squeezed}"

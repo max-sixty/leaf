@@ -10,9 +10,10 @@ import { threadCardGeometry } from "/runtime/thread-card-geometry.js";
 
 const boundary = (width) => new DOMRect(8, 50, width - 16, 797);
 const cluster = (left, top) => new DOMRect(left, top, 37, 32);
-const ask = (width, at, natural) =>
+const ask = (width, at, natural, target = null) =>
   threadCardGeometry({
     cluster: at,
+    target,
     boundary: boundary(width),
     gap: 8,
     minWidth: 320,
@@ -68,4 +69,19 @@ test("a cluster scrolled clear of the boundary is detached", () => {
     [cluster(934, 900), cluster(934, 0)].map((at) => ask(1440, at, 500).detached),
     [true, true],
   );
+});
+
+test("a card crossing the column stands clear of the target it is about", () => {
+  // The cluster sits at the target's head; under the cluster alone the card would
+  // cover the target's right end, so it goes under the target instead.
+  const target = new DOMRect(340, 100, 540, 120);
+  const clear = ask(1024, cluster(871, 100), 300, target);
+  assert.deepEqual([clear.placement, clear.y], ["below", 228]);
+  // No room under it, so over it, clear of the target's top.
+  const low = new DOMRect(340, 500, 540, 120);
+  const over = ask(1024, cluster(871, 500), 300, low);
+  assert.deepEqual([over.placement, over.y], ["above", 192]);
+  // A card beside its cluster in the rail never reaches the target.
+  const beside = ask(1440, cluster(934, 100), 300, new DOMRect(340, 100, 580, 600));
+  assert.deepEqual([beside.placement, beside.y], ["right", 100]);
 });

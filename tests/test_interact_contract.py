@@ -54,6 +54,7 @@ from interact_support import (
     publish,
     published,
     stamp,
+    stamp_activation,
     styled,
     trial_version,
     yaml_block,
@@ -1457,7 +1458,7 @@ def test_revendoring_cannot_turn_logged_thread_markup_into_a_settlement(
     page_dir,
 ):
     """Frozen thread markup keeps the admission rules of its vendored vocabulary."""
-    activated = revisioning_model.activate_source(page_dir, [])
+    activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None and activated.revision == 1
     events_model.append_event(
         page_dir,
@@ -1778,7 +1779,7 @@ def test_candidate_vocabulary_keeps_every_page_action_an_undo_can_expose(page_di
 
     declaration["x-state"]["second"] = declaration["x-state"].pop("first")
     authored.write_text(json.dumps({"lf-local": declaration}))
-    refused = revisioning_model.activate_source(page_dir, events)
+    refused = revisioning_model.activate_source(page_dir)
 
     assert refused.error and "does not declare action verb 'first'" in refused.error
     assert refused.revision == revision and not refused.created
@@ -1812,9 +1813,7 @@ def test_candidate_vocabulary_leaves_removed_page_widgets_to_captured_history(pa
     )
     restated = original.replace('value="author"', 'value="author-next" restated')
     (page_dir / "index.html").write_text(restated)
-    second = revisioning_model.activate_source(
-        page_dir, events_model.read_events(page_dir), allow_transition=True
-    )
+    second = stamp_activation(page_dir)
     assert second.error is None and second.created
     events_model.append_event(
         page_dir,
@@ -1831,7 +1830,7 @@ def test_candidate_vocabulary_leaves_removed_page_widgets_to_captured_history(pa
     authored.write_text("{}")
     (page_dir / "index.html").write_text(PAGE)
     events = events_model.read_events(page_dir)
-    activated = revisioning_model.activate_source(page_dir, events)
+    activated = revisioning_model.activate_source(page_dir)
 
     assert activated.error is None and activated.created
     revendored = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
@@ -1909,9 +1908,7 @@ def test_candidate_vocabulary_preserves_commands_in_frozen_thread_markup(page_di
     declaration["x-state"]["second"] = declaration["x-state"].pop("first")
     authored.write_text(json.dumps({"lf-thread-local": declaration}))
 
-    refused = revisioning_model.activate_source(
-        page_dir, events_model.read_events(page_dir)
-    )
+    refused = revisioning_model.activate_source(page_dir)
 
     assert refused.error and "does not declare action verb 'first'" in refused.error
     assert refused.revision == revision and not refused.created
@@ -2211,9 +2208,7 @@ def _page_owned_deferred_source(page_dir):
             '<lf-local-data id="local-data" source="files"></lf-local-data></section>',
         )
     )
-    activated = revisioning_model.activate_source(
-        page_dir, events_model.read_events(page_dir)
-    )
+    activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None and activated.created
     data_model.cmd_data_set(
         page_dir,
@@ -2230,9 +2225,7 @@ def test_page_owned_data_contract_meaning_is_fixed_for_the_source_lifetime(page_
     declarations["$data"]["contracts"]["local-files"]["records"]["deferred"] = "body"
     authored.write_text(json.dumps(declarations))
 
-    activation = revisioning_model.activate_source(
-        page_dir, events_model.read_events(page_dir)
-    )
+    activation = revisioning_model.activate_source(page_dir)
     assert "schema or record declaration changes" in activation.error
     with pytest.raises(data_model.DataError, match="schema or record declaration"):
         data_model.cmd_data_set(
@@ -2253,9 +2246,7 @@ def test_page_owned_data_contract_description_can_improve(page_dir):
     )
     authored.write_text(json.dumps(declarations))
 
-    activation = revisioning_model.activate_source(
-        page_dir, events_model.read_events(page_dir)
-    )
+    activation = revisioning_model.activate_source(page_dir)
 
     assert activation.error is None and activation.created
 
@@ -4412,12 +4403,12 @@ def test_activation_rechecks_changed_css_while_the_document_stays_identical(page
 
     def activate(css):
         theme.write_text(original + css)
-        return revisioning_model.activate_source(page_dir, [])
+        return revisioning_model.activate_source(page_dir)
 
     css = ":root { --pin: 700px; --col: 720px } main { --lf-reading-column: 1; max-width: var(--col) }"
     initial = activate(css)
     assert initial.error is None
-    assert activate(css).check.errors == []
+    assert activate(css).error is None
 
     overwide = activate(css.replace("700px", "900px"))
     assert "style> (line " in overwide.error
@@ -4427,7 +4418,9 @@ def test_activation_rechecks_changed_css_while_the_document_stays_identical(page
     wider_column = css.replace("700px", "900px").replace("720px", "960px")
     widened = activate(wider_column)
     assert widened.error is None
-    assert widened.check.column == 960
+    from leaf.validation.source import check_source
+
+    assert check_source(page_dir, []).column == 960
     assert widened.created
     assert widened.revision == initial.revision + 1
 

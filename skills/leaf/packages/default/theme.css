@@ -1899,11 +1899,8 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
    * it discloses, and revealing it changes neither page geometry nor hit geometry. */
   main:has(> aside.sidebar:nth-child(1 of aside.sidebar) lf-toc) {
     --lf-sidebar-claim: var(--sidebar-max);
-    --lf-sidebar-shell-bound: calc(100cqi - var(--lf-sidebar-claim)
-      - 2 * var(--col-pad));
-    --lf-sidebar-free-left: max(0px, calc(50cqi + var(--lf-shift)
-      - min(var(--col), var(--lf-room)) / 2
-      - var(--lf-sidebar-claim) - var(--col-pad)));
+    --lf-sidebar-free-left: calc(var(--lf-beside) + var(--lf-shift)
+      - var(--lf-gutter-l));
   }
   @container lf-content-frame style(--lf-sidebar-posture: margin) {
     @container style(--lf-sidebar-slot: margin) {
@@ -2006,8 +2003,7 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
       lf-toc[data-lf-outline] .lf-toc-nav {
         --lf-toc-label-opacity: 1;
         width: max(40px, min(320px,
-          calc(50cqi + var(--lf-shift) - min(var(--col), var(--lf-room)) / 2
-            - 2 * var(--sp-4))));
+          calc(var(--lf-beside) + var(--lf-shift) - 2 * var(--sp-4))));
         background: var(--paper);
         overflow-y: auto; pointer-events: auto;
       }

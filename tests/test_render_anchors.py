@@ -4945,10 +4945,12 @@ def test_a_data_bound_diff_aims_and_selects_one_source_line(browser, serve):
     assert all("detached" not in classes for classes in quote_classes), quote_classes
 
 
-def test_back_returns_from_a_thread_a_widget_surface_holds(browser, serve):
+@pytest.mark.parametrize("arrived", ["", "#title"], ids=["plain", "fragment"])
+def test_back_returns_from_a_thread_a_widget_surface_holds(browser, serve, arrived):
     """A thread the diff seats is a trip like any other: Back returns to where the
     user was reading, although the surface scrolls itself into view as it takes
-    focus."""
+    focus. The entry Back returns to may carry the fragment the page was opened at,
+    and Back still returns to the reading, not to the element the fragment names."""
     filler = "".join(f"<p>Filler paragraph {n}.</p>" for n in range(120))
     url = serve(
         leaf_page(
@@ -4983,7 +4985,7 @@ def test_back_returns_from_a_thread_a_widget_surface_holds(browser, serve):
             },
         },
     )["id"]
-    page = open_page(browser, url)
+    page = open_page(browser, url + arrived)
     page.evaluate("document.scrollingElement.scrollTo({top: 1e6, behavior: 'instant'})")
     reading = page.evaluate("document.scrollingElement.scrollTop")
     assert reading > 2000

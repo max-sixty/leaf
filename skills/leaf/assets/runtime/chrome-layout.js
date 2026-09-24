@@ -26,15 +26,15 @@
 // while nested scrollports report on their elements. Use `scrollerFor(el)` where a widget
 // may be one an agent sent, since a widget in a message is scrolled by the panel's own
 // list and by nothing else. Threads and trays are alternate auxiliary surfaces, so only
-// one stands at a time. Leaves always covers the page. Threads covers it only where it
-// leaves less than a usable page (`panelCovers`); elsewhere it stands over a column page
-// and takes no width from it, and beside a sheet, which yields it a strip on the right
-// (`--lf-thread-panel-beside`, theme.css at the body strip). The Asks tray takes a strip on the
-// left: it stands beside the page where the viewport can hold it and covers the page under
-// its media query otherwise (trays.js). Auxiliary modality
+// one stands at a time. Leaves always covers the page. Threads and the Asks tray cover it
+// only where they would leave less than a usable page beside them, one rule for both
+// (`standsBeside`, auxiliary-surfaces.js; `--lf-auxiliary-beside`, theme.css at the body
+// strip). Elsewhere the Asks tray takes a strip on the left, and Threads stands over a
+// column page and takes no width from it, and beside a sheet, which yields it a strip on
+// the right. Auxiliary modality
 // is a shared inert boundary outside this geometry owner; the reference and Page Map
 // keep native `showModal()`. The shell's inline size already reflects the strip a beside
-// tray takes. `--strip-l`, `--strip-r`,
+// surface takes. `--strip-l`, `--strip-r`,
 // `--lf-room`, `--lf-sidebar-posture`, and `--lf-rail-posture` are CSS-owned readings
 // resolved on `main`, which is the named `lf-content-frame` style container a margin
 // resident asks for them; `--lf-shell-inset-left`
@@ -47,6 +47,7 @@
 // auxiliary surfaces, send commands, or reconcile conversation DOM.
 import { drawnEdge } from "./drawn-edge.js";
 import { overlaps } from "./geometry.js";
+import { standsBeside } from "./auxiliary-surfaces.js";
 import { setRuntimeRootStyle } from "./root-state.js";
 
 // The width the panel stands at for a user who has not moved its edge. 420 since
@@ -91,16 +92,9 @@ export function createChromeLayout({
   // mostly clears it. A sheet has no column to clear it with — its rail is under the
   // panel — so it yields the panel a strip and reflows its tracks beside it. Either way
   // the panel covers the page — the modal boundary that makes the page inert — only where
-  // what it leaves beside it is less than a usable page. The stylesheet states that
-  // decision once, as the room the panel takes beside the page (theme.css,
-  // `--lf-thread-panel-beside`), because the first paint of a reloaded sheet needs it
-  // before this module exists; this reads the same length the sheet's strip is drawn
-  // with, against the width `commentsEdge` has just written, so the two cannot disagree.
-  const panelCovers = () =>
-    panelIsOpen() &&
-    !parseFloat(
-      getComputedStyle(document.body).getPropertyValue("--lf-thread-panel-beside"),
-    );
+  // what it leaves beside it is less than a usable page, the rule every surface that may
+  // stand beside the page shares (`standsBeside`).
+  const panelCovers = () => panelIsOpen() && !standsBeside();
   // Every writer here is a writer of the chrome, so nothing this function does resizes the
   // box it reads: the strip the page yields to a tray is the stylesheet's, and the strip
   // it yields to a margin idiom is stated above.
@@ -345,7 +339,6 @@ export function createChromeLayout({
     min: THREAD_PANEL_MIN,
     prop: THREAD_PANEL_PROP,
     key: "lf-thread-panel-width",
-    over: () => true,
     land: landEdge,
   });
 
@@ -355,6 +348,5 @@ export function createChromeLayout({
     takeShell,
     landEdge,
     commentsEdge,
-    panelCovers,
   };
 }

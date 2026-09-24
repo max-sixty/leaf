@@ -22,6 +22,8 @@ import {
   HIDDEN,
   PRESS,
   beginWalk,
+  capturePlace,
+  claimTraversals,
   commands,
   declareCoverRoom,
   layoutChanged,
@@ -30,13 +32,16 @@ import {
   once,
   pageScroller,
   preserveReadingRegions,
+  pushEntry,
   relabel,
+  replaceEntry,
+  restorePlace,
   selectableOffer,
   tabStore,
 } from "/runtime/widget-api.js";
 
 const TAB_KEY = "lf-tabs:";
-const READING_KEY = "lf-tabs-reading:";
+const PLACE_KEY = "lf-tabs-place:";
 const substantiveChildren = (owner) =>
   [...owner.childNodes].filter(
     (child) =>
@@ -208,8 +213,7 @@ customElements.define(
       const switched = this.#root && ["ordinary", "history"].includes(reason);
       const change = () => {
         const from = pageScroller.scrollTop;
-        if (this.#root && previous)
-          tabStore.set(this.#readingKey(previous), String(from));
+        if (this.#root && previous) this.#leave(previous);
         if (this.#root && reason === "ordinary") this.#pushLocation(active);
         // Whatever opened another view, the entry the user stands on names it, so
         // Back and Forward to that entry return to this view. A fragment already
@@ -219,7 +223,7 @@ customElements.define(
           reason === "reveal" &&
           this.#panelForLocation([active]) !== active
         )
-          history.replaceState(history.state, "", this.#locationFor(active));
+          replaceEntry(this.#locationFor(active));
         for (const [panel, btn] of this.#buttons) {
           if (panel === active) panel.removeAttribute("hidden");
           else panel.setAttribute("hidden", HIDDEN);
@@ -228,7 +232,7 @@ customElements.define(
           btn.tabIndex = panel === active ? 0 : -1;
         }
         this.#active = active;
-        if (switched) pageScroller.scrollTop = this.#readingFor(active, from);
+        if (switched) this.#open(active, from);
         if (remember) tabStore.set(TAB_KEY + this.id, active.id);
         const presentation = [];
         for (const panel of [previous, active].filter(Boolean)) {
@@ -241,9 +245,9 @@ customElements.define(
       return this.#root && previous ? preserveReadingRegions(this, change) : change();
     }
 
-    #panelForLocation(panels) {
-      if (!this.#root || !location.hash) return null;
-      const target = this.#targetFor(location.hash);
+    #panelForLocation(panels, hash = location.hash) {
+      if (!this.#root || !hash) return null;
+      const target = this.#targetFor(hash);
       return target
         ? (panels.find((panel) => panel === target || panel.contains(target)) ?? null)
         : null;
@@ -330,39 +334,14 @@ customElements.define(
       if (!this.#root || this.#historyEvents) return;
       this.#historyEvents = new AbortController();
       const { signal } = this.#historyEvents;
-      // A fragment naming something inside another view opens that view, and the
-      // browser lands the target.
-      window.addEventListener(
-        "hashchange",
-        () => {
-          const panel = this.#panelForLocation([...this.#buttons.keys()]);
-          if (panel && panel !== this.#active) this.#activate(panel, true, "reveal");
-        },
-        { signal },
-      );
-      // Back and Forward to a view's own entry. Chrome answers a traversal to a fragment
-      // naming an element by scrolling to that element, not by restoring the offset the
-      // entry was left at, so the set takes the traversals to its entries: one to another
-      // view switches as a press does, and one within the open view keeps the browser's
-      // restoration, which an intercepted traversal does perform.
-      window.navigation?.addEventListener(
-        "navigate",
-        (event) => {
-          if (
-            event.navigationType !== "traverse" ||
-            !event.destination.sameDocument ||
-            !event.canIntercept
-          )
-            return;
-          const view = this.#targetFor(new URL(event.destination.url).hash);
-          if (!this.#buttons.has(view)) return;
-          if (view === this.#active) event.intercept({ focusReset: "manual" });
-          else
-            event.intercept({
-              scroll: "manual",
-              focusReset: "manual",
-              handler: () => this.#activate(view, true, "history"),
-            });
+      // Back or Forward to an entry in another view switches to it, as a press does.
+      // One within the open view is the browser's to restore (history.js).
+      claimTraversals(
+        (url) => {
+          const view = this.#panelForLocation([...this.#buttons.keys()], url.hash);
+          return view && view !== this.#active
+            ? () => this.#activate(view, true, "history")
+            : null;
         },
         { signal },
       );
@@ -376,31 +355,49 @@ customElements.define(
 
     #replaceLocation(panel) {
       if (!panel || location.hash) return;
-      history.replaceState(history.state, "", this.#locationFor(panel));
+      replaceEntry(this.#locationFor(panel));
     }
 
     #pushLocation(panel) {
       if (location.hash === `#${panel.id}`) return;
-      history.pushState(history.state, "", this.#locationFor(panel));
+      pushEntry(this.#locationFor(panel));
     }
 
     // Every view starts where the strip sticks, so an offset short of that is the shared
-    // header, not a place in the view. A view read past its start reopens there; one
-    // that never was keeps the header as the user has it, clamped to the view's start
-    // so a stuck strip stays stuck.
-    #readingFor(panel, from) {
-      const start =
+    // header, not a place in the view.
+    #start() {
+      return (
         this.getBoundingClientRect().top +
         pageScroller.scrollTop -
-        parseFloat(getComputedStyle(this.#strip).top);
-      const read = Number.parseFloat(tabStore.get(this.#readingKey(panel)));
-      return read > start ? read : Math.min(from, start);
+        parseFloat(getComputedStyle(this.#strip).top)
+      );
     }
 
-    // The document offset this user left a view at, kept per browser tab like the open
-    // tab itself, so a reload still returns each view to its place.
-    #readingKey(panel) {
-      return `${READING_KEY}${this.id}:${panel.id}`;
+    // A view the user read past its start keeps that place as a landmark in its own
+    // words, so the place survives what moves the pixels while the view is hidden: a
+    // resize, a new revision. It is kept per browser tab like the open tab itself, so a
+    // reload still returns each view to its place. A view left at its start keeps none.
+    #leave(panel) {
+      const read = pageScroller.scrollTop > this.#start() + 0.5;
+      tabStore.set(this.#placeKey(panel), read ? JSON.stringify(capturePlace()) : null);
+    }
+
+    // A view reopens at its place. One without keeps the header as the user has it,
+    // clamped to the view's start so a stuck strip stays stuck.
+    #open(panel, from) {
+      const start = this.#start();
+      let place = null;
+      try {
+        place = JSON.parse(tabStore.get(this.#placeKey(panel)));
+      } catch {
+        // An unreadable place is no place.
+      }
+      pageScroller.scrollTop = place ? start : Math.min(from, start);
+      if (place) restorePlace(place);
+    }
+
+    #placeKey(panel) {
+      return `${PLACE_KEY}${this.id}:${panel.id}`;
     }
 
     // One Δn chip per tab holding marked passages, so the notice's count is

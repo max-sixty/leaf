@@ -344,6 +344,15 @@ A widget that re-renders or resizes content inside a scroller of its own holds t
 user's place with `placeKeeper(scroller, {items, identity})` rather than by restoring a
 `scrollTop`; `runtime/user-place.js` describes it.
 
+A widget that remembers where the user was reading, in a view it hides and shows again,
+keeps a place rather than an offset: `capturePlace()` reads the page's place as a
+landmark in its own words, and `restorePlace(place)` returns to it however the page has
+moved since (`runtime/reading-place.js`). A widget that adds same-document history
+entries adds them with `pushEntry(url)` and `replaceEntry(url)`, and places the page
+itself at Back or Forward to one of them by claiming that traversal with
+`claimTraversals(claim, {signal})`. Every other traversal returns the user to the offset
+the entry was left at (`runtime/history.js`).
+
 A sticky box that covers the top of its scroller declares the room it takes with
 `declareCoverRoom(host, property, covers)`, which keeps `property` on `host` at the
 tallest cover's height for a `scroll-padding` or `scroll-margin` to read, so every

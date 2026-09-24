@@ -500,9 +500,7 @@ def serve(tmp_path, monkeypatch, initialized_page):
         for event in events:
             events_model.append_event(d, event)
         if fixture is None:
-            activated = revisioning_model.activate_source(
-                d, events_model.read_events(d)
-            )
+            activated = revisioning_model.activate_source(d)
             assert activated.error is None and activated.revision == 1, activated.error
             events_model.append_event(
                 d,

@@ -12,11 +12,11 @@ from leaf.schema import MESSAGE_KINDS
 
 
 def local_ask_entry(entry: dict) -> bool:
-    """Whether one widget declaration originates an ask rather than aggregating it."""
-    awaits = entry.get("x-awaits")
-    return (awaits is not None and not awaits.get("rollup")) or entry.get(
-        "x-request", {}
-    ).get("ask") is True
+    """Whether one widget declaration originates an ask."""
+    return (
+        entry.get("x-awaits") is not None
+        or entry.get("x-request", {}).get("ask") is True
+    )
 
 
 def asking(attrs: dict, when: dict) -> bool:
@@ -62,10 +62,9 @@ def answers_ask(record: dict, entry: dict, verb: str) -> bool:
     """Whether a user's verb on one authored widget is part of that widget's own
     Ask's answer: the authored instance asks, and x-awaits names the verb among
     those whose state answers it. Every swipe on a deck is part of the answer the
-    last one completes, and so is a pick on a group whose Done answers it. A
-    roll-up originates no Ask."""
+    last one completes, and so is a pick on a group whose Done answers it."""
     awaits = entry.get("x-awaits") or {}
-    if awaits.get("rollup") or not asking(record["attrs"], awaits.get("when")):
+    if not asking(record["attrs"], awaits.get("when")):
         return False
     return verb in answer_verbs(entry)
 
@@ -245,7 +244,6 @@ def answering_action(
     awaits = entry.get("x-awaits") or {}
     return (
         verb in answer_verbs(entry)
-        and not awaits.get("rollup")
         and asking(replayed_attrs(rec, projection), awaits.get("when"))
         and verb_answers(
             rec,
@@ -294,11 +292,6 @@ class _AskReducer:
             )
             self.local[id(record)] = self.exists[id(record)] and self._local(record)
 
-        self.direct: dict[int, list] = {}
-        for record in self.records:
-            if owner := self._rollup_owner(record):
-                self.direct.setdefault(id(owner), []).append(record)
-
     def _entry(self, record):
         return self.registry[record["tag"]]
 
@@ -306,11 +299,7 @@ class _AskReducer:
         return self._entry(record).get("x-request", {}).get("ask") is True
 
     def _is_declared(self, record):
-        entry = self.registry.get(record["tag"]) or {}
-        return (
-            entry.get("x-awaits") is not None
-            or entry.get("x-request", {}).get("ask") is True
-        )
+        return local_ask_entry(self.registry.get(record["tag"]) or {})
 
     def _declaration(self, record):
         return self._entry(record).get("x-awaits", {})
@@ -318,8 +307,6 @@ class _AskReducer:
     def _local(self, record):
         if self._is_request(record):
             return self.request_phases.get(record["attrs"].get("id")) == "ready"
-        if self._declaration(record).get("rollup"):
-            return False
         return asking(
             replayed_attrs(record, self.projection),
             self._declaration(record).get("when"),
@@ -350,30 +337,8 @@ class _AskReducer:
             with_agent,
         )
 
-    def _rollup_owner(self, record):
-        record = self._holder(record)
-        while record:
-            if self._declaration(record).get("rollup"):
-                return record
-            record = self._holder(record)
-        return None
-
-    def _awaits(self, record, with_agent, values):
-        key = id(record)
-        if key in values:
-            return values[key]
-        if not self.exists[key]:
-            values[key] = False
-            return False
-        declaration = self._declaration(record)
-        if not declaration.get("rollup"):
-            values[key] = self.local[key] and not self._answered(record, with_agent)
-            return values[key]
-        descendants = self.direct.get(key, [])
-        values[key] = any(
-            self._awaits(candidate, with_agent, values) for candidate in descendants
-        )
-        return values[key]
+    def _awaits(self, record, with_agent) -> bool:
+        return self.local[id(record)] and not self._answered(record, with_agent)
 
     def _surfaces(self, records):
         """Each visible ask as `(surface, source)`.
@@ -383,12 +348,9 @@ class _AskReducer:
         `x-ask-surface` holder encloses it. One surface stands for one ask, so a
         later source inside a region already listed is dropped.
         """
-        visible = [
-            record for record in records if not self._declaration(record).get("rollup")
-        ]
         pairs = []
         seen = set()
-        for record in visible:
+        for record in records:
             surface = record
             holder = self._holder(record)
             while holder:
@@ -407,8 +369,7 @@ class _AskReducer:
         An action Ask remains active while its authored `when` holds, even after
         one of its answer verbs has state. A request Ask remains the instruction
         the page asked throughout its one lifecycle; accepting it changes who owns the
-        turn rather than erasing the Ask. Roll-ups continue to aggregate without
-        originating a visible Ask of their own.
+        turn rather than erasing the Ask.
         """
         active = []
         for record in self.records:
@@ -443,21 +404,20 @@ class _AskReducer:
             for surface, source in pairs
         ]
 
-    def result(self, with_agent: set[str]) -> tuple[list, dict[str, bool]]:
-        values: dict[int, bool] = {}
-        surfaces = self._surfaces(
-            record
+    def result(self, with_agent: set[str]) -> list:
+        return self._items(
+            self._surfaces(
+                record for record in self.records if self._awaits(record, with_agent)
+            )
+        )
+
+    def awaiting(self) -> dict[str, bool]:
+        """Each identified Ask source's own awaiting value, with no seats."""
+        return {
+            record["attrs"]["id"]: self._awaits(record, set())
             for record in self.records
-            if self._awaits(record, with_agent, values)
-        )
-        return (
-            self._items(surfaces),
-            {
-                record["attrs"]["id"]: values[id(record)]
-                for record in self.records
-                if record["attrs"].get("id")
-            },
-        )
+            if record["attrs"].get("id")
+        }
 
 
 def page_ask_readings(
@@ -498,13 +458,10 @@ def page_ask_readings(
         thread=False,
         request_phases=request_phases,
     )
-    user, awaiting = reducer.result(with_agent)
-    unanswered, _ = reducer.result(set())
     return {
         "all": reducer.inventory(settled_away or set()),
-        "user": user,
-        "unanswered": unanswered,
-        "awaiting": awaiting,
+        "user": reducer.result(with_agent),
+        "unanswered": reducer.result(set()),
     }
 
 
@@ -562,7 +519,7 @@ def thread_ask_readings(
         thread=True,
         request_phases=request_phases,
     )
-    asks, awaiting = reducer.result(set())
+    asks = reducer.result(set())
 
     def seated(items: list) -> list:
         return [{**ask, "conversation": thread_by_id[ask["source"]]} for ask in items]
@@ -571,5 +528,5 @@ def thread_ask_readings(
         "all": seated(reducer.inventory(set())),
         "user": seated(asks),
         "unanswered": seated(asks),
-        "awaiting": awaiting,
+        "awaiting": reducer.awaiting(),
     }

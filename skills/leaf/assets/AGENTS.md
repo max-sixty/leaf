@@ -259,8 +259,8 @@ coverage and provenance. Widget controllers keep desired state separate from pro
 rendering.
 
 Whether an Ask is answered is the registry's `$awaits.answered` condition over standing
-state, which Python evaluates; `$awaits` also owns `rollup`. Keep that reading on the
-server rather than adding a browser Ask fold.
+state, which Python evaluates. Keep that reading on the server rather than adding a
+browser Ask fold.
 
 The server supplies page and conversation Ask collections through each view's
 `document.asks` and the conversation's `asks`. The publisher combines them page first;

@@ -21,7 +21,6 @@ const noAsks = () => ({
   all: [],
   user: [],
   unanswered: [],
-  awaiting: {},
 });
 const wireAsk = (id, tag, source = id, sourceTag = tag, conversation = null) => ({
   id,
@@ -962,7 +961,6 @@ test("a pending prose reply does not hide a frozen structural Ask", () => {
     all: [frozen],
     user: [frozen],
     unanswered: [frozen],
-    awaiting: { "frozen-choice": true },
   };
   accepted.browser.conversation.threads = [
     {
@@ -1073,7 +1071,6 @@ test("the publisher carries the server's Ask reading, page asks before thread as
   for (const phase of ["waiting", "offline"]) {
     app.setPhase(phase);
     assert.deepEqual(app.read().effective.asks.all, []);
-    assert.deepEqual(app.read().effective.asks.awaiting, {});
   }
 
   const read = state(2);
@@ -1089,13 +1086,11 @@ test("the publisher carries the server's Ask reading, page asks before thread as
     all: [page],
     user: [page],
     unanswered: [page],
-    awaiting: { choice: true },
   };
   read.browser.conversation.asks = {
     all: [frozen],
     user: [],
     unanswered: [],
-    awaiting: { "frozen-choice": false },
   };
   app.adopt(read);
 
@@ -1119,7 +1114,6 @@ test("the publisher carries the server's Ask reading, page asks before thread as
     ],
     user: [record],
     unanswered: [record],
-    awaiting: { choice: true, "frozen-choice": false },
   });
   assert.throws(() => {
     app.read().effective.asks.all[0].sourceId = "other";

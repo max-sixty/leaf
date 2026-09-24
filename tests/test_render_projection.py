@@ -9084,7 +9084,6 @@ def test_project_widget_can_join_the_orchestration_projection(
             "additionalProperties": False,
             "x-owners": ["lf-command", "lf-area"],
             "x-content": "markup",
-            "x-awaits": {"rollup": True},
             "x-report": {
                 "phase": {
                     "detail": {

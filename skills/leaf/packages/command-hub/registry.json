@@ -329,9 +329,6 @@
       },
       "hold": "Send & pause"
     },
-    "x-awaits": {
-      "rollup": true
-    },
     "x-report": {
       "status": {
         "detail": {

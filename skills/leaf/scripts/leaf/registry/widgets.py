@@ -498,7 +498,7 @@ def _validate_widget_predicates(tag: str, entry: dict, properties: dict, path) -
     if request.get("ask") is True and entry.get("x-awaits") is not None:
         raise RegistryError(
             f"{path}: <{tag}> declares both x-request.ask and x-awaits — one "
-            "widget cannot own both a lifecycle request and a state Ask or rollup"
+            "widget cannot own both a lifecycle request and a state Ask"
         )
     if entry.get("x-ask-surface"):
         if "id" not in entry.get("required", []):
@@ -618,25 +618,13 @@ def _validate_widget_interactions(
             "no x-conversation"
         )
     answered = awaits.get("answered", {})
-    if awaits.get("rollup"):
-        local_fields = sorted(set(awaits) - {"rollup"})
-        if local_fields:
-            raise RegistryError(
-                f"{path}: <{tag}> x-awaits rollup also declares local Ask "
-                f"fields {local_fields}"
-            )
-    elif entry.get("x-awaits") is not None and not answered:
+    if entry.get("x-awaits") is not None and not answered:
         raise RegistryError(
             f"{path}: <{tag}> x-awaits local Ask declares no `answered` condition"
         )
     if unknown := sorted(set(answered) - set(entry.get("x-state", {}))):
         raise RegistryError(
             f"{path}: <{tag}> x-awaits answers with undeclared x-state verbs {unknown}"
-        )
-    if awaits.get("rollup") and "id" not in entry.get("required", []):
-        raise RegistryError(
-            f"{path}: <{tag}> x-awaits rollup through descendants does "
-            "not require an id"
         )
     needs_upgrade = [
         key

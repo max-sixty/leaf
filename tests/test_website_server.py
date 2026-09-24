@@ -3355,7 +3355,6 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
             "all",
             "user",
             "unanswered",
-            "awaiting",
         }
 
         posted = {

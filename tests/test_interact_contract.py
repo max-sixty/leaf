@@ -2716,7 +2716,7 @@ def test_an_x_request_declaration_closes_its_widget_boundary(
         operations["x-ask-surface"] = True
         operations["x-content"] = "markup"
     elif mutation == "dual-decision-source":
-        operations["x-awaits"] = {"rollup": True}
+        operations["x-awaits"] = {"answered": {"restart": {}}}
     (page_dir / "registry.json").write_text(json.dumps(registry))
 
     result = check(page_dir)
@@ -3288,12 +3288,6 @@ def test_the_registry_door_refuses_a_withdrawal_that_retires_nothing(trial_page)
             {"answered": {"submit": {}}},
             "answers with undeclared x-state verbs",
         ),
-        (
-            "lf-chip",
-            "x-awaits",
-            {"rollup": True},
-            "does not require an id",
-        ),
     ],
 )
 def test_check_refuses_a_predicate_no_page_could_carry(
@@ -3303,9 +3297,8 @@ def test_check_refuses_a_predicate_no_page_could_carry(
 
     The widget is simply absent from every consumer, exactly as if the feature had
     never been wired up.
-    Same for a blanket answer naming a verb the widget does not speak, whose button
-    would call a method nothing implements — and for an until verb, which would
-    hold a thread decision open for a press no widget renders."""
+    Same for an answering verb the widget does not declare, which would hold its
+    Ask open for a state no gesture writes."""
     registry = json.loads((page_dir / "registry.json").read_text())
     registry[tag][key] = declaration
     (page_dir / "registry.json").write_text(json.dumps(registry))
@@ -3315,37 +3308,13 @@ def test_check_refuses_a_predicate_no_page_could_carry(
     assert f"<{tag}> {key}" in result.output and message in result.output
 
 
-def test_rollup_false_is_omitted_instead_of_becoming_a_second_form(page_dir):
-    registry = json.loads((page_dir / "registry.json").read_text())
-    registry["lf-options"]["x-awaits"] = {"rollup": False}
-    (page_dir / "registry.json").write_text(json.dumps(registry))
-
-    result = check(page_dir)
-
-    assert result.exit_code != 0
-    assert "<lf-options> registry extensions are invalid" in result.output
-    assert "True was expected" in result.output
-
-
-def test_an_aggregate_only_rollup_declaration_is_valid(page_dir):
-    registry = json.loads((page_dir / "registry.json").read_text())
-    registry["lf-task"]["x-awaits"] = {"rollup": True}
-    (page_dir / "registry.json").write_text(json.dumps(registry))
-
-    assert check(page_dir).exit_code == 0
-
-
 @pytest.mark.parametrize(
     ("declaration", "message"),
     [
         ({}, "local Ask declares no `answered` condition"),
-        (
-            {"rollup": True, "when": {"status": ["review"]}},
-            "rollup also declares local Ask fields ['when']",
-        ),
     ],
 )
-def test_an_awaits_declaration_has_one_ask_role(page_dir, declaration, message):
+def test_a_local_ask_declares_its_answered_condition(page_dir, declaration, message):
     registry = json.loads((page_dir / "registry.json").read_text())
     registry["lf-task"]["x-awaits"] = declaration
     (page_dir / "registry.json").write_text(json.dumps(registry))

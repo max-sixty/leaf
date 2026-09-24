@@ -74,7 +74,6 @@ interface WireAsks {
   all: WireAsk[];
   user: WireAsk[];
   unanswered: WireAsk[];
-  awaiting: Record<string, boolean>;
 }
 
 interface WireWorkflow {
@@ -239,7 +238,6 @@ const NO_ASKS = {
   all: [] as AskRecord[],
   user: [] as AskRecord[],
   unanswered: [] as AskRecord[],
-  awaiting: {} as Record<string, boolean>,
 };
 
 const askRecord = (ask: WireAsk): AskRecord => ({
@@ -252,9 +250,8 @@ const askRecord = (ask: WireAsk): AskRecord => ({
 
 /* The admitted Ask reading, page asks before conversation asks.
  *
- * Which Asks a document holds, which of them the user still owes, and every
- * declared target's awaiting value are folded by `leaf.asks` under the same page
- * transaction as the rest of this state. Nothing here folds those declarations
+ * Which Asks a document holds and which of them the user still owes are folded
+ * by `leaf.asks` under the same page transaction as the rest of this state. Nothing here folds those declarations
  * again, so an answer reaches these lists when the state its POST returns is
  * adopted — one reading after the widget state the user sees change at once. */
 function normalizedAsks(
@@ -271,7 +268,6 @@ function normalizedAsks(
     all: records("all"),
     user: records("user"),
     unanswered: records("unanswered"),
-    awaiting: { ...page?.awaiting, ...thread?.awaiting },
   };
 }
 

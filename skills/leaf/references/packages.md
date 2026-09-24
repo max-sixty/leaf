@@ -637,9 +637,7 @@ widget tags. A later package can therefore add another goal or worker widget by 
 its entry into `$command.widgets`, without changing core.
 
 Set `ask: true` when the ready operation is a question the user must answer; the
-`$keys` entry for `x-request` gives the lifecycle that Ask follows. A parent
-`x-awaits.rollup` reads that same lifecycle, so nested task and header projections do
-not need package-specific request bookkeeping.
+`$keys` entry for `x-request` gives the lifecycle that Ask follows.
 
 ```json
 {

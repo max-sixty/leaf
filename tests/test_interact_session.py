@@ -9817,6 +9817,19 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(claimed, capsys)
     # what was said under it, so the instruction that reaches it has to carry the
     # reading that recovers the exchange.
     assert schema_model.ANSWER_ASK_INSTRUCTION in answer["reason"]
+    assert f"`leaf reply <page> --for {asked['id']}`" in answer["reason"]
+
+    # Bound to the claimant's App Server turn, the same move is answered by that
+    # turn's final message, which is what the reason names instead: `leaf reply`
+    # refuses a bound event.
+    with service_model.PageTransaction(claimed) as page:
+        page.bind_delivery_reply(session["id"], asked["id"], "a1")
+    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    reason = json.loads(capsys.readouterr().out)["reason"]
+    assert f"your final message answers {asked['id']}" in reason
+    assert "leaf reply <page>" not in reason
+    with service_model.PageTransaction(claimed) as page:
+        page.clear_delivery_reply_binding(session["id"], asked["id"], "a1")
 
     # A reply clears it, and the thread stays open behind it: closing one is the
     # user's to do, so an open thread is not an unanswered one.

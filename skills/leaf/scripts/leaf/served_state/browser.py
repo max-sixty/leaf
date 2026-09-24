@@ -205,6 +205,7 @@ def browser_state(
         now,
         (live_stream or {}).get("activity"),
         live_reply,
+        (live_stream or {}).get("reply_bindings"),
     )
     workflows = activity.pop("workflows")
     _apply_thread_attention(

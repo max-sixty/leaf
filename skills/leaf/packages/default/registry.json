@@ -539,7 +539,7 @@
     "x-example": "<lf-tree id=\"feeder-tree\"><pre>\nfeeders/\n  mount.py  +2 -2\n  schedule.py  +1\n  sites/\n    north.toml\n</pre></lf-tree>"
   },
   "lf-code": {
-    "description": "An annotated code block — the walkthrough shape. The body is the code verbatim inside its <pre> (data, HTML-escaped — & first, then < and > — column 0); `language` colors it, naming one of $languages; `hi` highlights line ranges (\"3-5,8\"); lf-note children sit beside that <pre> and anchor remarks at lines by number. Leave `language` off where the body isn't source (a transcript, command output) — nothing guesses, so an undeclared block stays plain.",
+    "description": "An annotated code block — the walkthrough shape. The body is the code verbatim inside its <pre> (data, HTML-escaped — & first, then < and > — column 0); `language` colors it, naming one of $languages; `hi` highlights line ranges (\"3-5,8\"); lf-note children sit beside that <pre> and anchor remarks at lines by number. For an excerpt of a longer file, `lines` gives the source line numbers the body quotes, in that range grammar and ascending (\"1505-1507,1520-1527\" is a 3-line and an 8-line stretch): the gutter shows those numbers, each gap between ranges draws an elided row, and `hi` and a note's `at` name lines by those numbers too. Without `lines` the body is lines 1 to N. Leave `language` off where the body isn't source (a transcript, command output) — nothing guesses, so an undeclared block stays plain.",
     "type": "object",
     "properties": {
       "id": {
@@ -550,6 +550,10 @@
         "type": "string"
       },
       "hi": {
+        "type": "string",
+        "pattern": "^[0-9]+(-[0-9]+)?(,[0-9]+(-[0-9]+)?)*$"
+      },
+      "lines": {
         "type": "string",
         "pattern": "^[0-9]+(-[0-9]+)?(,[0-9]+(-[0-9]+)?)*$"
       }
@@ -564,11 +568,12 @@
     "x-lines": [
       "hi"
     ],
+    "x-numbering": "lines",
     "x-upgrade": true,
     "x-example": "<lf-code id=\"bracket-walk\" language=\"python\" hi=\"2\"><pre>\ndef bracket(temp):\n    if temp &lt; 0:\n        return \"steel\"\n    return \"cedar\"\n</pre>\n  <lf-note at=\"2\">Freezing is the only threshold that matters.</lf-note>\n</lf-code>"
   },
   "lf-note": {
-    "description": "A remark anchored at a line of its lf-code parent. Prose content; `at` is the 1-based line number.",
+    "description": "A remark anchored at a line of its lf-code parent. Prose content; `at` is the line's number as the block numbers it — 1-based, or from the block's `lines`.",
     "type": "object",
     "properties": {
       "id": {

@@ -801,16 +801,19 @@ third, 12, 0
               id="bg-gloss"
               tip="A narrow end-to-end path through the real system."
               >walking skeleton</lf-gloss
-            >. Code adds line numbers and Notes; Tree shows file structure.
+            >. Code adds line numbers and Notes, and quotes an excerpt under its file's
+            own numbers with an elided row where it skips; Tree shows file structure.
           </p>
-          <lf-code id="bg-code" language="python" hi="2-3">
+          <lf-code id="bg-code" language="python" lines="40-43,58-59" hi="41-42">
             <pre>
 def route(weather):
     if weather == "rain":
         return "covered terrace"
     return "courtyard"
+def seat(guest):
+    return guest.table
 </pre>
-            <lf-note id="bg-code-note" at="2">
+            <lf-note id="bg-code-note" at="41">
               The branch exists only to make the highlighted walkthrough visible.
             </lf-note>
           </lf-code>

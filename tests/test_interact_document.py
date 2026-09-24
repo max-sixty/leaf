@@ -1334,6 +1334,74 @@ def test_a_widget_that_declares_a_language_is_checked_by_that_alone(page_dir):
     assert "not a language this page's layer speaks" in result.output
 
 
+EXCERPT = """<lf-code id="walk" language="rust" lines="{lines}" hi="{hi}"><pre>
+fn merge_sort()
+{{
+    while end &gt; 0 {{
+        start -= 1;
+}}
+</pre>
+<lf-note at="{at}">The loop.</lf-note>
+</lf-code>"""
+
+
+@pytest.mark.parametrize(
+    ("lines", "hi", "at", "refusals"),
+    [
+        # A snippet: no numbering, so its five lines are 1..5.
+        ("", "2-3", "5", []),
+        # An excerpt: two stretches of the file, referenced by the file's numbers,
+        # a range free to span the gap between them.
+        ("1505-1506,1550-1552", "1506-1550", "1552", []),
+        (
+            "1505-1506,1550-1552",
+            "3",
+            "1507",
+            [
+                'hi="3"> (line 10): line 3 is not among the body\'s lines="1505-1506,1550-1552"',
+                'at="1507"> (line 17): line 1507 is not among the body\'s lines=',
+            ],
+        ),
+        (
+            "1505-1506,1550-1553",
+            "1505",
+            "1505",
+            [
+                'lines="1505-1506,1550-1553"> (line 10): numbers 6 lines, but the body has 5'
+            ],
+        ),
+        (
+            "1550-1552,1505-1506",
+            "1505",
+            "1505",
+            [
+                'lines="1550-1552,1505-1506"> (line 10): '
+                "range 1505-1506 does not follow line 1552"
+            ],
+        ),
+    ],
+)
+def test_an_excerpt_is_referenced_by_the_numbers_it_quotes(
+    page_dir, lines, hi, at, refusals
+):
+    """`lines` gives a code block's body the numbers it has in its source file, and
+    every line reference into the block — its `hi`, a note's `at` — names lines by
+    them. The check holds the numbering to one ascending number per body line, and a
+    reference to a line the excerpt does not show, which the module would silently
+    paint nowhere, is refused."""
+    block = EXCERPT.format(lines=lines, hi=hi, at=at)
+    if not lines:
+        block = block.replace(' lines=""', "")
+    (page_dir / "index.html").write_text(
+        PAGE.replace("<h2>Plan</h2>", f"<h2>Plan</h2>\n{block}")
+    )
+    result = check(page_dir)
+    for refusal in refusals:
+        assert refusal in result.output, result.output
+    assert (result.exit_code == 1) == bool(refusals), result.output
+    assert result.output.count("\n  - ") == len(refusals), result.output
+
+
 def test_a_misplaced_class_is_offered_whatever_tag_takes_a_language(page_dir):
     """The other way to color a block is read from the layer, not written into the
     lint: the tags whose entries declare an attribute for a language (x-language) are

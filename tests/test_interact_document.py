@@ -1370,6 +1370,8 @@ fn merge_sort()
                 'lines="1505-1506,1550-1553"> (line 10): numbers 6 lines, but the body has 5'
             ],
         ),
+        # Source lines count from 1, so no excerpt quotes a line 0.
+        ("0-4", "1", "1", ["<lf-code> (line 10): '0-4' does not match"]),
         (
             "1550-1552,1505-1506",
             "1505",

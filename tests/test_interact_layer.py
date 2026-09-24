@@ -3643,7 +3643,7 @@ def test_package_init_widget_validates_its_tag_without_writing(tmp_path, monkeyp
     )
 
     assert result.exit_code != 0
-    assert "must match" in result.output
+    assert "invalid widget tag 'risk-note': an element name is `lf-`" in result.output
     assert not package.exists()
 
 

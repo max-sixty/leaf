@@ -40,6 +40,7 @@ from .schema import (
     SCRIPTS_DIR,
     VENDORED_FILES,
     WIDGET_NAME,
+    WIDGET_NAME_RULE,
 )
 
 
@@ -305,7 +306,7 @@ def init_starter_widget(
 ) -> None:
     """Add one checked upgraded-content starter without replacing package members."""
     if re.fullmatch(WIDGET_NAME, widget) is None:
-        sys.exit(f"widget tag {widget!r} must match {WIDGET_NAME}")
+        sys.exit(f"invalid widget tag {widget!r}: {WIDGET_NAME_RULE}")
     module_name = f"{widget}.js"
     module_path = package / "widgets" / module_name
     if widget in composition.registry:

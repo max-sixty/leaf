@@ -5,7 +5,13 @@ import re
 from jsonschema import Draft202012Validator
 from jsonschema.exceptions import SchemaError
 
-from leaf.schema import ATTRIBUTE_KEYS, DATA_SOURCE_NAME, EXTENSION_SCHEMA, WIDGET_NAME
+from leaf.schema import (
+    ATTRIBUTE_KEYS,
+    DATA_SOURCE_NAME,
+    EXTENSION_SCHEMA,
+    WIDGET_NAME,
+    WIDGET_NAME_RULE,
+)
 
 from .contract import (
     RegistryError,
@@ -35,9 +41,10 @@ def element_declarations(registry: dict, path) -> dict:
     ]
     if invalid_names:
         raise RegistryError(
-            f"{path}: invalid element declaration names: {invalid_names}"
+            f"{path}: invalid element declaration names {invalid_names}: "
+            f"{WIDGET_NAME_RULE}"
         )
-    return {tag: entry for tag, entry in registry.items() if tag.startswith("lf-")}
+    return {tag: entry for tag, entry in registry.items() if not tag.startswith("$")}
 
 
 def _recorded_attributes(entry: dict) -> set[str]:

@@ -2491,6 +2491,25 @@ def test_server_admits_only_a_widget_declared_host_request(server, page_dir):
         assert status == 400, body
         assert message in json.loads(body)["error"]
 
+    # The task's status is the worker's verb; the browser door refuses a user's.
+    status, body = fetch(
+        f"{server}/api/event",
+        data=json.dumps(
+            {
+                "kind": "action",
+                "revision": 1,
+                "widget": "goal",
+                "action": "status",
+                "detail": {"status": "done"},
+            }
+        ).encode(),
+    )
+    assert status == 400, body
+    assert (
+        "'status' is a verb the agent writes; this action came from the user"
+        in (json.loads(body)["error"])
+    )
+
     status, body = fetch(
         f"{server}/api/event",
         data=json.dumps(

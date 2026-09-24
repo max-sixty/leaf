@@ -72,7 +72,10 @@ def accept_event(
 ) -> EventAnswer:
     """Validate and append one browser record, then return its current state."""
     try:
-        registry = admitting_registry(PageView(page_dir), event)
+        # The shape check before the lease reads no log, so a sign-off checks its
+        # kind against the newest vocabulary; admission inside the lease reads the
+        # version's own.
+        registry = admitting_registry(PageView(page_dir), event, [])
     except (EventRefused, RegistryError) as error:
         return event_rejection(event, str(error))
     contracts = registry["$events"]["kinds"]

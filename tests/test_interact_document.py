@@ -2576,6 +2576,10 @@ def test_report_validates_at_the_door_and_stamps_identity(page_dir, monkeypatch)
     POST door's action gate — and the event leaves stamped with the posting
     session's voice and the exact revision the user is looking at."""
     _tasks_version(page_dir, "active")
+    version = page_dir / "index.html"
+    version.write_text(
+        version.read_text().replace("<lf-options>", '<lf-options id="choice">')
+    )
     activation = revisioning_model.activate_source(page_dir, [])
     assert activation.error is None and activation.revision == 1
     draft_report = _report(page_dir, "t-parser", "status", "status=review")
@@ -2593,6 +2597,10 @@ def test_report_validates_at_the_door_and_stamps_identity(page_dir, monkeypatch)
         (("nope", "status", "status=review"), "unknown report widget"),
         (("tree", "status", "status=review"), "does not declare report verb"),
         (("t-parser", "finish", "status=done"), "does not declare report verb"),
+        (
+            ("choice", "choose", "option=flag-first"),
+            "'choose' is a verb the user writes; this report came from the agent",
+        ),
         (("t-parser", "status", "status=shipping"), "detail is invalid"),
         (("t-parser", "status", "status"), "name=value"),
         (("t-parser", "status"), "'status' is a required property"),

@@ -99,6 +99,12 @@ def declared_event_error(event: dict, tag: str, registry: dict):
         )
     spec = event_spec(entry, event)
     if spec is None:
+        other = entry.get("x-state", {}).get(event["action"])
+        if other is not None:
+            return (
+                f"<{tag}> {event['action']!r} is a verb the {writer(other)} "
+                f"writes; this {kind} came from the {WRITERS[kind]}"
+            )
         declared = sorted(
             verb
             for verb, declared_spec in state_specs(entry)
@@ -401,21 +407,26 @@ def report_contract_error(event: dict, page, registry: dict):
     return declared_event_error(event, tag, registry)
 
 
-def admitting_registry(view, event: dict) -> dict:
+def admitting_registry(view, event: dict, events: list) -> dict:
     """The vocabulary that admits one event: the one its own document captured.
 
     An event names the revision it was made against, and that revision's artifact
     holds the registry its page was rendered from — so a re-vendor, which replaces
     the layer without touching a standing revision, cannot reinterpret a command
     the user made against the document in front of them. `stored_meaning_error`
-    reads the recorded side from that same capture. An event naming no revision
-    takes the newest, which is the document any writer of one is looking at, and a
-    page with no revision yet has only the layer it carries.
+    reads the recorded side from that same capture. A sign-off names its version
+    instead, and admits under the revision that version stamped. An event naming
+    neither takes the newest, which is the document any writer of one is looking
+    at, and a page with no revision yet has only the layer it carries.
 
     Read through `PageView.registry`, which opens the one captured file rather
     than materializing the whole bundle: this runs on every append."""
     revisions = view.revisions
-    revision = event.get("revision")
+    revision = (
+        version_revisions(events).get(event.get("version"))
+        if event.get("kind") == "done"
+        else event.get("revision")
+    )
     if type(revision) is not int or revision not in set(revisions):
         revision = revisions[-1] if revisions else None
     registry = view.registry(revision)
@@ -634,7 +645,7 @@ def admitted_event(
     page's markup as literal text can put an event to the same rules the server
     applies without a page directory, a server, or a browser under it.
     """
-    registry = admitting_registry(view, event)
+    registry = admitting_registry(view, event, events)
     contracts = registry["$events"]["kinds"]
     kind = event.get("kind")
     if kind not in contracts:

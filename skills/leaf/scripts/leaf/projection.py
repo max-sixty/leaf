@@ -8,6 +8,7 @@ from leaf.events import (
     action_rests_on,
     action_retracted,
     anchored_ids,
+    event_coordinate,
     note_settlements,
     report_settlements,
     retractions,
@@ -401,7 +402,7 @@ def state_projection(
         spec = event_spec(registry.get(rec["tag"], {}), event)
         if not spec:
             continue
-        coordinate = tuple(event["meaning"]["coordinate"])
+        coordinate = event_coordinate(event)
         entry = (event, spec)
         classified[event["id"]] = (coordinate, entry)
         if event["kind"] == "action":
@@ -434,7 +435,7 @@ def with_action(
     An action made against the window this projection folds is the latest at its
     coordinate and no floor of that window can have retracted it, so admission
     reads a candidate this way instead of folding the whole log again."""
-    coordinate = tuple(event["meaning"]["coordinate"])
+    coordinate = event_coordinate(event)
     entry = (event, spec)
     return projection._replace(
         actions={**projection.actions, coordinate: entry},

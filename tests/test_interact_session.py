@@ -4597,15 +4597,15 @@ def test_each_delivered_event_says_only_what_its_own_case_asks(page_dir, capsys)
         "action": "choose",
         "detail": {"options": ["a"]},
         "meaning": {
-            "document": {"kind": "page", "revision": 1},
-            "coordinate": ["w", "w", "choose"],
+            "document": "page",
+            "unit": "w",
             "depends": ["a", "w"],
             "answer": None,
         },
     }
     thread_pick = {
         **page_pick,
-        "meaning": {**page_pick["meaning"], "document": {"kind": "thread"}},
+        "meaning": {**page_pick["meaning"], "document": "thread"},
     }
     drawing = {"format": "leaf-drawing/2", "strokes": [[[0, 0], [10, 10]]]}
     for event in (
@@ -4805,8 +4805,8 @@ def test_wait_prints_unacknowledged_input_without_receipt_or_pickup(page_dir, ca
             "action": "move",
             "detail": {"card": "x", "to": "y", "index": 0},
             "meaning": {
-                "document": {"kind": "page", "revision": 1},
-                "coordinate": ["b", "x", "move"],
+                "document": "page",
+                "unit": "x",
                 "depends": ["b", "x", "y"],
             },
         },
@@ -4869,8 +4869,8 @@ def test_wait_prints_unacknowledged_input_without_receipt_or_pickup(page_dir, ca
             "session": "worker-1",
             "widget": "t1",
             "meaning": {
-                "document": {"kind": "page", "revision": 1},
-                "coordinate": ["t1", "t1", "status"],
+                "document": "page",
+                "unit": "t1",
                 "depends": ["t1"],
             },
             "action": "status",
@@ -10517,8 +10517,8 @@ def test_idle_cannot_close_a_page_over_events_nobody_read(claimed, capsys):
             "author": "agent",
             "widget": "t1",
             "meaning": {
-                "document": {"kind": "page", "revision": 1},
-                "coordinate": ["t1", "t1", "status"],
+                "document": "page",
+                "unit": "t1",
                 "depends": ["t1"],
             },
             "action": "status",

@@ -1884,7 +1884,7 @@ def test_action_door_owns_created_child_meaning(server, page_dir):
     assert status == 200, body
     accepted = json.loads(body)["state"]["events"][-1]
     # The created option is the action's own unit, and the stamp names its tag.
-    assert accepted["meaning"]["coordinate"] == ["delivery", "delivery-user", "add"]
+    assert accepted["meaning"]["unit"] == "delivery-user"
     assert accepted["meaning"]["creates"] == "lf-option"
     # The server's enrichment does not alter retry identity.
     status, body = fetch(f"{server}/api/event", data=json.dumps(command).encode())
@@ -2031,8 +2031,8 @@ def test_undo_offer_keeps_the_doors_active_page_containment(page_dir):
             "action": "choose",
             "detail": {"options": ["flag-first"]},
             "meaning": {
-                "document": {"kind": "page", "revision": 1},
-                "coordinate": ["picks", "picks", "choose"],
+                "document": "page",
+                "unit": "picks",
                 "depends": ["flag-first", "picks"],
                 "answer": reaction["id"],
             },
@@ -3391,7 +3391,7 @@ def test_event_ids_are_unique_within_the_log_whatever_the_mint_returns(
             page_dir,
             {
                 "id": first["id"],
-                "meaning": {"document": {"kind": "page", "revision": 1}},
+                "meaning": {"document": "page"},
                 "kind": "request",
                 "author": "user",
                 "revision": 1,

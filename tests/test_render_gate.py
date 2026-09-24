@@ -767,8 +767,8 @@ def test_every_restore_case_a_user_can_return_to_is_arrived_in(browser, serve):
                 "action": "decide",
                 "detail": {"outcome": "accept"},
                 "meaning": {
-                    "document": {"kind": "page", "revision": 1},
-                    "coordinate": ["sug-rewrite", "sug-rewrite", "decide"],
+                    "document": "page",
+                    "unit": "sug-rewrite",
                     "depends": ["sug-rewrite"],
                     "answer": None,
                 },

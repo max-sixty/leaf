@@ -6,6 +6,7 @@ from leaf.events import (
     action_rests_on,
     active_summaries,
     build_threads,
+    event_coordinate,
     spoken_turns,
     taken_back,
 )
@@ -39,7 +40,7 @@ def specimen_events(
     memberships = thread_memberships(
         events, roots, thread_widgets(thread_structure(events), roots), document.within
     )
-    seeded = [
+    return [
         {
             **{key: value for key, value in event.items() if key != "seq"},
             **({"revision": 1} if "revision" in event else {}),
@@ -47,13 +48,6 @@ def specimen_events(
         for event in events
         if selected.intersection(memberships[event["id"]])
     ]
-    for event in seeded:
-        if event.get("meaning", {}).get("document", {}).get("kind") == "page":
-            event["meaning"] = {
-                **event["meaning"],
-                "document": {"kind": "page", "revision": 1},
-            }
-    return seeded
 
 
 def thread_roots(events: list) -> dict:
@@ -176,7 +170,7 @@ def thread_memberships(
         else:
             named = event_threads(event, roots, widgets)
         if event["kind"] == "action":
-            coordinate = tuple(event["meaning"]["coordinate"])
+            coordinate = event_coordinate(event)
             named = [*named, *settled_by_coordinate.get(coordinate, [])]
             if root := event["meaning"].get("answer"):
                 settled_by_coordinate.setdefault(coordinate, []).append(root)

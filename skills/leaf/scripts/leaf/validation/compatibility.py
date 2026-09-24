@@ -3,7 +3,7 @@
 from pathlib import Path
 
 from leaf import event_contracts
-from leaf.event_meaning import stored_meaning_error
+from leaf.event_meaning import admitted_contract_error
 from leaf.events import taken_back
 from leaf.registry.contract import RegistryError, read_registry_declarations
 from leaf.registry.layer import merge_layer_declarations
@@ -156,7 +156,7 @@ def candidate_vocabulary_gaps(
         ):
             key = "thread markup contract: " + "; ".join(errors)
         elif kind in {"action", "report", "request"}:
-            scope = e["meaning"]["document"]["kind"]
+            scope = e["meaning"]["document"]
             participates = scope == "thread" or (
                 kind in {"action", "report"} and page_event_participates(e)
             )
@@ -175,7 +175,7 @@ def candidate_vocabulary_gaps(
                     error = declared_request_error(e, document, thread, incoming)
                 if error:
                     key = f"{kind} contract: {error}"
-                elif error := stored_meaning_error(
+                elif error := admitted_contract_error(
                     e,
                     candidate_page,
                     thread,
@@ -183,7 +183,7 @@ def candidate_vocabulary_gaps(
                     registry(e["revision"]),
                     recorded_page=original_page,
                 ):
-                    key = f"admitted meaning: {error}"
+                    key = f"admitted contract: {error}"
         if key is not None:
             missing[key] = missing.get(key, 0) + 1
     return [

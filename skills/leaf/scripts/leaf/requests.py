@@ -4,6 +4,7 @@ from pathlib import Path
 
 from .asks import quoted_in
 from .event_meaning import request_unit
+from .events import event_document
 from .host import message_identity
 from .leases import contract_writer
 from .registry.contract import schema_error
@@ -32,7 +33,7 @@ def request_lifecycle(
         if (
             event["kind"] != "request"
             or event["widget"] != widget
-            or event["meaning"]["document"] != document
+            or event_document(event) != document
             or event["meaning"]["unit"] != unit
         ):
             continue
@@ -83,7 +84,7 @@ def request_lifecycles_for(
                 if (
                     event["kind"] == "request"
                     and event["widget"] == widget
-                    and event["meaning"]["document"] == document
+                    and event_document(event) == document
                 ):
                     seats.setdefault((widget, event["meaning"]["unit"]), (None, False))
         else:
@@ -128,7 +129,7 @@ def request_outcomes(events: list[dict]) -> list[dict]:
             "request": request["id"],
             "widget": request["widget"],
             "action": request["action"],
-            "document": request["meaning"]["document"],
+            "document": event_document(request),
             "unit": request["meaning"]["unit"],
             "receipt": receipt,
         }
@@ -337,7 +338,7 @@ def request_lifecycles(events: list) -> list[dict]:
     for event in events:
         if event["kind"] != "request":
             continue
-        document = event["meaning"]["document"]
+        document = event_document(event)
         unit = event["meaning"]["unit"]
         coordinate = (document["kind"], document.get("revision"), event["widget"], unit)
         seats[coordinate] = (event["widget"], document, unit)

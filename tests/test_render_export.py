@@ -2180,8 +2180,8 @@ OPEN_EDIT = {
     "action": "edit",
     "detail": {"text": "The sample workshop is in the red room."},
     "meaning": {
-        "document": {"kind": "page", "revision": 1},
-        "coordinate": ["d-open", "d-open", "edit"],
+        "document": "page",
+        "unit": "d-open",
         "depends": ["d-open"],
         "answer": None,
     },

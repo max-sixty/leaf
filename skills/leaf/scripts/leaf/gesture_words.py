@@ -10,6 +10,7 @@ and the transcript both state a gesture through this one reading.
 
 from pathlib import Path
 
+from .events import event_document
 from .passages import spoken
 from .projection import frozen_thread_reading
 from .revision_artifact import read_registry
@@ -54,7 +55,7 @@ class GestureWords:
         meaning = event.get("meaning")
         if meaning is None:
             return {}
-        said = self._reading(meaning["document"])
+        said = self._reading(event_document(event))
         named = {
             identity: said[identity]
             for identity in meaning.get("depends", [event["widget"]])

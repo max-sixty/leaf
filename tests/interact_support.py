@@ -675,8 +675,8 @@ ACCEPT = {
     "action": "decide",
     "detail": {"outcome": "accept"},
     "meaning": {
-        "document": {"kind": "page", "revision": 1},
-        "coordinate": ["sug-a", "sug-a", "decide"],
+        "document": "page",
+        "unit": "sug-a",
         "depends": ["sug-a"],
         "answer": "c1",
     },

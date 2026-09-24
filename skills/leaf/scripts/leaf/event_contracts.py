@@ -413,7 +413,7 @@ def admitting_registry(view, event: dict, events: list) -> dict:
     An event names the revision it was made against, and that revision's artifact
     holds the registry its page was rendered from — so a re-vendor, which replaces
     the layer without touching a standing revision, cannot reinterpret a command
-    the user made against the document in front of them. `stored_meaning_error`
+    the user made against the document in front of them. `admitted_contract_error`
     reads the recorded side from that same capture. A sign-off names its version
     instead, and admits under the revision that version stamped. An event naming
     neither takes the newest, which is the document any writer of one is looking

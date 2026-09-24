@@ -4622,7 +4622,7 @@ def test_events_follow_prints_each_admitted_event_as_it_lands(page_dir, spawn):
     followed = [follower.next(), follower.next()]
     assert followed == events_model.read_events(page_dir)[len(standing) :]
     assert followed[0]["id"] == json.loads(reported.output)["id"]
-    assert followed[0]["meaning"]["coordinate"] == ["t-parser", "t-parser", "status"]
+    assert followed[0]["meaning"]["unit"] == "t-parser"
     assert followed[1]["id"] == json.loads(opened.output)["id"]
     assert follower.stop(signal.SIGTERM) == (0, "")
 
@@ -5387,10 +5387,10 @@ def test_projected_verbatim_scopes_page_state_to_here_and_thread_state_to_its_lo
             "action": "edit",
             "detail": {"text": text},
             "meaning": {
-                "coordinate": [identity, identity, "edit"],
+                "unit": identity,
                 "depends": [identity],
                 "answer": None,
-                "document": {"kind": "page", "revision": 2},
+                "document": "page",
             },
             "seq": seq,
         }
@@ -5451,10 +5451,10 @@ def test_projected_verbatim_includes_generated_children():
         "action": "add",
         "detail": {"item": "new-item", "text": "Generated item."},
         "meaning": {
-            "coordinate": ["list", "new-item", "add"],
+            "unit": "new-item",
             "depends": ["list", "new-item"],
             "creates": "lf-item",
-            "document": {"kind": "page", "revision": 1},
+            "document": "page",
         },
         "seq": 1,
     }

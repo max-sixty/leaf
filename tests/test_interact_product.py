@@ -1415,8 +1415,8 @@ def test_export_prints_threads_and_versions(page_dir):
             "action": "move",
             "detail": {"card": "card-x", "to": "col-done", "index": 0},
             "meaning": {
-                "document": {"kind": "page", "revision": 1},
-                "coordinate": ["b", "card-x", "move"],
+                "document": "page",
+                "unit": "card-x",
                 "depends": ["b", "card-x", "col-done"],
             },
         },
@@ -1431,8 +1431,8 @@ def test_export_prints_threads_and_versions(page_dir):
             "action": "choose",
             "detail": {"options": ["backfill-first"]},
             "meaning": {
-                "document": {"kind": "page", "revision": 1},
-                "coordinate": ["plan-options", "plan-options", "choose"],
+                "document": "page",
+                "unit": "plan-options",
                 "depends": ["backfill-first", "plan-options"],
             },
         },

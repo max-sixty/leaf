@@ -306,7 +306,7 @@ def test_a_pick_names_only_options_its_group_holds():
             "detail": {"option": "live-mine", "text": "My own way"},
         },
     )
-    assert add["meaning"]["coordinate"] == ["live-pick", "live-mine", "add"]
+    assert add["meaning"]["unit"] == "live-mine"
     added = {**add, "id": "a1", "ts": "2026-09-19T12:01:00+00:00", "seq": 2}
     assert admit([*STATED_LOG, added], pick)["detail"] == {"options": ["live-mine"]}
 
@@ -328,7 +328,7 @@ def test_the_swipe_that_empties_the_queue_is_the_decks_answer():
     first = admit(
         [], {**STATED_SWIPE, "detail": {"card": "card-a", "to": "keep", "index": 0}}
     )
-    assert first["meaning"]["coordinate"] == ["triage", "card-a", "swipe"]
+    assert first["meaning"]["unit"] == "card-a"
     assert "answer" not in first["meaning"]
     log = [{**first, "id": "s1", "ts": "2026-09-19T12:01:00+00:00", "seq": 1}]
     last = admit(
@@ -372,11 +372,7 @@ def test_admission_decides_from_the_markup_and_the_standing_log_alone():
         "widget": "live-pick",
         "detail": {"options": ["live-gps"]},
     }
-    assert admit(choose_live)["meaning"]["coordinate"] == [
-        "live-pick",
-        "live-pick",
-        "choose",
-    ]
+    assert admit(choose_live)["meaning"]["unit"] == "live-pick"
     assert (
         refusal({**choose_live, "revision": 2}) == "action revision must be one of [1]"
     )
@@ -492,8 +488,8 @@ def test_an_answer_the_user_took_back_leaves_its_thread_open(page_dir):
             "action": "choose",
             "detail": {"options": ["flag-first"]},
             "meaning": {
-                "document": {"kind": "page", "revision": 1},
-                "coordinate": ["picks", "picks", "choose"],
+                "document": "page",
+                "unit": "picks",
                 "depends": ["flag-first", "picks"],
                 "answer": "c1",
             },
@@ -746,8 +742,8 @@ def test_init_refuses_a_log_the_incoming_layer_no_longer_speaks(page_dir):
             "action": "decide",
             "detail": {"decision": "approved"},
             "meaning": {
-                "document": {"kind": "page", "revision": 1},
-                "coordinate": ["d1", "d1", "decide"],
+                "document": "page",
+                "unit": "d1",
                 "depends": ["d1"],
                 "answer": None,
             },
@@ -3799,7 +3795,7 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
     registry = json.loads((schema_model.ASSETS / "registry.json").read_text())
     # Each case holds its `kind` and the fields some `when` reads, and nothing else:
     # a field no `when` names cannot change what the agent is told.
-    on_page = {"document": {"kind": "page"}}
+    on_page = {"document": "page"}
 
     def owes(kind):
         return {"obligation": {"response": {"kind": kind}}}
@@ -3869,7 +3865,7 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
         },
         "pick inside a thread": {
             "kind": "action",
-            "meaning": {"document": {"kind": "thread"}},
+            "meaning": {"document": "thread"},
             **owes("reply"),
         },
         "resolve": {"kind": "resolve"},
@@ -5332,7 +5328,8 @@ def test_admission_names_dependencies_and_revendoring_preserves_their_meaning(
     server, page_dir
 ):
     """Recorded identities become dependencies, literal detail text does not, and a
-    re-vendor may not reinterpret the admitted meaning."""
+    re-vendor may not change the record form the fold reads the admitted command
+    through."""
     from copy import deepcopy
 
     from leaf.files import latest_revision
@@ -5376,7 +5373,7 @@ def test_admission_names_dependencies_and_revendoring_preserves_their_meaning(
     )
     recordless = deepcopy(registry)
     del recordless["lf-options"]["x-state"]["choose"]["record"]
-    assert "changes admitted meaning" in "\n".join(
+    assert "changes its admitted record form" in "\n".join(
         candidate_vocabulary_gaps(page_dir, events, document, recordless, revision)
     )
 
@@ -5405,8 +5402,8 @@ def test_an_independent_verb_leaves_a_decisions_thread_resolved(page_dir):
         "action": "label",
         "detail": {},
         "meaning": {
-            "document": {"kind": "page", "revision": 1},
-            "coordinate": ["sug-a", "sug-a", "label"],
+            "document": "page",
+            "unit": "sug-a",
             "depends": ["sug-a"],
         },
     }

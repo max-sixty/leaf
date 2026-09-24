@@ -24,7 +24,15 @@ customElements.define(
     #paint() {
       const columns = this.getAttribute("columns");
       if (columns && !COUNT.test(columns)) {
-        this.style.setProperty("--lf-grid-template", columns);
+        // Each track is at least nothing rather than its content's minimum, so what a
+        // cell holds cannot move the split; a wide cell scrolls or wraps inside it.
+        this.style.setProperty(
+          "--lf-grid-template",
+          columns
+            .split(" ")
+            .map((track) => `minmax(0, ${track})`)
+            .join(" "),
+        );
         // How many of its narrowest track the template is wide, which is what the
         // width it stacks below is a multiple of (the theme, at the stacking rules).
         const fr = columns.split(" ").map(parseFloat);

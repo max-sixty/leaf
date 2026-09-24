@@ -32,14 +32,15 @@ lf-playground:has(> .lf-playground-split) {
 /* The body and rail of a sheet (page-authoring.md, the sheet): the same `2fr 1fr` and
  * gutter an lf-grid body and rail draw, so a playground on a sheet stands on the lines
  * the page's other regions do. The stage spans the rail's two rows; the controls take
- * their content's height and the instruction stands under them. Narrower than 50rem,
- * a document's column included, a rail would be too narrow for the controls it holds, so
- * the regions stack in reading order: the stage, the controls, the instruction. */
+ * their content's height and the instruction stands under them. Narrower than 51rem
+ * (lf-grid's width for a 2fr 1fr template, default theme), a document's column included,
+ * a rail would be too narrow for the controls it holds, so the regions stack in reading
+ * order: the stage, the controls, the instruction. */
 .lf-playground-split {
   grid-template-columns: minmax(0, 1fr);
 }
 
-@container (min-width: 50rem) {
+@container (min-width: 51rem) {
   .lf-playground-split {
     grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
     grid-template-rows: auto 1fr;
@@ -62,7 +63,7 @@ lf-playground:has(> .lf-playground-split) {
 @media screen {
   @container lf-workspace (min-width: 720px) and (min-height: 480px) {
     @container style(--lf-held: 1) {
-      @container (min-width: 50rem) {
+      @container (min-width: 51rem) {
         html:not(.lf-copy) .lf-playground-split {
           grid-template-rows: minmax(12rem, 1fr) auto;
         }

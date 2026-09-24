@@ -86,8 +86,9 @@ rendering that covers and drops nothing; and standing state that replays without
 conflict and idempotently. `render_gate/readings.py` is the list. Those readings run
 at a desktop and a phone viewport; once they are done, the loaded desktop page is
 resized through the widths from 360px to 1200px and the two sideways readings are taken
-again at each, because a layout can break only between the viewports, and each fault
-found only there is reported at the narrowest width it appears. The gate also gives
+again at each: a version holds at every width from the narrowest phone to the desktop,
+not only at the two the gate renders, and each fault the sweep alone finds is reported
+with the widths it spans. The gate also gives
 advice, which never refuses a version: at the desktop viewport, a page whose layout
 grids split at more places than its busiest grid needs is told to lay a sheet on one
 set of tracks.

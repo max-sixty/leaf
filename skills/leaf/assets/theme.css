@@ -857,8 +857,8 @@ main {
   main:is([data-width="wide"], [data-width="available"]) > * { --lf-room: 100%; }
   /* A sheet's title heads a page as wide as the window, above boards and tiles rather
    * than a column of prose, so it is set a size up and heavier: at the column's size it
-   * read as a section heading among the panels. The size grows with the sheet (cqi here
-   * is the sheet's own width). */
+   * read as a section heading among the panels. It grows with the window (cqi here is
+   * the shell's width, the window less its strips). */
   main:is([data-width="wide"], [data-width="available"]) > h1,
   main:is([data-width="wide"], [data-width="available"]) > * > header > h1 {
     font-size: clamp(36px, 3.2cqi, 46px);
@@ -1242,17 +1242,20 @@ main > aside.sidebar:nth-child(1 of aside.sidebar) { --lf-sidebar-slot: margin; 
     main:has(> aside.sidebar):has(aside.sidenote) {
     --strip-l: var(--lf-sidebar-claim, var(--sidebar));
     --lf-sidebar-posture: margin;
-    & :is([data-lf-space], [data-width]) {
-      --lf-space-bound: var(--lf-sidebar-shell-bound,
-        calc(50cqi - var(--lf-shift)
-          + min(var(--col), var(--lf-room)) / 2 - var(--col-pad)));
-      --lf-grow-l: min(calc(var(--lf-surplus) / 2),
-        var(--lf-sidebar-free-left, 0px));
-      --lf-grow-r: calc(var(--lf-surplus) - var(--lf-grow-l));
-    }
-    & [data-lf-space][data-lf-yield~="r"] {
-      --lf-space-bound: calc(100% + var(--lf-sidebar-free-left, 0px));
-      --lf-grow-l: var(--lf-surplus); --lf-grow-r: 0px;
+    /* As beside a sidebar alone: a sheet's blocks fill it rather than growing out. */
+    &:not([data-width="wide"], [data-width="available"]) {
+      & :is([data-lf-space], [data-width]) {
+        --lf-space-bound: var(--lf-sidebar-shell-bound,
+          calc(50cqi - var(--lf-shift)
+            + min(var(--col), var(--lf-room)) / 2 - var(--col-pad)));
+        --lf-grow-l: min(calc(var(--lf-surplus) / 2),
+          var(--lf-sidebar-free-left, 0px));
+        --lf-grow-r: calc(var(--lf-surplus) - var(--lf-grow-l));
+      }
+      & [data-lf-space][data-lf-yield~="r"] {
+        --lf-space-bound: calc(100% + var(--lf-sidebar-free-left, 0px));
+        --lf-grow-l: var(--lf-surplus); --lf-grow-r: 0px;
+      }
     }
   }
   html:not(.lf-copy) main:has(aside.sidenote)

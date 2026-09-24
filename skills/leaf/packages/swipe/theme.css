@@ -300,20 +300,15 @@ lf-swipe-pile[verdict="keep"] > lf-swipe-card {
   }
 }
 
-/* A ledger keeps the result rather than the argument, which the card made in the queue:
- * two lines of each proposal say which one it was, so a rail of kept work stays beside
- * the queue instead of pushing it off the screen. Paper keeps the whole text. */
-@media screen {
-  lf-swipe-pile:is([verdict="pass"], [verdict="keep"])
-    > lf-swipe-card
-    > :not(strong:first-child, .lf-ui, [data-lf-gen]) {
-    display: -webkit-box;
-    overflow: hidden;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
-    color: var(--muted-2);
-    font-size: var(--t-5);
-  }
+/* A ledger keeps the result rather than the argument, which the card made in the queue,
+ * so each proposal's words are set quieter and smaller under its title. They stay whole:
+ * a comment can stand on any of them, and clipped words would be a passage the page no
+ * longer shows. */
+lf-swipe-pile:is([verdict="pass"], [verdict="keep"])
+  > lf-swipe-card
+  > :not(strong:first-child, .lf-ui, [data-lf-gen]) {
+  color: var(--muted-2);
+  font-size: var(--t-5);
 }
 
 lf-swipe-pile[verdict="pass"] > lf-swipe-card:first-of-type,
@@ -370,7 +365,7 @@ html.lf-copy .lf-swipe-controls {
  * Passed in the rail, so both piles stay in view while the reader sorts. The rows are
  * auto: the queue spans the two the rail piles take, so it grows to the rail's height
  * and a taller queue shares its extra height evenly between Kept and Passed. */
-@container lf-swipe-frame (min-width: 50rem) {
+@container lf-swipe-frame (min-width: 51rem) {
   lf-swipe-deck {
     width: 100%;
     margin-inline: 0;

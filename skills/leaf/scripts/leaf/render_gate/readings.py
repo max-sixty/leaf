@@ -398,9 +398,10 @@ def _overflow(overflow: int, misplaced: list) -> list[tuple[tuple[str, str], str
     return found + [((m["at"], m["kind"]), m["text"]) for m in misplaced]
 
 
-# The widths the sweep takes a loaded page through. The fixed viewports read a page at
-# two widths, and a layout can break only between them: a template that stacks under
-# 600px leaves a band above that where its narrow track is narrower than what it holds.
+# The widths the sweep takes a loaded page through: a version holds at every width from
+# the narrowest phone to the desktop viewport, and the fixed viewports read it at two. A
+# grid that stacks at one width can leave its narrow track narrower than what it holds
+# just above it, a band neither viewport lands in.
 SWEEP_WIDTHS = range(360, 1201, 40)
 
 
@@ -409,11 +410,13 @@ def swept_overflow(page, viewports) -> list[str]:
 
     Resizes the loaded page rather than rendering it again, and re-reads only the two
     sideways readings, which are geometry: the rest of the gate reads words, paint and
-    state, which the fixed viewports already see. The fixed widths are swept too, and a
-    fault met at one of them is dropped here, because that viewport's own reading
-    already reports it in both schemes."""
+    state, which the fixed viewports already see. The sweep runs at the desktop
+    viewport's height, and a fault it also meets at that viewport's width is dropped
+    here, because that reading already reports it in both schemes; the phone viewport is
+    read at a height of its own, where a workspace may hold its regions differently, so
+    what the sweep meets at the phone's width is still reported."""
     height = viewports[0]["height"]
-    fixed = {viewport["width"] for viewport in viewports}
+    fixed = {v["width"] for v in viewports if v["height"] == height}
     seen = {}
     for width in sorted({*SWEEP_WIDTHS, *fixed}):
         page.set_viewport_size({"width": width, "height": height})

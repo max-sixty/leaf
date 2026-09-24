@@ -72,9 +72,9 @@ def _render_version_attempt(
     draws over each other (print is scheme-blind). Once per version, on the settled
     desktop page in the light scheme, it reads two things more: whether the page's grids
     stand on shared vertical lines, which is advice, and then, resizing that loaded page
-    through the widths between and around the two viewports, the sideways readings again,
-    since a layout can break only between them. Returns human-readable failures; []
-    is a pass.
+    through every width from 360px to 1200px, the sideways readings again: a version
+    holds at each of them, not only at the two it renders. Returns the failures and
+    the advice; no failures is a pass.
 
     One implementation with two callers — `version check --render` on the page an agent
     just wrote, and the render suite on the shipped examples

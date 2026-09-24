@@ -35,10 +35,10 @@
                 <pre
                   id="comparison-current-trace"
                 ><code>/orders    401 → refresh A → retry
-  /cart      401 → refresh B → retry
-  /profile   401 → refresh C → retry
-  /offers    401 → refresh D → retry
-  /delivery  401 → refresh E → retry</code></pre>
+/cart      401 → refresh B → retry
+/profile   401 → refresh C → retry
+/offers    401 → refresh D → retry
+/delivery  401 → refresh E → retry</code></pre>
                 <dl class="facts">
                   <dt>Refresh requests</dt>
                   <dd>5</dd>
@@ -77,10 +77,10 @@
               <section id="comparison-proposed-replay">
                 <h3>Five-call replay</h3>
                 <pre id="comparison-proposed-trace"><code>/orders   ┐
-  /cart     │
-  /profile  ├→ refresh A → retry all five
-  /offers   │
-  /delivery ┘</code></pre>
+/cart     │
+/profile  ├→ refresh A → retry all five
+/offers   │
+/delivery ┘</code></pre>
                 <dl class="facts">
                   <dt>Refresh requests</dt>
                   <dd>1</dd>

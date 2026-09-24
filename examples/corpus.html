@@ -3989,10 +3989,10 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
                 <pre
                   id="comparison-current-trace"
                 ><code>/orders    401 → refresh A → retry
-  /cart      401 → refresh B → retry
-  /profile   401 → refresh C → retry
-  /offers    401 → refresh D → retry
-  /delivery  401 → refresh E → retry</code></pre>
+/cart      401 → refresh B → retry
+/profile   401 → refresh C → retry
+/offers    401 → refresh D → retry
+/delivery  401 → refresh E → retry</code></pre>
                 <dl class="facts">
                   <dt>Refresh requests</dt>
                   <dd>5</dd>
@@ -4031,10 +4031,10 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
               <section id="comparison-proposed-replay">
                 <h3>Five-call replay</h3>
                 <pre id="comparison-proposed-trace"><code>/orders   ┐
-  /cart     │
-  /profile  ├→ refresh A → retry all five
-  /offers   │
-  /delivery ┘</code></pre>
+/cart     │
+/profile  ├→ refresh A → retry all five
+/offers   │
+/delivery ┘</code></pre>
                 <dl class="facts">
                   <dt>Refresh requests</dt>
                   <dd>1</dd>
@@ -4588,10 +4588,10 @@ expire old keys</code></pre>
                     <details id="cohort-staff-commands">
                       <summary>Inspect the operator sequence</summary>
                       <pre><code>capture --cohort staff
-  copy --cohort staff
-  compare --cohort staff
-  switch-reads --cohort staff
-  observe --cohort staff</code></pre>
+copy --cohort staff
+compare --cohort staff
+switch-reads --cohort staff
+observe --cohort staff</code></pre>
                     </details>
                   </section>
                   <section id="cohort-na-free">

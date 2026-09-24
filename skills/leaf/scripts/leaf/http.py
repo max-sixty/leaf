@@ -30,7 +30,7 @@ from .data import (
     read_data,
     read_source,
 )
-from .event_endpoint import accept_event, event_rejection
+from .event_endpoint import accept_event, event_fault, event_rejection
 from .event_log import read_events
 from .files import (
     LOOK_S,
@@ -501,10 +501,6 @@ class PageEndpoint:
             answer = self._answer(self._post, prepare=self._read_posted)
         else:
             answer = self._json({"error": f"unsupported method {self.method}"}, 501)
-        if answer is None:
-            # A route that returned without answering. Nothing sensible is left to
-            # say, and the peer is owed a status rather than a dropped connection.
-            return Response(b"", status_code=500)
         answer.headers.update(self._delivery_headers())
         return answer
 
@@ -806,6 +802,13 @@ class PageEndpoint:
             return b"", "incomplete image body"
         return body, None
 
+    def _fault(self, error: str) -> Response:
+        """Answer a fault in the shape spoken by the route that met it."""
+        if self.method == "POST" and self.path == "/api/event":
+            status, body = event_fault(self.posted, error)
+            return self._json(body, status)
+        return self._json({"error": error}, 500)
+
     def _refuse(self, error: str, status: int = 400) -> Response:
         """Answer a refusal in the shape spoken by the route that produced it."""
         if self.method == "POST" and self.path == "/api/event":
@@ -813,13 +816,16 @@ class PageEndpoint:
             return self._json(body, status)
         return self._json({"error": error}, status)
 
-    def _answer(self, route, prepare=None) -> Response | None:
+    def _answer(self, route, prepare=None) -> Response:
         """One boundary for page selection, authorization, preparation, and faults.
 
         Unanswered, a fault would reach the transport, which has no page to say it
         about — and the banner would read "Server offline" about a server that is
         up. So every fault becomes a 500 naming itself, which the banner can show to
-        the one person still looking. The key is checked here for `_delivery_headers`'s
+        the one person still looking, and `record_fault` keeps a copy for whoever
+        else reads this host. This is the only place a 500 is written: a route that
+        cannot answer raises rather than composing one of its own, so no fault
+        reaches a browser without passing the record. The key is checked here for `_delivery_headers`'s
         reason: every request passes through, so there is one gate rather than one
         per method, and a route added later cannot be the one that forgot to ask.
         POST preparation is deliberately after that gate, so an unknown peer cannot
@@ -849,16 +855,15 @@ class PageEndpoint:
             if prepare and not prepared:
                 self.body_unread = True
             self.record_fault(error)
-            return self._json({"error": f"{type(error).__name__}: {error}"}, 500)
+            return self._fault(f"{type(error).__name__}: {error}")
 
     def record_fault(self, error: Exception) -> None:
         """Keep a copy of the fault above for a reader other than this browser.
 
-        The kernel has nowhere to keep one. `hosting.py` reserves this server's
-        streams for the handshake its caller reads, and a detached serve's stderr is
-        a pipe nobody drains, so a route that wrote a line per fault could fill it
-        and stop the page answering. The 500's own body is what Leaf says by
-        default, and it reaches the one person still looking at the page. A host
+        The kernel has nowhere to keep one. A detached serve's streams go nowhere
+        (`detached`), and a foreground serve's carry its URL and lifetime to
+        whoever reads them, not a line per fault. The 500's own body is what Leaf
+        says by default, and it reaches the one person still looking at the page. A host
         whose streams are read overrides this to keep the operator's copy too.
         """
 
@@ -938,25 +943,22 @@ class PageEndpoint:
         self, artifact: RevisionArtifact, revision: int, version: int | None
     ) -> Response:
         """Serve one immutable document under the current delivery boundary."""
-        try:
-            self.response_layer = artifact.registry["$layer"]["generation"]
-            asset_root = self._document_asset_root(revision)
-            projected = supervised_document(
-                deliver_document(artifact.html.decode("utf-8"), asset_root),
-                revision,
-                version,
-                executable=artifact.executable,
-                widgets=artifact.widgets,
-                server_id=self.server.server_id,
-                layer_id=artifact.registry["$layer"]["generation"],
-                resources=artifact.resources,
-                release_id=self.release,
-                page_root=self.page_root,
-                asset_root=asset_root,
-                before_runtime=self._document_head(),
-            )
-        except ValueError as error:
-            return self._json({"error": str(error)}, 500)
+        self.response_layer = artifact.registry["$layer"]["generation"]
+        asset_root = self._document_asset_root(revision)
+        projected = supervised_document(
+            deliver_document(artifact.html.decode("utf-8"), asset_root),
+            revision,
+            version,
+            executable=artifact.executable,
+            widgets=artifact.widgets,
+            server_id=self.server.server_id,
+            layer_id=artifact.registry["$layer"]["generation"],
+            resources=artifact.resources,
+            release_id=self.release,
+            page_root=self.page_root,
+            asset_root=asset_root,
+            before_runtime=self._document_head(),
+        )
         return self._content(200, "text/html; charset=utf-8", projected)
 
     def _serve_artifact_resource(self) -> Response | None:
@@ -1108,7 +1110,7 @@ class PageEndpoint:
             return self._content(200, ctype, body)
         return None
 
-    def _get(self) -> Response | None:
+    def _get(self) -> Response:
         path = self.path
         if probe_source := PROBE_SOURCES.get(path):
             return self._content(
@@ -1164,7 +1166,7 @@ class PageEndpoint:
                 return served
         return self._json({"error": "not found"}, 404)
 
-    def _post(self) -> Response | None:
+    def _post(self) -> Response:
         path = self.path
         if path not in {"/api/event", "/api/media", "/api/specimens"}:
             return self._json({"error": "not found"}, 404)

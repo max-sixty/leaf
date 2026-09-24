@@ -1705,7 +1705,7 @@ def test_direct_delivery_progress_does_not_become_page_activity(claimed, capsys)
         "operation": "work",
     }
 
-    lease = leases_model.take_waiter_lease(
+    lease = leases_model.take_lease(
         leases_model.waiter_lease_path(claimed, claim["id"])
     )
     assert lease
@@ -1854,7 +1854,7 @@ def test_queued_input_does_not_hide_live_codex_activity(claimed):
     serving(claimed, 1)
     session_model.cmd_status(claimed, "waiting", "Comment on the page")
     claim = service_model.page_claim(claimed)
-    lease = leases_model.take_waiter_lease(
+    lease = leases_model.take_lease(
         leases_model.waiter_lease_path(claimed, claim["id"])
     )
     assert lease
@@ -1883,7 +1883,7 @@ def test_live_codex_activity_overlays_the_declared_page_status(claimed):
     serving(claimed, 1)
     session_model.cmd_status(claimed, "waiting", "comment on the page")
     claim = service_model.page_claim(claimed)
-    lease = leases_model.take_waiter_lease(
+    lease = leases_model.take_lease(
         leases_model.waiter_lease_path(claimed, claim["id"])
     )
     assert lease
@@ -1975,7 +1975,7 @@ def test_a_current_declaration_keeps_the_sentence_a_live_stream_stands_beside(cl
     and its own date, and the step is reported beside it."""
     serving(claimed, 1)
     claim = service_model.page_claim(claimed)
-    lease = leases_model.take_waiter_lease(
+    lease = leases_model.take_lease(
         leases_model.waiter_lease_path(claimed, claim["id"])
     )
     assert lease
@@ -2047,7 +2047,7 @@ def test_leaf_wording_for_a_claim_gives_way_to_a_watched_step(claimed):
     agent's own sentence, the same command's `--detail`, outranks both."""
     serving(claimed, 1)
     claim = service_model.page_claim(claimed)
-    lease = leases_model.take_waiter_lease(
+    lease = leases_model.take_lease(
         leases_model.waiter_lease_path(claimed, claim["id"])
     )
     assert lease
@@ -2084,7 +2084,7 @@ def test_leaf_wording_for_a_claim_gives_way_to_a_watched_step(claimed):
 def test_a_malformed_old_stream_record_is_ignored(claimed):
     serving(claimed, 1)
     claim = service_model.page_claim(claimed)
-    lease = leases_model.take_waiter_lease(
+    lease = leases_model.take_lease(
         leases_model.waiter_lease_path(claimed, claim["id"])
     )
     assert lease
@@ -2126,7 +2126,7 @@ def test_a_malformed_old_stream_record_is_ignored(claimed):
 def test_stream_work_is_scoped_to_the_live_session_and_freshness(claimed):
     serving(claimed, 1)
     claim = service_model.page_claim(claimed)
-    lease = leases_model.take_waiter_lease(
+    lease = leases_model.take_lease(
         leases_model.waiter_lease_path(claimed, claim["id"])
     )
     assert lease
@@ -2896,7 +2896,7 @@ def test_a_delivery_turn_streams_and_commits_its_reply_on_its_own_connection(
         host_model.EmbeddedHarness("codex-thread", "Codex", os.getpid()),
     )
     claim = service_model.page_claim(page_dir)
-    lease = leases_model.take_waiter_lease(
+    lease = leases_model.take_lease(
         leases_model.waiter_lease_path(page_dir, claim["id"])
     )
     assert lease
@@ -5335,7 +5335,7 @@ def test_settling_a_frozen_widget_move_does_not_revive_its_superseded_move(
     page_dir = claimed
     session_model.cmd_status(page_dir, "waiting", "")
     session = service_model.page_claim(page_dir)
-    lease = leases_model.take_waiter_lease(
+    lease = leases_model.take_lease(
         leases_model.waiter_lease_path(page_dir, session["id"])
     )
     assert lease
@@ -6523,7 +6523,7 @@ def test_ack_success_outlives_a_refused_rearm(page_dir, snapshot):
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hi"}
     )
     identity = host_model.session_harness()
-    lease = leases_model.take_waiter_lease(
+    lease = leases_model.take_lease(
         leases_model.waiter_lease_path(page_dir, identity.session)
     )
     assert lease
@@ -8404,6 +8404,49 @@ def test_an_offline_sibling_does_not_stop_browser_comments_reaching_codex(
                 transaction.release_claim()
 
 
+def test_a_codex_adapter_whose_start_was_never_committed_exits(
+    codex_claimed_page, spawn, codex_env, tmp_path
+):
+    """`leaf codex start` gives its claim back when it is interrupted, so an adapter
+    it announced ready to but never committed would carry a page the start reported
+    as failed. The adapter waits for the caller's acknowledgement after announcing,
+    and a caller that leaves instead ends it with its leases released."""
+    page = codex_claimed_page
+    program, log = fake_codex_cli(tmp_path)
+    claim = service_model.page_claim(page)
+    # A live owner, so the only thing that can end this adapter is the handshake.
+    files_model.write_json(
+        service_model.claim_path(page), {**claim, "pid": os.getpid()}
+    )
+    caller, end = socket.socketpair()
+    adapter = spawn(
+        [
+            *LEAF_COMMAND,
+            "codex",
+            "run",
+            "--codex-path",
+            str(program),
+            "--handshake",
+            str(end.fileno()),
+        ],
+        env=codex_env | {"CODEX_THREAD_ID": "codex-thread", "FAKE_CODEX_LOG": str(log)},
+        pass_fds=(end.fileno(),),
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    end.close()
+    caller.settimeout(30)
+    try:
+        assert json.loads(caller.makefile("rb").readline()) == {}
+        assert codex_adapter_model.adapter_is_live("codex-thread")
+    finally:
+        caller.close()
+    assert adapter.wait(timeout=30) == 1
+    assert not codex_adapter_model.adapter_is_live("codex-thread")
+    with service_model.PageTransaction(page) as transaction:
+        transaction.release_claim()
+
+
 def test_codex_adapter_exits_when_delivery_retries_outlive_its_claim(
     codex_claimed_page, spawn, codex_env, tmp_path, dead_pid
 ):
@@ -8966,9 +9009,7 @@ def test_stop_hook_keeps_codex_inside_the_exact_wait_session(
     page = codex_claimed_page
     session_model.cmd_status(page, "waiting", "")
     session = service_model.page_claim(page)
-    lease = leases_model.take_waiter_lease(
-        leases_model.waiter_lease_path(page, session["id"])
-    )
+    lease = leases_model.take_lease(leases_model.waiter_lease_path(page, session["id"]))
     assert lease
 
     # A live watcher lets Claude end its turn, but Codex must keep this one active
@@ -8983,9 +9024,7 @@ def test_stop_hook_keeps_codex_inside_the_exact_wait_session(
 
     # The adapter's second lease proves that the watcher can deliver into a
     # later turn. With that carrier alive, this turn may end normally.
-    adapter = leases_model.take_waiter_lease(
-        leases_model.adapter_lease_path("codex-thread")
-    )
+    adapter = leases_model.take_lease(leases_model.adapter_lease_path("codex-thread"))
     assert adapter
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "codex-thread"})
     assert capsys.readouterr().out == ""
@@ -9009,9 +9048,7 @@ def test_stop_hook_keeps_codex_inside_the_exact_wait_session(
 
     # Pending output still has to cross context and be acknowledged before handling.
     events_model.append_event(page, {"kind": "comment", "author": "user", "text": "hi"})
-    lease = leases_model.take_waiter_lease(
-        leases_model.waiter_lease_path(page, session["id"])
-    )
+    lease = leases_model.take_lease(leases_model.waiter_lease_path(page, session["id"]))
     assert lease
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "codex-thread"})
     reason = json.loads(capsys.readouterr().out)["reason"]
@@ -9249,7 +9286,7 @@ def test_a_new_claim_cannot_borrow_the_previous_sessions_wait_lease(
     assert service_model.claim_page(page_dir)
     first = host_model.session_harness()
     first_turn = service_model.page_claim(page_dir)["turn"]
-    lease = leases_model.take_waiter_lease(
+    lease = leases_model.take_lease(
         leases_model.waiter_lease_path(page_dir, first.session)
     )
     assert lease and page_state(page_dir)["listening"]
@@ -9285,7 +9322,7 @@ def test_stop_hook_does_not_borrow_a_foreign_bare_waiter_lease(
 ):
     """A page-local lease proves only an unclaimed bare-shell watch."""
     session_model.cmd_status(page_dir, "waiting", "")
-    bare = leases_model.take_waiter_lease(page_dir / "waiter.lock")
+    bare = leases_model.take_lease(page_dir / "waiter.lock")
     assert bare
     try:
         assert page_state(page_dir)["listening"]
@@ -9329,7 +9366,7 @@ def test_the_stop_hook_records_the_ending_of_the_turn_behind_a_claim(claimed, ca
 
     # A live watcher: the guard has nothing to say, and the ending is recorded anyway.
     session = service_model.page_claim(claimed)
-    lease = leases_model.take_waiter_lease(
+    lease = leases_model.take_lease(
         leases_model.waiter_lease_path(claimed, session["id"])
     )
     assert lease
@@ -9551,7 +9588,7 @@ def test_stop_hook_blocks_a_turn_that_leaves_a_page_unwatched(claimed, capsys):
 
     # A live watcher, and a closed page, each end the turn cleanly.
     session = service_model.page_claim(claimed)
-    lease = leases_model.take_waiter_lease(
+    lease = leases_model.take_lease(
         leases_model.waiter_lease_path(claimed, session["id"])
     )
     assert lease
@@ -9709,7 +9746,7 @@ def test_the_turn_holds_again_when_a_version_takes_the_answer_back(
     session_model.cmd_status(claimed, "waiting", "")
     # Watched, so the guard's other clause is clear and what fires below can only
     # be this one.
-    lease = leases_model.take_waiter_lease(
+    lease = leases_model.take_lease(
         leases_model.waiter_lease_path(claimed, service_model.page_claim(claimed)["id"])
     )
     assert lease
@@ -9769,7 +9806,7 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(claimed, capsys)
     # Watched, which is the whole of what clears the guard's other case and
     # clears nothing here.
     session = service_model.page_claim(claimed)
-    lease = leases_model.take_waiter_lease(
+    lease = leases_model.take_lease(
         leases_model.waiter_lease_path(claimed, session["id"])
     )
     assert lease
@@ -9904,7 +9941,7 @@ def test_the_guard_survives_a_page_vendored_before_the_layer_moved(claimed, caps
     published version to settle threads loaded that page's registry."""
     session_model.cmd_status(claimed, "waiting", "")
     session = service_model.page_claim(claimed)
-    lease = leases_model.take_waiter_lease(
+    lease = leases_model.take_lease(
         leases_model.waiter_lease_path(claimed, session["id"])
     )
     assert lease
@@ -9942,7 +9979,7 @@ def test_prompt_hook_surfaces_comments_claude_never_picked_up(claimed, capsys):
     # Not while a watcher is live: it prints them itself, and sending Claude to start a
     # second `leaf wait` would print every unacknowledged event twice.
     session = service_model.page_claim(claimed)
-    lease = leases_model.take_waiter_lease(
+    lease = leases_model.take_lease(
         leases_model.waiter_lease_path(claimed, session["id"])
     )
     assert lease
@@ -10014,7 +10051,7 @@ def test_a_user_move_no_carrier_will_pick_up_messages_its_claude_code_session(
 
         # A live watcher delivers it.
         claim = record_claim(page_dir, turn_closed=closed)
-        lease = leases_model.take_waiter_lease(
+        lease = leases_model.take_lease(
             leases_model.waiter_lease_path(page_dir, claim["id"])
         )
         assert lease
@@ -11197,7 +11234,7 @@ def test_a_reaction_holds_no_turn_as_an_unanswered_ask(claimed, capsys):
     to the agent — a reaction is not the user speaking. The user's words are."""
     session_model.cmd_status(claimed, "waiting", "")
     session = service_model.page_claim(claimed)
-    lease = leases_model.take_waiter_lease(
+    lease = leases_model.take_lease(
         leases_model.waiter_lease_path(claimed, session["id"])
     )
     assert lease
@@ -11322,9 +11359,7 @@ def test_agent_sees_the_complete_interaction_recovery(
     observations["delivered"] = envelope
     receive_through(page, last_deliverable_seq(page))
     session = service_model.page_claim(page)
-    lease = leases_model.take_waiter_lease(
-        leases_model.waiter_lease_path(page, session["id"])
-    )
+    lease = leases_model.take_lease(leases_model.waiter_lease_path(page, session["id"]))
     assert lease
     try:
         observations["acknowledged at stop"] = hook("Stop")
@@ -11389,7 +11424,7 @@ def test_agent_sees_codex_watcher_recovery(codex_claimed_page, capsys, snapshot)
         return json.loads(output) if output else None
 
     observations["no adapter"] = hook()
-    lease = leases_model.take_waiter_lease(
+    lease = leases_model.take_lease(
         leases_model.waiter_lease_path(page, "codex-thread")
     )
     assert lease
@@ -11399,7 +11434,7 @@ def test_agent_sees_codex_watcher_recovery(codex_claimed_page, capsys, snapshot)
             page, {"kind": "comment", "author": "user", "text": "Check this."}
         )
         observations["direct wait has input"] = hook()
-        adapter = leases_model.take_waiter_lease(
+        adapter = leases_model.take_lease(
             leases_model.adapter_lease_path("codex-thread")
         )
         assert adapter
@@ -11464,7 +11499,7 @@ def _watched(page_dir):
     """A claimed page this session watches, so only its debts reach the hooks."""
     session_model.cmd_status(page_dir, "waiting", "")
     session = service_model.page_claim(page_dir)
-    lease = leases_model.take_waiter_lease(
+    lease = leases_model.take_lease(
         leases_model.waiter_lease_path(page_dir, session["id"])
     )
     assert lease

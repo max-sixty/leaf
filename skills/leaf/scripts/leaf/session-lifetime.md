@@ -263,10 +263,16 @@ the same delivery, page claim, event log, and activity projection, not another
 conversation store or response policy.
 
 `server start` spawns the service into a session of its own and hands back the
-URL that process printed and the lifetime it recorded, so a killed carrier costs
-only delivery and leaves every page up. Printing that URL is what commits the start:
-a service whose caller has gone before hearing it disables the record it wrote and
-exits, since the caller's stop may already have run and found nothing to stop.
+URL that process announced and the lifetime it recorded, so a killed carrier costs
+only delivery and leaves every page up. `leaf codex start` spawns its adapter the
+same way. Both go through `detached`, whose handshake makes the caller's commit the
+end of a start: the child announces, and the caller acknowledges as the last thing
+it does. A child whose caller leaves before acknowledging withdraws — a service
+disables the record it wrote, an adapter releases its leases — since the caller's
+cleanup may already have run: a stop that found nothing to stop, or the claim the
+start took given back. That claim is `service.starting_claim`, the one transition
+`server start`, `server run`, a `--user` preview's first start, and `leaf codex
+start` take, and it is restored only if no successor has replaced it.
 
 ## Lifetime
 

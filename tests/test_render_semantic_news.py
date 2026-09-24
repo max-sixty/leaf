@@ -90,7 +90,7 @@ def test_interrupted_live_response_announces_its_exact_attempt(browser, serve, r
     claim = record_claim(
         serve.page_dir, id="codex-thread", harness="codex", agent="Codex"
     )
-    lease = leases_model.take_waiter_lease(
+    lease = leases_model.take_lease(
         leases_model.waiter_lease_path(serve.page_dir, claim["id"])
     )
     assert lease

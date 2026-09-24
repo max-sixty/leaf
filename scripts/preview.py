@@ -574,62 +574,60 @@ def watch_changes(watched: Watched):
     return watching()
 
 
-def start_preview_server(
-    page: Path, launcher: Path, runtime: Path
-) -> tuple[str, str] | None:
-    # The CLI owns the claim transition as well as starting the serving child.
-    result = subprocess.run(
-        [str(launcher), "server", "start", str(page)],
-        cwd=runtime,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    if result.returncode:
-        print(result.stderr or result.stdout, file=sys.stderr, end="", flush=True)
-        return None
-    return result.stdout.strip(), result.stderr.strip()
-
-
 class PreviewService:
     """However this preview owns a server, for as long as it wants one up.
 
     A preview holds a process-owned server on a retained address, so no claim or
     service record outlives it. `--user` serves the page's durable service
-    instead, claimed and started through the selected checkout's launcher and
-    revived in place after each update, so the page belongs to this session and
-    the URL a user was handed survives every reload and every `leaf wait`.
+    instead, claimed and started by the selected checkout's leaf, which this
+    process runs, and revived in place after each update, so the page belongs to
+    this session and the URL a user was handed survives every reload and every
+    `leaf wait`.
     Nothing else about a preview differs, so the two are told apart here and
     nowhere else in its lifetime.
     """
 
-    def __init__(self, page: Path, launcher: Path, runtime: Path, user: bool):
+    def __init__(self, page: Path, user: bool):
         self.page = page
-        self.launcher = launcher
-        self.runtime = runtime
         self.user = user
         self.temporary = None
         self.address: dict = {}
-        self.claimed = False
 
-    def start(self) -> tuple[str, str] | None:
-        """Put the server up and report its URL and lifetime note, or None."""
-        from leaf.hosting import TemporaryPageServer, start_server
+    def start(self) -> tuple[str, str]:
+        """Put the server up for the first time and report its URL and lifetime
+        note. A `--user` preview claims the page for this session here, once, and
+        gives the claim back if the start does not commit."""
+        from leaf.hosting import claim_and_start
+
+        if self.user:
+            return claim_and_start(self.page)
+        return self._serve_temporary()
+
+    def restart(self) -> tuple[str, str] | None:
+        """Put the server back up after an update, or None, having said why not.
+
+        A restart claims nothing: the claim the first start took is still this
+        session's, and taking it again would reopen a turn the Stop hook closed."""
+        from leaf.detached import StartRefused
+        from leaf.hosting import start_server
 
         if not self.user:
-            self.temporary = TemporaryPageServer(self.page, **self.address).start()
-            self.address = {
-                "token": self.temporary.token,
-                "port": self.temporary.port,
-            }
-            return self.temporary.url, WATCHER_NOTE
-        if self.claimed:
-            # Ownership was claimed through the launcher, whose serving child
-            # validates the retained claim before restarting.
+            return self._serve_temporary()
+        try:
             return start_server(self.page)
-        ready = start_preview_server(self.page, self.launcher, self.runtime)
-        self.claimed = ready is not None
-        return ready
+        except StartRefused as error:
+            print(error, file=sys.stderr, flush=True)
+            return None
+
+    def _serve_temporary(self) -> tuple[str, str]:
+        from leaf.hosting import TemporaryPageServer
+
+        self.temporary = TemporaryPageServer(self.page, **self.address).start()
+        self.address = {
+            "token": self.temporary.token,
+            "port": self.temporary.port,
+        }
+        return self.temporary.url, WATCHER_NOTE
 
     def stop(self) -> None:
         """Take the server down, keeping whatever a restart has to reuse."""
@@ -678,9 +676,9 @@ def run_preview(
     source: Path, page: Path, launcher: Path, runtime: Path, user: bool
 ) -> None:
     """Take the slot, build it fresh, and serve it until this process ends."""
-    from leaf.leases import take_waiter_lease
+    from leaf.leases import take_lease
 
-    lease = take_waiter_lease(preview_lease(page))
+    lease = take_lease(preview_lease(page))
     if lease is None:
         raise ValueError(
             f"another preview is serving {page}; stop that process, or choose "
@@ -703,7 +701,7 @@ def serve_preview(
     # What the running preview carries between refreshes: the seeded history it
     # installed, which later edits may not change, and the source last stamped.
     state = {"seed": fixture_seed(source), "source_digest": digest(source)}
-    service = PreviewService(page, launcher, runtime, user)
+    service = PreviewService(page, user)
     changes = None
     try:
         page.parent.mkdir(parents=True, exist_ok=True)
@@ -713,10 +711,7 @@ def serve_preview(
             partial(leaf, launcher, runtime),
         )
         mark_preview(source, page, runtime, user)
-        ready = service.start()
-        if ready is None:
-            raise RuntimeError(f"could not start preview {page}")
-        url, note = ready
+        url, note = service.start()
         roots = layer_inputs(
             tuple(read_json(page / "registry.json")["$layer"]["packages"])
         )
@@ -769,7 +764,7 @@ def serve_preview(
                 changes.close()
                 changes = watch_changes(rebuilt)
             watched = rebuilt
-            serving = service.start() is not None
+            serving = service.restart() is not None
             if serving:
                 print(f"Reloaded {source.stem}", flush=True)
     finally:

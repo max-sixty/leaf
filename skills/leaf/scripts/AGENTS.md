@@ -53,10 +53,14 @@ The main owners are:
 - `host`: the agent harness declarations — session identity, lifetime, delivery
   carrier, hook remedies, and the nudge that reaches a session with nothing watching —
   and the Claude Code messaging socket behind one of them;
-- `leases`: process-backed page, transition, and waiter leases;
+- `leases`: process-backed page, transition, and waiter leases, and `take_lease`,
+  the one non-blocking take every lease holder uses;
 - `service`: page claims, serialized transactions, and status;
 - `server` and `hosting`: server address and lifetime state, plus durable and
   process-owned HTTP servers;
+- `detached`: a leaf process started in a session of its own, and the handshake
+  whose acknowledgement commits its start — the page server's and the Codex
+  adapter's;
 - `specimens`: disposable child pages built from captured templates and selected
   conversations, with independent event logs and server-owned lifetimes;
 - `session` and `hooks`: direct wait delivery and host lifecycle;

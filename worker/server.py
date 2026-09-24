@@ -46,7 +46,7 @@ from leaf.delivery import read_delivery
 from leaf.host import EmbeddedHarness
 from leaf.hosting import LeafHTTPServer
 from leaf.http import PageEndpoint, scope_page_urls, scope_script_routes
-from leaf.leases import take_waiter_lease, waiter_lease_path
+from leaf.leases import take_lease, waiter_lease_path
 from leaf.registry.storage import layer_metadata
 from leaf.revisioning import activate_source
 from leaf.schema import SKILL_ROOT, VENDORED_FILES
@@ -700,7 +700,7 @@ class WebsiteCodexHost:
         if thread_id in self.waiter_leases:
             return
         path = waiter_lease_path(page_dir, thread_id)
-        lease = take_waiter_lease(path)
+        lease = take_lease(path)
         if lease is None:
             raise RuntimeError("another Leaf waiter already owns this Codex task")
         self.waiter_leases[thread_id] = lease
@@ -1357,7 +1357,7 @@ class WebsitePageEndpoint(PageEndpoint):
             return f"{page['assets']}/revisions/{name}"
         return super()._specimen_asset_root(revision)
 
-    def _get(self) -> Response | None:
+    def _get(self) -> Response:
         if self.path == "/sitenote.js":
             return self._content(
                 200,
@@ -1366,7 +1366,7 @@ class WebsitePageEndpoint(PageEndpoint):
             )
         return super()._get()
 
-    def _post(self) -> Response | None:
+    def _post(self) -> Response:
         path = self.path
         if path == STARTUP_REPORT_PATH:
             # Every document the runtime delivers with a release carries the public

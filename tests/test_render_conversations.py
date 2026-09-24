@@ -177,7 +177,7 @@ def test_a_durable_answer_retires_the_placeholder_its_attempt_reserved(
     claim = record_claim(
         serve.page_dir, id="codex-thread", harness="codex", agent="Codex"
     )
-    lease = leases_model.take_waiter_lease(
+    lease = leases_model.take_lease(
         leases_model.waiter_lease_path(serve.page_dir, claim["id"])
     )
     assert lease
@@ -243,7 +243,7 @@ def test_a_durable_reply_completes_an_empty_stream_placeholder(browser, serve, r
         harness="codex",
         agent="Codex",
     )
-    lease = leases_model.take_waiter_lease(
+    lease = leases_model.take_lease(
         leases_model.waiter_lease_path(serve.page_dir, claim["id"])
     )
     assert lease

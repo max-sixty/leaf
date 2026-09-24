@@ -914,7 +914,7 @@ def test_page_thread_dismiss_and_resolve_share_the_metadata_row(
         panel_comment(serve.page_dir, f"Comment {index}.", {"section": "p0"})
     page = open_page(browser, url, context=context)
     page.locator('.lf-margin-marker[data-lf-kinds~="comment"]').first.click()
-    preview = page.locator(".lf-margin-preview[data-lf-thread]:popover-open")
+    preview = page.locator(".lf-margin-preview:popover-open")
     resolve = preview.get_by_role("button", name="Resolve thread")
     dismiss = preview.get_by_role("button", name="Dismiss conversation view")
     expect(resolve).to_be_visible()

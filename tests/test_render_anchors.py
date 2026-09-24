@@ -4004,7 +4004,7 @@ def test_a_press_on_a_passage_opens_its_thread_where_it_stands(browser, serve):
     # So the card standing where the pass put it is the edge a travel would have been
     # asked for behind; read the page's own position from there rather than from a hold
     # long enough to have covered the wait.
-    expect(page.locator("[data-lf-thread]")).to_be_in_viewport(ratio=1)
+    expect(page.locator(".lf-margin-preview")).to_be_in_viewport(ratio=1)
     scroll_settled(page)
     assert page.evaluate("() => document.scrollingElement.scrollTop") == pytest.approx(
         covered["scroll"], abs=1
@@ -4025,7 +4025,7 @@ def test_a_withheld_row_opens_its_card_beside_the_passage(browser, serve):
     expect(page.locator(".lf-conversation-thread")).to_be_focused()
     boxes = page.evaluate(
         """() => {
-          const card = document.querySelector('[data-lf-thread]').getBoundingClientRect();
+          const card = document.querySelector('.lf-margin-preview').getBoundingClientRect();
           const words = [...CSS.highlights.get('lf-mark')][0].getBoundingClientRect();
           return {card: [card.top, card.bottom], words: [words.top, words.bottom]};
         }"""
@@ -4041,7 +4041,7 @@ def test_a_withheld_row_opens_its_card_beside_the_passage(browser, serve):
     # take the dismissal a scroll offers it: at these widths it hung there for the rest
     # of the page's life. Anchored to the passage, it leaves when the passage does.
     page.evaluate("() => document.scrollingElement.scrollBy(0, 900)")
-    expect(page.locator("[data-lf-thread]")).to_be_hidden()
+    expect(page.locator(".lf-margin-preview")).to_be_hidden()
 
 
 def test_a_row_the_platform_activates_names_both_of_its_keys(browser, serve):

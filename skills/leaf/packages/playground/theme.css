@@ -64,11 +64,11 @@ lf-playground:has(> .lf-playground-split) {
   @container lf-workspace (min-width: 720px) and (min-height: 480px) {
     @container style(--lf-held: 1) {
       @container (min-width: 51rem) {
-        .lf-playground-split {
+        html:root .lf-playground-split {
           grid-template-rows: minmax(12rem, 1fr) auto;
         }
 
-        .lf-playground-instruction-region {
+        html:root .lf-playground-instruction-region {
           align-self: stretch;
         }
       }

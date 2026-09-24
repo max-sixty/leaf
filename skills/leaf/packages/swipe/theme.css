@@ -59,7 +59,7 @@ lf-swipe-pile[verdict="unseen"] {
  * than `[verdict="unseen"] > lf-swipe-card:nth-of-type(n + 2)` kept `visibility: hidden`
  * through the reset, so paper printed the first card and 308px of void. */
 @media not print {
-  lf-swipe-deck:not(.lf-swipe-quoted) {
+  html:root lf-swipe-deck:not(.lf-swipe-quoted) {
     /* The label heads the tray on a row of its own, and the stack sits centred under
      * it at an index card's width. The bottom padding holds the ghosts' offset. */
     & lf-swipe-pile[verdict="unseen"] {

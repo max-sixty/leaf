@@ -97,6 +97,8 @@
    level only when it is the boundary responsible for that flow.
 
    Put a layout grant in a selector strong enough to override the withheld base rule.
+   A screen rule that refines a base rule by one class of weight spells that weight
+   `html:root`: it matches the root alone and adds exactly one class and one type.
 
    The live-page scrolling and chrome reservations stay under the live guard.
 
@@ -1253,7 +1255,8 @@ aside.sidebar > :last-child { margin-bottom: 0; }
 main > aside.sidebar:nth-child(1 of aside.sidebar) { --lf-sidebar-slot: margin; }
 @media screen {
   @container lf-shell (min-width: 1152px) {
-  main:has(> aside.sidebar):not(:has(aside.sidenote)) {
+  html:root
+    main:has(> aside.sidebar):not(:has(aside.sidenote)) {
     --strip-l: var(--lf-sidebar-claim, var(--sidebar));
     --lf-sidebar-posture: margin;
     /* Wayfinding should not push the prose aside, so a sidebar takes the page's
@@ -1267,7 +1270,7 @@ main > aside.sidebar:nth-child(1 of aside.sidebar) { --lf-sidebar-slot: margin; 
        package). */
     --lf-free-l: var(--lf-sidebar-free-left, 0px);
   }
-  main:not(:has(aside.sidenote))
+  html:root main:not(:has(aside.sidenote))
     > aside.sidebar:nth-child(1 of aside.sidebar) {
     float: left; clear: left; position: sticky;
     top: calc(var(--lf-banner-h, 0px) + var(--sp-4));
@@ -1279,13 +1282,14 @@ main > aside.sidebar:nth-child(1 of aside.sidebar) { --lf-sidebar-slot: margin; 
   }
   }
   @container lf-shell (min-width: 1496px) {
-  main:has(> aside.sidebar):has(aside.sidenote) {
+  html:root
+    main:has(> aside.sidebar):has(aside.sidenote) {
     --strip-l: var(--lf-sidebar-claim, var(--sidebar));
     --lf-sidebar-posture: margin;
     /* As beside a sidebar alone. */
     --lf-free-l: var(--lf-sidebar-free-left, 0px);
   }
-  main:has(aside.sidenote)
+  html:root main:has(aside.sidenote)
     > aside.sidebar:nth-child(1 of aside.sidebar) {
     float: left; clear: left; position: sticky;
     top: calc(var(--lf-banner-h, 0px) + var(--sp-4));
@@ -1443,11 +1447,13 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
                         font-weight: 600; display: grid; place-items: center; }
 
 @media screen {
-  /* :not([hidden]), because a caller may take the box behind a collapse (a settled
-     group takes it with its options) — the display here would outrank the
-     attribute's own hiding. */
-  .lf-conversation:not([hidden]) { display: block; }
-  .lf-say:not([hidden]) { display: flex; }
+  html:root {
+    /* :not([hidden]), because a caller may take the box behind a collapse (a settled
+       group takes it with its options) — the display here would outrank the
+       attribute's own hiding. */
+    .lf-conversation:not([hidden]) { display: block; }
+    .lf-say:not([hidden]) { display: flex; }
+  }
 }
 
 /* lf-suggestion / lf-old / lf-new: a proposed change to content the user has seen. The
@@ -1600,7 +1606,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   position: static; width: auto; height: auto; overflow: visible; clip-path: none;
   display: inline-block; margin-right: 5px; }
 @media screen {
-  lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
+  html:root lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
     position: absolute; width: 1px; height: 1px; overflow: hidden;
     clip-path: inset(50%); margin-right: 0; }
 }

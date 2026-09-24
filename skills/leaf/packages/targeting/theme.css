@@ -136,14 +136,16 @@ lf-targeting[data-lf-targeting-armed] lf-target-preview {
   border-color: var(--accent);
 }
 
-lf-targeting
+html:root
+  lf-targeting
   lf-target-preview
   :is(.lf-targeting-candidate, .lf-targeting-selected) {
   outline: var(--here-ring-w) solid var(--accent);
   outline-offset: 2px;
 }
 
-lf-targeting
+html:root
+  lf-targeting
   lf-target-preview
   .lf-targeting-candidate {
   background-color: var(--accent-faint);

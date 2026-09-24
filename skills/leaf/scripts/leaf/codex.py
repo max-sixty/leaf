@@ -52,6 +52,7 @@ from .delivery import (
     pages_gone,
     receive_batch,
     record_pickup,
+    retire_if_gone,
     validate_delivery_id,
 )
 from .event_log import flocked
@@ -1119,9 +1120,7 @@ def archive_record(path: Path, record: dict) -> None:
         history = path.parent / "history"
         history.mkdir(parents=True, exist_ok=True)
         for archived in history.glob("*.json"):
-            kept = read_json(archived)
-            if kept["format"] != RECORD_FORMAT or pages_gone(kept["batches"]):
-                archived.unlink()
+            retire_if_gone(archived, RECORD_FORMAT)
         path.replace(history / path.name)
 
 

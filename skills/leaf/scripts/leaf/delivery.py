@@ -104,15 +104,29 @@ def pages_gone(batches: list[dict]) -> bool:
     return bool(batches) and not any(Path(batch["page"]).is_dir() for batch in batches)
 
 
+def retire_if_gone(path: Path, record_format: str) -> None:
+    """Remove this record unless it is a `record_format` record some page of which
+    still stands. A record without that format is not one this version reads, so
+    it goes rather than taking the reading down."""
+    try:
+        record = read_json(path)
+    except ValueError:
+        record = None
+    if (
+        not isinstance(record, dict)
+        or record.get("format") != record_format
+        or pages_gone(record["batches"])
+    ):
+        path.unlink(missing_ok=True)
+
+
 def _retire_gone_deliveries() -> None:
     """Remove every envelope this version cannot read or whose pages are all gone.
 
     Envelopes are read one id at a time, so the only enumeration of them is here,
     under the lock every new one is written under."""
     for path in (state_home() / "deliveries").glob("*.json"):
-        payload = read_json(path)
-        if payload["format"] != DELIVERY_FORMAT or pages_gone(payload["batches"]):
-            path.unlink()
+        retire_if_gone(path, DELIVERY_FORMAT)
 
 
 def _delivery_lock_path() -> Path:

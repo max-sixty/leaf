@@ -1692,7 +1692,11 @@ def test_a_delivery_and_its_codex_records_go_once_their_pages_do(
         )
 
     kept = envelope("0000000a", claimed)
-    retired = [envelope("0000000b", gone), envelope("0000000c", claimed, "v2")]
+    retired = [
+        envelope("0000000b", gone),
+        envelope("0000000c", claimed, "v2"),
+        record(delivery_model.delivery_path("00000012"), {"batches": []}),
+    ]
     serving(claimed, 1)
     events_model.append_event(
         claimed, {"kind": "comment", "author": "user", "text": "new input"}
@@ -1715,7 +1719,7 @@ def test_a_delivery_and_its_codex_records_go_once_their_pages_do(
     stale = record(codex_model.record_path("t", "0000000e"), task_record("e", gone))
     history = live.parent / "history"
     archived_gone = record(history / "0000000f.json", task_record("f", gone))
-    archived_other = record(history / "00000010.json", {"format": "v1"})
+    archived_other = record(history / "00000010.json", {"batches": []})
     archived_kept = record(history / "00000011.json", task_record("g", claimed))
     with events_model.flocked(codex_model.delivery_lock_path("t")):
         assert [path for path, _ in codex_model.delivery_records("t")] == [live]

@@ -1637,8 +1637,10 @@ lf-tabs.lf-rendered > lf-tab { margin-top: 14px; }
 
     /* A root tab set is the page's composition rather than a framed widget inside it.
      * Its shared authored header remains above a sticky horizontal index. Ordinary
-     * panels retain the reading measure; a sole root workspace can spend the page room
-     * and height declared by the structural layout above. */
+     * panels retain the reading measure, and the header and index keep that column's
+     * left edge, so a page of tabs has one edge as a page without them does; a sole root
+     * workspace can spend the page room and height declared by the structural layout
+     * above. */
     body > main:has(> lf-tabs[data-lf-tabs-context="root"]) {
       box-sizing: border-box;
       width: 100cqi;
@@ -1647,8 +1649,8 @@ lf-tabs.lf-rendered > lf-tab { margin-top: 14px; }
       left: 0;
     }
     body > main:has(> lf-tabs[data-lf-tabs-context="root"]) > :is(header, lf-tabs) {
-      width: min(var(--wide), var(--lf-room));
-      max-width: var(--wide);
+      width: min(var(--col), var(--lf-room));
+      max-width: var(--col);
       margin-inline: auto;
     }
     :where(lf-tabs.lf-rendered[data-lf-tabs-context="root"]) {
@@ -1669,6 +1671,9 @@ lf-tabs.lf-rendered > lf-tab { margin-top: 14px; }
       border-radius: 0;
       background: var(--paper);
     }
+    /* The strip scrolls when its names outrun it; a tab that shrank instead would
+     * cut its own name, which the strip's scroll could never reach. */
+    lf-tabs[data-lf-tabs-context="root"] > .lf-tabstrip .lf-tab-btn { flex: none; }
     lf-tabs[data-lf-tabs-context="root"]
       > .lf-tabstrip
       .lf-tab-btn
@@ -1689,6 +1694,12 @@ lf-tabs.lf-rendered > lf-tab { margin-top: 14px; }
       max-width: var(--col);
       margin-inline: auto;
       padding: var(--sp-4) 0 0;
+    }
+    /* A page tab is the page's column, not a box on it: it declares the frame for its
+     * first line's trim and, like main's column, hands the room back to what it holds,
+     * so a wide exhibit in a page tab breaks out as it would on a page without tabs. */
+    lf-tabs.lf-rendered[data-lf-tabs-context="root"] > lf-tab:not([hidden]) > * {
+      --lf-room: inherit;
     }
     lf-tabs.lf-rendered[data-lf-tabs-context="root"] > lf-tab[hidden] {
       align-self: start;

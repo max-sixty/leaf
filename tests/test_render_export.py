@@ -17,6 +17,7 @@ from typing import NamedTuple
 import preview as preview_model
 import pytest
 from click.testing import CliRunner
+from example_data import patch_manifest
 from interact_support import install_payload, wait_for
 from leaf import cli as cli_model
 from leaf import data as data_model
@@ -1272,9 +1273,7 @@ def test_interactive_export_hydrates_captured_data_fragments_offline(
         "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n"
         '@@ -1 +1 @@\n-return "old"\n+return "new"\n'
     )
-    data_model.cmd_data_set(
-        serve.page_dir, "review-patch", data_model.unified_diff_manifest(patch)
-    )
+    data_model.cmd_data_set(serve.page_dir, "review-patch", patch_manifest(patch))
     interactive = tmp_path / "fragmented-interactive.html"
     result = CliRunner().invoke(
         cli_model.cli,

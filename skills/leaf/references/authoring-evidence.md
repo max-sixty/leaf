@@ -70,17 +70,17 @@ source its page-lifetime contract:
 <lf-diff id="review-patch" source="pr-patch-8f61c2a" collapsed><pre></pre></lf-diff>
 ```
 
-Then capture the whole UTF-8 text file or an inclusive line range:
+Then set the source. Text is one JSON string, of the whole file or an inclusive line
+range; a patch goes through the `diff` package's producer script, which splits it
+into files and refuses an entry `lf-diff` cannot present:
 
 ```bash
-leaf data capture <page> leaf-skill --file SKILL.md
-leaf data capture <page> leaf-skill --file SKILL.md --lines 71:102
-leaf data capture <page> pr-patch-8f61c2a --file change.patch --format unified-diff
+jq -Rs . SKILL.md | leaf data set <page> leaf-skill
+sed -n '71,102p' SKILL.md | jq -Rs . | leaf data set <page> leaf-skill
+git diff 8f61c2a^! | uv run <skill-dir>/packages/diff/scripts/patch_manifest.py | leaf data set <page> pr-patch-8f61c2a
 ```
 
-The `unified-diff` transform validates each file and builds a structured value whose
-`files` array carries its path, change counts, and patch. An entry the widget's
-declaration does not support is refused before capture.
+`leaf page guidance <page> producer` carries each contract's own instructions.
 
 A bound widget shows its source's current value, in every version and thread that
 binds it. Evidence a review must keep exactly gets a source id of its own, such as the

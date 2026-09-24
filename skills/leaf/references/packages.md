@@ -91,6 +91,7 @@ package/
 ├── runtime/            browser modules and replacements by vendored path
 ├── widgets/            entry modules and their private helpers
 ├── vendor/             third-party libraries or data files
+├── scripts/            producer tools a contract's guidance names; never vendored
 ├── icon.svg            optional replacement by path
 └── leaf.js             optional runtime replacement
 ```
@@ -833,8 +834,7 @@ complete value using the page's source id:
 ```bash
 printf '%s' '{"main":"passing"}' | leaf data set PAGE release-ci
 leaf data set PAGE release-ci --file build-state.json
-leaf data capture PAGE release-notes --file CHANGELOG.md --lines 20:44
-leaf data capture PAGE review-patch --file change.patch --format unified-diff
+sed -n '20,44p' CHANGELOG.md | jq -Rs . | leaf data set PAGE release-notes
 leaf data clear PAGE release-ci
 ```
 
@@ -855,12 +855,10 @@ rewrites that source. Source revisions and event sequences are independent: an o
 may contain new data, and a new event response may contain old data, so neither orders
 the other.
 
-`data capture` reads a UTF-8 file without making the author copy it into markup.
-The default `text` format can select an inclusive `START:END` line range. The
-`unified-diff` format validates a Git patch and builds the file-fragmented manifest the
-diff widget consumes; an entry the widget's declaration does not support is rejected
-rather than silently omitted. The captured file's path is never stored or sent to
-users.
+`data set` is the one write. A value that has to be derived from a file — a text
+excerpt, a patch split into files — is the producer's to build, and a contract that
+needs more than `jq` says how in its producer `guidance`, naming the script its package
+ships under `scripts/` when it has one.
 
 A source id keeps one contract for the lifetime of the page. `data clear` removes the
 current value and keeps the recorded contract, so the id is never released for a new

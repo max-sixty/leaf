@@ -5,6 +5,7 @@ from itertools import pairwise
 from pathlib import Path
 
 import pytest
+from example_data import patch_manifest
 from interact_support import append_command
 from leaf import conversation as conversation_model
 from leaf import data as data_model
@@ -4060,10 +4061,10 @@ body { font-family: system-ui, sans-serif; }
             1,
         )
     )
-    data_model.cmd_data_capture(
+    data_model.cmd_data_set(
         serve.page_dir,
         "notification-artifact",
-        artifact,
+        artifact.read_text(encoding="utf-8"),
     )
     first_result = stamp_page(
         serve.page_dir,
@@ -4141,10 +4142,10 @@ body { font-family: system-ui, sans-serif; }
         "</article>",
     )
     artifact.write_text(second_artifact, encoding="utf-8")
-    data_model.cmd_data_capture(
+    data_model.cmd_data_set(
         serve.page_dir,
         "notification-artifact",
-        artifact,
+        artifact.read_text(encoding="utf-8"),
     )
     refined_source = result_source.replace(
         "<h1>Review the deployment notification</h1>",
@@ -10006,7 +10007,7 @@ def test_a_backward_hunk_step_from_the_diff_itself_opens_one_file_and_lands_in_i
     data_model.cmd_data_set(
         serve.page_dir,
         "review-patch",
-        data_model.unified_diff_manifest(MULTI_HUNK_PATCH),
+        patch_manifest(MULTI_HUNK_PATCH),
     )
     page = open_page(browser, url)
     page.wait_for_function(

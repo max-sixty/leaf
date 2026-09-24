@@ -438,16 +438,7 @@ def test_page_fixtures_pass_check(tmp_path, monkeypatch, initialized_page):
         # version, oldest first, exactly as a builder stamps them.
         (d / "index.html").write_text(example.read_text())
         for operation in data_operations(example):
-            if operation["kind"] == "set":
-                data_model.cmd_data_set(d, operation["source"], operation["value"])
-            else:
-                data_model.cmd_data_capture(
-                    d,
-                    operation["source"],
-                    operation["input_file"],
-                    operation["lines"],
-                    operation["format"],
-                )
+            data_model.cmd_data_set(d, operation["source"], operation["value"])
         # The example's companion log, where it ships one (examples/AGENTS.md), so
         # the lint reads the page under the state its own log puts on it.
         seed = example.with_suffix(".jsonl")
@@ -1626,16 +1617,7 @@ def test_every_seeded_fragment_passes_the_door_it_never_came_through(
         (d / "index.html").write_text(example.read_text())
         shutil.copytree(ROOT / "examples" / "media", d / "media", dirs_exist_ok=True)
         for operation in data_operations(example):
-            if operation["kind"] == "set":
-                data_model.cmd_data_set(d, operation["source"], operation["value"])
-            else:
-                data_model.cmd_data_capture(
-                    d,
-                    operation["source"],
-                    operation["input_file"],
-                    operation["lines"],
-                    operation["format"],
-                )
+            data_model.cmd_data_set(d, operation["source"], operation["value"])
         # Published, because the door is only open on a page a user could be
         # holding — which is the state every one of these seeds is written for.
         published = CliRunner().invoke(

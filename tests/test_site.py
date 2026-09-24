@@ -543,9 +543,8 @@ def test_every_published_page_keeps_its_canonical_page_record(site):
             assert not (page_dir / "cursor.json").exists()
         assert set(contracts) == {operation["source"] for operation in operations}
         for operation in operations:
-            if operation["kind"] == "set":
-                stored = data_model.source_file(page_dir, operation["source"])
-                assert json.loads(stored.read_text()) == operation["value"]
+            stored = data_model.source_file(page_dir, operation["source"])
+            assert json.loads(stored.read_text()) == operation["value"]
 
         for name in (
             "events.jsonl",

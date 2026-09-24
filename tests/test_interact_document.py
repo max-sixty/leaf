@@ -15,6 +15,7 @@ from pathlib import Path
 import pytest
 from click.testing import CliRunner
 from conftest import LEAF_COMMAND
+from example_data import patch_manifest
 from interact_support import (
     COMMAND_SUBJECTS,
     OPTIONS,
@@ -3804,73 +3805,18 @@ def test_package_data_is_validated_replaced_and_indexed_in_page_state(page_dir):
     )
 
 
-def test_text_capture_sets_the_selected_lines_and_clear_keeps_the_contract(
-    page_dir, tmp_path
+def test_a_patch_piped_through_the_diff_script_sets_one_deferred_row_per_file(
+    page_dir,
 ):
-    """Capture admits file text through the typed source boundary, as the source's
-    current value, and clear removes that value while the id keeps its contract."""
-    declare_data_input(
-        page_dir, "leaf-skill", {"type": "string"}, contract="text-document"
-    )
-    text_file = tmp_path / "SKILL.md"
-    text_file.write_bytes(b"one\r\ntwo\r\nthree")
-    runner = CliRunner()
-
-    captured = runner.invoke(
-        cli_model.cli,
-        [
-            "data",
-            "capture",
-            str(page_dir),
-            "leaf-skill",
-            "--file",
-            str(text_file),
-            "--lines",
-            "2:3",
-        ],
-    )
-    assert captured.exit_code == 0, captured.output
-    stored = read_page_data(page_dir)
-    source = stored["sources"]["leaf-skill"]
-    assert source["value"] == "two\nthree"
-    assert f"at revision {source['revision']}" in captured.output
-
-    wrong_shape = runner.invoke(
-        cli_model.cli,
-        [
-            "data",
-            "capture",
-            str(page_dir),
-            "leaf-skill",
-            "--file",
-            str(text_file),
-            "--format",
-            "unified-diff",
-            "--lines",
-            "1:1",
-        ],
-    )
-    assert wrong_shape.exit_code != 0
-    assert "lines can only select part of a text capture" in wrong_shape.output
-    assert read_page_data(page_dir) == stored
-
-    data_model.cmd_data_clear(page_dir, "leaf-skill")
-    assert read_page_data(page_dir)["sources"] == {
-        "leaf-skill": {"contract": "text-document"}
-    }
-    assert check(page_dir).exit_code == 0
-
-
-def test_unified_diff_capture_builds_one_lazy_fragment_per_file(page_dir, tmp_path):
+    """The diff package's producer script turns a Git patch into the contract's
+    manifest on stdout, which `leaf data set` stores as it would any value."""
     declare_data_input(
         page_dir,
         "review-patch",
         {"type": "object"},
         contract="unified-diff",
     )
-    patch = tmp_path / "review.patch"
-    patch.write_text(
-        """diff --git a/app.py b/app.py
+    patch = """diff --git a/app.py b/app.py
 --- a/app.py
 +++ b/app.py
 @@ -1,2 +1,2 @@
@@ -3903,20 +3849,11 @@ diff --git a/src/second file.py b/src/second file.py
 -OLD = True
 +NEW = True
 """
-    )
 
     result = CliRunner().invoke(
         cli_model.cli,
-        [
-            "data",
-            "capture",
-            str(page_dir),
-            "review-patch",
-            "--file",
-            str(patch),
-            "--format",
-            "unified-diff",
-        ],
+        ["data", "set", str(page_dir), "review-patch"],
+        input=json.dumps(patch_manifest(patch)),
     )
 
     assert result.exit_code == 0, result.output
@@ -3978,8 +3915,8 @@ def test_unified_diff_rejects_c_escapes_git_does_not_use(escaped):
 +new
 """
 
-    with pytest.raises(data_model.DataError, match="invalid quoted Git path"):
-        data_model.unified_diff_manifest(patch)
+    with pytest.raises(ValueError, match="invalid quoted Git path"):
+        patch_manifest(patch)
 
 
 @pytest.mark.parametrize(
@@ -4057,35 +3994,9 @@ rename to new.py
         ),
     ],
 )
-def test_unified_diff_capture_rejects_evidence_the_widget_cannot_render(
-    page_dir, tmp_path, patch_text, message
-):
-    declare_data_input(
-        page_dir,
-        "review-patch",
-        {"type": "object"},
-        contract="unified-diff",
-    )
-    patch = tmp_path / "unsupported.patch"
-    patch.write_text(patch_text)
-
-    result = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "data",
-            "capture",
-            str(page_dir),
-            "review-patch",
-            "--file",
-            str(patch),
-            "--format",
-            "unified-diff",
-        ],
-    )
-
-    assert result.exit_code != 0
-    assert message in result.output
-    assert read_page_data(page_dir)["sources"] == {}
+def test_the_diff_script_refuses_evidence_the_widget_cannot_render(patch_text, message):
+    with pytest.raises(ValueError, match=re.escape(message)):
+        patch_manifest(patch_text)
 
 
 def test_data_set_reads_a_structured_value_from_a_file(page_dir, tmp_path):

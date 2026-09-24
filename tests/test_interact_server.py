@@ -24,6 +24,7 @@ import pytest
 import tinycss2
 from click.testing import CliRunner
 from conftest import LEAF_COMMAND
+from example_data import patch_manifest
 from interact_support import (
     COMMAND_SUBJECTS,
     PAGE,
@@ -796,9 +797,7 @@ def test_historical_fragment_reads_keep_the_document_revision_and_layer(
         "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n"
         '@@ -1 +1 @@\n-return "old"\n+return "new"\n'
     )
-    data_model.cmd_data_set(
-        page_dir, "review-patch", data_model.unified_diff_manifest(patch)
-    )
+    data_model.cmd_data_set(page_dir, "review-patch", patch_manifest(patch))
     first_layer = artifact_model.read_artifact(page_dir, first.revision).registry[
         "$layer"
     ]["generation"]

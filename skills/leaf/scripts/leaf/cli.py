@@ -414,7 +414,7 @@ def conversation_summarize(
     click.echo(f"summarized {from_message} through {through_message}")
 
 
-@cli.group(short_help="Set, capture, or clear page-bound external data.")
+@cli.group(short_help="Set or clear page-bound external data.")
 def data() -> None:
     """Manage each bound source's current value, one JSON file per source."""
 
@@ -440,43 +440,6 @@ def data_set(dir: str, source: str, input_file) -> None:
             f"invalid JSON ({error.msg}, line {error.lineno})"
         ) from error
     cmd_data_set(resolve_dir(dir), source, value)
-
-
-@data.command("capture", short_help="Set a bound source from a UTF-8 file.")
-@click.argument("dir", metavar="PAGE")
-@click.argument("source", metavar="SOURCE")
-@click.option(
-    "--file",
-    "input_file",
-    type=click.Path(exists=True, dir_okay=False, path_type=Path),
-    required=True,
-    metavar="PATH",
-    help="UTF-8 file to capture",
-)
-@click.option(
-    "--format",
-    "capture_format",
-    type=click.Choice(["text", "unified-diff"]),
-    default="text",
-    show_default=True,
-    help="transform applied before capture",
-)
-@click.option(
-    "--lines",
-    metavar="START:END",
-    help="one-based inclusive range for text captures",
-)
-def data_capture(
-    dir: str,
-    source: str,
-    input_file: Path,
-    capture_format: str,
-    lines: str | None,
-) -> None:
-    """Set SOURCE's current value from FILE, whole, as a line range, or as a diff."""
-    from leaf.data import cmd_data_capture
-
-    cmd_data_capture(resolve_dir(dir), source, input_file, lines, capture_format)
 
 
 @data.command("clear", short_help="Remove one source's current value.")

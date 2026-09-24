@@ -175,9 +175,11 @@ def freeze_events(page_dir: Path, events: list[dict]) -> dict:
     with service_model.PageTransaction(page_dir) as transaction:
         stored = {event["id"]: event for event in transaction.events}
         batch = delivery_model.batch_data(
-            page_dir, transaction, [stored[event["id"]] for event in events]
+            page_dir,
+            transaction,
+            [stored[event["id"]] for event in events],
         )
-    return delivery_model.freeze_delivery([batch])
+    return delivery_model.freeze_delivery([batch], carrier="wait")
 
 
 def delivery_through(page_dir: Path, seq: int) -> str:
@@ -205,8 +207,8 @@ def test_delivery_ids_are_short_and_rerolled_under_the_store_lock(monkeypatch):
         return next(minted)
 
     monkeypatch.setattr(delivery_model.secrets, "token_hex", token_hex)
-    first = delivery_model.freeze_delivery([], created_at=1)
-    second = delivery_model.freeze_delivery([], created_at=2)
+    first = delivery_model.freeze_delivery([], carrier="wait", created_at=1)
+    second = delivery_model.freeze_delivery([], carrier="wait", created_at=2)
 
     assert widths == [4, 4, 4]
     assert (first["id"], second["id"]) == ("aaaaaaaa", "bbbbbbbb")
@@ -225,9 +227,11 @@ def test_codex_readdresses_a_collecting_record_if_its_delivery_id_collides(
             "collision-test", page_dir, transaction, transaction.events
         )
     assert path.stem == "aaaaaaaa"
-    delivery_model.freeze_delivery([], delivery_id=path.stem, created_at=0)
+    delivery_model.freeze_delivery(
+        [], carrier="wait", delivery_id=path.stem, created_at=0
+    )
 
-    prepared = codex_model.offer_delivery(path, files_model.read_json(path))
+    prepared = codex_model.offer_delivery(path, files_model.read_json(path), "queue")
 
     assert prepared.payload["id"] == "bbbbbbbb"
     assert prepared.record_path == path.with_name("bbbbbbbb.json")
@@ -4578,7 +4582,13 @@ def test_active_handling_survives_a_mutable_layer_edit(page_dir, capsys):
     registry = json.loads(registry_path.read_text())
     comment = {"kind": "comment", "id": "c1", "author": "user", "text": "hi"}
     active = registry_contract.event_clauses(
-        {**comment, "obligation": {"response": {"kind": "reply"}}}, registry
+        {
+            **comment,
+            "obligation": {"response": {"kind": "reply"}},
+            "conversation": {"title": None},
+            "carrier": "wait",
+        },
+        registry,
     )
     del registry["$events"]["handling"]
     del registry["$events"]["answering"]
@@ -4613,14 +4623,26 @@ def test_codex_delivery_carries_only_the_selected_events_handling(page_dir):
         queued, _, _ = codex_model.append_batch(
             "handling-test", page_dir, transaction, transaction.events
         )
-    payload = codex_model.offer_delivery(queued, files_model.read_json(queued)).payload
+    payload = codex_model.offer_delivery(
+        queued, files_model.read_json(queued), "queue"
+    ).payload
     [batch] = payload["batches"]
     assert [event["id"] for event in batch["events"]] == [
         event["id"] for event in selected
     ]
     registry = registry_storage.active_registry(page_dir)
+    digests = {digest["id"]: digest for digest in batch["conversations"]}
+
+    def case(event):
+        """The event as its clauses read it: with its conversation and carrier."""
+        read = {**event, "carrier": "queue"}
+        if event["conversations"]:
+            read["conversation"] = digests[event["conversations"][0]]
+        return read
+
     expected = [
-        registry_contract.event_clauses(event, registry) for event in batch["events"]
+        registry_contract.event_clauses(case(event), registry)
+        for event in batch["events"]
     ]
     assert [
         [batch["handling"][ref] for ref in event["handling"]]
@@ -4642,10 +4664,7 @@ def test_delivery_without_a_registry_has_no_handling(page_dir):
     assert "handling" not in batch["events"][0]
 
 
-@pytest.mark.parametrize("state", ["collecting", "offering"])
-def test_codex_drops_a_record_whose_handling_representation_it_cannot_read(
-    page_dir, state
-):
+def test_codex_drops_a_record_whose_delivery_it_cannot_read(page_dir):
     events_model.append_event(
         page_dir, {"kind": "comment", "author": "user", "text": "hello"}
     )
@@ -4654,15 +4673,11 @@ def test_codex_drops_a_record_whose_handling_representation_it_cannot_read(
             "handling-test", page_dir, transaction, transaction.events
         )
     queue = files_model.read_json(path)
-    if state == "collecting":
-        del queue["batches"][0]["handling"]
-        files_model.write_json(path, queue)
-    else:
-        payload = codex_model.offer_delivery(path, queue).payload
-        payload["format"] = "leaf-delivery-v1"
-        files_model.write_json(delivery_model.delivery_path(payload["id"]), payload)
-        with pytest.raises(RuntimeError, match="invalid envelope"):
-            delivery_model.read_delivery(payload["id"])
+    payload = codex_model.offer_delivery(path, queue, "queue").payload
+    payload["format"] = "leaf-delivery-v1"
+    files_model.write_json(delivery_model.delivery_path(payload["id"]), payload)
+    with pytest.raises(RuntimeError, match="invalid envelope"):
+        delivery_model.read_delivery(payload["id"])
     assert codex_model.delivery_records("handling-test") == []
 
 
@@ -6249,7 +6264,7 @@ def test_receiving_a_delivery_keeps_each_pages_response_obligation(page_dir, tmp
             batches.append(
                 delivery_model.batch_data(page, transaction, transaction.events)
             )
-    payload = delivery_model.freeze_delivery(batches)
+    payload = delivery_model.freeze_delivery(batches, carrier="wait")
     later = events_model.append_event(
         other, {"kind": "comment", "author": "user", "text": "Later"}
     )
@@ -7124,7 +7139,7 @@ def test_a_bare_shell_receipt_rearms_every_page_in_its_delivery(
             batches.append(
                 delivery_model.batch_data(page, transaction, transaction.events)
             )
-    payload = delivery_model.freeze_delivery(batches)
+    payload = delivery_model.freeze_delivery(batches, carrier="wait")
     watching = spawn(
         [*LEAF_COMMAND, "wait", "--ack", payload["id"]],
         env=os.environ,
@@ -7373,7 +7388,7 @@ def test_a_reinitialized_page_does_not_starve_later_codex_receipts(tmp_path):
             )
             assert codex_adapter_model.capture_batch("codex-thread", reading)
     epoch_path, epoch = current_codex_record("codex-thread")
-    codex_model.offer_delivery(epoch_path, epoch)
+    codex_model.offer_delivery(epoch_path, epoch, "queue")
     epoch = files_model.read_json(epoch_path)
     epoch["state"] = "accepted"
     files_model.write_json(epoch_path, epoch)
@@ -7440,7 +7455,7 @@ def test_a_receipted_codex_batch_ignores_a_reinitialized_page_cursor(
             )
             assert codex_adapter_model.capture_batch("codex-thread", reading)
     epoch_path, epoch = current_codex_record("codex-thread")
-    codex_model.offer_delivery(epoch_path, epoch)
+    codex_model.offer_delivery(epoch_path, epoch, "queue")
     epoch = files_model.read_json(epoch_path)
     epoch["state"] = "accepted"
     files_model.write_json(epoch_path, epoch)
@@ -7791,7 +7806,9 @@ def test_app_server_deliveries_preserve_order_with_one_plain_reply_each(
         )
         assert codex_adapter_model.capture_batch("codex-thread", reading)
     second_path, second = current_codex_record("codex-thread")
-    second_payload = codex_model.offer_delivery(second_path, second).payload
+    second_payload = codex_model.offer_delivery(
+        second_path, second, "app-server"
+    ).payload
     assert [
         event["id"] for batch in second_payload["batches"] for event in batch["events"]
     ] == ["second"]
@@ -7896,7 +7913,7 @@ def test_codex_restart_finishes_an_accepted_batch_without_queueing_again(
         )
         assert codex_adapter_model.capture_batch("codex-thread", reading)
     record_path, queue = current_codex_record("codex-thread")
-    codex_model.offer_delivery(record_path, queue)
+    codex_model.offer_delivery(record_path, queue, "queue")
     queue = files_model.read_json(record_path)
     queue["state"] = "accepted"
     files_model.write_json(record_path, queue)

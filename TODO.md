@@ -53,24 +53,14 @@ has tried; settle that before building it.
   multi-step work, and delegation. Show the plan as well as the current step;
   check that the hosted website agent's status is readable without delaying its
   reply. Keep delegated work visible while its watcher is live.
-- **Let the carrier say how its delivery is acknowledged.** Every delivery carries
-  the registry clauses "acknowledge this delivery … where your host leaves
-  acknowledgement to you" and "reply with `leaf reply` before any other work" to
-  every host, though only `leaf wait` leaves either to the agent. Paired
-  `verify_site.py local` runs on 2026-09-23 had the leaf.page agent invent
-  `leaf delivery ack`, `$LEAF ack` and `leaf acknowledge`, and post an early
-  `leaf reply`, on main and after its prompt change alike. Acknowledgement is per
-  delivery and per carrier, not per event kind, and each delivery is frozen by
-  exactly one carrier: `leaf wait` (`session.delivery_json`), which leaves it to
-  the agent, or the Codex offer (`codex.py`), whose two transports acknowledge
-  themselves. Move the clause out of the registry into a top-level field the
-  freeze writes only on the `leaf wait` path, naming the exact
-  `leaf wait --ack <id>` command, so a Claude Code delivery still says it and a
-  Codex one says nothing. Carry App Server's reply rule the same way, in the
-  wrapper only `app_server_turn_start_params` builds, and cut the registry's reply
-  clause back to how to answer. The carrier snapshot
-  (`test_each_carrier_hands_the_agent_what_the_snapshot_shows`) shows the result per
-  carrier. Check with paired Claude Code runs that acknowledgement stays as prompt.
+- **Check that each carrier's agent follows its own delivery route.** Deliveries
+  now carry `handling` written for their carrier: only `leaf wait` tells the agent
+  to acknowledge, naming `leaf wait --ack`, and only App Server says the final
+  message is the reply. Paired runs on 2026-09-23, before that, had the leaf.page
+  agent invent `leaf delivery ack` and post an early `leaf reply`. Rerun
+  `verify_site.py local` for the App Server route, and paired Claude Code runs
+  to check that acknowledgement stays as prompt now that its clause names the
+  command.
 
 ## Next
 

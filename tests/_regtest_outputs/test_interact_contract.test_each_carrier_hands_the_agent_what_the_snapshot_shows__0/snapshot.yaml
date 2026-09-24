@@ -29,10 +29,13 @@
 #                      delivery once it enters that turn. leaf.page's hosted
 #                      agent and a `leaf codex launch` terminal use this carrier.
 #
-# Both Codex carriers deliver the one frozen delivery that Leaf's Codex offer
-# prepares; `leaf wait` freezes its own. The agent's standing instructions (its
-# host contract, and on leaf.page the developer instructions) are not part of a
-# delivery; test_website_server records leaf.page's.
+# Each carrier freezes a delivery of its own. The envelope's shape is the same on
+# all three, but not its `handling`: a clause's `when` reads which carrier delivers
+# it (`wait`, `queue` or `app-server`), so each agent is told only its own route,
+# who acknowledges and whether its final message is the reply. The agent's
+# standing instructions (its host contract, and on leaf.page the developer
+# instructions) are not part of a delivery; test_website_server records
+# leaf.page's.
 #
 # What this file records
 # ----------------------
@@ -77,27 +80,26 @@ leaf wait:
             actions: []
         handling:
           h1: >-
-            Acknowledge this delivery before anything else, by your host contract's
-            route where it leaves acknowledgement to you: until then the user's
-            message reads Sent or Queued rather than Picked up.
+            Acknowledge this delivery before anything else by starting the next
+            background wait with `leaf wait --ack <delivery-id>`, where `<delivery-id>`
+            is the delivery's `id`: until then the user's message reads Sent rather
+            than Picked up.
           h2: >-
-            If this event's conversation has a null `title` in the batch's `conversations`,
-            name it with `leaf conversation title <page> <conversation-id> --text
-            "<a few words>"`, so the thread panel lists its subject rather than
-            its opening words.
+            This event's conversation has no title yet: name it with `leaf conversation
+            title <page> <conversation-id> --text "<a few words>"`, so the thread
+            panel lists its subject rather than its opening words.
           h3: >-
-            Answer with `leaf reply <page> --for <event-id>`. In a Codex task Leaf
-            observes over App Server, your final message is the reply instead, and
-            `leaf reply` refuses the event. Where you answer with `leaf reply`,
-            reply before any other work, including the work this event asks for:
-            give the answer, or say what you are about to do and where the result
-            will appear. Once that work lands, report it with `leaf reply <page>
-            --to <address> --initiates`, where `<address>` is the event's `obligation.response.to`.
-            `leaf reply` checks any saved page edit and makes it live before posting.
-            If a revision removes what the thread is anchored on, move the thread
-            in the reply that reports it with `--section <id>` (narrowed by `--quote`
-            or `--part` if needed), or `--detach` it if its subject has left the
-            page. Add `--awaits` only if your reply's prose asks the user something.
+            Answer with `leaf reply <page> --for <event-id>` before any other work,
+            including the work this event asks for: give the answer, or say what
+            you are about to do and where the result will appear. Once that work
+            lands, report it with `leaf reply <page> --to <address> --initiates`,
+            where `<address>` is the event's `obligation.response.to`. `leaf reply`
+            checks any saved page edit and makes it live before posting. If a revision
+            removes what the thread is anchored on, move the thread in the reply
+            that reports it with `--section <id>` (narrowed by `--quote` or `--part`
+            if needed), or `--detach` it if its subject has left the page. Add `--awaits`
+            only if your reply's prose asks the user something.
+          h4: >-
             Your reply renders as Markdown, so show code or markup in a fenced block.
         events:
           - kind: comment
@@ -114,7 +116,7 @@ leaf wait:
               kind: conversation
               id: 1946b466
             conversations: [1946b466]
-            handling: [h1, h2, h3]
+            handling: [h1, h2, h3, h4]
             obligation:
               as_of_seq: 2
               response:
@@ -150,27 +152,21 @@ Codex queue:
             actions: []
         handling:
           h1: >-
-            Acknowledge this delivery before anything else, by your host contract's
-            route where it leaves acknowledgement to you: until then the user's
-            message reads Sent or Queued rather than Picked up.
+            This event's conversation has no title yet: name it with `leaf conversation
+            title <page> <conversation-id> --text "<a few words>"`, so the thread
+            panel lists its subject rather than its opening words.
           h2: >-
-            If this event's conversation has a null `title` in the batch's `conversations`,
-            name it with `leaf conversation title <page> <conversation-id> --text
-            "<a few words>"`, so the thread panel lists its subject rather than
-            its opening words.
+            Answer with `leaf reply <page> --for <event-id>` before any other work,
+            including the work this event asks for: give the answer, or say what
+            you are about to do and where the result will appear. Once that work
+            lands, report it with `leaf reply <page> --to <address> --initiates`,
+            where `<address>` is the event's `obligation.response.to`. `leaf reply`
+            checks any saved page edit and makes it live before posting. If a revision
+            removes what the thread is anchored on, move the thread in the reply
+            that reports it with `--section <id>` (narrowed by `--quote` or `--part`
+            if needed), or `--detach` it if its subject has left the page. Add `--awaits`
+            only if your reply's prose asks the user something.
           h3: >-
-            Answer with `leaf reply <page> --for <event-id>`. In a Codex task Leaf
-            observes over App Server, your final message is the reply instead, and
-            `leaf reply` refuses the event. Where you answer with `leaf reply`,
-            reply before any other work, including the work this event asks for:
-            give the answer, or say what you are about to do and where the result
-            will appear. Once that work lands, report it with `leaf reply <page>
-            --to <address> --initiates`, where `<address>` is the event's `obligation.response.to`.
-            `leaf reply` checks any saved page edit and makes it live before posting.
-            If a revision removes what the thread is anchored on, move the thread
-            in the reply that reports it with `--section <id>` (narrowed by `--quote`
-            or `--part` if needed), or `--detach` it if its subject has left the
-            page. Add `--awaits` only if your reply's prose asks the user something.
             Your reply renders as Markdown, so show code or markup in a fenced block.
         events:
           - kind: comment
@@ -198,13 +194,13 @@ Codex queue:
 Codex App Server:
   turn/start:
     threadId: codex-thread
-    clientUserMessageId: '22222222'
+    clientUserMessageId: '33333333'
     input: []
     toolOutput:
       name: leaf_delivery
       output:
         format: leaf-delivery-v2
-        id: '22222222'
+        id: '33333333'
         created_at: 1790046750.29
         batches:
           - page: /path/to/page
@@ -225,29 +221,18 @@ Codex App Server:
                 actions: []
             handling:
               h1: >-
-                Acknowledge this delivery before anything else, by your host contract's
-                route where it leaves acknowledgement to you: until then the user's
-                message reads Sent or Queued rather than Picked up.
+                This event's conversation has no title yet: name it with `leaf conversation
+                title <page> <conversation-id> --text "<a few words>"`, so the thread
+                panel lists its subject rather than its opening words.
               h2: >-
-                If this event's conversation has a null `title` in the batch's `conversations`,
-                name it with `leaf conversation title <page> <conversation-id> --text
-                "<a few words>"`, so the thread panel lists its subject rather than
-                its opening words.
+                Your final message in this turn is the reply: Leaf posts it to the
+                thread when the turn ends, and `leaf reply` refuses this event.
+                Do the work the event asks for first, then give the answer, or say
+                what changed and where it appears. The final message leaves the
+                thread on its anchor.
               h3: >-
-                Answer with `leaf reply <page> --for <event-id>`. In a Codex task
-                Leaf observes over App Server, your final message is the reply instead,
-                and `leaf reply` refuses the event. Where you answer with `leaf
-                reply`, reply before any other work, including the work this event
-                asks for: give the answer, or say what you are about to do and where
-                the result will appear. Once that work lands, report it with `leaf
-                reply <page> --to <address> --initiates`, where `<address>` is the
-                event's `obligation.response.to`. `leaf reply` checks any saved
-                page edit and makes it live before posting. If a revision removes
-                what the thread is anchored on, move the thread in the reply that
-                reports it with `--section <id>` (narrowed by `--quote` or `--part`
-                if needed), or `--detach` it if its subject has left the page. Add
-                `--awaits` only if your reply's prose asks the user something. Your
-                reply renders as Markdown, so show code or markup in a fenced block.
+                Your reply renders as Markdown, so show code or markup in a fenced
+                block.
             events:
               - kind: comment
                 revision: 1

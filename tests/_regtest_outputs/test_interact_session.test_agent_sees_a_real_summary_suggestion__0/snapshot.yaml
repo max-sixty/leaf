@@ -64,18 +64,18 @@ delivery:
           actions: []
       handling:
         h1: >-
-          Acknowledge this delivery before anything else, by your host contract's
-          route where it leaves acknowledgement to you: until then the user's message
-          reads Sent or Queued rather than Picked up.
+          Acknowledge this delivery before anything else by starting the next background
+          wait with `leaf wait --ack <delivery-id>`, where `<delivery-id>` is the
+          delivery's `id`: until then the user's message reads Sent rather than
+          Picked up.
         h2: >-
           The user answered in a thread; the batch's `conversations` carries the
           thread's context, and `leaf conversation read <page> <conversation-id>`
           reads its history in pages.
         h3: >-
-          If this event's conversation has a null `title` in the batch's `conversations`,
-          name it with `leaf conversation title <page> <conversation-id> --text
-          "<a few words>"`, so the thread panel lists its subject rather than its
-          opening words.
+          This event's conversation has no title yet: name it with `leaf conversation
+          title <page> <conversation-id> --text "<a few words>"`, so the thread
+          panel lists its subject rather than its opening words.
         h4: >-
           This event's thread has grown long, and its entry in the batch's `conversations`
           carries a `summary_hint`. Once you have replied, read the messages from
@@ -84,19 +84,18 @@ delivery:
           as the Leaf skill's `references/conversation-threads.md`, "Summarize a
           long discussion", says.
         h5: >-
-          Answer with `leaf reply <page> --for <event-id>`. In a Codex task Leaf
-          observes over App Server, your final message is the reply instead, and
-          `leaf reply` refuses the event. Where you answer with `leaf reply`, reply
-          before any other work, including the work this event asks for: give the
-          answer, or say what you are about to do and where the result will appear.
-          Once that work lands, report it with `leaf reply <page> --to <address>
-          --initiates`, where `<address>` is the event's `obligation.response.to`.
-          `leaf reply` checks any saved page edit and makes it live before posting.
-          If a revision removes what the thread is anchored on, move the thread
-          in the reply that reports it with `--section <id>` (narrowed by `--quote`
-          or `--part` if needed), or `--detach` it if its subject has left the page.
-          Add `--awaits` only if your reply's prose asks the user something. Your
-          reply renders as Markdown, so show code or markup in a fenced block.
+          Answer with `leaf reply <page> --for <event-id>` before any other work,
+          including the work this event asks for: give the answer, or say what you
+          are about to do and where the result will appear. Once that work lands,
+          report it with `leaf reply <page> --to <address> --initiates`, where `<address>`
+          is the event's `obligation.response.to`. `leaf reply` checks any saved
+          page edit and makes it live before posting. If a revision removes what
+          the thread is anchored on, move the thread in the reply that reports it
+          with `--section <id>` (narrowed by `--quote` or `--part` if needed), or
+          `--detach` it if its subject has left the page. Add `--awaits` only if
+          your reply's prose asks the user something.
+        h6: >-
+          Your reply renders as Markdown, so show code or markup in a fenced block.
       events:
         - kind: reply
           author: user
@@ -110,7 +109,7 @@ delivery:
             kind: conversation
             id: event-2
           conversations: [event-2]
-          handling: [h1, h2, h3, h4, h5]
+          handling: [h1, h2, h3, h4, h5, h6]
           obligation:
             as_of_seq: 14
             response:

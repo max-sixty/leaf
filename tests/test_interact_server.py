@@ -980,7 +980,7 @@ def test_a_page_loads_from_the_external_origins_as_written(server, page_dir):
     )
     activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None, activated.error
-    resources = activated.check.artifact.resources
+    resources = artifact_model.read_artifact(page_dir, activated.revision).resources
     assert resources["/page/app.js"].dependencies == ()
     assert not any(path.startswith("http") for path in resources)
 
@@ -5256,14 +5256,14 @@ def test_stamp_keeps_its_checked_log_snapshot_until_the_note(monkeypatch, page_d
     )
     entered = threading.Event()
     release = threading.Event()
-    original = publishing_model.activate_source
+    original = publishing_model.check_source
 
-    def paused_activation(*args, **kwargs):
+    def paused_check(*args, **kwargs):
         entered.set()
         assert release.wait(5)
         return original(*args, **kwargs)
 
-    monkeypatch.setattr(publishing_model, "activate_source", paused_activation)
+    monkeypatch.setattr(publishing_model, "check_source", paused_check)
     failures = []
 
     def run_stamp():

@@ -54,6 +54,7 @@ from interact_support import (
     publish,
     published,
     stamp,
+    stamp_activation,
     styled,
     trial_version,
     yaml_block,
@@ -1812,7 +1813,7 @@ def test_candidate_vocabulary_leaves_removed_page_widgets_to_captured_history(pa
     )
     restated = original.replace('value="author"', 'value="author-next" restated')
     (page_dir / "index.html").write_text(restated)
-    second = revisioning_model.activate_source(page_dir, allow_transition=True)
+    second = stamp_activation(page_dir)
     assert second.error is None and second.created
     events_model.append_event(
         page_dir,
@@ -4407,7 +4408,7 @@ def test_activation_rechecks_changed_css_while_the_document_stays_identical(page
     css = ":root { --pin: 700px; --col: 720px } main { --lf-reading-column: 1; max-width: var(--col) }"
     initial = activate(css)
     assert initial.error is None
-    assert activate(css).check.errors == []
+    assert activate(css).error is None
 
     overwide = activate(css.replace("700px", "900px"))
     assert "style> (line " in overwide.error
@@ -4417,7 +4418,9 @@ def test_activation_rechecks_changed_css_while_the_document_stays_identical(page
     wider_column = css.replace("700px", "900px").replace("720px", "960px")
     widened = activate(wider_column)
     assert widened.error is None
-    assert widened.check.column == 960
+    from leaf.validation.source import check_source
+
+    assert check_source(page_dir, []).column == 960
     assert widened.created
     assert widened.revision == initial.revision + 1
 

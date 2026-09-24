@@ -60,16 +60,18 @@
           </lf-column>
         </lf-board>
 
-        <aside id="triage-status" aria-label="Release status">
+        <lf-grid id="triage-status" columns="1">
           <lf-grid id="triage-counts" columns="2">
             <lf-metric id="count-blocking" value="1">blocking</lf-metric>
             <lf-metric id="count-open" value="7" delta="-3" direction="up-bad"
               >open since Monday</lf-metric
             >
           </lf-grid>
-          <h2>Recent moves</h2>
-          <lf-activity id="triage-activity"></lf-activity>
-        </aside>
+          <section class="panel" id="triage-moves">
+            <h2>Recent moves</h2>
+            <lf-activity id="triage-activity"></lf-activity>
+          </section>
+        </lf-grid>
       </lf-grid>
 
       <section id="triage-why">

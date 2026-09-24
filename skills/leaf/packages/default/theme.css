@@ -16,16 +16,18 @@
  * two where they don't, and one on a phone, with no query. A template is the tracks
  * the author wrote, which cannot rewrap, so a narrow grid stacks its cells instead:
  * every cell spans the row. The module paints the template as --lf-grid-template, since
- * a stylesheet cannot read an attribute as a track list, and the span as
- * --lf-grid-stack. Both are custom properties and so inherit; the reset here keeps a
- * grid nested in a cell from taking its parent's, and the painted inline value
- * outranks it on the grid that owns it. */
+ * a stylesheet cannot read an attribute as a track list. It is a custom property and so
+ * inherits; the reset here keeps a grid nested in a cell from taking its parent's, and
+ * the painted inline value outranks it on the grid that owns it. Whether a grid has a
+ * template is its `columns` attribute, which a selector can read, so the stacking rule
+ * below asks the attribute: a span passed down as a custom property was reset by the
+ * very grid it had to reach when a cell was itself a grid, and a nested stack stood in
+ * its parent's narrow track instead of taking the row. */
 :is(lf-grid, :where([data-lf-reading-role="grid"])) {
   --lf-grid-min: 14rem;
   --lf-grid-gap: var(--sp-4);
   --lf-grid-count: 99;
   --lf-grid-template: initial;
-  --lf-grid-stack: initial;
   /* Stated on the grid and inherited by its cells, so a surface cell's own declaration
    * of no measure outranks it rather than tying with a rule on the cell. */
   --lf-measure: var(--col);
@@ -68,8 +70,8 @@ lf-grid[columns="6"] { --lf-grid-count: 6; }
   width: 100%;
 }
 @container lf-grid (width < 600px) {
-  :is(lf-grid, :where([data-lf-reading-role="grid"])) > * {
-    grid-column: var(--lf-grid-stack, auto);
+  lf-grid[columns*="fr"] > * {
+    grid-column: 1 / -1;
   }
 }
 

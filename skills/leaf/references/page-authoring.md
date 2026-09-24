@@ -120,9 +120,14 @@ a dashboard of tiles over checks and a log — is a sheet: write `<main
 data-width="available">`, or `data-width="wide"` for the capped evidence width. Every
 block, the title included, then starts at one left edge and takes the sheet's width,
 while text keeps the reading measure, so a lede and a board line up rather than sitting
-on two centred axes. Lay the sheet out with `lf-grid`s, such as `columns="3fr 1fr"` for
-a board beside its status and activity. A sheet stays a scrolling document; use a
-workspace instead when regions must stay in view together.
+on two centred axes. A sheet reads as one structure when every region stands on the
+same vertical lines: give it one set of tracks, typically a body beside a rail as one
+`lf-grid` of `columns="2fr 1fr"` (or `3fr 1fr` for a board), and stack each track's
+regions in a nested `columns="1"` grid, rather than a new grid per row whose splits land
+somewhere new each time. Draw each region the same way, as a `section.panel` with a short
+heading, and keep the tinted `.callout` for the one thing the reader must act on. A sheet
+stays a scrolling document; use a workspace instead when regions must stay in view
+together.
 
 Choose width separately from document or workspace form. Keep prose at a readable
 measure and let declared visual surfaces use the room their task needs. A wide comparison

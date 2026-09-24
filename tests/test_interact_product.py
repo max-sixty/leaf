@@ -660,7 +660,7 @@ def test_no_example_writes_another_example_s_sentences():
     def words(html: str) -> list[str]:
         # <main> only: shared delivery markup is absent from authored examples, while
         # page-specific titles, styles, and modules legitimately differ in the head.
-        body = html[html.index("<main>") + len("<main>") : html.rindex("</main>")]
+        body = html[re.search(r"<main\b[^>]*>", html).end() : html.rindex("</main>")]
         return re.findall(r"[a-z0-9']+", re.sub(r"<[^>]+>", " ", body).lower())
 
     seen: dict[tuple, str] = {}

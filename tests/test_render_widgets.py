@@ -872,22 +872,17 @@ def test_regions_inside_a_bounded_pane_body_flow_within_the_body_that_scrolls(
 
 
 def test_a_release_page_is_a_sheet_and_keeps_the_log_on_its_newest_line(browser, serve):
-    """A sheet: the title, the lede and every grid start at one left edge, the grids take
-    the sheet's width while the lede keeps the reading measure, and the checks table
-    fills its cell beside the log. The pair stacks once the window cannot hold it, and
-    the bounded log opens on its newest line. Paper shows the log whole."""
+    """A sheet of two tracks: the lede starts at the sheet's edge and keeps the reading
+    measure, every region of the body shares the body's two edges and every region of
+    the rail the rail's, and the checks table fills its panel. On a narrow window the
+    rail stacks under the body, and the bounded log opens on its newest line. Paper
+    shows the log whole."""
     example = Path(__file__).parent.parent / "examples" / "live-progress.html"
     context = browser.new_context(viewport={"width": 1600, "height": 1000})
     page = open_page(browser, live_url(serve(example)), context=context)
-    ids = [
-        "lp-status",
-        "lp-now",
-        "lp-evidence",
-        "lp-checks",
-        "lp-checks-table",
-        "lp-log",
-        "lp-lede",
-    ]
+    body = ["lp-status", "lp-decision", "lp-checks", "lp-log"]
+    rail = ["lp-steps", "lp-release"]
+    ids = [*body, *rail, "lp-layout", "lp-checks-table", "lp-lede"]
     boxes = f"""() => Object.fromEntries(
       [...{ids!r}, 'main'].map(id => [id, (document.getElementById(id)
         ?? document.querySelector(id)).getBoundingClientRect().toJSON()]))"""
@@ -895,27 +890,32 @@ def test_a_release_page_is_a_sheet_and_keeps_the_log_on_its_newest_line(browser,
     wide = page.evaluate(boxes)
     sheet = wide["main"]
     assert sheet["width"] > 1080, "the sheet should take the room past the wide width"
-    for block in ("lp-lede", "lp-status", "lp-now", "lp-evidence"):
-        assert wide[block]["left"] == pytest.approx(sheet["left"], abs=1)
-    for grid in ("lp-status", "lp-now", "lp-evidence"):
-        assert wide[grid]["width"] == pytest.approx(sheet["width"], abs=1)
+    assert wide["lp-layout"]["width"] == pytest.approx(sheet["width"], abs=1)
+    assert wide["lp-lede"]["left"] == pytest.approx(sheet["left"], abs=1)
     assert wide["lp-lede"]["width"] <= 720 + 1
-    assert wide["lp-checks-table"]["width"] == pytest.approx(
-        wide["lp-checks"]["width"], abs=1
-    )
-    assert wide["lp-checks"]["top"] == wide["lp-log"]["top"]
-    assert wide["lp-checks"]["right"] < wide["lp-log"]["left"]
+    for track in (body, rail):
+        for edge in ("left", "right"):
+            assert {round(wide[i][edge]) for i in track} == {
+                round(wide[track[0]][edge])
+            }
+    assert wide["lp-status"]["left"] == pytest.approx(sheet["left"], abs=1)
+    assert wide["lp-steps"]["right"] == pytest.approx(sheet["right"], abs=1)
+    assert wide["lp-log"]["right"] < wide["lp-steps"]["left"]
+    assert wide["lp-checks-table"]["width"] > wide["lp-checks"]["width"] - 48
     listing = page.locator("#lp-live-log pre")
     assert listing.evaluate(
         "pre => pre.scrollHeight > pre.clientHeight && "
         "pre.scrollHeight - pre.scrollTop - pre.clientHeight <= 2"
     ), "the bounded log should open on its newest line"
+    assert page.evaluate("scrollY") == 0, "following the log should not move the page"
+    page.locator("#lp-live-log").scroll_into_view_if_needed()
     expect(page.locator("#lp-live-log figcaption")).to_be_in_viewport()
 
     resized(page, 560, 900)
     narrow = page.evaluate(boxes)
     assert narrow["lp-log"]["top"] >= narrow["lp-checks"]["bottom"]
-    assert narrow["lp-log"]["width"] == narrow["lp-evidence"]["width"]
+    assert narrow["lp-steps"]["top"] >= narrow["lp-log"]["bottom"]
+    assert narrow["lp-steps"]["width"] == narrow["lp-log"]["width"]
 
     page.emulate_media(media="print")
     assert listing.evaluate("pre => getComputedStyle(pre).maxHeight") == "none"

@@ -410,18 +410,22 @@ def swept_overflow(page, viewports) -> list[str]:
 
     Resizes the loaded page rather than rendering it again, and re-reads only the two
     sideways readings, which are geometry: the rest of the gate reads words, paint and
-    state, which the fixed viewports already see. The sweep runs at the desktop
-    viewport's height, and a fault it also meets at that viewport's width is dropped
-    here, because that reading already reports it in both schemes; the phone viewport is
-    read at a height of its own, where a workspace may hold its regions differently, so
-    what the sweep meets at the phone's width is still reported."""
+    state, which the fixed viewports already see. The fixed widths are swept too, and a
+    fault met at one of them is dropped here, because that viewport's own reading
+    already reports it in both schemes. The sweep runs at the desktop height, so a fault
+    only a phone-height workspace posture shows is the phone viewport's to report."""
     height = viewports[0]["height"]
-    fixed = {v["width"] for v in viewports if v["height"] == height}
+    fixed = {viewport["width"] for viewport in viewports}
     seen = {}
-    for width in sorted({*SWEEP_WIDTHS, *fixed}):
+    # Widest first, in steps, so a layout script settles from the width before rather
+    # than from the desktop: a jump from 1200px straight to 360px left an lf-shot laid
+    # out for the desktop for a frame under load, and the sweep read that frame.
+    for width in sorted({*SWEEP_WIDTHS, *fixed}, reverse=True):
         page.set_viewport_size({"width": width, "height": height})
-        # A frame, so what a resize sets moving in script (a ResizeObserver) has run.
-        wait_for_probe(page, "framePresented", evaluate_probe(page, "requestFrame"))
+        # Two frames, so what a resize sets moving in script (a ResizeObserver, and the
+        # layout that observer's write causes) has run and been laid out.
+        for _ in range(2):
+            wait_for_probe(page, "framePresented", evaluate_probe(page, "requestFrame"))
         for key, text in _overflow(
             evaluate_probe(page, "rootOverflow"), evaluate_probe(page, "misplacedBoxes")
         ):

@@ -1365,7 +1365,7 @@ def test_the_render_gate_bounds_a_prefixed_inventory_by_its_prefixes(browser, se
                 layer_registry=prefixed_visual_layer(*prefixes),
                 layer_widgets=GENERIC_VISUAL_WIDGETS,
             ),
-        )
+        ).failures
 
     assert gate("out", "inn", "htm") == []
     assert gate("out", "inn") == [

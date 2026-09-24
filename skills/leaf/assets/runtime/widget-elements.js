@@ -237,8 +237,8 @@ export function quoted(el) {
 // the body under it is prose the user may point at like any other. Nothing embedded
 // (`iframe`, `embed`, `object`): a click inside one never crosses into this document, so
 // listing them would guard a gesture no listener out here can see.
-// Anchors distinguishes an authored tab stop from one reachScrollers added to expose
-// overflow. Both readings come from this one control vocabulary.
+// A tab stop is a place focus rests, which a press also is; the visual reading asks
+// only for the press, so it reads the vocabulary without it.
 const TAB_STOP = "[tabindex]:not([tabindex='-1'])";
 const WORK_SELECTORS = [
   "a",

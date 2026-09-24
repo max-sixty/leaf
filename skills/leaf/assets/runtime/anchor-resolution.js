@@ -8,7 +8,6 @@
  */
 
 import { sameAnchor } from "./anchor-coordinate.js";
-import { runtimeOwnsScrollerStop } from "./reach.js";
 import { resolvedElement, resolvedPassage } from "./resolved-target.js";
 import { inUi, under, upFrom } from "./shadow.js";
 import {
@@ -28,7 +27,7 @@ import {
   textNodesUnder,
 } from "./passages.js";
 import { registry, tagsDeclaring } from "./registry.js";
-import { WORKS_WITHOUT_TAB_STOP } from "./widget-elements.js";
+import { PRESSABLE, WORKS_WITHOUT_TAB_STOP } from "./widget-elements.js";
 
 // Anchors are durable coordinates, so every route that can mint one begins only after
 // replay has reconciled the authored document. The presentation root owns the writer.
@@ -116,9 +115,6 @@ const genericVisualSelector = "svg, img, figure";
 export const visualSelector = () =>
   [declaredVisualSelector(), genericVisualSelector].filter(Boolean).join(",");
 
-const interactiveWithoutTabStopSelector = () =>
-  `${WORKS_WITHOUT_TAB_STOP},[data-lf-offer]`;
-
 const outermostAcross = (element, selector) => {
   for (let parent = upFrom(element); parent;) {
     const outer = closestAcross(parent, selector);
@@ -129,11 +125,13 @@ const outermostAcross = (element, selector) => {
   return element;
 };
 
+// A picture inside a control is that control's rendering, so the control keeps the
+// gesture and no visual reading is offered for it. What claims is a press: a platform
+// or ARIA control, or a widget's pressable offer. A tab stop alone is a place focus can
+// rest, not a press — a tab panel, a scroll region, a stage that takes keys — and the
+// pictures it holds stay pictures.
 const claimsVisualGesture = (element) =>
-  element.matches(interactiveWithoutTabStopSelector()) ||
-  (element.hasAttribute("tabindex") &&
-    element.tabIndex >= 0 &&
-    !runtimeOwnsScrollerStop(element));
+  element.matches(`${WORKS_WITHOUT_TAB_STOP},${PRESSABLE}`);
 
 export const unclaimedVisualGesture = (target) => {
   if (inChrome(target) || inUi(target)) return false;

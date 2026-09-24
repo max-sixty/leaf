@@ -259,48 +259,52 @@ def check_package_scripts(package: Path) -> None:
     for path in sorted(scripts.glob("*.py")):
         if not path.is_file():
             sys.exit(f"{path} must be a file")
-        blocks = [
-            match
-            for match in INLINE_METADATA.finditer(path.read_text(encoding="utf-8"))
-            if match["type"] == "script"
-        ]
-        if len(blocks) != 1:
-            sys.exit(
-                f"{path} needs one inline `# /// script` metadata block (PEP 723) "
-                "declaring its dependencies, so `leaf package run` runs it in an "
-                "environment of its own"
-            )
-        content = "".join(
-            line[2:] if line.startswith("# ") else line[1:]
-            for line in blocks[0]["content"].splitlines(keepends=True)
+        script_requirements(path)
+
+
+def script_requirements(path: Path) -> list[Requirement]:
+    """The dependencies one package script's inline metadata declares, held to the
+    policy `check_package_scripts` states; a script that breaks it is refused."""
+    blocks = [
+        match
+        for match in INLINE_METADATA.finditer(path.read_text(encoding="utf-8"))
+        if match["type"] == "script"
+    ]
+    if len(blocks) != 1:
+        sys.exit(
+            f"{path} needs one inline `# /// script` metadata block (PEP 723) "
+            "declaring its dependencies, so `leaf package run` runs it in an "
+            "environment of its own"
         )
-        try:
-            metadata = tomllib.loads(content)
-            dependencies = metadata.get("dependencies", [])
-            python = metadata.get("requires-python", ">=0")
-            if not (
-                isinstance(dependencies, list)
-                and all(isinstance(value, str) for value in dependencies)
-                and isinstance(python, str)
-            ):
-                raise ValueError(
-                    "dependencies must be a list of strings and requires-python "
-                    "a string"
-                )
-            requirements = [Requirement(value) for value in dependencies]
-            python = SpecifierSet(python)
-        except (ValueError, InvalidRequirement, InvalidSpecifier) as error:
-            sys.exit(f"{path}: invalid script metadata ({error})")
-        if error := floor_error(python):
-            sys.exit(f"{path}: requires-python {error}")
-        for requirement in requirements:
-            if requirement.url is not None or (
-                error := floor_error(requirement.specifier)
-            ):
-                sys.exit(
-                    f"{path}: dependency {str(requirement)!r} "
-                    f"{error or 'must name a version floor, not a URL'}"
-                )
+    content = "".join(
+        line[2:] if line.startswith("# ") else line[1:]
+        for line in blocks[0]["content"].splitlines(keepends=True)
+    )
+    try:
+        metadata = tomllib.loads(content)
+        dependencies = metadata.get("dependencies", [])
+        python = metadata.get("requires-python", ">=0")
+        if not (
+            isinstance(dependencies, list)
+            and all(isinstance(value, str) for value in dependencies)
+            and isinstance(python, str)
+        ):
+            raise ValueError(
+                "dependencies must be a list of strings and requires-python a string"
+            )
+        requirements = [Requirement(value) for value in dependencies]
+        python = SpecifierSet(python)
+    except (ValueError, InvalidRequirement, InvalidSpecifier) as error:
+        sys.exit(f"{path}: invalid script metadata ({error})")
+    if error := floor_error(python):
+        sys.exit(f"{path}: requires-python {error}")
+    for requirement in requirements:
+        if requirement.url is not None or (error := floor_error(requirement.specifier)):
+            sys.exit(
+                f"{path}: dependency {str(requirement)!r} "
+                f"{error or 'must name a version floor, not a URL'}"
+            )
+    return requirements
 
 
 def validate_package_dir(package: Path) -> list:

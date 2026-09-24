@@ -4653,18 +4653,33 @@ def test_package_check_refuses_a_script_that_would_run_in_the_callers_project(
     assert not (machine_model.package_store() / "tally").exists()
 
 
+def test_script_requirements_read_a_multiline_dependency_list(tmp_path):
+    """The reading `package check` applies is the one the suite's pin guard uses, so
+    a header written across several comment lines is read whole by both."""
+    script = tmp_path / "tool.py"
+    script.write_text(
+        "# /// script\n"
+        "# dependencies = [\n"
+        '#   "unidiff>=1",\n'
+        '#   "rich>=13",\n'
+        "# ]\n"
+        "# ///\n"
+    )
+    assert [str(r) for r in packages_model.script_requirements(script)] == [
+        "unidiff>=1",
+        "rich>=13",
+    ]
+
+
 def test_the_suite_pins_every_bundled_script_dependency():
     """A bundled script's header declares its dependencies and ships no lock, so
     the dev group repeats each one: `uv.lock` then pins what the suite runs the
     script against, and the suite needs no network to run it."""
     pyproject = (PLUGIN_ROOT / "pyproject.toml").read_text()
     declared = {
-        requirement
+        str(requirement)
         for script in schema_model.BUNDLED_PACKAGES.glob("*/scripts/*.py")
-        for match in re.findall(
-            r"^# dependencies = (\[.*\])$", script.read_text(), flags=re.MULTILINE
-        )
-        for requirement in json.loads(match)
+        for requirement in packages_model.script_requirements(script)
     }
     assert "unidiff>=1" in declared
     # Bundled packages never pass through `package install`, so hold their scripts

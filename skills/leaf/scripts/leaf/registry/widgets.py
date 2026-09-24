@@ -17,7 +17,6 @@ from .contract import (
     schema_resource_registry,
     state_specs,
     visual_part_attribute,
-    writer,
 )
 from .state import (
     validate_deciding_verb,
@@ -609,7 +608,7 @@ def _validate_widget_interactions(
             f"{path}: <{tag}> x-awaits local Ask declares no `answered` condition"
         )
     # The user answers their own Ask, so only a verb the user writes can answer it.
-    user_verbs = {verb for verb, spec in state_specs(entry) if writer(spec) == "user"}
+    user_verbs = {verb for verb, _spec in state_specs(entry, writer="user")}
     if unknown := sorted(set(answered) - user_verbs):
         raise RegistryError(
             f"{path}: <{tag}> x-awaits answers with verbs {unknown}, which are not "
@@ -646,7 +645,7 @@ def _validate_widget_interactions(
     # A version overrules a standing report with `overruled` on the element,
     # so a widget with an agent-written verb that doesn't declare the attribute
     # is one whose every report contradiction is unpublishable.
-    agent_verbs = [verb for verb, spec in state_specs(entry) if writer(spec) == "agent"]
+    agent_verbs = [verb for verb, _spec in state_specs(entry, writer="agent")]
     if agent_verbs and not (
         isinstance(properties.get("overruled"), dict)
         and properties["overruled"].get("type") == "boolean"
@@ -664,8 +663,7 @@ def _validate_widget_interactions(
     # widget itself: a verb folding per child (move's "card") rests its
     # decisions on elements this declaration doesn't name.
     folds_whole = any(
-        spec["unit"] == "widget" and writer(spec) == "user"
-        for _verb, spec in state_specs(entry)
+        spec["unit"] == "widget" for _verb, spec in state_specs(entry, writer="user")
     )
     if folds_whole and not (
         isinstance(properties.get("restated"), dict)

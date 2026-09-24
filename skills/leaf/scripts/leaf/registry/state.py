@@ -9,7 +9,7 @@ from .contract import (
     declares_string,
     json_validator,
     state_specs,
-    writer,
+    verb_writer,
 )
 
 
@@ -300,7 +300,7 @@ def validate_deciding_verb(tag: str, entry: dict, path) -> None:
     words = schema.get("enum") if isinstance(schema, dict) else None
     if (
         spec["unit"] != "widget"
-        or writer(spec) != "user"
+        or verb_writer(spec) != "user"
         or not isinstance(words, list)
         or not words
         or not all(isinstance(word, str) for word in words)

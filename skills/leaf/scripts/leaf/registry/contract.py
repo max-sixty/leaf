@@ -275,19 +275,22 @@ def deciding_outcomes(entry: dict) -> list[str]:
 WRITERS = {"action": "user", "report": "agent"}
 
 
-def writer(spec: dict) -> str:
+def verb_writer(spec: dict) -> str:
     """The side that writes one x-state verb: `agent` where it says so, else `user`."""
     return spec.get("writer", "user")
 
 
-def state_specs(entry: dict):
-    """The x-state verb declarations on one element declaration, as (verb, spec)."""
-    yield from entry.get("x-state", {}).items()
+def state_specs(entry: dict, *, writer: str | None = None):
+    """The x-state verb declarations on one element declaration, as (verb, spec),
+    narrowed to the verbs one side writes when `writer` names it."""
+    for verb, spec in entry.get("x-state", {}).items():
+        if writer is None or verb_writer(spec) == writer:
+            yield verb, spec
 
 
 def event_spec(entry: dict, event: dict) -> dict | None:
     """The x-state verb an action or report names, when its writer sent it."""
     spec = entry.get("x-state", {}).get(event["action"])
-    if spec is None or writer(spec) != WRITERS[event["kind"]]:
+    if spec is None or verb_writer(spec) != WRITERS[event["kind"]]:
         return None
     return spec

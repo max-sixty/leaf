@@ -878,6 +878,56 @@ def test_resolve_acknowledges_the_press_and_recovers_a_refusal(
         expect(page.locator(".lf-general textarea")).to_be_focused()
 
 
+def test_resolving_one_of_two_threads_leaves_the_user_in_the_card(browser, serve):
+    """Resolving a thread the card outlives keeps focus in the card.
+
+    Only the last thread at an anchor closes its margin card, and only that closure hands
+    focus back to the anchor. With a second thread standing, the card stays up showing
+    it, so the user stays in the card rather than being carried out to the text.
+    """
+    comment = {
+        "kind": "comment",
+        "author": "user",
+        "revision": 1,
+        "anchor": {"section": "bracket"},
+    }
+    page = open_page(
+        browser,
+        serve(
+            ASK_PAGE,
+            events=[
+                {**comment, "text": "Check whether these jobs can share one visit."},
+                {**comment, "text": "And whether the second visit needs a permit."},
+            ],
+        ),
+    )
+    resized(page, 1440, 900)
+    page.locator('.lf-margin-marker[data-lf-kinds="comment"]').click()
+    card = page.locator(".lf-margin-preview")
+    resolve = card.get_by_role("button", name="Resolve thread", exact=True)
+    expect(resolve).to_be_visible()
+    resolve.focus()
+    with sending(page, "the resolve"):
+        page.keyboard.press("Enter")
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (1)")
+    expect(card).to_be_visible()
+    expect(
+        card.get_by_role("button", name="Resolve thread", exact=True)
+    ).to_be_visible()
+    focus = page.evaluate(
+        """() => {
+          const active = document.activeElement;
+          return {
+            inCard: document.getElementById("lf-margin-preview").contains(active),
+            on: active?.outerHTML.slice(0, 80),
+          };
+        }"""
+    )
+    assert focus["inCard"], (
+        f"resolving a thread the card outlives left focus on {focus}"
+    )
+
+
 def test_a_card_repaint_keeps_the_user_on_the_control_they_reached(browser, serve):
     """A repaint of an open card leaves the user's press where they aimed it.
 

@@ -33,8 +33,8 @@ import { at } from "./locate.js";
 // those are the row's width *plus* its padding, so every row ran 28px wider than the
 // group whose `overflow: hidden` keeps its cells' hairlines square. The last cell is the
 // pick mark, so all of it went over the edge: every row-form decision on every live page
-// drew no dot, no "chosen", nothing. Paper and an exported copy were right throughout,
-// the rail being live-pages-only, so no medium outside a browser could see it.
+// drew no dot, no "chosen", nothing. Paper was right throughout, the rail being
+// screen-only, so no medium outside a browser could see it.
 //
 // Only where the clip cannot be scrolled away. A board's columns run past the board and
 // are reached by scrolling, which is the arrangement rather than a fault, so an ancestor

@@ -8,8 +8,6 @@
  * what holds it there, so the page still answers for the upgrade as an arrival of its
  * own. A click on either image keeps
  * the quick endpoint toggle, while a click on the handle only puts the user on it.
- * Export unwinds that live comparison and reveals the transparent native checkbox over
- * the image, so a standalone copy still flips with a click or Space.
  * Print stacks both frames.
  *
  * One two-ended rail stays fixed above the frames while CSS moves its active rule. Its
@@ -17,7 +15,7 @@
  * above the two stacked frames on paper.
  * A parent that reuses the aligned frames under another inspector sets
  * `data-lf-shot-controls="off"`; lf-shot then withdraws its commands and margin action
- * without disabling the native checkbox a standalone copy needs.
+ * and leaves the native checkbox as the flip.
  * Commentary about the change belongs in authored prose around the widget. */
 import {
   PRESS,

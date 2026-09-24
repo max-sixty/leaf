@@ -1317,7 +1317,7 @@ main > aside.sidebar:nth-child(1 of aside.sidebar) { --lf-sidebar-slot: margin; 
    a change lands near it — and the overlap costs one line of a note that is read where
    it stands, against a control that is read where it is reached for. `version check
    --render` is told, in the one place it can be told: chrome a widget hangs out of the
-   flow may cover the page's words (coveredWords, in render-checks/standalone.js), which
+   flow may cover the page's words (coveredWords, in render-checks/words.js), which
    is the exemption the runtime's own floating layer already had, said for whoever owns
    the float.
 

@@ -24,7 +24,7 @@
  * writes only to itself, never the main box it observes, and never the track either. The
  * ordinary in-flow list remains the script-free, narrow, and paper form.
  *
- * Every link is a real fragment link in both live pages and standalone copies. The
+ * Every link is a real fragment link. The
  * browser owns its navigation, history, :target state, wheel input, and scroll
  * restoration; hidden-until-found reveals a disclosure or tab containing the target.
  * On an initial load the shared arrival pass runs after all widgets settle, so it can

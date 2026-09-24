@@ -1377,8 +1377,10 @@ fn merge_sort()
             "1505",
             "1505",
             [
-                'lines="1550-1552,1505-1506"> (line 10): '
-                "range 1505-1506 does not follow line 1552"
+                (
+                    'lines="1550-1552,1505-1506"> (line 10): '
+                    "range 1505-1506 does not follow line 1552"
+                )
             ],
         ),
     ],

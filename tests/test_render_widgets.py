@@ -10773,4 +10773,6 @@ fn merge_sort()
                    return getSelection().toString(); }"""
     )
     assert "line" not in copied.replace("let len", "") and "⋮" not in copied
-    assert copied.startswith("fn merge_sort()\n{\n    let len = v.len();\n    while end")
+    assert copied.startswith(
+        "fn merge_sort()\n{\n    let len = v.len();\n    while end"
+    )

@@ -1323,7 +1323,7 @@ def test_the_render_gate_resolves_a_part_its_visual_draws_on_reveal(browser, ser
                 layer_registry=GENERIC_VISUAL_LAYER,
                 layer_widgets=STAGED_VISUAL_WIDGETS,
             ),
-        )
+        ).failures
         == []
     )
 
@@ -1348,7 +1348,7 @@ def test_the_render_gate_reads_a_visual_before_revealing_its_parts(browser, serv
             layer_registry=GENERIC_VISUAL_LAYER,
             layer_widgets={"lf-test-visual.js": module},
         ),
-    )
+    ).failures
     assert any("does not resolve to valid fill" in f for f in failures), failures
     assert not any("did not reveal" in f for f in failures), failures
 

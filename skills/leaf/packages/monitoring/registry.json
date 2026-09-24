@@ -23,6 +23,7 @@
     ],
     "additionalProperties": false,
     "x-content": "members",
+    "x-measure": "group",
     "x-request": {
       "offers": {
         "lf-release-action": "verb"
@@ -75,6 +76,7 @@
       "lf-release-actions"
     ],
     "x-content": "markup",
+    "x-measure": "group",
     "x-upgrade": false
   }
 }

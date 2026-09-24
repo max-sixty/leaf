@@ -273,10 +273,15 @@ lf-playground.lf-playground-quoted .lf-playground-controls,
 lf-playground.lf-playground-quoted .lf-playground-actions,
 lf-playground.lf-playground-quoted > lf-playground-control,
 lf-playground.lf-playground-quoted > lf-playground-preset,
-html.lf-copy lf-playground .lf-playground-controls,
-html.lf-copy lf-playground .lf-playground-presets,
+html.lf-copy lf-playground .lf-playground-controls-region,
 html.lf-copy lf-playground > .lf-playground-actions {
   display: none;
+}
+/* With its actions gone the playground is the preview alone. A written `1fr auto` keeps
+ * the second track, and the gap before it, whether or not anything stands in it. */
+lf-playground.lf-playground-quoted,
+html.lf-copy lf-playground {
+  grid-template-rows: none;
 }
 
 @container (max-width: 38rem) {

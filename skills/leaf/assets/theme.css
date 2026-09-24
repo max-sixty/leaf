@@ -229,6 +229,10 @@
      from the shell and its occupied margins, so a widget stands clear of both. An
      `available` surface is not held to this number. */
   --wide: 1080px;
+  /* The widest a page that is itself a sheet (`<main data-width="available">`) grows.
+     Past it a board's columns and a dashboard's tiles stop gaining anything but the
+     distance between them. */
+  --sheet-max: 1600px;
   /* The chrome's line box, said once, because one control in the banner cannot be
      told it. Chrome computes a select's inner height from its own metrics and
      refuses line-height outright — the computed value stays normal however the
@@ -809,6 +813,33 @@ main {
   }
   main > * { --lf-room: inherit; }
 
+  /* A page whose subject is wider than an argument — a board, a dashboard, a queue
+   * beside its detail — declares the width on `main` itself. The page is then a sheet:
+   * every block, title included, starts at one left edge, and text keeps the reading
+   * measure the column gave it (--lf-measure, the rule below) rather than being centred
+   * on a narrower axis than the exhibits around it. A column page with a wide exhibit
+   * keeps two axes, the prose's and the exhibit's; a sheet has one. The room is the
+   * sheet's own width, so a wide widget on it fills the sheet instead of breaking out. */
+  main:is([data-width="wide"], [data-width="available"]) {
+    /* A sheet's edge is the page's edge, so it sits in a gutter that grows with the
+     * window rather than the column's 24px, which is a phone's margin. The margin
+     * rail's strip stands in that gutter rather than beside it, and both gutters take
+     * the wider of the two, so the sheet stays centred in the window. */
+    --lf-sheet-gutter: max(clamp(var(--col-pad), 4cqi, 64px), var(--strip-l),
+      var(--strip-r));
+    --lf-room: max(0px, calc(100cqi - 2 * var(--lf-sheet-gutter)));
+    --lf-measure: var(--col);
+    max-width: none;
+    /* The runtime paints the occurrence like any block's (data-lf-space), and the
+     * block rule's margins would pin the sheet to the left edge. */
+    margin-inline: auto;
+    padding-inline: 0;
+    left: 0;
+  }
+  main[data-width="wide"] { width: min(var(--wide), var(--lf-room)); }
+  main[data-width="available"] { width: min(var(--sheet-max), var(--lf-room)); }
+  main:is([data-width="wide"], [data-width="available"]) > * { --lf-room: 100%; }
+
   /* Text keeps the reading measure in every frame; a surface fills its frame. In the
    * page's own flow the column is the measure already, so this matters in a frame wider
    * than the column, which states the measure as --lf-measure (a grid cell). It
@@ -1068,6 +1099,32 @@ dd { margin: 0 0 8px 0; }
    token, true and inert, and a second place the body's size had to be kept. */
 .callout { background: var(--field); border: 1px solid var(--rule);
            border-radius: var(--r); padding: 12px 16px; margin: 18px 0; --lf-block-frame: 1; }
+/* A panel is one titled region of a sheet: the checks, the log, the steps. Every region
+   on a dashboard is drawn the same way, so the eye reads the page as a set of like things
+   laid on a grid, where a mix of raised tiles, tinted fields, bare tables and bordered logs
+   read as a pile. The title is the tile label's voice (lf-metric), small and set in
+   capitals, so a panel's name ranks below the page's headings and beside its numbers. */
+section.panel { background: var(--card); border: 1px solid var(--rule);
+                border-radius: var(--r); padding: 14px 18px 16px; margin: 18px 0;
+                --lf-block-frame: 1; }
+section.panel > :is(h2, h3):first-child {
+  margin: 0 0 10px; font: 600 var(--t-6)/1.3 var(--sans); letter-spacing: .06em;
+  text-transform: uppercase; color: var(--muted); }
+section.panel > :last-child { margin-bottom: 0; }
+/* A status a label or a callout carries, in the three tones every status on the page is
+   drawn in (lf-chip's `tone`, a metric's delta, a check's result). The tint is the whole
+   of the marking and the ink its text, so a tone never needs a word of its own to be
+   read, and never stands in for one. */
+.tag.ok, .callout.ok { --lf-tone-tint: var(--ok-tint); --lf-tone-ink: var(--ok-ink); }
+.tag.warn, .callout.warn { --lf-tone-tint: var(--warn-tint); --lf-tone-ink: var(--warn-ink); }
+.tag.danger, .callout.danger {
+  --lf-tone-tint: var(--danger-tint); --lf-tone-ink: var(--danger-ink); }
+.tag:is(.ok, .warn, .danger) { background: var(--lf-tone-tint); color: var(--lf-tone-ink); }
+/* A callout's prose stays in the body's ink; its title takes the tone. */
+.callout:is(.ok, .warn, .danger) {
+  background: var(--lf-tone-tint);
+  border-color: color-mix(in srgb, var(--lf-tone-ink) 22%, transparent); }
+.callout:is(.ok, .warn, .danger) > strong:first-child { color: var(--lf-tone-ink); }
 /* A sidebar is page-level supporting material rather than an annotation on one block:
    local navigation, a compact legend, or stable reference facts. In ordinary flow it is
    simply an aside where it was authored. On a roomy screen its box moves into the left

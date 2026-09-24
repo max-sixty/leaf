@@ -40,8 +40,8 @@
           {
             "type": "command",
             "if": "Bash(*leaf wait*)",
-            "command": "[ -n \"$CLAUDECODE\" ] && python3 \"$CLAUDE_PLUGIN_ROOT/hooks/scripts/wait-started.py\"; exit 0",
-            "timeout": 5
+            "command": "[ -n \"$CLAUDECODE\" ] && python3 \"$CLAUDE_PLUGIN_ROOT/hooks/scripts/loop-guard.py\"; exit 0",
+            "timeout": 10
           }
         ]
       }

@@ -872,34 +872,51 @@ def test_regions_inside_a_bounded_pane_body_flow_within_the_body_that_scrolls(
     }
 
 
-def test_a_release_page_spreads_its_evidence_and_keeps_the_log_on_its_newest_line(
-    browser, serve
-):
-    """A document with grids: status tiles and the evidence pair take the page's width
-    while the prose keeps the column, the pair stacks once the window cannot hold it,
-    and the bounded log opens on its newest line. Paper shows the log whole."""
+def test_a_release_page_is_a_sheet_and_keeps_the_log_on_its_newest_line(browser, serve):
+    """A sheet of two tracks: the lede starts at the sheet's edge and keeps the reading
+    measure, every region of the body shares the body's two edges and every region of
+    the rail the rail's, and the checks table fills its panel. On a narrow window the
+    rail stacks under the body, and the bounded log opens on its newest line. Paper
+    shows the log whole."""
     example = Path(__file__).parent.parent / "examples" / "live-progress.html"
     context = browser.new_context(viewport={"width": 1600, "height": 1000})
     page = open_page(browser, live_url(serve(example)), context=context)
-    boxes = """() => Object.fromEntries(
-      ['lp-status', 'lp-evidence', 'lp-checks', 'lp-log', 'lp-lede']
-        .map(id => [id, document.getElementById(id).getBoundingClientRect().toJSON()]))"""
+    body = ["lp-status", "lp-decision", "lp-checks", "lp-log"]
+    rail = ["lp-steps", "lp-release"]
+    ids = [*body, *rail, "lp-layout", "lp-checks-table", "lp-lede"]
+    boxes = f"""() => Object.fromEntries(
+      [...{ids!r}, 'main'].map(id => [id, (document.getElementById(id)
+        ?? document.querySelector(id)).getBoundingClientRect().toJSON()]))"""
 
     wide = page.evaluate(boxes)
-    assert wide["lp-status"]["width"] > wide["lp-lede"]["width"] + 400
-    assert wide["lp-checks"]["top"] == wide["lp-log"]["top"]
-    assert wide["lp-checks"]["right"] < wide["lp-log"]["left"]
+    sheet = wide["main"]
+    assert sheet["width"] > 1080, "the sheet should take the room past the wide width"
+    assert wide["lp-layout"]["width"] == pytest.approx(sheet["width"], abs=1)
+    assert wide["lp-lede"]["left"] == pytest.approx(sheet["left"], abs=1)
+    assert wide["lp-lede"]["width"] <= 720 + 1
+    for track in (body, rail):
+        for edge in ("left", "right"):
+            assert {round(wide[i][edge]) for i in track} == {
+                round(wide[track[0]][edge])
+            }
+    assert wide["lp-status"]["left"] == pytest.approx(sheet["left"], abs=1)
+    assert wide["lp-steps"]["right"] == pytest.approx(sheet["right"], abs=1)
+    assert wide["lp-log"]["right"] < wide["lp-steps"]["left"]
+    assert wide["lp-checks-table"]["width"] > wide["lp-checks"]["width"] - 48
     listing = page.locator("#lp-live-log pre")
     assert listing.evaluate(
         "pre => pre.scrollHeight > pre.clientHeight && "
         "pre.scrollHeight - pre.scrollTop - pre.clientHeight <= 2"
     ), "the bounded log should open on its newest line"
+    assert page.evaluate("scrollY") == 0, "following the log should not move the page"
+    page.locator("#lp-live-log").scroll_into_view_if_needed()
     expect(page.locator("#lp-live-log figcaption")).to_be_in_viewport()
 
     resized(page, 560, 900)
     narrow = page.evaluate(boxes)
     assert narrow["lp-log"]["top"] >= narrow["lp-checks"]["bottom"]
-    assert narrow["lp-log"]["width"] == narrow["lp-evidence"]["width"]
+    assert narrow["lp-steps"]["top"] >= narrow["lp-log"]["bottom"]
+    assert narrow["lp-steps"]["width"] == narrow["lp-log"]["width"]
 
     page.emulate_media(media="print")
     assert listing.evaluate("pre => getComputedStyle(pre).maxHeight") == "none"
@@ -942,7 +959,7 @@ def test_a_grid_cell_is_a_frame_that_holds_text_to_the_measure_and_lets_a_surfac
     width = "id => document.getElementById(id).getBoundingClientRect().width"
     column = page.evaluate(width, "column-prose")
 
-    assert page.evaluate(width, "one-cell") > column + 400
+    assert page.evaluate(width, "one-cell") > column + 300
     assert page.evaluate(width, "cell-prose") == pytest.approx(column, abs=1)
     assert page.evaluate(width, "cell-table") == page.evaluate(width, "one-cell")
     assert page.evaluate(width, "cell-pre") == page.evaluate(width, "surfaces")
@@ -1095,8 +1112,8 @@ def test_monitoring_evidence_moves_without_stealing_position_or_the_summary(
             '<lf-metric id="lp-k-traffic" value="100%">target traffic</lf-metric>',
         ),
         (
-            '<lf-metric id="lp-k-checks" value="4 of 5">checks passing</lf-metric>',
-            '<lf-metric id="lp-k-checks" value="5 of 5">checks passing</lf-metric>',
+            'id="lp-k-checks" value="4 of 5" delta="-1" direction="up-good"',
+            'id="lp-k-checks" value="5 of 5"',
         ),
         (
             '<lf-milestone id="lp-step-checks" status="blocked" when="now">',
@@ -1126,9 +1143,14 @@ def test_monitoring_evidence_moves_without_stealing_position_or_the_summary(
             "<code>1,999</code> / <code>1,999</code> rows",
         ),
     )
+    # The example's line wrapping is layout, not content: match each passage across
+    # whatever whitespace the source wraps it with.
     for before, after in revisions:
-        assert before in incorporated
-        incorporated = incorporated.replace(before, after, 1)
+        pattern = r"\s+".join(map(re.escape, before.split()))
+        incorporated, count = re.subn(
+            pattern, lambda _, after=after: after, incorporated, count=1
+        )
+        assert count == 1, before
     stamp = stamp_page(
         serve.page_dir,
         incorporated,

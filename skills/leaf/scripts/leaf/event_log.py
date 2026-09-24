@@ -4,13 +4,12 @@ import contextlib
 import json
 import os
 import secrets
-import time
 from collections.abc import Iterator
 from copy import deepcopy
 from datetime import datetime
 from pathlib import Path
 
-from leaf.files import LOOK_S, file_stamp, read_json
+from leaf.files import file_stamp, next_reading, read_json
 from leaf.schema import CURSOR_FILE, EVENTS_FILE
 
 try:
@@ -223,29 +222,26 @@ def read_events(page_dir: Path) -> list:
 def follow_events(page_dir: Path, after: int) -> Iterator[dict]:
     """Every event after seq `after`, then each one appended from here on, forever.
 
-    The trigger is the log's own stamp, looked at every `LOOK_S` — the look the
-    browser's news stream makes over the whole page, narrowed to the one file a
-    follower reads. A moved stamp reads only the bytes past what was already read,
-    and only through the last newline: the line after it is an append mid-flush,
-    whose rest moves the stamp again. Seq is the line number, so the lines read
-    are counted whether or not they parse, exactly as `_parse_events` counts them.
+    The trigger is the log's own stamp (`next_reading`), the look the browser's news
+    stream makes over the whole page, narrowed to the one file a follower reads. A
+    moved stamp reads only the bytes past what was already read, and only through the
+    last newline: the line after it is an append mid-flush, whose rest moves the stamp
+    again. Seq is the line number, so the lines read are counted whether or not they
+    parse, exactly as `_parse_events` counts them.
     """
     log = page_dir / EVENTS_FILE
     read = lines = 0
-    said = None
+    stamp = file_stamp(log)
     while True:
-        stamp = file_stamp(log)
         if stamp is None:
             raise FileNotFoundError(f"{log} is gone")
-        if stamp != said:
-            said = stamp
-            with open(log, "rb") as f:
-                f.seek(read)
-                data = f.read()
-            complete = data[: data.rfind(b"\n") + 1]
-            for event in _parse_events(complete, lines):
-                if event["seq"] > after:
-                    yield event
-            read += len(complete)
-            lines += complete.count(b"\n")
-        time.sleep(LOOK_S)
+        with open(log, "rb") as f:
+            f.seek(read)
+            data = f.read()
+        complete = data[: data.rfind(b"\n") + 1]
+        for event in _parse_events(complete, lines):
+            if event["seq"] > after:
+                yield event
+        read += len(complete)
+        lines += complete.count(b"\n")
+        stamp = next_reading(lambda: file_stamp(log), stamp)

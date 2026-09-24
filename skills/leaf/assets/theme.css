@@ -696,10 +696,33 @@ main {
   --strip-l: 0px;
   --strip-r: max(var(--claim-note, 0px), var(--claim-rail, 0px),
     var(--lf-claim-right, 0px));
-  --lf-shift: calc((var(--strip-l) - var(--strip-r)) / 2);
-  --lf-room: max(0px, calc(100cqi - var(--strip-l) - var(--strip-r)
-    - 2 * var(--col-pad)));
-  width: min(var(--col), var(--lf-room));
+  /* Where the page stands, for a column and a sheet alike. The page is its measure
+   * (--lf-page-measure) with a gutter each side (--lf-page-pad). A resident in a margin
+   * — a sidebar, a note, the rail — claims a strip on its side, and that side's gutter
+   * is the wider of the pad and the strip. A strip keeps the column's pad between it and
+   * the window's edge while the measure still fits beside both strips, and gives that
+   * pad up first when it does not, before the measure narrows (--lf-edge).
+   *
+   * The page centres in what the gutters leave, so a strip moves the page's axis by half
+   * its width and the page reads as one with a margin rather than a centred page with
+   * something beside it (--lf-shift; a lone sidebar states it otherwise, beside
+   * aside.sidebar below). --lf-free-l and --lf-free-r are what is left between the
+   * page's content edge and each gutter, the room a wide exhibit may grow into on that
+   * side. Centred, they are equal, so an exhibit grows evenly about the prose it belongs
+   * to. A sheet fills its room and leaves neither. */
+  --lf-page-pad: var(--col-pad);
+  --lf-page-measure: var(--col);
+  --lf-edge: clamp(0px, calc((100cqi - var(--strip-l) - var(--strip-r)
+    - var(--lf-page-measure)) / 2), var(--col-pad));
+  --lf-gutter-l: max(var(--lf-page-pad), calc(var(--strip-l) + var(--lf-edge)));
+  --lf-gutter-r: max(var(--lf-page-pad), calc(var(--strip-r) + var(--lf-edge)));
+  --lf-room: max(0px, calc(100cqi - var(--lf-gutter-l) - var(--lf-gutter-r)));
+  --lf-width: min(var(--lf-page-measure), var(--lf-room));
+  --lf-beside: calc((100cqi - var(--lf-width)) / 2);
+  --lf-shift: calc((var(--lf-gutter-l) - var(--lf-gutter-r)) / 2);
+  --lf-free-l: calc(var(--lf-beside) + var(--lf-shift) - var(--lf-gutter-l));
+  --lf-free-r: calc(var(--lf-beside) - var(--lf-shift) - var(--lf-gutter-r));
+  width: var(--lf-width);
   max-width: var(--col);
   margin: 0 auto;
   padding: 72px var(--col-pad) 96px;
@@ -722,6 +745,15 @@ main {
    * return. Naming the page puts the question to a box that is always there. */
   container-name: lf-content-frame;
 }
+/* The page's width and the free room each side of it are resolved once, on main, and
+ * inherited as lengths. Left as expressions, they would be re-resolved wherever a widget
+ * reads them, and their 100cqi would then measure the nearest size container rather
+ * than the shell: a board in a workspace pane read the pane's width as the window's and
+ * grew out of it. Outside the page, where nothing states them, neither side holds a
+ * widget back. */
+@property --lf-width { syntax: "<length>"; inherits: true; initial-value: 0px; }
+@property --lf-free-l { syntax: "<length>"; inherits: true; initial-value: 99999px; }
+@property --lf-free-r { syntax: "<length>"; inherits: true; initial-value: 99999px; }
 /* Content that needs more space than the argument about it. The column above is the measure
  * prose is read at, and a board's columns or a diagram's graph are as wide as what they
  * hold — so a page carrying one was a cramped board, or a page whose every paragraph had
@@ -777,9 +809,14 @@ main {
    * widget and package rule already overrides it at. */
   [data-lf-space], main [data-width] {
     --lf-natural-inline-size: 0;
-    --lf-surplus: max(0px, calc(var(--lf-reach) - 100%));
-    --lf-grow-l: calc(var(--lf-surplus) / 2);
-    --lf-grow-r: calc(var(--lf-surplus) / 2);
+    /* Held to what is free beside the page (main's --lf-free-l and --lf-free-r), and
+     * spent evenly each way where both sides are free; otherwise the freer side takes
+     * what the other lacks. */
+    --lf-surplus: clamp(0px, calc(var(--lf-reach) - 100%),
+      calc(var(--lf-free-l) + var(--lf-free-r)));
+    --lf-grow-l: clamp(calc(var(--lf-surplus) - var(--lf-free-r)),
+      calc(var(--lf-surplus) / 2), var(--lf-free-l));
+    --lf-grow-r: calc(var(--lf-surplus) - var(--lf-grow-l));
     max-width: none;
     margin-left: calc(-1 * var(--lf-grow-l));
     margin-right: calc(-1 * var(--lf-grow-r));
@@ -871,23 +908,19 @@ main {
    * keeps two axes, the prose's and the exhibit's; a sheet has one. The room is the
    * sheet's own width, so a wide widget on it fills the sheet instead of breaking out. */
   main:is([data-width="wide"], [data-width="available"]) {
-    /* A sheet's edge is the page's edge, so it sits in a gutter that grows with the
-     * window rather than the column's 24px, which is a phone's margin. The margin
-     * rail's strip stands in that gutter rather than beside it, and both gutters take
-     * the wider of the two, so the sheet stays centred in the window. */
-    --lf-sheet-gutter: max(clamp(var(--col-pad), 4cqi, 64px), var(--strip-l),
-      var(--strip-r));
-    --lf-room: max(0px, calc(100cqi - 2 * var(--lf-sheet-gutter)));
+    /* A sheet is the page (main, above) at a wider measure. Its edge is the page's
+     * edge, so its pad grows with the window rather than staying the column's 24px,
+     * which is a phone's margin; a strip no wider than the pad stands in it. */
+    --lf-page-pad: clamp(var(--col-pad), 4cqi, 64px);
     --lf-measure: var(--col);
     max-width: none;
     /* The runtime paints the occurrence like any block's (data-lf-space), and the
      * block rule's margins would pin the sheet to the left edge. */
     margin-inline: auto;
     padding-inline: 0;
-    left: 0;
   }
-  main[data-width="wide"] { width: min(var(--wide), var(--lf-room)); }
-  main[data-width="available"] { width: min(var(--sheet-max), var(--lf-room)); }
+  main[data-width="wide"] { --lf-page-measure: var(--wide); }
+  main[data-width="available"] { --lf-page-measure: var(--sheet-max); }
   main:is([data-width="wide"], [data-width="available"]) > * { --lf-room: 100%; }
   /* A sheet's title heads a page as wide as the window, above boards and tiles rather
    * than a column of prose, so it is set a size up and heavier: at the column's size it
@@ -1198,9 +1231,9 @@ section.panel > :last-child { margin-bottom: 0; }
    prose's line boxes untouched; the shell's left claim is the room the box uses.
 
    The claim is page-wide because a sticky box may occupy any height while the user
-   scrolls. A wide exhibit therefore gives up its left growth while the sidebar stands;
-   subtracting the strip from --lf-room alone still lets symmetric growth cross the
-   gutter. A sidebar and a sidenote together wait for 1496px of shell, the ordinary
+   scrolls. It is a strip like any other margin claim, so the page's own arithmetic
+   (main, above) places the column beside it and holds a wide exhibit's left growth to
+   what is free of it. A sidebar and a sidenote together wait for 1496px of shell, the ordinary
    1152px margin floor plus the widest sidebar's 344px; granting both at the ordinary
    floor shrank the prose. The paired number is held to those two tokens in
    test_the_sidebar_and_note_floor_is_their_sum. Paper gets only the base in-flow form,
@@ -1230,35 +1263,16 @@ main > aside.sidebar:nth-child(1 of aside.sidebar) { --lf-sidebar-slot: margin; 
     main:has(> aside.sidebar):not(:has(aside.sidenote)) {
     --strip-l: var(--lf-sidebar-claim, var(--sidebar));
     --lf-sidebar-posture: margin;
-    /* A sheet's gutters already take the widest strip (the sheet, above), so the
-       sidebar hangs in the left one and nothing below is the sheet's to do: its blocks
-       fill the sheet rather than growing out of a column. */
-    &:not([data-width="wide"], [data-width="available"]) {
-      /* Keep the reading column on the page's axis while both margin residents fit in
-         its existing gutters. If they need more room, spend the outer page edges and
-         shift only far enough to keep each resident on screen before narrowing prose. */
-      --lf-sidebar-edge: clamp(0px,
-        calc((100cqi - var(--strip-l) - var(--strip-r) - var(--col)) / 2),
-        var(--col-pad));
-      --lf-room: max(0px, calc(100cqi - var(--strip-l) - var(--strip-r)
-        - 2 * var(--lf-sidebar-edge)));
-      --lf-gutter: calc((100cqi - min(var(--col), var(--lf-room))) / 2);
-      --lf-shift: calc(
-        max(0px, var(--strip-l) + var(--lf-sidebar-edge) - var(--lf-gutter))
-        - max(0px, var(--strip-r) + var(--lf-sidebar-edge) - var(--lf-gutter)));
-      & :is([data-lf-space], [data-width]) {
-        --lf-space-bound: var(--lf-sidebar-shell-bound,
-          calc(50cqi - var(--lf-shift)
-            + min(var(--col), var(--lf-room)) / 2 - var(--col-pad)));
-        --lf-grow-l: min(calc(var(--lf-surplus) / 2),
-          var(--lf-sidebar-free-left, 0px));
-        --lf-grow-r: calc(var(--lf-surplus) - var(--lf-grow-l));
-      }
-      & [data-lf-space][data-lf-yield~="r"] {
-        --lf-space-bound: calc(100% + var(--lf-sidebar-free-left, 0px));
-        --lf-grow-l: var(--lf-surplus); --lf-grow-r: 0px;
-      }
-    }
+    /* Wayfinding should not push the prose aside, so a sidebar takes the page's
+       existing gutters first: the page stays on the window's axis while both margins
+       fit beside it, and moves only as far as either strip needs. */
+    --lf-shift: calc(max(0px, var(--lf-gutter-l) - var(--lf-beside))
+      - max(0px, var(--lf-gutter-r) - var(--lf-beside)));
+    /* A sticky box hangs off the column at whatever height the user has scrolled to,
+       so nothing may grow into its side. A sidebar pinned to the window's edge instead
+       states what is free between it and the column (lf-toc's map, in the default
+       package). */
+    --lf-free-l: var(--lf-sidebar-free-left, 0px);
   }
   html:not(.lf-copy) main:not(:has(aside.sidenote))
     > aside.sidebar:nth-child(1 of aside.sidebar) {
@@ -1276,21 +1290,8 @@ main > aside.sidebar:nth-child(1 of aside.sidebar) { --lf-sidebar-slot: margin; 
     main:has(> aside.sidebar):has(aside.sidenote) {
     --strip-l: var(--lf-sidebar-claim, var(--sidebar));
     --lf-sidebar-posture: margin;
-    /* As beside a sidebar alone: a sheet's blocks fill it rather than growing out. */
-    &:not([data-width="wide"], [data-width="available"]) {
-      & :is([data-lf-space], [data-width]) {
-        --lf-space-bound: var(--lf-sidebar-shell-bound,
-          calc(50cqi - var(--lf-shift)
-            + min(var(--col), var(--lf-room)) / 2 - var(--col-pad)));
-        --lf-grow-l: min(calc(var(--lf-surplus) / 2),
-          var(--lf-sidebar-free-left, 0px));
-        --lf-grow-r: calc(var(--lf-surplus) - var(--lf-grow-l));
-      }
-      & [data-lf-space][data-lf-yield~="r"] {
-        --lf-space-bound: calc(100% + var(--lf-sidebar-free-left, 0px));
-        --lf-grow-l: var(--lf-surplus); --lf-grow-r: 0px;
-      }
-    }
+    /* As beside a sidebar alone. */
+    --lf-free-l: var(--lf-sidebar-free-left, 0px);
   }
   html:not(.lf-copy) main:has(aside.sidenote)
     > aside.sidebar:nth-child(1 of aside.sidebar) {
@@ -1952,9 +1953,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
      own apparatus. A copy runs no script and keeps the marks it was exported with, the
      way it keeps the rail its decided rows reserved. */
   [data-lf-space][data-lf-yield~="r"] {
-    --lf-space-bound:
-      calc(50cqi + var(--lf-shift) + min(var(--col), var(--lf-room)) / 2
-        - var(--col-pad));
+    --lf-space-bound: calc(var(--lf-width) + var(--lf-free-l));
     --lf-grow-l: var(--lf-surplus); --lf-grow-r: 0px;
   }
 }

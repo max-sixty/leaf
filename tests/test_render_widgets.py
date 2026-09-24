@@ -891,8 +891,8 @@ def test_a_release_page_is_a_sheet_and_keeps_the_log_on_its_newest_line(browser,
     example = Path(__file__).parent.parent / "examples" / "live-progress.html"
     context = browser.new_context(viewport={"width": 1600, "height": 1000})
     page = open_page(browser, live_url(serve(example)), context=context)
-    body = ["lp-status", "lp-decision", "lp-checks", "lp-log"]
-    rail = ["lp-steps", "lp-release"]
+    body = ["lp-status", "lp-current-state", "lp-traffic", "lp-log"]
+    rail = ["lp-steps", "lp-checks", "lp-release"]
     ids = [*body, *rail, "lp-layout", "lp-checks-table", "lp-lede"]
     boxes = f"""() => Object.fromEntries(
       [...{ids!r}, 'main'].map(id => [id, (document.getElementById(id)
@@ -924,8 +924,8 @@ def test_a_release_page_is_a_sheet_and_keeps_the_log_on_its_newest_line(browser,
 
     resized(page, 560, 900)
     narrow = page.evaluate(boxes)
-    assert narrow["lp-log"]["top"] >= narrow["lp-checks"]["bottom"]
     assert narrow["lp-steps"]["top"] >= narrow["lp-log"]["bottom"]
+    assert narrow["lp-checks"]["top"] >= narrow["lp-steps"]["bottom"]
     assert narrow["lp-steps"]["width"] == narrow["lp-log"]["width"]
 
     page.emulate_media(media="print")
@@ -961,9 +961,9 @@ def test_a_grid_cell_is_a_frame_that_holds_text_to_the_measure_and_lets_a_surfac
     browser, serve
 ):
     """A cell takes the grid's width, not the page's room; text in it keeps the reading
-    measure and a surface fills it. A template's tracks stand as written until the
-    grid is narrower than 600px, where each cell takes the row, and a grid nested in
-    a cell takes none of its parent's template."""
+    measure and a surface fills it. A template's tracks stand as written until its
+    narrowest track would fall below the grid minimum, where each cell takes the row,
+    and a grid nested in a cell takes none of its parent's template."""
     context = browser.new_context(viewport={"width": 1600, "height": 1000})
     page = open_page(browser, live_url(serve(GRID_PAGE)), context=context)
     width = "id => document.getElementById(id).getBoundingClientRect().width"

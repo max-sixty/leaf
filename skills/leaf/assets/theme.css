@@ -919,10 +919,14 @@ hr { border: none; border-top: 1px solid var(--rule); margin: 40px 0; }
  * breakable the same table's row names measured 55px. The minimum is what every
  * shrinking box is sized from, so a flex item or a grid track holding a long name
  * hands room to its neighbour the same way (a flex item measured 691px to 359px).
- * A block (pre) wraps nothing, so this reaches nothing there. */
+ * A block (pre) wraps nothing, so this reaches nothing there.
+ *
+ * A name that wraps keeps its side padding at its two ends only. Cloned onto every
+ * fragment it painted past the column: Chromium breaks the line where the text fits
+ * and then adds the cloned end padding, so a chip ending a line at the column's edge
+ * stood 3-5px out in the margin (feature gallery, 600px). */
 code { background: var(--code-bg); border-radius: 4px; padding: 1px 5px;
-       font-size: 82%; font-family: var(--mono); overflow-wrap: anywhere;
-       box-decoration-break: clone; -webkit-box-decoration-break: clone; }
+       font-size: 82%; font-family: var(--mono); overflow-wrap: anywhere; }
 /* A code block is sized by how many characters it takes across, which is why its size
  * is off the serif ladder above. At --code-size, the column keeps comfortably more
  * than the 80 characters most source is written to.

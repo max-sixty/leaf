@@ -28,7 +28,7 @@ uses the same word.
 | **User session** | One browser tab's temporary interaction with a page instance |
 
 Core Leaf owns revision activation, scoped serving, executable and inert-input
-boundaries, target identity, event admission, requests, comments, and export modes. A
+boundaries, target identity, event admission, requests, comments, and export. A
 package owns reusable declarations, widgets, browser modules, styles, data contracts,
 and guidance. A page instance owns its content, page-local modules, styles, assets, and
 declarations, semantic target choices, drafts, and package selection. A user session

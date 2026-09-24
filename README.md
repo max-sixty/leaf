@@ -53,11 +53,10 @@ The result opens in a browser page; its comments return to the same agent task.
 <summary>Browser and environment requirements</summary>
 
 The first run syncs the plugin's uv environment through your configured package
-index. Render checks and export use the executable named by
+index. Render checks use the executable named by
 `LEAF_BROWSER_EXECUTABLE`, `CHROME_PATH`, or `CHROME_BIN`, then installed Google
 Chrome, then the first `google-chrome`, `google-chrome-stable`, `chrome`,
-`chromium`, or `chromium-browser` on `PATH`. Export requires Chromium 125 or
-later.
+`chromium`, or `chromium-browser` on `PATH`.
 
 In Claude Code, a page messages its session when input arrives after the session's
 `leaf wait` has stopped. A session that bypasses permissions holds that message for

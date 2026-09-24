@@ -97,7 +97,7 @@ the shipped examples. The suite uses Chromium's headless shell, while its
 end-to-end render-check tests run the launches used here — the installed Chrome
 channel, and the headless shell handed over under each variable that names one —
 and a unit reading covers the PATH search, which is only reached where the channel
-misses. `version export` launches through the same helper, so the two move together.
+misses.
 Playwright's driver runs under its bundled Node, or `PLAYWRIGHT_NODEJS_PATH` when
 set. Driver startup failures report the cause, the Node executable, and that
 variable; `render_gate/browser.py` owns browser and driver launch diagnostics.
@@ -119,13 +119,6 @@ identify anywhere: `$layer.packages` was resolved against the project `page init
 in. Without that reading the mismatch arrives as a missing export in the probe module,
 which reads as a defect in the page. The vendored layer is the page's to keep, so
 neither gate re-vendors on its behalf.
-
-The one thing export asks of a browser that the render gate does not is its age. The
-copy ends in `root.getHTML({ serializableShadowRoots: true })`, which Chromium grew
-in 125, so a browser older than that draws every render invariant clean and then
-cannot be copied from. `version export` reads `browser.version` before it opens the
-page and refuses below the floor by name, rather than letting the bake fail inside
-the probe and report a probe module it could not load.
 
 ## Passages
 

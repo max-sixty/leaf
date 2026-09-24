@@ -336,9 +336,13 @@ state, over a list, a table, or a board that speaks for itself.
 Show a visible subject with an image instead of describing its appearance. Show
 an interface with a screenshot, and a visual change with an `lf-shot`
 before-and-after capture. A relationship, sequence, or system state transition is
-a diagram. Use a table when the user compares the same dimensions across items;
-use `lf-compare` for a few alternatives read as wholes, and `lf-options` when the
-user must choose among them. A headline measurement is a metric, and a pattern
+a diagram. A process that unfolds over time is a diagram that moves: draw it in a
+page module from its state and the moment, with controls to pause and scrub, so
+every moment stays readable and its parts stay commentable. A recorded video is
+flat and heavy, and belongs only where the explanation leaves the page. Use a
+table when the user compares the same dimensions across items; use `lf-compare`
+for a few alternatives read as wholes, and `lf-options` when the user must choose
+among them. A headline measurement is a metric, and a pattern
 across measurements is a chart. Movable things form a board. Use images only when
 they carry information. The prose beside a shape says only what the shape cannot.
 What is left for prose is the claim, the reason it holds, and the question the page

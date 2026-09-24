@@ -3,7 +3,10 @@
 import hashlib
 import json
 import math
+import queue
 import re
+import signal
+import subprocess
 import threading
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
@@ -11,11 +14,13 @@ from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
+from conftest import LEAF_COMMAND
 from interact_support import (
     COMMAND_SUBJECTS,
     OPTIONS,
     PAGE,
     SHIPPED_PACKAGES,
+    STATED_TIMEOUT,
     SUGGESTION,
     X,
     Y,
@@ -270,23 +275,17 @@ def test_the_captured_widget_digests_say_which_widgets_a_user_may_keep(page_dir)
     # it or, where they named nothing, by its tag and place among the others of that tag.
     # An unnamed widget is as much the user's as a named one; without a key it could
     # never answer that its markup was unchanged, so every revision rebuilt it.
-    assert set(base.widgets) == {"plan-choice-decision", "flow", "lf-options#0"}
+    assert set(base.widgets) == {"flow", "lf-options#0"}
 
     document = document.replace("The cutoff lives in", "The cutoff now lives in")
     reworded = activate()
     assert reworded.digest != base.digest, "the prose edit made no new revision"
     assert reworded.widgets == base.widgets
 
-    document = document.replace("Which plan should lead?", "Which plan leads?")
+    document = document.replace("Ship dark.", "Ship it dark.")
     rewritten = activate()
-    assert (
-        rewritten.widgets["plan-choice-decision"]
-        != base.widgets["plan-choice-decision"]
-    )
+    assert rewritten.widgets["lf-options#0"] != base.widgets["lf-options#0"]
     assert rewritten.widgets["flow"] == base.widgets["flow"]
-    # The unnamed group inside the rewritten question is its own widget, and the heading
-    # that changed is not inside it.
-    assert rewritten.widgets["lf-options#0"] == base.widgets["lf-options#0"]
 
 
 def test_a_page_whose_history_predates_the_digest_still_serves_it(page_dir):
@@ -1303,16 +1302,13 @@ def test_layout_grammar_follows_declared_roles_across_packages(page_dir):
     registry_path = page_dir / "registry.json"
     registry = json.loads(registry_path.read_text())
     registry["lf-deck"] = {
-        "description": "A project package's differently named partition.",
+        "description": "A project package's differently named grid.",
         "type": "object",
-        "properties": {
-            "id": {"type": "string"},
-            "direction": {"enum": ["rows", "columns"]},
-        },
-        "required": ["id", "direction"],
+        "properties": {"id": {"type": "string"}},
+        "required": ["id"],
         "additionalProperties": False,
         "x-content": "markup",
-        "x-reading-role": "partition",
+        "x-reading-role": "grid",
         "x-upgrade": False,
     }
     registry["lf-zone"] = {
@@ -1334,7 +1330,7 @@ def test_layout_grammar_follows_declared_roles_across_packages(page_dir):
         "<h2>Plan</h2>",
         """<lf-workspace id="review-space">
   <header><h2>Plan</h2></header>
-  <lf-deck id="regions" direction="columns">
+  <lf-deck id="regions">
     <lf-zone id="queue" label="Queue"><p>First</p></lf-zone>
     <lf-pane id="detail" label="Detail"><p>Second</p></lf-pane>
   </lf-deck>
@@ -1352,20 +1348,20 @@ def test_layout_grammar_rejects_invalid_slots_and_split_content(page_dir):
             "<h2>Plan</h2>",
             """<lf-workspace id="review-space">
   <p>Before the misplaced header.</p><header><h2>Plan</h2></header>
-  <lf-partition id="regions" direction="columns">
-    <lf-pane id="queue" label="Queue"><p>First</p></lf-pane>
+  <lf-grid id="regions">
+    <lf-pane id="queue" label="Queue"><p>First</p><p>Split</p></lf-pane>
     <lf-pane id="detail" label="Detail"><p>Second</p></lf-pane>
-    <p>Loose</p>
-  </lf-partition>
+    Loose
+  </lf-grid>
 </lf-workspace>""",
         )
     )
     result = check(page_dir)
     assert result.exit_code == 1
     assert "direct <header> must be first" in result.output
-    assert (
-        "exactly two direct pane or partition widgets and no loose content"
-        in result.output
+    assert "x-reading-role grid holds its cells as elements" in result.output
+    assert "x-reading-role pane must contain exactly one direct body element" in (
+        result.output
     )
 
 
@@ -4572,6 +4568,75 @@ def test_page_state_keeps_thread_history_out_of_its_current_reading(page_dir):
     )
     assert unknown.exit_code != 0
     assert "unknown conversation id 'not-a-thread'" in unknown.output
+
+
+class Follower:
+    """`leaf events --follow` in its own process, its lines read as they arrive."""
+
+    def __init__(self, spawn, page_dir, *args):
+        self.process = spawn(
+            [*LEAF_COMMAND, "events", str(page_dir), "--follow", *args],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        self.lines = queue.Queue()
+        threading.Thread(target=self._read, daemon=True).start()
+
+    def _read(self):
+        for line in self.process.stdout:
+            self.lines.put(line)
+
+    def next(self) -> dict:
+        return json.loads(self.lines.get(timeout=STATED_TIMEOUT))
+
+    def stop(self, signum):
+        self.process.send_signal(signum)
+        _, stderr = self.process.communicate(timeout=STATED_TIMEOUT)
+        return self.process.returncode, stderr
+
+
+def test_events_follow_prints_each_admitted_event_as_it_lands(page_dir, spawn):
+    """Another process follows the log: the stored records already there, then each
+    one another writer admits through the append door, `meaning` included, one line
+    each and each as it lands. A stop from its consumer is the ordinary end."""
+    _tasks_version(page_dir, "active")
+    publish(page_dir)
+    follower = Follower(spawn, page_dir)
+    standing = events_model.read_events(page_dir)
+    assert [follower.next() for _ in standing] == standing
+
+    reported = _report(page_dir, "t-parser", "status", "status=review")
+    assert reported.exit_code == 0, reported.output
+    opened = comment(page_dir, "--text", "Is review the right stage?")
+    assert opened.exit_code == 0, opened.output
+
+    followed = [follower.next(), follower.next()]
+    assert followed == events_model.read_events(page_dir)[len(standing) :]
+    assert followed[0]["id"] == json.loads(reported.output)["id"]
+    assert followed[0]["meaning"]["coordinate"] == ["t-parser", "t-parser", "status"]
+    assert followed[1]["id"] == json.loads(opened.output)["id"]
+    assert follower.stop(signal.SIGTERM) == (0, "")
+
+
+def test_events_follow_resumes_after_the_last_seq_its_reader_saw(page_dir, spawn):
+    """`seq` is the cursor: a follower restarted with `--after` the last seq it
+    printed starts at the next event, whether that was admitted while it was away
+    or after it came back."""
+    _tasks_version(page_dir, "active")
+    publish(page_dir)
+    seen = events_model.read_events(page_dir)[-1]["seq"]
+    missed = comment(page_dir, "--text", "Written while nobody followed.")
+    assert missed.exit_code == 0, missed.output
+
+    follower = Follower(spawn, page_dir, "--after", str(seen))
+    assert follower.next()["id"] == json.loads(missed.output)["id"]
+    later = comment(page_dir, "--text", "Written after the follower came back.")
+    assert later.exit_code == 0, later.output
+    resumed = follower.next()
+    assert resumed["id"] == json.loads(later.output)["id"]
+    assert resumed["seq"] == seen + 2
+    assert follower.stop(signal.SIGINT) == (0, "")
 
 
 def test_page_state_points_to_a_users_suggestion_record(page_dir):

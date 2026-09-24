@@ -1,9 +1,11 @@
 """Raw event and Markdown transcript readings."""
 
+import os
+import signal
 import sys
 from pathlib import Path
 
-from leaf.event_log import jsonl_line, read_events
+from leaf.event_log import follow_events, jsonl_line, read_events
 from leaf.events import build_threads, is_reaction, standing_approvals, taken_back
 from leaf.files import latest_revision, revision_label
 from leaf.gesture_words import GestureWords
@@ -38,6 +40,28 @@ def cmd_events(page_dir: Path, after: int, conversation: str | None = None) -> N
     for event in events:
         if event["seq"] > after:
             print(jsonl_line(event))
+
+
+def cmd_follow_events(page_dir: Path, after: int) -> None:
+    """Print each event after `after`, then each one appended, until stopped.
+
+    A follower is stopped by its consumer, so a stop is the ordinary end rather
+    than a failure: SIGINT and SIGTERM exit 0, and so does a reader that goes away,
+    after which nothing more can be said to it. Each line is flushed as it is
+    printed, since a follower's stdout is a pipe whose reader waits on that line.
+    """
+    signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
+    try:
+        for event in follow_events(page_dir, after):
+            print(jsonl_line(event), flush=True)
+    except KeyboardInterrupt:
+        sys.exit(0)
+    except BrokenPipeError:
+        # The interpreter flushes stdout again on exit, into the same closed pipe.
+        os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())
+        sys.exit(0)
+    except FileNotFoundError as error:
+        sys.exit(str(error))
 
 
 # A quote as a transcript names it. The anchor stores the passage whole, because that

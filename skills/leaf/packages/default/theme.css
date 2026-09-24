@@ -20,7 +20,7 @@
  * --lf-grid-stack. Both are custom properties and so inherit; the reset here keeps a
  * grid nested in a cell from taking its parent's, and the painted inline value
  * outranks it on the grid that owns it. */
-lf-grid {
+:is(lf-grid, :where([data-lf-reading-role="grid"])) {
   --lf-grid-min: 14rem;
   --lf-grid-gap: var(--sp-4);
   --lf-grid-count: 99;
@@ -44,300 +44,251 @@ lf-grid[columns="3"] { --lf-grid-count: 3; }
 lf-grid[columns="4"] { --lf-grid-count: 4; }
 lf-grid[columns="5"] { --lf-grid-count: 5; }
 lf-grid[columns="6"] { --lf-grid-count: 6; }
-lf-grid > * {
+:is(lf-grid, :where([data-lf-reading-role="grid"])) > * {
   min-width: 0;
   --lf-block-frame: 1;
 }
 /* The gap is the space between cells. A widget's own block margins are for the page's
  * flow and would add to it, so the reset outranks any one-tag widget rule. */
-lf-grid > :nth-child(n) { margin: 0; }
+:is(lf-grid, :where([data-lf-reading-role="grid"])) > :nth-child(n) { margin: 0; }
 @container lf-grid (width < 600px) {
-  lf-grid > * { grid-column: var(--lf-grid-stack, auto); }
+  :is(lf-grid, :where([data-lf-reading-role="grid"])) > * {
+    grid-column: var(--lf-grid-stack, auto);
+  }
 }
 
-/* Structural workspaces use one light-DOM arrangement in bounded and flow posture.
- * The posture changes allocation only; authored order remains header, body, footer. */
-.lf-reading,
-.lf-reading-content,
-.lf-pane-content,
-.lf-pane-body,
-.lf-partition-content {
-  box-sizing: border-box;
-  min-width: 0;
-}
-.lf-reading {
-  display: block;
-}
-.lf-reading-content,
-.lf-pane-content,
-.lf-pane-body,
-.lf-partition-content {
-  min-height: 0;
-}
-
-.lf-workspace-reading[data-lf-reading-posture="bounded"],
-.lf-pane-reading[data-lf-reading-posture="bounded"] {
+/* lf-workspace keeps task regions together while the space allows, and lf-pane is one of
+ * them. Both are authored grammar with no generated wrappers: an optional header, one
+ * body element, an optional footer. The rows are `auto 1fr auto` in either posture,
+ * because a grid row's minimum is its content's: a body that scrolls contributes
+ * nothing and the row takes what the header and footer leave, while a body that
+ * doesn't holds the row at its full height and the box overflows into the page.
+ *
+ * Posture is one container query on the workspace's own box. A root workspace (the
+ * page's sole content, or a root tab's) is a size container at the window's height;
+ * when that box holds the regions (--lf-workspace-min, below) each pane's body scrolls
+ * and its header and footer stay in view. When it doesn't, nothing scrolls inside and
+ * the page does, with each grid keeping the columns its width allows. Any other
+ * workspace is an inline-size container, which a height query never matches, so it
+ * always flows. The switch paints with the page and answers the space the workspace
+ * actually has; `reading-regions.js` reads which box scrolls from the result. Copies
+ * and paper have no window to hold, so the size container and every bounded rule are
+ * the live screen's alone.
+ *
+ * A widget that composes regions out of boxes it generates, such as a playground's
+ * controls beside its preview, marks them data-lf-reading-role="grid" or "pane" and
+ * takes these same rules, bounded ones included, so no package keeps a copy of them.
+ * The attribute sits inside :where(), so every selector keeps the tag's specificity. */
+lf-workspace,
+:is(lf-pane, :where([data-lf-reading-role="pane"])) {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-rows: auto 1fr auto;
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
+  --lf-block-frame: 1;
 }
-.lf-reading-before {
-  grid-row: 1;
+lf-workspace {
+  container: lf-workspace / inline-size;
 }
-.lf-workspace-reading > .lf-reading-content,
-.lf-pane-reading > .lf-reading-content {
-  grid-row: 2;
+:is(lf-workspace, lf-pane, :where([data-lf-reading-role="pane"])) > header {
+  grid-row: 1; margin: 0;
 }
-.lf-workspace-reading > .lf-reading-content > .lf-reading-body,
-.lf-pane-reading > .lf-reading-content > .lf-reading-body {
-  grid-row: 2;
+:is(lf-workspace, lf-pane, :where([data-lf-reading-role="pane"])) > footer {
+  grid-row: 3; margin: 0;
 }
-.lf-reading-after {
-  grid-row: 3;
+:is(lf-workspace, lf-pane, :where([data-lf-reading-role="pane"])) > :not(header, footer) {
+  grid-row: 2; min-width: 0; margin: 0;
 }
-.lf-pane-reading > .lf-reading-before {
+/* A workspace's header and footer keep their distance from its body themselves, so a
+ * workspace without one spends nothing on the row it leaves empty. */
+lf-workspace > header { margin-bottom: var(--sp-3); }
+lf-workspace > footer { margin-top: var(--sp-3); }
+:is(lf-pane, :where([data-lf-reading-role="pane"])) {
+  border: 1px solid var(--rule);
+  border-radius: var(--r);
+  background: var(--paper);
+}
+:is(lf-pane, :where([data-lf-reading-role="pane"])) > header {
   padding: 10px 14px;
   border-bottom: 1px solid var(--rule);
   font: 600 var(--t-5)/1.4 var(--sans);
   --lf-block-frame: 1;
 }
-.lf-pane-reading > .lf-reading-after {
+:is(lf-pane, :where([data-lf-reading-role="pane"])) > footer {
   padding: 10px 14px;
   border-top: 1px solid var(--rule);
   --lf-block-frame: 1;
 }
-.lf-pane-content {
-  display: contents;
-}
-.lf-pane-body {
+:is(lf-pane, :where([data-lf-reading-role="pane"])) > :not(header, footer) {
   padding: 14px;
   --lf-block-frame: 1;
 }
 
-.lf-partition-content {
-  display: block;
-  gap: 1px;
-  background: var(--rule);
+/* Whether a box holds the height its parent was given, as a chain from the root
+ * workspace down. A box passes the height on only if it says so (--lf-passes-hold): a
+ * grid, a pane, an Ask that is a heading and one answer, a compound region such as a
+ * playground. The chain stops at anything else, so a pane inside a plain section, a
+ * pane body's content, or a workspace nested anywhere flows within what holds it, and
+ * no region claims a scroller that never scrolls. Registered so neither value inherits:
+ * each box reads its parent's through a style query and states its own. */
+@property --lf-held {
+  syntax: "<integer>";
+  inherits: false;
+  initial-value: 0;
 }
-.lf-partition-content > :is(.lf-pane-reading, .lf-partition-reading) {
-  background: var(--paper);
+@property --lf-passes-hold {
+  syntax: "<integer>";
+  inherits: false;
+  initial-value: 0;
 }
-
-[data-lf-reading-posture="bounded"] {
-  --lf-reading-posture: bounded;
+/* A box that passes the height on also takes its track's height rather than its
+ * content's while held: it reads its minimum from --lf-track-min, which is auto except
+ * on a held box's parts in a bounded workspace (below). A box that does not pass the
+ * height on keeps its content's height, so a plain section in a held workspace grows
+ * and the footer and the page's end room follow it. */
+@property --lf-track-min {
+  syntax: "<length> | auto";
+  inherits: false;
+  initial-value: auto;
 }
-[data-lf-reading-posture="flow"] {
-  --lf-reading-posture: flow;
+:is(lf-grid, lf-pane, [data-lf-reading-role="grid"], [data-lf-reading-role="pane"]),
+lf-ask:has(> :is(h1, h2, h3, h4, h5, h6):first-child:nth-last-child(2)) {
+  --lf-passes-hold: 1;
+  min-height: var(--lf-track-min);
+}
+@container style(--lf-held: 1) {
+  * { --lf-held: var(--lf-passes-hold); }
 }
 
 @media screen {
-  html[data-lf-live]:has(
-      body
-        > main
-        .lf-workspace-reading[data-lf-workspace-context="root"][data-lf-reading-posture="bounded"]
-    ) {
-    overflow-y: hidden;
-    --lf-document-end-room: 0px;
-  }
-  body
-    > main:has(
-      > .lf-workspace-reading[data-lf-workspace-context="root"][data-lf-reading-posture="bounded"]
-    ) {
+  /* The root workspace is the page's only authored block (what the runtime puts in
+   * main beside it, a margin cluster or generated words, is not), or a root tab's only
+   * block. It is the full width and the window's height below the banner and above the
+   * bottom chrome, and the chain of held boxes starts at it. */
+  html:not(.lf-copy)
+    body
+    > main:has(> lf-workspace):not(:has(> :not(lf-workspace, script, style, template, .lf-ui, [data-lf-gen]))) {
     box-sizing: border-box;
     width: 100cqi;
     max-width: none;
-    height: calc(100vh - var(--lf-banner-h) - var(--lf-bottom-chrome-clear, 0px));
     margin: 0;
     padding: 0 var(--col-pad);
     left: 0;
   }
-  body
-    > main
-    > .lf-workspace-reading[data-lf-workspace-context="root"][data-lf-reading-posture="bounded"] {
-    height: 100%;
-  }
-  body
-    > main:has(
-      > lf-tabs[data-lf-tabs-context="root"]
-        > lf-tab[data-lf-root-reading]
-        > .lf-workspace-reading[data-lf-workspace-context="root"][data-lf-reading-posture="bounded"]
-    ) {
-    box-sizing: border-box;
-    width: 100cqi;
-    max-width: none;
-    height: calc(100vh - var(--lf-banner-h) - var(--lf-bottom-chrome-clear, 0px));
-    margin: 0;
-    padding: 72px var(--col-pad) 0;
-    left: 0;
-    display: grid;
-    grid-template-rows: auto minmax(0, 1fr);
-  }
-  body
-    > main:has(
-      > lf-tabs[data-lf-tabs-context="root"]
-        > lf-tab[data-lf-root-reading]
-        > .lf-workspace-reading[data-lf-workspace-context="root"][data-lf-reading-posture="bounded"]
-    )
-    > lf-tabs {
-    min-height: 0;
-    height: 100%;
-    display: grid;
-    grid-row: 2;
-    grid-template-rows: auto minmax(0, 1fr);
-  }
-  body
-    > main:has(
-      > lf-tabs[data-lf-tabs-context="root"]
-        > lf-tab[data-lf-root-reading]
-        > .lf-workspace-reading[data-lf-workspace-context="root"][data-lf-reading-posture="bounded"]
-    )
-    > lf-tabs
-    > .lf-tabstrip {
-    grid-row: 1;
-    grid-column: 1;
-  }
-  body
-    > main:has(
-      > lf-tabs[data-lf-tabs-context="root"]
-        > lf-tab[data-lf-root-reading]
-        > .lf-workspace-reading[data-lf-workspace-context="root"][data-lf-reading-posture="bounded"]
-    )
-    > lf-tabs
-    > lf-tab {
-    grid-row: 2;
-    grid-column: 1;
-  }
-  body
-    > main
-    > lf-tabs[data-lf-tabs-context="root"]
-    > lf-tab[data-lf-root-reading]:has(
-      > .lf-workspace-reading[data-lf-workspace-context="root"][data-lf-reading-posture="bounded"]
-    ) {
-    min-height: 0;
-    height: 100%;
-  }
-  body
+  html:not(.lf-copy)
+    body
+    > main:has(> lf-workspace):not(:has(> :not(lf-workspace, script, style, template, .lf-ui, [data-lf-gen])))
+    > lf-workspace,
+  html:not(.lf-copy)
+    body
     > main
     > lf-tabs[data-lf-tabs-context="root"]
     > lf-tab[data-lf-root-reading]
-    > .lf-workspace-reading[data-lf-workspace-context="root"][data-lf-reading-posture="bounded"] {
-    height: 100%;
+    > lf-workspace:only-child {
+    container-type: size;
+    --lf-held: 1;
   }
-  @container style(--lf-reading-posture: bounded) {
-    :is(.lf-workspace-reading, .lf-pane-reading):not([data-lf-reading-posture]) {
-      display: grid;
-      grid-template-rows: auto minmax(0, 1fr) auto;
+  html:not(.lf-copy)
+    body
+    > main:has(> lf-workspace):not(:has(> :not(lf-workspace, script, style, template, .lf-ui, [data-lf-gen])))
+    > lf-workspace {
+    block-size: calc(100dvh - var(--lf-banner-h) - var(--lf-bottom-chrome-clear, 0px));
+  }
+  /* A root tab's workspace ends the page and stands under the sticky tab strip:
+   * scrolled to its end, the page puts it between the strip and the bottom chrome. */
+  html:not(.lf-copy)
+    body
+    > main
+    > lf-tabs[data-lf-tabs-context="root"]
+    > lf-tab[data-lf-root-reading]
+    > lf-workspace:only-child {
+    block-size: calc(100dvh - var(--lf-banner-h) - var(--lf-bottom-chrome-clear, 0px)
+      - var(--lf-root-tab-clear, 0px));
+  }
+  html:not(.lf-copy)
+    body
+    > main:has(> lf-tabs[data-lf-tabs-context="root"] > lf-tab[data-lf-root-reading] > lf-workspace:only-child) {
+    padding-bottom: 0;
+  }
+  html:not(.lf-copy)
+    body
+    > main
+    > lf-tabs[data-lf-tabs-context="root"]:has(> lf-tab[data-lf-root-reading] > lf-workspace:only-child) {
+    margin-block-end: 0;
+  }
+
+  /* Bounded: the root workspace holds the regions, so each held pane's body scrolls in
+   * place under its header and above its footer. One global minimum decides every
+   * workspace. Each rule asks the style query about the parent of its subject, so a
+   * pane's body scrolls when the pane is held, and a grid shares its height when its
+   * parent is. A held box's parts may take their track's height: those that pass the
+   * height on read it from --lf-track-min, and the parts of a pane, grid or Ask take it
+   * outright, so what overflows scrolls in a pane's body instead of lengthening the
+   * page. A workspace's own body keeps its content's height unless it passes the height
+   * on. */
+  @container lf-workspace (min-width: 720px) and (min-height: 480px) {
+    @container style(--lf-held: 1) {
+      html:not(.lf-copy) * {
+        --lf-track-min: 0px;
+      }
+      html:not(.lf-copy) :not(lf-workspace) > * {
+        min-height: 0;
+      }
+      html:not(.lf-copy) :is(lf-pane, [data-lf-reading-role="pane"]) > :not(header, footer) {
+        overflow: auto;
+        overscroll-behavior: contain;
+        scrollbar-gutter: stable;
+      }
+      html:not(.lf-copy) :is(lf-grid, [data-lf-reading-role="grid"]) {
+        align-items: stretch;
+        grid-auto-rows: minmax(0, 1fr);
+      }
+      html:not(.lf-copy)
+        lf-ask:has(> :is(h1, h2, h3, h4, h5, h6):first-child:nth-last-child(2)) {
+        display: grid;
+        grid-template-rows: auto minmax(0, 1fr);
+      }
     }
-    :is(.lf-workspace-reading, .lf-pane-reading)
-      > .lf-reading-frame {
-      margin: 0;
-      --lf-block-frame: 1;
+  }
+  /* The page's end room. A root workspace's box ends above the bottom chrome, and the
+   * chrome's own room after main fills the rest of the window, so a held root fits it
+   * exactly. Whatever runs past the box — every region when the workspace flows, or a
+   * body that does not pass the height on — is overflow the chrome's room sits inside,
+   * so the room goes after the last box that overflows: a margin does not reach the
+   * page's scroll range and a box does. A flowing workspace ends in an empty row of that
+   * height, outside any frame its last region draws; a held body that does not pass the
+   * height on takes the room as padding, and one that does overflows nothing and takes
+   * none. */
+  @container lf-workspace not ((min-width: 720px) and (min-height: 480px)) {
+    @container style(--lf-held: 1) {
+      html:not(.lf-copy) lf-workspace::after {
+        content: "";
+        grid-row: 4;
+        block-size: var(--lf-bottom-chrome-clear, 0px);
+      }
     }
-    .lf-partition-reading[data-lf-direction="columns"] > .lf-partition-content {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-    .lf-partition-reading[data-lf-direction="rows"] > .lf-partition-content {
-      display: grid;
-      grid-template-rows: repeat(2, minmax(0, 1fr));
-    }
-    :is(.lf-partition-content, .lf-reading) {
-      min-height: 0;
-      height: 100%;
-    }
-    .lf-pane-body {
-      overflow: auto;
-      overscroll-behavior: contain;
-      scrollbar-gutter: stable;
+  }
+  @container lf-workspace (min-width: 720px) and (min-height: 480px) {
+    @container style(--lf-held: 1) {
+      html:not(.lf-copy) lf-workspace > :not(header, footer) {
+        padding-block-end: calc(var(--lf-bottom-chrome-clear, 0px)
+          * (1 - var(--lf-passes-hold)));
+      }
     }
   }
 }
 
-:is(.lf-workspace-reading, .lf-pane-reading)[data-lf-reading-posture="bounded"]
-  > .lf-reading-frame {
-  margin: 0;
-  --lf-block-frame: 1;
-}
-
-html.lf-copy :is(.lf-workspace-reading, .lf-pane-reading, .lf-partition-reading),
-html.lf-copy :is(.lf-reading-content, .lf-pane-content, .lf-partition-content) {
-  display: block;
-  height: auto;
-}
-html.lf-copy .lf-pane-body {
-  overflow: visible;
-  height: auto;
-}
-/* A copy of a root workspace is the whole workspace at the page's width. The screen
- * box above is stated for the bounded posture, because only a bounded root holds the
- * window; a copy holds nothing, so the same box has to follow from being the root
- * rather than from the posture the page happened to be drawn in. Keying it on posture
- * would also make the copy a reading of a race: entering copy mode resizes the body,
- * the root fit observer answers on the next frame, and the column the copy is set in
- * would depend on which of the two landed first. */
-html.lf-copy body > main:has(> .lf-workspace-reading[data-lf-workspace-context="root"]) {
+/* A copy of a root workspace is the whole workspace at the page's width. */
+html.lf-copy
+  body
+  > main:has(> lf-workspace):not(:has(> :not(lf-workspace, script, style, template, .lf-ui, [data-lf-gen]))),
+html.lf-copy body > main:has(> lf-tabs[data-lf-tabs-context="root"]) {
   box-sizing: border-box;
   width: 100cqi;
   max-width: none;
-  height: auto;
   margin: 0;
   padding: 72px var(--col-pad) 96px;
   left: 0;
-}
-/* A root tab set copies at the full page width because its panels may mix documents
- * and workspaces. State that box from root placement alone, so it cannot depend on
- * which panel was active at export. The second selector outranks the live bounded
- * layout while that posture marker remains in the baked document. */
-html.lf-copy body > main:has(> lf-tabs[data-lf-tabs-context="root"]),
-html.lf-copy
-  body
-  > main:has(
-    > lf-tabs[data-lf-tabs-context="root"]
-      > lf-tab[data-lf-root-reading]
-      > .lf-workspace-reading[data-lf-workspace-context="root"][data-lf-reading-posture="bounded"]
-  ) {
-  box-sizing: border-box;
-  width: 100cqi;
-  max-width: none;
-  height: auto;
-  margin: 0;
-  padding: 72px var(--col-pad) 96px;
-  left: 0;
-  display: block;
-}
-html.lf-copy
-  body
-  > main:has(
-    > lf-tabs[data-lf-tabs-context="root"]
-      > lf-tab[data-lf-root-reading]
-      > .lf-workspace-reading[data-lf-workspace-context="root"][data-lf-reading-posture="bounded"]
-  )
-  > lf-tabs[data-lf-tabs-context="root"] {
-  height: auto;
-  display: block;
-}
-html.lf-copy
-  body
-  > main:has(
-    > lf-tabs[data-lf-tabs-context="root"]
-      > lf-tab[data-lf-root-reading]
-      > .lf-workspace-reading[data-lf-workspace-context="root"][data-lf-reading-posture="bounded"]
-  )
-  > lf-tabs[data-lf-tabs-context="root"]
-  > lf-tab {
-  grid-row: auto;
-  grid-column: auto;
-  height: auto;
-}
-@media print {
-  :is(.lf-workspace-reading, .lf-pane-reading, .lf-partition-reading),
-  :is(.lf-reading-content, .lf-pane-content, .lf-partition-content) {
-    display: block !important;
-    height: auto !important;
-  }
-  .lf-pane-body {
-    overflow: visible !important;
-    height: auto !important;
-  }
 }
 
 /* lf-gloss: the prose stays prose, and its underline is the whole visible
@@ -1685,9 +1636,7 @@ lf-tabs.lf-rendered > lf-tab { margin-top: 14px; }
       pointer-events: none;
     }
     lf-tabs.lf-rendered[data-lf-tabs-context="root"]
-      > lf-tab[data-lf-root-reading]:has(
-        > .lf-workspace-reading[data-lf-workspace-context="root"]:only-child
-      ) {
+      > lf-tab[data-lf-root-reading]:has(> lf-workspace:only-child) {
       width: var(--lf-room);
       max-width: none;
       margin-left: calc((100% - var(--lf-room)) / 2);

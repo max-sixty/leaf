@@ -1701,6 +1701,41 @@ def panel_settled(page, open=True):
     )
 
 
+def pane_posture(page, pane, posture):
+    """Wait until a pane is `bounded` (its body scrolls) or in `flow` (it does not).
+
+    The body is the pane's one element between its optional header and footer. Whether
+    it scrolls is the stylesheet's answer to the workspace's size, and the same fact
+    `readingPosture` reads, so this waits on the composed style rather than on any
+    attribute a script would have to keep in step with it."""
+    page.wait_for_function(
+        """([node, posture]) => {
+          const body = [...node.children].find(c => !c.matches('header, footer'));
+          const scrolls = /auto|scroll/.test(getComputedStyle(body).overflowY);
+          return (scrolls ? 'bounded' : 'flow') === posture;
+        }""",
+        arg=[pane.element_handle(), posture],
+    )
+
+
+def holds_the_window(page, block, held):
+    """Wait until a block does, or does not, fill the window with the page at rest.
+
+    A held block is the whole page: its bottom edge is inside the window and the
+    document has nothing to scroll, so the block's own panes carry what overflows. A
+    flowing block runs past the window and the page scrolls it.
+    """
+    page.wait_for_function(
+        """([node, held]) => {
+          const bottom = node.getBoundingClientRect().bottom;
+          const page = document.scrollingElement;
+          return (bottom <= innerHeight + 1
+            && page.scrollHeight <= page.clientHeight + 1) === held;
+        }""",
+        arg=[block.element_handle(), held],
+    )
+
+
 def resized(page, width, height):
     """Resize and wait for the page's listeners and rendering update.
 

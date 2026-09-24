@@ -288,15 +288,6 @@ def _validate_widget_structure(
             raise RegistryError(
                 f"{path}: <{tag}> x-reading-role pane instances require a string label"
             )
-        if layout == "partition" and (
-            "direction" not in required
-            or set(properties.get("direction", {}).get("enum", []))
-            != {"columns", "rows"}
-        ):
-            raise RegistryError(
-                f"{path}: <{tag}> x-reading-role partition instances require direction with "
-                "enum containing columns and rows"
-            )
     required_members = entry.get("x-required-members", {})
     if required_members and entry.get("x-content") != "members":
         raise RegistryError(

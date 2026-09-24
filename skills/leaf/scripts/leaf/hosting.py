@@ -7,6 +7,7 @@ import socket
 import subprocess
 import sys
 import threading
+import time
 import zlib
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -524,17 +525,22 @@ def start_server(
 def cmd_stop(page_dir: Path) -> str:
     """Disable the desired service and wait until its process lease is released."""
     require_cross_process_locking()
-    with flocked(transition_lock(page_dir)):
-        service = read_json(page_dir / SERVICE_FILE)
-        live = lock_is_held(page_dir / SERVER_LOCK)
-        if service and service["enabled"]:
-            write_json(page_dir / SERVICE_FILE, {**service, "enabled": False})
-    if live:
-        # The serving process observes disabled desired state and exits. Taking
-        # its lease is the barrier proving every socket is closed. It is taken
-        # outside the transition, which that process may still need on its way
-        # out; nothing can re-enable the record while the lease is held.
-        with open(page_dir / SERVER_LOCK, "a+b") as lease:
-            fcntl.flock(lease, fcntl.LOCK_EX)
-        return "stopped server"
-    return "no server running"
+    stopped = False
+    while True:
+        with flocked(transition_lock(page_dir)):
+            service = read_json(page_dir / SERVICE_FILE)
+            stopped |= lock_is_held(page_dir / SERVER_LOCK)
+            if service and service["enabled"]:
+                write_json(page_dir / SERVICE_FILE, {**service, "enabled": False})
+            # Acquire the lease without waiting under the transition lock: the
+            # serving process may need that lock to withdraw a failed start.
+            # Holding both together when this succeeds keeps a new start from
+            # taking the gap between the old server's exit and our barrier.
+            with open(page_dir / SERVER_LOCK, "a+b") as lease:
+                try:
+                    fcntl.flock(lease, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                except BlockingIOError:
+                    pass
+                else:
+                    return "stopped server" if stopped else "no server running"
+        time.sleep(0.05)

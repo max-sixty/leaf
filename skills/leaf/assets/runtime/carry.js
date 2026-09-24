@@ -7,7 +7,9 @@
  * Values, checked state, and disclosure state cross only when they differ from the
  * outgoing authored node. Read both nodes through the same platform properties: reflected
  * attributes and defaultValue do not provide a consistent baseline for these controls.
- * Nonzero inner scroll offsets, focus, and the focused control's caret also cross.
+ * Nonzero inner scroll offsets, focus, and the focused control's caret also cross,
+ * except a reading region's body: where that scrolls to is the region continuity's,
+ * which lands it on a passage rather than on a pixel offset the revision has moved.
  * Restoring this state creates no event and leaves draft values unsent.
  *
  * Value capture supports textarea and non-file inputs; checked state supports checkbox
@@ -17,6 +19,7 @@
  * lifecycles. `version.js` owns when capture and restoration run for each install.
  */
 import { focusDestination, readCaret } from "./focus.js";
+import { readingRegions } from "./reading-regions.js";
 
 const holdsValue = (node) =>
   node.tagName === "TEXTAREA" || (node.tagName === "INPUT" && node.type !== "file");
@@ -29,6 +32,7 @@ export function captureCarry(root, authored) {
   const active = document.activeElement;
   const records = [];
   const held = new Map();
+  const regionBodies = new Set(readingRegions().map(({ body }) => body));
   for (const node of root.querySelectorAll("[id]")) {
     const wrote = authored.querySelector(`#${CSS.escape(node.id)}`);
     if (wrote?.localName !== node.localName) continue;
@@ -36,8 +40,10 @@ export function captureCarry(root, authored) {
     if (node === active) record.focus = true;
     if (node.localName === "details" && node.open !== wrote.open)
       record.open = node.open;
-    if (node.scrollTop) record.scrollTop = node.scrollTop;
-    if (node.scrollLeft) record.scrollLeft = node.scrollLeft;
+    if (!regionBodies.has(node)) {
+      if (node.scrollTop) record.scrollTop = node.scrollTop;
+      if (node.scrollLeft) record.scrollLeft = node.scrollLeft;
+    }
     if (holdsValue(node) && node.value !== wrote.value) record.value = node.value;
     if (holdsTick(node) && node.checked !== wrote.checked)
       record.checked = node.checked;

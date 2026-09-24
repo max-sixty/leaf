@@ -449,7 +449,7 @@ def _validate_widget_structure(
     for attribute, reference in entry.get("x-refers", {}).items():
         if error := reference_relation_error(reference, registry, declarations):
             raise RegistryError(f"{path}: <{tag}> x-refers `{attribute}` {error}")
-    if part_attribute := visual_part_attribute(entry):
+    if isinstance(entry.get("x-visual"), dict):
         if not (
             "id" in entry.get("required", [])
             and isinstance(properties.get("id"), dict)
@@ -459,8 +459,9 @@ def _validate_widget_structure(
                 f"{path}: <{tag}> has addressable visual parts but does not "
                 "require a string `id` for their anchor"
             )
+        part_attribute = visual_part_attribute(entry)
         part_schema = properties.get(part_attribute)
-        if not (
+        if part_attribute and not (
             isinstance(part_schema, dict)
             and part_schema.get("type") == "string"
             and part_schema.get("minLength", 0) >= 1

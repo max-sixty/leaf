@@ -101,9 +101,7 @@ def capture_anchor(
                 f"§ {section} declares no commentable visual parts in this version"
             )
         if part not in available:
-            raise ValueError(
-                f"§ {section} has no visual part {part!r}; known: {list(available)}"
-            )
+            raise ValueError(f"§ {section} has no visual part {part!r}; {available}")
         return {"section": section, "visual": part}
     if not quote:
         return {"section": section}

@@ -11,7 +11,7 @@ ROOT = Path(__file__).parent.parent
 
 def test_a_shipped_page_passes_the_real_browser_gate(browser, serve):
     example = ROOT / "examples" / "ship-review.html"
-    assert render_gate_model.render_version(browser, serve(example)) == []
+    assert render_gate_model.render_version(browser, serve(example)).failures == []
 
 
 def test_ship_review_asks_are_directly_answerable(browser, serve):

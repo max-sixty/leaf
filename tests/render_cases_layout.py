@@ -394,7 +394,7 @@ UNMARKABLE_PAGE = LONG_PAGE.replace(
 # compact posture has no margin for these synthetic residents, so it removes them.
 FLOATING_PAGE = LONG_PAGE.replace(
     "</main>",
-    "<style>@media (max-width: 600px) { .fixture-margin-float { display: none; } }</style>"
+    "<style>@media (max-width: 1199px) { .fixture-margin-float { display: none; } }</style>"
     "<div class='fixture-margin-float' id='in-the-margin' style='float: left; clear: left; width: 180px;"
     " margin-left: -204px'>Beside <code id='inner-word'>--flag</code>.</div>"
     "<div class='fixture-margin-float' id='half-out' style='float: left; clear: left; width: 180px;"

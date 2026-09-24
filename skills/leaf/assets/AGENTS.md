@@ -574,7 +574,8 @@ and repository lint checks the source.
 | `invalidPaints` | every var()-backed SVG paint resolves to a valid value in each scheme |
 | `tinyBoxes` | every declared widget has a usable rendered box |
 | `unmarkableElements` | every addressable element has a visible part for an outline |
-| `misplacedBoxes` | boxes stay in the column or in genuinely reachable overflow |
+| `misplacedBoxes` | boxes stay in the column or in genuinely reachable overflow, at every swept width |
+| `misalignedSplits` | advice only: a page's layout grids split where its busiest grid does |
 | `squeezedTables` | a table scrolls sideways only with every column at its longest unbreakable run |
 | `withheldRoom` | a drawing scrolls only when the room, net of margin residents at its band, ran short |
 | `silentCuts` | a box showing less than it holds across fades each edge with content beyond it |

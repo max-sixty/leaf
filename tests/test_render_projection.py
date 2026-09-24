@@ -5185,7 +5185,7 @@ def test_the_render_gate_reports_a_server_that_stops_answering(
             failures = render_gate_model.render_version(
                 browser,
                 f"http://127.0.0.1:{httpd.server_address[1]}/versions/v2.html?t={TOKEN}",
-            )
+            ).failures
         finally:
             release.set()
 
@@ -5227,14 +5227,17 @@ def test_render_reports_markup_the_log_replays_over(browser, serve):
         return url.replace("v1.html", f"v{n}.html")
 
     # v2 says nothing about either decision; both stand, and nothing is reported.
-    assert render_gate_model.render_version(browser, stamp(2, REPLAYED_PAGE)) == []
+    assert (
+        render_gate_model.render_version(browser, stamp(2, REPLAYED_PAGE)).failures
+        == []
+    )
 
     # v3 honors both: the pick authored, the card in its dragged-to column.
     honored = REPLAYED_PAGE.replace('id="opt-shim"', 'id="opt-shim" chosen')
     honored = honored.replace(IMPORTER_CARD, "").replace(
         'label="Done">', f'label="Done">{IMPORTER_CARD}'
     )
-    assert render_gate_model.render_version(browser, stamp(3, honored)) == []
+    assert render_gate_model.render_version(browser, stamp(3, honored)).failures == []
 
     # A different order in the same column is a real placement conflict too.
     reordered = honored.replace(IMPORTER_CARD, "")
@@ -5242,7 +5245,7 @@ def test_render_reports_markup_the_log_replays_over(browser, serve):
         "</lf-card></lf-column>", f"</lf-card>{IMPORTER_CARD}</lf-column>"
     )
     with preview_server(d, structure_model.SourceDocument(reordered), 4) as preview_url:
-        failures = render_gate_model.render_version(browser, preview_url)
+        failures = render_gate_model.render_version(browser, preview_url).failures
     assert len(failures) == 1 and "id=work" in failures[0], failures
 
     # v4 asserts the other option and re-authors the card into Doing: both
@@ -5251,7 +5254,7 @@ def test_render_reports_markup_the_log_replays_over(browser, serve):
     with preview_server(
         d, structure_model.SourceDocument(contradicted), 4
     ) as preview_url:
-        failures = render_gate_model.render_version(browser, preview_url)
+        failures = render_gate_model.render_version(browser, preview_url).failures
     assert len(failures) == 2, failures
     assert any("id=approach" in f and "opt-stage" in f for f in failures), failures
     assert any("id=work" in f and "card-importer" in f for f in failures), failures
@@ -5285,7 +5288,9 @@ def test_render_accepts_actions_made_after_the_authored_change(
         },
     )
     assert (
-        render_gate_model.render_version(browser, url.replace("v1.html", "v2.html"))
+        render_gate_model.render_version(
+            browser, url.replace("v1.html", "v2.html")
+        ).failures
         == []
     )
 
@@ -5358,7 +5363,9 @@ customElements.define("lf-pair", class extends HTMLElement {
     act(2, "second")
     # Both renderState writes hit the same id. Only the newer verb was authored.
     assert (
-        render_gate_model.render_version(browser, url.replace("v1.html", "v2.html"))
+        render_gate_model.render_version(
+            browser, url.replace("v1.html", "v2.html")
+        ).failures
         == []
     )
     # The same older verb really is contradicted when its own record changes.
@@ -5367,7 +5374,7 @@ customElements.define("lf-pair", class extends HTMLElement {
         structure_model.SourceDocument(current.replace('first="a"', 'first="b"')),
         3,
     ) as preview_url:
-        failures = render_gate_model.render_version(browser, preview_url)
+        failures = render_gate_model.render_version(browser, preview_url).failures
     assert len(failures) == 1 and "id=pair" in failures[0], failures
 
 
@@ -5447,7 +5454,7 @@ def test_the_render_gate_applies_every_standing_action_a_second_time(browser, se
     assert {
         (key, action) for widget, _tag, key, action in standing if widget == "ab-pick"
     } == {("choose", "choose"), ("answer", "answer"), ("add", "add")}
-    assert render_gate_model.render_version(browser, url) == []
+    assert render_gate_model.render_version(browser, url).failures == []
 
 
 @pytest.mark.parametrize("authored", [None, "0"])
@@ -5879,7 +5886,7 @@ def test_the_render_gate_catches_a_relative_state_renderer(
             },
         )
 
-    failures = render_gate_model.render_version(browser, url)
+    failures = render_gate_model.render_version(browser, url).failures
 
     assert [f for f in failures if "is relative" in f] == [
         (
@@ -5910,7 +5917,9 @@ def test_a_widget_standing_out_of_place_is_a_page_the_gate_reports(
     )
 
     covered = [
-        f for f in render_gate_model.render_version(browser, url) if "same place" in f
+        f
+        for f in render_gate_model.render_version(browser, url).failures
+        if "same place" in f
     ]
 
     assert covered and all("drift-note" in f for f in covered), covered
@@ -6067,7 +6076,7 @@ def test_the_render_gate_reads_a_page_that_has_finished_arriving(
     )
     with running_http_server(httpd):
         late = f"http://127.0.0.1:{httpd.server_address[1]}/versions/v1.html?t={TOKEN}"
-        failures = render_gate_model.render_version(browser, late)
+        failures = render_gate_model.render_version(browser, late).failures
     # The window first, because the gate's verdict on a window that never opened says
     # nothing: an empty log is a page with nothing to replay and nothing to report.
     assert landed and "/versions/v1.html" in landed[0], (
@@ -6573,7 +6582,7 @@ def test_the_render_gate_holds_a_settled_slot_to_the_logs_decision(
             "detail": {"outcome": "shelve"},
         },
     )
-    assert render_gate_model.render_version(browser, url) == []
+    assert render_gate_model.render_version(browser, url).failures == []
 
     hide = "[data-lf-retired] { display: none; }"
     vendored = serve.page_dir / "theme.css"
@@ -6585,7 +6594,7 @@ def test_the_render_gate_holds_a_settled_slot_to_the_logs_decision(
         (serve.page_dir / "index.html").read_text(),
         "capture the visible settled slot",
     )
-    failures = render_gate_model.render_version(browser, live_url(url))
+    failures = render_gate_model.render_version(browser, live_url(url)).failures
     assert any(
         "<lf-trial id='th-cache'> settled `shelve` and its <lf-proposed> still shows"
         in failure
@@ -6643,7 +6652,7 @@ customElements.define("lf-trial", class extends HTMLElement {
         (serve.page_dir / "index.html").read_text(),
         "capture the false settlement mark",
     )
-    failures = render_gate_model.render_version(browser, live_url(url))
+    failures = render_gate_model.render_version(browser, live_url(url)).failures
     assert any(
         "<lf-trial id='th-spare'> wears data-lf-state=\"shelve\" where the log "
         "records no decision" in failure

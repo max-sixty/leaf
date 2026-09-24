@@ -9410,7 +9410,7 @@ def test_the_gate_passes_a_chart_whose_tick_names_its_month_on_a_second_line(
         "the lines land on nothing, so a gate that never looked would pass this too"
     )
     page.close()
-    assert render_gate_model.render_version(browser, url) == []
+    assert render_gate_model.render_version(browser, url).failures == []
 
 
 @pytest.mark.parametrize("scroll_to_chart", [False, True])

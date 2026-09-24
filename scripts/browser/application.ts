@@ -46,6 +46,7 @@ interface WireProjection {
     event: Event;
     coordinate: [string, string, string];
     restated?: string[];
+    absorbed: boolean;
     scope: string;
     spec: Omit<ActionSpec, "writer">;
     value: unknown;
@@ -204,6 +205,7 @@ function normalizedProjection(
         coordinate,
         e,
         restated: wire.restated ?? [],
+        absorbed: wire.absorbed,
         scope: wire.scope,
         spec: wire.spec,
         unit: wire.coordinate[1],

@@ -772,6 +772,15 @@ def _report_body_record(registry):
     }
 
 
+def _report_position_record(registry):
+    registry["lf-task"]["x-state"]["status"]["record"] = {
+        "kind": "position",
+        "within": "lf-column",
+        "value": "status",
+        "rank": "status",
+    }
+
+
 def _report_no_record(registry):
     del registry["lf-task"]["x-state"]["status"]["record"]
 

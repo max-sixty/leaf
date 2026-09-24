@@ -255,7 +255,8 @@ retains generated-child labels and other declared event data. A per-part verb's 
 contains `units`, keyed by unit id, and a position verb's also contains `value`, a map
 from container id to the complete ordered ids it holds, and `ranks`, each listed unit's
 rank. A position record carries a rank rather than an index, so a unit's placement
-stands whichever other moves stand: dispatch `rankAt(state.<verb>, container, index,
+stands whichever other moves stand, until a version authors the container's units
+differently and its markup places the unit: dispatch `rankAt(state.<verb>, container, index,
 unit)` from `runtime/widget-api.js` for a unit dropped at `index` among the container's
 other units. Missing recordless units are
 undecided. Render the final composition and keep independent
@@ -585,8 +586,9 @@ coordinates stand side by side. Swiping a card again therefore replaces that car
 earlier verdict, while verdicts on different cards coexist. `unit` is `"widget"` for a
 verb that states the whole widget's value at once, or the detail field naming the
 element it is per. `record` says how the standing state reads in markup: here, the
-card's position inside a pile. The agent's next version writes that state back, and
-`version check` refuses a version that contradicts it without `restated`. The `$keys`
+card's position inside a pile. `version check` refuses a version that contradicts
+it without `restated`, and `authoring-revisions.md`, "Honor user state", says which
+record forms the agent's next version writes back. The `$keys`
 entries in `assets/registry.json` define each key exactly.
 
 `x-awaits.answered` says when the widget's Ask is answered, as a condition on that

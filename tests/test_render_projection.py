@@ -18,6 +18,7 @@ from interact_support import (
 from leaf import cli as cli_model
 from leaf import data as data_model
 from leaf import event_log as events_model
+from leaf import files as files_model
 from leaf import hosting as hosting_model
 from leaf import http as http_model
 from leaf import render_checks as render_checks_model
@@ -5231,13 +5232,16 @@ def test_the_render_gate_reports_a_server_that_stops_answering(
 
 def test_render_reports_markup_the_log_replays_over(browser, serve):
     """The static gate refuses a version that rewords what a decision rests on,
-    but `chosen`, a card's column, and their kind say nothing a text diff can
-    see — a version asserting them against the log used to lose silently, replay
-    painting the user's state back over the author's intent. The render gate
-    reports exactly that: an id the author changed since the previous version
-    and replay then wrote. Silence (carrying the old markup forward) and honor
-    (authoring the decided state) both stay clean, because silence changes no
-    id and honor makes the replay a no-op."""
+    but `chosen` and its kind say nothing a text diff can see — a version asserting
+    one against the log used to lose silently, replay painting the user's state back
+    over the author's intent. The render gate reports exactly that: an id the author
+    changed since the previous version and replay then wrote. Silence (carrying the
+    old markup forward) and honor (authoring the decided state) both stay clean,
+    because silence changes no id and honor makes the replay a no-op.
+
+    A move is not that case. Any later revision absorbs it and places the card
+    itself, so replay never writes a card over a version; the static gate is what
+    holds the version to where the move put it."""
     url = serve(REPLAYED_PAGE)
     d = serve.page_dir
     for widget, action, detail in [
@@ -5260,35 +5264,32 @@ def test_render_reports_markup_the_log_replays_over(browser, serve):
         stamp_page(d, html, "t")
         return url.replace("v1.html", f"v{n}.html")
 
-    # v2 says nothing about either decision; both stand, and nothing is reported.
-    assert render_gate_model.render_version(browser, stamp(2, REPLAYED_PAGE)) == []
+    def preview(html):
+        document = structure_model.SourceDocument(html)
+        with preview_server(d, document, files_model.latest_revision(d) + 1) as at:
+            return render_gate_model.render_version(browser, at)
 
-    # v3 honors both: the pick authored, the card in its dragged-to column.
-    honored = REPLAYED_PAGE.replace('id="opt-shim"', 'id="opt-shim" chosen')
-    honored = honored.replace(IMPORTER_CARD, "").replace(
+    moved = REPLAYED_PAGE.replace(IMPORTER_CARD, "").replace(
         'label="Done">', f'label="Done">{IMPORTER_CARD}'
     )
+
+    # v2 writes the move and says nothing about the pick; v3 honors both.
+    assert render_gate_model.render_version(browser, stamp(2, moved)) == []
+    honored = moved.replace('id="opt-shim"', 'id="opt-shim" chosen')
     assert render_gate_model.render_version(browser, stamp(3, honored)) == []
 
-    # A different order in the same column is a real placement conflict too.
-    reordered = honored.replace(IMPORTER_CARD, "")
-    reordered = reordered.replace(
+    # v4 asserts the other option and reorders the moved card's column: replay
+    # overrides the pick, so the author must hear; the order is v4's own.
+    contradicted = honored.replace('id="opt-shim" chosen', 'id="opt-shim"')
+    contradicted = contradicted.replace(
+        'id="opt-stage"', 'id="opt-stage" chosen'
+    ).replace(IMPORTER_CARD, "")
+    contradicted = contradicted.replace(
         "</lf-card></lf-column>", f"</lf-card>{IMPORTER_CARD}</lf-column>"
     )
-    with preview_server(d, structure_model.SourceDocument(reordered), 4) as preview_url:
-        failures = render_gate_model.render_version(browser, preview_url)
-    assert len(failures) == 1 and "id=work" in failures[0], failures
-
-    # v4 asserts the other option and re-authors the card into Doing: both
-    # widgets changed since v3 and replay overrides both — the author must hear.
-    contradicted = REPLAYED_PAGE.replace('id="opt-stage"', 'id="opt-stage" chosen')
-    with preview_server(
-        d, structure_model.SourceDocument(contradicted), 4
-    ) as preview_url:
-        failures = render_gate_model.render_version(browser, preview_url)
-    assert len(failures) == 2, failures
-    assert any("id=approach" in f and "opt-stage" in f for f in failures), failures
-    assert any("id=work" in f and "card-importer" in f for f in failures), failures
+    failures = preview(contradicted)
+    assert len(failures) == 1, failures
+    assert "id=approach" in failures[0] and "opt-stage" in failures[0], failures
 
 
 @pytest.mark.parametrize(

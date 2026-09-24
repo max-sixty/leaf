@@ -120,7 +120,17 @@ widget retires. Every action at the coordinate competes: a later action of the
 same verb on the same unit supersedes its prior answer, while another verb leaves
 it standing. Coordinates are independent, so a position record places its unit by a
 rank key rather than an index: the key means the same place whichever other units'
-moves stand, and undoing or superseding one unit's move never moves another.
+moves stand, and undoing or superseding one unit's move never moves another. The key
+lies among the container's authored units on the revision the move was made on,
+which admission records in order as `meaning.among`. The key places the unit while
+a revision authors that container the same way; a revision that authors it
+differently absorbs the move (`projection.move_absorbed`), and `version check`
+holds its markup, and every later revision's, to the move's container and to the
+nearest unit both revisions list before it unless the unit is `restated`. The
+absorbed move still stands, as a written-back pick does, and it can no longer be
+undone: the markup decides the order an undo would have restored. The door refuses
+a move made on an older revision whose container the newest one authors
+differently.
 
 Dependency identities come from the fold unit and the attribute-set and position
 record fields. Literal detail strings do not become dependencies by matching HTML ids. The log does not freeze ancestry:

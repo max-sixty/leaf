@@ -406,10 +406,10 @@ flowchart LR
           >
           <lf-note at="8"
             >The door derives <code>meaning</code> and refuses a sender that supplies
-            it. It keeps only what a reader without the registry could not recover: the
-            document the action was made in, its fold <code>unit</code>, the element ids
-            it <code>depends</code> on, and the child tag it
-            <code>creates</code>.</lf-note
+            it. It keeps only what a reader without the registry could not recover:
+            whether the action was made on the page or in a thread (<code>scope</code>),
+            its fold <code>unit</code>, the element ids it <code>depends</code> on, and
+            the child tag it <code>creates</code>.</lf-note
           >
           <lf-note at="9"
             >The door mints the eight-hex <code>id</code>; <code>seq</code> is the
@@ -420,7 +420,7 @@ flowchart LR
             <code>null</code> means it closes no thread; a group with a
             <code>resolves</code> attribute would name one here.</lf-note
           >
-          <lf-note at="27"
+          <lf-note at="24"
             >An undo names one gesture and nothing else. The folds drop the gesture it
             names, and both records stay in the log.</lf-note
           >

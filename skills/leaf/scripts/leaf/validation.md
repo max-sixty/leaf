@@ -91,7 +91,7 @@ made before the revision being checked. Actions made on that revision already sa
 its markup. After the observational probes, the complete-state renderer shows the
 authored baseline and the carried decisions, then restores current state. The gate
 reports only individual attributes or placement facts changed both by the author
-and by those carried decisions; another facet on the same element is independent.
+and by those carried decisions; another verb on the same element is independent.
 The runtime keeps no event-to-DOM write history for this check.
 
 Both gates serve their probe modules from the Leaf running the command and the

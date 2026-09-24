@@ -738,9 +738,7 @@ def test_a_held_inline_reply_reveal_yields_to_new_user_focus(browser, serve):
     expect(destination).not_to_have_class(re.compile(r"\bflash\b"))
 
 
-def test_inline_settlement_retains_focus_when_its_controls_are_replaced(
-    browser, serve
-):
+def test_inline_settlement_retains_focus_when_its_controls_are_replaced(browser, serve):
     """A page seat keeps focus through settlement when its controls are replaced."""
     page = open_page(
         browser,
@@ -2306,7 +2304,7 @@ def test_a_failed_reopen_reveal_still_processes_its_durable_answer(held_events, 
 def test_an_approval_made_elsewhere_reaches_the_panel_and_the_banner(browser, serve):
     """An accepted approval is a semantic fact, so it moves the epoch on its own.
 
-    Nothing else about this state read changes: no thread, no Ask, no widget facet, no
+    Nothing else about this state read changes: no thread, no Ask, no widget state, no
     pending gesture of this user's. The approval is another tab's, so there is no
     receipt to account and no ledger entry to remove — the two paints that show it have
     only the published fold to hear it from.
@@ -4971,8 +4969,8 @@ def test_a_settlement_in_a_reply_leaves_its_own_anchor_on_the_page(browser, serv
                 "author": "user",
                 "revision": 1,
                 "widget": wid,
-                "action": "accept",
-                "detail": {},
+                "action": "decide",
+                "detail": {"outcome": "accept"},
             },
         )
         page = open_page(browser, url)

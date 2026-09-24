@@ -406,7 +406,9 @@ const placements = {
 const scenarios = {
   accept: {
     reset(demo) {
-      demo.query("#bg-motion-accept").renderState({ settlement: { value: null } });
+      demo
+        .query("#bg-motion-accept")
+        .renderState({ decide: { action: null, value: null, detail: {} } });
     },
     async play(demo, generation) {
       await demo.arrive(generation);
@@ -419,7 +421,9 @@ const scenarios = {
       await demo.movePointer(accept, generation);
       await demo.wait(360, generation);
       await demo.press(generation);
-      suggestion.renderState({ settlement: { value: "accept" } });
+      suggestion.renderState({
+        decide: { action: "decide", value: "decide", detail: { outcome: "accept" } },
+      });
       await demo.waitFor(
         () => suggestion.dataset.lfState === "accept",
         "the suggestion did not settle",
@@ -430,9 +434,7 @@ const scenarios = {
   },
   "move-card": {
     reset(demo) {
-      demo
-        .query("#bg-motion-board")
-        .renderState({ placement: { value: placements.ready } });
+      demo.query("#bg-motion-board").renderState({ move: { value: placements.ready } });
     },
     async play(demo, generation) {
       await demo.arrive(generation);
@@ -445,7 +447,7 @@ const scenarios = {
       await demo.movePointer(grip, generation);
       await demo.press(generation);
       await demo.wait(480, generation);
-      board.renderState({ placement: { value: placements.tried } });
+      board.renderState({ move: { value: placements.tried } });
       await demo.waitFor(
         () => demo.query("#bg-motion-card").parentElement?.id === "bg-motion-tried",
         "the card did not move",

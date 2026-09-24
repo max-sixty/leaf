@@ -95,7 +95,7 @@ def _print_edits(events: list) -> None:
                     )
                 continue
             detail = " ".join(f"{k}={v}" for k, v in e["detail"].items())
-            verb = f"{e['action']} {detail}".strip()  # a bare reject carries no detail
+            verb = f"{e['action']} {detail}".strip()  # a bare answer carries no detail
             if e["kind"] == "report":
                 # A worker's provisional news is an outcome too, under its own name.
                 print(

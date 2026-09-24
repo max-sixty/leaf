@@ -18,7 +18,7 @@ import {
   whenApplicationPresented,
   whenWidgetsPresented,
 } from "./semantic-state.js";
-import { rememberAuthoredParents, stageAuthoredFacets } from "./projection/authored.js";
+import { rememberAuthoredParents, stageAuthoredStates } from "./projection/authored.js";
 import {
   commitWidgetDescriptors,
   stageWidgetDescriptors,
@@ -163,7 +163,7 @@ export async function installDocument(scope) {
     rememberPassageParts(scope);
     rememberAuthoredParents(scope);
     const descriptors = stageWidgetDescriptors(scope);
-    const authored = stageAuthoredFacets(scope, new Map());
+    const authored = stageAuthoredStates(scope, new Map());
     const prior = readApplication().document;
     applicationState.captureDocument({
       ...prior,

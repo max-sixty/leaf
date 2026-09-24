@@ -124,7 +124,7 @@ def event_threads(event: dict, roots: dict, widgets: dict) -> list:
     its frozen contract. An action also belongs to the conversation it settles,
     which admitted `meaning.answer` names — the same key `build_threads` folds on to close
     one. Those are usually different threads and often only the second exists: the
-    shipped settling verb is `lf-suggestion`'s accept, whose widget stands on the
+    shipped settling verb is `lf-suggestion`'s decide, whose widget stands on the
     page and in no conversation at all. Reading the widget alone left the gesture
     that closes a thread as the one gesture arriving with nothing behind it.
 
@@ -311,7 +311,7 @@ def batch_threads(events: list, batch: list, within: dict) -> list:
     told it was answered, and neither side can see the disagreement.
 
     The actions are unfolded because folding wants the declarations that say
-    what a verb's unit and facet are, and they need no window: thread markup is
+    what a verb's unit is, and they need no window: thread markup is
     frozen, so no version bounds it and no retraction floor reaches it, and undo
     is the whole of what unseats one."""
     roots = thread_roots(events)

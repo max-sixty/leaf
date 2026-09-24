@@ -980,7 +980,7 @@ customElements.define(
     }
 
     renderState(state) {
-      const units = state?.disposition?.units ?? {};
+      const units = state?.review?.units ?? {};
       for (const id of this.#caseEntries.keys())
         this.#setDisposition(id, units[id]?.detail?.disposition ?? null);
       this.#paintAvailability();

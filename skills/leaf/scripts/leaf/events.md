@@ -100,15 +100,17 @@ how they answer retries, and whether their anchors need file-side capture.
 Browser POSTs are commands. The append transaction stamps the accepted event with
 server-owned `meaning`; callers cannot send it, and retry identity
 compares the original command fields rather than this enrichment. Actions and
-reports record `document`, the `[owner, unit, facet]` coordinate, and `depends`,
+reports record `document`, the `[owner, unit, verb]` coordinate, and `depends`,
 the direct element identities named by declared state fields. Requests record
-their page-revision or frozen-thread document identity. A declared
-`x-awaits.answers` verb additionally records `answer`: a thread id closes that
-conversation, null states an answer that leaves it open, and an absent field is
-not an answer. Historical conversation folds use this coordinate even after its
-widget retires. Every action at the coordinate competes: a non-answer at that
-same coordinate supersedes its prior answer, while an independent facet leaves it
-standing.
+their page-revision or frozen-thread document identity. An action whose admission
+makes its widget's `x-awaits.answered` condition hold is that Ask's answer and
+additionally records `answer`: the widget's authored `resolves`, read from the
+sending document, names the thread the answer closes, and null answers without
+closing one; a decision whose outcome is the widget's `x-withdrawn-as` declines and
+closes none. Historical conversation folds use this coordinate even after its
+widget retires. Every action at the coordinate competes: a later action of the
+same verb on the same unit supersedes its prior answer, while another verb leaves
+it standing.
 
 Dependency identities come from the fold unit and the attribute-set and position
 record fields. Literal detail strings do not become dependencies by matching HTML ids. The log does not freeze ancestry:
@@ -159,11 +161,11 @@ for.
 When a reply carries a widget with a local `x-awaits` or `x-request.ask`
 request, the widget's standing projection or lifecycle declares the request
 instead; the CLI refuses a parallel `--awaits` flag on that markup. A frozen widget
-whose `x-awaits.until` applies keeps the user's Ask open until its declared
-completion verb stands. Interim actions have not been handed over: they carry no
-receipt and require no agent reply, and completion carries the receipt and hands the
-turn to the agent. Undoing that completion returns the Ask to the user and removes
-the reply obligation. A frozen widget move that answers no Ask, such as a card moved
+keeps the user's Ask open until its `x-awaits.answered` condition holds. Moves on its
+answering verbs before then have not been handed over: they carry no receipt and
+require no agent reply, and the move that answers carries the receipt and hands the
+turn to the agent. Undoing it returns the Ask to the user and removes the reply
+obligation. A frozen widget move that answers no Ask, such as a card moved
 on a board sent in a reply, keeps a delivery receipt and owes no reply, under the
 rule `workflows.py` states for page moves.
 

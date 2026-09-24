@@ -10,7 +10,7 @@ from leaf.files import (
 )
 from leaf.host import message_identity
 from leaf.leases import contract_writer
-from leaf.projection import folded_facet, markup_facet, page_reading
+from leaf.projection import folded_value, markup_value, page_reading
 from leaf.revisioning import activate_source
 from leaf.service import PageTransaction
 from leaf.validation.admission import read_text_arg
@@ -89,11 +89,11 @@ def _completed_work(
 
 def _settled_reports(projection, parser, spk: dict, registry: dict) -> list[str]:
     settled = []
-    for (_widget, unit, _facet), reports in projection.reports.items():
+    for (_widget, unit, _verb), reports in projection.reports.items():
         last, spec = reports[-1]
-        if unit in parser.overruled or markup_facet(
+        if unit in parser.overruled or markup_value(
             unit, spec, parser.by_id, spk, registry
-        ) == folded_facet(last, spec):
+        ) == folded_value(last, spec):
             settled.extend(report["id"] for report, _ in reports)
     return settled
 

@@ -45,7 +45,7 @@ def read_document(
     parser = document
     spk = page.spoken
     passages = page_passages(
-        document, registry, retirement_outcomes(projection.actions, registry)
+        document, registry, retirement_outcomes(projection.actions)
     )
     dropped = set(passages.retired) | set(passages.gone)
     requests = request_lifecycles_for(

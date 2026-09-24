@@ -191,8 +191,8 @@ say how the layer treats the tag — its content model, whether a module upgrade
 attributes the user sees as words, its action verbs and their record forms, whether it
 stands as one of the page's Asks. The merged registry's `$keys` entry defines each key,
 and `$state` defines each `x-state` verb member, including `creates` for user-added
-children and `completion` for a position move that answers an Ask only once it empties
-a queue. Every element declaration carries a
+children, while `$awaits` defines when a widget's Ask is answered. Every element
+declaration carries a
 non-empty `description`. Its first plain sentence identifies the widget's purpose; the
 rest explains its detailed contract. An entry's `x-example` must validate and is the
 markup an author queries with that entry.
@@ -238,18 +238,19 @@ since an unconditional `setAttribute` restates itself on every publication and
 hoisted chrome removed in `disconnectedCallback` when the owner disconnects;
 `commands()` at upgrade — through `DISCLOSE(el)` over anything that folds, the runtime
 owning those commands — `quoted()` before wiring input, controller command availability
-for an x-state verb with `requires`, and durable state in attributes because export drops the
+before an optimistic gesture, and durable state in attributes because export drops the
 scripts. A widget that must finish asynchronous content or unwind live-only structure
 before those scripts leave implements `lfPrepareExport()`; it may finish synchronously
 or return the promise the exporter must await.
 
-`renderState` receives every declared facet, including the initial values an undo
-returns to. Widget facets are `{action, value, detail}`: `action` is null for authored
-state; `value` is the typed record value or a recordless outcome verb (null means
-undecided); `detail` retains generated-child labels and other declared event data.
-Non-widget facets contain `units`, keyed by unit id, and position facets also contain
-`value`, a map from container id to the complete ordered ids it holds. Missing
-recordless units are undecided. Render the final composition and keep independent
+`renderState` receives the state of every declared verb, keyed by verb name, including
+the initial values an undo returns to. A widget-unit verb's state is `{action, value,
+detail}`: `action` is null for authored state; `value` is the typed record value, or
+the verb's name for a recordless verb that stands (null means undecided); `detail`
+retains generated-child labels and other declared event data. A per-part verb's state
+contains `units`, keyed by unit id, and a position verb's also contains `value`, a map
+from container id to the complete ordered ids it holds. Missing recordless units are
+undecided. Render the final composition and keep independent
 nested widgets mounted; never recreate the owner to restore an initial state.
 The controller ignores the renderer's return value. A live editor or pointer/keyboard
 rearrangement calls `controller.defer()` before its first local DOM mutation and invokes
@@ -525,8 +526,8 @@ door, folds the log into current state, gives that state to the module, and list
 for the agent under `state` in `leaf page state`.
 
 The swipe package is a small complete example. `packages/swipe/registry.json`
-declares two verbs on `lf-swipe-deck`, and `widgets/lf-swipe-deck.js` subscribes to and
-dispatches them. The `swipe` verb, without its `requires`:
+declares one verb on `lf-swipe-deck` and the condition that answers its Ask, and
+`widgets/lf-swipe-deck.js` subscribes to and dispatches it:
 
 ```json
 {
@@ -542,44 +543,60 @@ dispatches them. The `swipe` verb, without its `requires`:
         "required": ["card", "to", "index"],
         "additionalProperties": false
       },
-      "facet": "verdict",
       "unit": "card",
       "record": { "kind": "position", "within": "lf-swipe-pile", "value": "to", "order": "index" }
+    }
+  },
+  "x-awaits": {
+    "region": true,
+    "answered": {
+      "swipe": { "empty": { "within": "lf-swipe-pile", "when": { "verdict": ["unseen"] } } }
     }
   }
 }
 ```
 
-`detail` is the JSON Schema every event of that verb must satisfy. The owning element,
-the `unit`, and the `facet` together form the fold coordinate. At each coordinate the
-latest surviving action stands, and different coordinates stand side by side. Swiping a
-card again therefore replaces that card's earlier verdict, while verdicts on different
-cards coexist. `unit` is `"widget"` for a verb that states the whole widget's value at
-once, or the detail field naming the element it is per. `record` says how the standing
-state reads in markup: here, the card's position inside a pile. The agent's next
-version writes that state back, and `version check` refuses a version that contradicts
-it without `restated`. The `$keys` entries in `assets/registry.json` define each key
-exactly.
+`detail` is the JSON Schema every event of that verb must satisfy. Each verb is its own
+piece of state: the owning element, the `unit`, and the verb together form the fold
+coordinate. At each coordinate the latest surviving action stands, and different
+coordinates stand side by side. Swiping a card again therefore replaces that card's
+earlier verdict, while verdicts on different cards coexist. `unit` is `"widget"` for a
+verb that states the whole widget's value at once, or the detail field naming the
+element it is per. `record` says how the standing state reads in markup: here, the
+card's position inside a pile. The agent's next version writes that state back, and
+`version check` refuses a version that contradicts it without `restated`. The `$keys`
+entries in `assets/registry.json` define each key exactly.
+
+`x-awaits.answered` says when the widget's Ask is answered, as a condition on that
+standing state for each verb that can answer it. `{}` holds while the verb's state
+stands, `when` narrows a verb to instances with matching attributes, and `empty` holds
+while the named container inside the widget has no members. Here the deck is answered
+once its `unseen` pile is empty, so the swipe that empties it is the answer and
+returning any card reopens the Ask. The one-line forms elsewhere follow the same
+shape: `"answered": {"edit": {}}` answers a draft once an edit stands, and
+`"answered": {"choose": {"when": {"multiple": [false]}}, "answer": {"when":
+{"multiple": [true]}}}` answers a single-choice group by its pick and a `multiple` group
+by its Done press.
 
 The module reads and writes through `widgetController(owner)`, described under "A
 widget": `subscribe` delivers the authored baseline with the fold applied, and
 `dispatch({kind: "action", verb, detail})` sends a gesture whose result is on screen
 before the server admits it.
 
-A verb may add `requires`, a prerequisite on the widget's Ask, and `completion`, which
-answers that Ask when a move empties a container. A verb that lets the user add a real child declares `creates: {child, words}`.
+A verb that lets the user add a real child declares `creates: {child, words}`.
 Its fold unit names the detail field carrying the new child's canonical element id,
 `words` names the field carrying its non-empty words, and the detail holds exactly those
 two required fields with no record form. Each added child therefore stands on its own
-coordinate: a later action on another facet leaves it in place, and undoing the `add`
+coordinate: a later action of another verb leaves it in place, and undoing the `add`
 removes it. The child tag admits the sender through `x-owners`, requires only its
 canonical `id`, and has `x-content: markup`. The append door refuses an id the sending
 document already holds, and version checks enforce the declared tag and
 direct-ownership relation once an author writes the child into the markup.
 
 `x-report` declares the agent's side of the same coordinates: a worker posts a report
-with `leaf report`, and it stands until a version answers it. A user's action at the
-same coordinate outranks it.
+with `leaf report`, and it stands until a version answers it. A report verb that shares
+its name with an `x-state` verb states the same fact, and a user's action at that
+coordinate outranks it.
 
 ## External requests and receipts
 

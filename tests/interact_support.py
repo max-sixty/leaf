@@ -443,22 +443,32 @@ def publish(d, version=1):
     )
 
 
-def let_a_pick_settle_a_thread(page_dir):
-    """Declare `resolves` on `lf-options`' `choose`, before the page publishes.
+def let_a_pick_settle_a_thread(page_dir, thread):
+    """Declare `resolves` on `lf-options` and point the page's `picks` group at
+    `thread`, before the page publishes.
 
     A settling answer rests on its widget and on the ids that widget's detail
     names inside itself, so a version rewriting one of those takes the answer
-    back. Nothing shipped exercises both halves: of every verb in an
-    `x-awaits.answers` list, only `lf-suggestion`'s `accept` declares a
-    `resolves` detail, and its answer rests on the widget alone. A test of the
-    two together declares the verb it needs on the page it is about to publish,
-    which is where the append door reads the vocabulary that admits an action.
+    back. Nothing shipped exercises both halves: only `lf-suggestion` declares
+    `resolves`, and its answer rests on the widget alone. A test of the two
+    together declares the attribute it needs on the page it is about to publish,
+    which is where the append door reads the vocabulary and the markup that
+    admit an action.
     """
     registry = files_model.read_json(page_dir / "registry.json")
-    registry["lf-options"]["x-state"]["choose"]["detail"]["properties"]["resolves"] = {
-        "type": "string"
-    }
+    registry["lf-options"]["properties"]["resolves"] = {"type": "string"}
     files_model.write_json(page_dir / "registry.json", registry)
+    # An Ask, so a pick answers it; the markup already records that pick, so the
+    # answer owes no version of its own and only the thread is left to settle.
+    source = page_dir / "index.html"
+    source.write_text(
+        source.read_text()
+        .replace(
+            '<lf-options id="picks">',
+            f'<lf-options id="picks" choose resolves="{thread}">',
+        )
+        .replace('<lf-option id="flag-first">', '<lf-option id="flag-first" chosen>')
+    )
 
 
 def stamp(d, text="stamped", completes=()):
@@ -554,8 +564,8 @@ def decide(page_dir, outcome, widget="sug-refill"):
             "author": "user",
             "revision": files_model.latest_revision(page_dir),
             "widget": widget,
-            "action": outcome,
-            "detail": {},
+            "action": "decide",
+            "detail": {"outcome": outcome},
         },
     )
 
@@ -653,7 +663,7 @@ def owed(state):
 # A question and the accept that answers it, written as a stored log holds them:
 # ids of their own and the `meaning` admission stamped on the action. For a test
 # that needs an answered thread in a page directory and is about something else —
-# what a floored widget retracts, what a second facet joins — so the pair is
+# what a floored widget retracts, what a second verb joins — so the pair is
 # premise rather than subject. A test whose subject is the settlement states its
 # page and its log instead, and lets the door derive the meaning.
 COMMENT = {"kind": "comment", "id": "c1", "author": "user", "text": "cameras are flaky"}
@@ -662,11 +672,11 @@ ACCEPT = {
     "author": "user",
     "revision": 1,
     "widget": "sug-a",
-    "action": "accept",
-    "detail": {"resolves": "c1"},
+    "action": "decide",
+    "detail": {"outcome": "accept"},
     "meaning": {
         "document": {"kind": "page", "revision": 1},
-        "coordinate": ["sug-a", "sug-a", "settlement"],
+        "coordinate": ["sug-a", "sug-a", "decide"],
         "depends": ["sug-a"],
         "answer": "c1",
     },
@@ -754,7 +764,6 @@ def _report_says_attr(registry):
             "required": ["owner"],
             "additionalProperties": False,
         },
-        "facet": "status",
         "unit": "widget",
         "record": {"kind": "value", "attr": "owner", "value": "owner"},
     }
@@ -804,6 +813,19 @@ ADOPTED = '<p id="cache-hourly">Rebuild the cache each hour.</p>'
 SHELVED = '<p id="log-daily">Logs roll over at midnight.</p>'
 
 
+def deciding_verb(outcomes):
+    """The one verb whose `outcome` settles which of a holder's slots retire."""
+    return {
+        "detail": {
+            "type": "object",
+            "properties": {"outcome": {"enum": outcomes}},
+            "required": ["outcome"],
+            "additionalProperties": False,
+        },
+        "unit": "widget",
+    }
+
+
 def trial_version(*markup):
     return PAGE.replace("<lf-options>", "\n".join([*markup, "<lf-options>"]))
 
@@ -829,18 +851,13 @@ def trial_page(tmp_path, monkeypatch):
 
     source = tmp_path / ".leaf" / "registry.json"
     declarations = json.loads(source.read_text())
-    verb = {
-        "detail": {"type": "object", "additionalProperties": False},
-        "facet": "settlement",
-        "unit": "widget",
-    }
-    for tag, state, example in (
-        ("lf-trial", ("adopt", "shelve"), TRIAL_CACHE),
-        ("lf-pilot", ("run", "shelve"), PILOT_PURGE),
+    for tag, outcomes, example in (
+        ("lf-trial", ["adopt", "shelve"], TRIAL_CACHE),
+        ("lf-pilot", ["run", "shelve"], PILOT_PURGE),
     ):
         declarations[tag] |= {
             "x-content": "members",
-            "x-state": {name: dict(verb) for name in state},
+            "x-state": {"decide": deciding_verb(outcomes)},
             "x-example": example,
         }
         declarations[tag]["properties"]["restated"] = {"type": "boolean"}

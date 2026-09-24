@@ -17,6 +17,7 @@ from .contract import (
     visual_part_attribute,
 )
 from .state import (
+    validate_deciding_verb,
     validate_widget_record_contracts,
     validate_widget_retirement,
     validate_widget_state_relations,
@@ -254,6 +255,7 @@ def validate_widget_relations(
         validate_widget_record_contracts(
             tag, entry, properties, said, registry, declarations, path
         )
+        validate_deciding_verb(tag, entry, path)
         validate_widget_retirement(tag, entry, slots, declarations, path)
 
 
@@ -517,7 +519,10 @@ def _validate_widget_predicates(tag: str, entry: dict, properties: dict, path) -
             )
     conditions = [
         ("x-awaits", awaits.get("when", {})),
-        ("x-awaits", awaits.get("until", {}).get("when", {})),
+        *(
+            ("x-awaits", condition.get("when", {}))
+            for condition in awaits.get("answered", {}).values()
+        ),
         ("x-conversation", entry.get("x-conversation", {}).get("when", {})),
         ("x-work", entry.get("x-work", {}).get("when", {})),
     ]
@@ -612,9 +617,7 @@ def _validate_widget_interactions(
             f"{path}: <{tag}> declares a conversation work seat but declares "
             "no x-conversation"
         )
-    # A blanket answer is one of this widget's own verbs, so the log records it
-    # the way every other decision is recorded.
-    answers = awaits.get("answers", [])
+    answered = awaits.get("answered", {})
     if awaits.get("rollup"):
         local_fields = sorted(set(awaits) - {"rollup"})
         if local_fields:
@@ -622,35 +625,18 @@ def _validate_widget_interactions(
                 f"{path}: <{tag}> x-awaits rollup also declares local Ask "
                 f"fields {local_fields}"
             )
-    elif entry.get("x-awaits") is not None and not answers:
+    elif entry.get("x-awaits") is not None and not answered:
         raise RegistryError(
-            f"{path}: <{tag}> x-awaits local Ask declares no answer verbs"
+            f"{path}: <{tag}> x-awaits local Ask declares no `answered` condition"
         )
-    if unknown := sorted(set(answers) - set(entry.get("x-state", {}))):
+    if unknown := sorted(set(answered) - set(entry.get("x-state", {}))):
         raise RegistryError(
-            f"{path}: <{tag}> x-awaits names undeclared answer verbs {unknown}"
+            f"{path}: <{tag}> x-awaits answers with undeclared x-state verbs {unknown}"
         )
     if awaits.get("rollup") and "id" not in entry.get("required", []):
         raise RegistryError(
             f"{path}: <{tag}> x-awaits rollup through descendants does "
             "not require an id"
-        )
-    if (blanket := awaits.get("all")) and blanket not in entry.get("x-state", {}):
-        raise RegistryError(
-            f"{path}: <{tag}> x-awaits answers every one at once with "
-            f"`{blanket}`, which it does not declare as an x-state verb"
-        )
-    if blanket and blanket not in answers:
-        raise RegistryError(
-            f"{path}: <{tag}> x-awaits blanket verb `{blanket}` is not one of "
-            "its answer verbs"
-        )
-    # The until verb closes an Ask, so it too is one of the widget's own
-    # verbs — same rule as `all`, same reason.
-    if (until := awaits.get("until")) and until["verb"] not in entry.get("x-state", {}):
-        raise RegistryError(
-            f"{path}: <{tag}> x-awaits holds Asks open until `{until['verb']}`, "
-            "which it does not declare as an x-state verb"
         )
     needs_upgrade = [
         key

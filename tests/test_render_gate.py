@@ -750,11 +750,11 @@ def test_every_restore_case_a_user_can_return_to_is_arrived_in(browser, serve):
                 "author": "user",
                 "revision": 1,
                 "widget": "sug-rewrite",
-                "action": "accept",
-                "detail": {},
+                "action": "decide",
+                "detail": {"outcome": "accept"},
                 "meaning": {
                     "document": {"kind": "page", "revision": 1},
-                    "coordinate": ["sug-rewrite", "sug-rewrite", "settlement"],
+                    "coordinate": ["sug-rewrite", "sug-rewrite", "decide"],
                     "depends": ["sug-rewrite"],
                     "answer": None,
                 },
@@ -1746,7 +1746,6 @@ def _author_stateful_verbatim_widget(tmp_path):
                 "required": ["value"],
                 "additionalProperties": False,
             },
-            "facet": "user",
             "unit": "widget",
             "record": {"kind": "value", "attr": "user", "value": "value"},
         }
@@ -1759,7 +1758,6 @@ def _author_stateful_verbatim_widget(tmp_path):
                 "required": ["value"],
                 "additionalProperties": False,
             },
-            "facet": "agent",
             "unit": "widget",
             "record": {"kind": "value", "attr": "agent", "value": "value"},
         }
@@ -1773,7 +1771,7 @@ def _author_stateful_verbatim_widget(tmp_path):
         "  connectedCallback() { once(this); this.stop ??= this.controller.subscribe(() => {}); }\n"
         "  disconnectedCallback() { this.stop?.(); this.stop = null; }\n"
         "  renderState(state) {\n"
-        '    if (state.user.value === "corrupt" || state.agent.value === "corrupt")\n'
+        '    if (state.change.value === "corrupt" || state.status.value === "corrupt")\n'
         '      this.querySelector("p").textContent = "State replaced unrelated prose.";\n'
         "  }\n"
         "});\n"
@@ -1850,8 +1848,8 @@ def test_projected_rewrite_retirement_and_undo_are_honest_verbatim_changes(
             "author": "user",
             "revision": 1,
             "widget": "retired",
-            "action": "accept",
-            "detail": {},
+            "action": "decide",
+            "detail": {"outcome": "accept"},
         },
     )
     withdrawn = append_command(
@@ -1861,8 +1859,8 @@ def test_projected_rewrite_retirement_and_undo_are_honest_verbatim_changes(
             "author": "user",
             "revision": 1,
             "widget": "undone",
-            "action": "accept",
-            "detail": {},
+            "action": "decide",
+            "detail": {"outcome": "accept"},
         },
     )
     events_model.append_event(
@@ -1908,7 +1906,7 @@ def test_a_child_action_does_not_excuse_its_verbatim_wrappers_prose(
         "  connectedCallback() { once(this); this.stop ??= this.controller.subscribe(() => {}); }\n"
         "  disconnectedCallback() { this.stop?.(); this.stop = null; }\n"
         "  renderState(state) {\n"
-        '    if (state.user.value === "corrupt")\n'
+        '    if (state.change.value === "corrupt")\n'
         '      this.closest("lf-shell").querySelector(":scope > p").textContent = '
         '"Child state replaced wrapper prose.";\n'
         "  }\n"
@@ -3858,7 +3856,7 @@ def test_the_gate_replays_a_decision_made_on_a_widget_no_version_holds(browser, 
     resized(page, 1280, 900)
     standing = page.evaluate(
         "async () => (await window.__lfRuntimeImport('/runtime/validation.js')).validationWidgetStates()"
-        ".flatMap(({widget, state}) => Object.values(state).map(facet => [widget.id, facet.action]))"
+        ".flatMap(({widget, state}) => Object.values(state).map(standing => [widget.id, standing.action]))"
     )
     assert ["an-set", "choose"] in standing and ["an-set", "answer"] in standing, (
         f"the user's decisions are not among what the runtime hands the gate: "

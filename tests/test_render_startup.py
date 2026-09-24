@@ -1112,8 +1112,8 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
             "author": "user",
             "revision": 1,
             "widget": "sug",
-            "action": "accept",
-            "detail": {},
+            "action": "decide",
+            "detail": {"outcome": "accept"},
         },
     )
     append_command(
@@ -1346,8 +1346,8 @@ def test_a_current_auxiliary_choice_replaces_a_persisted_tray_during_replay(
             "author": "user",
             "revision": 1,
             "widget": "sug",
-            "action": "accept",
-            "detail": {},
+            "action": "decide",
+            "detail": {"outcome": "accept"},
         },
     )
     context = browser.new_context(viewport={"width": 1200, "height": 900})
@@ -1455,8 +1455,8 @@ def test_a_startup_failure_keeps_authored_page_readable(browser, serve):
             "author": "user",
             "revision": 1,
             "widget": "sug",
-            "action": "accept",
-            "detail": {},
+            "action": "decide",
+            "detail": {"outcome": "accept"},
         },
     )
     page = browser.new_page(viewport={"width": 1200, "height": 900})
@@ -1546,8 +1546,8 @@ def test_a_malformed_first_state_keeps_interaction_unresolved(browser, serve):
             "author": "user",
             "revision": 1,
             "widget": "sug",
-            "action": "accept",
-            "detail": {},
+            "action": "decide",
+            "detail": {"outcome": "accept"},
         },
     )
     page = browser.new_page(viewport={"width": 1200, "height": 900})
@@ -1829,7 +1829,8 @@ def test_accepting_a_suggestion_resolves_its_thread_in_one_event(browser, serve)
         json.loads(line) for line in (d / "events.jsonl").read_text().splitlines()
     ]
     accept = next(e for e in events if e.get("kind") == "action")
-    assert accept["action"] == "accept" and accept["detail"] == {"resolves": "c1"}
+    assert accept["action"] == "decide" and accept["detail"] == {"outcome": "accept"}
+    assert accept["meaning"]["answer"] == "c1"
     assert not any(e.get("kind") == "resolve" for e in events)
 
 
@@ -1875,8 +1876,8 @@ def test_the_thread_follows_the_decision_that_still_stands(browser, serve):
             "author": "user",
             "revision": 1,
             "widget": "sug-fix",
-            "action": "reject",
-            "detail": {},
+            "action": "decide",
+            "detail": {"outcome": "reject"},
         },
     )
     told(page)
@@ -1896,7 +1897,7 @@ def test_the_thread_follows_the_decision_that_still_stands(browser, serve):
     # What the log holds is the three gestures and not one word about the thread:
     # it was reopened and closed again by that log being read.
     assert [
-        e.get("action", e["kind"])
+        e["detail"]["outcome"] if e["kind"] == "action" else e["kind"]
         for e in events_model.read_events(d)
         if e["kind"] in ("action", "undo", "resolve", "unresolve")
     ] == ["accept", "reject", "undo"]

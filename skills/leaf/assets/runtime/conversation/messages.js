@@ -11,7 +11,7 @@ import { isReaction, moved } from "./model.js";
 import { tokenEntry } from "../registry.js";
 import {
   rememberAuthoredParents,
-  stageAuthoredFacets,
+  stageAuthoredStates,
 } from "../projection/authored.js";
 import { stageWidgetDescriptors } from "../widget-descriptors.js";
 import { strongestWorkflow, workflowLabel, workflowTitle } from "./workflow.js";
@@ -95,7 +95,7 @@ export function prepareAuthoredMessage(message, thread) {
       thread,
       message: message.id,
     });
-    const authored = stageAuthoredFacets(template.content, new Map());
+    const authored = stageAuthoredStates(template.content, new Map());
     rememberPassageParts(template.content, ["event", message.id]);
     const nodes = Object.freeze([...template.content.childNodes]);
     authoredMessages.set(key, {

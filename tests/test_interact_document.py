@@ -1623,8 +1623,8 @@ def test_the_live_source_can_honor_the_latest_revision_decision(page_dir):
             "author": "user",
             "revision": 3,
             "widget": "sug-refill",
-            "action": "accept",
-            "detail": {},
+            "action": "decide",
+            "detail": {"outcome": "accept"},
         },
     )
 
@@ -3580,7 +3580,7 @@ def test_check_reports_a_measurement_whose_source_ran_again(page_dir):
 
 
 def test_file_state_scopes_a_nested_pick_to_its_nearest_recorded_owner(page_dir):
-    """The file-side facet is the runtime's same ownership reading. An inner chosen
+    """The file-side record is the runtime's same ownership reading. An inner chosen
     option is not part of the outer group's record; a nested decision does not
     change the outer user choice."""
     nested = """<lf-ask id="outer-decision"><h3>Which outer choices?</h3>
@@ -3672,7 +3672,6 @@ def test_page_state_folds_the_log_onto_the_published_page(page_dir):
         {
             "widget": "g1",
             "unit": "g1",
-            "facet": "selection",
             "action": "choose",
             "detail": {"options": ["o-shim"]},
             "revision": 1,
@@ -3698,11 +3697,9 @@ def test_page_state_folds_the_log_onto_the_published_page(page_dir):
             "detail": {},
         },
     )
-    assert [
-        (item["facet"], item["action"]) for item in state_json(page_dir)["state"]
-    ] == [
-        ("completion", "answer"),
-        ("selection", "choose"),
+    assert [item["action"] for item in state_json(page_dir)["state"]] == [
+        "answer",
+        "choose",
     ]
 
 
@@ -5343,7 +5340,7 @@ def test_projected_verbatim_scopes_page_state_to_here_and_thread_state_to_its_lo
             "x-verbatim": True,
             "x-state": {
                 "edit": {
-                    "facet": "body",
+                    "detail": {"type": "object"},
                     "unit": "widget",
                     "record": {"kind": "body", "value": "text"},
                 }
@@ -5363,7 +5360,7 @@ def test_projected_verbatim_scopes_page_state_to_here_and_thread_state_to_its_lo
             "action": "edit",
             "detail": {"text": text},
             "meaning": {
-                "coordinate": [identity, identity, "body"],
+                "coordinate": [identity, identity, "edit"],
                 "depends": [identity],
                 "answer": None,
                 "document": {"kind": "page", "revision": 2},
@@ -5409,7 +5406,7 @@ def test_projected_verbatim_includes_generated_children():
             "x-verbatim": True,
             "x-state": {
                 "add": {
-                    "facet": "items",
+                    "detail": {"type": "object"},
                     "unit": "item",
                     "creates": {"child": "lf-item", "words": "text"},
                 }
@@ -5427,7 +5424,7 @@ def test_projected_verbatim_includes_generated_children():
         "action": "add",
         "detail": {"item": "new-item", "text": "Generated item."},
         "meaning": {
-            "coordinate": ["list", "new-item", "items"],
+            "coordinate": ["list", "new-item", "add"],
             "depends": ["list", "new-item"],
             "creates": "lf-item",
             "document": {"kind": "page", "revision": 1},

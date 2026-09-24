@@ -656,6 +656,34 @@ pick before Done:
         the same widget carries the answer, or it does not finish the answer yet,
         such as a pick before the Done its group waits for.
 
+decided suggestion:
+  event:
+    kind: action
+    action: decide
+    meaning:
+      document:
+        kind: page
+    obligation:
+      response:
+        kind: markup
+  told:
+    - text: >-
+        The user already sees the action applied.
+    - when: {"required": ["action"], "properties": {"action": {"const": "decide"}}}
+      text: >-
+        The user decided a suggestion, and `detail.outcome` says which way: `accept`
+        keeps the lf-new branch and `reject` keeps the lf-old branch. The next version
+        writes the kept branch in as settled prose with its ids and drops the suggestion.
+    - when: {"not": {"required": ["meaning"], "properties": {"meaning": {"required": ["document"], "properties": {"document": {"required": ["kind"], "properties": {"kind": {"const": "thread"}}}}}}}}
+      text: >-
+        If you need clarification, ask in a thread on the picked option. To override
+        the pick in a later version, mark the element `restated` and say why in
+        the version note.
+    - text: >-
+        It answers the page's Ask, so the page shows it as waiting on you until
+        the markup records it. Continue the work it selects or unblocks, then write
+        it in and stamp a version.
+
 pick inside a thread:
   event:
     kind: action

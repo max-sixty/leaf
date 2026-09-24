@@ -1299,7 +1299,7 @@ customElements.define("lf-offline-test", class extends LitElement {
   }
 
   render() {
-    const choice = this.reading.state.choice?.value ?? this.getAttribute("choice");
+    const choice = this.reading.state.choose?.value ?? this.getAttribute("choice");
     const action = this.reading.actions.choose;
     const request = this.reading.requests.run;
     const unavailable = action.unavailable ?? request.unavailable;
@@ -1343,7 +1343,6 @@ OFFLINE_REGISTRY = {
                     "required": ["choice"],
                     "additionalProperties": False,
                 },
-                "facet": "choice",
                 "unit": "widget",
                 "record": {"kind": "value", "attr": "choice", "value": "choice"},
             }
@@ -2440,7 +2439,7 @@ OPEN_EDIT = {
     "detail": {"text": "The sample workshop is in the red room."},
     "meaning": {
         "document": {"kind": "page", "revision": 1},
-        "coordinate": ["d-open", "d-open", "body"],
+        "coordinate": ["d-open", "d-open", "edit"],
         "depends": ["d-open"],
         "answer": None,
     },

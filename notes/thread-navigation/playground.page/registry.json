@@ -24,9 +24,9 @@
     "x-upgrade": true,
     "x-awaits": {
       "region": true,
-      "answers": [
-        "choose"
-      ]
+      "answered": {
+        "choose": {}
+      }
     },
     "x-state": {
       "choose": {
@@ -67,7 +67,6 @@
           ],
           "additionalProperties": false
         },
-        "facet": "configuration",
         "unit": "widget"
       }
     }

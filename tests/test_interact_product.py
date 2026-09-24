@@ -1412,7 +1412,7 @@ def test_export_prints_threads_and_versions(page_dir):
             "detail": {"card": "card-x", "to": "col-done", "index": 0},
             "meaning": {
                 "document": {"kind": "page", "revision": 1},
-                "coordinate": ["b", "card-x", "position"],
+                "coordinate": ["b", "card-x", "move"],
                 "depends": ["b", "card-x", "col-done"],
             },
         },

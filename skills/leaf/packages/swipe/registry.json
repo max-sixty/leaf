@@ -1,6 +1,6 @@
 {
   "lf-swipe-deck": {
-    "description": "One rapid pass-or-keep classification Ask. Put it inside lf-ask, whose heading becomes the deck's accessible name. Cards begin in the `unseen` pile; the user sends each active card to the `pass` or `keep` pile with the labeled buttons, ArrowLeft/ArrowRight, or a horizontal pointer swipe. A classified card's Return to queue button withdraws that classification, including after completion, when returning any card reopens the Ask. Intermediate classifications reach the agent as absolute `swipe` actions; the final one is a `finish` action with the same position record, and that verb completes the Ask only when its recorded move leaves `unseen` empty. Children are exactly one lf-swipe-pile for each verdict. Re-emit the authored starting order unchanged on later versions: recorded classifications carry forward by card id. A rewrite that invalidates a classification takes `restated` on that card, and one that invalidates the completed deck takes it on the deck (see `$restated` in `registry.json`).",
+    "description": "One rapid pass-or-keep classification Ask. Put it inside lf-ask, whose heading becomes the deck's accessible name. Cards begin in the `unseen` pile; the user sends each active card to the `pass` or `keep` pile with the labeled buttons, ArrowLeft/ArrowRight, or a horizontal pointer swipe. A classified card's Return to queue button withdraws that classification, including after completion, when returning any card reopens the Ask. Each classification reaches the agent as an absolute `swipe` action, and the Ask is answered once `unseen` is empty, so the swipe that empties it answers. Children are exactly one lf-swipe-pile for each verdict. Re-emit the authored starting order unchanged on later versions: recorded classifications carry forward by card id. A rewrite that invalidates a classification takes `restated` on that card, and one that invalidates the completed deck takes it on the deck (see `$restated` in `registry.json`).",
     "type": "object",
     "properties": {
       "id": {
@@ -45,57 +45,7 @@
           ],
           "additionalProperties": false
         },
-        "facet": "verdict",
         "unit": "card",
-        "requires": {
-          "target": "self",
-          "awaiting": true
-        },
-        "record": {
-          "kind": "position",
-          "within": "lf-swipe-pile",
-          "value": "to",
-          "order": "index"
-        }
-      },
-      "finish": {
-        "detail": {
-          "type": "object",
-          "properties": {
-            "card": {
-              "type": "string"
-            },
-            "to": {
-              "type": "string"
-            },
-            "index": {
-              "type": "integer",
-              "minimum": 0
-            }
-          },
-          "required": [
-            "card",
-            "to",
-            "index"
-          ],
-          "additionalProperties": false
-        },
-        "facet": "verdict",
-        "unit": "card",
-        "requires": {
-          "target": "self",
-          "awaiting": true
-        },
-        "completion": {
-          "empty": {
-            "within": "lf-swipe-pile",
-            "when": {
-              "verdict": [
-                "unseen"
-              ]
-            }
-          }
-        },
         "record": {
           "kind": "position",
           "within": "lf-swipe-pile",
@@ -106,9 +56,18 @@
     },
     "x-awaits": {
       "region": true,
-      "answers": [
-        "finish"
-      ]
+      "answered": {
+        "swipe": {
+          "empty": {
+            "within": "lf-swipe-pile",
+            "when": {
+              "verdict": [
+                "unseen"
+              ]
+            }
+          }
+        }
+      }
     },
     "x-example": "<lf-ask id=\"session-triage-decision\">\n  <h2>Which session-store follow-ups should we keep?</h2>\n  <lf-swipe-deck id=\"session-triage\">\n    <lf-swipe-pile id=\"session-queue\" verdict=\"unseen\">\n      <lf-swipe-card id=\"session-expiry\"><strong>Rolling expiry writes</strong><p>Move expiry refreshes off the request hot path.</p></lf-swipe-card>\n    </lf-swipe-pile>\n    <lf-swipe-pile id=\"session-pass\" verdict=\"pass\"></lf-swipe-pile>\n    <lf-swipe-pile id=\"session-keep\" verdict=\"keep\"></lf-swipe-pile>\n  </lf-swipe-deck>\n</lf-ask>"
   },

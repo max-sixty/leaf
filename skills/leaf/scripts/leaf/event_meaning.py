@@ -5,6 +5,8 @@ projection tests those identities against the document it reads, so moving a
 referenced element still changes containment without changing an old event.
 """
 
+from leaf.asks import answer_verbs, answering_action
+from leaf.projection import frozen_thread_reading, page_reading
 from leaf.thread_context import thread_structure
 
 
@@ -33,18 +35,52 @@ def state_meaning(event: dict, entry: dict, document: dict) -> dict:
     owner, unit = dependencies[:2]
     meaning = {
         "document": document,
-        "coordinate": [owner, unit, spec["facet"]],
+        "coordinate": [owner, unit, event["action"]],
         "depends": sorted(set(dependencies)),
     }
     # A created child's unit is new, so no document may yet hold it. Stamping its
     # tag lets registry-free readers keep the action resting on it regardless.
     if creates := spec.get("creates"):
         meaning["creates"] = creates["child"]
-    if event["kind"] == "action" and event["action"] in entry.get("x-awaits", {}).get(
-        "answers", []
-    ):
-        meaning["answer"] = event["detail"].get("resolves")
     return meaning
+
+
+def answer_meaning(
+    sender, record: dict, event: dict, events: list, registry: dict
+) -> tuple[bool, str | None]:
+    """Whether this admitted action answers its widget's Ask, and the thread it closes.
+
+    The answering action is the one whose admission makes the Ask's declared state
+    condition hold, so it is read with the candidate standing in the fold of its own
+    document. The thread it closes is the widget's authored `resolves`, read from the
+    immutable document that sent it rather than carried in the command. A decision
+    whose outcome is the widget's `x-withdrawn-as` leaves the page as if nothing had
+    been proposed, so it answers the Ask and closes no thread: turning a fix down
+    leaves the question it was written for open."""
+    entry = registry[record["tag"]]
+    if event["kind"] != "action" or event["action"] not in answer_verbs(entry):
+        return False, None
+    withdrawn = entry.get("x-withdrawn-as")
+    declined = withdrawn is not None and event["detail"].get("outcome") == withdrawn
+    window = [*events, {**event, "id": "pending", "seq": len(events) + 1}]
+    if event["meaning"]["document"]["kind"] == "page":
+        reading = page_reading(sender, window, registry, event["revision"])
+        projection, byid, spk = reading.projection, sender.by_id, reading.spoken
+    else:
+        reading = frozen_thread_reading(window, registry)
+        projection, byid, spk = reading.projection, reading.by_id, reading.spoken
+    return (
+        answering_action(
+            byid[event["widget"]],
+            entry,
+            event["action"],
+            projection,
+            byid,
+            spk,
+            registry,
+        ),
+        None if declined else record["attrs"].get("resolves"),
+    )
 
 
 def request_unit(event: dict, spec: dict) -> str:
@@ -69,6 +105,9 @@ def admit_widget_event(sender, event: dict, events: list, registry: dict) -> dic
         admitted["meaning"] = {"document": document, "unit": unit}
     else:
         admitted["meaning"] = state_meaning(event, entry, document)
+        answers, closes = answer_meaning(sender, record, admitted, events, registry)
+        if answers:
+            admitted["meaning"]["answer"] = closes
     return admitted
 
 
@@ -85,7 +124,9 @@ def stored_meaning_error(
 
     The recorded side comes from the immutable artifact named by the event. The
     candidate side comes from the document being checked, except that thread widgets
-    live in their frozen markup for the page's whole lifetime.
+    live in their frozen markup for the page's whole lifetime. `answer` is the one
+    part of the meaning read off the log at admission, so it stays as admitted and
+    no candidate is asked to derive it again.
     """
     scope = event["meaning"]["document"]["kind"]
     if scope == "page":
@@ -104,7 +145,8 @@ def stored_meaning_error(
         if event["kind"] == "request"
         else state_meaning(event, entry, document)
     )
-    if event["meaning"] != expected:
+    admitted = {k: v for k, v in event["meaning"].items() if k != "answer"}
+    if admitted != expected:
         return f"{event['kind']} {event['id']} changes admitted meaning from {event['meaning']!r} to {expected!r}"
     if event["kind"] == "request":
         before_request = recorded_registry[recorded["tag"]]["x-request"]
@@ -121,10 +163,7 @@ def stored_meaning_error(
         channel = "x-state" if event["kind"] == "action" else "x-report"
         before = recorded_registry[recorded["tag"]][channel][event["action"]]
         after = entry[channel][event["action"]]
-        fields = [
-            ("record", "record form"),
-            ("completion", "completion condition"),
-        ]
+        fields = [("record", "record form")]
         if event["kind"] == "action":
             fields.append(("creates", "creates declaration"))
         else:

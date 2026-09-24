@@ -131,7 +131,7 @@ Each mutable fact has one writer:
 
 | Fact | Authority | Browser writer |
 | --- | --- | --- |
-| authored widget state | validated source markup before widget upgrade | `stageAuthoredFacets` decodes typed initial values; the application admits them atomically with descriptors, revision identity, and a matching server reading |
+| authored widget state | validated source markup before widget upgrade | `stageAuthoredStates` decodes typed initial values; the application admits them atomically with descriptors, revision identity, and a matching server reading |
 | external data | the page data reading taken latest | `receiveState` replaces the source values; `watchData` delivers each bound source's value to widget modules |
 | projected data | an external snapshot or other records the widget is currently given | `projectData` reconciles their keyed rendering; the DOM does not become another record store |
 | version shown by the live document | the immutable revision named by its delivery prelude | a newer active revision whose executable identity is this document's is patched onto the authored page in place; one whose differs navigates the stable live address into a fresh document; a public version address derives the version number from its URL |
@@ -197,7 +197,7 @@ Startup order is load-bearing:
 3. Restore the user's arrangement from storage, and let focus go to the page.
 4. Fetch and validate the registry.
 5. Index passage fences and authored parent identities, then capture each widget's
-   immutable descriptor and typed authored facets from the source DOM.
+   immutable descriptor and typed authored state from the source DOM.
 6. Publish that complete document contract once. No component is connected because
    Leaf still needs it to discover semantic input.
 7. Import the modules declared by `x-upgrade` for the tags this document contains, and
@@ -258,13 +258,9 @@ those readings and combines them with authored state and unresolved gestures;
 coverage and provenance. Widget controllers keep desired state separate from proof of
 rendering.
 
-Action prerequisites use the registry's `x-state.requires` declaration. The controller
-paints eligibility, the common browser dispatch checks it, and POST checks the same
-prerequisite against the log under the append lock. Eligibility uses the ordinary Ask
-projection without conversation seats: handing an Ask to the agent does not answer it.
-The registry's `$state` entry owns `requires` and position-answer `completion`, and
-`$awaits` owns `answers` and `rollup`. Keep those
-readings shared rather than adding an eligibility cache or a browser Ask fold.
+Whether an Ask is answered is the registry's `$awaits.answered` condition over standing
+state, which Python evaluates; `$awaits` also owns `rollup`. Keep that reading on the
+server rather than adding a browser Ask fold.
 
 The server supplies page and conversation Ask collections through each view's
 `document.asks` and the conversation's `asks`. The publisher combines them page first;

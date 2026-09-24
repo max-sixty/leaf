@@ -144,7 +144,7 @@ def test_packages_and_panel_share_threads_through_gestures_and_authored_content(
         page.locator("#north .lf-pick").click()
     round_trip(page)
     assert reader.evaluate("""node => node.reading.threads[0].msgs[1].body.units
-      .find(unit => unit.id === 'direction').state.selection.value""") == ["north"]
+      .find(unit => unit.id === 'direction').state.choose.value""") == ["north"]
 
     held = []
     page.route("**/api/event", lambda route: held.append(route))
@@ -355,7 +355,7 @@ customElements.define("lf-local", class extends LitElement {
         Number(globalThis.__failedLocalRenders || 0) + 1;
       throw new Error("deliberate render failure");
     }
-    this.dataset.renderedChoice = state.choice.value;
+    this.dataset.renderedChoice = state.choose.value;
     this.dataset.renderOrder = `${this.dataset.renderOrder || ""}render,`;
     this.requestUpdate();
   }
@@ -368,7 +368,7 @@ customElements.define("lf-local", class extends LitElement {
   }
 
   render() {
-    const choice = this.reading.state.choice?.value ?? this.getAttribute("choice");
+    const choice = this.reading.state.choose?.value ?? this.getAttribute("choice");
     const available = this.reading.actions.choose?.available ?? false;
     return html`<button ?disabled=${!available} @click=${this.choose}>Choose</button>
       <output>${choice}</output>`;
@@ -385,9 +385,9 @@ STARTUP_PROJECTION_WIDGET = PAGE_WIDGET.replace(
     }
     const held = globalThis.__heldLocalPresentations?.get(this.id);""",
 ).replace(
-    "    this.dataset.renderedChoice = state.choice.value;",
+    "    this.dataset.renderedChoice = state.choose.value;",
     """\
-    this.dataset.renderedChoice = state.choice.value;
+    this.dataset.renderedChoice = state.choose.value;
     this.dataset.controllerRenders = String(
       Number(this.dataset.controllerRenders || 0) + 1
     );""",
@@ -619,7 +619,6 @@ PAGE_DECLARATION = {
                     "required": ["choice"],
                     "additionalProperties": False,
                 },
-                "facet": "choice",
                 "unit": "widget",
                 "record": {"kind": "value", "attr": "choice", "value": "choice"},
             }
@@ -809,7 +808,7 @@ def test_page_owned_registry_and_widget_use_the_captured_public_api(browser, ser
           });
           window.undoDelivery = sent.delivery;
           return {
-            reading: sent.reading.state.choice.value,
+            reading: sent.reading.state.choose.value,
             objectTarget,
             stale: controller.dispatch({
               kind: 'undo',
@@ -1126,9 +1125,8 @@ def test_conversation_presentation_waits_for_its_frozen_widgets_only(browser, se
             "detail": {"choice": "chosen"},
             "meaning": {
                 "document": {"kind": "thread"},
-                "coordinate": ["thread-local", "thread-local", "choice"],
-                "depends": ["live-reading", "thread-local"],
-                "answer": None,
+                "coordinate": ["thread-local", "thread-local", "choose"],
+                "depends": ["thread-local"],
             },
         },
     )

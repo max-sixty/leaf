@@ -107,7 +107,7 @@ ACTION_ON_ASK = {
     "detail": {"options": ["br-steel"]},
     "meaning": {
         "document": {"kind": "page", "revision": 1},
-        "coordinate": ["bracket", "bracket", "selection"],
+        "coordinate": ["bracket", "bracket", "choose"],
         "depends": ["br-steel", "bracket"],
         "answer": None,
     },
@@ -2896,7 +2896,7 @@ def test_g_shift_m_exposes_dense_suggestion_verdicts_as_real_buttons(browser, se
     with sending(page, "the reject"):
         page.keyboard.press("Enter")
     sent = events_model.read_events(serve.page_dir)[-1]
-    assert (sent["kind"], sent["widget"], sent["action"]) == (
+    assert (sent["kind"], sent["widget"], sent["detail"]["outcome"]) == (
         "action",
         "bg-neighbor-b",
         "reject",

@@ -216,7 +216,6 @@
           ],
           "additionalProperties": false
         },
-        "facet": "activity",
         "unit": "widget",
         "update": "doing",
         "record": {
@@ -354,7 +353,6 @@
           ],
           "additionalProperties": false
         },
-        "facet": "status",
         "unit": "widget",
         "record": {
           "kind": "value",

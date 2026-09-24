@@ -1152,7 +1152,7 @@ def test_a_verb_no_captured_registry_speaks_refuses_the_page(page_dir):
             "action": "scribble",
             "meaning": {
                 "document": {"kind": "page", "revision": 1},
-                "coordinate": ["note", "note", "body"],
+                "coordinate": ["note", "note", "scribble"],
                 "depends": ["note"],
             },
             "detail": {"text": "Words no layer speaks."},

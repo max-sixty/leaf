@@ -9,7 +9,7 @@
 const COLLAPSE =
   /[\t\n\v\f\r \u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000\ufeff]+/g;
 
-export function foldedFacet(event, record) {
+export function foldedValue(event, record) {
   const value = event.detail[record.value];
   if (record.kind === "body")
     return String(value ?? "")
@@ -131,13 +131,13 @@ export function foldProjection({
   return { actions, reports, classified, desired, pendingWithdrawals };
 }
 
-const authoredFacet = (authoredSnapshots, coordinate) => {
-  const [owner, unit, facet] = JSON.parse(coordinate);
+const authoredValue = (authoredSnapshots, coordinate) => {
+  const [owner, unit, verb] = JSON.parse(coordinate);
   const authored = authoredSnapshots.get(owner);
   if (!authored) return undefined;
-  const spec = authored.specs.get(facet);
+  const spec = authored.specs.get(verb);
   const record = spec.record;
-  const value = authored.state[facet].value;
+  const value = authored.state[verb].value;
   if (record?.kind === "attribute") return value.join(" ");
   if (record?.kind === "body") return value.replace(COLLAPSE, " ").trim();
   if (record?.kind === "position" && spec.unit !== "widget")
@@ -161,7 +161,7 @@ export function projectionOrigins(authoredSnapshots, projection) {
 
   for (const [coordinate, { unit, e, spec, value }] of projection.desired) {
     const overridesSource = spec.record
-      ? value !== authoredFacet(authoredSnapshots, coordinate)
+      ? value !== authoredValue(authoredSnapshots, coordinate)
       : true;
     if (!overridesSource) continue;
     add(e.kind === "action" ? "user" : "reported", unit);
@@ -169,7 +169,7 @@ export function projectionOrigins(authoredSnapshots, projection) {
   return [...origins.values()];
 }
 
-// Compose complete facet values in memory. Absolute placements for independent
+// Compose complete verb values in memory. Absolute placements for independent
 // coordinates share their authored container ordering and are folded before rendering.
 export function foldWidgetStates(authoredSnapshots, projection) {
   const states = new Map(
@@ -205,30 +205,30 @@ export function foldWidgetStates(authoredSnapshots, projection) {
     const { spec, e, unit } = entry;
     const record = spec.record;
     const value = record ? structuredClone(e.detail[record.value]) : e.action;
-    const facet = { action: e.action, value, detail: structuredClone(e.detail) };
+    const standing = { action: e.action, value, detail: structuredClone(e.detail) };
     owner.entries.push(entry);
     if (spec.unit === "widget") {
-      owner.state[spec.facet] = facet;
+      owner.state[e.action] = standing;
       if (record?.kind === "position") place(positions, unit, record, e.detail);
     } else {
-      const target = owner.state[spec.facet];
-      target.units[unit] = facet;
+      const target = owner.state[e.action];
+      target.units[unit] = standing;
       if (record?.kind === "position") place(target.value, unit, record, e.detail);
     }
   }
 
   for (const [id, owner] of states) {
     const { state, specs } = owner;
-    for (const [facet, spec] of specs) {
+    for (const [verb, spec] of specs) {
       if (spec.unit !== "widget" || spec.record?.kind !== "position") continue;
       const record = spec.record;
       const container = Object.keys(positions).find((key) =>
         positions[key].includes(id),
       );
       if (!container) continue;
-      state[facet].value = container;
-      state[facet].detail[record.value] = container;
-      state[facet].detail[record.order] = positions[container].indexOf(id);
+      state[verb].value = container;
+      state[verb].detail[record.value] = container;
+      state[verb].detail[record.order] = positions[container].indexOf(id);
       owner.order = [container, positions[container].indexOf(id)];
     }
   }

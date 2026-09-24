@@ -170,7 +170,7 @@ def continuity_errors(
     dropped = sorted(gone & protected.keys())
     generated = {
         (unit, widget, spec["creates"]["child"])
-        for (widget, unit, _facet), (
+        for (widget, unit, _verb), (
             _event,
             spec,
         ) in previous_projection.desired.items()

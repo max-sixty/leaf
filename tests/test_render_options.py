@@ -1027,8 +1027,8 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
                 "author": "user",
                 "revision": 1,
                 "widget": "quoted-suggestion",
-                "action": "accept",
-                "detail": {},
+                "action": "decide",
+                "detail": {"outcome": "accept"},
             },
         )
     page = open_page(browser, url)
@@ -1520,7 +1520,7 @@ def test_a_nested_questions_commands_belong_only_to_their_own_ask(browser, serve
 
 def test_a_nested_questions_pick_is_not_part_of_its_outers_record(browser, serve):
     """Attribute records are sets owned by one recorded widget. A chosen option in a
-    nested question must not enter the outer question's authored facet, or an outer log
+    nested question must not enter the outer question's authored state, or an outer log
     choice that exactly matches its markup is falsely painted as awaiting the author."""
     nested_choices = NESTED_ASK_PAGE.replace(
         '<lf-option id="out-drill">', '<lf-option id="out-drill" chosen>'

@@ -1,7 +1,7 @@
 /* The durable provenance a standing unit carries, derived from the same values that
    render its widget state.
 
-   Each provenance channel gets one reading on a target: independent user facets
+   Each provenance channel gets one reading on a target: independent user verbs
    collapse to a single one, while user, report, and restatement stay separate. An
    outline property could only show the last of these, and the projection handed to the
    margin has to preserve all three. */
@@ -11,12 +11,12 @@ import test from "node:test";
 
 import { projectionOrigins } from "/runtime/projection/model.js";
 
-const coordinate = (facet) => JSON.stringify(["t-parser", "t-parser", facet]);
+const coordinate = (verb) => JSON.stringify(["t-parser", "t-parser", verb]);
 
-const entry = (id, kind, facet, value = null, record = null) => ({
+const entry = (id, kind, verb, value = null, record = null) => ({
   unit: "t-parser",
-  e: { id, kind },
-  spec: { facet, record, unit: "widget" },
+  e: { id, kind, action: verb },
+  spec: { record, unit: "widget" },
   value,
 });
 
@@ -41,14 +41,14 @@ test("user, reported and restated origins stand separately on one unit", () => {
   ]);
 });
 
-test("a recorded facet standing at its authored value overrides nothing", () => {
+test("a recorded verb standing at its authored value overrides nothing", () => {
   const record = { kind: "value", attr: "status", value: "status" };
   const authored = new Map([
     [
       "t-parser",
       {
         state: { status: { value: "idle" } },
-        specs: new Map([["status", { facet: "status", unit: "widget", record }]]),
+        specs: new Map([["status", { unit: "widget", record }]]),
         positions: {},
       },
     ],

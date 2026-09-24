@@ -5221,7 +5221,7 @@ def test_a_swipe_deck_is_one_ask_with_directional_action_hints(browser, serve):
         "swipe",
         "swipe",
         "swipe",
-        "finish",
+        "swipe",
     ]
 
     page.reload(wait_until="load")
@@ -5470,7 +5470,7 @@ def test_swipe_deck_buttons_arrows_and_rapid_actions_share_order(browser, serve)
         "swipe",
         "swipe",
         "swipe",
-        "finish",
+        "swipe",
     ]
     assert [event["detail"] for event in logged] == [
         {"card": "swipe-a", "to": "session-pass", "index": 1},
@@ -5708,10 +5708,10 @@ def test_a_newer_swipe_survives_an_older_swipe_refusal(browser, serve):
     consume_browser_errors(page, "400")
 
 
-def test_a_stale_rapid_finish_is_refused_when_an_earlier_card_returns(browser, serve):
-    """The browser may mint the fourth rapid gesture as finish while all four local
-    moves look complete. If the first move is refused, the append door must judge the
-    later finish against authoritative post-action positions and leave the Ask open.
+def test_a_refused_early_swipe_leaves_the_deck_asking(browser, serve):
+    """Four rapid gestures leave the queue looking empty locally. If the first is
+    refused its card returns to the queue, and the Ask reads open again however the
+    later swipes landed, because the answer is the empty queue itself.
     """
     page = open_page(browser, serve(SWIPE_PAGE))
     held = []
@@ -5741,11 +5741,12 @@ def test_a_stale_rapid_finish_is_refused_when_an_earlier_card_returns(browser, s
     round_trip(page)
 
     expect(page.locator("#session-queue > #swipe-a")).to_have_count(1)
-    expect(page.locator("#session-queue > #swipe-d")).to_have_count(1)
+    expect(page.locator("#session-queue > lf-swipe-card")).to_have_count(1)
     expect(page.locator(".lf-asks")).to_have_text("Asks 0/1")
     assert [event["detail"]["card"] for event in actions(serve.page_dir)] == [
         "swipe-b",
         "swipe-c",
+        "swipe-d",
     ]
     consume_browser_errors(page, "400")
 
@@ -6532,7 +6533,7 @@ def test_accepting_a_suggestion_settles_it_and_reaches_claude(browser, serve):
         e for e in events_model.read_events(serve.page_dir) if e["kind"] == "action"
     ]
     assert [(e["widget"], e["action"], e["author"]) for e in logged] == [
-        ("sug-refill", "accept", "user")
+        ("sug-refill", "decide", "user")
     ]
 
 
@@ -6641,7 +6642,11 @@ def test_a_refused_undo_keeps_the_outcome_and_can_be_retried(browser, serve):
         "data-lf-state", re.compile(".+")
     )
     logged = events_model.read_events(serve.page_dir)
-    decision = next(event for event in logged if event.get("action") == "reject")
+    decision = next(
+        event
+        for event in logged
+        if event["kind"] == "action" and event["detail"]["outcome"] == "reject"
+    )
     assert [event["undoes"] for event in logged if event["kind"] == "undo"] == [
         decision["id"]
     ]
@@ -6848,7 +6853,7 @@ def test_accept_all_decides_every_pending_suggestion(browser, serve):
     logged = [
         e for e in events_model.read_events(serve.page_dir) if e["kind"] == "action"
     ]
-    assert [(e["widget"], e["action"]) for e in logged] == [
+    assert [(e["widget"], e["detail"].get("outcome", e["action"])) for e in logged] == [
         ("sug-refill", "accept"),
         ("sug-thistle", "accept"),
         ("sug-in-card", "accept"),
@@ -6916,9 +6921,10 @@ def test_a_refused_decision_returns_to_pending_with_failure_controls(
     item.get_by_role("button", name="Retry", exact=True).click()
     round_trip(page)
     logged = actions(serve.page_dir)
-    assert [(event["widget"], event["action"]) for event in logged] == [
-        ("sug-refill", "accept")
-    ]
+    assert [
+        (event["widget"], event["detail"].get("outcome", event["action"]))
+        for event in logged
+    ] == [("sug-refill", "accept")]
     assert logged[0]["attempt"]
     undo(page)
     expect(page.locator("#sug-refill lf-old")).to_be_visible()
@@ -6964,7 +6970,8 @@ def test_an_ambiguous_decision_stays_one_gesture_while_retrying(browser, serve):
     assert len(requests) == 2
     assert len({request["attempt"] for request in requests}) == 1
     assert [
-        (event["widget"], event["action"]) for event in actions(serve.page_dir)
+        (event["widget"], event["detail"].get("outcome", event["action"]))
+        for event in actions(serve.page_dir)
     ] == [("sug-refill", "accept")]
 
     undo(page)
@@ -6993,7 +7000,7 @@ def test_a_second_press_inside_the_round_trip_adds_no_second_decision(browser, s
     round_trip(page)
     expect(page.locator("#sug-refill[data-lf-state='accept']")).to_have_count(1)
     assert [
-        (e["widget"], e["action"])
+        (e["widget"], e["detail"].get("outcome", e["action"]))
         for e in events_model.read_events(serve.page_dir)
         if e["kind"] == "action"
     ] == [("sug-refill", "accept")]

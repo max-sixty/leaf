@@ -111,38 +111,32 @@ AWAITING_CONDITION = {
     },
 }
 
-# Current action eligibility reuses Leaf's standing-Ask projection. `self` is the
-# sending widget; `owner` is the direct ownership relation its x-owners declares.
-ACTION_REQUIREMENT = {
+# When a local Ask is answered: a map from each answering x-state verb to the
+# condition its standing state meets. An empty condition means the verb's state stands
+# (a non-empty attribute or value record, otherwise a standing action). `when` narrows
+# the verb to instances whose attributes match; `empty` holds when the one member
+# container it names inside the widget is left with no members by the standing
+# positions. One map, so every answer is a reading of state the fold already keeps.
+ANSWERED_SCHEMA = {
     "type": "object",
-    "properties": {
-        "target": {"enum": ["self", "owner"]},
-        "awaiting": {"type": "boolean"},
-    },
-    "required": ["target", "awaiting"],
-    "additionalProperties": False,
-}
-
-# A completion verb may depend on the state its own record leaves behind. `empty`
-# identifies a member container inside the answering widget by its authored attributes;
-# after applying the candidate record, that container must hold no vocabulary members.
-# This keeps completion authoritative without adding a second completion record beside
-# the state the gesture actually changed.
-ACTION_COMPLETION = {
-    "type": "object",
-    "properties": {
-        "empty": {
-            "type": "object",
-            "properties": {
-                "within": {"type": "string", "pattern": f"^{WIDGET_NAME}$"},
-                "when": AWAITING_CONDITION,
+    "minProperties": 1,
+    "propertyNames": {"pattern": f"^{HTML_NAME}$"},
+    "additionalProperties": {
+        "type": "object",
+        "properties": {
+            "when": AWAITING_CONDITION,
+            "empty": {
+                "type": "object",
+                "properties": {
+                    "within": {"type": "string", "pattern": f"^{WIDGET_NAME}$"},
+                    "when": AWAITING_CONDITION,
+                },
+                "required": ["within", "when"],
+                "additionalProperties": False,
             },
-            "required": ["within", "when"],
-            "additionalProperties": False,
-        }
+        },
+        "additionalProperties": False,
     },
-    "required": ["empty"],
-    "additionalProperties": False,
 }
 
 ACTION_CREATES = {
@@ -155,8 +149,8 @@ ACTION_CREATES = {
     "additionalProperties": False,
 }
 
-# One package-neutral relation shape for authored attributes and event roles. An empty
-# object accepts any authored element. A typed relation selects a package registry map
+# One package-neutral relation shape for authored attributes. An empty object accepts
+# any authored element. A typed relation selects a package registry map
 # and an equality predicate within that map; the names and values remain vocabulary.
 REFERENCE_SCHEMA = {
     "type": "object",
@@ -187,24 +181,21 @@ def _verbs_schema(
     records: list,
     required: list,
     *,
-    conditional: bool = False,
+    creates: bool = False,
     updates: bool = False,
 ) -> dict:
     """The shape x-state and x-report share: verbs to
-    {detail, facet, unit, record}, differing only in which record forms a
+    {detail, unit, record}, differing only in which record forms a
     channel admits, whether one is required at all, and whether the user's
-    channel may declare current applicability or the agent's may declare update
+    channel may declare a created child or the agent's may declare update
     prose."""
     properties = {
         "detail": {"type": "object"},
-        "facet": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "unit": {"type": "string", "minLength": 1},
         "record": {"oneOf": records},
     }
-    if conditional:
-        properties["requires"] = ACTION_REQUIREMENT
+    if creates:
         properties["creates"] = ACTION_CREATES
-        properties["completion"] = ACTION_COMPLETION
     if updates:
         # A report may carry one short prose update beside the structured state it
         # records. Naming the detail field is what lets the common update feed expose
@@ -228,8 +219,8 @@ def _verbs_schema(
 
 STATE_SCHEMA = _verbs_schema(
     [_RECORD_ATTRIBUTE, _RECORD_POSITION, _RECORD_BODY, _RECORD_VALUE],
-    ["detail", "facet", "unit"],
-    conditional=True,
+    ["detail", "unit"],
+    creates=True,
 )
 # A report moves declared state only, never body words — no body record, so the
 # passage reading never has to model one — and the record itself is required:
@@ -237,7 +228,7 @@ STATE_SCHEMA = _verbs_schema(
 # nothing could check a version against.
 REPORT_SCHEMA = _verbs_schema(
     [_RECORD_ATTRIBUTE, _RECORD_POSITION, _RECORD_VALUE],
-    ["detail", "facet", "unit", "record"],
+    ["detail", "unit", "record"],
     updates=True,
 )
 # A request is a one-shot instruction for the host, not state the browser can replay.
@@ -294,27 +285,13 @@ AWAITS_SCHEMA = {
     "type": "object",
     "properties": {
         "when": AWAITING_CONDITION,
-        "answers": {
-            "type": "array",
-            "items": {"type": "string", "pattern": f"^{HTML_NAME}$"},
-            "minItems": 1,
-            "uniqueItems": True,
-        },
+        "answered": ANSWERED_SCHEMA,
         "rollup": {"const": True},
         # This widget supplies the answer control but not its own question title.
         # A matching instance therefore stands inside an x-ask-surface region, whose direct
         # heading owns the reading and arrival.
         "region": {"const": True},
         "all": {"type": "string", "pattern": f"^{HTML_NAME}$"},
-        "until": {
-            "type": "object",
-            "properties": {
-                "verb": {"type": "string", "pattern": f"^{HTML_NAME}$"},
-                "when": AWAITING_CONDITION,
-            },
-            "required": ["verb", "when"],
-            "additionalProperties": False,
-        },
     },
     "additionalProperties": False,
 }

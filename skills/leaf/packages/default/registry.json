@@ -215,15 +215,20 @@
           false
         ]
       },
-      "answers": [
-        "choose"
-      ],
-      "until": {
-        "verb": "answer",
-        "when": {
-          "multiple": [
-            true
-          ]
+      "answered": {
+        "choose": {
+          "when": {
+            "multiple": [
+              false
+            ]
+          }
+        },
+        "answer": {
+          "when": {
+            "multiple": [
+              true
+            ]
+          }
         }
       }
     },
@@ -244,7 +249,6 @@
           ],
           "additionalProperties": false
         },
-        "facet": "selection",
         "unit": "widget",
         "record": {
           "kind": "attribute",
@@ -271,7 +275,6 @@
           ],
           "additionalProperties": false
         },
-        "facet": "added",
         "unit": "option",
         "creates": {
           "child": "lf-option",
@@ -283,7 +286,6 @@
           "type": "object",
           "additionalProperties": false
         },
-        "facet": "completion",
         "unit": "widget"
       }
     },
@@ -696,7 +698,6 @@
           ],
           "additionalProperties": false
         },
-        "facet": "placement",
         "unit": "card",
         "record": {
           "kind": "position",
@@ -828,9 +829,9 @@
           true
         ]
       },
-      "answers": [
-        "edit"
-      ]
+      "answered": {
+        "edit": {}
+      }
     },
     "x-upgrade": true,
     "x-verbatim": true,
@@ -848,7 +849,6 @@
           ],
           "additionalProperties": false
         },
-        "facet": "body",
         "unit": "widget",
         "record": {
           "kind": "body",

@@ -10,21 +10,13 @@ in `event_meaning`.
 """
 
 from leaf.anchor_capture import capture_anchor
-from leaf.asks import (
-    asking,
-    completion_met,
-    page_awaiting_values,
-    projected_action_holders,
-    quoted_in,
-    thread_ask_readings,
-)
+from leaf.asks import asking, projected_action_holders, quoted_in
 from leaf.document_reading import read_document
 from leaf.event_log import EventRefused
 from leaf.event_meaning import admit_widget_event, direct_dependencies
 from leaf.events import build_threads, spoken_turns, taken_back, undo_error
 from leaf.files import version_revisions
 from leaf.page_view import PageView
-from leaf.passages import enclosing_ids
 from leaf.projection import (
     frozen_thread_reading,
     generated_children,
@@ -44,8 +36,6 @@ from leaf.registry.reactions import reaction_tokens
 from leaf.requests import (
     receipt_contract_error,
     request_contract_error,
-    request_lifecycles_for,
-    request_phases,
 )
 from leaf.schema import MESSAGE_KINDS, WIDGET_KINDS
 from leaf.served_state.conversation import browser_conversation
@@ -109,8 +99,6 @@ def declared_event_error(
         )
     if message := schema_error(spec["detail"], event["detail"]):
         return f"<{tag}> {kind} {event['action']!r} detail is invalid: {message}"
-    if "resolves" in event["detail"] and not event["detail"]["resolves"]:
-        return f"<{tag}> {kind} {event['action']!r} resolves must name a non-empty thread id"
     if message := schema_error(
         {"type": "array", "items": {"type": "string", "minLength": 1}},
         direct_dependencies(event, spec),
@@ -198,9 +186,9 @@ def position_record_error(
     def recording_owner(node: dict):
         """Nearest enclosing widget whose declaration records durable state.
 
-        The walk starts at the holder, so a part that records facets of its own is
-        still its container's to place: facet names are local to the widget contract
-        that declares them."""
+        The walk starts at the holder, so a part that records state of its own is
+        still its container's to place: verbs are local to the widget contract that
+        declares them."""
         node = node["holder"]
         while node is not None:
             entry = registry.get(node["tag"], {})
@@ -328,17 +316,16 @@ def datum_anchor_error(view, event: dict, page_by_id: dict, registry: dict):
 def action_contract_error(view, event: dict, events: list, registry: dict):
     """Why a fresh action violates its declaration or current applicability.
 
-    Eligibility is derived inside the append transaction from the action's
-    authored document and the standing log. A browser evaluates the same
-    declaration for honest controls, but its possibly stale reading never
+    Validity is derived inside the append transaction from the action's authored
+    document and the standing log; a browser's possibly stale reading never
     authorizes this boundary.
     """
     revision = event["revision"]
     document = view.document(revision)
     # One reading of the panel's document for the whole door: the id universe the
-    # declaration is looked up in and the projection the requirement is judged
-    # against are the same frozen fragments, and parsing them twice was two
-    # readings that could only ever agree.
+    # declaration is looked up in and the projection a record is judged against
+    # are the same frozen fragments, and parsing them twice was two readings that
+    # could only ever agree.
     thread = frozen_thread_reading(events, registry)
     thread_projection = thread.projection
     thread_by_id = thread.by_id
@@ -356,14 +343,8 @@ def action_contract_error(view, event: dict, events: list, registry: dict):
             f"<{tag}> action {event['action']!r} creates {created[0]!r}, which "
             "already names an authored element"
         )
-    requirement = spec.get("requires")
-    completion = spec.get("completion")
     record_kind = (spec.get("record") or {}).get("kind")
-    if (
-        not requirement
-        and not completion
-        and record_kind not in {"position", "attribute"}
-    ):
+    if record_kind not in {"position", "attribute"}:
         return None
 
     if page_rec:
@@ -388,82 +369,6 @@ def action_contract_error(view, event: dict, events: list, registry: dict):
                 f"<{tag}> action {event['action']!r} is invalid: {strangers} name no "
                 f"member of {event['widget']!r}"
             )
-    if completion:
-        record = spec.get("record") or {}
-        after_holders = dict(holders)
-        if record.get("kind") == "position":
-            unit_id = (
-                event["widget"]
-                if spec["unit"] == "widget"
-                else event["detail"][spec["unit"]]
-            )
-            after_holders[unit_id] = byid[event["detail"][record["value"]]]
-        if not completion_met(
-            current,
-            spec,
-            projection,
-            byid,
-            registry,
-            positioned_holders=after_holders,
-        ):
-            return (
-                f"<{tag}> {event['widget']!r} action {event['action']!r} is "
-                "unavailable: its recorded result does not satisfy its completion "
-                "condition"
-            )
-    if not requirement:
-        return None
-    if page_rec:
-        # This door asks whether the request is answered, not whether it is the
-        # user's to deal with: a conversation standing in the widget's seat
-        # takes it off their list without answering it, and refusing their pick
-        # over their own remark would refuse them the answer they were asked for.
-        awaiting_values = page_awaiting_values(
-            document,
-            projection,
-            spk,
-            registry,
-            request_phases=request_phases(
-                request_lifecycles_for(
-                    events,
-                    parser.lf_elements,
-                    registry,
-                    {"kind": "page", "revision": revision},
-                    view.data(registry),
-                )
-            ),
-        )
-    else:
-        threads = build_threads(events, enclosing_ids(document))
-        settled = {root for root, value in threads.items() if value["resolved"]}
-        awaiting_values = thread_ask_readings(
-            events,
-            registry,
-            settled,
-            request_phases=request_phases(
-                request_lifecycles_for(
-                    events,
-                    thread.elements,
-                    registry,
-                    {"kind": "thread"},
-                    view.data(registry),
-                )
-            ),
-            reading=thread,
-        )["awaiting"]
-    target = (
-        current
-        if requirement["target"] == "self"
-        else holders.get(current["attrs"]["id"], current["holder"])
-    )
-    target_id = target["attrs"]["id"]
-    awaiting = awaiting_values.get(target_id, False)
-    if awaiting != requirement["awaiting"]:
-        return (
-            f"<{tag}> {event['widget']!r} action {event['action']!r} is "
-            f"unavailable: {requirement['target']} {target_id!r} is "
-            f"{'still ' if awaiting else 'no longer '}awaiting the user"
-        )
     return None
 
 
@@ -622,7 +527,7 @@ def _anchored_comment_error(
             registry,
             anchor.get("quote", ""),
             anchor.get("section"),
-            retirement_outcomes(page.projection.actions, registry),
+            retirement_outcomes(page.projection.actions),
             rewritten_bodies(page.projection.actions),
             prefix=anchor.get("prefix") if "prefix" in anchor else None,
             suffix=anchor.get("suffix") if "suffix" in anchor else None,

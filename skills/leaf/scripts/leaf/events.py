@@ -155,7 +155,7 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
     """Fold conversations using the admitted answer coordinate.
 
     Answer effects survive retirement of their source widget. An unrelated action
-    on another facet cannot supersede one, while an explicit answer with null
+    of another verb cannot supersede one, while an explicit answer with null
     effect replaces a closing answer without itself closing a thread. ``anchor`` is
     the thread's current page location, and ``detached_from`` retains the last real
     anchor only when an explicit null replacement leaves the thread detached.
@@ -493,7 +493,7 @@ def action_retracted(event: dict, floors: dict, within: dict) -> bool:
     One predicate for every reader of liveness — the fold's survival test, the
     words gate's, and the thread a decision settles — because a decision the log
     has taken back has to be absent everywhere at once. It was written out twice
-    and a third reader went without: `build_threads` settled a thread on an accept
+    and a third reader went without: `build_threads` settled a thread on a decision
     and never asked, so a suggestion the next version rewrote came back pending
     with the thread it had answered still filed away, and the user was never asked
     the question again."""

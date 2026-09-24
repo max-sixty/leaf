@@ -240,6 +240,28 @@ def declares_string(field_schema) -> bool:
     return allowed == {"string"}
 
 
+def deciding_verb(entry: dict) -> str | None:
+    """The x-state verb whose detail `outcome` decides which retirable members leave
+    the page (x-retired-when, x-withdrawn-as), or None."""
+    return next(
+        (
+            verb
+            for verb, spec in entry.get("x-state", {}).items()
+            if "outcome" in spec["detail"].get("properties", {})
+        ),
+        None,
+    )
+
+
+def deciding_outcomes(entry: dict) -> list[str]:
+    """The outcomes the deciding verb may stand under; empty without one."""
+    verb = deciding_verb(entry)
+    if verb is None:
+        return []
+    schema = entry["x-state"][verb]["detail"]["properties"]["outcome"]
+    return list(schema.get("enum", [])) if isinstance(schema, dict) else []
+
+
 def state_specs(entry: dict):
     """The state and report verb declarations on one element declaration."""
     for channel in ("x-state", "x-report"):

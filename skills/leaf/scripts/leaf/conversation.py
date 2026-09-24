@@ -283,7 +283,7 @@ def _capture_anchor(
 
     registry = require_registry(page_dir)
     page = page_reading(document, events, registry, revision)
-    decided = retirement_outcomes(page.projection.actions, registry)
+    decided = retirement_outcomes(page.projection.actions)
     edited = rewritten_bodies(page.projection.actions)
     try:
         anchor = capture_anchor(

@@ -160,13 +160,12 @@ def constructed_content(
             by_id[identity] = child
             containers[identity] = owner["content"]
     ordered = sorted(projection.desired.items(), key=lambda item: item[1][0]["seq"])
-    for (widget, unit, facet), (event, spec) in ordered:
+    for (widget, unit, _verb), (event, spec) in ordered:
         owner = by_id.get(unit)
         if owner is None:
             continue
         authority = event_origin(event)
         reading = {
-            "facet": facet,
             "action": event["action"],
             "detail": event["detail"],
             "origin": authority,
@@ -230,7 +229,7 @@ def constructed_content(
             children.insert(at, owner)
             containers[unit] = children
 
-    outcomes = retirement_outcomes(projection.actions, registry)
+    outcomes = retirement_outcomes(projection.actions)
 
     def visible(items, parent=None):
         result = []

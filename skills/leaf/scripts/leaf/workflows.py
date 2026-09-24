@@ -31,7 +31,7 @@ in: on the page, until the markup records it or a later version supersedes it
 until the agent's next spoken turn in that thread or a resolution after it.
 
 A user move on an Ask the user has not finished answering — a pick before
-the Done its group declares, a swipe before the deck's finish — has not been
+the Done its group declares, a swipe before the deck's queue is empty — has not been
 handed over yet, so it is no workflow at all: the user is still composing the
 answer, and the finishing move carries the receipt. Once the Ask is answered,
 every move in its answer is owed.
@@ -50,8 +50,8 @@ from .projection import (
     NO_RECORD,
     PageReading,
     canonical_updates,
-    folded_facet,
-    markup_facet,
+    folded_value,
+    markup_value,
 )
 
 
@@ -121,12 +121,12 @@ def page_action_unsettled(
     revision it was made on; a note stamped over the very revision the user
     acted on was written before the move reached anyone.
     """
-    _widget, unit, _facet = coordinate
+    _widget, unit, _verb = coordinate
     if unit not in parser.by_id:
         return False
-    authored = markup_facet(unit, spec, parser.by_id, spk, registry)
+    authored = markup_value(unit, spec, parser.by_id, spk, registry)
     if owed and authored is not NO_RECORD:
-        return authored != folded_facet(source, spec)
+        return authored != folded_value(source, spec)
     versioned = any(
         event["kind"] == "note"
         and event["seq"] > source["seq"]
@@ -134,7 +134,7 @@ def page_action_unsettled(
         for event in events
     )
     return not versioned and (
-        authored is NO_RECORD or authored != folded_facet(source, spec)
+        authored is NO_RECORD or authored != folded_value(source, spec)
     )
 
 
@@ -422,7 +422,7 @@ def canonical_workflows(
             )
 
     # One receipt per widget and unit, for the user's newest move on it. A tick and
-    # the Done press that followed are two facets of one unit, and each minted a line:
+    # the Done press that followed are two verbs on one unit, and each minted a line:
     # the thread showed "✓ Sent · just now" twice under one question. The later move
     # supersedes the earlier for what the user is owed — that the press landed.
     # Units stay apart: two moved cards, two reviewed files, are two subjects with a

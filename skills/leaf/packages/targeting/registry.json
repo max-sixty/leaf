@@ -21,7 +21,7 @@
     "x-upgrade": true,
     "x-awaits": {
       "region": true,
-      "answers": ["submit"]
+      "answered": {"submit": {}}
     },
     "x-state": {
       "submit": {
@@ -184,7 +184,6 @@
           "required": ["targets", "changes"],
           "additionalProperties": false
         },
-        "facet": "configuration",
         "unit": "widget"
       }
     },

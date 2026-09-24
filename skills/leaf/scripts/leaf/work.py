@@ -91,7 +91,7 @@ def widget_work_without_targets(
 ) -> list[str]:
     """Standing widget work with no live page target for its target margin entry."""
     ignored = set(ignored)
-    decided = retirement_outcomes(projection.actions, registry)
+    decided = retirement_outcomes(projection.actions)
     passages = page_passages(
         document, registry, decided, rewritten_bodies(projection.actions)
     )
@@ -165,7 +165,7 @@ def work_subject(page_dir: Path, events: list, target: str) -> dict:
         assert (
             registry is not None and widget_projection is not None and html is not None
         )
-        decided = retirement_outcomes(widget_projection.actions, registry)
+        decided = retirement_outcomes(widget_projection.actions)
         passages = page_passages(
             document,
             registry,

@@ -4553,7 +4553,7 @@ def test_each_delivered_event_says_only_what_its_own_case_asks(page_dir, capsys)
         "detail": {"options": ["a"]},
         "meaning": {
             "document": {"kind": "page", "revision": 1},
-            "coordinate": ["w", "w", "selection"],
+            "coordinate": ["w", "w", "choose"],
             "depends": ["a", "w"],
             "answer": None,
         },
@@ -4750,7 +4750,7 @@ def test_wait_prints_unacknowledged_input_without_receipt_or_pickup(page_dir, ca
             "detail": {"card": "x", "to": "y", "index": 0},
             "meaning": {
                 "document": {"kind": "page", "revision": 1},
-                "coordinate": ["b", "x", "position"],
+                "coordinate": ["b", "x", "move"],
                 "depends": ["b", "x", "y"],
             },
         },
@@ -5666,8 +5666,8 @@ def test_one_action_can_belong_to_its_widget_thread_and_the_thread_it_resolves(
             "author": "user",
             "revision": 1,
             "widget": "thread-answer",
-            "action": "accept",
-            "detail": {"resolves": target["id"]},
+            "action": "decide",
+            "detail": {"outcome": "accept"},
         },
     )
 
@@ -5828,8 +5828,8 @@ SETTLING_ACCEPT = {
     "author": "user",
     "revision": 1,
     "widget": "sug-refill",
-    "action": "accept",
-    "detail": {"resolves": "c1"},
+    "action": "decide",
+    "detail": {"outcome": "accept"},
 }
 
 
@@ -5908,8 +5908,8 @@ def test_exact_thread_history_and_wait_share_indirect_resolution_events(
             "author": "user",
             "revision": 1,
             "widget": "sug-refill",
-            "action": "reject",
-            "detail": {},
+            "action": "decide",
+            "detail": {"outcome": "reject"},
         },
     )
     assert session_model.cmd_wait(page_dir) == 0
@@ -5980,12 +5980,13 @@ def test_a_delivery_and_page_state_agree_on_what_a_floor_took_back(
     only a rewritten answer reopens the thread; the user's subsequent question
     resumes either conversation, and delivery agrees with page state."""
     (page_dir / "index.html").write_text(PICKS_PAGE)
-    let_a_pick_settle_a_thread(page_dir)
+    let_a_pick_settle_a_thread(page_dir, "which")
     serving(page_dir, 1)
     opened = events_model.append_event(
         page_dir,
         {
             "kind": "comment",
+            "id": "which",
             "author": "user",
             "text": "which of these?",
             "anchor": {"section": "picks"},
@@ -6000,7 +6001,7 @@ def test_a_delivery_and_page_state_agree_on_what_a_floor_took_back(
             "revision": 1,
             "widget": "picks",
             "action": "choose",
-            "detail": {"options": ["flag-first"], "resolves": opened["id"]},
+            "detail": {"options": ["flag-first"]},
         },
     )
     # Rewriting the option they picked retracts the pick: the thing they chose is
@@ -9651,7 +9652,7 @@ def test_the_turn_holds_again_when_a_version_takes_the_answer_back(
     answered, and the hook must say nothing. Without it a guard that blocked on
     every acknowledged comment would pass the other arm."""
     (claimed / "index.html").write_text(PICKS_PAGE)
-    let_a_pick_settle_a_thread(claimed)
+    let_a_pick_settle_a_thread(claimed, "which")
     session_model.cmd_status(claimed, "waiting", "")
     # Watched, so the guard's other clause is clear and what fires below can only
     # be this one.
@@ -9660,7 +9661,8 @@ def test_the_turn_holds_again_when_a_version_takes_the_answer_back(
     )
     assert lease
     asked = events_model.append_event(
-        claimed, {"kind": "comment", "author": "user", "text": "which of these?"}
+        claimed,
+        {"kind": "comment", "id": "which", "author": "user", "text": "which of these?"},
     )
     publish(claimed, 1)
     append_command(
@@ -9671,7 +9673,7 @@ def test_the_turn_holds_again_when_a_version_takes_the_answer_back(
             "revision": 1,
             "widget": "picks",
             "action": "choose",
-            "detail": {"options": ["flag-first"], "resolves": asked["id"]},
+            "detail": {"options": ["flag-first"]},
         },
     )
     note = {
@@ -11568,13 +11570,13 @@ DECK_PAGE = PAGE.replace(
 
 def test_a_finished_deck_owes_every_card_the_user_sorted(page_dir):
     """An Ask's answer can span units: a deck's cards are each swiped, and only the
-    last one's `finish` answers the Ask. Before the finish the user is still
+    swipe that empties the queue answers the Ask. Before it the user is still
     answering and the agent owes nothing; once it lands, every sorted card is owed
     its place in the markup, not only the one that finished the deck."""
     (page_dir / "index.html").write_text(DECK_PAGE)
     publish(page_dir)
 
-    def sort(card, index, action="swipe"):
+    def sort(card, index):
         return append_command(
             page_dir,
             {
@@ -11582,7 +11584,7 @@ def test_a_finished_deck_owes_every_card_the_user_sorted(page_dir):
                 "author": "user",
                 "revision": 1,
                 "widget": "triage",
-                "action": action,
+                "action": "swipe",
                 "detail": {"card": card, "to": "keep", "index": index},
             },
         )
@@ -11591,14 +11593,15 @@ def test_a_finished_deck_owes_every_card_the_user_sorted(page_dir):
     sort("card-b", 1)
     assert state_json(page_dir)["workflows"] == []
 
-    sort("card-c", 2, action="finish")
+    sort("card-c", 2)
     owed_cards = sorted(item["coordinate"][1] for item in owed(state_json(page_dir)))
     assert owed_cards == ["card-a", "card-b", "card-c"]
 
 
 def test_a_deck_in_a_thread_owes_nothing_until_it_is_finished(page_dir):
-    """The page's rule holds in thread markup: a swipe before the deck's finish is
-    the user still answering, so no reply is owed and the Ask stays theirs."""
+    """The page's rule holds in thread markup: a swipe that leaves the queue
+    standing is the user still answering, so no reply is owed and the Ask stays
+    theirs."""
     activated = revisioning_model.activate_source(page_dir, [])
     assert activated.error is None and activated.revision == 1
     events_model.append_event(
@@ -11619,7 +11622,7 @@ def test_a_deck_in_a_thread_owes_nothing_until_it_is_finished(page_dir):
         },
     )
 
-    def sort(card, index, action):
+    def sort(card, index):
         return append_command(
             page_dir,
             {
@@ -11627,17 +11630,17 @@ def test_a_deck_in_a_thread_owes_nothing_until_it_is_finished(page_dir):
                 "author": "user",
                 "revision": 1,
                 "widget": "triage",
-                "action": action,
+                "action": "swipe",
                 "detail": {"card": card, "to": "keep", "index": index},
             },
         )
 
-    sort("card-a", 0, "swipe")
+    sort("card-a", 0)
     sorting = state_json(page_dir)
     assert sorting["workflows"] == []
     assert [ask["source"] for ask in sorting["asks"]] == ["triage"]
 
-    sort("card-b", 1, "finish")
+    sort("card-b", 1)
     finished = state_json(page_dir)
     assert finished["asks"] == []
     assert sorted(item["coordinate"][1] for item in owed(finished)) == [

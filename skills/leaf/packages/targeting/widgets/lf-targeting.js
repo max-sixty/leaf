@@ -825,9 +825,7 @@ customElements.define(
     renderState(state) {
       if (!this.#ready) return;
       const configuration =
-        state.configuration?.action === "submit"
-          ? state.configuration.detail
-          : emptyConfiguration();
+        state.submit?.action === "submit" ? state.submit.detail : emptyConfiguration();
       const signature = JSON.stringify(configuration);
       if (signature === this.#projectionSignature) return;
       this.#projectionSignature = signature;

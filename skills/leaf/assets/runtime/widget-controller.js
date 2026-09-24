@@ -7,7 +7,7 @@
    proof. Local editing defers the render region at its newest unpublished reading. */
 import { applicationState, attachWidgetPresentation } from "./semantic-state.js";
 import { dispatchWidget, invalidateDom } from "./application.js";
-import { runtime } from "./context.js";
+import { decidingVerb } from "./registry.js";
 import { renderRetired, settlementSlots } from "./passages.js";
 import { descriptorStillMatches, widgetDescriptor } from "./widget-descriptors.js";
 import { failSoft } from "./widget-upgrade.js";
@@ -30,13 +30,10 @@ document.addEventListener(DRAGGING_CHANGED, () => {
   for (const resume of pending) resume();
 });
 
-const { registry } = runtime;
-
 function renderSettlement(owner, state) {
   const outcomes = settlementSlots()[owner.localName];
   if (!outcomes) return;
-  const spec = registry[owner.localName]["x-state"][Object.keys(outcomes)[0]];
-  const outcome = state[spec.facet].action;
+  const outcome = state[decidingVerb(owner.localName)].detail?.outcome ?? null;
   if (outcomes[outcome]) owner.setAttribute(PAGE_PAINT_ATTRIBUTE.settlement, outcome);
   else owner.removeAttribute(PAGE_PAINT_ATTRIBUTE.settlement);
   renderRetired(owner, outcome);
@@ -172,9 +169,9 @@ function createWidgetController(owner) {
       `leaf: <${owner.localName}>#${owner.id || "(missing id)"} has no captured widget descriptor`,
     );
   const selected = applicationState.selectWidget(descriptor);
-  const stateFacets = new Set(
+  const stateVerbs = new Set(
     ["x-state", "x-report"].flatMap((channel) =>
-      Object.values(descriptor.declaration[channel] ?? {}).map(({ facet }) => facet),
+      Object.keys(descriptor.declaration[channel] ?? {}),
     ),
   );
   const orderedPosition = ["x-state", "x-report"].some((channel) =>
@@ -225,7 +222,7 @@ function createWidgetController(owner) {
     }
     const handle = render();
     const failures = [];
-    const complete = [...stateFacets].every((facet) => facet in reading.state);
+    const complete = [...stateVerbs].every((verb) => verb in reading.state);
     if (complete && firstRender) {
       try {
         owner.renderState?.(reading.state);
@@ -268,7 +265,7 @@ function createWidgetController(owner) {
           : undefined;
       // An incomplete startup reading has no DOM to present, but its ticket still
       // commits so the provisional publication can settle. Its subscribers first run
-      // when the publisher supplies every declared facet.
+      // when the publisher supplies every declared verb.
       void handle.present(reading, completion, (reason) => failSoft(owner, reason));
     }
   };

@@ -1,14 +1,12 @@
 """Declaration-driven page and thread ask projections."""
 
-from leaf.passages import page_passages
 from leaf.projection import (
     FrozenThreadReading,
     StateProjection,
     enclosing_widgets,
-    folded_facet,
+    folded_value,
     frozen_thread_reading,
-    markup_facet,
-    retirement_outcomes,
+    markup_value,
 )
 from leaf.schema import MESSAGE_KINDS
 
@@ -38,7 +36,7 @@ def asking(attrs: dict, when: dict) -> bool:
 def replayed_attrs(rec: dict, projection: StateProjection) -> dict:
     """An element's attributes under the declared standing projection: authored
     markup overlaid with every surviving value record. The user's action holds
-    one coordinate over a standing report, and independent facets coexist."""
+    one coordinate over a standing report, and independent verbs coexist."""
     attrs = rec["attrs"]
     unit = attrs.get("id")
     if not unit:
@@ -50,99 +48,65 @@ def replayed_attrs(rec: dict, projection: StateProjection) -> dict:
     ]
     for e, spec in sorted(held, key=lambda item: item[0]["seq"]):
         if (spec.get("record") or {}).get("kind") == "value":
-            attrs = {**attrs, spec["record"]["attr"]: folded_facet(e, spec)}
+            attrs = {**attrs, spec["record"]["attr"]: folded_value(e, spec)}
     return attrs
+
+
+def answer_verbs(entry: dict) -> dict:
+    """Each x-state verb whose standing state answers this widget's local Ask,
+    mapped to the condition that state has to meet (x-awaits.answered)."""
+    return (entry.get("x-awaits") or {}).get("answered") or {}
 
 
 def answers_ask(record: dict, entry: dict, verb: str) -> bool:
     """Whether a user's verb on one authored widget is part of that widget's own
-    Ask's answer: the authored instance asks, and the verb writes the facet one of
-    its answer verbs, or the completion verb `until` names, writes. A swipe on a
-    deck that `finish` answers is part of the answer as much as the finish is. A
+    Ask's answer: the authored instance asks, and x-awaits names the verb among
+    those whose state answers it. Every swipe on a deck is part of the answer the
+    last one completes, and so is a pick on a group whose Done answers it. A
     roll-up originates no Ask."""
     awaits = entry.get("x-awaits") or {}
     if awaits.get("rollup") or not asking(record["attrs"], awaits.get("when")):
         return False
-    states = entry.get("x-state") or {}
-    until = awaits.get("until")
-    verbs = [*awaits.get("answers", []), *([until["verb"]] if until else [])]
-    facets = {states[answer]["facet"] for answer in verbs if answer in states}
-    return verb in states and states[verb]["facet"] in facets
+    return verb in answer_verbs(entry)
 
 
-def ask_completion(rec: dict, entry: dict, projection: StateProjection) -> bool | None:
-    """Whether an Ask's explicit completion verb stands.
-
-    None leaves completion to ordinary answer records. When `until` applies,
-    its standing verb decides whether the user still owes an answer. In a
-    frozen thread it also determines which widget moves require an agent response.
-    """
-    until = (entry.get("x-awaits") or {}).get("until")
-    if not until or not asking(replayed_attrs(rec, projection), until["when"]):
-        return None
-    unit = rec["attrs"].get("id")
-    return any(
-        action["widget"] == unit and action["action"] == until["verb"]
-        for action, _spec in projection.actions.values()
-    )
-
-
-def answered_verb(
+def verb_answers(
     rec: dict,
-    projection: StateProjection,
+    entry: dict,
     verb: str,
-    entry: dict,
-    byid: dict,
-    spk: dict,
-    registry: dict,
-) -> bool:
-    """Whether one verb's own durable facet answers this widget.
-
-    Most asks fold one widget-wide value. A completion gesture can instead
-    leave its whole durable result on a named part (for example, the final card's
-    destination); the owner coordinate and verb still identify that answer
-    without a second private completion flag.
-    """
-    unit = rec["attrs"].get("id")
-    spec = (entry.get("x-state") or {}).get(verb)
-    if not spec or not unit:
-        return False
-    held = next(
-        (
-            winner
-            for coordinate, winner in projection.actions.items()
-            if coordinate[0] == unit and winner[0]["action"] == verb
-        ),
-        None,
-    )
-    record = spec.get("record")
-    if spec["unit"] == "widget" and record and record["kind"] in ("attribute", "value"):
-        facet = (
-            folded_facet(*held)
-            if held
-            else markup_facet(unit, spec, byid, spk, registry)
-        )
-        return facet not in (None, "", [])
-    return bool(
-        held
-        and held[0]["action"] == verb
-        and completion_met(rec, spec, projection, byid, registry)
-    )
-
-
-def answered_ask(
-    rec: dict,
-    entry: dict,
     projection: StateProjection,
     byid: dict,
     spk: dict,
     registry: dict,
+    holders: dict[str, dict],
 ) -> bool:
-    """Whether one of this request's explicit answer verbs stands."""
-    return any(
-        answered_verb(rec, projection, verb, entry, byid, spk, registry)
-        for verb in (entry.get("x-awaits") or {}).get("answers", [])
-    )
+    """Whether one answering verb's declared condition holds for this widget now.
+
+    The condition reads standing state and nothing else. `empty` asks the projected
+    containment the verb's position records leave; an attribute or value record reads
+    through authored markup as well as the fold, so a version that honors the answer
+    keeps it answered and a cleared value opens the Ask again; any other verb answers
+    while one of its actions stands on the widget.
+    """
+    condition = answer_verbs(entry)[verb]
+    if not asking(replayed_attrs(rec, projection), condition.get("when")):
+        return False
+    if empty := condition.get("empty"):
+        return container_empty(rec, empty, byid, registry, holders)
+    # A condition without `empty` names a widget-unit verb (registry validation), so
+    # its standing action is the one at the widget's own coordinate for the verb.
+    unit = rec["attrs"].get("id")
+    held = projection.actions.get((unit, unit, verb))
+    spec = entry["x-state"][verb]
+    record = spec.get("record")
+    if record and record["kind"] in ("attribute", "value"):
+        value = (
+            folded_value(*held)
+            if held
+            else markup_value(unit, spec, byid, spk, registry)
+        )
+        return value not in (None, "", [])
+    return held is not None
 
 
 def ask_answered(
@@ -152,13 +116,16 @@ def ask_answered(
     byid: dict,
     spk: dict,
     registry: dict,
+    holders: dict[str, dict] | None = None,
 ) -> bool:
-    """Whether the user's own gestures answer this Ask: its standing completion
-    verb where `until` applies, and otherwise one of its answer verbs."""
-    completed = ask_completion(rec, entry, projection)
-    if completed is not None:
-        return completed
-    return answered_ask(rec, entry, projection, byid, spk, registry)
+    """Whether the user's own state answers this Ask: one of its answering verbs'
+    conditions holds."""
+    if holders is None:
+        holders = projected_action_holders(projection, byid, registry)
+    return any(
+        verb_answers(rec, entry, verb, projection, byid, spk, registry, holders)
+        for verb in answer_verbs(entry)
+    )
 
 
 def seat_with_agent(
@@ -204,7 +171,7 @@ def projected_action_holders(
 ) -> dict[str, dict]:
     """Unit id → its enclosing vocabulary widget after standing position records."""
     holders = {}
-    for (_owner, unit, _facet), (event, spec) in projection.desired.items():
+    for (_owner, unit, _verb), (event, spec) in projection.desired.items():
         record = spec.get("record") or {}
         if record.get("kind") != "position":
             continue
@@ -218,29 +185,19 @@ def projected_action_holders(
     return holders
 
 
-def completion_met(
+def container_empty(
     owner: dict,
-    spec: dict,
-    projection: StateProjection,
+    empty: dict,
     byid: dict,
     registry: dict,
-    positioned_holders: dict[str, dict] | None = None,
+    holders: dict[str, dict],
 ) -> bool:
-    """Whether an answer's standing record leaves its declared completion state.
+    """Whether the one member container `empty` names inside `owner` holds no
+    vocabulary members under the projected holder relation.
 
-    Completion is a predicate over the same projected holder relation the position
-    record changes. It is not another folded value: undoing or superseding the record
-    therefore changes both the durable arrangement and whether the Ask is answered
-    in one operation.
+    A predicate over the same containment the position records change, so undoing
+    or superseding one moves the arrangement and the answer in one operation.
     """
-    completion = spec.get("completion")
-    if not completion:
-        return True
-    holders = (
-        positioned_holders
-        if positioned_holders is not None
-        else projected_action_holders(projection, byid, registry)
-    )
 
     def holder(record: dict):
         unit = record["attrs"].get("id")
@@ -255,7 +212,6 @@ def completion_met(
             record = holder(record)
         return False
 
-    empty = completion["empty"]
     containers = [
         record
         for record in byid.values()
@@ -271,6 +227,36 @@ def completion_met(
         and record["tag"] in registry
         and holder(record) is container
         for record in byid.values()
+    )
+
+
+def answering_action(
+    rec: dict,
+    entry: dict,
+    verb: str,
+    projection: StateProjection,
+    byid: dict,
+    spk: dict,
+    registry: dict,
+) -> bool:
+    """Whether an action of `verb`, standing in `projection`, answers its widget's
+    Ask: the instance asks, and the verb's own condition holds with it in place.
+    Admission stamps `meaning.answer` on exactly these."""
+    awaits = entry.get("x-awaits") or {}
+    return (
+        verb in answer_verbs(entry)
+        and not awaits.get("rollup")
+        and asking(replayed_attrs(rec, projection), awaits.get("when"))
+        and verb_answers(
+            rec,
+            entry,
+            verb,
+            projection,
+            byid,
+            spk,
+            registry,
+            projected_action_holders(projection, byid, registry),
+        )
     )
 
 
@@ -349,16 +335,14 @@ class _AskReducer:
             return not self.local[id(record)]
         if self.thread and not entry.get("x-state"):
             return True
-        completed = ask_completion(record, entry, self.projection)
-        if completed is not None:
-            return completed
-        return answered_ask(
+        return ask_answered(
             record,
             entry,
             self.projection,
             self.byid,
             self.spk,
             self.registry,
+            self.positioned_holders,
         ) or seat_with_agent(
             record,
             entry,
@@ -476,42 +460,6 @@ class _AskReducer:
         )
 
 
-def page_awaiting_values(
-    document,
-    projection,
-    spk,
-    registry: dict,
-    request_phases: dict[str, str] | None = None,
-) -> dict:
-    """Each current page ask's declaration-driven awaiting value.
-
-    An ordinary x-awaits instance awaits its local condition minus an explicit
-    answer. A roll-up projects the logical OR of its nearest local asks and child
-    roll-ups through a nested plan without originating one.
-
-    An x-request.ask instance is local exactly while its canonical lifecycle is ready.
-    Its pending and completed phases hand the turn away from the user; failure
-    returns the lifecycle to ready and therefore reopens the ask.
-
-    No conversation seat answers anything here, so this is whether the ask is
-    answered at all — what an action's `requires` reads. `page_ask_readings` is
-    where a user's own seats come in.
-    """
-    passages = page_passages(
-        document, registry, retirement_outcomes(projection.actions, registry)
-    )
-    return _AskReducer(
-        document,
-        projection,
-        document.by_id,
-        spk,
-        registry,
-        set(passages.retired) | set(passages.gone),
-        thread=False,
-        request_phases=request_phases,
-    ).result(set())[1]
-
-
 def page_ask_readings(
     source,
     projection,
@@ -527,8 +475,8 @@ def page_ask_readings(
     """Every ask reading of one document, folded over one shared setup.
 
     A document is read for three answers at once: the user's own list, the same
-    question with no conversation seats (what an action's `requires` asks), and the
-    inventory of every active Ask. They differ only in `with_agent` and
+    question with no conversation seats (whether each Ask is answered at all, which
+    a sign-off reads), and the inventory of every active Ask. They differ only in `with_agent` and
     `settled_away`; the declared records, their holders, and their local conditions
     are one computation behind all three.
 
@@ -551,13 +499,12 @@ def page_ask_readings(
         request_phases=request_phases,
     )
     user, awaiting = reducer.result(with_agent)
-    unanswered, unanswered_awaiting = reducer.result(set())
+    unanswered, _ = reducer.result(set())
     return {
         "all": reducer.inventory(settled_away or set()),
         "user": user,
         "unanswered": unanswered,
         "awaiting": awaiting,
-        "unanswered_awaiting": unanswered_awaiting,
     }
 
 
@@ -588,9 +535,9 @@ def thread_ask_readings(
 
     A fragment is frozen: no version answers it and no `restated`
     retracts it, so every action on its widgets stands (no floors, no window).
-    A widget with an action ask or request ask can stand in a thread. `until`
-    holds a matching action ask open until the user has posted the verb it names,
-    while a request ask follows its frozen-document request lifecycle.
+    A widget with an action ask or request ask can stand in a thread. An action
+    ask is answered by the same declared state condition as on the page, while a
+    request ask follows its frozen-document request lifecycle.
 
     Frozen thread markup seats no conversation of its own — the thread's reply box
     is already where the user answers — so the user's list and the unanswered
@@ -625,5 +572,4 @@ def thread_ask_readings(
         "user": seated(asks),
         "unanswered": seated(asks),
         "awaiting": awaiting,
-        "unanswered_awaiting": awaiting,
     }

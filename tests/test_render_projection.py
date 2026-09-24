@@ -2773,31 +2773,26 @@ def test_a_projected_attribute_opens_an_ask_captured_from_authored_markup(
         "x-content": "markup",
         "x-upgrade": True,
         "x-state": {
-            phase: {
+            "phase": {
                 "detail": {
                     "type": "object",
                     "properties": {"phase": {"enum": ["closed", "open"]}},
                     "required": ["phase"],
                     "additionalProperties": False,
                 },
-                "facet": "visibility",
                 "unit": "widget",
                 "record": {"kind": "value", "attr": "phase", "value": "phase"},
-            }
-            for phase in ("open", "close")
-        }
-        | {
+            },
             "answer": {
                 "detail": {
                     "type": "object",
                     "properties": {},
                     "additionalProperties": False,
                 },
-                "facet": "decision",
                 "unit": "widget",
-            }
+            },
         },
-        "x-awaits": {"when": {"phase": ["open"]}, "answers": ["answer"]},
+        "x-awaits": {"when": {"phase": ["open"]}, "answered": {"answer": {}}},
         "x-example": '<lf-conditional id="example" phase="closed">Choose.</lf-conditional>',
     }
     module = """\
@@ -2807,7 +2802,7 @@ customElements.define("lf-conditional", class extends HTMLElement {
   #stop;
   connectedCallback() { once(this); this.#stop ??= this.#controller.subscribe(() => {}); }
   disconnectedCallback() { this.#stop?.(); this.#stop = null; }
-  renderState(state) { this.setAttribute("phase", state.visibility.value); }
+  renderState(state) { this.setAttribute("phase", state.phase.value); }
 });
 """
     page = open_page(
@@ -2823,7 +2818,7 @@ customElements.define("lf-conditional", class extends HTMLElement {
     )
     expect_banner_control_offered(page.locator(".lf-asks"), offered=False)
 
-    for action, phase, count in (("open", "open", 1), ("close", "closed", 0)):
+    for phase, count in (("open", 1), ("closed", 0)):
         append_command(
             serve.page_dir,
             {
@@ -2831,7 +2826,7 @@ customElements.define("lf-conditional", class extends HTMLElement {
                 "author": "user",
                 "revision": 1,
                 "widget": "question",
-                "action": action,
+                "action": "phase",
                 "detail": {"phase": phase},
             },
         )
@@ -4551,9 +4546,6 @@ def test_the_ask_walk_follows_registry_declarations(browser, serve):
     registry = json.loads((serve.page_dir / "registry.json").read_text())
     del registry["lf-suggestion"]["x-awaits"]
     del registry["lf-suggestion"]["properties"]["resolves"]
-    del registry["lf-suggestion"]["x-state"]["accept"]["detail"]["properties"][
-        "resolves"
-    ]
     (serve.page_dir / "registry.json").write_text(json.dumps(registry))
     stamp_page(
         serve.page_dir,
@@ -4648,7 +4640,7 @@ def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
 
     # The diff's state half, mirror-image: v1's markup also said `active`, but
     # the user last saw v1 wearing the report's `done`, so the overrule is a
-    # change since the base — the report-layered base facet is what says so.
+    # change since the base — the report-layered base state is what says so.
     compare_with(page)
     page.wait_for_function(
         "() => document.querySelectorAll('.lf-ins-block').length > 0"
@@ -5327,7 +5319,7 @@ def test_render_accepts_actions_made_after_the_authored_change(
     )
 
 
-def test_render_separates_old_and_new_facets_on_one_element(
+def test_render_separates_old_and_new_verbs_on_one_element(
     browser, serve, tmp_path, monkeypatch
 ):
     monkeypatch.chdir(tmp_path)
@@ -5341,18 +5333,17 @@ def test_render_separates_old_and_new_facets_on_one_element(
         restated={"type": "boolean"},
     )
     declaration["x-state"] = {
-        facet: {
+        verb: {
             "detail": {
                 "type": "object",
                 "properties": {"value": {"type": "string"}},
                 "required": ["value"],
                 "additionalProperties": False,
             },
-            "facet": facet,
             "unit": "widget",
-            "record": {"kind": "value", "attr": facet, "value": "value"},
+            "record": {"kind": "value", "attr": verb, "value": "value"},
         }
-        for facet in ("first", "second")
+        for verb in ("first", "second")
     }
     registry_path.write_text(json.dumps(declarations))
     (package / "widgets" / "lf-pair.js").write_text(
@@ -5363,21 +5354,21 @@ customElements.define("lf-pair", class extends HTMLElement {
   connectedCallback() { once(this); this.#stop ??= this.#controller.subscribe(() => {}); }
   disconnectedCallback() { this.#stop?.(); this.#stop = null; }
   renderState(state) {
-    for (const [facet, reading] of Object.entries(state)) {
-      if (reading.value === null) this.removeAttribute(facet);
-      else this.setAttribute(facet, reading.value);
+    for (const [verb, reading] of Object.entries(state)) {
+      if (reading.value === null) this.removeAttribute(verb);
+      else this.setAttribute(verb, reading.value);
     }
   }
 });
 """
     )
     previous = leaf_page(
-        "Two facets", '<lf-pair id="pair" first="a" second="a">Two facts.</lf-pair>'
+        "Two verbs", '<lf-pair id="pair" first="a" second="a">Two facts.</lf-pair>'
     )
     url = serve(previous, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
     d = serve.page_dir
 
-    def act(revision, facet):
+    def act(revision, verb):
         append_command(
             d,
             {
@@ -5385,7 +5376,7 @@ customElements.define("lf-pair", class extends HTMLElement {
                 "author": "user",
                 "revision": revision,
                 "widget": "pair",
-                "action": facet,
+                "action": verb,
                 "detail": {"value": "picked"},
             },
         )
@@ -5394,12 +5385,12 @@ customElements.define("lf-pair", class extends HTMLElement {
     current = previous.replace('second="a"', 'second="b"')
     stamp_page(d, current, "t")
     act(2, "second")
-    # Both renderState writes hit the same id. Only the newer facet was authored.
+    # Both renderState writes hit the same id. Only the newer verb was authored.
     assert (
         render_gate_model.render_version(browser, url.replace("v1.html", "v2.html"))
         == []
     )
-    # The same older facet really is contradicted when its own record changes.
+    # The same older verb really is contradicted when its own record changes.
     with preview_server(
         d,
         structure_model.SourceDocument(current.replace('first="a"', 'first="b"')),
@@ -5460,10 +5451,10 @@ def test_the_render_gate_applies_every_standing_action_a_second_time(browser, se
           return ids.flatMap(id => {
             const widget = document.getElementById(id);
             const state = widgetController(widget).read().state;
-            return Object.entries(state).flatMap(([facet, value]) =>
+            return Object.entries(state).flatMap(([verb, value]) =>
               (value.units ? Object.values(value.units) : [value])
                 .filter(({action}) => action)
-                .map(({action}) => [widget.id, widget.localName, facet, action]));
+                .map(({action}) => [widget.id, widget.localName, verb, action]));
           });
         }""",
         standing_ids,
@@ -5477,16 +5468,14 @@ def test_the_render_gate_applies_every_standing_action_a_second_time(browser, se
         for channel in ("x-state", "x-report")
         for verb in entry.get(channel, {})
     }
-    assert {(tag, verb) for _id, tag, _facet, verb in standing} == declared, (
+    assert {(tag, verb) for _id, tag, _key, verb in standing} == declared, (
         "the gate applies the standing state, so a declared verb missing from it is a "
         f"verb nothing here re-applies: page holds {standing}, registry declares "
         f"{sorted(declared)}"
     )
     assert {
-        (facet, action)
-        for widget, _tag, facet, action in standing
-        if widget == "ab-pick"
-    } == {("selection", "choose"), ("completion", "answer")}
+        (key, action) for widget, _tag, key, action in standing if widget == "ab-pick"
+    } == {("choose", "choose"), ("answer", "answer"), ("add", "add")}
     assert render_gate_model.render_version(browser, url) == []
 
 
@@ -5496,7 +5485,7 @@ def test_a_user_action_outranks_later_news_on_the_same_coordinate(
 ):
     """The projection, not channel replay order, is the DOM's authority. A worker's
     later count remains report history, but it cannot paint over the user's action
-    on the same unit and facet; both log records are ready once that one coordinate is
+    on the same unit and verb; both log records are ready once that one coordinate is
     committed."""
     monkeypatch.chdir(tmp_path)
     author_test_widget(tmp_path, "lf-tally", upgrade=True)
@@ -5521,15 +5510,13 @@ def test_a_user_action_outranks_later_news_on_the_same_coordinate(
     declarations["lf-tally"]["x-state"] = {
         "set": {
             "detail": count_detail,
-            "facet": "count",
             "unit": "widget",
             "record": record,
         }
     }
     declarations["lf-tally"]["x-report"] = {
-        "measure": {
+        "set": {
             "detail": count_detail,
-            "facet": "count",
             "unit": "widget",
             "record": record,
         }
@@ -5544,8 +5531,8 @@ customElements.define("lf-tally", class extends HTMLElement {
   connectedCallback() { once(this); this.#stop ??= this.#controller.subscribe(() => {}); }
   disconnectedCallback() { this.#stop?.(); this.#stop = null; }
   renderState(state) {
-    if (state.count.value === null) this.removeAttribute("count");
-    else this.setAttribute("count", state.count.value);
+    if (state.set.value === null) this.removeAttribute("count");
+    else this.setAttribute("count", state.set.value);
   }
 });
 """
@@ -5556,7 +5543,7 @@ customElements.define("lf-tally", class extends HTMLElement {
     url = serve(html, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
     for kind, author, widget, action, count in [
         ("action", "user", "tally-fitted", "set", "7"),
-        ("report", "agent", "tally-fitted", "measure", "9"),
+        ("report", "agent", "tally-fitted", "set", "9"),
         ("action", "user", "tally-seen", "set", "5"),
     ]:
         append_command(
@@ -5578,7 +5565,7 @@ customElements.define("lf-tally", class extends HTMLElement {
     standing = page.evaluate(
         """async () => (await window.__lfRuntimeImport('/runtime/widget-api.js'))
           .widgetController(document.getElementById('tally-fitted')).read()
-          .state.count.value"""
+          .state.set.value"""
     )
     assert standing == "7"
 
@@ -5589,12 +5576,12 @@ customElements.define("lf-tally", class extends HTMLElement {
     assert original.evaluate("node => node === document.getElementById('tally-seen')")
 
 
-def test_a_part_and_its_own_widget_keep_same_named_facets_independent(
+def test_a_part_and_its_own_widget_keep_same_named_verbs_independent(
     browser, serve, tmp_path, monkeypatch
 ):
-    """Facet names are local to their owning widget contract. A container's
-    placement of part `piece` and that element's own `placement` facet therefore
-    coexist even though unit and facet text are identical; both owners reconcile."""
+    """Verbs are local to their owning widget contract. A container's `move` of part
+    `piece` and that element's own `move` therefore coexist even though unit and verb
+    text are identical; both owners reconcile."""
     monkeypatch.chdir(tmp_path)
     for tag, upgrade in (
         ("lf-owner", True),
@@ -5619,7 +5606,6 @@ def test_a_part_and_its_own_widget_keep_same_named_facets_independent(
                 "required": ["piece", "to", "index"],
                 "additionalProperties": False,
             },
-            "facet": "placement",
             "unit": "piece",
             "record": {
                 "kind": "position",
@@ -5646,14 +5632,13 @@ def test_a_part_and_its_own_widget_keep_same_named_facets_independent(
     }
     piece.setdefault("required", []).append("pinned")
     piece["x-state"] = {
-        "pin": {
+        "move": {
             "detail": {
                 "type": "object",
                 "properties": {"pinned": {"type": "string"}},
                 "required": ["pinned"],
                 "additionalProperties": False,
             },
-            "facet": "placement",
             "unit": "widget",
             "record": {"kind": "value", "attr": "pinned", "value": "pinned"},
         }
@@ -5669,7 +5654,7 @@ customElements.define("lf-owner", class extends HTMLElement {
   connectedCallback() { once(this); this.#stop ??= this.#controller.subscribe(() => {}); }
   disconnectedCallback() { this.#stop?.(); this.#stop = null; }
   renderState(state) {
-    for (const [id, order] of Object.entries(state.placement.value)) {
+    for (const [id, order] of Object.entries(state.move.value)) {
       const zone = document.getElementById(id);
       for (const child of order) zone.append(document.getElementById(child));
     }
@@ -5685,7 +5670,7 @@ customElements.define("lf-piece", class extends HTMLElement {
   #stop;
   connectedCallback() { once(this); this.#stop ??= this.#controller.subscribe(() => {}); }
   disconnectedCallback() { this.#stop?.(); this.#stop = null; }
-  renderState(state) { this.setAttribute("pinned", state.placement.value); }
+  renderState(state) { this.setAttribute("pinned", state.move.value); }
 });
 """
     )
@@ -5710,7 +5695,7 @@ customElements.define("lf-piece", class extends HTMLElement {
             "author": "user",
             "revision": 1,
             "widget": "piece",
-            "action": "pin",
+            "action": "move",
             "detail": {"pinned": "yes"},
         },
     ):
@@ -5725,11 +5710,11 @@ customElements.define("lf-piece", class extends HTMLElement {
           return ['owner', 'piece'].map(id => {
             const widget = document.getElementById(id);
             const {state} = widgetController(widget).read();
-            return [id, (state.placement.units?.piece ?? state.placement).action];
+            return [id, (state.move.units?.piece ?? state.move).action];
           });
         }"""
     )
-    assert standing == [["owner", "move"], ["piece", "pin"]]
+    assert standing == [["owner", "move"], ["piece", "move"]]
     expect(page.locator("body")).to_have_attribute("data-lf-applied", "2")
     # A data renderer can remount a part while retaining its owner. Both owning
     # coordinates must render onto the new node even when no winning event changed.
@@ -5783,7 +5768,6 @@ def test_complete_positions_compose_across_independent_widget_owners(
                 "required": ["to", "index"],
                 "additionalProperties": False,
             },
-            "facet": "placement",
             "unit": "widget",
             "record": {
                 "kind": "position",
@@ -5803,7 +5787,7 @@ customElements.define("lf-token", class extends HTMLElement {
   connectedCallback() { once(this); this.#stop ??= this.#controller.subscribe(() => {}); }
   disconnectedCallback() { this.#stop?.(); this.#stop = null; }
   renderState(state) {
-    const {to, index} = state.placement.detail;
+    const {to, index} = state.move.detail;
     const parent = document.getElementById(to);
     const rest = [...parent.children].filter(child => child !== this);
     if (parent.children[index] !== this) parent.insertBefore(this, rest[index] ?? null);
@@ -5865,7 +5849,7 @@ def test_the_render_gate_catches_a_relative_state_renderer(
 
     Two facets on one unit prove both can stand while exercising the two readings that
     catch different things. The count is markup, so `shallowSigs` sees it; the caption
-    is text, which that signature excludes on purpose, so only the facet's declared
+    is text, which that signature excludes on purpose, so only the verb's declared
     record form reaches it — a limb of the gate that would otherwise never have fired."""
     monkeypatch.chdir(tmp_path)
     author_test_widget(tmp_path, "lf-tally", upgrade=True)
@@ -5891,7 +5875,6 @@ def test_the_render_gate_catches_a_relative_state_renderer(
                 "required": ["count"],
                 "additionalProperties": False,
             },
-            "facet": "count",
             "unit": "widget",
             "record": {"kind": "value", "attr": "count", "value": "count"},
         },
@@ -5902,7 +5885,6 @@ def test_the_render_gate_catches_a_relative_state_renderer(
                 "required": ["text"],
                 "additionalProperties": False,
             },
-            "facet": "caption",
             "unit": "widget",
             "record": {"kind": "body", "value": "text"},
         },
@@ -6142,8 +6124,8 @@ def test_replay_signatures_exclude_settlement_and_other_runtime_paint(browser, s
             "author": "user",
             "revision": 1,
             "widget": "sug-refill",
-            "action": "accept",
-            "detail": {},
+            "action": "decide",
+            "detail": {"outcome": "accept"},
         },
     )
     page = open_page(browser, url)
@@ -6368,8 +6350,8 @@ def test_a_decision_already_in_the_log_retires_its_slot_at_load(browser, serve):
             "author": "user",
             "revision": 1,
             "widget": "sug-refill",
-            "action": "accept",
-            "detail": {},
+            "action": "decide",
+            "detail": {"outcome": "accept"},
         },
     )
     page = open_page(browser, url)
@@ -6426,9 +6408,9 @@ def test_a_settled_third_party_holder_wears_the_layers_mark(
     module's own duty, stated in the module contract and the key table and enforced
     nowhere, and the first family that forgot would have split the page's reading
     from the file's in silence. The second half drives it all back out: the fold
-    keeps the last surviving action per facet and unit, so a widget-unit verb on
-    the settlement facet that settles nothing displaces the decision, and the mark,
-    the marker and the hide follow it."""
+    keeps the last surviving action per verb and unit, so a decision on an outcome
+    that settles nothing displaces the one before it, and the mark, the marker and
+    the hide follow it."""
     monkeypatch.chdir(tmp_path)
     trial_family(tmp_path)
 
@@ -6444,8 +6426,8 @@ def test_a_settled_third_party_holder_wears_the_layers_mark(
             "author": "user",
             "revision": 1,
             "widget": "th-cache",
-            "action": "shelve",
-            "detail": {},
+            "action": "decide",
+            "detail": {"outcome": "shelve"},
         },
     )
     page = open_page(browser, url)
@@ -6461,9 +6443,9 @@ def test_a_settled_third_party_holder_wears_the_layers_mark(
     page.close()
 
     # The mark follows the fold out as well as in: the file's standing state is the
-    # last surviving action per facet and unit, so a widget-unit verb on the same
-    # facet that settles nothing displaces the decision, and a mark left standing
-    # would silence a slot the log has handed back.
+    # last surviving action per verb and unit, so a decision on an outcome that
+    # settles nothing displaces the one before it, and a mark left standing would
+    # silence a slot the log has handed back.
     append_command(
         serve.page_dir,
         {
@@ -6471,8 +6453,8 @@ def test_a_settled_third_party_holder_wears_the_layers_mark(
             "author": "user",
             "revision": 1,
             "widget": "th-cache",
-            "action": "pause",
-            "detail": {},
+            "action": "decide",
+            "detail": {"outcome": "pause"},
         },
     )
     page = open_page(browser, url)
@@ -6491,8 +6473,8 @@ def test_withdrawing_a_recorded_settlement_clears_the_layers_mark(
     browser, serve, tmp_path, monkeypatch
 ):
     """Authored reconstruction states markup, not a logged decision. A holder may
-    validly record the value carried by its settlement facet; restoring that value
-    after undo must not re-mark the withdrawn action or keep its slot retired."""
+    validly record a value its deciding verb carries; restoring that value after
+    undo must not re-mark the withdrawn action or keep its slot retired."""
     monkeypatch.chdir(tmp_path)
     trial_family(tmp_path)
     registry_path = tmp_path / ".leaf" / "registry.json"
@@ -6503,16 +6485,10 @@ def test_withdrawing_a_recorded_settlement_clears_the_layers_mark(
     holder["x-example"] = holder["x-example"].replace(
         'id="x-trial"', 'id="x-trial" decision="open"'
     )
-    detail = {
-        "type": "object",
-        "properties": {"decision": {"enum": ["open", "shelved"]}},
-        "required": ["decision"],
-        "additionalProperties": False,
-    }
-    record = {"kind": "value", "attr": "decision", "value": "decision"}
-    for spec in holder["x-state"].values():
-        spec["detail"] = detail
-        spec["record"] = record
+    decide = holder["x-state"]["decide"]
+    decide["detail"]["properties"]["decision"] = {"enum": ["open", "shelved"]}
+    decide["detail"]["required"].append("decision")
+    decide["record"] = {"kind": "value", "attr": "decision", "value": "decision"}
     registry_path.write_text(json.dumps(declarations))
     (tmp_path / ".leaf" / "widgets" / "lf-trial.js").write_text(
         """import { once, widgetController } from "/runtime/widget-api.js";
@@ -6521,7 +6497,7 @@ customElements.define("lf-trial", class extends HTMLElement {
   #stop;
   connectedCallback() { once(this); this.#stop ??= this.#controller.subscribe(() => {}); }
   disconnectedCallback() { this.#stop?.(); this.#stop = null; }
-  renderState(state) { this.setAttribute("decision", state.settlement.value); }
+  renderState(state) { this.setAttribute("decision", state.decide.value); }
 });
 """
     )
@@ -6536,8 +6512,8 @@ customElements.define("lf-trial", class extends HTMLElement {
             "author": "user",
             "revision": 1,
             "widget": "th-cache",
-            "action": "shelve",
-            "detail": {"decision": "shelved"},
+            "action": "decide",
+            "detail": {"outcome": "shelve", "decision": "shelved"},
         },
     )
     page = open_page(browser, url)
@@ -6585,8 +6561,8 @@ customElements.define("lf-trial", class extends HTMLElement {
             "author": "user",
             "revision": 1,
             "widget": "th-cache",
-            "action": "shelve",
-            "detail": {},
+            "action": "decide",
+            "detail": {"outcome": "shelve"},
         },
     )
 
@@ -6622,8 +6598,8 @@ def test_the_render_gate_holds_a_settled_slot_to_the_logs_decision(
             "author": "user",
             "revision": 1,
             "widget": "th-cache",
-            "action": "shelve",
-            "detail": {},
+            "action": "decide",
+            "detail": {"outcome": "shelve"},
         },
     )
     assert render_gate_model.render_version(browser, url) == []
@@ -6719,8 +6695,8 @@ def test_a_label_in_a_retired_slot_leaves_the_page_with_the_slot(browser, serve)
             "author": "user",
             "revision": 1,
             "widget": "sug-swap",
-            "action": "accept",
-            "detail": {},
+            "action": "decide",
+            "detail": {"outcome": "accept"},
         },
     )
     page = open_page(browser, url)
@@ -7041,7 +7017,6 @@ def test_thread_body_initial_state_comes_from_source_before_upgrade(
                     "x-state": {
                         "edit": {
                             "unit": "widget",
-                            "facet": "body",
                             "record": {"kind": "body", "value": "text"},
                             "detail": {
                                 "type": "object",
@@ -7070,7 +7045,7 @@ customElements.define('lf-delayed-body', class extends HTMLElement {
     this.#stop ??= this.#controller.subscribe(() => {});
   }
   disconnectedCallback() { this.#stop?.(); this.#stop = null; }
-  renderState(state) { this.querySelector('pre').textContent = state.body.value; }
+  renderState(state) { this.querySelector('pre').textContent = state.edit.value; }
 });
 """
             },
@@ -7219,7 +7194,7 @@ def test_crossed_responses_wait_for_the_same_frozen_widget_module(browser, serve
       return {
         descriptor: root.document.descriptors.has('crossed-draft'),
         authored: root.document.authored.has('crossed-draft'),
-        body: root.effective.widgets.get('crossed-draft')?.state.body?.value ?? null,
+        body: root.effective.widgets.get('crossed-draft')?.state.edit?.value ?? null,
         mounted: Boolean(document.getElementById('crossed-draft')),
       };
     }"""
@@ -7444,7 +7419,7 @@ def test_a_thread_question_asks_until_answered(browser, serve):
 
     # Taking back a recordless chrome answer rebuilds its authored controls at once —
     # the withdrawal is the user's own gesture on their own widget. The selection is
-    # another facet, so it survives that rebuild. Whether the decision is open again is
+    # another verb, so it survives that rebuild. Whether the decision is open again is
     # the log's reading, so the count moves when the withdrawal reaches it and not while
     # it is held at the wire. In particular, the surviving `choose` action cannot answer
     # a thread set whose `x-awaits.until` names `answer`.
@@ -7562,7 +7537,7 @@ def test_a_refused_thread_choice_replays_recorded_and_recordless_history(
 ):
     """A recordless accepted action still belongs to the widget's history.
     Reconstructing after a later refusal must replay both the recorded selection and
-    the separate completion facet, retaining both visible facts."""
+    the separate `answer` verb, retaining both visible facts."""
     url = serve(REPLY_HOST_PAGE)
     events_model.append_event(serve.page_dir, THREAD_ASKS[1])
     page = open_page(browser, url)
@@ -8540,7 +8515,7 @@ def test_command_hub_reads_one_publication_before_worker_presentation_commits(
               const {widgetController} = await window.__lfRuntimeImport(
                 '/runtime/widget-api.js');
               return widgetController(document.querySelector('#w-1'))
-                .read().state.activity.value === 'waiting';
+                .read().state.state.value === 'waiting';
             }"""
         )
         expect(worker).to_have_attribute("state", "working")
@@ -9120,7 +9095,6 @@ def test_project_widget_can_join_the_orchestration_projection(
                         "required": ["phase"],
                         "additionalProperties": False,
                     },
-                    "facet": "phase",
                     "unit": "widget",
                     "record": {
                         "kind": "value",

@@ -12,7 +12,7 @@ from leaf.projection import (
     retirement_holders,
     state_projection,
 )
-from leaf.registry.contract import created_children, visual_parts
+from leaf.registry.contract import visual_parts
 from leaf.revision_artifact import RevisionArtifact, read_artifact
 from leaf.structure import SourceDocument
 from leaf.validation.transitions import report_errors, restatement_errors
@@ -169,11 +169,12 @@ def continuity_errors(
     )
     dropped = sorted(gone & protected.keys())
     generated = {
-        (identity, event["widget"], spec["creates"]["child"])
-        for event, spec in previous_projection.desired.values()
-        if event["kind"] == "action"
+        (unit, widget, spec["creates"]["child"])
+        for (widget, unit, _facet), (
+            _event,
+            spec,
+        ) in previous_projection.desired.items()
         if spec.get("creates")
-        for identity in created_children(event, spec)
     }
     current_by_id = parser.by_id
 

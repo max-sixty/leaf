@@ -539,27 +539,42 @@ def rewritten_bodies(actions: dict) -> dict:
 
 
 def generated_children(desired: dict, authored_ids: set) -> dict:
-    """Owner id → declared children supplied by its current winning event.
+    """Owner id → the children standing creating actions supply, in log order.
 
-    The event carries the complete generated set. An authored element with the
-    same id already supplies that construction and keeps its authored content.
+    Each created child is its action's fold unit, so it stands on a coordinate of its
+    own: a later action on another facet leaves it standing, and only an undo or a
+    retraction of that action takes it away. An authored element with the same id
+    already supplies that construction and keeps its authored content.
     """
     children = {}
-    for (_widget, unit, _facet), (event, spec) in sorted(
+    for (widget, unit, _facet), (event, spec) in sorted(
         desired.items(), key=lambda item: item[1][0]["seq"]
     ):
-        if creates := spec.get("creates"):
-            children.setdefault(unit, []).extend(
+        if (creates := spec.get("creates")) and unit not in authored_ids:
+            children.setdefault(widget, []).append(
                 {
-                    "id": identity,
+                    "id": unit,
                     "tag": creates["child"],
-                    "text": text,
+                    "text": event["detail"][creates["words"]],
                     "event": event,
                 }
-                for identity, text in event["detail"].get(creates["field"], {}).items()
-                if identity not in authored_ids
             )
     return children
+
+
+def record_members(
+    owner: str, projection: StateProjection, byid: dict, spk: dict, registry: dict
+) -> set:
+    """The ids an attribute record on `owner` may name: the authored elements it
+    records, and the children its standing actions created."""
+    authored = {
+        oid
+        for oid in byid
+        if owner in spk.get(oid, EMPTY).within[:-1]
+        and recorded_owner(oid, byid, spk, registry) == owner
+    }
+    created = generated_children(projection.desired, set(byid)).get(owner, [])
+    return authored | {child["id"] for child in created}
 
 
 def retirement_outcomes(actions: dict, registry: dict) -> dict:

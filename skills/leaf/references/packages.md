@@ -597,13 +597,15 @@ before the server admits it.
 
 A verb may add `requires`, a prerequisite on the widget's Ask; `completion`, which
 answers that Ask when a move empties a container; and `references`, described under "A
-widget". A verb that lets the user add real children declares
-`creates: {field, child}`. The named optional detail field has the canonical
-`{element-id: non-empty words}` map schema. The child tag admits the sender through
-`x-owners`, requires only its canonical `id`, and has `x-content: markup`. The append
-transaction records the map's sorted ids in `generated`, allowing historical
-folds to retain their liveness while version checks enforce the declared tag and
-direct-ownership relation.
+widget". A verb that lets the user add a real child declares `creates: {child, words}`.
+Its fold unit names the detail field carrying the new child's canonical element id,
+`words` names the field carrying its non-empty words, and the detail holds exactly those
+two required fields with no record form. Each added child therefore stands on its own
+coordinate: a later action on another facet leaves it in place, and undoing the `add`
+removes it. The child tag admits the sender through `x-owners`, requires only its
+canonical `id`, and has `x-content: markup`. The append door refuses an id the sending
+document already holds, and version checks enforce the declared tag and
+direct-ownership relation once an author writes the child into the markup.
 
 `x-report` declares the agent's side of the same coordinates: a worker posts a report
 with `leaf report`, and it stands until a version answers it. A user's action at the

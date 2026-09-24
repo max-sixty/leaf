@@ -316,6 +316,17 @@ def test_root_tabs_switch_views_without_moving_the_strip_and_follow_history(
     settled()
     expect(page.locator("#plan-rollback h2")).to_be_in_viewport()
 
+    # A reveal (a comment anchor, find-in-page) opens another view, and the entry the
+    # user stands on then names it, so pressing away and coming Back returns there.
+    page.evaluate(
+        "document.querySelector('#evidence-tab').dispatchEvent(new CustomEvent('lf-reveal'))"
+    )
+    expect(evidence).to_have_attribute("aria-selected", "true")
+    assert page.url.endswith("#evidence-tab")
+    switch(plan)
+    page.go_back()
+    expect(evidence).to_have_attribute("aria-selected", "true")
+
     # A fresh load that restores the remembered view opens at the page's top.
     switch(evidence)
     page.goto(url)

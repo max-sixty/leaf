@@ -36,6 +36,7 @@ import {
 } from "/runtime/widget-api.js";
 
 const TAB_KEY = "lf-tabs:";
+const READING_KEY = "lf-tabs-reading:";
 const substantiveChildren = (owner) =>
   [...owner.childNodes].filter(
     (child) =>
@@ -55,7 +56,6 @@ customElements.define(
     #diffEvents = null;
     #historyEvents = null;
     #active = null;
-    #readings = new Map(); // root panel → the document offset its user left it at
     #root = false;
     #contextObserver = null;
     #strip = null;
@@ -208,8 +208,18 @@ customElements.define(
       const switched = this.#root && ["ordinary", "history"].includes(reason);
       const change = () => {
         const from = pageScroller.scrollTop;
-        if (this.#root && previous) this.#readings.set(previous, from);
+        if (this.#root && previous)
+          tabStore.set(this.#readingKey(previous), String(from));
         if (this.#root && reason === "ordinary") this.#pushLocation(active);
+        // Whatever opened another view, the entry the user stands on names it, so
+        // Back and Forward to that entry return to this view. A fragment already
+        // inside it (a link's target) says so and stays.
+        else if (
+          this.#root &&
+          reason === "reveal" &&
+          this.#panelForLocation([active]) !== active
+        )
+          history.replaceState(history.state, "", this.#locationFor(active));
         for (const [panel, btn] of this.#buttons) {
           if (panel === active) panel.removeAttribute("hidden");
           else panel.setAttribute("hidden", HIDDEN);
@@ -383,8 +393,14 @@ customElements.define(
         this.getBoundingClientRect().top +
         pageScroller.scrollTop -
         parseFloat(getComputedStyle(this.#strip).top);
-      const read = this.#readings.get(panel);
+      const read = Number.parseFloat(tabStore.get(this.#readingKey(panel)));
       return read > start ? read : Math.min(from, start);
+    }
+
+    // The document offset this user left a view at, kept per browser tab like the open
+    // tab itself, so a reload still returns each view to its place.
+    #readingKey(panel) {
+      return `${READING_KEY}${this.id}:${panel.id}`;
     }
 
     // One Δn chip per tab holding marked passages, so the notice's count is

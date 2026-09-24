@@ -3751,11 +3751,12 @@ def test_the_room_does_not_flicker_while_a_strip_arrives(browser, serve, other_l
     """
     page = open_page(browser, serve(ASKS_PAGE))
     resized(page, 1200, 900)
-    page.evaluate(ROOM_EVERY_FRAME, 60)
+    page.evaluate(ROOM_EVERY_FRAME)
+    # The press may wait past the old 60-frame recording window on a busy runner.
+    page.wait_for_function("() => window.__room.length >= 60")
     banner_control(page, ".lf-asks").click()
     edge_settled(page, EDGES[1])
-    page.wait_for_function("() => window.__room.length >= 60")
-    trace = page.evaluate("() => window.__room")
+    trace = page.evaluate("() => window.__roomStop()")
     page.close()
 
     steps = [room for i, room in enumerate(trace) if i == 0 or room != trace[i - 1]]

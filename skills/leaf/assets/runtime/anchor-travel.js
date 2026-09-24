@@ -13,11 +13,10 @@
  */
 
 import {
-  currentDatum,
-  projectionReferenceDeclared,
+  addressedElements,
   referencedProjection,
+  requireReference,
   sectionOf,
-  suppliedDatum,
 } from "./anchor-resolution.js";
 import {
   clippedContents,
@@ -124,15 +123,6 @@ export function createAnchorTravel({
     return true;
   }
 
-  function validateProjectionReference(owner, attribute) {
-    if (!(owner instanceof Element))
-      throw new TypeError("navigateToDatum owner must be an element");
-    if (typeof attribute !== "string" || !projectionReferenceDeclared(owner, attribute))
-      throw new TypeError(
-        `navigateToDatum ${owner.localName} attribute ${String(attribute)} is not declared by x-refers`,
-      );
-  }
-
   async function navigateToDatum(
     owner,
     attribute,
@@ -140,7 +130,7 @@ export function createAnchorTravel({
     { success = "", missing = "" } = {},
   ) {
     const mayArrive = retainTravel();
-    validateProjectionReference(owner, attribute);
+    requireReference("navigateToDatum", owner, attribute);
     if (typeof key !== "string" || !key)
       throw new TypeError("navigateToDatum key must be a non-empty string");
     let source = referencedProjection(owner, attribute);
@@ -159,7 +149,7 @@ export function createAnchorTravel({
       if (missing) announce(missing);
       return false;
     }
-    let destination = currentDatum(source, key) ?? suppliedDatum(source, key);
+    let destination = addressedElements(source, key)[0] ?? null;
 
     const url = new URL(window.location.href);
     url.hash = source.id;
@@ -174,7 +164,7 @@ export function createAnchorTravel({
     await reveal(destination, mayArrive);
     if (!mayArrive()) return false;
     source = referencedProjection(owner, attribute);
-    destination = source && (currentDatum(source, key) ?? suppliedDatum(source, key));
+    destination = source && (addressedElements(source, key)[0] ?? null);
     if (!destination) {
       if (missing) announce(missing);
       return false;

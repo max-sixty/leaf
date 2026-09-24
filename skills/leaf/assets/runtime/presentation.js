@@ -126,6 +126,7 @@ export const PAGE_PAINT_ATTRIBUTE = Object.freeze({
   moreBelow: "data-lf-more-below",
   goto: "data-lf-go-to-active",
   traffic: "data-lf-traffic",
+  indicated: "data-lf-indicated",
 });
 export const PAGE_PAINT_ATTRIBUTES = new Set(Object.values(PAGE_PAINT_ATTRIBUTE));
 export const pagePresented = () =>

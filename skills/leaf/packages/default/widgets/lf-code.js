@@ -7,11 +7,15 @@
  * and a line is the unit this widget numbers, so the tokens are cut at each
  * newline (tokenLines) rather than the source being colored a line at a time —
  * coloring line by line would restart the tokenizer inside the docstring and
- * read its second line as code. */
+ * read its second line as code.
+ *
+ * `lfElementsFor(key)` answers another widget's indication (runtime/indication.js,
+ * experimental) in the grammar `hi` already speaks: "3-5,8" addresses those lines. */
 import {
   dataBody,
   once,
   failSoft,
+  layoutChanged,
   quietWord,
   widgetController,
   synNodes,
@@ -33,6 +37,13 @@ function parseRanges(spec) {
 customElements.define(
   "lf-code",
   class extends HTMLElement {
+    // The rendered lines a range addresses, none before the lines are in; the render
+    // states their arrival through layoutChanged, and an indication resolves again then.
+    lfElementsFor(key) {
+      const lines = this.querySelectorAll(":scope > pre > .lf-code-line");
+      return [...parseRanges(key)].map((n) => lines[n - 1]).filter(Boolean);
+    }
+
     connectedCallback() {
       if (!once(this)) return;
       // Registered with the controller so the runtime holds the first anchor pass until
@@ -87,6 +98,7 @@ customElements.define(
         });
         this.replaceChildren(pre);
         this.classList.add("lf-rendered");
+        layoutChanged(this);
       } catch (err) {
         failSoft(this, err, source);
       }

@@ -2315,6 +2315,14 @@ lf-code .lf-code-line::before { counter-increment: lf-code-line;
              color: var(--code-muted); font-variant-numeric: tabular-nums; }
 lf-code .lf-code-line.hi { background: var(--hi-tint); }
 lf-code .lf-code-line.hi::before { border-right-color: var(--warn); }
+/* The line another widget is indicating (indication.js): an accent bar at the gutter's
+   outer edge and an accent number, so it reads apart from an hi line by shape as well as
+   hue, and an accent wash that an hi line's own tint keeps. The bar is the gutter's, not
+   the line's, because the gutter's own background paints over an inset on the line. */
+lf-code .lf-code-line[data-lf-indicated] { outline: none; }
+lf-code .lf-code-line[data-lf-indicated]:not(.hi) { background: var(--accent-tint); }
+lf-code .lf-code-line[data-lf-indicated]::before {
+             box-shadow: inset 3px 0 0 var(--accent); color: var(--accent); font-weight: 600; }
 /* A note is prose about a source line, not another source line. It follows the
    code-review convention: a sans-serif row spanning the source frame, with its text
    aligned to the code after the 46px gutter. Horizontal rules mark the insertion

@@ -122,28 +122,24 @@ def continuity_errors(
     if not revision.predecessor or revision.committed_active or registry is None:
         return [], []
     gone = revision.previous.ids - parser.ids
-    previous_parts = {
-        (record["attrs"]["id"], part)
-        for record in revision.previous.lf_elements
-        if record["attrs"].get("id")
-        for part in visual_parts(record, revision.previous_registry)
-    }
-    current_parts = {
-        (record["attrs"]["id"], part)
-        for record in parser.lf_elements
-        if record["attrs"].get("id")
-        for part in visual_parts(record, registry)
-    }
     # Only the parts a live conversation still points at, read exactly as the
     # protected ids below are. A declared part is authored markup, not a promise:
     # once every thread on it has moved, detached, or closed, the picture may lose
     # the node with them, the way an id no thread holds is dropped. Held for the
     # life of the widget instead, a diagram could never follow the thing it draws.
-    held_parts = anchored_parts(events, enclosing_of(revision.previous_words))
+    # Prefixes admit ids the file never lists, so for such a widget only a
+    # declaration that stops admitting a held id drops it here; a part its drawing
+    # stops rendering detaches in the browser.
+    previous_records, current_records = revision.previous.by_id, parser.by_id
     dropped_parts = sorted(
         f"{section} · {part}"
-        for section, part in (previous_parts - current_parts) & held_parts
+        for section, part in anchored_parts(
+            events, enclosing_of(revision.previous_words)
+        )
         if section in parser.ids
+        and part
+        in visual_parts(previous_records.get(section, {}), revision.previous_registry)
+        and part not in visual_parts(current_records.get(section, {}), registry)
     )
     errors = []
     if dropped_parts:

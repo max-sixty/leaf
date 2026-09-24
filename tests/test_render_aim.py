@@ -51,11 +51,13 @@ from render_cases_widgets import (
     PART_DIAGRAM_PAGE,
     PART_DIAGRAM_V2,
     PICTURE_PAGE,
+    PREFIXED_VISUAL_PAGE,
     SHADOW_VISUAL_LAYER,
     SHADOW_VISUAL_PAGE,
     SHADOW_VISUAL_WIDGETS,
     TYPED_PARTS_PAGE,
     TYPED_PARTS_V2,
+    prefixed_visual_layer,
 )
 from render_harness import (
     BOTH_STAMPS,
@@ -2225,6 +2227,44 @@ def test_a_registered_visual_rebuilds_same_bounds_geometry_on_update(browser, se
     assert page.evaluate(
         "() => window.lfOldContour !== document.querySelector('.lf-visual-mark-shape > g > rect')"
     )
+
+
+def test_a_prefixed_visual_part_is_marked_and_aimed_like_an_authored_one(
+    browser, serve
+):
+    """A part admitted by its widget's prefixes, with nothing authored on the element,
+    replays a stored comment onto its own shape and takes a new one from a click."""
+    url = serve(
+        PREFIXED_VISUAL_PAGE,
+        layer_registry=prefixed_visual_layer("out", "inn", "htm"),
+        layer_widgets=GENERIC_VISUAL_WIDGETS,
+    )
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "id": "inner-comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Why does this branch?",
+            "anchor": {"section": "visual", "visual": "inner"},
+        },
+    )
+    page = open_page(browser, url)
+    expect(page.locator("#inner")).to_have_class(re.compile(r"\blf-projected-mark\b"))
+    expect(page.locator("#outer")).not_to_have_class(
+        re.compile(r"\blf-projected-mark\b")
+    )
+
+    page.locator("#html-surface").click(modifiers=["Alt"])
+    expect(page.locator(".lf-composer")).to_be_visible()
+    assert (
+        page.evaluate(
+            "() => [...document.querySelectorAll('.lf-visual-mark-pending')].length"
+        )
+        == 1
+    )
+    expect(page.locator("#html")).to_have_class(re.compile(r"\blf-projected-mark\b"))
 
 
 def test_a_visual_surface_narrows_paint_without_narrowing_semantic_interaction(

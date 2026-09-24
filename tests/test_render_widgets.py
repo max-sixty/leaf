@@ -7665,15 +7665,16 @@ def test_ask_actions_replace_unusable_package_binding_badge_faces(browser, serve
         }"""
     )
 
+    # The Ask's bindings are chrome, painted on the frame after the press that enters it.
     page.keyboard.press("a")
-    controls = page.locator(
-        "#disconnected-face, #shared-face-one, #shared-face-two, #covered-face, "
-        "#clipped-face"
-    )
-    expect(controls).to_have_count(5)
-    assert controls.evaluate_all(
-        "nodes => nodes.map(node => node.getAttribute('aria-keyshortcuts'))"
-    ) == ["3", "4", "5", "6", "7"]
+    for control, binding in (
+        ("#disconnected-face", "3"),
+        ("#shared-face-one", "4"),
+        ("#shared-face-two", "5"),
+        ("#covered-face", "6"),
+        ("#clipped-face", "7"),
+    ):
+        expect(page.locator(control)).to_have_attribute("aria-keyshortcuts", binding)
     expect(
         page.locator("#shared-binding-badge[data-lf-ask-binding-badge]")
     ).to_have_count(0)

@@ -2735,16 +2735,14 @@ def test_the_thread_walk_stays_inline_until_threads_is_opened(browser, serve):
         f'.lf-margin-preview .lf-conversation-thread[data-thread="{roots[0]}"]'
     )
     expect(first).to_be_focused()
-    assert page.evaluate(
-        """() => ({
-          position: document.querySelector('.lf-walk-position').checkVisibility(),
-          notice: document.querySelector('.lf-notice').checkVisibility(),
-        })"""
-    ) == {"position": True, "notice": False}
+    # The walk position takes the notice's place at one instant. Both are chrome, which
+    # the repaint after the press paints, so the reading waits for that frame.
+    page.wait_for_function(
+        """() => document.querySelector('.lf-walk-position').checkVisibility()
+          && !document.querySelector('.lf-notice').checkVisibility()"""
+    )
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
     expect(position).to_have_text("Thread 1 of 2")
-    expect(position).to_be_visible()
-    expect(page.locator(".lf-notice")).not_to_be_visible()
     expect(position).to_have_attribute("aria-hidden", "true")
     expect(position.locator("xpath=parent::*")).to_have_class(
         re.compile("lf-bottom-status")
@@ -3767,8 +3765,10 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
             }"""
         )
         assert landing["target"]["bottom"] <= landing["listBottom"]
-        # On macOS the 18-paragraph case reaches scrollTop == maximumScroll
-        # (69/69 measured); there is no travel left to align a content block.
+        # A list scrolled to its limit has no travel left to align a content block.
+        # The click can follow the panel's first opening within a frame, before the
+        # pinned heading's first observation; the landing measures that heading's
+        # room itself (geometry.js, `declareCoverRoom`).
         if landing["scroll"] and landing["scroll"] < landing["maximumScroll"] - 1:
             assert any(
                 block["top"] == pytest.approx(landing["start"], abs=2)

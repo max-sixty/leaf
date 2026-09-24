@@ -1,5 +1,4 @@
-// <lf-merge-film>: the player around film.js. It owns playback, the flag controls and
-// the theme the drawing takes.
+// <lf-merge-film>: the player around film.js. It owns playback and the flag controls.
 //
 // The stage is a Leaf visual with parts, not a control, so it is neither an offer nor a
 // tab stop. Hovering a commit, ref, worktree or hook shows what it is and lights a
@@ -15,14 +14,7 @@
 // so the page can tell the current step beside the film.
 
 import { offer, once, registerVisualParts } from "/runtime/widget-api.js";
-import {
-  DEFAULT_FLAGS,
-  EXAMPLE,
-  Painter,
-  compile,
-  frame,
-  themePalette,
-} from "../film.js";
+import { DEFAULT_FLAGS, EXAMPLE, Painter, compile, frame } from "../film.js";
 
 const SVG = "http://www.w3.org/2000/svg";
 
@@ -49,31 +41,13 @@ customElements.define(
     #raf = 0;
     #focus = null;
     #inspected = null;
-    #unwatchTheme = null;
 
     connectedCallback() {
       if (once(this)) this.#build();
-      // The page theme can change under the film: the OS scheme, or Leaf's theme toggle.
-      const retheme = () => {
-        this.painter.setPalette(themePalette(this));
-        this.#paint();
-      };
-      const scheme = matchMedia("(prefers-color-scheme: dark)");
-      scheme.addEventListener("change", retheme);
-      const observer = new MutationObserver(retheme);
-      observer.observe(document.documentElement, {
-        attributes: true,
-        attributeFilter: ["data-theme"],
-      });
-      this.#unwatchTheme = () => {
-        scheme.removeEventListener("change", retheme);
-        observer.disconnect();
-      };
       this.#paint();
     }
 
     disconnectedCallback() {
-      this.#unwatchTheme?.();
       cancelAnimationFrame(this.#raf);
       this.#playing = false;
     }
@@ -85,7 +59,7 @@ customElements.define(
       this.svg.setAttribute("role", "img");
       this.svg.setAttribute("aria-label", "wt merge, animated");
       stage.append(this.svg);
-      this.painter = new Painter(this.svg, themePalette(this));
+      this.painter = new Painter(this.svg);
       this.inspector = document.createElement("div");
       this.inspector.className = "film-inspect";
       this.inspector.hidden = true;

@@ -802,6 +802,7 @@ pick before Done:
 
 decided suggestion:
   event:
+    carrier: wait
     kind: action
     action: decide
     meaning:

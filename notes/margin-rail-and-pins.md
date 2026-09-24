@@ -534,10 +534,10 @@ Phases 3 and 4 are independent of each other.
 - **#2 — Defaults:** decided: column pages have a rail, every other page pins, and the
   agent overrides with `data-rail`; no sidenote inference.
 - **#3 — Pin look and touch size:** decided on the look pass's stills.
-- **#4 — Tab order:** contributed controls (a suggestion's ✓/✗) move after the content in
-  tab order, the price of inserting nothing into the page.
-- **#5 — `o`:** it hides reporting markers and durable marks but keeps contributed
-  controls. It is tab state. Explicit requests (`t`, Threads, the Page Map) open the card
+- **#4 — Tab order:** decided: contributed controls (a suggestion's ✓/✗) move after the
+  content in tab order, the price of inserting nothing into the page.
+- **#5 — `o`:** decided: it hides reporting markers and durable marks but keeps
+  contributed controls. It is tab state. Explicit requests (`t`, Threads, the Page Map) open the card
   without revealing the layer.
 - **#6 — Declared, not placed:** decided, an attribute on `main`.
 

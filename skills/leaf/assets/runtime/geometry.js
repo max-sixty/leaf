@@ -478,6 +478,8 @@ function clipped(box, item, clips, held) {
 // every pixel of the answer is one the user sees, and a box the occluder reaches into
 // reads as less than whole.
 const occluders = new Set();
+// An occluder on its way out (motion.js, `slide`) covers nothing the user is reading past.
+export const LEAVING = "data-lf-leaving";
 export const declareOccluder = (surface) => occluders.add(surface);
 // A clip pass that reads past some occluders. Travel asks what the page shows of a
 // destination beside the surface it leaves standing, which is the most any movement of
@@ -495,7 +497,13 @@ export const clipsPast = (surfaces) => new Map([[PAST, new Set(surfaces)]]);
 // where the landing will bring it into view.
 export function hides(surface, where) {
   const holder = placeHolder(where);
-  if (!holder || !occluders.has(surface) || !surface.checkVisibility()) return false;
+  if (
+    !holder ||
+    !occluders.has(surface) ||
+    surface.hasAttribute(LEAVING) ||
+    !surface.checkVisibility()
+  )
+    return false;
   if (under(holder, surface) || stackLevel(holder) >= stackLevel(surface)) return false;
   const box = where instanceof Range ? where.getBoundingClientRect() : shownBox(where);
   const seen =
@@ -532,7 +540,12 @@ function standingOccluders(clips) {
   if (standing) return standing;
   const past = clips.get(PAST);
   standing = [...occluders]
-    .filter((surface) => surface.isConnected && surface.checkVisibility())
+    .filter(
+      (surface) =>
+        surface.isConnected &&
+        !surface.hasAttribute(LEAVING) &&
+        surface.checkVisibility(),
+    )
     .filter((surface) => !past?.has(surface))
     .map((surface) => ({
       surface,

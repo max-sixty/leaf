@@ -16,6 +16,7 @@
 
 import { runtime } from "./context.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
+import { LEAVING } from "./geometry.js";
 
 // The theme's reduced-motion guard covers CSS animation and transitions; motion
 // driven from JS — smooth scrolls here, Web-Animations moves in widgets — checks
@@ -87,13 +88,16 @@ export function motion(el, keyframes, ms) {
 // and two numbers would be that reason written down twice, free to disagree.
 export const FOLD_MS = 220;
 
-// An edge-held auxiliary surface slides in from the edge it is held to and back out to it:
-// the trays from the left, the thread panel from the right. It stands over the page, so the
+// An edge-held auxiliary surface slides in from the edge it is held to, the trays from the
+// left and the thread panel from the right, and a tray slides back out to it. It stands over the page, so the
 // slide moves only the surface. Out is quicker than in, since a surface going away is
 // nothing the user has to follow. A new slide replaces one still running on the same
 // surface and starts from where that one had carried it, so a reopen mid-exit comes
 // straight back rather than finishing the exit first; the replaced slide's `finished`
-// rejects, which is how its caller knows not to hide.
+// rejects, which is how its caller knows not to hide. A surface sliding out is already
+// gone to the user, so it is marked `LEAVING` for the length of the exit: it takes no
+// press (chrome.css), and no reading of what the page shows counts it as covering
+// anything (geometry.js).
 // A slide moves what the surface shows without a scroll, resize or mutation, so its end
 // is announced as `SLIDE_END` on the surface for readers of what is on screen.
 export const SLIDE_END = "lf-slide-end";
@@ -104,17 +108,22 @@ export function slide(el, side, direction) {
   const running = slides.get(el);
   const at = running && { transform: getComputedStyle(el).transform };
   running?.cancel();
+  el.toggleAttribute(LEAVING, direction === "out");
   const away = { transform: `translateX(${side === "left" ? "-100%" : "100%"})` };
   const home = { transform: "translateX(0)" };
   const played =
     direction === "in"
       ? motion(el, [at ?? away, home], SLIDE_IN_MS)
       : motion(el, [at ?? home, away], SLIDE_OUT_MS);
-  if (!played) return null;
+  if (!played) {
+    el.removeAttribute(LEAVING);
+    return null;
+  }
   slides.set(el, played);
   played.finished.then(
     () => {
       slides.delete(el);
+      el.removeAttribute(LEAVING);
       el.dispatchEvent(new Event(SLIDE_END, { bubbles: true, composed: true }));
     },
     () => {},

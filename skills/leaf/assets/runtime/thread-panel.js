@@ -69,14 +69,10 @@ export function createThreadPanelController({
       refreshConversation();
       syncGeneral(); // a restored draft has to reach the Send button's disabled state
     } else if (panel.open) {
-      // Slid out before closed, and closed only if still closed on arrival: a reopen
-      // mid-slide replaces the slide and leaves the panel standing.
-      const out = slide(panel, "right", "out");
-      const close = () => {
-        if (!panelIsOpen()) panel.close();
-      };
-      if (out) out.finished.then(close, () => {});
-      else close();
+      // Closed at once, with no slide out: the panel is a dialog that the thread list,
+      // the walks and placement all read as open while it shows, so a panel still on
+      // screen after the press would take the next key the user meant for the page.
+      panel.close();
     }
     if (open) closePreview();
   }

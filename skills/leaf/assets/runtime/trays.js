@@ -177,6 +177,9 @@ export function createTrays({
       hide({ returnFocus }) {
         btn.setAttribute("aria-expanded", "false");
         if (!panel.classList.contains("open")) return;
+        // Before the slide, which takes the tray out of reach.
+        if (returnFocus && panel.contains(document.activeElement))
+          bannerControlDoor(btn)?.focus({ preventScroll: true });
         // Slid out before hidden, and hidden only if still closed on arrival — a
         // reopen mid-slide leaves the panel standing rather than racing the finish.
         const out = slide(panel, "left", "out");
@@ -187,8 +190,6 @@ export function createTrays({
         };
         if (out) out.finished.then(hide, () => {});
         else hide();
-        if (returnFocus && panel.contains(document.activeElement))
-          bannerControlDoor(btn)?.focus({ preventScroll: true });
       },
     });
     trays.set(key, { panel, btn, close });

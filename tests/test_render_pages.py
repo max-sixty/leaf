@@ -2750,10 +2750,9 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
     is the wide exhibit in the control: it may use the other margins but not the one the
     sticky sidebar can occupy at any scroll position.
 
-    Opening the Asks tray narrows the page without changing the viewport. The body's
-    container query sees the resulting content box and returns the aside to the flow. A
-    narrow viewport proves the same fallback comes from CSS alone, and print proves
-    paper reserves no blank margin for a posture it cannot use."""
+    The Asks tray stands over the left margin and moves nothing in it. A narrow viewport
+    returns the aside to the flow from CSS alone, and print proves paper reserves no
+    blank margin for a posture it cannot use."""
     # Compose the wide release-note exhibit with a sidebar; the short public draft
     # no longer needs one of its own.
     example = (
@@ -2865,22 +2864,27 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
         "() => Number(getComputedStyle(document.querySelector('lf-toc a')).opacity) === 0"
     )
 
-    # A left auxiliary surface and the page's own left margin are consecutive strips. The fixed
-    # ToC follows the shell's left edge instead of remaining behind the Asks sheet.
+    # The Asks tray stands over the page's left margin and moves nothing in it: the fixed
+    # ToC and the sidebar stay where the page put them, under the tray while it stands.
     resized(page, 1700, 900)
+    margin = """() => {
+          const sidebar = document.querySelector('aside.sidebar').getBoundingClientRect();
+          const toc = document.querySelector('lf-toc .lf-toc-nav').getBoundingClientRect();
+          return {sidebarLeft: sidebar.left, tocLeft: toc.left};
+        }"""
+    before = page.evaluate(margin)
     banner_control(page, ".lf-asks").click()
     expect(page.locator(".lf-asks-panel")).to_be_visible()
     page.wait_for_function(
-        """() => document.querySelector('.lf-asks-panel').getAnimations().length === 0
-          && document.querySelector('lf-toc').getAnimations().length === 0"""
+        """() => document.querySelector('.lf-asks-panel').getAnimations().length === 0"""
     )
+    assert page.evaluate(margin) == before
     geometry = page.evaluate(
         """() => {
-          const tray = document.querySelector('.lf-asks-panel').getBoundingClientRect();
           const sidebar = document.querySelector('aside.sidebar').getBoundingClientRect();
           const toc = document.querySelector('lf-toc .lf-toc-nav').getBoundingClientRect();
           const line = document.querySelector('.lf-shortcut-bar').getBoundingClientRect();
-          return {trayRight: tray.right, sidebarLeft: sidebar.left, tocLeft: toc.left,
+          return {sidebarLeft: sidebar.left, tocLeft: toc.left,
                   tocTop: toc.top, tocBottom: toc.bottom, lineTop: line.top,
                   sidebarPosition: getComputedStyle(document.querySelector('aside.sidebar')).position,
                   tocPosition: getComputedStyle(document.querySelector('lf-toc')).position};
@@ -2888,8 +2892,6 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
     )
     assert geometry["sidebarPosition"] == "sticky"
     assert geometry["tocPosition"] == "fixed"
-    assert geometry["sidebarLeft"] >= geometry["trayRight"] - 1
-    assert abs(geometry["tocLeft"] - geometry["trayRight"] - 24) <= 1
     assert 64 <= geometry["tocTop"] <= 68
     # The map is sized to the window rather than to the room left under the shortcut bar, so
     # its foot is the window's less the banner and the inset. The line stands over its
@@ -2972,13 +2974,6 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
         f"the sidebar stuck at {stuck:.0f}px, not below the banner"
     )
 
-    page.evaluate("document.scrollingElement.scrollTo(0, 0)")
-    toggle_asks(page)
-    cramped = page.evaluate(reading)
-    assert cramped["strip"] == 0
-    assert cramped["float"] == "none" and cramped["position"] == "static"
-    assert abs(cramped["sidebar"]["left"] - cramped["column"]["left"]) <= 1
-    assert page.evaluate(sideways) == 0
     page.close()
 
     page = open_page(browser, serve(example))
@@ -3114,20 +3109,12 @@ def test_opposite_margin_residents_wait_for_the_room_they_need(browser, serve):
     assert roomy["sidebars"][1]["left"] >= roomy["column"]["left"] - 1
     assert roomy["sideways"] == 0
 
-    resized(page, 1700, 800)
+    # The Asks tray stands over the page and grants or withdraws no margin.
     toggle_asks(page)
     panelled = page.evaluate(reading)
-    assert [side["float"] for side in panelled["sidebars"]] == ["none", "none"]
-    assert panelled["noteFloat"] == "right"
-    assert panelled["padding"] == {"left": 0, "right": 384}
-    assert panelled["column"]["width"] == 720
-    assert panelled["sideways"] == 0
-    resized(page, 1699, 800)
-    resized(page, 1700, 800)
-    repeated = page.evaluate(reading)
-    assert [side["float"] for side in repeated["sidebars"]] == ["none", "none"]
-    assert repeated["noteFloat"] == "right"
-    assert repeated["column"]["width"] == 720
+    assert panelled["sidebars"] == roomy["sidebars"]
+    assert panelled["padding"] == roomy["padding"]
+    assert panelled["column"] == roomy["column"]
 
 
 def test_the_handed_over_url_opens_the_latest_version(browser, serve):

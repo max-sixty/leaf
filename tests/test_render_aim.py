@@ -1045,55 +1045,6 @@ def test_design_legend_tracks_a_height_only_page_reflow(browser, serve):
     )
 
 
-def test_an_aim_tracks_an_equal_width_workspace_swap_every_frame(browser, serve):
-    """A left tray and right panel can move the shell without changing its width.
-
-    Swapping one for the other moves every block sideways while the shell stays the width
-    it was, so nothing resizes and the aim has to be re-placed off the move itself. The
-    first reading is taken in the swap's own task, which is where the placement now
-    happens; the frames after it catch a placement that arrives late or drifts once the
-    page settles."""
-    page = open_page(browser, serve(ASKS_PAGE))
-    resized(page, 1200, 900)
-    tray = EDGES[1]
-    tray.stand(page)
-    edge_settled(page, tray)
-    draw_edge(page, tray, 120)
-
-    target = page.locator("#lq-keep")
-    target_box = target.bounding_box()
-    assert target_box is not None
-    page.mouse.move(target_box["x"] + 40, target_box["y"] + target_box["height"] / 2)
-    page.keyboard.down("Alt")
-    expect(page.locator(".lf-aim")).to_have_attribute("data-for", "lq-keep")
-    readings = page.evaluate(
-        """() => new Promise(resolve => {
-          const readings = [];
-          const sample = () => {
-            const target = document.getElementById('lq-keep').getBoundingClientRect();
-            const aim = document.querySelector('.lf-aim');
-            const box = aim.getBoundingClientRect();
-            readings.push({shown: aim.checkVisibility(), dx: box.left - target.left,
-                           dy: box.top - target.top});
-          };
-          document.querySelector('.lf-threads-toggle').click();
-          sample();
-          let left = 4;
-          const step = () => {
-            sample();
-            if (--left) requestAnimationFrame(step);
-            else resolve(readings);
-          };
-          requestAnimationFrame(step);
-        })"""
-    )
-    page.keyboard.up("Alt")
-    assert len(readings) == 5, "the swap was not sampled across its own task and after"
-    assert all(reading["shown"] for reading in readings)
-    assert max(abs(reading["dx"]) for reading in readings) < 3
-    assert max(abs(reading["dy"]) for reading in readings) < 3
-
-
 def test_covering_auxiliary_surfaces_separate_page_paint_from_chrome_target_paint(
     browser, serve
 ):

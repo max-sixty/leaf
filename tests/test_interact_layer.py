@@ -4601,6 +4601,58 @@ def test_an_installed_package_runs_its_own_scripts_by_name(tmp_path, monkeypatch
     assert "unknown package 'tallies'" in unknown.stderr
 
 
+@pytest.mark.parametrize(
+    ("header", "message"),
+    [
+        ("", "needs one inline `# /// script` metadata block"),
+        (
+            '# /// script\n# dependencies = ["unidiff>=1,<2"]\n# ///\n',
+            "dependency 'unidiff<2,>=1' must state a floor (>=) and nothing else",
+        ),
+        (
+            '# /// script\n# dependencies = ["unidiff==1.0.1"]\n# ///\n',
+            "dependency 'unidiff==1.0.1' must state a floor",
+        ),
+        (
+            '# /// script\n# dependencies = ["unidiff"]\n# ///\n',
+            "dependency 'unidiff' must state a floor",
+        ),
+        (
+            '# /// script\n# requires-python = "<3.13"\n# ///\n',
+            "requires-python must state a floor",
+        ),
+        (
+            '# /// script\n# dependencies = "unidiff>=1"\n# ///\n',
+            "invalid script metadata",
+        ),
+    ],
+)
+def test_package_check_refuses_a_script_that_would_run_in_the_callers_project(
+    tmp_path, monkeypatch, header, message
+):
+    """Without an inline `script` block, `uv run --script` runs a file in whatever
+    project the caller's directory reaches, so check and install refuse one; a
+    declared constraint must be a floor with no cap, since no lock ships beside it.
+    """
+    monkeypatch.chdir(tmp_path)
+    source = tmp_path / "src" / "tally"
+    created = CliRunner().invoke(cli_model.cli, ["package", "init", str(source)])
+    assert created.exit_code == 0, created.output
+    (source / "scripts").mkdir()
+    script = source / "scripts" / "count.py"
+    script.write_text(f"{header}print('counted')\n")
+
+    checked = CliRunner().invoke(cli_model.cli, ["package", "check", str(source)])
+    installed = CliRunner().invoke(cli_model.cli, ["package", "install", str(source)])
+
+    assert checked.exit_code == 1
+    assert checked.output.startswith(str(script))
+    assert message in checked.output
+    assert installed.exit_code == 1
+    assert message in installed.output
+    assert not (machine_model.package_store() / "tally").exists()
+
+
 def test_the_suite_pins_every_bundled_script_dependency():
     """A bundled script's header declares its dependencies and ships no lock, so
     the dev group repeats each one: `uv.lock` then pins what the suite runs the
@@ -4615,6 +4667,14 @@ def test_the_suite_pins_every_bundled_script_dependency():
         for requirement in json.loads(match)
     }
     assert "unidiff>=1" in declared
+    # Bundled packages never pass through `package install`, so hold their scripts
+    # to the same check here.
+    for package in {
+        script.parent.parent
+        for script in schema_model.BUNDLED_PACKAGES.glob("*/scripts/*.py")
+    }:
+        checked = CliRunner().invoke(cli_model.cli, ["package", "check", str(package)])
+        assert checked.exit_code == 0, checked.output
     assert [
         requirement
         for requirement in sorted(declared)

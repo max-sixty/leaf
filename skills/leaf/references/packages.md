@@ -880,7 +880,10 @@ pipeline with no path in it:
 git diff main... | leaf package run diff patch_manifest.py | leaf data set PAGE review-patch
 ```
 
-A page never vendors `scripts/`. When a producer upstream of `data set` fails and
+`package check` and `package install` refuse a `scripts/*.py` without that header,
+since uv would run it in whatever project the caller's directory reaches, and refuse a
+constraint other than a `>=` floor. A subdirectory of `scripts/` holds helpers and is
+not checked or run. A page never vendors `scripts/`. When a producer upstream of `data set` fails and
 writes nothing, `data set` refuses the empty input and points back at that producer's
 own error.
 

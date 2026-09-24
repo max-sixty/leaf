@@ -9960,12 +9960,17 @@ def test_submitting_a_reply_reveals_its_new_message(browser, serve):
         """node => {
           const list = document.querySelector('.lf-threads').getBoundingClientRect();
           const message = node.getBoundingClientRect();
-          const top = list.top + parseFloat(getComputedStyle(document.querySelector('.lf-threads')).scrollPaddingTop || 0);
-          return {top: message.top, bottom: message.bottom, bandTop: top, bandBottom: list.bottom};
+          const style = getComputedStyle(document.querySelector('.lf-threads'));
+          const top = list.top + parseFloat(style.scrollPaddingTop || 0);
+          const ringRoom = parseFloat(style.getPropertyValue('--here-ring-w'))
+            + parseFloat(style.getPropertyValue('--here-ring-gap'));
+          return {top: message.top, bottom: message.bottom, bandTop: top,
+                  textTop: top - ringRoom, bandBottom: list.bottom};
         }"""
     )
     assert shown["bottom"] - shown["top"] < shown["bandBottom"] - shown["bandTop"]
-    assert shown["top"] >= shown["bandTop"] - 1, shown
+    # The reserved ring room protects focusable controls; a posted message has no ring.
+    assert shown["top"] >= shown["textTop"] - 1, shown
     assert shown["bottom"] <= shown["bandBottom"] + 1, shown
     expect(box).to_be_focused()
     in_threads_scrollport(page, f'.lf-thread[data-id="{root}"] .lf-compose textarea')

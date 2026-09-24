@@ -393,5 +393,13 @@ def _render_scheme(
     found, notices = _scheme_findings(context)
     if then is not None:
         then(page)
+    # Revealing a part moves its visual off the state every reading above checked, so
+    # the reveals come last, on a page nothing reads again.
+    found += [
+        f"[{scheme}] <{problem['tag']} id={problem['id']!r}> "
+        "declares addressable visual parts but its module "
+        + "; ".join(problem["problems"])
+        for problem in evaluate_probe(page, "unrevealedVisualProviders", declarations)
+    ]
     page.close()
     return found, notices, True

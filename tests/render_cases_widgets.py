@@ -155,6 +155,27 @@ customElements.define('lf-test-visual', class extends HTMLElement {
 });
 """
 }
+# The same visual drawn in two steps, as an animation or stepper draws it: `inner`
+# appears only in the second, which its registration's `reveal` draws on request.
+STAGED_VISUAL_WIDGETS = {
+    "lf-test-visual.js": GENERIC_VISUAL_WIDGETS["lf-test-visual.js"].replace(
+        "    this.visualRegistration = registerVisualParts(this, () => this.parts);",
+        """    inner.style.display = 'none';
+    this.visualRegistration = registerVisualParts(
+      this,
+      () => this.parts.filter((part) => part.id !== 'inner' || inner.style.display !== 'none'),
+      {
+        reveal: (id) => {
+          if (id !== 'inner') return;
+          inner.style.display = '';
+          this.visualRegistration.update();
+        },
+      },
+    );""",
+    )
+}
+
+
 # The same visual with its part ids declared by prefix rather than authored: the
 # element names none of them, and the module's inventory is bounded by the prefixes.
 PREFIXED_VISUAL_PAGE = GENERIC_VISUAL_PAGE.replace(' parts="outer inner html"', "")

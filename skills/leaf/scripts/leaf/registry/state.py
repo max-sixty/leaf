@@ -126,19 +126,19 @@ def validate_widget_record_contracts(
         if record:
             fields.append(record["value"])
             if record["kind"] == "position":
-                fields.append(record["order"])
+                fields.append(record["rank"])
                 if record["within"] not in declarations:
                     raise RegistryError(
                         f"{path}: <{tag}> x-state verb `{verb}` records a "
                         f"position within unknown widget <{record['within']}>"
                     )
-                if spec["unit"] == "widget" and record["within"] not in entry.get(
-                    "x-owners", []
-                ):
+                # A rank is read between the unit's neighbours, which only the
+                # widget holding the container has; a node cannot place itself.
+                if unit == "widget":
                     raise RegistryError(
-                        f"{path}: <{tag}> x-state verb `{verb}` records "
-                        f"its own position within <{record['within']}>, which "
-                        "its x-owners does not admit"
+                        f"{path}: <{tag}> x-state verb `{verb}` records a "
+                        "position, so its unit must be the part it places, "
+                        "not the widget"
                     )
             if record["kind"] == "body":
                 if entry.get("x-content") != "data":
@@ -245,12 +245,12 @@ def validate_widget_record_contracts(
                     f"value `{value}` must be a string"
                 )
             if record["kind"] == "position":
-                order = detail_properties[record["order"]]
-                if not (isinstance(order, dict) and order.get("type") == "integer"):
+                rank = detail_properties[record["rank"]]
+                if not (isinstance(rank, dict) and rank.get("type") == "string"):
                     raise RegistryError(
                         f"{path}: <{tag}> x-state verb `{verb}` record "
-                        f"order `{record['order']}` counts the unit's "
-                        "siblings, so its detail field must be an integer"
+                        f"rank `{record['rank']}` holds a rank key, so its "
+                        "detail field must be a string"
                     )
 
 

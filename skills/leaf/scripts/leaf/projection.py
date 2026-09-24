@@ -1,5 +1,6 @@
 """Declaration-driven state and retirement projections."""
 
+import re
 from datetime import datetime
 from itertools import chain
 from typing import NamedTuple
@@ -305,6 +306,18 @@ def action_subjects(event: dict, byid: dict, within: dict, registry: dict) -> li
 
 
 NO_RECORD = object()
+
+# A position record's rank: a base-36 fraction written as its digits after the point,
+# never ending in 0, so string order is numeric order. The runtime's
+# `projection/model.js` owns the reasoning and computes the keys between neighbours;
+# these two rules are the ones both runtimes must read the same way.
+RANK = re.compile(r"[0-9a-z]*[1-9a-z]")
+_RANK_DIGITS = "0123456789abcdefghijklmnopqrstuvwxyz"
+
+
+def authored_rank(index: int) -> str:
+    """The rank of the unit at `index` in its authored container."""
+    return "z" * (index // 35) + _RANK_DIGITS[index % 35 + 1]
 
 
 class StateProjection(NamedTuple):

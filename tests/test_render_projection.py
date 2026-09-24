@@ -5208,7 +5208,7 @@ def test_render_reports_markup_the_log_replays_over(browser, serve):
     d = serve.page_dir
     for widget, action, detail in [
         ("approach", "choose", {"options": ["opt-shim"]}),
-        ("work", "move", {"card": "card-importer", "to": "col-done", "index": 0}),
+        ("work", "move", {"card": "card-importer", "to": "col-done", "rank": "0i"}),
     ]:
         append_command(
             d,
@@ -5579,9 +5579,9 @@ def test_a_part_and_its_own_widget_keep_same_named_verbs_independent(
                 "properties": {
                     "piece": {"type": "string"},
                     "to": {"type": "string"},
-                    "index": {"type": "integer", "minimum": 0},
+                    "rank": {"type": "string"},
                 },
-                "required": ["piece", "to", "index"],
+                "required": ["piece", "to", "rank"],
                 "additionalProperties": False,
             },
             "unit": "piece",
@@ -5589,7 +5589,7 @@ def test_a_part_and_its_own_widget_keep_same_named_verbs_independent(
                 "kind": "position",
                 "within": "lf-zone",
                 "value": "to",
-                "order": "index",
+                "rank": "rank",
             },
         }
     }
@@ -5666,7 +5666,7 @@ customElements.define("lf-piece", class extends HTMLElement {
             "revision": 1,
             "widget": "owner",
             "action": "move",
-            "detail": {"piece": "piece", "to": "zone-b", "index": 0},
+            "detail": {"piece": "piece", "to": "zone-b", "rank": "0i"},
         },
         {
             "kind": "action",
@@ -5716,103 +5716,6 @@ customElements.define("lf-piece", class extends HTMLElement {
     told(page)
     expect(page.locator("#zone-b > #piece")).to_have_count(1)
     expect(page.locator("#piece")).to_have_attribute("pinned", "yes")
-
-
-def test_complete_positions_compose_across_independent_widget_owners(
-    browser, serve, tmp_path, monkeypatch
-):
-    """Four independently recorded siblings share one physical order. A fresh tab
-    must render their final positions in that order, rather than reapply each
-    owner's index in the original DOM order; undo retains those same nodes."""
-    monkeypatch.chdir(tmp_path)
-    author_test_widget(tmp_path, "lf-lane")
-    author_test_widget(tmp_path, "lf-token", upgrade=True)
-    path = tmp_path / ".leaf" / "registry.json"
-    declarations = json.loads(path.read_text())
-    declarations["lf-lane"]["x-content"] = "members"
-    declarations["lf-lane"].pop("x-example")
-    token = declarations["lf-token"]
-    token.pop("x-example")
-    token["properties"]["restated"] = {"type": "boolean"}
-    token["x-owners"] = ["lf-lane"]
-    token["x-state"] = {
-        "move": {
-            "detail": {
-                "type": "object",
-                "properties": {
-                    "to": {"type": "string"},
-                    "index": {"type": "integer", "minimum": 0},
-                },
-                "required": ["to", "index"],
-                "additionalProperties": False,
-            },
-            "unit": "widget",
-            "record": {
-                "kind": "position",
-                "within": "lf-lane",
-                "value": "to",
-                "order": "index",
-            },
-        }
-    }
-    path.write_text(json.dumps(declarations))
-    (
-        path.parent / "widgets" / "lf-token.js"
-    ).write_text("""import { once, widgetController } from "/runtime/widget-api.js";
-customElements.define("lf-token", class extends HTMLElement {
-  #controller = widgetController(this);
-  #stop;
-  connectedCallback() { once(this); this.#stop ??= this.#controller.subscribe(() => {}); }
-  disconnectedCallback() { this.#stop?.(); this.#stop = null; }
-  renderState(state) {
-    const {to, index} = state.move.detail;
-    const parent = document.getElementById(to);
-    const rest = [...parent.children].filter(child => child !== this);
-    if (parent.children[index] !== this) parent.insertBefore(this, rest[index] ?? null);
-  }
-});
-""")
-    html = leaf_page(
-        "Shared order",
-        '<h1>Shared order</h1><lf-lane id="lane">'
-        + "".join(f'<lf-token id="token-{name}">{name}</lf-token>' for name in "abcd")
-        + "</lf-lane>",
-    )
-    url = serve(html, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
-    sender = open_page(browser, url)
-    for name, index in [("d", 0), ("c", 1)]:
-        response = post_event(
-            sender,
-            url.rsplit("/versions/", 1)[0] + "/api/event",
-            data={
-                "kind": "action",
-                "revision": 1,
-                "widget": f"token-{name}",
-                "action": "move",
-                "detail": {"to": "lane", "index": index},
-                "attempt": f"move-token-{name}-test-case",
-            },
-        )
-        assert response.ok, response.text()
-    page = open_page(browser, url)
-    order = "nodes => nodes.map(node => node.id)"
-    assert page.locator("#lane > lf-token").evaluate_all(order) == [
-        "token-d",
-        "token-c",
-        "token-a",
-        "token-b",
-    ]
-    original = page.locator("#token-c").element_handle()
-    undo(page)
-    assert page.locator("#lane > lf-token").evaluate_all(order) == [
-        "token-d",
-        "token-a",
-        "token-b",
-        "token-c",
-    ]
-    assert original.evaluate("node => node === document.getElementById('token-c')")
-    assert render_checks_model.evaluate_probe(page, "relativeReplays") == []
-    told(sender)
 
 
 def test_the_render_gate_catches_a_relative_state_renderer(

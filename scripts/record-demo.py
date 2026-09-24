@@ -23,6 +23,7 @@ import time
 from pathlib import Path
 
 from leaf.delivery import DELIVERY_FORMAT
+from leaf.projection import authored_rank
 from leaf.render_gate.browser import launch_browser
 from PIL import Image
 from playwright.sync_api import Page, sync_playwright
@@ -81,11 +82,16 @@ def board_markup(board: dict[str, list[str]]) -> str:
 
 def absorbed(board: dict[str, list[str]], move: dict) -> dict[str, list[str]]:
     """The board with one recorded `move` written into the authored arrangement."""
-    placed = {
-        column: [card for card in cards if card != move["card"]]
-        for column, cards in board.items()
-    }
-    placed[move["to"]].insert(move["index"], move["card"])
+    placed = {}
+    for column, cards in board.items():
+        ranked = [
+            (authored_rank(index), card)
+            for index, card in enumerate(cards)
+            if card != move["card"]
+        ]
+        if column == move["to"]:
+            ranked.append((move["rank"], move["card"]))
+        placed[column] = [card for _rank, card in sorted(ranked)]
     return placed
 
 

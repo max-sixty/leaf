@@ -24,6 +24,7 @@ import pytest
 import tinycss2
 from click.testing import CliRunner
 from conftest import LEAF_COMMAND
+from example_data import patch_manifest
 from interact_support import (
     COMMAND_SUBJECTS,
     PAGE,
@@ -44,6 +45,7 @@ from interact_support import (
 )
 from leaf import cli as cli_model
 from leaf import data as data_model
+from leaf import detached as detached_model
 from leaf import event_log as event_model
 from leaf import events as event_folds_model
 from leaf import files as files_model
@@ -683,10 +685,10 @@ def test_fragmented_data_sends_a_manifest_then_serves_one_exact_payload(
     )
     registry_path = page_dir / "registry.json"
     registry = json.loads(registry_path.read_text())
-    registry["$data"]["contracts"]["diff-files"]["fragments"] = {
+    registry["$data"]["contracts"]["diff-files"]["records"] = {
         "items": "files",
         "key": "key",
-        "value": "patch",
+        "deferred": "patch",
     }
     registry_path.write_text(json.dumps(registry))
     index = page_dir / "index.html"
@@ -700,7 +702,7 @@ def test_fragmented_data_sends_a_manifest_then_serves_one_exact_payload(
         page_dir, event_model.read_events(page_dir)
     )
     assert activated.error is None
-    with pytest.raises(data_model.DataError, match="fragment keys must be unique"):
+    with pytest.raises(data_model.DataError, match="record keys must be unique"):
         data_model.cmd_data_set(
             page_dir,
             "review-patch",
@@ -796,9 +798,7 @@ def test_historical_fragment_reads_keep_the_document_revision_and_layer(
         "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n"
         '@@ -1 +1 @@\n-return "old"\n+return "new"\n'
     )
-    data_model.cmd_data_set(
-        page_dir, "review-patch", data_model.unified_diff_manifest(patch)
-    )
+    data_model.cmd_data_set(page_dir, "review-patch", patch_manifest(patch))
     first_layer = artifact_model.read_artifact(page_dir, first.revision).registry[
         "$layer"
     ]["generation"]
@@ -1141,7 +1141,7 @@ def test_server_round_trip(server, page_dir):
                 "revision": 2,
                 "widget": "feeder-board",
                 "action": "move",
-                "detail": {"card": "card-baffle", "to": "col-doing", "index": 0},
+                "detail": {"card": "card-baffle", "to": "col-doing", "rank": "0i"},
             }
         ).encode(),
     )
@@ -1387,7 +1387,7 @@ def test_server_round_trip(server, page_dir):
             "kind": "report",
             "widget": "feeder-board",
             "action": "move",
-            "detail": {"card": "card-baffle", "to": "col-doing", "index": 0},
+            "detail": {"card": "card-baffle", "to": "col-doing", "rank": "0i"},
             "revision": 2,
         },
         # Message revisions are agent-authored too. The browser cannot turn the
@@ -1565,9 +1565,7 @@ def test_server_takes_an_approval_only_where_the_version_asked_for_one(
 
     status, body = fetch(
         f"{server}/api/event",
-        data=json.dumps(
-            {"kind": "done", "version": 1, "revision": 1, "text": "Looks good"}
-        ).encode(),
+        data=json.dumps({"kind": "done", "version": 1}).encode(),
     )
     assert status == 400
     assert json.loads(body)["error"] == (
@@ -1583,9 +1581,7 @@ def test_server_takes_an_approval_only_where_the_version_asked_for_one(
     publish(page_dir, version=2)
     status, body = fetch(
         f"{server}/api/event",
-        data=json.dumps(
-            {"kind": "done", "version": 2, "revision": 2, "text": "Looks good"}
-        ).encode(),
+        data=json.dumps({"kind": "done", "version": 2}).encode(),
     )
     assert status == 400
     assert json.loads(body)["error"] == (
@@ -1639,9 +1635,7 @@ def test_server_takes_an_approval_only_where_the_version_asked_for_one(
     assert reply.exit_code == 0, reply.output
     status, body = fetch(
         f"{server}/api/event",
-        data=json.dumps(
-            {"kind": "done", "version": 2, "revision": 2, "text": "Looks good"}
-        ).encode(),
+        data=json.dumps({"kind": "done", "version": 2}).encode(),
     )
     assert status == 400
     assert json.loads(body)["error"] == (
@@ -1663,12 +1657,37 @@ def test_server_takes_an_approval_only_where_the_version_asked_for_one(
     assert status == 200, body
     status, body = fetch(
         f"{server}/api/event",
-        data=json.dumps(
-            {"kind": "done", "version": 2, "revision": 2, "text": "Looks good"}
-        ).encode(),
+        data=json.dumps({"kind": "done", "version": 2}).encode(),
     )
     assert status == 200, body
     assert event_model.read_events(page_dir)[-1]["kind"] == "done"
+
+
+def test_the_transcript_reports_only_an_approval_that_stands(page_dir):
+    """A withdrawn approval is not one: the transcript reads approvals through the
+    same withdrawal every other fold honours, so it names the version approved and
+    says nothing once the user takes the approval back."""
+    signoff = PAGE.replace(
+        "<title>t</title>",
+        '<title>t</title>\n<meta name="lf-review" content="sign-off">',
+    )
+    (page_dir / "index.html").write_text(signoff)
+    publish(page_dir, version=1)
+    approval = event_model.append_event(
+        page_dir, {"kind": "done", "author": "user", "version": 1}
+    )
+
+    def transcript():
+        result = CliRunner().invoke(cli_model.cli, ["transcript", str(page_dir)])
+        assert result.exit_code == 0, result.output
+        return result.output
+
+    assert f"Approved v1 at {approval['ts']}." in transcript()
+
+    event_model.append_event(
+        page_dir, {"kind": "undo", "author": "user", "undoes": approval["id"]}
+    )
+    assert "Approved" not in transcript()
 
 
 def test_server_makes_attempt_identity_atomic_without_deduplicating_content(
@@ -1865,7 +1884,7 @@ def test_action_door_owns_created_child_meaning(server, page_dir):
     assert status == 200, body
     accepted = json.loads(body)["state"]["events"][-1]
     # The created option is the action's own unit, and the stamp names its tag.
-    assert accepted["meaning"]["coordinate"] == ["delivery", "delivery-user", "add"]
+    assert accepted["meaning"]["unit"] == "delivery-user"
     assert accepted["meaning"]["creates"] == "lf-option"
     # The server's enrichment does not alter retry identity.
     status, body = fetch(f"{server}/api/event", data=json.dumps(command).encode())
@@ -2012,8 +2031,8 @@ def test_undo_offer_keeps_the_doors_active_page_containment(page_dir):
             "action": "choose",
             "detail": {"options": ["flag-first"]},
             "meaning": {
-                "document": {"kind": "page", "revision": 1},
-                "coordinate": ["picks", "picks", "choose"],
+                "document": "page",
+                "unit": "picks",
                 "depends": ["flag-first", "picks"],
                 "answer": reaction["id"],
             },
@@ -2377,7 +2396,7 @@ def test_server_validates_an_action_against_its_version_and_widget(server, page_
                 "revision": 1,
                 "widget": "feeder-board",
                 "action": "move",
-                "detail": {"card": "card-baffle", "to": "col-doing", "index": 0},
+                "detail": {"card": "card-baffle", "to": "col-doing", "rank": "0i"},
             },
             "unknown action widget",
         ),
@@ -2387,7 +2406,7 @@ def test_server_validates_an_action_against_its_version_and_widget(server, page_
                 "revision": 2,
                 "widget": "flow",
                 "action": "move",
-                "detail": {"card": "card-baffle", "to": "col-doing", "index": 0},
+                "detail": {"card": "card-baffle", "to": "col-doing", "rank": "0i"},
             },
             "<lf-diagram> does not declare action verb",
         ),
@@ -2397,9 +2416,19 @@ def test_server_validates_an_action_against_its_version_and_widget(server, page_
                 "revision": 2,
                 "widget": "feeder-board",
                 "action": "move",
-                "detail": {"card": "card-baffle", "to": "col-doing", "index": -1},
+                "detail": {"card": "card-baffle", "to": "col-doing", "rank": 0},
             },
             "detail is invalid",
+        ),
+        (
+            {
+                "kind": "action",
+                "revision": 2,
+                "widget": "feeder-board",
+                "action": "move",
+                "detail": {"card": "card-baffle", "to": "col-doing", "rank": "10"},
+            },
+            "rank '10' is not a rank key",
         ),
     ]
     before = len(event_model.read_events(page_dir))
@@ -2416,7 +2445,7 @@ def test_server_validates_an_action_against_its_version_and_widget(server, page_
         "revision": 2,
         "widget": "feeder-board",
         "action": "move",
-        "detail": {"card": "card-baffle", "to": "col-doing", "index": 0},
+        "detail": {"card": "card-baffle", "to": "col-doing", "rank": "0i"},
     }
     assert fetch(f"{server}/api/event", data=json.dumps(valid).encode())[0] == 200
 
@@ -2471,6 +2500,25 @@ def test_server_admits_only_a_widget_declared_host_request(server, page_dir):
         )
         assert status == 400, body
         assert message in json.loads(body)["error"]
+
+    # The task's status is the worker's verb; the browser door refuses a user's.
+    status, body = fetch(
+        f"{server}/api/event",
+        data=json.dumps(
+            {
+                "kind": "action",
+                "revision": 1,
+                "widget": "goal",
+                "action": "status",
+                "detail": {"status": "done"},
+            }
+        ).encode(),
+    )
+    assert status == 400, body
+    assert (
+        "'status' is a verb the agent writes; this action came from the user"
+        in (json.loads(body)["error"])
+    )
 
     status, body = fetch(
         f"{server}/api/event",
@@ -3076,7 +3124,7 @@ def test_server_preserves_the_active_vocabulary_when_candidate_registry_is_broke
                 "revision": 1,
                 "widget": "feeder-board",
                 "action": "move",
-                "detail": {"card": "card-baffle", "to": "col-doing", "index": 0},
+                "detail": {"card": "card-baffle", "to": "col-doing", "rank": "0i"},
             }
         ).encode(),
     )
@@ -3353,7 +3401,7 @@ def test_event_ids_are_unique_within_the_log_whatever_the_mint_returns(
             page_dir,
             {
                 "id": first["id"],
-                "meaning": {"document": {"kind": "page", "revision": 1}},
+                "meaning": {"document": "page"},
                 "kind": "request",
                 "author": "user",
                 "revision": 1,
@@ -4164,10 +4212,10 @@ def test_a_page_snapshot_stays_on_one_page_reading(page_dir):
         page_dir, "patches", schema, contract="patch-list", activate=False
     )
     registry = json.loads((page_dir / "registry.json").read_text())
-    registry["$data"]["contracts"]["patch-list"]["fragments"] = {
+    registry["$data"]["contracts"]["patch-list"]["records"] = {
         "items": "files",
         "key": "key",
-        "value": "patch",
+        "deferred": "patch",
     }
     (page_dir / "registry.json").write_text(json.dumps(registry))
     activated = revisioning_model.activate_source(
@@ -4440,91 +4488,83 @@ def test_a_stated_host_binds_every_interface_without_recording_before_serve(
     assert server_model.page_access(page_dir) == service
 
 
-def test_a_refused_request_line_writes_nothing_into_the_pipe_nobody_drains(page_dir):
-    """A detached serve's streams are pipes its parent stops reading once the URL is
-    in hand, so anything the server says after that accumulates until the pipe is full
-    and the write blocks. On the serving loop, that write stops the page answering at
-    all. The page's own routes say nothing there, and the server under them is silenced
-    where it is built, so the refusals a scanner or a stray client provokes cost the
-    pipe nothing.
-    """
-    assert service_model.claim_page(page_dir)
-    started = hosting_model.start_server(page_dir)
-    assert started, "the detached server did not start"
-    try:
-        url = started[0]
-        netloc = urllib.parse.urlsplit(url).netloc
-        host, _, port = netloc.partition(":")
-        # More refusals than the 64 KiB pipe would hold of uvicorn's own line about
-        # them: at 31 bytes each, 2,500 is past where a talking server would stall.
-        for _ in range(2500):
-            speaker = socket.create_connection((host, int(port)), timeout=10)
-            try:
-                speaker.sendall(b"NOT-A-REQUEST\r\n\r\n")
-            except (BrokenPipeError, ConnectionResetError):
-                pass
-            finally:
-                speaker.close()
-        # Read with an end of its own: a page stopped by a full pipe leaves the
-        # kernel accepting from the backlog and nothing answering, so a read without
-        # one would hang here rather than name what it was waiting for.
-        key = urllib.parse.parse_qs(urllib.parse.urlsplit(url).query)["t"][0]
-        with urllib.request.urlopen(
-            f"http://{netloc}/api/state?t={key}", timeout=30
-        ) as answered:
-            assert answered.status == 200
-    finally:
-        hosting_model.cmd_stop(page_dir)
-
-
 def test_a_stop_ends_a_server_whose_caller_left_while_it_announced(page_dir, spawn):
-    """A serving child whose caller goes away before hearing the URL withdraws
-    its start, and that withdrawal is a transition of its own. A stop arriving
+    """A serving child whose caller goes away before committing its start
+    withdraws it, and that withdrawal is a transition of its own. A stop arriving
     after the child took its lease must wait for the lease without holding the
     transition, or the two block each other forever.
 
-    A pipe already full holds the child at its announcement with its lease taken
-    and its record enabled; closing the reading end is the caller leaving.
+    A caller that reads the announcement and never acknowledges it holds the child
+    there with its lease taken and its record enabled; closing its end of the
+    handshake is the caller leaving.
     """
     assert service_model.claim_page(page_dir)
-    reader, writer = os.pipe()
-    os.set_blocking(writer, False)
-    try:
-        while True:
-            os.write(writer, b"\0" * 65536)
-    except BlockingIOError:
-        pass
-    os.set_blocking(writer, True)
+    caller, end = socket.socketpair()
     child = spawn(
-        [*LEAF_COMMAND, "server", "_serve", str(page_dir)],
-        stdout=writer,
-        stderr=writer,
+        [
+            *LEAF_COMMAND,
+            "server",
+            "_serve",
+            str(page_dir),
+            "--handshake",
+            str(end.fileno()),
+        ],
+        pass_fds=(end.fileno(),),
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
         start_new_session=True,
     )
-    os.close(writer)
-    service = page_dir / "service.json"
-    # The record is written after the lease, inside the same transition, so an
-    # enabled record proves the lease too.
-    wait_for(
-        lambda: service.exists() and json.loads(service.read_text())["enabled"],
-        bool,
-        failure="the child did not record its service",
-    )
-    stopped = []
-    stopping = threading.Thread(
-        target=lambda: stopped.append(hosting_model.cmd_stop(page_dir)), daemon=True
-    )
-    stopping.start()
-    wait_for(
-        lambda: not json.loads(service.read_text())["enabled"],
-        bool,
-        failure="the stop did not disable the record",
-    )
-    os.close(reader)
+    end.close()
+    caller.settimeout(30)
+    try:
+        assert "url" in json.loads(caller.makefile("rb").readline())
+        service = page_dir / "service.json"
+        assert json.loads(service.read_text())["enabled"]
+        stopped = []
+        stopping = threading.Thread(
+            target=lambda: stopped.append(hosting_model.cmd_stop(page_dir)),
+            daemon=True,
+        )
+        stopping.start()
+        wait_for(
+            lambda: not json.loads(service.read_text())["enabled"],
+            bool,
+            failure="the stop did not disable the record",
+        )
+    finally:
+        caller.close()
     stopping.join(timeout=30)
     assert stopped == ["stopped server"]
     assert child.wait(timeout=10) is not None
     assert not json.loads(service.read_text())["enabled"]
+
+
+def test_a_start_whose_caller_left_before_committing_leaves_no_service(
+    page_dir, monkeypatch
+):
+    """The caller's acknowledgement is the start's commit. One interrupted after
+    the child announced, but before it acknowledged, gives the claim back — and the
+    server it started withdraws rather than staying up unclaimed behind a start
+    its caller reported as failed."""
+    claim_file = service_model.claim_path(page_dir)
+    assert not claim_file.exists()
+
+    def interrupted(_socket, _data):
+        # The caller has read the announcement; the commit is its next write.
+        raise KeyboardInterrupt
+
+    with monkeypatch.context() as patched:
+        patched.setattr(detached_model.socket.socket, "sendall", interrupted)
+        with pytest.raises(KeyboardInterrupt):
+            hosting_model.claim_and_start(page_dir)
+
+    assert not claim_file.exists(), "the uncommitted start kept its claim"
+    wait_for(
+        lambda: not leases_model.lock_is_held(page_dir / "server.lock"),
+        bool,
+        failure="the server stayed up after its caller left uncommitted",
+    )
+    assert not json.loads((page_dir / "service.json").read_text())["enabled"]
 
 
 def test_stop_does_not_wait_forever_on_a_server_started_after_its_transition(
@@ -4715,25 +4755,14 @@ def test_a_failed_host_key_publish_removes_its_staged_secret(monkeypatch):
     assert not (machine_model.state_home() / "access.json").exists()
 
 
-def test_start_server_spawns_the_public_entrypoint(page_dir, monkeypatch):
+def test_start_server_forwards_its_flags_to_the_serving_child(page_dir, monkeypatch):
     calls = []
 
-    class Pipe:
-        def readline(self):
-            return "http://127.0.0.1:41234/?t=test\n"
+    def start_detached(arguments, **options):
+        calls.append(arguments)
+        return {"url": "http://127.0.0.1:41234/?t=test"}
 
-        def read(self):
-            return ""
-
-    class Child:
-        stdout = Pipe()
-        stderr = Pipe()
-
-    def popen(command, **options):
-        calls.append((command, options))
-        return Child()
-
-    monkeypatch.setattr(hosting_model.subprocess, "Popen", popen)
+    monkeypatch.setattr(hosting_model, "start_detached", start_detached)
 
     started = hosting_model.start_server(
         page_dir,
@@ -4744,24 +4773,15 @@ def test_start_server_spawns_the_public_entrypoint(page_dir, monkeypatch):
 
     assert started[0] == "http://127.0.0.1:41234/?t=test"
     assert calls == [
-        (
-            [
-                *LEAF_COMMAND,
-                "server",
-                "_serve",
-                str(page_dir),
-                "--host",
-                "page.example",
-                "--standing",
-                "--revive",
-            ],
-            {
-                "stdout": subprocess.PIPE,
-                "stderr": subprocess.PIPE,
-                "text": True,
-                "start_new_session": True,
-            },
-        )
+        [
+            "server",
+            "_serve",
+            str(page_dir),
+            "--host",
+            "page.example",
+            "--standing",
+            "--revive",
+        ]
     ]
 
 

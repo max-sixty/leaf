@@ -1187,7 +1187,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-unseen { position: absolute; width: 1px; height: 1px; padding: 0; border: 0; overflow: hidden; clip-path: inset(50%); }
   .lf-msg { margin: 16px 0; }
   .lf-msg.agent { position: relative; }
-  /* Read marks are bookkeeping, so reading a thread must not move what the reader is
+  /* Read marks are bookkeeping, so reading a thread must not move what the user is
      looking at: every mark is drawn in room the content already leaves, and taking it
      away changes no box. A boundary is a zero-height block whose margins collapse
      through it, so it sits at the next message's edge and its label hangs in the gap
@@ -1734,16 +1734,6 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-shortcut-bar .lf-shortcut[hidden] { display: none; }
   .lf-shortcut-bar .lf-sequence-command { margin-inline-start: 4px;
     padding-inline-start: 12px; border-inline-start: 1px solid var(--rule); }
-  /* The chrome's own step boxes: the shortcut bar's sequences and its More key, and the
-     reference's routes. Every element wearing these stands inside the runtime's
-     container, so the rules do too; the box is the one `.lf-key-badge` states in
-     shadow.css, and the two lists stay identical. */
-  .lf-binding-sequence > kbd, .lf-shortcut-more kbd { box-sizing: border-box;
-    min-width: var(--lf-key-badge-size); height: var(--lf-key-badge-size); padding: 0 4px;
-    border: 1px solid var(--border-2); border-radius: 4px; background: var(--chip);
-    color: var(--ink-2); font-family: var(--mono); font-size: var(--t-6);
-    line-height: 1.478; text-align: center; white-space: nowrap;
-    display: inline-flex; align-items: center; justify-content: center; }
   .lf-shortcut-more kbd[hidden] { display: none; }
   .lf-binding-sequence { display: inline-flex; align-items: center; gap: 1px;
     white-space: nowrap; }

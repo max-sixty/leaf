@@ -182,7 +182,7 @@
       }
     },
     "x-guidance": {
-      "author": "Select the `diff` package beside `pr-review`, and point the required `diff` attribute at the `lf-diff` that holds the exact patch. Capture authentic CallDiff plain-text output with `leaf data capture \"$PAGE\" <source-id> --file <calldiff.txt>` and bind `lf-call-diff` to that source. Keep unchanged tree items in the capture: they are the stable landmarks that make the structural change readable. Prefer one focused file or entry point per widget for a large repository. Do not transcribe the output into page markup, invent attribute reads as calls, or redraw it as separate before and after diagrams."
+      "author": "Select the `diff` package beside `pr-review`, and point the required `diff` attribute at the `lf-diff` that holds the exact patch. Set authentic CallDiff plain-text output as that source's string value with `jq -Rs . calldiff.txt | leaf data set \"$PAGE\" <source-id>` and bind `lf-call-diff` to that source. Keep unchanged tree items in the capture: they are the stable landmarks that make the structural change readable. Prefer one focused file or entry point per widget for a large repository. Do not transcribe the output into page markup, invent attribute reads as calls, or redraw it as separate before and after diagrams."
     },
     "x-refers": {
       "diff": {}

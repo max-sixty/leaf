@@ -51,36 +51,20 @@ export function compoundReadingRegionId(owner, localName) {
   return `lf-region:${owner.id}:${localName}`;
 }
 
-const validateRegion = ({ id, host, body }) => {
+export function registerReadingRegion({ id, host, body }) {
   if (typeof id !== "string" || !id || !host || !body)
     throw new Error("leaf: a reading region needs id, host, and body");
-};
-
-const admitRegions = (declared) => {
-  const ids = new Set();
-  for (const declaration of declared) {
-    validateRegion(declaration);
-    if (ids.has(declaration.id) || live(regions.get(declaration.id)))
-      throw new Error(`leaf: reading region ${declaration.id} is already live`);
-    ids.add(declaration.id);
-  }
-  return declared.map((declaration) => {
-    const { id, host, body } = declaration;
-    const region = { id, host, body, scroller: null };
-    const stopReaching = reachReadingScroller(body);
-    regions.set(id, region);
-    sizes.observe(host);
-    return () => {
-      if (regions.get(id) === region) regions.delete(id);
-      sizes.unobserve(host);
-      stopReaching();
-    };
-  });
-};
-
-export function registerReadingRegion(declaration) {
-  const [cleanup] = admitRegions([declaration]);
-  return cleanup;
+  if (live(regions.get(id)))
+    throw new Error(`leaf: reading region ${id} is already live`);
+  const region = { id, host, body, scroller: null };
+  const stopReaching = reachReadingScroller(body);
+  regions.set(id, region);
+  sizes.observe(host);
+  return () => {
+    if (regions.get(id) === region) regions.delete(id);
+    sizes.unobserve(host);
+    stopReaching();
+  };
 }
 
 export const readingRegion = (id) => {
@@ -170,8 +154,6 @@ const compositionTransitions = new Map();
 export async function preserveReadingRegions(owner, change) {
   const transition = {
     owner,
-    from: null,
-    to: null,
     regions: readingRegions().filter((region) => under(region.host, owner)),
   };
   // A second choice can supersede an unfinished layout. Its intermediate geometry

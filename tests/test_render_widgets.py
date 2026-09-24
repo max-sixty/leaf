@@ -5,6 +5,7 @@ from itertools import pairwise
 from pathlib import Path
 
 import pytest
+from example_data import patch_manifest
 from interact_support import append_command
 from leaf import conversation as conversation_model
 from leaf import data as data_model
@@ -643,7 +644,7 @@ def clear_of_the_bottom_chrome(page, selector):
     """Scroll the page to its end and measure one box against the shortcut bar.
 
     The bar is the fixed chrome a page's last line has to scroll clear of; a page whose
-    end room is missing leaves that line under it however far the reader scrolls."""
+    end room is missing leaves that line under it however far the user scrolls."""
     return page.evaluate(
         """selector => {
           const page = document.scrollingElement;
@@ -714,7 +715,7 @@ def test_an_ask_with_more_than_one_answer_part_flows_in_a_root_workspace(
 <lf-workspace id="held-workspace">
   <lf-ask id="held-ask">
     <h2>Which release should go out?</h2>
-    <div id="ask-context" style="height: 900px">The context the reader weighs.</div>
+    <div id="ask-context" style="height: 900px">The context the user weighs.</div>
     <lf-options id="held-options" choose>
       <lf-option id="held-ship">Ship it</lf-option>
       <lf-option id="held-hold">Hold it</lf-option>
@@ -4092,10 +4093,10 @@ body { font-family: system-ui, sans-serif; }
             1,
         )
     )
-    data_model.cmd_data_capture(
+    data_model.cmd_data_set(
         serve.page_dir,
         "notification-artifact",
-        artifact,
+        artifact.read_text(encoding="utf-8"),
     )
     first_result = stamp_page(
         serve.page_dir,
@@ -4173,10 +4174,10 @@ body { font-family: system-ui, sans-serif; }
         "</article>",
     )
     artifact.write_text(second_artifact, encoding="utf-8")
-    data_model.cmd_data_capture(
+    data_model.cmd_data_set(
         serve.page_dir,
         "notification-artifact",
-        artifact,
+        artifact.read_text(encoding="utf-8"),
     )
     refined_source = result_source.replace(
         "<h1>Review the deployment notification</h1>",
@@ -5254,16 +5255,15 @@ def test_swipe_deck_buttons_arrows_and_rapid_actions_share_order(browser, serve)
         "swipe",
         "swipe",
     ]
-    assert [event["detail"] for event in logged] == [
-        {"card": "swipe-a", "to": "session-pass", "index": 1},
-        {"card": "swipe-b", "to": "session-keep", "index": 1},
-        {"card": "swipe-c", "to": "session-pass", "index": 2},
-        {
-            "card": "swipe-d",
-            "to": "session-keep",
-            "index": 2,
-        },
+    assert [(e["detail"]["card"], e["detail"]["to"]) for e in logged] == [
+        ("swipe-a", "session-pass"),
+        ("swipe-b", "session-keep"),
+        ("swipe-c", "session-pass"),
+        ("swipe-d", "session-keep"),
     ]
+    # Each swipe lands after the pile's authored card ("1") and the swipe before it.
+    a, b, c, d = (event["detail"]["rank"] for event in logged)
+    assert "1" < a < c and "1" < b < d
 
 
 def test_a_classification_can_return_before_its_send_finishes(browser, serve):
@@ -5680,7 +5680,7 @@ def test_swipe_deck_projects_the_same_exit_motion_as_a_local_swipe(browser, serv
             "revision": 1,
             "widget": "session-triage",
             "action": "swipe",
-            "detail": {"card": "swipe-a", "to": "session-keep", "index": 1},
+            "detail": {"card": "swipe-a", "to": "session-keep", "rank": "j"},
         },
     )
     told(page)
@@ -5709,7 +5709,7 @@ def test_swipe_deck_activation_restores_a_standing_swipe_without_motion(browser,
             "revision": 1,
             "widget": "session-triage",
             "action": "swipe",
-            "detail": {"card": "swipe-a", "to": "session-keep", "index": 1},
+            "detail": {"card": "swipe-a", "to": "session-keep", "rank": "j"},
         },
     )
     told(page)
@@ -6033,7 +6033,7 @@ def test_a_moved_change_takes_its_controls_with_it(browser, serve):
             "revision": 1,
             "widget": "feeders",
             "action": "move",
-            "detail": {"card": "card-heater", "to": "col-done", "index": 0},
+            "detail": {"card": "card-heater", "to": "col-done", "rank": "0i"},
         },
     )
     page = open_page(browser, url)
@@ -10038,7 +10038,7 @@ def test_a_backward_hunk_step_from_the_diff_itself_opens_one_file_and_lands_in_i
     data_model.cmd_data_set(
         serve.page_dir,
         "review-patch",
-        data_model.unified_diff_manifest(MULTI_HUNK_PATCH),
+        patch_manifest(MULTI_HUNK_PATCH),
     )
     page = open_page(browser, url)
     page.wait_for_function(

@@ -86,23 +86,13 @@ def package_selection_args(packages) -> list[str]:
 
 def _seed_data(fixture: PageFixture, page: Path, run_leaf: Callable) -> None:
     for operation in fixture.data:
-        if operation["kind"] == "set":
-            args = ["data", "set", str(page), operation["source"]]
-            run_leaf(*args, input_text=json.dumps(operation["value"]))
-            continue
-        args = [
+        run_leaf(
             "data",
-            "capture",
+            "set",
             str(page),
             operation["source"],
-            "--file",
-            str(operation["input_file"]),
-            "--format",
-            operation["format"],
-        ]
-        if operation["lines"] is not None:
-            args.extend(("--lines", operation["lines"]))
-        run_leaf(*args)
+            input_text=json.dumps(operation["value"]),
+        )
 
 
 def _seed_log(fixture: PageFixture, page: Path) -> None:

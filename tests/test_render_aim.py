@@ -2008,9 +2008,9 @@ def test_the_legend_follows_the_page_it_is_a_reading_of(browser, serve):
     name = page.locator(".lf-inspect").bounding_box()
     assert abs(name["y"] + name["height"] - box["y"]) < 4, (name, box)
     assert abs(name["x"] - box["x"]) < 4, (name, box)
-    # The panel takes a strip from the page and every block moves; the legend moves
-    # with them, off the resize each item reports. Opened by key: in the mode a press
-    # on the Threads button is a comment about the button.
+    # The panel stands over the right of the page, and each box ends where the panel
+    # begins. Opened by key: in the mode a press on the Threads button is a comment
+    # about the button.
     page.keyboard.press("c")
     expect(page.locator(".lf-thread-panel")).to_be_visible()
     page.wait_for_function(LEGEND_TRUE)
@@ -2755,7 +2755,7 @@ def test_a_replay_under_a_held_aim_repaints_the_promise(browser, serve):
             "revision": 1,
             "widget": "work",
             "action": "move",
-            "detail": {"card": "card-importer", "to": "col-done", "index": 1},
+            "detail": {"card": "card-importer", "to": "col-done", "rank": "1i"},
         },
     )
     told(page)

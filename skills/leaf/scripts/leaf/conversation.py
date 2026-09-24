@@ -23,7 +23,7 @@ from leaf.projection import (
     rewritten_bodies,
 )
 from leaf.requests import receipt_event
-from leaf.schema import MESSAGE_KINDS
+from leaf.schema import MESSAGE_KINDS, THREAD_ANSWER_KINDS
 from leaf.service import PageTransaction, delivery_reply_attempt
 from leaf.structure import SourceDocument, parse_revision
 from leaf.thread_context import thread_roots
@@ -457,7 +457,7 @@ def cmd_reply(
             to = expected["to"]
         else:
             expected = responses.get(for_event)
-            if expected is None or expected["kind"] != "reply":
+            if expected is None or expected["kind"] not in THREAD_ANSWER_KINDS:
                 held = logged_id(events, for_event, responses)
                 refusal = f"event {for_event!r} takes no reply; " + (
                     held or f"this page's log holds no event {for_event!r}"
@@ -467,12 +467,16 @@ def cmd_reply(
                 if when_settled != "post" or to is None:
                     sys.exit(refusal)
             elif to is None:
-                to = expected["to"] if expected["kind"] == "reply" else for_event
+                to = expected["to"]
         assert to is not None
         root_id, root = _thread_root(page_dir, events, to)
         if for_event is not None:
             expected = responses.get(for_event)
-            if expected != {"kind": "reply", "to": to, "for": for_event}:
+            if (
+                expected is None
+                or expected["kind"] not in THREAD_ANSWER_KINDS
+                or (expected["to"], expected["for"]) != (to, for_event)
+            ):
                 if when_settled == "skip":
                     return None
                 if when_settled != "post":
@@ -480,22 +484,19 @@ def cmd_reply(
                         f"event {for_event!r} no longer requires a reply to {to!r}; "
                         "read the current delivery or conversation state"
                     )
-        if for_event is not None:
-            stream = page.status.get("stream") or {}
-            binding = (stream.get("reply_bindings") or {}).get(for_event) or {}
-            claim = page.active_claim
-            if (
-                binding.get("attempt") != attempt
-                and claim is not None
-                and binding.get("session") == claim["id"]
-            ):
+            elif expected["kind"] == "turn" and expected["attempt"] != attempt:
                 sys.exit(
                     f"event {for_event!r} is answered by this turn's messages; "
                     "finish the reply in your final message"
                 )
         else:
             standing = thread_obligation(events, responses, root_id)
-            if standing is not None and standing["kind"] == "reply":
+            if standing is not None and standing["kind"] == "turn":
+                sys.exit(
+                    f"conversation {root_id!r} is answered by this turn's messages; "
+                    "finish the reply in your final message"
+                )
+            if standing is not None:
                 sys.exit(
                     f"conversation {root_id!r} currently requires a response; "
                     f"use `--for {standing['for']}` instead of --initiates"
@@ -664,8 +665,9 @@ def fail_answer(
     `answer` names and hands the next step back to the user, so a failed move is
     never left owed with nobody to answer it:
 
-    - a `reply` or `version` answer takes a reply carrying `failure` in its
-      conversation, which the user resends into;
+    - a `reply` answer takes a reply carrying `failure` in its conversation, which
+      the user resends into; a `turn` answer refuses it until its turn gives the
+      reply up and the answer reads as a `reply` again;
     - a `receipt` answer takes a failed receipt carrying `failure`, the request's
       own terminal outcome, which reopens its seat for the user to press again;
     - a `markup` answer takes a failed pickup: the user's Ask answer stands in the

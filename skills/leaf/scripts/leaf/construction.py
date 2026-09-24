@@ -10,9 +10,10 @@ mutable-source locations are offered only when that source is the same document.
 from copy import deepcopy
 from pathlib import Path
 
-from .data import data_fragments, data_manifest, source_file
+from .data import data_manifest, deferred_records, source_file
 from .projection import (
     StateProjection,
+    authored_rank,
     generated_children,
     recorded_owner,
     retirement_outcomes,
@@ -64,11 +65,11 @@ def input_readings(
                 reading["value"], spec["contract"], registry
             )
             inputs[name]["updated"] = reading["updated"]
-            if fragments := data_fragments(
+            if records := deferred_records(
                 reading["value"], spec["contract"], registry
             ):
-                inputs[name]["fragments"] = {
-                    **fragments,
+                inputs[name]["deferred"] = {
+                    **records,
                     "file": str(source_file(page_dir, source)),
                     "revision": reading["revision"],
                 }
@@ -98,8 +99,12 @@ def constructed_content(
     roots = deepcopy(parser.content)
     by_id = {}
     containers = {}
+    # Where each identified node stands among its identified siblings; a position
+    # record replaces its unit's with the rank it names.
+    ranks = {}
 
     def prepare(items):
+        ranked = 0
         for node in items:
             if isinstance(node, str):
                 continue
@@ -108,6 +113,8 @@ def constructed_content(
             if identity:
                 by_id[identity] = node
                 containers[identity] = items
+                ranks[identity] = authored_rank(ranked)
+                ranked += 1
             if conversation is not None:
                 node["edit"] = {
                     "kind": "conversation",
@@ -156,6 +163,11 @@ def constructed_content(
                     "kind": "conversation",
                     "conversation": conversation,
                 }
+            ranks[identity] = authored_rank(
+                sum(
+                    isinstance(n, dict) and "id" in n["attrs"] for n in owner["content"]
+                )
+            )
             owner["content"].append(child)
             by_id[identity] = child
             containers[identity] = owner["content"]
@@ -219,13 +231,18 @@ def constructed_content(
             }
             previous.remove(owner)
             children = target["content"]
-            index = event["detail"][record["order"]]
-            positions = [
-                i
-                for i, child in enumerate(children)
-                if isinstance(child, dict) and child["attrs"].get("id")
-            ]
-            at = positions[index] if index < len(positions) else len(children)
+            ranks[unit] = event["detail"][record["rank"]]
+            key = (ranks[unit], unit)
+            at = next(
+                (
+                    i
+                    for i, child in enumerate(children)
+                    if isinstance(child, dict)
+                    and (sibling := child["attrs"].get("id"))
+                    and (ranks[sibling], sibling) > key
+                ),
+                len(children),
+            )
             children.insert(at, owner)
             containers[unit] = children
 

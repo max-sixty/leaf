@@ -642,10 +642,7 @@ let approving = false;
 // read the log and so cannot say which those are.
 export function paintApproval(pendingApprovals, blockingAsks, acceptedApprovals) {
   const approved = [...acceptedApprovals, ...pendingApprovals].some(
-    (e) =>
-      e.kind === "done" &&
-      e.revision === runtime.currentRevision &&
-      e.version === runtime.currentStamp,
+    (e) => e.kind === "done" && e.version === runtime.currentStamp,
   );
   // The word and the title turn over together. The title read "Approve this work; the
   // page stays open for follow-up" whether or not the work had been approved, so the one

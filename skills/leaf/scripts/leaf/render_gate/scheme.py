@@ -62,10 +62,6 @@ def resize_observer_error(text: str) -> bool:
     return text.startswith(RESIZE_OBSERVER_ERROR)
 
 
-def recurring_resize_observer_error(unit: str) -> str:
-    return f"{RESIZE_OBSERVER_ERROR} notice recurred on the confirming {unit}"
-
-
 def console_problem(message) -> str | None:
     """A console entry that says the page did not load cleanly."""
     if message.type == "error":

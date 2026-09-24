@@ -91,6 +91,7 @@ package/
 ├── runtime/            browser modules and replacements by vendored path
 ├── widgets/            entry modules and their private helpers
 ├── vendor/             third-party libraries or data files
+├── scripts/            bundled packages only: producer tools; never vendored
 ├── icon.svg            optional replacement by path
 └── leaf.js             optional runtime replacement
 ```
@@ -207,6 +208,7 @@ widget's role on the page:
 | `x-page-navigation`  | `lf-tabs`                                                      |
 | `x-visual`           | `lf-chart` declares `whole`, `lf-diagram` in `diagram` `parts`  |
 | `x-bound`            | `lf-activity`                                                  |
+| `x-history`          | `lf-activity`                                                  |
 | `x-thread-surface`   | `lf-diff` in `diff`, `lf-visual-review` in `visual-review`     |
 
 A CSS-only widget is an entry and a theme rule. One with reusable behavior takes a
@@ -249,7 +251,11 @@ detail}`: `action` is null for authored state; `value` is the typed record value
 the verb's name for a recordless verb that stands (null means undecided); `detail`
 retains generated-child labels and other declared event data. A per-part verb's state
 contains `units`, keyed by unit id, and a position verb's also contains `value`, a map
-from container id to the complete ordered ids it holds. Missing recordless units are
+from container id to the complete ordered ids it holds, and `ranks`, each listed unit's
+rank. A position record carries a rank rather than an index, so a unit's placement
+stands whichever other moves stand: dispatch `rankAt(state.<verb>, container, index,
+unit)` from `runtime/widget-api.js` for a unit dropped at `index` among the container's
+other units. Missing recordless units are
 undecided. Render the final composition and keep independent
 nested widgets mounted; never recreate the owner to restore an initial state.
 The controller ignores the renderer's return value. A live editor or pointer/keyboard
@@ -552,13 +558,13 @@ declares one verb on `lf-swipe-deck` and the condition that answers its Ask, and
         "properties": {
           "card": { "type": "string" },
           "to": { "type": "string" },
-          "index": { "type": "integer", "minimum": 0 }
+          "rank": { "type": "string" }
         },
-        "required": ["card", "to", "index"],
+        "required": ["card", "to", "rank"],
         "additionalProperties": false
       },
       "unit": "card",
-      "record": { "kind": "position", "within": "lf-swipe-pile", "value": "to", "order": "index" }
+      "record": { "kind": "position", "within": "lf-swipe-pile", "value": "to", "rank": "rank" }
     }
   },
   "x-awaits": {
@@ -607,10 +613,16 @@ canonical `id`, and has `x-content: markup`. The append door refuses an id the s
 document already holds, and version checks enforce the declared tag and
 direct-ownership relation once an author writes the child into the markup.
 
-`x-report` declares the agent's side of the same coordinates: a worker posts a report
-with `leaf report`, and it stands until a version answers it. A report verb that shares
-its name with an `x-state` verb states the same fact, and a user's action at that
-coordinate outranks it.
+A verb whose state the agent writes rather than the user declares `"writer": "agent"`
+beside its `detail`, `unit`, and `record`. A worker posts it with `leaf report`, the
+page paints it live, and it stands until a version answers it; the user has no control
+for it. Its record is required and may not be `body`, and it may name the detail field
+carrying its short human-readable news with `update`. Every verb has exactly one
+writer, so a coordinate never holds a user's action and an agent's report at once.
+Command Hub's `lf-task` `status` is the shipped example, and a widget declaring such a
+verb also declares the boolean `overruled` attribute a version keeps its own state
+with. A worker that reacts to the user's actions follows them as they land with
+`leaf events PAGE --follow`.
 
 ## External requests and receipts
 
@@ -627,7 +639,7 @@ instruction, remove the holder rather than leaving an empty Ask with no possible
 `verbs` gives each operation a closed detail schema. Optional `bind` entries require a
 detail field to equal an authored string attribute on the holder, so a crafted event
 cannot retarget the operation. Every bound detail field and holder attribute is required,
-string-valued, and immutable through `x-state` or `x-report`; every offer attribute is a
+string-valued, and immutable through `x-state`; every offer attribute is a
 required string enum on its child. These constraints make the same declaration usable at
 authoring, browser, and server boundaries rather than leaving a partial bind to runtime
 guesswork.
@@ -679,8 +691,12 @@ words while the shared element wires each offered child into the server-projecte
 request seat, registers its answer, and paints its lifecycle. A package that needs
 another control shape uses the same widget controller: request entries carry
 availability, `request` carries the seat lifecycle, and `dispatch({kind: "request",
-verb, detail})` sends it. `watchHistory` remains the audit-log surface for widgets
-that intentionally render events themselves.
+verb, detail})` sends it.
+
+A widget that renders the page's history declares `x-history` and reads it through
+`watchHistory(owner, callback)`: the server's rows, newest first, each already
+carrying its thread, whether it was undone, and a gesture's words as the document it
+was made in had them. The widget words those facts; it does not fold the log.
 
 ```js
 defineRequestElement("lf-operations", {
@@ -827,8 +843,7 @@ complete value using the page's source id:
 ```bash
 printf '%s' '{"main":"passing"}' | leaf data set PAGE release-ci
 leaf data set PAGE release-ci --file build-state.json
-leaf data capture PAGE release-notes --file CHANGELOG.md --lines 20:44
-leaf data capture PAGE review-patch --file change.patch --format unified-diff
+sed -n '20,44p' CHANGELOG.md | jq -Rs . | leaf data set PAGE release-notes
 leaf data clear PAGE release-ci
 ```
 
@@ -849,12 +864,12 @@ rewrites that source. Source revisions and event sequences are independent: an o
 may contain new data, and a new event response may contain old data, so neither orders
 the other.
 
-`data capture` reads a UTF-8 file without making the author copy it into markup.
-The default `text` format can select an inclusive `START:END` line range. The
-`unified-diff` format validates a Git patch and builds the file-fragmented manifest the
-diff widget consumes; an entry the widget's declaration does not support is rejected
-rather than silently omitted. The captured file's path is never stored or sent to
-users.
+`data set` is the one write. A value that has to be derived from a file — a text
+excerpt, a patch split into files — is the producer's to build, and a contract that
+needs more than `jq` says how in its producer `guidance`. A bundled package may ship
+that tool under `scripts/`, which neither a page nor `package install` copies; its
+guidance names it as `<leaf-packages>/<package>/scripts/<tool>`, and `leaf page
+guidance` prints the placeholder as this install's absolute packages directory.
 
 A source id keeps one contract for the lifetime of the page. `data clear` removes the
 current value and keeps the recorded contract, so the id is never released for a new
@@ -865,21 +880,20 @@ discover the ids, contracts, widgets, and documents it needs without parsing mar
 Every source value goes to every user of the page, including fields a module does not
 paint. Do not put credentials or private host state in it.
 
-A contract whose values contain large independently useful payloads may declare a
-`fragments` coordinate: the top-level array field, each item's unique key field, and the
-payload field. The source file still holds the complete value, and readings validate
-all of it. `/api/state` sends the array as a lightweight manifest with that payload
-field omitted; a widget uses `loadDataFragment(snapshot, key)` to fetch one payload
-using the delivery `watchData` handed it. A request naming a source revision the file no
-longer holds is refused instead of combining a new payload with an old manifest. This is how a collapsed `lf-diff` can show
-thousands of files without transferring or rendering every patch first.
-`records` names the same `items` and `key` fields without splitting payload delivery;
-when a contract declares both, they must agree. Both forms validate non-empty,
-unique string keys before a source replacement is accepted.
+A contract whose value holds keyed rows declares `records`: the top-level array field
+and each row's key field. A source replacement is accepted only when every row has a
+non-empty, unique string key. Rows that each carry a large, independently useful
+payload may name that field `deferred`. The source file still holds the complete value,
+and readings validate all of it, but `/api/state` sends each row with that field
+omitted; a widget uses `loadDataFragment(snapshot, key)` to fetch one row's payload
+using the delivery `watchData` handed it. A request naming a source revision the file
+no longer holds is refused instead of combining a new payload with an old manifest.
+This is how a collapsed `lf-diff` can show thousands of files without transferring or
+rendering every patch first.
 
 ```json
 {
-  "fragments": { "items": "files", "key": "key", "value": "patch" },
+  "records": { "items": "files", "key": "key", "deferred": "patch" },
   "schema": {
     "type": "object",
     "properties": {

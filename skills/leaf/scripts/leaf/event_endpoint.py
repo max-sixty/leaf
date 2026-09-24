@@ -34,6 +34,16 @@ def event_rejection(event: dict, error: str, status: int = 400) -> EventAnswer:
     return status, body
 
 
+def event_fault(event: dict, error: str) -> EventAnswer:
+    """An answer that withholds `final`: the fault may have landed either side of
+    the append, so the next identical request finds the accepted event or executes
+    the attempt again. The HTTP boundary writes it, as it writes every 500."""
+    body = {"ok": False, "error": error}
+    if event.get("attempt"):
+        body["attempt"] = event["attempt"]
+    return 500, body
+
+
 def _accepted_retry(
     page: PageTransaction, event: dict
 ) -> tuple[bool, EventAnswer | None]:
@@ -72,7 +82,10 @@ def accept_event(
 ) -> EventAnswer:
     """Validate and append one browser record, then return its current state."""
     try:
-        registry = admitting_registry(PageView(page_dir), event)
+        # The shape check before the lease reads no log, so a sign-off checks its
+        # kind against the newest vocabulary; admission inside the lease reads the
+        # version's own.
+        registry = admitting_registry(PageView(page_dir), event, [])
     except (EventRefused, RegistryError) as error:
         return event_rejection(event, str(error))
     contracts = registry["$events"]["kinds"]
@@ -88,15 +101,9 @@ def accept_event(
         event.pop(field, None)
     if error := browser_command_error(contracts[kind], event):
         return event_rejection(event, f"{kind} event is invalid: {error}")
-    try:
-        return _execute_event(page_dir, event, state, capture_anchors)
-    except Exception as error:  # noqa: BLE001 - an uncertain write is retryable
-        # A fault may occur after append. Withholding `final` makes the next
-        # identical request find the accepted event or execute the attempt again.
-        body = {"ok": False, "error": f"{type(error).__name__}: {error}"}
-        if attempt := event.get("attempt"):
-            body["attempt"] = attempt
-        return 500, body
+    # A fault raises out of here, before or after the append, and the transport's
+    # one fault boundary answers it with `event_fault`.
+    return _execute_event(page_dir, event, state, capture_anchors)
 
 
 def _execute_event(

@@ -49,7 +49,6 @@ test("a recorded verb standing at its authored value overrides nothing", () => {
       {
         state: { status: { value: "idle" } },
         specs: new Map([["status", { unit: "widget", record }]]),
-        positions: {},
       },
     ],
   ]);

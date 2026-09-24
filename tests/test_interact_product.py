@@ -131,14 +131,16 @@ def test_stamp_assigns_versions_to_the_exact_immutable_revision(page_dir):
     assert not (page_dir / "versions").exists()
 
 
-def test_page_events_name_revisions_while_stamps_and_signoff_name_both(page_dir):
+def test_page_events_name_revisions_stamps_name_both_and_signoff_a_version(page_dir):
     kinds = registry_storage.load_registry(page_dir)["$events"]["kinds"]
     for kind in ("comment", "action", "report"):
         required = kinds[kind]["record"]["required"]
         assert "revision" in required and "version" not in required
-    for kind in ("note", "done"):
-        required = kinds[kind]["record"]["required"]
-        assert "revision" in required and "version" in required
+    required = kinds["note"]["record"]["required"]
+    assert "revision" in required and "version" in required
+    # A sign-off names the stamp it approves; the note already maps that to a revision.
+    required = kinds["done"]["record"]["required"]
+    assert "version" in required and "revision" not in required
     result = CliRunner().invoke(cli_model.cli, ["version", "--help"])
     assert result.exit_code == 0
     assert "\n  stamp " in result.output and "\n  publish " not in result.output
@@ -436,16 +438,7 @@ def test_page_fixtures_pass_check(tmp_path, monkeypatch, initialized_page):
         # version, oldest first, exactly as a builder stamps them.
         (d / "index.html").write_text(example.read_text())
         for operation in data_operations(example):
-            if operation["kind"] == "set":
-                data_model.cmd_data_set(d, operation["source"], operation["value"])
-            else:
-                data_model.cmd_data_capture(
-                    d,
-                    operation["source"],
-                    operation["input_file"],
-                    operation["lines"],
-                    operation["format"],
-                )
+            data_model.cmd_data_set(d, operation["source"], operation["value"])
         # The example's companion log, where it ships one (examples/AGENTS.md), so
         # the lint reads the page under the state its own log puts on it.
         seed = example.with_suffix(".jsonl")
@@ -1411,10 +1404,10 @@ def test_export_prints_threads_and_versions(page_dir):
             "revision": 1,
             "widget": "b",
             "action": "move",
-            "detail": {"card": "card-x", "to": "col-done", "index": 0},
+            "detail": {"card": "card-x", "to": "col-done", "rank": "0i"},
             "meaning": {
-                "document": {"kind": "page", "revision": 1},
-                "coordinate": ["b", "card-x", "move"],
+                "document": "page",
+                "unit": "card-x",
                 "depends": ["b", "card-x", "col-done"],
             },
         },
@@ -1429,8 +1422,8 @@ def test_export_prints_threads_and_versions(page_dir):
             "action": "choose",
             "detail": {"options": ["backfill-first"]},
             "meaning": {
-                "document": {"kind": "page", "revision": 1},
-                "coordinate": ["plan-options", "plan-options", "choose"],
+                "document": "page",
+                "unit": "plan-options",
                 "depends": ["backfill-first", "plan-options"],
             },
         },
@@ -1460,7 +1453,7 @@ def test_export_prints_threads_and_versions(page_dir):
     assert "- v1: first cut" in result.output
     # The user's direct edits are outcomes of the exchange, not just events.
     assert "### Edits" in result.output
-    assert "- `b`: move card=card-x to=col-done index=0 (on v1)" in result.output
+    assert "- `b`: move card=card-x to=col-done rank=0i (on v1)" in result.output
     # A choice says what was chosen in the words of the version it was made on.
     assert (
         "- `plan-options`: choose options=['backfill-first'] — “effort: med risk: low "
@@ -1476,7 +1469,7 @@ def test_export_prints_threads_and_versions(page_dir):
     result = CliRunner().invoke(cli_model.cli, ["transcript", str(page_dir)])
     assert result.exit_code == 0, result.output
     assert (
-        "- `b`: move card=card-x to=col-done index=0 (on v1) — taken back"
+        "- `b`: move card=card-x to=col-done rank=0i (on v1) — taken back"
         in result.output
     )
     assert "> “flip reads”  — resolved" in result.output
@@ -1624,16 +1617,7 @@ def test_every_seeded_fragment_passes_the_door_it_never_came_through(
         (d / "index.html").write_text(example.read_text())
         shutil.copytree(ROOT / "examples" / "media", d / "media", dirs_exist_ok=True)
         for operation in data_operations(example):
-            if operation["kind"] == "set":
-                data_model.cmd_data_set(d, operation["source"], operation["value"])
-            else:
-                data_model.cmd_data_capture(
-                    d,
-                    operation["source"],
-                    operation["input_file"],
-                    operation["lines"],
-                    operation["format"],
-                )
+            data_model.cmd_data_set(d, operation["source"], operation["value"])
         # Published, because the door is only open on a page a user could be
         # holding — which is the state every one of these seeds is written for.
         published = CliRunner().invoke(

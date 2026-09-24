@@ -79,6 +79,7 @@ from render_harness import (
     EXAMPLES,
     FEATURE_GALLERY,
     LONG_PAGE,
+    RECURRING_RESIZE_NOTICE,
     REPLY_HOST_PAGE,
     TOKEN,
     _traffic,
@@ -842,8 +843,8 @@ def test_every_restore_case_a_user_can_return_to_is_arrived_in(browser, serve):
                 "action": "decide",
                 "detail": {"outcome": "accept"},
                 "meaning": {
-                    "document": {"kind": "page", "revision": 1},
-                    "coordinate": ["sug-rewrite", "sug-rewrite", "decide"],
+                    "document": "page",
+                    "unit": "sug-rewrite",
                     "depends": ["sug-rewrite"],
                     "answer": None,
                 },
@@ -1193,7 +1194,7 @@ def test_page_navigation_reports_a_recurring_resize_notice(browser, serve):
     page = open_page(browser, serve(LONG_PAGE), init_script=every_load)
 
     errors = take_browser_errors(page)
-    assert errors == [render_gate_scheme.recurring_resize_observer_error("navigation")]
+    assert errors == [RECURRING_RESIZE_NOTICE]
 
 
 def test_the_render_gate_rejects_an_upgrade_that_defines_no_element(
@@ -1840,10 +1841,9 @@ def _author_stateful_verbatim_widget(tmp_path):
             },
             "unit": "widget",
             "record": {"kind": "value", "attr": "user", "value": "value"},
-        }
-    }
-    stateful["x-report"] = {
+        },
         "status": {
+            "writer": "agent",
             "detail": {
                 "type": "object",
                 "properties": {"value": {"type": "string"}},
@@ -1852,7 +1852,7 @@ def _author_stateful_verbatim_widget(tmp_path):
             },
             "unit": "widget",
             "record": {"kind": "value", "attr": "agent", "value": "value"},
-        }
+        },
     }
     registry_path.write_text(json.dumps(declarations, indent=2))
     (tmp_path / ".leaf" / "widgets" / "lf-stateful.js").write_text(

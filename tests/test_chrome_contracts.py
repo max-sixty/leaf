@@ -251,7 +251,7 @@ def test_incoming_reply_follows_a_thread_at_its_latest_message(browser, serve):
                 "author": "agent",
                 "agent": "Codex",
                 "message": newest["id"],
-                "text": "The answer grows while the reader is following it. " * length,
+                "text": "The answer grows while the user is following it. " * length,
             },
         )
         page.evaluate(
@@ -281,7 +281,7 @@ def test_incoming_reply_follows_a_thread_at_its_latest_message(browser, serve):
             "author": "agent",
             "agent": "Codex",
             "parent": root,
-            "text": "Later answer must not pull a reader away from history.",
+            "text": "Later answer must not pull the user away from history.",
         },
     )
     page.evaluate(

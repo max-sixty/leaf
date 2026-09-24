@@ -20,7 +20,7 @@
   },
   "outputRoot": "skills/leaf/assets/vendor",
   "lockfile": "package-lock.json",
-  "lockfileSha256": "4a1cd4b406ac2707078c69d2133c367faba3abc64121352a65a27e4a9c7f21cb",
+  "lockfileSha256": "a9d6431559c4d45c2603e59a283042d22debaef88489170840fe4fc1b506d40e",
   "commands": {
     "install": "npm ci",
     "build": "npm run build:browser",
@@ -28,12 +28,26 @@
     "test": "npm run test:browser"
   },
   "contributorDependencies": {
+    "@awesome.me/webawesome": "3.13.0",
+    "@floating-ui/dom": "1.8.0",
     "@happy-dom/global-registrator": "20.14.5",
+    "@modelcontextprotocol/ext-apps": "2.0.0",
+    "@observablehq/plot": "0.6.17",
+    "@pierre/diffs": "1.4.3",
     "@preact/signals-core": "1.14.4",
+    "@shikijs/core": "4.4.3",
+    "@shikijs/engine-javascript": "4.4.3",
+    "@shikijs/langs": "4.4.3",
+    "@shikijs/themes": "4.4.3",
     "acorn": "8.18.0",
+    "agentic-mermaid": "0.4.1",
+    "diff": "9.0.0",
     "esbuild": "0.28.2",
     "happy-dom": "20.14.5",
+    "highlight.js": "11.12.0",
     "lit": "3.3.3",
+    "marked": "18.0.14",
+    "sortablejs": "1.15.7",
     "typescript": "7.0.2"
   },
   "bundledDependencies": {
@@ -140,12 +154,12 @@
   "pageModules": "Browser-ready authored page modules are captured with their revision; they are not contributor-build inputs.",
   "outputs": {
     "skills/leaf/assets/vendor/browser-runtime.js": {
-      "bytes": 29630,
-      "sha256": "1cf60a9ce8c0ae84557992c9a349cf95069235d4b6d3d87e6b464794f5dd1b86"
+      "bytes": 29288,
+      "sha256": "bc766b51c3bdd50610d9090492eae838e81d2de289cc1cf534df484d64c1586f"
     },
     "scripts/browser/generated/browser-runtime.js.map": {
-      "bytes": 175791,
-      "sha256": "de564c853ecbd8ade822d5a3eaf56b65776081ea593e1c9808da898052384fe8"
+      "bytes": 177620,
+      "sha256": "28da4abe955afbc46f634882ab49f1fd3e467695ec56df918fefaebf168e296e"
     },
     "skills/leaf/assets/vendor/lit.js": {
       "bytes": 32020,

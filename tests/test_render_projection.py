@@ -7,6 +7,7 @@ from copy import deepcopy
 from datetime import datetime, timedelta
 
 import pytest
+import render_harness
 from click.testing import CliRunner
 from interact_support import (
     COMMAND_HUB_PACKAGE,
@@ -26,6 +27,7 @@ from leaf import structure as structure_model
 from leaf.render_gate import version as render_gate_model
 from leaf.render_gate.preview import preview_server
 from leaf.validation import compatibility as validation_model
+from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_cases_interaction import (
     ASKS_IN_ORDER,
@@ -583,6 +585,7 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
 
     page.keyboard.press("Escape")
     expect(page.locator("#patch [data-line-type]")).to_have_count(0)
+    entries = page.evaluate("history.length")
     lines.nth(1).locator(".lf-call-location").click()
     context = page.locator(
         'lf-diff [data-lf-datum=\'["gateway/limits.py","both",38,38]\']'
@@ -601,7 +604,6 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     expect(context).to_be_hidden()
     lines.nth(2).locator(".lf-call-location").click()
     expect(search).to_have_value("")
-    expect(page).to_have_url(re.compile(r"#patch$"))
     added = page.locator('lf-diff [data-lf-datum=\'["gateway/limits.py","new",40]\']')
     expect(added).to_be_in_viewport()
     expect(page.locator(".lf-live")).to_have_text(
@@ -611,6 +613,10 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
         "() => document.querySelector('#patch').shadowRoot.activeElement"
         ".matches('summary')"
     )
+    # Each line already stood in the window once the diff revealed it, so neither
+    # trip departed: no history entry, and the address kept no fragment.
+    assert page.evaluate("history.length") == entries
+    expect(page).not_to_have_url(re.compile(r"#patch$"))
 
     data_model.cmd_data_set(
         serve.page_dir,
@@ -3799,6 +3805,34 @@ def test_a_revision_that_rewrites_a_draft_leaves_the_user_where_they_stand(
     expect(pick).to_be_focused()
 
 
+def test_told_waits_through_a_document_without_a_body(browser, monkeypatch):
+    """The replacement navigation can be between its html and body while told polls."""
+    page = browser.new_page()
+    page.set_content('<body data-lf-reading="ready"></body>')
+    monkeypatch.setattr(render_harness, "_server_reading", lambda _page: "ready")
+    page.evaluate(
+        "() => { window.detachedBody = document.body; document.body.remove(); }"
+    )
+    assert page.evaluate("() => document.body === null")
+    real_wait = page.wait_for_function
+    attempts = 0
+
+    def wait_for_function(*args, **kwargs):
+        nonlocal attempts
+        attempts += 1
+        try:
+            return real_wait(*args, **kwargs)
+        except PlaywrightTimeout:
+            page.evaluate("() => document.documentElement.append(window.detachedBody)")
+            raise
+
+    monkeypatch.setattr(page, "wait_for_function", wait_for_function)
+
+    told(page)
+    assert attempts == 2
+    assert page.evaluate("() => document.body.dataset.lfReading") == "ready"
+
+
 def test_the_replacing_install_gives_back_the_same_apparatus(browser, serve):
     """A revision that opens a fresh document carries the same named state across.
 
@@ -5210,7 +5244,7 @@ def test_render_reports_markup_the_log_replays_over(browser, serve):
     d = serve.page_dir
     for widget, action, detail in [
         ("approach", "choose", {"options": ["opt-shim"]}),
-        ("work", "move", {"card": "card-importer", "to": "col-done", "index": 0}),
+        ("work", "move", {"card": "card-importer", "to": "col-done", "rank": "0i"}),
     ]:
         append_command(
             d,
@@ -5445,8 +5479,7 @@ def test_the_render_gate_applies_every_standing_action_a_second_time(browser, se
         (tag, verb)
         for tag, entry in registry.items()
         if tag.startswith("lf-")
-        for channel in ("x-state", "x-report")
-        for verb in entry.get(channel, {})
+        for verb in entry.get("x-state", {})
     }
     assert {(tag, verb) for _id, tag, _key, verb in standing} == declared, (
         "the gate applies the standing state, so a declared verb missing from it is a "
@@ -5460,13 +5493,13 @@ def test_the_render_gate_applies_every_standing_action_a_second_time(browser, se
 
 
 @pytest.mark.parametrize("authored", [None, "0"])
-def test_a_user_action_outranks_later_news_on_the_same_coordinate(
+def test_a_user_verb_and_an_agent_verb_stand_side_by_side(
     browser, serve, tmp_path, monkeypatch, authored
 ):
-    """The projection, not channel replay order, is the DOM's authority. A worker's
-    later count remains report history, but it cannot paint over the user's action
-    on the same unit and verb; both log records are ready once that one coordinate is
-    committed."""
+    """A verb has one writer, so a user's action and a worker's report on one widget
+    fold on coordinates of their own: each paints its own record, every log record is
+    ready once its coordinate is committed, and undoing the user's action restores
+    the authored value without replacing the node."""
     monkeypatch.chdir(tmp_path)
     author_test_widget(tmp_path, "lf-tally", upgrade=True)
     registry_path = tmp_path / ".leaf" / "registry.json"
@@ -5480,6 +5513,10 @@ def test_a_user_action_outranks_later_news_on_the_same_coordinate(
     )
     declarations["lf-tally"]["properties"]["restated"] = {"type": "boolean"}
     declarations["lf-tally"]["properties"]["overruled"] = {"type": "boolean"}
+    declarations["lf-tally"]["properties"]["seen"] = {
+        "type": "string",
+        "pattern": "^[0-9]+$",
+    }
     record = {"kind": "value", "attr": "count", "value": "count"}
     count_detail = {
         "type": "object",
@@ -5492,14 +5529,13 @@ def test_a_user_action_outranks_later_news_on_the_same_coordinate(
             "detail": count_detail,
             "unit": "widget",
             "record": record,
-        }
-    }
-    declarations["lf-tally"]["x-report"] = {
-        "set": {
+        },
+        "observe": {
+            "writer": "agent",
             "detail": count_detail,
             "unit": "widget",
-            "record": record,
-        }
+            "record": {"kind": "value", "attr": "seen", "value": "count"},
+        },
     }
     registry_path.write_text(json.dumps(declarations, indent=2))
     (tmp_path / ".leaf" / "widgets" / "lf-tally.js").write_text(
@@ -5513,6 +5549,8 @@ customElements.define("lf-tally", class extends HTMLElement {
   renderState(state) {
     if (state.set.value === null) this.removeAttribute("count");
     else this.setAttribute("count", state.set.value);
+    if (state.observe.value === null) this.removeAttribute("seen");
+    else this.setAttribute("seen", state.observe.value);
   }
 });
 """
@@ -5523,7 +5561,7 @@ customElements.define("lf-tally", class extends HTMLElement {
     url = serve(html, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
     for kind, author, widget, action, count in [
         ("action", "user", "tally-fitted", "set", "7"),
-        ("report", "agent", "tally-fitted", "set", "9"),
+        ("report", "agent", "tally-fitted", "observe", "9"),
         ("action", "user", "tally-seen", "set", "5"),
     ]:
         append_command(
@@ -5540,14 +5578,17 @@ customElements.define("lf-tally", class extends HTMLElement {
 
     page = open_page(browser, url)
     expect(page.locator("#tally-fitted")).to_have_attribute("count", "7")
+    expect(page.locator("#tally-fitted")).to_have_attribute("seen", "9")
     expect(page.locator("#tally-seen")).to_have_attribute("count", "5")
     expect(page.locator("body")).to_have_attribute("data-lf-applied", "3")
     standing = page.evaluate(
-        """async () => (await window.__lfRuntimeImport('/runtime/widget-api.js'))
-          .widgetController(document.getElementById('tally-fitted')).read()
-          .state.set.value"""
+        """async () => {
+          const {state} = (await window.__lfRuntimeImport('/runtime/widget-api.js'))
+            .widgetController(document.getElementById('tally-fitted')).read();
+          return [state.set.value, state.observe.value];
+        }"""
     )
-    assert standing == "7"
+    assert standing == ["7", "9"]
 
     original = page.locator("#tally-seen").element_handle()
     page.keyboard.press("z")
@@ -5581,9 +5622,9 @@ def test_a_part_and_its_own_widget_keep_same_named_verbs_independent(
                 "properties": {
                     "piece": {"type": "string"},
                     "to": {"type": "string"},
-                    "index": {"type": "integer", "minimum": 0},
+                    "rank": {"type": "string"},
                 },
-                "required": ["piece", "to", "index"],
+                "required": ["piece", "to", "rank"],
                 "additionalProperties": False,
             },
             "unit": "piece",
@@ -5591,7 +5632,7 @@ def test_a_part_and_its_own_widget_keep_same_named_verbs_independent(
                 "kind": "position",
                 "within": "lf-zone",
                 "value": "to",
-                "order": "index",
+                "rank": "rank",
             },
         }
     }
@@ -5668,7 +5709,7 @@ customElements.define("lf-piece", class extends HTMLElement {
             "revision": 1,
             "widget": "owner",
             "action": "move",
-            "detail": {"piece": "piece", "to": "zone-b", "index": 0},
+            "detail": {"piece": "piece", "to": "zone-b", "rank": "0i"},
         },
         {
             "kind": "action",
@@ -5718,103 +5759,6 @@ customElements.define("lf-piece", class extends HTMLElement {
     told(page)
     expect(page.locator("#zone-b > #piece")).to_have_count(1)
     expect(page.locator("#piece")).to_have_attribute("pinned", "yes")
-
-
-def test_complete_positions_compose_across_independent_widget_owners(
-    browser, serve, tmp_path, monkeypatch
-):
-    """Four independently recorded siblings share one physical order. A fresh tab
-    must render their final positions in that order, rather than reapply each
-    owner's index in the original DOM order; undo retains those same nodes."""
-    monkeypatch.chdir(tmp_path)
-    author_test_widget(tmp_path, "lf-lane")
-    author_test_widget(tmp_path, "lf-token", upgrade=True)
-    path = tmp_path / ".leaf" / "registry.json"
-    declarations = json.loads(path.read_text())
-    declarations["lf-lane"]["x-content"] = "members"
-    declarations["lf-lane"].pop("x-example")
-    token = declarations["lf-token"]
-    token.pop("x-example")
-    token["properties"]["restated"] = {"type": "boolean"}
-    token["x-owners"] = ["lf-lane"]
-    token["x-state"] = {
-        "move": {
-            "detail": {
-                "type": "object",
-                "properties": {
-                    "to": {"type": "string"},
-                    "index": {"type": "integer", "minimum": 0},
-                },
-                "required": ["to", "index"],
-                "additionalProperties": False,
-            },
-            "unit": "widget",
-            "record": {
-                "kind": "position",
-                "within": "lf-lane",
-                "value": "to",
-                "order": "index",
-            },
-        }
-    }
-    path.write_text(json.dumps(declarations))
-    (
-        path.parent / "widgets" / "lf-token.js"
-    ).write_text("""import { once, widgetController } from "/runtime/widget-api.js";
-customElements.define("lf-token", class extends HTMLElement {
-  #controller = widgetController(this);
-  #stop;
-  connectedCallback() { once(this); this.#stop ??= this.#controller.subscribe(() => {}); }
-  disconnectedCallback() { this.#stop?.(); this.#stop = null; }
-  renderState(state) {
-    const {to, index} = state.move.detail;
-    const parent = document.getElementById(to);
-    const rest = [...parent.children].filter(child => child !== this);
-    if (parent.children[index] !== this) parent.insertBefore(this, rest[index] ?? null);
-  }
-});
-""")
-    html = leaf_page(
-        "Shared order",
-        '<h1>Shared order</h1><lf-lane id="lane">'
-        + "".join(f'<lf-token id="token-{name}">{name}</lf-token>' for name in "abcd")
-        + "</lf-lane>",
-    )
-    url = serve(html, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
-    sender = open_page(browser, url)
-    for name, index in [("d", 0), ("c", 1)]:
-        response = post_event(
-            sender,
-            url.rsplit("/versions/", 1)[0] + "/api/event",
-            data={
-                "kind": "action",
-                "revision": 1,
-                "widget": f"token-{name}",
-                "action": "move",
-                "detail": {"to": "lane", "index": index},
-                "attempt": f"move-token-{name}-test-case",
-            },
-        )
-        assert response.ok, response.text()
-    page = open_page(browser, url)
-    order = "nodes => nodes.map(node => node.id)"
-    assert page.locator("#lane > lf-token").evaluate_all(order) == [
-        "token-d",
-        "token-c",
-        "token-a",
-        "token-b",
-    ]
-    original = page.locator("#token-c").element_handle()
-    undo(page)
-    assert page.locator("#lane > lf-token").evaluate_all(order) == [
-        "token-d",
-        "token-a",
-        "token-b",
-        "token-c",
-    ]
-    assert original.evaluate("node => node === document.getElementById('token-c')")
-    assert render_checks_model.evaluate_probe(page, "relativeReplays") == []
-    told(sender)
 
 
 def test_the_render_gate_catches_a_relative_state_renderer(
@@ -9074,8 +9018,9 @@ def test_project_widget_can_join_the_orchestration_projection(
             "additionalProperties": False,
             "x-owners": ["lf-command", "lf-area"],
             "x-content": "markup",
-            "x-report": {
+            "x-state": {
                 "phase": {
+                    "writer": "agent",
                     "detail": {
                         "type": "object",
                         "properties": {
@@ -9101,7 +9046,6 @@ def test_project_widget_can_join_the_orchestration_projection(
                     "state": "phase",
                     "done": ["done"],
                     "stopped": ["blocked"],
-                    "report": "phase",
                 }
             }
         },
@@ -9303,3 +9247,38 @@ def test_datum_travel_resolves_the_destination_after_reveal(
         expect(page.locator(".lf-live")).to_have_text(
             "app.py:2 is not present in the exact patch"
         )
+
+
+def test_the_activity_feed_words_a_pick_in_the_document_it_was_made_in(browser, serve):
+    """A later version rewording or removing an option leaves the feed's row as made."""
+
+    def page_with(question):
+        return leaf_page(
+            "Route",
+            f"<h1>Route</h1>{question}"
+            '<section id="recent"><h2>Recent</h2>'
+            '<lf-activity id="feed"></lf-activity></section>',
+        )
+
+    def ask(fast, restated=""):
+        return f"""<lf-ask id="route-ask"><h2>Which route?</h2>
+  <lf-options id="route" choose>
+    <lf-option id="route-fast"{restated}>{fast}</lf-option>
+    <lf-option id="route-slow">Slow path</lf-option>
+  </lf-options>
+</lf-ask>"""
+
+    page = open_page(browser, live_url(serve(page_with(ask("Fast path")))))
+    page.locator("#route-fast .lf-pick").click()
+    round_trip(page)
+    row = page.locator("#feed .lf-activity-row", has_text="chose")
+    expect(row).to_contain_text("chose “Fast path” in")
+
+    reworded = page_with(ask("Quick route", " restated"))
+    stamp_page(serve.page_dir, reworded, "reword the option")
+    wait_for_revision(page, 2)
+    expect(row).to_contain_text("chose “Fast path” in")
+
+    stamp_page(serve.page_dir, page_with(""), "drop the question")
+    wait_for_revision(page, 3)
+    expect(row).to_contain_text("chose “Fast path” in")

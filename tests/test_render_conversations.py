@@ -177,7 +177,7 @@ def test_a_durable_answer_retires_the_placeholder_its_attempt_reserved(
     claim = record_claim(
         serve.page_dir, id="codex-thread", harness="codex", agent="Codex"
     )
-    lease = leases_model.take_waiter_lease(
+    lease = leases_model.take_lease(
         leases_model.waiter_lease_path(serve.page_dir, claim["id"])
     )
     assert lease
@@ -243,7 +243,7 @@ def test_a_durable_reply_completes_an_empty_stream_placeholder(browser, serve, r
         harness="codex",
         agent="Codex",
     )
-    lease = leases_model.take_waiter_lease(
+    lease = leases_model.take_lease(
         leases_model.waiter_lease_path(serve.page_dir, claim["id"])
     )
     assert lease
@@ -2332,9 +2332,7 @@ def test_an_approval_made_elsewhere_reaches_the_panel_and_the_banner(browser, se
         {
             "kind": "done",
             "author": "user",
-            "revision": 1,
             "version": 1,
-            "text": "Looks good",
         },
     )
     told(page)
@@ -2354,9 +2352,7 @@ def test_the_conversation_clock_reopens_its_same_epoch_ticket(browser, serve):
         {
             "kind": "done",
             "author": "user",
-            "revision": 1,
             "version": 1,
-            "text": "Looks good",
         },
     )
     page = open_page(browser, url)
@@ -2582,9 +2578,10 @@ def test_recent_order_lists_threads_by_their_latest_message(browser, serve):
 
 
 def test_back_returns_from_a_thread_the_walk_travelled_to(browser, serve):
-    """A walk to threads somewhere else leaves one history entry however far it goes,
-    so Back returns to the place the user was reading before it and Forward to where
-    it ended. Reading somewhere else ends the walk: the next trip records that place."""
+    """A journey of trips to threads somewhere else leaves one history entry however
+    far it goes, so Back returns to the place the user was reading before it and
+    Forward to where it ended. Reading somewhere else ends the journey: the next trip
+    records that place."""
     filler = "".join(f"<p>Filler paragraph {n}.</p>" for n in range(60))
     url = serve(
         leaf_page(

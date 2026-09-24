@@ -28,6 +28,7 @@ from interact_support import (
     Json,
     ModelPage,
     Prose,
+    _agent_verb_answers,
     _body_record_with_nested_widget,
     _body_record_with_prose,
     _mutated_registry_check,
@@ -39,6 +40,7 @@ from interact_support import (
     _report_without_overruled,
     _report_without_upgrade,
     _tasks_version,
+    _user_verb_update,
     append_command,
     assert_revendor_serializes_writer,
     check,
@@ -304,9 +306,45 @@ def test_a_pick_names_only_options_its_group_holds():
             "detail": {"option": "live-mine", "text": "My own way"},
         },
     )
-    assert add["meaning"]["coordinate"] == ["live-pick", "live-mine", "add"]
+    assert add["meaning"]["unit"] == "live-mine"
     added = {**add, "id": "a1", "ts": "2026-09-19T12:01:00+00:00", "seq": 2}
     assert admit([*STATED_LOG, added], pick)["detail"] == {"options": ["live-mine"]}
+
+
+def test_history_reaches_only_a_page_that_renders_it_and_keeps_a_pick_as_made():
+    """The served history words a pick from the document it was made in.
+
+    A later version that removes the question leaves the row naming the option the
+    user picked, by its title, and a withdrawn pick stays a row marked undone. A page
+    whose markup holds no widget declaring `x-history` is not served the reading.
+    """
+    question = model.leaf_page(
+        "Route",
+        """<h1>Route</h1>
+<lf-options id="route" choose>
+  <lf-option id="fast"><strong>Fast path</strong> ships on Friday.</lf-option>
+  <lf-option id="slow">Slow path</lf-option>
+</lf-options>
+<lf-activity id="feed"></lf-activity>""",
+    )
+    retired = model.leaf_page(
+        "Route", '<h1>Route</h1><lf-activity id="feed"></lf-activity>'
+    )
+    pick = {"kind": "action", "widget": "route", "action": "choose"}
+    events = (
+        {**pick, "detail": {"options": ["fast"]}},
+        {**pick, "detail": {"options": ["slow"]}},
+        {"kind": "undo", "undoes": "e2"},
+    )
+
+    history = model.reading({1: question, 2: retired}, events)["history"]
+    assert [(row["id"], row["gesture"], row["undone"]) for row in history] == [
+        ("e2", {"form": "choice", "chosen": ["Slow path"]}, True),
+        ("e1", {"form": "choice", "chosen": ["Fast path"]}, False),
+    ]
+
+    unwatched = question.replace('<lf-activity id="feed"></lf-activity>', "")
+    assert "history" not in model.reading(unwatched, events)
 
 
 def test_the_swipe_that_empties_the_queue_is_the_decks_answer():
@@ -324,13 +362,13 @@ def test_the_swipe_that_empties_the_queue_is_the_decks_answer():
         return event_contracts_model.admitted_event(page, log, dict(event))
 
     first = admit(
-        [], {**STATED_SWIPE, "detail": {"card": "card-a", "to": "keep", "index": 0}}
+        [], {**STATED_SWIPE, "detail": {"card": "card-a", "to": "keep", "rank": "0i"}}
     )
-    assert first["meaning"]["coordinate"] == ["triage", "card-a", "swipe"]
+    assert first["meaning"]["unit"] == "card-a"
     assert "answer" not in first["meaning"]
     log = [{**first, "id": "s1", "ts": "2026-09-19T12:01:00+00:00", "seq": 1}]
     last = admit(
-        log, {**STATED_SWIPE, "detail": {"card": "card-b", "to": "keep", "index": 1}}
+        log, {**STATED_SWIPE, "detail": {"card": "card-b", "to": "keep", "rank": "0r"}}
     )
     assert last["meaning"]["answer"] is None
 
@@ -339,7 +377,7 @@ def test_the_swipe_that_empties_the_queue_is_the_decks_answer():
             log,
             {
                 **STATED_SWIPE,
-                "detail": {"card": "not-a-card", "to": "keep", "index": 1},
+                "detail": {"card": "not-a-card", "to": "keep", "rank": "0r"},
             },
         )
     assert "unknown card 'not-a-card'" in str(refused.value)
@@ -370,11 +408,7 @@ def test_admission_decides_from_the_markup_and_the_standing_log_alone():
         "widget": "live-pick",
         "detail": {"options": ["live-gps"]},
     }
-    assert admit(choose_live)["meaning"]["coordinate"] == [
-        "live-pick",
-        "live-pick",
-        "choose",
-    ]
+    assert admit(choose_live)["meaning"]["unit"] == "live-pick"
     assert (
         refusal({**choose_live, "revision": 2}) == "action revision must be one of [1]"
     )
@@ -490,8 +524,8 @@ def test_an_answer_the_user_took_back_leaves_its_thread_open(page_dir):
             "action": "choose",
             "detail": {"options": ["flag-first"]},
             "meaning": {
-                "document": {"kind": "page", "revision": 1},
-                "coordinate": ["picks", "picks", "choose"],
+                "document": "page",
+                "unit": "picks",
                 "depends": ["flag-first", "picks"],
                 "answer": "c1",
             },
@@ -744,8 +778,8 @@ def test_init_refuses_a_log_the_incoming_layer_no_longer_speaks(page_dir):
             "action": "decide",
             "detail": {"decision": "approved"},
             "meaning": {
-                "document": {"kind": "page", "revision": 1},
-                "coordinate": ["d1", "d1", "decide"],
+                "document": "page",
+                "unit": "d1",
                 "depends": ["d1"],
                 "answer": None,
             },
@@ -953,7 +987,7 @@ def test_init_tracks_logged_verbs_by_the_widget_that_declared_them(page_dir):
             "revision": 1,
             "widget": "feeder-board",
             "action": "move",
-            "detail": {"card": "card-baffle", "to": "col-doing", "index": 0},
+            "detail": {"card": "card-baffle", "to": "col-doing", "rank": "0i"},
         },
     )
 
@@ -1008,12 +1042,12 @@ def test_init_refuses_an_incoming_detail_contract_that_rejects_logged_actions(
             "revision": 1,
             "widget": "feeder-board",
             "action": "move",
-            "detail": {"card": "card-baffle", "to": "col-doing", "index": 0},
+            "detail": {"card": "card-baffle", "to": "col-doing", "rank": "0i"},
         },
     )
 
-    registry["lf-board"]["x-state"]["move"]["detail"]["properties"]["index"][
-        "minimum"
+    registry["lf-board"]["x-state"]["move"]["detail"]["properties"]["rank"][
+        "maxLength"
     ] = 1
     overlay = page_dir.parent / ".leaf"
     overlay.mkdir(parents=True)
@@ -1096,7 +1130,7 @@ def test_init_refuses_changed_generated_child_semantics(page_dir, mutation):
 
 def test_init_refuses_a_logged_report_the_incoming_layer_no_longer_speaks(page_dir):
     """A report is the log's forever-contract exactly as an action is: an
-    incoming layer that drops the widget's x-report verb strands every recorded
+    incoming layer that drops the widget's agent verb strands every recorded
     report, and the stamp refuses the re-vendor rather than let them fall
     silent."""
     version = page_dir / "index.html"
@@ -1117,7 +1151,7 @@ def test_init_refuses_a_logged_report_the_incoming_layer_no_longer_speaks(page_d
 
     registry = json.loads((page_dir / "registry.json").read_text())
     task = registry["lf-task"]
-    task.pop("x-report")
+    task.pop("x-state")
     overlay = page_dir.parent / ".leaf"
     overlay.mkdir(parents=True)
     (overlay / "registry.json").write_text(json.dumps({"lf-task": task}))
@@ -1188,7 +1222,7 @@ def test_report_validation_and_append_cannot_straddle_revendoring(
     publish(page_dir)
     registry = json.loads((page_dir / "registry.json").read_text())
     task = registry["lf-task"]
-    task.pop("x-report")
+    task.pop("x-state")
     overlay = page_dir.parent / ".leaf"
     overlay.mkdir(parents=True)
     (overlay / "registry.json").write_text(json.dumps({"lf-task": task}))
@@ -1247,7 +1281,7 @@ def test_report_validation_and_append_cannot_straddle_revendoring(
     assert outcomes == ["reported"]
     assert len(errors) == 1 and "report contract" in str(errors[0])
     assert events_model.read_events(page_dir)[-1]["kind"] == "report"
-    assert "x-report" in json.loads((page_dir / "registry.json").read_text())["lf-task"]
+    assert "x-state" in json.loads((page_dir / "registry.json").read_text())["lf-task"]
 
 
 def test_a_preview_holds_one_contract_until_it_closes(page_dir, monkeypatch):
@@ -1300,7 +1334,7 @@ def test_revendoring_cannot_pass_a_browser_action_still_entering_the_log(
     )
     publish(page_dir)
     board = registry["lf-board"]
-    board["x-state"]["move"]["detail"]["properties"]["index"]["minimum"] = 1
+    board["x-state"]["move"]["detail"]["properties"]["rank"]["maxLength"] = 1
     overlay = page_dir.parent / ".leaf"
     overlay.mkdir(parents=True)
     (overlay / "registry.json").write_text(json.dumps({"lf-board": board}))
@@ -1310,7 +1344,7 @@ def test_revendoring_cannot_pass_a_browser_action_still_entering_the_log(
             "revision": 1,
             "widget": "feeder-board",
             "action": "move",
-            "detail": {"card": "card-baffle", "to": "col-doing", "index": 0},
+            "detail": {"card": "card-baffle", "to": "col-doing", "rank": "0i"},
         }
     ).encode()
     (status, body), refusal = assert_revendor_serializes_writer(
@@ -1328,7 +1362,7 @@ def test_revendoring_cannot_pass_a_worker_report_still_entering_the_log(
     publish(page_dir)
     registry = json.loads((page_dir / "registry.json").read_text())
     task = registry["lf-task"]
-    task.pop("x-report")
+    task.pop("x-state")
     overlay = page_dir.parent / ".leaf"
     overlay.mkdir(parents=True)
     (overlay / "registry.json").write_text(json.dumps({"lf-task": task}))
@@ -1867,10 +1901,10 @@ def test_candidate_vocabulary_preserves_commands_in_frozen_thread_markup(page_di
                 "builds": {
                     "description": "Build facts.",
                     "schema": {"type": "object"},
-                    "fragments": {"items": "rows", "key": "id", "value": "id"},
+                    "records": {"items": "rows", "key": "id", "deferred": "id"},
                 }
             },
-            "fragments must name distinct",
+            "records must name distinct",
         ),
     ],
 )
@@ -2101,7 +2135,7 @@ def _page_owned_fragmented_source(page_dir):
     contract = {
         "description": "Page-owned file payloads.",
         "schema": schema,
-        "fragments": {"items": "files", "key": "key", "value": "patch"},
+        "records": {"items": "files", "key": "key", "deferred": "patch"},
     }
     widget = element_declaration("lf-local-data")
     widget["properties"]["source"] = {
@@ -2145,14 +2179,14 @@ def test_page_owned_data_contract_meaning_is_fixed_for_the_source_lifetime(page_
     """A same-named contract cannot redirect old readers to a different field."""
     authored = _page_owned_fragmented_source(page_dir)
     declarations = json.loads(authored.read_text())
-    declarations["$data"]["contracts"]["local-files"]["fragments"]["value"] = "body"
+    declarations["$data"]["contracts"]["local-files"]["records"]["deferred"] = "body"
     authored.write_text(json.dumps(declarations))
 
     activation = revisioning_model.activate_source(
         page_dir, events_model.read_events(page_dir)
     )
-    assert "schema or fragment coordinate changes" in activation.error
-    with pytest.raises(data_model.DataError, match="schema or fragment coordinate"):
+    assert "schema or record declaration changes" in activation.error
+    with pytest.raises(data_model.DataError, match="schema or record declaration"):
         data_model.cmd_data_set(
             page_dir,
             "files",
@@ -2160,7 +2194,7 @@ def test_page_owned_data_contract_meaning_is_fixed_for_the_source_lifetime(page_
         )
     revendored = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
     assert revendored.exit_code != 0
-    assert "schema or fragment coordinate" in revendored.output
+    assert "schema or record declaration" in revendored.output
 
 
 def test_page_owned_data_contract_description_can_improve(page_dir):
@@ -2415,7 +2449,7 @@ def test_boolean_attribute_subschemas_validate_without_crashing(
         ("x-upgrade", "yes"),
         ("x-verbatim", "false"),
         ("x-work", []),
-        ("x-work", {"seat": "content", "when": {"choose": True}}),
+        ("x-work", {"seat": "content"}),
         ("x-unknown", True),
     ],
 )
@@ -2434,22 +2468,12 @@ def test_check_refuses_malformed_registry_extensions(page_dir, key, value):
     ("mutate", "message"),
     [
         (
-            lambda registry: registry["lf-chip"].update(
-                {"x-work": {"seat": "content"}}
-            ),
-            "content work seat but is inline",
+            lambda registry: registry["lf-chip"].update({"x-work": True}),
+            "declares x-work but is inline",
         ),
         (
-            lambda registry: registry["lf-diagram"].update(
-                {"x-work": {"seat": "content"}}
-            ),
-            "content work seat but x-content is data",
-        ),
-        (
-            lambda registry: registry["lf-options"].update(
-                {"x-work": {"seat": "conversation"}}
-            ),
-            "conversation work seat but declares no x-conversation",
+            lambda registry: registry["lf-diagram"].update({"x-work": True}),
+            "declares x-work but x-content is data",
         ),
     ],
 )
@@ -2524,12 +2548,16 @@ def test_one_each_child_declarations_are_checked_whole(page_dir, mutation, messa
         # every contradiction is unpublishable.
         (_report_without_overruled, "not the boolean `overruled`"),
         # Reports replay through renderState, so the widget must upgrade.
-        (_report_without_upgrade, "declares x-report"),
+        (_report_without_upgrade, "declares x-state"),
+        # Only a report carries update prose.
+        (_user_verb_update, "registry extensions are invalid"),
+        # The user answers their own Ask; the agent's news never does.
+        (_agent_verb_answers, "which are not x-state verbs the user writes"),
         (_body_record_with_prose, "x-content must be data"),
         (_body_record_with_nested_widget, "admits nested widgets"),
     ],
 )
-def test_an_x_report_declaration_is_checked_whole(page_dir, mutate, message):
+def test_an_agent_verb_declaration_is_checked_whole(page_dir, mutate, message):
     result = _mutated_registry_check(page_dir, mutate)
     assert result.exit_code != 0
     assert message in result.output
@@ -2597,7 +2625,7 @@ def test_generated_child_declaration_closes_its_boundary(page_dir, mutation, mes
     elif mutation == "wrong-id":
         option["properties"]["id"]["pattern"] = "^option-.+$"
     elif mutation == "report-creates":
-        registry["lf-agent"]["x-report"]["state"]["creates"] = {
+        registry["lf-agent"]["x-state"]["state"]["creates"] = {
             "child": "lf-option",
             "words": "doing",
         }
@@ -2651,7 +2679,7 @@ def test_request_detail_schemas_match_the_post_object_contract(page_dir):
         ),
         (
             "mutable-bound-attribute",
-            "to `target`, which is written by x-state or x-report",
+            "to `target`, which is written by x-state",
         ),
         ("optional-id", "x-request instances are addressable"),
         ("no-upgrade", "declares x-request"),
@@ -2684,8 +2712,9 @@ def test_an_x_request_declaration_closes_its_widget_boundary(
         operations["required"].remove("target")
     elif mutation == "mutable-bound-attribute":
         operations["properties"]["overruled"] = {"type": "boolean"}
-        operations["x-report"] = {
+        operations["x-state"] = {
             "retarget": {
+                "writer": "agent",
                 "detail": {
                     "type": "object",
                     "properties": {"target": {"type": "string"}},
@@ -2725,8 +2754,8 @@ def test_an_x_request_declaration_closes_its_widget_boundary(
     assert message in result.output
 
 
-@pytest.mark.parametrize("channel", ["x-state", "x-report"])
-def test_a_request_offer_attribute_is_authored_static_state(page_dir, channel):
+@pytest.mark.parametrize("writer", [{}, {"writer": "agent"}])
+def test_a_request_offer_attribute_is_authored_static_state(page_dir, writer):
     registry = json.loads((page_dir / "registry.json").read_text())
     operation = registry["lf-operation"]
     operation["properties"].update(
@@ -2738,8 +2767,9 @@ def test_a_request_offer_attribute_is_authored_static_state(page_dir, channel):
     )
     operation["required"].append("id")
     operation["x-upgrade"] = True
-    operation[channel] = {
+    operation["x-state"] = {
         "change-offer": {
+            **writer,
             "detail": {
                 "type": "object",
                 "properties": {"verb": deepcopy(operation["properties"]["verb"])},
@@ -2755,7 +2785,7 @@ def test_a_request_offer_attribute_is_authored_static_state(page_dir, channel):
         registry_contract.RegistryError,
         match=(
             r"<lf-operations> x-request offer <lf-operation> attribute `verb` "
-            r"is written by x-state or x-report"
+            r"is written by x-state"
         ),
     ):
         registry_validation.validate_registry(registry, "test registry")
@@ -2843,7 +2873,7 @@ def test_value_records_use_the_string_type_html_attributes_carry(page_dir):
     registry = json.loads((page_dir / "registry.json").read_text())
     numeric = {"type": "integer", "minimum": 0}
     registry["lf-agent"]["properties"]["state"] = numeric
-    registry["lf-agent"]["x-report"]["state"]["detail"]["properties"]["state"] = numeric
+    registry["lf-agent"]["x-state"]["state"]["detail"]["properties"]["state"] = numeric
     (page_dir / "registry.json").write_text(json.dumps(registry))
 
     result = check(page_dir)
@@ -2880,7 +2910,7 @@ def test_report_update_words_are_declared_once(page_dir, change, wanted):
     names that field explicitly and guarantees every report carries real words. A
     consumer never guesses from a field name or string-shaped value."""
     registry = json.loads((page_dir / "registry.json").read_text())
-    spec = registry["lf-agent"]["x-report"]["state"]
+    spec = registry["lf-agent"]["x-state"]["state"]
     assert spec["update"] == "doing"
     change(spec)
     (page_dir / "registry.json").write_text(json.dumps(registry))
@@ -2892,15 +2922,15 @@ def test_report_update_words_are_declared_once(page_dir, change, wanted):
 
 
 @pytest.mark.parametrize(
-    ("tag", "channel", "verb", "field"),
+    ("tag", "verb", "field"),
     [
-        ("lf-suggestion", "x-state", "decide", "unit"),
-        ("lf-task", "x-report", "status", "unit"),
+        ("lf-suggestion", "decide", "unit"),
+        ("lf-task", "status", "unit"),
     ],
 )
-def test_every_fold_verb_declares_its_coordinate(page_dir, tag, channel, verb, field):
+def test_every_fold_verb_declares_its_coordinate(page_dir, tag, verb, field):
     registry = json.loads((page_dir / "registry.json").read_text())
-    del registry[tag][channel][verb][field]
+    del registry[tag]["x-state"][verb][field]
     (page_dir / "registry.json").write_text(json.dumps(registry))
 
     result = check(page_dir)
@@ -2910,57 +2940,29 @@ def test_every_fold_verb_declares_its_coordinate(page_dir, tag, channel, verb, f
     assert field in result.output
 
 
-def test_a_state_and_report_verb_of_one_name_share_one_unit_and_record_form(page_dir):
-    """The user's and the agent's statement of one fact fold on one coordinate."""
-    registry = json.loads((page_dir / "registry.json").read_text())
-    task = registry["lf-task"]
-    task["properties"]["restated"] = {"type": "boolean"}
-    status = json.loads(json.dumps(task["x-report"]["status"]))
-    status.pop("update", None)
-    status.pop("record")
-    task["x-state"] = {"status": status}
-    (page_dir / "registry.json").write_text(json.dumps(registry))
-
-    result = check(page_dir)
-
-    assert result.exit_code != 0
-    assert "x-state and x-report verb `status`" in result.output
-    assert "identical record forms" in result.output
-
-    status["record"] = task["x-report"]["status"]["record"]
-    status["unit"] = "option"
-    status["detail"]["properties"]["option"] = {"type": "string"}
-    status["detail"]["required"].append("option")
-    (page_dir / "registry.json").write_text(json.dumps(registry))
-    result = check(page_dir)
-    assert result.exit_code != 0
-    assert "x-state and x-report verb `status`" in result.output
-    assert "different fold units" in result.output
-
-
 @pytest.mark.parametrize(
-    ("tag", "channel", "verb", "slot"),
+    ("tag", "verb", "slot"),
     [
-        ("lf-draft", "x-state", "edit", "body"),
-        ("lf-board", "x-state", "move", "position"),
-        ("lf-task", "x-report", "status", "value `status`"),
-        ("lf-options", "x-state", "choose", "attribute `chosen`"),
+        ("lf-draft", "edit", "body"),
+        ("lf-board", "move", "position"),
+        ("lf-task", "status", "value `status`"),
+        ("lf-options", "choose", "attribute `chosen`"),
     ],
 )
 def test_distinct_verbs_cannot_claim_one_physical_record_slot(
-    page_dir, tag, channel, verb, slot
+    page_dir, tag, verb, slot
 ):
     registry = json.loads((page_dir / "registry.json").read_text())
-    declared = registry[tag][channel][verb]
+    declared = registry[tag]["x-state"][verb]
     parallel = json.loads(json.dumps(declared))
-    registry[tag][channel]["parallel"] = parallel
+    registry[tag]["x-state"]["parallel"] = parallel
     (page_dir / "registry.json").write_text(json.dumps(registry))
 
     result = check(page_dir)
 
     assert result.exit_code != 0
     assert (
-        f"<{tag}> {channel} verb `parallel` and {channel} verb `{verb}` claim the "
+        f"<{tag}> x-state verbs `parallel` and `{verb}` claim the "
         f"same physical record slot (unit `{parallel['unit']}`, {slot}); distinct "
         "verbs must record independently" in result.output
     )
@@ -2969,19 +2971,15 @@ def test_distinct_verbs_cannot_claim_one_physical_record_slot(
 def test_physical_record_slots_remain_local_to_the_coordinate(page_dir):
     registry = json.loads((page_dir / "registry.json").read_text())
 
-    # Both channels may state the same fact through the same slot.
-    task = registry["lf-task"]
-    task["properties"]["restated"] = {"type": "boolean"}
-    task["x-state"] = {"status": task["x-report"]["status"]}
-
     # A different host attribute is a different value slot on the same unit.
-    owner = json.loads(json.dumps(task["x-report"]["status"]))
+    task = registry["lf-task"]
+    owner = json.loads(json.dumps(task["x-state"]["status"]))
     owner["detail"]["properties"] = {"owner": {"type": "string"}}
     owner["detail"]["required"] = ["owner"]
     owner["record"] = {"kind": "value", "attr": "owner", "value": "owner"}
     task["properties"]["owner"] = {"type": "string"}
     task.setdefault("required", []).append("owner")
-    task["x-report"]["owner"] = owner
+    task["x-state"]["owner"] = owner
     registry["lf-tasks"]["x-example"] = re.sub(
         r"<lf-task\b(?![^>]*\bowner=)",
         '<lf-task owner="test"',
@@ -3134,12 +3132,25 @@ def test_check_refuses_a_retirement_outcome_its_parent_does_not_decide(page_dir)
     assert "<lf-suggestion> declares no deciding x-state verb" in result.output
 
 
-def test_retirement_verbs_fold_by_the_parent_widget(page_dir):
+@pytest.mark.parametrize("fault", ["per-part", "agent-written"])
+def test_retirement_verbs_fold_by_the_parent_widget(page_dir, fault):
+    """The deciding verb is the user's whole-widget decision: a verb folding per part,
+    or one the agent writes, cannot say which members leave the page."""
     registry = json.loads((page_dir / "registry.json").read_text())
-    decide = registry["lf-suggestion"]["x-state"]["decide"]
-    decide["detail"]["properties"]["part"] = {"type": "string"}
-    decide["detail"]["required"].append("part")
-    decide["unit"] = "part"
+    suggestion = registry["lf-suggestion"]
+    decide = suggestion["x-state"]["decide"]
+    if fault == "per-part":
+        decide["detail"]["properties"]["part"] = {"type": "string"}
+        decide["detail"]["required"].append("part")
+        decide["unit"] = "part"
+    else:
+        # An agent verb never answers an Ask, so the suggestion stops asking one.
+        suggestion.pop("x-awaits")
+        suggestion["properties"].pop("resolves")
+        decide["writer"] = "agent"
+        decide["record"] = {"kind": "value", "attr": "outcome", "value": "outcome"}
+        suggestion["properties"]["outcome"] = decide["detail"]["properties"]["outcome"]
+        suggestion["properties"]["overruled"] = {"type": "boolean"}
     (page_dir / "registry.json").write_text(json.dumps(registry))
 
     result = check(page_dir)
@@ -3286,7 +3297,7 @@ def test_the_registry_door_refuses_a_withdrawal_that_retires_nothing(trial_page)
             "lf-options",
             "x-awaits",
             {"answered": {"submit": {}}},
-            "answers with undeclared x-state verbs",
+            "which are not x-state verbs the user writes",
         ),
         (
             "lf-suggestion",
@@ -3347,17 +3358,15 @@ def test_a_part_scoped_answering_verb_needs_an_empty_condition(page_dir):
         registry_validation.validate_registry(registry, "test registry")
 
 
-def test_a_self_position_record_stays_within_the_declared_ownership_relation(page_dir):
+def test_a_position_record_places_a_part_and_never_the_widget(page_dir):
+    """A rank lies between the unit's neighbours, which only the widget holding the
+    container can read, so a widget cannot record its own position."""
     registry = json.loads((page_dir / "registry.json").read_text())
-    registry["lf-options"]["x-owners"] = ["lf-task"]
     registry["lf-options"]["x-state"]["move"] = {
         "detail": {
             "type": "object",
-            "properties": {
-                "to": {"type": "string"},
-                "index": {"type": "integer", "minimum": 0},
-            },
-            "required": ["to", "index"],
+            "properties": {"to": {"type": "string"}, "rank": {"type": "string"}},
+            "required": ["to", "rank"],
             "additionalProperties": False,
         },
         "unit": "widget",
@@ -3365,7 +3374,7 @@ def test_a_self_position_record_stays_within_the_declared_ownership_relation(pag
             "kind": "position",
             "within": "lf-column",
             "value": "to",
-            "order": "index",
+            "rank": "rank",
         },
     }
     (page_dir / "registry.json").write_text(json.dumps(registry))
@@ -3373,67 +3382,7 @@ def test_a_self_position_record_stays_within_the_declared_ownership_relation(pag
     result = check(page_dir)
 
     assert result.exit_code != 0
-    assert "records its own position within <lf-column>" in result.output
-    assert "x-owners does not admit" in result.output
-
-
-def test_a_recursive_self_position_record_cannot_create_a_dom_cycle(server, page_dir):
-    """A recursive content model permits moving a widget between peer containers,
-    never into itself or a descendant. Admission reads the standing holder relation so
-    a valid registry cannot turn an impossible DOM insertion into durable state.
-    """
-    registry = json.loads((page_dir / "registry.json").read_text())
-    registry["lf-task"]["properties"]["restated"] = {"type": "boolean"}
-    registry["lf-task"]["x-state"] = {
-        "move": {
-            "detail": {
-                "type": "object",
-                "properties": {
-                    "to": {"type": "string"},
-                    "index": {"type": "integer", "minimum": 0},
-                },
-                "required": ["to", "index"],
-                "additionalProperties": False,
-            },
-            "unit": "widget",
-            "record": {
-                "kind": "position",
-                "within": "lf-task",
-                "value": "to",
-                "order": "index",
-            },
-        }
-    }
-    (page_dir / "registry.json").write_text(json.dumps(registry))
-    result = check(page_dir)
-    assert result.exit_code == 0, result.output
-
-    tasks = (
-        '<lf-command id="commands"><lf-task id="parent-task" status="active">'
-        "<strong>Parent</strong>"
-        '<lf-task id="child-task" status="active"><strong>Child</strong></lf-task>'
-        "</lf-task></lf-command>"
-    )
-    html = re.sub(r"<main>.*?</main>", f"<main>{tasks}</main>", PAGE, flags=re.DOTALL)
-    (page_dir / "index.html").write_text(html)
-    publish(page_dir)
-    revision = events_model.read_events(page_dir)[-1]["revision"]
-
-    for destination in ("parent-task", "child-task"):
-        status, body = fetch(
-            f"{server}/api/event",
-            data=json.dumps(
-                {
-                    "kind": "action",
-                    "revision": revision,
-                    "widget": "parent-task",
-                    "action": "move",
-                    "detail": {"to": destination, "index": 0},
-                }
-            ).encode(),
-        )
-        assert status == 400, body
-        assert "inside itself or its descendant" in json.loads(body)["error"]
+    assert "its unit must be the part it places, not the widget" in result.output
 
 
 def _value_verb(attr):
@@ -3455,39 +3404,17 @@ def _value_verb(attr):
     [
         ("own-verb", None),
         ("recording-column", "'card' is not owned by action widget 'board'"),
-        ("own-position", "'card' records its own position, so action widget 'board'"),
     ],
 )
 def test_the_widget_that_records_a_parts_position_is_the_one_that_places_it(
     server, page_dir, arrangement, refusal
 ):
-    """A card has one place and one widget records it: the card itself when its own
-    contract records its position, otherwise the nearest recording widget above it. A
+    """A card has one place and the nearest recording widget above it records it. A
     verb the card records of its own is a coordinate of the card's, so the board still
-    moves it. A column that records stands between the board and the card, and a card
-    that positions itself leaves the board nothing to place."""
+    moves it. A column that records stands between the board and the card."""
     registry = json.loads((page_dir / "registry.json").read_text())
     registry["lf-column"]["properties"]["tint"] = {"type": "string"}
     card_verbs = {"flag": _value_verb("flag")}
-    if arrangement == "own-position":
-        card_verbs["move"] = {
-            "detail": {
-                "type": "object",
-                "properties": {
-                    "to": {"type": "string"},
-                    "index": {"type": "integer", "minimum": 0},
-                },
-                "required": ["to", "index"],
-                "additionalProperties": False,
-            },
-            "unit": "widget",
-            "record": {
-                "kind": "position",
-                "within": "lf-column",
-                "value": "to",
-                "order": "index",
-            },
-        }
     recorders = {"lf-card": ("flag", card_verbs)}
     if arrangement == "recording-column":
         recorders["lf-column"] = ("tint", {"tint": _value_verb("tint")})
@@ -3523,7 +3450,7 @@ def test_the_widget_that_records_a_parts_position_is_the_one_that_places_it(
                 "revision": revision,
                 "widget": "board",
                 "action": "move",
-                "detail": {"card": "card", "to": "done", "index": 0},
+                "detail": {"card": "card", "to": "done", "rank": "0i"},
             }
         ).encode(),
     )
@@ -3730,15 +3657,15 @@ How this text reaches the agent, by example
 3. Earlier, the agent started `leaf wait` in the background and went idle. The
    agent does nothing in this step: `leaf wait`, a leaf process, notices the new
    line and builds a delivery for it. The comment is owed a reply, which the
-   delivery records as its `obligation` (step 4). For the instructions, `leaf
-   wait` reads the clauses under `$events.handling.comment` in the page's copy of
-   registry.json, then those under `$events.answering.reply`, the answer it owes.
-   Each clause has a `text` and may have a `when`, a JSON Schema that must hold
-   for the clause to apply. It is tested against the log line together with its
-   `obligation`, its `conversation`'s entry in the delivery's `conversations`
-   (step 4), and `carrier`, the route delivering it: `wait` here, `queue` or
-   `app-server` for the two Codex routes. There are @COUNT@; here they all are,
-   with whether the comment satisfies each `when`:
+   delivery records as its `answer` (step 4): a `reply` for `leaf reply` here,
+   where the Codex App Server route would record a `turn`, which the turn's own
+   messages write. For the instructions, `leaf wait` reads the clauses under
+   `$events.handling.comment` in the page's copy of registry.json, then those
+   under `$events.answering.reply`, the answer it owes. Each clause has a `text`
+   and may have a `when`, a JSON Schema that must hold for the clause to apply.
+   It is tested against the log line together with its `answer` and its
+   `conversation`'s entry in the delivery's `conversations` (step 4). There are
+   @COUNT@; here they all are, with whether the comment satisfies each `when`:
 
 @CLAUSES@
 
@@ -3749,13 +3676,14 @@ How this text reaches the agent, by example
    @ADDED@.
    The batch's `handling` maps clause ids to their text, each distinct text
    appearing once. The event's `handling` names its applicable clauses in order.
-   The whole output, indented here (leaf prints it on one line):
+   The envelope's `acknowledge` says once, for the whole delivery, how the agent
+   confirms it. The whole output, indented here (leaf prints it on one line):
 
 @DELIVERY@
 
-5. The agent follows `handling`: it replies in the thread with `leaf reply`, edits
-   the page if warranted, and runs `leaf wait --ack <delivery-id>` to confirm receipt and wait
-   for the next one.
+5. The agent follows `acknowledge`: it starts `leaf wait --ack <delivery-id>` to
+   confirm receipt and wait for the next one. It follows `handling`: it replies in
+   the thread with `leaf reply` and edits the page if warranted.
 
 What this file records
 ----------------------
@@ -3765,11 +3693,11 @@ skills/leaf/assets/registry.json (the file `leaf page init` copies into a page).
 Each top-level key below names a case and holds:
 
   event:  the input: a log line's `kind`, the kind of answer its delivery
-          says it owes (`obligation`), the `carrier` delivering it, and the
-          fields some `when` reads, its `conversation`'s among them, and
-          nothing else. A field no `when` names, such as a comment's `anchor`
-          or `text`, cannot change what the agent is told, so it is left out;
-          the test checks both halves of that.
+          says it owes (`answer`), and the fields some `when` reads, its
+          `conversation`'s among them, and nothing else. A field no `when`
+          names, such as a comment's `anchor` or `text`, cannot change what
+          the agent is told, so it is left out; the test checks both halves of
+          that.
   told:   the output, the clauses that apply to that line, in order. Each
           clause has a `text` and may have a `when`:
   when:   the clause's `when`, exactly as registry.json writes it: a JSON
@@ -3779,9 +3707,8 @@ Each top-level key below names a case and holds:
 
 The walkthrough's comment is the first case. No `when` reads any field of its
 log line from step 2 except `kind`, so the case is that line cut down to `kind`,
-the reply it owes, its carrier and its new conversation's missing title, and it
-gets the clauses marked "applies" in step 3. It is
-recorded as:
+the reply it owes and its new conversation's missing title, and it gets the
+clauses marked "applies" in step 3. It is recorded as:
 
 @RECORDED@
 
@@ -3820,27 +3747,16 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
     registry = json.loads((schema_model.ASSETS / "registry.json").read_text())
     # Each case holds its `kind` and the fields some `when` reads, and nothing else:
     # a field no `when` names cannot change what the agent is told.
-    on_page = {"document": {"kind": "page"}}
+    on_page = {"document": "page"}
 
     def owes(kind):
-        return {"obligation": {"response": {"kind": kind}}}
+        return {"answer": {"kind": kind}}
 
     untitled = {"conversation": {"title": None}}
     titled = {"conversation": {"title": "Tuesday backfill"}}
     cases = {
         "comment": {"kind": "comment", **untitled, **owes("reply")},
-        "comment over the Codex queue": {
-            "kind": "comment",
-            "carrier": "queue",
-            **untitled,
-            **owes("reply"),
-        },
-        "comment over App Server": {
-            "kind": "comment",
-            "carrier": "app-server",
-            **untitled,
-            **owes("reply"),
-        },
+        "comment over App Server": {"kind": "comment", **untitled, **owes("turn")},
         "comment with a drawing": {
             "kind": "comment",
             "drawing": {"format": "leaf-drawing/2", "strokes": [[[0, 0], [9, 9]]]},
@@ -3890,8 +3806,13 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
         },
         "pick inside a thread": {
             "kind": "action",
-            "meaning": {"document": {"kind": "thread"}},
+            "meaning": {"document": "thread"},
             **owes("reply"),
+        },
+        "pick inside a thread over App Server": {
+            "kind": "action",
+            "meaning": {"document": "thread"},
+            **owes("turn"),
         },
         "resolve": {"kind": "resolve"},
         "unresolve": {"kind": "unresolve"},
@@ -3901,8 +3822,6 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
         "report": {"kind": "report"},
         "error": {"kind": "error"},
     }
-    # Every case is delivered by `leaf wait` unless it names another carrier.
-    cases = {name: {"carrier": "wait", **event} for name, event in cases.items()}
     told = {
         name: registry_contract.event_clauses(event, registry)
         for name, event in cases.items()
@@ -3913,7 +3832,7 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
     assert {event["kind"] for event in cases.values()} == set(declared)
 
     def owed(event):
-        return event.get("obligation", {}).get("response", {}).get("kind")
+        return event.get("answer", {}).get("kind")
 
     assert {owed(event) for event in cases.values()} - {None} == set(answering)
     read = {
@@ -3924,7 +3843,7 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
         for field in fields_named(clause["when"])
     }
     for name, event in cases.items():
-        unread = set(event) - {"kind", "obligation"} - read
+        unread = set(event) - {"kind", "answer"} - read
         assert not unread, (name, unread)
     for kind, clauses in declared.items():
         reached = [told[name] for name, event in cases.items() if event["kind"] == kind]
@@ -3958,15 +3877,14 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
     page_events = registry_storage.load_registry(page_dir)["$events"]
     page_clauses = [
         *page_events["handling"]["comment"],
-        *page_events["answering"][delivered["obligation"]["response"]["kind"]],
+        *page_events["answering"][delivered["answer"]["kind"]],
     ]
     [conversation] = batch["conversations"]
     applying = registry_contract.event_clauses(
         {
             **record,
-            "obligation": delivered["obligation"],
+            "answer": delivered["answer"],
             "conversation": conversation,
-            "carrier": "wait",
         },
         registry_storage.load_registry(page_dir),
     )
@@ -4068,16 +3986,19 @@ A carrier is the route that takes new user input to the agent's task:
                      Codex's queue accepts it.
   Codex App Server   Leaf starts a turn with `turn/start`, carrying the
                      delivery as a `leaf_delivery` tool output, and binds the
-                     turn's final message as the reply. Leaf acknowledges the
-                     delivery once it enters that turn. leaf.page's hosted
-                     agent and a `leaf codex launch` terminal use this carrier.
+                     turn's opening and final messages as the reply. Leaf
+                     acknowledges the delivery once it enters that turn.
+                     leaf.page's hosted agent and a `leaf codex launch`
+                     terminal use this carrier.
 
 Each carrier freezes a delivery of its own. The envelope's shape is the same on
-all three, but not its `handling`: a clause's `when` reads which carrier delivers
-it (`wait`, `queue` or `app-server`), so each agent is told only its own route,
-who acknowledges and whether its final message is the reply. The agent's
-standing instructions (its host contract, and on leaf.page the developer
-instructions) are not part of a delivery; test_website_server records
+all three, and it names its `carrier`. Two things differ, each stated once:
+`acknowledge` says how the agent confirms the delivery, or is null where the
+carrier confirmed it; and the comment's `answer` is a `reply`, for `leaf reply`,
+except on App Server, where it is a `turn` the turn's own messages write. The
+`handling` follows from the answer, so each agent is told only its own route.
+The agent's standing instructions (its host contract, and on leaf.page the
+developer instructions) are not part of a delivery; test_website_server records
 leaf.page's.
 
 What this file records
@@ -4154,6 +4075,10 @@ def test_each_carrier_hands_the_agent_what_the_snapshot_shows(
         json.loads(waited)["id"]: "11111111",
         queued.payload["id"]: "22222222",
         prepared.payload["id"]: "33333333",
+        # The turn's reply attempt is derived from the delivery id.
+        service_model.delivery_reply_attempt(
+            prepared.payload["id"]
+        ): service_model.delivery_reply_attempt("33333333"),
         str(page_dir): "/path/to/page",
     }
 
@@ -4165,6 +4090,8 @@ def test_each_carrier_hands_the_agent_what_the_snapshot_shows(
     def readable(printed: str) -> dict:
         delivery = json.loads(pin(printed))
         delivery["created_at"] = 1790046750.29
+        if delivery["acknowledge"] is not None:
+            delivery["acknowledge"] = Prose(delivery["acknowledge"])
         for batch in delivery["batches"]:
             batch["handling"] = {
                 ref: Prose(text) for ref, text in batch["handling"].items()
@@ -5111,7 +5038,9 @@ def test_x_awaits_names_the_verbs_that_answer_it(page_dir):
     result = check(page_dir)
 
     assert result.exit_code == 1
-    assert "x-awaits answers with undeclared x-state verbs ['missing']" in result.output
+    assert "x-awaits answers with verbs ['missing'], which are not x-state" in (
+        result.output
+    )
 
 
 def test_the_reply_door_refuses_a_picture_the_page_directory_has_not_got(page_dir):
@@ -5351,7 +5280,8 @@ def test_admission_names_dependencies_and_revendoring_preserves_their_meaning(
     server, page_dir
 ):
     """Recorded identities become dependencies, literal detail text does not, and a
-    re-vendor may not reinterpret the admitted meaning."""
+    re-vendor may not change the fold unit or record form the fold reads the
+    admitted command through."""
     from copy import deepcopy
 
     from leaf.files import latest_revision
@@ -5395,8 +5325,15 @@ def test_admission_names_dependencies_and_revendoring_preserves_their_meaning(
     )
     recordless = deepcopy(registry)
     del recordless["lf-options"]["x-state"]["choose"]["record"]
-    assert "changes admitted meaning" in "\n".join(
+    assert "changes its admitted record form" in "\n".join(
         candidate_vocabulary_gaps(page_dir, events, document, recordless, revision)
+    )
+    # The fold unit decides the shape a verb's state takes, so a candidate that moves
+    # it would fold the admitted command into a different reading.
+    reunited = deepcopy(registry)
+    reunited["lf-options"]["x-state"]["choose"]["unit"] = "annotation"
+    assert "changes its admitted fold unit" in "\n".join(
+        candidate_vocabulary_gaps(page_dir, events, document, reunited, revision)
     )
 
 
@@ -5424,8 +5361,8 @@ def test_an_independent_verb_leaves_a_decisions_thread_resolved(page_dir):
         "action": "label",
         "detail": {},
         "meaning": {
-            "document": {"kind": "page", "revision": 1},
-            "coordinate": ["sug-a", "sug-a", "label"],
+            "document": "page",
+            "unit": "sug-a",
             "depends": ["sug-a"],
         },
     }

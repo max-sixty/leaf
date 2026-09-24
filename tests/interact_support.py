@@ -110,6 +110,26 @@ def append_command(page_dir, command):
         return event_contracts_model.append_admitted(page, command)
 
 
+def write_revision(page_dir: Path, revision: int, data: bytes) -> Path:
+    """Write revision `revision` of `data` under the page's current registry.
+
+    A shortcut past `version stamp` for a test that stages history directly: it
+    runs no gate and no activation, and refuses a revision number already taken."""
+    from leaf.registry.storage import read_page_registry
+    from leaf.revision_artifact import capture_artifact, write_artifact
+    from leaf.structure import SourceDocument
+
+    candidate = read_page_registry(page_dir)
+    artifact = capture_artifact(
+        page_dir,
+        SourceDocument(data.decode("utf-8")),
+        candidate.registry,
+        declaration_sources=candidate.declaration_sources,
+        widget_sources=candidate.widget_sources,
+    )
+    return write_artifact(page_dir, revision, artifact)
+
+
 @cache
 def model_layer(*packages: str) -> dict:
     """The vocabulary `page init` vendors for one package selection.
@@ -675,8 +695,8 @@ ACCEPT = {
     "action": "decide",
     "detail": {"outcome": "accept"},
     "meaning": {
-        "document": {"kind": "page", "revision": 1},
-        "coordinate": ["sug-a", "sug-a", "decide"],
+        "document": "page",
+        "unit": "sug-a",
         "depends": ["sug-a"],
         "answer": "c1",
     },
@@ -739,25 +759,26 @@ def _mutated_registry_check(page_dir, mutate):
 
 
 def _report_body_record(registry):
-    registry["lf-task"]["x-report"]["status"]["record"] = {
+    registry["lf-task"]["x-state"]["status"]["record"] = {
         "kind": "body",
         "value": "status",
     }
 
 
 def _report_no_record(registry):
-    del registry["lf-task"]["x-report"]["status"]["record"]
+    del registry["lf-task"]["x-state"]["status"]["record"]
 
 
 def _report_undeclared_attr(registry):
-    registry["lf-task"]["x-report"]["status"]["record"]["attr"] = "phase"
+    registry["lf-task"]["x-state"]["status"]["record"]["attr"] = "phase"
 
 
 def _report_says_attr(registry):
     task = registry["lf-task"]
     task["required"].append("owner")
     task["x-says"] = {"owner": "before"}
-    task["x-report"]["status"] = {
+    task["x-state"]["status"] = {
+        "writer": "agent",
         "detail": {
             "type": "object",
             "properties": {"owner": {"type": "string"}},
@@ -770,7 +791,7 @@ def _report_says_attr(registry):
 
 
 def _report_detail_drift(registry):
-    registry["lf-task"]["x-report"]["status"]["detail"]["properties"]["status"] = {
+    registry["lf-task"]["x-state"]["status"]["detail"]["properties"]["status"] = {
         "type": "string"
     }
 
@@ -781,6 +802,15 @@ def _report_without_overruled(registry):
 
 def _report_without_upgrade(registry):
     registry["lf-task"]["x-upgrade"] = False
+
+
+def _user_verb_update(registry):
+    registry["lf-options"]["x-state"]["choose"]["update"] = "options"
+
+
+def _agent_verb_answers(registry):
+    registry["lf-options"]["x-state"]["choose"]["writer"] = "agent"
+    registry["lf-options"]["properties"]["overruled"] = {"type": "boolean"}
 
 
 def _body_record_with_prose(registry):
@@ -1029,7 +1059,7 @@ def neighbour_page(directory, title=None, dead=False, published=True):
     (directory / "index.html").write_text(html)
     initialized = CliRunner().invoke(cli_model.cli, ["page", "init", str(directory)])
     assert initialized.exit_code == 0, initialized.output
-    files_model.write_revision(directory, 1, html.encode())
+    write_revision(directory, 1, html.encode())
     # What `page init` writes: a page always has a status record.
     files_model.write_json(
         directory / "status.json",

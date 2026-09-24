@@ -3,7 +3,10 @@
 import hashlib
 import json
 import math
+import queue
 import re
+import signal
+import subprocess
 import threading
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
@@ -11,11 +14,14 @@ from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
+from conftest import LEAF_COMMAND
+from example_data import patch_manifest
 from interact_support import (
     COMMAND_SUBJECTS,
     OPTIONS,
     PAGE,
     SHIPPED_PACKAGES,
+    STATED_TIMEOUT,
     SUGGESTION,
     X,
     Y,
@@ -35,6 +41,7 @@ from interact_support import (
     stamp,
     state_json,
     suggest,
+    write_revision,
 )
 from leaf import anchor_capture as anchor_capture_model
 from leaf import cli as cli_model
@@ -682,6 +689,42 @@ def construction_nodes(content):
     return nodes
 
 
+def test_undoing_one_cards_move_leaves_the_other_cards_order(page_dir):
+    """Card d goes to the top, card c right under it, then d's move is undone: c
+    keeps its place above a, since the move that put it there still stands. An index
+    re-read against the column d's undo left would put c under a."""
+    cards = [(c, "", c.upper()) for c in ("a", "b", "c", "d")]
+    (page_dir / "index.html").write_text(
+        PAGE.replace("</main>", _board(cards, []) + "</main>")
+    )
+    publish(page_dir)
+    moved = [
+        append_command(
+            page_dir,
+            {
+                "kind": "action",
+                "author": "user",
+                "revision": 1,
+                "widget": "b1",
+                "action": "move",
+                "detail": {"card": card, "to": "c-todo", "rank": rank},
+            },
+        )
+        # The ranks lf-board sends: d before a's "1", then c between d and a.
+        for card, rank in (("d", "0i"), ("c", "0r"))
+    ]
+
+    def order():
+        todo = construction_nodes(state_json(page_dir)["content"])["c-todo"]
+        return [n["attrs"]["id"] for n in todo["content"] if isinstance(n, dict)]
+
+    assert order() == ["d", "c", "a", "b"]
+    append_command(
+        page_dir, {"kind": "undo", "author": "user", "undoes": moved[0]["id"]}
+    )
+    assert order() == ["c", "a", "b", "d"]
+
+
 def test_page_inspection_preserves_exact_user_state_and_its_edit_routes(page_dir):
     markup = PAGE.replace(
         "</main>",
@@ -698,8 +741,8 @@ def test_page_inspection_preserves_exact_user_state_and_its_edit_routes(page_dir
         ("g1", "add", {"option": "o-user", "text": "Try a canary."}),
         ("g1", "choose", {"options": ["o-user"]}),
         ("summary", "edit", {"text": "  Ship after migration.\n\nKeep  two spaces.\n"}),
-        ("b1", "move", {"card": "card-y", "to": "c-done", "index": 0}),
-        ("b1", "move", {"card": "card-x", "to": "c-done", "index": 0}),
+        ("b1", "move", {"card": "card-y", "to": "c-done", "rank": "i"}),
+        ("b1", "move", {"card": "card-x", "to": "c-done", "rank": "9"}),
     ]
     for widget, action, detail in actions:
         append_command(
@@ -2451,7 +2494,7 @@ def test_a_standing_action_protects_its_fold_unit_until_undone(page_dir):
             "revision": files_model.latest_revision(page_dir),
             "widget": "b1",
             "action": "move",
-            "detail": {"card": "card-x", "to": "c-done", "index": 0},
+            "detail": {"card": "card-x", "to": "c-done", "rank": "0i"},
         },
     )
     write([])
@@ -2472,7 +2515,7 @@ def test_an_effective_report_protects_detail_ids_its_record_needs(page_dir):
     registry_path = page_dir / "registry.json"
     registry = json.loads(registry_path.read_text())
     registry["lf-board"]["properties"]["overruled"] = {"type": "boolean"}
-    registry["lf-board"]["x-report"] = registry["lf-board"]["x-state"]
+    registry["lf-board"]["x-state"]["move"]["writer"] = "agent"
     registry_path.write_text(json.dumps(registry))
 
     board = _board([X], [])
@@ -2488,7 +2531,7 @@ def test_an_effective_report_protects_detail_ids_its_record_needs(page_dir):
             "revision": files_model.latest_revision(page_dir),
             "widget": "b1",
             "action": "move",
-            "detail": {"card": "card-x", "to": "c-done", "index": 0},
+            "detail": {"card": "card-x", "to": "c-done", "rank": "0i"},
         },
     )
 
@@ -2503,20 +2546,21 @@ def test_an_effective_report_protects_detail_ids_its_record_needs(page_dir):
     assert standing.exit_code == 1
     assert "protected ids" in standing.output and "'c-done'" in standing.output
 
+    # A newer report at the same coordinate is the state that stands now.
     append_command(
         page_dir,
         {
-            "kind": "action",
-            "author": "user",
+            "kind": "report",
+            "author": "agent",
             "revision": files_model.latest_revision(page_dir),
             "widget": "b1",
             "action": "move",
-            "detail": {"card": "card-x", "to": "c-todo", "index": 0},
+            "detail": {"card": "card-x", "to": "c-todo", "rank": "0i"},
         },
     )
-    outranked = check(page_dir)
-    assert outranked.exit_code == 0, outranked.output
-    assert "ids dropped from revision r1: ['c-done']" in outranked.output
+    superseded = check(page_dir)
+    assert superseded.exit_code == 0, superseded.output
+    assert "ids dropped from revision r1: ['c-done']" in superseded.output
 
 
 def test_a_version_may_not_quietly_rewrite_what_the_user_decided(page_dir):
@@ -2583,10 +2627,14 @@ def test_restating_a_widget_that_kept_its_words_is_refused(page_dir):
 
 def test_report_validates_at_the_door_and_stamps_identity(page_dir, monkeypatch):
     """`leaf report` is the report event's one door, so the widget, verb, and
-    detail are held to the x-report declaration there — the CLI mirror of the
+    detail are held to the widget's agent verb there — the CLI mirror of the
     POST door's action gate — and the event leaves stamped with the posting
     session's voice and the exact revision the user is looking at."""
     _tasks_version(page_dir, "active")
+    version = page_dir / "index.html"
+    version.write_text(
+        version.read_text().replace("<lf-options>", '<lf-options id="choice">')
+    )
     activation = revisioning_model.activate_source(page_dir, [])
     assert activation.error is None and activation.revision == 1
     draft_report = _report(page_dir, "t-parser", "status", "status=review")
@@ -2604,6 +2652,10 @@ def test_report_validates_at_the_door_and_stamps_identity(page_dir, monkeypatch)
         (("nope", "status", "status=review"), "unknown report widget"),
         (("tree", "status", "status=review"), "does not declare report verb"),
         (("t-parser", "finish", "status=done"), "does not declare report verb"),
+        (
+            ("choice", "choose", "option=flag-first"),
+            "'choose' is a verb the user writes; this report came from the agent",
+        ),
         (("t-parser", "status", "status=shipping"), "detail is invalid"),
         (("t-parser", "status", "status"), "name=value"),
         (("t-parser", "status"), "'status' is a required property"),
@@ -3090,7 +3142,7 @@ def test_the_gate_asks_about_the_card_that_was_moved_and_not_the_board(page_dir)
             "revision": 1,
             "widget": "b1",
             "action": "move",
-            "detail": {"card": "card-x", "to": "c-done", "index": 0},
+            "detail": {"card": "card-x", "to": "c-done", "rank": "0i"},
         },
     )
     assert check(page_dir).exit_code == 0
@@ -3807,73 +3859,18 @@ def test_package_data_is_validated_replaced_and_indexed_in_page_state(page_dir):
     )
 
 
-def test_text_capture_sets_the_selected_lines_and_clear_keeps_the_contract(
-    page_dir, tmp_path
+def test_a_patch_piped_through_the_diff_script_sets_one_deferred_row_per_file(
+    page_dir,
 ):
-    """Capture admits file text through the typed source boundary, as the source's
-    current value, and clear removes that value while the id keeps its contract."""
-    declare_data_input(
-        page_dir, "leaf-skill", {"type": "string"}, contract="text-document"
-    )
-    text_file = tmp_path / "SKILL.md"
-    text_file.write_bytes(b"one\r\ntwo\r\nthree")
-    runner = CliRunner()
-
-    captured = runner.invoke(
-        cli_model.cli,
-        [
-            "data",
-            "capture",
-            str(page_dir),
-            "leaf-skill",
-            "--file",
-            str(text_file),
-            "--lines",
-            "2:3",
-        ],
-    )
-    assert captured.exit_code == 0, captured.output
-    stored = read_page_data(page_dir)
-    source = stored["sources"]["leaf-skill"]
-    assert source["value"] == "two\nthree"
-    assert f"at revision {source['revision']}" in captured.output
-
-    wrong_shape = runner.invoke(
-        cli_model.cli,
-        [
-            "data",
-            "capture",
-            str(page_dir),
-            "leaf-skill",
-            "--file",
-            str(text_file),
-            "--format",
-            "unified-diff",
-            "--lines",
-            "1:1",
-        ],
-    )
-    assert wrong_shape.exit_code != 0
-    assert "lines can only select part of a text capture" in wrong_shape.output
-    assert read_page_data(page_dir) == stored
-
-    data_model.cmd_data_clear(page_dir, "leaf-skill")
-    assert read_page_data(page_dir)["sources"] == {
-        "leaf-skill": {"contract": "text-document"}
-    }
-    assert check(page_dir).exit_code == 0
-
-
-def test_unified_diff_capture_builds_one_lazy_fragment_per_file(page_dir, tmp_path):
+    """The diff package's producer script turns a Git patch into the contract's
+    manifest on stdout, which `leaf data set` stores as it would any value."""
     declare_data_input(
         page_dir,
         "review-patch",
         {"type": "object"},
         contract="unified-diff",
     )
-    patch = tmp_path / "review.patch"
-    patch.write_text(
-        """diff --git a/app.py b/app.py
+    patch = """diff --git a/app.py b/app.py
 --- a/app.py
 +++ b/app.py
 @@ -1,2 +1,2 @@
@@ -3906,20 +3903,11 @@ diff --git a/src/second file.py b/src/second file.py
 -OLD = True
 +NEW = True
 """
-    )
 
     result = CliRunner().invoke(
         cli_model.cli,
-        [
-            "data",
-            "capture",
-            str(page_dir),
-            "review-patch",
-            "--file",
-            str(patch),
-            "--format",
-            "unified-diff",
-        ],
+        ["data", "set", str(page_dir), "review-patch"],
+        input=json.dumps(patch_manifest(patch)),
     )
 
     assert result.exit_code == 0, result.output
@@ -3981,8 +3969,8 @@ def test_unified_diff_rejects_c_escapes_git_does_not_use(escaped):
 +new
 """
 
-    with pytest.raises(data_model.DataError, match="invalid quoted Git path"):
-        data_model.unified_diff_manifest(patch)
+    with pytest.raises(ValueError, match="invalid quoted Git path"):
+        patch_manifest(patch)
 
 
 @pytest.mark.parametrize(
@@ -4060,35 +4048,9 @@ rename to new.py
         ),
     ],
 )
-def test_unified_diff_capture_rejects_evidence_the_widget_cannot_render(
-    page_dir, tmp_path, patch_text, message
-):
-    declare_data_input(
-        page_dir,
-        "review-patch",
-        {"type": "object"},
-        contract="unified-diff",
-    )
-    patch = tmp_path / "unsupported.patch"
-    patch.write_text(patch_text)
-
-    result = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "data",
-            "capture",
-            str(page_dir),
-            "review-patch",
-            "--file",
-            str(patch),
-            "--format",
-            "unified-diff",
-        ],
-    )
-
-    assert result.exit_code != 0
-    assert message in result.output
-    assert read_page_data(page_dir)["sources"] == {}
+def test_the_diff_script_refuses_evidence_the_widget_cannot_render(patch_text, message):
+    with pytest.raises(ValueError, match=re.escape(message)):
+        patch_manifest(patch_text)
 
 
 def test_data_set_reads_a_structured_value_from_a_file(page_dir, tmp_path):
@@ -4499,53 +4461,6 @@ def test_page_state_names_the_ask_region_but_keeps_state_on_its_request(page_dir
     assert state["state"][0]["widget"] == "g1"
 
 
-def test_page_state_prefers_a_user_action_over_a_report_on_the_same_facet(page_dir):
-    """A report remains live for later absorption, but the user's action is
-    the effective state on their shared coordinate."""
-    registry = json.loads((page_dir / "registry.json").read_text())
-    options = registry["lf-options"]
-    options["properties"]["overruled"] = {"type": "boolean"}
-    report_choose = dict(options["x-state"]["choose"])
-    options["x-report"] = {"choose": report_choose}
-    (page_dir / "registry.json").write_text(json.dumps(registry))
-    opts = OPTIONS.format(
-        a="", b="", chip="", shim="Fastest to ship.", stage="Table by table."
-    )
-    (page_dir / "index.html").write_text(
-        PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + opts)
-    )
-    publish(page_dir)
-    append_command(
-        page_dir,
-        {
-            "kind": "report",
-            "author": "agent",
-            "agent": "worker",
-            "revision": 1,
-            "widget": "g1",
-            "action": "choose",
-            "detail": {"options": ["o-stage"]},
-        },
-    )
-    append_command(
-        page_dir,
-        {
-            "kind": "action",
-            "author": "user",
-            "revision": 1,
-            "widget": "g1",
-            "action": "choose",
-            "detail": {"options": ["o-shim"]},
-        },
-    )
-
-    state = state_json(page_dir)
-    assert state["state"][0]["detail"] == {"options": ["o-shim"]}
-    report = next(update for update in state["updates"] if update["source"] == "report")
-    assert report["detail"] == {"options": ["o-stage"]}
-    assert report["disposition"] == "standing"
-
-
 def test_page_state_reads_an_authored_answer_with_no_log(page_dir):
     """A version that honors a pick in its markup reads as answered with no log
     at all — the shipped examples arrive that way."""
@@ -4626,6 +4541,75 @@ def test_page_state_keeps_thread_history_out_of_its_current_reading(page_dir):
     )
     assert unknown.exit_code != 0
     assert "unknown conversation id 'not-a-thread'" in unknown.output
+
+
+class Follower:
+    """`leaf events --follow` in its own process, its lines read as they arrive."""
+
+    def __init__(self, spawn, page_dir, *args):
+        self.process = spawn(
+            [*LEAF_COMMAND, "events", str(page_dir), "--follow", *args],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        self.lines = queue.Queue()
+        threading.Thread(target=self._read, daemon=True).start()
+
+    def _read(self):
+        for line in self.process.stdout:
+            self.lines.put(line)
+
+    def next(self) -> dict:
+        return json.loads(self.lines.get(timeout=STATED_TIMEOUT))
+
+    def stop(self, signum):
+        self.process.send_signal(signum)
+        _, stderr = self.process.communicate(timeout=STATED_TIMEOUT)
+        return self.process.returncode, stderr
+
+
+def test_events_follow_prints_each_admitted_event_as_it_lands(page_dir, spawn):
+    """Another process follows the log: the stored records already there, then each
+    one another writer admits through the append door, `meaning` included, one line
+    each and each as it lands. A stop from its consumer is the ordinary end."""
+    _tasks_version(page_dir, "active")
+    publish(page_dir)
+    follower = Follower(spawn, page_dir)
+    standing = events_model.read_events(page_dir)
+    assert [follower.next() for _ in standing] == standing
+
+    reported = _report(page_dir, "t-parser", "status", "status=review")
+    assert reported.exit_code == 0, reported.output
+    opened = comment(page_dir, "--text", "Is review the right stage?")
+    assert opened.exit_code == 0, opened.output
+
+    followed = [follower.next(), follower.next()]
+    assert followed == events_model.read_events(page_dir)[len(standing) :]
+    assert followed[0]["id"] == json.loads(reported.output)["id"]
+    assert followed[0]["meaning"]["unit"] == "t-parser"
+    assert followed[1]["id"] == json.loads(opened.output)["id"]
+    assert follower.stop(signal.SIGTERM) == (0, "")
+
+
+def test_events_follow_resumes_after_the_last_seq_its_reader_saw(page_dir, spawn):
+    """`seq` is the cursor: a follower restarted with `--after` the last seq it
+    printed starts at the next event, whether that was admitted while it was away
+    or after it came back."""
+    _tasks_version(page_dir, "active")
+    publish(page_dir)
+    seen = events_model.read_events(page_dir)[-1]["seq"]
+    missed = comment(page_dir, "--text", "Written while nobody followed.")
+    assert missed.exit_code == 0, missed.output
+
+    follower = Follower(spawn, page_dir, "--after", str(seen))
+    assert follower.next()["id"] == json.loads(missed.output)["id"]
+    later = comment(page_dir, "--text", "Written after the follower came back.")
+    assert later.exit_code == 0, later.output
+    resumed = follower.next()
+    assert resumed["id"] == json.loads(later.output)["id"]
+    assert resumed["seq"] == seen + 2
+    assert follower.stop(signal.SIGINT) == (0, "")
 
 
 def test_page_state_points_to_a_users_suggestion_record(page_dir):
@@ -4813,7 +4797,7 @@ def test_page_state_carries_a_report_until_a_version_answers_it(page_dir):
             "<h2>Plan</h2>", "<h2>Plan</h2>" + tasks.replace('"review"', '"done"')
         )
     )
-    files_model.write_revision(
+    write_revision(
         page_dir,
         2,
         (page_dir / "index.html").read_bytes(),
@@ -5228,7 +5212,7 @@ def test_page_inspection_places_cards_among_identified_siblings(page_dir):
             "revision": initial["active"]["revision"],
             "widget": "reading-board",
             "action": "move",
-            "detail": {"card": "reading-a", "to": "reading-done", "index": 0},
+            "detail": {"card": "reading-a", "to": "reading-done", "rank": "0i"},
         },
     )
     nodes = construction_nodes(state_json(page_dir)["content"])
@@ -5271,15 +5255,15 @@ def test_page_inspection_fragments_only_the_manifest_branch_of_a_data_contract(
         reading = node["inputs"]["document"]
         if isinstance(value, str):
             assert reading["value"] == patch
-            assert "fragments" not in reading
+            assert "deferred" not in reading
         else:
             assert reading["value"] == {
                 "files": [{key: field for key, field in file.items() if key != "patch"}]
             }
-            assert reading["fragments"]["file"] == str(
+            assert reading["deferred"]["file"] == str(
                 data_model.source_file(page_dir, "reading-patch")
             )
-            assert reading["fragments"]["revision"] == reading["origin"]["revision"]
+            assert reading["deferred"]["revision"] == reading["origin"]["revision"]
         assert read_page_data(page_dir)["sources"]["reading-patch"]["value"] == value
 
 
@@ -5368,10 +5352,10 @@ def test_projected_verbatim_scopes_page_state_to_here_and_thread_state_to_its_lo
             "action": "edit",
             "detail": {"text": text},
             "meaning": {
-                "coordinate": [identity, identity, "edit"],
+                "unit": identity,
                 "depends": [identity],
                 "answer": None,
-                "document": {"kind": "page", "revision": 2},
+                "document": "page",
             },
             "seq": seq,
         }
@@ -5432,10 +5416,10 @@ def test_projected_verbatim_includes_generated_children():
         "action": "add",
         "detail": {"item": "new-item", "text": "Generated item."},
         "meaning": {
-            "coordinate": ["list", "new-item", "add"],
+            "unit": "new-item",
             "depends": ["list", "new-item"],
             "creates": "lf-item",
-            "document": {"kind": "page", "revision": 1},
+            "document": "page",
         },
         "seq": 1,
     }

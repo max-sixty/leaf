@@ -26,23 +26,17 @@
 # 3. Earlier, the agent started `leaf wait` in the background and went idle. The
 #    agent does nothing in this step: `leaf wait`, a leaf process, notices the new
 #    line and builds a delivery for it. The comment is owed a reply, which the
-#    delivery records as its `obligation` (step 4). For the instructions, `leaf
-#    wait` reads the clauses under `$events.handling.comment` in the page's copy of
-#    registry.json, then those under `$events.answering.reply`, the answer it owes.
-#    Each clause has a `text` and may have a `when`, a JSON Schema that must hold
-#    for the clause to apply. It is tested against the log line together with its
-#    `obligation`, its `conversation`'s entry in the delivery's `conversations`
-#    (step 4), and `carrier`, the route delivering it: `wait` here, `queue` or
-#    `app-server` for the two Codex routes. There are 11; here they all are,
-#    with whether the comment satisfies each `when`:
+#    delivery records as its `answer` (step 4): a `reply` for `leaf reply` here,
+#    where the Codex App Server route would record a `turn`, which the turn's own
+#    messages write. For the instructions, `leaf wait` reads the clauses under
+#    `$events.handling.comment` in the page's copy of registry.json, then those
+#    under `$events.answering.reply`, the answer it owes. Each clause has a `text`
+#    and may have a `when`, a JSON Schema that must hold for the clause to apply.
+#    It is tested against the log line together with its `answer` and its
+#    `conversation`'s entry in the delivery's `conversations` (step 4). There are
+#    9; here they all are, with whether the comment satisfies each `when`:
 #
-#      clause 1, applies:
-#        when: {"required": ["carrier"], "properties": {"carrier": {"const": "wait"}}, "not": {"required": ["token"]}}
-#        text: Acknowledge this delivery before anything else by starting the next
-#              background wait with `leaf wait --ack <delivery-id>`, where
-#              `<delivery-id>` is the delivery's `id`: until then the user's message
-#              reads Sent rather than Picked up.
-#      clause 2, does not apply:
+#      clause 1, does not apply:
 #        when: {"required": ["drawing"]}
 #        text: The user drew on the page. `drawing.says`, when present, holds the
 #              page's words from the first to the last inside the ink's extents: the
@@ -55,17 +49,17 @@
 #              whole page has no `box`, and its offsets start at the page's top-left
 #              corner. Any `text` explains the mark. Otherwise it is an ordinary
 #              comment, answered the same way.
-#      clause 3, does not apply:
+#      clause 2, does not apply:
 #        when: {"required": ["text"], "properties": {"text": {"pattern": "\\]\\(/media/"}}}
 #        text: The message carries an image as a Markdown link to
 #              `/media/<digest>.<ext>`, a path under the page directory the batch
 #              names. Open the image itself before answering: its alt text is a label,
 #              not a description of what it shows.
-#      clause 4, does not apply:
+#      clause 3, does not apply:
 #        when: {"required": ["suggestion"], "properties": {"suggestion": {"const": true}}}
 #        text: A suggestion proposes exact replacement text. Apply it verbatim, or
 #              reply with your reason for declining.
-#      clause 5, does not apply:
+#      clause 4, does not apply:
 #        when: {"required": ["about"], "properties": {"about": {"const": "design"}}}
 #        text: A design comment is about how the page looks or behaves rather than
 #              what it says. Its anchor's `section` is a widget's id or, when it
@@ -79,45 +73,36 @@
 #              re-vendor on the stamp. A fix that belongs in Leaf itself is the user's
 #              to raise, as the Leaf skill's "Improve Leaf through use" says. The
 #              stamped version that carries the fix is the result the reply reports.
-#      clause 6, applies:
+#      clause 5, applies:
 #        when: {"required": ["conversation"], "properties": {"conversation": {"required": ["title"], "properties": {"title": {"type": "null"}}}}, "not": {"required": ["token"]}}
 #        text: This event's conversation has no title yet: name it with `leaf
 #              conversation title <page> <conversation-id> --text "<a few words>"`, so
 #              the thread panel lists its subject rather than its opening words.
-#      clause 7, does not apply:
+#      clause 6, does not apply:
 #        when: {"required": ["token"]}
 #        text: A reaction is a mark, not a question. Read the token and the `means`
 #              its package gives, if any, and act on it if it calls for a change;
 #              reply only if its meaning is unclear. Once the page reflects it, close
 #              it with `leaf resolve <page> --to <event-id>`. It never blocks
 #              publishing a version, and it does not wait on an answer.
-#      clause 8, applies:
-#        when: {"required": ["carrier"], "properties": {"carrier": {"enum": ["wait", "queue"]}}}
+#      clause 7, applies:
+#        (no `when`, so it always applies)
 #        text: Answer with `leaf reply <page> --for <event-id>` before any other work,
 #              including the work this event asks for: give the answer, or say what
 #              you are about to do and where the result will appear. Once that work
 #              lands, report it with `leaf reply <page> --to <address> --initiates`,
-#              where `<address>` is the event's `obligation.response.to`. `leaf reply`
-#              checks any saved page edit and makes it live before posting. If a
-#              revision removes what the thread is anchored on, move the thread in the
-#              reply that reports it with `--section <id>` (narrowed by `--quote` or
-#              `--part` if needed), or `--detach` it if its subject has left the page.
-#              Add `--awaits` only if your reply's prose asks the user something.
-#      clause 9, does not apply:
-#        when: {"required": ["carrier"], "properties": {"carrier": {"const": "app-server"}}}
-#        text: Your turn's first and final messages are the reply, and `leaf reply`
-#              refuses this event. Before your first tool call, open with a short
-#              message to the user: the answer, or what you are about to do. Leaf
-#              streams it into the thread at once, and later working messages stay in
-#              Codex. Finish the reply in your final message: the answer, or what
-#              changed and where it appears. The reply leaves the thread on its
-#              anchor.
-#      clause 10, applies:
+#              where `<address>` is the event's `answer.to`. `leaf reply` checks any
+#              saved page edit and makes it live before posting. If a revision removes
+#              what the thread is anchored on, move the thread in the reply that
+#              reports it with `--section <id>` (narrowed by `--quote` or `--part` if
+#              needed), or `--detach` it if its subject has left the page. Add
+#              `--awaits` only if your reply's prose asks the user something.
+#      clause 8, applies:
 #        (no `when`, so it always applies)
 #        text: Your reply renders as Markdown, so show code or markup in a fenced
 #              block.
-#      clause 11, does not apply:
-#        when: {"required": ["meaning"], "properties": {"meaning": {"required": ["document"], "properties": {"document": {"required": ["kind"], "properties": {"kind": {"const": "thread"}}}}}}}
+#      clause 9, does not apply:
+#        when: {"required": ["meaning"], "properties": {"meaning": {"required": ["document"], "properties": {"document": {"const": "thread"}}}}}
 #        text: The widget is in a thread message: continue the work the user's answer
 #              selects or unblocks, and answer in that thread.
 #
@@ -125,15 +110,18 @@
 #    output to the agent as the result of the background command, which wakes it.
 #    The delivery's event is the log line from step 2 less `attempt`, the
 #    browser's retry key, and with these fields added:
-#    `seq`, `subject`, `conversations`, `handling` and `obligation`.
+#    `seq`, `subject`, `conversations`, `handling` and `answer`.
 #    The batch's `handling` maps clause ids to their text, each distinct text
 #    appearing once. The event's `handling` names its applicable clauses in order.
-#    The whole output, indented here (leaf prints it on one line):
+#    The envelope's `acknowledge` says once, for the whole delivery, how the agent
+#    confirms it. The whole output, indented here (leaf prints it on one line):
 #
 #      {
-#        "format": "leaf-delivery-v2",
+#        "format": "leaf-delivery-v3",
 #        "id": "e8417b8a-6e03-45ad-b7bd-c0f0eceb1a92",
 #        "created_at": 1790046750.29,
+#        "carrier": "wait",
+#        "acknowledge": "Whoever ran the `leaf wait` that printed this delivery acknowledges it; until then the user's moves read Sent rather than Picked up. If the output was cut off, acknowledge nothing and rerun the wait with room for the whole envelope. If you handle it, acknowledge before any other work; if you forward it, acknowledge once it durably arrives there. To acknowledge, start `leaf wait --ack e8417b8a-6e03-45ad-b7bd-c0f0eceb1a92` as the next background task: it confirms this delivery and waits for the next.",
 #        "batches": [
 #          {
 #            "page": "/path/to/page",
@@ -158,10 +146,9 @@
 #              }
 #            ],
 #            "handling": {
-#              "h1": "Acknowledge this delivery before anything else by starting the next background wait with `leaf wait --ack <delivery-id>`, where `<delivery-id>` is the delivery's `id`: until then the user's message reads Sent rather than Picked up.",
-#              "h2": "This event's conversation has no title yet: name it with `leaf conversation title <page> <conversation-id> --text \"<a few words>\"`, so the thread panel lists its subject rather than its opening words.",
-#              "h3": "Answer with `leaf reply <page> --for <event-id>` before any other work, including the work this event asks for: give the answer, or say what you are about to do and where the result will appear. Once that work lands, report it with `leaf reply <page> --to <address> --initiates`, where `<address>` is the event's `obligation.response.to`. `leaf reply` checks any saved page edit and makes it live before posting. If a revision removes what the thread is anchored on, move the thread in the reply that reports it with `--section <id>` (narrowed by `--quote` or `--part` if needed), or `--detach` it if its subject has left the page. Add `--awaits` only if your reply's prose asks the user something.",
-#              "h4": "Your reply renders as Markdown, so show code or markup in a fenced block."
+#              "h1": "This event's conversation has no title yet: name it with `leaf conversation title <page> <conversation-id> --text \"<a few words>\"`, so the thread panel lists its subject rather than its opening words.",
+#              "h2": "Answer with `leaf reply <page> --for <event-id>` before any other work, including the work this event asks for: give the answer, or say what you are about to do and where the result will appear. Once that work lands, report it with `leaf reply <page> --to <address> --initiates`, where `<address>` is the event's `answer.to`. `leaf reply` checks any saved page edit and makes it live before posting. If a revision removes what the thread is anchored on, move the thread in the reply that reports it with `--section <id>` (narrowed by `--quote` or `--part` if needed), or `--detach` it if its subject has left the page. Add `--awaits` only if your reply's prose asks the user something.",
+#              "h3": "Your reply renders as Markdown, so show code or markup in a fenced block."
 #            },
 #            "events": [
 #              {
@@ -186,16 +173,12 @@
 #                "handling": [
 #                  "h1",
 #                  "h2",
-#                  "h3",
-#                  "h4"
+#                  "h3"
 #                ],
-#                "obligation": {
-#                  "as_of_seq": 2,
-#                  "response": {
-#                    "kind": "reply",
-#                    "to": "1946b466",
-#                    "for": "1946b466"
-#                  }
+#                "answer": {
+#                  "kind": "reply",
+#                  "to": "1946b466",
+#                  "for": "1946b466"
 #                }
 #              }
 #            ]
@@ -203,9 +186,9 @@
 #        ]
 #      }
 #
-# 5. The agent follows `handling`: it replies in the thread with `leaf reply`, edits
-#    the page if warranted, and runs `leaf wait --ack <delivery-id>` to confirm receipt and wait
-#    for the next one.
+# 5. The agent follows `acknowledge`: it starts `leaf wait --ack <delivery-id>` to
+#    confirm receipt and wait for the next one. It follows `handling`: it replies in
+#    the thread with `leaf reply` and edits the page if warranted.
 #
 # What this file records
 # ----------------------
@@ -215,11 +198,11 @@
 # Each top-level key below names a case and holds:
 #
 #   event:  the input: a log line's `kind`, the kind of answer its delivery
-#           says it owes (`obligation`), the `carrier` delivering it, and the
-#           fields some `when` reads, its `conversation`'s among them, and
-#           nothing else. A field no `when` names, such as a comment's `anchor`
-#           or `text`, cannot change what the agent is told, so it is left out;
-#           the test checks both halves of that.
+#           says it owes (`answer`), and the fields some `when` reads, its
+#           `conversation`'s among them, and nothing else. A field no `when`
+#           names, such as a comment's `anchor` or `text`, cannot change what
+#           the agent is told, so it is left out; the test checks both halves of
+#           that.
 #   told:   the output, the clauses that apply to that line, in order. Each
 #           clause has a `text` and may have a `when`:
 #   when:   the clause's `when`, exactly as registry.json writes it: a JSON
@@ -229,43 +212,32 @@
 #
 # The walkthrough's comment is the first case. No `when` reads any field of its
 # log line from step 2 except `kind`, so the case is that line cut down to `kind`,
-# the reply it owes, its carrier and its new conversation's missing title, and it
-# gets the clauses marked "applies" in step 3. It is
-# recorded as:
+# the reply it owes and its new conversation's missing title, and it gets the
+# clauses marked "applies" in step 3. It is recorded as:
 #
 #      comment:
 #        event:
-#          carrier: wait
 #          kind: comment
 #          conversation:
 #            title: null
-#          obligation:
-#            response:
-#              kind: reply
+#          answer:
+#            kind: reply
 #        told:
-#          - when: {"required": ["carrier"], "properties": {"carrier": {"const": "wait"}}, "not": {"required": ["token"]}}
-#            text: >-
-#              Acknowledge this delivery before anything else by starting the next background
-#              wait with `leaf wait --ack <delivery-id>`, where `<delivery-id>` is the
-#              delivery's `id`: until then the user's message reads Sent rather than Picked
-#              up.
 #          - when: {"required": ["conversation"], "properties": {"conversation": {"required": ["title"], "properties": {"title": {"type": "null"}}}}, "not": {"required": ["token"]}}
 #            text: >-
 #              This event's conversation has no title yet: name it with `leaf conversation
 #              title <page> <conversation-id> --text "<a few words>"`, so the thread panel
 #              lists its subject rather than its opening words.
-#          - when: {"required": ["carrier"], "properties": {"carrier": {"enum": ["wait", "queue"]}}}
-#            text: >-
+#          - text: >-
 #              Answer with `leaf reply <page> --for <event-id>` before any other work,
 #              including the work this event asks for: give the answer, or say what you
 #              are about to do and where the result will appear. Once that work lands,
 #              report it with `leaf reply <page> --to <address> --initiates`, where `<address>`
-#              is the event's `obligation.response.to`. `leaf reply` checks any saved page
-#              edit and makes it live before posting. If a revision removes what the thread
-#              is anchored on, move the thread in the reply that reports it with `--section
-#              <id>` (narrowed by `--quote` or `--part` if needed), or `--detach` it if
-#              its subject has left the page. Add `--awaits` only if your reply's prose
-#              asks the user something.
+#              is the event's `answer.to`. `leaf reply` checks any saved page edit and
+#              makes it live before posting. If a revision removes what the thread is anchored
+#              on, move the thread in the reply that reports it with `--section <id>` (narrowed
+#              by `--quote` or `--part` if needed), or `--detach` it if its subject has
+#              left the page. Add `--awaits` only if your reply's prose asks the user something.
 #          - text: >-
 #              Your reply renders as Markdown, so show code or markup in a fenced block.
 #
@@ -275,87 +247,44 @@
 
 comment:
   event:
-    carrier: wait
     kind: comment
     conversation:
       title: null
-    obligation:
-      response:
-        kind: reply
+    answer:
+      kind: reply
   told:
-    - when: {"required": ["carrier"], "properties": {"carrier": {"const": "wait"}}, "not": {"required": ["token"]}}
-      text: >-
-        Acknowledge this delivery before anything else by starting the next background
-        wait with `leaf wait --ack <delivery-id>`, where `<delivery-id>` is the
-        delivery's `id`: until then the user's message reads Sent rather than Picked
-        up.
     - when: {"required": ["conversation"], "properties": {"conversation": {"required": ["title"], "properties": {"title": {"type": "null"}}}}, "not": {"required": ["token"]}}
       text: >-
         This event's conversation has no title yet: name it with `leaf conversation
         title <page> <conversation-id> --text "<a few words>"`, so the thread panel
         lists its subject rather than its opening words.
-    - when: {"required": ["carrier"], "properties": {"carrier": {"enum": ["wait", "queue"]}}}
-      text: >-
-        Answer with `leaf reply <page> --for <event-id>` before any other work,
-        including the work this event asks for: give the answer, or say what you
-        are about to do and where the result will appear. Once that work lands,
-        report it with `leaf reply <page> --to <address> --initiates`, where `<address>`
-        is the event's `obligation.response.to`. `leaf reply` checks any saved page
-        edit and makes it live before posting. If a revision removes what the thread
-        is anchored on, move the thread in the reply that reports it with `--section
-        <id>` (narrowed by `--quote` or `--part` if needed), or `--detach` it if
-        its subject has left the page. Add `--awaits` only if your reply's prose
-        asks the user something.
     - text: >-
-        Your reply renders as Markdown, so show code or markup in a fenced block.
-
-comment over the Codex queue:
-  event:
-    carrier: queue
-    kind: comment
-    conversation:
-      title: null
-    obligation:
-      response:
-        kind: reply
-  told:
-    - when: {"required": ["conversation"], "properties": {"conversation": {"required": ["title"], "properties": {"title": {"type": "null"}}}}, "not": {"required": ["token"]}}
-      text: >-
-        This event's conversation has no title yet: name it with `leaf conversation
-        title <page> <conversation-id> --text "<a few words>"`, so the thread panel
-        lists its subject rather than its opening words.
-    - when: {"required": ["carrier"], "properties": {"carrier": {"enum": ["wait", "queue"]}}}
-      text: >-
         Answer with `leaf reply <page> --for <event-id>` before any other work,
         including the work this event asks for: give the answer, or say what you
         are about to do and where the result will appear. Once that work lands,
         report it with `leaf reply <page> --to <address> --initiates`, where `<address>`
-        is the event's `obligation.response.to`. `leaf reply` checks any saved page
-        edit and makes it live before posting. If a revision removes what the thread
-        is anchored on, move the thread in the reply that reports it with `--section
-        <id>` (narrowed by `--quote` or `--part` if needed), or `--detach` it if
-        its subject has left the page. Add `--awaits` only if your reply's prose
-        asks the user something.
+        is the event's `answer.to`. `leaf reply` checks any saved page edit and
+        makes it live before posting. If a revision removes what the thread is anchored
+        on, move the thread in the reply that reports it with `--section <id>` (narrowed
+        by `--quote` or `--part` if needed), or `--detach` it if its subject has
+        left the page. Add `--awaits` only if your reply's prose asks the user something.
     - text: >-
         Your reply renders as Markdown, so show code or markup in a fenced block.
 
 comment over App Server:
   event:
-    carrier: app-server
     kind: comment
     conversation:
       title: null
-    obligation:
-      response:
-        kind: reply
+    answer:
+      kind: turn
   told:
     - when: {"required": ["conversation"], "properties": {"conversation": {"required": ["title"], "properties": {"title": {"type": "null"}}}}, "not": {"required": ["token"]}}
       text: >-
         This event's conversation has no title yet: name it with `leaf conversation
         title <page> <conversation-id> --text "<a few words>"`, so the thread panel
         lists its subject rather than its opening words.
-    - when: {"required": ["carrier"], "properties": {"carrier": {"const": "app-server"}}}
-      text: >-
+    - text: >-
         Your turn's first and final messages are the reply, and `leaf reply` refuses
         this event. Before your first tool call, open with a short message to the
         user: the answer, or what you are about to do. Leaf streams it into the
@@ -367,21 +296,13 @@ comment over App Server:
 
 comment with a drawing:
   event:
-    carrier: wait
     kind: comment
     drawing:
       format: leaf-drawing/2
       strokes: [[[0, 0], [9, 9]]]
-    obligation:
-      response:
-        kind: reply
+    answer:
+      kind: reply
   told:
-    - when: {"required": ["carrier"], "properties": {"carrier": {"const": "wait"}}, "not": {"required": ["token"]}}
-      text: >-
-        Acknowledge this delivery before anything else by starting the next background
-        wait with `leaf wait --ack <delivery-id>`, where `<delivery-id>` is the
-        delivery's `id`: until then the user's message reads Sent rather than Picked
-        up.
     - when: {"required": ["drawing"]}
       text: >-
         The user drew on the page. `drawing.says`, when present, holds the page's
@@ -394,117 +315,80 @@ comment with a drawing:
         it marks; a drawing on the whole page has no `box`, and its offsets start
         at the page's top-left corner. Any `text` explains the mark. Otherwise it
         is an ordinary comment, answered the same way.
-    - when: {"required": ["carrier"], "properties": {"carrier": {"enum": ["wait", "queue"]}}}
-      text: >-
+    - text: >-
         Answer with `leaf reply <page> --for <event-id>` before any other work,
         including the work this event asks for: give the answer, or say what you
         are about to do and where the result will appear. Once that work lands,
         report it with `leaf reply <page> --to <address> --initiates`, where `<address>`
-        is the event's `obligation.response.to`. `leaf reply` checks any saved page
-        edit and makes it live before posting. If a revision removes what the thread
-        is anchored on, move the thread in the reply that reports it with `--section
-        <id>` (narrowed by `--quote` or `--part` if needed), or `--detach` it if
-        its subject has left the page. Add `--awaits` only if your reply's prose
-        asks the user something.
+        is the event's `answer.to`. `leaf reply` checks any saved page edit and
+        makes it live before posting. If a revision removes what the thread is anchored
+        on, move the thread in the reply that reports it with `--section <id>` (narrowed
+        by `--quote` or `--part` if needed), or `--detach` it if its subject has
+        left the page. Add `--awaits` only if your reply's prose asks the user something.
     - text: >-
         Your reply renders as Markdown, so show code or markup in a fenced block.
 
 comment with a pasted image:
   event:
-    carrier: wait
     kind: comment
     text: this looks off ![screenshot](/media/0a1b2c.png)
-    obligation:
-      response:
-        kind: reply
+    answer:
+      kind: reply
   told:
-    - when: {"required": ["carrier"], "properties": {"carrier": {"const": "wait"}}, "not": {"required": ["token"]}}
-      text: >-
-        Acknowledge this delivery before anything else by starting the next background
-        wait with `leaf wait --ack <delivery-id>`, where `<delivery-id>` is the
-        delivery's `id`: until then the user's message reads Sent rather than Picked
-        up.
     - when: {"required": ["text"], "properties": {"text": {"pattern": "\\]\\(/media/"}}}
       text: >-
         The message carries an image as a Markdown link to `/media/<digest>.<ext>`,
         a path under the page directory the batch names. Open the image itself before
         answering: its alt text is a label, not a description of what it shows.
-    - when: {"required": ["carrier"], "properties": {"carrier": {"enum": ["wait", "queue"]}}}
-      text: >-
+    - text: >-
         Answer with `leaf reply <page> --for <event-id>` before any other work,
         including the work this event asks for: give the answer, or say what you
         are about to do and where the result will appear. Once that work lands,
         report it with `leaf reply <page> --to <address> --initiates`, where `<address>`
-        is the event's `obligation.response.to`. `leaf reply` checks any saved page
-        edit and makes it live before posting. If a revision removes what the thread
-        is anchored on, move the thread in the reply that reports it with `--section
-        <id>` (narrowed by `--quote` or `--part` if needed), or `--detach` it if
-        its subject has left the page. Add `--awaits` only if your reply's prose
-        asks the user something.
+        is the event's `answer.to`. `leaf reply` checks any saved page edit and
+        makes it live before posting. If a revision removes what the thread is anchored
+        on, move the thread in the reply that reports it with `--section <id>` (narrowed
+        by `--quote` or `--part` if needed), or `--detach` it if its subject has
+        left the page. Add `--awaits` only if your reply's prose asks the user something.
     - text: >-
         Your reply renders as Markdown, so show code or markup in a fenced block.
 
 comment a newer message answers through:
   event:
-    carrier: wait
     kind: comment
-  told:
-    - when: {"required": ["carrier"], "properties": {"carrier": {"const": "wait"}}, "not": {"required": ["token"]}}
-      text: >-
-        Acknowledge this delivery before anything else by starting the next background
-        wait with `leaf wait --ack <delivery-id>`, where `<delivery-id>` is the
-        delivery's `id`: until then the user's message reads Sent rather than Picked
-        up.
+  told: []
 
 suggestion:
   event:
-    carrier: wait
     kind: comment
     suggestion: true
-    obligation:
-      response:
-        kind: reply
+    answer:
+      kind: reply
   told:
-    - when: {"required": ["carrier"], "properties": {"carrier": {"const": "wait"}}, "not": {"required": ["token"]}}
-      text: >-
-        Acknowledge this delivery before anything else by starting the next background
-        wait with `leaf wait --ack <delivery-id>`, where `<delivery-id>` is the
-        delivery's `id`: until then the user's message reads Sent rather than Picked
-        up.
     - when: {"required": ["suggestion"], "properties": {"suggestion": {"const": true}}}
       text: >-
         A suggestion proposes exact replacement text. Apply it verbatim, or reply
         with your reason for declining.
-    - when: {"required": ["carrier"], "properties": {"carrier": {"enum": ["wait", "queue"]}}}
-      text: >-
+    - text: >-
         Answer with `leaf reply <page> --for <event-id>` before any other work,
         including the work this event asks for: give the answer, or say what you
         are about to do and where the result will appear. Once that work lands,
         report it with `leaf reply <page> --to <address> --initiates`, where `<address>`
-        is the event's `obligation.response.to`. `leaf reply` checks any saved page
-        edit and makes it live before posting. If a revision removes what the thread
-        is anchored on, move the thread in the reply that reports it with `--section
-        <id>` (narrowed by `--quote` or `--part` if needed), or `--detach` it if
-        its subject has left the page. Add `--awaits` only if your reply's prose
-        asks the user something.
+        is the event's `answer.to`. `leaf reply` checks any saved page edit and
+        makes it live before posting. If a revision removes what the thread is anchored
+        on, move the thread in the reply that reports it with `--section <id>` (narrowed
+        by `--quote` or `--part` if needed), or `--detach` it if its subject has
+        left the page. Add `--awaits` only if your reply's prose asks the user something.
     - text: >-
         Your reply renders as Markdown, so show code or markup in a fenced block.
 
 design comment:
   event:
-    carrier: wait
     kind: comment
     about: design
-    obligation:
-      response:
-        kind: reply
+    answer:
+      kind: reply
   told:
-    - when: {"required": ["carrier"], "properties": {"carrier": {"const": "wait"}}, "not": {"required": ["token"]}}
-      text: >-
-        Acknowledge this delivery before anything else by starting the next background
-        wait with `leaf wait --ack <delivery-id>`, where `<delivery-id>` is the
-        delivery's `id`: until then the user's message reads Sent rather than Picked
-        up.
     - when: {"required": ["about"], "properties": {"about": {"const": "design"}}}
       text: >-
         A design comment is about how the page looks or behaves rather than what
@@ -518,24 +402,21 @@ design comment:
         note the re-vendor on the stamp. A fix that belongs in Leaf itself is the
         user's to raise, as the Leaf skill's "Improve Leaf through use" says. The
         stamped version that carries the fix is the result the reply reports.
-    - when: {"required": ["carrier"], "properties": {"carrier": {"enum": ["wait", "queue"]}}}
-      text: >-
+    - text: >-
         Answer with `leaf reply <page> --for <event-id>` before any other work,
         including the work this event asks for: give the answer, or say what you
         are about to do and where the result will appear. Once that work lands,
         report it with `leaf reply <page> --to <address> --initiates`, where `<address>`
-        is the event's `obligation.response.to`. `leaf reply` checks any saved page
-        edit and makes it live before posting. If a revision removes what the thread
-        is anchored on, move the thread in the reply that reports it with `--section
-        <id>` (narrowed by `--quote` or `--part` if needed), or `--detach` it if
-        its subject has left the page. Add `--awaits` only if your reply's prose
-        asks the user something.
+        is the event's `answer.to`. `leaf reply` checks any saved page edit and
+        makes it live before posting. If a revision removes what the thread is anchored
+        on, move the thread in the reply that reports it with `--section <id>` (narrowed
+        by `--quote` or `--part` if needed), or `--detach` it if its subject has
+        left the page. Add `--awaits` only if your reply's prose asks the user something.
     - text: >-
         Your reply renders as Markdown, so show code or markup in a fenced block.
 
 reaction on the page:
   event:
-    carrier: wait
     kind: comment
     token: '+1'
   told:
@@ -549,56 +430,38 @@ reaction on the page:
 
 reply:
   event:
-    carrier: wait
     kind: reply
     conversation:
       title: Tuesday backfill
-    obligation:
-      response:
-        kind: reply
+    answer:
+      kind: reply
   told:
-    - when: {"required": ["carrier"], "properties": {"carrier": {"const": "wait"}}, "not": {"required": ["token"]}}
-      text: >-
-        Acknowledge this delivery before anything else by starting the next background
-        wait with `leaf wait --ack <delivery-id>`, where `<delivery-id>` is the
-        delivery's `id`: until then the user's message reads Sent rather than Picked
-        up.
     - when: {"not": {"required": ["token"]}}
       text: >-
         The user answered in a thread; the batch's `conversations` carries the thread's
         context, and `leaf conversation read <page> <conversation-id>` reads its
         history in pages.
-    - when: {"required": ["carrier"], "properties": {"carrier": {"enum": ["wait", "queue"]}}}
-      text: >-
+    - text: >-
         Answer with `leaf reply <page> --for <event-id>` before any other work,
         including the work this event asks for: give the answer, or say what you
         are about to do and where the result will appear. Once that work lands,
         report it with `leaf reply <page> --to <address> --initiates`, where `<address>`
-        is the event's `obligation.response.to`. `leaf reply` checks any saved page
-        edit and makes it live before posting. If a revision removes what the thread
-        is anchored on, move the thread in the reply that reports it with `--section
-        <id>` (narrowed by `--quote` or `--part` if needed), or `--detach` it if
-        its subject has left the page. Add `--awaits` only if your reply's prose
-        asks the user something.
+        is the event's `answer.to`. `leaf reply` checks any saved page edit and
+        makes it live before posting. If a revision removes what the thread is anchored
+        on, move the thread in the reply that reports it with `--section <id>` (narrowed
+        by `--quote` or `--part` if needed), or `--detach` it if its subject has
+        left the page. Add `--awaits` only if your reply's prose asks the user something.
     - text: >-
         Your reply renders as Markdown, so show code or markup in a fenced block.
 
 reply in an untitled thread:
   event:
-    carrier: wait
     kind: reply
     conversation:
       title: null
-    obligation:
-      response:
-        kind: reply
+    answer:
+      kind: reply
   told:
-    - when: {"required": ["carrier"], "properties": {"carrier": {"const": "wait"}}, "not": {"required": ["token"]}}
-      text: >-
-        Acknowledge this delivery before anything else by starting the next background
-        wait with `leaf wait --ack <delivery-id>`, where `<delivery-id>` is the
-        delivery's `id`: until then the user's message reads Sent rather than Picked
-        up.
     - when: {"not": {"required": ["token"]}}
       text: >-
         The user answered in a thread; the batch's `conversations` carries the thread's
@@ -609,36 +472,26 @@ reply in an untitled thread:
         This event's conversation has no title yet: name it with `leaf conversation
         title <page> <conversation-id> --text "<a few words>"`, so the thread panel
         lists its subject rather than its opening words.
-    - when: {"required": ["carrier"], "properties": {"carrier": {"enum": ["wait", "queue"]}}}
-      text: >-
+    - text: >-
         Answer with `leaf reply <page> --for <event-id>` before any other work,
         including the work this event asks for: give the answer, or say what you
         are about to do and where the result will appear. Once that work lands,
         report it with `leaf reply <page> --to <address> --initiates`, where `<address>`
-        is the event's `obligation.response.to`. `leaf reply` checks any saved page
-        edit and makes it live before posting. If a revision removes what the thread
-        is anchored on, move the thread in the reply that reports it with `--section
-        <id>` (narrowed by `--quote` or `--part` if needed), or `--detach` it if
-        its subject has left the page. Add `--awaits` only if your reply's prose
-        asks the user something.
+        is the event's `answer.to`. `leaf reply` checks any saved page edit and
+        makes it live before posting. If a revision removes what the thread is anchored
+        on, move the thread in the reply that reports it with `--section <id>` (narrowed
+        by `--quote` or `--part` if needed), or `--detach` it if its subject has
+        left the page. Add `--awaits` only if your reply's prose asks the user something.
     - text: >-
         Your reply renders as Markdown, so show code or markup in a fenced block.
 
 reply with a pasted image:
   event:
-    carrier: wait
     kind: reply
     text: like this ![sketch](/media/3d4e5f.png)
-    obligation:
-      response:
-        kind: reply
+    answer:
+      kind: reply
   told:
-    - when: {"required": ["carrier"], "properties": {"carrier": {"const": "wait"}}, "not": {"required": ["token"]}}
-      text: >-
-        Acknowledge this delivery before anything else by starting the next background
-        wait with `leaf wait --ack <delivery-id>`, where `<delivery-id>` is the
-        delivery's `id`: until then the user's message reads Sent rather than Picked
-        up.
     - when: {"not": {"required": ["token"]}}
       text: >-
         The user answered in a thread; the batch's `conversations` carries the thread's
@@ -649,40 +502,30 @@ reply with a pasted image:
         The message carries an image as a Markdown link to `/media/<digest>.<ext>`,
         a path under the page directory the batch names. Open the image itself before
         answering: its alt text is a label, not a description of what it shows.
-    - when: {"required": ["carrier"], "properties": {"carrier": {"enum": ["wait", "queue"]}}}
-      text: >-
+    - text: >-
         Answer with `leaf reply <page> --for <event-id>` before any other work,
         including the work this event asks for: give the answer, or say what you
         are about to do and where the result will appear. Once that work lands,
         report it with `leaf reply <page> --to <address> --initiates`, where `<address>`
-        is the event's `obligation.response.to`. `leaf reply` checks any saved page
-        edit and makes it live before posting. If a revision removes what the thread
-        is anchored on, move the thread in the reply that reports it with `--section
-        <id>` (narrowed by `--quote` or `--part` if needed), or `--detach` it if
-        its subject has left the page. Add `--awaits` only if your reply's prose
-        asks the user something.
+        is the event's `answer.to`. `leaf reply` checks any saved page edit and
+        makes it live before posting. If a revision removes what the thread is anchored
+        on, move the thread in the reply that reports it with `--section <id>` (narrowed
+        by `--quote` or `--part` if needed), or `--detach` it if its subject has
+        left the page. Add `--awaits` only if your reply's prose asks the user something.
     - text: >-
         Your reply renders as Markdown, so show code or markup in a fenced block.
 
 reply in a long thread:
   event:
-    carrier: wait
     kind: reply
     conversation:
       title: Tuesday backfill
       summary_hint:
         from: m1
         through: m8
-    obligation:
-      response:
-        kind: reply
+    answer:
+      kind: reply
   told:
-    - when: {"required": ["carrier"], "properties": {"carrier": {"const": "wait"}}, "not": {"required": ["token"]}}
-      text: >-
-        Acknowledge this delivery before anything else by starting the next background
-        wait with `leaf wait --ack <delivery-id>`, where `<delivery-id>` is the
-        delivery's `id`: until then the user's message reads Sent rather than Picked
-        up.
     - when: {"not": {"required": ["token"]}}
       text: >-
         The user answered in a thread; the batch's `conversations` carries the thread's
@@ -696,24 +539,21 @@ reply in a long thread:
         summarize <page> <conversation-id> --from <from> --through <through>`, as
         the Leaf skill's `references/conversation-threads.md`, "Summarize a long
         discussion", says.
-    - when: {"required": ["carrier"], "properties": {"carrier": {"enum": ["wait", "queue"]}}}
-      text: >-
+    - text: >-
         Answer with `leaf reply <page> --for <event-id>` before any other work,
         including the work this event asks for: give the answer, or say what you
         are about to do and where the result will appear. Once that work lands,
         report it with `leaf reply <page> --to <address> --initiates`, where `<address>`
-        is the event's `obligation.response.to`. `leaf reply` checks any saved page
-        edit and makes it live before posting. If a revision removes what the thread
-        is anchored on, move the thread in the reply that reports it with `--section
-        <id>` (narrowed by `--quote` or `--part` if needed), or `--detach` it if
-        its subject has left the page. Add `--awaits` only if your reply's prose
-        asks the user something.
+        is the event's `answer.to`. `leaf reply` checks any saved page edit and
+        makes it live before posting. If a revision removes what the thread is anchored
+        on, move the thread in the reply that reports it with `--section <id>` (narrowed
+        by `--quote` or `--part` if needed), or `--detach` it if its subject has
+        left the page. Add `--awaits` only if your reply's prose asks the user something.
     - text: >-
         Your reply renders as Markdown, so show code or markup in a fenced block.
 
 reaction on a message:
   event:
-    carrier: wait
     kind: reply
     token: '+1'
   told:
@@ -724,18 +564,15 @@ reaction on a message:
 
 pick on the page:
   event:
-    carrier: wait
     kind: action
     meaning:
-      document:
-        kind: page
-    obligation:
-      response:
-        kind: markup
+      document: page
+    answer:
+      kind: markup
   told:
     - text: >-
         The user already sees the action applied.
-    - when: {"not": {"required": ["meaning"], "properties": {"meaning": {"required": ["document"], "properties": {"document": {"required": ["kind"], "properties": {"kind": {"const": "thread"}}}}}}}}
+    - when: {"not": {"required": ["meaning"], "properties": {"meaning": {"required": ["document"], "properties": {"document": {"const": "thread"}}}}}}
       text: >-
         If you need clarification, ask in a thread on the picked option. To override
         the pick in a later version, mark the element `restated` and say why in
@@ -747,29 +584,27 @@ pick on the page:
 
 option the user added:
   event:
-    carrier: wait
     kind: action
     action: add
     meaning:
-      document:
-        kind: page
+      document: page
   told:
     - text: >-
         The user already sees the action applied.
-    - when: {"allOf": [{"not": {"required": ["obligation"]}}, {"not": {"required": ["meaning"], "properties": {"meaning": {"required": ["document"], "properties": {"document": {"required": ["kind"], "properties": {"kind": {"const": "thread"}}}}}}}}]}
+    - when: {"allOf": [{"not": {"required": ["answer"]}}, {"not": {"required": ["meaning"], "properties": {"meaning": {"required": ["document"], "properties": {"document": {"const": "thread"}}}}}}]}
       text: >-
         The log carries the action onto every later version, so the page keeps it
         without an edit.
-    - when: {"allOf": [{"required": ["action"], "properties": {"action": {"const": "add"}}}, {"not": {"required": ["meaning"], "properties": {"meaning": {"required": ["document"], "properties": {"document": {"required": ["kind"], "properties": {"kind": {"const": "thread"}}}}}}}}]}
+    - when: {"allOf": [{"required": ["action"], "properties": {"action": {"const": "add"}}}, {"not": {"required": ["meaning"], "properties": {"meaning": {"required": ["document"], "properties": {"document": {"const": "thread"}}}}}}]}
       text: >-
         When you write it into the markup, the added option becomes an ordinary
         lf-option in the group, keeping the id and words the event gives.
-    - when: {"not": {"required": ["meaning"], "properties": {"meaning": {"required": ["document"], "properties": {"document": {"required": ["kind"], "properties": {"kind": {"const": "thread"}}}}}}}}
+    - when: {"not": {"required": ["meaning"], "properties": {"meaning": {"required": ["document"], "properties": {"document": {"const": "thread"}}}}}}
       text: >-
         If you need clarification, ask in a thread on the picked option. To override
         the pick in a later version, mark the element `restated` and say why in
         the version note.
-    - when: {"not": {"required": ["obligation"]}}
+    - when: {"not": {"required": ["answer"]}}
       text: >-
         This move owes no answer of its own: it answers no Ask, a later move on
         the same widget carries the answer, or it does not finish the answer yet,
@@ -777,24 +612,22 @@ option the user added:
 
 pick before Done:
   event:
-    carrier: wait
     kind: action
     meaning:
-      document:
-        kind: page
+      document: page
   told:
     - text: >-
         The user already sees the action applied.
-    - when: {"allOf": [{"not": {"required": ["obligation"]}}, {"not": {"required": ["meaning"], "properties": {"meaning": {"required": ["document"], "properties": {"document": {"required": ["kind"], "properties": {"kind": {"const": "thread"}}}}}}}}]}
+    - when: {"allOf": [{"not": {"required": ["answer"]}}, {"not": {"required": ["meaning"], "properties": {"meaning": {"required": ["document"], "properties": {"document": {"const": "thread"}}}}}}]}
       text: >-
         The log carries the action onto every later version, so the page keeps it
         without an edit.
-    - when: {"not": {"required": ["meaning"], "properties": {"meaning": {"required": ["document"], "properties": {"document": {"required": ["kind"], "properties": {"kind": {"const": "thread"}}}}}}}}
+    - when: {"not": {"required": ["meaning"], "properties": {"meaning": {"required": ["document"], "properties": {"document": {"const": "thread"}}}}}}
       text: >-
         If you need clarification, ask in a thread on the picked option. To override
         the pick in a later version, mark the element `restated` and say why in
         the version note.
-    - when: {"not": {"required": ["obligation"]}}
+    - when: {"not": {"required": ["answer"]}}
       text: >-
         This move owes no answer of its own: it answers no Ask, a later move on
         the same widget carries the answer, or it does not finish the answer yet,
@@ -802,15 +635,12 @@ pick before Done:
 
 decided suggestion:
   event:
-    carrier: wait
     kind: action
     action: decide
     meaning:
-      document:
-        kind: page
-    obligation:
-      response:
-        kind: markup
+      document: page
+    answer:
+      kind: markup
   told:
     - text: >-
         The user already sees the action applied.
@@ -819,7 +649,7 @@ decided suggestion:
         The user decided a suggestion, and `detail.outcome` says which way: `accept`
         keeps the lf-new branch and `reject` keeps the lf-old branch. The next version
         writes the kept branch in as settled prose with its ids and drops the suggestion.
-    - when: {"not": {"required": ["meaning"], "properties": {"meaning": {"required": ["document"], "properties": {"document": {"required": ["kind"], "properties": {"kind": {"const": "thread"}}}}}}}}
+    - when: {"not": {"required": ["meaning"], "properties": {"meaning": {"required": ["document"], "properties": {"document": {"const": "thread"}}}}}}
       text: >-
         If you need clarification, ask in a thread on the picked option. To override
         the pick in a later version, mark the element `restated` and say why in
@@ -831,39 +661,57 @@ decided suggestion:
 
 pick inside a thread:
   event:
-    carrier: wait
     kind: action
     meaning:
-      document:
-        kind: thread
-    obligation:
-      response:
-        kind: reply
+      document: thread
+    answer:
+      kind: reply
   told:
     - text: >-
         The user already sees the action applied.
-    - when: {"required": ["carrier"], "properties": {"carrier": {"enum": ["wait", "queue"]}}}
-      text: >-
+    - text: >-
         Answer with `leaf reply <page> --for <event-id>` before any other work,
         including the work this event asks for: give the answer, or say what you
         are about to do and where the result will appear. Once that work lands,
         report it with `leaf reply <page> --to <address> --initiates`, where `<address>`
-        is the event's `obligation.response.to`. `leaf reply` checks any saved page
-        edit and makes it live before posting. If a revision removes what the thread
-        is anchored on, move the thread in the reply that reports it with `--section
-        <id>` (narrowed by `--quote` or `--part` if needed), or `--detach` it if
-        its subject has left the page. Add `--awaits` only if your reply's prose
-        asks the user something.
+        is the event's `answer.to`. `leaf reply` checks any saved page edit and
+        makes it live before posting. If a revision removes what the thread is anchored
+        on, move the thread in the reply that reports it with `--section <id>` (narrowed
+        by `--quote` or `--part` if needed), or `--detach` it if its subject has
+        left the page. Add `--awaits` only if your reply's prose asks the user something.
     - text: >-
         Your reply renders as Markdown, so show code or markup in a fenced block.
-    - when: {"required": ["meaning"], "properties": {"meaning": {"required": ["document"], "properties": {"document": {"required": ["kind"], "properties": {"kind": {"const": "thread"}}}}}}}
+    - when: {"required": ["meaning"], "properties": {"meaning": {"required": ["document"], "properties": {"document": {"const": "thread"}}}}}
+      text: >-
+        The widget is in a thread message: continue the work the user's answer selects
+        or unblocks, and answer in that thread.
+
+pick inside a thread over App Server:
+  event:
+    kind: action
+    meaning:
+      document: thread
+    answer:
+      kind: turn
+  told:
+    - text: >-
+        The user already sees the action applied.
+    - text: >-
+        Your turn's first and final messages are the reply, and `leaf reply` refuses
+        this event. Before your first tool call, open with a short message to the
+        user: the answer, or what you are about to do. Leaf streams it into the
+        thread at once, and later working messages stay in Codex. Finish the reply
+        in your final message: the answer, or what changed and where it appears.
+        The reply leaves the thread on its anchor.
+    - text: >-
+        Your reply renders as Markdown, so show code or markup in a fenced block.
+    - when: {"required": ["meaning"], "properties": {"meaning": {"required": ["document"], "properties": {"document": {"const": "thread"}}}}}
       text: >-
         The widget is in a thread message: continue the work the user's answer selects
         or unblocks, and answer in that thread.
 
 resolve:
   event:
-    carrier: wait
     kind: resolve
   told:
     - text: >-
@@ -871,7 +719,6 @@ resolve:
 
 unresolve:
   event:
-    carrier: wait
     kind: unresolve
   told:
     - text: >-
@@ -881,7 +728,6 @@ unresolve:
 
 done:
   event:
-    carrier: wait
     kind: done
   told:
     - text: >-
@@ -890,11 +736,9 @@ done:
 
 request:
   event:
-    carrier: wait
     kind: request
-    obligation:
-      response:
-        kind: receipt
+    answer:
+      kind: receipt
   told:
     - text: >-
         The user asked you to run an operation the page's package defines; the package's
@@ -911,7 +755,6 @@ request:
 
 undo:
   event:
-    carrier: wait
     kind: undo
   told:
     - text: >-
@@ -921,7 +764,6 @@ undo:
 
 report:
   event:
-    carrier: wait
     kind: report
   told:
     - text: >-
@@ -934,7 +776,6 @@ report:
 
 error:
   event:
-    carrier: wait
     kind: error
   told:
     - text: >-

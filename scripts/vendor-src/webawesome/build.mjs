@@ -1,10 +1,15 @@
 // Bundle the selected controls and only the upstream theme, scoped to their owner.
 import { build } from "esbuild";
 import { readFile, writeFile } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
 
 const [out, version] = process.argv.slice(2);
 const css = await build({
-  entryPoints: ["node_modules/@awesome.me/webawesome/dist/styles/themes/default.css"],
+  entryPoints: [
+    fileURLToPath(
+      import.meta.resolve("@awesome.me/webawesome/dist/styles/themes/default.css"),
+    ),
+  ],
   bundle: true,
   minify: true,
   write: false,

@@ -5141,6 +5141,8 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     # either view. The press's own box never paints, so the disc is read off ::before.
     page.get_by_role("button", name=re.compile("^Threads")).click()
     panel_settled(page, True)
+    panel_thread.locator(".lf-thread-summary").click()
+    expect(panel_thread.locator("textarea")).to_be_visible()
     inline_send = thread.get_by_role("button", name="Send", exact=True)
     panel_send = panel_thread.get_by_role("button", name="Send", exact=True)
     button_face = """button => {
@@ -5186,12 +5188,13 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     # it. The panel's copy takes that from the chrome stylesheet, and the inline
     # copy — inside a declared shadow tree no document rule reaches — takes it from
     # the layer's own shadow sheet, which is why the two readings can be compared.
-    ring = """el => { el.focus(); const s = getComputedStyle(el); return {
+    ring = """(el, compact) => { el.focus();
+      const s = getComputedStyle(compact ? el.parentElement : el); return {
       style: s.outlineStyle, width: s.outlineWidth, offset: s.outlineOffset,
       border: s.borderColor, name: s.getPropertyValue('--lf-here-ring').trim(),
     }; }"""
-    band = thread.locator("textarea").evaluate(ring)
-    assert band == panel_thread.locator("textarea").evaluate(ring)
+    band = thread.locator("textarea").evaluate(ring, False)
+    assert band == panel_thread.locator("textarea").evaluate(ring, True)
     assert band == {
         "style": "solid",
         "width": "2px",

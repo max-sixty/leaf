@@ -12,7 +12,7 @@ Commands:
   codex         Launch Codex and connect Leaf pages to its tasks.
   comment       Open an agent thread \u2014 on a passage, or on the page whole.
   conversation  Read, name, or summarize a Leaf conversation.
-  data          Set, capture, or clear page-bound external data.
+  data          Set or clear page-bound external data.
   delivery      Claim or read input delivered by any Leaf host.
   edit          Edit one of this agent session's messages.
   events        Print the event log as JSON lines.
@@ -50,9 +50,8 @@ Options:
   --help  Show this message and exit.
 
 Commands:
-  capture  Set a bound source from a UTF-8 file.
-  clear    Remove one source's current value.
-  set      Replace one bound source value.
+  clear  Remove one source's current value.
+  set    Replace one bound source value.
 
 ## package
 Usage: leaf package [OPTIONS] COMMAND [ARGS]...

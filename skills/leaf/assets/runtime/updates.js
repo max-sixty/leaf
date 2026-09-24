@@ -19,12 +19,13 @@
    disposition is `effective` when an update contributes to current state on its semantic
    coordinate, `standing` when it still needs source-specific settlement but is presently
    outranked, and `settled` when that authority answers it. An older unabsorbed report
-   can therefore be standing, and a user action can mask a report that a version still
-   owes an answer. Settled entries remain in the feed when their source retains history.
+   can therefore be standing behind a newer report on its coordinate, while a version
+   still owes it an answer. Settled entries remain in the feed when their source retains history.
    A module showing freshness therefore still sees when the log last heard from a worker
    after a stamp absorbs the worker's report.
 
-   An x-report verb may name one required non-empty string detail field with `update`.
+   An agent-written x-state verb may name one required non-empty string detail field
+   with `update`.
    That is the envelope's `text`; consumers never infer prose from a field, verb, or
    widget name. Claims use their required detail as `detail.text` and `text`. The state
    boundary performs this normalization once, before downstream code sees private status
@@ -91,11 +92,13 @@ export const saidAt = (el) =>
   closestAcross(el, ".lf-msg")?.querySelector(":scope > .lf-msg-head time")?.dateTime ||
   publishedAt();
 
-// Full history is intentionally raw: it is the one public escape hatch whose contract
-// is the append-only log itself rather than a semantic reading of that log.
+// The server's history reading: the newest moves, newest first, each already carrying
+// its thread, whether it was undone, and a gesture's words as its own document had
+// them. The server sends it only to a page holding a widget that declares
+// `x-history`; elsewhere the callback reads an empty feed.
 export const watchHistory = (owner, callback) =>
   watchProjection(owner, () =>
-    callback(runtime.events.map((event) => structuredClone(event))),
+    callback(structuredClone(runtime.browser?.history ?? [])),
   );
 
 export function createProjectionUpdates({ coordinateProjectionCommitted }) {

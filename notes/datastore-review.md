@@ -13,8 +13,8 @@ single validating append door, per-event attribution, undo, and `version check`,
 and Leaf already has the coordinator a CRDT exists to avoid. SQLite as the authority
 would be the derived current-state file `AGENTS.md` rules out.
 
-What is wrong sits below that boundary. Most findings reduce to two missing
-identities: a row and a position.
+What is wrong sits below that boundary. Most findings reduce to one missing
+identity: a row.
 
 ## Row identity
 
@@ -45,9 +45,9 @@ Proposal:
   `row` takes `{row, exists: true, fields}`; the door validates authored attributes plus folded state
   plus the patch against the whole declaration. Records only: prose is a body field
   the child declares, so `lf-options`' write-in becomes a `row` of an `lf-option`.
-- A `set` verb whose coordinate is keyed per field of a patch (`meaning.coordinates`,
-  one `(owner, row, "set", field)` each), so one gesture sets several cells, a paste
-  is one undo, and a column needs no verb of its own.
+- A `set` verb whose coordinate is keyed per field of a patch, one
+  `(owner, row, "set", field)` for each field the detail carries, so one gesture sets
+  several cells, a paste is one undo, and a column needs no verb of its own.
 - The runtime materialises created children from the declaration; `generated` goes.
 
 A table then declares:
@@ -75,16 +75,8 @@ row from the key and `bind`, at the door only (`lf-job-requests.js` repeats it).
 
 ## Position
 
-A `position` record stores an integer sibling index. The fold replays only winning
-moves, each splicing at an index measured against a list that included the moves it
-dropped, so undoing one card's move can shift another. (inferred; no reproducer yet)
-`markup_value` compares only the container, so a reorder within one container is
-invisible to `version check`. (read)
-
-Proposal: order as a `value`-recorded `rank` verb holding a fractional rank string (Figma's
-fractional indexing). Each row's order stands on its own coordinate, undo is exact,
-and `version check` compares it like any value. Boards keep the container record and
-take the rank in place of `index`. Write the undo reproducer before changing it.
+`markup_value` compares only a position record's container, so a reorder within one
+container is invisible to `version check`. (read)
 
 ## Read cost
 
@@ -97,22 +89,5 @@ three more times. Neither warrants snapshots or incremental folding yet.
 
 ## Redundancy
 
-- Stored `meaning` repeats `widget`, `revision`, and `generated`, and
-  `stored_meaning_error` asserts it still equals a recomputation: two mechanisms for
-  one guarantee. Keep the stored `coordinate`, which registry-free readers need.
-- `x-state` and `x-report` declare one shape; `"x-state" if action else "x-report"`
-  recurs. One verb declaration with `by: [user, agent]`.
-- `undo`, `restated`, and a note's `settles` are one relation, "this stops
-  standing"; `restated` differs in naming element ids.
-- `fragments` is `records` plus one deferred field, declared beside it with an
-  agreement rule and four `records or fragments` fallbacks. `records: {items, key,
-  deferred?}`.
-- About 250 lines of Git patch parsing sit in core `data.py` for the diff package,
-  and `data capture --lines` slices text for one contract. Both belong to their
-  contracts and packages, leaving one `leaf data set`.
-
-## Other processes
-
-`seq` is already a sync id and `leaf events --after SEQ` the catch-up read. Add
-`--follow` on the trigger `/api/news` uses, and state that stored event records are a
-public format whose readers drop what they do not recognise.
+`undo`, `restated`, and a note's `settles` are one relation, "this stops standing";
+`restated` differs in naming element ids.

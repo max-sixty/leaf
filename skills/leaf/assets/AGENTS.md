@@ -159,6 +159,8 @@ Each mutable fact has one writer:
 | where the thread holding the focus stands in the list | the band the list declares landable through `scroll-padding` | `threadsBox`'s `focusin`, and its press through `pointerdown`/`pointerup`; `stepThread` for a key press that moves no focus, `landIn` for the box it puts the user in, `placeThreadEdge` for an explicit edge placement, and `showThread` for a deliberate arrival. A press's correction is instant, because the click that follows it in the same gesture writes this same scroll and a write cancels an animation instead of superseding it (`landing.js`, at `land`) |
 | the margin card's place in its transcript | the card list's own scroll, held through a re-render of the same thread by the place hold above | a landing through `revealConversation`, a send revealing its reply, and `buildThreadCard` starting another thread at the top; placing the card writes none |
 | how much of a scroller the user can see, and where a landing may put something | the scroller's shown band less the covers declared through `declareCoverRoom` that stick in it, or less its declared `scroll-padding` | `visibleBand` and `landingBand` in `geometry.js`; `shownRect`'s clip walk applies `visibleBand` at every ancestor, so whether something is on screen has one answer |
+| what a surface standing over the page hides | the surface's own box, for what stacks beneath it and outside it | the surface declares itself once through `declareOccluder` (`geometry.js`); the thread panel does, and `shownRect` takes what it stands over away, so exposure, travel, and badge placement read it alike |
+| which surface a trip clears to show its destination | the selected auxiliary surface, where it covers the page or stands over most of the destination (`hides`, `geometry.js`) | `clearFor` on the auxiliary-surface owner, called from travel's one `trip` entry (`anchor-travel.js`), which then reads past whatever surface still stands |
 | region width the user drew | the user's store, per edge | `drawnEdge`'s `set` and `restore` |
 | keyboard meaning | registered scope and row objects, tiered over the layer stack the popovers and modal dialogs pushed; for Escape, inner steps, then the surface holding focus with whatever stands inside it, then every step rooted outside it | the dispatcher and each visible key surface read the same binding-specific ownership |
 | draft generation | the user's draft record | draft-store helpers and `watchDraft` |
@@ -452,8 +454,8 @@ Each Thread's `unread` is the one reading of what the user has not read. The
 Threads toggle's dot and label, the panel's **Unread** jump and per-thread counts, the
 **New since you last looked** boundaries, a margin entry's dot and its Page Map row
 all paint it, so they change together. Reading is bookkeeping and never moves the
-reader: a mark inside a conversation is drawn in room the content keeps whether or not
-it is unread, so a receipt changes no box the reader is looking at. The server counts
+user: a mark inside a conversation is drawn in room the content keeps whether or not
+it is unread, so a receipt changes no box the user is looking at. The server counts
 a reply, reaction, widget answer, resolve, or reopen as reading what the thread held
 before it; the page adds exposure: a whole prose body shown in one surface, whatever
 its own scrollers still hold, since geometry cannot tell how much of a wide code line

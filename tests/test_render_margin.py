@@ -106,8 +106,8 @@ ACTION_ON_ASK = {
     "action": "choose",
     "detail": {"options": ["br-steel"]},
     "meaning": {
-        "document": {"kind": "page", "revision": 1},
-        "coordinate": ["bracket", "bracket", "choose"],
+        "document": "page",
+        "unit": "bracket",
         "depends": ["br-steel", "bracket"],
         "answer": None,
     },

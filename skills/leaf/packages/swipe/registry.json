@@ -34,15 +34,14 @@
             "to": {
               "type": "string"
             },
-            "index": {
-              "type": "integer",
-              "minimum": 0
+            "rank": {
+              "type": "string"
             }
           },
           "required": [
             "card",
             "to",
-            "index"
+            "rank"
           ],
           "additionalProperties": false
         },
@@ -51,7 +50,7 @@
           "kind": "position",
           "within": "lf-swipe-pile",
           "value": "to",
-          "order": "index"
+          "rank": "rank"
         }
       }
     },

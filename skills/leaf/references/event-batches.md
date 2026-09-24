@@ -6,9 +6,11 @@ Every carrier presents an immutable object of the same shape:
 
 ```json
 {
-  "format": "leaf-delivery-v2",
+  "format": "leaf-delivery-v3",
   "id": "a1b2c3d4",
   "created_at": 0,
+  "carrier": "wait",
+  "acknowledge": "Whoever ran the `leaf wait` that printed this delivery acknowledges it; …",
   "batches": [
     {
       "page": "/absolute/page",
@@ -26,8 +28,17 @@ machine's immutable delivery store.
 
 Some hosts deliver it inline; others deliver a pointer that `leaf delivery read <id>`
 resolves to the same object. Your host contract names which. The shape is the same on
-every carrier, and the `handling` is written for the one that delivered it: who
-acknowledges, and how a reply is given. Process every batch and every event.
+every carrier, and `carrier` names the one that delivered it: `wait` for `leaf
+wait`'s output, `queue` for a pointer Codex queued, `app-server` for a turn Leaf
+started. Two things differ by carrier, and the envelope states each once:
+
+- `acknowledge` says who confirms receipt and how. On `wait` it is the reader of
+  the wait, in the way your host runs the next one; on the other carriers Leaf
+  confirmed receipt itself and it is `null`.
+- A thread reply's `answer` is `turn` on `app-server`, whose turn writes it with
+  its own messages, and `reply`, for `leaf reply`, everywhere else.
+
+Process every batch and every event.
 
 Each event retains its stored identity, fields and order, less the browser's
 retry key `attempt`, then adds these delivery readings:
@@ -47,16 +58,18 @@ retry key `attempt`, then adds these delivery readings:
   gesture it takes back.
 - `conversations` lists every conversation the event belongs to. Membership is
   many-to-many: it provides context and never partitions or duplicates the event.
-- `obligation`, when present, freezes the answer the event owned at capture. Its
-  `as_of_seq` is evidence age, and `response` names the answer (`reply`,
-  `markup` or `receipt`) with the address it is written under; the event's `answering`
-  clauses say how to write it. Until the answer is written, the Stop hook holds the
-  turn open and `leaf status idle` refuses. Re-read current state before writing
-  because later evidence may already have settled the requirement. A reply response
-  carries both `to`, the conversation address to write under, and `for`, the exact
-  event whose obligation the write must still satisfy. An event without one owes
-  nothing of its own: a page action that answers no Ask, a pick before the Done its
-  Ask waits for, or a message a newer one in its thread answers through.
+- `answer`, when present, freezes the answer the event owed at capture: its
+  `kind` (`reply`, `turn`, `markup` or `receipt`) with the address it is written
+  under, the same object `leaf page state` lists for the move's workflow. The
+  event's `answering` clauses say how to write it. Until the answer is written, the
+  Stop hook holds the turn open and `leaf status idle` refuses. Re-read current
+  state before writing because later evidence may already have settled the
+  requirement. A `reply` or `turn` answer carries both `to`, the conversation
+  address to write under, and `for`, the exact event whose answer the write must
+  still satisfy; a `turn` answer also names the reply `attempt` its turn commits
+  under, and `leaf reply` refuses it. An event without one owes nothing of its own:
+  a page action that answers no Ask, a pick before the Done its Ask waits for, or a
+  message a newer one in its thread answers through.
 - `handling`, when present, lists clause ids in the batch's `handling` object,
   in the order to read them. That object gives each distinct instruction's text
   once; ids belong only to that batch. Follow every named clause for this event:
@@ -83,8 +96,8 @@ the covered originals, write the summary, and keep outcomes in the document.
 
 Printing is not receipt. The wait owner acknowledges only after the complete
 envelope reaches its next durable consumer, which in the direct loop is model
-context. Follow the host contract's acknowledgement route. In a direct loop,
-start the next background wait with the envelope's id:
+context. The envelope's `acknowledge` says how, in the way your host runs the
+next wait:
 
 ```bash
 leaf wait --ack <delivery-id>
@@ -141,8 +154,8 @@ delivery receipt.
 
 ## After the batch
 
-Acknowledgement is transport receipt, not semantic settlement. Record every
-still-current obligation with the Leaf operation its `response` names, then
+Acknowledgement is transport receipt, not semantic settlement. Write every
+still-current `answer` with the operation its kind names, then
 re-enter the host's wait loop: `waiting` after every obligation has been answered and
 the user owns the next move, `working` while you continue.
 `page state` lists every standing reaction under `reactions`.

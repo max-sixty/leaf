@@ -843,7 +843,8 @@ lf-option .lf-pick:is(:focus-visible, .lf-focus-visible) { outline: var(--here-r
 /* The Ask's action keys, worn on the option cells they bind. The gutter reads status,
  * binding badge, then prose, so each badge starts after the status rule and ends before the
  * cell's words. A card aligns its digit with the top of its content; rows centre theirs. */
-lf-option > .lf-key-badge { position: absolute; inset-inline-start: var(--lf-key-badge-start); }
+lf-option > .lf-key-badge { position: absolute; z-index: 1;
+                     inset-inline-start: var(--lf-key-badge-start); }
 lf-options:has(> lf-option > strong) > lf-option > .lf-key-badge { top: 8px; }
 /* Done completes a multiple-choice Ask. Its pressed state paints the answer without
  * writing a second copy into the author's markup; it sits as the joined control's
@@ -854,7 +855,7 @@ lf-options > lf-options-done > .lf-done[aria-pressed="true"] { color: var(--ok-i
  * press, inside the cell rather than hung off its corner. */
 lf-options > lf-options-done { display: grid; padding: 0; }
 lf-options > lf-options-done > .lf-done { position: relative; width: 100%; }
-lf-options > lf-options-done > .lf-done > .lf-key-badge { position: absolute;
+lf-options > lf-options-done > .lf-done > .lf-key-badge { position: absolute; z-index: 1;
                      inset-inline-start: var(--lf-key-badge-start);
                      top: 0; bottom: 0; margin: auto 0; }
 /* A group under `choose` is one control, not a set of options standing near each other.
@@ -1038,7 +1039,7 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge { position: absolute;
                     + var(--sp-2));
                 position: relative; display: flex; align-items: center; gap: var(--sp-2); }
   .lf-another:not([hidden]) { min-height: var(--aim-floor); }
-  .lf-another > .lf-key-badge { position: absolute;
+  .lf-another > .lf-key-badge { position: absolute; z-index: 1;
                               inset-inline-start: var(--lf-key-badge-start);
                               top: 0; bottom: 0; margin: auto 0; }
   /* The field holds the option before it is recorded, so it takes the group's
@@ -1790,7 +1791,10 @@ lf-shot:has(> input.lf-shotflip:is(:focus-visible, .lf-focus-visible)) {
   lf-shot > input.lf-shotflip { display: none; }
   lf-shot > .lf-shotcomparison { display: block; aspect-ratio: auto; border: 0;
     overflow: visible; }
-  lf-shot > .lf-shotcomparison::part(comparison) { display: block; }
+  /* The before frame sits in the component's second part (lf-shot.js), and paper
+   * puts it on top. */
+  lf-shot > .lf-shotcomparison::part(comparison) { display: flex;
+    flex-direction: column-reverse; }
   lf-shot > .lf-shotcomparison::part(before),
   lf-shot > .lf-shotcomparison::part(after) { position: relative; width: auto;
     height: auto; clip-path: none !important; }

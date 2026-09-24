@@ -13,6 +13,32 @@ def taken_back(events: list) -> set:
     return {e["undoes"] for e in events if e.get("undoes")}
 
 
+def event_coordinate(event: dict) -> tuple[str, str, str]:
+    """The owner-unit-verb coordinate an admitted action or report stands on.
+
+    Admission stores the one part a registry-free reader cannot recover,
+    `meaning.unit`; the owner and verb are the event's own `widget` and `action`."""
+    return (event["widget"], event["meaning"]["unit"], event["action"])
+
+
+def event_document(event: dict) -> dict:
+    """The document an admitted widget event was made in: the page revision it
+    names, or the frozen thread markup that sent its widget (`meaning.document`)."""
+    if event["meaning"]["document"] == "thread":
+        return {"kind": "thread"}
+    return {"kind": "page", "revision": event["revision"]}
+
+
+def standing_approvals(events: list) -> list:
+    """The sign-off approvals no later undo took back, in log order."""
+    withdrawn = taken_back(events)
+    return [
+        event
+        for event in events
+        if event["kind"] == "done" and event["id"] not in withdrawn
+    ]
+
+
 def is_reaction(event: dict) -> bool:
     """A message carrying a token in place of words ($events, $reactions)."""
     return bool(event.get("token"))
@@ -174,7 +200,7 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
             and e["id"] not in withdrawn
             and not action_retracted(e, floors, within)
         ):
-            winners[tuple(e["meaning"]["coordinate"])] = e
+            winners[event_coordinate(e)] = e
     threads = {}
     thread_for = {}
     messages = {}
@@ -201,7 +227,7 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
         # resolve remains the latest closure even after an answer is superseded.
         if e["kind"] == "action":
             answered = threads.get(e["meaning"].get("answer"))
-            if answered and winners.get(tuple(e["meaning"]["coordinate"])) is e:
+            if answered and winners.get(event_coordinate(e)) is e:
                 answered["resolved"] = e
             continue
         if e["kind"] == "conversation_title":
@@ -477,7 +503,7 @@ def action_rests_on(event: dict, within: dict) -> list:
                     if widget in within.get(identity, ())
                 ),
                 *(
-                    [event["meaning"]["coordinate"][1]]
+                    [event["meaning"]["unit"]]
                     if event["meaning"].get("creates")
                     else []
                 ),

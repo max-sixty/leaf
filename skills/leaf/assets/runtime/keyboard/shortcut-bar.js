@@ -152,7 +152,8 @@ const shortcutBarTemplate = (model) =>
       ?hidden=${model.more.hidden}
       @click=${() => activateShortcutMore?.()}
     >
-      <kbd ?hidden=${!model.more.binding}>${model.more.binding ?? nothing}</kbd
+      <kbd class="lf-key-badge" ?hidden=${!model.more.binding}
+        >${model.more.binding ?? nothing}</kbd
       ><span>${model.more.line}</span></button
     >${
       model.tail

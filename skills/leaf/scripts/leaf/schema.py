@@ -20,23 +20,20 @@ UNDOABLE_KINDS = {"resolve", "unresolve", "action", "done"}
 MESSAGE_KINDS = {"comment", "reply"}
 # The kinds a widget owns, admitted against the page's registry before they append.
 WIDGET_KINDS = {"action", "report", "request"}
-# The operations that settle a user move the agent owes, as `workflows` addresses
-# them and `$events.answering` explains them.
-ANSWER_KINDS = ("reply", "version", "markup", "receipt")
+# The operations that settle a user move the agent owes, as `workflows` and
+# `activity` address them and `$events.answering` explains them. A `turn` answer is
+# a thread reply the claimant's turn writes with its own opening and final messages.
+ANSWER_KINDS = ("reply", "turn", "markup", "receipt")
+# The answer kinds that post a message in a thread.
+THREAD_ANSWER_KINDS = frozenset({"reply", "turn"})
 ANSWER_ASK_INSTRUCTION = (
     "Each move takes the answer named for it. Read current obligations with `leaf page state <page>` and conversation history with "
     "`leaf conversation read <page> <id>`."
 )
 WAIT_BATCH_OUTPUT_INSTRUCTION = (
     "Print one page's complete ordered batch, conversation context, and response "
-    "requirements as an immutable delivery. `leaf delivery read <id>` reads that same delivery."
-)
-ACK_BATCH_INSTRUCTION = (
-    "If output is truncated, acknowledge nothing; rerun with enough output capacity "
-    "for the whole batch. If you handle the batch yourself, read it fully, then "
-    "acknowledge it before any other work. If forwarding it, acknowledge once it "
-    "durably arrives there. Run `leaf wait --ack <delivery-id>` in the "
-    "background to acknowledge its captured batches and wait for the next batch while the page remains live."
+    "requirements as an immutable delivery, whose `acknowledge` says how to confirm "
+    "it. `leaf delivery read <id>` reads that same delivery."
 )
 
 HTML_NAME = r"[a-z][a-z0-9-]*"
@@ -63,15 +60,13 @@ _RECORD_POSITION = {
         "kind": {"const": "position"},
         "within": {"type": "string", "pattern": f"^{WIDGET_NAME}$"},
         "value": {"type": "string", "minLength": 1},
-        # Where the unit sits among its siblings. Comparison stays at the
-        # container's granularity (see $state) — but a reader that has to *state*
-        # a position needs both halves, and taking a move back is one: the runtime
-        # reads the authored placement off the page before replay touches it, and
-        # a record naming only the column would put a card back on the right list
-        # in the wrong place.
-        "order": {"type": "string", "minLength": 1},
+        # The detail field holding the unit's rank among its container's siblings.
+        # Comparison stays at the container's granularity (see $state), but a
+        # reader that has to *state* a position needs both halves: a record naming
+        # only the column would put a card back on the right list in the wrong place.
+        "rank": {"type": "string", "minLength": 1},
     },
-    "required": ["kind", "within", "value", "order"],
+    "required": ["kind", "within", "value", "rank"],
     "additionalProperties": False,
 }
 _RECORD_BODY = {
@@ -175,60 +170,51 @@ REFERENCE_SCHEMA = {
 }
 
 
-def _verbs_schema(
-    records: list,
-    required: list,
-    *,
-    creates: bool = False,
-    updates: bool = False,
-) -> dict:
-    """The shape x-state and x-report share: verbs to
-    {detail, unit, record}, differing only in which record forms a
-    channel admits, whether one is required at all, and whether the user's
-    channel may declare a created child or the agent's may declare update
-    prose."""
-    properties = {
-        "detail": {"type": "object"},
-        "unit": {"type": "string", "minLength": 1},
-        "record": {"oneOf": records},
-    }
-    if creates:
-        properties["creates"] = ACTION_CREATES
-    if updates:
-        # A report may carry one short prose update beside the structured state it
-        # records. Naming the detail field is what lets the common update feed expose
-        # those words without guessing from a widget, verb, or field name.
-        properties["update"] = {
-            "type": "string",
-            "pattern": f"^{HTML_NAME}$",
-        }
-    return {
+# Each verb is {detail, unit, record}. `writer: "agent"` makes it a verb the agent
+# reports through `leaf report` rather than one the user acts on; absent, the user
+# writes it. The two writers differ in what their state may be, not in its shape.
+STATE_SCHEMA = {
+    "type": "object",
+    "minProperties": 1,
+    "propertyNames": {"pattern": f"^{HTML_NAME}$"},
+    "additionalProperties": {
         "type": "object",
-        "minProperties": 1,
-        "propertyNames": {"pattern": f"^{HTML_NAME}$"},
-        "additionalProperties": {
-            "type": "object",
-            "properties": properties,
-            "required": required,
-            "additionalProperties": False,
+        "properties": {
+            "detail": {"type": "object"},
+            "unit": {"type": "string", "minLength": 1},
+            "record": {
+                "oneOf": [
+                    _RECORD_ATTRIBUTE,
+                    _RECORD_POSITION,
+                    _RECORD_BODY,
+                    _RECORD_VALUE,
+                ]
+            },
+            "writer": {"const": "agent"},
+            "creates": ACTION_CREATES,
+            # A report may carry one short prose update beside the structured state it
+            # records. Naming the detail field is what lets the common update feed
+            # expose those words without guessing from a widget, verb, or field name.
+            "update": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         },
-    }
-
-
-STATE_SCHEMA = _verbs_schema(
-    [_RECORD_ATTRIBUTE, _RECORD_POSITION, _RECORD_BODY, _RECORD_VALUE],
-    ["detail", "unit"],
-    creates=True,
-)
-# A report moves declared state only, never body words — no body record, so the
-# passage reading never has to model one — and the record itself is required:
-# the gate compares record forms, and a recordless report would be a claim
-# nothing could check a version against.
-REPORT_SCHEMA = _verbs_schema(
-    [_RECORD_ATTRIBUTE, _RECORD_POSITION, _RECORD_VALUE],
-    ["detail", "unit", "record"],
-    updates=True,
-)
+        "required": ["detail", "unit"],
+        "additionalProperties": False,
+        # An agent's verb moves declared state only, never body words — so the
+        # passage reading never has to model one — and its record is required: the
+        # gate compares record forms, and a recordless report would be a claim nothing
+        # could check a version against. Only the user adds children, and only a
+        # report carries update prose.
+        "if": {"required": ["writer"]},
+        "then": {
+            "required": ["record"],
+            "properties": {
+                "record": {"properties": {"kind": {"not": {"const": "body"}}}},
+                "creates": False,
+            },
+        },
+        "else": {"properties": {"update": False}},
+    },
+}
 # A request is a one-shot instruction for the host, not state the browser can replay.
 # Its declaration owns the offered verbs and typed payload, but no replay form.
 # Authored holders name child offers; projected holders offer their verbs directly.
@@ -294,16 +280,6 @@ AWAITS_SCHEMA = {
 }
 # A list of the widget's own attribute names. One shape for the three keys that hold
 # one, since the shape is a consequence of what they name rather than three decisions.
-WORK_SCHEMA = {
-    "type": "object",
-    "properties": {
-        "seat": {"enum": ["content", "conversation"]},
-        "when": AWAITING_CONDITION,
-    },
-    "required": ["seat"],
-    "additionalProperties": False,
-}
-
 GUIDANCE_SCHEMA = {
     "type": "object",
     "propertyNames": {"pattern": f"^{HTML_NAME}$"},
@@ -400,7 +376,6 @@ EXTENSION_SCHEMA = {
             "minItems": 1,
         },
         "x-refers": REFERENCE_SCHEMA,
-        "x-report": REPORT_SCHEMA,
         "x-request": REQUEST_SCHEMA,
         "x-retired-when": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "x-says": {
@@ -428,10 +403,11 @@ EXTENSION_SCHEMA = {
         "x-space": {"enum": ["wide", "available"]},
         "x-measure": {"enum": ["surface", "group"]},
         "x-bound": {"enum": ["start", "end"]},
+        "x-history": {"const": True},
         "x-withdrawn-as": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "x-word": {"enum": ["module"]},
         "x-name": {"type": "string", "pattern": f"^{HTML_NAME}$"},
-        "x-work": WORK_SCHEMA,
+        "x-work": {"const": True},
     },
     "required": ["x-content", "x-upgrade"],
     "dependentRequired": {

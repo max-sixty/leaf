@@ -35,6 +35,7 @@ PRESENCE_CACHE_S = 2.0
 _CACHE_LIMIT = 256
 _presence_cache = {}  # page -> (page-file stamp, expiry, reading)
 _neighbor_cache = {}  # page -> (input key, presence entry or None)
+_candidates = ((), ())  # (state-home stamp, resolved candidate pages)
 _presence_cache_lock = threading.RLock()
 
 
@@ -55,33 +56,61 @@ def _page_stamp(page_dir: Path, claim: dict | None = None) -> tuple:
     return entries + (("$claim", claim_stamp), ("$wait", lease_stamp))
 
 
+def neighbor_candidates() -> tuple:
+    """Every page on this machine that could be serving: the conventional pages/
+    home and every claim record, which is what finds a page served from a
+    session's scratch directory. Released and dead claims stay useful here as
+    provenance.
+
+    The set moves when an entry in one of those two directories does, or when a
+    page it holds is deleted, which for a claimed scratch page moves neither. So
+    it is read again only then: keyed on the two stamps, the way `leaf wait` keys
+    its ownership set on the claims directory's, and on each held page still
+    being there, so the read that retires a deleted page's claim follows its
+    deletion. Whether each page is serving is the caller's question, asked fresh
+    every time."""
+    global _candidates
+    home = state_home()
+    claims, pages = home / "claims", home / "pages"
+    stamp = (home, file_stamp(claims), file_stamp(pages))
+    with _presence_cache_lock:
+        if _candidates[0] == stamp and all(page.is_dir() for page in _candidates[1]):
+            return _candidates[1]
+        found = [d for d in pages.iterdir() if d.is_dir()] if pages.is_dir() else []
+        found += (Path(claim["page"]) for claim in claim_records())
+        resolved = dict.fromkeys(
+            page for page in (path.resolve() for path in found) if page.is_dir()
+        )
+        # Keyed on the stamp taken before the read, so an entry written during it
+        # moves the stamp and the next call reads again. A read that retired
+        # records has moved it too, and the call after it settles.
+        _candidates = (stamp, tuple(resolved))
+        return _candidates[1]
+
+
 def other_leaves(page_dir: Path) -> list:
     """The machine's other live leaves, for the banner's panel: each page
     whose server is up, as a title, its handover URL, and the same presence
     facts the page ships about itself — so a row there and the banner above it
     are the one judgment reading the one shape.
 
-    Candidates are the conventional pages/ home and every claim record, which
-    is what finds a page served from a session's scratch directory. Released
-    and dead claims stay useful here as provenance. Liveness is the held
-    server.lock lease, the same answer `running_server` gives everything else,
-    and the URL is the one in durable service state, key included. The title is the
-    active revision's — the document that page's own root URL answers with —
-    read the way `transcript` reads it.
+    Candidates are `neighbor_candidates`. Liveness is the held server.lock
+    lease, the same answer `running_server` gives everything else, asked of
+    every candidate on every read, since a server starts and stops without
+    moving either directory the candidates are keyed on; a candidate that is not
+    serving costs that one probe. The URL is the one in durable service state, key included.
+    The title is the active revision's — the document that page's own root URL
+    answers with — read the way `transcript` reads it.
 
-    The whole scan runs on every /api/state; what it reads of each neighbour is
-    kept per file, so a state read costs the scan and the presence reads rather than a
-    parse of every live neighbour's active revision (`parse_revision`)."""
-    candidates = []
-    pages = state_home() / "pages"
-    if pages.is_dir():
-        candidates += (d for d in pages.iterdir() if d.is_dir())
-    candidates += (Path(claim["page"]) for claim in claim_records())
+    This runs on every /api/state; what it reads of each serving neighbour is
+    kept per file, so a state read costs the lease probes and the presence reads
+    rather than a parse of every live neighbour's active revision
+    (`parse_revision`)."""
     others = []
-    seen = {page_dir.resolve()}
-    for found in candidates:
-        candidate = found.resolve()
-        if candidate in seen or not candidate.is_dir():
+    own = page_dir.resolve()
+    seen = set()
+    for candidate in neighbor_candidates():
+        if candidate == own:
             continue
         seen.add(candidate)
         # A neighbour's fault stays its own. This is the one read of state some
@@ -90,12 +119,14 @@ def other_leaves(page_dir: Path) -> list:
         # every open page's state read on the machine, blaming the page that asked.
         try:
             info = running_server(candidate)
+            if info is None:
+                continue
             claim = page_claim(candidate)
             active = claim if claim_is_active(claim) else None
             listening = wait_is_live(candidate, active["id"] if active else None)
             key = (
                 _page_stamp(candidate, claim),
-                info["url"] if info else None,
+                info["url"],
                 active is not None if claim else None,
                 listening,
             )
@@ -114,56 +145,53 @@ def other_leaves(page_dir: Path) -> list:
                 else:
                     present = None
                     try:
-                        if info:
-                            events = read_events(candidate)
-                            revision = latest_revision(candidate)
-                            if revision is not None:
-                                parser = parse_revision(candidate, revision)
-                                # A neighboring row consumes the same canonical
-                                # activity as that page's own banner. Import here
-                                # to keep the base presence gatherer independent
-                                # of served-state assembly.
-                                from .served_state.browser import project_browser_state
-                                from .served_state.page import project_activity
+                        events = read_events(candidate)
+                        revision = latest_revision(candidate)
+                        if revision is not None:
+                            parser = parse_revision(candidate, revision)
+                            # A neighboring row consumes the same canonical
+                            # activity as that page's own banner. Import here
+                            # to keep the base presence gatherer independent
+                            # of served-state assembly.
+                            from .served_state.browser import project_browser_state
+                            from .served_state.page import project_activity
 
-                                raw, live_stream = presence_with_activity(
-                                    candidate, events
-                                )
-                                active = active_descriptor(candidate, events)
-                                browser = project_browser_state(
-                                    candidate,
-                                    events,
-                                    None,
-                                    active,
-                                    raw,
-                                    observed_at,
-                                    live_stream=live_stream,
-                                )
-                                activity = project_activity(
-                                    candidate,
-                                    events,
-                                    raw,
-                                    observed_at,
-                                    browser,
-                                    live_stream,
-                                )
-                                workflows = (
-                                    browser.pop("workflows")
-                                    if browser is not None
-                                    else activity.pop("workflows")
-                                )
-                                present = {
-                                    "title": parser.title.strip() or candidate.name,
-                                    "url": info["url"],
-                                    **raw,
-                                    "activity": activity,
-                                    "workflows": workflows,
-                                }
+                            raw, live_stream = presence_with_activity(candidate, events)
+                            active = active_descriptor(candidate, events)
+                            browser = project_browser_state(
+                                candidate,
+                                events,
+                                None,
+                                active,
+                                raw,
+                                observed_at,
+                                live_stream=live_stream,
+                            )
+                            activity = project_activity(
+                                candidate,
+                                events,
+                                raw,
+                                observed_at,
+                                browser,
+                                live_stream,
+                            )
+                            workflows = (
+                                browser.pop("workflows")
+                                if browser is not None
+                                else activity.pop("workflows")
+                            )
+                            present = {
+                                "title": parser.title.strip() or candidate.name,
+                                "url": info["url"],
+                                **raw,
+                                "activity": activity,
+                                "workflows": workflows,
+                            }
                     except Exception:  # noqa: BLE001 - cache this page's fault
                         present = None
-                    # Cache failures and non-running pages as well. Their input key
-                    # changes when a repair or a new server gives them something to
-                    # say, while repeated quiet scans do no log parse at all.
+                    # Cache failures as well. Their input key changes when a repair
+                    # gives them something to say, while repeated quiet scans do no
+                    # log parse at all.
                     _neighbor_cache[candidate] = (key, present)
             if present is None:
                 continue

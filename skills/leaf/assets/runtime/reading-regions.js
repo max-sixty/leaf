@@ -1,34 +1,28 @@
 /* Reading regions are stable semantic places whose current scroll container may change.
 
    `registerReadingRegion` binds one stable id to a host and body. The host makes focus
-   in a pane's header or footer select that pane, while the body is the scroller only in
-   bounded posture. `registerReadingArrangement` groups regions under one allocation owner;
-   nested and compound owners inherit posture through DOM containment and read their
-   assigned content box on demand (`readingAllocation`). CSS still owns how that box is
-   divided. Registration admits an arrangement's owner, content, and every region at
-   once: a collision refuses the whole call and leaves every proposed id free, and one
-   owner or content box belongs to one live arrangement until its cleanup. Bundled
-   packages arrange through reading-layout.js and register only their own regions here.
+   in a pane's header or footer select that pane; the body is the region's scroller
+   whenever the stylesheet makes it scroll, which is the only reading of posture there
+   is: a bounded region's body scrolls, and a flowing one's is carried by the region
+   containing it or by the page. CSS decides that from the space a workspace has
+   (packages/default/theme.css, at lf-workspace), so nothing here chooses a posture.
 
-   A posture transition notifies watchers before mutation, when old geometry is intact,
-   and after the next animation frame, when new geometry can be read. Superseded after
-   notifications are dropped. Continuity owners subscribe here; this module stores no
-   landmarks or scroll offsets. `preserveReadingRegions` brackets a composition change
-   and its layout completion with the same notifications, retaining only scrollers inside
-   that composition when regions become hidden or visible without changing posture. Its
-   notifications carry null `from` and `to`; a superseding change marks its `before` as
-   `retained`, and a failed or disconnected change marks its `after` as `cancelled`. The
-   enclosing transition owns continuity over any nested posture changes.
-   Hidden connected regions remain registered and return
-   null bounds. Cleanup removes live DOM bindings, so a replacement can reclaim an id. */
-import { shownBox, shownRect } from "./geometry.js";
+   A region's scroller can change without any gesture: a window crossing the workspace
+   threshold, a tab showing, a panel opening. Each region's host is watched for size, and
+   a region whose scroller is no longer the one last seen is announced to watchers as a
+   `shift`, after the new geometry exists. Continuity owners record the user's place
+   continuously and restore it on a shift; this module stores no landmarks or scroll
+   offsets. `preserveReadingRegions` brackets a composition change with the same
+   watchers, as `before` and `after`, retaining only scrollers inside that composition
+   when regions become hidden or visible. Hidden connected regions remain registered and
+   return null bounds. Cleanup removes live DOM bindings, so a replacement can reclaim an
+   id. */
+import { shownRect } from "./geometry.js";
 import { pageScroller } from "./scrolling.js";
-import { layoutChanged } from "./widget-elements.js";
 import { reachReadingScroller } from "./reach.js";
 import { under, upFrom } from "./shadow.js";
 
 const regions = new Map();
-const readingArrangements = new Set();
 const transitionWatchers = new Set();
 
 const depthOf = (node) => {
@@ -44,32 +38,6 @@ const hidden = (region) =>
   region.host.hidden ||
   region.host.closest?.("[hidden], [aria-hidden='true']") !== null ||
   shownRect(region.host, new Map()) === null;
-
-const readingArrangementFor = (node) =>
-  [...readingArrangements]
-    .filter(
-      (readingArrangement) =>
-        readingArrangement.owner.isConnected && under(node, readingArrangement.owner),
-    )
-    .sort((a, b) => depthOf(b.owner) - depthOf(a.owner))[0];
-
-const parentReadingArrangement = (readingArrangement) =>
-  [...readingArrangements]
-    .filter(
-      (candidate) =>
-        candidate !== readingArrangement &&
-        candidate.owner.isConnected &&
-        under(readingArrangement.owner, candidate.content),
-    )
-    .sort((a, b) => depthOf(b.owner) - depthOf(a.owner))[0];
-
-const readingPostureOf = (readingArrangement) => {
-  if (!readingArrangement) return "flow";
-  return (
-    readingArrangement.posture ??
-    readingPostureOf(parentReadingArrangement(readingArrangement))
-  );
-};
 
 const regionRecord = (region) => ({
   id: region.id,
@@ -98,11 +66,13 @@ const admitRegions = (declared) => {
   }
   return declared.map((declaration) => {
     const { id, host, body } = declaration;
-    const region = { id, host, body };
+    const region = { id, host, body, scroller: null };
     const stopReaching = reachReadingScroller(body);
     regions.set(id, region);
+    sizes.observe(host);
     return () => {
       if (regions.get(id) === region) regions.delete(id);
+      sizes.unobserve(host);
       stopReaching();
     };
   });
@@ -148,8 +118,13 @@ const asRegion = (regionOrNode) =>
     : (regions.get(regionOrNode?.id) ??
       regions.get(readingRegionFor(regionOrNode)?.id));
 
-export const readingPosture = (regionOrNode) =>
-  readingPostureOf(readingArrangementFor(asRegion(regionOrNode)?.host ?? regionOrNode));
+const scrolls = (box) => /auto|scroll/.test(getComputedStyle(box).overflowY);
+
+// "bounded" when the region's own body scrolls, "flow" when something outside it does.
+export const readingPosture = (regionOrNode) => {
+  const region = asRegion(regionOrNode);
+  return region && live(region) && scrolls(region.body) ? "bounded" : "flow";
+};
 
 export function effectiveScroller(regionOrNode) {
   const region = asRegion(regionOrNode);
@@ -179,13 +154,6 @@ export function shownRegionBounds(regionOrNode) {
   const region = asRegion(regionOrNode);
   if (!region || hidden(region)) return null;
   return shownRect(region.body, new Map());
-}
-
-export function readingAllocation(node) {
-  const readingArrangement = readingArrangementFor(asRegion(node)?.host ?? node);
-  if (!readingArrangement?.content?.isConnected) return null;
-  const box = shownBox(readingArrangement.content);
-  return { width: box.width, height: box.height };
 }
 
 export function watchReadingRegionTransitions(listener) {
@@ -230,89 +198,33 @@ export async function preserveReadingRegions(owner, change) {
   }
 }
 
-const arrangementHandles = new WeakMap();
+// Whether every region is still scrolled by the box last seen for it. A layout that has
+// handed a region to another scroller, before the observer below has announced it, is
+// not a place to record the user's position in: the old scroller has already let go
+// of it (a flow page clamps as its content leaves).
+export const scrollersSettled = () =>
+  [...regions.values()].every(
+    (region) =>
+      !live(region) ||
+      !region.scroller ||
+      effectiveScroller(region) === region.scroller,
+  );
 
-export function readReadingArrangementAt(handle, posture, reader) {
-  const readingArrangement = arrangementHandles.get(handle);
-  if (!readingArrangement)
-    throw new Error("leaf: a posture reading needs a live reading arrangement");
-  if (!["bounded", "flow"].includes(posture))
-    throw new Error(`leaf: unknown reading posture ${String(posture)}`);
-  if (typeof reader !== "function")
-    throw new Error("leaf: a posture reading needs a reader");
-  const { owner, content } = readingArrangement;
-  const previous = {
-    posture: readingArrangement.posture,
-    owner: owner.getAttribute("data-lf-reading-posture"),
-    content: content.getAttribute("data-lf-reading-posture"),
-  };
-  readingArrangement.posture = posture;
-  owner.dataset.lfReadingPosture = posture;
-  content.dataset.lfReadingPosture = posture;
-  try {
-    return reader();
-  } finally {
-    readingArrangement.posture = previous.posture;
-    for (const [element, value] of [
-      [owner, previous.owner],
-      [content, previous.content],
-    ]) {
-      if (value === null) element.removeAttribute("data-lf-reading-posture");
-      else element.setAttribute("data-lf-reading-posture", value);
-    }
+// Every region's scroller as last seen, so a size change that hands a region to a
+// different scroller is announced once, after layout has produced it. Read on the
+// observer's delivery, which follows layout; nothing here writes a box it observes.
+const sizes = new ResizeObserver(() => {
+  const shifted = [];
+  for (const region of regions.values()) {
+    if (!live(region)) continue;
+    const scroller = effectiveScroller(region);
+    if (region.scroller && region.scroller !== scroller)
+      shifted.push({
+        region: regionRecord(region),
+        from: region.scroller,
+        to: scroller,
+      });
+    region.scroller = scroller;
   }
-}
-
-export function registerReadingArrangement({ owner, content, regions: declared = [] }) {
-  if (!owner || !content)
-    throw new Error("leaf: a reading arrangement needs owner and content elements");
-  if (
-    [...readingArrangements].some(
-      (readingArrangement) => readingArrangement.owner === owner,
-    )
-  )
-    throw new Error("leaf: reading arrangement owner is already live");
-  if (
-    [...readingArrangements].some(
-      (readingArrangement) => readingArrangement.content === content,
-    )
-  )
-    throw new Error("leaf: reading arrangement content is already live");
-  const cleanups = admitRegions(declared);
-  const readingArrangement = { owner, content, posture: null, generation: 0 };
-  readingArrangements.add(readingArrangement);
-
-  const affectedRegions = () =>
-    [...regions.values()]
-      .filter((region) => live(region) && under(region.host, owner))
-      .map(regionRecord);
-
-  const handle = {
-    async setReadingPosture(posture) {
-      if (!["bounded", "flow"].includes(posture))
-        throw new Error(`leaf: unknown reading posture ${String(posture)}`);
-      const from = readingPostureOf(readingArrangement);
-      if (from === posture && readingArrangement.posture === posture) return;
-      const generation = ++readingArrangement.generation;
-      const affected = affectedRegions();
-      notify({ phase: "before", owner, from, to: posture, regions: affected });
-      readingArrangement.posture = posture;
-      owner.dataset.lfReadingPosture = posture;
-      content.dataset.lfReadingPosture = posture;
-      layoutChanged(owner);
-      await new Promise((resolve) => requestAnimationFrame(resolve));
-      if (generation !== readingArrangement.generation) return;
-      notify({ phase: "after", owner, from, to: posture, regions: affected });
-    },
-    cleanup() {
-      readingArrangement.generation += 1;
-      arrangementHandles.delete(handle);
-      readingArrangements.delete(readingArrangement);
-      for (const cleanup of cleanups) cleanup();
-      owner.removeAttribute("data-lf-reading-posture");
-      content.removeAttribute("data-lf-reading-posture");
-    },
-  };
-  arrangementHandles.set(handle, readingArrangement);
-  return handle;
-}
+  if (shifted.length) notify({ phase: "shift", shifted });
+});

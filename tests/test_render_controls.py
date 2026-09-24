@@ -690,7 +690,6 @@ def test_a_page_asking_for_sign_off_records_the_approval(browser, serve):
     round_trip(page)
     event = events_model.read_events(serve.page_dir)[-1]
     assert (event["kind"], event["author"], event["version"]) == ("done", "user", 1)
-    assert event["text"]
     expect(button).to_be_disabled()
 
 
@@ -5753,6 +5752,19 @@ def test_every_base_corpus_tab_stop_has_a_visible_focus_indicator(browser, serve
     assert not failures, "keyboard stops with no visible indication: " + "; ".join(
         failures
     )
+
+
+def test_the_focus_sweep_distinguishes_stops_inside_a_live_frame(browser):
+    page = browser.new_page()
+    page.set_content(
+        '<iframe srcdoc="<button id=first>First</button>'
+        '<button id=second>Second</button>"></iframe>'
+    )
+    page.evaluate("() => { window.__lfSeen = new WeakSet(); }")
+    page.frame_locator("iframe").locator("#first").focus()
+    assert page.evaluate(RING_NEW_STOP) == "new"
+    page.frame_locator("iframe").locator("#second").focus()
+    assert page.evaluate(RING_NEW_STOP) == "new"
 
 
 def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(

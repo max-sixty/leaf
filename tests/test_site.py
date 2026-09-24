@@ -112,12 +112,11 @@ def authored_examples():
 
 
 def framed_root_examples():
-    """Every example whose whole `main` is one framed task, whatever tag it uses.
+    """Every example whose whole `main` is one root workspace.
 
-    Derived rather than listed: the site's placement rule holds for a workspace
-    root, and reading the corpus keeps a new one gated without naming its tag here.
-    The reading is `leaf.structure`'s, the one `version check` admits and the
-    browser takes, so an omitted `</p>` cannot split the two counts.
+    Derived rather than listed, so a new one is gated without naming it here. The
+    reading is `leaf.structure`'s, the one `version check` admits and the browser
+    takes, so an omitted `</p>` cannot split the two counts.
     """
     framed = []
     for page in authored_examples():
@@ -129,7 +128,7 @@ def framed_root_examples():
             if isinstance(child, dict)
             and child["tag"] not in ("script", "style", "template")
         ]
-        if len(children) == 1:
+        if len(children) == 1 and children[0]["tag"] == "lf-workspace":
             framed.append(page.stem)
     assert framed, "the corpus published no framed-root example to check"
     return sorted(framed)
@@ -1076,21 +1075,26 @@ def test_published_workspaces_keep_their_allocation_under_site_context(
 ):
     """The site note goes inside the framed task, never beside it.
 
-    A second element under `main` is what tells the runtime the workspace is not the
-    page's root, so a note dropped there costs the example the bounded allocation it
-    is published to demonstrate. The root is read by the class the runtime marks any
-    arranged workspace with, not by tag, so the rule holds for whichever tag the corpus
-    reaches for next.
+    A second authored element under `main` makes the workspace a block in a document
+    rather than the page, so a note dropped there costs the example the window it is
+    published to demonstrate. Held, the page has nothing to scroll and a region's body
+    scrolls in its place.
     """
     page = open_page(browser, f"{hosted}/examples/{name}/")
     page.set_viewport_size({"width": 1200, "height": 900})
-    workspace = page.locator("body > main > .lf-workspace-reading")
-    expect(workspace).to_have_attribute("data-lf-workspace-context", "root")
-    expect(workspace).to_have_attribute("data-lf-reading-posture", "bounded")
+    workspace = page.locator("body > main > lf-workspace")
     expect(workspace.locator(":scope > header > .sitenote")).to_be_visible()
     expect(page.locator("body > main > .sitenote")).to_have_count(0)
     page.wait_for_function(
-        "() => document.documentElement.scrollHeight === document.documentElement.clientHeight"
+        """() => {
+          const page = document.documentElement;
+          const regions = document.querySelectorAll(
+            'body > main > lf-workspace :is(lf-pane, [data-lf-reading-role="pane"])');
+          const bodies = [...regions].map(region =>
+            [...region.children].find(child => !child.matches('header, footer')));
+          return page.scrollHeight === page.clientHeight && bodies.length > 0
+            && bodies.every(body => getComputedStyle(body).overflowY === 'auto');
+        }"""
     )
 
 

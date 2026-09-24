@@ -148,7 +148,6 @@
           <a href="#x-paints"><code>x-paints</code></a>
           <a href="#x-reading-role"><code>x-reading-role</code></a>
           <a href="#x-refers"><code>x-refers</code></a>
-          <a href="#x-report"><code>x-report</code></a>
           <a href="#x-request"><code>x-request</code></a>
           <a href="#x-required-members"><code>x-required-members</code></a>
           <a href="#x-retired-when"><code>x-retired-when</code></a>
@@ -265,8 +264,7 @@
               <p>
                 The module places a conversationBox in each matching Leaf element,
                 selected by authored, static <code>when</code> attributes (an attribute
-                written by an x-state or x-report value record cannot drive this
-                predicate).
+                written by an x-state value record cannot drive this predicate).
               </p>
               <details class="reference-more">
                 <summary aria-label="Full x-conversation contract">
@@ -510,11 +508,11 @@
             <h3><code>x-reading-role</code></h3>
             <div class="reference-copy">
               <p>
-                The structural role an element supplies: workspace receives the page
-                allocation among optional header/footer slots and exactly one body
-                element, pane is one labeled reading region, partition divides exactly
-                two direct pane or partition roles in columns or rows, and grid places
-                its direct children as cells in two dimensions.
+                The structural role an element supplies: workspace keeps task regions
+                together between optional header/footer slots around exactly one body
+                element, pane is one labeled reading region with exactly one body
+                element between its optional header and footer, and grid places its
+                direct children as cells in two dimensions.
               </p>
               <details class="reference-more">
                 <summary aria-label="Full x-reading-role contract">
@@ -528,10 +526,8 @@
                   closed parent-child vocabulary. Every role requires a string
                   <code>id</code>; a pane also requires a string <code>label</code>,
                   which names its accessible region while a visible heading belongs in
-                  its authored header; a partition requires <code>direction</code> with
-                  the complete <code>columns</code>/<code>rows</code> enum. A workspace
-                  or pane may hold one direct native <code>header</code> first and one
-                  <code>footer</code> last.
+                  its authored header. A workspace or pane may hold one direct native
+                  <code>header</code> first and one <code>footer</code> last.
                 </p>
               </details>
             </div>
@@ -554,35 +550,6 @@
                   predicate. This lets a package distinguish a goal, worker, or evidence
                   reference without Leaf knowing those roles or tags. The runtime
                   renders every valid value as a reference the user can follow.
-                </p>
-              </details>
-            </div>
-          </section>
-          <section class="reference-entry" id="x-report">
-            <h3><code>x-report</code></h3>
-            <div class="reference-copy">
-              <p>
-                What x-report declares, once per widget with an agent channel: report
-                verbs a worker folds onto the page through <code>leaf report</code>,
-                each with a detail schema (the payload half of the log's
-                forever-contract, exactly as x-state's), a fold unit, and a required
-                record form drawn from $state's vocabulary minus <code>body</code>.
-              </p>
-              <details class="reference-more">
-                <summary aria-label="Full x-report contract">Full contract</summary>
-                <p>
-                  An optional <code>update</code> names the required non-empty string
-                  detail field that is the report's short human-readable news; naming it
-                  lets the canonical update feed expose those words without guessing
-                  from a widget, verb, or field name. The owning Leaf element, unit, and
-                  verb together name one independently standing fact; a report verb that
-                  shares its name with an x-state verb states the same fact, so the two
-                  share their unit and record form, and an action outranks a report at
-                  that coordinate. A report moves declared state only, never the page's
-                  words, which is what keeps the passage reading untouched by it. The
-                  runtime paints a standing report live (data-lf-reported); it is
-                  provisional news, standing only until a version answers it. How a
-                  version answers a standing report is $report's.
                 </p>
               </details>
             </div>
@@ -738,16 +705,28 @@
             <h3><code>x-state</code></h3>
             <div class="reference-copy">
               <p>
-                What x-state declares, once per widget with an action channel: each
-                verb's detail schema (the payload half of the log's forever-contract),
-                its fold unit, optional created-child <code>creates</code>, and the
-                record form its state takes in markup.
+                What x-state declares, once per widget with state: each verb's detail
+                schema (the payload half of the log's forever-contract), its fold unit,
+                the record form its state takes in markup, and who writes it.
               </p>
               <details class="reference-more">
                 <summary aria-label="Full x-state contract">Full contract</summary>
                 <p>
-                  Each verb is its own state: the owning Leaf element, the unit, and the
-                  verb together name one independently standing fact, the latest
+                  A verb is the user's unless it declares <code>writer: "agent"</code>:
+                  the user writes theirs through the page as <code>action</code> events,
+                  and the agent reports its own through <code>leaf report</code> as
+                  <code>report</code> events, so every coordinate has one writer. A user
+                  verb may declare a created child (<code>creates</code>). An agent verb
+                  requires a record form other than <code>body</code>, since a report
+                  moves declared state and never the page's words, which keeps the
+                  passage reading untouched by it; it may name with
+                  <code>update</code> the required non-empty string detail field that is
+                  the report's short human-readable news, which the canonical update
+                  feed exposes without guessing from a widget, verb, or field name. The
+                  runtime paints a standing report live (data-lf-reported); it is
+                  provisional news, standing only until a version answers it, as $report
+                  says. Each verb is its own state: the owning Leaf element, the unit,
+                  and the verb together name one independently standing fact, the latest
                   surviving action of that verb there supersedes its predecessors, and
                   different verbs coexist. The framework composes the last surviving
                   action per coordinate with typed authored values and gives every
@@ -757,18 +736,19 @@
                   actively contradicts the fold without <code>restated</code> is
                   refused; writing the folded state is honoring; re-emitting the
                   previous version's state is blessed silence), construction-linked
-                  inspection, the runtime's user-origin reading, and the version diff's
-                  state half. When an action's admission makes its widget's x-awaits
-                  <code>answered</code> condition hold, admission records meaning.answer
-                  on it: the widget's authored <code>resolves</code> attribute, read
-                  from the sending document, names the comment thread the answer closes,
-                  and null answers without closing one, which is also what a decision
-                  whose outcome is the widget's x-withdrawn-as records: it leaves the
-                  page as if nothing had been proposed. Historical settlement uses the
-                  admitted owner-unit-verb coordinate even after the widget retires. One
-                  detail field name is reserved: <code>outcome</code>, on the one
-                  widget-unit verb that decides which retirable members leave the page
-                  (x-retired-when). The unit, creates, and record forms are $state's.
+                  inspection, the runtime's user- and report-origin readings, and the
+                  version diff's state half. When an action's admission makes its
+                  widget's x-awaits <code>answered</code> condition hold, admission
+                  records meaning.answer on it: the widget's authored
+                  <code>resolves</code> attribute, read from the sending document, names
+                  the comment thread the answer closes, and null answers without closing
+                  one, which is also what a decision whose outcome is the widget's
+                  x-withdrawn-as records: it leaves the page as if nothing had been
+                  proposed. Historical settlement uses the admitted owner-unit-verb
+                  coordinate even after the widget retires. One detail field name is
+                  reserved: <code>outcome</code>, on the one user widget-unit verb that
+                  decides which retirable members leave the page (x-retired-when). The
+                  unit, creates, and record forms are $state's.
                 </p>
               </details>
             </div>
@@ -945,20 +925,19 @@
             <h3><code>x-work</code></h3>
             <div class="reference-copy">
               <p>
-                Where this widget can admit <code>leaf status --on</code> without a
-                pending user move: <code>content</code> names a block prose seat;
-                <code>conversation</code> names the widget's declared x-conversation box
-                and therefore inherits that box's own predicate.
+                <code>true</code>: this widget is a block prose seat that can admit
+                <code>leaf status --on</code> without a pending user move, so the work
+                shows as local chrome beside its authored markup.
               </p>
               <details class="reference-more">
                 <summary aria-label="Full x-work contract">Full contract</summary>
                 <p>
-                  An optional <code>when</code> narrows the Leaf elements that may admit
-                  work under their replayed attributes. Once admitted, a page-widget
-                  claim appears at the page edge through its target margin entry even if
-                  a later layer changes x-work. The declaration is permission for
-                  runtime chrome, not a consequence of x-content: markup may itself be
-                  an owner gesture or sit in a hidden panel.
+                  Only a block widget whose x-content is markup may declare it. Once
+                  admitted, a page-widget claim appears at the page edge through its
+                  target margin entry even if a later layer drops x-work. The
+                  declaration is permission for runtime chrome, not a consequence of
+                  x-content: markup may itself be an owner gesture or sit in a hidden
+                  panel.
                 </p>
               </details>
             </div>

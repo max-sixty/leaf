@@ -16,6 +16,7 @@ import time
 import urllib.parse
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -1564,9 +1565,7 @@ def test_server_takes_an_approval_only_where_the_version_asked_for_one(
 
     status, body = fetch(
         f"{server}/api/event",
-        data=json.dumps(
-            {"kind": "done", "version": 1, "revision": 1, "text": "Looks good"}
-        ).encode(),
+        data=json.dumps({"kind": "done", "version": 1}).encode(),
     )
     assert status == 400
     assert json.loads(body)["error"] == (
@@ -1582,9 +1581,7 @@ def test_server_takes_an_approval_only_where_the_version_asked_for_one(
     publish(page_dir, version=2)
     status, body = fetch(
         f"{server}/api/event",
-        data=json.dumps(
-            {"kind": "done", "version": 2, "revision": 2, "text": "Looks good"}
-        ).encode(),
+        data=json.dumps({"kind": "done", "version": 2}).encode(),
     )
     assert status == 400
     assert json.loads(body)["error"] == (
@@ -1638,9 +1635,7 @@ def test_server_takes_an_approval_only_where_the_version_asked_for_one(
     assert reply.exit_code == 0, reply.output
     status, body = fetch(
         f"{server}/api/event",
-        data=json.dumps(
-            {"kind": "done", "version": 2, "revision": 2, "text": "Looks good"}
-        ).encode(),
+        data=json.dumps({"kind": "done", "version": 2}).encode(),
     )
     assert status == 400
     assert json.loads(body)["error"] == (
@@ -1662,12 +1657,37 @@ def test_server_takes_an_approval_only_where_the_version_asked_for_one(
     assert status == 200, body
     status, body = fetch(
         f"{server}/api/event",
-        data=json.dumps(
-            {"kind": "done", "version": 2, "revision": 2, "text": "Looks good"}
-        ).encode(),
+        data=json.dumps({"kind": "done", "version": 2}).encode(),
     )
     assert status == 200, body
     assert event_model.read_events(page_dir)[-1]["kind"] == "done"
+
+
+def test_the_transcript_reports_only_an_approval_that_stands(page_dir):
+    """A withdrawn approval is not one: the transcript reads approvals through the
+    same withdrawal every other fold honours, so it names the version approved and
+    says nothing once the user takes the approval back."""
+    signoff = PAGE.replace(
+        "<title>t</title>",
+        '<title>t</title>\n<meta name="lf-review" content="sign-off">',
+    )
+    (page_dir / "index.html").write_text(signoff)
+    publish(page_dir, version=1)
+    approval = event_model.append_event(
+        page_dir, {"kind": "done", "author": "user", "version": 1}
+    )
+
+    def transcript():
+        result = CliRunner().invoke(cli_model.cli, ["transcript", str(page_dir)])
+        assert result.exit_code == 0, result.output
+        return result.output
+
+    assert f"Approved v1 at {approval['ts']}." in transcript()
+
+    event_model.append_event(
+        page_dir, {"kind": "undo", "author": "user", "undoes": approval["id"]}
+    )
+    assert "Approved" not in transcript()
 
 
 def test_server_makes_attempt_identity_atomic_without_deduplicating_content(
@@ -2480,6 +2500,25 @@ def test_server_admits_only_a_widget_declared_host_request(server, page_dir):
         )
         assert status == 400, body
         assert message in json.loads(body)["error"]
+
+    # The task's status is the worker's verb; the browser door refuses a user's.
+    status, body = fetch(
+        f"{server}/api/event",
+        data=json.dumps(
+            {
+                "kind": "action",
+                "revision": 1,
+                "widget": "goal",
+                "action": "status",
+                "detail": {"status": "done"},
+            }
+        ).encode(),
+    )
+    assert status == 400, body
+    assert (
+        "'status' is a verb the agent writes; this action came from the user"
+        in (json.loads(body)["error"])
+    )
 
     status, body = fetch(
         f"{server}/api/event",
@@ -4534,6 +4573,53 @@ def test_a_stop_ends_a_server_whose_caller_left_while_it_announced(page_dir, spa
     assert stopped == ["stopped server"]
     assert child.wait(timeout=10) is not None
     assert not json.loads(service.read_text())["enabled"]
+
+
+def test_stop_does_not_wait_forever_on_a_server_started_after_its_transition(
+    page_dir, monkeypatch
+):
+    assert service_model.claim_page(page_dir)
+    assert hosting_model.start_server(page_dir, standing=True)
+    transitioned = threading.Event()
+    resume = threading.Event()
+    original_flocked = hosting_model.flocked
+    stopping = None
+
+    @contextmanager
+    def pause_after_transition(path):
+        with original_flocked(path):
+            yield
+        if (
+            threading.current_thread() is stopping
+            and path == leases_model.transition_lock(page_dir)
+        ):
+            transitioned.set()
+            assert resume.wait(10)
+
+    monkeypatch.setattr(hosting_model, "flocked", pause_after_transition)
+    stopped = []
+    stopping = threading.Thread(
+        target=lambda: stopped.append(hosting_model.cmd_stop(page_dir)), daemon=True
+    )
+    try:
+        stopping.start()
+        assert transitioned.wait(10)
+        wait_for(
+            lambda: not leases_model.lock_is_held(page_dir / "server.lock"),
+            bool,
+            failure="the first server did not release its lease",
+        )
+        assert hosting_model.start_server(page_dir, standing=True)
+        resume.set()
+        stopping.join(timeout=3)
+        assert stopped == ["stopped server"]
+    finally:
+        resume.set()
+        files_model.write_json(
+            page_dir / "service.json",
+            {**files_model.read_json(page_dir / "service.json"), "enabled": False},
+        )
+        stopping.join(timeout=10)
 
 
 def test_an_upgrade_is_answered_by_the_key_gate_like_any_other_request(server):

@@ -270,8 +270,25 @@ def deciding_outcomes(entry: dict) -> list[str]:
     return list(schema.get("enum", [])) if isinstance(schema, dict) else []
 
 
+# Who writes a verb's state, by the event kind that carries it: the user's gesture
+# is an `action`, the agent's news a `report`. A verb declares one writer, so its
+# coordinate is only ever written from one side.
+WRITERS = {"action": "user", "report": "agent"}
+
+
+def writer(spec: dict) -> str:
+    """The side that writes one x-state verb: `agent` where it says so, else `user`."""
+    return spec.get("writer", "user")
+
+
 def state_specs(entry: dict):
-    """The state and report verb declarations on one element declaration."""
-    for channel in ("x-state", "x-report"):
-        for verb, spec in entry.get(channel, {}).items():
-            yield channel, verb, spec
+    """The x-state verb declarations on one element declaration, as (verb, spec)."""
+    yield from entry.get("x-state", {}).items()
+
+
+def event_spec(entry: dict, event: dict) -> dict | None:
+    """The x-state verb an action or report names, when its writer sent it."""
+    spec = entry.get("x-state", {}).get(event["action"])
+    if spec is None or writer(spec) != WRITERS[event["kind"]]:
+        return None
+    return spec

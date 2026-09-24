@@ -1510,7 +1510,15 @@ def in_threads_scrollport(page, selector):
 
 DEEP_FOCUS = """() => {
   let e = document.activeElement;
-  while (e?.shadowRoot?.activeElement) e = e.shadowRoot.activeElement;
+  while (e) {
+    let next = e.shadowRoot?.activeElement;
+    if (!next && e.tagName === 'IFRAME') {
+      const child = e.contentDocument?.activeElement;
+      if (child && child !== e.contentDocument.body) next = child;
+    }
+    if (!next) break;
+    e = next;
+  }
   return e;
 }"""
 

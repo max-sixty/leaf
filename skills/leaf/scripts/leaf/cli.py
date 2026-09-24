@@ -935,7 +935,7 @@ def report(
 ) -> None:
     """Report a state change onto a page widget, as a worker.
 
-    The verb and its fields are the widget's own x-report declaration —
+    The verb and its fields are the widget's own agent-written x-state verb —
     `leaf report <page> t-parser status status=review` moves a task. The
     page paints the report live as provisional news; it stands until a version
     absorbs or overrules it, and the page's watcher wakes to fold it in.
@@ -984,14 +984,26 @@ def receipt(dir: str, request: str, status: str, text: str, as_json: bool) -> No
     metavar="CONVERSATION",
     help="print only events belonging to this exact conversation id",
 )
-def events(dir: str, after: int, conversation: str | None) -> None:
+@click.option(
+    "--follow",
+    is_flag=True,
+    help="keep printing each event as it is appended, until stopped",
+)
+def events(dir: str, after: int, conversation: str | None, follow: bool) -> None:
     """Print the event log as JSON lines.
 
-    CONVERSATION is an exact identity lookup, not a general event filter. This is
-    read-only and does not acknowledge user events.
+    Each line is one stored event record; `seq` is its position, and `--after`
+    resumes from the last one a reader saw. CONVERSATION is an exact identity
+    lookup, not a general event filter. This is read-only and does not
+    acknowledge user events.
     """
-    from leaf.transcript import cmd_events
+    from leaf.transcript import cmd_events, cmd_follow_events
 
+    if follow and conversation is not None:
+        raise click.UsageError("--follow and --conversation cannot be used together")
+    if follow:
+        cmd_follow_events(resolve_dir(dir), after)
+        return
     cmd_events(resolve_dir(dir), after, conversation)
 
 

@@ -17,9 +17,9 @@ page and is not a global identifier. The kinds:
 | `summary` | agent | `leaf conversation summarize` | `conversation`, `from`, `through`, `text` | replaces one contiguous range with Markdown in the thread panel; originals stay in the log and remain revealable |
 | `resolve` | user or agent | `POST /api/event`, `leaf resolve` | `parent` | closes a thread |
 | `unresolve` | user | `POST /api/event` | `parent` | the user reopens a resolved thread |
-| `done` | user | the banner, only on a page declaring `<meta name="lf-review" content="sign-off">` | | approval of the declared sign-off; a page that asks nothing gets no terminal control |
+| `done` | user | the banner, only on a page declaring `<meta name="lf-review" content="sign-off">` | `version`, the stamp approved | approval of the declared sign-off; a page that asks nothing gets no terminal control |
 | `action` | user | `POST /api/event` from a widget | `widget`, `action`, `detail`; server-stamped `meaning` | the user edited the document through the widget |
-| `report` | agent or worker | `leaf report` | as `action`, validated by the widget's `x-report` | provisional state that stands until a stamped revision answers it |
+| `report` | agent or worker | `leaf report` | as `action`, validated by an `x-state` verb declaring `writer: "agent"` | provisional state that stands until a stamped revision answers it |
 | `request` | user | `POST /api/event` from a widget | `widget`, `action`, `detail`, and `source_revision` for a projected record; validated by the holder's `x-request` | a durable, non-undoable one-shot instruction to the host, seated on its admitted document, widget, and unit |
 | `receipt` | agent | `leaf receipt`; a host failure receipt | `request`, `succeeded` or `failed`, `text`; host `failure` with `failed` | exactly one terminal outcome per accepted request |
 | `pickup` | page | the delivery carrier; a host failure receipt | `events`, `phase` (`queued`, `opened`, or `failed`), `session`, `turn`; `failure` with `failed` | the named user events reached the durable Codex queue or entered an exact agent turn, or the host gave up on them with no answer coming; idempotent per event, phase, session, and turn; never a work claim |
@@ -113,6 +113,25 @@ same verb on the same unit supersedes its prior answer, while another verb leave
 it standing. Coordinates are independent, so a position record places its unit by a
 rank key rather than an index: the key means the same place whichever other units'
 moves stand, and undoing or superseding one unit's move never moves another.
+
+## Following the log
+
+Stored event records are a public format that programs other than Leaf read. A
+reader drops a field or kind it does not recognise rather than refusing the record,
+so a newer writer's additions never break an older reader.
+
+`leaf events PAGE --follow [--after SEQ]` is the change feed for those programs. It
+prints each stored record after `SEQ` (default 0) as one JSON line, server-stamped
+`meaning` included, then keeps printing each event the append door admits, flushed
+as it lands. `seq` is the resume cursor: a reader that restarts with `--after` the
+last seq it printed misses nothing and repeats nothing. SIGINT, SIGTERM, and a
+closed stdout end it with exit 0. The feed wakes on the log's file stamp at the
+browser news stream's `LOOK_S` cadence, so an event any process appends reaches it
+the same way.
+
+The feed carries the log only. External data under `data/` is replaced in place
+with no sequence to resume from, so a reader that needs it reads `leaf page state`
+or the value files directly.
 
 Dependency identities come from the fold unit and the attribute-set and position
 record fields. Literal detail strings do not become dependencies by matching HTML ids. The log does not freeze ancestry:

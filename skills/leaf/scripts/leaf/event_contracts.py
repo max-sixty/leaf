@@ -31,10 +31,13 @@ from leaf.projection import (
 )
 from leaf.read_state import read_contract_error
 from leaf.registry.contract import (
+    WRITERS,
     created_child,
+    event_spec,
     schema_error,
     state_specs,
     visual_parts,
+    writer,
 )
 from leaf.registry.reactions import reaction_tokens
 from leaf.requests import (
@@ -86,20 +89,30 @@ def browser_command_error(contract: dict, event: dict):
     )
 
 
-def declared_event_error(
-    event: dict, tag: str, registry: dict, kind: str, channel: str
-):
-    """Why a known widget's verb or detail violates one declared channel."""
+def declared_event_error(event: dict, tag: str, registry: dict):
+    """Why a known widget's verb or detail violates its x-state declaration, or
+    names a verb the event's own writer does not write."""
+    kind = event["kind"]
     entry = registry.get(tag)
     if entry is None:
         return (
             f"registry no longer declares <{tag}> for {kind} widget {event['widget']!r}"
         )
-    declared = entry.get(channel, {})
-    spec = declared.get(event["action"])
+    spec = event_spec(entry, event)
     if spec is None:
+        other = entry.get("x-state", {}).get(event["action"])
+        if other is not None:
+            return (
+                f"<{tag}> {event['action']!r} is a verb the {writer(other)} "
+                f"writes; this {kind} came from the {WRITERS[kind]}"
+            )
+        declared = sorted(
+            verb
+            for verb, declared_spec in state_specs(entry)
+            if writer(declared_spec) == WRITERS[kind]
+        )
         return f"<{tag}> does not declare {kind} verb {event['action']!r}" + (
-            f"; it declares {sorted(declared)}" if kind == "report" and declared else ""
+            f"; it declares {declared}" if kind == "report" and declared else ""
         )
     if message := schema_error(spec["detail"], event["detail"]):
         return f"<{tag}> {kind} {event['action']!r} detail is invalid: {message}"
@@ -131,7 +144,7 @@ def declared_action_error(
             "or agent-authored thread markup"
         )
     tag = rec["tag"]
-    if error := declared_event_error(event, tag, registry, "action", "x-state"):
+    if error := declared_event_error(event, tag, registry):
         return error
     # The exhibit rule at the door, not only in the shipped runtime's
     # browser controller: an exhibited widget is a mention, and the log outranks the
@@ -202,7 +215,7 @@ def position_record_error(
         node = node["holder"]
         while node is not None:
             entry = registry.get(node["tag"], {})
-            if any(spec.get("record") for _, _, spec in state_specs(entry)):
+            if any(spec.get("record") for _, spec in state_specs(entry)):
                 return node
             node = node["holder"]
         return None
@@ -212,7 +225,7 @@ def position_record_error(
         return any(
             spec.get("unit") == "widget"
             and (spec.get("record") or {}).get("kind") == "position"
-            for _, _, spec in state_specs(registry.get(node["tag"], {}))
+            for _, spec in state_specs(registry.get(node["tag"], {}))
         )
 
     # A node has one place and one widget records it: the node itself when its own
@@ -398,24 +411,29 @@ def report_contract_error(event: dict, page, registry: dict):
             "reports name page widgets only; thread markup is frozen, so no "
             "version could ever answer a report made there"
         )
-    return declared_event_error(event, tag, registry, "report", "x-report")
+    return declared_event_error(event, tag, registry)
 
 
-def admitting_registry(view, event: dict) -> dict:
+def admitting_registry(view, event: dict, events: list) -> dict:
     """The vocabulary that admits one event: the one its own document captured.
 
     An event names the revision it was made against, and that revision's artifact
     holds the registry its page was rendered from — so a re-vendor, which replaces
     the layer without touching a standing revision, cannot reinterpret a command
     the user made against the document in front of them. `stored_meaning_error`
-    reads the recorded side from that same capture. An event naming no revision
-    takes the newest, which is the document any writer of one is looking at, and a
-    page with no revision yet has only the layer it carries.
+    reads the recorded side from that same capture. A sign-off names its version
+    instead, and admits under the revision that version stamped. An event naming
+    neither takes the newest, which is the document any writer of one is looking
+    at, and a page with no revision yet has only the layer it carries.
 
     Read through `PageView.registry`, which opens the one captured file rather
     than materializing the whole bundle: this runs on every append."""
     revisions = view.revisions
-    revision = event.get("revision")
+    revision = (
+        version_revisions(events).get(event.get("version"))
+        if event.get("kind") == "done"
+        else event.get("revision")
+    )
     if type(revision) is not int or revision not in set(revisions):
         revision = revisions[-1] if revisions else None
     registry = view.registry(revision)
@@ -438,16 +456,17 @@ def _approval_error(view, event: dict, events: list, registry: dict):
     """Why a sign-off cannot record approval of the version it names."""
     if event["kind"] != "done":
         return None
-    if version_revisions(events).get(event["version"]) != event["revision"]:
-        return f"v{event['version']} does not stamp revision r{event['revision']}"
-    document = view.document(event["revision"])
+    revision = version_revisions(events).get(event["version"])
+    if revision is None:
+        return f"v{event['version']} is not a stamped version"
+    document = view.document(revision)
     if review_mode(document) != "sign-off":
         return (
             f"v{event['version']} does not declare "
             '<meta name="lf-review" content="sign-off">, so it has no '
             "approval to record"
         )
-    page = page_reading(document, events, registry, event["revision"])
+    page = page_reading(document, events, registry, revision)
     threads = build_threads(events, page.within)
     document_state = read_document(page, threads, view.data(registry))
     conversation, _reading = browser_conversation(events, registry, threads)
@@ -633,7 +652,7 @@ def admitted_event(
     page's markup as literal text can put an event to the same rules the server
     applies without a page directory, a server, or a browser under it.
     """
-    registry = admitting_registry(view, event)
+    registry = admitting_registry(view, event, events)
     contracts = registry["$events"]["kinds"]
     kind = event.get("kind")
     if kind not in contracts:

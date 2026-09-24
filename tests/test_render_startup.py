@@ -5,7 +5,7 @@ import json
 import os
 import re
 from datetime import datetime, timedelta
-from urllib.parse import urlparse
+from urllib.parse import urljoin, urlparse
 
 import pytest
 from click.testing import CliRunner
@@ -717,328 +717,210 @@ customElements.define('lf-shadow-link', class extends HTMLElement {
     )
 
 
-def test_reading_regions_share_posture_allocation_and_transition_boundaries(
+def test_reading_regions_read_posture_from_the_stylesheet_and_announce_a_shift(
     browser, serve
 ):
+    """A region is bounded exactly when the stylesheet makes its body scroll, a flowing
+    region is carried by the one containing it, and a scroller change is announced once
+    the new geometry exists. Nothing is told the posture: a class stands in for the
+    container query that decides it on a page."""
     page = open_page(browser, serve(SHORT_SUGGESTION))
     readings = page.evaluate(
         """async () => {
           const leaf = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const frames = () => new Promise(resolve =>
+            requestAnimationFrame(() => requestAnimationFrame(resolve)));
           const main = document.querySelector('main');
           const outer = document.createElement('section');
-          outer.id = 'outer-reading-arrangement';
+          outer.id = 'outer-host';
           outer.innerHTML = `
             <header><button id="pane-heading">Pane heading</button></header>
-            <div id="outer-body"><div id="compound-owner">
-              <div id="compound-content"><section id="preview-host">
-                <div id="preview-body">${'<p>Preview body</p>'.repeat(20)}</div>
-              </section></div>
-            </div>${'<p>Outer body</p>'.repeat(20)}</div>`;
+            <div id="outer-body"><section id="preview-host">
+              <div id="preview-body">${'<p>Preview body</p>'.repeat(20)}</div>
+            </section>${'<p>Outer body</p>'.repeat(20)}</div>`;
           main.append(outer);
           const outerBody = outer.querySelector('#outer-body');
-          const compound = outer.querySelector('#compound-owner');
-          const compoundContent = outer.querySelector('#compound-content');
           const previewHost = outer.querySelector('#preview-host');
           const previewBody = outer.querySelector('#preview-body');
           const style = document.createElement('style');
           style.textContent = `
-            #outer-reading-arrangement { width: 640px; }
-            #outer-body { width: 600px; }
-            #compound-content { width: 50%; }
-            #outer-reading-arrangement[data-lf-reading-posture="bounded"] #outer-body {
-              height: 280px; overflow: auto;
-            }
-            #outer-reading-arrangement[data-lf-reading-posture="bounded"] #preview-body {
-              height: 120px; overflow: auto;
-            }
-            #compound-owner[data-lf-reading-posture="flow"] #preview-body {
-              height: auto; overflow: visible;
-            }`;
+            .held #outer-body { height: 280px; overflow: auto; }
+            .held #preview-body { height: 120px; overflow: auto; }
+            .held.preview-flows #preview-body { height: auto; overflow: visible; }`;
           document.head.append(style);
 
-          const transitions = [];
-          let previewId;
+          const previewId = leaf.compoundReadingRegionId(outer, 'preview');
+          const scrollerName = (scroller) =>
+            scroller === document.scrollingElement ? 'document' : scroller.id;
+          const shifts = [];
+          let shifted = () => {};
           const unwatch = leaf.watchReadingRegionTransitions((event) => {
-            const outerScroller = leaf.effectiveScroller('outer-pane');
-            transitions.push({
-              phase: event.phase,
-              from: event.from,
-              to: event.to,
-              ids: event.regions.map(({id}) => id),
-              outerScroller: outerScroller.id || 'document',
-              outerRange: outerScroller.scrollHeight - outerScroller.clientHeight,
-              previewScroller: previewId
-                ? (leaf.effectiveScroller(previewId).id || 'document')
-                : null,
-            });
+            if (event.phase !== 'shift') return;
+            shifts.push(event.shifted.map(({region, from, to}) =>
+              [region.id, scrollerName(from), scrollerName(to)]).sort());
+            shifted();
           });
-          const outerLayout = leaf.registerReadingArrangement({
-            owner: outer,
-            content: outerBody,
-            regions: [{id: 'outer-pane', host: outer, body: outerBody}],
-          });
-          previewId = leaf.compoundReadingRegionId(compound, 'preview');
-          const compoundLayout = leaf.registerReadingArrangement({
-            owner: compound,
-            content: compoundContent,
-            regions: [{id: previewId, host: previewHost, body: previewBody}],
-          });
-          await outerLayout.setReadingPosture('bounded');
-          const assigned = compoundContent.getBoundingClientRect();
-          const bounded = {
-            outerScroller: leaf.effectiveScroller('outer-pane').id,
-            previewScroller: leaf.effectiveScroller(previewId).id,
-            previewPosture: leaf.readingPosture(previewId),
-            focusRegion: leaf.readingRegionFor(outer.querySelector('#pane-heading')).id,
-            allocation: leaf.readingAllocation(previewId),
-            assigned: {width: assigned.width, height: assigned.height},
-          };
-          outerBody.style.width = '400px';
-          const resizedAllocation = leaf.readingAllocation(previewId);
-          await compoundLayout.setReadingPosture('flow');
-          const childFlow = {
-            scroller: leaf.effectiveScroller(previewId).id,
+          const nextShift = () => new Promise(resolve => { shifted = resolve; });
+          const stopOuter = leaf.registerReadingRegion(
+            {id: 'outer-pane', host: outer, body: outerBody});
+          const stopPreview = leaf.registerReadingRegion(
+            {id: previewId, host: previewHost, body: previewBody});
+          await frames();
+          const flow = {
+            outer: scrollerName(leaf.effectiveScroller('outer-pane')),
+            preview: scrollerName(leaf.effectiveScroller(previewId)),
             posture: leaf.readingPosture(previewId),
           };
-          const first = outerLayout.setReadingPosture('flow');
-          const second = outerLayout.setReadingPosture('bounded');
-          await Promise.all([first, second]);
+
+          // Each change waits out the frame its shift was announced in, so the next
+          // resize is not one the observer's own delivery is still settling.
+          let shift = nextShift();
+          outer.classList.add('held');
+          await shift;
+          await frames();
+          const held = {
+            outer: scrollerName(leaf.effectiveScroller('outer-pane')),
+            preview: scrollerName(leaf.effectiveScroller(previewId)),
+            posture: leaf.readingPosture(previewId),
+            focusRegion: leaf.readingRegionFor(outer.querySelector('#pane-heading')).id,
+          };
+
+          shift = nextShift();
+          outer.classList.add('preview-flows');
+          await shift;
+          await frames();
+          const previewFlows = {
+            preview: scrollerName(leaf.effectiveScroller(previewId)),
+            posture: leaf.readingPosture(previewId),
+          };
+
           previewHost.hidden = true;
           const hiddenBounds = leaf.shownRegionBounds(previewId);
           previewHost.hidden = false;
-          await outerLayout.setReadingPosture('flow');
-          const flow = {
-            outerIsDocument: leaf.effectiveScroller('outer-pane') === document.scrollingElement,
-            previewIsDocument: leaf.effectiveScroller(previewId) === document.scrollingElement,
-            previewPosture: leaf.readingPosture(previewId),
-          };
+
+          let refused;
+          try {
+            leaf.registerReadingRegion({id: previewId, host: outer, body: outerBody});
+          } catch (error) {
+            refused = error.message;
+          }
           previewHost.remove();
           const replacement = document.createElement('section');
           replacement.innerHTML = '<div>Replacement</div>';
-          compoundContent.append(replacement);
+          outerBody.append(replacement);
           const reclaim = leaf.registerReadingRegion({
             id: previewId,
             host: replacement,
             body: replacement.firstElementChild,
           });
           const reclaimed = leaf.readingRegion(previewId).host === replacement;
+
+          // A second composition change supersedes an unfinished first: both announce
+          // their start, and only the newer one reports where it ended.
+          const phases = [];
+          const unwatchPhases = leaf.watchReadingRegionTransitions((event) => {
+            if (event.phase !== 'shift') phases.push([event.phase, !!event.retained]);
+          });
+          let release;
+          const first = leaf.preserveReadingRegions(
+            outer, () => new Promise(resolve => { release = resolve; }));
+          const second = leaf.preserveReadingRegions(outer, async () => {});
+          await second;
+          release();
+          await first;
+
+          unwatchPhases();
           reclaim();
-          compoundLayout.cleanup();
-          outerLayout.cleanup();
+          stopPreview();
+          stopOuter();
           unwatch();
+          outer.remove();
           style.remove();
-          return {
-            bounded,
-            childFlow,
-            flow,
-            hiddenBounds,
-            reclaimed,
-            resizedAllocation,
-            transitions,
-          };
+          return {flow, held, previewFlows, shifts, hiddenBounds, refused, reclaimed,
+                  phases};
         }"""
     )
-    assert readings["bounded"] == {
-        "outerScroller": "outer-body",
-        "previewScroller": "preview-body",
-        "previewPosture": "bounded",
-        "focusRegion": "outer-pane",
-        "allocation": readings["bounded"]["assigned"],
-        "assigned": readings["bounded"]["assigned"],
-    }
     assert readings["flow"] == {
-        "outerIsDocument": True,
-        "previewIsDocument": True,
-        "previewPosture": "flow",
-    }
-    assert readings["childFlow"] == {
-        "scroller": "outer-body",
+        "outer": "document",
+        "preview": "document",
         "posture": "flow",
     }
-    assert (
-        readings["resizedAllocation"]["width"]
-        < readings["bounded"]["allocation"]["width"]
-    )
-    assert readings["hiddenBounds"] is None
-    assert readings["reclaimed"] is True
-    transitions = readings["transitions"]
-    assert transitions[0]["phase"] == "before"
-    assert transitions[0]["outerScroller"] == "document"
-    assert transitions[1]["phase"] == "after"
-    assert transitions[1]["outerScroller"] == "outer-body"
-    assert transitions[1]["outerRange"] > 0
-    child_transition = transitions[2:4]
-    assert [transition["phase"] for transition in child_transition] == [
-        "before",
-        "after",
-    ]
-    assert child_transition[0]["previewScroller"] == "preview-body"
-    assert child_transition[1]["previewScroller"] == "outer-body"
-    # The rapid outer flow is superseded: only the newer bounded transition reports after.
-    assert [transition["phase"] for transition in transitions[4:7]] == [
-        "before",
-        "before",
-        "after",
-    ]
-    assert all(
-        len(transition["ids"]) == len(set(transition["ids"]))
-        for transition in readings["transitions"]
-    )
-
-
-def test_arrangement_admission_precedes_dom_construction_and_owns_one_layout(
-    browser, serve
-):
-    page = open_page(browser, serve(SHORT_SUGGESTION))
-    result = page.evaluate(
-        """async () => {
-          const leaf = await window.__lfRuntimeImport('/runtime/widget-api.js');
-          const main = document.querySelector('main');
-          const owner = document.createElement('section');
-          owner.className = 'authored-owner';
-          owner.innerHTML = '<header class="authored-header">Heading</header><p>Body</p>';
-          main.append(owner);
-          const header = owner.firstElementChild;
-          const authoredNodes = [...owner.childNodes];
-          const authoredMarkup = owner.innerHTML;
-          const occupiedHost = document.createElement('div');
-          main.append(occupiedHost);
-          const occupied = leaf.registerReadingRegion({
-            id: 'occupied-region', host: occupiedHost, body: occupiedHost,
-          });
-          let message;
-          try {
-            leaf.arrangeReadingElement({
-              owner,
-              role: 'pane',
-              header,
-              regions: [
-                {id: 'reclaimable-region'},
-                {id: 'occupied-region'},
-              ],
-            });
-          } catch (error) {
-            message = error.message;
-          }
-          const unchanged = owner.innerHTML === authoredMarkup
-            && [...owner.childNodes].every((node, index) => node === authoredNodes[index])
-            && owner.className === 'authored-owner'
-            && header.className === 'authored-header';
-          const reclaim = leaf.registerReadingRegion({
-            id: 'reclaimable-region', host: owner, body: owner,
-          });
-          const reclaimed = leaf.readingRegion('reclaimable-region').host === owner;
-          reclaim();
-          occupied();
-
-          const detached = document.createElement('section');
-          detached.dataset.lfWorkspaceContext = 'root';
-          const detachedArrangement = leaf.arrangeReadingElement({
-            owner: detached,
-            role: 'workspace',
-          });
-          const detachedMarkerCleared =
-            detached.dataset.lfWorkspaceContext === 'embedded';
-          detachedArrangement.disconnect();
-
-          const layout = leaf.arrangeReadingElement({
-            owner,
-            role: 'pane',
-            header,
-            regions: [{id: 'retained-region'}],
-          });
-          const {content} = layout;
-          await layout.setReadingPosture('bounded');
-          let ownerMessage;
-          try {
-            leaf.registerReadingArrangement({owner, content});
-          } catch (error) {
-            ownerMessage = error.message;
-          }
-          const otherOwner = document.createElement('section');
-          main.append(otherOwner);
-          let contentMessage;
-          try {
-            leaf.registerReadingArrangement({owner: otherOwner, content});
-          } catch (error) {
-            contentMessage = error.message;
-          }
-          const pending = layout.setReadingPosture('flow');
-          layout.disconnect();
-          layout.disconnect();
-          layout.connect();
-          layout.connect();
-          const retainedBody = leaf.readingRegion('retained-region').body === layout.body;
-          await layout.setReadingPosture('bounded');
-          await pending;
-          const postureAfterReplacement = leaf.readingPosture(owner);
-          layout.disconnect();
-          owner.remove();
-          otherOwner.remove();
-          occupiedHost.remove();
-          return {message, ownerMessage, contentMessage, postureAfterReplacement,
-                  reclaimed, unchanged, detachedMarkerCleared, retainedBody};
-        }"""
-    )
-    assert result == {
-        "message": "leaf: reading region occupied-region is already live",
-        "ownerMessage": "leaf: reading arrangement owner is already live",
-        "contentMessage": "leaf: reading arrangement content is already live",
-        "postureAfterReplacement": "bounded",
-        "reclaimed": True,
-        "unchanged": True,
-        "detachedMarkerCleared": True,
-        "retainedBody": True,
+    assert readings["held"] == {
+        "outer": "outer-body",
+        "preview": "preview-body",
+        "posture": "bounded",
+        "focusRegion": "outer-pane",
     }
+    assert readings["previewFlows"] == {"preview": "outer-body", "posture": "flow"}
+    preview = "lf-region:outer-host:preview"
+    assert readings["shifts"] == [
+        [
+            [preview, "document", "preview-body"],
+            ["outer-pane", "document", "outer-body"],
+        ],
+        [[preview, "preview-body", "outer-body"]],
+    ]
+    assert readings["hiddenBounds"] is None
+    assert readings["refused"] == f"leaf: reading region {preview} is already live"
+    assert readings["reclaimed"] is True
+    assert readings["phases"] == [
+        ["before", False],
+        ["before", True],
+        ["after", False],
+    ]
 
 
-def test_a_pane_retries_refused_admission_before_retaining_its_layout(browser, serve):
-    page = open_page(browser, serve(SHORT_SUGGESTION))
+def test_a_pane_registers_the_body_it_holds_across_moves_and_revisions(browser, serve):
+    """A pane's region is its one body element: replacing the body re-registers the same
+    id, leaving the document retires it, and returning restores it with the user's
+    draft untouched, since no wrapper is built around what the author wrote."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "a pane that moves",
+                """
+<h1>Moving pane</h1>
+<lf-pane id="moving-pane" label="Moving pane"><header>Heading</header><div id="first-body"><input value="Authored"></div></lf-pane>
+""",
+            )
+        ),
+    )
     result = page.evaluate(
         """async () => {
           const leaf = await window.__lfRuntimeImport('/runtime/widget-api.js');
-          leaf.defineReadingPaneElement('test-retry-pane');
           const main = document.querySelector('main');
-          const occupiedHost = document.createElement('div');
-          main.append(occupiedHost);
-          const release = leaf.registerReadingRegion({
-            id: 'retry-pane', host: occupiedHost, body: occupiedHost,
-          });
-          const pane = document.createElement('test-retry-pane');
-          pane.id = 'retry-pane';
-          pane.setAttribute('label', 'Retry pane');
-          pane.innerHTML = '<header>Heading</header><input value="Authored">';
+          const pane = document.querySelector('#moving-pane');
+          const first = leaf.readingRegion('moving-pane')?.body.id;
           const authored = [...pane.childNodes];
-          main.append(pane);
-          const refusedWithoutWrapping = authored.every(
-            (node, index) => node === pane.childNodes[index]);
-          const refusedWithoutUpgrade = !pane.hasAttribute('data-lf-done');
-          pane.remove();
-          release();
-          main.append(pane);
-          const body = leaf.readingRegion(pane.id)?.body;
-          const nodes = [...pane.querySelectorAll('*')];
+
+          const next = document.createElement('div');
+          next.id = 'second-body';
+          next.innerHTML = '<input value="Authored">';
+          pane.querySelector('#first-body').replaceWith(next);
+          await new Promise(resolve => setTimeout(resolve));
+          const replaced = leaf.readingRegion('moving-pane')?.body.id;
+
           pane.querySelector('input').value = 'User draft';
           pane.remove();
-          const retired = !leaf.readingRegion(pane.id);
+          const retired = leaf.readingRegion('moving-pane') === undefined;
           main.append(pane);
-          const retained = leaf.readingRegion(pane.id)?.body === body
-            && nodes.every((node, index) => node === pane.querySelectorAll('*')[index]);
+          const restored = leaf.readingRegion('moving-pane')?.body.id;
           const value = pane.querySelector('input').value;
+          const label = pane.getAttribute('aria-label');
           pane.remove();
-          occupiedHost.remove();
-          return {refusedWithoutWrapping, refusedWithoutUpgrade, retired, retained, value,
-                  registered: !!body && body.contains(authored[1])};
+          return {first, replaced, retired, restored, value, label,
+                  unwrapped: authored[0] === pane.firstChild};
         }"""
     )
-    consume_browser_errors(page, "reading region retry-pane is already live")
     assert result == {
-        "refusedWithoutWrapping": True,
-        "refusedWithoutUpgrade": True,
-        "registered": True,
+        "first": "first-body",
+        "replaced": "second-body",
         "retired": True,
-        "retained": True,
+        "restored": "second-body",
         "value": "User draft",
+        "label": "Moving pane",
+        "unwrapped": True,
     }
 
 
@@ -4350,6 +4232,96 @@ def test_an_older_data_response_cannot_replace_a_newer_reading(browser, serve):
     page.wait_for_function("() => window.lfOldDataReleased === true")
     told(page)
     expect(page.locator('[data-lf-datum="api"]')).to_contain_text("Running")
+
+
+# The page's one read slot bounds the network, not the application: `askOnce` releases
+# the slot as soon as a body is in hand and lets that reading apply on its own. Answering
+# the trailing read from a queue the test filled first is what puts the next reading in
+# the page while the previous one is still being applied, rather than waiting for a
+# loaded machine to produce that overlap.
+QUEUED_STATE_READS = """() => {
+  window.__leafStateReads = [];
+  window.__leafStateAsks = 0;
+  const native = window.fetch.bind(window);
+  window.fetch = async (...args) => {
+    const input = args[0];
+    const url = typeof input === 'string' ? input : input.url;
+    if (new URL(url, location.href).pathname !== '/api/state') return native(...args);
+    window.__leafStateAsks += 1;
+    while (!window.__leafStateReads.length)
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    const [body, headers] = window.__leafStateReads.shift();
+    return new Response(body, {status: 200, headers});
+  };
+}"""
+
+
+def test_a_source_that_returns_under_an_unfinished_reading_stays_current(
+    browser, serve
+):
+    """A source revision is a digest, so a source can return to the one on screen.
+
+    Two readings reach the page while the first is still being applied: the source moved
+    away and then back. The delivery staged for the first names a revision the page no
+    longer holds, and the reading behind it names the revision the page is already
+    showing, so nothing but the newer publication says which of them to paint.
+    """
+    url = serve(
+        leaf_page(
+            "returning source",
+            '<h1>Notes</h1><lf-text-document id="notes" source="notes">'
+            "</lf-text-document>",
+        )
+    )
+    data_model.cmd_data_set(serve.page_dir, "notes", "First.\n")
+    page = open_page(browser, url)
+    expect(page.locator("#notes code")).to_have_text("First.\n")
+    told(page)
+    page.evaluate(QUEUED_STATE_READS)
+
+    # The reading that moves the source also brings a message, so applying it has
+    # document work to finish; the reading behind it lands while that work is unfinished.
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "id": "arriving",
+            "author": "agent",
+            "revision": 1,
+            "text": "A message arriving with the reading.",
+        },
+    )
+    data_model.cmd_data_set(serve.page_dir, "notes", "Second.\n")
+    away = page.request.get(urljoin(page.url, "/api/state"))
+    # The page is inside that read before the source returns, so the reading it takes is
+    # the one that moved the source and the trailing read is answered at once.
+    page.wait_for_function("() => window.__leafStateAsks >= 1")
+    data_model.cmd_data_set(serve.page_dir, "notes", "First.\n")
+    back = page.request.get(urljoin(page.url, "/api/state"))
+    assert away.json()["data"]["version"] != back.json()["data"]["version"]
+    page.evaluate(
+        "readings => window.__leafStateReads.push(...readings)",
+        [
+            [
+                response.text(),
+                {
+                    name: value
+                    for name, value in response.headers.items()
+                    if name not in ("content-length", "content-encoding")
+                },
+            ]
+            for response in (away, back)
+        ],
+    )
+
+    # The page accepted the reading that returned the source, so it is waiting on none;
+    # what it shows is that reading's value rather than the one it overtook.
+    page.wait_for_function(
+        "taken => Number(document.body.dataset.lfDataTaken) >= taken",
+        arg=back.json()["taken"],
+    )
+    expect(page.locator("#notes code")).to_have_text("First.\n")
+    expect(page.locator(".lf-thread", has_text="A message arriving")).to_have_count(1)
 
 
 def test_new_data_in_a_stale_event_response_is_still_accepted(browser, serve):

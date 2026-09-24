@@ -760,13 +760,7 @@ if (!offlineInteractive) {
   mountPanelReadingRegion();
   version.mount();
   mountBanner({
-    approveVersion: () =>
-      app.post({
-        kind: "done",
-        revision: runtime.currentRevision,
-        version: runtime.currentStamp,
-        text: "Looks good",
-      }),
+    approveVersion: () => app.post({ kind: "done", version: runtime.currentStamp }),
     paintApproval: paintVersionApproval,
   });
   auxiliarySurfaces.mount();

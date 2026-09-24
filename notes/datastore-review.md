@@ -100,8 +100,6 @@ three more times. Neither warrants snapshots or incremental folding yet.
 - Stored `meaning` repeats `widget`, `revision`, and `generated`, and
   `stored_meaning_error` asserts it still equals a recomputation: two mechanisms for
   one guarantee. Keep the stored `coordinate`, which registry-free readers need.
-- `x-state` and `x-report` declare one shape; `"x-state" if action else "x-report"`
-  recurs. One verb declaration with `by: [user, agent]`.
 - `undo`, `restated`, and a note's `settles` are one relation, "this stops
   standing"; `restated` differs in naming element ids.
 - `fragments` is `records` plus one deferred field, declared beside it with an
@@ -110,9 +108,3 @@ three more times. Neither warrants snapshots or incremental folding yet.
 - About 250 lines of Git patch parsing sit in core `data.py` for the diff package,
   and `data capture --lines` slices text for one contract. Both belong to their
   contracts and packages, leaving one `leaf data set`.
-
-## Other processes
-
-`seq` is already a sync id and `leaf events --after SEQ` the catch-up read. Add
-`--follow` on the trigger `/api/news` uses, and state that stored event records are a
-public format whose readers drop what they do not recognise.

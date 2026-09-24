@@ -38,6 +38,7 @@ type Event = Thread["root"];
 interface ActionSpec {
   unit: string;
   record?: { kind: string; value: string; attr?: string };
+  writer?: "agent";
 }
 
 interface WireProjection {
@@ -123,7 +124,6 @@ export interface SemanticDocument {
     string,
     {
       "x-state"?: Record<string, ActionSpec>;
-      "x-report"?: Record<string, ActionSpec>;
       [name: string]: unknown;
     }
   >;
@@ -309,27 +309,31 @@ function widgetReading(
   const localUndo = desired
     .map(({ e }) => e)
     .filter((event) => String(event.id).startsWith(PENDING));
+  // The user acts only on the verbs they write; an agent's verb reaches this widget as
+  // state and never as a control.
   const actions = Object.fromEntries(
-    Object.entries(actionSpecs).map(([verb, spec]) => [
-      verb,
-      {
-        available:
-          currentDescriptor &&
-          root.effective.hostAvailable &&
-          root.phase !== "waiting" &&
-          !descriptor.quoted,
-        unavailable: root.effective.hostAvailable
-          ? null
-          : "no agent or server is available",
-        history: classified.filter(({ e }) => e.action === verb).map(({ e }) => e),
-        standing: desired
-          .filter(({ e }) => e.action === verb)
-          .map(({ e, unit, value }) => ({ event: e, unit, value })),
-        undo: root.effective.hostAvailable
-          ? [...localUndo, ...durableUndo].filter((event) => event.action === verb)
-          : [],
-      },
-    ]),
+    Object.entries(actionSpecs)
+      .filter(([, spec]) => spec.writer !== "agent")
+      .map(([verb]) => [
+        verb,
+        {
+          available:
+            currentDescriptor &&
+            root.effective.hostAvailable &&
+            root.phase !== "waiting" &&
+            !descriptor.quoted,
+          unavailable: root.effective.hostAvailable
+            ? null
+            : "no agent or server is available",
+          history: classified.filter(({ e }) => e.action === verb).map(({ e }) => e),
+          standing: desired
+            .filter(({ e }) => e.action === verb)
+            .map(({ e, unit, value }) => ({ event: e, unit, value })),
+          undo: root.effective.hostAvailable
+            ? [...localUndo, ...durableUndo].filter((event) => event.action === verb)
+            : [],
+        },
+      ]),
   );
 
   const request = (declaration["x-request"] ?? null) as {

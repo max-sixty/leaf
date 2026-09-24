@@ -33,6 +33,7 @@ from .data import (
 from .event_endpoint import accept_event, event_rejection
 from .event_log import read_events
 from .files import (
+    LOOK_S,
     latest_revision,
     list_revisions,
     missing_revision,
@@ -78,15 +79,8 @@ from .structure import (
     SourceDocument,
 )
 
-# How often an open news stream re-reads the page, and how long it may go without a
-# word before saying it is still there. The look is a re-stat rather than an in-process
-# signal because an append does not have to come from this process — `leaf reply` and
-# every other command write these same files from outside it — so one mechanism covers
-# a browser's POST and an agent's command alike. Measured at 70us a look, 0.14% of a
-# core per open tab, against the full state read and log parse a timed poll cost every
-# two seconds whether or not anything had happened. (The neighbour scan the poll also
-# ran is still run, on `PRESENCE_S` below.)
-LOOK_S = 0.05
+# How long an open news stream, which re-reads the page every `LOOK_S`, may go without
+# a word before saying it is still there.
 ALIVE_S = 5.0
 # How often the stream re-reads what no stamp shows. Three facts in a state come from
 # somewhere other than the page's files: whether a wait lease is held is a lock, whether

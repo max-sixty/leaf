@@ -26,8 +26,7 @@
     "x-content": "markup",
     "x-measure": "group",
     "x-ask-surface": true,
-    "x-upgrade": true,
-    "x-verbatim": true,
+    "x-upgrade": false,
     "x-example": "<section id=\"storage-section\">\n  <lf-ask id=\"storage-decision\">\n    <h2>What should a full store do?</h2>\n    <p>The beta never reached the cap. This decides what the first workspace at it sees.</p>\n    <lf-options id=\"full-store\" choose>\n      <lf-option id=\"store-evict\"><strong>Drop the oldest documents</strong> Editing continues. <em>My take: this keeps work moving without losing server data.</em></lf-option>\n      <lf-option id=\"store-stop\"><strong>Pause offline editing</strong> Nothing leaves.</lf-option>\n    </lf-options>\n  </lf-ask>\n</section>"
   },
   "lf-gloss": {
@@ -757,7 +756,7 @@
       "lf-column"
     ],
     "x-content": "markup",
-    "x-work": {"seat": "content"},
+    "x-work": true,
     "x-upgrade": false
   },
   "lf-tabs": {
@@ -908,10 +907,11 @@
     "x-reading-role": "grid",
     "x-space": "available",
     "x-upgrade": true,
+    "x-verbatim": true,
     "x-example": "<lf-grid id=\"status\" columns=\"3\"><section><h3>Errors</h3><lf-metric id=\"errors\" value=\"0.11%\">error rate</lf-metric></section><section><h3>Latency</h3><lf-metric id=\"p95\" value=\"184 ms\">p95</lf-metric></section><section><h3>Traffic</h3><lf-metric id=\"traffic\" value=\"25%\">candidate</lf-metric></section></lf-grid>"
   },
   "lf-workspace": {
-    "description": "A structural owner that can receive Leaf's bounded page allocation. It receives it as the sole content element of main, with the page title in its optional direct header, or as the sole content of a page tab; anywhere else it is embedded and stays in document flow. Its direct header and footer, when present, frame exactly one body element: an lf-pane, an lf-partition, or a widget that arranges its own regions, such as a playground. Only those take a share of the allocation, so a plain div or section around one leaves it unallocated. A narrow window or a standalone copy stacks the regions in authored order, so choose an order that still reads stacked.",
+    "description": "Task regions kept together while the space allows. As the sole content element of main, with the page title in its optional direct header, or as the sole content of a page tab, it takes the window's height: when that height and width hold it, each pane's body scrolls on its own and the header and footer stay in view; when they don't, the panes take their natural height and the page scrolls, with the grid keeping the columns its width allows. Anywhere else it is embedded and stays in document flow. Its direct header and footer frame exactly one body element: an lf-grid of lf-pane regions, one lf-pane, or a widget that arranges its own regions, such as a playground, alone or in an Ask of a heading and that widget. Only those take the height, so a plain div or section around one leaves it flowing. A narrow window or a standalone copy stacks the regions in authored order, so choose an order that still reads stacked.",
     "type": "object",
     "properties": {
       "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"}
@@ -921,12 +921,11 @@
     "x-content": "markup",
     "x-measure": "group",
     "x-reading-role": "workspace",
-    "x-upgrade": true,
-    "x-verbatim": true,
-    "x-example": "<lf-workspace id=\"review-workspace\"><header><h1>Review</h1></header><lf-pane id=\"review-body\" label=\"Proposal\"><p>Read the proposal.</p></lf-pane></lf-workspace>"
+    "x-upgrade": false,
+    "x-example": "<lf-workspace id=\"review-workspace\"><header><h1>Review</h1></header><lf-grid id=\"review-regions\" columns=\"1fr 2fr\"><lf-pane id=\"review-queue\" label=\"Items\"><header><h2>Queue</h2></header><ul><li>First item</li></ul></lf-pane><lf-pane id=\"review-body\" label=\"Proposal\"><div><p>Read the proposal.</p></div></lf-pane></lf-grid></lf-workspace>"
   },
   "lf-pane": {
-    "description": "One reading region in a workspace. Its label names the region accessibly; an authored header supplies any visible heading. Put action widgets in its direct footer when they should stay reachable while the body scrolls. Its body may scroll independently in bounded posture and returns to its containing reading flow when space is constrained.",
+    "description": "One reading region in a workspace: an optional direct header, exactly one body element, and an optional direct footer. Its label names the region accessibly; the header supplies any visible heading. While its workspace holds the window the body scrolls on its own under the header and above the footer; otherwise the pane is an ordinary section and the page scrolls. Wrap several blocks in one div or section to make the body. Put action widgets in its direct footer when they should stay reachable while the body scrolls.",
     "x-name": "label",
     "type": "object",
     "properties": {
@@ -941,22 +940,6 @@
     "x-upgrade": true,
     "x-verbatim": true,
     "x-example": "<lf-pane id=\"detail\" label=\"Selected record\"><p>Read the selected record.</p></lf-pane>"
-  },
-  "lf-partition": {
-    "description": "A binary structural partition in columns or rows. Each direct child declares the pane or partition role through x-reading-role; tag names do not define membership.",
-    "type": "object",
-    "properties": {
-      "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
-      "direction": {"enum": ["columns", "rows"]}
-    },
-    "required": ["id", "direction"],
-    "additionalProperties": false,
-    "x-content": "markup",
-    "x-measure": "group",
-    "x-reading-role": "partition",
-    "x-upgrade": true,
-    "x-verbatim": true,
-    "x-example": "<lf-partition id=\"review-regions\" direction=\"columns\"><lf-pane id=\"queue\" label=\"Items\"><p>Queue</p></lf-pane><lf-pane id=\"detail\" label=\"Selected item\"><p>Detail</p></lf-pane></lf-partition>"
   },
   "$reactions": {
     "tokens": {

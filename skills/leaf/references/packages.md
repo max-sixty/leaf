@@ -202,7 +202,7 @@ widget's role on the page:
 
 | Key                  | Shipped example                                                |
 | -------------------- | -------------------------------------------------------------- |
-| `x-reading-role`     | `lf-workspace`, `lf-pane`, `lf-partition`, `lf-grid`           |
+| `x-reading-role`     | `lf-workspace`, `lf-pane`, `lf-grid`                           |
 | `x-required-members` | `lf-swipe-deck` in `swipe`                                     |
 | `x-page-navigation`  | `lf-tabs`                                                      |
 | `x-visual`           | `lf-chart` declares `whole`, `lf-diagram` in `diagram` `parts`  |
@@ -292,37 +292,41 @@ current entry's candidates. The server remains final admission for every command
 
 ### Reading layouts
 
-A structural element declares `x-reading-role` and its module composes the reading area
-with `arrangeReadingElement({owner, role, header, footer, regions, minimumSize})`. It
-returns a retained layout with `body` and `content` nodes; `role` selects workspace,
-pane, or partition. The optional header and footer are elements the caller identifies,
-including generated elements; shared slot classes carry their geometry. The helper
-groups the remaining children into the content body and registers any declared reading
-regions. Keep the layout for the element's lifetime. Call `connect()` from
-`connectedCallback` and `disconnect()` from `disconnectedCallback`: disconnect retires
-registrations and observers, and connect restores them from the retained nodes and
-declarations. Neither rebuilds DOM. For a widget whose build is a single arrangement,
-construct it only while its retained layout is absent, then call `once(owner)` to mark
-the successful upgrade. Admission failure leaves the authored nodes untouched, so a
-later connection can retry. This is not a transaction around a compound widget's whole
-build: use `once(owner)` to guard generated controls and listeners, retain the layouts
-it creates, and reconnect those layouts without rerunning that build.
+A structural element declares `x-reading-role` as `workspace`, `pane`, or `grid` and
+keeps `x-content: markup`. A workspace or pane has exactly one direct body element
+between an optional native `header` first and an optional native `footer` last; a grid
+holds its cells as elements. The validator reads roles rather than tag names, and the
+runtime paints each declared role as `data-lf-reading-role`, which the default theme
+lays out, so a package's differently named pane or grid takes the same rules as
+`lf-pane` and `lf-grid`; its module registers the pane's body as described below. The
+page's root workspace is `lf-workspace` itself.
 
-`defineReadingPaneElement(tagName)` supplies the complete lifecycle for an ordinary
-named pane, including furniture, region registration, accessibility, and reconnect. Use
-it when a package-specific pane differs only through its registry contract and CSS;
-write a behavior module when the element owns another interaction.
+The default package's theme owns the layout of those roles, bounded posture included:
+whether a workspace holds the window, and so whether each pane's body scrolls or the
+page does, is one container query there, and nothing in a module measures a minimum or
+chooses a posture. The height reaches a pane only through a chain of boxes that pass it
+on, each declaring `--lf-passes-hold: 1` in its theme rule: grids, panes, an Ask of a
+heading and one answer, and a package's own region compound such as a playground. Each
+also declares `min-height: var(--lf-track-min)`, which is `0px` while it is held and
+`auto` otherwise, so it takes its track's height in a bounded workspace and its
+content's everywhere else. A behavior module that composes regions out of boxes it
+generates, such as a playground's controls beside its preview, takes the same rules by
+marking those boxes `data-lf-reading-role="grid"` or `"pane"`, with the pane grammar of
+one header, one body, and one footer. The attribute is the module's to write and never
+an author's, since `version check` refuses `data-lf-` markup. Keep the package theme to
+placement inside that grammar, such as track sizes and chrome; a package copy of a
+bounded rule is a second posture decision that drifts from the first. Generate boxes
+rather than the `lf-pane` or `lf-grid` elements themselves: those are authored words the
+render gate pairs with the file.
 
-The helper marks a workspace owner `data-lf-workspace-context="root"` when it is the
-only substantive element directly inside `body > main`, or inside a package slot
-marked `data-lf-root-reading` (the active panel of page-navigation `lf-tabs`); other
-workspaces receive `embedded`. Packages read that context to choose bounded posture.
-The optional `minimumSize` callback makes the layout fit a root: it returns the
-complete minimum as `{width, height}`, or `null` for flow, and Leaf calls it inside
-the bounded candidate, so live boxes describe that arrangement rather than whichever
-posture is drawn. Leaf chooses bounded or flow as the room changes. Pass the promise
-`connect()` returns to `widgetController(owner).present()` to join initial settlement;
-`update()` requests another fit.
+`registerReadingRegion({id, host, body})` binds a region's identity to its host and to
+the body that scrolls it whenever the theme makes it scroll. The host makes focus in a
+pane's header or footer select that pane. Register from `connectedCallback` and call
+the returned cleanup from `disconnectedCallback`, so a reconnect can claim the same id.
+`readingPosture(node)` is `bounded` exactly while the region's body is its own
+scroller, and `watchReadingRegionTransitions(listener)` receives a `shift` when a
+region's scroller changes without a gesture; the continuity owner records the user's
+place as they scroll and restores it there.
 
 A compound widget whose parts scroll independently registers each with
 `registerReadingRegion({id, host, body})`, taking a stable id from
@@ -607,10 +611,16 @@ canonical `id`, and has `x-content: markup`. The append door refuses an id the s
 document already holds, and version checks enforce the declared tag and
 direct-ownership relation once an author writes the child into the markup.
 
-`x-report` declares the agent's side of the same coordinates: a worker posts a report
-with `leaf report`, and it stands until a version answers it. A report verb that shares
-its name with an `x-state` verb states the same fact, and a user's action at that
-coordinate outranks it.
+A verb whose state the agent writes rather than the user declares `"writer": "agent"`
+beside its `detail`, `unit`, and `record`. A worker posts it with `leaf report`, the
+page paints it live, and it stands until a version answers it; the user has no control
+for it. Its record is required and may not be `body`, and it may name the detail field
+carrying its short human-readable news with `update`. Every verb has exactly one
+writer, so a coordinate never holds a user's action and an agent's report at once.
+Command Hub's `lf-task` `status` is the shipped example, and a widget declaring such a
+verb also declares the boolean `overruled` attribute a version keeps its own state
+with. A worker that reacts to the user's actions follows them as they land with
+`leaf events PAGE --follow`.
 
 ## External requests and receipts
 
@@ -627,7 +637,7 @@ instruction, remove the holder rather than leaving an empty Ask with no possible
 `verbs` gives each operation a closed detail schema. Optional `bind` entries require a
 detail field to equal an authored string attribute on the holder, so a crafted event
 cannot retarget the operation. Every bound detail field and holder attribute is required,
-string-valued, and immutable through `x-state` or `x-report`; every offer attribute is a
+string-valued, and immutable through `x-state`; every offer attribute is a
 required string enum on its child. These constraints make the same declaration usable at
 authoring, browser, and server boundaries rather than leaving a partial bind to runtime
 guesswork.

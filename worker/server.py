@@ -46,7 +46,7 @@ from leaf.delivery import read_delivery
 from leaf.host import EmbeddedHarness
 from leaf.hosting import LeafHTTPServer
 from leaf.http import PageEndpoint, scope_page_urls
-from leaf.leases import take_lease, waiter_lease_path
+from leaf.leases import release_lease, take_lease, waiter_lease_path
 from leaf.registry.storage import layer_metadata
 from leaf.revisioning import activate_source
 from leaf.schema import SKILL_ROOT, VENDORED_FILES
@@ -694,7 +694,7 @@ class WebsiteCodexHost:
         self.stop_event.set()
         with self.lock:
             for lease in self.waiter_leases.values():
-                lease.close()
+                release_lease(lease)
             self.waiter_leases.clear()
             process = self.process
             self.process = None

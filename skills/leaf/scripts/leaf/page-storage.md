@@ -68,8 +68,8 @@ other page files and the external state listed below.
   and reply bindings. [session-lifetime.md](session-lifetime.md) owns their writers and
   lifetimes; `conversation.py` owns response reservations and their release.
 
-- `waiter.lock` — bare-shell wait lease; host sessions instead use
-  `<state-home>/sessions/<id>.wait`. See [session-lifetime.md](session-lifetime.md).
+- `waiter.lock` — bare-shell wait lease, present only while held; host sessions instead
+  use `<state-home>/sessions/<session>.wait`. See [session-lifetime.md](session-lifetime.md).
 
 - `viewed.json` — last visible browser attention, written by the server and absent until
   first viewed. `http.py` owns throttled renewal; hidden tabs do not renew it.

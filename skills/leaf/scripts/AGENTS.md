@@ -56,8 +56,9 @@ The main owners are:
 - `host`: the agent harness declarations — session identity, lifetime, delivery
   carrier, hook remedies, and the nudge that reaches a session with nothing watching —
   and the Claude Code messaging socket behind one of them;
-- `leases`: process-backed page, transition, and waiter leases, and `take_lease`,
-  the one non-blocking take every lease holder uses;
+- `leases`: process-backed page, transition, and waiter leases, `take_lease`, the
+  one non-blocking take every lease holder uses, and `release_lease`, which removes
+  the file as it lets go;
 - `service`: page claims, serialized transactions, and status;
 - `server` and `hosting`: server address and lifetime state, plus durable and
   process-owned HTTP servers;

@@ -731,35 +731,34 @@ pick on the page:
         the markup records it. Continue the work it selects or unblocks, then write
         it in and stamp a version.
 
-pick adding an option:
+option the user added:
   event:
     kind: action
-    detail:
-      additions:
-        mine: My own way
+    action: add
     meaning:
       document:
         kind: page
-    obligation:
-      response:
-        kind: markup
   told:
     - text: >-
         The user already sees the action applied.
-    - when: {"allOf": [{"required": ["detail"], "properties": {"detail": {"required": ["additions"]}}}, {"not": {"required": ["meaning"], "properties": {"meaning": {"required": ["document"], "properties": {"document": {"required": ["kind"], "properties": {"kind": {"const": "thread"}}}}}}}}]}
+    - when: {"allOf": [{"not": {"required": ["obligation"]}}, {"not": {"required": ["meaning"], "properties": {"meaning": {"required": ["document"], "properties": {"document": {"required": ["kind"], "properties": {"kind": {"const": "thread"}}}}}}}}]}
       text: >-
-        When you write it into the markup, each of the action's `additions` becomes
-        an ordinary lf-option in the group, keeping the id and words the event gives,
-        with the picked options marked `chosen`.
+        The log carries the action onto every later version, so the page keeps it
+        without an edit.
+    - when: {"allOf": [{"required": ["action"], "properties": {"action": {"const": "add"}}}, {"not": {"required": ["meaning"], "properties": {"meaning": {"required": ["document"], "properties": {"document": {"required": ["kind"], "properties": {"kind": {"const": "thread"}}}}}}}}]}
+      text: >-
+        When you write it into the markup, the added option becomes an ordinary
+        lf-option in the group, keeping the id and words the event gives.
     - when: {"not": {"required": ["meaning"], "properties": {"meaning": {"required": ["document"], "properties": {"document": {"required": ["kind"], "properties": {"kind": {"const": "thread"}}}}}}}}
       text: >-
         If you need clarification, ask in a thread on the picked option. To override
         the pick in a later version, mark the element `restated` and say why in
         the version note.
-    - text: >-
-        It answers the page's Ask, so the page shows it as waiting on you until
-        the markup records it. Continue the work it selects or unblocks, then write
-        it in and stamp a version.
+    - when: {"not": {"required": ["obligation"]}}
+      text: >-
+        This move owes no answer of its own: it answers no Ask, a later move on
+        the same widget carries the answer, or it does not finish the answer yet,
+        such as a pick before the Done its group waits for.
 
 pick before Done:
   event:

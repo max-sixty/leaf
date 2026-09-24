@@ -462,8 +462,9 @@ def action_rests_on(event: dict, within: dict) -> list:
 
     The event keeps the identities the command named, not their ancestor path.
     Moving a named element out of the owner therefore changes its applicability.
-    Generated identities have durable ownership even before markup records them.
-    Literal detail values never acquire identity by coinciding with an HTML id.
+    A child the action created (`meaning.creates`) is its fold unit, which it rests
+    on whether or not a document holds it yet. Literal detail values never acquire
+    identity by coinciding with an HTML id.
     """
     widget = event["widget"]
     return list(
@@ -475,7 +476,11 @@ def action_rests_on(event: dict, within: dict) -> list:
                     for identity in event["meaning"]["depends"]
                     if widget in within.get(identity, ())
                 ),
-                *event.get("generated", []),
+                *(
+                    [event["meaning"]["coordinate"][1]]
+                    if event["meaning"].get("creates")
+                    else []
+                ),
             ]
         )
     )

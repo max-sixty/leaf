@@ -18,7 +18,7 @@ page and is not a global identifier. The kinds:
 | `resolve` | user or agent | `POST /api/event`, `leaf resolve` | `parent` | closes a thread |
 | `unresolve` | user | `POST /api/event` | `parent` | the user reopens a resolved thread |
 | `done` | user | the banner, only on a page declaring `<meta name="lf-review" content="sign-off">` | | approval of the declared sign-off; a page that asks nothing gets no terminal control |
-| `action` | user | `POST /api/event` from a widget | `widget`, `action`, `detail`, optional declared-role `references`; server-stamped `meaning` and, for a verb declaring `creates`, `generated` | the user edited the document through the widget |
+| `action` | user | `POST /api/event` from a widget | `widget`, `action`, `detail`, optional declared-role `references`; server-stamped `meaning` | the user edited the document through the widget |
 | `report` | agent or worker | `leaf report` | as `action`, validated by the widget's `x-report`; `--references` supplies its declared role map | provisional state that stands until a stamped revision answers it |
 | `request` | user | `POST /api/event` from a widget | `widget`, `action`, `detail`, and `source_revision` for a projected record; validated by the holder's `x-request` | a durable, non-undoable one-shot instruction to the host, seated on its admitted document, widget, and unit |
 | `receipt` | agent | `leaf receipt`; a host failure receipt | `request`, `succeeded` or `failed`, `text`; host `failure` with `failed` | exactly one terminal outcome per accepted request |
@@ -100,7 +100,7 @@ Transports own only their input boundary: which kinds and fields they accept,
 how they answer retries, and whether their anchors need file-side capture.
 
 Browser POSTs are commands. The append transaction stamps the accepted event with
-server-owned `meaning`; callers cannot send it or `generated`, and retry identity
+server-owned `meaning`; callers cannot send it, and retry identity
 compares the original command fields rather than this enrichment. Actions and
 reports record `document`, the `[owner, unit, facet]` coordinate, and `depends`,
 the direct element identities named by declared state fields. Requests record
@@ -119,8 +119,10 @@ it uniquely inside the sending page revision's authored `<main>` or the sender's
 frozen-markup fragment and checks any `{via, where}` relation. Literal detail strings do
 not become dependencies by matching HTML ids. The log does not freeze ancestry:
 retraction tests use the current document's containment of those identities.
-Generated children retain the durable ownership established by `creates`, whose
-sorted identity snapshot the server stamps in `generated`.
+A child a `creates` verb adds is that action's fold unit, so it stands on the action's
+own coordinate until the action is undone or retracted. Admission stamps the child tag
+in `meaning.creates`, and the action rests on its unit whether or not a document holds
+it yet.
 
 ## Threads
 

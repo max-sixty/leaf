@@ -280,6 +280,37 @@ STATED_FINISH = {
 }
 
 
+def test_a_pick_names_only_options_its_group_holds():
+    """A `choose` names authored options or ones a standing `add` created.
+
+    The user's own option travels as two sends, the `add` and then the pick of it.
+    Were the `add` refused, the pick behind it would otherwise answer the Ask with an
+    option nobody can see.
+    """
+    page = ModelPage(STATED_KIT)
+    pick = {**STATED_PICK, "widget": "live-pick", "detail": {"options": ["live-mine"]}}
+
+    def admit(log, event):
+        return event_contracts_model.admitted_event(page, log, dict(event))
+
+    with pytest.raises(events_model.EventRefused) as refused:
+        admit(STATED_LOG, pick)
+    assert "['live-mine'] name no member of 'live-pick'" in str(refused.value)
+
+    add = admit(
+        STATED_LOG,
+        {
+            **STATED_PICK,
+            "widget": "live-pick",
+            "action": "add",
+            "detail": {"option": "live-mine", "text": "My own way"},
+        },
+    )
+    assert add["meaning"]["coordinate"] == ["live-pick", "live-mine", "added"]
+    added = {**add, "id": "a1", "ts": "2026-09-19T12:01:00+00:00", "seq": 2}
+    assert admit([*STATED_LOG, added], pick)["detail"] == {"options": ["live-mine"]}
+
+
 def test_a_crafted_finish_cannot_close_a_swipe_ask_with_an_unknown_card():
     """A verb that carries its own result is checked against the deck it claims.
 
@@ -347,27 +378,27 @@ def test_admission_decides_from_the_markup_and_the_standing_log_alone():
     assert admit({**answer, "parent": "c1"})["parent"] == "c1"
 
 
-def test_only_declared_generated_children_add_mapping_keys_to_liveness():
+def test_a_created_child_is_its_actions_unit_and_its_words_stay_payload():
+    # Words that happen to spell an element id never become a dependency; the
+    # created id does once the markup holds it inside the sender.
     event = {
         "widget": "group",
-        "detail": {
-            "part": "authored-child",
-            "metadata": {"coincidental-id": "ordinary mapping payload"},
-            "additions": {"user-child": "User supplied words"},
-        },
-        "generated": ["user-child", "user-child"],
-        "meaning": {"depends": ["group", "authored-child"]},
+        "detail": {"option": "user-child", "text": "authored-child"},
+        "meaning": {"depends": ["group", "user-child"]},
     }
-    spec = {"creates": {"field": "additions", "child": "lf-option"}}
+    spec = {"unit": "option", "creates": {"child": "lf-option", "words": "text"}}
 
-    assert registry_contract.created_children(event, spec) == {
-        "user-child": "User supplied words"
-    }
-    assert event_folds_model.action_rests_on(event, {"authored-child": ("group",)}) == [
-        "group",
-        "authored-child",
+    assert registry_contract.created_child(event, spec) == (
         "user-child",
+        "authored-child",
+    )
+    assert registry_contract.created_child(event, {"unit": "option"}) is None
+    assert event_folds_model.action_rests_on(event, {"authored-child": ("group",)}) == [
+        "group"
     ]
+    assert event_folds_model.action_rests_on(
+        event, {"authored-child": ("group",), "user-child": ("group",)}
+    ) == ["group", "user-child"]
 
 
 # Two suggestions on one page, and the decisions a user takes on them. The
@@ -443,7 +474,6 @@ def test_an_answer_the_user_took_back_leaves_its_thread_open(page_dir):
             "widget": "picks",
             "action": "choose",
             "detail": {"options": ["flag-first"], "resolves": "c1"},
-            "generated": [],
             "meaning": {
                 "document": {"kind": "page", "revision": 1},
                 "coordinate": ["picks", "picks", "selection"],
@@ -990,7 +1020,7 @@ def test_init_refuses_an_incoming_detail_contract_that_rejects_logged_actions(
     assert "detail" in result.output
 
 
-@pytest.mark.parametrize("mutation", ["drop", "field", "child"])
+@pytest.mark.parametrize("mutation", ["drop", "words", "child"])
 def test_init_refuses_changed_generated_child_semantics(page_dir, mutation):
     registry = json.loads((page_dir / "registry.json").read_text())
     options = (
@@ -1011,27 +1041,23 @@ def test_init_refuses_changed_generated_child_semantics(page_dir, mutation):
             "author": "user",
             "revision": 1,
             "widget": "route",
-            "action": "choose",
-            "detail": {
-                "options": ["route-user"],
-                "additions": {"route-user": "User route"},
-            },
-            "generated": ["route-user"],
+            "action": "add",
+            "detail": {"option": "route-user", "text": "User route"},
         },
     )
 
-    choose = registry["lf-options"]["x-state"]["choose"]
+    add = registry["lf-options"]["x-state"]["add"]
     overlay_entries = {"lf-options": registry["lf-options"]}
     if mutation == "drop":
-        del choose["creates"]
-    elif mutation == "field":
-        choose["creates"]["field"] = "extras"
-        choose["detail"]["properties"]["extras"] = choose["detail"]["properties"][
-            "additions"
-        ]
+        del add["creates"]
+    elif mutation == "words":
+        add["creates"]["words"] = "words"
+        fields = add["detail"]["properties"]
+        fields["words"] = fields.pop("text")
+        add["detail"]["required"] = ["option", "words"]
     else:
         registry["lf-option-alt"] = registry["lf-option"]
-        choose["creates"]["child"] = "lf-option-alt"
+        add["creates"]["child"] = "lf-option-alt"
         overlay_entries["lf-option-alt"] = registry["lf-option-alt"]
     overlay = page_dir.parent / ".leaf"
     overlay.mkdir()
@@ -2679,8 +2705,9 @@ def test_check_refuses_an_invalid_action_detail_schema(page_dir):
     [
         ("missing-member", "registry extensions are invalid"),
         ("unknown-child", "creates unknown child <lf-missing>"),
-        ("required-field", "creates detail field `additions` must be optional"),
-        ("wrong-map", "canonical non-empty element-id to non-empty string map"),
+        ("optional-words", "detail must be exactly the required element id"),
+        ("extra-field", "detail must be exactly the required element id"),
+        ("widget-unit", "fold unit must name the detail field"),
         ("wrong-owner", "x-owners does not admit the sender"),
         ("non-markup", "must declare x-content markup"),
         ("extra-required", "must require id and no other authored attributes"),
@@ -2690,16 +2717,18 @@ def test_check_refuses_an_invalid_action_detail_schema(page_dir):
 )
 def test_generated_child_declaration_closes_its_boundary(page_dir, mutation, message):
     registry = json.loads((page_dir / "registry.json").read_text())
-    choose = registry["lf-options"]["x-state"]["choose"]
+    add = registry["lf-options"]["x-state"]["add"]
     option = registry["lf-option"]
     if mutation == "missing-member":
-        del choose["creates"]["child"]
+        del add["creates"]["child"]
     elif mutation == "unknown-child":
-        choose["creates"]["child"] = "lf-missing"
-    elif mutation == "required-field":
-        choose["detail"]["required"].append("additions")
-    elif mutation == "wrong-map":
-        choose["detail"]["properties"]["additions"]["minProperties"] = 0
+        add["creates"]["child"] = "lf-missing"
+    elif mutation == "optional-words":
+        add["detail"]["required"] = ["option"]
+    elif mutation == "extra-field":
+        add["detail"]["properties"]["note"] = {"type": "string"}
+    elif mutation == "widget-unit":
+        add["unit"] = "widget"
     elif mutation == "wrong-owner":
         option["x-owners"] = ["lf-board"]
     elif mutation == "non-markup":
@@ -2710,8 +2739,8 @@ def test_generated_child_declaration_closes_its_boundary(page_dir, mutation, mes
         option["properties"]["id"]["pattern"] = "^option-.+$"
     elif mutation == "report-creates":
         registry["lf-agent"]["x-report"]["state"]["creates"] = {
-            "field": "doing",
             "child": "lf-option",
+            "words": "doing",
         }
     (page_dir / "registry.json").write_text(json.dumps(registry))
 
@@ -4195,11 +4224,10 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
         },
         "reaction on a message": {"kind": "reply", "token": "+1"},
         "pick on the page": {"kind": "action", "meaning": on_page, **owes("markup")},
-        "pick adding an option": {
+        "option the user added": {
             "kind": "action",
-            "detail": {"additions": {"mine": "My own way"}},
+            "action": "add",
             "meaning": on_page,
-            **owes("markup"),
         },
         "pick before Done": {"kind": "action", "meaning": on_page},
         "pick inside a thread": {

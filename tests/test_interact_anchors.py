@@ -1034,7 +1034,12 @@ def test_comments_reach_user_generated_choices_without_source_copying(page_dir):
     publish(page_dir)
     identity = "routes-option-user"
     words = "Use <a literal> & keep the source unchanged."
-    for options in ([identity], ["flag-first"]):
+    moves = [
+        ("add", {"option": identity, "text": words}),
+        ("choose", {"options": [identity]}),
+        ("choose", {"options": ["flag-first"]}),
+    ]
+    for action, detail in moves:
         append_command(
             page_dir,
             {
@@ -1042,8 +1047,8 @@ def test_comments_reach_user_generated_choices_without_source_copying(page_dir):
                 "author": "user",
                 "revision": 1,
                 "widget": "routes",
-                "action": "choose",
-                "detail": {"options": options, "additions": {identity: words}},
+                "action": action,
+                "detail": detail,
             },
         )
 

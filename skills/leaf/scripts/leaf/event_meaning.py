@@ -5,7 +5,6 @@ projection tests those identities against the document it reads, so moving a
 referenced element still changes containment without changing an old event.
 """
 
-from leaf.registry.contract import created_children
 from leaf.thread_context import thread_structure
 
 
@@ -31,7 +30,6 @@ def direct_dependencies(event: dict, spec: dict) -> list[str]:
         )
         if identity:
             dependencies.append(identity)
-    dependencies.extend(created_children(event, spec))
     return dependencies
 
 
@@ -46,6 +44,10 @@ def state_meaning(event: dict, entry: dict, document: dict) -> dict:
         "coordinate": [owner, unit, spec["facet"]],
         "depends": sorted(set(dependencies)),
     }
+    # A created child's unit is new, so no document may yet hold it. Stamping its
+    # tag lets registry-free readers keep the action resting on it regardless.
+    if creates := spec.get("creates"):
+        meaning["creates"] = creates["child"]
     if event["kind"] == "action" and event["action"] in entry.get("x-awaits", {}).get(
         "answers", []
     ):
@@ -75,11 +77,6 @@ def admit_widget_event(sender, event: dict, events: list, registry: dict) -> dic
         admitted["meaning"] = {"document": document, "unit": unit}
     else:
         admitted["meaning"] = state_meaning(event, entry, document)
-        spec = entry["x-state" if event["kind"] == "action" else "x-report"][
-            event["action"]
-        ]
-        if spec.get("creates"):
-            admitted["generated"] = sorted(created_children(event, spec))
     return admitted
 
 

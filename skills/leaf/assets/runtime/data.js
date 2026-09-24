@@ -176,7 +176,11 @@ export function watchData(element, input, callback) {
   };
   const stage = (sourceStore) => {
     const revision = sourceStore?.revision ?? null;
-    if (delivered && deliveredRevision === revision) return;
+    // What this subscriber will next paint is the staged delivery while one stands, and
+    // the delivered revision otherwise. A revision is a digest of the source's bytes, so
+    // a source can return to the revision already on screen while a later one is still
+    // staged, and that staging is what has to go.
+    if (!pendingDelivery && delivered && deliveredRevision === revision) return;
     pendingDelivery?.settle();
     let settle;
     const pending = {

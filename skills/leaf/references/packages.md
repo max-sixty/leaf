@@ -608,9 +608,10 @@ document already holds, and version checks enforce the declared tag and
 direct-ownership relation once an author writes the child into the markup.
 
 `x-report` declares the agent's side of the same coordinates: a worker posts a report
-with `leaf report`, and it stands until a version answers it. A report verb that shares
-its name with an `x-state` verb states the same fact, and a user's action at that
-coordinate outranks it.
+with `leaf report`, and it stands until a version answers it. A worker that reacts to
+the user's actions follows them as they land with `leaf events PAGE --follow`. A
+report verb that shares its name with an `x-state` verb states the same fact, and a
+user's action at that coordinate outranks it.
 
 ## External requests and receipts
 

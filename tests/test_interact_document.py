@@ -3,7 +3,10 @@
 import hashlib
 import json
 import math
+import queue
 import re
+import signal
+import subprocess
 import threading
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
@@ -11,11 +14,13 @@ from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
+from conftest import LEAF_COMMAND
 from interact_support import (
     COMMAND_SUBJECTS,
     OPTIONS,
     PAGE,
     SHIPPED_PACKAGES,
+    STATED_TIMEOUT,
     SUGGESTION,
     X,
     Y,
@@ -4609,6 +4614,75 @@ def test_page_state_keeps_thread_history_out_of_its_current_reading(page_dir):
     )
     assert unknown.exit_code != 0
     assert "unknown conversation id 'not-a-thread'" in unknown.output
+
+
+class Follower:
+    """`leaf events --follow` in its own process, its lines read as they arrive."""
+
+    def __init__(self, spawn, page_dir, *args):
+        self.process = spawn(
+            [*LEAF_COMMAND, "events", str(page_dir), "--follow", *args],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        self.lines = queue.Queue()
+        threading.Thread(target=self._read, daemon=True).start()
+
+    def _read(self):
+        for line in self.process.stdout:
+            self.lines.put(line)
+
+    def next(self) -> dict:
+        return json.loads(self.lines.get(timeout=STATED_TIMEOUT))
+
+    def stop(self, signum):
+        self.process.send_signal(signum)
+        _, stderr = self.process.communicate(timeout=STATED_TIMEOUT)
+        return self.process.returncode, stderr
+
+
+def test_events_follow_prints_each_admitted_event_as_it_lands(page_dir, spawn):
+    """Another process follows the log: the stored records already there, then each
+    one another writer admits through the append door, `meaning` included, one line
+    each and each as it lands. A stop from its consumer is the ordinary end."""
+    _tasks_version(page_dir, "active")
+    publish(page_dir)
+    follower = Follower(spawn, page_dir)
+    standing = events_model.read_events(page_dir)
+    assert [follower.next() for _ in standing] == standing
+
+    reported = _report(page_dir, "t-parser", "status", "status=review")
+    assert reported.exit_code == 0, reported.output
+    opened = comment(page_dir, "--text", "Is review the right stage?")
+    assert opened.exit_code == 0, opened.output
+
+    followed = [follower.next(), follower.next()]
+    assert followed == events_model.read_events(page_dir)[len(standing) :]
+    assert followed[0]["id"] == json.loads(reported.output)["id"]
+    assert followed[0]["meaning"]["coordinate"] == ["t-parser", "t-parser", "status"]
+    assert followed[1]["id"] == json.loads(opened.output)["id"]
+    assert follower.stop(signal.SIGTERM) == (0, "")
+
+
+def test_events_follow_resumes_after_the_last_seq_its_reader_saw(page_dir, spawn):
+    """`seq` is the cursor: a follower restarted with `--after` the last seq it
+    printed starts at the next event, whether that was admitted while it was away
+    or after it came back."""
+    _tasks_version(page_dir, "active")
+    publish(page_dir)
+    seen = events_model.read_events(page_dir)[-1]["seq"]
+    missed = comment(page_dir, "--text", "Written while nobody followed.")
+    assert missed.exit_code == 0, missed.output
+
+    follower = Follower(spawn, page_dir, "--after", str(seen))
+    assert follower.next()["id"] == json.loads(missed.output)["id"]
+    later = comment(page_dir, "--text", "Written after the follower came back.")
+    assert later.exit_code == 0, later.output
+    resumed = follower.next()
+    assert resumed["id"] == json.loads(later.output)["id"]
+    assert resumed["seq"] == seen + 2
+    assert follower.stop(signal.SIGINT) == (0, "")
 
 
 def test_page_state_points_to_a_users_suggestion_record(page_dir):

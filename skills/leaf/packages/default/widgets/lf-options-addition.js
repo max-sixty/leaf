@@ -1,5 +1,5 @@
-/* The option the author did not list: its durable words, the complete choice bound
- * to that draft generation, and the generated option nodes replay reconstructs. */
+/* The option the author did not list: its draft, the `add` and `choose` bound to that
+ * draft generation, and the option nodes each standing `add` puts in the group. */
 import {
   loadDraft,
   inlineMarkdownFragment,
@@ -25,7 +25,7 @@ export class OptionAddition {
   #add = null;
   #syncInput = () => {};
   #stopDraftWatch = null;
-  #words = new Map();
+  #standing = new Set();
 
   constructor(host, { offered, available, commit }) {
     this.#host = host;
@@ -106,60 +106,58 @@ export class OptionAddition {
     saveDraft(this.#context, this.#input.value, this.detailFor(picked));
   }
 
+  /* The choice the generation recorded, less any option the group no longer holds:
+   * an undo since then may have taken back an added option the draft still names, and
+   * the door refuses a pick of an option the group lacks. Membership is the authored
+   * options and the standing adds of the latest reading, not whatever this tab last
+   * painted. */
   #draftChoice(payload) {
     if (
       !payload ||
       !Array.isArray(payload.options) ||
-      !payload.options.every((id) => typeof id === "string") ||
-      (payload.additions !== undefined &&
-        (!payload.additions ||
-          typeof payload.additions !== "object" ||
-          Array.isArray(payload.additions) ||
-          !Object.entries(payload.additions).every(
-            ([id, text]) => typeof id === "string" && typeof text === "string",
-          )))
+      !payload.options.every((id) => typeof id === "string")
     )
       return this.detailFor(this.#picked());
     return {
-      options: payload.options,
-      ...(Object.keys(payload.additions ?? {}).length
-        ? { additions: payload.additions }
-        : {}),
+      options: payload.options.filter(
+        (id) => this.#standing.has(id) || this.#authored(id),
+      ),
     };
   }
 
+  #authored(id) {
+    const option = document.getElementById(id);
+    return (
+      option?.parentElement === this.#host && !option.hasAttribute("data-lf-added")
+    );
+  }
+
+  /* The draft's attempt names the option, so a resend after reload names the same one
+   * and the log answers it as the same `add`. The pick is absolute state and needs no
+   * such identity. */
   async #submit(text, owns) {
     const accepted = await sendDraft(this.#context, owns, (attempt, payload) => {
       const id = `${this.#host.id}-option-${attempt}`;
       const standing = this.#draftChoice(payload);
-      const additions = { ...(standing.additions ?? {}), [id]: text };
       const picked = new Set(
         this.#host.hasAttribute("multiple") ? standing.options : [],
       );
       picked.add(id);
-      const detail = { options: [...picked], additions };
-      return this.#commit(detail, attempt);
+      return this.#commit({ option: id, text }, { options: [...picked] }, attempt);
     });
     if (accepted) notice(`Added and selected “${text}” — sent`);
   }
 
-  #additions() {
-    return Object.fromEntries(this.#words);
-  }
-
   detailFor(picked) {
-    const additions = this.#additions();
-    return {
-      options: [...picked].map((option) => option.id),
-      ...(Object.keys(additions).length ? { additions } : {}),
-    };
+    return { options: [...picked].map((option) => option.id) };
   }
 
   /* Keep surviving nodes: replay must not discard focus or selection. Return only
-   * nodes the selection owner still needs to dress with a mark and key scope. */
-  reconcile(additions = {}, fallbackBefore = null) {
-    const wanted = new Map(Object.entries(additions));
-    this.#words = new Map();
+   * nodes the selection owner still needs to dress with a mark and key scope.
+   * `added` maps each standing option id to its words, in log order. */
+  reconcile(added = {}, fallbackBefore = null) {
+    const wanted = new Map(Object.entries(added));
+    this.#standing = new Set(wanted.keys());
     for (const option of this.#host.querySelectorAll(
       ":scope > lf-option[data-lf-added]",
     ))
@@ -169,7 +167,6 @@ export class OptionAddition {
     for (const [id, text] of wanted) {
       let option = document.getElementById(id);
       if (option && option.parentElement !== this.#host) continue;
-      this.#words.set(id, text);
       if (!option) {
         option = document.createElement("lf-option");
         option.id = id;

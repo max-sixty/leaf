@@ -25,7 +25,8 @@ WIDGET_KINDS = {"action", "report", "request"}
 ANSWER_KINDS = ("reply", "version", "markup", "receipt")
 ANSWER_ASK_INSTRUCTION = (
     "Each named command writes the answer its move is owed; in a Codex task Leaf "
-    "observes over App Server, the reply is your final message instead. Read current "
+    "observes over App Server, your turn's first and final messages are the reply "
+    "instead. Read current "
     "obligations with `leaf page state <page>` and conversation history with "
     "`leaf conversation read <page> <id>`."
 )
@@ -148,10 +149,10 @@ ACTION_COMPLETION = {
 ACTION_CREATES = {
     "type": "object",
     "properties": {
-        "field": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "child": {"type": "string", "pattern": f"^{WIDGET_NAME}$"},
+        "words": {"type": "string", "pattern": f"^{HTML_NAME}$"},
     },
-    "required": ["field", "child"],
+    "required": ["child", "words"],
     "additionalProperties": False,
 }
 

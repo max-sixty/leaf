@@ -389,12 +389,15 @@ def test_option_words_render_markdown_without_losing_the_user_draft(browser, ser
 
     group.locator("#job-heater").click()
     round_trip(page)
-    choices = [
+    adds = [
         event["detail"]
         for event in sent_events(serve.page_dir)
-        if event.get("kind") == "action" and event.get("widget") == "jobs"
+        if event.get("kind") == "action" and event.get("action") == "add"
     ]
-    assert choices[-1]["additions"][added.get_attribute("id")] == "Keep **both** routes"
+    assert adds == [
+        {"option": added.get_attribute("id"), "text": "Keep **both** routes"}
+    ]
+    expect(added.locator("strong")).to_have_text("both")
 
 
 @pytest.mark.parametrize(

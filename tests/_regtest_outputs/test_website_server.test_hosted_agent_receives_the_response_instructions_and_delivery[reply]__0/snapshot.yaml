@@ -13,7 +13,7 @@ thread/start:
     This contract is for a Codex task Leaf reaches over Codex App Server
     (`codex app-server`), the JSON-RPC server Codex's clients drive a task through. Leaf
     is a client of the task's server: it starts the turns that carry user input and takes
-    each turn's final message as its reply. A terminal task is on App Server when its
+    each turn's opening and final messages as its reply. A terminal task is on App Server when its
     environment sets `LEAF_CODEX_APP_SERVER`, as a `leaf codex launch` terminal does, or
     when the user gave you the task's App Server endpoint; it hands its own page over, as
     "Hand a page over from a terminal" describes. A host that starts the task itself, as
@@ -32,9 +32,12 @@ thread/start:
 
     ## Replies
 
-    Each slice contains at most one plain reply. Write that reply as the turn's normal
-    final message. Leaf streams it into the addressed thread and commits its completed
-    text through the same reply contract as `leaf reply`; do not run `leaf reply` for
+    Each slice contains at most one plain reply, and your turn's first message and final
+    message write it. Before your first tool call, open with a short message to the user:
+    the answer, or what you are about to do. Leaf streams it into the addressed thread at
+    once, so the user reads it while you work. Later working messages stay in Codex. Your
+    final message completes the reply, and Leaf commits the opening and the final message
+    together through the same reply contract as `leaf reply`. Do not run `leaf reply` for
     that response, which refuses it as bound to this delivery's final message. The
     final message cannot move or detach its thread, so the thread keeps its anchor. If
     the user resolves the thread before the turn completes, the reply still posts and
@@ -45,7 +48,7 @@ thread/start:
 
     A `leaf-delivery` pointer queued before Leaf observed the task can still arrive as a
     user message; read it with `leaf delivery read <id>`, and Leaf binds its reply to the
-    final message the same way. Wherever `leaf reply` refuses an event as bound to this
+    turn's messages the same way. Wherever `leaf reply` refuses an event as bound to this
     delivery's final message, answer it there.
 
     ## Activity
@@ -163,16 +166,18 @@ turn/start:
       <page> <conversation-id> --text \"<a few words>\"`, so the thread panel lists
       its subject rather than its opening words.","h3":"Answer with `leaf reply
       <page> --for <event-id>`. In a Codex task Leaf observes over App Server, your
-      final message is the reply instead, and `leaf reply` refuses the event. Where
-      you answer with `leaf reply`, reply before any other work, including the work
-      this event asks for: give the answer, or say what you are about to do and
-      where the result will appear. Once that work lands, report it with `leaf reply
-      <page> --to <address> --initiates`, where `<address>` is the event''s `obligation.response.to`.
-      `leaf reply` checks any saved page edit and makes it live before posting.
-      If a revision removes what the thread is anchored on, move the thread in the
-      reply that reports it with `--section <id>` (narrowed by `--quote` or `--part`
-      if needed), or `--detach` it if its subject has left the page. Add `--awaits`
-      only if your reply''s prose asks the user something. Your reply renders as
-      Markdown, so show code or markup in a fenced block."},"events":[{"kind":"comment","author":"user","text":"Use
+      turn''s first and final messages are the reply instead, and `leaf reply` refuses
+      the event: open with a message to the user before your first tool call, and
+      finish the reply in your final message. Where you answer with `leaf reply`,
+      reply before any other work, including the work this event asks for: give
+      the answer, or say what you are about to do and where the result will appear.
+      Once that work lands, report it with `leaf reply <page> --to <address> --initiates`,
+      where `<address>` is the event''s `obligation.response.to`. `leaf reply` checks
+      any saved page edit and makes it live before posting. If a revision removes
+      what the thread is anchored on, move the thread in the reply that reports
+      it with `--section <id>` (narrowed by `--quote` or `--part` if needed), or
+      `--detach` it if its subject has left the page. Add `--awaits` only if your
+      reply''s prose asks the user something. Your reply renders as Markdown, so
+      show code or markup in a fenced block."},"events":[{"kind":"comment","author":"user","text":"Use
       backfill first.","id":"user-event","ts":"2026-09-22T10:00:00-07:00","seq":1,"subject":{"kind":"conversation","id":"user-event"},"conversations":["user-event"],"handling":["h1","h2","h3"],"obligation":{"as_of_seq":1,"response":{"kind":"reply","to":"user-event","for":"user-event"}}}]}]}'
   turnTrigger: leaf

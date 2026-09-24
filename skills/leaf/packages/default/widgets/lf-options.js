@@ -30,9 +30,9 @@
  * to follow — belongs to what it landed on (`worksInside`).
  *
  * The last cell of a page choose group is the option the user writes. Submitting it
- * appends a real option and selects it through the same `choose` action as every other
- * pick. The action carries the complete generated option set as well as the selection,
- * so replay, a later ordinary pick, and undo all reconstruct one absolute state. It is
+ * sends an `add` naming the new option and its words, then selects it through the same
+ * `choose` action as every other pick. The option stands on the `add`'s own coordinate,
+ * so a later pick leaves it in the group and only undoing the `add` takes it away. It is
  * not a conversation: if the agent needs clarification after carrying the option into
  * the page, it can open a separate thread anchored to that option.
  *
@@ -319,9 +319,15 @@ customElements.define(
       this.#addition = new OptionAddition(this, {
         offered: this.#choosable && !inChrome(this),
         available: () => this.#available("choose"),
-        commit: (detail, attempt) => {
-          if (!this.#available("choose")) return null;
-          return this.#dispatch("choose", detail, attempt)?.delivery ?? null;
+        commit: (added, choice, attempt) => {
+          if (!this.#available("add") || !this.#available("choose")) return null;
+          const add = this.#dispatch("add", added, attempt);
+          if (!add) return null;
+          const pick = this.#dispatch("choose", choice);
+          // A refused `add` answers the draft at once: its words go back to the box
+          // while the pick behind it is still in the wire, and the door refuses that
+          // pick too, since it names no option the group holds.
+          return add.delivery.then((added) => (added && pick ? pick.delivery : added));
         },
       });
       if (this.#choosable) {
@@ -678,7 +684,13 @@ customElements.define(
       // selection at all; preserve the authored initial condition. A reading that does
       // carry a selection is always authoritative, including accepted replay.
       const detail = state.selection?.detail ?? this.#authoredChoice();
-      for (const option of this.#addition.reconcile(detail.additions ?? {}, this.#done))
+      const added = Object.fromEntries(
+        Object.entries(state.added?.units ?? {}).map(([id, facet]) => [
+          id,
+          facet.detail.text,
+        ]),
+      );
+      for (const option of this.#addition.reconcile(added, this.#done))
         this.#control(option, this.#choosable);
       this.#syncChoice(detail);
     }

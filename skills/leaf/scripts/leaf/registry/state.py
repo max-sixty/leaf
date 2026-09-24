@@ -3,7 +3,6 @@
 from leaf.schema import ELEMENT_ID
 
 from .contract import (
-    CREATED_CHILDREN_DETAIL_SCHEMA,
     RegistryError,
     declares_string,
     json_validator,
@@ -50,19 +49,30 @@ def validate_widget_state_relations(
     for verb, spec in entry.get("x-state", {}).items():
         creates = spec.get("creates")
         if creates:
-            field = creates["field"]
+            # The created child is a row of its own: its id is the verb's fold unit,
+            # so it stands on its own coordinate, and one detail field carries its
+            # words. Anything else the detail carried would be state no reading keeps.
             detail = spec["detail"]
-            fields = detail.get("properties", {})
-            if fields.get(field) != CREATED_CHILDREN_DETAIL_SCHEMA:
+            unit, words = spec["unit"], creates["words"]
+            if unit == "widget" or spec.get("record"):
                 raise RegistryError(
-                    f"{path}: <{tag}> x-state verb `{verb}` creates through "
-                    f"detail field `{field}`, which must be the canonical non-empty "
-                    "element-id to non-empty string map"
+                    f"{path}: <{tag}> x-state verb `{verb}` creates a child, so its "
+                    "fold unit must name the detail field carrying the child's id "
+                    "and it declares no record form"
                 )
-            if field in detail.get("required", []):
+            expected_fields = {
+                unit: {"type": "string", "pattern": f"^{ELEMENT_ID}$"},
+                words: {"type": "string", "minLength": 1},
+            }
+            if (
+                detail.get("properties") != expected_fields
+                or set(detail.get("required", [])) != set(expected_fields)
+                or detail.get("additionalProperties") is not False
+            ):
                 raise RegistryError(
-                    f"{path}: <{tag}> x-state verb `{verb}` creates detail field "
-                    f"`{field}` must be optional"
+                    f"{path}: <{tag}> x-state verb `{verb}` creates a child, so its "
+                    f"detail must be exactly the required element id `{unit}` and "
+                    f"the required non-empty words `{words}`"
                 )
             child_tag = creates["child"]
             child = declarations.get(child_tag)

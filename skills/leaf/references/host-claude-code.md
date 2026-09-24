@@ -55,7 +55,7 @@ message, and that grouping ignores background tasks: a `needs input:` line files
 the session under Needs input and a `result:` line under Completed. A reply with
 neither is left to Claude Code's classifier, which reads a closing like "the
 watcher will pick up new comments" as work in progress, so a session waiting on
-its page stays under Working. Each time a `leaf wait` starts, Leaf's
+its page stays under Working. Each time a background `leaf wait` starts, Leaf's
 `PostToolUse` hook adds guidance on that ending to the command's result
 (`hooks/wait-started.json`), so it sits beside the reply that closes the turn.
 

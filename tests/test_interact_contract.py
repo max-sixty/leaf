@@ -2622,7 +2622,8 @@ def test_check_refuses_a_widget_name_that_cannot_form_a_selector(page_dir, tag):
 
     result = check(page_dir)
     assert result.exit_code != 0
-    assert f"invalid element declaration names: ['{tag}']" in result.output
+    assert f"invalid element declaration names ['{tag}']" in result.output
+    assert "an element name is `lf-` followed by" in result.output
 
 
 def test_check_refuses_an_invalid_action_detail_schema(page_dir):

@@ -2297,8 +2297,14 @@ lf-tree .lf-tree-badge { font-size: var(--t-6); padding: 0 6px; margin-left: 6px
 lf-tree .lf-tree-badge.add { background: var(--ok-tint); color: var(--ok-ink); }
 lf-tree .lf-tree-badge.del { background: var(--danger-tint); color: var(--danger-ink); }
 
-/* lf-code rendered form: numbered lines, hi ranges, notes docked at their line. */
-lf-code.lf-rendered pre { counter-reset: lf-code-line; padding: 12px 0; --lf-block-frame: 1; }
+/* lf-code rendered form: numbered lines, hi ranges, elided rows, notes docked at their
+   line. The gutter is as wide as the block's widest number (--lf-code-digits, which the
+   module sets), and never narrower than two digits' worth. Registered as a length so it
+   resolves in the code's face on the <pre> and a note inherits that width, not its own
+   face's `ch`. */
+@property --lf-code-gutter { syntax: "<length>"; inherits: true; initial-value: 38px; }
+lf-code.lf-rendered pre { padding: 12px 0; --lf-block-frame: 1;
+             --lf-code-gutter: max(38px, calc(var(--lf-code-digits, 2) * 1ch + 16px)); }
 lf-code.lf-rendered pre:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: code-pre-light;
              outline-offset: calc(-1 * var(--here-ring-w)); }
 /* An hi range's tint has to run the whole scrolled line, not stop at the fold. The diff
@@ -2318,12 +2324,18 @@ lf-code .lf-code-line { display: block; padding: 0 14px 0 0;
    Screen keeps the scroller: sideways is a gesture there and the column still means
    something. */
 @media print { lf-code .lf-code-line { width: auto; } }
-lf-code .lf-code-line::before { counter-increment: lf-code-line;
-             content: counter(lf-code-line); display: inline-block; width: 38px;
+lf-code :is(.lf-code-line, .lf-code-elided)::before {
+             content: attr(data-line); display: inline-block; width: var(--lf-code-gutter);
              margin-right: 8px; padding-right: 10px; box-sizing: border-box;
              border-right: 1px solid var(--code-border); background: var(--code-chrome);
              text-align: right;
              color: var(--code-muted); font-variant-numeric: tabular-nums; }
+/* The lines an excerpt leaves out: a row of its own with a mark in the gutter and the
+   count beside it, both painted, so the copy and the anchors see only quoted source. */
+lf-code .lf-code-elided { display: block; color: var(--code-muted); user-select: none; }
+lf-code .lf-code-elided::before { content: "\22EE"; }
+lf-code .lf-code-elided::after { content: attr(data-elided); font-family: var(--sans);
+             font-size: var(--t-6); font-style: italic; }
 lf-code .lf-code-line.hi { background: var(--hi-tint); }
 lf-code .lf-code-line.hi::before { border-right-color: var(--warn); }
 /* The line another widget is indicating (indication.js): an accent bar at the gutter's
@@ -2336,11 +2348,11 @@ lf-code .lf-code-line[data-lf-indicated]::before {
              box-shadow: inset 3px 0 0 var(--accent); color: var(--accent); font-weight: 600; }
 /* A note is prose about a source line, not another source line. It follows the
    code-review convention: a sans-serif row spanning the source frame, with its text
-   aligned to the code after the 46px gutter. Horizontal rules mark the insertion
+   aligned to the code after the gutter. Horizontal rules mark the insertion
    without inventing author metadata the note does not carry. Sticky positioning holds
    that row to a horizontal scrollport; unlike a max-content line, its prose still wraps. */
 lf-code .lf-code-note { position: sticky; inset-inline-start: 0;
-             margin: 5px 0 6px; padding: 7px 14px 8px 46px;
+             margin: 5px 0 6px; padding: 7px 14px 8px calc(var(--lf-code-gutter) + 8px);
              background: var(--pre-bg); border: 0;
              border-block: 1px solid var(--code-border); border-radius: 0;
              color: var(--code-ink); font-family: var(--sans);

@@ -10700,3 +10700,79 @@ print(bracket(3))
     page.evaluate("document.querySelector('#film').point('1')")
     page.evaluate("document.querySelector('#film').remove()")
     assert marked() == [], "a driver that leaves takes its indication with it"
+
+
+def test_an_excerpt_shows_and_answers_to_its_source_line_numbers(browser, serve):
+    """An lf-code body with `lines` is a quotation from a longer file. What the user
+    reads is the file's own numbering: the gutter counts from where the quote starts
+    and jumps where it skips, each skip stands as an elided row saying how much is
+    left out, and the gutter widens so four digits still leave the code in line with
+    its notes. Everything that points into the block — `hi`, a note's `at`, a driver's
+    indication — names lines by those numbers, and a number the block does not show
+    addresses nothing. A copied excerpt is the quoted source and nothing else."""
+    url = serve(
+        leaf_page(
+            "excerpt",
+            """
+<h1 id="t">Runs</h1>
+<p id="lede">The loop that finds each run.</p>
+<lf-code id="walk" language="rust" lines="1505-1507,1550-1552" hi="1550"><pre>
+fn merge_sort()
+{
+    let len = v.len();
+    while end &gt; 0 {
+        let mut start = end - 1;
+        start -= 1;
+</pre>
+<lf-note at="1551">One run per pass.</lf-note>
+</lf-code>
+<lf-pointer id="film" for="walk"></lf-pointer>
+""",
+        ),
+        layer_registry=POINTER_REGISTRY,
+        layer_widgets={"lf-pointer.js": POINTER_MODULE},
+    )
+    page = open_page(browser, url)
+    rows = page.locator("#walk pre > *")
+    expect(rows).to_have_count(8)
+    assert rows.evaluate_all(
+        """rs => rs.map(r => r.classList.contains('lf-code-elided')
+                   ? ['elided', r.dataset.elided]
+                   : r.classList.contains('lf-code-note') ? ['note']
+                   : [getComputedStyle(r, '::before').content, r.classList.contains('hi')])"""
+    ) == [
+        ['"1505"', False],
+        ['"1506"', False],
+        ['"1507"', False],
+        ["elided", "42 lines"],
+        ['"1550"', True],
+        ['"1551"', False],
+        ["note"],
+        ['"1552"', False],
+    ]
+
+    code_x, note_x = page.evaluate(
+        """() => {
+          const range = document.createRange();
+          const text = document.querySelector('#walk .lf-code-line');
+          range.setStart(text.firstChild.firstChild ?? text.firstChild, 0);
+          return [range.getBoundingClientRect().left,
+                  document.querySelector('#walk lf-note').getBoundingClientRect().left];
+        }"""
+    )
+    assert abs(code_x - note_x) < 1, (code_x, note_x)
+
+    marked = page.locator("#walk .lf-code-line[data-lf-indicated]")
+    assert page.evaluate("document.querySelector('#film').point('1507-1550')") is True
+    assert marked.evaluate_all("ls => ls.map(l => l.dataset.line)") == ["1507", "1550"]
+    assert page.evaluate("document.querySelector('#film').point('3')") is False
+    expect(marked).to_have_count(0)
+
+    copied = page.evaluate(
+        """() => { getSelection().selectAllChildren(document.querySelector('#walk pre'));
+                   return getSelection().toString(); }"""
+    )
+    assert "line" not in copied.replace("let len", "") and "⋮" not in copied
+    assert copied.startswith(
+        "fn merge_sort()\n{\n    let len = v.len();\n    while end"
+    )

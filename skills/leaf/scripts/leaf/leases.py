@@ -1,7 +1,8 @@
 """Process-backed locks and leases for page and session transitions."""
 
+import contextlib
 import functools
-import hashlib
+import os
 import sys
 from pathlib import Path
 
@@ -69,23 +70,33 @@ def take_lease(path: Path):
             fcntl.flock(record, fcntl.LOCK_UN)
 
 
-def page_lock(page_dir: Path, purpose: str) -> Path:
-    """A stable lock for one page, outside the page it guards.
+@contextlib.contextmanager
+def page_locked(page_dir: Path):
+    """Serialize one page's service changes, re-vendoring, and contract-bearing
+    writes.
 
-    `page init` must reject a package input without writing into it, so
-    locks that can meet init cannot live in the prospective page directory. The
-    resolved path gives every process the same lock while the purpose keeps the
-    contract transition independent from the page's current session claim.
-    """
-    locks = state_home() / "page-locks"
-    locks.mkdir(exist_ok=True)
-    key = hashlib.sha256(str(page_dir.resolve()).encode()).hexdigest()[:32]
-    return locks / f"{key}.{purpose}.lock"
-
-
-def transition_lock(page_dir: Path) -> Path:
-    """Serialize service changes, re-vendoring, and contract-bearing writes."""
-    return page_lock(page_dir, "transition")
+    The lock is the page directory itself, flocked through a descriptor on it,
+    so it writes nothing into the page (`page init` refuses a package without
+    touching it) and it ends with the directory: nothing is left behind to
+    retire. The directory has to exist, which `page init` sees to before taking
+    it. A page deleted and made again at its path while this waited is another
+    directory, so the lock is taken again on whichever the path names once it is
+    held; a page deleted for good raises FileNotFoundError."""
+    require_cross_process_locking()
+    while True:
+        held = os.open(page_dir, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            fcntl.flock(held, fcntl.LOCK_EX)
+            if os.path.samestat(os.fstat(held), os.stat(page_dir)):
+                break
+        except BaseException:
+            os.close(held)
+            raise
+        os.close(held)
+    try:
+        yield
+    finally:
+        os.close(held)
 
 
 def contract_writer(function):
@@ -99,7 +110,7 @@ def contract_writer(function):
 
     @functools.wraps(function)
     def locked(page_dir: Path, *args, **kwargs):
-        with flocked(transition_lock(page_dir)):
+        with page_locked(page_dir):
             try:
                 return function(page_dir, *args, **kwargs)
             except EventRefused as error:
@@ -148,7 +159,8 @@ def take_session_wait(session_id: str):
     held, or None when another wait holds the lease.
 
     The mark is a lock on `sessions/<id>.started`, held for the wait's life and
-    removed when a tool hook names the start (`name_wait_start`). Lease and mark
+    removed when a tool hook names the start (`name_wait_start`), or else when
+    the wait ends (`release_session_wait`). Lease and mark
     are taken under the lock naming takes, so a reader sees a wait either not yet
     started or started and marked, never the lease without its mark."""
     lease_path = waiter_lease_path(None, session_id)
@@ -162,6 +174,18 @@ def take_session_wait(session_id: str):
         # lets its mark go before its lease, so this never waits.
         fcntl.flock(mark, fcntl.LOCK_EX)
         return lease, mark
+
+
+def release_session_wait(session_id: str, mark) -> None:
+    """Let a wait's start mark go, removing it if no tool hook named the start.
+
+    A foreground wait returns before its hook runs, so nothing names it; the file
+    is removed here, under the lock naming takes, rather than left for a later
+    reader to find unheld. The wait still holds its lease, so no other wait's mark
+    can stand at that name."""
+    with flocked(_session_lease(session_id, "started.lock")):
+        _session_lease(session_id, "started").unlink(missing_ok=True)
+        mark.close()
 
 
 def name_wait_start(session_id: str) -> bool | None:

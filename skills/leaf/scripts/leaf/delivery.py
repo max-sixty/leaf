@@ -94,6 +94,47 @@ def delivery_path(delivery_id: str) -> Path:
     return state_home() / "deliveries" / f"{delivery_id}.json"
 
 
+def pages_gone(batches: list[dict]) -> bool:
+    """Whether every page these captured batches came from is gone.
+
+    Nothing can answer a delivery once its pages are, so a record of one — the
+    envelope here, a Codex task's record of it — is removed by whoever next
+    enumerates its directory. Pages are usually deleted from outside leaf, with a
+    worktree or a scratch directory, so no leaf process sees the moment."""
+    return bool(batches) and not any(Path(batch["page"]).is_dir() for batch in batches)
+
+
+def retire_if_gone(path: Path, record_format: str) -> None:
+    """Remove this record unless it is a `record_format` record some page of which
+    still stands. A record without this version's required fields goes rather
+    than taking the reading down."""
+    try:
+        record = read_json(path)
+    except ValueError:
+        record = None
+    batches = record.get("batches") if isinstance(record, dict) else None
+    if (
+        not isinstance(record, dict)
+        or record.get("format") != record_format
+        or not isinstance(batches, list)
+        or any(
+            not isinstance(batch, dict) or not isinstance(batch.get("page"), str)
+            for batch in batches
+        )
+        or pages_gone(batches)
+    ):
+        path.unlink(missing_ok=True)
+
+
+def _retire_gone_deliveries() -> None:
+    """Remove every envelope this version cannot read or whose pages are all gone.
+
+    Envelopes are read one id at a time, so the only enumeration of them is here,
+    under the lock every new one is written under."""
+    for path in (state_home() / "deliveries").glob("*.json"):
+        retire_if_gone(path, DELIVERY_FORMAT)
+
+
 def _delivery_lock_path() -> Path:
     """Serialize machine-wide delivery identity selection and creation."""
     return state_home() / "deliveries.lock"
@@ -263,6 +304,7 @@ def freeze_delivery(
     lock = _delivery_lock_path()
     lock.parent.mkdir(parents=True, exist_ok=True)
     with flocked(lock):
+        _retire_gone_deliveries()
         if delivery_id is None:
             while True:
                 delivery_id = new_delivery_id()

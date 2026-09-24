@@ -34,6 +34,7 @@ PUBLIC_TABS = [
     ("data-explorer", "Data explorer"),
     ("code-comparison", "Code comparison"),
     ("live-progress", "Live"),
+    ("alert-review", "Alerts"),
     ("pr-walkthrough", "PR"),
     ("security-boundary", "Security"),
     ("command-hub", "Command"),

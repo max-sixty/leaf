@@ -75,8 +75,15 @@ class BannerStatusView extends HTMLElement {
       render(nothing, this.#button);
       render(html`${this.#dot}${this.#text}${this.#detail}`, this);
       render(
-        html`<span class="lf-publication-copy">${model.publication.copy}</span
-          ><a class="lf-publication-install" href=${model.publication.installUrl}
+        html`<span class="lf-publication-copy">${model.publication.copy}</span>${
+            model.publication.examplesUrl
+              ? html`<a
+                  class="lf-publication-link"
+                  href=${model.publication.examplesUrl}
+                  >${model.publication.examples + " "}</a
+                >`
+              : nothing
+          }<a class="lf-publication-install" href=${model.publication.installUrl}
             >${model.publication.install}</a
           >`,
         this.#text,

@@ -52,7 +52,7 @@ rules a new or changed example has to meet.
   It also writes what a crawler reads: `robots.txt`, a `sitemap.xml` of the clean
   routes, and each page's card. A page's title and description are authored in its own
   source, and the build refuses one that has neither. The rest of the card — the
-  Open Graph and Twitter declarations and the image — comes from `site_head` in
+  Open Graph and Twitter declarations and the image — comes from `site_metadata` in
   `worker/server.py` and enters Leaf's document composer for both the edge shell and
   the container response. The canonical link is not the site's: every Leaf
   document names its own page root, so the three addresses a page answers collapse

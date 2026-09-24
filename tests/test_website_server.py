@@ -253,7 +253,7 @@ def test_a_published_document_names_its_page_to_a_crawler(page_root, kind, url):
         "description": "Pick one.",
         "image": "/media/card.png",
     }
-    addition = website_server.site_head(page_root, page)
+    addition = website_server.site_metadata(page_root, page)
     served = supervised_document(
         PAGE_SOURCE,
         1,
@@ -288,9 +288,7 @@ def test_a_published_document_names_its_page_to_a_crawler(page_root, kind, url):
         '<meta name="twitter:card" content="summary_large_image" data-lf-runtime>'
         in head
     )
-    # The sitenote is website chrome for the examples, and rides the runtime
-    # boundary rather than the head the metadata went into.
-    assert ("sitenote.js" in served) is (kind == "example")
+    assert "sitenote.js" not in served
     runtime = f'src="{page_root}/leaf.js"' if page_root else 'src="/leaf.js"'
     assert head.index("theme.css") < head.index('property="og:type"')
     assert head.index('property="og:type"') < head.index(runtime)
@@ -1410,7 +1408,6 @@ def test_the_adapter_takes_its_app_server_with_it_when_it_is_told_to_stop(
     site = tmp_path / "site"
     site.mkdir()
     write_manifest(site, {})
-    (site / "sitenote.js").write_bytes(b"")
     listening = tmp_path / "app-server.pid"
     codex = tmp_path / "codex"
     codex.write_text(
@@ -3133,7 +3130,6 @@ def test_a_page_fault_is_recorded_where_an_operator_reads_it(
     published = site / "examples" / "decision"
     published.parent.mkdir(parents=True)
     shutil.copytree(page_dir, published)
-    (site / "sitenote.js").write_text("document.body.dataset.site = 'example';\n")
     write_manifest(site, {"/examples/decision": ("examples/decision", "example")})
     httpd = LeafHTTPServer(
         ("127.0.0.1", 0), website_server.site_endpoint(site, FakeCodexHost())
@@ -3189,7 +3185,6 @@ def test_a_child_page_fault_is_recorded_like_the_page_it_was_opened_from(
     published = site / "examples" / "decision"
     published.parent.mkdir(parents=True)
     shutil.copytree(page_dir, published)
-    (site / "sitenote.js").write_text("document.body.dataset.site = 'example';\n")
     write_manifest(site, {"/examples/decision": ("examples/decision", "example")})
     httpd = LeafHTTPServer(
         ("127.0.0.1", 0), website_server.site_endpoint(site, FakeCodexHost())
@@ -3245,7 +3240,6 @@ def test_website_specimens_serve_private_pages_without_starting_an_agent(
     published = site / "examples" / "decision"
     published.parent.mkdir(parents=True)
     shutil.copytree(page_dir, published)
-    (site / "sitenote.js").write_text("document.body.dataset.site = 'example';\n")
     write_manifest(site, {"/examples/decision": ("examples/decision", "example")})
     host = FakeCodexHost()
     manifest_path = site / website_server.SITE_MANIFEST
@@ -3300,7 +3294,6 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
     published = site / "examples" / "decision"
     published.parent.mkdir(parents=True)
     shutil.copytree(page_dir, published)
-    (site / "sitenote.js").write_text("document.body.dataset.site = 'example';\n")
     write_manifest(site, {"/examples/decision": ("examples/decision", "example")})
 
     agent_host = FakeCodexHost()
@@ -3312,7 +3305,7 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
         assert get(f"{root}/health")[0] == b"ok\n"
 
         document, headers = get(f"{root}/examples/decision/")
-        assert b'src="/examples/decision/sitenote.js"' in document
+        assert b"sitenote.js" not in document
         artifact = revision_path(published, 1).stem
         assert (
             f'data-lf-entry="/examples/decision/revisions/{artifact}/leaf.js"'.encode()
@@ -3474,9 +3467,6 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
             == 1
         )
 
-        assert get(f"{root}/examples/decision/sitenote.js")[0].startswith(
-            b"document.body"
-        )
         with pytest.raises(urllib.error.HTTPError) as stopped:
             urllib.request.urlopen(f"{root}/examples/missing/")
         assert stopped.value.code == 404
@@ -3535,7 +3525,6 @@ def test_a_stale_layer_is_answered_with_the_generation_the_container_holds(
     published = site / "examples" / "decision"
     published.parent.mkdir(parents=True)
     shutil.copytree(page_dir, published)
-    (site / "sitenote.js").write_text("export {};")
     write_manifest(site, {"/examples/decision": ("examples/decision", "example")})
 
     httpd = LeafHTTPServer(
@@ -3571,7 +3560,6 @@ def test_a_product_route_uses_the_same_real_page_server(
     published = site / "_leaf" / "pages" / name
     published.parent.mkdir(parents=True)
     shutil.copytree(page_dir, published)
-    (site / "sitenote.js").write_text("export {};")
     write_manifest(site, {page_root or "/": (f"_leaf/pages/{name}", "product")})
 
     agent_host = FakeCodexHost()
@@ -3587,7 +3575,6 @@ def test_a_product_route_uses_the_same_real_page_server(
             f'data-lf-entry="{page_root}/revisions/{artifact}/leaf.js"'.encode()
             in document
         )
-        assert get(f"{root}{page_root}/sitenote.js")[0] == b"export {};"
         state = json.loads(get(f"{root}{page_root}/api/state")[0])
         assert state["publication"] == {
             "kind": "product",
@@ -3623,7 +3610,6 @@ def test_a_retried_agent_start_returns_the_accepted_task(page_dir, tmp_path):
     published = site / "examples" / "decision"
     published.parent.mkdir(parents=True)
     shutil.copytree(page_dir, published)
-    (site / "sitenote.js").write_text("export {};")
     write_manifest(site, {"/examples/decision": ("examples/decision", "example")})
     comment = append_event(
         published,
@@ -3656,7 +3642,6 @@ def test_an_agent_reply_is_dropped_when_a_newer_user_turn_overtakes_it(
     published = site / "examples" / "decision"
     published.parent.mkdir(parents=True)
     shutil.copytree(page_dir, published)
-    (site / "sitenote.js").write_text("export {};")
     write_manifest(site, {"/examples/decision": ("examples/decision", "example")})
     httpd = LeafHTTPServer(("127.0.0.1", 0), website_server.site_endpoint(site))
     root = f"http://127.0.0.1:{httpd.server_address[1]}/examples/decision"
@@ -3701,7 +3686,6 @@ def test_the_preview_generator_uses_the_live_website_route(page_dir, tmp_path):
     published = site / "examples" / "decision"
     published.parent.mkdir(parents=True)
     shutil.copytree(page_dir, published)
-    (site / "sitenote.js").write_text("document.body.dataset.site = 'example';\n")
     write_manifest(site, {"/examples/decision": ("examples/decision", "example")})
 
     with example_previews.serve_examples(site) as root:

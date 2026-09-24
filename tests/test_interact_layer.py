@@ -638,7 +638,6 @@ def test_claude_and_codex_load_the_same_plugin_payload():
         "uv.lock",
         "hooks/hooks.json",
         "hooks/scripts/loop-guard.py",
-        "hooks/scripts/wait-started.py",
         "skills/leaf/SKILL.md",
         "skills/leaf/references/authoring-asks.md",
         "skills/leaf/references/authoring-evidence.md",

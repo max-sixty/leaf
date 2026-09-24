@@ -110,9 +110,3 @@ three more times. Neither warrants snapshots or incremental folding yet.
 - About 250 lines of Git patch parsing sit in core `data.py` for the diff package,
   and `data capture --lines` slices text for one contract. Both belong to their
   contracts and packages, leaving one `leaf data set`.
-
-## Other processes
-
-`seq` is already a sync id and `leaf events --after SEQ` the catch-up read. Add
-`--follow` on the trigger `/api/news` uses, and state that stored event records are a
-public format whose readers drop what they do not recognise.

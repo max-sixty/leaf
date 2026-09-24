@@ -1259,11 +1259,10 @@ export function createVersionController({
     // insertion can connect a custom element and turn authored input into presentation.
     rememberAuthoredParents(source);
     const sourceAuthored = stageAuthoredFacets(source, new Map());
-    const sourceDescriptors = stageWidgetDescriptors(
-      source,
-      { kind: "page", revision: target.revision },
-      live,
-    );
+    const sourceDescriptors = stageWidgetDescriptors(source, {
+      kind: "page",
+      revision: target.revision,
+    });
     // Elements whose attributes the patch rewrote in place. What a dressing pass reads
     // off an attribute — a word an element says, the language of a code block — is
     // owed again, and these are the roots the install dresses beside the arrivals.
@@ -1278,11 +1277,10 @@ export function createVersionController({
         // which declared elements enclose it.
         rememberAuthoredParents(arriving, parent);
         markDeclared(arriving, MARKED_IN_PAGE);
-        const descriptors = stageWidgetDescriptors(
-          arriving,
-          { kind: "page", revision: target.revision },
-          live,
-        );
+        const descriptors = stageWidgetDescriptors(arriving, {
+          kind: "page",
+          revision: target.revision,
+        });
         descriptorStages.push(descriptors);
         // Bind the actual arrival before insertion can synchronously connect its
         // custom element. The publisher still holds the outgoing document until the

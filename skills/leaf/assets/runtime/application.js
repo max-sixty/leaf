@@ -298,9 +298,6 @@ export function mountApplication(dependencies) {
         action: command.verb,
         detail: structuredClone(command.detail ?? {}),
         ...(sourceRevision != null && { source_revision: sourceRevision }),
-        ...(command.references && {
-          references: structuredClone(command.references),
-        }),
         ...(command.attempt && { attempt: command.attempt }),
       })?.answer ?? null
     );

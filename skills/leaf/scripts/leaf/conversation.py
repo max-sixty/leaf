@@ -1,6 +1,5 @@
 """Conversation writes and the host-neutral delivery-bound reply lifecycle."""
 
-import json
 import sys
 from pathlib import Path
 
@@ -825,8 +824,6 @@ def cmd_report(
     widget: str,
     verb: str,
     fields: tuple,
-    *,
-    references: str | None = None,
 ) -> dict:
     """A worker's provisional news: a declared state change folded onto a page
     widget, admitted the way the append door admits a user's action,
@@ -844,12 +841,6 @@ def cmd_report(
         if not eq or not name:
             sys.exit(f"detail fields are name=value, got {field!r}")
         detail[name] = value
-    parsed_references = None
-    if references is not None:
-        try:
-            parsed_references = json.loads(references)
-        except json.JSONDecodeError as error:
-            sys.exit(f"references must be one JSON object: {error.msg}")
     with PageTransaction(page_dir) as page:
         events = page.events
         activate_source(page_dir, events)
@@ -861,6 +852,5 @@ def cmd_report(
             "action": verb,
             "detail": detail,
             "revision": require_revision(page_dir),
-            **({"references": parsed_references} if references is not None else {}),
         }
         return append_admitted(page, event)

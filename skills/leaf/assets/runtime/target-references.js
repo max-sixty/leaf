@@ -16,7 +16,6 @@ import { elementFromPointAcross } from "./passages.js";
 import { under, upFrom } from "./shadow.js";
 
 const GENERATED = ".lf-ui, [data-lf-gen]";
-const BOUNDARY = Symbol("target-reference-boundary");
 
 const isElement = (value) => value?.nodeType === Node.ELEMENT_NODE;
 
@@ -24,27 +23,9 @@ function requireElement(value, name) {
   if (!isElement(value)) throw new TypeError(`leaf: ${name} must be an Element`);
 }
 
-const isBoundary = (value) => value?.kind === BOUNDARY;
-
-export function targetReferenceBoundary(nodes) {
-  const roots = [...nodes];
-  if (!roots.length || roots.some((node) => !isElement(node)))
-    throw new TypeError("leaf: a target boundary needs authored Element roots");
-  return Object.freeze({ kind: BOUNDARY, roots: Object.freeze(roots) });
-}
-
 function requireRoot(value) {
-  if (!isElement(value) && !isBoundary(value))
-    throw new TypeError("leaf: target root must be an Element");
+  if (!isElement(value)) throw new TypeError("leaf: target root must be an Element");
 }
-
-const rootContains = (root, element) =>
-  isBoundary(root)
-    ? root.roots.some((candidate) => under(element, candidate))
-    : under(element, root);
-
-const isRoot = (root, element) =>
-  isBoundary(root) ? root.roots.includes(element) : root === element;
 
 function childrenIn(element, tree) {
   const parent = tree === "shadow" ? element.shadowRoot : element;
@@ -54,11 +35,7 @@ function childrenIn(element, tree) {
 }
 
 function generatedBelow(element, root) {
-  for (
-    let current = element;
-    current && !isRoot(root, current);
-    current = upFrom(current)
-  )
+  for (let current = element; current && current !== root; current = upFrom(current))
     if (current.matches(GENERATED)) return true;
   return false;
 }
@@ -76,12 +53,12 @@ function sourceElement(source) {
 export function targetCandidates(root, source) {
   requireRoot(root);
   const start = sourceElement(source);
-  if (!start || !rootContains(root, start)) return [];
+  if (!start || !under(start, root)) return [];
 
   const candidates = [];
   for (let current = start; current; current = upFrom(current)) {
     if (!generatedBelow(current, root)) candidates.push(current);
-    if (isRoot(root, current)) return candidates;
+    if (current === root) return candidates;
   }
   return [];
 }
@@ -105,18 +82,13 @@ export function captureTargetReference(root, target) {
   if (target.id) return { kind: "id", id: target.id };
 
   const path = [];
-  for (let current = target; !isRoot(root, current);) {
+  for (let current = target; current !== root;) {
     if (current !== target && current.id)
       return { kind: "structure", anchor: current.id, path };
     const relation = parentStep(current);
     if (!relation) throw new TypeError("leaf: a target must be under its target root");
     path.unshift({ tree: relation.tree, tag: current.localName });
     current = relation.parent;
-  }
-  if (isBoundary(root)) {
-    const top = targetCandidates(root, target).at(-1);
-    if (top !== target && top.id) return { kind: "structure", anchor: top.id, path };
-    path.unshift({ tree: "light", tag: top.localName });
   }
   return { kind: "structure", path };
 }
@@ -129,7 +101,7 @@ function elementsUnder(root) {
     for (const child of childrenIn(element, "light")) visit(child);
     for (const child of childrenIn(element, "shadow")) visit(child);
   };
-  for (const element of isBoundary(root) ? root.roots : [root]) visit(element);
+  visit(root);
   return elements;
 }
 
@@ -151,9 +123,6 @@ export function resolveTargetReference(root, reference) {
   if (reference?.kind !== "structure" || !Array.isArray(reference.path))
     throw new TypeError("leaf: invalid target reference");
 
-  if (isBoundary(root) && !("anchor" in reference) && !reference.path.length)
-    return detached();
-
   let candidates = [root];
   if ("anchor" in reference) {
     if (typeof reference.anchor !== "string")
@@ -170,12 +139,9 @@ export function resolveTargetReference(root, reference) {
     )
       throw new TypeError("leaf: invalid structural target reference");
     candidates = candidates.flatMap((parent) =>
-      (isBoundary(parent)
-        ? step.tree === "light"
-          ? parent.roots
-          : []
-        : childrenIn(parent, step.tree)
-      ).filter((child) => child.localName === step.tag && !child.id),
+      childrenIn(parent, step.tree).filter(
+        (child) => child.localName === step.tag && !child.id,
+      ),
     );
     if (!candidates.length) return detached();
   }

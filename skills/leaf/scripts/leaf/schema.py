@@ -182,48 +182,6 @@ REFERENCE_SCHEMA = {
     },
 }
 
-TARGET_REFERENCE_SCHEMA = {
-    "oneOf": [
-        {
-            "type": "object",
-            "properties": {
-                "kind": {"const": "id"},
-                "id": {"type": "string", "minLength": 1},
-            },
-            "required": ["kind", "id"],
-            "additionalProperties": False,
-        },
-        {
-            "type": "object",
-            "properties": {
-                "kind": {"const": "structure"},
-                "anchor": {"type": "string", "minLength": 1},
-                "path": {
-                    "type": "array",
-                    "items": {
-                        "type": "object",
-                        "properties": {
-                            "tree": {"enum": ["light", "shadow"]},
-                            "tag": {"type": "string", "minLength": 1},
-                        },
-                        "required": ["tree", "tag"],
-                        "additionalProperties": False,
-                    },
-                },
-            },
-            "required": ["kind", "path"],
-            "additionalProperties": False,
-        },
-    ]
-}
-
-EVENT_REFERENCES_SCHEMA = {
-    "type": "object",
-    "minProperties": 1,
-    "propertyNames": {"pattern": f"^{HTML_NAME}$"},
-    "additionalProperties": TARGET_REFERENCE_SCHEMA,
-}
-
 
 def _verbs_schema(
     records: list,
@@ -242,7 +200,6 @@ def _verbs_schema(
         "facet": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "unit": {"type": "string", "minLength": 1},
         "record": {"oneOf": records},
-        "references": REFERENCE_SCHEMA,
     }
     if conditional:
         properties["requires"] = ACTION_REQUIREMENT

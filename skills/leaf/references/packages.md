@@ -263,7 +263,7 @@ value and must be removed when that value returns.
 `widgetController(owner)` is the one semantic interface; callers supply no options.
 Leaf captures the owner's identity and revision-bound declaration before upgrade, so an
 author change to those facts fails closed. Its methods are `read`, `subscribe`,
-`dispatch`, `reference`, `request`, `defer`, and `present`.
+`dispatch`, `request`, `defer`, and `present`.
 
 `read()` returns an immutable `{authored, state, conversation, provenance, actions,
 requests, request, delivery}` snapshot. `authored` is the typed baseline decoded from
@@ -278,7 +278,7 @@ disconnect; reconnecting subscribes again. For each reading the controller calls
 module's `renderState(state)` first and these subscribers after. Report-only and quoted
 semantic widgets subscribe too, even with no interactive controls.
 
-`dispatch({kind: "action" | "request", verb, detail, references?, attempt?})` and
+`dispatch({kind: "action" | "request", verb, detail, attempt?})` and
 `dispatch({kind: "undo", target})` return `null` when the newest reading refuses the
 command, otherwise `{reading, delivery}`. The returned reading already holds the
 optimistic result; delivery later yields the admitted event or null, and a refusal
@@ -416,35 +416,6 @@ widget. Publish only action and status records to the margin, with explicit `ele
 `entries` relations when a disclosure owns another surface or entry. An entry whose
 interactive name no longer describes its script-free rendering supplies `staticLabel`;
 export removes the action and keeps that name on the resulting static image.
-
-### Semantic references
-
-An `x-state` or `x-report` verb may declare `references`, a map whose keys are
-package- or page-chosen semantic roles. Each role uses the same target contract as
-`x-refers`: `{}` accepts any authored element, while `{via, where}` constrains a
-registered widget through a package-owned registry map. The event carries the matching
-role map as a sibling of `detail`; roles are never encoded in detail-field names:
-
-```json
-{
-  "references": {
-    "source": {},
-    "container": { "via": "$layout.widgets", "where": { "role": "container" } }
-  }
-}
-```
-
-Use `controller.reference(element)` to capture each record. For a page widget the
-boundary is that immutable revision's authored `<main>`; for a widget in a conversation
-it is the one frozen-markup fragment that contains the widget. The target may therefore
-be a sibling outside the sender, but never escapes its document. Authored ids are exact;
-anonymous elements use Leaf's structural record and refuse when it is detached or
-ambiguous. `dispatch()` requires exactly the declared roles and validates their record
-shape before transport; the server resolves them again against source and is final
-authority. The declaration applies equally to recordless verbs.
-
-Worker reports supply the same map with `leaf report --references '<JSON-object>'`.
-Omit the option only for a verb that declares no reference roles.
 
 ### Commands and keyboard routes
 
@@ -595,9 +566,8 @@ widget": `subscribe` delivers the authored baseline with the fold applied, and
 `dispatch({kind: "action", verb, detail})` sends a gesture whose result is on screen
 before the server admits it.
 
-A verb may add `requires`, a prerequisite on the widget's Ask; `completion`, which
-answers that Ask when a move empties a container; and `references`, described under "A
-widget". A verb that lets the user add a real child declares `creates: {child, words}`.
+A verb may add `requires`, a prerequisite on the widget's Ask, and `completion`, which
+answers that Ask when a move empties a container. A verb that lets the user add a real child declares `creates: {child, words}`.
 Its fold unit names the detail field carrying the new child's canonical element id,
 `words` names the field carrying its non-empty words, and the detail holds exactly those
 two required fields with no record form. Each added child therefore stands on its own

@@ -6,7 +6,6 @@ from .contract import (
     RegistryError,
     declares_string,
     json_validator,
-    reference_relation_error,
     state_specs,
 )
 
@@ -265,12 +264,6 @@ def validate_widget_record_contracts(
             if verb not in entry.get("x-awaits", {}).get("answers", []):
                 raise RegistryError(
                     f"{path}: <{tag}> `{verb}` carries resolves but is not an x-awaits answer"
-                )
-        for role, reference in spec.get("references", {}).items():
-            if error := reference_relation_error(reference, registry, declarations):
-                raise RegistryError(
-                    f"{path}: <{tag}> {channel} verb `{verb}` reference role "
-                    f"`{role}` {error}"
                 )
         undeclared = [field for field in fields if field not in detail_properties]
         optional = [field for field in fields if field not in required]

@@ -481,9 +481,7 @@ def _validate_widget_structure(
     return properties, said
 
 
-def _validate_widget_predicates(
-    tag: str, entry: dict, properties: dict, path
-) -> dict:
+def _validate_widget_predicates(tag: str, entry: dict, properties: dict, path) -> dict:
     # A predicate names attributes and values the page can actually carry, or its
     # widget silently disappears from every consumer. The value's kind follows the
     # attribute's own schema — a flag is there or it isn't, an enum admits what it

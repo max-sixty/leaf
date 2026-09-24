@@ -1558,12 +1558,3 @@ class _YamlSnapshotHandler(BaseSnapshotHandler):
 SnapshotHandlerRegistry.add_handler(
     lambda obj: isinstance(obj, YamlDocument), _YamlSnapshotHandler, insert_front=True
 )
-
-
-def pass_write_tick() -> None:
-    """Let the filesystem's write clock move past the last write. A stamp taken
-    inside that write's tick also carries what the path holds, and the one after it
-    does not (`files.file_stamp`), so a test that asserts a page's reading holds
-    still — a cached answer kept, a follower left asleep, two readings agreeing —
-    takes the first reading past the tick."""
-    time.sleep(time.clock_getres(files_model.WRITE_CLOCK))

@@ -30,6 +30,15 @@ STAGED = re.compile(r"\.[0-9a-f]{16}\.tmp")
 # and no two of 20,000 back-to-back rewrites shared a time.
 WRITE_CLOCK = 5 if sys.platform == "linux" else time.CLOCK_REALTIME
 
+# The longest a stamp waits for that clock to move past a write: twice the slowest
+# jiffy, so any tick ends inside it.
+SETTLE_NS = 20_000_000
+
+
+def write_clock() -> int:
+    """The modification time a write made now would carry."""
+    return time.clock_gettime_ns(WRITE_CLOCK)
+
 
 def file_stamp(path: Path):
     """What the filesystem says a file or directory is: which one, when it was last
@@ -40,26 +49,35 @@ def file_stamp(path: Path):
 
     Every freshness key in leaf is built from these stamps — the page's reading that
     `leaf wait`, the news stream and activation follow, neighbour discovery, and the
-    caches of parsed files — so this is where a stamp is made exact. The time alone
-    cannot be: a second write inside the tick of `WRITE_CLOCK` that stamped the first,
-    to the same size, leaves it unmoved — a data file rewritten in place, an entry
-    added beside a removed one, an atomic replace whose staging file reused the inode
-    the one before it freed. A later write can share a time only with one that clock
-    has not yet moved past, so a stamp whose time is not older than that clock's
-    reading before the stat also carries what the path holds (git's rule for a racily
-    clean index entry): a file's bytes, or a directory's entries and their inodes.
-    That costs a read of what was written in the current tick and nothing after it.
-    The stamp taken once the tick has passed drops that part, so a follower that
-    looked inside the tick reads once more, then settles."""
-    looked = time.clock_gettime_ns(WRITE_CLOCK)
-    try:
-        stat = path.stat()
-        stamp = (stat.st_ino, stat.st_mtime_ns, stat.st_size)
-        if stat.st_mtime_ns >= looked:
-            stamp += (_contents(path, stat.st_mode),)
-    except OSError:
-        return None
-    return stamp
+    caches of parsed files — so this is where a stamp is made exact. The time alone is
+    not, while `write_clock` is still in the tick that stamped the last write: a second
+    write inside it, to the same size, would leave the stamp unmoved — a data file
+    rewritten in place, an entry added beside a removed one, an atomic replace whose
+    staging file reused the inode the one before it freed. So a stamp is not taken
+    until the clock has moved past the time it would carry. That is a wait of at most
+    one tick for a reader right behind a writer, and none for anyone else. The stamp
+    is then exact and stays the same while the path does, so a cache or a follower
+    keyed on it neither misses a write nor wakes for one that did not happen.
+
+    A time the clock does not pass within `SETTLE_NS` — a file dated ahead of the
+    clock, or one rewritten on every tick — is not waited out. Its stamp carries what
+    the path holds instead, the rule git applies to a racily clean index entry."""
+    settle_by = time.monotonic_ns() + SETTLE_NS
+    while True:
+        looked = write_clock()
+        try:
+            stat = path.stat()
+            stamp = (stat.st_ino, stat.st_mtime_ns, stat.st_size)
+            if stat.st_mtime_ns < looked:
+                return stamp
+            if (
+                stat.st_mtime_ns - looked >= SETTLE_NS
+                or time.monotonic_ns() >= settle_by
+            ):
+                return (*stamp, _contents(path, stat.st_mode))
+        except OSError:
+            return None
+        time.sleep(0.001)
 
 
 def _contents(path: Path, mode: int) -> bytes | None:

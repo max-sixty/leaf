@@ -42,7 +42,6 @@ from interact_support import (
     let_a_pick_settle_a_thread,
     owed,
     page_state,
-    pass_write_tick,
     publish,
     record_claim,
     serving,
@@ -6917,7 +6916,6 @@ def test_a_watch_wakes_on_what_its_pass_read_moving(page_dir):
         watch.await_news(mark, timeout=60)
         assert time.monotonic() - started < 30
 
-        pass_write_tick()
         mark = watch.mark()
         list(watch.tick())
         started = time.monotonic()

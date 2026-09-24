@@ -4920,10 +4920,25 @@ def test_a_swipe_deck_reflows_with_its_parent_allocation(browser, serve):
     assert narrow["controls"]["bottom"] < narrow["passed"]["top"], narrow
     assert narrow["passed"]["bottom"] < narrow["kept"]["top"], narrow
 
-    wide = layout("44rem")
-    assert len(wide["columns"]) == 2, wide
-    assert wide["passed"]["top"] == pytest.approx(wide["kept"]["top"]), wide
-    assert wide["passed"]["right"] < wide["kept"]["left"], wide
+    stacked = layout("44rem")
+    assert len(stacked["columns"]) == 2, stacked
+    assert stacked["passed"]["top"] == pytest.approx(stacked["kept"]["top"]), stacked
+    assert stacked["passed"]["right"] < stacked["kept"]["left"], stacked
+
+    # With room for a rail the deck is a body beside it: the queue and its controls on
+    # the left, Kept above Passed on the right, the rail as tall as the queue.
+    railed = layout("60rem")
+    assert len(railed["columns"]) == 2, railed
+    assert railed["deck"]["width"] == pytest.approx(
+        decision.evaluate("element => element.clientWidth")
+    ), railed
+    assert railed["queue"]["right"] < railed["kept"]["left"], railed
+    assert railed["kept"]["left"] == pytest.approx(railed["passed"]["left"]), railed
+    assert railed["kept"]["bottom"] < railed["passed"]["top"], railed
+    assert railed["queue"]["top"] == pytest.approx(railed["kept"]["top"]), railed
+    assert railed["queue"]["bottom"] == pytest.approx(railed["passed"]["bottom"]), railed
+    assert railed["queue"]["bottom"] < railed["controls"]["top"], railed
+    assert railed["controls"]["right"] <= railed["queue"]["right"], railed
 
 
 def test_a_swipe_deck_is_one_ask_with_directional_action_hints(browser, serve):
@@ -5130,17 +5145,22 @@ def test_ideas_to_implement_is_a_fast_mobile_decision_queue(browser, serve):
     page.set_viewport_size({"width": 1200, "height": 900})
     wide = page.evaluate(
         """() => {
+          const queue = document.querySelector('#ideas-queue').getBoundingClientRect();
           const passed = document.querySelector('#ideas-pass').getBoundingClientRect();
           const kept = document.querySelector('#ideas-keep').getBoundingClientRect();
           return {
+            queueRight: queue.right,
+            keptLeft: kept.left,
+            keptBottom: kept.bottom,
             passedTop: passed.top,
-            keptTop: kept.top,
             pageWidth: document.documentElement.scrollWidth,
             viewportWidth: document.documentElement.clientWidth,
           };
         }"""
     )
-    assert wide["passedTop"] == pytest.approx(wide["keptTop"], abs=0.02)
+    # The sheet gives the deck room for its rail: both piles stay beside the queue.
+    assert wide["queueRight"] < wide["keptLeft"], wide
+    assert wide["keptBottom"] < wide["passedTop"], wide
     assert wide["pageWidth"] == wide["viewportWidth"] == 1200
 
     expect(approve).to_have_text("Approve version")

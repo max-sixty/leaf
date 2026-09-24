@@ -398,6 +398,9 @@
 @media screen and (pointer: coarse) and (width > 840px) {
   :root { --lf-banner-h: calc(53px + var(--lf-safe-top)); }
 }
+/* Only a live page draws the banner. A copy or an export has none, so what sticks
+   below the banner sticks to the top of the window. */
+html:is(:not([data-lf-live]), .lf-copy) { --lf-banner-h: 0px; }
 /* The other half of --aim-floor and --entry-floor, and the whole of what a coarse pointer
    changes about how small a control, or the words typed in one, may be. Every rule that
    states a floor reads its token, so a control joins both answers by joining one of them. */

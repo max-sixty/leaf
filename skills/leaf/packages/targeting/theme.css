@@ -3,6 +3,10 @@
 lf-targeting {
   --lf-block-frame: 1;
   display: grid;
+  /* One track held to the box, here and in the editor's stacks below: an implicit
+   * track sized to the widest row's minimum pushed every row past the padding on a
+   * phone. */
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--sp-3);
   box-sizing: border-box;
   width: min(100%, 58rem);
@@ -40,6 +44,7 @@ lf-targeting .lf-targeting-targets,
 lf-targeting .lf-targeting-changes,
 lf-targeting .lf-targeting-candidates {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--sp-2);
 }
 

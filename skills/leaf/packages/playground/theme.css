@@ -1,67 +1,135 @@
-/* A playground is an instrument inside the page: controls stay compact and quiet while
- * the real preview owns the larger field. It is a workspace whose relationship is
- * declared, controls beside the preview they operate, built from the layout layer's
- * grammar: a grid of two panes (data-lf-reading-role, packages/default/theme.css) above
- * the actions. That grammar decides who scrolls. Here the playground only places its
- * rows and columns and quiets the panes' chrome inside its own card. The rows are
- * `1fr auto` for the reason a workspace's are: in a bounded workspace the grid gives up
- * its height and the panes scroll, and anywhere else it holds its content's. */
+/* A playground is an instrument laid out as a sheet's body beside its rail: the real
+ * preview is the stage and owns the larger field, and the controls stand above the
+ * instruction they write, with its actions, in a rail beside it. It is a workspace whose
+ * relationship is declared, built from the layout layer's grammar: a grid of three panes
+ * (data-lf-reading-role, packages/default/theme.css). That grammar decides who scrolls;
+ * here the playground only places the panes and draws them.
+ *
+ * Each region is drawn once. The playground itself is no card: the stage is the
+ * preview's own well, and each rail pane is a panel as a sheet draws its regions
+ * (theme.css, section.panel), so a candidate the page draws on the stage is the only
+ * surface inside the well rather than a card in a well in a card. */
 lf-playground {
   --lf-block-frame: 1;
   /* Passes a held workspace's height to its grid of regions (default theme). */
   --lf-passes-hold: 1;
   min-height: var(--lf-track-min);
   display: grid;
-  grid-template-rows: 1fr auto;
   grid-template-columns: minmax(0, 1fr);
   gap: var(--sp-4);
   box-sizing: border-box;
-  width: min(100%, 58rem);
-  margin: var(--sp-4) auto;
-  padding: var(--sp-4);
-  border: 1px solid var(--border-2);
-  border-radius: calc(var(--r) * 1.35);
-  background: var(--card);
+  width: 100%;
+  margin: var(--sp-4) 0;
   container-type: inline-size;
 }
 
-/* In a workspace the playground is the task's regions and takes its frame's width, as
- * a workspace's grid does. In a document it keeps its card width. */
-lf-workspace lf-playground {
-  width: 100%;
+/* Built, the playground holds its grid of regions alone, which takes the height it is
+ * given in a bounded workspace and its content's anywhere else. */
+lf-playground:has(> .lf-playground-split) {
+  grid-template-rows: minmax(0, 1fr);
 }
 
-/* Two equal columns where each gets 28rem, and one column where they don't: a card in a
- * document's column stacks its controls above the preview, while a playground that
- * fills a wide workspace sets them side by side. */
+/* The body and rail of a sheet (page-authoring.md, the sheet): the same `2fr 1fr` and
+ * gutter an lf-grid body and rail draw, so a playground on a sheet stands on the lines
+ * the page's other regions do. The stage spans the rail's two rows; the controls take
+ * their content's height and the instruction stands under them. Narrower than 50rem,
+ * a document's column included, a rail would be too narrow for the controls it holds, so
+ * the regions stack in reading order: the stage, the controls, the instruction. */
 .lf-playground-split {
-  --lf-grid-count: 2;
-  --lf-grid-min: min(28rem, 100%);
+  grid-template-columns: minmax(0, 1fr);
 }
 
-lf-playground :is(.lf-playground-controls-region, .lf-playground-preview-region) {
+@container (min-width: 50rem) {
+  .lf-playground-split {
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+    grid-template-rows: auto 1fr;
+  }
+
+  .lf-playground-preview-region {
+    grid-row: 1 / span 2;
+    align-self: stretch;
+  }
+
+  .lf-playground-instruction-region {
+    align-self: start;
+  }
+}
+
+/* Held in a bounded workspace, the controls give up height and scroll while the
+ * instruction and its actions stay whole under them, down to the controls' floor; below
+ * it the instruction takes its track rather than its content's height, and its body
+ * scrolls instead of running past the workspace. */
+@media screen {
+  @container lf-workspace (min-width: 720px) and (min-height: 480px) {
+    @container style(--lf-held: 1) {
+      @container (min-width: 50rem) {
+        html:not(.lf-copy) .lf-playground-split {
+          grid-template-rows: minmax(12rem, 1fr) auto;
+        }
+
+        html:not(.lf-copy) .lf-playground-instruction-region {
+          align-self: stretch;
+        }
+      }
+    }
+  }
+}
+
+/* The stage draws nothing of its own: the preview's well is its surface. */
+.lf-playground-preview-region {
   border: 0;
   border-radius: 0;
   background: transparent;
 }
 
-lf-playground :is(.lf-playground-controls-region, .lf-playground-preview-region) > * {
+lf-playground .lf-playground-preview-region > .lf-playground-preview-body {
+  display: flex;
+  flex-direction: column;
   padding: 0;
 }
 
+/* The well fills the stage however tall the rail beside it stands, and is never held
+ * shorter than what it shows: a held stage scrolls instead. */
+.lf-playground-preview-body > lf-playground-preview {
+  flex: 1 0 auto;
+}
+
+/* A rail pane is a panel: the card a sheet draws each region in, titled in the panel's
+ * small capitals. */
+:is(.lf-playground-controls-region, .lf-playground-instruction-region) {
+  border-color: var(--rule);
+  background: var(--card);
+}
+
+lf-playground
+  :is(.lf-playground-controls-region, .lf-playground-instruction-region)
+  > header {
+  padding: 14px 18px 0;
+  border: 0;
+}
+
+lf-playground
+  :is(.lf-playground-controls-region, .lf-playground-instruction-region)
+  > :not(header, footer) {
+  padding: 12px 18px 16px;
+}
+
+lf-playground
+  :is(.lf-playground-controls-region, .lf-playground-instruction-region)
+  > footer {
+  padding: 12px 18px;
+}
+
 .lf-playground-controls-region > .lf-playground-presets {
-  padding-bottom: var(--sp-3);
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--rule);
 }
 
-.lf-playground-presets + .lf-playground-controls {
-  padding-top: var(--sp-3);
-}
-
-.lf-playground-preview-body {
-  display: grid;
-  grid-auto-rows: max-content;
-  align-content: start;
-  gap: var(--sp-3);
+.lf-playground-instruction-title {
+  color: var(--muted);
+  font: 600 var(--t-6)/1.3 var(--sans);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
 .lf-playground-controls {
@@ -189,10 +257,13 @@ lf-playground-setting {
   font: 600 var(--t-6)/1.2 var(--sans);
 }
 
+/* The stage: one well the preview's artifacts stand on. A stage the rail beside it holds
+ * taller than the artifacts sets them in its middle rather than leaving its lower half
+ * bare, and one they overflow starts them at its top. */
 lf-playground-preview {
   --lf-block-frame: 1;
   display: grid;
-  place-items: center;
+  align-content: safe center;
   min-width: 0;
   min-height: 18rem;
   padding: var(--sp-4);
@@ -201,14 +272,14 @@ lf-playground-preview {
   background: var(--field);
 }
 
+/* The instruction is the task the agent receives, read at the size of the controls
+ * that wrote it rather than as a caption under them. */
 lf-playground-output {
   --lf-block-frame: 1;
   display: block;
   margin: 0;
-  padding: var(--sp-3) 0;
-  border-block: 1px solid var(--rule);
   color: var(--ink-2);
-  font: var(--t-6)/1.5 var(--sans);
+  font: var(--t-5)/1.55 var(--sans);
 }
 
 lf-playground-value {
@@ -269,26 +340,16 @@ lf-playground-value {
   color: var(--danger-ink);
 }
 
-lf-playground.lf-playground-quoted .lf-playground-controls,
-lf-playground.lf-playground-quoted .lf-playground-actions,
+/* A quoted playground is its preview and instruction as authored; a copy keeps the
+ * stage and the instruction and drops what only operates them. */
 lf-playground.lf-playground-quoted > lf-playground-control,
 lf-playground.lf-playground-quoted > lf-playground-preset,
 html.lf-copy lf-playground .lf-playground-controls-region,
-html.lf-copy lf-playground > .lf-playground-actions {
+html.lf-copy lf-playground .lf-playground-actions {
   display: none;
-}
-/* With its actions gone the playground is the preview alone. A written `1fr auto` keeps
- * the second track, and the gap before it, whether or not anything stands in it. */
-lf-playground.lf-playground-quoted,
-html.lf-copy lf-playground {
-  grid-template-rows: none;
 }
 
 @container (max-width: 38rem) {
-  lf-playground {
-    padding: var(--sp-3);
-  }
-
   lf-playground-preview {
     min-height: 14rem;
   }

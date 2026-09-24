@@ -210,6 +210,10 @@ lf-ask:has(> :is(h1, h2, h3, h4, h5, h6):first-child:nth-last-child(2)) {
     body
     > main:is([data-width="wide"], [data-width="available"]):has(> lf-workspace):not(:has(> :not(lf-workspace, script, style, template, .lf-ui, [data-lf-gen])))
     > lf-workspace {
+    /* The sheet gives up its block padding to the workspace, which keeps the top of it
+     * inside its own height, so its title stands clear of the banner as a sheet's does. */
+    box-sizing: border-box;
+    padding-top: var(--sp-4);
     block-size: calc(100dvh - var(--lf-banner-h) - var(--lf-bottom-chrome-clear, 0px));
   }
   /* A root tab's workspace ends the page and stands under the sticky tab strip:

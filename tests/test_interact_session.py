@@ -9502,6 +9502,21 @@ def test_wait_lease_is_exact_and_excludes_another_wait(
     assert not leases_model.lock_is_held(lease_path)
 
 
+def test_a_question_about_a_lease_does_not_turn_its_taker_away(tmp_path):
+    """`lock_is_held` asks with a momentary shared lock, which refuses an exclusive
+    one as a lease does. A lease taken while a question is open waits the question
+    out; only a lease turns a taker away."""
+    path = tmp_path / "lease"
+    path.touch()
+    with open(path, "rb") as question:
+        fcntl.flock(question, fcntl.LOCK_SH)
+        threading.Timer(0.05, fcntl.flock, (question, fcntl.LOCK_UN)).start()
+        lease = leases_model.take_lease(path)
+    assert lease is not None
+    assert leases_model.take_lease(path) is None
+    lease.close()
+
+
 def test_a_new_claim_cannot_borrow_the_previous_sessions_wait_lease(
     page_dir, monkeypatch
 ):
@@ -10557,27 +10572,40 @@ def test_a_claim_is_active_while_the_lifetime_it_names_holds(
 
 def test_a_background_wait_start_carries_the_closing_guidance(monkeypatch, capsys):
     """After a background command, the `PostToolUse` hook adds the session-list
-    closing guidance once for each wait that took this session's lease, and says
-    nothing otherwise.
+    closing guidance once for each wait that started, and says nothing otherwise.
 
-    The wait's lease is the whole evidence, so the command text plays no part:
+    The wait's start mark is the whole evidence, so the command text plays no part:
     `$LEAF wait`, which the shipped skill tells agents to run, gets the guidance
     like any other spelling, and a command that only mentions the phrase gets none
-    because no wait took the lease. A wait already named is not this command's: a
-    second wait is refused while one holds the lease. The hook fires as soon as the
-    host spawns the command, ahead of the wait taking its lease, so it looks for a
-    lease taken after it started.
+    because no wait started. A wait already named is not this command's: a second
+    wait is refused while one holds the lease. The hook fires as soon as the host
+    spawns the command, ahead of the wait taking its lease, so it keeps looking.
     """
-    monkeypatch.setattr(hooks_model, "WAIT_START_S", 0.3)
+    # Each case is settled by the looks it records rather than by the clock: the
+    # limit is lifted to bound a hang, and dropped to one look only where nothing
+    # but the clock says no wait is coming.
+    monkeypatch.setattr(hooks_model, "WAIT_START_S", 60)
+    looks, waits = [], []
+    start_after_first_look = False
 
     def start_wait():
         watch = session_model.Watch(
             host_model.ClaudeCodeHarness(session="s1", agent="Claude")
         )
         assert watch.acquire()
-        return watch
+        waits.append(watch)
+
+    def look(session_id):
+        named = leases_model.name_wait_start(session_id)
+        looks.append(named)
+        if start_after_first_look and len(looks) == 1:
+            start_wait()
+        return named
+
+    monkeypatch.setattr(hooks_model, "name_wait_start", look)
 
     def hook(command, background=True):
+        looks.clear()
         hooks_model.cmd_hook(
             {
                 "hook_event_name": "PostToolUse",
@@ -10594,23 +10622,27 @@ def test_a_background_wait_start_carries_the_closing_guidance(monkeypatch, capsy
             else None
         )
 
-    assert hook("grep -n 'leaf wait' skills/leaf/SKILL.md") is None
+    with monkeypatch.context() as clock:
+        clock.setattr(hooks_model, "WAIT_START_S", 0)
+        assert hook("grep -n 'leaf wait' skills/leaf/SKILL.md") is None
+    assert looks == [False]
 
-    wait = start_wait()
+    start_wait()
     assert hook("$LEAF wait p", background=False) is None
+    assert looks == []
     assert hook("$LEAF wait p") == hooks_model.WAIT_STARTED
-    # The same wait, seen after a later command: named already.
+    # The same wait, seen after a later command: named already, and that settles
+    # it without waiting out the limit.
     assert hook('"$LEAF" wait --ack 64186241') is None
-    wait.release()
+    assert looks == [None]
+    waits.pop().release()
 
-    # The next wait is a new start, and one that takes the lease after the hook
-    # began looking still counts.
-    waits = []
-    later = threading.Timer(0.1, lambda: waits.append(start_wait()))
-    later.start()
+    # The next wait is a new start, and one that starts after the hook's first
+    # look still counts.
+    start_after_first_look = True
     assert hook("uv run leaf wait --ack 64186241") == hooks_model.WAIT_STARTED
-    later.join()
-    waits[0].release()
+    assert looks == [False, True]
+    waits.pop().release()
 
 
 def test_the_registered_tool_hook_speaks_only_under_claude_code(tmp_path):

@@ -349,8 +349,10 @@ def test_history_reaches_only_a_page_that_renders_it_and_keeps_a_pick_as_made():
 
 def test_history_words_a_pick_of_an_added_option_by_what_the_user_wrote():
     """An added option is in no document, so its words come from the `add` that
-    wrote it. The pick of it reads by those words even after the add is undone,
-    since that is what the user picked."""
+    wrote it, as its inline Markdown shows them. The pick of it reads by those
+    words even after the add is undone, since that is what the user picked, and an
+    id an undone add freed and a later add reused reads each gesture by the add
+    standing when that gesture was made."""
     question = model.leaf_page(
         "Route",
         """<h1>Route</h1>
@@ -359,25 +361,34 @@ def test_history_words_a_pick_of_an_added_option_by_what_the_user_wrote():
 </lf-options>
 <lf-activity id="feed"></lf-activity>""",
     )
-    events = (
-        {
+
+    def add(text):
+        return {
             "kind": "action",
             "widget": "route",
             "action": "add",
-            "detail": {"option": "route-mine", "text": "Ship half"},
-        },
-        {
-            "kind": "action",
-            "widget": "route",
-            "action": "choose",
-            "detail": {"options": ["route-mine"]},
-        },
+            "detail": {"option": "route-mine", "text": text},
+        }
+
+    pick = {
+        "kind": "action",
+        "widget": "route",
+        "action": "choose",
+        "detail": {"options": ["route-mine"]},
+    }
+    events = (
+        add("**Ship** half"),
+        pick,
         {"kind": "undo", "undoes": "e2"},
         {"kind": "undo", "undoes": "e1"},
+        add("Ship everything"),
+        pick,
     )
 
     history = model.reading(question, events)["history"]
     assert [(row["id"], row["gesture"]) for row in history] == [
+        ("e6", {"form": "choice", "chosen": ["Ship everything"]}),
+        ("e5", {"form": "add", "words": "Ship everything"}),
         ("e2", {"form": "choice", "chosen": ["Ship half"]}),
         ("e1", {"form": "add", "words": "Ship half"}),
     ]

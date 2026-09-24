@@ -8,7 +8,8 @@ that reworded or removed an option does not change what the user chose. Deliveri
 the transcript, and the served history state a gesture through this one reading.
 
 A child a user wrote through a `creates` verb is in no document; the action that
-created it carries its words, and both readings take them from there.
+created it carries its words, and both readings take them from the latest such
+action at or before the gesture, since an undone add frees its id for another.
 
 Two readings of an element come out of that document. `says` is its whole words.
 `name` is what the authoring contract calls it away from itself: the attribute its
@@ -22,7 +23,7 @@ from functools import cached_property
 from pathlib import Path
 
 from .events import event_document
-from .passages import collapse, spoken
+from .passages import collapse, created_words, spoken
 from .projection import frozen_thread_reading
 from .revision_artifact import read_registry
 from .structure import SourceDocument, parse_revision
@@ -120,18 +121,43 @@ class GestureWords:
         return self._documents[revision]
 
     @cached_property
-    def created(self) -> dict[str, str]:
-        """id → words, for each child a user's `creates` action wrote, withdrawn or
-        not: a gesture that named the child named it by these words."""
-        created = {}
-        for event in self.events:
+    def _creations(self) -> dict[str, list[tuple[int, dict]]]:
+        """id → (log position, action) for each `creates` action that wrote a child
+        with that id, in log order. An undone add frees its id for a later one."""
+        creations: dict[str, list[tuple[int, dict]]] = {}
+        for position, event in enumerate(self.events):
             meaning = event.get("meaning") or {}
-            if event["kind"] != "action" or "creates" not in meaning:
-                continue
-            spec = self.declaration(event).get("x-state", {}).get(event["action"], {})
-            if creates := spec.get("creates"):
-                created[meaning["unit"]] = event["detail"][creates["words"]]
-        return created
+            if event["kind"] == "action" and "creates" in meaning:
+                creations.setdefault(meaning["unit"], []).append((position, event))
+        return creations
+
+    @cached_property
+    def _positions(self) -> dict[str, int]:
+        return {event["id"]: position for position, event in enumerate(self.events)}
+
+    def _created(self, gesture: dict, identity: str) -> str | None:
+        """The words a user-written child had when `gesture` named it: those of the
+        latest action creating that id at or before the gesture, shown as the
+        child's `x-text-format` renders them."""
+        at = self._positions.get(gesture["id"], len(self.events))
+        creators = [
+            event
+            for position, event in self._creations.get(identity, ())
+            if position <= at
+        ]
+        if not creators:
+            return None
+        creator = creators[-1]
+        creates = (
+            self.declaration(creator)
+            .get("x-state", {})
+            .get(creator["action"], {})
+            .get("creates")
+        )
+        if not creates:
+            return None
+        entry = self._document(creator).registry.get(creates["child"], {})
+        return collapse(created_words(creator["detail"][creates["words"]], entry))
 
     def says(self, event: dict) -> dict[str, str]:
         """id → what it says, for the elements one gesture names.
@@ -149,9 +175,9 @@ class GestureWords:
         depends = event["meaning"].get("depends", [event["widget"]])
         named = {identity: said[identity] for identity in depends if identity in said}
         written = {
-            identity: self.created[identity]
+            identity: words
             for identity in depends
-            if identity not in said and identity in self.created
+            if identity not in said and (words := self._created(event, identity))
         }
         enclosing = {
             outer for element in named.values() for outer in element.within[:-1]
@@ -183,7 +209,7 @@ class GestureWords:
         return (
             (document.name(node) if node else "")
             or (said.words if (said := document.spoken.get(identity)) else "")
-            or self.created.get(identity)
+            or self._created(event, identity)
             or identity
         )
 

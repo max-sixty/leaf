@@ -480,9 +480,10 @@ flowchart LR
         </p>
         <p id="follow-data">
           The log holds decisions and conversation. Typed external data that an agent or
-          process supplies lives beside it in <code>data.json</code>, replaced in place
-          with no fold and no undo, so a reader that needs it reads
-          <code>leaf page state</code> instead.
+          process supplies lives beside it, one file per source at
+          <code>data/&lt;source&gt;.json</code>, replaced in place with no fold, no
+          undo, and no sequence to resume from, so a reader that needs it reads
+          <code>leaf page state</code> or those files instead.
         </p>
       </section>
 

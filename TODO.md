@@ -101,6 +101,13 @@ has tried; settle that before building it.
   `test_an_aimed_comment_keeps_its_place_with_the_asks_tray_open` reproduces it at
   1200px with the tray closed and runs at 900px, where the composer goes above or
   below, until this is fixed.
+- **Decide whether the shortcut line should wrap on a narrow window.** Below about
+  390px with a fine pointer, the resting line wraps to a second row
+  (`keyboard/shortcut-bar.js`, `chrome.css`), which stands about 31px over the page
+  beyond the band the page reserves. The alternative is truncating the resting line
+  to one row. A key sequence and the shelf must still wrap, so truncating brings back
+  a one-row mode beside them, and it has to keep More, which sits last, from being
+  cut first.
 - **Unconfirmed: scrolling a live specimen sometimes sticks.** A user reported it
   while a specimen still scrolled inside a fixed-height frame, with no reproduction.
   The frame now takes its page's height, so nothing scrolls inside it; check that the

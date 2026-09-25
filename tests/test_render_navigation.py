@@ -9096,17 +9096,25 @@ def test_a_coarse_pointer_keeps_useful_status_without_keyboard_hints(browser, se
     expect(position).to_have_text("Ask 1 of 4 open")
     expect(position).to_be_visible()
     active_room = page.evaluate(
-        """() => ({
-              height: document.querySelector('.lf-walk-position')
-                .getBoundingClientRect().height,
-              reserved: parseFloat(getComputedStyle(
-                document.querySelector('.lf-chrome')).paddingBottom),
-            })"""
+        """() => {
+              const chip = document.querySelector('.lf-bottom-status')
+                .getBoundingClientRect();
+              return {
+                height: document.querySelector('.lf-walk-position')
+                  .getBoundingClientRect().height,
+                top: chip.top, bottom: chip.bottom, viewport: innerHeight,
+                reserved: parseFloat(getComputedStyle(
+                  document.querySelector('.lf-chrome')).paddingBottom),
+              };
+            }"""
     )
     # A touch screen draws no band, so the standing status overlays the page like a
-    # passing notice: showing it changes nothing about where the page ends.
+    # passing notice: showing it changes nothing about where the page ends, and the
+    # whole chip stands inside the window, clear of its foot.
     assert active_room["height"] > 0, active_room
     assert active_room["reserved"] == 0, active_room
+    assert 0 <= active_room["top"], active_room
+    assert active_room["bottom"] <= active_room["viewport"] - 14 + 1, active_room
 
     page.locator("#h").click()
     expect(line).to_be_hidden()

@@ -1726,15 +1726,18 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      More is the only pointer route to the reference; on a tablet with an attached
      keyboard the question-mark key remains its route.
      Geometry readers ask whether either bottom box is shown. A zero box is the same
-     state the empty line has always had. */
+     state the empty line has always had. With no band to be centred in, the status
+     stands clear of the window's foot on its own inset. */
   @media (pointer: coarse) {
     .lf-shortcut-bar { display: none; }
+    .lf-bottom-status { bottom: calc(14px + var(--lf-safe-bottom)); translate: none; }
   }
   /* A specimen has no agent attending it, and its fixed bar would stand over its own
      last block, since its window is exactly as tall as its page. Its banner keeps the
      one row of actions (theme.css sizes the room); the keys remain behind `?`. */
   html[data-lf-contained] :scope {
     .lf-banner-status, .lf-shortcut-bar { display: none; }
+    .lf-bottom-status { bottom: calc(14px + var(--lf-safe-bottom)); translate: none; }
     .lf-banner { grid-template-rows: minmax(0, 1fr); }
     .lf-banner-actions { grid-row: 1; }
   }

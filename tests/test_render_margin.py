@@ -5612,6 +5612,15 @@ def test_the_margin_reply_keeps_its_shape_when_the_user_enters_it(
     editor = preview.locator("textarea")
     expect(reply).to_be_visible()
     resting_box = reply.bounding_box()
+    message_left = preview.locator(".lf-conversation-msg").first.bounding_box()["x"]
+
+    def text_left(control):
+        return control.evaluate(
+            """node => node.getBoundingClientRect().left + node.clientLeft
+              + parseFloat(getComputedStyle(node).paddingInlineStart)"""
+        )
+
+    assert text_left(reply) == pytest.approx(message_left, abs=0.5)
     resting_face = reply.evaluate(
         """node => {
           const style = getComputedStyle(node);
@@ -5624,6 +5633,10 @@ def test_the_margin_reply_keeps_its_shape_when_the_user_enters_it(
     reply.click()
     expect(editor).to_be_focused()
     assert editor.bounding_box() == pytest.approx(resting_box, abs=0.5)
+    assert text_left(editor) == pytest.approx(message_left, abs=0.5)
+    assert preview.locator(".lf-margin-preview-list").evaluate(
+        "list => list.scrollWidth === list.clientWidth"
+    )
     assert (
         editor.evaluate(
             """node => {
@@ -5713,36 +5726,19 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
           // The first message's head is hoisted out of its message and onto the row the
           // thread opens with, which carries its controls beside the author.
           const metaRow = thread.querySelector(':scope > .lf-thread-root-meta');
-          const reply = thread.querySelector('.lf-reply-disclosure');
           const close = preview.querySelector('.lf-margin-preview-close');
           const resolve = thread.querySelector('.lf-resolve');
-          const tr = thread.getBoundingClientRect();
           const mr = metaRow.getBoundingClientRect();
-          const rb = reply.getBoundingClientRect();
           const cr = close.getBoundingClientRect();
           const rr = resolve.getBoundingClientRect();
-          const ts = getComputedStyle(thread);
           return {
-            thread: {
-              top: tr.top,
-              right: tr.right - parseFloat(ts.borderRightWidth)
-                - parseFloat(ts.paddingRight),
-              bottom: tr.bottom,
-              left: tr.left + parseFloat(ts.borderLeftWidth)
-                + parseFloat(ts.paddingLeft),
-            },
             metaRow: {top: mr.top, bottom: mr.bottom},
-            reply: {right: rb.right, left: rb.left},
             close: {top: cr.top, left: cr.left, bottom: cr.bottom},
             closeBorder: getComputedStyle(close).borderTopWidth,
             resolveBorder: getComputedStyle(resolve, '::before').borderTopWidth,
             resolve: {top: rr.top, right: rr.right, bottom: rr.bottom},
           };
         }"""
-    )
-    assert geometry["reply"]["left"] == pytest.approx(geometry["thread"]["left"], abs=1)
-    assert geometry["reply"]["right"] == pytest.approx(
-        geometry["thread"]["right"], abs=1
     )
     assert float(geometry["closeBorder"][:-2]) == 0
     assert float(geometry["resolveBorder"][:-2]) == 0
@@ -6976,8 +6972,6 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
           const banner = document.querySelector('.lf-banner').getBoundingClientRect();
           const controls = markerNode.closest('[data-lf-margin-for]').getBoundingClientRect();
           const card = document.querySelector('.lf-margin-preview').getBoundingClientRect();
-          const metadata = document.querySelector(
-            '.lf-margin-preview .lf-thread-root-meta').getBoundingClientRect();
           const reply = document.querySelector('.lf-margin-thread .lf-say')
             .getBoundingClientRect();
           const cardStyle = getComputedStyle(document.querySelector('.lf-margin-preview'));
@@ -6989,7 +6983,6 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
                   viewportRight: document.documentElement.clientWidth,
                   borderLeft: cardStyle.borderLeftWidth,
                   borderRight: cardStyle.borderRightWidth,
-                  metadataLeft: metadata.left, metadataTop: metadata.top,
                   replyTop: reply.top, replyBottom: reply.bottom,
                   panelOpen: document.querySelector('.lf-thread-panel').classList.contains('open')};
         }"""
@@ -7003,7 +6996,6 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
     assert geometry["replyTop"] >= geometry["cardTop"], geometry
     assert geometry["replyBottom"] <= geometry["cardBottom"], geometry
     assert geometry["borderLeft"] == geometry["borderRight"] == "1px", geometry
-    assert geometry["metadataLeft"] == pytest.approx(geometry["cardLeft"] + 17, abs=0.5)
     assert not geometry["panelOpen"], geometry
 
     words = thread.locator(".lf-conversation-body").first

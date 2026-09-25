@@ -283,6 +283,7 @@ export function readThreadRecords(
       settling: thread.settling ?? null,
       awaits_agent: thread.awaits_agent,
       awaits_user: thread.awaits_user,
+      user_prompt: thread.user_prompt ?? null,
       attention: thread.attention ?? null,
       workflows: threadWorkflows,
       bare_reaction: thread.bare_reaction,

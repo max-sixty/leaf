@@ -1069,7 +1069,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-thread-draft { color: var(--muted); font-size: 10px; white-space: nowrap; }
   .lf-thread-unread, .lf-unread-label { color: var(--turn-ink); font-size: 10px;
     font-weight: 700; white-space: nowrap; }
-  .lf-thread-status { max-width: 80px; min-width: 0; overflow: hidden; text-overflow: ellipsis;
+  .lf-thread-status { max-width: 150px; min-width: 0; overflow: hidden; text-overflow: ellipsis;
     white-space: nowrap; color: var(--muted); font-size: 11px; }
   .lf-thread-status[data-lf-turn="user"] { color: var(--turn-ink); }
   .lf-thread-count { color: var(--muted); font-size: 11px; text-align: right;

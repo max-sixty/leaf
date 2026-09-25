@@ -1415,9 +1415,10 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
    Sizes are in the drawing's own units and scale with its viewBox. One without a width
    of its own fills its figure; a thumbnail states one.
 
-   TODO: this set came from one page's drawings of Leaf's own layout (windows, text
-   lines, markers). Decide whether it is general enough to ship, or whether a page
-   should keep its drawing classes local and the theme offer only the text defaults. */
+   TODO: revisit whether this set is too specific. It ships as taken from one page's
+   drawings of Leaf's own layout, less the marks only that subject used (its rail, pins
+   and suggestion tints). If later pages leave most of it unused, or keep adding local
+   classes beside it, trim it to the text defaults and let each page draw its own. */
 svg.drawing { display: block; height: auto; font-family: var(--sans); font-size: 11px; }
 svg.drawing:not([width]) { width: 100%; }
 svg.drawing text { fill: var(--muted); }

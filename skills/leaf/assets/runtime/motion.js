@@ -116,6 +116,7 @@ export function slide(el, side, direction) {
       ? motion(el, [at ?? away, home], SLIDE_IN_MS)
       : motion(el, [at ?? home, away], SLIDE_OUT_MS);
   if (!played) {
+    slides.delete(el);
     el.removeAttribute(LEAVING);
     return null;
   }

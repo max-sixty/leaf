@@ -1725,7 +1725,7 @@ def panel_settled(page, open=True):
 
     The panel stands over the page, so opening or closing it moves nothing else; its own
     slide is the one motion, finished rather than waited out for `edge_settled`'s reason.
-    Closed means the dialog itself has closed, which the slide out precedes."""
+    Closed means the dialog itself has closed."""
     page.wait_for_function(
         """(open) => {
           const panel = document.querySelector('.lf-thread-panel');

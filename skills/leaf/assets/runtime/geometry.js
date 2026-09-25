@@ -481,6 +481,15 @@ function clipped(box, item, clips, held) {
 const occluders = new Set();
 // An occluder on its way out (motion.js, `slide`) covers nothing the user is reading past.
 export const LEAVING = "data-lf-leaving";
+// Where an occluder stands, not where its slide has carried it this frame: every declared
+// occluder is fixed to the window, so its offset box is its viewport box without the
+// slide's transform.
+const standingBox = (surface) => ({
+  left: surface.offsetLeft,
+  top: surface.offsetTop,
+  right: surface.offsetLeft + surface.offsetWidth,
+  bottom: surface.offsetTop + surface.offsetHeight,
+});
 export const declareOccluder = (surface) => occluders.add(surface);
 // A clip pass that reads past some occluders. Travel asks what the page shows of a
 // destination beside the surface it leaves standing, which is the most any movement of
@@ -512,7 +521,7 @@ export function hides(surface, where) {
       ? clippedContents(box, holder, clipsPast([surface]))
       : clippedRect(box, holder, clipsPast([surface]));
   const { left, right } = seen ?? box;
-  const column = surface.getBoundingClientRect();
+  const column = standingBox(surface);
   const covered = Math.min(right, column.right) - Math.max(left, column.left);
   return covered > (right - left) / 2;
 }
@@ -550,7 +559,7 @@ function standingOccluders(clips) {
     .filter((surface) => !past?.has(surface))
     .map((surface) => ({
       surface,
-      box: surface.getBoundingClientRect(),
+      box: standingBox(surface),
       level: stackLevel(surface),
     }));
   clips.set(OCCLUDERS, standing);

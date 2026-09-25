@@ -833,7 +833,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-thread-panel[open] { display: flex; }
   /* A surface on its way out takes no press, so a gesture aimed at the page it is
      leaving lands on the page (motion.js, `slide`). */
-  :is(.lf-thread-panel, .lf-tray-panel)[data-lf-leaving] { pointer-events: none; }
+  .lf-tray-panel[data-lf-leaving] { pointer-events: none; }
   /* The panel stands over the page and takes no room from it (theme.css, at
      `--lf-auxiliary-beside`). It shares the auxiliary scrim only where it leaves less than
      a usable page and covers it; elsewhere the page beside it stays live and no scrim

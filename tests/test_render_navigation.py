@@ -5073,7 +5073,7 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
 
     for width in (1280, 420):
         resized(page, width, 800)
-        page.evaluate(RENDERED)
+        rendered(page)
         # The sequence's line grows upward over the page; the page's room stays the band's
         # stated height rather than following it.
         room = page.evaluate(

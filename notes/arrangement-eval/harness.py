@@ -831,8 +831,13 @@ def summarize(batch: Batch):
     # pick it; a pair the passes disagree on, or either calls a tie, is a split.
     first = outcomes(batch.dir / "reviews")
     second = outcomes(batch.dir / "reviews-flip")
+    # A verdict saved before a run stopped counting stays on disk, so the tally takes
+    # only pairs whose runs both count, as the score tables do.
+    usable = {(r["subject"], r["phase"], r["n"], r["arm"]) for r in rows}
     tally = defaultdict(Counter)
     for key in sorted(first.keys() | second.keys()):
+        if any((*key, arm) not in usable for arm in ARMS):
+            continue
         a, b = first.get(key), second.get(key)
         cell = tally[key[:2]]
         if not (a and b):

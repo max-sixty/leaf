@@ -65,7 +65,6 @@ from render_harness import (
     INLINE_PAGE,
     LONG_PAGE,
     PASSAGE_SOURCES,
-    RENDERED,
     SAID_PAGE,
     _traffic,
     compare_with,
@@ -76,6 +75,7 @@ from render_harness import (
     open_versions,
     panel_settled,
     post_event,
+    rendered,
     resized,
     round_trip,
     scroll_settled,
@@ -263,7 +263,7 @@ def test_a_block_leaving_the_viewport_keeps_its_focused_comment(browser, serve):
     page.locator("#lp-status").evaluate(
         "region => window.scrollTo(0, scrollY + region.getBoundingClientRect().bottom - 20)"
     )
-    page.evaluate(RENDERED)
+    rendered(page)
     assert page.locator("#lp-status").evaluate(
         "region => Math.abs(region.getBoundingClientRect().bottom - 20) < 1"
     )
@@ -640,7 +640,7 @@ def test_the_comment_button_stands_on_no_control(browser, serve):
         steps=16,
     )
     expect(page.locator(".lf-fab-input")).to_be_visible()
-    page.evaluate(RENDERED)  # selection placement reaches the frame before hit testing
+    rendered(page)  # selection placement reaches the frame before hit testing
     assert (
         page.locator("[data-lf-margin-for='sug-refill']").evaluate(
             "el => el.getBoundingClientRect().left"
@@ -2200,7 +2200,7 @@ def test_staged_widget_controls_name_the_presses_their_owners_make(browser, serv
     # disclosure row and nothing else. Read once, by the same clock as the line: the
     # heartbeat repaints scopes too, so a retrying read goes green on the tick inside its
     # budget whether or not the watch painted anything.
-    page.evaluate(RENDERED)
+    rendered(page)
     assert summary.get_attribute("aria-keyshortcuts") == "Enter Space ArrowRight"
 
     # The row also names an arrow, which no browser answers, so unlike the pair above it is

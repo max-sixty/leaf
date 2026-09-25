@@ -21,11 +21,14 @@
  * in a shut panel has no box, so measure holds its draw, and the 384KB bundle waits with
  * it instead of loading in front of a user who never opens that panel. */
 import {
+  cancelRender,
   dataBody,
   failSoft,
   layerFact,
   measure,
+  nextRender,
   once,
+  sizeObserver,
   widgetController,
 } from "/runtime/widget-api.js";
 
@@ -517,7 +520,7 @@ customElements.define(
 
     disconnectedCallback() {
       this.watching?.disconnect();
-      cancelAnimationFrame(this.paintFrame);
+      cancelRender(this.paintFrame);
     }
 
     async draw() {
@@ -554,12 +557,12 @@ customElements.define(
         // even though this observer deliberately ignores height.
         let drawn = Math.round(this.clientWidth);
         let pending = drawn;
-        this.watching = new ResizeObserver(() => {
+        this.watching = sizeObserver(() => {
           const width = Math.round(this.clientWidth);
           if (!width || width === pending) return;
           pending = width;
           if (this.paintFrame) return;
-          this.paintFrame = requestAnimationFrame(() => {
+          this.paintFrame = nextRender(() => {
             this.paintFrame = 0;
             if (!this.isConnected || pending === drawn) return;
             drawn = pending;

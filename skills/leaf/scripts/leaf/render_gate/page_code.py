@@ -77,9 +77,10 @@ def run_page_code(browser, url: str) -> list[str]:
         stage = wait_for_presentation(page, state, applied)
         if stage is not None:
             return [*reports, f"the runtime never passed its {stage} stage"]
-        # A widget that paints from requestAnimationFrame throws there, not in
-        # its upgrade; a frame requested now runs after the ones it asked for.
+        # A widget that paints from a rendering callback throws there, not in its
+        # upgrade; once the rendering has settled, every callback it queued has run.
         wait_for_probe(page, "framePresented", evaluate_probe(page, "requestFrame"))
+        wait_for_probe(page, "renderingSettled")
         # The report is posted asynchronously, and the route above answers it only
         # while this process is waiting on the page.
         wait_for_probe(page, "sendsAcked")

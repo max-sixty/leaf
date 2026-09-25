@@ -18,6 +18,7 @@ import {
   PAGE_PAINT_ATTRIBUTE,
   PRESENTATION,
 } from "./runtime/presentation.js";
+import { renderingSettled } from "./runtime/rendering.js";
 import { mountApplication } from "./runtime/application.js";
 import {
   applicationState,
@@ -125,14 +126,15 @@ initializeServedDocument();
 
 // A published shell may bundle the entry without publishing its source modules beside
 // it. Keep the synchronous validation seam on Leaf's own bootstrap element so render
-// checks can inspect either distribution without turning it into a package API. The two
-// readings answer different questions: whether the current epoch is presented, and
-// whether the page has also finished the arrivals it deliberately placed after
-// presenting.
+// checks can inspect either distribution without turning it into a package API. The three
+// readings answer different questions: whether the current epoch is presented, whether
+// the page has also finished the arrivals it deliberately placed after presenting, and
+// whether its chrome and geometry have caught up with everything handled so far.
 const validationEntry = document.querySelector("script[data-lf-entry]");
 if (validationEntry) {
   validationEntry.lfCurrentPresentationReady = applicationPresented;
   validationEntry.lfPageArrived = pageArrived;
+  validationEntry.lfRenderingSettled = renderingSettled;
 }
 import { overflowMenu } from "./runtime/banner-shelf.js";
 import {

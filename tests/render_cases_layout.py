@@ -31,11 +31,11 @@ from render_cases_interaction import (
 from render_harness import (
     CARRIED_PAGE,
     LONG_PAGE,
-    RENDERED,
     SHELL_BOX,
     TOKEN,
     banner_control,
     leaf_page,
+    rendered,
     stamp_page,
 )
 
@@ -202,7 +202,7 @@ def arrival_findings(browser, url):
 def motions(events):
     """The settling motions the browser reported, keyed by the motion, not by its target.
 
-    Settling and not living, which is `rendering.MOVING`'s distinction and is here for
+    Settling and not living, which is the render gate's `moving` distinction and is here for
     its reason: the banner's dot pulses for as long as the tab is open, and something
     that never ends never arrived anywhere. An unbounded iteration count cannot cross
     JSON, so the browser omits it, and that omission is the reading.
@@ -829,9 +829,9 @@ BANNER_ORDER = """() => {
 
 def page_at_rest(page):
     """Render the known edge, finish finite motion, then render its ending."""
-    page.evaluate(RENDERED)
+    rendered(page)
     render_checks_model.wait_for_probe(page, "pageSettled")
-    page.evaluate(RENDERED)
+    rendered(page)
 
 
 def displaced(before, boxes):

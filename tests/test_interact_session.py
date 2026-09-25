@@ -11448,6 +11448,27 @@ def test_server_stop_disables_desired_state_without_signalling_a_pid(
     assert files_model.read_json(page_dir / "service.json")["enabled"] is False
 
 
+def test_server_stop_reports_a_server_that_exits_as_soon_as_it_is_disabled(
+    page_dir, standing_server, monkeypatch
+):
+    server = standing_server(page_dir)
+    write_json = hosting_model.write_json
+
+    def write_and_wait_for_exit(path, value):
+        write_json(path, value)
+        if path == page_dir / "service.json" and not value["enabled"]:
+            wait_for(
+                lambda: leases_model.lock_is_held(page_dir / "server.lock"),
+                lambda held: not held,
+                failure="server did not release its lease after stop",
+                timeout=5,
+            )
+
+    monkeypatch.setattr(hosting_model, "write_json", write_and_wait_for_exit)
+    assert hosting_model.cmd_stop(page_dir) == "stopped server"
+    server.wait(timeout=5)
+
+
 def test_session_end_cannot_release_a_page_claimed_by_its_successor(
     page_dir, monkeypatch
 ):

@@ -651,9 +651,11 @@ def test_a_selected_question_keeps_one_action_context_while_tab_reaches_its_fiel
     # is the only arrangement in which the claim can be read at all. With the whole ask on
     # screen a Tab stop is already where the browser would put it, nothing scrolls, and the
     # reading goes green over the travel it is about; the assertion before the presses says
-    # so rather than leaving it to the window's height to be right.
+    # so rather than leaving it to the window's height to be right. Chrome's focus
+    # scroll moves a stop only when it stands wholly outside the padded band, so the
+    # window is one where the arrival leaves the field wholly under the bottom band.
     page = open_page(browser, serve(ASK_WITH_CONTEXT_PAGE))
-    resized(page, 390, 640)
+    resized(page, 390, 600)
     clearance = """() => document.querySelector('.lf-shortcut-bar').getBoundingClientRect().top
       - document.querySelector('#storage-options > .lf-another')
         .getBoundingClientRect().bottom"""

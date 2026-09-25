@@ -4532,9 +4532,9 @@ def test_a_covering_sheet_cannot_move_the_background_shortcut_bar(browser, serve
     assert one_line["shortcut_bar"]["bottom"] > one_line["foot"]["top"], (
         f"the fixture no longer exercises the old vertical collision: {one_line}"
     )
-    assert (
-        abs(one_line["shortcut_bar"]["bottom"] - (one_line["viewportHeight"] - 14)) < 1
-    ), one_line
+    assert abs(one_line["shortcut_bar"]["bottom"] - one_line["viewportHeight"]) < 1, (
+        one_line
+    )
 
     field.fill("One line\nSecond line\nThird line")
     rendered(page)
@@ -4574,43 +4574,39 @@ def test_a_covering_sheet_cannot_move_the_background_shortcut_bar(browser, serve
 
 
 def test_dynamic_chrome_offsets_keep_the_safe_area_in_their_arithmetic(browser, serve):
-    """Runtime layout writes preserve the inset tokens stated by the stylesheet."""
+    """The bottom band keeps the inset tokens stated by the stylesheet: it stands on the
+    window's foot, grows by the bottom inset, and holds its hints inside the side insets.
+    The insets are stated on the root, where the band's own height reads them."""
     page = open_page(browser, serve(LONG_PAGE))
     resized(page, 500, 700)
     insets = {"left": 17, "right": 31, "bottom": 23}
     page.evaluate(
         """insets => {
           for (const [side, value] of Object.entries(insets))
-            document.body.style.setProperty(`--lf-safe-${side}`, `${value}px`);
+            document.documentElement.style.setProperty(`--lf-safe-${side}`, `${value}px`);
         }""",
         insets,
     )
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     expect(page.locator(".lf-shortcut-bar")).to_be_visible()
-    page.wait_for_function(
-        """insets => Math.abs(
-          document.querySelector('.lf-shortcut-bar').getBoundingClientRect().left
-          - (18 + insets.left)
-        ) < 1""",
-        arg=insets,
-    )
     boxes = page.evaluate(
         """() => {
-          const rect = selector => {
-            const r = document.querySelector(selector).getBoundingClientRect();
+          const rect = node => {
+            const r = node.getBoundingClientRect();
             return {left: r.left, right: r.right, top: r.top, bottom: r.bottom};
           };
-              return {shortcut_bar: rect('.lf-shortcut-bar'),
-                      width: innerWidth, height: innerHeight};
+          const bar = document.querySelector('.lf-shortcut-bar');
+          const hints = [...bar.children].filter(node => node.checkVisibility());
+          return {shortcut_bar: rect(bar), first: rect(hints[0]),
+                  width: innerWidth, height: innerHeight};
         }"""
     )
-    assert (
-        abs(boxes["shortcut_bar"]["bottom"] - (boxes["height"] - 14 - insets["bottom"]))
-        < 1
-    )
-    assert abs(boxes["shortcut_bar"]["left"] - (18 + insets["left"])) < 1
-    assert boxes["shortcut_bar"]["right"] <= boxes["width"] - insets["right"] + 1
+    band = boxes["shortcut_bar"]
+    assert abs(band["bottom"] - boxes["height"]) < 1, boxes
+    assert abs(band["bottom"] - band["top"] - (44 + insets["bottom"])) < 1, boxes
+    assert boxes["first"]["left"] >= 18 + insets["left"] - 1, boxes
+    assert boxes["first"]["bottom"] <= boxes["height"] - insets["bottom"] + 1, boxes
 
 
 def test_a_covering_composer_keeps_its_controls_inside_the_safe_area(browser, serve):

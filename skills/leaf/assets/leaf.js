@@ -98,13 +98,7 @@ import { askActionLayer, ASK_CONTROL } from "./runtime/asks/view-elements.js";
 import { createDesignMode, inspectEl, legendRoot } from "./runtime/design.js";
 import { createChromeLayout } from "./runtime/chrome-layout.js";
 import { createThreadPanelController, panelIsOpen } from "./runtime/thread-panel.js";
-import {
-  createTrays,
-  asksPanel,
-  currentTray,
-  othersPanel,
-  reserveListClearance,
-} from "./runtime/trays.js";
+import { createTrays, asksPanel, currentTray, othersPanel } from "./runtime/trays.js";
 import { createAuxiliarySurfaces } from "./runtime/auxiliary-surfaces.js";
 import { restoreUserView } from "./runtime/restore-state.js";
 import { watchProjection } from "./runtime/projection-watch.js";
@@ -638,7 +632,6 @@ layout = createChromeLayout({
   },
   scheduleThreadPreviewPosition: app.margin.scheduleThreadPreviewPosition,
   bottomChromeBoxes,
-  reserveListClearance,
   restateTrayEdge: () => trays.traysEdge.state(),
   syncAuxiliarySurfaces: auxiliarySurfaces.sync,
   syncReactLayout: reactions.syncReactLayout,

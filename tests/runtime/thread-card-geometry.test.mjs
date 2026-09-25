@@ -60,6 +60,30 @@ test("room exactly the card's minimum is still room beside it", () => {
   assert.deepEqual([exact.placement, exact.x, exact.width], ["right", 1112, 320]);
 });
 
+test("an editing card keeps its foot as its reply grows", () => {
+  const at = cluster(934, 160);
+  const oneLine = threadCardGeometry({
+    cluster: at,
+    boundary: boundary(1920),
+    gap: 8,
+    minWidth: 320,
+    preferredWidth: 460,
+    heightAt: () => 160,
+    rightFootOffset: 160,
+  });
+  const twoLines = threadCardGeometry({
+    cluster: at,
+    boundary: boundary(1920),
+    gap: 8,
+    minWidth: 320,
+    preferredWidth: 460,
+    heightAt: () => 180,
+    rightFootOffset: 160,
+  });
+  assert.equal(oneLine.y + oneLine.height, twoLines.y + twoLines.height);
+  assert.equal(twoLines.y, 140);
+});
+
 test("a boundary narrower than the card's minimum still bounds its width", () => {
   assert.equal(ask(316, cluster(100, 100), 200).width, 300);
 });

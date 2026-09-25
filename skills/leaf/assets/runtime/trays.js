@@ -58,7 +58,6 @@ export const TRAY_SLOT_PROP = "--lf-tray-slot-width";
 // walk parked the last row 47px under the shortcut bar, on the one tray nothing had ever
 // walked to the end of. Callers state the clearance; this owner decides which lists it
 // reaches and how each one spends it.
-const trayLists = [];
 function trayFurniture(panel, name, list = el("div", "lf-tray-list")) {
   const head = el("div", "lf-tray-head");
   const title = el("span", "lf-auxiliary-title", name);
@@ -69,17 +68,10 @@ function trayFurniture(panel, name, list = el("div", "lf-tray-list")) {
   list.classList.add("lf-tray-list");
   head.append(title, close);
   panel.append(head, list);
-  trayLists.push(list);
   // An open tray stands over the left of the page, so what it stands over is hidden
   // from every reading of what the page shows (geometry.js).
   declareOccluder(panel);
   return { list, close };
-}
-export function reserveListClearance(clear) {
-  for (const list of trayLists) {
-    list.style.paddingBottom = clear;
-    list.style.scrollPaddingBottom = clear;
-  }
 }
 
 // Every active Ask and the route back through its current answer. The banner says

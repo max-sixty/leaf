@@ -417,9 +417,9 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
    marked itself lf-live — this block's name for the visually-hidden live region —
    and every tabbed page clipped to a pixel.) */
 @scope (.lf-chrome) {
-  /* The document can scroll its last line above the bottom chrome. A root workspace
-     ends above the chrome, so this room fills the rest of the window after it. */
-  :scope { padding-bottom: var(--lf-bottom-chrome-clear, 0px); }
+  /* The document can scroll its last line above the bottom band. A root workspace
+     ends above the band, so this room fills the rest of the window after it. */
+  :scope { padding-bottom: var(--lf-band-h); }
   /* The layer is the runtime's, not the document's, so it never prints — one rule
      for all of it, rather than each piece remembering. :scope is the container
      itself, which is why this can't be written at document level without widening
@@ -758,7 +758,13 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      list, an edge being a fact about the region rather than about how far down it the
      user has read. contain, so reaching the end of the list does not start scrolling
      the page behind it: one wheel gesture moves one region. */
-  .lf-tray-list { flex: 1; min-height: 0; padding: 6px 4px; overflow-y: auto;
+  /* The tray stands to the window's foot, under the bottom band, so its list ends above
+     the band for a wheel to the end (padding) and a walk's scroll into view alike
+     (scroll-padding). */
+  .lf-tray-list { flex: 1; min-height: 0;
+    padding: 6px 4px calc(6px + var(--lf-band-h));
+    scroll-padding-bottom: calc(var(--lf-band-h) + max(12px, var(--here-ring-room)));
+    overflow-y: auto;
     overscroll-behavior: contain; }
   .lf-others-row { display: block; padding: 8px 10px; border-radius: 6px; color: inherit;
     text-decoration: none; }
@@ -1518,6 +1524,9 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     margin: 0; padding: 12px; border: 1px solid var(--border-2); border-radius: 10px;
     background: var(--paper); color: var(--ink); box-shadow: 0 12px 36px var(--shade); }
   .lf-margin-preview:not([hidden]) { display: flex; flex-direction: column; }
+  /* The positioned top is the card's foot in the right rail. As the reply gains a line,
+     the percentage translation grows upward in the same layout pass. */
+  .lf-margin-preview[data-lf-thread-placement="right"] { translate: 0 -100%; }
   .lf-thread-transition { position: fixed; z-index: var(--lf-z-thread-transition); margin: 0;
     padding-inline: 12px; overflow: hidden; pointer-events: none;
     white-space: pre-wrap; }
@@ -1655,35 +1664,45 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     .lf-page-map-action:focus-visible {
       outline: 2px solid Highlight; }
   }
-  /* The shortcut bar gives two contextual hints and the More control rendered from the
-     register the dispatcher walks (see the module docstring). A sequence shows its whole
-     live scope; More unfolds the remaining current register before it opens the complete reference.
-     Hints are the eye's copy of facts spoken elsewhere and stay aria-hidden; More is a
-     real control. Useful transient state balances the line at the opposite edge: a
-     semantic walk's live ordinal, or a brief command or arrival notice in its place.
-     syncLayout keeps the line out of the thread panel, which stands over the page's right
-     edge. A covering auxiliary surface makes it inert background, so that foreground
-     does not move it or reserve its own list around it. The chrome root reserves the
-     fixed bottom surface for scroll regions it crosses, so their last lines never end
-     underneath it. Overflow remains a backstop for a window too narrow to hold even the
-     short line. */
-  :is(.lf-shortcut-bar, .lf-bottom-status) {
-    color: var(--muted); font-size: var(--t-6); padding: 5px 10px;
-    border: 1px solid var(--rule); border-radius: var(--r); background: var(--card); }
-  .lf-shortcut-bar { position: fixed; left: calc(18px + var(--lf-safe-left));
-    bottom: calc(14px + var(--lf-safe-bottom)); z-index: var(--lf-z-shortcut-bar); pointer-events: none;
-    display: flex; gap: 12px; align-items: baseline;
-    max-width: calc(100vw - var(--lf-shortcut-bar-right, 0px) - 36px
-      - var(--lf-safe-left) - var(--lf-safe-right));
+  /* The bottom band is the banner's counterpart at the window's foot: one row at one
+     stated height (--lf-band-h, theme.css), drawn across the page, which ends above it.
+     Its height is a constant rather than a reading of what it holds, so the page's end,
+     a held workspace, the trays' lists, and the contents map all end at the same known
+     line, and nothing the band shows moves anything on the page.
+
+     The shortcut line is the band. It gives two contextual hints and the More control
+     rendered from the register the dispatcher walks (see the module docstring). A
+     sequence shows its whole live scope; More unfolds the remaining current register
+     before it opens the complete reference, which grows the line upward over the page as
+     a temporary overlay and leaves the band's reservation where it was. Hints are the
+     eye's copy of facts spoken elsewhere and stay aria-hidden; More is a real control.
+     Useful transient state — a semantic walk's live ordinal, or a brief command or
+     arrival notice in its place — stands at the band's other end, over the line's tail
+     where the two would meet. syncLayout keeps the band out of the thread panel, which
+     stands over the page's right edge. A covering auxiliary surface makes it inert
+     background. Overflow is the backstop for a window too narrow to hold even the short
+     line. */
+  .lf-shortcut-bar { position: fixed; left: 0; right: var(--lf-shortcut-bar-right, 0px);
+    bottom: 0; z-index: var(--lf-z-shortcut-bar); pointer-events: none;
+    box-sizing: border-box; height: var(--lf-band-h);
+    padding: 0 calc(18px + var(--lf-safe-right)) var(--lf-safe-bottom)
+      calc(18px + var(--lf-safe-left));
+    display: flex; gap: 12px; align-items: center;
+    color: var(--muted); font-size: var(--t-6);
+    background: var(--veil); backdrop-filter: blur(6px); border-top: 1px solid var(--rule);
     overflow: hidden; white-space: nowrap; }
-  .lf-shortcut-bar[data-lf-multiline="true"] { width: max-content; flex-wrap: wrap;
-    row-gap: 6px; align-items: baseline; }
-  .lf-shortcut-bar:not(:has(> :not([hidden]))) { display: none; }
+  .lf-shortcut-bar[data-lf-multiline="true"] { height: auto; min-height: var(--lf-band-h);
+    flex-wrap: wrap; row-gap: 6px; align-content: center;
+    padding-block: 9px calc(9px + var(--lf-safe-bottom)); }
   .lf-bottom-status { position: fixed;
     right: calc(18px + var(--lf-safe-right) + var(--lf-shortcut-bar-right, 0px));
-    bottom: calc(14px + var(--lf-safe-bottom));
+    /* Centred on the band's row whatever the status holds. */
+    bottom: calc(var(--lf-safe-bottom) + (var(--lf-band-h) - var(--lf-safe-bottom)) / 2);
+    translate: 0 50%;
     /* Passive feedback remains visible above a covering auxiliary surface. */
     z-index: var(--lf-z-bottom-status); pointer-events: none;
+    color: var(--muted); font-size: var(--t-6); padding: 5px 10px;
+    border: 1px solid var(--rule); border-radius: var(--r); background: var(--card);
     max-width: calc(100vw - var(--lf-shortcut-bar-right, 0px) - 36px
       - var(--lf-safe-left) - var(--lf-safe-right));
     width: max-content; min-height: calc(var(--lf-key-badge-size) + 12px); align-content: center;
@@ -1711,15 +1730,18 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      More is the only pointer route to the reference; on a tablet with an attached
      keyboard the question-mark key remains its route.
      Geometry readers ask whether either bottom box is shown. A zero box is the same
-     state the empty line has always had. */
+     state the empty line has always had. With no band to be centred in, the status
+     stands clear of the window's foot on its own inset. */
   @media (pointer: coarse) {
     .lf-shortcut-bar { display: none; }
+    .lf-bottom-status { bottom: calc(14px + var(--lf-safe-bottom)); translate: none; }
   }
   /* A specimen has no agent attending it, and its fixed bar would stand over its own
      last block, since its window is exactly as tall as its page. Its banner keeps the
      one row of actions (theme.css sizes the room); the keys remain behind `?`. */
   html[data-lf-contained] :scope {
     .lf-banner-status, .lf-shortcut-bar { display: none; }
+    .lf-bottom-status { bottom: calc(14px + var(--lf-safe-bottom)); translate: none; }
     .lf-banner { grid-template-rows: minmax(0, 1fr); }
     .lf-banner-actions { grid-row: 1; }
   }

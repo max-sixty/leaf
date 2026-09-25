@@ -539,7 +539,7 @@ def test_an_unchanged_viewport_refresh_restates_no_margin_name(
 
 def test_a_held_marker_keeps_the_keyboard_when_the_rail_falls(browser, serve):
     """A marker the keyboard is on stays drawn when the shell loses its rail: it stands
-    as a pin beside its block instead, so the user stays on it.
+    as a pin in its block's corner instead, so the user stays on it.
 
     The browser takes focus off an element it hides, onto body, so a posture change that
     hid the row even for a frame would drop the user there. The row is the same node in
@@ -3249,8 +3249,7 @@ def test_one_target_has_one_primary_margin_entry_and_inline_secondary_margin_ent
 
     # On a narrow screen each item stands as a pin inside the top-right corner of its own
     # target, at its top or just below a control of the target it would otherwise stand
-    # on, and
-    # the desktop map marker leaves the compact action row to the Page Map dialog.
+    # on, and the desktop map marker leaves the compact action row to the Page Map dialog.
     page.keyboard.press("Escape")
     page.evaluate("() => document.activeElement.blur()")
     resized(page, 390, 900)

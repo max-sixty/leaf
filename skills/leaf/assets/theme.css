@@ -169,7 +169,10 @@
   /* A pin stands over the page's own words, so it has to read as something laid on the
      page rather than as more ink on it: a saturated blue, the way a design tool's
      comment pin sits on a frame, where the accent above is chosen to read as ink. */
-  --pin: light-dark(#0d7ae6, #3d9bff);
+  --pin-fill: light-dark(#0d7ae6, #1f7ae0);
+  /* The pin's working fill: --ok is chosen for a dot on paper and is too light under a
+     white glyph in the dark scheme. */
+  --pin-working: light-dark(#2f7d45, #2d8047);
   --r: 6px;
   --chip-r: 3px;
   --sp-1: 4px; --sp-2: 8px; --sp-3: 16px; --sp-4: 24px;
@@ -1838,22 +1841,36 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
    about, over the block's own words, so it is a solid teardrop pointing into the block
    with a paper edge that parts it from whatever it covers. It is smaller than a rail
    marker with a mouse, because it covers what it stands on, and keeps the full aim floor
-   under a finger, so what the user sees is what they press. Working turns the fill green,
-   as it turns a paper marker's interior green. Stated after the entry's states, whose
-   hover it has to outrank. */
+   under a finger, so what the user sees is what they press.
+
+   The fill is the pin, so the states a rail marker paints on its paper take the pin's
+   other channels, in the rail's order: a thread on the user carries a ring of the fill
+   outside the edge; pickup turns the edge green; working turns the fill green and
+   outranks both. A read-only status keeps the rail's paper face, since a fill would say
+   it can be pressed. Stated after the entry's states, whose hover and focus contours it
+   has to outrank. */
 .lf-margin-cluster[data-lf-place="pin"] { --margin-entry: max(26px, var(--aim-floor)); }
 .lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry.lf-margin-marker {
-  border: 2px solid var(--paper); border-radius: 50% 50% 50% 3px;
-  background: var(--lf-pin-face, var(--pin)); color: #fff;
-  box-shadow: 0 1px 2px rgb(0 0 0 / .22), 0 3px 8px rgb(0 0 0 / .14); }
-.lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry.lf-margin-marker
+  border-radius: 50% 50% 50% 3px; }
+.lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry.lf-margin-marker:not([data-lf-behavior="status"]) {
+  --lf-pin-edge: var(--paper);
+  border: 2px solid var(--lf-pin-edge);
+  background: var(--lf-pin-face, var(--pin-fill)); color: #fff;
+  box-shadow: var(--lf-pin-halo, 0 0 0 0 transparent),
+    0 1px 2px rgb(0 0 0 / .22), 0 3px 8px rgb(0 0 0 / .14); }
+.lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry.lf-margin-marker:not([data-lf-behavior="status"])
   > :is(.lf-margin-entry-icon, .lf-margin-entry-glyph) {
   color: #fff; inline-size: 14px; block-size: 14px; }
-.lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry.lf-margin-marker:is(:hover, [aria-expanded="true"]) {
-  background: color-mix(in srgb, var(--lf-pin-face, var(--pin)) 82%, #000);
-  border-color: var(--paper); }
+.lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry.lf-margin-marker:not([data-lf-behavior="status"]):is(:hover, :focus-visible, .lf-focus-visible, [aria-expanded="true"], [data-lf-target-selected]) {
+  border-color: var(--lf-pin-edge); }
+.lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry.lf-margin-marker:not([data-lf-behavior="status"]):is(:hover, [aria-expanded="true"]) {
+  background: color-mix(in srgb, var(--lf-pin-face, var(--pin-fill)) 82%, #000); }
+.lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry.lf-margin-marker[data-lf-turn="user"]:not([data-lf-agent-workflow]) {
+  --lf-pin-halo: 0 0 0 4px color-mix(in srgb, var(--pin-fill) 45%, transparent); }
+.lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry.lf-margin-marker[data-lf-agent-workflow="picked_up"] {
+  --lf-pin-edge: var(--pin-working); }
 .lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry.lf-margin-marker[data-lf-agent-workflow="working"] {
-  --lf-pin-face: var(--ok); }
+  --lf-pin-face: var(--pin-working); }
 .lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry.lf-margin-marker[data-lf-unread]::after {
   box-shadow: 0 0 0 2px var(--paper); }
 .lf-margin-receipt { color: var(--ink-2); font-weight: 600; }

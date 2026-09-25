@@ -756,9 +756,9 @@ export function strandedMargins() {
   );
 }
 
-// Pins standing over words. A pin stands at its block's top-right and covers what the
-// room beside the block lacks, which is expected and is why this is advice: the agent
-// looks, and gives the block padding, or the page a rail, where the words matter.
+// Pins standing over words. A pin stands inside its block's top-right corner and covers
+// whatever reaches it, which is expected and is why this is advice: the agent looks, and
+// gives the block padding on its right, or the page a rail, where the words matter.
 export function coveringMargins() {
   const pins = [
     ...document.querySelectorAll('.lf-margin-cluster[data-lf-place="pin"]'),

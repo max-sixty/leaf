@@ -411,8 +411,9 @@ export function layoutMarginRows() {
   const hang = parseFloat(rootStyle.getPropertyValue("--rail-hang")) || 0;
   const pinInset = parseFloat(rootStyle.getPropertyValue("--pin-inset")) || 0;
   const railInner = columnRect.right + hang;
+  // The half that decides rail or pin is a rail marker's: a pin's entries are smaller.
   const entry = layer.root.parentElement.querySelector(
-    ".lf-margin-entry:not([hidden])",
+    '.lf-margin-cluster:not([data-lf-place="pin"]) .lf-margin-entry:not([hidden])',
   );
   const size = entry?.offsetWidth || 32;
 

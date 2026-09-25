@@ -449,8 +449,8 @@ def margin_cover_advice(page) -> list[str]:
     width = page.viewport_size["width"]
     return [
         f"at {width}px wide the margin pin for {pin['at']} stands over "
-        f"{pin['covered']} line(s) of text: a pin covers what the room beside its "
-        "block lacks, so give the block room on its right, or the page a rail "
+        f"{pin['covered']} line(s) of text: a pin stands inside its block's "
+        "top-right corner, so give the block padding on its right, or the page a rail "
         "(page-authoring.md, the rail and the margin), where those words matter"
         for pin in evaluate_probe(page, "coveringMargins")
     ]

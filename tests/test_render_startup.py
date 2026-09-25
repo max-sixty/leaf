@@ -3092,7 +3092,8 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     expect(held_workflow).to_have_attribute("data-identity-probe", "kept")
     expect(other_workflow).to_have_text("Sent")
     expect(page.locator(".lf-status-detail")).to_have_text(
-        "Claude is working (just now). 1 update waiting."
+        "Claude is working on your update, and hasn't said what it is doing yet"
+        " (just now). 1 update waiting."
     )
     expect(page.locator(".lf-others-self .lf-others-line")).to_have_text(
         "Working · 1 update waiting"
@@ -3105,7 +3106,8 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     told(page)
     expect(held_workflow).to_have_text("Picked up")
     expect(page.locator(".lf-status-detail")).to_have_text(
-        "Claude is working (just now). 1 update waiting."
+        "Claude is working on your update, and hasn't said what it is doing yet"
+        " (just now). 1 update waiting."
     )
 
     with service_model.PageTransaction(d) as transaction:
@@ -3277,7 +3279,8 @@ def test_feature_gallery_workflow_and_banner_share_agent_activity(browser, serve
     told(page)
     expect(workflow).to_have_text("Picked up")
     expect(page.locator(".lf-status-detail")).to_have_text(
-        "Claude is working (just now)"
+        "Claude is working on your update, and hasn't said what it is doing yet"
+        " (just now)"
     )
 
 

@@ -17,6 +17,10 @@ has tried; settle that before building it.
   behavior. Set one focus-ring weight for every keyboard target.
 - **Keep the Thread hierarchy clear.** Check context, search, filters, agent
   activity, selection, and reply editing in the implemented accordion.
+- **Name a new Thread promptly.** Generate a short title from the first user
+  message with a lightweight model request that excludes the full agent context.
+  Measure the request's input tokens and latency; keep the subdued pulsing ellipsis
+  until the title arrives.
 - **Show each Thread's last move in the list.** A collapsed row gives the count and
   attention but not who spoke last or when, so a user cannot tell a stale Thread
   from a live one without opening it. The Thread model already computes when each
@@ -101,6 +105,13 @@ has tried; settle that before building it.
   `test_an_aimed_comment_keeps_its_place_with_the_asks_tray_open` reproduces it at
   1200px with the tray closed and runs at 900px, where the composer goes above or
   below, until this is fixed.
+- **Decide whether the shortcut line should wrap on a narrow window.** Below about
+  390px with a fine pointer, the resting line wraps to a second row
+  (`keyboard/shortcut-bar.js`, `chrome.css`), which stands about 31px over the page
+  beyond the band the page reserves. The alternative is truncating the resting line
+  to one row. A key sequence and the shelf must still wrap, so truncating brings back
+  a one-row mode beside them, and it has to keep More, which sits last, from being
+  cut first.
 - **Unconfirmed: scrolling a live specimen sometimes sticks.** A user reported it
   while a specimen still scrolled inside a fixed-height frame, with no reproduction.
   The frame now takes its page's height, so nothing scrolls inside it; check that the

@@ -1296,6 +1296,11 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-fab-bar { position: fixed; display: none; width: max-content;
     align-items: flex-end; gap: 4px; white-space: nowrap;
     max-width: var(--lf-float-w, calc(100vw - 16px)); }
+  /* A side response and a right-rail thread card both write top as their foot. Intrinsic
+     field growth moves their top edge upward in the same layout pass. */
+  :is(.lf-fab-bar:is([data-lf-placement^="right"], [data-lf-placement^="left"]),
+    .lf-margin-preview[data-lf-thread-placement="right"]) {
+    translate: 0 -100%; }
   .lf-fab-bar[data-lf-margin-raised] { display: none !important; }
   /* The field and its choices are one anchored response control. This primitive owns
      their height, vertical padding, type, border, corners, and elevation. Tab extends
@@ -1535,9 +1540,6 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     margin: 0; padding: 12px; border: 1px solid var(--border-2); border-radius: 10px;
     background: var(--paper); color: var(--ink); box-shadow: 0 12px 36px var(--shade); }
   .lf-margin-preview:not([hidden]) { display: flex; flex-direction: column; }
-  /* The positioned top is the card's foot in the right rail. As the reply gains a line,
-     the percentage translation grows upward in the same layout pass. */
-  .lf-margin-preview[data-lf-thread-placement="right"] { translate: 0 -100%; }
   .lf-thread-transition { position: fixed; z-index: var(--lf-z-thread-transition); margin: 0;
     padding-inline: 12px; overflow: hidden; pointer-events: none;
     white-space: pre-wrap; }
@@ -1564,13 +1566,17 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-margin-thread:first-child { padding-top: 0; border-top: 0; }
   /* The conversation's first message opens directly at the card edge. */
   .lf-margin-thread .lf-conversation-msg:first-of-type { margin-top: 0; }
+  /* Following messages keep their top margin; the sticky reply owns the final gap
+     so its opaque background covers text scrolling beneath it. */
+  .lf-margin-thread .lf-conversation-msg { margin-bottom: 0; }
   /* The reply surround shares the conversation's opaque surface, including its focus
      tint, so pinning the reply cannot introduce a separate background band. */
   :where(.lf-margin-thread) .lf-conversation-thread { background: var(--paper); }
   /* Pinned to the transcript's foot, the row keeps its controls' ring room as bottom
      padding (the compact ring's room, in this file's header). */
   .lf-margin-thread .lf-say { align-items: stretch; position: sticky; bottom: 0;
-    padding-block: 12px var(--here-ring-room); background: inherit; }
+    margin-top: 0; padding-block: var(--sp-3) var(--here-ring-room);
+    background: inherit; }
   .lf-margin-thread .lf-say textarea { min-width: 0;
     max-height: min(50vh, var(--lf-thread-editor-room, 50vh)); }
   .lf-margin-preview .lf-margin-thread-body > .lf-conversation-thread {
@@ -1691,20 +1697,22 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      arrival notice in its place — stands at the band's other end, over the line's tail
      where the two would meet. syncLayout keeps the band out of the thread panel, which
      stands over the page's right edge. A covering auxiliary surface makes it inert
-     background. Overflow is the backstop for a window too narrow to hold even the short
-     line. */
+     background. A line whose rows need more than one row wraps, whatever put them there: one
+     row fills the band's stated height exactly, and each further row grows the line
+     upward. The rows pack to the foot, and the foot's padding centres a row of key
+     badges in the band, so the last row stands where a one-row line does, level with
+     the status. Overflow is the backstop for a single hint wider than the window. */
   .lf-shortcut-bar { position: fixed; left: 0; right: var(--lf-shortcut-bar-right, 0px);
     bottom: 0; z-index: var(--lf-z-shortcut-bar); pointer-events: none;
-    box-sizing: border-box; height: var(--lf-band-h);
-    padding: 0 calc(18px + var(--lf-safe-right)) var(--lf-safe-bottom)
+    box-sizing: border-box; min-height: var(--lf-band-h);
+    padding: 9px calc(18px + var(--lf-safe-right))
+      calc((var(--lf-band-h) + var(--lf-safe-bottom) - var(--lf-key-badge-size)) / 2)
       calc(18px + var(--lf-safe-left));
-    display: flex; gap: 12px; align-items: center;
+    display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center;
+    align-content: flex-end;
     color: var(--muted); font-size: var(--t-6);
     background: var(--veil); backdrop-filter: blur(6px); border-top: 1px solid var(--rule);
     overflow: hidden; white-space: nowrap; }
-  .lf-shortcut-bar[data-lf-multiline="true"] { height: auto; min-height: var(--lf-band-h);
-    flex-wrap: wrap; row-gap: 6px; align-content: center;
-    padding-block: 9px calc(9px + var(--lf-safe-bottom)); }
   .lf-bottom-status { position: fixed;
     right: calc(18px + var(--lf-safe-right) + var(--lf-shortcut-bar-right, 0px));
     /* Centred on the band's row whatever the status holds. */

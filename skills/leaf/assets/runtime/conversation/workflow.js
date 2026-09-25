@@ -110,6 +110,14 @@ export function threadAttention(thread) {
         thread.attention.reason === "ask"
           ? "On you"
           : workflowLabel(workflow) || "Needs you",
+      action:
+        thread.attention.reason === "ask"
+          ? thread.user_prompt
+            ? "answer question"
+            : "answer Ask"
+          : workflow?.subject.kind === "conversation"
+            ? "resend"
+            : "retry",
       workflow,
       secondary: workflowLabel(secondary),
     });

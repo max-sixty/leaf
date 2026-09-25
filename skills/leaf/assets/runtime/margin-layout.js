@@ -348,15 +348,18 @@ function setStyle(row, property, value) {
 const shownTop = (target) =>
   Math.min(...shownParts(target).map((part) => part.getBoundingClientRect().top));
 
-// Whether a row has somewhere to stand: its target renders, its scrollers leave some of it
-// in view — the pane that scrolls it, a table or board it has been scrolled sideways out
-// of, or a scroller inside the shadow tree it anchors through — and the point the row
+// Whether a row has somewhere to stand: its target renders, its scrollers leave some of
+// its own box in view — the pane that scrolls it, a table or board it has been scrolled
+// sideways out of, or a scroller inside the shadow tree it anchors through, which can
+// take the target away while the host it anchors through still shows — and the point the row
 // stands at is inside that view. That is the target's top line, since a row standing
 // above a pane's top would be clipped by its lane and still take the keyboard, and for a
 // pin the anchor's right edge too: a card half past a board's edge would stand its pin
 // outside the board, beside nothing and past the page.
 function targetShown(target, anchor, inset, pin, bands) {
-  if (!shownParts(target).some((part) => part.checkVisibility())) return false;
+  const shown = (part) =>
+    part.checkVisibility() && clippedBand(part, part.getBoundingClientRect(), bands);
+  if (!shownParts(target).some(shown)) return false;
   const box = anchor.getBoundingClientRect();
   const view = clippedBand(target, box, bands);
   const line = box.top + inset;

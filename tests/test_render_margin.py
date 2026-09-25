@@ -7682,7 +7682,8 @@ def test_a_row_follows_its_target_through_a_scroller_inside_a_shadow_tree(
     through its host and stands at an inset from it. A scroller inside that tree moves
     the target and not the host, and its scroll never leaves the tree: the row follows
     the target once the pass has heard the scroll there, and is withheld once the
-    target has scrolled out of that scroller's view."""
+    target has scrolled out of that scroller's view, downward or sideways, though the
+    host it anchors through still shows."""
     page = open_page(browser, serve(PANEL_PAGE))
     resized(page, 1440, 900)
     page.evaluate(
@@ -7693,14 +7694,24 @@ def test_a_row_follows_its_target_through_a_scroller_inside_a_shadow_tree(
           const root = host.attachShadow({mode: 'open'});
           root.innerHTML = '<div id="inner" style="height: 100px; overflow: auto">'
             + '<div style="height: 40px"></div><p id="deep">Deep target</p>'
-            + '<div style="height: 400px"></div></div>';
+            + '<div style="height: 400px"></div></div>'
+            + '<div id="wide" style="width: 100px; overflow: auto">'
+            + '<div style="display: flex; width: 600px">'
+            + '<p id="side" style="flex: none; width: 80px; margin: 0">Side</p>'
+            + '</div></div>';
           document.querySelector('main').prepend(host);
           const target = root.getElementById('deep');
           const margin = registerMarginContribution({key: 'deep', target,
             read: () => ({entries: [marginEntry({
               key: 'deep', glyph: '!', label: 'deep controls'})]}),
             activate: () => {}});
-          window.__deep = {host, target, inner: root.getElementById('inner'), margin};
+          const sideways = registerMarginContribution({key: 'side',
+            target: root.getElementById('side'),
+            read: () => ({entries: [marginEntry({
+              key: 'side', glyph: '!', label: 'side controls'})]}),
+            activate: () => {}});
+          window.__deep = {host, target, inner: root.getElementById('inner'), margin,
+                           wide: root.getElementById('wide'), sideways};
         }"""
     )
     rendered(page)
@@ -7719,6 +7730,13 @@ def test_a_row_follows_its_target_through_a_scroller_inside_a_shadow_tree(
     page.evaluate("() => { window.__deep.inner.scrollTop = 200; }")
     rendered(page)
     assert page.evaluate(offset)["withheld"]
+
+    side = """() => window.__deep.sideways.control('side', 'margin')
+      .closest('.lf-margin-cluster').classList.contains('lf-withheld')"""
+    assert not page.evaluate(side)
+    page.evaluate("() => { window.__deep.wide.scrollLeft = 200; }")
+    rendered(page)
+    assert page.evaluate(side), "a target scrolled sideways out of view keeps its row"
 
 
 TAB_PIN_PAGE = leaf_page(

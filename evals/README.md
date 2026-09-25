@@ -9,11 +9,11 @@ references it needs, as a real session does, so a case scores the guidance as it
 routed and not a passage pasted into the prompt. Run the suite before and after any
 change to that guidance, and add the cases the change was made for.
 
-The suite is early and needs a lot of work. It has three cases, all cold single-turn
-prompts that ask for an HTML fragment in the reply. None writes a page, runs `leaf`, or
-continues a long session, and the graders have not been checked against pages a person
-has judged. The child cannot search the plugin, so it writes widget markup from the
-references without reading the registry. Until that changes, a pass here is weak
+The suite is early and needs a lot of work. It has four cases, all cold single-turn
+prompts that ask for an HTML fragment or the commands the agent would run in the reply.
+None writes a page, runs `leaf`, or continues a long session, and the graders have not
+been checked against pages a person has judged. The child cannot search the plugin, so
+it writes widget markup from the references without reading the registry. Until that changes, a pass here is weak
 evidence. Still, keeping each instruction fix's cases here is better than leaving them
 in a worktree's scratch, so add them as you go, and improve the suite in the same change
 when it gets in the way.
@@ -71,4 +71,4 @@ render check and the stamp.
 | --- | --- | --- | --- |
 | 09-25 | Rewording "Draw the subject" and the Asks premise after a review page came back mostly prose (fix-instructions on session 78ca368e) | These cases' scenarios, pasted guidance, ×3 per arm | Main's wording already drew or showed every finding (3 of 3) and put a picture in every Ask (6 of 6). The rewording drew an SVG of the Save button beside its captures in 2 of 3 runs, so it was reverted. The failure came from skipping the reading, and step 3 changed instead (31373c873) |
 | 09-25 | This suite, on main at 31373c873, with graders that require the registered captures (an `lf-shot` pair for the Save case) rather than any picture or a filename in prose | All cases ×3 | 9 of 9, $2.54 plus $0.66 for the Save case re-run after its regex was fixed for `lf-shot`'s `before`/`after` attributes |
-| 09-25 | Having the delivered `leaf reply` clause put landed work on the page before the thread report, after session 78ca368e posted a finished fix and its screenshot paths in a thread (fix-instructions) | Cold: a finished visual fix, a finished measurement, and a thread-only question as a guardrail, with each arm's clause pasted in the envelope, ×2 per arm. Replay: the session resumed just before its report, ×3 per arm | Cold: both arms put captures and tables on the page and linked them from the reply (4 of 4), and neither edited the page for the question (4 of 4), so cold cases don't separate the wordings. Replay: with shell calls denied, every arm took the session for a restart and none reached the report, so it measured nothing, at about $25 a run. The change rests on the log: the session followed the old clause, in context from five deliveries, and only grepped `conversation-threads.md` for one unrelated line |
+| 09-25 | Having the delivered `leaf reply` clause put landed work on the page before the thread report, after session 78ca368e posted a finished fix and its screenshot paths in a thread (fix-instructions) | Cold: a finished visual fix, a finished measurement, and a thread-only question as a guardrail, with each arm's clause pasted in the envelope, ×2 per arm. Replay: the session resumed just before its report, ×3 per arm | Cold: both arms put captures and tables on the page and linked them from the reply (4 of 4), and neither edited the page for the question (4 of 4), so cold cases don't separate the wordings. Replay: with shell calls denied, every arm took the session for a restart and none reached the report, so it measured nothing, at about $25 a run. The change rests on the log: the session followed the old clause, in context from five deliveries, and only grepped `conversation-threads.md` for one unrelated line. `landed-work-goes-on-the-page` keeps the references' half as a regression case: 3 of 3 on the change, $0.97 |

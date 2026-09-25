@@ -72,6 +72,9 @@ const browserGlobals = Object.fromEntries(
   ].map((name) => [name, "readonly"]),
 );
 
+const RENDERING_MESSAGE =
+  "Use nextRender, cancelRender, or sizeObserver (runtime/rendering.js) so the settled reading counts it.";
+
 const entryBoundary = {
   "no-restricted-imports": [
     "error",
@@ -886,11 +889,15 @@ export default [
       "no-restricted-globals": [
         "error",
         ...["requestAnimationFrame", "cancelAnimationFrame", "ResizeObserver"].map(
-          (name) => ({
-            name,
-            message:
-              "Use nextRender, cancelRender, or sizeObserver (runtime/rendering.js) so the settled reading counts it.",
-          }),
+          (name) => ({ name, message: RENDERING_MESSAGE }),
+        ),
+      ],
+      "no-restricted-properties": [
+        "error",
+        ...["window", "globalThis"].flatMap((object) =>
+          ["requestAnimationFrame", "cancelAnimationFrame", "ResizeObserver"].map(
+            (property) => ({ object, property, message: RENDERING_MESSAGE }),
+          ),
         ),
       ],
     },

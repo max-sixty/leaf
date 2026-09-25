@@ -64,12 +64,12 @@ from render_harness import (
     BOTH_STAMPS,
     EXAMPLES,
     LONG_PAGE,
-    RENDERED,
     REPLAYED_PAGE,
     SPECIMEN_PAGE,
     leaf_page,
     open_page,
     panel_settled,
+    rendered,
     resized,
     round_trip,
     scroll_settled,
@@ -491,7 +491,7 @@ def test_a_text_comment_chooses_above_when_the_page_has_more_room_there(browser,
     page.evaluate(
         "() => scrollTo({top: document.getElementById('passage').offsetTop - 300})"
     )
-    page.evaluate(RENDERED)
+    rendered(page)
     paragraph = page.locator("#passage")
     points = paragraph.evaluate(
         """el => {
@@ -517,7 +517,7 @@ def test_a_text_comment_chooses_above_when_the_page_has_more_room_there(browser,
             for line in range(40)
         )
     )
-    page.evaluate(RENDERED)
+    rendered(page)
     expect(bar).to_have_attribute("data-lf-placement", "top-end")
     assert page.evaluate("scrollY") < before_scroll
     boxes = page.evaluate(
@@ -640,7 +640,7 @@ def test_a_growing_comment_is_independent_of_page_controls(browser, serve):
     )
     resized(page, 1337, 386)
     page.evaluate("() => { location.hash = '#rn-console-why' }")
-    page.evaluate(RENDERED)
+    rendered(page)
     paragraph = page.locator("#rn-console-why")
     paragraph.click(modifiers=["Alt"])
     field = open_compact_comment(page)
@@ -690,7 +690,7 @@ def test_a_growing_comment_is_independent_of_page_controls(browser, serve):
           dispatchEvent(new Event('resize'));
         }"""
     )
-    page.evaluate(RENDERED)
+    rendered(page)
     without_peers = bar.bounding_box()
     without_peers_scroll = page.evaluate("scrollY")
     assert abs(without_peers["x"] - grown["x"]) <= 1, (grown, without_peers)
@@ -716,7 +716,7 @@ def test_a_growing_comment_is_independent_of_page_controls(browser, serve):
           return field.scrollHeight > field.clientHeight;
         }"""
     )
-    page.evaluate(RENDERED)
+    rendered(page)
     bounded = bar.bounding_box()
     banner = page.locator(".lf-banner").bounding_box()
     ceiling = max(48, banner["y"] + banner["height"] + 6)
@@ -729,14 +729,14 @@ def test_a_growing_comment_is_independent_of_page_controls(browser, serve):
     assert scrolled > 0
     # The field's scroll queues placement through the shared captured-scroll listener.
     # Measuring natural growth must not reset the user to the first line of the draft.
-    page.evaluate(RENDERED)
+    rendered(page)
     assert field.evaluate("node => node.scrollTop") == scrolled
     after = field.evaluate(
         "node => [node.scrollTop, node.scrollHeight - node.clientHeight]"
     )
     assert after[0] == min(scrolled, after[1])  # only the final room may clamp it
     field.fill("Short again")
-    page.evaluate(RENDERED)
+    rendered(page)
     returned = bar.bounding_box()
     returned_scroll = page.evaluate("scrollY")
     assert abs(returned["x"] - compact["x"]) <= 1, (compact, returned)
@@ -769,7 +769,7 @@ def test_a_comment_near_the_bottom_grows_up_before_it_scrolls(browser, serve):
           behavior: 'instant'
         })"""
     )
-    page.evaluate(RENDERED)
+    rendered(page)
     target.click(modifiers=["Alt"])
     field = open_compact_comment(page)
     bar = page.locator(".lf-fab-bar")
@@ -795,7 +795,7 @@ def test_a_comment_near_the_bottom_grows_up_before_it_scrolls(browser, serve):
     assert bar.get_attribute("data-lf-placement") == placement
     assert field.evaluate("node => node.scrollHeight > node.clientHeight")
     field.fill("Short again")
-    page.evaluate(RENDERED)
+    rendered(page)
     returned = bar.bounding_box()
     returned_target = target.bounding_box()
     assert abs(returned["x"] - compact["x"]) <= 1, (compact, returned)
@@ -876,14 +876,14 @@ def test_a_long_comment_stays_in_view_when_its_target_fills_the_viewport(
     )
     resized(page, 700, 360)
     page.evaluate("() => scrollBy({top: 80, behavior: 'instant'})")
-    page.evaluate(RENDERED)
+    rendered(page)
     target = page.locator("#tall")
     target.click(modifiers=["Alt"], position={"x": 20, "y": 90})
     field = open_compact_comment(page)
     field.fill(
         "\n".join(f"Line {n}: the whole draft remains reachable." for n in range(50))
     )
-    page.evaluate(RENDERED)
+    rendered(page)
     bounds = target.bounding_box()
     banner = page.locator(".lf-banner").bounding_box()
     ceiling = max(48, banner["y"] + banner["height"] + 6)
@@ -907,7 +907,7 @@ def test_a_comment_rechooses_after_target_width_reflow(browser, serve):
     target.click(modifiers=["Alt"], position={"x": 20, "y": 10})
     field = open_compact_comment(page)
     field.fill("Keep this comment connected while its paragraph changes width.")
-    page.evaluate(RENDERED)
+    rendered(page)
     bar = page.locator(".lf-fab-bar")
     expect(bar).to_have_attribute("aria-label", re.compile(r"^Respond to paragraph"))
     placement = bar.get_attribute("data-lf-placement")
@@ -3040,7 +3040,7 @@ def test_a_phone_selection_in_a_tall_paragraph_stays_clear(iphone, serve, edge):
     ).tap()
     expect(page.locator(".lf-banner-menu")).to_be_hidden()
     expect(field).to_be_focused()
-    page.evaluate(RENDERED)
+    rendered(page)
     geometry = page.evaluate("""() => {
       const quote = window.phoneQuote.getBoundingClientRect();
       const field = document.querySelector('.lf-fab-bar').getBoundingClientRect();
@@ -3086,7 +3086,7 @@ def test_a_phone_comment_stays_inside_the_visual_viewport(browser, serve):
     session = context.new_cdp_session(page)
     session.send("Emulation.setPageScaleFactor", {"pageScaleFactor": 1.25})
     page.wait_for_function("visualViewport.scale === 1.25")
-    page.evaluate(RENDERED)
+    rendered(page)
     box = page.locator(".lf-fab-bar").bounding_box()
     viewport = page.evaluate(
         "({left: visualViewport.offsetLeft, top: visualViewport.offsetTop, width: visualViewport.width, height: visualViewport.height})"

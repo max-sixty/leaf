@@ -237,7 +237,10 @@ through `controller.present(promise)`; box-derived apparatus takes its first vis
 reading synchronously from `PRESENTATION` and observes later changes through the normal
 layout signals (each helper's header under `runtime/` says why), scheduling a paint with
 `nextRender`/`cancelRender` and watching a size with `sizeObserver` rather than the
-browser's own, so the page's settled reading counts that work; `keeps(node, name,
+browser's own, so that a reader waiting for the page to settle after a gesture — a
+check, a test — waits for that work too (a playback loop that runs until the user stops
+it stays on `requestAnimationFrame`, or the page never settles while it plays);
+`keeps(node, name,
 value)` for any name or state a reactive render writes, handed the boolean or count raw,
 since an unconditional `setAttribute` restates itself on every publication and
 `toggleAttribute` already keeps the rule for flags; `once()` in a `connectedCallback` that is safe to run after reconnection, and

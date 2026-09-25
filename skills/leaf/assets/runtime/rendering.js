@@ -3,12 +3,17 @@
    Leaf observer heard. A reader outside the page waits on it after a gesture rather
    than guessing a number of frames.
 
-   Every Leaf rendering callback and size observer goes through this module: `nextRender`
+   Leaf's rendering callbacks and size observers go through this module: `nextRender`
    and `cancelRender` in place of `requestAnimationFrame` and `cancelAnimationFrame`,
-   `sizeObserver` in place of `new ResizeObserver`. The lint gate refuses the bare globals
-   in the runtime and in packages, so the reading answers for every owner without a list
-   of them. Coalescing owners keep their own queues; this module only counts what they
-   put in the browser's.
+   `sizeObserver` in place of `new ResizeObserver`. The lint gate refuses the browser's
+   own in the runtime and in the bundled packages, so the reading answers for every owner
+   there without a list of them. Coalescing owners keep their own queues; this module
+   only counts what they put in the browser's.
+
+   Work toward a resting state is counted; a playback loop is not. A loop through
+   `nextRender` holds the page unsettled for as long as it runs, which is right for a
+   glide that lands in a moment and wrong for a film that plays until the user stops it,
+   so a page's own playback schedules with the browser directly.
 
    A rendering update runs animation-frame callbacks, then style and layout, then
    ResizeObserver delivery, then paint. A reading taken inside a callback precedes the
@@ -19,9 +24,11 @@
    reader asking straight after an input handler that queued work reads false.
 
    What the reading cannot see is work an owner holds in a timer or a promise before it
-   asks for a rendering update, and a layout change no counted callback or observer
-   takes part in. A reader outside the page that caused such a change lets one rendering
-   update pass before it asks (`RENDERED` in tests/render_harness.py).
+   asks for a rendering update, an IntersectionObserver delivery (a task after the
+   update, which may land after the check), what vendored bundles schedule for
+   themselves, and a layout change no counted callback or observer takes part in. A
+   reader outside the page that caused such a change lets one rendering update pass
+   before it asks (`rendered` in tests/render_harness.py).
 
    A document nobody can see gets no rendering updates: a hidden page, and a child page
    whose frame is not rendered — an inactive tab's panel and a closed disclosure hold

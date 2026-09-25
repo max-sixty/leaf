@@ -5,9 +5,9 @@ from leaf import passages as passages_model
 from leaf.registry import storage as registry_storage
 from leaf.structure import SourceDocument
 from render_harness import (
-    RENDERED,
     SHELL_BOX,
     leaf_page,
+    rendered,
 )
 
 # ---------- anchors written without a browser ----------
@@ -1291,7 +1291,7 @@ def _painted_line(page):
     Consume the coalesced frame once: polling could pass on an unrelated later paint.
     Read rows rather than visible text because hidden rows still state liveness.
     """
-    page.evaluate(RENDERED)
+    rendered(page)
     return page.eval_on_selector_all(
         ".lf-shortcut-bar .lf-shortcut",
         "els => els.map(e => [...e.children].map(c => c.textContent).join(' '))",

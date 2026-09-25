@@ -236,7 +236,7 @@ lf-ask:has(> :is(h1, h2, h3, h4, h5, h6):first-child:nth-last-child(2)) {
      * inside its own height, so its title stands clear of the banner as a sheet's does. */
     box-sizing: border-box;
     padding-top: var(--sp-4);
-    block-size: calc(100dvh - var(--lf-banner-h) - var(--lf-bottom-chrome-clear, 0px));
+    block-size: calc(100dvh - var(--lf-banner-h) - var(--lf-band-h, 0px));
   }
   /* A root tab's workspace ends the page and stands under the sticky tab strip:
    * scrolled to its end, the page puts it between the strip and the bottom chrome. */
@@ -246,7 +246,7 @@ lf-ask:has(> :is(h1, h2, h3, h4, h5, h6):first-child:nth-last-child(2)) {
     > lf-tabs[data-lf-tabs-context="root"]
     > lf-tab[data-lf-root-reading]
     > lf-workspace:only-child {
-    block-size: calc(100dvh - var(--lf-banner-h) - var(--lf-bottom-chrome-clear, 0px)
+    block-size: calc(100dvh - var(--lf-banner-h) - var(--lf-band-h, 0px)
       - var(--lf-root-tab-clear, 0px));
   }
   html:root
@@ -308,14 +308,14 @@ lf-ask:has(> :is(h1, h2, h3, h4, h5, h6):first-child:nth-last-child(2)) {
       html:root lf-workspace::after {
         content: "";
         grid-row: 4;
-        block-size: var(--lf-bottom-chrome-clear, 0px);
+        block-size: var(--lf-band-h, 0px);
       }
     }
   }
   @container lf-workspace (min-width: 720px) and (min-height: 480px) {
     @container style(--lf-held: 1) {
       html:root lf-workspace > :not(header, footer) {
-        padding-block-end: calc(var(--lf-bottom-chrome-clear, 0px)
+        padding-block-end: calc(var(--lf-band-h, 0px)
           * (1 - var(--lf-passes-hold)));
       }
     }
@@ -1872,22 +1872,10 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
                box-sizing: border-box;
                padding-block: var(--sp-4);
                pointer-events: auto;
-               /* TODO: the shortcut bar covers this map's last entry — 21 of its 36 pixels,
-                * on every page with a spine, at every width, with nothing to scroll it
-                * clear. The map is the fourth region standing in the line's band and the
-                * only one out of flow, so neither the document's room nor a list's
-                * padding reaches it, and syncLayout's `--lf-bottom-chrome-clear` would end it
-                * above the line in one term.
-                *
-                * That is deliberately not done. The line is either something that hovers
-                * over the page or something attached to its foot, and it should not be
-                * both: it already takes room from the document, the trays and the thread
-                * list, and giving it the map as well settles the question by accretion
-                * rather than by deciding it. Left hovering, cutoff accepted, until the
-                * line's own character is chosen — at which point either every region
-                * ends above it, this one included, or none does and the other three give
-                * their reservations back. */
-               height: calc(100vh - var(--lf-banner-h, 0px));
+               /* Between the banner and the bottom band, as every region is: the band is
+                * attached to the window's foot at one stated height, so the map ends above
+                * it rather than losing its last entry under the keyboard's line. */
+               height: calc(100vh - var(--lf-banner-h, 0px) - var(--lf-band-h, 0px));
                margin: 0; }
       lf-toc .lf-toc-nav { width: 100%; height: 100%; border: 0; padding: 0;
                            --lf-toc-label-opacity: 0;
@@ -1905,10 +1893,14 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
                               height: var(--lf-toc-window-size, 12%);
                               min-height: 14px; border-radius: 2px;
                               background: var(--ink-2); }
+      /* A row is a span of the spine, and its link hangs from the row's top and may run
+       * past the row's foot when rows are dense. The row takes no presses, so the next
+       * row's span never stands over that link: the link is the only thing here to
+       * press. */
       lf-toc .lf-toc-start, lf-toc li { --lf-toc-indent: 0px;
                                         position: relative; z-index: 2; display: block;
                                         flex: var(--lf-toc-span, 1) 1 0px;
-                                        min-height: 0; margin: 0; }
+                                        min-height: 0; margin: 0; pointer-events: none; }
       lf-toc :is(.lf-toc-start, li)[data-lf-toc-hidden] { display: none; }
       lf-toc ol { display: contents; }
       lf-toc .lf-toc-start::before, lf-toc li::before {

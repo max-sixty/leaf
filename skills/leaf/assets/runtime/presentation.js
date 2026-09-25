@@ -118,7 +118,6 @@ export const PAGE_PAINT_ATTRIBUTE = Object.freeze({
   readingRole: "data-lf-reading-role",
   bound: "data-lf-bound",
   exhibit: "data-lf-exhibit",
-  yield: "data-lf-yield",
   holds: "data-lf-holds",
   moreBefore: "data-lf-more-before",
   moreAfter: "data-lf-more-after",

@@ -6698,7 +6698,7 @@ def test_margin_card_anchors_reading_by_top_and_drafting_by_foot(browser, serve)
     )
     assert reading["top"] == pytest.approx(initial["top"], abs=0.5), (initial, reading)
     assert reading["height"] > initial["height"] + 10, (initial, reading)
-    preview.get_by_role("button", name="Reply", exact=True).click()
+    preview.get_by_role("textbox", name="Reply", exact=True).click()
     editor = preview.locator("textarea")
     editor.evaluate("node => node.blur()")
     page.wait_for_function(
@@ -6751,8 +6751,7 @@ def test_margin_card_anchors_reading_by_top_and_drafting_by_foot(browser, serve)
     editor.fill("Sent")
     preview.get_by_role("button", name="Send", exact=True).click()
     expect(preview).to_contain_text("Sent")
-    editor.evaluate("node => node.lfCollapseReply()")
-    expect(preview.locator(".lf-say")).to_have_class(re.compile("lf-reply-collapsed"))
+    editor.evaluate("node => node.blur()")
     page.wait_for_function(
         """top => Math.abs(document.querySelector('.lf-margin-preview')
           .getBoundingClientRect().top - top) < 0.5""",
@@ -6770,7 +6769,7 @@ def test_open_reply_keeps_its_foot_after_card_moves_to_right_rail(browser, serve
     page.locator('.lf-margin-marker[data-lf-kinds="comment"]').click()
     preview = page.locator(".lf-margin-preview")
     expect(preview).not_to_have_attribute("data-lf-thread-placement", "right")
-    preview.get_by_role("button", name="Reply", exact=True).click()
+    preview.get_by_role("textbox", name="Reply", exact=True).click()
     editor = preview.locator("textarea")
     editor.fill("First line")
 

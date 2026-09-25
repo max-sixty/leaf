@@ -1476,7 +1476,7 @@ def test_the_shortcut_bar_text_only_hides_targets_in_the_lane_it_paints(browser,
         "target beside the shortcut bar",
         """
 <section id="right-edge"
-  style="position: fixed; left: 250px; bottom: 4px; width: 500px; padding-bottom: 1px">
+  style="position: fixed; left: 250px; bottom: 35px; width: 500px; padding-bottom: 1px">
   <p id="edge-copy" style="margin: 0">
     This target crosses the edge of the keyboard legend into open space.
   </p>

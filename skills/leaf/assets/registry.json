@@ -386,7 +386,7 @@
     "answering": {
       "reply": [
         {
-          "text": "Answer with `leaf reply <page> --for <event-id>` before any other work, including the work this event asks for: give the answer, or say what you are about to do and where the result will appear. Once that work lands, report it with `leaf reply <page> --to <address> --initiates`, where `<address>` is the event's `answer.to`. `leaf reply` checks any saved page edit and makes it live before posting. If a revision removes what the thread is anchored on, move the thread in the reply that reports it with `--section <id>` (narrowed by `--quote` or `--part` if needed), or `--detach` it if its subject has left the page. Add `--awaits` only if your reply's prose asks the user something."
+          "text": "Answer with `leaf reply <page> --for <event-id>` before any other work, including the work this event asks for: give the answer, or say what you are about to do and where the result will appear. When work follows, name it on the page in the same command, as in `leaf reply <page> --for <event-id> --text \"…\" && leaf status <page> working \"<the work, in a line>\" --on <address>`, where `<address>` is the event's `answer.to`: the line stands beside the thread and in the banner until your next reply there. Once that work lands, report it with `leaf reply <page> --to <address> --initiates`. `leaf reply` checks any saved page edit and makes it live before posting. If a revision removes what the thread is anchored on, move the thread in the reply that reports it with `--section <id>` (narrowed by `--quote` or `--part` if needed), or `--detach` it if its subject has left the page. Add `--awaits` only if your reply's prose asks the user something."
         },
         {
           "text": "Your reply renders as Markdown, so show code or markup in a fenced block."
@@ -442,12 +442,12 @@
       ],
       "markup": [
         {
-          "text": "It answers the page's Ask, so the page shows it as waiting on you until the markup records it. Continue the work it selects or unblocks, then write it in and stamp a version."
+          "text": "It answers the page's Ask, so the page shows it as waiting on you until the markup records it. Name the work it selects or unblocks with `leaf status <page> working \"<the work, in a line>\"` before starting it, then do it, write it in, and stamp a version."
         }
       ],
       "receipt": [
         {
-          "text": "Run it at most once, then record its outcome with exactly one `leaf receipt <page> <request-id> succeeded|failed --text \"…\"`. The receipt does not change the page: refresh any data the page shows, update `index.html` to reflect the result, and stamp it if it is worth a note."
+          "text": "Say what it will do with `leaf status <page> working \"<what it does, in a line>\"`, run it at most once, then record its outcome with exactly one `leaf receipt <page> <request-id> succeeded|failed --text \"…\"`. The receipt does not change the page: refresh any data the page shows, update `index.html` to reflect the result, and stamp it if it is worth a note."
         }
       ]
     },
@@ -1053,7 +1053,7 @@
       "example": "<aside class=\"callout\" id=\"rollback-note\">Rollback is one flag flip; the backfill is idempotent.</aside>"
     },
     "section.panel": {
-      "description": "One titled region of a sheet page (`<main data-width=\"available\">`): a card holding one surface, such as a table, a log or a list of steps, with a short heading that names it. Lay a dashboard out as panels in an lf-grid so every region is drawn alike; the page's argument stays in the prose and the callout.",
+      "description": "One titled region of a wide page (`<main data-width=\"available\">`): a card holding one surface, such as a table, a log or a list of steps, with a short heading that names it. Lay a dashboard out as panels in an lf-grid so every region is drawn alike; the page's argument stays in the prose and the callout.",
       "example": "<section class=\"panel\" id=\"checks\">\n  <h2>Checks</h2>\n  <table>…</table>\n</section>"
     },
     "aside.sidebar": {

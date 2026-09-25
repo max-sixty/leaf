@@ -155,7 +155,9 @@ delivery receipt.
 ## After the batch
 
 Acknowledgement is transport receipt, not semantic settlement. Write every
-still-current `answer` with the operation its kind names, then
-re-enter the host's wait loop: `waiting` after every obligation has been answered and
-the user owns the next move, `working` while you continue.
+still-current `answer` with the operation its kind names, naming the work each one
+starts with a `working` status as its `answering` clauses say
+(`references/conversation-loop.md`, "When to write"), then re-enter the host's wait
+loop: `waiting` after every obligation has been answered and the user owns the next
+move, `working` while you continue.
 `page state` lists every standing reaction under `reactions`.

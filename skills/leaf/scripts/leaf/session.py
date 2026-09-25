@@ -46,8 +46,6 @@ from .service import (
 )
 from .work import standing_work_claims, work_subject
 
-DELIVERY_CLAIM_DETAIL = "Reading your feedback"
-
 # How often a watch rechecks a live page's server. It is also the longest a watch goes
 # without a pass on a page whose files have not moved: nothing else a pass reads
 # changes on the clock alone.
@@ -103,7 +101,7 @@ def cmd_status(
 
 def cmd_delivery_claim(
     delivery_id: str,
-    detail: str | None = None,
+    detail: str,
     event_id: str | None = None,
 ) -> str:
     """Mark one exact, still-outstanding move from a delivery as Working.
@@ -113,11 +111,8 @@ def cmd_delivery_claim(
     under the same log lock, so a stale delivery cannot attach work to a newer
     move merely because both belong to the same thread or widget.
     """
-    # No detail is Leaf speaking for the agent, so the user hears something the
-    # moment their move is taken up. An agent that supplies one has said it itself,
-    # whatever words it chose.
-    stated = detail is not None
-    detail = detail if stated else DELIVERY_CLAIM_DETAIL
+    if not detail:
+        sys.exit("--detail needs a sentence naming the work and its subject")
     delivery = read_delivery(delivery_id)
     candidates = []
     for batch in delivery["batches"]:
@@ -167,7 +162,7 @@ def cmd_delivery_claim(
             }
             if target["kind"] == "widget":
                 handling["revision"] = workflow.get("revision")
-            page.set_status("working", detail, handling=handling, stated=stated)
+            page.set_status("working", detail, handling=handling)
             return (
                 f"working on {target['kind']} {target['id']} for event "
                 f"{event['id']} — {detail}"

@@ -324,10 +324,10 @@ def delivery() -> None:
 )
 @click.option(
     "--detail",
-    default=None,
-    help='What the page says the agent is doing (default: "Reading your feedback").',
+    required=True,
+    help="What the page says the agent is doing, naming the work and its subject.",
 )
-def delivery_claim(delivery_id: str, event_id: str | None, detail: str | None) -> None:
+def delivery_claim(delivery_id: str, event_id: str | None, detail: str) -> None:
     """Claim one still-outstanding user move from DELIVERY_ID.
 
     The page and subject come from the immutable delivery. Current page state is

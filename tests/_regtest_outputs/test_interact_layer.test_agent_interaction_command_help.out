@@ -23,8 +23,8 @@ Usage: leaf delivery claim [OPTIONS] DELIVERY_ID
 Options:
   --event EVENT_ID  Claim this delivered event instead of the first outstanding
                     user move.
-  --detail TEXT     What the page says the agent is doing (default: "Reading
-                    your feedback").
+  --detail TEXT     What the page says the agent is doing, naming the work and
+                    its subject.  [required]
   --help            Show this message and exit.
 
 ## leaf delivery read --help

@@ -6,8 +6,15 @@ and the registry entries they route to. Each case is a `case.yaml` that
 plugin. The suite sits at the plugin root because `claude plugin eval` refuses one
 inside `skills/`. The child loads the skill through the Skill tool and reads the
 references it needs, as a real session does, so a case scores the guidance as it is
-routed and not a passage pasted into the prompt. Run the suite before and after any change to that
-guidance, and add the cases the change was made for.
+routed and not a passage pasted into the prompt. Run the suite before and after any
+change to that guidance, and add the cases the change was made for.
+
+The suite is early and needs a lot of work. It has three cases, all cold single-turn
+prompts that ask for an HTML fragment in the reply. None writes a page, runs `leaf`, or
+continues a long session, and the graders have not been checked against pages a person
+has judged. Until that changes, a pass here is weak evidence. Still, keeping each
+instruction fix's cases here is better than leaving them in a worktree's scratch, so add
+them as you go, and improve the suite in the same change when it gets in the way.
 
 Run it from the repository root:
 

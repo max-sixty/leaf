@@ -7,9 +7,25 @@
       content="An animated trace of the merge sort Rust shipped in 1.15: natural runs, insertion-sort extension, the run stack's invariants, and merges through a half-size buffer, beside excerpts of the real source that follow each step."
     />
     <style>
+      .sort-intro {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        gap: clamp(18px, 3vw, 48px);
+        align-items: start;
+      }
+      .sort-intro > :is(h1, p) {
+        margin: 0;
+      }
+      @container lf-workspace (max-width: 1050px) {
+        .sort-intro {
+          grid-template-columns: 1fr;
+          gap: 8px;
+        }
+      }
       lf-sort-film {
         display: grid;
         gap: 10px;
+        grid-auto-rows: max-content;
       }
       lf-sort-film .sort-stage {
         border: 1px solid var(--rule);
@@ -26,27 +42,38 @@
       }
       lf-sort-film .sort-narration {
         display: grid;
+        grid-template-rows: auto minmax(3.2em, auto) auto;
         gap: 2px;
-        min-height: 3.6em;
+        align-content: start;
         font-family: var(--serif);
       }
-      lf-sort-film .sort-narration strong {
+      lf-sort-film .sort-narration > strong {
         font-family: var(--sans);
         font-size: var(--t-6);
         letter-spacing: 0.04em;
         text-transform: uppercase;
         color: var(--muted);
       }
-      lf-sort-film[data-phase="insert"] .sort-narration strong {
+      lf-sort-film .sort-moment {
+        color: var(--accent);
+        font: 600 var(--t-6)/1.4 var(--sans);
+        width: fit-content;
+      }
+      lf-sort-film .sort-moment-count {
+        display: inline-block;
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+      }
+      lf-sort-film[data-phase="insert"] .sort-narration > strong {
         color: var(--warn-ink);
       }
-      lf-sort-film[data-phase="merge"] .sort-narration strong {
+      lf-sort-film[data-phase="merge"] .sort-narration > strong {
         color: var(--accent);
       }
-      lf-sort-film[data-phase="stack"] .sort-narration strong {
+      lf-sort-film[data-phase="stack"] .sort-narration > strong {
         color: var(--mark-ink);
       }
-      lf-sort-film[data-phase="done"] .sort-narration strong {
+      lf-sort-film[data-phase="done"] .sort-narration > strong {
         color: var(--ok-ink);
       }
       lf-sort-film .sort-timeline {
@@ -140,7 +167,7 @@
   <body>
     <main data-width="available">
       <lf-workspace id="sort-workspace">
-        <header>
+        <header class="sort-intro">
           <h1>How Rust's 2016 merge sort uses the order already in a slice</h1>
           <p id="sort-lede">
             In December 2016
@@ -164,7 +191,6 @@
               sort-code="code-merge-sort"
               head-code="code-insert-head"
               merge-code="code-merge"
-              parts="v:0 v:1 v:2 v:3 v:4 v:5 v:6 v:7 v:8 v:9 v:10 v:11 v:12 v:13 v:14 v:15 v:16 v:17 v:18 v:19 v:20 v:21 v:22 v:23 v:24 v:25 v:26 v:27 v:28 v:29 v:30 v:31 v:32 v:33 v:34 v:35 v:36 v:37 v:38 v:39 lane:scratch stack check:start0 check:inv1 check:inv2 check:inv3"
             ></lf-sort-film>
           </lf-pane>
           <lf-pane id="sort-source-pane" label="Source">

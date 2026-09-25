@@ -926,9 +926,15 @@ def test_a_first_ask_starts_at_the_pages_content_edge_even_in_a_live_specimen(
         )
         assert abs(gap) < 1, f"the first Ask leaves {gap}px above its question"
 
-    framed_gap = page.locator("#framed-ask").evaluate(
-        """ask => ask.querySelector('h2').getBoundingClientRect().top
-          - ask.getBoundingClientRect().top"""
+    framed_gap = page.locator("#own-frame").evaluate(
+        """frame => {
+            const heading = frame.querySelector('lf-ask > h2');
+            const style = getComputedStyle(frame);
+            return heading.getBoundingClientRect().top
+              - frame.getBoundingClientRect().top
+              - parseFloat(style.borderTopWidth)
+              - parseFloat(style.paddingTop);
+        }"""
     )
     assert abs(framed_gap) < 1, f"a framed Ask leaves {framed_gap}px above its question"
     later_gap = page.locator("#later-ask > h2").evaluate(

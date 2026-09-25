@@ -15,8 +15,8 @@ Everything lives under `.tmp/arrangement-eval/`, and commands take names:
 - `arms-<name>/`: `leaf/` and `plain/`, one Leaf payload each, and `REF`.
 - `runs/<batch>/<subject>-<arm>-<n>/`: one run. `arms` names the arms it used;
   `prompt-{1,2}.txt`, `stream-{1,2}.jsonl` (the full trace) and `err-{1,2}.txt` are
-  its two phases; `page/` is the page directory, `phase1.html` its `index.html` after
-  phase 1, `page-phase1/` that page served on its own; `work-dir` names the child's
+  its two phases; `page/` is the page directory, `page-phase1/` a copy of the whole
+  directory as phase 1 left it; `work-dir` names the child's
   scratch cwd, `state/` is its state home; `gate-{1,2}.json` and `shots/` are the
   scorer's and the camera's.
 - `runs/<batch>/scores.json`, `reviews/` and `reviews-flip/`: one per batch.
@@ -46,9 +46,10 @@ Scoring, per run and phase: turns, output tokens, cost and minutes; `version che
 runs, those with `--render`, those whose output carries a ✗, and page writes; the
 references and registry keys read; page CSS lines (`<style>` plus `page/*.css`), style
 attributes, JavaScript lines and each arrangement term used; and an independent
-`version check --render` with the arm's launcher, cached in `gate-<phase>.json`. A trace
-whose child loaded auto-memory is marked, and `summarize` drops it and any `is_error`
-run.
+`version check --render` with the arm's launcher, cached in `gate-<phase>.json`. A
+run's phase counts only when every trace through it reached its result, with `is_error`
+false and no auto-memory loaded (`Run.usable`); `score` marks the others, and `review`
+and `summarize` leave them out alike.
 
 Review. A fresh child sees only the request and both pages' screenshots, copied under
 neutral names (`A-laptop-0.png` …) into a directory holding nothing else, which is all
@@ -214,24 +215,18 @@ class Run:
         return leaf(self.payload, self.state, *args, **kwargs)
 
     def page(self, phase: int) -> Path | None:
-        """The page directory as it stood after `phase`, or None if there is none.
+        """The page directory as it stood after `phase`, or None if there is none."""
+        page = self.dir / ("page" if phase == 2 else "page-phase1")
+        return page if (page / "index.html").exists() else None
 
-        Phase 1's page is `page/` with `phase1.html` as its `index.html`, copied once."""
-        page = self.dir / "page"
-        if not (page / "index.html").exists():
-            return None
-        if phase == 2:
-            return page
-        first = self.dir / "phase1.html"
-        if not first.exists():
-            return None
-        copy = self.dir / "page-phase1"
-        if not copy.exists():
-            shutil.copytree(
-                page, copy, ignore=shutil.ignore_patterns("service.json", "*.lock")
-            )
-            (copy / "index.html").write_text(first.read_text())
-        return copy
+    def usable(self, phase: int) -> bool:
+        """Whether the run counts at `phase`: every trace through it reached its result,
+        without error and without loading auto-memory. Phase 2 resumes phase 1's
+        session, so a void phase 1 voids it too."""
+        return all(
+            counts(trace_scores(self.dir / f"stream-{p}.jsonl"))
+            for p in range(1, phase + 1)
+        )
 
     @contextmanager
     def served(self, page: Path):
@@ -369,7 +364,11 @@ def author(arms: str, run: Run) -> None:
         prompts[0], work, run.dir / "stream-1.jsonl", run.dir / "err-1.txt", **child
     )
     if (page / "index.html").exists():
-        shutil.copyfile(page / "index.html", run.dir / "phase1.html")
+        shutil.copytree(
+            page,
+            run.dir / "page-phase1",
+            ignore=shutil.ignore_patterns("service.json", "*.lock"),
+        )
     if session := result(first).get("session_id"):
         claude(
             prompts[1],
@@ -450,6 +449,7 @@ def trace_scores(stream: Path) -> dict:
         "memory": any(
             d.get("type") == "system" and d.get("memory_paths") for d in trace
         ),
+        "finished": bool(done),
         "turns": done.get("num_turns"),
         "is_error": done.get("is_error"),
         "cost_usd": round(done.get("total_cost_usd", 0), 2),
@@ -462,6 +462,16 @@ def trace_scores(stream: Path) -> dict:
         "reads": sorted(set(reads)),
         "reply": (done.get("result") or "")[-300:],
     }
+
+
+def counts(trace: dict) -> bool:
+    """Whether a phase's `trace_scores` count: it reached its result, which says it did
+    not fail, and it loaded no auto-memory."""
+    return (
+        bool(trace.get("finished"))
+        and trace["is_error"] is False
+        and not trace["memory"]
+    )
 
 
 def page_scores(page: Path) -> dict:
@@ -509,6 +519,7 @@ def score(batch: Batch, no_gate: bool):
         for phase in PHASES:
             row = {"subject": run.subject, "arm": run.arm, "n": run.n, "phase": phase}
             row["trace"] = trace_scores(run.dir / f"stream-{phase}.jsonl")
+            row["usable"] = run.usable(phase)
             page = run.page(phase)
             row["page"] = page and page_scores(page)
             if page and not no_gate:
@@ -520,7 +531,7 @@ def score(batch: Batch, no_gate: bool):
         t, p, g = r["trace"], r["page"] or {}, r.get("gate", {})
         click.echo(
             f"{r['subject'] + '-' + r['arm'] + '-' + str(r['n']):24} {r['phase']}"
-            f"{'M' if t.get('memory') else ' '} "
+            f"{' ' if r['usable'] else 'x'} "
             f"{('pass' if g.get('passed') else 'FAIL') if g else '  - ':4} "
             f"{t.get('turns') or 0:5} {t.get('cost_usd') or 0:4.1f} {t.get('minutes') or 0:4.0f} "
             f"{t.get('checks', 0):3} {t.get('renders', 0):3} {t.get('refused', 0):3} "
@@ -720,7 +731,9 @@ def review(batch: Batch, flip: bool):
         if set(ARMS) <= pair.keys()
         for phase in PHASES
         if all(
-            (pair[arm].dir / f"shots/p{phase}-laptop-0.png").exists() for arm in ARMS
+            pair[arm].usable(phase)
+            and (pair[arm].dir / f"shots/p{phase}-laptop-0.png").exists()
+            for arm in ARMS
         )
     ]
     with ThreadPoolExecutor(REVIEWERS) as pool:
@@ -779,9 +792,7 @@ def summarize(batch: Batch):
     phase, pairs won in both passes, overall and at each width, and how often each arm
     was judged to honour the preference."""
     rows = [
-        r
-        for r in json.loads((batch.dir / "scores.json").read_text())
-        if not r["trace"].get("memory") and not r["trace"].get("is_error")
+        r for r in json.loads((batch.dir / "scores.json").read_text()) if r["usable"]
     ]
     cells = defaultdict(list)
     for r in rows:

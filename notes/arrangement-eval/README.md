@@ -102,6 +102,7 @@ batch is `runs/<batch>/`, and each run records the arms it used in its `arms` fi
 ref's theme fails a smoke page that uses the plain guide's width hook. `review --flip`
 repeats the review with every pair's sides swapped, and `summarize` tabulates both
 passes. A round runs all six subject × arm pairs at once, so machine load lands on both
-arms. Count a run only when its trace's `is_error` is false. The docstring of
+arms. A run's phase counts only when its traces finished without error or memory,
+and `score`, `review` and `summarize` apply that one test. The docstring of
 `harness.py` holds the design contract: the layout on disk, how each child is isolated,
 and how the review is blinded.

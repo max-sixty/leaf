@@ -800,9 +800,9 @@ request:
     - text: >-
         Say what it will do with `leaf status <page> working "<what it does, in
         a line>"`, run it at most once, then record its outcome with exactly one
-        `leaf receipt <page> <request-id> succeeded|failed --text "…"`. The receipt
-        does not change the page: refresh any data the page shows, update `index.html`
-        to reflect the result, and stamp it if it is worth a note.
+        `leaf experimental receipt <page> <request-id> succeeded|failed --text "…"`.
+        The receipt does not change the page: refresh any data the page shows, update
+        `index.html` to reflect the result, and stamp it if it is worth a note.
 
 undo:
   event:

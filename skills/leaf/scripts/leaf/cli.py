@@ -903,7 +903,18 @@ def resolve(dir: str, to: str, as_json: bool) -> None:
     click.echo(f"resolved {thread_of(page_dir, to)}")
 
 
-@cli.command(short_help="Report a state change onto a page widget, as a worker.")
+@cli.group(short_help="Commands optional packages use; they may change.")
+def experimental() -> None:
+    """Commands that serve optional packages. They may change or be removed.
+
+    `report` moves a widget's worker-written state; `receipt` records a user
+    request's terminal outcome.
+    """
+
+
+@experimental.command(
+    short_help="Report a state change onto a page widget, as a worker."
+)
 @click.argument("dir", metavar="PAGE")
 @click.argument("widget", metavar="WIDGET")
 @click.argument("verb", metavar="VERB")
@@ -919,9 +930,9 @@ def report(
     """Report a state change onto a page widget, as a worker.
 
     The verb and its fields are the widget's own agent-written x-state verb —
-    `leaf report <page> t-parser status status=review` moves a task. The
-    page paints the report live as provisional news; it stands until a version
-    absorbs or overrules it, and the page's watcher wakes to fold it in.
+    `leaf experimental report <page> t-parser status status=review` moves a
+    task. The page paints the report live as provisional news; it stands until a
+    version absorbs or overrules it, and the page's watcher wakes to fold it in.
     """
     from leaf.conversation import cmd_report
 
@@ -932,7 +943,7 @@ def report(
     click.echo(f"reported {verb} on {widget}")
 
 
-@cli.command(short_help="Record the terminal outcome of a user request.")
+@experimental.command(short_help="Record the terminal outcome of a user request.")
 @click.argument("dir", metavar="PAGE")
 @click.argument("request", metavar="REQUEST")
 @click.argument(

@@ -11877,6 +11877,7 @@ def test_agent_sees_the_complete_interaction_recovery(
             result = CliRunner().invoke(
                 cli_model.cli,
                 [
+                    "experimental",
                     "receipt",
                     str(page),
                     sent["id"],

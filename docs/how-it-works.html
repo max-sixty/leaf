@@ -426,7 +426,7 @@ flowchart LR
     Reply["agent: leaf reply · leaf comment"]
     Awaits["agent: leaf reply --awaits"]
     Stamp["agent: leaf version stamp"]
-    Receipt["agent: leaf report · leaf receipt"]
+    Receipt["agent: leaf experimental report · receipt"]
     Status["agent: leaf status"]
     Pickup["Leaf: how far your input got"]
     Turn["Leaf: the agent's turn and watcher"]
@@ -500,12 +500,13 @@ flowchart LR
                 read an earlier revision, a chip offers the new one:
                 <em>New page available → open v4</em>.
               </li>
-              <li id="updates-written-receipt">
-                <strong><code>leaf report</code>, <code>leaf receipt</code></strong> A
-                widget's progress: its state redraws as the agent reports it, and a
-                request you made from it reads succeeded or failed.
-              </li>
             </ul>
+            <p id="updates-written-experimental">
+              <code>leaf experimental report</code> and
+              <code>leaf experimental receipt</code> let optional packages' widgets show
+              a worker's progress and the outcome of a request you made. Both may
+              change.
+            </p>
 
             <h3 id="updates-observed-heading">Written by Leaf beside your input</h3>
             <p id="updates-observed-lede">

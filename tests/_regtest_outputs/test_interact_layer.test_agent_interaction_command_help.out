@@ -166,8 +166,23 @@ Options:
   --json   print the resolve event instead
   --help   Show this message and exit.
 
-## leaf receipt --help
-Usage: leaf receipt [OPTIONS] PAGE REQUEST succeeded|failed
+## leaf experimental --help
+Usage: leaf experimental [OPTIONS] COMMAND [ARGS]...
+
+  Commands that serve optional packages. They may change or be removed.
+
+  `report` moves a widget's worker-written state; `receipt` records a user
+  request's terminal outcome.
+
+Options:
+  --help  Show this message and exit.
+
+Commands:
+  receipt  Record the terminal outcome of a user request.
+  report   Report a state change onto a page widget, as a worker.
+
+## leaf experimental receipt --help
+Usage: leaf experimental receipt [OPTIONS] PAGE REQUEST succeeded|failed
 
   Record exactly one terminal host outcome for REQUEST.
 

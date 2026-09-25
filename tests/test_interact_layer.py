@@ -137,7 +137,8 @@ def test_agent_interaction_command_help(regtest):
         "comment",
         "reply",
         "resolve",
-        "receipt",
+        "experimental",
+        "experimental receipt",
         "version check",
         "version stamp",
     ):

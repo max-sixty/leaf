@@ -905,6 +905,7 @@ def test_hosted_agent_receives_the_response_instructions_and_delivery(
         result = CliRunner().invoke(
             cli,
             [
+                "experimental",
                 "receipt",
                 str(page_dir),
                 event["id"],

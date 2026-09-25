@@ -358,7 +358,7 @@ its turn closes, or the next turn opens first. The App Server adapter presents o
 input in delivery slices containing at most one plain reply; a later plain reply remains
 pending for the next turn. Version, markup, and receipt obligations may share that
 turn and remain explicit operations: a stamped version, `leaf resolve`, and
-`leaf receipt`. There is no second
+`leaf experimental receipt`. There is no second
 website reply endpoint or helper. `leaf` remains the interface for delivery claims and
 reads, resolves, and receipts.
 Once App Server reports a terminal turn, the container closes that exact Leaf turn.

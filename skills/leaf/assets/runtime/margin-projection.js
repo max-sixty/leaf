@@ -2821,7 +2821,7 @@ export function createMarginProjection({
       if (event.target.matches(".lf-say textarea") && !event.target.value)
         scheduleThreadPreviewPosition();
     });
-    new ResizeObserver(() => scheduleThreadPreviewPosition()).observe(preview);
+    sizeObserver(() => scheduleThreadPreviewPosition()).observe(preview);
     previewPrevious.onclick = () => stepPreviewThread(-1);
     previewNext.onclick = () => stepPreviewThread(1);
     watchProjection(document.body, renderMargin);

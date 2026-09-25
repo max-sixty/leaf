@@ -30,13 +30,9 @@ graders:
   type: tool_used
   tool: Read
   input_match: page-authoring
-- name: before-in-lf-shot
+- name: pair-in-one-lf-shot
   type: regex
-  pattern: <lf-shot\b[^>]*\bbefore=["'][^"']*save-before\.png
-  flags: i
-- name: after-in-lf-shot
-  type: regex
-  pattern: <lf-shot\b[^>]*\bafter=["'][^"']*save-after\.png
+  pattern: <lf-shot\b(?=[^>]*\bbefore=["'][^"']*save-before\.png)(?=[^>]*\bafter=["'][^"']*save-after\.png)
   flags: i
 - name: draws-nothing
   type: regex

@@ -62,6 +62,14 @@ usually a `<g>` that holds one shape and its label. The user can then aim at tha
 part alone, and the thread's anchor reports its `id` to you, so choose ids that
 name what the part is.
 
+Leaf paints a comment's mark where its part stood when the mark was painted, so a
+part that CSS animates or a script redraws moves away from its mark. Draw moving
+parts in a page widget that registers them: declare `x-visual` parts on its entry,
+call `registerVisualParts` from its module, and call the registration's `update()`
+after each paint so marks move with their parts. A `reveal` that draws a frame
+holding a part the current frame lacks lets a thread still take the user to it. The
+registry's `$keys` entry for `x-visual` states the contract.
+
 ## Source files and media
 
 Use `lf-text-document` when literal UTF-8 text should remain selectable and commentable

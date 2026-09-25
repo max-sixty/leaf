@@ -605,7 +605,6 @@ def test_unrelated_agent_update_does_not_clear_a_standing_user_ask(page_dir):
             "id": "ask-update",
             "author": "agent",
             "parent": question["id"],
-            "initiates": True,
             "text": "The checks finished.",
         },
     )
@@ -823,7 +822,6 @@ def test_a_frozen_move_that_answers_no_ask_keeps_a_receipt_and_owes_nothing(
             "kind": "reply",
             "author": "agent",
             "parent": asked["id"],
-            "initiates": True,
             "text": "Baffle is in progress now.",
         },
     )

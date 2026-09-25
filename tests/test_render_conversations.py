@@ -1842,7 +1842,6 @@ def test_a_card_moved_on_a_board_in_a_reply_reports_delivery_on_that_reply(
             "kind": "reply",
             "author": "agent",
             "parent": root,
-            "initiates": True,
             "text": "Cache is done, then.",
         },
     )
@@ -3402,7 +3401,6 @@ def test_an_agent_reply_says_when_the_user_owes_an_answer(browser, serve):
         '<lf-option id="backend-postgres"><strong>Postgres</strong></lf-option>'
         "</lf-options></lf-ask>",
         for_event=None,
-        initiates=True,
     )
     told(page)
     expect(page.locator(".lf-needs")).to_have_text("You (2)")

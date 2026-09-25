@@ -1559,14 +1559,20 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   /* Following messages keep their top margin; the sticky reply owns the final gap
      so its opaque background covers text scrolling beneath it. */
   .lf-margin-thread .lf-conversation-msg { margin-bottom: 0; }
+  /* The reply uses the scroll area's width while its text shares the
+     conversation column. */
+  .lf-margin-thread .lf-conversation-thread { padding-inline: 12px; }
   /* The reply surround shares the conversation's opaque surface, including its focus
      tint, so pinning the reply cannot introduce a separate background band. */
   :where(.lf-margin-thread) .lf-conversation-thread { background: var(--paper); }
   /* Pinned to the transcript's foot, the row keeps its controls' ring room as bottom
      padding (the compact ring's room, in this file's header). */
   .lf-margin-thread .lf-say { align-items: stretch; position: sticky; bottom: 0;
-    margin-top: 0; padding-block: var(--sp-3) var(--here-ring-room);
+    margin-top: 0; margin-inline: calc(-1 * var(--sp-2));
+    padding-block: var(--sp-3) var(--here-ring-room);
     background: inherit; }
+  .lf-margin-thread .lf-conversation-thread > .lf-say > .lf-reply-disclosure,
+  .lf-margin-thread .lf-say textarea { padding-inline-start: 7px; }
   .lf-margin-thread .lf-say textarea { min-width: 0;
     max-height: min(50vh, var(--lf-thread-editor-room, 50vh)); }
   .lf-margin-preview .lf-margin-thread-body > .lf-conversation-thread {

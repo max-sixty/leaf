@@ -1644,10 +1644,15 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      same way; over a column page it takes no room but stands over the rail below about
      1700px, and the layout pass marks the root when it does. */
   @media screen {
-    @container lf-shell (width <= 840px) {
+    @container lf-shell (width <= 863px) {
       .lf-page-map-toggle:not([hidden]) { display: inline-flex; }
     }
     :scope[data-lf-rail-covered] .lf-page-map-toggle:not([hidden]) { display: inline-flex; }
+  }
+  @media screen and (pointer: coarse) {
+    @container lf-shell (width <= 887px) {
+      .lf-page-map-toggle:not([hidden]) { display: inline-flex; }
+    }
   }
   @media (forced-colors: active) {
     .lf-margin-preview, .lf-page-map-dialog { border: 1px solid CanvasText; box-shadow: none; }

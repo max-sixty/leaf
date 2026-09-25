@@ -395,12 +395,12 @@ UNMARKABLE_PAGE = LONG_PAGE.replace(
 FLOATING_PAGE = LONG_PAGE.replace(
     "</main>",
     "<style>@media (max-width: 1199px) { .fixture-margin-float { display: none; } }</style>"
-    "<div class='fixture-margin-float' id='in-the-margin' style='float: left; clear: left; width: 180px;"
-    " margin-left: -204px'>Beside <code id='inner-word'>--flag</code>.</div>"
+    "<div class='fixture-margin-float' id='in-the-margin' style='float: left; clear: left; width: 160px;"
+    " margin-left: -184px'>Beside <code id='inner-word'>--flag</code>.</div>"
     "<div class='fixture-margin-float' id='half-out' style='float: left; clear: left; width: 180px;"
     " margin-left: -90px'>Across.</div>"
-    "<div class='fixture-margin-float' id='logical' style='float: inline-start; clear: left; width: 180px;"
-    " margin-left: -204px'>Beside.</div>"
+    "<div class='fixture-margin-float' id='logical' style='float: inline-start; clear: left; width: 160px;"
+    " margin-left: -184px'>Beside.</div>"
     "<div class='fixture-margin-float' id='off-window' style='float: left; clear: left; width: 180px;"
     " margin-left: -900px'>Gone.</div>\n</main>",
 )
@@ -637,21 +637,26 @@ def draw_edge(page, edge, by):
 # The room sampled across an auxiliary-surface motion. The shell owns the value in CSS, so a
 # harmless probe resolves the custom-property expression to the width a wide exhibit
 # would actually receive.
-ROOM_EVERY_FRAME = """(frames) => {
+ROOM_EVERY_FRAME = """() => {
   window.__room = [];
   const main = document.querySelector('main');
   const probe = document.createElement('i');
   probe.style.cssText = 'position:fixed;visibility:hidden;height:0;padding:0;border:0;width:var(--lf-room)';
   main.append(probe);
-  // The first sample is taken now rather than on the first frame, so the width before the
-  // press is always in the trace: a frame is free to land after the keypress that follows
-  // this call, and a trace that opens after the strip is taken has one value in it and
-  // nothing to compare.
+  // Sample before the press and until the test sees the settled tray. Playwright may
+  // spend arbitrarily many frames finding and pressing its control.
+  let nextFrame;
   const tick = () => {
     window.__room.push(probe.getBoundingClientRect().width);
-    if (window.__room.length < frames) requestAnimationFrame(tick);
+    nextFrame = requestAnimationFrame(tick);
   };
   tick();
+  window.__roomStop = () => {
+    cancelAnimationFrame(nextFrame);
+    window.__room.push(probe.getBoundingClientRect().width);
+    probe.remove();
+    return window.__room;
+  };
 }"""
 # Enough code for the roles to differ from each other and from the block: a comment, a
 # keyword, a string, a name, a number.

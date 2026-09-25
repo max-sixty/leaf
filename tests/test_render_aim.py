@@ -2505,6 +2505,11 @@ def test_a_visual_part_mark_follows_its_drawn_svg_shape(browser, serve):
     )
     told(page)
     expect(diamond).to_have_class(re.compile(r"\blf-mark-el\b"))
+    # The comment's margin row stands level with the diagram, which yields its right
+    # growth to it (data-lf-yield) and moves the diamond, so compare the diamond where
+    # it now stands.
+    moved = diamond.bounding_box()
+    clip = {**clip, "x": math.floor(moved["x"]), "y": math.floor(moved["y"])}
     painted = Image.open(io.BytesIO(page.screenshot(clip=clip))).convert("RGB")
     delta = ImageChops.difference(quiet, painted)
     changed = [max(pixel) >= 6 for pixel in zip(*[iter(delta.tobytes())] * 3)]

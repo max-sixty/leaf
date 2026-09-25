@@ -2969,7 +2969,7 @@ def test_a_finished_website_turn_does_not_overwrite_an_agent_reply(page_dir):
         "Done.",
         "",
         for_event=comment["id"],
-        identity={"agent": "Leaf guide", "session": "leaf-website-agent"},
+        identity={"agent": "The agent", "session": "leaf-website-agent"},
     )
     with website_server.PageTransaction(page_dir) as page:
         page.set_status("working", "Finishing")
@@ -3332,7 +3332,7 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
         state = json.loads(raw_state)
         assert state["publication"] == {
             "kind": "example",
-            "agent": "Leaf guide",
+            "agent": "The agent",
             "install_url": "/#install",
         }
         assert headers["Leaf-Layer"] == state["layer"]["generation"]
@@ -3421,7 +3421,7 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
                 {"Leaf-Layer": state["layer"]["generation"]},
             )
         assert forged.value.code == 400
-        monkeypatch.setenv("LEAF_AGENT", "Leaf guide")
+        monkeypatch.setenv("LEAF_AGENT", "The agent")
         monkeypatch.setenv("LEAF_SESSION_ID", "leaf-website-agent")
         monkeypatch.delenv("CLAUDE_CODE_SESSION_ID", raising=False)
         appended, _ = post(
@@ -3433,7 +3433,7 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
         assert reply == {
             "kind": "reply",
             "author": "agent",
-            "agent": "Leaf guide",
+            "agent": "The agent",
             "session": "leaf-website-agent",
             "parent": comment["id"],
             "responds": comment["id"],
@@ -3578,7 +3578,7 @@ def test_a_product_route_uses_the_same_real_page_server(
         state = json.loads(get(f"{root}{page_root}/api/state")[0])
         assert state["publication"] == {
             "kind": "product",
-            "agent": "Leaf guide",
+            "agent": "The agent",
             "install_url": "/#install",
         }
         posted = {
@@ -3693,7 +3693,7 @@ def test_the_preview_generator_uses_the_live_website_route(page_dir, tmp_path):
 
     assert state["publication"] == {
         "kind": "example",
-        "agent": "Leaf guide",
+        "agent": "The agent",
         "install_url": "/#install",
     }
 

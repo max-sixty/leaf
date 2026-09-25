@@ -1005,26 +1005,6 @@ FRAMED_SCROLLER_PAGE = FRAMED_WIDE_PAGE.replace(
 )
 
 
-# A page that reserves the margin rail and stands a wide widget in the flow beside it —
-# the pair no shipped example had until ship-review, and the pair the room has to be
-# measured after rather than before.
-RAIL_AND_WIDE_PAGE = leaf_page(
-    "rail",
-    """
-<h1 id="t">Release</h1>
-<lf-suggestion id="sug-copy">
-  <lf-old><p id="old-line">Refill every feeder each morning.</p></lf-old>
-  <lf-new><p>Refill a feeder when its camera shows it half-empty.</p></lf-new>
-</lf-suggestion>
-<lf-board id="plan">
-  <lf-column id="r1" label="Todo"><lf-card id="rk1"><strong>One</strong></lf-card></lf-column>
-  <lf-column id="r2" label="Doing"></lf-column>
-  <lf-column id="r3" label="Done"></lf-column>
-</lf-board>
-""",
-)
-
-
 # How far the exhibit stands outside the page's own box, and the rail it was supposed to
 # leave — both edges, since a room read too wide spends itself on whichever side is free.
 # One reading for the live page and for a copy of it, the fault being the same fault. The

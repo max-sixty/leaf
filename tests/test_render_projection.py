@@ -1098,6 +1098,8 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     decoded_css_width = first.locator("lf-shot img").first.evaluate(
         "image => image.naturalWidth / 2"
     )
+    # The widget lays out a scale change in the frame after the click, before it paints.
+    page.evaluate(RENDERED)
     assert first.locator("lf-shot img").first.evaluate(
         "image => image.getBoundingClientRect().width"
     ) == pytest.approx(decoded_css_width, abs=1), (

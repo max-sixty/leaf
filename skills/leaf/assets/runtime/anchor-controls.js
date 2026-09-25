@@ -254,7 +254,6 @@ export function createAnchorControls({
           read: () => ({
             side: "after",
             state: record.expanded ? "engaged" : "idle",
-            claim: false,
             entries: record.roots.flatMap((root) => [
               {
                 key: `reaction:${root.id}:open`,

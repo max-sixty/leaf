@@ -2041,7 +2041,7 @@ lf-activity .lf-activity-empty { margin: 0; color: var(--muted); font: var(--t-5
 /* lf-ask: a semantic reading and arrival boundary, with no presentation of its own.
  * Block rather than the custom-element default inline so its box begins at the
  * question's opening and reaches around the context and control the standing ring says
- * are one Decision. Child margins keep the same ordinary block rhythm they have in a section. */
+ * are one Ask. */
 lf-ask { display: block; }
 
 /* lf-specimen: quoted material — a widget or section the page exhibits rather

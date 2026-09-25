@@ -24,8 +24,9 @@
    vertical side with more reachable room; on a touch screen it prefers below whenever
    the page can make room there. The field keeps that side and moves the reading
    region only enough to keep the passage
-   and field visible together; it finally scrolls internally. Other targets grow toward
-   the available viewport edge.
+   and field visible together; it finally scrolls internally. Beside a target, the
+   action-bearing foot stays in place while the field grows upward, until the visible
+   boundary limits it.
    The target chooses a placement from the field's minimum footprint once. Later
    content and margin controls cannot re-seat it. A region too small for
    the compact control yields to the viewport so the user keeps their response.
@@ -220,6 +221,7 @@ export function createResponseSurface({
   let fabInlineOutlet = null;
   let fabPlacement = null;
   let fabInlineConnection = null;
+  let fabSideFootOffset = null;
   let fabPlacementInput = null;
   let fabMinimumWidth = null;
   let fabMinimumComposer = null;
@@ -282,6 +284,7 @@ export function createResponseSurface({
     if (!repositioning) answerFabPosition(false);
     fabPlacement = null;
     fabInlineConnection = null;
+    fabSideFootOffset = null;
     fabPlacementInput = null;
     fabMinimumWidth = null;
     fabMinimumComposer = null;
@@ -534,6 +537,7 @@ export function createResponseSurface({
     ) {
       fabPlacement = null;
       fabInlineConnection = null;
+      fabSideFootOffset = null;
       fabContentHeight = null;
     }
 
@@ -626,6 +630,10 @@ export function createResponseSurface({
     const epoch = ++fabPositionEpoch;
     const initial = fabPlacement === null;
     const stillCurrent = () => epoch === fabPositionEpoch && fabAnchor && fabFloating;
+    const sideTop = (height) =>
+      fabSideFootOffset === null
+        ? target.top - 6
+        : target.top + fabSideFootOffset - height;
     void floatingUi()
       .then(
         ({ autoUpdate, computePosition, flip, limitShift, offset, shift, size }) => {
@@ -639,11 +647,11 @@ export function createResponseSurface({
                 const beside = /^(left|right)/.test(placement);
                 return {
                   mainAxis: 6,
-                  // The paragraph chooses the horizontal lane; the selected line chooses
-                  // where in that lane the response starts. Above and below, preserve the
-                  // initial inline start as the field or its choices grow.
+                  // The paragraph chooses the horizontal lane. Beside it, keep the
+                  // action-bearing foot at its initial attachment as the field grows;
+                  // above or below, preserve the initial inline start.
                   crossAxis: beside
-                    ? target.top - keepClear.top - 6
+                    ? sideTop(rects.floating.height) - keepClear.top
                     : fabInlineConnection === null
                       ? 0
                       : fabInlineConnection + rects.floating.width,
@@ -695,9 +703,23 @@ export function createResponseSurface({
                 ...overflow,
                 mainAxis: true,
                 crossAxis: true,
-                limiter: limitShift(({ placement }) => {
+                limiter: limitShift(({ placement, rects }) => {
                   const vertical = /^(top|bottom)/.test(placement);
-                  return { mainAxis: !vertical, crossAxis: vertical };
+                  // A short field may sit below the reference's own bottom while its
+                  // action stays at the established foot. Keep just that extra room in
+                  // the attachment limit; the bar still leaves with its passage.
+                  return {
+                    mainAxis: !vertical,
+                    crossAxis: vertical,
+                    offset: vertical
+                      ? 0
+                      : {
+                          mainAxis: -Math.max(
+                            0,
+                            sideTop(rects.floating.height) - keepClear.bottom,
+                          ),
+                        },
+                  };
                 }),
               }),
             ],
@@ -709,12 +731,14 @@ export function createResponseSurface({
         const { x, y, placement } = position;
         if (!stillCurrent()) return;
         fabPlacement ??= placement;
-        if (!/^(left|right)/.test(placement))
-          fabInlineConnection ??= x - keepClear.right;
+        const beside = /^(left|right)/.test(placement);
+        const height = fabBar.getBoundingClientRect().height;
+        if (beside) fabSideFootOffset ??= y + height - target.top;
+        else fabInlineConnection ??= x - keepClear.right;
         fabPlacementInput = placementInput;
         fabBar.dataset.lfPlacement = fabPlacement;
         fabBar.style.left = `${x}px`;
-        fabBar.style.top = `${y}px`;
+        fabBar.style.top = `${y + (beside ? height : 0)}px`;
         fabBar.style.removeProperty("visibility");
         answerFabPosition(true);
         return true;

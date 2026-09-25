@@ -163,7 +163,7 @@ def build() -> str:
                     f"id '{i}' is in both {owner[i]} and {source.name}; rename one"
                 )
             owner[i] = source.name
-        # A page's own width (`<main data-width>`, a sheet) is its document's to declare;
+        # A page's own width (`<main data-width>`) is its document's to declare;
         # a tab in the corpus is part of the corpus's page, so only the body carries over.
         opens = list(MAIN_OPEN.finditer(text))
         if len(opens) != 1 or text.count("</main>") != 1:

@@ -1070,6 +1070,7 @@ def test_notices_stay_at_the_visible_pages_right_edge(browser, serve):
         (390, True),
         (320, True),
         (390, False),
+        (300, False),
     ]:
         resized(page, width, 800)
         if panel_open != page.locator(".lf-thread-panel").is_visible():
@@ -1098,17 +1099,20 @@ def test_notices_stay_at_the_visible_pages_right_edge(browser, serve):
             foot = page.locator(".lf-thread-panel-foot").bounding_box()
             assert geometry["bottom"] == pytest.approx(foot["y"] - 14, abs=1)
         else:
-            # Centred on the bottom band's row, inside the band.
+            # Centred on the bottom band's row, inside the band. A line too wide for a
+            # narrow window wraps upward, so the row is the one More stands on rather
+            # than the middle of the line's whole box.
             band = page.locator(".lf-shortcut-bar").bounding_box()
+            more = page.locator(".lf-shortcut-more").bounding_box()
             assert band["y"] <= geometry["top"] and geometry["bottom"] <= 800, (
                 width,
                 panel_open,
                 geometry,
                 band,
             )
-            assert (geometry["top"] - band["y"]) == pytest.approx(
-                800 - geometry["bottom"], abs=1
-            ), (width, panel_open, geometry, band)
+            assert (geometry["top"] + geometry["bottom"]) / 2 == pytest.approx(
+                more["y"] + more["height"] / 2, abs=1
+            ), (width, panel_open, geometry, more)
         pixels = Image.open(io.BytesIO(page.screenshot())).convert("RGB")
         accent = tuple(map(int, re.findall(r"\d+", token_colour(page, "--accent"))))
         assert (
@@ -1421,12 +1425,12 @@ def test_message_markdown_reads_a_link_scheme_as_the_attribute_resolves_it(
     expect(media_button).to_be_focused()
 
 
-# A sheet laid on one set of tracks: a long body beside a short rail, the rail being the
-# part of a sheet a panel standing over the window's right edge would cover.
-SHEET_PAGE = leaf_page(
-    "sheet",
+# A wide page laid on one set of tracks: a long body beside a short rail, the rail being
+# the part of the page a panel standing over the window's right edge would cover.
+WIDE_PAGE = leaf_page(
+    "wide page",
     """
-<h1 id="t">Sheet</h1>
+<h1 id="t">Wide page</h1>
 <lf-grid id="tracks" columns="2fr 1fr">
   <lf-grid id="body" columns="1">{paras}</lf-grid>
   <lf-grid id="side" columns="1">
@@ -1444,7 +1448,7 @@ SHEET_PAGE = leaf_page(
 
 SURFACE_PAGES = {
     "threads-column": ("threads", lambda: LONG_PAGE),
-    "threads-sheet": ("threads", lambda: SHEET_PAGE),
+    "threads-wide-page": ("threads", lambda: WIDE_PAGE),
     "asks": ("asks", lambda: with_one_ask(LONG_PAGE)),
 }
 
@@ -1464,7 +1468,7 @@ def test_an_auxiliary_surface_stands_over_the_page_and_moves_none_of_it(
 ):
     """Opening Threads or the Asks tray never moves the page: each stands over its edge of
     the window, so the reading column keeps its place, its width and its wrapping, a
-    sheet's rail stays where its tracks put it, and the document neither grows nor
+    wide page's rail stays where its tracks put it, and the document neither grows nor
     scrolls under it. The page beside the surface stays live rather than going inert
     behind a covering boundary."""
     surface, html = SURFACE_PAGES[case]
@@ -1500,10 +1504,12 @@ def test_an_auxiliary_surface_stands_over_the_page_and_moves_none_of_it(
     assert page.evaluate(shape) == pytest.approx(before, abs=0.5)
 
 
-def test_the_panel_covers_a_sheet_where_it_would_leave_no_usable_page(browser, serve):
+def test_the_panel_covers_a_wide_page_where_it_would_leave_no_usable_page(
+    browser, serve
+):
     """Where the window would leave less than a usable page beside it, the panel covers
-    the sheet as it does any page: modal, with the page inert underneath."""
-    page = open_page(browser, serve(SHEET_PAGE))
+    a wide page as it does any page: modal, with the page inert underneath."""
+    page = open_page(browser, serve(WIDE_PAGE))
     resized(page, 700, 900)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)

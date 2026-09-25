@@ -224,7 +224,7 @@ them:
 - `conversation_title` names an existing conversation with a nonblank, single-line
   plain-text title of at most 80 characters. The latest title is projected separately
   from messages into browser state and agent context; an unnamed conversation has
-  a null title and the panel shows a quiet pulsing ellipsis until the agent names it.
+  a null title and the panel shows three animated dots until the agent names it.
 - `summary` names an inclusive `from`–`through` range of at least two spoken turns in
   one conversation; a reaction may lie inside the range but not at an endpoint. A
   later overlapping summary replaces the earlier one whole, disjoint summaries

@@ -168,23 +168,21 @@ def test_the_render_gate_reports_a_defect_specific_to_the_compact_viewport(
     }
 
 
-def _sheet(title: str, body: str, head: str = "") -> str:
-    return leaf_page(title, body, head=head).replace(
-        "<main>", '<main data-width="available">', 1
-    )
+def _wide_page(title: str, body: str, head: str = "") -> str:
+    return leaf_page(title, body, head=head, width="available")
 
 
 def _panel(name: str) -> str:
     return f'<section class="panel" id="{name}"><h2>{name}</h2><p>Words.</p></section>'
 
 
-def test_the_render_gate_fails_a_sheet_that_scrolls_sideways_only_between_its_viewports(
+def test_the_render_gate_fails_a_wide_page_that_scrolls_sideways_only_between_viewports(
     browser, serve
 ):
     """Two tracks, each stacking its regions, and a row that spills only from 600 to
     900px: both fixed viewports read the page clean, and only the sweep between them
     sees it. The same page is the aligned control for the advice below."""
-    source = _sheet(
+    source = _wide_page(
         "mid-width overflow",
         f"""
 <h1>Mid-width spill</h1>
@@ -208,15 +206,17 @@ def test_the_render_gate_fails_a_sheet_that_scrolls_sideways_only_between_its_vi
     assert reading.advice == []
 
 
-def test_a_sheet_whose_rows_split_anywhere_gets_advice_and_still_passes(browser, serve):
+def test_a_wide_page_whose_rows_split_anywhere_gets_advice_and_still_passes(
+    browser, serve
+):
     """Each row its own grid, splitting where its template puts it: the page draws three
     split lines where its busiest grid needs one. The count row of tiles is not a
     region boundary and draws none."""
     tiles = "".join(
         f'<lf-metric id="m{i}" value="{i}">count</lf-metric>' for i in range(4)
     )
-    source = _sheet(
-        "jumbled sheet",
+    source = _wide_page(
+        "jumbled page",
         f"""
 <h1>Jumbled</h1>
 <lf-grid id="lp-status" columns="4">{tiles}</lf-grid>
@@ -2459,7 +2459,12 @@ def test_the_adopted_sheet_decides_nothing_by_standing_last(browser, serve):
 
     The corpus, because a tie shows only where both rules meet one element, and it is
     the page that holds every widget and every idiom at once."""
-    page = open_page(browser, serve(CORPUS_PAGE))
+    # The corpus's sort film otherwise repaints SVG values while the sheets move.
+    page = open_page(
+        browser,
+        serve(CORPUS_PAGE),
+        context=browser.new_context(reduced_motion="reduce"),
+    )
     page.evaluate("() => document.getAnimations().forEach((one) => one.pause())")
     adopted = page.evaluate(COMPUTED_FACES, [list(ORDER_SENSITIVE)])
     rules = page.evaluate(RELOCATE_ADOPTED)
@@ -2962,12 +2967,13 @@ def test_the_render_gate_reports_content_set_past_the_column(browser, serve):
     )
 
 
-def test_misplaced_boxes_checks_page_overflow_but_not_leaf_chrome(browser, serve):
-    """The column is the page's boundary, even though Leaf seats its margin controls
-    inside ``main``. At compact width an Edit label extends left of that column; it is
-    Leaf chrome, not a box the page misplaced. Content inside an authored horizontal
-    scroller is likewise reachable, while an otherwise identical page box remains a
-    real spill and keeps both the column and root-scrollport checks live."""
+def test_misplaced_boxes_checks_page_overflow_but_not_an_authored_scroller(
+    browser, serve
+):
+    """The column is the page's boundary. Content inside an authored horizontal
+    scroller is reachable, while an otherwise identical page box remains a real spill
+    and keeps both the column and root-scrollport checks live. Leaf's margin controls
+    stand in the chrome, outside the column, so none of them is a box to report."""
     source = leaf_page(
         "compact geometry boundaries",
         """
@@ -2981,17 +2987,10 @@ def test_misplaced_boxes_checks_page_overflow_but_not_leaf_chrome(browser, serve
     )
     page = open_page(browser, serve(source, packages=()))
     resized(page, 540, 720)
-    measured = page.evaluate(
+    scroller_short = page.evaluate(
         """() => {
-          const main = document.querySelector('main');
-          const style = getComputedStyle(main), box = main.getBoundingClientRect();
-          const columnLeft = box.left + parseFloat(style.paddingLeft);
-          const label = document.querySelector('.lf-margin-entry-label');
           const scroller = document.querySelector('#scroller');
-          return {
-            labelPast: Math.round(columnLeft - label.getBoundingClientRect().left),
-            scrollerShort: scroller.scrollWidth - scroller.clientWidth,
-          };
+          return scroller.scrollWidth - scroller.clientWidth;
         }"""
     )
     misplaced = [
@@ -2999,33 +2998,16 @@ def test_misplaced_boxes_checks_page_overflow_but_not_leaf_chrome(browser, serve
         for finding in render_checks_model.evaluate_probe(page, "misplacedBoxes")
     ]
     overflow = render_checks_model.evaluate_probe(page, "rootOverflow")
-    page.locator(".lf-margin-cluster").evaluate(
-        """cluster => {
-          cluster.id = 'visible-leaf-chrome';
-          Object.assign(cluster.style, {
-            left: '700px', opacity: '1', position: 'relative', visibility: 'visible'
-          });
-        }"""
-    )
-    visible_chrome = [
-        finding["text"]
-        for finding in render_checks_model.evaluate_probe(page, "misplacedBoxes")
-    ]
     page.close()
 
-    assert measured["labelPast"] > 1, "the Leaf label stayed inside the column"
-    assert measured["scrollerShort"] > 1, (
-        "the authored scroller fits, so it proves nothing"
-    )
+    assert scroller_short > 1, "the authored scroller fits, so it proves nothing"
     assert not [finding for finding in misplaced if "<span" in finding], misplaced
+    assert not [finding for finding in misplaced if "leaf-margin-cluster" in finding], (
+        misplaced
+    )
     assert [finding for finding in misplaced if "<div id=root-spill>" in finding], (
         misplaced
     )
-    assert [
-        finding
-        for finding in visible_chrome
-        if "<leaf-margin-cluster id=visible-leaf-chrome>" in finding
-    ], visible_chrome
     assert overflow > 1, "the true page spill did not reach the root scrollport"
 
 
@@ -3172,19 +3154,13 @@ def test_the_render_gate_tells_a_fixed_margin_resident_from_a_fixed_spill(
 
 
 def test_a_change_may_be_decided_over_the_note_it_stands_level_with(browser, serve):
-    """Both residents of the right margin are pinned by the flow — the controls level
-    with the change they decide, the note level with the block it annotates — so on a
-    page that writes one beside the other, neither can step aside and the controls are
-    drawn over the note's first line. That is the restore case Leaf ships, so the gate
-    that reads words drawn on words has to let it through, or every page composing the
-    two idioms is refused at handover.
-
-    The exemption is the float rather than the control, which is what keeps it from
-    swallowing the check it lives in: the same row docks into the flow when it finds no
-    room, and a docked row covering a word is a fault again. So the docked reading is
-    asserted beside the floating one — a gate that has only ever passed has been tested
-    for nothing, and this one is one predicate away from exempting every control there
-    is."""
+    """Both residents of the right margin stand level with what they belong to — the
+    controls with the change they decide, the note with the block it annotates — so on
+    a page that writes one beside the other, the controls are drawn over the note's
+    first line. The controls stand in Leaf's margin layer over the page, which the gate
+    that reads words drawn on words does not count as the page's, so every page
+    composing the two idioms passes at handover. A page that wants the strip for its
+    notes says `data-rail="none"` and its markers stand as pins instead."""
     url = serve(NOTE_BESIDE_A_CHANGE)
     page = open_page(browser, url)
     page.locator("#sug-level").scroll_into_view_if_needed()
@@ -3198,16 +3174,6 @@ def test_a_change_may_be_decided_over_the_note_it_stands_level_with(browser, ser
     }"""
     level = page.evaluate(geometry)
     covered = render_checks_model.evaluate_probe(page, "coveredWords")
-    # The same row, docked: the theme releases the rail below its breakpoint, and the
-    # module observes the resulting body geometry on its next layout frame. What the
-    # gate asks is the computed position, so narrowing the window is how the other half
-    # of the predicate is reached — and the class is the fact that frame states.
-    resized(page, 800, 900)
-    page.wait_for_function(
-        "() => document.querySelector(\"[data-lf-margin-for='sug-level']\")"
-        ".classList.contains('lf-docked')"
-    )
-    docked = page.evaluate(geometry)
     page.close()
 
     assert level["position"] == "absolute", (
@@ -3218,9 +3184,6 @@ def test_a_change_may_be_decided_over_the_note_it_stands_level_with(browser, ser
     )
     assert not [f for f in covered if "level-note" in f], (
         f"a change's controls were refused the margin they are decided in: {covered}"
-    )
-    assert docked["position"] == "static", (
-        f"the row stayed out of the flow at a width that docks it: {docked}"
     )
 
 

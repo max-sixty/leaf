@@ -110,6 +110,26 @@ class RevisionArtifact:
         return json.loads(self.manifest)["entries"]
 
     @cached_property
+    def page_stylesheets(self) -> dict[str, str]:
+        """The page's own CSS files by path: each stylesheet under `/page/` that the
+        authored document links or imports, and each one those import in turn."""
+        found = {}
+        pending = list(self.entries)
+        while pending:
+            path = pending.pop(0)
+            resource = self.resources.get(path)
+            if (
+                path in found
+                or not path.startswith("/page/")
+                or resource is None
+                or resource.mime != "text/css"
+            ):
+                continue
+            found[path] = resource.data.decode("utf-8")
+            pending.extend(resource.dependencies)
+        return found
+
+    @cached_property
     def implementations(self) -> dict:
         return json.loads(self.manifest)["implementations"]
 

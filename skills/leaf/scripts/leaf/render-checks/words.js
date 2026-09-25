@@ -92,14 +92,11 @@ export function paperWords() {
 // What floats over the document on purpose is answered for, and that is one exemption
 // rather than two. It reads as the runtime's, because for a long time the runtime owned
 // every float there was; the sentence is about the float and not about the owner. A
-// suggestion's controls hang out of the flow, level with the change they decide, and a
-// sidenote hangs out of the flow level with the block it annotates — both in the right
-// margin now, both pinned by what they belong to, so where a page stands them level the
-// controls are drawn over the note and neither can move. Reporting that would refuse
-// every page that writes a note beside a change, which is a composition the vocabulary
-// is meant to have; so the float is exempt and the note is what it may cover. Where the
-// same row docks back into the flow it is a resident again, and covering a word there is
-// a fault this still reports.
+// sidenote hangs out of the flow level with the block it annotates, pinned by what it
+// belongs to, and a page's own absolutely placed furniture does the same; covering a
+// word there is the page's composition, not a fault. A control in the flow covering a
+// word is a fault this still reports. Leaf's margin rows stand in its own layer over the
+// page, which the chrome skip below takes whole.
 //
 // A pair where one element contains the other is skipped: a paragraph and the <em>
 // inside it are one run of words that the flow lays out together, and their boxes
@@ -169,11 +166,7 @@ export function coveredWords({
   // does. The walk below stays in the light DOM, so the climb does too.
   const painted = (el, drawn) => {
     let box = drawn;
-    for (
-      let ancestor = el;
-      ancestor && ancestor !== document.body && box;
-      ancestor = ancestor.parentElement
-    ) {
+    for (let ancestor = el; ancestor && ancestor !== document.body && box;) {
       const style = getComputedStyle(ancestor);
       if (style.overflowX !== "visible" || style.overflowY !== "visible") {
         const bounds = ancestor.getBoundingClientRect();
@@ -187,10 +180,22 @@ export function coveredWords({
             : null;
       }
       // An out-of-flow box is laid out against its containing block rather than against
-      // the ancestry, so a hidden overflow further out need not reach it at all. Stop
-      // climbing there and keep the rect whole: over-reporting a cover is this reading's
-      // safe direction, and missing one is the fault it was written for.
-      if (style.position === "absolute" || style.position === "fixed") break;
+      // the ancestry: an overflow between the two does not clip it, and one at or above
+      // the containing block does, so the climb goes on from there. A board column's
+      // count hangs absolutely in its column, and the board that scrolls the column out
+      // of view hides the count with it. `offsetParent` is the containing block only
+      // when it is positioned: a static table or cell it may name instead stands below
+      // the real one, so there the climb stops and keeps the rect whole, over-reporting
+      // a cover being this reading's safe direction. A fixed box answers to the
+      // viewport alone.
+      if (style.position === "fixed") break;
+      if (style.position === "absolute") {
+        const holder = ancestor.offsetParent;
+        if (!holder || getComputedStyle(holder).position === "static") break;
+        ancestor = holder;
+        continue;
+      }
+      ancestor = ancestor.parentElement;
     }
     return box;
   };

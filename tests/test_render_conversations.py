@@ -3708,9 +3708,9 @@ def test_a_thread_completion_keeps_the_users_later_destination(
     else:
         expect(
             page.locator(
-                ".lf-threads > .lf-thread:not([hidden]) > .lf-thread-summary"
-            ).first
-        ).to_be_focused()
+                ".lf-threads > .lf-thread:not([hidden]) > .lf-thread-summary:focus"
+            )
+        ).to_have_count(1)
 
 
 def test_a_late_reply_reopens_its_resolved_thread(browser, serve):
@@ -4490,6 +4490,9 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         # response bar.
         "lf-compose-placeholder",
         "lf-compose-submit",
+        # Reply disclosure is shared by inline threads in authored content and the
+        # conversation surfaces in chrome.
+        "lf-reply-disclosure",
         # The one canonical composer can be seated in a widget's own Thread outlet,
         # where the chrome's scoped rules cannot reach it. The authored theme dresses
         # that seat at document level, under [data-lf-presentation="inline"], so every
@@ -4523,11 +4526,13 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         "lf-fab",
         "lf-fab-bar",
         "lf-focus-within",
-        # The rail is chrome, and its whole document face — placement, the hidden
-        # state, and the widths that fold it away — is the authored theme's. The
-        # runtime sheet names it only to say which plane it stands on, so the movement
-        # the theme's rule causes is that deliberate face rather than a leaked one.
+        # The margin layer is chrome, and its whole document face — placement by
+        # anchor, the rail and pin postures, the lanes a pane's rows stand in — is the
+        # authored theme's. The runtime sheet names it only to say which plane it
+        # stands on, so the movement the theme's rule causes is that deliberate face
+        # rather than a leaked one.
         "lf-margin-cluster",
+        "lf-margin-lane",
         "lf-margin-projection",
         "lf-msg-head",
         "lf-react-open",
@@ -6314,7 +6319,7 @@ def test_the_line_offers_the_list_its_own_keys_rather_than_the_way_deeper_in(
     unrelated row in front of them here spends the slot the landing exists to fill.
 
     Read off `:not([hidden])`, because `renderShortcutBar` leaves every live row in the DOM and
-    hides the ones it has no room to paint. `to_contain_text` on the line therefore
+    hides the ones outside the shortlist. `to_contain_text` on the line therefore
     answers about the register rather than about the user, and passes just as well
     when the chip is one nobody can see — which is why the rest of the panel's tests
     could not have caught this.
@@ -6632,9 +6637,18 @@ def test_agent_titles_update_without_losing_the_users_draft(browser, serve):
     topic = thread.locator(".lf-thread-topic")
     expect(topic).to_have_text("...")
     expect(topic).to_have_attribute("aria-label", "Title pending")
+    dots = topic.locator(".lf-thread-pending-dot")
+    expect(dots).to_have_count(3)
     assert (
-        topic.evaluate("element => getComputedStyle(element).animationName") != "none"
+        dots.first.evaluate("element => getComputedStyle(element).animationName")
+        != "none"
     )
+    page.emulate_media(reduced_motion="reduce")
+    assert (
+        dots.first.evaluate("element => getComputedStyle(element).animationName")
+        == "none"
+    )
+    page.emulate_media(reduced_motion="no-preference")
     focus_panel_thread(thread)
     editor = thread.locator("textarea")
     editor.fill("Keep this unfinished reply")

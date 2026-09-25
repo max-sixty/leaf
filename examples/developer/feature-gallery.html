@@ -17,6 +17,10 @@
         margin-bottom: 4px;
       }
 
+      #bg-thread-title-pair {
+        max-width: 54rem;
+      }
+
       .interaction-gallery lf-tabs {
         margin-top: 14px;
         margin-bottom: 0;
@@ -370,44 +374,6 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
           count and current attention mark. Each thread has a short title chosen by the
           agent; open one to read the full messages beneath it.
         </p>
-        <p id="bg-thread-text">
-          <strong>An existing conversation.</strong> The sample agenda has room for one
-          more topic. Its speech-bubble control carries a blue interior and a blue
-          glyph, and hovering it shows On you under the label. The image question still
-          needs an answer even though the agent added a later progress update. Open the
-          control and reply: the colour goes as the thread comes back to the agent. The
-          same reading fills the panel’s On you filter and this target’s Page Map row.
-        </p>
-        <p id="bg-thread-media">
-          <strong>Pasted images.</strong> That conversation includes an image supplied
-          by its companion thread log, outside this document. Click the image to inspect
-          it in Leaf’s Image preview. Paste a screenshot into its reply box to see the
-          thumbnail Leaf keeps in the draft without exposing image Markdown.
-        </p>
-        <p id="bg-resolved-text">
-          <strong>A resolved conversation.</strong> The room has a projector. Its
-          earlier question is resolved. Open Threads in the banner, select Resolved, and
-          try Reopen to bring its Thread control back to the page.
-        </p>
-        <p id="bg-thread-checkpoint">
-          <strong>A summarized discussion.</strong> The workshop planning conversation
-          keeps its earlier decisions in a summary. Open it in Threads, expand the
-          covered messages, and use the right-hand control to fold them again. The
-          latest exchange stays below the summary. Keyboard focus can reach both
-          disclosure controls.
-        </p>
-        <p id="bg-thread-unread">
-          <strong>Unread replies.</strong> The seeded agent replies start unread. Open
-          Threads and use Unread, or press u there, to reveal the earliest unread reply,
-          including one covered by a summary. A fully exposed short reply leaves the
-          count; scroll through a long reply to read all of it. New since you last
-          looked marks each current unread stretch, and a collapsed summary counts its
-          unread originals until you expand them. Mark thread read, also reachable with
-          m, marks the thread's current messages read, including authored content and
-          folded originals, and so does replying, answering, or resolving it. A margin
-          control whose thread holds unread replies carries the same dot as Threads. On
-          you still identifies a question that needs an answer, even after it is read.
-        </p>
         <p id="bg-thread-notices">
           <strong>New information.</strong> Have the agent add a message after the page
           opens: its status-line notice also reaches the live region without moving
@@ -424,12 +390,87 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
           choose Select element, then tap it. Cancel selection leaves the page
           unchanged. Type into the floating field and send it. The thread opens with
           your words already in it, before the server has answered, and becomes another
-          Thread control at this passage. In Threads, three quiet dots pulse in its
-          title row until the agent names it. A send slow enough to notice goes quiet
-          until the log takes it. One the server refuses leaves the words on this
-          passage, where opening the composer again finds them; the general box in
-          Threads gets them back in place.
+          Thread control at this passage. In Threads, three dots pulse in its title row
+          until the agent names it. A send slow enough to notice goes quiet until the
+          log takes it. One the server refuses leaves the words on this passage, where
+          opening the composer again finds them; the general box in Threads gets them
+          back in place.
         </p>
+      </section>
+
+      <section id="bg-thread-states" data-width="wide">
+        <h2>
+          <strong>Thread states</strong
+          ><span class="bg-feature-detail">: live before and after examples</span>
+        </h2>
+        <p id="bg-thread-states-guide" data-width="column">
+          These passages have real conversations in this gallery. Open Threads to
+          compare their title rows, then open a row to inspect its messages. The first
+          pair uses two sample conversations to show the title before and after naming.
+        </p>
+        <section id="bg-thread-state-titles">
+          <h3>Conversation title</h3>
+          <lf-grid id="bg-thread-title-pair" columns="1fr 1fr">
+            <section id="bg-thread-title-before">
+              <p class="eyebrow">Before · title pending</p>
+              <p id="bg-thread-pending">
+                <strong>A title still pending.</strong> The workshop schedule leaves
+                lunch open. Open Threads to view it. Its title shows three pulsing dots
+                until the agent gives the conversation a short name.
+              </p>
+            </section>
+            <section id="bg-thread-title-after">
+              <p class="eyebrow">After · title assigned</p>
+              <p id="bg-thread-text">
+                <strong>An existing conversation.</strong> The sample agenda has room
+                for one more topic. Its speech-bubble control carries a blue interior
+                and a blue glyph, and hovering it shows On you under the label. The
+                image question still needs an answer even though the agent added a later
+                progress update. Open the control and reply: the colour goes as the
+                thread comes back to the agent. The same reading fills the panel’s On
+                you filter and this target’s Page Map row.
+              </p>
+              <p id="bg-thread-media">
+                <strong>Pasted images.</strong> That conversation includes an image
+                supplied by its companion thread log, outside this document. Click the
+                image to inspect it in Leaf’s Image preview. Paste a screenshot into its
+                reply box to see the thumbnail Leaf keeps in the draft without exposing
+                image Markdown.
+              </p>
+            </section>
+          </lf-grid>
+        </section>
+        <section id="bg-thread-state-resolved">
+          <h3>Resolved</h3>
+          <p id="bg-resolved-text">
+            <strong>A resolved conversation.</strong> The room has a projector. Its
+            earlier question is resolved. Open Threads in the banner, select Resolved,
+            and try Reopen to bring its Thread control back to the page.
+          </p>
+        </section>
+        <section id="bg-thread-state-summary">
+          <h3>Summarized and unread</h3>
+          <p id="bg-thread-checkpoint">
+            <strong>A summarized discussion.</strong> The workshop planning conversation
+            keeps its earlier decisions in a summary. Open it in Threads, expand the
+            covered messages, and use the right-hand control to fold them again. The
+            latest exchange stays below the summary. Keyboard focus can reach both
+            disclosure controls.
+          </p>
+          <p id="bg-thread-unread">
+            <strong>Unread replies.</strong> The seeded agent replies start unread. Open
+            Threads and use Unread, or press u there, to reveal the earliest unread
+            reply, including one covered by a summary. A fully exposed short reply
+            leaves the count; scroll through a long reply to read all of it. New since
+            you last looked marks each current unread stretch, and a collapsed summary
+            counts its unread originals until you expand them. Mark thread read, also
+            reachable with m, marks the thread's current messages read, including
+            authored content and folded originals, and so does replying, answering, or
+            resolving it. A margin control whose thread holds unread replies carries the
+            same dot as Threads. On you still identifies a question that needs an
+            answer, even after it is read.
+          </p>
+        </section>
       </section>
 
       <section id="bg-reactions">
@@ -535,6 +576,60 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
           disclose more; a reaction mark stands only while its reaction does. Delivery
           statuses below report what already happened without offering another press.
         </p>
+        <h3>
+          <strong>Rail and pins</strong
+          ><span class="bg-feature-detail"
+            >: where a marker stands, and hiding them</span
+          >
+        </h3>
+        <p id="bg-margin-layer-guide">
+          <strong>Two postures; nothing moves.</strong> A marker beside prose stands in
+          the rail, 22px past the column. The schedule below is wider than the column
+          and carries a comment, so its marker stands on the schedule as a pin at its
+          top-right. Narrow the window below 863px and every marker becomes a pin. Press
+          <kbd>o</kbd> to hide what is drawn over the page, the pins and the passage
+          marks; the rail stays, and nothing on the page moves. Press it again to bring
+          them back.
+        </p>
+        <figure id="bg-margin-layer-figure" data-width="available">
+          <table id="bg-margin-layer-table">
+            <thead>
+              <tr>
+                <th>Session</th>
+                <th>Mon</th>
+                <th>Tue</th>
+                <th>Wed</th>
+                <th>Thu</th>
+                <th>Fri</th>
+                <th>Sat</th>
+                <th>Sun</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Practice</td>
+                <td>9:00</td>
+                <td>9:00</td>
+                <td>—</td>
+                <td>9:00</td>
+                <td>9:00</td>
+                <td>—</td>
+                <td>—</td>
+              </tr>
+              <tr>
+                <td>Debugging</td>
+                <td>13:30</td>
+                <td>—</td>
+                <td>13:30</td>
+                <td>—</td>
+                <td>13:30</td>
+                <td>—</td>
+                <td>—</td>
+              </tr>
+            </tbody>
+          </table>
+          <figcaption>The sample week, wider than the column.</figcaption>
+        </figure>
       </section>
 
       <section id="bg-readings">
@@ -980,6 +1075,72 @@ gallery/
               <p id="bg-tab-context-text">The earlier route crossed the courtyard.</p>
             </lf-tab>
           </lf-tabs>
+        </section>
+
+        <section id="bg-drawing">
+          <p class="eyebrow">svg.drawing</p>
+          <h3>
+            <strong>Drawing</strong
+            ><span class="bg-feature-detail">: a schematic in theme colours</span>
+          </h3>
+          <p id="bg-drawing-guide">
+            Two states of a sample page drawn alike in one frame. Switch the colour
+            scheme: every mark follows it.
+          </p>
+          <figure id="bg-drawing-figure" data-width="wide">
+            <svg
+              class="drawing"
+              viewBox="0 0 560 150"
+              role="img"
+              aria-labelledby="bg-drawing-title"
+            >
+              <title id="bg-drawing-title">
+                A note moves from the column into the right margin
+              </title>
+              <defs>
+                <marker
+                  id="bg-drawing-tip"
+                  viewBox="0 0 8 8"
+                  refX="7"
+                  refY="4"
+                  markerWidth="8"
+                  markerHeight="8"
+                  orient="auto"
+                >
+                  <path class="tip" d="M0 0 8 4 0 8z" />
+                </marker>
+              </defs>
+              <text class="strong" x="14" y="16">Before</text>
+              <rect class="frame" x="4" y="24" width="240" height="118" rx="6" />
+              <rect class="frame-head" x="4" y="24" width="240" height="14" rx="6" />
+              <rect class="line" x="24" y="52" width="160" height="6" rx="3" />
+              <rect class="line soft" x="24" y="64" width="140" height="6" rx="3" />
+              <rect class="box hot" x="24" y="80" width="160" height="22" rx="3" />
+              <text class="small" x="32" y="94">note</text>
+              <rect class="line soft" x="24" y="112" width="150" height="6" rx="3" />
+              <path class="arrow" d="M262 83H300" marker-end="url(#bg-drawing-tip)" />
+              <text class="strong" x="326" y="16">After</text>
+              <rect class="frame" x="316" y="24" width="240" height="118" rx="6" />
+              <rect class="frame-head" x="316" y="24" width="240" height="14" rx="6" />
+              <rect class="line" x="336" y="52" width="140" height="6" rx="3" />
+              <rect class="line soft" x="336" y="64" width="120" height="6" rx="3" />
+              <rect class="ghost" x="336" y="80" width="140" height="22" rx="3" />
+              <rect class="box hot" x="488" y="52" width="56" height="30" rx="3" />
+              <text class="small" x="496" y="70">note</text>
+              <line class="guide" x1="482" y1="46" x2="482" y2="134" />
+              <circle class="mark" cx="336" cy="120" r="7" />
+              <text class="glyph" x="336" y="120">1</text>
+              <circle class="ok" cx="356" cy="120" r="4" />
+              <circle class="warn" cx="370" cy="120" r="4" />
+              <circle class="danger" cx="384" cy="120" r="4" />
+              <rect class="highlight" x="396" y="116" width="40" height="8" rx="2" />
+              <line class="dim" x1="488" y1="92" x2="544" y2="92" />
+              <text class="mono" x="500" y="106">96px</text>
+            </svg>
+            <figcaption>
+              The margin exists only above 1152px; the drawing shows the wide case.
+            </figcaption>
+          </figure>
         </section>
 
         <section id="bg-quoted-and-visual">

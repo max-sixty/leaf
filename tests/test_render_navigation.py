@@ -68,6 +68,7 @@ from render_harness import (
     hold_selection,
     holding,
     leaf_page,
+    margins_laid_out,
     navigate,
     open_page,
     open_versions,
@@ -406,19 +407,24 @@ def test_a_pane_comment_stays_in_its_reading_region(browser, serve):
     page = open_page(browser, url)
     cluster = page.locator('[data-lf-margin-for="left-start"].lf-margin-cluster')
     expect(cluster).to_have_count(1)
-    expect(cluster).to_have_class(re.compile(r"\blf-docked\b"))
+    margins_laid_out(page)
+    # A pin in the pane's own lane, standing inside the pane's body and nothing of it in
+    # the pane beside it. The page's content holds none of the margin.
+    expect(cluster).to_have_attribute("data-lf-place", "pin")
     placement = cluster.evaluate(
         """el => ({
-          inOwner: document.querySelector('#left-reading > :not(header, footer)').contains(el),
-          inSibling: document.querySelector('#right-reading').contains(el),
+          inLane: Boolean(el.closest('.lf-margin-lane')),
+          inPage: Boolean(el.closest('main')),
           cluster: el.getBoundingClientRect().toJSON(),
           body: document.querySelector('#left-reading > :not(header, footer)')
             .getBoundingClientRect().toJSON(),
+          sibling: document.querySelector('#right-reading').getBoundingClientRect().toJSON(),
         })"""
     )
-    assert placement["inOwner"] and not placement["inSibling"], placement
+    assert placement["inLane"] and not placement["inPage"], placement
     assert placement["cluster"]["left"] >= placement["body"]["left"], placement
-    assert placement["cluster"]["right"] <= placement["body"]["right"], placement
+    assert placement["cluster"]["right"] <= placement["body"]["right"] + 6, placement
+    assert placement["cluster"]["right"] <= placement["sibling"]["left"], placement
 
     page.locator("#left-start .lf-mark-note").click()
     preview = page.locator(".lf-margin-preview")
@@ -1054,6 +1060,18 @@ def test_the_feature_gallery_exercises_the_injected_core_surfaces(
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
     expect(page.locator(".lf-thread-panel")).to_be_visible()
+    pending_title = page.locator(
+        '.lf-thread[data-id="72e031c5bf0d485ba9054628e09869d4"] .lf-thread-topic'
+    )
+    expect(page.locator("#bg-thread-states")).to_be_visible()
+    expect(pending_title).to_have_text("...")
+    expect(pending_title).to_have_attribute("aria-label", "Title pending")
+    dots = pending_title.locator(".lf-thread-pending-dot")
+    expect(dots).to_have_count(3)
+    animation = dots.first.evaluate(
+        "element => getComputedStyle(element).animationName"
+    )
+    assert animation != "none"
     expect(page.locator('[data-filter-value="resolved"]')).not_to_have_text("Resolved")
     page.locator(".lf-thread-filter-toggle").click()
     page.locator('[data-filter-value="resolved"]').click()
@@ -1475,7 +1493,7 @@ def test_a_thread_walk_card_keeps_its_margin_until_its_anchor_leaves(browser, se
     card = page.locator(".lf-margin-preview")
     expect(
         card.locator(
-            '.lf-conversation-thread[data-thread="2be2443f0bb6cc49fc86b52f340e6073"]'
+            '.lf-conversation-thread[data-thread="72e031c5bf0d485ba9054628e09869d4"]'
         )
     ).to_be_focused()
     owner = page.locator(
@@ -1539,7 +1557,7 @@ def test_a_pane_frame_comment_preview_is_not_confined_to_its_body(browser, serve
     )
     assert geometry["box"]["left"] >= 0, geometry
     assert geometry["box"]["right"] <= geometry["viewport"]["width"], geometry
-    # The card stands beside the header's docked cluster, above the body it would have
+    # The card stands beside the header's pinned cluster, above the body it would have
     # been clamped into had the body been its boundary.
     assert (
         geometry["box"]["left"] < geometry["pane"]["left"]
@@ -2756,8 +2774,12 @@ def test_the_thread_walk_stays_inline_until_threads_is_opened(browser, serve):
     )
     assert position_is_front(), "the margin thread painted over its walk position"
 
+    # The rail falling leaves the card up beside the marker's pin; the walk goes on from
+    # there once the user has let the thread go.
     resized(page, 600, 844)
-    page.keyboard.press("Escape")
+    expect(page.locator(".lf-margin-preview")).to_be_visible()
+    page.keyboard.press("Escape")  # onto the passage, the card beside it
+    page.keyboard.press("Escape")  # letting go of the passage takes the card
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
     page.keyboard.press("t")
     expect(first).to_be_focused()

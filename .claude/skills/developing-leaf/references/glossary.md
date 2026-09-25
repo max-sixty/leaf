@@ -72,16 +72,17 @@ item.
 |---|---|
 | **Page shell** | The body-level responsive sizing envelope after chrome reservations |
 | **Content frame** | `body > main`, the root of authored content and its reading column in flow posture |
+| **Wide page** | A content frame that declares its own width (`main[data-width]`), or whose only block is a workspace: every block starts at one left edge and takes the page's width, while text keeps the reading measure. It is a width, not a separate kind of page |
 | **Frame** | A box whose size comes from outside it: `main`, a root tab panel, a workspace, a pane, a grid cell, or any box declaring `--lf-block-frame: 1`. What it holds takes the frame's width, never the page's room |
 | **Grid** | `lf-grid`, which places its direct children in two dimensions |
 | **Cell** | A direct child of a grid; a frame |
 | **Text** and **surface** | How a block uses its frame's width: text keeps the reading measure, a surface (`x-measure: surface`, or `x-space` past the column) fills the frame; a group (`x-measure: group`) passes the measure to what it holds |
 | **Bounded block** | A block that holds its own height and scrolls inside it (`x-bound`, `data-bound`); not a reading region |
-| **Workspace** | An authored structural composition that keeps task regions together |
+| **Workspace** | An authored structural composition that keeps task regions together; as `main`'s only block, or a root tab's, it is the **root workspace** and holds the window |
 | **Pane** | One reading region in a workspace: an optional header, exactly one body element, an optional footer |
 | **Reading region** | A stable semantic place used by navigation and reading-position recovery |
 | **Effective reading scroller** | The scroll container currently governing one reading region |
-| **Pinned cover** | A sticky box declared through `declareCoverRoom` that stands over an edge of the scroller it sticks in, such as a thread-list run heading, an `lf-diff` file header, or a root `lf-tabs` strip. What passes under it is not on screen, and a landing arrives clear of it |
+| **Sticky cover** | A sticky box declared through `declareCoverRoom` that stands over an edge of the scroller it sticks in, such as a thread-list run heading, an `lf-diff` file header, or a root `lf-tabs` strip. What passes under it is not on screen, and a landing arrives clear of it |
 | **Reading posture** | Whether a region's body scrolls on its own (`bounded`) or the region is carried by its container (`flow`); a root workspace's container query decides, and the runtime reads the result |
 
 A root `lf-tabs` and an embedded `lf-tabs` remain the same element type; placement
@@ -97,14 +98,14 @@ A compound widget may own reading regions without being a pane.
 | **Chrome** | Runtime-owned interface outside authored content, rooted at the one `.lf-chrome` container |
 | **Banner** | The persistent chrome row carrying page status and the primary Approval and Threads controls, with secondary global controls in its overflow disclosure. While a user's gesture holds a next step, such as Comment on selection after a touch selection, that step stands on the row in Approval and Threads' place |
 | **Auxiliary surface** | Chrome opened `beside`, `over`, or `covering` the content frame |
-| **Thread panel** | The right-side auxiliary surface containing threads; it stands over a column page and takes no width from it, stands beside a sheet, which yields it a strip, and covers either only where it leaves less than a usable page beside it |
-| **Tray** | A mutually exclusive auxiliary surface admitted by the one left-side tray position; the Asks tray stands beside the content frame, which yields it a strip, and covers it only where it leaves less than a usable page beside it, as the thread panel does; the Leaves tray always covers |
+| **Thread panel** | The right-side auxiliary surface containing threads; it stands over the page and takes no width from it, and covers the page only where it leaves less than a usable page beside it |
+| **Tray** | A mutually exclusive auxiliary surface admitted by the one left-side tray position; the Asks tray stands over the page as the thread panel does, and the Leaves tray always covers |
 
 The current trays are the **Asks tray** and **Leaves tray**. Use *covering auxiliary
 surface*, not *modal workspace*: a covering surface and a modal dialog are different
 web interaction primitives. A covering surface makes the page inert behind it; a surface
 over the page, such as the thread panel on a desktop window, takes no width from
-it and leaves it live. A covering surface covers the content frame; a **pinned cover**
+it and leaves it live. A covering surface covers the content frame; a **sticky cover**
 stands over one edge of one scroller, and nothing about it is modal.
 
 ## Page Map and the margin
@@ -121,14 +122,18 @@ The margin projection has a separate registration and layout hierarchy:
 
 | Term | Identity criterion |
 |---|---|
-| **Rail** | The right-hand lane and shell reservation used when the margin projection stands beside content |
-| **Margin row** | One target-anchored geometry participant whose placement is `rail`, `docked`, or `withheld` |
+| **Rail** | The right-hand strip a column page reserves beside its column, where margin rows stand beside their targets |
+| **Pin** | A margin row standing over the page inside the top-right corner of its target's block, where no rail stands: the page declared none, the shell is too narrow, or the target sits in a pane that scrolls on its own |
+| **Margin row** | One target-anchored geometry participant whose placement is `rail`, `pin`, or `withheld` |
+| **Margin lane** | The layer holding the margin rows of one scroller: the root lane for the document, one lane per bounded reading region, clipped to what that region shows |
+| **Contributed control** | A margin entry a package puts in a target's cluster, such as a suggestion's Accept and Reject |
 | **Margin cluster** | The visible group attached to one target |
 | **Margin contribution** | One provider's registered bundle of margin content |
 | **Margin entry** | One ranked action, disclosure, or status in a contribution |
 
-*Withheld* means no spatial allocation is currently available; it does not imply that
-time alone will make the entry appear.
+*Withheld* means the row's target shows no part of itself in its region: a closed
+`details`, an inactive tab, or a pane scrolled past it. A withheld row is out of the tab
+order; it does not imply that time alone will make the entry appear.
 
 ## Contents outline
 
@@ -149,6 +154,7 @@ spine instead.
 | **Scope** | A registered command-applicability and shadowing boundary |
 | **Design mode** | The `l` interaction that reinterprets input for interface comments until the user exits |
 | **Draw mode** | The `w` interaction that reinterprets pointer input as a drawing until the user exits |
+| **Annotation layer** | Everything Leaf draws over the page's content: the margin rows standing as pins, the durable marks on commented and reacted passages with their contours, an open card, an unfolded cluster. The rail covers nothing and is not part of it. `o` toggles whether it shows, as tab view state rather than a mode |
 | **Go-to sequence** | The `g` prefix grammar that builds a current map of Go-to targets, paints transient hint codes, and resolves complete ordered addresses |
 | **Target chooser** | The `s` interaction that presents addressable elements and ends when the user chooses one or closes it |
 | **Page search** | The `/` interaction that filters or walks text matches for a query |
@@ -165,7 +171,8 @@ spine instead.
 | **Binding badge** | A key badge showing a command's currently resolved binding |
 
 Reserve *mode* for Design mode and Draw mode, which persist until explicit exit. `g`
-opens a sequence and `s` opens a chooser. A scope is the command-resolution mechanism
+opens a sequence, `s` opens a chooser, and `o` is a toggle: it changes what the page
+shows, not what input means. A scope is the command-resolution mechanism
 that these interactions may make applicable. Commands have stable dotted ids; bindings
 are canonical normalized chords matched against keyboard events.
 

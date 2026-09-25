@@ -5,8 +5,8 @@
    and the inline thread card per target, then supplies the complete target projection to
    `page-map-dialog.js`. `margin-entries.js` owns the public control grammar and contribution
    registry; `margin-cluster-view.js` owns retained control materialization and Lit child
-   order; `margin-layout.js` owns row measurement, responsive docking, packing,
-   and collision bands.
+   order; `margin-layout.js` owns where each row stands: its lane, its posture in the rail
+   or as a pin, and the packing that keeps rows clear of one another.
 
    `margin-model.js` derives the immutable inventory and cluster selection; its public
    records carry target coordinates, captured contribution readings, and generated facts.
@@ -57,13 +57,13 @@
 
    One constructed owner holds margin layout, retained controls, and preview state.
    Boot supplies version, map, travel, and semantic thread-render capabilities.
-   mount reserves the rail and binds the lifecycle after those owners exist; every
+   mount hands the layer to the layout and binds the lifecycle after those owners exist; every
    later render reads the same bound capabilities, including event-driven repaints. */
 import { cancelRender, nextRender, sizeObserver } from "./rendering.js";
 import { labelWords, spokenSubject } from "./margin-entry-model.js";
 import {
+  mountMarginLayer,
   registerMarginRow,
-  reserveRail,
   scheduleMarginEntryLabels,
   scheduleMarginLayout,
   unregisterMarginRow,
@@ -106,7 +106,6 @@ import {
 import { compareMarginContributions } from "./margin-entry-model.js";
 import { mapButton } from "./page-map-dialog.js";
 import { watchProjection } from "./projection-watch.js";
-import { documentPoint, shownBox, shownParts } from "./geometry.js";
 import { declareRelease, focusDestination, letGo } from "./focus.js";
 import { el, keeps, keepsHidden, offer } from "./widget-elements.js";
 import { clampedRow, PRESS } from "./keyboard/bindings.js";
@@ -121,14 +120,19 @@ import {
 } from "./reading-regions.js";
 
 import { focused, keys, paintKeys } from "./keyboard/scopes.js";
-import { pageRung, pageScope } from "./keyboard/register.js";
+import { pageCommand, pageRung, pageScope } from "./keyboard/register.js";
+import {
+  annotationsHidden,
+  setAnnotationsHidden,
+  watchAnnotations,
+} from "./annotation-layer.js";
 import { repaint } from "./repaint.js";
 import { chromeRoot } from "./chrome.js";
 import { versionBtn } from "./version-chooser.js";
 import { motion, scrollBehavior } from "./motion.js";
 import { panel } from "./conversation/panel-elements.js";
 import { accompanyThread } from "./conversation/landing.js";
-import { blockAt, closestAcross, elementById, inChrome } from "./passages.js";
+import { closestAcross, elementById, inChrome } from "./passages.js";
 import { addressableSays, addressableWord, visualAt } from "./anchor-resolution.js";
 import { paintTrace } from "./target-paint.js";
 import { updateSequence } from "./updates.js";
@@ -158,30 +162,6 @@ import {
 } from "./conversation/workflow.js";
 import { renderedParent, under } from "./shadow.js";
 import { retainUserIntent } from "./user-intent.js";
-
-// Whether the margin's rail stands, as the stylesheet decided it: theme.css states the
-// posture on `main` where it claims the rail, and this reads that answer rather than
-// deriving one of its own from a width. It resolves a container query, so a read after a
-// write forces layout, and the layout pass calls it from inside its write loops, once
-// per row. So the answer is read once per task and reused: a pass is synchronous, and
-// nothing it writes can change the reading, since the claim comes out of `main`'s room
-// inside the shell while the container answers on the shell itself. The microtask that
-// clears it runs before anything outside the pass can ask.
-const readRailPosture = () => {
-  const main = document.querySelector("main");
-  return (
-    Boolean(main) &&
-    getComputedStyle(main).getPropertyValue("--lf-rail-posture").trim() === "margin"
-  );
-};
-let railReading = null;
-const railStands = () => {
-  if (railReading === null) {
-    railReading = readRailPosture();
-    queueMicrotask(() => (railReading = null));
-  }
-  return railReading;
-};
 
 export function createMarginProjection({
   panelIsOpen,
@@ -301,57 +281,6 @@ export function createMarginProjection({
   );
   nav.append(toolbar);
 
-  function measureMargin(
-    columnRect = document.querySelector("main")?.getBoundingClientRect(),
-  ) {
-    const main = document.querySelector("main");
-    if (!main || !columnRect) return;
-    const at = documentPoint(columnRect.left, columnRect.top);
-    const height = main.scrollHeight;
-    return () => {
-      const dimensions = {
-        left: `${at.left}px`,
-        top: `${at.top}px`,
-        width: `${columnRect.width}px`,
-        height: `${height}px`,
-      };
-      for (const [property, value] of Object.entries(dimensions))
-        if (nav.style[property] !== value) nav.style[property] = value;
-    };
-  }
-
-  // Where focus was when it last moved, rather than where it is. The rail falling hides
-  // the control holding it, and the browser takes focus off a hidden element itself,
-  // onto body — sometimes before this owner hears that the shell moved and sometimes
-  // after, since what decides it is whether the focus fixup lands before the resize
-  // observation. Measured on the live reading alone, a held marker reached the Page Map
-  // on four of five narrowings and body on the fifth. A blur to nothing writes nothing
-  // here, so the remembered reading survives the hide.
-  let marginHeld = false;
-  const holdsMargin = () =>
-    toolbar.contains(document.activeElement) ||
-    preview.contains(document.activeElement);
-  document.addEventListener(
-    "focusin",
-    () => {
-      marginHeld = holdsMargin();
-    },
-    { capture: true },
-  );
-
-  function changePosture(stands) {
-    if (!stands && previewOpen()) closePreview();
-    // Both orderings answer: where the fixup has not landed the live reading holds, and
-    // where it has, the remembered one does. Requiring body of the remembered reading
-    // bounds the handoff to the hide — a user who left the margin some other way,
-    // with no `focusin` to land anywhere, keeps wherever they went.
-    if (
-      !stands &&
-      (holdsMargin() || (marginHeld && document.activeElement === document.body))
-    )
-      nextRender(() => focusMapControl());
-    schedulePostureRender();
-  }
   // The card is the margin's, as the cluster it hangs from is, rather than a layer over
   // the page: a top-layer popover made every press on the page a light dismissal and
   // tiered the keyboard over it, so standing on the passage it discusses took it down.
@@ -534,7 +463,6 @@ export function createMarginProjection({
         .filter((workflow) => workflow && isWorkflowProgress(workflow)),
     );
   const rows = new Map();
-  const rowTops = new WeakMap();
   const moreMarginEntries = new Map();
   const readingMarginEntries = new Map();
   const hosts = new Map();
@@ -630,7 +558,7 @@ export function createMarginProjection({
     keeps(control, "aria-controls", disclosed.id);
     keeps(control, "aria-expanded", disclosed.open);
   }
-  let postureFrame = 0;
+  let widthFrame = 0;
   let previewPositionFrame = 0;
   let previewPositionDismissDetached = false;
   let previewReferenceSeen = false;
@@ -660,10 +588,10 @@ export function createMarginProjection({
     preview.style.opacity = "0";
     preview.style.pointerEvents = "none";
   }
-  function schedulePostureRender() {
-    if (postureFrame) return;
-    postureFrame = nextRender(() => {
-      postureFrame = 0;
+  function scheduleWidthRender() {
+    if (widthFrame) return;
+    widthFrame = nextRender(() => {
+      widthFrame = 0;
       renderMargin.refresh();
     });
   }
@@ -1129,45 +1057,15 @@ export function createMarginProjection({
     notice(account);
   }
 
-  function markerOptions(row) {
+  // Every row lives in the chrome's margin layer, whatever it holds, and the layout owns
+  // where: which lane, in which posture, at what offset (margin-layout.js). The row states
+  // its target and its place among the others.
+  function markerOptions(row, order) {
     return {
       anchor: () => targetFor(row.lfEntry),
-      ...(row.lfEntry?.offers.length || readingRegionFor(targetFor(row.lfEntry))
-        ? {}
-        : { fallback: "hide" }),
+      order,
       priority: 10,
-      shown: (target) =>
-        Boolean(target && shownParts(target).some((part) => part.checkVisibility())),
-      // The compact margin projection has no page rail. Dock every contributed entry even when a
-      // positioned widget happens to leave enough local room for the absolute
-      // prototype; that accident must not give one nested target a desktop posture.
-      hangs: () => !readingRegionFor(targetFor(row.lfEntry)) && railStands(),
-      // A wide row is hoisted into main's positioning context. If its live width no
-      // longer fits the rail, move the same node beside its target before static flow
-      // takes over; restore the hoist before measuring whether it fits again.
-      float: (item) => {
-        if (item.lfEntry?.offers.length || readingRegionFor(targetFor(item.lfEntry)))
-          moveExternalHost(item, false);
-      },
-      dock: (item) => {
-        if (item.lfEntry?.offers.length || readingRegionFor(targetFor(item.lfEntry)))
-          moveExternalHost(item, true);
-      },
-      place: (item, column) => {
-        const target = targetFor(item.lfEntry);
-        if (!target || item.classList.contains("lf-docked")) return;
-        const place = nav.contains(item) ? measureMargin(column) : null;
-        const top = Math.max(0, shownBox(target).top - column.top);
-        return () => {
-          place?.();
-          // Compare measured coordinates before CSS serialization rounds them. A
-          // repeated fractional value must not mutate the row on every heartbeat.
-          if (rowTops.get(item) !== top) {
-            item.style.top = `${top}px`;
-            rowTops.set(item, top);
-          }
-        };
-      },
+      move: (into) => moveHost(row, into),
     };
   }
 
@@ -1184,9 +1082,13 @@ export function createMarginProjection({
     return `${reading}, ${index + 1} of ${anchored}${position == null ? "" : `, ${Math.max(0, Math.min(100, position))} percent down`}, ${spokenSubject(subject)}`;
   }
 
+  // A row hidden with the annotation layer is not one the keyboard can land on either.
   function availableRows() {
     return [...rows.values()].filter(
-      (row) => !row.hidden && !row.closest(".lf-withheld") && row.checkVisibility(),
+      (row) =>
+        !row.hidden &&
+        !row.closest(".lf-withheld") &&
+        row.checkVisibility({ visibilityProperty: true }),
     );
   }
 
@@ -1274,6 +1176,7 @@ export function createMarginProjection({
   }
 
   function focusForNavigation(control) {
+    reveal(control);
     const wasSuppressingOptionsArrival = suppressingOptionsArrival;
     suppressingOptionsArrival = true;
     try {
@@ -1444,6 +1347,76 @@ export function createMarginProjection({
     );
   }
 
+  // `o`: the annotation layer (annotation-layer.js). Hiding it takes off what it hides
+  // that the user could be standing in: the card closes through its ordinary close, an
+  // unfolded cluster folds, and focus held by a pin goes to the pin's target, since the
+  // browser would otherwise put it on body. An explicit request still shows what it asks
+  // for without bringing the layer back: `t`, a Threads row and a Page Map pick open the
+  // card at their target, and an arrival that walks to a target or to one of its row's
+  // controls (`a`, `focusForNavigation`) shows that one row, so what decides the target
+  // is in reach, until the user stands somewhere else. Tabbing or pressing onto a target
+  // reveals nothing: the layer stays as the user left it.
+  let revealed = null;
+  function revealHost(host) {
+    const shows = annotationsHidden() && host?.dataset.lfPlace === "pin" ? host : null;
+    if (shows === revealed) return;
+    revealed?.removeAttribute("data-lf-revealed");
+    revealed = shows;
+    revealed?.setAttribute("data-lf-revealed", "");
+  }
+  // The row a node stands in, or the row of the innermost target holding it.
+  function standingHost(node) {
+    const own = closestAcross(node, ".lf-margin-cluster");
+    if (own) return own;
+    let found = null;
+    for (const host of hosts.values())
+      if (
+        host.lfTarget &&
+        under(node, host.lfTarget) &&
+        (!found || under(host.lfTarget, found.lfTarget))
+      )
+        found = host;
+    return found;
+  }
+  const reveal = (node) => revealHost(annotationsHidden() ? standingHost(node) : null);
+  document.addEventListener(
+    "focusin",
+    (event) => {
+      if (
+        revealed &&
+        !revealed.contains(event.target) &&
+        !(revealed.lfTarget && under(event.target, revealed.lfTarget))
+      )
+        revealHost(null);
+    },
+    { capture: true },
+  );
+  watchAnnotations((hidden) => {
+    if (hidden) {
+      const holding = closestAcross(document.activeElement, ".lf-margin-cluster");
+      if (holding?.dataset.lfPlace === "pin" && holding.lfTarget?.isConnected)
+        focusDestination(holding.lfTarget);
+      if (previewOpen()) closePreview();
+      expandedOptionsKey = null;
+      expandedOptionsOwner = null;
+    }
+    revealHost(null);
+    renderMargin.refresh();
+    repaint();
+  });
+  pageCommand({
+    id: "annotations.toggle",
+    keys: ["o"],
+    does: "Hide or show the annotations drawn over the page",
+    line: () => (annotationsHidden() ? "show annotations" : "hide annotations"),
+    run: () => {
+      setAnnotationsHidden(!annotationsHidden());
+      notice(
+        annotationsHidden() ? "Annotations hidden. o shows them" : "Annotations shown",
+      );
+    },
+  });
+
   let marginKeysAvailable = false;
   const marginKeys = [
     {
@@ -1536,57 +1509,6 @@ export function createMarginProjection({
       delete row.lfTakeFocus;
       (row.hidden ? document.body : row).focus({ preventScroll: true });
     }
-  }
-
-  function externalPerch(target, main, flow) {
-    if (!main) return target;
-    // A hanging item must be a child of main's own positioning context. An item in a
-    // reading region stays in that region's flow, immediately after its target's block.
-    // A declared shadow tree contributes through its host, where document CSS can reach
-    // the controls.
-    const inFlow = flow || Boolean(readingRegionFor(target));
-    let perch = inFlow ? (blockAt(target) ?? target) : target;
-    while (!main.contains(perch)) {
-      const root = perch.getRootNode();
-      if (!(root instanceof ShadowRoot)) return target;
-      perch = root.host;
-    }
-    if (inFlow) return inBlockFlow(perch);
-    while (perch.parentElement !== main && main.contains(perch.parentElement))
-      perch = perch.parentElement;
-    return perch;
-  }
-
-  // A parent that lays its children out as items, such as a pane around its one body
-  // element or an Ask holding a heading and a playground, would take an item hung after
-  // one of them as one more item, so there the item hangs after the block's own last
-  // content instead. A block with no light content to follow keeps the sibling place.
-  function inBlockFlow(block) {
-    const parent = block.parentElement;
-    if (!parent || !/grid|flex/.test(getComputedStyle(parent).display)) return block;
-    let last = block.lastChild;
-    while (last?.matches?.(".lf-margin-cluster[data-lf-external]"))
-      last = last.previousSibling;
-    return last ?? block;
-  }
-
-  function moveExternalHost(host, flow) {
-    const main = document.querySelector("main");
-    const target = targetFor(host.lfEntry);
-    if (!main || !target || !railStands()) return;
-    const perch = externalPerch(target, main, flow);
-    let after = perch;
-    for (const entry of pageInventory) {
-      const candidate = hosts.get(entry.key);
-      if (candidate === host) break;
-      if (
-        candidate?.isConnected &&
-        externalPerch(targetFor(entry), main, flow) === perch &&
-        candidate.parentNode === perch.parentNode
-      )
-        after = candidate;
-    }
-    if (after.nextSibling !== host) moveHost(host, () => after.after(host));
   }
 
   function materializeReadingItem({ entry, choice }) {
@@ -1790,8 +1712,8 @@ export function createMarginProjection({
 
   function moveHost(host, move) {
     const held = host.contains(document.activeElement) ? document.activeElement : null;
-    // Moving a focused expanded cluster between the hanging rail and document flow
-    // synchronously emits focusout. That is a placement transition, not the user
+    // Moving a focused expanded cluster between lanes, when its target's scroller
+    // changes, synchronously emits focusout. That is a placement transition, not the user
     // leaving the cluster, so keep the options state machine from treating it as an
     // instruction to fold the controls it just exposed — and say the same thing to every
     // other reader of where the user stands, which is what `placingChrome` is for.
@@ -1850,8 +1772,6 @@ export function createMarginProjection({
     const main = document.querySelector("main");
     if (!nav.isConnected) chromeRoot.append(nav);
     const mainRect = main?.getBoundingClientRect();
-    const flow = !railStands();
-    measureMargin(mainRect)?.();
     syncInlineOffers();
     pageInventory = collectEntries();
     const liveHosts = new Set(
@@ -1878,10 +1798,8 @@ export function createMarginProjection({
         moreMarginEntries.delete(key);
         hosts.delete(key);
       }
-    const externalDocks = new Map();
     const nextWorkflowCarriers = new Set();
-    let corePosition = 0;
-    pageInventory.forEach((entry) => {
+    pageInventory.forEach((entry, order) => {
       if (!entryHasMarginHost(entry)) return;
       let marker = rows.get(entry.key);
       let more = moreMarginEntries.get(entry.key);
@@ -1987,8 +1905,19 @@ export function createMarginProjection({
         );
         moreMarginEntries.set(entry.key, more);
         hosts.set(entry.key, host);
-        registerMarginRow(host, markerOptions(host));
-      } else updateMarginRow(host, markerOptions(host));
+        registerMarginRow(host, markerOptions(host, order));
+      } else updateMarginRow(host, markerOptions(host, order));
+      // Parked in the root lane, in the inventory's order and off screen until the layout
+      // pass anchors it, so the controls it renders are in the document, and in the tab
+      // order where they belong, from their first render.
+      if (!host.isConnected)
+        toolbar.insertBefore(
+          host,
+          pageInventory
+            .slice(order + 1)
+            .map((later) => hosts.get(later.key))
+            .find((later) => later?.parentElement === toolbar) ?? null,
+        );
       host.lfEntry = entry;
       host.lfTarget = targetFor(entry);
       marker.lfEntry = entry;
@@ -2008,20 +1937,6 @@ export function createMarginProjection({
         expandedOptionsOwner = null;
       }
       const primary = presentCluster(host, marker, more, entry, projection, focus);
-      if (entry.offers.length || readingRegionFor(targetFor(entry))) {
-        keeps(host, "data-lf-external", "1");
-        const perch = externalPerch(targetFor(entry), main, flow);
-        const dock = externalDocks.get(perch) ?? perch;
-        if (dock.nextSibling !== host) moveHost(host, () => dock.after(host));
-        externalDocks.set(perch, host);
-      } else {
-        delete host.dataset.lfExternal;
-        if (toolbar.children[corePosition] !== host)
-          moveHost(host, () =>
-            toolbar.insertBefore(host, toolbar.children[corePosition] ?? null),
-          );
-        corePosition += 1;
-      }
       if (primary && entry.workflowCarrier) {
         syncMarginAgentWorkflow(primary, entry.workflowReceipt);
         nextWorkflowCarriers.add(primary);
@@ -2832,7 +2747,7 @@ export function createMarginProjection({
   // the version chooser, then its own parts in the root.
 
   function mount() {
-    reserveRail();
+    mountMarginLayer(toolbar);
     onPaper.addEventListener("change", () => {
       if (!onPaper.matches) renderMargin.refresh();
     });
@@ -2891,18 +2806,9 @@ export function createMarginProjection({
     );
     window.addEventListener("resize", () => {
       scheduleThreadPreviewPosition();
-      schedulePostureRender();
+      scheduleWidthRender();
     });
     renderMargin();
-    // The rail stands or falls with the shell, which a resize moves. The repaint that follows a flip waits a frame, since this
-    // observer must not move body itself.
-    let railStood = railStands();
-    sizeObserver(() => {
-      const stands = railStands();
-      if (stands === railStood) return;
-      railStood = stands;
-      changePosture(stands);
-    }).observe(document.body);
     chromeRoot.append(nav, preview);
     if (!previewRegionMounted) {
       previewRegionMounted = true;

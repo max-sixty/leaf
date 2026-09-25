@@ -145,13 +145,27 @@ WORKSPACE_PAGE = leaf_page(
   <footer>2 items</footer>
 </lf-workspace>
 """,
-    width="available",
 )
 
 
 def test_a_root_workspace_bounds_independent_regions_and_flows_when_it_cannot_fit(
     browser, serve
 ):
+    """A page whose only block is a workspace is a wide page with no width declared on
+    main: the workspace stands where it stands on a page that declares one, title
+    included, and takes the window's height below the banner."""
+    frame = """() => {
+      const box = document.getElementById('review-workspace').getBoundingClientRect();
+      const title = document.querySelector('#review-workspace h1');
+      return [box.left, box.width, getComputedStyle(title).fontSize];
+    }"""
+    declared = open_page(
+        browser,
+        serve(WORKSPACE_PAGE.replace("<main>", '<main data-width="available">')),
+    )
+    resized(declared, 1280, 720)
+    wide = declared.evaluate(frame)
+    declared.close()
     page = open_page(browser, serve(WORKSPACE_PAGE))
     resized(page, 1280, 720)
     workspace = page.locator("#review-workspace")
@@ -161,6 +175,8 @@ def test_a_root_workspace_bounds_independent_regions_and_flows_when_it_cannot_fi
 
     pane_posture(page, queue_pane, "bounded")
     holds_the_window(page, workspace, True)
+    assert page.evaluate(frame) == wide
+    assert wide[1] > 1080, wide
     assert page.evaluate("() => document.scrollingElement.scrollTop") == 0
     readings = page.evaluate(
         """() => {
@@ -924,10 +940,9 @@ def test_the_page_end_clears_the_bottom_chrome_around_a_workspace(browser, serve
 
 
 def test_a_comment_in_a_pane_leaves_its_grammar_whole(browser, serve):
-    """With the rail down, a comment's controls hang beside the block they serve. A
-    pane whose one body element is that block would take a sibling as a second body,
-    so the controls hang at the end of the block instead and the pane keeps scrolling
-    its one body."""
+    """A comment in a pane stands as a pin in the pane's own lane, over the block it
+    serves. Leaf inserts nothing into the pane, so a pane whose one body element is that
+    block keeps it as its one body and goes on scrolling it."""
     source = leaf_page(
         "a comment in a pane",
         """
@@ -949,7 +964,10 @@ def test_a_comment_in_a_pane_leaves_its_grammar_whole(browser, serve):
         page.keyboard.press("ControlOrMeta+Enter")
     page.keyboard.press("Escape")
     page.keyboard.press("Escape")
-    expect(page.locator("#only > .lf-margin-cluster")).to_have_count(1)
+    row = page.locator('.lf-margin-lane > [data-lf-margin-for="only"]')
+    expect(row).to_have_count(1)
+    expect(row).to_have_attribute("data-lf-place", "pin")
+    expect(page.locator("#held-pane .lf-margin-cluster")).to_have_count(0)
     expect(page.locator("#held-pane > *")).to_have_count(1)
     pane_posture(page, page.locator("#held-pane"), "bounded")
 
@@ -1004,8 +1022,8 @@ def test_regions_inside_a_bounded_pane_body_flow_within_the_body_that_scrolls(
     }
 
 
-def test_a_release_page_is_a_sheet_and_keeps_the_log_on_its_newest_line(browser, serve):
-    """A sheet of two tracks: the lede starts at the sheet's edge and keeps the reading
+def test_a_release_page_is_wide_and_keeps_the_log_on_its_newest_line(browser, serve):
+    """A wide page of two tracks: the lede starts at the page's edge and keeps the reading
     measure, every region of the body shares the body's two edges and every region of
     the rail the rail's, and the checks table fills its panel. On a narrow window the
     rail stacks under the body, and the bounded log opens on its newest line. Paper
@@ -1021,18 +1039,18 @@ def test_a_release_page_is_a_sheet_and_keeps_the_log_on_its_newest_line(browser,
         ?? document.querySelector(id)).getBoundingClientRect().toJSON()]))"""
 
     wide = page.evaluate(boxes)
-    sheet = wide["main"]
-    assert sheet["width"] > 1080, "the sheet should take the room past the wide width"
-    assert wide["lp-layout"]["width"] == pytest.approx(sheet["width"], abs=1)
-    assert wide["lp-lede"]["left"] == pytest.approx(sheet["left"], abs=1)
+    page_box = wide["main"]
+    assert page_box["width"] > 1080, "the page should take the room past the wide width"
+    assert wide["lp-layout"]["width"] == pytest.approx(page_box["width"], abs=1)
+    assert wide["lp-lede"]["left"] == pytest.approx(page_box["left"], abs=1)
     assert wide["lp-lede"]["width"] <= 720 + 1
     for track in (body, rail):
         for edge in ("left", "right"):
             assert {round(wide[i][edge]) for i in track} == {
                 round(wide[track[0]][edge])
             }
-    assert wide["lp-status"]["left"] == pytest.approx(sheet["left"], abs=1)
-    assert wide["lp-steps"]["right"] == pytest.approx(sheet["right"], abs=1)
+    assert wide["lp-status"]["left"] == pytest.approx(page_box["left"], abs=1)
+    assert wide["lp-steps"]["right"] == pytest.approx(page_box["right"], abs=1)
     assert wide["lp-log"]["right"] < wide["lp-steps"]["left"]
     assert wide["lp-checks-table"]["width"] > wide["lp-checks"]["width"] - 48
     listing = page.locator("#lp-live-log pre")
@@ -1113,6 +1131,172 @@ def test_a_grid_cell_is_a_frame_that_holds_text_to_the_measure_and_lets_a_surfac
           const b = document.getElementById('broad-cell').getBoundingClientRect();
           return b.top >= a.bottom && a.width === b.width; }"""
     )
+
+
+# Templates the `columns` pattern admits, integer and not: two to six tracks, decimals.
+STACKING_TEMPLATES = [
+    "2fr 1fr",
+    "3fr 2fr",
+    "5fr 3fr",
+    "1.5fr 1fr 1fr",
+    "2fr 1fr 1fr 1fr 1fr 1.5fr",
+]
+STACKING_CODE = '<lf-code id="{id}" language="python"><pre>x = 1</pre></lf-code>'
+STACKING_PAGE = leaf_page(
+    "Templates stack at their own width",
+    "<h1>Stacking</h1>"
+    + "".join(
+        f'<div id="holder-{i}" style="font-size: 13px">'
+        f'<lf-grid id="stack-{i}" columns="{template}">'
+        + "".join(f"<p>Cell {j}</p>" for j in range(len(template.split())))
+        + "</lf-grid></div>"
+        for i, template in enumerate(STACKING_TEMPLATES)
+    )
+    + '<div style="font-size: 13px"><lf-grid id="outer" columns="2fr 1fr">'
+    '<lf-grid id="inner" columns="3fr 2fr"><p id="inner-a">A</p><p>B</p></lf-grid>'
+    "<p>Beside</p></lf-grid>"
+    # A cell sized in em, and a widget whose rendered face takes `font: inherit`,
+    # beside the same widget outside any grid.
+    '<lf-grid id="sized" columns="2fr 1fr">'
+    '<p id="em-cell" style="font-size: 0.5em">Half</p>'
+    + STACKING_CODE.format(id="code-cell")
+    + "</lf-grid>"
+    + STACKING_CODE.format(id="code-alone")
+    + "</div>",
+)
+
+
+def test_a_template_stacks_where_its_narrowest_track_would_fall_below_the_grid_min(
+    browser, serve
+):
+    """Each template stacks at its own width: the floor a counted grid's column takes
+    (14rem) for each narrowest track it is wide, plus its gaps. A pixel wider, its tracks
+    stand side by side with the narrowest at the floor or more; a pixel narrower, every
+    cell takes the row. `3fr 2fr` and `5fr 3fr` once stacked at `2fr 1fr`'s width.
+    Stacking touches nothing a cell inherits: a cell sized in em, and a widget that
+    inherits its font, read the type size of what holds the grid."""
+    context = browser.new_context(viewport={"width": 1600, "height": 1000})
+    page = open_page(browser, live_url(serve(STACKING_PAGE)), context=context)
+    shape = """(id) => {
+      const grid = document.getElementById(id);
+      const cells = [...grid.children].map((cell) => cell.getBoundingClientRect());
+      return {
+        oneRow: cells.every((cell) => Math.abs(cell.top - cells[0].top) < 1),
+        stacked: cells.every((cell, i) => i === 0 || cell.top >= cells[i - 1].bottom),
+        narrowest: Math.min(...cells.map((cell) => cell.width)),
+        font: getComputedStyle(grid.children[0]).fontSize,
+      };
+    }"""
+
+    def reading(grid, width):
+        page.evaluate(
+            "([id, width]) => document.getElementById(id).style.width = `${width}px`",
+            [grid, width],
+        )
+        rendered(page)
+        return page.evaluate(shape, grid)
+
+    rem = page.evaluate(
+        "parseFloat(getComputedStyle(document.documentElement).fontSize)"
+    )
+    floor = 14 * rem
+    for i, template in enumerate(STACKING_TEMPLATES):
+        fr = [float(track.removesuffix("fr")) for track in template.split()]
+        stack = floor * sum(fr) / min(fr) + 24 * (len(fr) - 1)
+        wide = reading(f"stack-{i}", stack + 1)
+        assert wide["oneRow"] and wide["narrowest"] >= floor, (template, wide)
+        narrow = reading(f"stack-{i}", stack - 1)
+        assert narrow["stacked"], (template, narrow)
+        assert wide["font"] == narrow["font"] == "13px", template
+
+    reading("outer", 1500)
+    inner = reading("inner", floor * 2.5 + 24 + 1)
+    assert inner["oneRow"] and inner["font"] == "13px", inner
+
+    for width in (1500, 400):
+        reading("sized", width)
+        faces = page.evaluate(
+            """() => Object.fromEntries(['em-cell', 'code-cell', 'code-alone'].map(
+              (id) => [id, getComputedStyle(document.getElementById(id)).fontSize]))"""
+        )
+        assert faces["em-cell"] == "6.5px", faces
+        assert faces["code-cell"] == faces["code-alone"], faces
+
+
+def test_a_body_beside_its_rail_stays_side_by_side_in_a_900px_window(browser, serve):
+    """Pages are read side by side at about 900px: with the margin rail standing, a
+    `1fr 2fr` grid in the page keeps its two tracks rather than stacking."""
+    source = leaf_page(
+        "Side by side at 900px",
+        '<h1>Queue</h1><lf-grid id="beside" columns="1fr 2fr">'
+        "<section><p>Queue</p></section><section><p>Detail</p></section></lf-grid>",
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 900, 800)
+    rendered(page)
+    reading = page.evaluate(
+        """() => {
+          const grid = document.getElementById('beside');
+          const [a, b] = [...grid.children].map((cell) => cell.getBoundingClientRect());
+          return {rail: getComputedStyle(document.querySelector('main'))
+                    .getPropertyValue('--lf-rail-posture').trim(),
+                  width: grid.getBoundingClientRect().width,
+                  beside: Math.abs(a.top - b.top) < 1 && b.left >= a.right};
+        }"""
+    )
+    assert reading["rail"] == "margin", reading
+    assert reading["beside"], reading
+
+
+def test_paper_stacks_a_template_the_screen_sets_side_by_side(browser, serve):
+    """The stacked mark is the screen's reading, and print lays out at the paper's width,
+    which no observer reads, so paper stacks every template. The control is the same
+    grid side by side on screen."""
+    source = leaf_page(
+        "Paper stacks templates",
+        '<h1>Release</h1><lf-grid id="printed" columns="3fr 1fr">'
+        "<section><p>Body</p></section><section><p>Rail</p></section></lf-grid>",
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1600, 900)
+    beside = """() => {
+      const [a, b] = [...document.getElementById('printed').children]
+        .map((cell) => cell.getBoundingClientRect());
+      return Math.abs(a.top - b.top) < 1 && b.left >= a.right;
+    }"""
+    assert page.evaluate(beside)
+    page.emulate_media(media="print")
+    assert not page.evaluate(beside)
+
+
+def test_a_grid_in_a_closed_disclosure_opens_already_stacked(browser, serve):
+    """A closed disclosure lays its content out without showing it, so a template in
+    one is judged there and opens stacked, with no frame drawn side by side first."""
+    source = leaf_page(
+        "Stacked before it opens",
+        '<h1>Release</h1><details id="more"><summary>More</summary>'
+        '<lf-grid id="folded" columns="2fr 1fr">'
+        '<p id="folded-a">Body.</p><p id="folded-b">Rail.</p></lf-grid></details>',
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 740, 900)
+    rendered(page)
+    assert page.locator("#folded").evaluate("grid => grid.checkVisibility()") is False
+    frames = page.evaluate(
+        """() => new Promise((resolve) => {
+          const grid = document.getElementById('folded');
+          const seen = [];
+          const read = () => {
+            const [a, b] = [...grid.children].map((cell) => cell.getBoundingClientRect());
+            seen.push(b.top > a.top + 1 ? 'stacked' : 'beside');
+            if (seen.length < 4) requestAnimationFrame(read);
+            else resolve(seen);
+          };
+          document.getElementById('more').open = true;
+          requestAnimationFrame(read);
+        })"""
+    )
+    assert set(frames) == {"stacked"}, frames
 
 
 FEED_PAGE = leaf_page(
@@ -1522,7 +1706,8 @@ def test_a_milestone_marker_is_centred_on_its_title(browser, serve):
 
 
 def test_suggestions_sharing_a_block_keep_source_and_keyboard_order(browser, serve):
-    """Hoisted decision rows keep source order through upgrade and reconnection."""
+    """Decision rows keep source order in the margin layer, and so in the tab order,
+    through upgrade and reconnection."""
     source = leaf_page(
         "suggestion-order",
         """
@@ -1577,7 +1762,9 @@ def test_suggestions_sharing_a_block_keep_source_and_keyboard_order(browser, ser
         # them in the same item. Walk past whichever row currently owns that one stop.
         page.keyboard.press("Tab")
         page.keyboard.press("Tab")
-        if page.locator(":focus").evaluate("el => el.matches('.lf-margin-marker')"):
+        # The rows stand after the page's content in the margin layer, so the last
+        # row's Tab leaves the document.
+        if page.evaluate("() => document.activeElement.matches('.lf-margin-marker')"):
             page.keyboard.press("Tab")
     assert walked == ["first-change", "second-change", "third-change"]
 
@@ -4926,7 +5113,7 @@ def test_a_swipe_deck_reflows_with_its_parent_allocation(browser, serve):
     assert narrow["controls"]["bottom"] < narrow["passed"]["top"], narrow
     assert narrow["passed"]["bottom"] < narrow["kept"]["top"], narrow
 
-    stacked = layout("44rem")
+    stacked = layout("40rem")
     assert len(stacked["columns"]) == 2, stacked
     assert stacked["passed"]["top"] == pytest.approx(stacked["kept"]["top"]), stacked
     assert stacked["passed"]["right"] < stacked["kept"]["left"], stacked
@@ -5166,7 +5353,7 @@ def test_ideas_to_implement_is_a_fast_mobile_decision_queue(browser, serve):
           };
         }"""
     )
-    # The sheet gives the deck room for its rail: both piles stay beside the queue.
+    # The wide page gives the deck room for its rail: both piles stay beside the queue.
     assert wide["queueRight"] < wide["keptLeft"], wide
     assert wide["keptBottom"] < wide["passedTop"], wide
     assert wide["pageWidth"] == wide["viewportWidth"] == 1200
@@ -5938,8 +6125,9 @@ def test_suggestion_controls_stay_out_of_the_column(browser, serve, reduced_moti
     change sits costs it nothing: one inside a card — a positioned ancestor, which
     `left: 100%` used to resolve against, dropping the row back into the text —
     hangs in the rail beside its card like any other. What is left is a
-    measurement no lint can make: a window with no margin to hold the row docks it
-    into flow, under the block it decides rather than overlapping the page."""
+    measurement no lint can make: a window with no rail stands each row as a pin
+    inside the top-right corner of the change it decides, over the change and never
+    beside it."""
     page = open_page(browser, serve(SUGGESTION_PAGE), init_script=HOLD_MOTION)
     page.emulate_media(reduced_motion=reduced_motion)
     column = page.locator("main").evaluate("el => el.getBoundingClientRect().right")
@@ -5959,31 +6147,41 @@ def test_suggestion_controls_stay_out_of_the_column(browser, serve, reduced_moti
     assert first["bottom"] <= second["top"], "control rows must not stack on each other"
 
     # The card is positioned and the change is three elements down inside it, and
-    # the row still hangs in the rail on the line that change starts — which is
-    # what the anchor buys, and what a static position never could.
-    in_card = page.locator("[data-lf-margin-for='sug-in-card']").evaluate(box)
-    assert in_card["left"] > column and in_card["right"] <= room, (
-        "a change inside a widget is still a change the user decides in the margin"
+    # the row still stands on the line that change starts — which is what the anchor
+    # buys, and what a static position never could. The board it sits in grows past
+    # the rail, so the row stands on the board as a pin in the change's top-right
+    # corner.
+    in_card_row = page.locator("[data-lf-margin-for='sug-in-card']")
+    expect(in_card_row).to_have_attribute("data-lf-place", "pin")
+    in_card = in_card_row.evaluate(box)
+    change = page.locator("#sug-in-card").evaluate(box)
+    assert change["right"] - 12 <= in_card["right"] <= change["right"] <= room, (
+        "a change inside a board is decided inside its own top-right corner"
     )
     assert (
         abs(in_card["top"] - page.locator("#sug-in-card lf-old").evaluate(box)["top"])
         <= 5
     ), "the row must hang on the change's own line, not on the block it follows"
 
-    # No margin anywhere: every row docks, and nothing spills sideways. Docked is
-    # the same box in flow where the row was hoisted to, so it reads as a control
-    # line under the block holding the change and never as the one before's.
+    # No rail: every row is a pin on its own change, and nothing spills sideways.
     resized(page, 820, 900)
     page.wait_for_function(
         "() => [...document.querySelectorAll('[data-lf-margin-for^=sug-]')]"
-        ".every(r => r.classList.contains('lf-docked'))"
+        ".every(r => r.dataset.lfPlace === 'pin')"
     )
     assert page.evaluate("() => document.body.scrollWidth <= document.body.clientWidth")
-    for widget, block in [("sug-refill", "#replace"), ("sug-in-card", "#sug-in-card")]:
-        assert (
-            page.locator(f"[data-lf-margin-for='{widget}']").evaluate(box)["top"]
-            >= page.locator(block).evaluate(box)["bottom"]
-        ), "a docked row belongs under the block whose change it decides"
+    for widget in ("sug-refill", "sug-in-card"):
+        stands = page.locator(f"[data-lf-margin-for='{widget}']").evaluate(
+            """row => {
+              const r = row.getBoundingClientRect();
+              const t = row.lfTarget.getBoundingClientRect();
+              return {top: r.top - t.top,
+                      inCorner: r.right <= t.right && r.right >= t.right - 12};
+            }"""
+        )
+        assert stands["inCorner"] and stands["top"] >= -1, (
+            f"a pin belongs inside the top-right corner of the change it decides: {stands}"
+        )
 
 
 def test_the_page_says_a_change_is_only_proposed(browser, serve):
@@ -6054,10 +6252,15 @@ def test_a_moved_change_takes_its_controls_with_it(browser, serve):
     box = "el => el.getBoundingClientRect()"
     row = page.locator("[data-lf-margin-for='sug-in-card']")
     expect(row).to_be_visible()
+    # The row stands on the moved card: at its line, or packed just below the card's
+    # own marker where the two would otherwise stand on one corner.
+    card = page.locator("#card-heater").evaluate(box)
     change = page.locator("#sug-in-card lf-old").evaluate(box)
-    assert abs(row.evaluate(box)["top"] - change["top"]) <= 5, (
+    stands = row.evaluate(box)
+    assert change["top"] - 5 <= stands["top"] <= change["top"] + 48, (
         "the row must find the moved change's line again, not the one it left"
     )
+    assert card["left"] < stands["right"] <= card["right"] + 40, (stands, card)
     row.locator(".lf-sug-accept").click()
     expect(page.locator("#sug-in-card lf-old")).to_be_hidden()
 
@@ -6560,8 +6763,8 @@ def test_a_user_who_asked_for_less_motion_gets_the_collapse_at_once(browser, ser
 def test_accept_all_decides_every_pending_suggestion(browser, serve):
     """The banner's button is a shortcut for the user who has read the page
     and wants all of it, so it has to reach the ones their eye didn't: the
-    suggestion inside a widget, whose controls dock in flow rather than hang in
-    the margin. Each is decided individually, so the log records what was
+    suggestion inside a widget, whose controls stand on the widget as a pin rather
+    than in the rail. Each is decided individually, so the log records what was
     consented to one change at a time rather than one blanket yes."""
     page = open_page(browser, serve(SUGGESTION_PAGE))
     answer_all = page.locator(".lf-answer-all")

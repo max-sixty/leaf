@@ -76,7 +76,10 @@ relative to `runtime/` unless stated otherwise.
 
 `leaf.js` assembles chrome and mounts the shared repaint phases in order: keyboard-scope
 reflection, standing content, chrome layout, requested page movement, and standing
-geometry. Work requested during a phase belongs to the next frame. Synchronous input
+geometry. Work requested during a phase runs after the phases, before the same frame
+paints: `runtime/rendering.js` runs every rendering callback in one pass per frame, and
+a step that must wait for the following frame, such as an animation tick, asks for
+`nextFrame`. Synchronous input
 layout, ResizeObserver height-only placement, and shell animation frames keep their own
 timing contracts.
 
@@ -250,8 +253,8 @@ stamp the page presented as if it had read the log.
 Whether chrome and geometry have caught up is a separate, live reading,
 `renderingSettled` in `runtime/rendering.js`, whose header owns what it counts and why
 the stamp does not wait on it. Schedule a rendering callback or watch a size through
-that module's `nextRender`, `cancelRender`, and `sizeObserver`; lint refuses the
-browser's own.
+that module's `nextRender`, `nextFrame`, `cancelRender`, and `sizeObserver`; lint
+refuses the browser's own.
 
 ## What crosses to the server
 

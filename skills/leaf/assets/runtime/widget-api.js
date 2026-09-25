@@ -68,7 +68,7 @@ export {
   saying,
 } from "./keyboard/scopes.js";
 export { repaint } from "./repaint.js";
-export { cancelRender, nextRender, sizeObserver } from "./rendering.js";
+export { cancelRender, nextFrame, nextRender, sizeObserver } from "./rendering.js";
 export { beginWalk, listWalkPosition } from "./walk-position.js";
 export {
   MARGIN_ENTRY_SCHEMA,

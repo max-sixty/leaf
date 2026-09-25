@@ -52,7 +52,7 @@ def settle(tab) -> None:
 
 with sync_playwright() as p:
     browser = p.chromium.launch()
-    for run in sorted(d for d in batch.iterdir() if d.is_dir()):
+    for run in sorted(d for d in batch.iterdir() if (d / "prompt-1.txt").exists()):
         prompt = (run / "prompt-1.txt").read_text()
         payload = Path(re.search(r"instructions are in (\S+)/skills/leaf/SKILL\.md", prompt)[1])
         shots = run / "shots"

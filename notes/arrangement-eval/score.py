@@ -156,7 +156,7 @@ def phase_page(run: Path, phase: int) -> Path | None:
 
 
 rows = []
-for run in sorted(p for p in batch.iterdir() if p.is_dir()):
+for run in sorted(p for p in batch.iterdir() if (p / "prompt-1.txt").exists()):
     subject, arm, n = run.name.rsplit("-", 2)
     prompt = (run / "prompt-1.txt").read_text()
     payload = Path(re.search(r"instructions are in (\S+)/skills/leaf/SKILL\.md", prompt)[1])

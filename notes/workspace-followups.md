@@ -35,7 +35,7 @@ Items are ranked within each group. IDs are stable references, not a global prio
   **Follow-ups from the first run** (reproduced in the judge's defect lists and checked against the screenshots):
 
   - `lf-diagram`: a `flowchart LR` wider than its box hides its last steps; all three leaf documents on that layout lost step 5 of their plan. Fit or wrap it, and have the registry example model a top-down sequence.
-  - `lf-chronology`: it reverses a newest-first log and opens a bounded log partway down with its first line cut. Keep the author's order and open on a whole entry.
+  - Log order: every Leaf author rewrote the user's newest-first log oldest first and bounded it with `data-bound="end"`, which the guide's Bounds paragraph presents as how a log keeps its newest line in view; the plain authors on #1171's layout kept it newest first. The guide and the `lf-chronology` entry should say to keep the source's order, and that a newest-first log bounds at its start.
   - Fitted SVG: the theme scales a drawing to its box, so labels become unreadable at 900px and on a phone. Floor the scale, or have the render check flag the drawing.
   - `lf-options`: on a wide page the radio marks sit inset from the card's right edge and the dividers stop short of it.
   - Render check: it passed all 72 pages. Render at the width the user names, and flag a figure scrolled sideways out of view, text drawn below about 10px, and an Ask below its pane's first screen.

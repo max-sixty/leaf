@@ -171,9 +171,9 @@ Start with three fixture families:
    authored markup. Ask for the current truth and the next action, then one
    revision. Score the answer, mutation target, and preservation of user state.
 
-`ask-placement-eval/` is one authoring case already runnable: it pastes two
-wordings of the ask guidance into a prompt with three subjects and scores where
-each ask lands.
+`arrangement-eval/` is one authoring case already runnable: fresh agents write three
+subjects with and without Leaf's arrangement vocabulary, revise each for a standing
+preference, and a blind reviewer compares screenshots at three widths.
 
 Pair and interleave the authoring arms with the same model and settings. Count a
 run only when the model call completes. The first run of each case is for fixing

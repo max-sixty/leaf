@@ -87,7 +87,7 @@ move the page can draw shows its result at once. Sometimes the game is Snap,
 where the match is there and they pick it; sometimes it is Factorio, where the
 system is laid out and they move its pieces. It is never a chore.
 
-Unless the user specifies the page's form or depth, a Leaf is a short sequence
+Unless the user specifies the page's shape or depth, a Leaf is a short sequence
 of visually distinct, self-contained views. Each view makes one point, shows one
 state, or offers one move, so the user can grasp it at a glance and continue;
 disclosures keep supporting detail available without putting it in that path.
@@ -95,9 +95,9 @@ Where a view's point has a shape, it shows the point in a picture and uses words
 for what the picture cannot say; `references/page-authoring.md`, "Draw the
 subject", says which points have one. A page that is mostly paragraphs and tables
 has usually described what it should have drawn.
-The visible page follows the subject's shape: a document read in order, a sheet of
-regions read side by side, or a workspace holding regions in view together;
-`references/page-authoring.md` owns the concrete choices, and
+The visible page follows the subject's shape: prose read in order, regions read side
+by side on a wide page, or a workspace holding regions in view together;
+`references/page-authoring.md`, "Composing a page", owns the concrete choices, and
 `references/authoring-asks.md` owns where each Ask goes.
 
 The page contract and widget capabilities are choices, not a checklist. Include

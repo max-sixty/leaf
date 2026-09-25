@@ -168,23 +168,21 @@ def test_the_render_gate_reports_a_defect_specific_to_the_compact_viewport(
     }
 
 
-def _sheet(title: str, body: str, head: str = "") -> str:
-    return leaf_page(title, body, head=head).replace(
-        "<main>", '<main data-width="available">', 1
-    )
+def _wide_page(title: str, body: str, head: str = "") -> str:
+    return leaf_page(title, body, head=head, width="available")
 
 
 def _panel(name: str) -> str:
     return f'<section class="panel" id="{name}"><h2>{name}</h2><p>Words.</p></section>'
 
 
-def test_the_render_gate_fails_a_sheet_that_scrolls_sideways_only_between_its_viewports(
+def test_the_render_gate_fails_a_wide_page_that_scrolls_sideways_only_between_viewports(
     browser, serve
 ):
     """Two tracks, each stacking its regions, and a row that spills only from 600 to
     900px: both fixed viewports read the page clean, and only the sweep between them
     sees it. The same page is the aligned control for the advice below."""
-    source = _sheet(
+    source = _wide_page(
         "mid-width overflow",
         f"""
 <h1>Mid-width spill</h1>
@@ -208,15 +206,17 @@ def test_the_render_gate_fails_a_sheet_that_scrolls_sideways_only_between_its_vi
     assert reading.advice == []
 
 
-def test_a_sheet_whose_rows_split_anywhere_gets_advice_and_still_passes(browser, serve):
+def test_a_wide_page_whose_rows_split_anywhere_gets_advice_and_still_passes(
+    browser, serve
+):
     """Each row its own grid, splitting where its template puts it: the page draws three
     split lines where its busiest grid needs one. The count row of tiles is not a
     region boundary and draws none."""
     tiles = "".join(
         f'<lf-metric id="m{i}" value="{i}">count</lf-metric>' for i in range(4)
     )
-    source = _sheet(
-        "jumbled sheet",
+    source = _wide_page(
+        "jumbled page",
         f"""
 <h1>Jumbled</h1>
 <lf-grid id="lp-status" columns="4">{tiles}</lf-grid>

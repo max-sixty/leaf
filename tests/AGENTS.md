@@ -533,9 +533,8 @@ the page.
 
 For layout, animation, and navigation, wait for the boundary being measured:
 
-- `panel_settled` observes the requested panel class. The runtime places the
-  margin and marks synchronously with the column;
-  `test_closing_the_panel_lands_the_margin_where_the_column_lands` proves this.
+- `panel_settled` observes the requested panel state and finishes the panel's
+  slide. The panel stands over the page, so nothing else moves with it.
 - `resized` waits for resize listeners and the following rendering update,
   including the document's scrolling area. Wait separately for any ensuing
   motion whose geometry is the subject.
@@ -660,9 +659,8 @@ teardown is not left waiting. `window.__lfHeld` is what is still held; a motion
 the page cancels stays, because a cancelled move is evidence a gesture was taken
 back. A gesture on the way to the one under test still has to reach its end
 state under that hold, and the harness helper for the gesture owns it:
-`edge_settled` finishes a region's arrival slide rather than waiting out a clock the
-test has stopped. Opening Threads starts no motion, so `panel_settled` has none to
-finish.
+`edge_settled` and `panel_settled` finish a region's slide rather than waiting out a
+clock the test has stopped.
 
 A sequence is ordered evidence across frames.
 `test_the_fold_never_paints_a_frame_that_undoes_the_last` records every painted

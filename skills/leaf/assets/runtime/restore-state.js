@@ -54,5 +54,4 @@ export function restoreUserView({
   traysEdge.restore();
   restoreAuxiliarySurface();
   if (tabStore.get(DESIGN_MODE_KEY) === "1") setDesignMode(true, { spoken: false });
-  delete document.documentElement.dataset.lfRestoreSurface;
 }

@@ -2868,8 +2868,7 @@ export function createMarginProjection({
       schedulePostureRender();
     });
     renderMargin();
-    // The rail stands or falls with the shell, which a resize and a strip taken or
-    // given back both move. The repaint that follows a flip waits a frame, since this
+    // The rail stands or falls with the shell, which a resize moves. The repaint that follows a flip waits a frame, since this
     // observer must not move body itself.
     let railStood = railStands();
     sizeObserver(() => {

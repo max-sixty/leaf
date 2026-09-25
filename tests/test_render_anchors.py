@@ -523,8 +523,7 @@ def test_monitoring_regions_share_one_collaboration_layer(browser, serve):
     page.locator(f'.lf-thread[data-id="{thread_id}"] .lf-thread-summary').click()
     comment.click()
     expect(page.locator("#lp-check-finance")).to_be_in_viewport()
-
-    page.get_by_role("button", name="Close threads").click()
+    # The panel stood over the region the comment is about, so the trip cleared it.
     panel_settled(page, open=False)
     expect(page.locator(".lf-asks-row")).to_have_count(0)
 

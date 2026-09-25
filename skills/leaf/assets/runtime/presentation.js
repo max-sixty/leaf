@@ -521,7 +521,7 @@ function* elementsIn(root, selector) {
 }
 
 // `markDeclared` exposes a declaration such as x-space as paint, and CSS computes the
-// room after chrome strips and claimed margins.
+// room after claimed margins.
 // A declaration an authored occurrence may override, and the attribute it is written as.
 const AUTHORED = Object.freeze({ "x-space": "data-width", "x-bound": "data-bound" });
 

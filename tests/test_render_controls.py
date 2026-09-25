@@ -18,7 +18,6 @@ from leaf import session as session_model
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_cases_interaction import (
-    HOLD_MOTION,
     PANEL_PAGE,
     SEATED_ASK_LAYER,
     SEATED_ASK_WIDGETS,
@@ -813,73 +812,6 @@ def test_a_page_that_asks_nothing_carries_no_terminal_control(browser, serve):
     # The Lit-faced native island stays connected for its lifetime, but approval takes
     # the slot beside Threads only where a page asks for one. The visible row is a control
     # short rather than a control longer.
-
-
-@pytest.mark.parametrize("resident", ["sidebar", "sidenote"])
-def test_an_auxiliary_surface_lands_one_responsive_layout(browser, serve, resident):
-    """Opening the Asks tray never makes the page visit an intermediate responsive
-    posture.
-
-    The two cases supply a left sidebar and a right sidenote. Opening the tray at 1440px
-    withdraws either real margin resident, and the column moves in opposite directions
-    across the two cases, so a shell that arrived in stages would be caught going the
-    wrong way in one of them.
-
-    It cannot arrive in stages any more, and that is the assertion. The shell used to
-    reach its final width at once and then glide the column there over 180ms, which is
-    where the intermediate postures came from and what this test grew up watching; the
-    glide is gone, because animating the column's `left` suppressed the browser's scroll
-    anchoring and cost the user their place every time a strip was returned. So the
-    page has exactly one layout, held motion has nothing to hold, and the column is
-    already where it belongs on the frame the tray opens.
-    """
-    source = leaf_page(
-        "Responsive resident",
-        f'<aside class="{resident}">Margin resident.</aside><h1>Reading</h1>{ONE_ASK}',
-    )
-    page = open_page(browser, serve(source), init_script=HOLD_MOTION)
-    width = 1440
-    resized(page, width, 900)
-    initial = page.evaluate(
-        """() => ({
-          resident: getComputedStyle(document.querySelector('aside')).float,
-        })"""
-    )
-
-    toggle_asks(page)
-    landed = page.evaluate(
-        """() => {
-          const main = document.querySelector('main');
-          const body = document.body;
-          const border = getComputedStyle(body);
-          return {
-            shell: body.clientWidth,
-            moving: main.getAnimations().length
-              + window.__lfHeld.filter((motion) => motion.effect.target === main).length,
-            columnX: main.getBoundingClientRect().x,
-            strip: parseFloat(border.borderLeftWidth) || 0,
-            resident: getComputedStyle(document.querySelector('aside')).float,
-          };
-        }"""
-    )
-    assert landed["shell"] == width - 300
-    assert landed["strip"] == 300, (
-        "the page yielded the strip as something other than the border that keeps the "
-        f"user's place: {landed}"
-    )
-    assert initial["resident"] != landed["resident"], (
-        "the fixture crossed no responsive posture, so it cannot expose the regression"
-    )
-    assert landed["moving"] == 0, (
-        "the column is travelling to its position rather than starting there, which is "
-        "the intermediate posture this case exists to refuse"
-    )
-
-    # And it is where the settled page puts it, with nothing left to finish.
-    settled = page.evaluate(
-        "() => document.querySelector('main').getBoundingClientRect().x"
-    )
-    assert settled == pytest.approx(landed["columnX"], abs=1)
 
 
 def test_the_responsive_action_row_keeps_primary_actions_in_reach(browser, serve):
@@ -2256,7 +2188,7 @@ def test_coarse_pointer_resize_reach_stays_reachable_without_trapping_scroll(
         x = round((edge["left"] + edge["right"]) / 2)
         y = round((edge["top"] + edge["bottom"]) / 2)
         _touch_drag(cdp, x, y, dx=dx, steps=1)
-        page.wait_for_function("() => !document.body.hasAttribute('data-lf-sizing')")
+        rendered(page)
 
     # At the product's 320px floor the comment sheet has no possible width to move
     # through, so it offers no inert separator. A user standing on the grip lands on

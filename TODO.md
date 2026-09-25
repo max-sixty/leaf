@@ -93,6 +93,14 @@ has tried; settle that before building it.
   `main`'s edge, and the `--lf-block-frame` trim reaches only `main`'s direct
   children. Inside a specimen, whose `main` pads only 24px, it leaves 72px of blank
   space above the question.
+- **Place the comment composer correctly on a page that sets a margin on `html`.**
+  With `html { margin-left: 40px }` the floating composer lands 40px left of its lane
+  and overlaps the element it comments on, on any page wide enough to place it
+  beside its target. The reference rect handed to Floating UI (`composing/surface.js`,
+  `placeFab`) and the fixed bar disagree by the root's margin.
+  `test_an_aimed_comment_keeps_its_place_with_the_asks_tray_open` reproduces it at
+  1200px with the tray closed and runs at 900px, where the composer goes above or
+  below, until this is fixed.
 - **Unconfirmed: scrolling a live specimen sometimes sticks.** A user reported it
   while a specimen still scrolled inside a fixed-height frame, with no reproduction.
   The frame now takes its page's height, so nothing scrolls inside it; check that the

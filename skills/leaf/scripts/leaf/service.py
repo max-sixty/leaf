@@ -26,6 +26,7 @@ from leaf.host import (
     message_identity,
     session_harness,
 )
+from leaf.interaction_log import INTERACTIONS_FILE
 from leaf.locations import page_key
 from leaf.machine import pid_alive, state_home
 from leaf.registry.layer import bookkeeping_kinds
@@ -143,16 +144,19 @@ def _touched_recently(page_dir: Path, claimed_at: str) -> bool:
     untouched until the user returns to it. That gap, not the agent's, is what
     ACTIVITY_GRACE_SECS has to clear, and it is why that constant is hours.
 
-    `served_state/reading.py` deliberately excludes `viewed.json` from the
-    page's own reading token, where counting it would have a stream answer its
-    own question. There is no such loop here: ownership feeds the watchdog, not
-    the token.
+    Diagnostic `interactions.jsonl` is excluded: a request alone does not prove
+    a visible reader or active agent. `served_state/reading.py` excludes both it
+    and `viewed.json` from the page's own reading token, where counting either
+    would make a stream answer its own question. There is no such loop here:
+    ownership feeds the watchdog, not the token.
 
     The claim's own timestamp joins the files for the page that has been served
     but not yet written to, whose newest file can predate the claim."""
     newest = datetime.fromisoformat(claimed_at).timestamp()
     try:
         for entry in page_dir.iterdir():
+            if entry.name == INTERACTIONS_FILE:
+                continue
             try:
                 newest = max(newest, entry.stat().st_mtime)
             except OSError:  # replaced under us; the next pass sees its successor

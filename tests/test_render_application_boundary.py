@@ -2,6 +2,7 @@
 
 import json
 import re
+from itertools import pairwise
 
 from leaf import event_log as events_model
 from playwright.sync_api import expect
@@ -84,6 +85,158 @@ THREAD_READER_DECLARATION = {
     "x-upgrade": True,
     "x-example": '<lf-thread-reader id="reader-example"></lf-thread-reader>',
 }
+
+
+def test_browser_interactions_are_recorded_beside_server_requests(browser, serve):
+    """A user gesture remains visible even when it changes no semantic page state."""
+    url = serve(
+        leaf_page(
+            "Interaction trace",
+            '<h1>Interaction trace</h1><input id="trace-input" aria-label="Entry">'
+            '<button id="trace-button">Continue</button>',
+        )
+    )
+    page = open_page(browser, url)
+
+    def contains(response, kind):
+        return (
+            response.url.endswith("/api/interaction")
+            and response.ok
+            and any(
+                entry["type"] == kind
+                for entry in response.request.post_data_json["entries"]
+            )
+        )
+
+    with page.expect_response(lambda response: contains(response, "input")):
+        page.locator("#trace-input").fill("hello")
+    with page.expect_response(lambda response: contains(response, "click")):
+        page.locator("#trace-button").click()
+    page.locator("h1").click()
+    with page.expect_response(lambda response: contains(response, "command")):
+        page.keyboard.press("?")
+    with page.expect_response(lambda response: contains(response, "interaction_part")):
+        page.locator("#trace-input").fill("x" * 50_000)
+
+    rows = [
+        json.loads(line)
+        for line in (serve.page_dir / "interactions.jsonl").read_text().splitlines()
+    ]
+    inputs = [row for row in rows if row.get("type") == "input"]
+    clicks = [row for row in rows if row.get("type") == "click"]
+    commands = [row for row in rows if row.get("type") == "command"]
+    parts = [row for row in rows if row.get("type") == "interaction_part"]
+    assert any(
+        row["value"] == "hello"
+        and any("input#trace-input" in part for part in row["target"])
+        for row in inputs
+    )
+    assert any(
+        any("button#trace-button" in part for part in row["target"]) for row in clicks
+    )
+    assert any(row["id"] == "command.reference.open" for row in commands)
+    assert len({row["session"] for row in inputs + clicks + commands}) == 1
+    grouped = [row for row in parts if row["partOf"] == parts[0]["partOf"]]
+    reconstructed = json.loads(
+        "".join(row["json"] for row in sorted(grouped, key=lambda row: row["part"]))
+    )
+    assert reconstructed["type"] in {"beforeinput", "input"}
+    assert "x" * 50_000 in {reconstructed.get("value"), reconstructed.get("data")}
+    assert any(
+        row.get("source") == "server"
+        and row["method"] == "POST"
+        and row["path"] == "/api/interaction"
+        and row["status"] == 204
+        for row in rows
+    )
+
+
+def test_browser_trace_sheds_repeated_gestures_when_delivery_stalls(browser, serve):
+    url = serve(leaf_page("Trace backlog", '<h1 id="trace-target">Trace backlog</h1>'))
+    page = open_page(browser, url)
+    page.route("**/api/interaction", lambda route: route.fulfill(status=503))
+    with page.expect_response(
+        lambda response: (
+            response.url.endswith("/api/interaction") and response.status == 503
+        )
+    ):
+        page.locator("#trace-target").click()
+    page.locator("#trace-target").evaluate("""node => {
+      for (let i = 0; i < 1200; i++)
+        node.dispatchEvent(new PointerEvent('pointermove', {
+          bubbles: true, pointerId: 1, clientX: i,
+        }));
+      node.click();
+    }""")
+    page.unroute("**/api/interaction")
+    with page.expect_response(
+        lambda response: (
+            response.url.endswith("/api/interaction")
+            and response.ok
+            and any(
+                entry["type"] == "click"
+                for entry in response.request.post_data_json["entries"]
+            )
+        ),
+        timeout=15_000,
+    ):
+        page.wait_for_timeout(2500)
+
+    rows = [
+        json.loads(line)
+        for line in (serve.page_dir / "interactions.jsonl").read_text().splitlines()
+    ]
+    browser_rows = [row for row in rows if row.get("source") == "client"]
+    assert any(row["type"] == "click" for row in browser_rows)
+    assert sum(row["type"] == "pointermove" for row in browser_rows) < 512
+    sequences = sorted(row["sequence"] for row in browser_rows)
+    assert any(later - earlier > 1 for earlier, later in pairwise(sequences))
+    consume_browser_errors(page, "503")
+
+
+def test_browser_trace_keeps_actions_ahead_of_new_repeated_observations(browser, serve):
+    url = serve(leaf_page("Trace actions", '<h1 id="trace-target">Trace actions</h1>'))
+    page = open_page(browser, url)
+    page.route("**/api/interaction", lambda route: route.fulfill(status=503))
+    with page.expect_response(
+        lambda response: (
+            response.url.endswith("/api/interaction") and response.status == 503
+        )
+    ):
+        page.locator("#trace-target").click()
+    page.wait_for_timeout(100)
+    page.locator("#trace-target").evaluate("""node => {
+      for (let i = 0; i < 600; i++)
+        node.dispatchEvent(new MouseEvent('click', {
+          bubbles: true, clientX: i,
+        }));
+      for (let i = 0; i < 100; i++)
+        node.dispatchEvent(new PointerEvent('pointermove', {
+          bubbles: true, pointerId: 1, clientX: i,
+        }));
+    }""")
+    page.unroute("**/api/interaction")
+    with page.expect_response(
+        lambda response: (
+            response.url.endswith("/api/interaction")
+            and response.ok
+            and any(
+                entry["type"] == "click" and entry["pointer"]["x"] == 599
+                for entry in response.request.post_data_json["entries"]
+            )
+        ),
+        timeout=15_000,
+    ):
+        page.wait_for_timeout(2500)
+
+    rows = [
+        json.loads(line)
+        for line in (serve.page_dir / "interactions.jsonl").read_text().splitlines()
+    ]
+    browser_rows = [row for row in rows if row.get("source") == "client"]
+    assert sum(row["type"] == "click" for row in browser_rows) == 512
+    assert not any(row["type"] == "pointermove" for row in browser_rows)
+    consume_browser_errors(page, "503")
 
 
 def test_packages_and_panel_share_threads_through_gestures_and_authored_content(

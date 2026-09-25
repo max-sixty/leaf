@@ -648,7 +648,9 @@ def _tasks_version(page_dir, status, extra=""):
 
 def _report(page_dir, *args):
     """Report as a worker, with the posted event on stdout for the caller to read."""
-    return CliRunner().invoke(cli_model.cli, ["report", "--json", str(page_dir), *args])
+    return CliRunner().invoke(
+        cli_model.cli, ["experimental", "report", "--json", str(page_dir), *args]
+    )
 
 
 def _board(todo, done):

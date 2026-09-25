@@ -5522,9 +5522,12 @@ def test_an_incoming_margin_reply_follows_only_at_the_tail(browser, serve):
         arg=at_tail,
     )
     scroll_settled(page, ".lf-margin-preview-list")
-    assert transcript.evaluate(
-        "list => list.scrollHeight - list.clientHeight - list.scrollTop"
-    ) <= 2
+    assert (
+        transcript.evaluate(
+            "list => list.scrollHeight - list.clientHeight - list.scrollTop"
+        )
+        <= 2
+    )
     assert incoming.evaluate(
         "message => message.getBoundingClientRect().bottom <= document.querySelector('.lf-say').getBoundingClientRect().top"
     )
@@ -5544,7 +5547,9 @@ def test_an_incoming_margin_reply_follows_only_at_the_tail(browser, serve):
     page.evaluate(
         "async () => (await window.__lfRuntimeImport('/runtime/application.js')).readAndApply()"
     )
-    assert transcript.evaluate("list => list.scrollTop") == pytest.approx(earlier, abs=2)
+    assert transcript.evaluate("list => list.scrollTop") == pytest.approx(
+        earlier, abs=2
+    )
 
 
 def test_agent_status_leaves_the_margin_transcript_where_the_user_scrolled_it(

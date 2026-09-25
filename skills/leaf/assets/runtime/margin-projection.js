@@ -2114,9 +2114,11 @@ export function createMarginProjection({
     const arriving = previewThreadItem !== (selected?.id ?? null);
     if (arriving) rightFootOffset = null;
     const latest = selected ? turns(sourceItem(selected).thread).at(-1) : null;
-    const messageSelector = ":scope > .lf-margin-thread > .lf-margin-thread-body > " +
+    const messageSelector =
+      ":scope > .lf-margin-thread > .lf-margin-thread-body > " +
       ".lf-conversation-thread > .lf-conversation-msg";
-    const replySelector = ":scope > .lf-margin-thread > .lf-margin-thread-body > " +
+    const replySelector =
+      ":scope > .lf-margin-thread > .lf-margin-thread-body > " +
       ".lf-conversation-thread > .lf-say";
     const lastShown = [...previewList.querySelectorAll(messageSelector)].at(-1);
     const lastBox = lastShown?.getBoundingClientRect();

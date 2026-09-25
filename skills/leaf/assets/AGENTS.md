@@ -111,15 +111,13 @@ The shared `.lf-ui` face starts in the assets root's `shadow.css`, before compon
 rules. Its `:where(:root) .lf-ui` selector has class specificity and does not match inside
 shadow trees, where the host's control face applies.
 
-A standing Asks tray, and the thread panel beside a sheet, reserve their strips with a
-transparent body border (`theme.css`), preserving native scroll anchoring during reflow.
-Either covers the page instead where it would leave less than a usable page beside it;
-`--lf-auxiliary-beside` states that rule once for both, and the runtime reads it
-(`standsBeside`) rather than asking the viewport.
-The bootstrap states a restored surface and its stored width on the root, so a reload
-paints the strip before the runtime arrives. The thread panel over a column page and the
-Leaves tray stand over the page and reserve nothing. `chrome-layout.js` must not override
-the user's position.
+The auxiliary surfaces — the Asks tray, the thread panel, and the Leaves tray — stand over
+the page and never change its geometry, so the page the author laid out is the page the
+user reads with a surface up. The Asks tray and the thread panel leave the page live
+beside them, and cover it (inert, behind the scrim) where they would leave less than a
+usable page; `--lf-auxiliary-beside` states that rule once for both, and the runtime
+reads it (`standsBeside`) rather than asking the viewport. The Leaves tray always covers
+the page. `chrome-layout.js` must not override the user's position.
 A workspace's posture is the stylesheet's: one container query on the workspace's own
 box decides whether each pane's body scrolls, and the runtime reads which box scrolls
 a region from that result rather than choosing it (`reading-regions.js`).
@@ -160,10 +158,10 @@ Each mutable fact has one writer:
 | auxiliary-surface selection | the auxiliary-surface owner's one registered key | `select` closes the previous surface before opening the next; `restore` reserves its room and `present` completes state-dependent arrival |
 | the narrowing and order of the thread list | the user's find words, lifecycle, scope, subject, and detached-placement facets, and Page or Recent order | `renarrow`, `revealThread`, and `widen`; neither of the last two changes the order |
 | how much of a scroller's top a pinned cover takes | the tallest declared cover's rendered box | `declareCoverRoom` (`geometry.js`) observes the covers and writes the property a `scroll-padding` or `scroll-margin` reads: the thread list's run headings as `--lf-head-room` on the list (`renderThreads`), each `lf-diff` file header on its file, a root `lf-tabs` strip as `--lf-root-tab-clear` on the document |
-| a nested scroller's viewport position through a re-render | one reference node in the scroller's visible band, handed across to whatever the render puts under its identity | `user-place.js`'s place hold, taken by whatever re-renders the scroller: the thread list's `renderThreads` (generated presentation, receipt updates, provisional work, resolution folds) and `holdThroughDisclosure`, the Page Map's `renderSheet`, and the margin card's `buildThreadCard` for the same thread; a package takes it through the widget API. The document's scroller takes none: native anchoring holds it, and `takeShell` (`chrome-layout.js`) keeps surface rendering out of the frame that anchoring rests on |
+| a nested scroller's viewport position through a re-render | one reference node in the scroller's visible band, handed across to whatever the render puts under its identity | `user-place.js`'s place hold, taken by whatever re-renders the scroller: the thread list's `renderThreads` (generated presentation, receipt updates, provisional work, resolution folds) and `holdThroughDisclosure`, the Page Map's `renderSheet`, and the margin card's `buildThreadCard` for the same thread; a package takes it through the widget API. The document's scroller takes none: native anchoring holds it |
 | where the thread holding the focus stands in the list | the band the list declares landable through `scroll-padding` | `threadsBox`'s `focusin`, and its press through `pointerdown`/`pointerup`; `stepThread` for a key press that moves no focus, `landIn` for the box it puts the user in, `placeThreadEdge` for an explicit edge placement, and `showThread` for a deliberate arrival. A press's correction is instant, because the click that follows it in the same gesture writes this same scroll and a write cancels an animation instead of superseding it (`landing.js`, at `land`) |
 | whether the margin card shows, and which target's threads | the user's standing target: focus on the target or inside it, its margin cluster, or the card | `margin-projection.js`'s `followStanding` on focus arrival, the standing scope's `release` (`focus.js`), `pressAway` for a press outside the card, its target, and its cluster, and the explicit opens (`t`, a marker, a mark); with Threads open, `followStanding` expands the target's thread in the list instead (`accompanyThread`, `conversation/landing.js`) |
-| the margin card's place in its transcript | the card list's own scroll, held through a re-render of the same thread by the place hold above | a landing through `revealConversation`, a send revealing its reply, and `buildThreadCard` starting another thread at the top; placing the card writes none |
+| the margin card's place in its transcript | the card list's own scroll, held through a re-render of the same thread by the place hold above | a landing through `revealConversation`, a send revealing its reply, `buildThreadCard` starting another thread at the top, or a new agent turn following the visible tail; placing the card writes none |
 | how much of a scroller the user can see, and where a landing may put something | the scroller's shown band less the covers declared through `declareCoverRoom` that stick in it, or less its declared `scroll-padding` | `visibleBand` and `landingBand` in `geometry.js`; `shownRect`'s clip walk applies `visibleBand` at every ancestor, so whether something is on screen has one answer |
 | what a surface standing over the page hides | the surface's own box, for what stacks beneath it and outside it | the surface declares itself once through `declareOccluder` (`geometry.js`); the thread panel does, and `shownRect` takes what it stands over away, so exposure, travel, and badge placement read it alike |
 | which surface a trip clears to show its destination | the selected auxiliary surface, where it covers the page or stands over most of the destination (`hides`, `geometry.js`) | `clearFor` on the auxiliary-surface owner, called from travel's one `trip` entry (`anchor-travel.js`), which then reads past whatever surface still stands |

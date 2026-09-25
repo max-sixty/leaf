@@ -6,7 +6,16 @@
 // its source line numbers, in the excerpts its three code attributes name, and dispatches `sort-step` (bubbling)
 // so the page can keep that line in view.
 
-import { indicate, offer, once, registerVisualParts } from "/runtime/widget-api.js";
+import {
+  indicate,
+  inlineMarkdownFragment,
+  loadMarkdown,
+  offer,
+  once,
+  onMotionPreferenceChange,
+  reducedMotion,
+  registerVisualParts,
+} from "/runtime/widget-api.js";
 import {
   INPUTS,
   LINES,
@@ -48,6 +57,22 @@ const PHASE_NAME = {
 };
 
 const SPEEDS = [1, 2, 4, 0.5];
+const AUTO_PLAY_DELAY = 1800;
+
+function moment(id) {
+  const match = /^moment:([a-z]+):(\d+):(\d+)$/.exec(id);
+  if (!match || !Object.hasOwn(INPUTS, match[1])) return null;
+  const seed = Number(match[2]);
+  const index = Number(match[3]);
+  return Number.isSafeInteger(seed) && Number.isSafeInteger(index)
+    ? { input: match[1], seed, index }
+    : null;
+}
+
+const momentLabel = (id) => {
+  const at = moment(id);
+  return at ? `${INPUTS[at.input]}, shuffle ${at.seed}, step ${at.index + 1}` : null;
+};
 
 customElements.define(
   "lf-sort-film",
@@ -65,10 +90,26 @@ customElements.define(
     #step = -1;
     #C = null;
     #themeWatch = null;
+    #autoPlayTimer = 0;
 
     connectedCallback() {
       this.#resolvePalette();
-      if (once(this)) this.#build();
+      if (once(this)) {
+        this.#build();
+        if (!reducedMotion())
+          this.#autoPlayTimer = setTimeout(() => {
+            this.#autoPlayTimer = 0;
+            if (
+              this.isConnected &&
+              this.getClientRects().length &&
+              document.visibilityState === "visible"
+            )
+              this.#play();
+          }, AUTO_PLAY_DELAY);
+      }
+      loadMarkdown().then((ready) => {
+        if (ready && this.isConnected && this.#step >= 0) this.#renderNote();
+      });
       const repaint = () => {
         this.#resolvePalette();
         this.#paintTimeline();
@@ -76,6 +117,9 @@ customElements.define(
       };
       const scheme = matchMedia("(prefers-color-scheme: dark)");
       scheme.addEventListener("change", repaint);
+      const stopMotionWatch = onMotionPreferenceChange((reduce) => {
+        if (reduce) this.#pause();
+      });
       const observer = new MutationObserver(repaint);
       observer.observe(document.documentElement, {
         attributes: true,
@@ -83,6 +127,7 @@ customElements.define(
       });
       this.#themeWatch = () => {
         scheme.removeEventListener("change", repaint);
+        stopMotionWatch();
         observer.disconnect();
       };
       this.#paint();
@@ -129,9 +174,20 @@ customElements.define(
       stage.append(this.svg);
       this.painter = new Painter(this.svg, N);
       // Each slot of v, the scratch lane, the run stack and each collapse() clause is a
-      // visual part: a click on one is Leaf's comment gesture, anchored on that part, and
-      // pauses the sort so the part holds still under the comment.
-      this.parts = registerVisualParts(this, () => this.painter.parts());
+      // visual part: Leaf's Alt-click targets that part, and the click pauses the sort
+      // so the part holds still under the comment.
+      this.parts = registerVisualParts(
+        this,
+        () => [
+          ...this.painter.parts(),
+          {
+            id: this.momentEl.dataset.part,
+            element: this.momentEl,
+            label: momentLabel(this.momentEl.dataset.part),
+          },
+        ],
+        { reveal: (id) => this.#revealMoment(id), label: momentLabel },
+      );
       stage.addEventListener("click", (e) => {
         if (e.target.closest?.("[data-part]")) this.#pause();
       });
@@ -141,7 +197,16 @@ customElements.define(
       this.narration.setAttribute("aria-live", "polite");
       this.phaseEl = document.createElement("strong");
       this.noteEl = document.createElement("span");
-      this.narration.append(this.phaseEl, this.noteEl);
+      this.noteEl.dataset.lfMarkdownWords = "";
+      this.momentEl = document.createElement("span");
+      this.momentEl.className = "sort-moment";
+      this.momentEl.addEventListener("click", () => this.#pause());
+      this.momentCount = document.createElement("span");
+      this.momentCount.className = "sort-moment-count";
+      this.momentTail = document.createElement("span");
+      this.momentTail.className = "sort-moment-tail";
+      this.momentEl.append("Step ", this.momentCount, this.momentTail);
+      this.narration.append(this.phaseEl, this.noteEl, this.momentEl);
 
       this.timeline = document.createElementNS(SVGNS, "svg");
       this.timeline.classList.add("sort-timeline");
@@ -158,8 +223,7 @@ customElements.define(
       const bar = offer("div", "sort-bar");
       this.playBtn = offer("button", "sort-play", "Play");
       this.playBtn.setAttribute("aria-keyshortcuts", "k , . ArrowLeft ArrowRight Home");
-      this.playBtn.title =
-        "k play/pause · , . one step · ← → previous/next phase · Home restart";
+      this.playBtn.title = "k play/pause · ← → or , . one step · Home restart";
       this.playBtn.addEventListener("click", () => this.#toggle());
       const back = offer("button", "sort-step-btn", "‹");
       back.setAttribute("aria-label", "Previous step");
@@ -221,6 +285,7 @@ customElements.define(
     }
 
     #load() {
+      this.#pause();
       this.#values = makeInput(this.#input, this.#seed);
       this.#film = trace(this.#values);
       this.#plain = plainMergeComparisons(this.#values);
@@ -228,8 +293,16 @@ customElements.define(
       this.#t = 0;
       this.#step = -1;
       this.scrub.max = this.#film.total;
+      this.momentCount.style.width = `${String(this.#film.steps.length).length}ch`;
+      this.momentTail.textContent = ` of ${this.#film.steps.length} · click to pause · Option/Alt-click to comment`;
       this.#paintTimeline();
       this.#paint();
+    }
+
+    #renderNote() {
+      this.noteEl.replaceChildren(
+        inlineMarkdownFragment(this.#film.steps[this.#step].note, false),
+      );
     }
 
     // The timeline strip: each step's span coloured by phase, so where the time goes
@@ -272,7 +345,9 @@ customElements.define(
         this.#step = fr.i;
         const s = fr.step;
         this.phaseEl.textContent = PHASE_NAME[s.phase];
-        this.noteEl.textContent = s.note;
+        this.#renderNote();
+        this.momentEl.dataset.part = `moment:${this.#input}:${this.#seed}:${fr.i}`;
+        this.momentCount.textContent = fr.i + 1;
         this.dataset.phase = s.phase;
         const final = s.kind === "done";
         this.stats.textContent =
@@ -294,14 +369,13 @@ customElements.define(
 
     #key(e) {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
-      if (e.target === this.scrub && e.key.startsWith("Arrow")) return;
       if (e.target.type === "radio" && e.key.startsWith("Arrow")) return;
       const handled = {
         k: () => this.#toggle(),
         ",": () => this.#stepBy(-1),
         ".": () => this.#stepBy(1),
-        ArrowLeft: () => this.#phaseBy(-1),
-        ArrowRight: () => this.#phaseBy(1),
+        ArrowLeft: () => this.#stepBy(-1),
+        ArrowRight: () => this.#stepBy(1),
         Home: () => {
           this.#pause();
           this.#t = 0;
@@ -314,34 +388,33 @@ customElements.define(
       this.#paint();
     }
 
-    // One step: land at the end of the next (or previous) step, so it is fully drawn.
+    // One step: land at its end, so the change is fully drawn.
     #stepBy(dir) {
       this.#pause();
       const i = stepAt(this.#film, this.#t);
-      const s = this.#film.steps[i];
-      const shown = this.#t >= s.start + s.dur - 0.02;
-      const j = Math.max(
-        0,
-        Math.min(this.#film.steps.length - 1, dir > 0 ? (shown ? i + 1 : i) : i - 1),
-      );
+      const j = Math.max(0, Math.min(this.#film.steps.length - 1, i + dir));
       const target = this.#film.steps[j];
       this.#t = target.start + target.dur - 0.01;
       this.#paint();
     }
 
-    // A phase boundary is a step that changes what the algorithm is doing.
-    #phaseBy(dir) {
-      this.#pause();
-      const steps = this.#film.steps;
-      const i = stepAt(this.#film, this.#t);
-      const starts = steps
-        .map((s, k) => k)
-        .filter((k) => k === 0 || steps[k].phase !== steps[k - 1].phase);
-      const j =
-        dir > 0
-          ? (starts.find((k) => k > i) ?? steps.length - 1)
-          : (starts.findLast((k) => k < i) ?? 0);
-      this.#t = steps[j].start + 0.001;
+    // A moment's address includes the exact input, so following a thread restores the
+    // trace it described before seeking to the step.
+    #revealMoment(id) {
+      const at = moment(id);
+      if (!at) return;
+      const { input, seed, index } = at;
+      if (index >= trace(makeInput(input, seed)).steps.length) return;
+      if (input !== this.#input || seed !== this.#seed) {
+        this.#input = input;
+        this.#seed = seed;
+        for (const radio of this.radios) radio.checked = radio.value === input;
+        this.#load();
+      } else this.#pause();
+      const step = this.#film.steps[index];
+      if (!step) return;
+      this.#t = step.start + step.dur - 0.01;
+      this.#paint();
     }
 
     #toggle() {
@@ -349,6 +422,8 @@ customElements.define(
     }
 
     #play() {
+      clearTimeout(this.#autoPlayTimer);
+      this.#autoPlayTimer = 0;
       if (this.#t >= this.#film.total - 0.01) this.#t = 0;
       this.#playing = true;
       this.#last = performance.now();
@@ -368,6 +443,8 @@ customElements.define(
     }
 
     #pause() {
+      clearTimeout(this.#autoPlayTimer);
+      this.#autoPlayTimer = 0;
       this.#playing = false;
       cancelAnimationFrame(this.#raf);
       if (this.playBtn)

@@ -88,6 +88,161 @@ from render_harness import (
 pytestmark = pytest.mark.nightly
 
 
+def test_sort_film_comment_restores_its_input_and_step(browser, serve):
+    """A moment thread returns to the trace it described after input changes."""
+    example = next(path for path in EXAMPLES if path.stem == "rust-sort")
+    context = browser.new_context(
+        reduced_motion="reduce", viewport={"width": 1715, "height": 1046}
+    )
+    page = open_page(browser, serve(example), context=context)
+    moment = page.locator("#sort-film .sort-moment")
+    play = page.locator("#sort-film .sort-play")
+
+    play.focus()
+    page.keyboard.press("ArrowRight")
+    expect(moment).to_have_attribute("data-part", "moment:random:7:1")
+    page.keyboard.press("ArrowLeft")
+    expect(moment).to_have_attribute("data-part", "moment:random:7:0")
+    page.locator("#sort-film .sort-scrub").focus()
+    page.keyboard.press("ArrowRight")
+    expect(moment).to_have_attribute("data-part", "moment:random:7:1")
+    page.keyboard.press("ArrowLeft")
+    expect(moment).to_have_attribute("data-part", "moment:random:7:0")
+
+    moment.click(modifiers=["Alt"])
+    composer = page.locator(".lf-composer[data-lf-open]")
+    expect(composer).to_be_visible()
+    expect(composer.locator("blockquote")).to_contain_text("Random, shuffle 7, step 1")
+    composer.locator("textarea").fill("Why does this run start here?")
+    composer.locator("textarea").press("Enter")
+    expect(
+        page.get_by_role("dialog", name=re.compile("Conversation for"))
+    ).to_be_visible()
+    events = [
+        json.loads(line)
+        for line in (serve.page_dir / "events.jsonl").read_text().splitlines()
+    ]
+    assert next(event for event in events if event["kind"] == "comment")["anchor"] == {
+        "section": "sort-film",
+        "visual": "moment:random:7:0",
+    }
+
+    page.get_by_role("button", name="Dismiss conversation view").click()
+    layout = page.evaluate(
+        """async () => {
+          const film = document.querySelector('#sort-film');
+          const play = film.querySelector('.sort-play');
+          const host = document.querySelector('.lf-margin-cluster[data-lf-margin-for="sort-film"]');
+          const states = new Set();
+          play.click();
+          const until = performance.now() + 900;
+          while (performance.now() < until) {
+            await new Promise(requestAnimationFrame);
+            states.add(JSON.stringify([
+              document.documentElement.scrollHeight,
+              film.contains(host),
+            ]));
+          }
+          play.click();
+          return [...states].map(JSON.parse);
+        }"""
+    )
+    assert layout == [[1046, True]]
+    page.locator('#sort-film input[value="nearly"]').check()
+    expect(moment).to_have_attribute("data-part", "moment:nearly:7:0")
+    expect(page.locator(".lf-thread")).to_contain_text("Random, shuffle 7, step 1")
+    page.get_by_role("button", name="1 comment").click()
+    expect(moment).to_have_attribute("data-part", "moment:random:7:0")
+
+
+def test_sort_film_playback_keeps_the_stage_and_controls_still(browser, serve):
+    """Each trace step paints inside a fixed layout at both wide pane widths."""
+    example = next(path for path in EXAMPLES if path.stem == "rust-sort")
+    context = browser.new_context(
+        reduced_motion="reduce", viewport={"width": 1715, "height": 1046}
+    )
+    page = open_page(browser, serve(example), context=context)
+
+    for width in (1715, 1200):
+        page.set_viewport_size({"width": width, "height": 1046})
+        page.locator("#sort-film .sort-play").focus()
+        page.keyboard.press("Home")
+        layouts = page.evaluate(
+            """async () => {
+              const film = document.querySelector('#sort-film');
+              const stage = film.querySelector('.sort-stage');
+              const moment = film.querySelector('.sort-moment');
+              const bar = film.querySelector('.sort-bar');
+              const play = film.querySelector('.sort-play');
+              const samples = new Set();
+              play.click();
+              const until = performance.now() + 900;
+              while (performance.now() < until) {
+                await new Promise(requestAnimationFrame);
+                const top = stage.getBoundingClientRect().top;
+                samples.add(JSON.stringify([
+                  Math.round(stage.getBoundingClientRect().height),
+                  Math.round(moment.getBoundingClientRect().top - top),
+                  Math.round(bar.getBoundingClientRect().top - top),
+                ]));
+              }
+              play.click();
+              return [...samples];
+            }"""
+        )
+        assert len(layouts) == 1, (width, layouts)
+
+
+def test_sort_film_readout_and_narration(browser, serve):
+    """Changing step numbers hold their space, and narration renders inline Markdown."""
+    example = next(path for path in EXAMPLES if path.stem == "rust-sort")
+    page = open_page(browser, serve(example))
+    readings = page.evaluate(
+        """async () => {
+          const widget = performance.getEntriesByType('resource')
+            .find(resource => resource.name.endsWith('/page/widgets/lf-sort-film.js'));
+          const source = new URL('../sort.js', widget.name);
+          const {makeInput, trace} = await import(source);
+          const steps = trace(makeInput('random', 7)).steps;
+          const film = document.querySelector('#sort-film');
+          const scrub = film.querySelector('.sort-scrub');
+          const moment = film.querySelector('.sort-moment');
+          const tail = film.querySelector('.sort-moment-tail');
+          const widths = [];
+          for (const index of [0, 1, 8, 9, 98, 99, 198, 199]) {
+            scrub.value = steps[index].start + steps[index].dur - 0.01;
+            scrub.dispatchEvent(new Event('input', {bubbles: true}));
+            widths.push([
+              moment.getBoundingClientRect().width,
+              tail.getBoundingClientRect().left - moment.getBoundingClientRect().left,
+            ]);
+          }
+          const comparison = steps.find(step => step.note.includes('≤') && step.note.includes('buf'));
+          const run = steps.find(step => step.note.startsWith('A natural run'));
+          return {
+            widths,
+            comparisonTime: comparison.start + comparison.dur - 0.01,
+            runTime: run.start + run.dur - 0.01,
+          };
+        }"""
+    )
+    assert all(max(values) - min(values) < 0.1 for values in zip(*readings["widths"]))
+    note = page.locator("#sort-film .sort-narration > span:first-of-type")
+    scrub = page.locator("#sort-film .sort-scrub")
+    scrub.evaluate(
+        "(element, time) => { element.value = time; element.dispatchEvent(new Event('input', {bubbles: true})); }",
+        readings["runTime"],
+    )
+    expect(note.locator("code")).to_have_text(re.compile(r"v\[\d+\.\.\d+\]"))
+    expect(note).to_contain_text("A natural run")
+    scrub.evaluate(
+        "(element, time) => { element.value = time; element.dispatchEvent(new Event('input', {bubbles: true})); }",
+        readings["comparisonTime"],
+    )
+    expect(note.locator("strong")).to_contain_text("≤")
+    expect(note.locator("code")).to_have_text("buf")
+
+
 def test_ship_review_summary_is_addressable_and_baseline_aligned(browser, serve):
     example = next(path for path in EXAMPLES if path.stem == "ship-review")
     page = open_page(browser, serve(example))
@@ -2612,58 +2767,6 @@ def test_the_render_gate_names_a_wide_widget_that_escapes_a_frame_that_scrolls(
     )
 
 
-def test_a_wide_widget_gives_the_tray_its_strip(browser, serve):
-    """The Asks tray takes 300px of the window, and nothing in CSS can see that — so
-    the room a wide widget spends is measured, and this is the measurement's hard case.
-    The strip is handed over as motion, so at the moment the layout is written body still
-    has the width it is leaving: a room read off the box in front of us states one 300px
-    too wide, and the exhibit hangs over the tray that displaced it with a sideways
-    scrollbar under it, for as long as it takes something else to remeasure — which, on a
-    page nobody resizes again, is the rest of the session.
-
-    Straddling the open is the whole of the test. A board already at the shared cap is
-    the same 1080px either side of a room read wrongly, so what says the room moved is
-    the exhibit coming down to fit a window that is 300px narrower than the one it was
-    laid out in."""
-    page = open_page(browser, serve(with_one_ask(WIDE_AND_NARROW_PAGE)))
-    closed = page.evaluate(ROOM_GEOMETRY)
-    assert closed["board"]["width"] > closed["column"]["width"], (
-        "the board must start wider than the column, or the shrink proves nothing"
-    )
-
-    toggle_asks(page)
-    opened = page.evaluate(ROOM_GEOMETRY)
-
-    assert opened["board"]["width"] < closed["board"]["width"], (
-        "the exhibit kept the width of a window it no longer has: board "
-        f"{opened['board']['width']:.0f}px in {opened['room']['width']:.0f}px of room"
-    )
-    assert opened["board"]["right"] <= opened["room"]["right"] + 1, (
-        "the exhibit hangs over the tray that displaced it"
-    )
-    assert opened["sideways"] == 0, (
-        "the page scrolls sideways with the tray open — the strip was spent twice"
-    )
-    assert abs(opened["prose"]["width"] - opened["column"]["width"]) <= 1, (
-        "prose still keeps the column beside an open tray"
-    )
-
-    # Closing is the same CSS hand-over in reverse. At every intermediate frame the
-    # document and its breakout must agree about the room, or the page briefly scrolls
-    # sideways.
-    page.get_by_role("button", name="Close asks").click()
-    assert page.evaluate(
-        "() => document.body.scrollWidth <= document.body.clientWidth"
-    ), "the page scrolled sideways while the tray's strip was still coming back"
-    expect(page.locator(".lf-asks-panel")).to_be_hidden()
-    closed_again = page.evaluate(ROOM_GEOMETRY)
-    assert closed_again["board"]["width"] == closed["board"]["width"], (
-        "the room the tray gave back never reached the exhibit: board "
-        f"{closed_again['board']['width']:.0f}px, was {closed['board']['width']:.0f}px"
-    )
-    assert closed_again["sideways"] == 0
-
-
 def test_a_wide_widget_leaves_the_sidenote_its_margin(browser, serve):
     """The page has two claims on its right margin now: a note is read out there, and a
     wide widget expands into it. A widget drawn over a note is the note lost — it is the
@@ -2759,10 +2862,9 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
     is the wide exhibit in the control: it may use the other margins but not the one the
     sticky sidebar can occupy at any scroll position.
 
-    Opening the Asks tray narrows the page without changing the viewport. The body's
-    container query sees the resulting content box and returns the aside to the flow. A
-    narrow viewport proves the same fallback comes from CSS alone, and print proves
-    paper reserves no blank margin for a posture it cannot use."""
+    The Asks tray stands over the left margin and moves nothing in it. A narrow viewport
+    returns the aside to the flow from CSS alone, and print proves paper reserves no
+    blank margin for a posture it cannot use."""
     # Compose the wide release-note exhibit with a sidebar; the short public draft
     # no longer needs one of its own.
     example = (
@@ -2874,22 +2976,27 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
         "() => Number(getComputedStyle(document.querySelector('lf-toc a')).opacity) === 0"
     )
 
-    # A left auxiliary surface and the page's own left margin are consecutive strips. The fixed
-    # ToC follows the shell's left edge instead of remaining behind the Asks sheet.
+    # The Asks tray stands over the page's left margin and moves nothing in it: the fixed
+    # ToC and the sidebar stay where the page put them, under the tray while it stands.
     resized(page, 1700, 900)
+    margin = """() => {
+          const sidebar = document.querySelector('aside.sidebar').getBoundingClientRect();
+          const toc = document.querySelector('lf-toc .lf-toc-nav').getBoundingClientRect();
+          return {sidebarLeft: sidebar.left, tocLeft: toc.left};
+        }"""
+    before = page.evaluate(margin)
     banner_control(page, ".lf-asks").click()
     expect(page.locator(".lf-asks-panel")).to_be_visible()
     page.wait_for_function(
-        """() => document.querySelector('.lf-asks-panel').getAnimations().length === 0
-          && document.querySelector('lf-toc').getAnimations().length === 0"""
+        """() => document.querySelector('.lf-asks-panel').getAnimations().length === 0"""
     )
+    assert page.evaluate(margin) == before
     geometry = page.evaluate(
         """() => {
-          const tray = document.querySelector('.lf-asks-panel').getBoundingClientRect();
           const sidebar = document.querySelector('aside.sidebar').getBoundingClientRect();
           const toc = document.querySelector('lf-toc .lf-toc-nav').getBoundingClientRect();
           const line = document.querySelector('.lf-shortcut-bar').getBoundingClientRect();
-          return {trayRight: tray.right, sidebarLeft: sidebar.left, tocLeft: toc.left,
+          return {sidebarLeft: sidebar.left, tocLeft: toc.left,
                   tocTop: toc.top, tocBottom: toc.bottom, lineTop: line.top,
                   sidebarPosition: getComputedStyle(document.querySelector('aside.sidebar')).position,
                   tocPosition: getComputedStyle(document.querySelector('lf-toc')).position};
@@ -2897,8 +3004,6 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
     )
     assert geometry["sidebarPosition"] == "sticky"
     assert geometry["tocPosition"] == "fixed"
-    assert geometry["sidebarLeft"] >= geometry["trayRight"] - 1
-    assert abs(geometry["tocLeft"] - geometry["trayRight"] - 24) <= 1
     assert 64 <= geometry["tocTop"] <= 68
     # The map ends above the bottom band, as every region does: its foot is the window's
     # less the band and the map's own inset, so the keyboard's line never covers its last
@@ -2968,13 +3073,6 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
         f"the sidebar stuck at {stuck:.0f}px, not below the banner"
     )
 
-    page.evaluate("document.scrollingElement.scrollTo(0, 0)")
-    toggle_asks(page)
-    cramped = page.evaluate(reading)
-    assert cramped["strip"] == 0
-    assert cramped["float"] == "none" and cramped["position"] == "static"
-    assert abs(cramped["sidebar"]["left"] - cramped["column"]["left"]) <= 1
-    assert page.evaluate(sideways) == 0
     page.close()
 
     page = open_page(browser, serve(example))
@@ -3110,20 +3208,12 @@ def test_opposite_margin_residents_wait_for_the_room_they_need(browser, serve):
     assert roomy["sidebars"][1]["left"] >= roomy["column"]["left"] - 1
     assert roomy["sideways"] == 0
 
-    resized(page, 1700, 800)
+    # The Asks tray stands over the page and grants or withdraws no margin.
     toggle_asks(page)
     panelled = page.evaluate(reading)
-    assert [side["float"] for side in panelled["sidebars"]] == ["none", "none"]
-    assert panelled["noteFloat"] == "right"
-    assert panelled["padding"] == {"left": 0, "right": 384}
-    assert panelled["column"]["width"] == 720
-    assert panelled["sideways"] == 0
-    resized(page, 1699, 800)
-    resized(page, 1700, 800)
-    repeated = page.evaluate(reading)
-    assert [side["float"] for side in repeated["sidebars"]] == ["none", "none"]
-    assert repeated["noteFloat"] == "right"
-    assert repeated["column"]["width"] == 720
+    assert panelled["sidebars"] == roomy["sidebars"]
+    assert panelled["padding"] == roomy["padding"]
+    assert panelled["column"] == roomy["column"]
 
 
 def test_the_handed_over_url_opens_the_latest_version(browser, serve):

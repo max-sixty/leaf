@@ -4,7 +4,7 @@
    around the change: `placeKeeper(scroller, {items, identity})` names the nodes that
    can mark a place and the identity each is rendered under, and its `take` / `finish`
    pair brackets one mutation. The document itself needs none of this: its scroller is
-   the platform's, and native scroll anchoring holds it (theme.css, at the body strip).
+   the platform's, and native scroll anchoring holds it.
 
    The place is one reference node and its offset in the scroller's content. The
    reference is chosen by what the user last named: a visible item under the pointer

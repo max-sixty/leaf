@@ -8,10 +8,9 @@
     />
     <link rel="icon" href="/icon.svg" type="image/svg+xml" />
     <style>
-      /* The Layout tab's drawings. Each is an inline SVG styled from these classes, whose
-         fills and strokes are the theme's tokens, so every drawing follows light and
-         dark with the page. A figure of several panels sets them side by side and
-         stacks them on a narrow window, so no panel's words shrink past reading. */
+      /* The Layout tab's drawings are the theme's svg.drawing idiom. A figure of several
+         panels sets them side by side and stacks them on a narrow window, so no panel's
+         words shrink past reading. */
       .panels {
         display: grid;
         grid-template-columns: repeat(var(--panels, 3), minmax(0, 1fr));
@@ -42,108 +41,33 @@
         max-width: 480px;
         margin-inline: auto;
       }
-      .draw {
-        display: block;
-        width: 100%;
-        height: auto;
-      }
-      .draw text {
-        font: 12px var(--sans);
-        fill: var(--ink-2);
-      }
-      .draw text.strong {
-        font-weight: 600;
-        fill: var(--ink);
-      }
-      .draw text.small {
-        font-size: 11px;
-        fill: var(--muted);
-      }
-      .draw text.code {
-        font: 11px var(--mono);
-        fill: var(--ink-2);
-      }
-      .draw text.num {
-        font-weight: 700;
-        fill: var(--paper);
-      }
-      .draw .win {
-        fill: var(--card);
-        stroke: var(--rule);
-        stroke-width: 1.5;
-      }
-      .draw .bar {
-        fill: var(--field);
-      }
-      .draw .line {
-        fill: var(--muted);
-        opacity: 0.35;
-      }
-      .draw .head {
-        fill: var(--ink-2);
-        opacity: 0.8;
-      }
-      .draw .block {
-        fill: var(--paper);
-        stroke: var(--rule);
-        stroke-width: 1.2;
-      }
-      /* What a drawing is about takes the accent. */
-      .draw .focus {
-        fill: var(--accent-tint);
-        stroke: var(--accent);
-        stroke-width: 1.5;
-      }
-      .draw .fixed {
-        fill: var(--rule);
-      }
-      .draw .rail {
+      /* Marks particular to these drawings, on the same tokens as the theme's
+         svg.drawing idiom: the rail's reservation, a surface drawn over the page, an
+         attribute's outline, a split that lands somewhere new, and a scroll thumb. */
+      svg.drawing .rail {
         fill: var(--accent-tint);
       }
-      .draw .dot,
-      .draw .badge {
-        fill: var(--accent);
-      }
-      .draw .over {
+      svg.drawing .over {
         fill: var(--paper);
         fill-opacity: 0.92;
         stroke: var(--accent);
         stroke-width: 1.5;
         stroke-dasharray: 5 4;
       }
-      .draw .attr {
+      svg.drawing .attr {
         fill: none;
         stroke: var(--ok);
         stroke-width: 1.5;
         stroke-dasharray: 2 3;
       }
-      .draw .cls {
-        fill: none;
-        stroke: var(--muted);
-        stroke-width: 1.2;
-        stroke-dasharray: 5 4;
-      }
-      .draw .guide {
-        stroke: var(--accent);
-        stroke-width: 1.2;
-        stroke-dasharray: 4 3;
-      }
-      .draw .split {
+      svg.drawing .split {
         stroke: var(--danger);
         stroke-width: 1.2;
         stroke-dasharray: 4 3;
       }
-      .draw .thumb {
+      svg.drawing .thumb {
         fill: var(--muted);
         opacity: 0.6;
-      }
-      .draw .arrow {
-        stroke: var(--muted);
-        stroke-width: 1.5;
-        fill: none;
-      }
-      .draw .tip {
-        fill: var(--muted);
       }
 
       /* A terminal wraps a long line rather than scrolling it, so the transcript
@@ -671,25 +595,88 @@ $ leaf status ./review waiting "Does the API/importer split match what you need?
 
             <div class="panels" id="kind-figure">
               <figure id="kind-column">
-                <svg class="draw" viewBox="0 0 240 160" role="img">
+                <svg class="drawing" viewBox="0 0 240 160" role="img">
                   <title>
                     Prose in the reading column, with a wide block growing past it
                   </title>
-                  <rect class="win" x="1" y="1" width="238" height="158" rx="6" />
-                  <rect class="bar" x="2" y="2" width="236" height="11" rx="5" />
+                  <rect class="frame" x="1" y="1" width="238" height="158" rx="6" />
+                  <rect class="frame-head" x="2" y="2" width="236" height="11" rx="5" />
                   <g id="kind-prose">
-                    <rect class="head" x="72" y="22" width="60" height="6" rx="2" />
-                    <rect class="line" x="72" y="34" width="96" height="4" rx="2" />
-                    <rect class="line" x="72" y="42" width="90" height="4" rx="2" />
-                    <rect class="line" x="72" y="50" width="96" height="4" rx="2" />
-                    <rect class="line" x="72" y="110" width="96" height="4" rx="2" />
-                    <rect class="line" x="72" y="118" width="88" height="4" rx="2" />
-                    <rect class="line" x="72" y="126" width="96" height="4" rx="2" />
-                    <rect class="line" x="72" y="134" width="60" height="4" rx="2" />
-                    <rect class="line" x="72" y="142" width="92" height="4" rx="2" />
+                    <rect class="line" x="72" y="22" width="60" height="6" rx="2" />
+                    <rect
+                      class="line soft"
+                      x="72"
+                      y="34"
+                      width="96"
+                      height="4"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="72"
+                      y="42"
+                      width="90"
+                      height="4"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="72"
+                      y="50"
+                      width="96"
+                      height="4"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="72"
+                      y="110"
+                      width="96"
+                      height="4"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="72"
+                      y="118"
+                      width="88"
+                      height="4"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="72"
+                      y="126"
+                      width="96"
+                      height="4"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="72"
+                      y="134"
+                      width="60"
+                      height="4"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="72"
+                      y="142"
+                      width="92"
+                      height="4"
+                      rx="2"
+                    />
                   </g>
                   <g id="kind-wide-block">
-                    <rect class="focus" x="30" y="60" width="180" height="40" rx="3" />
+                    <rect
+                      class="box hot"
+                      x="30"
+                      y="60"
+                      width="180"
+                      height="40"
+                      rx="3"
+                    />
                     <text x="120" y="84" text-anchor="middle">wide block</text>
                   </g>
                 </svg>
@@ -700,27 +687,27 @@ $ leaf status ./review waiting "Does the API/importer split match what you need?
                 </figcaption>
               </figure>
               <figure id="kind-wide">
-                <svg class="draw" viewBox="0 0 240 160" role="img">
+                <svg class="drawing" viewBox="0 0 240 160" role="img">
                   <title>
                     A wide page: main declares a width, and its regions share one left
                     edge
                   </title>
-                  <rect class="win" x="1" y="1" width="238" height="158" rx="6" />
-                  <rect class="bar" x="2" y="2" width="236" height="11" rx="5" />
+                  <rect class="frame" x="1" y="1" width="238" height="158" rx="6" />
+                  <rect class="frame-head" x="2" y="2" width="236" height="11" rx="5" />
                   <g id="kind-wide-main">
                     <rect class="attr" x="8" y="18" width="224" height="136" rx="3" />
-                    <text class="code" x="14" y="30">main data-width</text>
+                    <text class="mono" x="14" y="30">main data-width</text>
                   </g>
-                  <rect class="head" x="14" y="37" width="80" height="8" rx="2" />
+                  <rect class="line" x="14" y="37" width="80" height="8" rx="2" />
                   <g id="kind-wide-body">
-                    <rect class="block" x="14" y="52" width="136" height="50" rx="3" />
-                    <rect class="block" x="14" y="108" width="136" height="40" rx="3" />
+                    <rect class="box" x="14" y="52" width="136" height="50" rx="3" />
+                    <rect class="box" x="14" y="108" width="136" height="40" rx="3" />
                     <text class="small" x="22" y="66">body</text>
                   </g>
                   <g id="kind-wide-status">
-                    <rect class="block" x="156" y="52" width="70" height="30" rx="3" />
-                    <rect class="block" x="156" y="88" width="70" height="28" rx="3" />
-                    <rect class="block" x="156" y="122" width="70" height="26" rx="3" />
+                    <rect class="box" x="156" y="52" width="70" height="30" rx="3" />
+                    <rect class="box" x="156" y="88" width="70" height="28" rx="3" />
+                    <rect class="box" x="156" y="122" width="70" height="26" rx="3" />
                     <text class="small" x="164" y="66">status</text>
                   </g>
                 </svg>
@@ -731,38 +718,157 @@ $ leaf status ./review waiting "Does the API/importer split match what you need?
                 </figcaption>
               </figure>
               <figure id="kind-workspace">
-                <svg class="draw" viewBox="0 0 240 160" role="img">
+                <svg class="drawing" viewBox="0 0 240 160" role="img">
                   <title>
                     A workspace alone in main holds the window, and each pane scrolls on
                     its own
                   </title>
-                  <rect class="win" x="1" y="1" width="238" height="158" rx="6" />
-                  <rect class="bar" x="2" y="2" width="236" height="11" rx="5" />
-                  <rect class="head" x="12" y="20" width="70" height="7" rx="2" />
+                  <rect class="frame" x="1" y="1" width="238" height="158" rx="6" />
+                  <rect class="frame-head" x="2" y="2" width="236" height="11" rx="5" />
+                  <rect class="line" x="12" y="20" width="70" height="7" rx="2" />
                   <g id="kind-ws-queue">
-                    <rect class="focus" x="12" y="34" width="72" height="118" rx="3" />
+                    <rect
+                      class="box hot"
+                      x="12"
+                      y="34"
+                      width="72"
+                      height="118"
+                      rx="3"
+                    />
                     <text class="small" x="18" y="46">queue</text>
-                    <rect class="line" x="18" y="56" width="54" height="5" rx="2" />
-                    <rect class="line" x="18" y="66" width="54" height="5" rx="2" />
-                    <rect class="line" x="18" y="76" width="54" height="5" rx="2" />
-                    <rect class="line" x="18" y="86" width="54" height="5" rx="2" />
-                    <rect class="line" x="18" y="96" width="54" height="5" rx="2" />
-                    <rect class="line" x="18" y="106" width="54" height="5" rx="2" />
-                    <rect class="line" x="18" y="116" width="54" height="5" rx="2" />
-                    <rect class="line" x="18" y="126" width="54" height="5" rx="2" />
-                    <rect class="line" x="18" y="136" width="54" height="5" rx="2" />
+                    <rect
+                      class="line soft"
+                      x="18"
+                      y="56"
+                      width="54"
+                      height="5"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="18"
+                      y="66"
+                      width="54"
+                      height="5"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="18"
+                      y="76"
+                      width="54"
+                      height="5"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="18"
+                      y="86"
+                      width="54"
+                      height="5"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="18"
+                      y="96"
+                      width="54"
+                      height="5"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="18"
+                      y="106"
+                      width="54"
+                      height="5"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="18"
+                      y="116"
+                      width="54"
+                      height="5"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="18"
+                      y="126"
+                      width="54"
+                      height="5"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="18"
+                      y="136"
+                      width="54"
+                      height="5"
+                      rx="2"
+                    />
                     <rect class="thumb" x="77" y="54" width="3" height="26" rx="1.5" />
                   </g>
                   <g id="kind-ws-detail">
-                    <rect class="focus" x="90" y="34" width="138" height="118" rx="3" />
+                    <rect
+                      class="box hot"
+                      x="90"
+                      y="34"
+                      width="138"
+                      height="118"
+                      rx="3"
+                    />
                     <text class="small" x="96" y="46">detail</text>
-                    <rect class="line" x="96" y="56" width="110" height="4" rx="2" />
-                    <rect class="line" x="96" y="64" width="100" height="4" rx="2" />
-                    <rect class="block" x="96" y="74" width="116" height="30" rx="2" />
-                    <rect class="line" x="96" y="112" width="110" height="4" rx="2" />
-                    <rect class="line" x="96" y="120" width="96" height="4" rx="2" />
-                    <rect class="line" x="96" y="128" width="110" height="4" rx="2" />
-                    <rect class="line" x="96" y="136" width="70" height="4" rx="2" />
+                    <rect
+                      class="line soft"
+                      x="96"
+                      y="56"
+                      width="110"
+                      height="4"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="96"
+                      y="64"
+                      width="100"
+                      height="4"
+                      rx="2"
+                    />
+                    <rect class="box" x="96" y="74" width="116" height="30" rx="2" />
+                    <rect
+                      class="line soft"
+                      x="96"
+                      y="112"
+                      width="110"
+                      height="4"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="96"
+                      y="120"
+                      width="96"
+                      height="4"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="96"
+                      y="128"
+                      width="110"
+                      height="4"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="96"
+                      y="136"
+                      width="70"
+                      height="4"
+                      rx="2"
+                    />
                     <rect class="thumb" x="221" y="70" width="3" height="34" rx="1.5" />
                   </g>
                 </svg>
@@ -791,36 +897,99 @@ $ leaf status ./review waiting "Does the API/importer split match what you need?
 
             <div class="panels" id="chrome-figure">
               <figure id="chrome-reserved">
-                <svg class="draw" viewBox="0 0 240 160" role="img">
+                <svg class="drawing" viewBox="0 0 240 160" role="img">
                   <title>
                     The banner, the shortcut band and the rail are reserved at fixed
                     sizes
                   </title>
-                  <rect class="win" x="1" y="1" width="238" height="158" rx="6" />
+                  <rect class="frame" x="1" y="1" width="238" height="158" rx="6" />
                   <g id="chrome-banner">
-                    <rect class="fixed" x="2" y="2" width="236" height="18" rx="5" />
+                    <rect
+                      class="frame-head"
+                      x="2"
+                      y="2"
+                      width="236"
+                      height="18"
+                      rx="5"
+                    />
                     <text x="10" y="15">Banner</text>
                   </g>
                   <g id="chrome-band">
-                    <rect class="fixed" x="2" y="140" width="236" height="18" rx="5" />
+                    <rect
+                      class="frame-head"
+                      x="2"
+                      y="140"
+                      width="236"
+                      height="18"
+                      rx="5"
+                    />
                     <text x="10" y="153">Shortcut band</text>
                   </g>
                   <g id="chrome-rail">
                     <rect class="rail" x="194" y="20" width="44" height="120" />
                     <text x="216" y="36" text-anchor="middle">Rail</text>
-                    <circle class="dot" cx="202" cy="60" r="4" />
-                    <circle class="dot" cx="202" cy="104" r="4" />
+                    <circle class="mark" cx="202" cy="60" r="4" />
+                    <circle class="mark" cx="202" cy="104" r="4" />
                   </g>
                   <g id="chrome-page">
-                    <rect class="head" x="60" y="30" width="60" height="6" rx="2" />
-                    <rect class="line" x="60" y="42" width="100" height="4" rx="2" />
-                    <rect class="line" x="60" y="50" width="94" height="4" rx="2" />
-                    <rect class="line" x="60" y="58" width="100" height="4" rx="2" />
-                    <rect class="block" x="40" y="68" width="140" height="30" rx="3" />
-                    <rect class="line" x="60" y="106" width="100" height="4" rx="2" />
-                    <rect class="line" x="60" y="114" width="92" height="4" rx="2" />
-                    <rect class="line" x="60" y="122" width="100" height="4" rx="2" />
-                    <rect class="line" x="60" y="130" width="70" height="4" rx="2" />
+                    <rect class="line" x="60" y="30" width="60" height="6" rx="2" />
+                    <rect
+                      class="line soft"
+                      x="60"
+                      y="42"
+                      width="100"
+                      height="4"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="60"
+                      y="50"
+                      width="94"
+                      height="4"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="60"
+                      y="58"
+                      width="100"
+                      height="4"
+                      rx="2"
+                    />
+                    <rect class="box" x="40" y="68" width="140" height="30" rx="3" />
+                    <rect
+                      class="line soft"
+                      x="60"
+                      y="106"
+                      width="100"
+                      height="4"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="60"
+                      y="114"
+                      width="92"
+                      height="4"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="60"
+                      y="122"
+                      width="100"
+                      height="4"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="60"
+                      y="130"
+                      width="70"
+                      height="4"
+                      rx="2"
+                    />
                   </g>
                 </svg>
                 <figcaption id="cap-chrome-reserved">
@@ -830,22 +999,43 @@ $ leaf status ./review waiting "Does the API/importer split match what you need?
                 </figcaption>
               </figure>
               <figure id="chrome-surfaces">
-                <svg class="draw" viewBox="0 0 240 160" role="img">
+                <svg class="drawing" viewBox="0 0 240 160" role="img">
                   <title>
                     The Asks tray and the Threads panel open over the page's edges
                   </title>
-                  <rect class="win" x="1" y="1" width="238" height="158" rx="6" />
-                  <rect class="fixed" x="2" y="2" width="236" height="18" rx="5" />
-                  <rect class="fixed" x="2" y="140" width="236" height="18" rx="5" />
+                  <rect class="frame" x="1" y="1" width="238" height="158" rx="6" />
+                  <rect class="frame-head" x="2" y="2" width="236" height="18" rx="5" />
+                  <rect
+                    class="frame-head"
+                    x="2"
+                    y="140"
+                    width="236"
+                    height="18"
+                    rx="5"
+                  />
                   <rect class="rail" x="194" y="20" width="44" height="120" />
-                  <rect class="head" x="60" y="30" width="60" height="6" rx="2" />
-                  <rect class="line" x="60" y="42" width="100" height="4" rx="2" />
-                  <rect class="line" x="60" y="50" width="94" height="4" rx="2" />
-                  <rect class="line" x="60" y="58" width="100" height="4" rx="2" />
-                  <rect class="block" x="40" y="68" width="140" height="30" rx="3" />
-                  <rect class="line" x="60" y="106" width="100" height="4" rx="2" />
-                  <rect class="line" x="60" y="114" width="92" height="4" rx="2" />
-                  <rect class="line" x="60" y="122" width="100" height="4" rx="2" />
+                  <rect class="line" x="60" y="30" width="60" height="6" rx="2" />
+                  <rect class="line soft" x="60" y="42" width="100" height="4" rx="2" />
+                  <rect class="line soft" x="60" y="50" width="94" height="4" rx="2" />
+                  <rect class="line soft" x="60" y="58" width="100" height="4" rx="2" />
+                  <rect class="box" x="40" y="68" width="140" height="30" rx="3" />
+                  <rect
+                    class="line soft"
+                    x="60"
+                    y="106"
+                    width="100"
+                    height="4"
+                    rx="2"
+                  />
+                  <rect class="line soft" x="60" y="114" width="92" height="4" rx="2" />
+                  <rect
+                    class="line soft"
+                    x="60"
+                    y="122"
+                    width="100"
+                    height="4"
+                    rx="2"
+                  />
                   <g id="chrome-asks-tray">
                     <rect class="over" x="6" y="24" width="72" height="112" rx="5" />
                     <text class="strong" x="42" y="44" text-anchor="middle">
@@ -869,25 +1059,46 @@ $ leaf status ./review waiting "Does the API/importer split match what you need?
                 </figcaption>
               </figure>
               <figure id="chrome-card">
-                <svg class="draw" viewBox="0 0 240 160" role="img">
+                <svg class="drawing" viewBox="0 0 240 160" role="img">
                   <title>A thread card stands in the rail beside its marker</title>
-                  <rect class="win" x="1" y="1" width="238" height="158" rx="6" />
-                  <rect class="fixed" x="2" y="2" width="236" height="18" rx="5" />
-                  <rect class="fixed" x="2" y="140" width="236" height="18" rx="5" />
+                  <rect class="frame" x="1" y="1" width="238" height="158" rx="6" />
+                  <rect class="frame-head" x="2" y="2" width="236" height="18" rx="5" />
+                  <rect
+                    class="frame-head"
+                    x="2"
+                    y="140"
+                    width="236"
+                    height="18"
+                    rx="5"
+                  />
                   <rect class="rail" x="194" y="20" width="44" height="120" />
-                  <circle class="dot" cx="202" cy="104" r="4" />
-                  <rect class="head" x="60" y="30" width="60" height="6" rx="2" />
-                  <rect class="line" x="60" y="42" width="100" height="4" rx="2" />
-                  <rect class="line" x="60" y="50" width="94" height="4" rx="2" />
+                  <circle class="mark" cx="202" cy="104" r="4" />
+                  <rect class="line" x="60" y="30" width="60" height="6" rx="2" />
+                  <rect class="line soft" x="60" y="42" width="100" height="4" rx="2" />
+                  <rect class="line soft" x="60" y="50" width="94" height="4" rx="2" />
                   <g id="chrome-passage">
-                    <rect class="focus" x="58" y="56" width="104" height="8" rx="2" />
-                    <circle class="dot" cx="202" cy="60" r="4" />
+                    <rect class="box hot" x="58" y="56" width="104" height="8" rx="2" />
+                    <circle class="mark" cx="202" cy="60" r="4" />
                   </g>
-                  <rect class="block" x="40" y="68" width="140" height="30" rx="3" />
-                  <rect class="line" x="60" y="106" width="100" height="4" rx="2" />
-                  <rect class="line" x="60" y="114" width="92" height="4" rx="2" />
-                  <rect class="line" x="60" y="122" width="100" height="4" rx="2" />
-                  <rect class="line" x="60" y="130" width="70" height="4" rx="2" />
+                  <rect class="box" x="40" y="68" width="140" height="30" rx="3" />
+                  <rect
+                    class="line soft"
+                    x="60"
+                    y="106"
+                    width="100"
+                    height="4"
+                    rx="2"
+                  />
+                  <rect class="line soft" x="60" y="114" width="92" height="4" rx="2" />
+                  <rect
+                    class="line soft"
+                    x="60"
+                    y="122"
+                    width="100"
+                    height="4"
+                    rx="2"
+                  />
+                  <rect class="line soft" x="60" y="130" width="70" height="4" rx="2" />
                   <g id="chrome-thread-card">
                     <rect class="over" x="176" y="68" width="58" height="62" rx="5" />
                     <text class="strong" x="205" y="94" text-anchor="middle">
@@ -922,25 +1133,46 @@ $ leaf status ./review waiting "Does the API/importer split match what you need?
 
             <div class="panels" id="vocabulary-figure">
               <figure id="vocabulary-element">
-                <svg class="draw" viewBox="0 0 240 160" role="img">
+                <svg class="drawing" viewBox="0 0 240 160" role="img">
                   <title>Elements: a workspace holding a grid of two panes</title>
-                  <rect class="win" x="1" y="1" width="238" height="158" rx="6" />
-                  <rect class="bar" x="2" y="2" width="236" height="11" rx="5" />
+                  <rect class="frame" x="1" y="1" width="238" height="158" rx="6" />
+                  <rect class="frame-head" x="2" y="2" width="236" height="11" rx="5" />
                   <g id="vocab-workspace">
-                    <rect class="focus" x="8" y="18" width="224" height="136" rx="3" />
-                    <text class="code" x="14" y="30">lf-workspace</text>
+                    <rect
+                      class="box hot"
+                      x="8"
+                      y="18"
+                      width="224"
+                      height="136"
+                      rx="3"
+                    />
+                    <text class="mono" x="14" y="30">lf-workspace</text>
                   </g>
                   <g id="vocab-grid">
-                    <rect class="focus" x="14" y="36" width="212" height="112" rx="3" />
-                    <text class="code" x="20" y="48">lf-grid</text>
+                    <rect
+                      class="box hot"
+                      x="14"
+                      y="36"
+                      width="212"
+                      height="112"
+                      rx="3"
+                    />
+                    <text class="mono" x="20" y="48">lf-grid</text>
                   </g>
                   <g id="vocab-pane-queue">
-                    <rect class="focus" x="20" y="54" width="76" height="88" rx="3" />
-                    <text class="code" x="26" y="68">lf-pane</text>
+                    <rect class="box hot" x="20" y="54" width="76" height="88" rx="3" />
+                    <text class="mono" x="26" y="68">lf-pane</text>
                   </g>
                   <g id="vocab-pane-detail">
-                    <rect class="focus" x="102" y="54" width="118" height="88" rx="3" />
-                    <text class="code" x="108" y="68">lf-pane</text>
+                    <rect
+                      class="box hot"
+                      x="102"
+                      y="54"
+                      width="118"
+                      height="88"
+                      rx="3"
+                    />
+                    <text class="mono" x="108" y="68">lf-pane</text>
                   </g>
                 </svg>
                 <figcaption id="cap-vocabulary-element">
@@ -950,26 +1182,47 @@ $ leaf status ./review waiting "Does the API/importer split match what you need?
                 </figcaption>
               </figure>
               <figure id="vocabulary-attribute">
-                <svg class="draw" viewBox="0 0 240 160" role="img">
+                <svg class="drawing" viewBox="0 0 240 160" role="img">
                   <title>Attributes: data-width on main and on one block</title>
-                  <rect class="win" x="1" y="1" width="238" height="158" rx="6" />
-                  <rect class="bar" x="2" y="2" width="236" height="11" rx="5" />
+                  <rect class="frame" x="1" y="1" width="238" height="158" rx="6" />
+                  <rect class="frame-head" x="2" y="2" width="236" height="11" rx="5" />
                   <g id="vocab-main-width">
                     <rect class="attr" x="8" y="18" width="224" height="136" rx="3" />
-                    <text class="code" x="14" y="30">main data-width</text>
+                    <text class="mono" x="14" y="30">main data-width</text>
                   </g>
-                  <rect class="head" x="14" y="38" width="70" height="7" rx="2" />
-                  <rect class="line" x="14" y="52" width="120" height="4" rx="2" />
-                  <rect class="line" x="14" y="60" width="110" height="4" rx="2" />
+                  <rect class="line" x="14" y="38" width="70" height="7" rx="2" />
+                  <rect class="line soft" x="14" y="52" width="120" height="4" rx="2" />
+                  <rect class="line soft" x="14" y="60" width="110" height="4" rx="2" />
                   <g id="vocab-block-width">
                     <rect class="attr" x="14" y="72" width="212" height="44" rx="3" />
-                    <text class="code" x="120" y="98" text-anchor="middle">
+                    <text class="mono" x="120" y="98" text-anchor="middle">
                       figure data-width
                     </text>
                   </g>
-                  <rect class="line" x="14" y="126" width="120" height="4" rx="2" />
-                  <rect class="line" x="14" y="134" width="104" height="4" rx="2" />
-                  <rect class="line" x="14" y="142" width="116" height="4" rx="2" />
+                  <rect
+                    class="line soft"
+                    x="14"
+                    y="126"
+                    width="120"
+                    height="4"
+                    rx="2"
+                  />
+                  <rect
+                    class="line soft"
+                    x="14"
+                    y="134"
+                    width="104"
+                    height="4"
+                    rx="2"
+                  />
+                  <rect
+                    class="line soft"
+                    x="14"
+                    y="142"
+                    width="116"
+                    height="4"
+                    rx="2"
+                  />
                 </svg>
                 <figcaption id="cap-vocabulary-attribute">
                   <strong>An attribute to size a block</strong
@@ -978,38 +1231,59 @@ $ leaf status ./review waiting "Does the API/importer split match what you need?
                 </figcaption>
               </figure>
               <figure id="vocabulary-class">
-                <svg class="draw" viewBox="0 0 240 160" role="img">
+                <svg class="drawing" viewBox="0 0 240 160" role="img">
                   <title>Classes: a sidebar and two panels the theme styles</title>
-                  <rect class="win" x="1" y="1" width="238" height="158" rx="6" />
-                  <rect class="bar" x="2" y="2" width="236" height="11" rx="5" />
+                  <rect class="frame" x="1" y="1" width="238" height="158" rx="6" />
+                  <rect class="frame-head" x="2" y="2" width="236" height="11" rx="5" />
                   <g id="vocab-sidebar">
-                    <rect class="cls" x="12" y="22" width="60" height="96" rx="3" />
-                    <text class="code" x="42" y="38" text-anchor="middle">aside</text>
-                    <text class="code" x="42" y="51" text-anchor="middle">
+                    <rect class="ghost" x="12" y="22" width="60" height="96" rx="3" />
+                    <text class="mono" x="42" y="38" text-anchor="middle">aside</text>
+                    <text class="mono" x="42" y="51" text-anchor="middle">
                       .sidebar
                     </text>
-                    <rect class="line" x="20" y="62" width="44" height="4" rx="2" />
-                    <rect class="line" x="20" y="70" width="36" height="4" rx="2" />
-                    <rect class="line" x="20" y="78" width="42" height="4" rx="2" />
+                    <rect
+                      class="line soft"
+                      x="20"
+                      y="62"
+                      width="44"
+                      height="4"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="20"
+                      y="70"
+                      width="36"
+                      height="4"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="20"
+                      y="78"
+                      width="42"
+                      height="4"
+                      rx="2"
+                    />
                   </g>
-                  <rect class="head" x="82" y="22" width="80" height="7" rx="2" />
-                  <rect class="line" x="82" y="36" width="140" height="4" rx="2" />
-                  <rect class="line" x="82" y="44" width="126" height="4" rx="2" />
+                  <rect class="line" x="82" y="22" width="80" height="7" rx="2" />
+                  <rect class="line soft" x="82" y="36" width="140" height="4" rx="2" />
+                  <rect class="line soft" x="82" y="44" width="126" height="4" rx="2" />
                   <g id="vocab-panel-steps">
-                    <rect class="cls" x="82" y="56" width="70" height="90" rx="3" />
-                    <text class="code" x="117" y="100" text-anchor="middle">
+                    <rect class="ghost" x="82" y="56" width="70" height="90" rx="3" />
+                    <text class="mono" x="117" y="100" text-anchor="middle">
                       section
                     </text>
-                    <text class="code" x="117" y="113" text-anchor="middle">
+                    <text class="mono" x="117" y="113" text-anchor="middle">
                       .panel
                     </text>
                   </g>
                   <g id="vocab-panel-checks">
-                    <rect class="cls" x="158" y="56" width="70" height="90" rx="3" />
-                    <text class="code" x="193" y="100" text-anchor="middle">
+                    <rect class="ghost" x="158" y="56" width="70" height="90" rx="3" />
+                    <text class="mono" x="193" y="100" text-anchor="middle">
                       section
                     </text>
-                    <text class="code" x="193" y="113" text-anchor="middle">
+                    <text class="mono" x="193" y="113" text-anchor="middle">
                       .panel
                     </text>
                   </g>
@@ -1042,23 +1316,23 @@ $ leaf status ./review waiting "Does the API/importer split match what you need?
 
             <div class="panels two" id="tracks-figure">
               <figure id="tracks-one">
-                <svg class="draw" viewBox="0 0 240 160" role="img">
+                <svg class="drawing" viewBox="0 0 240 160" role="img">
                   <title>
                     One set of tracks: every region starts on one of two lines
                   </title>
-                  <rect class="win" x="1" y="1" width="238" height="158" rx="6" />
-                  <rect class="bar" x="2" y="2" width="236" height="11" rx="5" />
-                  <rect class="head" x="12" y="20" width="80" height="8" rx="2" />
+                  <rect class="frame" x="1" y="1" width="238" height="158" rx="6" />
+                  <rect class="frame-head" x="2" y="2" width="236" height="11" rx="5" />
+                  <rect class="line" x="12" y="20" width="80" height="8" rx="2" />
                   <g id="tracks-body">
-                    <rect class="block" x="12" y="34" width="140" height="44" rx="3" />
-                    <rect class="block" x="12" y="84" width="140" height="30" rx="3" />
-                    <rect class="block" x="12" y="120" width="140" height="32" rx="3" />
+                    <rect class="box" x="12" y="34" width="140" height="44" rx="3" />
+                    <rect class="box" x="12" y="84" width="140" height="30" rx="3" />
+                    <rect class="box" x="12" y="120" width="140" height="32" rx="3" />
                     <text class="small" x="20" y="48">body</text>
                   </g>
                   <g id="tracks-status">
-                    <rect class="block" x="158" y="34" width="70" height="26" rx="3" />
-                    <rect class="block" x="158" y="66" width="70" height="40" rx="3" />
-                    <rect class="block" x="158" y="112" width="70" height="40" rx="3" />
+                    <rect class="box" x="158" y="34" width="70" height="26" rx="3" />
+                    <rect class="box" x="158" y="66" width="70" height="40" rx="3" />
+                    <rect class="box" x="158" y="112" width="70" height="40" rx="3" />
                     <text class="small" x="166" y="48">status</text>
                   </g>
                   <g id="tracks-lines">
@@ -1073,24 +1347,24 @@ $ leaf status ./review waiting "Does the API/importer split match what you need?
                 </figcaption>
               </figure>
               <figure id="tracks-rows">
-                <svg class="draw" viewBox="0 0 240 160" role="img">
+                <svg class="drawing" viewBox="0 0 240 160" role="img">
                   <title>A grid per row: each row splits somewhere new</title>
-                  <rect class="win" x="1" y="1" width="238" height="158" rx="6" />
-                  <rect class="bar" x="2" y="2" width="236" height="11" rx="5" />
-                  <rect class="head" x="12" y="20" width="80" height="8" rx="2" />
+                  <rect class="frame" x="1" y="1" width="238" height="158" rx="6" />
+                  <rect class="frame-head" x="2" y="2" width="236" height="11" rx="5" />
+                  <rect class="line" x="12" y="20" width="80" height="8" rx="2" />
                   <g id="tracks-row-1">
-                    <rect class="block" x="12" y="34" width="140" height="36" rx="3" />
-                    <rect class="block" x="158" y="34" width="70" height="36" rx="3" />
+                    <rect class="box" x="12" y="34" width="140" height="36" rx="3" />
+                    <rect class="box" x="158" y="34" width="70" height="36" rx="3" />
                     <line class="split" x1="155" y1="31" x2="155" y2="73" />
                   </g>
                   <g id="tracks-row-2">
-                    <rect class="block" x="12" y="76" width="105" height="36" rx="3" />
-                    <rect class="block" x="123" y="76" width="105" height="36" rx="3" />
+                    <rect class="box" x="12" y="76" width="105" height="36" rx="3" />
+                    <rect class="box" x="123" y="76" width="105" height="36" rx="3" />
                     <line class="split" x1="120" y1="73" x2="120" y2="115" />
                   </g>
                   <g id="tracks-row-3">
-                    <rect class="block" x="12" y="118" width="70" height="34" rx="3" />
-                    <rect class="block" x="88" y="118" width="140" height="34" rx="3" />
+                    <rect class="box" x="12" y="118" width="70" height="34" rx="3" />
+                    <rect class="box" x="88" y="118" width="140" height="34" rx="3" />
                     <line class="split" x1="85" y1="115" x2="85" y2="155" />
                   </g>
                 </svg>
@@ -1129,39 +1403,137 @@ $ leaf status ./review waiting "Does the API/importer split match what you need?
 
             <div class="panels two" id="workspace-figure">
               <figure id="workspace-held">
-                <svg class="draw" viewBox="0 0 240 160" role="img">
+                <svg class="drawing" viewBox="0 0 240 160" role="img">
                   <title>
                     Alone in main, a workspace holds the window and its panes scroll
                   </title>
-                  <rect class="win" x="1" y="1" width="238" height="158" rx="6" />
-                  <rect class="bar" x="2" y="2" width="236" height="11" rx="5" />
-                  <rect class="head" x="12" y="20" width="70" height="7" rx="2" />
+                  <rect class="frame" x="1" y="1" width="238" height="158" rx="6" />
+                  <rect class="frame-head" x="2" y="2" width="236" height="11" rx="5" />
+                  <rect class="line" x="12" y="20" width="70" height="7" rx="2" />
                   <g id="workspace-held-queue">
-                    <rect class="focus" x="12" y="34" width="72" height="118" rx="3" />
+                    <rect
+                      class="box hot"
+                      x="12"
+                      y="34"
+                      width="72"
+                      height="118"
+                      rx="3"
+                    />
                     <text class="small" x="18" y="46">queue</text>
-                    <rect class="line" x="18" y="56" width="54" height="5" rx="2" />
-                    <rect class="line" x="18" y="66" width="54" height="5" rx="2" />
-                    <rect class="line" x="18" y="76" width="54" height="5" rx="2" />
-                    <rect class="line" x="18" y="86" width="54" height="5" rx="2" />
-                    <rect class="line" x="18" y="96" width="54" height="5" rx="2" />
-                    <rect class="line" x="18" y="106" width="54" height="5" rx="2" />
-                    <rect class="line" x="18" y="116" width="54" height="5" rx="2" />
-                    <rect class="line" x="18" y="126" width="54" height="5" rx="2" />
-                    <rect class="line" x="18" y="136" width="54" height="5" rx="2" />
+                    <rect
+                      class="line soft"
+                      x="18"
+                      y="56"
+                      width="54"
+                      height="5"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="18"
+                      y="66"
+                      width="54"
+                      height="5"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="18"
+                      y="76"
+                      width="54"
+                      height="5"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="18"
+                      y="86"
+                      width="54"
+                      height="5"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="18"
+                      y="96"
+                      width="54"
+                      height="5"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="18"
+                      y="106"
+                      width="54"
+                      height="5"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="18"
+                      y="116"
+                      width="54"
+                      height="5"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="18"
+                      y="126"
+                      width="54"
+                      height="5"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="18"
+                      y="136"
+                      width="54"
+                      height="5"
+                      rx="2"
+                    />
                     <rect class="thumb" x="77" y="54" width="3" height="26" rx="1.5" />
                   </g>
                   <g id="workspace-held-detail">
-                    <rect class="focus" x="90" y="34" width="138" height="118" rx="3" />
+                    <rect
+                      class="box hot"
+                      x="90"
+                      y="34"
+                      width="138"
+                      height="118"
+                      rx="3"
+                    />
                     <text class="small" x="96" y="46">detail</text>
-                    <rect class="line" x="96" y="56" width="110" height="4" rx="2" />
-                    <rect class="line" x="96" y="64" width="100" height="4" rx="2" />
-                    <rect class="block" x="96" y="74" width="116" height="30" rx="2" />
-                    <rect class="line" x="96" y="112" width="104" height="4" rx="2" />
+                    <rect
+                      class="line soft"
+                      x="96"
+                      y="56"
+                      width="110"
+                      height="4"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="96"
+                      y="64"
+                      width="100"
+                      height="4"
+                      rx="2"
+                    />
+                    <rect class="box" x="96" y="74" width="116" height="30" rx="2" />
+                    <rect
+                      class="line soft"
+                      x="96"
+                      y="112"
+                      width="104"
+                      height="4"
+                      rx="2"
+                    />
                     <rect class="thumb" x="221" y="62" width="3" height="30" rx="1.5" />
                   </g>
                   <g id="workspace-held-footer">
-                    <rect class="bar" x="91" y="128" width="136" height="23" />
-                    <rect class="badge" x="186" y="133" width="36" height="13" rx="3" />
+                    <rect class="frame-head" x="91" y="128" width="136" height="23" />
+                    <rect class="mark" x="186" y="133" width="36" height="13" rx="3" />
                     <text class="small" x="96" y="143">footer</text>
                   </g>
                 </svg>
@@ -1171,30 +1543,100 @@ $ leaf status ./review waiting "Does the API/importer split match what you need?
                 </figcaption>
               </figure>
               <figure id="workspace-flows">
-                <svg class="draw" viewBox="0 0 240 160" role="img">
+                <svg class="drawing" viewBox="0 0 240 160" role="img">
                   <title>
                     Among other blocks, a workspace's panes take their natural height
                     and the page scrolls
                   </title>
-                  <rect class="win" x="1" y="1" width="238" height="158" rx="6" />
-                  <rect class="bar" x="2" y="2" width="236" height="11" rx="5" />
+                  <rect class="frame" x="1" y="1" width="238" height="158" rx="6" />
+                  <rect class="frame-head" x="2" y="2" width="236" height="11" rx="5" />
                   <g id="workspace-flows-prose">
-                    <rect class="head" x="40" y="20" width="60" height="6" rx="2" />
-                    <rect class="line" x="40" y="32" width="150" height="4" rx="2" />
-                    <rect class="line" x="40" y="40" width="140" height="4" rx="2" />
+                    <rect class="line" x="40" y="20" width="60" height="6" rx="2" />
+                    <rect
+                      class="line soft"
+                      x="40"
+                      y="32"
+                      width="150"
+                      height="4"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="40"
+                      y="40"
+                      width="140"
+                      height="4"
+                      rx="2"
+                    />
                   </g>
                   <g id="workspace-flows-panes">
-                    <rect class="focus" x="20" y="52" width="72" height="104" rx="3" />
-                    <rect class="focus" x="98" y="52" width="122" height="104" rx="3" />
+                    <rect
+                      class="box hot"
+                      x="20"
+                      y="52"
+                      width="72"
+                      height="104"
+                      rx="3"
+                    />
+                    <rect
+                      class="box hot"
+                      x="98"
+                      y="52"
+                      width="122"
+                      height="104"
+                      rx="3"
+                    />
                     <text class="small" x="26" y="64">queue</text>
                     <text class="small" x="104" y="64">detail</text>
-                    <rect class="line" x="26" y="74" width="54" height="5" rx="2" />
-                    <rect class="line" x="26" y="84" width="54" height="5" rx="2" />
-                    <rect class="line" x="26" y="94" width="54" height="5" rx="2" />
-                    <rect class="line" x="26" y="104" width="54" height="5" rx="2" />
-                    <rect class="line" x="104" y="74" width="100" height="4" rx="2" />
-                    <rect class="line" x="104" y="82" width="92" height="4" rx="2" />
-                    <rect class="block" x="104" y="92" width="104" height="30" rx="2" />
+                    <rect
+                      class="line soft"
+                      x="26"
+                      y="74"
+                      width="54"
+                      height="5"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="26"
+                      y="84"
+                      width="54"
+                      height="5"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="26"
+                      y="94"
+                      width="54"
+                      height="5"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="26"
+                      y="104"
+                      width="54"
+                      height="5"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="104"
+                      y="74"
+                      width="100"
+                      height="4"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="104"
+                      y="82"
+                      width="92"
+                      height="4"
+                      rx="2"
+                    />
+                    <rect class="box" x="104" y="92" width="104" height="30" rx="2" />
                   </g>
                   <g id="workspace-flows-scroll">
                     <rect class="thumb" x="232" y="18" width="4" height="30" rx="2" />
@@ -1231,45 +1673,52 @@ $ leaf status ./review waiting "Does the API/importer split match what you need?
               an order that reads top to bottom.
             </p>
             <figure class="fig" id="narrow-figure">
-              <svg class="draw" viewBox="0 0 360 190" role="img">
+              <svg class="drawing" viewBox="0 0 360 190" role="img">
                 <title>
                   A wide page's regions, numbered in source order, stack into one column
                   on a phone
                 </title>
                 <g id="narrow-desktop">
-                  <rect class="win" x="1" y="20" width="220" height="150" rx="6" />
-                  <rect class="bar" x="2" y="21" width="218" height="11" rx="5" />
-                  <rect class="head" x="10" y="38" width="70" height="7" rx="2" />
-                  <rect class="block" x="10" y="52" width="128" height="52" rx="3" />
-                  <rect class="block" x="10" y="110" width="128" height="52" rx="3" />
-                  <rect class="block" x="144" y="52" width="68" height="36" rx="3" />
-                  <rect class="block" x="144" y="94" width="68" height="36" rx="3" />
-                  <circle class="badge" cx="22" cy="64" r="7" />
-                  <text class="num" x="22" y="68" text-anchor="middle">1</text>
-                  <circle class="badge" cx="22" cy="122" r="7" />
-                  <text class="num" x="22" y="126" text-anchor="middle">2</text>
-                  <circle class="badge" cx="156" cy="64" r="7" />
-                  <text class="num" x="156" y="68" text-anchor="middle">3</text>
-                  <circle class="badge" cx="156" cy="106" r="7" />
-                  <text class="num" x="156" y="110" text-anchor="middle">4</text>
+                  <rect class="frame" x="1" y="20" width="220" height="150" rx="6" />
+                  <rect
+                    class="frame-head"
+                    x="2"
+                    y="21"
+                    width="218"
+                    height="11"
+                    rx="5"
+                  />
+                  <rect class="line" x="10" y="38" width="70" height="7" rx="2" />
+                  <rect class="box" x="10" y="52" width="128" height="52" rx="3" />
+                  <rect class="box" x="10" y="110" width="128" height="52" rx="3" />
+                  <rect class="box" x="144" y="52" width="68" height="36" rx="3" />
+                  <rect class="box" x="144" y="94" width="68" height="36" rx="3" />
+                  <circle class="mark" cx="22" cy="64" r="7" />
+                  <text class="glyph" x="22" y="64" text-anchor="middle">1</text>
+                  <circle class="mark" cx="22" cy="122" r="7" />
+                  <text class="glyph" x="22" y="122" text-anchor="middle">2</text>
+                  <circle class="mark" cx="156" cy="64" r="7" />
+                  <text class="glyph" x="156" y="64" text-anchor="middle">3</text>
+                  <circle class="mark" cx="156" cy="106" r="7" />
+                  <text class="glyph" x="156" y="106" text-anchor="middle">4</text>
                 </g>
                 <line class="arrow" x1="228" y1="95" x2="256" y2="95" />
                 <path class="tip" d="M256,90 L264,95 L256,100 z" />
                 <g id="narrow-phone">
-                  <rect class="win" x="270" y="1" width="88" height="188" rx="10" />
-                  <rect class="head" x="278" y="12" width="50" height="6" rx="2" />
-                  <rect class="block" x="278" y="24" width="72" height="38" rx="3" />
-                  <rect class="block" x="278" y="68" width="72" height="38" rx="3" />
-                  <rect class="block" x="278" y="112" width="72" height="30" rx="3" />
-                  <rect class="block" x="278" y="148" width="72" height="30" rx="3" />
-                  <circle class="badge" cx="290" cy="36" r="7" />
-                  <text class="num" x="290" y="40" text-anchor="middle">1</text>
-                  <circle class="badge" cx="290" cy="80" r="7" />
-                  <text class="num" x="290" y="84" text-anchor="middle">2</text>
-                  <circle class="badge" cx="290" cy="124" r="7" />
-                  <text class="num" x="290" y="128" text-anchor="middle">3</text>
-                  <circle class="badge" cx="290" cy="160" r="7" />
-                  <text class="num" x="290" y="164" text-anchor="middle">4</text>
+                  <rect class="frame" x="270" y="1" width="88" height="188" rx="10" />
+                  <rect class="line" x="278" y="12" width="50" height="6" rx="2" />
+                  <rect class="box" x="278" y="24" width="72" height="38" rx="3" />
+                  <rect class="box" x="278" y="68" width="72" height="38" rx="3" />
+                  <rect class="box" x="278" y="112" width="72" height="30" rx="3" />
+                  <rect class="box" x="278" y="148" width="72" height="30" rx="3" />
+                  <circle class="mark" cx="290" cy="36" r="7" />
+                  <text class="glyph" x="290" y="36" text-anchor="middle">1</text>
+                  <circle class="mark" cx="290" cy="80" r="7" />
+                  <text class="glyph" x="290" y="80" text-anchor="middle">2</text>
+                  <circle class="mark" cx="290" cy="124" r="7" />
+                  <text class="glyph" x="290" y="124" text-anchor="middle">3</text>
+                  <circle class="mark" cx="290" cy="160" r="7" />
+                  <text class="glyph" x="290" y="160" text-anchor="middle">4</text>
                 </g>
               </svg>
               <figcaption id="cap-narrow">

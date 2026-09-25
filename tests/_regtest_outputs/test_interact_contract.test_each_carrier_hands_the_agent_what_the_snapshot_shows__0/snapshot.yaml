@@ -102,13 +102,16 @@ leaf wait:
             <event-id> --text "…" && leaf status <page> working "<the work, in a
             line>" --on <address>`, where `<address>` is the event's `answer.to`:
             the line stands beside the thread and in the banner until your next
-            reply there. Once that work lands, report it with `leaf reply <page>
-            --to <address>`. `leaf reply` checks any saved page edit and makes it
-            live before posting. If a revision removes what the thread is anchored
-            on, move the thread in the reply that reports it with `--section <id>`
-            (narrowed by `--quote` or `--part` if needed), or `--detach` it if its
-            subject has left the page. Add `--awaits` only if your reply's prose
-            asks the user something.
+            reply there. Once that work lands, put its result on the page, with
+            whatever shows it (captures, a figure, the numbers), then report it
+            with `leaf reply <page> --to <address>`: what changed, in a sentence
+            or two, linking the section that shows it. The page carries the work,
+            and the thread only the conversation about it. `leaf reply` checks any
+            saved page edit and makes it live before posting. If a revision removes
+            what the thread is anchored on, move the thread in the reply that reports
+            it with `--section <id>` (narrowed by `--quote` or `--part` if needed),
+            or `--detach` it if its subject has left the page. Add `--awaits` only
+            if your reply's prose asks the user something.
           h3: >-
             Your reply renders as Markdown, so show code or markup in a fenced block.
         events:
@@ -173,13 +176,16 @@ Codex queue:
             <event-id> --text "…" && leaf status <page> working "<the work, in a
             line>" --on <address>`, where `<address>` is the event's `answer.to`:
             the line stands beside the thread and in the banner until your next
-            reply there. Once that work lands, report it with `leaf reply <page>
-            --to <address>`. `leaf reply` checks any saved page edit and makes it
-            live before posting. If a revision removes what the thread is anchored
-            on, move the thread in the reply that reports it with `--section <id>`
-            (narrowed by `--quote` or `--part` if needed), or `--detach` it if its
-            subject has left the page. Add `--awaits` only if your reply's prose
-            asks the user something.
+            reply there. Once that work lands, put its result on the page, with
+            whatever shows it (captures, a figure, the numbers), then report it
+            with `leaf reply <page> --to <address>`: what changed, in a sentence
+            or two, linking the section that shows it. The page carries the work,
+            and the thread only the conversation about it. `leaf reply` checks any
+            saved page edit and makes it live before posting. If a revision removes
+            what the thread is anchored on, move the thread in the reply that reports
+            it with `--section <id>` (narrowed by `--quote` or `--part` if needed),
+            or `--detach` it if its subject has left the page. Add `--awaits` only
+            if your reply's prose asks the user something.
           h3: >-
             Your reply renders as Markdown, so show code or markup in a fenced block.
         events:

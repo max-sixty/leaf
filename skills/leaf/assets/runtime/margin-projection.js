@@ -1540,17 +1540,18 @@ export function createMarginProjection({
 
   function externalPerch(target, main, flow) {
     if (!main) return target;
-    // A hanging item must be a child of main's own positioning context. In flow it
-    // belongs immediately after the rendered block that owns its target. A declared
-    // shadow tree still contributes through its host, where document CSS can reach the
-    // controls.
-    let perch = flow ? (blockAt(target) ?? target) : target;
+    // A hanging item must be a child of main's own positioning context. An item in a
+    // reading region stays in that region's flow, immediately after its target's block.
+    // A declared shadow tree contributes through its host, where document CSS can reach
+    // the controls.
+    const inFlow = flow || Boolean(readingRegionFor(target));
+    let perch = inFlow ? (blockAt(target) ?? target) : target;
     while (!main.contains(perch)) {
       const root = perch.getRootNode();
       if (!(root instanceof ShadowRoot)) return target;
       perch = root.host;
     }
-    if (flow) return inBlockFlow(perch);
+    if (inFlow) return inBlockFlow(perch);
     while (perch.parentElement !== main && main.contains(perch.parentElement))
       perch = perch.parentElement;
     return perch;

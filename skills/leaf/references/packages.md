@@ -213,6 +213,12 @@ widget's role on the page:
 | `x-history`          | `lf-activity`                                                  |
 | `x-thread-surface`   | `lf-diff` in `diff`, `lf-visual-review` in `visual-review`     |
 
+A visual with generated part ids declares accepted `x-visual.prefixes` and calls
+`registerVisualParts(source, read, {reveal, label})`. The `read` function returns
+the parts currently drawn as `{id, element, label}` records. `reveal(id)` draws an
+absent part when someone follows its thread; `label(id)` names that part in
+Threads without changing the visual's state, and returns `null` for an unknown id.
+
 A CSS-only widget is an entry and a theme rule. One with reusable behavior takes a
 module. The widget owns its implementation: supporting modules can sit beside its entry
 module and use relative imports, while third-party or data files can live under
@@ -226,6 +232,12 @@ query private chrome, or duplicate a runtime helper inside itself. Resolve canon
 generated images or links. It uses the page's public root across ordinary, MCP, and
 published pages while the source retains its canonical path.
 
+Registry-declared inline Markdown formats authored text, not strings a module assigns
+with `textContent`. For changing Markdown prose, load the renderer with `loadMarkdown()`
+and paint the current value with `inlineMarkdownFragment()`; repaint that value when
+loading completes. A changing numeric readout keeps surrounding text still with
+tabular numerals and a slot wide enough for its largest value.
+
 ### What a behavior module owes
 
 A total, idempotent `renderState(state)`; `widgetController(owner).dispatch()` for recorded user state, with a
@@ -238,8 +250,12 @@ reading synchronously from `PRESENTATION` and observes later changes through the
 layout signals (each helper's header under `runtime/` says why), scheduling a paint with
 `nextRender`/`cancelRender` and watching a size with `sizeObserver` rather than the
 browser's own, so that a reader waiting for the page to settle after a gesture — a
-check, a test — waits for that work too (a playback loop that runs until the user stops
-it stays on `requestAnimationFrame`, or the page never settles while it plays);
+check, a test — waits for that work too (`nextRender` asked for from another rendering
+callback runs in that callback's frame, and otherwise in the next frame; a step that
+must not run in the frame that asked for it, such as an animation tick, asks for
+`nextFrame`; a playback loop that runs until
+the user stops it stays on `requestAnimationFrame`, or the page never settles while it
+plays);
 `keeps(node, name,
 value)` for any name or state a reactive render writes, handed the boolean or count raw,
 since an unconditional `setAttribute` restates itself on every publication and

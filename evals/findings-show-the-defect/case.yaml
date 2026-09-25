@@ -1,6 +1,6 @@
 schema_version: '1.0'
 name: findings-show-the-defect
-description: "Draw the subject: a finding whose defect has a shape shows it, even after chat already described it."
+description: "Draw the subject: a finding about a visible defect shows its screenshot, even after chat already described it."
 tags:
 - draw
 execution:
@@ -49,8 +49,9 @@ graders:
 - name: judgment
   type: llm
   criteria: |
-    Read the HTML. Pass if each of the three finding sections (rail order, workspace
-    stacking, rail floor) shows its defect in a picture inside that section: a
-    registered screenshot (an `img` or `lf-shot` of a /media capture), a drawing (an
-    `svg` or `lf-diagram`), or both. Fail if any of the three states its defect only
-    in prose, a list, or a table.
+    Read the HTML. Pass only if each finding section displays a relevant registered
+    screenshot inside that section: rail order uses /media/doc3-phone-last.png or
+    /media/plain3-phone-first.png; workspace stacking uses /media/queue3-900.png or
+    /media/plainqueue3-900.png; rail floor uses /media/dash3-900.png. An SVG or
+    diagram may supplement a capture, but cannot replace it. Fail if a filename
+    appears only in text or a link.

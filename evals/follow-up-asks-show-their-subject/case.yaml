@@ -1,6 +1,6 @@
 schema_version: '1.0'
 name: follow-up-asks-show-their-subject
-description: "Asks: an Ask about a defect shows the defect inside the lf-ask, not only a pointer to where the page shows it."
+description: "Asks: an Ask about a captured defect shows its capture inside the lf-ask, not only a pointer to where the page shows it."
 tags:
 - asks
 execution:
@@ -37,8 +37,8 @@ graders:
 - name: judgment
   type: llm
   criteria: |
-    Read the HTML. Pass if it holds two `lf-ask` elements, one per follow-up, and each
-    shows, inside its own `lf-ask` element, the defect it turns on: the registered
-    screenshot (an `img` or `lf-shot` of /media/doc1-diagram.png or
-    /media/dash2-log.png), a drawing (an `svg` or `lf-diagram`), or both. Fail if
-    either Ask only describes its defect or links to the Findings section for it.
+    Read the HTML. Pass only if there are two `lf-ask` elements and each displays
+    its registered screenshot inside the Ask: /media/doc1-diagram.png for the
+    diagram follow-up and /media/dash2-log.png for the chronology follow-up.
+    Drawings may supplement a capture. Fail if either Ask only describes or links
+    to its defect, or substitutes a drawing for the registered screenshot.

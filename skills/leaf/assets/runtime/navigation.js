@@ -1,4 +1,5 @@
 /* This module owns user travel. */
+import { cancelRender, nextRender } from "./rendering.js";
 import { clampedRow } from "./keyboard/bindings.js";
 import { inPanel as panelFocusIsInside } from "./conversation/panel-elements.js";
 import { openThreads } from "./conversation/thread-list.js";
@@ -156,7 +157,7 @@ export function glideTo(box, goal) {
     box.scrollTo({ top: goal, behavior: "instant" });
     return;
   }
-  cancelAnimationFrame(glide?.raf);
+  cancelRender(glide?.raf);
   const start = box.scrollTop;
   const t0 = performance.now();
   const tick = (now) => {
@@ -180,17 +181,17 @@ export function glideTo(box, goal) {
     // Where the write left the box, not what it asked for: the box clamps at its ends
     // and snaps to pixels, and the claim the next tick tests is about the box.
     glide.wrote = box.scrollTop;
-    if (t < 1) glide.raf = requestAnimationFrame(tick);
+    if (t < 1) glide.raf = nextRender(tick);
     else glide = null;
   };
-  glide = { box, goal, wrote: start, raf: requestAnimationFrame(tick) };
+  glide = { box, goal, wrote: start, raf: nextRender(tick) };
 }
 
 // A spatial command takes the page where it is now. Stop only the travel this owner is
 // driving; native paging belongs to the platform and reports its motion through scroll.
 export function stopGlide(box) {
   if (glide?.box !== box) return;
-  cancelAnimationFrame(glide.raf);
+  cancelRender(glide.raf);
   glide = null;
 }
 

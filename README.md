@@ -20,7 +20,7 @@ revising the page.
 
 </details>
 
-[Try Leaf on the home page](https://leaf.page/), where Leaf guide responds in your
+[Try Leaf on the home page](https://leaf.page/), where a small demo agent responds in your
 private copy, or [explore the examples](https://leaf.page/examples/).
 
 ## Install

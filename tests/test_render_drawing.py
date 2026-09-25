@@ -18,11 +18,11 @@ from render_harness import (
     BOTH_STAMPS,
     EXAMPLE_MEDIA,
     FEATURE_GALLERY,
-    RENDERED,
     leaf_page,
     nudge,
     open_page,
     panel_settled,
+    rendered,
     sending,
     told,
 )
@@ -182,13 +182,13 @@ def test_a_drawing_is_sent_and_replayed_as_an_ordinary_comment(browser, serve):
     # to be the same node afterwards.
     nudge(serve.page_dir)
     told(page)
-    page.evaluate(RENDERED)
+    rendered(page)
     assert stable_mark.evaluate("node => node.isConnected"), (
         "a repaint describing unchanged ink must keep the mark it already painted"
     )
     relation = mark_relation(page, posted, "#bg-choice-trail")
     page.evaluate("scrollBy(0, 100)")
-    page.evaluate(RENDERED)
+    rendered(page)
     assert mark_relation(page, posted, "#bg-choice-trail") == pytest.approx(
         relation, abs=0.02
     )
@@ -498,7 +498,7 @@ def test_a_drawing_can_begin_on_page_whitespace(browser, serve):
     before = mark_box(page, posted)
     assert before["x"] > 0, before
     page.evaluate("scrollBy(0, 100)")
-    page.evaluate(RENDERED)
+    rendered(page)
     expect(mark).to_have_count(1)
     after = mark_box(page, posted)
     assert after["x"] == pytest.approx(before["x"], abs=0.02)

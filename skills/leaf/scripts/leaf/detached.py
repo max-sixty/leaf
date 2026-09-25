@@ -21,8 +21,9 @@ up behind it, and a caller that sent it knows the child is committed. A child th
 refuses, or dies before announcing, closes its end, and the caller reads the reason
 or the end of stream.
 
-The child's own streams go to the log its caller names or to nothing: what a start
-has to say travels in the handshake, and nobody drains a pipe once it is over.
+The child's own streams go to the log its caller names, begun afresh for each child,
+or to nothing: what a start has to say travels in the handshake, and nobody drains a
+pipe once it is over.
 """
 
 import json
@@ -56,7 +57,7 @@ def start_detached(
     """
     caller, child = socket.socketpair()
     try:
-        with open(log or os.devnull, "ab", buffering=0) as output:
+        with open(log or os.devnull, "wb", buffering=0) as output:
             process = subprocess.Popen(
                 [
                     sys.executable,

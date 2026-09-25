@@ -37,6 +37,7 @@ from render_harness import (
     open_page,
     open_versions,
     panel_settled,
+    rendered,
     resized,
     sending,
     told,
@@ -1654,4 +1655,27 @@ def test_a_page_map_update_keeps_the_row_the_user_was_on(browser, serve):
     expect(first).to_have_text("Moving action")
     assert row.evaluate("node => node.getBoundingClientRect().top") == pytest.approx(
         top, abs=1
+    )
+
+
+def test_a_repaint_unsettles_the_rendering_until_it_lands(browser, serve):
+    """The settled reading turns false in the same turn as a gesture that queues a
+    repaint, and true once that repaint has landed, so a reader after the gesture waits
+    on the page rather than on a guessed number of frames. The fold itself — chained
+    work, observer deliveries, cancellation — is tests/runtime/rendering.test.mjs."""
+    url = serve(leaf_page("Settled", '<h1 id="h">Settled</h1><p id="p">Words.</p>'))
+    page = open_page(browser, url)
+    rendered(page)
+    before, after = page.evaluate(
+        """() => {
+          const settled = document.querySelector('script[data-lf-entry]').lfRenderingSettled;
+          const before = settled();
+          document.querySelector('.lf-threads-toggle').click();
+          return [before, settled()];
+        }"""
+    )
+    assert (before, after) == (True, False)
+    rendered(page)
+    assert page.evaluate(
+        "() => document.querySelector('script[data-lf-entry]').lfRenderingSettled()"
     )

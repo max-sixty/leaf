@@ -807,22 +807,28 @@ def test_a_tray_takes_the_markers_and_hands_the_user_the_map(browser, serve):
     assert not page.evaluate(offered), "the room came back and the margin did not"
 
 
-def test_the_rail_is_claimed_only_in_a_shell_that_can_hold_it(browser, serve):
+@pytest.mark.parametrize(
+    ("touch", "floor"), [(False, 863), (True, 887)], ids=["mouse", "finger"]
+)
+def test_the_rail_is_claimed_only_in_a_shell_that_can_hold_it(
+    browser, serve, touch, floor
+):
     """The floor grants the rail out of the shell, so the shell has to hold what it
-    grants: the column (720), its padding (2 x 24) and the claim. A finger raises the
-    claim from 59 to 71, which puts the requirement at 839 against a floor of 840 — one
-    pixel, and until now nothing but the prose beside the rule stood behind it. So this
-    walks the shell down through the flip with the aim floor at the value a coarse
-    pointer gives it, and holds the column whole wherever the rail stands.
+    grants: the column (720), its padding (2 x 24) and the rail. A finger raises the
+    rail from 95 to 119, so each pointer has its own floor, and a container query
+    cannot read the rail to derive it. So this walks the shell down through the flip
+    under each pointer and holds the column whole wherever the rail stands.
 
     A floor set too low reads here as a column narrower than its measure, which is the
-    bug the floor exists to stop: the markers go flush against whatever took the room."""
-    page = open_page(browser, serve(PANEL_PAGE))
-    page.evaluate(
-        "() => document.documentElement.style.setProperty('--aim-floor', '44px')"
+    bug the floor exists to stop: the markers go flush against whatever took the room.
+    One set too high reads as a sweep whose narrowest rail stands well above the floor."""
+    context = browser.new_context(
+        viewport={"width": floor + 40, "height": 900}, has_touch=touch
     )
+    page = open_page(browser, serve(PANEL_PAGE), context=context)
+    assert page.evaluate("() => matchMedia('(pointer: coarse)').matches") == touch
     stood = []
-    for width in range(880, 815, -5):
+    for width in range(floor + 40, floor - 30, -3):
         resized(page, width, 900)
         margins_laid_out(page)
         reading = page.evaluate(
@@ -844,8 +850,8 @@ def test_the_rail_is_claimed_only_in_a_shell_that_can_hold_it(browser, serve):
             f"{reading['column']}px column: the floor granted room the page lacks"
         )
     assert stood, "no width in this sweep claimed the rail, so nothing here was tested"
-    assert min(r["shell"] for r in stood) <= 850, (
-        "the sweep stopped above the flip, so the narrowest claim went untested"
+    assert min(r["shell"] for r in stood) <= floor + 3, (
+        "the rail folded above its floor, giving up room the page had"
     )
 
 
@@ -903,7 +909,7 @@ def test_a_docked_cluster_keeps_later_margin_entries_beside_their_targets(
               })
             );
             registerMarginContribution({key: id, target: document.getElementById(id),
-              read: () => ({entries: entries(), claim: false,
+              read: () => ({entries: entries(),
                 state: count > 1 ? 'engaged' : 'idle'}), activate: () => {}});
           }
         }"""
@@ -3393,7 +3399,6 @@ def test_one_target_has_one_primary_margin_entry_and_inline_secondary_margin_ent
         }"""
     )
     expect(accept).to_be_focused()
-    rail = page.locator("html").evaluate("el => el.style.getPropertyValue('--rail')")
     column = page.locator("main").evaluate(
         "el => { const box = el.getBoundingClientRect(); return [box.left, box.right]; }"
     )
@@ -3413,10 +3418,6 @@ def test_one_target_has_one_primary_margin_entry_and_inline_secondary_margin_ent
     page.evaluate(
         "() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done)))"
     )
-    assert (
-        page.locator("html").evaluate("el => el.style.getPropertyValue('--rail')")
-        == rail
-    ), "temporary reaction choices permanently widened the page rail"
     assert (
         page.locator("main").evaluate(
             "el => { const box = el.getBoundingClientRect(); return [box.left, box.right]; }"
@@ -4970,7 +4971,7 @@ def test_a_secondary_thread_keeps_card_ownership_through_membership_and_posture(
           let primaryVisible = true;
           const registration = registerMarginContribution({
             key: 'fixture', target: document.querySelector('#how-cap'),
-            read: () => ({claim: true, entries: [marginEntry({
+            read: () => ({entries: [marginEntry({
               key: 'act', glyph: 'A', label: 'Act', behavior: 'action',
               visible: primaryVisible
             })]}), activate: () => {}
@@ -5527,12 +5528,16 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
             (total, button) => total + button.getBoundingClientRect().width, 0
           ) + (parseFloat(style.columnGap || style.gap) || 0)
             * Math.max(0, buttons.length - 1)
+            + (parseFloat(style.marginLeft) || 0)
             + (parseFloat(style.paddingLeft) || 0)
             + (parseFloat(style.paddingRight) || 0);
-          return {
-            needed,
-            rail: parseFloat(document.documentElement.style.getPropertyValue('--rail'))
-          };
+          const probe = document.createElement('i');
+          probe.style.cssText =
+            'position:fixed;visibility:hidden;height:0;padding:0;border:0;width:var(--rail)';
+          document.querySelector('main').append(probe);
+          const rail = probe.getBoundingClientRect().width;
+          probe.remove();
+          return {needed, rail};
         }"""
     )
     assert claim["rail"] >= claim["needed"] - 0.5, claim
@@ -5861,14 +5866,17 @@ def test_a_thread_can_be_answered_in_the_margin_without_opening_threads(
     placed = preview.evaluate(
         """card => ({left: card.getBoundingClientRect().left,
                       top: card.getBoundingClientRect().top,
+                      height: card.getBoundingClientRect().height,
+                      placement: card.dataset.lfThreadPlacement,
                       placedLeft: card.style.left, placedTop: card.style.top})"""
     )
     assert placed["left"] == pytest.approx(
         float(placed["placedLeft"].removesuffix("px")), abs=0.5
     ), placed
-    assert placed["top"] == pytest.approx(
-        float(placed["placedTop"].removesuffix("px")), abs=0.5
-    ), placed
+    positioned_top = float(placed["placedTop"].removesuffix("px"))
+    if placed["placement"] == "right":
+        positioned_top -= placed["height"]
+    assert placed["top"] == pytest.approx(positioned_top, abs=0.5), placed
     expect(thread.locator(".lf-conversation-body")).to_have_text(COMMENT_ON_ASK["text"])
     expect(preview.get_by_role("button", name=re.compile(r"Threads?"))).to_have_count(0)
     expect(thread.locator(".lf-conversation-open")).to_have_count(0)
@@ -6679,6 +6687,133 @@ def test_a_shared_passage_steps_between_single_conversation_cards(browser, serve
     expect(page.locator(".lf-thread.flash")).to_have_count(0)
 
 
+def test_margin_card_anchors_reading_by_top_and_drafting_by_foot(browser, serve):
+    """Incoming reading keeps its target; adding a drafted line keeps the foot."""
+    page = open_page(browser, serve(ASK_PAGE, events=[COMMENT_ON_ASK]))
+    resized(page, 1920, 900)
+    marker = page.locator('.lf-margin-marker[data-lf-kinds="comment"]')
+    marker.evaluate("node => scrollBy(0, node.getBoundingClientRect().top - 160)")
+    marker.click()
+    preview = page.locator(".lf-margin-preview")
+    initial = preview.evaluate(
+        "node => ({top: node.getBoundingClientRect().top, height: node.getBoundingClientRect().height})"
+    )
+    root = events_model.read_events(serve.page_dir)[0]
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Claude",
+            "revision": 1,
+            "parent": root["id"],
+            "responds": root["id"],
+            "text": "The two jobs can share a single visit.",
+        },
+    )
+    told(page)
+    expect(preview).to_contain_text("The two jobs can share a single visit.")
+    reading = preview.evaluate(
+        "node => ({top: node.getBoundingClientRect().top, height: node.getBoundingClientRect().height})"
+    )
+    assert reading["top"] == pytest.approx(initial["top"], abs=0.5), (initial, reading)
+    assert reading["height"] > initial["height"] + 10, (initial, reading)
+    preview.get_by_role("button", name="Reply", exact=True).click()
+    editor = preview.locator("textarea")
+    editor.evaluate("node => node.blur()")
+    page.wait_for_function(
+        """top => Math.abs(document.querySelector('.lf-margin-preview')
+          .getBoundingClientRect().top - top) < 0.5""",
+        arg=initial["top"],
+    )
+    editor.fill("First line")
+
+    measure = """() => {
+      const card = document.querySelector('.lf-margin-preview').getBoundingClientRect();
+      const editor = document.querySelector('.lf-margin-preview textarea').getBoundingClientRect();
+      return {cardTop: card.top, cardBottom: card.bottom, editorTop: editor.top,
+              editorBottom: editor.bottom,
+              placement: document.querySelector('.lf-margin-preview').dataset.lfThreadPlacement};
+    }"""
+    before = page.evaluate(measure)
+    assert before["placement"] == "right", before
+    editor.press("End")
+    editor.press("Shift+Enter")
+    editor.type("Second line")
+    expect(editor).to_have_value("First line\nSecond line")
+    page.wait_for_function(
+        """top => document.querySelector('.lf-margin-preview textarea')
+          .getBoundingClientRect().top < top - 10""",
+        arg=before["editorTop"],
+    )
+    after = page.evaluate(measure)
+    assert after["editorTop"] < before["editorTop"] - 10, (before, after)
+    assert after["cardBottom"] == pytest.approx(before["cardBottom"], abs=0.5), (
+        before,
+        after,
+    )
+    assert after["editorBottom"] == pytest.approx(before["editorBottom"], abs=0.5), (
+        before,
+        after,
+    )
+    editor.fill("\n".join(f"Line {n}" for n in range(30)))
+    page.wait_for_function(
+        """() => {
+          const top = document.querySelector('.lf-margin-preview').getBoundingClientRect().top;
+          return top >= 49 && top <= 51;
+        }"""
+    )
+    tall = page.evaluate(measure)
+    assert tall["cardTop"] >= 49, tall
+    assert tall["cardBottom"] <= 847.5, tall
+    assert tall["editorBottom"] <= tall["cardBottom"] - 12, tall
+
+    editor.fill("Sent")
+    preview.get_by_role("button", name="Send", exact=True).click()
+    expect(preview).to_contain_text("Sent")
+    editor.evaluate("node => node.lfCollapseReply()")
+    expect(preview.locator(".lf-say")).to_have_class(re.compile("lf-reply-collapsed"))
+    page.wait_for_function(
+        """top => Math.abs(document.querySelector('.lf-margin-preview')
+          .getBoundingClientRect().top - top) < 0.5""",
+        arg=initial["top"],
+    )
+
+
+def test_open_reply_keeps_its_foot_after_card_moves_to_right_rail(browser, serve):
+    """A draft opened below its target gains a foot anchor when the rail widens."""
+    sidebar_page = ASK_PAGE.replace(
+        "<main>", '<main><aside class="sidebar">Page reference</aside>', 1
+    )
+    page = open_page(browser, serve(sidebar_page, events=[COMMENT_ON_ASK]))
+    resized(page, 1200, 900)
+    page.locator('.lf-margin-marker[data-lf-kinds="comment"]').click()
+    preview = page.locator(".lf-margin-preview")
+    expect(preview).not_to_have_attribute("data-lf-thread-placement", "right")
+    preview.get_by_role("button", name="Reply", exact=True).click()
+    editor = preview.locator("textarea")
+    editor.fill("First line")
+
+    resized(page, 1920, 900)
+    expect(preview).to_have_attribute("data-lf-thread-placement", "right")
+    before = preview.evaluate(
+        """node => ({card: node.getBoundingClientRect().bottom,
+                      editor: node.querySelector('textarea').getBoundingClientRect()})"""
+    )
+    editor.press("End")
+    editor.press("Shift+Enter")
+    expect(editor).to_have_value("First line\n")
+    after = preview.evaluate(
+        """node => ({card: node.getBoundingClientRect().bottom,
+                      editor: node.querySelector('textarea').getBoundingClientRect()})"""
+    )
+    assert after["editor"]["top"] < before["editor"]["top"] - 10, (before, after)
+    assert after["editor"]["bottom"] == pytest.approx(
+        before["editor"]["bottom"], abs=0.5
+    ), (before, after)
+    assert after["card"] == pytest.approx(before["card"], abs=0.5), (before, after)
+
+
 def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve):
     """The shipped exchange stands beside its controls, and crosses them before it shrinks."""
     example = next(page for page in EXAMPLES if page.stem == "ship-review")
@@ -6826,7 +6961,7 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
     expect(preview.locator(".lf-conversation-thread")).to_be_focused()
     expect(preview.locator("textarea")).to_be_hidden()
 
-    resized_shell(page, 1472, 900)
+    resized_shell(page, 1436, 900)
     beside = page.evaluate(
         """() => {
           const main = document.querySelector('main').getBoundingClientRect();
@@ -6955,10 +7090,11 @@ def test_a_live_page_leaves_no_empty_thread_column_and_keeps_its_reading_positio
             }"""
         )
 
+    # The rail is 95px, so the page's axis stands at most half of it off the shell's.
     initial = position()
-    assert abs(initial["offset"]) < 40, initial
+    assert abs(initial["offset"]) <= 48, initial
     assert (
-        initial["width"] >= min(1128 if wide else 768, initial["shellWidth"] - 59) - 1
+        initial["width"] >= min(1128 if wide else 768, initial["shellWidth"] - 95) - 1
     ), initial
 
     comment = events_model.append_event(

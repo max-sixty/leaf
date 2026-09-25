@@ -7,6 +7,7 @@
  * contents. The painter owns geometry caching: scroll only moves cached paint; a layout,
  * resize, source replacement, or target change rebuilds it. */
 
+import { cancelRender, nextRender } from "./rendering.js";
 import { clippedRect, documentPoint, shownBox } from "./geometry.js";
 import { el } from "./widget-elements.js";
 import { inChrome } from "./passages.js";
@@ -373,8 +374,8 @@ export function setTargets(next) {
   targets = nextTargets;
   const traceNeedsGeometry = geometryDirty;
   const rebuild = identitiesChanged || traceNeedsGeometry;
-  if (rebuild && geometryFrame) cancelAnimationFrame(geometryFrame);
-  if (rebuild && placementFrame) cancelAnimationFrame(placementFrame);
+  if (rebuild && geometryFrame) cancelRender(geometryFrame);
+  if (rebuild && placementFrame) cancelRender(placementFrame);
   if (rebuild) geometryFrame = placementFrame = 0;
   geometryDirty = false;
   paintTargets(rebuild);
@@ -383,7 +384,7 @@ export function setTargets(next) {
 
 export function shifted() {
   if (placementFrame || geometryFrame || (!targets.size && !traceElement)) return;
-  placementFrame = requestAnimationFrame(() => {
+  placementFrame = nextRender(() => {
     placementFrame = 0;
     paintTargets(false);
     if (traceElement) drawTrace(traceElement, traceSurface, false);
@@ -392,10 +393,10 @@ export function shifted() {
 
 export function geometryChanged() {
   geometryDirty = true;
-  if (placementFrame) cancelAnimationFrame(placementFrame);
+  if (placementFrame) cancelRender(placementFrame);
   placementFrame = 0;
   if (geometryFrame || (!targets.size && !traceElement)) return;
-  geometryFrame = requestAnimationFrame(() => {
+  geometryFrame = nextRender(() => {
     geometryFrame = 0;
     if (!geometryDirty) return;
     geometryDirty = false;

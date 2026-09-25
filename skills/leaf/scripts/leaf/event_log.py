@@ -33,16 +33,47 @@ def flocked(path: Path):
     claim and delivery transitions. Stable purpose locks serialize contract or service
     transitions; a `.lock` beside a registry of JSON files serializes updates
     to them, since the files themselves are replaced by rename and a lock on a
-    replaced inode holds nothing."""
+    replaced inode holds nothing.
+
+    The event log is the successful-init marker as well as a lease. A transaction
+    racing page deletion must not recreate it and turn a deleted directory back into
+    an initialized page, so it is opened, never created, and it outlives the lock.
+
+    A purpose lock's file is the lock and nothing more, so it exists only while it
+    is held or awaited: it is minted on first use and its holder removes it on the
+    way out. A taker that waited on a file removed under it holds a lock on nothing
+    anyone else can find, so it takes the lock again on whatever the path names
+    now (`still_named`)."""
     require_cross_process_locking()
-    # The event log is the successful-init marker as well as a lease. A
-    # transaction racing page deletion must not recreate it and turn a deleted
-    # directory back into an initialized page. Purpose locks are disposable and
-    # may be minted on first use.
-    mode = "r+b" if path.name == EVENTS_FILE else "a+b"
-    with open(path, mode) as f:
+    if path.name == EVENTS_FILE:
+        with open(path, "r+b") as f:
+            fcntl.flock(f, fcntl.LOCK_EX)
+            yield f
+        return
+    while True:
+        f = open(path, "a+b")  # noqa: SIM115 - closed below, after the unlink
         fcntl.flock(f, fcntl.LOCK_EX)
+        if still_named(f.fileno(), path):
+            break
+        f.close()
+    try:
         yield f
+    finally:
+        path.unlink(missing_ok=True)
+        f.close()
+
+
+def still_named(held: int, path: Path) -> bool:
+    """Whether PATH still names the file the descriptor HELD was opened on.
+
+    A lock file is removed by whoever holds it, so a lock taken on a descriptor
+    opened before that removal is a lock on an unlinked inode. Every taker asks this
+    once it holds the lock and takes it again when the answer is no; the holder's
+    removal can then never let two processes each believe they hold one name."""
+    try:
+        return os.path.samestat(os.fstat(held), os.stat(path))
+    except FileNotFoundError:
+        return False
 
 
 def now_iso() -> str:

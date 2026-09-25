@@ -28,12 +28,12 @@ from render_cases_widgets import (
 from render_harness import (
     BOTH_STAMPS,
     FEATURE_GALLERY,
-    RENDERED,
     ROOT,
     holding,
     leaf_page,
     open_page,
     panel_settled,
+    rendered,
     resized,
     round_trip,
     select,
@@ -130,7 +130,6 @@ def test_a_late_standing_reaction_does_not_move_the_readable_column(browser, ser
     column = page.locator("main").evaluate(
         "el => { const box = el.getBoundingClientRect(); return [box.left, box.right]; }"
     )
-    rail = page.locator("html").evaluate("el => el.style.getPropertyValue('--rail')")
     events_model.append_event(
         serve.page_dir,
         {
@@ -149,13 +148,6 @@ def test_a_late_standing_reaction_does_not_move_the_readable_column(browser, ser
         )
         == column
     )
-    # The page reserves its strip at load, so the column standing still says only that
-    # the reading found room in what was already claimed. The claim itself not growing
-    # is the other half, and it is what "without claiming space" means.
-    assert (
-        page.locator("html").evaluate("el => el.style.getPropertyValue('--rail')")
-        == rail
-    ), "a passive reading widened the page rail"
 
 
 def test_a_token_press_marks_the_passage_and_its_revealed_remove_takes_it_back(
@@ -824,7 +816,7 @@ def test_comment_response_choices_expand_in_place(browser, serve, opener, width)
         bar.locator(".lf-response-more").click()
     else:
         page.keyboard.press("Tab")
-    page.evaluate(RENDERED)
+    rendered(page)
     expect(bar).to_be_visible()
     expect(field).to_be_visible()
     expect(field).to_have_value("Keep this draft")
@@ -867,7 +859,7 @@ def test_comment_response_choices_expand_in_place(browser, serve, opener, width)
             or choice_box["y"] >= field_box["y"] + field_box["height"]
         ), (field_box, choice_box)
     field.fill("Keep this draft, still anchored")
-    page.evaluate(RENDERED)
+    rendered(page)
     assert abs(bar.bounding_box()["x"] - before["x"]) <= 1
     suggest.click()
     expect(field).to_be_focused()
@@ -895,7 +887,7 @@ def test_comment_response_choices_expand_in_place(browser, serve, opener, width)
     assert len(events_model.read_events(serve.page_dir)) == count
     if width == 1280:
         resized(page, 500, 900)
-        page.evaluate(RENDERED)
+        rendered(page)
         expect(bar).to_be_visible()
         expect(bar).to_have_class(re.compile("lf-response-open"))
         expect(field).to_have_value("Keep this draft, still anchored 3 lines")
@@ -1005,7 +997,7 @@ def test_the_response_field_grows_as_a_rectangle_and_leaves_the_ellipsis_room(
     assert shown["h"] > tall["h"] and not shown["scrolls"], (tall, shown)
 
     field.fill("\n".join(f"line {n}" for n in range(1, 80)))
-    page.evaluate(RENDERED)  # placeFab answers the input a frame later
+    rendered(page)  # placeFab answers the input a frame later
     room = page.evaluate(FLOAT_ROOM)
     bounds = bar.bounding_box()
     assert field.evaluate(FIELD_BOX)["scrolls"], bounds
@@ -1016,7 +1008,7 @@ def test_the_response_field_grows_as_a_rectangle_and_leaves_the_ellipsis_room(
         "This paragraph reads well, but the second sentence assumes the user already "
         "knows what the earlier decision was. Could we link it, or restate it in a clause?"
     )
-    page.evaluate(RENDERED)
+    rendered(page)
     wide = field.evaluate(FIELD_BOX)
     assert wide["w"] >= rest["w"] and wide["h"] > rest["h"], (
         rest,
@@ -1035,7 +1027,7 @@ def test_the_response_field_grows_as_a_rectangle_and_leaves_the_ellipsis_room(
         "This paragraph reads well, but the second sentence assumes the user already "
         "knows what the earlier decision was."
     )
-    page.evaluate(RENDERED)  # placeFab answers the input a frame later
+    rendered(page)  # placeFab answers the input a frame later
     bounds = bar.bounding_box()
     trigger = bar.locator(".lf-response-more").bounding_box()
     narrow_field = field.bounding_box()

@@ -655,7 +655,7 @@ export function squeezedTables() {
   const says = (cell) => {
     let text = "";
     const walker = document.createTreeWalker(cell, NodeFilter.SHOW_TEXT);
-    for (let node; (node = walker.nextNode()); )
+    for (let node; (node = walker.nextNode());)
       if (!uiInside(node.parentElement, cell)) text += node.data;
     return text.trim().replace(/\s+/g, " ");
   };
@@ -666,7 +666,7 @@ export function squeezedTables() {
     const range = document.createRange();
     for (const root of openRoots(table)) {
       const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-      for (let node; (node = walker.nextNode()); ) {
+      for (let node; (node = walker.nextNode());) {
         const el = node.parentElement ?? node.parentNode.host;
         if (!node.data.trim() || uiInside(el, table)) continue;
         if (!el.checkVisibility({ opacityProperty: true, visibilityProperty: true }))

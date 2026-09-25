@@ -35,9 +35,6 @@ export const workflowLabel = (workflow, { answered = false } = {}) => {
         ? "Not answered"
         : (CONDITION_LABELS[workflow.condition.kind] ?? "Failed");
   if (workflow.stage === "answered" && !answered) return "";
-  const activity = workflow.activity?.at(-1);
-  if (workflow.stage === "working" && activity?.kind === "thinking") return "Thinking";
-  if (workflow.stage === "working" && activity?.kind === "tool") return "Using a tool";
   return STAGE_LABELS[workflow.stage] ?? "";
 };
 

@@ -84,6 +84,7 @@ from render_harness import (
     refuse,
     round_trip,
     select,
+    sending,
     stamp_page,
     ticked,
     told,
@@ -3751,6 +3752,112 @@ def test_a_comment_on_external_data_stays_with_the_revision_the_user_saw(
     page.emulate_media(media="print")
     paper = render_checks_model.evaluate_probe(page, "paperWords")
     assert paper == screen, "paper dropped or rewrote projected data"
+
+
+def test_a_declared_record_thread_follows_its_key_across_source_replacements(
+    browser, serve
+):
+    page = open_page(browser, data_projection_page(serve, keyed=True))
+    api = page.locator('[data-lf-datum="api"]')
+    seen = source_revision(serve.page_dir, "deployments")
+
+    api.click(click_count=3)
+    page.locator(".lf-fab-input").click()
+    page.locator(".lf-composer textarea").fill("Which readiness check is this?")
+    page.keyboard.press("ControlOrMeta+Enter")
+    round_trip(page)
+    comment = next(e for e in sent_events(serve.page_dir) if e["kind"] == "comment")
+    assert comment["anchor"] == {
+        "section": "deployments",
+        "datum": "api",
+        "quote": "Ready",
+        "source": "deployments",
+        "source_revision": seen,
+        "record_contract": "deployment-rows",
+        "record_key_field": "key",
+    }
+
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "deployments",
+        {
+            "rows": [
+                {"key": "worker", "value": "Ready"},
+                {"key": "api", "value": "Ready", "updated": "later"},
+            ]
+        },
+    )
+    replaced = source_revision(serve.page_dir, "deployments")
+    expect(api).to_have_attribute("data-lf-source-revision", replaced)
+    expect(api.get_by_role("button", name="1 comment")).to_be_visible()
+    expect(page.locator(".lf-thread .lf-anchor-status")).to_have_count(0)
+
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "deployments",
+        {
+            "rows": [
+                {"key": "worker", "value": "Ready"},
+                {"key": "api", "value": "Running", "updated": "latest"},
+            ]
+        },
+    )
+    changed = source_revision(serve.page_dir, "deployments")
+    expect(api).to_have_attribute("data-lf-source-revision", changed)
+    expect(api.get_by_role("button", name="1 comment")).to_be_visible()
+    expect(api).to_have_class(re.compile(r"\blf-mark-el\b"))
+    expect(page.locator('[data-lf-datum="worker"]')).not_to_have_class(
+        re.compile(r"\blf-mark-el\b")
+    )
+    expect(page.locator(".lf-thread .lf-quote")).to_contain_text("Ready")
+
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "deployments",
+        {"rows": [{"key": "worker", "value": "Ready"}]},
+    )
+    latest = source_revision(serve.page_dir, "deployments")
+    expect(page.locator("#deployments")).to_have_attribute(
+        "data-lf-source-revision", latest
+    )
+    expect(page.locator(".lf-thread .lf-anchor-status")).to_have_text("Earlier data")
+
+
+def test_a_declared_record_keeps_a_draft_when_its_quoted_words_change(browser, serve):
+    page = open_page(browser, data_projection_page(serve, keyed=True))
+    api = page.locator('[data-lf-datum="api"]')
+    original_revision = source_revision(serve.page_dir, "deployments")
+    api.click(click_count=3)
+    draft = page.locator(".lf-fab-input")
+    draft.fill("Keep this draft with api.")
+    expect(draft).to_be_focused()
+
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "deployments",
+        {
+            "rows": [
+                {"key": "worker", "value": "Ready"},
+                {"key": "api", "value": "Running"},
+            ]
+        },
+    )
+    expect(api).to_have_attribute(
+        "data-lf-source-revision", source_revision(serve.page_dir, "deployments")
+    )
+    expect(draft).to_have_value("Keep this draft with api.")
+    expect(draft).to_be_focused()
+
+    with sending(page, "the draft kept on api"):
+        draft.press("ControlOrMeta+Enter")
+    posted = next(
+        e
+        for e in sent_events(serve.page_dir)
+        if e.get("text") == "Keep this draft with api."
+    )
+    assert posted["anchor"]["source_revision"] == original_revision
+    assert posted["anchor"]["record_contract"] == "deployment-rows"
+    expect(api.get_by_role("button", name="1 comment")).to_be_visible()
 
 
 @pytest.mark.parametrize(

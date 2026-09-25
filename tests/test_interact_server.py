@@ -572,6 +572,21 @@ def test_a_datum_comment_names_the_source_revision_its_section_displayed(
     assert status == 400
     assert "is not bound by section 'patch'" in json.loads(body)["error"]
 
+    undeclared_record = {
+        **event,
+        "anchor": {
+            **event["anchor"],
+            "record_contract": "review-patch",
+            "record_key_field": "path",
+        },
+        "attempt": "datum_revision_record_1",
+    }
+    status, body = fetch(
+        f"{server}/api/event", data=json.dumps(undeclared_record).encode()
+    )
+    assert status == 400
+    assert "record" in json.loads(body)["error"]
+
 
 def test_the_door_takes_a_passage_anchor_the_runtime_already_resolved(server, page_dir):
     """The browser resolves its own anchor against the rendered page before it posts,

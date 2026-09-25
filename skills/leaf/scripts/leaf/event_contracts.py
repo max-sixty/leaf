@@ -312,6 +312,19 @@ def datum_anchor_error(view, event: dict, page_by_id: dict, registry: dict):
         return f"datum anchor source {source!r} is not bound by section {section!r}"
     if source not in view.contracts:
         return f"datum anchor source {source!r} has never been supplied to this page"
+    record_contract = anchor.get("record_contract")
+    if record_contract and not any(
+        spec["contract"] == record_contract
+        and registry["$data"]["contracts"][spec["contract"]]
+        .get("records", {})
+        .get("key")
+        == anchor["record_key_field"]
+        for spec in bindings
+    ):
+        return (
+            f"datum anchor record {record_contract!r} is not declared by section "
+            f"{section!r} for source {source!r}"
+        )
     return None
 
 

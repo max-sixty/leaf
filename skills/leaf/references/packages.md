@@ -1048,21 +1048,25 @@ path segments are object keys or array indices. A formatted or parsed record may
 name its whole input. This identifies construction inputs, not an inverse edit mapping.
 
 Render the value with `projectData(root, records, keyOf, render, options)`. The root is an
-id-bearing authored seat and owns the projection's children. `keyOf` returns a stable
-non-empty string for the logical datum; `render` receives
+id-bearing authored seat and owns the projection's children. `keyOf` returns a
+non-empty string unique within the projection; `render` receives
 `(record, priorNode, index)` and returns its element, reusing `priorNode` where that
 preserves a focused control or selection. Leaf marks those words as readable data
 rather than authored prose, reconciles their order, and keeps comments attached by the
-projection/key pair even when a refresh replaces the text nodes. A renderer
+projection/key pair when a render replaces the text nodes. A renderer
 that owns a nested layout passes `{nested: true}` and returns its existing descendants;
 Leaf labels those nodes without moving them. Add `labelOf(record, index)` when a thread
 should name a projected datum with a human coordinate; the stable key remains opaque to
 the runtime. A widget declaring `x-data` passes `{snapshot}` with the delivery from
 `watchData`, including `null` when no current value exists. Leaf stamps the projection
-with that snapshot's source and revision. A comment remains exact only within that
-source revision. Replacing the value leaves the thread in its section and marks it
-outdated. Derived projections
-omit `snapshot` and retain their section/key identity. If a `watchData` callback renders
+with that snapshot's source and revision. When the contract declares `records`, a
+projected record whose declared key field and `keyOf` result match a row in that
+collection also carries its contract and key field in the anchor. Its thread follows
+that record key across source replacements, retaining the old quote if the words
+change. A missing key becomes outdated. Other external projections remain exact only
+within their source revision; replacing their value leaves the thread in its section
+and marks it outdated. Derived projections omit `snapshot` and retain their
+section/key identity. If a `watchData` callback renders
 asynchronously, it returns that promise so Leaf publishes the source revision as ready
 only after the projection settles. A rejection is reported as that subscriber's page
 error; it does not make later state

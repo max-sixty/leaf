@@ -119,14 +119,24 @@ export function foldThreads(threads, messages, reactions, settlements) {
   return [...copies, ...opened];
 }
 
-// The bare reactions standing on exactly this anchor — the bar's own question, asked
-// so its chips can say which tokens are already there. Anchors are compared as
-// records, the way the file compares them.
+// A declared record stays the same reaction target when its source is replaced.
+// Keep the complete anchor for other targets, and keep the original revision in the
+// event: only this standing-token lookup asks for identity across source revisions.
+const reactionTarget = (anchor) => {
+  if (!anchor?.record_contract || !anchor.record_key_field) return anchor;
+  const { source_revision: _revision, ...identity } = anchor;
+  return identity;
+};
+
+// The bare reactions standing on this target — the bar's own question, asked so its
+// chips can say which tokens are already there.
 export const reactionsAt = (threads, anchor) =>
   threads
     .filter(
       (thread) =>
-        bareReaction(thread) && !thread.resolved && sameAnchor(thread.anchor, anchor),
+        bareReaction(thread) &&
+        !thread.resolved &&
+        sameAnchor(reactionTarget(thread.anchor), reactionTarget(anchor)),
     )
     .map((thread) => thread.root);
 

@@ -340,12 +340,17 @@ const addressableAimTarget = (addressable) => ({
 // cannot disappear merely because the gesture began in generated UI rather than text.
 export const anchorForDatum = (datum, fields = {}) => {
   const sourceRevision = datum.dataset.lfSourceRevision;
+  const recordContract = datum.dataset.lfRecordContract;
+  const recordKeyField = datum.dataset.lfRecordKeyField;
   return {
     section: datum.dataset.lfProjection,
     datum: datum.dataset.lfDatum,
     ...fields,
     ...(datum.dataset.lfSource && sourceRevision
       ? { source: datum.dataset.lfSource, source_revision: sourceRevision }
+      : {}),
+    ...(recordContract && recordKeyField
+      ? { record_contract: recordContract, record_key_field: recordKeyField }
       : {}),
   };
 };
@@ -398,13 +403,19 @@ export function resolveAnchor(anchor, text = "") {
   if (anchor.datum) {
     const source = sectionOf(anchor);
     const datums = currentDatums(source, anchor.datum);
+    if (datums.length > 1) return null;
     const anchoredToData =
       typeof anchor.source === "string" && typeof anchor.source_revision === "string";
     const basis = datums[0] ?? source;
+    const sameRecord =
+      Boolean(anchor.record_contract && anchor.record_key_field) &&
+      datums.length === 1 &&
+      anchor.record_contract === basis.dataset.lfRecordContract &&
+      anchor.record_key_field === basis.dataset.lfRecordKeyField;
     const basisMatches =
       !anchoredToData ||
       (basis?.dataset.lfSource === anchor.source &&
-        basis.dataset.lfSourceRevision === anchor.source_revision);
+        (basis.dataset.lfSourceRevision === anchor.source_revision || sameRecord));
     if (!basisMatches) {
       const contextual = source?.lfDataDatum?.(anchor.datum, { outdated: true });
       const fallback =
@@ -421,7 +432,6 @@ export function resolveAnchor(anchor, text = "") {
     }
     // A projection/key pair identifies exactly one current fact. Disappearance detaches
     // and duplicates refuse to guess. Changed text falls back to the same datum element.
-    if (datums.length > 1) return null;
     if (!datums.length) {
       const virtual = source?.lfDataDatum?.(anchor.datum);
       if (!(virtual instanceof Element) || !under(virtual, source)) return null;

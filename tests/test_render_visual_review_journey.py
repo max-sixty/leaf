@@ -477,7 +477,9 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     user.keyboard.press("Shift+d")
     expect(field).to_be_focused()
     expect(field).to_have_value("Restore Back to releases")
-    field.press("End")
+    field.evaluate(
+        "node => node.setSelectionRange(node.value.length, node.value.length)"
+    )
     user.keyboard.type(" on the candidate detail page.")
     with sending(user, "the navigation correction comment"):
         user.keyboard.press("ControlOrMeta+Enter")
@@ -493,6 +495,8 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
         "datum": "follow-release-link",
         "source": "journey-run",
         "source_revision": drafted_revision,
+        "record_contract": "visual-run",
+        "record_key_field": "id",
     }
     review_events = [
         event
@@ -539,7 +543,7 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     user.keyboard.press("Shift+t")
     threads = user.get_by_role("dialog")
     expect(threads).to_contain_text("Restore Back to releases")
-    expect(threads).to_contain_text("Earlier data")
+    expect(threads).not_to_contain_text("Earlier data")
 
     review_events = [
         event

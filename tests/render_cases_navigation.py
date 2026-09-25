@@ -989,13 +989,16 @@ customElements.define('lf-feed', class extends HTMLElement {
     this.stopWatching = null;
   }
   show(snapshot) {
-    projectData(this, snapshot?.value ?? [], row => row.key, ({value}) => {
+    projectData(this, snapshot?.value?.rows ?? snapshot?.value ?? [], row => row.key, ({value}) => {
       const row = document.createElement('p');
       row.append(value, offer('button', 'inspect', 'Inspect'));
       return row;
     }, {
       snapshot,
-      originOf: (_row, index) => ({...snapshot.origin, path: [index, 'value']}),
+      originOf: (_row, index) => ({
+        ...snapshot.origin,
+        path: snapshot.value?.rows ? ['rows', index, 'value'] : [index, 'value'],
+      }),
     });
   }
 });
@@ -1008,7 +1011,7 @@ def source_revision(page_dir, source):
     return data_model.read_data(page_dir, registry)["sources"][source]["revision"]
 
 
-def data_projection_page(serve):
+def data_projection_page(serve, *, keyed=False):
     feed = {
         "description": "A project-supplied live feed.",
         "type": "object",
@@ -1038,6 +1041,18 @@ def data_projection_page(serve):
             },
         },
     }
+    if keyed:
+        contract["schema"]["items"]["properties"]["updated"] = {"type": "string"}
+        contract = {
+            "description": "Current deployment status rows keyed by their stable id.",
+            "records": {"items": "rows", "key": "key"},
+            "schema": {
+                "type": "object",
+                "properties": {"rows": contract["schema"]},
+                "required": ["rows"],
+                "additionalProperties": False,
+            },
+        }
     url = serve(
         DATA_PROJECTION_PAGE,
         layer_registry={
@@ -1047,12 +1062,13 @@ def data_projection_page(serve):
         layer_widgets={"lf-feed.js": DATA_PROJECTION_MODULE},
     )
     d = serve.page_dir
+    rows = [
+        {"key": "api", "value": "Ready"},
+        {"key": "worker", "value": "Ready"},
+    ]
     data_model.cmd_data_set(
         d,
         "deployments",
-        [
-            {"key": "api", "value": "Ready"},
-            {"key": "worker", "value": "Ready"},
-        ],
+        {"rows": rows} if keyed else rows,
     )
     return url

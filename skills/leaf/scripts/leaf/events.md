@@ -30,7 +30,9 @@ page and is not a global identifier. The kinds:
 An `anchor` names a passage by `section` and `quote`, with `prefix` and `suffix`
 where neighbouring text tells two identical passages apart; a selection on
 projected data names `datum` (the stable key local to its section) and, when the
-projection names an external input, `source` and `source_revision`; `visual` names
+projection names an external input, `source` and `source_revision`. A projected row
+matching its contract's declared `records` also names `record_contract` and
+`record_key_field`, which let its key survive source replacement; `visual` names
 a declared part of a picture and `part` the control a design comment landed on.
 
 A `drawing` is up to 32 freehand strokes (`strokes`, each a list of points) attached to
@@ -261,7 +263,8 @@ form from a quote by reading authored HTML through `leaf.passages`. The browser'
 anchor pass applies the matching rules to the DOM. Projected data has no file-side
 value to quote: its browser
 anchor adds the projection's section and datum key, and when `projectData` names
-an `x-data` input, the source id and `source_revision`, that source's revision. The
+an `x-data` input, the source id and `source_revision`, that source's revision. A
+declared record anchor also names its contract and key field. The
 append door checks that the section binds that source; a revision other than the
 current one is admitted as a comment on a value that has since been replaced. A CLI comment can still name the authored
 projection seat as an element.

@@ -19,6 +19,7 @@ from render_cases_layout import (
 )
 from render_cases_navigation import (
     TARGETS_PAGE,
+    data_projection_page,
     pending_text,
     source_revision,
 )
@@ -121,6 +122,44 @@ def painted(page, glyphs):
         ),
     )
     return page.evaluate(PAINTED)
+
+
+def test_a_reaction_on_a_declared_record_toggles_after_its_source_is_replaced(
+    browser, serve
+):
+    page = open_page(browser, data_projection_page(serve, keyed=True))
+    api = page.locator('[data-lf-datum="api"]')
+    api.click(modifiers=["Alt"])
+    expect(page.locator(".lf-fab-bar")).to_be_visible()
+    page.keyboard.press("Tab")
+    reaction = page.locator('.lf-fab-bar .lf-react[data-token="keep"]')
+    expect(reaction).to_have_attribute("aria-pressed", "false")
+    with sending(page, "the reaction on api"):
+        reaction.click()
+    sent = events_model.read_events(serve.page_dir)[-1]
+    assert sent["kind"] == "comment" and sent["token"] == "keep"
+    assert sent["anchor"]["record_contract"] == "deployment-rows"
+
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "deployments",
+        {
+            "rows": [
+                {"key": "api", "value": "Ready", "updated": "later"},
+                {"key": "worker", "value": "Ready"},
+            ]
+        },
+    )
+    expect(api).to_have_attribute(
+        "data-lf-source-revision", source_revision(serve.page_dir, "deployments")
+    )
+    api.click(modifiers=["Alt"])
+    page.keyboard.press("Tab")
+    expect(reaction).to_have_attribute("aria-pressed", "true")
+    with sending(page, "the reaction withdrawal on api"):
+        reaction.click()
+    withdrawn = events_model.read_events(serve.page_dir)[-1]
+    assert withdrawn["kind"] == "undo" and withdrawn["undoes"] == sent["id"]
 
 
 def test_a_late_standing_reaction_does_not_move_the_readable_column(browser, serve):

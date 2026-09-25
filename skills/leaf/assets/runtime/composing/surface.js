@@ -392,8 +392,8 @@ export function createResponseSurface({
   // Whether a resolution is one this document can still put a box beside, which is not the
   // same question as whether it is on screen. Quoted words that resolve to segments stand
   // wherever they are; a quote whose words the next version rewrote away does not, with one
-  // exception — replacing source data must not close a draft about its prior revision, so an
-  // outdated finding falls back to its section. Everything else stands on its element.
+  // exception for source data: an outdated finding falls back to its section, and
+  // a declared record keeps its draft on the current datum when the words change.
   //
   // One rule, because two callers ask it: placement, below, and the route back to a kept
   // draft, which must not offer a passage this version no longer holds.
@@ -401,7 +401,11 @@ export function createResponseSurface({
     if (!found) return false;
     if (anchor.quote) {
       if (targetSegments(found).length) return true;
-      if (found.status !== "outdated") return false;
+      if (
+        found.status !== "outdated" &&
+        !(anchor.record_contract && anchor.record_key_field && found.datumElement)
+      )
+        return false;
     }
     return Boolean(targetElement(found));
   };

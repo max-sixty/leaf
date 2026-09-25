@@ -11,6 +11,10 @@ It implements the section "The margin as a rail or pins" of `notes/layout-approa
 on the branch `how-it-works-one-layout` (called "the proposal" below). It holds Leaf to
 that note's rule: nothing Leaf draws at run time moves the page's content.
 
+**Status:** Max approved the plan on 24 September, with the decisions recorded under
+"Decisions" below. `fixed-rail` has landed (#1140). Phase 1 starts once
+`asks-tray-overlay` (#1148) lands.
+
 Browser claims marked *probed* were run in Chrome 153 (the suite's headless shell) and
 are summarized in the appendix.
 
@@ -63,10 +67,10 @@ are summarized in the appendix.
   `data-lf-yield` goes.
 - Column pages have a rail; every other page (sheets, and so workspaces) has pins.
   `data-rail="right" | "none"` on `main` overrides either default.
-- `o` shows or hides the annotation layer: the markers that only report (threads,
-  reactions, changes, receipts, claims) and the durable marks on anchored passages.
-  Contributed controls stay. The layer is tab view state, and hiding it changes no
-  geometry, because nothing in it takes up room.
+- `o` shows or hides the annotation layer: everything Leaf draws over the page's content
+  (pins, controls included, the durable marks on anchored passages, an open card). The
+  rail covers nothing, so what stands in it stays. The layer is tab view state, and
+  hiding it changes no geometry, because nothing in it takes up room.
 
 ## What the user sees
 
@@ -321,20 +325,22 @@ everything used here.
 
 ### E. The `o` toggle
 
-**What the annotation layer is.** Markers that report, plus the durable marks on
-anchored passages. It does not include contributed controls: an lf-draft mid-edit keeps
-Save and Cancel there (`lf-draft.js:388-400`), and an lf-suggestion's Accept/Reject is an
-Ask (`lf-suggestion.js:305-316`). Hiding those would strand an edit or a decision.
+**What the annotation layer is** (decided 24 September, Max's rule): everything Leaf
+draws over the page's content. The rail covers nothing, so it and everything standing in
+it stay. The rule keys on a row's posture, so no cluster's entries need sorting into
+reports and controls.
 
 **Hides**
-- Every cluster whose entries only report: thread, reaction, change, receipt and claim
-  readings. In a cluster that also holds a contributed control, only the reading entries
-  hide.
+- Every row in the pin posture, whatever it holds. A contributed control standing as a
+  pin hides with it: an lf-draft's Save and Cancel (`lf-draft.js:388-400`), or an
+  lf-suggestion's Accept/Reject, which is an Ask (`lf-suggestion.js:305-316`). The
+  decision stays reachable through the requests below.
 - The durable passage marks `lf-mark` and `lf-react`, and element contours in the
   comment and reaction states.
+- An open card, and an unfolded cluster standing over the column.
 
 **Keeps**
-- Contributed controls.
+- The rail and every row standing in it.
 - Standing and gesture paint: `lf-mark-here` (the thread the user opened), `lf-pending`
   (the user's own draft), and the aim and trace boxes.
 - Version comparison paint, which has its own toggle.
@@ -352,7 +358,7 @@ Ask (`lf-suggestion.js:305-316`). Hiding those would strand an edit or a decisio
 - `markAt` (`anchor-paint.js:158`) returns nothing while hidden. Its two callers are
   hover paint (`:186`) and the press that opens a thread (`composing/surface.js:1453`), so
   an unseen passage shows no hand cursor and opens nothing when pressed.
-- On hiding, focus held by a reading entry moves to its target (`focusDestination`),
+- On hiding, focus held by a pinned row moves to its target (`focusDestination`),
   because hiding a focused element sends focus to `body` (*probed*). An open card closes
   through its ordinary close path.
 
@@ -360,7 +366,8 @@ Ask (`lf-suggestion.js:305-316`). Hiding those would strand an edit or a decisio
 - Explicit requests still work and show what was asked for, without revealing the layer.
   The `t` walk, a Threads row and a Page Map pick all go through `openPageThread`
   (`margin-projection.js:2594`), which opens the card at the target and paints
-  `lf-mark-here` on the passage. `c` composes as usual.
+  `lf-mark-here` on the passage. An `a` arrival at an Ask whose control is a hidden pin
+  shows that one row. `c` composes as usual.
 - The banner's unread count and the bottom-line notices of new replies don't read the
   layer, so they keep announcing arrivals. A message not shown is not marked read.
 
@@ -436,7 +443,7 @@ All of this goes in phase 2.
   prose.
 - `references/packages.md` (`registerMarginContribution`): a contribution stands in its
   target's cluster in either posture, and as a pin its cluster unfolds leftward.
-  Contributed controls stay visible under `o`.
+  Under `o` a contribution hides when it stands as a pin and stays in the rail.
 - `references/page-authoring.md`:
   - a short section on the rail and the annotation layer (see A);
   - the side-track rename;
@@ -485,7 +492,7 @@ New:
   is withheld once its target leaves.
 - A pin inside an inactive `lf-tab` is parked and unfocusable.
 - A commented wide block keeps symmetric growth, and its marker is a pin on it.
-- `o` leaves every authored box's rectangle unchanged, keeps a draft's Save/Cancel, and
+- `o` leaves every authored box's rectangle unchanged, keeps the rail's rows, hides every pin, and
   a press on a hidden passage opens nothing.
 
 ## Phases
@@ -527,7 +534,7 @@ Phases 3 and 4 are independent of each other.
 - **Sticky targets.** A target in a sticky box (`aside.sidebar` at ≥ 1188px) makes pack
   offsets stale as it sticks. Probably leave such targets unpacked.
 
-## Decisions for Max
+## Decisions
 
 - **#1 — Wide blocks:** decided, B3 (the marker on a figure grown past the rail is a pin
   on the figure). B4 stays the look pass's alternate.
@@ -536,9 +543,9 @@ Phases 3 and 4 are independent of each other.
 - **#3 — Pin look and touch size:** decided on the look pass's stills.
 - **#4 — Tab order:** decided: contributed controls (a suggestion's ✓/✗) move after the
   content in tab order, the price of inserting nothing into the page.
-- **#5 — `o`:** it hides reporting markers and durable marks but keeps contributed
-  controls. It is tab state. Explicit requests (`t`, Threads, the Page Map) open the card
-  without revealing the layer.
+- **#5 — `o`:** decided: it hides everything drawn over the page, pinned controls
+  included, and keeps the rail. It is tab state. Explicit requests (`t`, `a`, Threads,
+  the Page Map) show what was asked for without revealing the layer.
 - **#6 — Declared, not placed:** decided, an attribute on `main`.
 
 ## Appendix: probes

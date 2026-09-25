@@ -130,11 +130,13 @@ function navigationSummary(navigation, model) {
       class="lf-thread-topic"
       data-lf-pending-title=${pendingTitle ? "" : nothing}
       aria-label=${pendingTitle ? "Title pending" : nothing}
-      >${pendingTitle
-        ? html`<span class="lf-thread-pending-dot" aria-hidden="true">.</span
-            ><span class="lf-thread-pending-dot" aria-hidden="true">.</span
-            ><span class="lf-thread-pending-dot" aria-hidden="true">.</span>`
-        : title}</span
+      >${
+        pendingTitle
+          ? html`<span class="lf-thread-pending-dot" aria-hidden="true">.</span
+              ><span class="lf-thread-pending-dot" aria-hidden="true">.</span
+              ><span class="lf-thread-pending-dot" aria-hidden="true">.</span>`
+          : title
+      }</span
     >
     <span class="lf-thread-meta">
       ${draft ? html`<span class="lf-thread-draft">Draft</span>` : nothing}

@@ -1,5 +1,5 @@
 """Browser probe readings for one settled color scheme, the once-per-version width
-sweep and alignment advice, and the finding each becomes."""
+sweep and advice, and the finding each becomes."""
 
 import json
 from dataclasses import dataclass
@@ -466,6 +466,33 @@ def margin_cover_advice(page) -> list[str]:
         "top-right corner, so give the block padding on its right, or the page a rail "
         "(page-authoring.md, the rail and the margin), where those words matter"
         for pin in evaluate_probe(page, "coveringMargins")
+    ]
+
+
+# The drawn size below which a shrunk label is advised about. The theme's drawing idiom
+# sets its labels at 10–12px in the viewBox's units (theme.css, `svg.drawing`; its 9px
+# step glyph is one bold numeral on a dot), so an idiom drawing shown at its own width
+# stays clear of it, and one shrunk by a fifth does not.
+LEGIBLE_LABEL_PX = 10
+
+
+def shrunk_label_advice(page) -> list[str]:
+    """Advice naming each drawing whose fit to its box draws labels too small to read.
+
+    Read at the desktop viewport, where the other advice is: a narrower window scales a
+    drawing further still, and which of its widths a page answers for is not settled here.
+    Advice rather than a failure because the remedy is a choice of composition — larger
+    labels, fewer of them, a narrower drawing, more room — that only the author can make,
+    and a page that makes none of them still says everything it says."""
+    width = page.viewport_size["width"]
+    return [
+        f"at {width}px wide {d['at']} draws {d['labels']} label(s) below "
+        f"{LEGIBLE_LABEL_PX}px, the smallest ({d['words']!r}) at {d['drawn']:g}px from "
+        f"the {d['set']:g}px it was set at: the drawing is scaled to fit its box and its "
+        "labels with it, so set them larger in the viewBox's units, draw the viewBox "
+        "nearer the width it is shown at, or give it more room "
+        "(authoring-evidence.md, Interactive and visual evidence)"
+        for d in evaluate_probe(page, "shrunkLabels", LEGIBLE_LABEL_PX)
     ]
 
 

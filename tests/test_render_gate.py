@@ -236,6 +236,77 @@ def test_a_wide_page_whose_rows_split_anywhere_gets_advice_and_still_passes(
     assert "lp-status" not in advice, advice
 
 
+# Three drawings in the idiom. The first is drawn wider than the column holds, so the fit
+# takes its 11px labels to under half. The second is fitted by the same fraction, and its
+# 28px labels survive it. The third keeps its natural size, with the theme's 9px step
+# glyph on it.
+DRAWN_LABELS_PAGE = leaf_page(
+    "drawn labels",
+    """
+<h1>Rollout</h1>
+<figure id="squeezed">
+  <svg class="drawing" viewBox="0 0 1600 120" role="img" aria-label="Rollout stages">
+    <text x="20" y="40">canary</text>
+    <text x="560" y="40">region</text>
+    <text x="1100" y="40">global</text>
+  </svg>
+</figure>
+<figure id="large">
+  <svg class="drawing" viewBox="0 0 1600 120" role="img" aria-label="Rollout headline">
+    <text x="20" y="60" font-size="28">canary</text>
+    <text x="1100" y="60" font-size="28">global</text>
+  </svg>
+</figure>
+<figure id="natural">
+  <svg class="drawing" width="200" viewBox="0 0 200 40" role="img" aria-label="Step one">
+    <circle class="mark" cx="20" cy="20" r="7" />
+    <text class="glyph" x="20" y="20">1</text>
+    <text class="small" x="40" y="24">note</text>
+  </svg>
+</figure>
+""",
+)
+
+
+def test_a_drawing_fitted_until_its_labels_are_unreadable_gets_advice_and_still_passes(
+    browser, serve
+):
+    """Drawn size decides, and only the fit is advised about: the halved 28px labels
+    read fine, and the 9px glyph at its natural size is a size the source chose. The
+    drawing whose 11px labels came out at 5px is named once, with its smallest."""
+    url = serve(DRAWN_LABELS_PAGE, packages=())
+    page = open_page(browser, url)
+    drawn = page.evaluate(
+        """() => Object.fromEntries([...document.querySelectorAll('figure')].map(f => {
+          const labels = [...f.querySelectorAll('text')].map(t => {
+            const m = t.getScreenCTM();
+            const set = parseFloat(getComputedStyle(t).fontSize);
+            return {set, drawn: set * Math.hypot(m.c, m.d)};
+          });
+          return [f.id, labels];
+        }))"""
+    )
+    page.close()
+    # Each control is clear of the advice for its own reason, so each reason is shown
+    # holding: the large labels were shrunk, and the natural glyph is under the floor.
+    assert all(1 <= label["drawn"] < 0.5 * label["set"] for label in drawn["squeezed"])
+    assert all(10 < label["drawn"] < label["set"] for label in drawn["large"]), drawn
+    assert any(
+        label["drawn"] < 10 and abs(label["drawn"] - label["set"]) < 0.01
+        for label in drawn["natural"]
+    ), drawn
+
+    reading = render_gate_model.render_version(browser, url)
+
+    assert reading.failures == []
+    (advice,) = reading.advice
+    assert advice.startswith(
+        "at 1200px wide <svg> in <figure id=squeezed> draws 3 label(s) below 10px, "
+        "the smallest ("
+    ), advice
+    assert "from the 11px it was set at" in advice, advice
+
+
 def test_the_pre_upgrade_proof_reads_the_held_authored_document(browser, serve):
     source = leaf_page(
         "pre-upgrade structure",

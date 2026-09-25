@@ -95,8 +95,8 @@ export const FOLD_MS = 220;
 // surface and starts from where that one had carried it, so a reopen mid-exit comes
 // straight back rather than finishing the exit first; the replaced slide's `finished`
 // rejects, which is how its caller knows not to hide. A surface sliding out is already
-// gone to the user, so it is marked `LEAVING` for the length of the exit: it takes no
-// press (chrome.css), and no reading of what the page shows counts it as covering
+// gone to the user, so for the length of the exit it is inert, taking no press or focus,
+// and marked `LEAVING`, so no reading of what the page shows counts it as covering
 // anything (geometry.js).
 // A slide moves what the surface shows without a scroll, resize or mutation, so its end
 // is announced as `SLIDE_END` on the surface for readers of what is on screen.
@@ -109,6 +109,7 @@ export function slide(el, side, direction) {
   const at = running && { transform: getComputedStyle(el).transform };
   running?.cancel();
   el.toggleAttribute(LEAVING, direction === "out");
+  el.inert = direction === "out";
   const away = { transform: `translateX(${side === "left" ? "-100%" : "100%"})` };
   const home = { transform: "translateX(0)" };
   const played =
@@ -118,6 +119,7 @@ export function slide(el, side, direction) {
   if (!played) {
     slides.delete(el);
     el.removeAttribute(LEAVING);
+    el.inert = false;
     return null;
   }
   slides.set(el, played);
@@ -125,6 +127,7 @@ export function slide(el, side, direction) {
     () => {
       slides.delete(el);
       el.removeAttribute(LEAVING);
+      el.inert = false;
       el.dispatchEvent(new Event(SLIDE_END, { bubbles: true, composed: true }));
     },
     () => {},

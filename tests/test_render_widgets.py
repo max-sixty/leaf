@@ -8889,6 +8889,32 @@ def test_a_tray_the_user_left_standing_comes_back_standing(browser, serve):
     expect(page.locator("button.lf-asks-row")).to_have_count(len(ALL_ASKS_IN_ORDER))
 
 
+def test_a_tray_sliding_out_takes_no_focus(browser, serve):
+    """A tray on its way out is already gone to the user: switching to Threads leaves
+    none of its rows reachable while it slides away, and reopening it brings them back."""
+    page = open_page(browser, serve(ASKS_PAGE))
+    resized(page, 1200, 900)
+    banner_control(page, ".lf-asks").click()
+    expect(page.locator(".lf-asks-panel")).to_be_visible()
+    leaving = page.evaluate(
+        """() => {
+          document.querySelector('.lf-threads-toggle').click();
+          const tray = document.querySelector('.lf-asks-panel');
+          const row = tray.querySelector('button.lf-asks-row');
+          row.focus();
+          return { shown: tray.checkVisibility(), inert: tray.inert,
+                   focused: document.activeElement === row };
+        }"""
+    )
+    assert leaving == {"shown": True, "inert": True, "focused": False}, leaving
+    expect(page.locator(".lf-asks-panel")).to_be_hidden()
+
+    banner_control(page, ".lf-asks").click()
+    row = page.locator("button.lf-asks-row").first
+    row.focus()
+    expect(row).to_be_focused()
+
+
 def test_a_tray_standing_over_most_of_an_ask_clears_for_it(browser, serve):
     """The tray stands over the page, so an Ask its row sends the user to may be under it.
     Drawn wide but still leaving a usable page, the tray stays live and stands over most of

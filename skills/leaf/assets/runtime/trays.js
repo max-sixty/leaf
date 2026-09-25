@@ -177,7 +177,7 @@ export function createTrays({
       hide({ returnFocus }) {
         btn.setAttribute("aria-expanded", "false");
         if (!panel.classList.contains("open")) return;
-        // Before the slide, which takes the tray out of reach.
+        // Before the slide, which makes the tray inert and would drop focus to body.
         if (returnFocus && panel.contains(document.activeElement))
           bannerControlDoor(btn)?.focus({ preventScroll: true });
         // Slid out before hidden, and hidden only if still closed on arrival — a

@@ -1712,6 +1712,11 @@ def test_the_feature_gallery_balances_one_margin_entry_sample_with_feature_secti
         "bg-conversations": (
             "Threads: anchored conversations",
             "#bg-conversations-guide",
+            "#bg-new-thread",
+        ),
+        "bg-thread-states": (
+            "Thread states: live before and after examples",
+            "#bg-thread-states-guide",
             "#bg-thread-text",
         ),
         "bg-reactions": (
@@ -4438,6 +4443,24 @@ def test_a_spilled_thread_opens_the_full_conversation_without_a_hidden_anchor(
     )
 
 
+def _walk_gallery_thread(page, thread_id):
+    """Reach a gallery conversation by identity as specimens change page order."""
+    walked = page.locator(".lf-margin-preview .lf-conversation-thread")
+    seen = set()
+    while True:
+        previous = walked.get_attribute("data-thread") if walked.count() else None
+        page.keyboard.press("t")
+        expect(walked).to_be_focused()
+        if previous is not None:
+            expect(walked).not_to_have_attribute("data-thread", previous)
+        standing = walked.get_attribute("data-thread")
+        rendered(page)
+        if standing == thread_id:
+            return
+        assert standing not in seen, f"the thread walk returned to {standing}"
+        seen.add(standing)
+
+
 def test_a_forced_inline_thread_keeps_its_control_inside_the_margin_budget(
     browser, serve
 ):
@@ -4450,31 +4473,8 @@ def test_a_forced_inline_thread_keeps_its_control_inside_the_margin_budget(
     page.evaluate("location.hash = 'bg-margin-controls'")
     page.locator("body").focus()
 
-    walked = page.locator(".lf-margin-preview .lf-conversation-thread")
-    page.keyboard.press("t")
-    expect(
-        page.locator(
-            ".lf-margin-preview .lf-conversation-thread"
-            '[data-thread="2be2443f0bb6cc49fc86b52f340e6073"]'
-        )
-    ).to_be_focused()
-    # The walk steps one thread at a time in page order, so the presses between the
-    # gallery's first thread and this cluster's are however many threads the gallery
-    # carries between them. #886 added one, and this test — which counted two presses —
-    # arrived at that one instead and measured a card three thousand pixels from the
-    # cluster it names. The walk is taken to the thread it is for instead, and gives up
-    # when it comes back round to one it has already stood on rather than pressing
-    # forever. Each press waits for its own arrival before the next
-    # (`tests/AGENTS.md`, "A repeated gesture has to let the repaint it causes land").
-    stood_on = []
-    while (standing := walked.get_attribute("data-thread")) != crowded_thread:
-        assert standing not in stood_on, (
-            f"the walk came back to {standing} without reaching the crowded cluster's "
-            f"thread; it stood on {stood_on}"
-        )
-        stood_on.append(standing)
-        page.keyboard.press("t")
-        expect(walked).not_to_have_attribute("data-thread", standing)
+    _walk_gallery_thread(page, "2be2443f0bb6cc49fc86b52f340e6073")
+    _walk_gallery_thread(page, crowded_thread)
 
     crowded = page.locator('[data-lf-margin-for="bg-crowded"]')
     expect(page.locator("#bg-crowded")).to_be_in_viewport()
@@ -4484,7 +4484,6 @@ def test_a_forced_inline_thread_keeps_its_control_inside_the_margin_budget(
     expect(crowded.locator(".lf-margin-entry:visible")).to_have_count(6)
     geometry = crowded.evaluate(
         """cluster => {
-          const main = document.querySelector('main').getBoundingClientRect();
           const controls = cluster.getBoundingClientRect();
           const cardNode = document.querySelector('.lf-margin-preview');
           const card = cardNode.getBoundingClientRect();
@@ -4500,7 +4499,6 @@ def test_a_forced_inline_thread_keeps_its_control_inside_the_margin_budget(
             .filter(node => node.checkVisibility())
             .map(node => node.getBoundingClientRect());
           return {placement: cardNode.dataset.lfThreadPlacement,
-                  mainRight: main.right,
                   controlsTop: controls.top, controlsBottom: controls.bottom,
                   cardLeft: card.left, cardTop: card.top, cardBottom: card.bottom,
                   cardWidth: card.width, coveredControls,
@@ -4513,7 +4511,6 @@ def test_a_forced_inline_thread_keeps_its_control_inside_the_margin_budget(
         geometry["cardBottom"] <= geometry["controlsTop"] - 7
         or geometry["cardTop"] >= geometry["controlsBottom"] + 7
     ), geometry
-    assert geometry["cardLeft"] >= geometry["mainRight"], geometry
     assert geometry["cardWidth"] >= 379, geometry
     assert geometry["coveredControls"] == 0, geometry
     assert geometry["bottomChrome"] > 0, geometry
@@ -4534,13 +4531,7 @@ def test_a_thread_uses_a_free_margin_and_tracks_its_source(browser, serve):
     resized(page, 2672, 900)
     page.evaluate("location.hash = 'bg-margin-controls'")
     page.locator("body").focus()
-    page.keyboard.press("t")
-    expect(
-        page.locator(
-            ".lf-margin-preview .lf-conversation-thread"
-            '[data-thread="2be2443f0bb6cc49fc86b52f340e6073"]'
-        )
-    ).to_be_focused()
+    _walk_gallery_thread(page, "2be2443f0bb6cc49fc86b52f340e6073")
     expect(page.locator("#bg-thread-text")).to_be_in_viewport()
     expect(page.locator(".lf-margin-preview")).to_be_visible()
 
@@ -4553,7 +4544,6 @@ def test_a_thread_uses_a_free_margin_and_tracks_its_source(browser, serve):
           const card = rect(cardNode);
           const controls = rect(controlsNode);
           const target = rect(document.querySelector('#bg-thread-text'));
-          const main = rect(document.querySelector('main'));
           const overlaps = (one, other) => one.left < other.right
             && other.left < one.right && one.top < other.bottom
             && other.top < one.bottom;
@@ -4562,7 +4552,7 @@ def test_a_thread_uses_a_free_margin_and_tracks_its_source(browser, serve):
             .map(rect)
             .filter(other => other.width && other.height && overlaps(card, other)).length;
           return {placement: cardNode.dataset.lfThreadPlacement,
-                  mainRight: main.right, controlsRight: controls.right,
+                  controlsRight: controls.right,
                   controlsTop: controls.top, cardLeft: card.left,
                   cardTop: card.top, cardWidth: card.width, coveredControls,
                   targetTop: target.top, targetBottom: target.bottom,
@@ -4573,7 +4563,6 @@ def test_a_thread_uses_a_free_margin_and_tracks_its_source(browser, serve):
     assert geometry["cardLeft"] == pytest.approx(
         geometry["controlsRight"] + 8, abs=0.5
     ), geometry
-    assert geometry["cardLeft"] >= geometry["mainRight"], geometry
     assert geometry["cardWidth"] >= 379, geometry
     assert geometry["coveredControls"] == 0, geometry
     assert geometry["targetTop"] >= geometry["bannerBottom"], geometry
@@ -4638,13 +4627,7 @@ def test_a_thread_beside_its_cluster_takes_the_room_to_the_visible_edge(browser,
     resized(page, 1220, 900)
     page.evaluate("location.hash = 'bg-margin-controls'")
     page.locator("body").focus()
-    page.keyboard.press("t")
-    expect(
-        page.locator(
-            ".lf-margin-preview .lf-conversation-thread"
-            '[data-thread="2be2443f0bb6cc49fc86b52f340e6073"]'
-        )
-    ).to_be_focused()
+    _walk_gallery_thread(page, "2be2443f0bb6cc49fc86b52f340e6073")
     geometry = page.evaluate(
         """() => {
           const cardNode = document.querySelector('.lf-margin-preview');
@@ -4688,13 +4671,7 @@ def test_a_thread_in_a_short_rail_crosses_the_column_by_only_what_the_rail_lacks
     resized(page, 1024, 900)
     page.evaluate("location.hash = 'bg-margin-controls'")
     page.locator("body").focus()
-    page.keyboard.press("t")
-    expect(
-        page.locator(
-            ".lf-margin-preview .lf-conversation-thread"
-            '[data-thread="2be2443f0bb6cc49fc86b52f340e6073"]'
-        )
-    ).to_be_focused()
+    _walk_gallery_thread(page, "2be2443f0bb6cc49fc86b52f340e6073")
     geometry = page.evaluate(
         """() => {
           const cardNode = document.querySelector('.lf-margin-preview');

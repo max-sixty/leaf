@@ -2459,7 +2459,10 @@ def test_the_adopted_sheet_decides_nothing_by_standing_last(browser, serve):
 
     The corpus, because a tie shows only where both rules meet one element, and it is
     the page that holds every widget and every idiom at once."""
-    page = open_page(browser, serve(CORPUS_PAGE))
+    # The corpus's sort film otherwise repaints SVG values while the sheets move.
+    page = open_page(
+        browser, serve(CORPUS_PAGE), context=browser.new_context(reduced_motion="reduce")
+    )
     page.evaluate("() => document.getAnimations().forEach((one) => one.pause())")
     adopted = page.evaluate(COMPUTED_FACES, [list(ORDER_SENSITIVE)])
     rules = page.evaluate(RELOCATE_ADOPTED)

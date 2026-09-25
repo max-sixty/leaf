@@ -291,16 +291,12 @@ body[data-lf-draw-mode] main .lf-conversation * { cursor: auto !important; }
 :is(.lf-mark-el, .lf-react-el) {
   outline: 1px solid var(--mark-ink); outline-offset: -1px; }
 .lf-mark-el { cursor: pointer; }
-/* The annotation layer hidden (`o`): the resting contour goes with the text marks, in
-   the page and in the chrome's projection of it, and the contours of a gesture (pending,
-   hover, focus, the current thread) stay. */
+/* The annotation layer hidden (`o`): the resting contour goes with the text marks, here
+   and in the chrome's projection of it (at .lf-visual-mark), and the contours of a
+   gesture (pending, hover, focus, the current thread) stay. */
 :root[data-lf-annotations="hidden"]
   :is(.lf-mark-el, .lf-react-el):not(.lf-pending, .lf-mark-hover, .lf-mark-here,
     :focus-visible, .lf-focus-visible) { outline-color: transparent; cursor: auto; }
-:root[data-lf-annotations="hidden"]
-  .lf-visual-mark:is(.lf-visual-mark-comment, .lf-visual-mark-reaction):not(
-    .lf-visual-mark-pending, .lf-visual-mark-hover, .lf-visual-mark-focus,
-    .lf-visual-mark-here, .lf-visual-mark-action) { visibility: hidden; }
 /* The glyphs of the reactions standing on a target — a margin entry per reaction,
    revealing a separately named removal action. */
 .lf-react-mark { text-align: center; }
@@ -1441,6 +1437,10 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-visual-mark.lf-visual-mark-here {
     border: var(--here-ring-w) solid var(--accent); }
   .lf-visual-mark.lf-shaped { border: 0; border-radius: 0 !important; }
+  html[data-lf-annotations="hidden"] :scope
+    .lf-visual-mark:is(.lf-visual-mark-comment, .lf-visual-mark-reaction):not(
+      .lf-visual-mark-pending, .lf-visual-mark-hover, .lf-visual-mark-focus,
+      .lf-visual-mark-here, .lf-visual-mark-action) { visibility: hidden; }
   .lf-visual-mark-shape { display: block; width: 100%; height: 100%; overflow: hidden; }
   .lf-composer { display: none; }
   .lf-fab-bar .lf-composer > :not(.lf-compose-field, .lf-composer-media) {

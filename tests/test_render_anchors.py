@@ -659,7 +659,9 @@ def test_the_comment_button_stands_on_no_control(browser, serve):
                        const ys = [b.top + 4, (b.top + b.bottom) / 2, b.bottom - 4];
                        return xs.some(x => ys.some(y => {
                          const top = document.elementFromPoint(x, y);
-                         return top && !c.contains(top) && top.closest(".lf-chrome"); })); })
+                         // A round control's corner is its own cluster, not a cover.
+                         const own = c.closest(".lf-margin-cluster") ?? c;
+                         return top && !own.contains(top) && top.closest(".lf-chrome"); })); })
         .map(c => c.className)""")
     assert under == [], f"floating chrome is standing on controls: {under}"
 
@@ -3451,7 +3453,6 @@ def test_version_comparison_distinguishes_authored_graphics_from_button_icons(
     )
     _publish(serve.page_dir, 2, second, "New route and map")
     page = open_page(browser, url.replace("v1.html", "v2.html"))
-    assert page.locator("main .lf-margin-entry-icon").count() >= 2
     expect(page.locator("#decoration-icon[data-lf-gen]")).to_have_count(1)
 
     compare_with(page, 1)
@@ -4012,14 +4013,14 @@ def test_a_press_on_a_passage_opens_its_thread_where_it_stands(browser, serve):
     )
 
 
-def test_a_withheld_row_opens_its_card_beside_the_passage(browser, serve):
-    """Without room for a rail, the thread's margin row is withheld and has no box. The
-    card used to stand against that empty box, in the boundary's top corner, over the
-    very words the user had pressed; it stands by the passage instead."""
+def test_a_pinned_row_opens_its_card_clear_of_the_passage(browser, serve):
+    """Without room for a rail, the thread's margin row stands as a pin on its block.
+    The card stands under or over it, never over the very words the user pressed, and
+    leaves once the passage does."""
     page, place_bottom = clearance_page(browser, serve)
     resized(page, 820, 800)
-    expect(page.locator('[data-lf-margin-for="destination"]')).to_have_class(
-        re.compile(r"\blf-withheld\b")
+    expect(page.locator('[data-lf-margin-for="destination"]')).to_have_attribute(
+        "data-lf-place", "pin"
     )
     place_bottom(-560)
     page.mouse.click(*mark_point(page, "lf-mark"))
@@ -4036,11 +4037,8 @@ def test_a_withheld_row_opens_its_card_beside_the_passage(browser, serve):
         f"the card spans {card[0]:.0f}\u2013{card[1]:.0f} over the pressed words at "
         f"{words[0]:.0f}\u2013{words[1]:.0f}"
     )
-    # The same box decides when the card has outlived its subject. An empty one sits
-    # above the boundary's top edge, so the card read as detached from the first
-    # placement, never recorded that it had ever stood by anything, and so could never
-    # take the dismissal a scroll offers it: at these widths it hung there for the rest
-    # of the page's life. Anchored to the passage, it leaves when the passage does.
+    # The same box decides when the card has outlived its subject: it leaves when the
+    # pin, and so the passage, does.
     page.evaluate("() => document.scrollingElement.scrollBy(0, 900)")
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
 

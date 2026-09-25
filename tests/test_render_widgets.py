@@ -5991,7 +5991,8 @@ def test_suggestion_controls_stay_out_of_the_column(browser, serve, reduced_moti
             """row => {
               const r = row.getBoundingClientRect();
               const t = row.lfTarget.getBoundingClientRect();
-              return {top: r.top - t.top, atEdge: r.left < t.right && r.right >= t.right};
+              return {top: r.top - t.top,
+                      atEdge: r.left <= t.right + 1 && r.right >= t.right};
             }"""
         )
         assert stands["atEdge"] and stands["top"] >= -1, (

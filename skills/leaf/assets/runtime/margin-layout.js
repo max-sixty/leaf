@@ -10,10 +10,10 @@
    it as `--lf-push`. Scrolling moves a row with its target on the compositor, whether the
    document scrolls or a pane does, with no pass at all.
 
-   A row is `position: fixed`, so the viewport is its containing block and every element
-   of the page is an anchor it may stand by; a wrapper that became its containing block
-   (a transform, a filter, `contain`) would make every target outside it an invalid
-   anchor. Rows whose targets scroll with the document stand in the root lane; each
+   The layer is a static, zero-height block. A positioned wrapper would become every row's
+   containing block, and a row can only anchor to what stands inside its containing block,
+   so every target outside it would be an invalid anchor. Rows whose targets scroll with
+   the document stand in the root lane; each
    bounded reading region (one whose body scrolls on its own) gets a lane of its own,
    clipped with `clip-path` to what that region shows, which clips a pin's paint and
    presses without making the lane a containing block.

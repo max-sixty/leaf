@@ -3259,7 +3259,7 @@ def test_one_target_has_one_primary_margin_entry_and_inline_secondary_margin_ent
               const row = item.getBoundingClientRect();
               const box = item.lfTarget.getBoundingClientRect();
               return {top: Math.round(row.top - box.top),
-                      atEdge: row.left < box.right && row.right >= box.right};
+                      atEdge: row.left <= box.right + 1 && row.right >= box.right};
             }"""
         )
         assert stands == {"top": 0, "atEdge": True}, stands

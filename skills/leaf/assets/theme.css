@@ -1578,14 +1578,17 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
  * its target through anchor positioning (margin-layout.js); nothing is inserted into the
  * page's content and nothing here moves it.
  *
- * A cluster is `position: fixed`, so the viewport is its containing block: any element of
- * the page is an anchor it may stand by, the browser moves it with its target through
- * every scroll between the two, the document's or a pane's or a board's, and it never
- * widens the page however far its target has scrolled. So nothing between a cluster and
- * the root may become a containing block for it (a transform, a filter, `contain`). The
- * layer and its lanes are zero-height and lay the lanes out as flex items, which take a
+ * The layer and its lanes are static and zero-height, so the initial containing block is
+ * every cluster's: any element of the page is an anchor it may stand by, and the browser
+ * moves it with its target through every scroll between the two, a pane's or a board's.
+ * A positioned wrapper would become the clusters' containing block and make every target
+ * outside it an invalid anchor. The layer lays its lanes out as flex items, which take a
  * z-index without being positioned. A lane holds the clusters of one pane that scrolls on
  * its own, and the layout clips it to what the pane shows.
+ *
+ * Nothing clamps a pin to the window: the browser applies a clamp before it moves the pin
+ * with its scrolled target, so a card in a board scrolled sideways would stand its pin
+ * off its corner. A target scrolled out of its scroller withholds its row instead.
  *
  * A cluster stands level with its target's top (`--lf-inset` where it anchors to a box
  * holding the target), pushed down by packing (`--lf-push`). In
@@ -1600,7 +1603,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-margin-toolbar, .lf-margin-lane { height: 0; }
 .lf-margin-lane { z-index: 2; }
 .lf-margin-lane:has(.lf-margin-cluster:is(:hover, :focus-within)) { z-index: 3; }
-.lf-margin-cluster { position: fixed; z-index: 2;
+.lf-margin-cluster { position: absolute; z-index: 2;
     top: calc(anchor(top, -9999px) + var(--lf-inset, 0px) + var(--lf-push, 0px));
     position-visibility: anchors-visible;
     display: inline-flex; align-items: center; gap: 4px; white-space: nowrap;

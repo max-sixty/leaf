@@ -36,7 +36,7 @@ from .schema import (
 )
 from .served_state.page import full_state
 from .served_state.reading import page_reading
-from .server import running_server
+from .server import running_server, server_restarting
 from .service import (
     PageTransaction,
     claim_page,
@@ -368,8 +368,12 @@ class Watch:
         enabled = bool(service and service["enabled"])
         key, now, revive = str(page_dir), time.time(), False
         # Desired service state owns revival. Status says what the page is doing;
-        # it does not turn a deliberately disabled service back on.
-        if watch_state == "watching" and live and not enabled:
+        # it does not turn a deliberately disabled service back on. A restart
+        # disables the service too, but its holder starts it again, so while one
+        # runs the page is neither lost nor due a revival.
+        if watch_state == "watching" and live and server_restarting(page_dir):
+            self._lost.discard(key)
+        elif watch_state == "watching" and live and not enabled:
             self._lost.add(key)
         elif watch_state == "watching" and live and now > self._check_at.get(key, 0):
             self._check_at[key] = now + REVIVAL_CHECK_S

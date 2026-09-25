@@ -502,6 +502,7 @@ STATUS_FILE = "status.json"
 CURSOR_FILE = "cursor.json"
 SERVICE_FILE = "service.json"
 SERVER_LOCK = "server.lock"
+RESTART_LOCK = "restart.lock"
 WAITER_LOCK = "waiter.lock"
 PAGE_STATE_FILES = (
     EVENTS_FILE,
@@ -512,6 +513,7 @@ PAGE_STATE_FILES = (
     VIEWED_FILE,
     SERVICE_FILE,
     SERVER_LOCK,
+    RESTART_LOCK,
     PREVIEW_FILE,
 )
 PAGE_OWNED_FILES = ("index.html", *VENDORED_FILES, *PAGE_STATE_FILES)

@@ -1893,7 +1893,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   border: 2px solid var(--lf-pin-edge);
   background: var(--lf-pin-face, var(--pin-fill)); color: #fff;
   box-shadow: var(--lf-pin-halo, 0 0 0 0 transparent),
-    0 1px 2px rgb(0 0 0 / .22), 0 3px 8px rgb(0 0 0 / .14); }
+    0 1px 2px var(--shade), 0 3px 8px var(--shade); }
 .lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry.lf-margin-marker:not([data-lf-behavior="status"])
   > :is(.lf-margin-entry-icon, .lf-margin-entry-glyph) {
   color: #fff; inline-size: 14px; block-size: 14px; }

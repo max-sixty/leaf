@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 from leaf.render_checks import RENDER_VIEWPORT, SERVED_TIMEOUT_MS
 
-from .readings import alignment_advice, swept_overflow
+from .readings import alignment_advice, margin_cover_advice, swept_overflow
 from .scheme import _render_scheme
 
 RENDER_VIEWPORTS = (
@@ -97,6 +97,7 @@ def _render_version_attempt(
     def once(page):
         # Advice first, at the viewport it is about; the sweep then resizes the page.
         advice.extend(alignment_advice(page))
+        advice.extend(margin_cover_advice(page))
         swept.extend(swept_overflow(page, RENDER_VIEWPORTS))
 
     try:

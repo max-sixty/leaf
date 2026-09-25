@@ -560,6 +560,8 @@ and repository lint checks the source.
 | `misalignedSplits` | advice only: a page's layout grids split where its busiest grid does |
 | `squeezedTables` | a table scrolls sideways only with every column at its longest unbreakable run |
 | `withheldRoom` | a drawing scrolls only when the room, net of margin residents at its band, ran short |
+| `strandedMargins` | every margin marker has an element it can stand by |
+| `coveringMargins` | advice only: which margin pins stand over lines of the page's text |
 | `silentCuts` | a box showing less than it holds across fades each edge with content beyond it |
 | `clippedControls` | actionable controls are visible and reachable |
 | `unreachableWords` | visible page words remain in reachable flow |

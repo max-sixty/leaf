@@ -471,7 +471,7 @@ widget. Publish only action and status records to the margin, with explicit `ele
 
 A contribution stands in its target's cluster wherever that cluster stands: in the rail
 beside a column page, or as a pin over the page at the top-right of the target's block,
-where a pin's cluster unfolds leftward over the block. Leaf inserts nothing into the
+where an unfolding cluster grows into the room beside the block and then over it. Leaf inserts nothing into the
 page's content for it, so its controls come after the page's content in the tab order;
 the margin's own keyboard routes, `t`, and the Page Map reach them from the target.
 Nothing about the contribution changes with the posture, and a package never places or

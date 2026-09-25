@@ -5,8 +5,8 @@
    first reaction. With no composer open, `e` contributes the reaction margin entries to the
    selected element's existing margin cluster. While that explicit mode stands, its
    contribution owns all six margin entries; standing readings and unrelated actions remain
-   in Page Map and return when the mode closes. Those temporary margin entries dock with the
-   cluster when necessary and claim no permanent rail width. A thread-local `e` opens
+   in Page Map and return when the mode closes. Those temporary margin entries unfold the
+   cluster where it stands, in the rail or as a pin, and claim no permanent rail width. A thread-local `e` opens
    the conversation-owned row on the latest agent message. `REACT` claims the keyboard
    only for those margin and message lists; the composer's response scope owns its
    local list. Arrow keys wrap through the visible margin entries in the active list.
@@ -325,8 +325,8 @@ export function createReactionController({
         if (target?.kind === "surface") reactSurface = target.surface;
         else if (target?.kind === "anchor" || target?.kind === "addressable") {
           if (target.kind === "addressable") {
-            // The addressable element may be represented by a docked row after its containing block,
-            // with the target itself off screen. Keep the semantic anchor without
+            // The addressable element's margin row may stand where the target itself is
+            // off screen. Keep the semantic anchor without
             // asking a floating bar to find geometry; the shared element is the surface.
             showFab({ section: target.addressable.id }, null, {
               origin: reactFrom,

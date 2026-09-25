@@ -1593,8 +1593,9 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
  * A cluster stands level with its target's top (`--lf-inset` where it anchors to a box
  * holding the target), pushed down by packing (`--lf-push`). In
  * the rail it hangs `--rail-hang` off `main`'s edge and unfolds rightward. As a pin its
- * right edge stands `--lf-dx` past its target's right edge, so it unfolds leftward over
- * the block. Every position function falls back to a place off screen: an anchor can be
+ * right edge stands `--lf-dx` past its target's right edge: wholly beside the block where
+ * the room there holds it, so an unfolding cluster grows into that room and then leftward
+ * over the block. Every position function falls back to a place off screen: an anchor can be
  * invalid (a target inside `content-visibility: hidden` or gone), and
  * `position-visibility` hides a cluster only when its anchor is valid and scrolled out of
  * view. */
@@ -1602,7 +1603,6 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-margin-projection[hidden] { display: none; }
 .lf-margin-toolbar, .lf-margin-lane { height: 0; }
 .lf-margin-lane { z-index: 2; }
-.lf-margin-lane:has(.lf-margin-cluster:is(:hover, :focus-within)) { z-index: 3; }
 .lf-margin-cluster { position: absolute; z-index: 2;
     top: calc(anchor(top, -9999px) + var(--lf-inset, 0px) + var(--lf-push, 0px));
     position-visibility: anchors-visible;

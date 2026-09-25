@@ -30,8 +30,8 @@
    `display: contents` while its rendered descendants remain usable, and a collapsed
    target has no rendered part to offer. */
 import { cancelRender, nextRender, sizeObserver } from "./rendering.js";
-import { shellRight, shownBand, shownParts, shownRect } from "./geometry.js";
-import { upFrom } from "./shadow.js";
+import { shellRight, shownBand, shownParts } from "./geometry.js";
+import { under, upFrom } from "./shadow.js";
 import { scrollerFor } from "./reading-regions.js";
 import { pageScroller } from "./scrolling.js";
 import { packRows, pinOffset, rowPosture, stepPast } from "./margin-placement.js";
@@ -150,9 +150,20 @@ export function scheduleMarginEntryLabels() {
 }
 
 // The layer's root lane, where rows whose targets scroll with the document stand, and one
-// lane per bounded reading region, keyed by the box that scrolls it.
+// lane per bounded reading region, keyed by the box that scrolls it. A scroll anywhere
+// but the document's may take a target out of view or bring it back, so it is heard once,
+// here, rather than per lane: a table or a board scrolled sideways is no lane of its own.
 export function mountMarginLayer(root) {
-  layer = { root, lanes: new Map() };
+  layer = { root, lanes: new Map(), sizes: sizeObserver(scheduleMarginLayout) };
+  document.addEventListener(
+    "scroll",
+    (event) => {
+      if (event.target === document || !(event.target instanceof Element)) return;
+      scrolled.add(event.target);
+      scheduleScrollReading();
+    },
+    { capture: true, passive: true },
+  );
 }
 
 function laneFor(scroller) {
@@ -161,10 +172,9 @@ function laneFor(scroller) {
   if (!lane) {
     lane = document.createElement("div");
     lane.className = "lf-margin-lane";
-    lane.setAttribute("role", "group");
-    layer.root.after(lane);
+    layer.root.parentElement.append(lane);
     layer.lanes.set(scroller, lane);
-    scroller.addEventListener("scroll", scheduleLaneReading, { passive: true });
+    layer.sizes.observe(scroller);
   }
   return lane;
 }
@@ -172,17 +182,25 @@ function laneFor(scroller) {
 // Anchor names are global to their tree, so one per target element, merged with whatever
 // name the author gave the same box. The name stays for the element's life: rows come and
 // go on the heartbeat and a name written each time would restyle the target each time.
+// The pass reads what a box is named before it writes any name (`anchorReading`), since
+// reading the author's name is a style read.
 const anchorNames = new WeakMap();
 let anchorOrdinal = 0;
-function nameAnchor(el, name = anchorNames.get(el) ?? `--lf-a${++anchorOrdinal}`) {
+function anchorReading(el, name = anchorNames.get(el) ?? `--lf-a${++anchorOrdinal}`) {
   anchorNames.set(el, name);
   const written = el.style.anchorName;
-  if (written.split(",").some((part) => part.trim() === name)) return name;
+  if (written.split(",").some((part) => part.trim() === name)) return { el, name };
   // What the author's stylesheet names this box, read only where this pass has not already
   // written: a revision patch that rewrote the style attribute has taken the name away.
   const authored = written || getComputedStyle(el).anchorName;
-  el.style.anchorName =
-    !authored || authored === "none" ? name : `${authored}, ${name}`;
+  return {
+    el,
+    name,
+    write: !authored || authored === "none" ? name : `${authored}, ${name}`,
+  };
+}
+function nameAnchor({ el, name, write }) {
+  if (write) el.style.anchorName = write;
   return name;
 }
 
@@ -201,16 +219,46 @@ function anchorElement(target) {
   return part && part !== target ? part : target;
 }
 
-// How far right the figure a target belongs to reaches: the target's own box, or the
-// furthest of the boxes holding it inside `main`, so a card in a board grown past the
-// rail stands its comment on the board as a figure does. Read off the boxes rather than
-// the declared widths, so a block an agent widened with its own CSS counts too.
+// The part of a box its scrollers show, short of the document's own: each scroller's band
+// between the box and the document cuts it. The window does not count, since a row
+// scrolled off it is still the user's to walk to. `bands` caches each box's band for one
+// reading.
+function clippedBand(el, rect, bands) {
+  let { left, top, right, bottom } = rect;
+  for (let at = upFrom(el); at && at !== pageScroller; at = upFrom(at)) {
+    let band = bands.get(at);
+    if (band === undefined) bands.set(at, (band = shownBand(at)));
+    if (!band) continue;
+    left = Math.max(left, band.left);
+    top = Math.max(top, band.top);
+    right = Math.min(right, band.right);
+    bottom = Math.min(bottom, band.bottom);
+  }
+  return right > left && bottom > top ? { left, top, right, bottom } : null;
+}
+
+// How far right the figure a target belongs to reaches: the furthest of its own box and
+// the boxes holding it inside `main`, so a card in a board grown past the rail stands its
+// comment on the board as a figure does. Read off the boxes rather than the declared
+// widths, so a block an agent widened with its own CSS counts too. A scroller cuts what
+// it holds to what it shows: a cell far along a wide table is not a figure past the rail.
 function reach(anchor, box, main, reaches) {
   let right = box.right;
   for (let el = anchor.parentElement; el && el !== main; el = el.parentElement) {
     let edge = reaches.get(el);
-    if (edge === undefined) reaches.set(el, (edge = el.getBoundingClientRect().right));
-    right = Math.max(right, edge);
+    if (edge === undefined) {
+      const b = el.getBoundingClientRect();
+      edge = {
+        right: b.right,
+        clip:
+          getComputedStyle(el).overflowX === "visible"
+            ? null
+            : b.left + el.clientLeft + el.clientWidth,
+      };
+      reaches.set(el, edge);
+    }
+    if (edge.clip !== null) right = Math.min(right, edge.clip);
+    right = Math.max(right, edge.right);
   }
   return right;
 }
@@ -270,6 +318,7 @@ export function unregisterMarginRow(row) {
   if (row) {
     row.classList.remove("lf-withheld");
     row.removeAttribute("data-lf-place");
+    row.removeAttribute("data-lf-parked");
     for (const property of [
       "--lf-dx",
       "--lf-inset",
@@ -280,6 +329,7 @@ export function unregisterMarginRow(row) {
       row.style.removeProperty(property);
     pushes.delete(row);
     steps.delete(row);
+    parked.delete(row);
   }
   if (!rows.size) {
     observer?.disconnect();
@@ -305,42 +355,54 @@ function setStyle(row, property, value) {
 const shownTop = (target) =>
   Math.min(...shownParts(target).map((part) => part.getBoundingClientRect().top));
 
-// Whether a target shows any part of itself: it renders, and no box between it and the
-// document's scroller clips it away, whether that is the pane that scrolls it or a table
-// it has been scrolled sideways out of. The window itself does not count: a row scrolled
-// off it is still the user's to walk to.
-function targetShown(target, anchor, bands) {
+// Whether a row has somewhere to stand: its target renders, its scrollers leave some of it
+// in view — the pane that scrolls it, or a table it has been scrolled sideways out of —
+// and the line the row stands on, the target's top, is inside that view, since a row
+// standing above a pane's top would be clipped by its lane and still take the keyboard.
+function targetShown(target, anchor, inset, bands) {
   if (!shownParts(target).some((part) => part.checkVisibility())) return false;
-  let { left, top, right, bottom } = anchor.getBoundingClientRect();
-  for (let el = upFrom(anchor); el && el !== pageScroller; el = upFrom(el)) {
-    let band = bands.get(el);
-    if (band === undefined) bands.set(el, (band = shownBand(el)));
-    if (!band) continue;
-    left = Math.max(left, band.left);
-    top = Math.max(top, band.top);
-    right = Math.min(right, band.right);
-    bottom = Math.min(bottom, band.bottom);
-    if (right <= left || bottom <= top) return false;
-  }
-  return true;
+  const box = anchor.getBoundingClientRect();
+  const view = clippedBand(anchor, box, bands);
+  const line = box.top + inset;
+  return Boolean(view) && line >= view.top - 1 && line < view.bottom;
 }
 
 const pushes = new Map();
 const steps = new Map();
 const clips = new WeakMap();
+// A row whose anchor the browser would not take — one behind an author's `anchor-scope`,
+// say — stands at its fallback off screen. The pass finds it there once and
+// withholds it for as long as it anchors to the same box, rather than finding it again on
+// every heartbeat. `data-lf-parked` says so for the render gate.
+const parked = new WeakMap();
 
-// A scroll inside a bounded region moves its rows on the compositor. What it can change
-// is which of them the region still shows, so only that is read again, once a frame.
-let laneReading = 0;
-function scheduleLaneReading() {
-  if (laneReading) return;
-  laneReading = nextRender(() => {
-    laneReading = 0;
+// A scroll inside anything but the document moves its rows on the compositor. What it can
+// change is which of them still have somewhere to stand, so only rows under a box that
+// scrolled are read again, once a frame, and a row that changes answer brings the whole
+// pass, which places it.
+const scrolled = new Set();
+let scrollReading = 0;
+function scheduleScrollReading() {
+  if (scrollReading) return;
+  scrollReading = nextRender(() => {
+    scrollReading = 0;
+    const boxes = [...scrolled];
+    scrolled.clear();
     const bands = new Map();
     for (const [row, options] of rows) {
       const target = options.anchor();
-      if (!target?.isConnected || scrollerFor(target) === pageScroller) continue;
-      mark(row, "lf-withheld", !targetShown(target, anchorElement(target), bands));
+      if (!target?.isConnected || parked.has(row)) continue;
+      const anchor = anchorElement(target);
+      if (!boxes.some((box) => under(anchor, box))) continue;
+      const inset =
+        anchor === target ? 0 : shownTop(target) - anchor.getBoundingClientRect().top;
+      if (
+        targetShown(target, anchor, inset, bands) ===
+        row.classList.contains("lf-withheld")
+      ) {
+        scheduleMarginLayout();
+        return;
+      }
     }
   });
 }
@@ -356,7 +418,7 @@ export function layoutMarginRows() {
   pending = 0;
   if (!layer) return;
   const main = marginColumn();
-  nameAnchor(main, PAGE_ANCHOR);
+  const page = anchorReading(main, PAGE_ANCHOR);
   const columnRect = main.getBoundingClientRect();
   const shell = shellRight();
   const stands = railStands();
@@ -373,7 +435,6 @@ export function layoutMarginRows() {
   const frames = new Map();
   const bands = new Map();
   const reaches = new Map();
-  const bounds = new Map();
   const reads = [];
   for (const [row, options] of rows) {
     const target = options.anchor();
@@ -382,13 +443,12 @@ export function layoutMarginRows() {
       continue;
     }
     const anchor = anchorElement(target);
+    if (parked.has(row) && parked.get(row) !== anchor) parked.delete(row);
     const scroller = scrollerFor(target);
     const rootLane = scroller === pageScroller;
-    if (!rootLane && !bounds.has(scroller))
-      bounds.set(scroller, shownRect(scroller, new Map()));
-    const shown = targetShown(target, anchor, bands);
     const box = anchor.getBoundingClientRect();
     const inset = anchor === target ? 0 : shownTop(target) - box.top;
+    const shown = !parked.has(row) && targetShown(target, anchor, inset, bands);
     const place = rowPosture({
       railStands: stands,
       rootLane,
@@ -401,6 +461,7 @@ export function layoutMarginRows() {
       row,
       options,
       anchor,
+      naming: anchorReading(anchor),
       scroller,
       lane: rootLane ? layer.root : null,
       shown,
@@ -410,15 +471,35 @@ export function layoutMarginRows() {
       room: place === "pin" ? roomBeside(anchor, box, main, shell, frames) : 0,
     });
   }
+  // What each lane's region shows, cut by the scrollers around it but not by the window,
+  // so a pane below the fold is clipped where its own edges will be when it arrives.
+  const regions = new Map();
+  for (const read of reads)
+    if (read.scroller && read.scroller !== pageScroller && !regions.has(read.scroller))
+      regions.set(
+        read.scroller,
+        clippedBand(
+          read.scroller,
+          shownBand(read.scroller) ?? read.scroller.getBoundingClientRect(),
+          bands,
+        ),
+      );
 
-  // Lanes, in the order the rows are given, moving only what is out of place.
+  nameAnchor(page);
+  // Lanes, in the order the rows are given, moving only what is out of place; each lane
+  // after the last, so the tab order runs the lanes as the rows run.
   for (const read of reads) read.lane ??= laneFor(read.scroller);
   const byLane = new Map();
   for (const read of [...reads].sort(
     (a, b) => (a.options.order ?? 0) - (b.options.order ?? 0),
   ))
     byLane.set(read.lane, [...(byLane.get(read.lane) ?? []), read]);
+  let lastLane = layer.root;
   for (const [lane, members] of byLane) {
+    if (lane !== layer.root) {
+      if (lastLane.nextElementSibling !== lane) lastLane.after(lane);
+      lastLane = lane;
+    }
     let before = lane.firstElementChild;
     for (const { row, options } of members) {
       if (before === row) {
@@ -434,13 +515,15 @@ export function layoutMarginRows() {
     if (!byLane.has(lane)) {
       lane.remove();
       layer.lanes.delete(scroller);
-      scroller.removeEventListener("scroll", scheduleLaneReading);
+      layer.sizes.unobserve(scroller);
     }
 
-  for (const { row, anchor, shown, place, inset } of reads) {
+  // A withheld row is anchored too, so that when its target comes into view it has only
+  // to show.
+  for (const { row, naming, shown, place, inset } of reads) {
     mark(row, "lf-withheld", !shown);
-    if (!shown) continue;
-    setStyle(row, "position-anchor", nameAnchor(anchor));
+    if (!naming) continue;
+    setStyle(row, "position-anchor", nameAnchor(naming));
     setStyle(row, "--lf-inset", inset ? `${inset}px` : null);
     if (row.dataset.lfPlace !== place) row.dataset.lfPlace = place;
     if (place !== "pin") setStyle(row, "--lf-dx", null);
@@ -459,6 +542,8 @@ export function layoutMarginRows() {
         read.place === "pin" ? pinOffset({ room: read.room, size: box.width, pin }) : 0;
       return {
         key: read.row,
+        // At its off-screen fallback: the browser did not take the anchor.
+        stranded: box.bottom + scrollY < -1000,
         rect: {
           left: read.place === "pin" ? read.edge + dx - box.width : box.left - step,
           right: read.place === "pin" ? read.edge + dx : box.right - step,
@@ -470,14 +555,22 @@ export function layoutMarginRows() {
         read,
       };
     });
-  const packed = packRows(placed, GAP);
+  for (const { key: row, stranded, read } of placed)
+    if (stranded) {
+      parked.set(row, read.anchor);
+      row.setAttribute("data-lf-parked", "");
+      mark(row, "lf-withheld", true);
+    } else if (row.hasAttribute("data-lf-parked"))
+      row.removeAttribute("data-lf-parked");
+  const standing = placed.filter(({ stranded }) => !stranded);
+  const packed = packRows(standing, GAP);
   const grown =
     wide === "step"
       ? [...main.querySelectorAll("[data-lf-space]")]
           .map((el) => el.getBoundingClientRect())
           .filter((box) => box.right > columnRect.right + 1)
       : [];
-  for (const { key: row, rect, read, dx } of placed) {
+  for (const { key: row, rect, read, dx } of standing) {
     if (read.place === "pin") setStyle(row, "--lf-dx", `${dx}px`);
     const push = packed.get(row) ?? 0;
     pushes.set(row, push);
@@ -507,17 +600,17 @@ export function layoutMarginRows() {
 
   // Each lane shows its region's rows only inside what that region shows, with room for a
   // focus ring. The clip is in the lane's own coordinates, so it is taken again whenever
-  // the pass runs: the region may have moved or changed size.
+  // the pass runs, which a resize of the region's box also brings.
   for (const [scroller, lane] of layer.lanes) {
-    const shownBounds = bounds.get(scroller) ?? shownRect(scroller, new Map());
+    const region = regions.get(scroller);
     const at = lane.getBoundingClientRect();
     const ring = 6;
-    const clip = shownBounds
+    const clip = region
       ? `polygon(${[
-          [shownBounds.left - ring, shownBounds.top],
-          [shownBounds.right + ring, shownBounds.top],
-          [shownBounds.right + ring, shownBounds.bottom],
-          [shownBounds.left - ring, shownBounds.bottom],
+          [region.left - ring, region.top],
+          [region.right + ring, region.top],
+          [region.right + ring, region.bottom],
+          [region.left - ring, region.bottom],
         ]
           .map(([x, y]) => `${x - at.left}px ${y - at.top}px`)
           .join(", ")})`

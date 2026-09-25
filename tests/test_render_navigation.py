@@ -1545,7 +1545,7 @@ def test_a_pane_frame_comment_preview_is_not_confined_to_its_body(browser, serve
     )
     assert geometry["box"]["left"] >= 0, geometry
     assert geometry["box"]["right"] <= geometry["viewport"]["width"], geometry
-    # The card stands beside the header's docked cluster, above the body it would have
+    # The card stands beside the header's pinned cluster, above the body it would have
     # been clamped into had the body been its boundary.
     assert (
         geometry["box"]["left"] < geometry["pane"]["left"]

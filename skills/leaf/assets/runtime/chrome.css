@@ -490,6 +490,10 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      under pointer or focus crosses that paint; the full-page toolbar stays at rest. */
   .lf-margin-projection { z-index: auto; }
   .lf-margin-cluster:is(:hover, :focus-within) { z-index: var(--lf-z-margin-raised); }
+  /* A pane's lane is a stacking context of its own (its clip makes it one), so the lane
+     rises with the row the pointer or the keyboard is on. */
+  .lf-margin-lane:has(.lf-margin-cluster:is(:hover, :focus-within)) {
+    z-index: var(--lf-z-margin-raised); }
   .lf-target-paint[data-lf-paint-plane="chrome"] { z-index: var(--lf-z-chrome-paint); }
   /* Every margin-projection control traces the content it concerns through one quiet
      overlay. Painting above the target keeps a package-owned frame from covering the

@@ -1352,9 +1352,10 @@ export function createMarginProjection({
   // unfolded cluster folds, and focus held by a pin goes to the pin's target, since the
   // browser would otherwise put it on body. An explicit request still shows what it asks
   // for without bringing the layer back: `t`, a Threads row and a Page Map pick open the
-  // card at their target, and wherever the user stands — on a target the `a` walk or a
-  // Tab brought them to, or on one of its row's controls — that one row shows, so what
-  // decides the target is in reach, until they stand somewhere else.
+  // card at their target, and an arrival that walks to a target or to one of its row's
+  // controls (`a`, `focusForNavigation`) shows that one row, so what decides the target
+  // is in reach, until the user stands somewhere else. Tabbing or pressing onto a target
+  // reveals nothing: the layer stays as the user left it.
   let revealed = null;
   function revealHost(host) {
     const shows = annotationsHidden() && host?.dataset.lfPlace === "pin" ? host : null;
@@ -1378,9 +1379,18 @@ export function createMarginProjection({
     return found;
   }
   const reveal = (node) => revealHost(annotationsHidden() ? standingHost(node) : null);
-  document.addEventListener("focusin", (event) => reveal(event.target), {
-    capture: true,
-  });
+  document.addEventListener(
+    "focusin",
+    (event) => {
+      if (
+        revealed &&
+        !revealed.contains(event.target) &&
+        !(revealed.lfTarget && under(event.target, revealed.lfTarget))
+      )
+        revealHost(null);
+    },
+    { capture: true },
+  );
   watchAnnotations((hidden) => {
     if (hidden) {
       const holding = closestAcross(document.activeElement, ".lf-margin-cluster");
@@ -1390,7 +1400,7 @@ export function createMarginProjection({
       expandedOptionsKey = null;
       expandedOptionsOwner = null;
     }
-    reveal(document.activeElement);
+    revealHost(null);
     renderMargin.refresh();
     repaint();
   });
@@ -1702,8 +1712,8 @@ export function createMarginProjection({
 
   function moveHost(host, move) {
     const held = host.contains(document.activeElement) ? document.activeElement : null;
-    // Moving a focused expanded cluster between the hanging rail and document flow
-    // synchronously emits focusout. That is a placement transition, not the user
+    // Moving a focused expanded cluster between lanes, when its target's scroller
+    // changes, synchronously emits focusout. That is a placement transition, not the user
     // leaving the cluster, so keep the options state machine from treating it as an
     // instruction to fold the controls it just exposed — and say the same thing to every
     // other reader of where the user stands, which is what `placingChrome` is for.

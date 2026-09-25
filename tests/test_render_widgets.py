@@ -6574,8 +6574,8 @@ def test_a_user_who_asked_for_less_motion_gets_the_collapse_at_once(browser, ser
 def test_accept_all_decides_every_pending_suggestion(browser, serve):
     """The banner's button is a shortcut for the user who has read the page
     and wants all of it, so it has to reach the ones their eye didn't: the
-    suggestion inside a widget, whose controls dock in flow rather than hang in
-    the margin. Each is decided individually, so the log records what was
+    suggestion inside a widget, whose controls stand on the widget as a pin rather
+    than in the rail. Each is decided individually, so the log records what was
     consented to one change at a time rather than one blanket yes."""
     page = open_page(browser, serve(SUGGESTION_PAGE))
     answer_all = page.locator(".lf-answer-all")

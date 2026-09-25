@@ -790,7 +790,7 @@ export function createResponseSurface({
       // The tokens already standing on this very anchor read pressed, and a press on one
       // takes it back (reactHere): the bar is the strip's shape on the page.
       paintReactionStanding(fabBar, reactionsAt(allThreads(), fabAnchor));
-      // A docked margin control can name an item whose rendered box is currently off
+      // A margin control can name an item whose rendered box is currently off
       // screen. `e` still needs the durable anchor so it can extend that existing item;
       // in that route the floating bar is never painted and placement is deliberately
       // skipped. Every route that actually shows the bar keeps the geometry gate.

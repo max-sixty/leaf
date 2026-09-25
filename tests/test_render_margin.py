@@ -9,6 +9,7 @@ from click.testing import CliRunner
 from leaf import cli as cli_model
 from leaf import delivery as delivery_model
 from leaf import event_log as events_model
+from leaf import render_checks as render_checks_model
 from leaf import service as service_model
 from leaf import session as session_model
 from leaf.served_state import page as served_page
@@ -839,7 +840,7 @@ def test_an_unchanged_repaint_cannot_cancel_a_margin_entry_press(browser, serve)
 def test_lit_margin_projection_reorders_retained_controls_without_moving_the_user(
     browser, serve
 ):
-    """One keyed Lit owner moves native controls across direct, option, and dock seats."""
+    """One keyed Lit owner moves native controls across direct, option, and inline seats."""
     fixture = leaf_page("Retained margin controls", '<p id="target">Review this.</p>')
     page = open_page(browser, serve(fixture))
     resized(page, 1440, 900)
@@ -7699,7 +7700,9 @@ def test_the_feature_gallery_shows_a_pin_on_a_wide_figure_and_o_hides_it(
     page = open_page(browser, serve(FEATURE_GALLERY))
     resized(page, 1440, 900)
     margins_laid_out(page)
-    pin = page.locator('.lf-margin-cluster[data-lf-margin-for="bg-margin-layer-figure"]')
+    pin = page.locator(
+        '.lf-margin-cluster[data-lf-margin-for="bg-margin-layer-figure"]'
+    )
     expect(pin).to_have_attribute("data-lf-place", "pin")
     rail = page.locator('.lf-margin-cluster[data-lf-place="rail"]')
     assert rail.count() > 0
@@ -7709,3 +7712,129 @@ def test_the_feature_gallery_shows_a_pin_on_a_wide_figure_and_o_hides_it(
     expect(rail.first).to_be_visible()
     page.keyboard.press("o")
     expect(pin).to_be_visible()
+
+
+def test_a_pane_row_withheld_at_load_stands_once_its_target_scrolls_in(browser, serve):
+    """A row whose target starts below its pane's fold is withheld, and it is anchored
+    all the same: once the pane scrolls its target in, the row stands on it rather than
+    at the off-screen place an unanchored row would wait in."""
+    page = open_page(browser, serve(PANE_PIN_PAGE, events=[_comment_on("pane-end")]))
+    resized(page, 1280, 720)
+    pane_posture(page, page.locator("#pin-pane"), "bounded")
+    margins_laid_out(page)
+    row = page.locator('.lf-margin-cluster[data-lf-margin-for="pane-end"]')
+    expect(row).to_have_class(re.compile(r"\blf-withheld\b"))
+    page.locator("#pin-pane > div").evaluate(
+        "body => { body.scrollTop = body.scrollHeight; }"
+    )
+    expect(row).not_to_have_class(re.compile(r"\blf-withheld\b"))
+    stands = row.evaluate(
+        """row => {
+          const r = row.getBoundingClientRect();
+          const t = document.getElementById('pane-end').getBoundingClientRect();
+          return Math.abs(r.top - t.top) < 2 && r.left < t.right + 40;
+        }"""
+    )
+    assert stands
+
+
+WIDE_TABLE_ROW_PAGE = leaf_page(
+    "a comment in a wide table",
+    """
+<h1 id="t">A wide table</h1>
+<p id="before">A paragraph above the table.</p>
+<table id="wide-table">
+  <tr><td id="first-cell">First</td>"""
+    + "".join(f"<td>column {i} with a long heading</td>" for i in range(12))
+    + """</tr>
+</table>
+""",
+)
+
+
+def test_a_comment_in_a_table_wider_than_the_column_keeps_the_rail(browser, serve):
+    """A table wider than the column scrolls inside it, so its rows reach far past the
+    rail without the table growing at all. A comment on one of its cells is not a figure
+    grown past the rail: its marker keeps the rail."""
+    page = open_page(
+        browser, serve(WIDE_TABLE_ROW_PAGE, events=[_comment_on("first-cell")])
+    )
+    resized(page, 1440, 900)
+    margins_laid_out(page)
+    scrolls = page.locator("#wide-table").evaluate(
+        "t => t.scrollWidth > t.clientWidth + 1"
+    )
+    assert scrolls, "the table fits its column, so nothing here is tested"
+    expect(
+        page.locator('.lf-margin-cluster[data-lf-margin-for="first-cell"]')
+    ).to_have_attribute("data-lf-place", "rail")
+
+
+def test_the_margin_layer_follows_the_page_in_the_tab_order(browser, serve):
+    """Leaf inserts nothing into the page's content, so a suggestion's controls stand in
+    the margin layer and come after the page's content in the tab order. Tab from the
+    page's last control reaches them, and Shift+Tab goes back the way it came."""
+    page = open_page(browser, serve(MARGIN_ENTRY_KEYBOARD_PAGE))
+    resized(page, 1440, 900)
+    accept = page.locator('[data-lf-margin-for="sug-refill"] .lf-sug-accept')
+    page.locator("#after-margin-entries").focus()
+    reached = 0
+    for presses in range(1, 80):
+        page.keyboard.press("Tab")
+        if accept.evaluate("el => el === document.activeElement"):
+            reached = presses
+            break
+    assert reached, "Tab never reached the suggestion's Accept in the margin layer"
+    for _ in range(reached):
+        page.keyboard.press("Shift+Tab")
+    expect(page.locator("#after-margin-entries")).to_be_focused()
+
+
+def test_a_marker_with_nowhere_to_stand_is_withheld_and_reported(browser, serve):
+    """A page can hide its elements' anchor names from everything outside a box
+    (`anchor-scope`), and a row outside it then has no anchor to take: it would stand at
+    its off-screen fallback, focusable and unseen. The layout withholds it instead, and
+    the render gate names it, while the row beside it stands as ever."""
+    source = leaf_page(
+        "a scoped note",
+        '<h1 id="t">Scoped</h1><p id="flow">In the flow.</p>'
+        '<div style="anchor-scope: all"><p id="fixed-note">Behind a scope.</p></div>',
+    )
+    page = open_page(
+        browser, serve(source, events=[_comment_on("fixed-note"), _comment_on("flow")])
+    )
+    resized(page, 1440, 900)
+    margins_laid_out(page)
+    margins_laid_out(page)
+    stuck = page.locator('.lf-margin-cluster[data-lf-margin-for="fixed-note"]')
+    flow = page.locator('.lf-margin-cluster[data-lf-margin-for="flow"]')
+    expect(flow).to_be_visible()
+    expect(stuck).to_have_attribute("data-lf-parked", "")
+    expect(stuck).to_be_hidden()
+    findings = render_checks_model.evaluate_probe(page, "strandedMargins")
+    assert [f for f in findings if "fixed-note" in f], findings
+
+
+def test_the_gate_advises_where_a_pin_stands_over_text(browser, serve):
+    """On a phone a pin is wider than the page's gutter and covers the ends of the lines
+    beside it. That is expected, so the gate advises rather than fails: it names the pin
+    and how many lines it stands over, and says nothing of a rail marker at a desktop
+    width, which covers nothing."""
+    page = open_page(browser, serve(SUGGESTION_PAGE))
+    resized(page, 1440, 900)
+    margins_laid_out(page)
+    wide = [
+        pin
+        for pin in render_checks_model.evaluate_probe(page, "coveringMargins")
+        if "sug-refill" in pin["at"]
+    ]
+    assert wide == [], wide
+    resized(page, 390, 800)
+    margins_laid_out(page)
+    page.locator("#sug-refill").scroll_into_view_if_needed()
+    narrow = [
+        pin
+        for pin in render_checks_model.evaluate_probe(page, "coveringMargins")
+        if "sug-refill" in pin["at"]
+    ]
+    assert narrow and narrow[0]["covered"] > 0, narrow

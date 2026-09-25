@@ -60,7 +60,7 @@ restating numbers, so the page agrees with the theme and Leaf's chrome:
 | `--lf-page-measure` | `var(--col)` | the width `main` takes when the window has room; set it on `main` |
 | `--col-pad` | 24px | `main`'s side padding |
 | `--wide` | 1080px | the shared width for evidence wider than the measure |
-| `{WIDE}` | 1600px | the widest a page of regions should grow |
+| `--wide-page-max` | 1600px | the widest a page of regions should grow |
 | `--rail` | about 95px | the strip Leaf keeps at the window's right edge for comment markers |
 | `--lf-banner-h` | 42px, 88px on a narrow window | the fixed banner; the page starts below it |
 | `--lf-band-h` | 44px | the shortcut band fixed at the window's foot |
@@ -75,7 +75,7 @@ centred in the room the window leaves beside the rail. To widen the page, set th
 property on `main` and lift the column's cap:
 
 ```css
-main { --lf-page-measure: var({WIDE}); max-width: none; }
+main { --lf-page-measure: var(--wide-page-max); max-width: none; }
 ```
 
 On a window wider than about 864px, Leaf keeps the `--rail` strip at the window's right
@@ -102,7 +102,23 @@ Within the page, compose with these:
   surrounding view. The `lf-tabs` entry says which placement makes which, and how to
   order and retire views.
 
-### Bounds
+"""
+
+RAIL = """\
+### The rail and the margin
+
+Leaf marks each commented or decided element with a marker: a thread, an Ask, a
+suggestion's ✓/✗. Nothing Leaf draws moves the page's content, so plan the page's
+geometry without them:
+
+- In a window wider than about 864px, the markers stand in the `--rail` strip at the
+  window's right edge, 22px past `main`'s content.
+- Where the rail does not stand, in a narrower window or in a region that scrolls on
+  its own, each marker stands as a pin over the top-right corner of its block. A pin
+  covers 26px of that corner with a mouse and 44px under a finger, so a block whose
+  first line runs to its right edge loses the end of that line under a pin.
+- The user hides every pin and passage mark with `o` to see what lies under them; the
+  rail stays, since it covers nothing.
 
 """
 
@@ -111,8 +127,9 @@ An individual block or section may request a responsive allocation with
 `data-width="column"`, `data-width="wide"`, or `data-width="available"`. `column`
 uses the standard prose measure, including inside a wider section. `wide` uses the
 shared capped evidence width. `available` uses all room left by the page shell, frames,
-chrome, and occupied margins. The occurrence overrides a widget's package default, so
-`data-width="column"` can deliberately keep a normally wide widget with the prose.
+chrome, the rail, and the page's own margin residents. The occurrence overrides a
+widget's package default, so `data-width="column"` can deliberately keep a normally wide
+widget with the prose.
 Use these names on the semantic block itself, including a native `table`, `lf-code`, or
 `lf-diff`; do not reproduce their responsive widths in page CSS.
 
@@ -124,7 +141,7 @@ Use these names on the semantic block itself, including a native `table`, `lf-co
 SMOKE = """<!doctype html>
 <html lang="en"><head><title>Hook</title><meta name="description" content="Smoke page.">
 <style>
-main { --lf-page-measure: var({WIDE}); max-width: none; }
+main { --lf-page-measure: var(--wide-page-max); max-width: none; }
 .regions { display: grid; grid-template-columns: 2fr 1fr; gap: var(--sp-4); }
 @container (width < 640px) { .regions { grid-template-columns: 1fr; } }
 </style></head><body><main>
@@ -140,22 +157,22 @@ width, so the check measures text that fills it.</p></section>
 def build(arm: Path) -> str:
     """Patch the payload at `arm` into the plain arm, and return the smoke page."""
     skill = arm / "skills/leaf"
-    # The theme's name for the widest page, which a later ref renamed.
-    theme = (skill / "assets/theme.css").read_text()
-    wide = "--wide-page-max" if "--wide-page-max:" in theme else "--sheet-max"
-    patch_references(skill, wide)
+    patch_references(skill)
     patch_registry(skill)
     patch_advice(skill)
     check_clean(arm)
-    return SMOKE.replace("{WIDE}", wide)
+    return SMOKE
 
 
-def patch_references(skill: Path, wide: str) -> None:
+def patch_references(skill: Path) -> None:
     authoring = skill / "references/page-authoring.md"
-    composing = COMPOSING.replace("{WIDE}", wide)
     replace_section(
-        authoring, "## Composing a page\n", "A log, feed, or long listing", composing
+        authoring, "## Composing a page\n", "### Bounds and widths\n", COMPOSING
     )
+    replace_section(
+        authoring, "### The rail and the margin\n", "## Draw the subject\n", RAIL
+    )
+    replace(authoring, "### Bounds and widths", "### Bounds")
     replace(authoring, BOUNDS_WIDTHS, "")
     replace(
         authoring,

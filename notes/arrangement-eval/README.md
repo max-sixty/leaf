@@ -16,9 +16,9 @@ it in the same change, fixing what broke and adding what the run showed it lacke
 updates this section. What the first run left:
 
 - `plain_arm.py` edits the authoring guide at fixed text anchors, so each rewrite of
-  the guide breaks the plain arm. #1171 broke it: `arms` stops on main until the
-  anchors are rewritten. Deriving the plain arm from the guide's structure, or keeping
-  the arrangement guidance in one section it can drop whole, would end that.
+  the guide breaks the plain arm until its anchors are rewritten, as #1171's did.
+  Deriving the plain arm from the guide's structure, or keeping the arrangement
+  guidance in one section it can drop whole, would end that.
 - The judge reads static screenshots. It cannot see a pane scroll, a rail stick, or
   any interaction, and it reads a pane's first screen as the whole pane.
 - One judge model and three pairs per cell. A batch costs about $50 and 1.5 hours.
@@ -39,8 +39,8 @@ how a page is arranged.
 - **plain**: `plain_arm.py` removes those three elements from the registry, the three
   idioms from `$idioms`, `data-width` and every sentence naming any of them from the
   references, registry descriptions and `version check` advice, and replaces
-  "Composing a page" with guidance to lay the page out in page CSS using the theme's
-  published sizes (`--col`, `--wide`, `--sheet-max`, `--rail`, `--lf-banner-h`,
+  "Composing a page" and "The rail and the margin" with guidance to lay the page out in page CSS using the theme's
+  published sizes (`--col`, `--wide`, `--wide-page-max`, `--rail`, `--lf-banner-h`,
   spacing and colour tokens). The theme's CSS for the vocabulary is still present;
   an agent that reads `theme.css` can find `data-width` there, and the scorer reports
   any page that uses it.

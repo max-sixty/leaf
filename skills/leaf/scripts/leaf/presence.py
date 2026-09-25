@@ -14,6 +14,7 @@ from .files import (
     latest_revision,
     read_json,
 )
+from .interaction_log import INTERACTIONS_FILE
 from .leases import wait_is_live, waiter_lease_path
 from .machine import state_home
 from .schema import STATUS_FILE, UNCLAIMED_AGENT, VIEWED_FILE, WAITER_LOCK
@@ -42,7 +43,11 @@ _presence_cache_lock = threading.RLock()
 def _page_stamp(page_dir: Path, claim: dict | None = None) -> tuple:
     """The mutable files whose changes can alter a page presence reading."""
     entries = tuple(
-        sorted((entry.name, file_stamp(entry)) for entry in page_dir.iterdir())
+        sorted(
+            (entry.name, file_stamp(entry))
+            for entry in page_dir.iterdir()
+            if entry.name != INTERACTIONS_FILE
+        )
     )
     claim_stamp = file_stamp(claim_path(page_dir))
     if claim and claim.get("id"):

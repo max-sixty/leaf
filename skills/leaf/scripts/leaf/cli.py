@@ -990,6 +990,22 @@ def events(dir: str, after: int, conversation: str | None, follow: bool) -> None
     cmd_events(resolve_dir(dir), after, conversation)
 
 
+@cli.command(short_help="Print browser and server interactions as JSON lines.")
+@click.argument("dir", metavar="PAGE")
+@click.option("--follow", is_flag=True, help="keep printing new interactions")
+def interactions(dir: str, follow: bool) -> None:
+    """Read the diagnostic trace without acknowledging semantic events."""
+    from leaf.interaction_log import lines
+
+    try:
+        for line in lines(resolve_dir(dir), follow=follow):
+            click.echo(line)
+    except KeyboardInterrupt:
+        return
+    except BrokenPipeError:
+        return
+
+
 @cli.command(short_help="Print the page's exchange as Markdown.")
 @click.argument("dir", metavar="PAGE")
 def transcript(dir: str) -> None:

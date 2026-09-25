@@ -190,6 +190,11 @@ Revisit these when their stated trigger becomes real; they are not an active que
 
 ### Implementation candidates
 
+- **Set interaction-trace privacy before sharing pages.** Define who can inspect
+  traces, consent or opt-out, sensitive-field redaction (including passwords,
+  pasted text, and selection), and retention/deletion for page-local files and
+  hosted Workers Logs. Page-local traces currently record raw input for this
+  single-user stage; the public site keeps interaction metadata only.
 - **#6 — Codex supervision:** separate hosted and local turn supervision only
   if hosted delivery becomes a product priority; the App Server protocol is
   already shared.

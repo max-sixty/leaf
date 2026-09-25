@@ -52,6 +52,7 @@ from leaf import events as event_folds_model
 from leaf import files as files_model
 from leaf import hosting as hosting_model
 from leaf import http as http_model
+from leaf import interaction_log as interaction_model
 from leaf import leases as leases_model
 from leaf import machine as machine_model
 from leaf import media as media_model
@@ -77,6 +78,138 @@ from leaf.served_state import reading as served_reading
 from leaf.served_state import service as served_service
 from leaf.structure import EXTERNAL_ORIGINS
 from page_fixtures import package_selection_args
+
+
+def test_interaction_trace_records_browser_entries_and_every_request_outcome(
+    server, page_dir
+):
+    payload = {
+        "session": "tab-1",
+        "entries": [
+            {"type": "click", "target": "#approve", "source": "forged"},
+            {"type": "input", "value": "draft"},
+        ],
+    }
+    assert fetch(f"{server}/api/interaction", data=json.dumps(payload).encode()) == (
+        204,
+        b"",
+    )
+    assert (
+        fetch(f"{server}/api/interaction", data=b'{"session":"tab-1","entries":[]}')[0]
+        == 400
+    )
+    assert (
+        fetch(
+            f"{server}/api/interaction", data=json.dumps(payload).encode(), token=None
+        )[0]
+        == 403
+    )
+    assert fetch(f"{server}/missing")[0] == 404
+
+    rows = [json.loads(line) for line in interaction_model.lines(page_dir)]
+    client = [row for row in rows if row["source"] == "client"]
+    assert len(client) == 2
+    assert [(row["session"], row["type"]) for row in client] == [
+        ("tab-1", "click"),
+        ("tab-1", "input"),
+    ]
+    assert client[0]["source"] == "client"
+    assert all(row["received"] for row in client)
+    server_rows = [row for row in rows if row["source"] == "server"]
+    assert {(row["method"], row["path"], row["status"]) for row in server_rows} >= {
+        ("POST", "/api/interaction", 204),
+        ("POST", "/api/interaction", 400),
+        ("POST", "/api/interaction", 403),
+        ("GET", "/missing", 404),
+    }
+    assert all("?" not in row["path"] and row["durationMs"] >= 0 for row in server_rows)
+    assert fetch(f"{server}/interactions.jsonl")[0] == 404
+    result = CliRunner().invoke(cli_model.cli, ["interactions", str(page_dir)])
+    assert result.exit_code == 0, result.output
+    assert result.output.splitlines() == list(interaction_model.lines(page_dir))
+
+
+def test_diagnostic_write_failure_does_not_change_the_http_answer(
+    page_dir, monkeypatch
+):
+    def failed_append(*_args):
+        raise OSError("diagnostic disk unavailable")
+
+    monkeypatch.setattr(http_model, "append_interactions", failed_append)
+    with hosting_model.TemporaryPageServer(page_dir, token=TOKEN) as preview:
+        status, body = fetch(f"{preview.origin}/api/state")
+    assert status == 200
+    assert "events" in json.loads(body)
+
+
+def test_interaction_follow_reads_a_replaced_trace(page_dir):
+    trace = page_dir / interaction_model.INTERACTIONS_FILE
+    trace.write_text('{"old":"longer record"}\n')
+    following = interaction_model.lines(page_dir, follow=True)
+    assert next(following) == '{"old":"longer record"}'
+    replacement = page_dir / "replacement.jsonl"
+    replacement.write_text('{"new":1}\n')
+    os.replace(replacement, trace)
+    assert next(following) == '{"new":1}'
+    following.close()
+
+
+def test_interaction_trace_is_writable_from_a_read_only_page_preview(page_dir):
+    publish(page_dir)
+    active = files_model.active_descriptor(page_dir, event_model.read_events(page_dir))
+    snapshot = page_snapshot_model.capture_page_snapshot(
+        page_dir,
+        structure_model.parse_revision(page_dir, active["revision"]),
+        active,
+    )
+    before = event_model.read_events(page_dir)
+    with hosting_model.TemporaryPageServer(
+        page_dir, token=TOKEN, page_options={"page_snapshot": snapshot}
+    ) as preview:
+        status, body = fetch(
+            f"{preview.origin}/api/interaction",
+            data=b'{"session":"preview","entries":[{"type":"click"}]}',
+        )
+        assert (status, body) == (204, b"")
+        assert fetch(f"{preview.origin}/api/event", data=b"{}")[0] == 403
+    assert event_model.read_events(page_dir) == before
+    assert any(
+        row["source"] == "client" and row["session"] == "preview"
+        for row in map(json.loads, interaction_model.lines(page_dir))
+    )
+
+
+def test_interaction_trace_does_not_change_page_or_presence_readings(page_dir):
+    reading = served_reading.page_reading(page_dir)
+    sources = served_reading.source_readings(page_dir)
+    presence_stamp = presence_model._page_stamp(page_dir)
+
+    for sequence in range(2):
+        interaction_model.append_interactions(
+            page_dir, [{"source": "client", "sequence": sequence}]
+        )
+        assert served_reading.page_reading(page_dir) == reading
+        assert served_reading.source_readings(page_dir) == sources
+        assert presence_model._page_stamp(page_dir) == presence_stamp
+
+    (page_dir / "index.html").write_text(PAGE + "\n<!-- revised -->")
+    assert served_reading.page_reading(page_dir) != reading
+    assert served_reading.source_readings(page_dir)[0] != sources[0]
+    assert presence_model._page_stamp(page_dir) != presence_stamp
+
+
+def test_interaction_trace_does_not_keep_an_unattended_page_active(page_dir):
+    old = time.time() - schema_model.ACTIVITY_GRACE_SECS - 60
+    for entry in page_dir.iterdir():
+        os.utime(entry, (old, old))
+    claimed_at = datetime.fromtimestamp(old).astimezone().isoformat()
+    assert not service_model._touched_recently(page_dir, claimed_at)
+
+    interaction_model.append_interactions(page_dir, [{"source": "server"}])
+    assert not service_model._touched_recently(page_dir, claimed_at)
+
+    os.utime(page_dir / "status.json", None)
+    assert service_model._touched_recently(page_dir, claimed_at)
 
 
 def test_specimens_use_captured_resources_and_independent_event_logs(server, page_dir):
@@ -118,6 +251,10 @@ def test_specimens_use_captured_resources_and_independent_event_logs(server, pag
     status, raw = fetch(child + "/api/state")
     assert status == 200, raw
     assert json.loads(raw)["events"] == []
+    assert fetch(
+        child + "/api/interaction",
+        data=b'{"session":"child-tab","entries":[{"type":"click"}]}',
+    ) == (204, b"")
     status, answer = fetch(
         child + "/api/event",
         layer=generation,
@@ -143,6 +280,12 @@ def test_specimens_use_captured_resources_and_independent_event_logs(server, pag
     assert status == 400, answer
     assert fetch(child + "/api/release", layer=generation, data=b"{}")[0] == 200
     assert fetch(child + "/api/state")[0] == 404
+    assert any(
+        row["source"] == "client"
+        and row["session"] == "child-tab"
+        and row["page"] == child.removeprefix(server)
+        for row in map(json.loads, interaction_model.lines(page_dir))
+    )
 
 
 def test_specimen_allocations_share_no_parent_lock_and_keep_one_log_reading(

@@ -494,6 +494,7 @@ def publish_live_shells(
             "data",
             "data.json",
             "events.jsonl",
+            "interactions.jsonl",
             "index.html",
             "service.json",
             "status.json",

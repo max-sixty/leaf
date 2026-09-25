@@ -1,5 +1,6 @@
 /* Leaf runtime boot and application composition root. */
 import "./vendor/browser-runtime.js";
+import "./runtime/interaction-log.js";
 // Restored panels and the first keyboard gesture share the ordinary synchronous
 // control routes, so their controls must be upgraded before those routes mount.
 import "./vendor/webawesome-chrome.js";

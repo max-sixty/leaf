@@ -1048,19 +1048,20 @@ id-bearing authored seat and owns the projection's children. `keyOf` returns a s
 non-empty string for the logical datum; `render` receives
 `(record, priorNode, index)` and returns its element, reusing `priorNode` where that
 preserves a focused control or selection. Leaf marks those words as readable data
-rather than authored prose, reconciles their order, and keeps comments attached by the
-projection/key pair even when a refresh replaces the text nodes. A renderer
+rather than authored prose and reconciles their order by key. A renderer
 that owns a nested layout passes `{nested: true}` and returns its existing descendants;
 Leaf labels those nodes without moving them. Add `labelOf(record, index)` when a thread
 should name a projected datum with a human coordinate; the stable key remains opaque to
 the runtime. A widget declaring `x-data` passes `{snapshot}` with the delivery from
 `watchData`, including `null` when no current value exists. Leaf stamps the projection
-with that snapshot's source and revision. A comment remains exact only within that
-source revision. Replacing the value leaves the thread in its section and marks it
-outdated. Derived projections
-omit `snapshot` and retain their section/key identity. If a `watchData` callback renders
-asynchronously, it returns that promise so Leaf publishes the source revision as ready
-only after the projection settles. A rejection is reported as that subscriber's page
+with that snapshot's source and revision. When a projected key matches the input
+contract's `records.key`, a comment follows that record across source revisions and
+retains the quote from the value the user saw. Its anchor records `keyed: true` for this
+identity rule. Other projected keys remain exact only within the captured revision;
+replacing that value marks their placement outdated. Derived projections omit `snapshot`
+and retain their section/key identity. If a `watchData` callback renders asynchronously,
+it returns that promise so Leaf publishes the source revision as ready only after the
+projection settles. A rejection is reported as that subscriber's page
 error; it does not make later state
 reads repeat the same page-wide failure. A rejection from the callback's first run is
 stronger: Leaf drops that subscription, so the callback is not asked to restate again

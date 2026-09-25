@@ -25,26 +25,28 @@
    reference owns the origin fields; no reading infers them from a datum key or rendered
    text.
 
-   Keys identify facts, not renderings or display strings. They are non-empty strings,
-   unique within one projection, and must remain with the same logical datum across
-   refreshes. `render` receives the prior element for the key and may update it in place;
-   returning a replacement is also valid. Reconciliation retains nodes already in their
-   place and schedules the shared anchor pass after synchronous projection work.
+   Keys identify facts, not renderings or display strings. They are non-empty strings
+   unique within one projection. A key matching a source contract's `records.key` names
+   the same logical record across refreshes. `render` receives the prior element for the
+   key and may update it in place; returning a replacement is also valid. Reconciliation
+   retains nodes already in their place and schedules the shared anchor pass after
+   synchronous projection work.
 
    A selection wholly inside a derived datum captures `{section, datum, quote}`. A datum
-   projected from `watchData` also captures `{source, source_revision}`. Within that source
-   revision, resolution looks only for the key under its section. If the original words
+   projected from `watchData` also captures `{source, source_revision}`. A key matching
+   the source contract's declared `records.key` captures `keyed: true` and follows that
+   record across value replacements. Other keys may name locations within one value,
+   so their placements remain pinned to the captured revision. If the original words
    still stand, Leaf marks them. If their display changes, Leaf outlines the same datum
-   and keeps the old quote in the thread. A current-source replacement makes the
-   placement outdated: the thread keeps its section context and remains in the panel, but
-   it does not mark or attach to a datum from the new revision. A missing or duplicate
-   key detaches rather than guessing. Selections crossing datum boundaries remain
-   ordinary quote anchors because they name a passage, not one fact.
+   and keeps the old quote in the thread. A different source makes the placement
+   outdated; a duplicate key detaches rather than guessing. Selections crossing datum
+   boundaries remain ordinary quote anchors because they name a passage, not one fact.
 
-   `data-lf-projection`, `data-lf-datum`, `data-lf-origin`, `data-lf-source`,
-   `data-lf-source-revision`, and `data-lf-gen` are written by `projectData`, never
-   authored in a version. A custom widget joins through the helper alone; no consumer
-   names its tag. Export preserves the rendered elements and their labels as a snapshot,
+   `data-lf-projection`, `data-lf-datum`, `data-lf-record-key`, `data-lf-origin`,
+   `data-lf-source`, `data-lf-source-revision`, and `data-lf-gen` are written by
+   `projectData`, never authored in a version. A custom widget joins through the helper
+   alone; no consumer names its tag. Export preserves the rendered elements and their
+   labels as a snapshot,
    while dropping the scripts that could refresh them. Print preserves the same readable
    words. Neither medium claims that the snapshot remains live.
 
@@ -62,7 +64,7 @@ import { under } from "../shadow.js";
 // in `says` because the user can point at it, and not in `wrote` because no version
 // contains it. `projectData` states both facts on each rendered datum: data-lf-gen keeps
 // it out of the authored reading, while data-lf-projection + data-lf-datum give it a
-// logical identity that survives a renderer replacing its nodes.
+// logical identity that survives a renderer replacing its nodes within a value.
 //
 // The source is the authored seat's id and the key is local to that seat. Keeping the
 // pair in the DOM, rather than in a map beside it, preserves the document + log as the
@@ -170,6 +172,7 @@ export function createDataProjection({ invalidateDom }) {
     const keys = new Set();
     const nodes = new Set();
     const wanted = [];
+    const recordKey = registry.$data?.contracts?.[snapshot?.contract]?.records?.key;
     let index = 0;
     for (const record of records) {
       const key = keyOf(record, index);
@@ -217,6 +220,8 @@ export function createDataProjection({ invalidateDom }) {
       node.dataset.lfProjection = root.id;
       node.dataset.lfDatum = key;
       stampBasis(node);
+      if (recordKey && record?.[recordKey] === key) node.dataset.lfRecordKey = key;
+      else delete node.dataset.lfRecordKey;
       // The emitter knows which input it transformed. Keep that construction fact,
       // never recover a source path by interpreting its opaque key or displayed words.
       const origin = (originOf ? originOf(record, index) : snapshot?.origin) ?? null;
@@ -237,6 +242,7 @@ export function createDataProjection({ invalidateDom }) {
           delete node.dataset.lfGen;
           delete node.dataset.lfProjection;
           delete node.dataset.lfDatum;
+          delete node.dataset.lfRecordKey;
           delete node.dataset.lfSource;
           delete node.dataset.lfSourceRevision;
           delete node.dataset.lfOrigin;

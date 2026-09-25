@@ -118,7 +118,7 @@ export function threadReading(
 function navigationSummary(navigation, model) {
   if (!navigation) return nothing;
   const pendingTitle = model.titlePending;
-  const title = pendingTitle ? "..." : model.summary.topic;
+  const title = model.summary.topic;
   const count = model.summary.count;
   const status = model.resolved ? "Resolved" : model.attention?.label || "";
   const draft = Boolean(loadDraft("reply:" + model.key)?.trim());
@@ -130,7 +130,11 @@ function navigationSummary(navigation, model) {
       class="lf-thread-topic"
       data-lf-pending-title=${pendingTitle ? "" : nothing}
       aria-label=${pendingTitle ? "Title pending" : nothing}
-      >${title}</span
+      >${pendingTitle
+        ? html`<span class="lf-thread-pending-dot" aria-hidden="true">.</span
+            ><span class="lf-thread-pending-dot" aria-hidden="true">.</span
+            ><span class="lf-thread-pending-dot" aria-hidden="true">.</span>`
+        : title}</span
     >
     <span class="lf-thread-meta">
       ${draft ? html`<span class="lf-thread-draft">Draft</span>` : nothing}

@@ -6632,9 +6632,18 @@ def test_agent_titles_update_without_losing_the_users_draft(browser, serve):
     topic = thread.locator(".lf-thread-topic")
     expect(topic).to_have_text("...")
     expect(topic).to_have_attribute("aria-label", "Title pending")
+    dots = topic.locator(".lf-thread-pending-dot")
+    expect(dots).to_have_count(3)
     assert (
-        topic.evaluate("element => getComputedStyle(element).animationName") != "none"
+        dots.first.evaluate("element => getComputedStyle(element).animationName")
+        != "none"
     )
+    page.emulate_media(reduced_motion="reduce")
+    assert (
+        dots.first.evaluate("element => getComputedStyle(element).animationName")
+        == "none"
+    )
+    page.emulate_media(reduced_motion="no-preference")
     focus_panel_thread(thread)
     editor = thread.locator("textarea")
     editor.fill("Keep this unfinished reply")

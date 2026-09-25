@@ -23,8 +23,6 @@ primitive must give the user something that site would not:
 - **Consistency.** One interface across sessions and agents — keybindings,
   conversations, and how a widget answers a move — so the user learns it
   once.
-- **Preferences.** A place for the user's own preferences, such as
-  aesthetics and style, stated once and honoured on every page.
 - **Trust.** A page runs under a locked-down content policy, and an action
   records its meaning when taken, so a control does what it says and the
   record shows what the user decided.

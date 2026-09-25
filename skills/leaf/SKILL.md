@@ -22,7 +22,8 @@ envelope a `leaf wait` printed. A delivery starts at step 5 below; do
 not initialize or hand the page over again. With no subject in `$ARGUMENTS`,
 present the work already under discussion. Leaf's writing guidance supplies
 defaults only; any user-specific guidance on tone, structure, depth, or format
-takes precedence.
+takes precedence. When the user states a preference meant for every page, save it
+in your host's memory, where later sessions will read it; Leaf keeps none.
 
 $ARGUMENTS
 

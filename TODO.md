@@ -69,6 +69,11 @@ has tried; settle that before building it.
 - **Finish what a phone user still cannot reach.** Give touch users visible passage
   threads, and remove keyboard-only hints, hover-only reasons, clipped diagram content,
   and remaining undersized touch targets.
+- **Check pages across the widths people read at.** The render check reads one
+  desktop width (1200px) for layout findings. The arrangement eval's pages failed at
+  900px and on a phone in ways that width never shows: a grid that stacked, labels
+  shrunk below legibility, an Ask below its pane's first screen. Test layouts across a
+  range of widths, phones included, once the one-width checks hold.
 - **Give the thread panel's touch grip its own space.** Reserve room for the grip
   and collapse inactive reply controls if more thread cards should fit.
 

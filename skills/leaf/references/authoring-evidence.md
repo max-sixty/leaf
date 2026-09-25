@@ -41,12 +41,26 @@ against the claims it supports, and state those claims in prose or a table besid
 so the user need not rely on an uninspected picture. Follow `page-authoring.md`,
 "Pre-handover review", for the checks and what remains unverified.
 
+Draw what Mermaid's automatic layout cannot put where it belongs, such as a page
+layout, geometry, a wireframe, or a thumbnail inside an option, as an inline `<svg>`
+in a `<figure>` with an `id`, and give the figure `data-width="wide"` when it needs
+the room. Keep it schematic: a window is a rounded box, a line of text a grey bar, a
+marker a dot, and only what the figure is about takes the accent colour. Put the
+states being compared side by side in one figure at one scale, drawn alike except
+where they differ. Style every figure on the page from one page-local set of classes
+whose fills and strokes are theme tokens such as `var(--ink)`, `var(--muted)`,
+`var(--accent)`, and `var(--ok)`. The tokens follow the light and dark schemes; an
+SVG file added with `leaf page media` loads as an image and cannot read them. Give the
+`<svg>` `role="img"` and a `<title>` stating its claim, keep the `<figcaption>` for
+what the drawing cannot show, and inspect each rendered figure as you would a
+diagram.
+
 Use `lf-chart` rather than Mermaid's XY or pie charts for quantities that need Leaf's
 data-first chart vocabulary: a comparison across a few categories, a run over time, a
 ranking, a composition, or two numbers against each other. `lf-chart` needs no
 package. A handful of numbers the sentence beside them can carry is prose; a chart is
-for when the shape of the numbers is the point. Use inline SVG only for a bespoke
-drawing. Use `<pre><code class="language-…">` for selectable literal source and
+for when the shape of the numbers is the point. Use
+`<pre><code class="language-…">` for selectable literal source and
 `lf-code` for a line-numbered walkthrough; its `lines` attribute quotes an excerpt
 of a longer file under the file's own line numbers, with elided rows where it skips;
 a note placed at a skipped line captions that row with what was left out.

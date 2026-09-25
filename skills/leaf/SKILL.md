@@ -89,6 +89,10 @@ Unless the user specifies the page's form or depth, a Leaf is a short sequence
 of visually distinct, self-contained views. Each view makes one point, shows one
 state, or offers one move, so the user can grasp it at a glance and continue;
 disclosures keep supporting detail available without putting it in that path.
+Where a view's point has a shape, it shows the point in a picture and uses words
+for what the picture cannot say; `references/page-authoring.md`, "Draw the
+subject", says which points have one. A page that is mostly paragraphs and tables
+has usually described what it should have drawn.
 The visible page follows the subject's shape: a document read in order, a sheet of
 regions read side by side, or a workspace holding regions in view together;
 `references/page-authoring.md` owns the concrete choices, and
@@ -149,8 +153,8 @@ so a phase does not depend on discovering a chain of references.
   sign-off.
 - `references/authoring-revisions.md`: before changing a handed-over page,
   proposing a rewrite, using a user-owned draft, or revising standing state.
-- `references/authoring-evidence.md`: before using measured facts, diagrams,
-  charts, source files, images, or before/after captures.
+- `references/authoring-evidence.md`: before drawing a figure, or using measured
+  facts, diagrams, charts, source files, images, or before/after captures.
 
 ### First handoff
 

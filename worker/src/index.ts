@@ -157,7 +157,7 @@ export class LeafWebsiteSession extends Container<Env> {
   constructor(ctx: DurableObject["ctx"], env: Env) {
     super(ctx, env);
     this.envVars = {
-      LEAF_AGENT: "Leaf guide",
+      LEAF_AGENT: "The agent",
       OPENAI_API_KEY: CODEX_PROXY_CREDENTIAL,
       CODEX_CA_CERTIFICATE: CLOUDFLARE_CONTAINER_CA,
     };

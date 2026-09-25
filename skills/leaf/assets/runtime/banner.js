@@ -142,7 +142,7 @@ tabLink.dataset.lfRuntime = "";
 document.head.append(tabLink);
 let iconMark = null;
 const iconUrls = new Map();
-// The mark with one colour written over it, or — for "" — the mark as authored. A style
+// The mark with one colour written over it. A style
 // element appended last outranks the file's own rules, the dark-scheme block included,
 // since a media query carries no specificity of its own. So this knows nothing about the
 // icon beyond the class it promises, and a project's own mark is painted on the same
@@ -151,14 +151,12 @@ function iconUrl(color) {
   let url = iconUrls.get(color);
   if (url === undefined) {
     const svg = iconMark.cloneNode(true);
-    if (color) {
-      const style = svg.ownerDocument.createElementNS(
-        "http://www.w3.org/2000/svg",
-        "style",
-      );
-      style.textContent = `.lf-tone { fill: ${color} }`;
-      svg.append(style);
-    }
+    const style = svg.ownerDocument.createElementNS(
+      "http://www.w3.org/2000/svg",
+      "style",
+    );
+    style.textContent = `.lf-tone { fill: ${color} }`;
+    svg.append(style);
     url =
       "data:image/svg+xml," +
       encodeURIComponent(new XMLSerializer().serializeToString(svg));
@@ -188,9 +186,6 @@ export async function loadIcon() {
         "status is painted",
     );
   iconMark = doc.documentElement;
-  // Left where `version export` can find it: a file has no session behind it, so a copy
-  // wears the mark saying nothing rather than the tone it was exported under.
-  tabLink.dataset.lfRest = iconUrl("");
   paintTab();
 }
 // A declaration, and called from two places, because the fetch above can land after the

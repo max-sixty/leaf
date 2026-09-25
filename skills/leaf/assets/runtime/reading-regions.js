@@ -17,6 +17,7 @@
    when regions become hidden or visible. Hidden connected regions remain registered and
    return null bounds. Cleanup removes live DOM bindings, so a replacement can reclaim an
    id. */
+import { sizeObserver } from "./rendering.js";
 import { shownRect } from "./geometry.js";
 import { pageScroller } from "./scrolling.js";
 import { reachReadingScroller } from "./reach.js";
@@ -195,7 +196,7 @@ export const scrollersSettled = () =>
 // Every region's scroller as last seen, so a size change that hands a region to a
 // different scroller is announced once, after layout has produced it. Read on the
 // observer's delivery, which follows layout; nothing here writes a box it observes.
-const sizes = new ResizeObserver(() => {
+const sizes = sizeObserver(() => {
   const shifted = [];
   for (const region of regions.values()) {
     if (!live(region)) continue;

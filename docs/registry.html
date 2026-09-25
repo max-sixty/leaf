@@ -143,6 +143,7 @@
           <a href="#x-measure"><code>x-measure</code></a>
           <a href="#x-measured"><code>x-measured</code></a>
           <a href="#x-name"><code>x-name</code></a>
+          <a href="#x-numbering"><code>x-numbering</code></a>
           <a href="#x-outline"><code>x-outline</code></a>
           <a href="#x-owners"><code>x-owners</code></a>
           <a href="#x-page-navigation"><code>x-page-navigation</code></a>
@@ -389,11 +390,19 @@
             <h3><code>x-lines</code></h3>
             <div class="reference-copy">
               <p>
-                Attributes holding 1-based line references into the nearest data body —
-                the element's own &lt;pre&gt;, or its enclosing data element's (a note's
+                Attributes holding line references into the nearest data body — the
+                element's own &lt;pre&gt;, or its enclosing data element's (a note's
                 <code>at</code> names a line of its code block) — which
                 <code>version check</code> refuses outside the body.
               </p>
+              <details class="reference-more">
+                <summary aria-label="Full x-lines contract">Full contract</summary>
+                <p>
+                  A reference names a line by the number that body's x-numbering gives
+                  it, 1-based when it has none; a number inside a gap the numbering
+                  leaves is in the body.
+                </p>
+              </details>
             </div>
           </section>
           <section class="reference-entry" id="x-measure">
@@ -456,6 +465,23 @@
                   title instead, as a column's or a tab's <code>label</code> is. An
                   attribute the element merely shows first, such as a metric's value or
                   a chronology entry's time, is not its title.
+                </p>
+              </details>
+            </div>
+          </section>
+          <section class="reference-entry" id="x-numbering">
+            <h3><code>x-numbering</code></h3>
+            <div class="reference-copy">
+              <p>
+                The attribute giving the source line numbers a data body quotes, as
+                ascending ranges ("1505-1507,1520-1527").
+              </p>
+              <details class="reference-more">
+                <summary aria-label="Full x-numbering contract">Full contract</summary>
+                <p>
+                  <code>version check</code> holds it to one number per body line; a gap
+                  between ranges is lines the body leaves out, and every x-lines
+                  reference into that body names lines by these numbers.
                 </p>
               </details>
             </div>

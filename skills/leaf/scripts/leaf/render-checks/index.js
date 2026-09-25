@@ -1,4 +1,4 @@
-/* Browser programs used by the render and export gates.
+/* Browser programs used by the render gate.
  *
  * This module is served by Leaf itself rather than vendored into a page. Its static
  * import is deliberate: the browser module loader verifies the public widget API
@@ -10,4 +10,3 @@ export * from "./replay.js";
 export * from "./runtime.js";
 export * from "./widgets.js";
 export * from "./words.js";
-export { bake, exportPrepared, prepareExport } from "./standalone.js";

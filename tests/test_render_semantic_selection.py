@@ -18,10 +18,10 @@ from render_cases_widgets import (
     PART_DIAGRAM_PAGE,
 )
 from render_harness import (
-    RENDERED,
     ROOT,
     leaf_page,
     open_page,
+    rendered,
     resized,
     sending,
 )
@@ -264,7 +264,7 @@ def test_a_chrome_reflow_repositions_target_hints_in_its_first_layout_frame(
     page.keyboard.press("s")
     hints = page.locator(".lf-target-chooser-hint")
     expect(hints).to_have_count(3)
-    page.evaluate(RENDERED)
+    rendered(page)
 
     page.evaluate(
         """() => {
@@ -1123,9 +1123,8 @@ def test_the_key_line_moves_a_hint_rather_than_dropping_its_target(browser, serv
 
     The shortcut bar states the armed map's own keys and changes width as the user
     filters it, so a map that read it would lose members as it armed and swap codes under
-    the user as its own legend grew. The strip of page below the bar is page the user
-    reads, besides. A chip that would land on the bar is moved clear instead, which keeps
-    the route where dropping the member loses it."""
+    the user as its own legend grew. A chip that would land on the bar is moved clear
+    instead, which keeps the route where dropping the member loses it."""
     page = open_page(
         browser,
         serve(
@@ -1149,9 +1148,8 @@ def test_the_key_line_moves_a_hint_rather_than_dropping_its_target(browser, serv
     hints = page.locator(".lf-target-chooser-hint")
     expect(hints).to_have_count(3)
 
-    # The premise. One target stands wholly inside the bar's box, the other wholly below
-    # it and still on screen, both within its span, and the bar is the width the armed
-    # chooser made it.
+    # The premise. Both targets stand wholly inside the bottom band's box, one in its
+    # row and one at the window's foot.
     room = page.evaluate(
         """() => {
           const box = selector => document.querySelector(selector).getBoundingClientRect();
@@ -1163,7 +1161,7 @@ def test_the_key_line_moves_a_hint_rather_than_dropping_its_target(browser, serv
             covered: bar.left <= behind.left && behind.right <= bar.right
                   && bar.top <= behind.top && behind.bottom <= bar.bottom,
             below: bar.left <= gutter.left && gutter.right <= bar.right
-                && gutter.top >= bar.bottom && gutter.top < innerHeight,
+                && bar.top <= gutter.top && gutter.top < innerHeight,
             fouled: [...document.querySelectorAll('.lf-target-chooser-hint')]
               .filter(chip => hit(chip.getBoundingClientRect())).length,
           };
@@ -1470,13 +1468,10 @@ def test_a_partly_banner_clipped_passage_keeps_its_hint_below_the_banner(
 
 
 def test_the_shortcut_bar_text_only_hides_targets_in_the_lane_it_paints(browser, serve):
-    """Bottom chrome is a rectangle, not a full-width cutoff.
-
-    Fixed nested targets can remain visible below the top of the left-hand shortcut bar while
-    crossing its right edge. The selector must keep their uncovered parts reachable and
-    spread both hints inside the viewport but outside the band; the old scalar boundary
-    dropped both targets, while a center left on their covered corner put replacement
-    hints on the shortcut bar or below the viewport."""
+    """Fixed nested targets standing in the bottom band stay reachable: the selector
+    spreads both hints inside the viewport but outside the band. A scalar boundary at the
+    band's top dropped both targets, while a center left on their covered part put
+    replacement hints on the band or below the viewport."""
     html = leaf_page(
         "target beside the shortcut bar",
         """
@@ -1501,10 +1496,6 @@ def test_the_shortcut_bar_text_only_hides_targets_in_the_lane_it_paints(browser,
             hint => hint.getBoundingClientRect().toJSON()
           ),
         ]"""
-    )
-    assert target["left"] < line["right"] < target["right"], (
-        target,
-        line,
     )
     assert target["top"] < line["bottom"] and target["bottom"] > line["top"], (
         target,

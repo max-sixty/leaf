@@ -78,7 +78,6 @@ export function mountSpecimen(frame, { template, passive = false }) {
   let loading = null;
   frame.inert = passive;
   frame.toggleAttribute("data-lf-contained", true);
-  if (!passive) frame.dataset.lfExport = "document";
 
   const release = (url) => request(new URL("api/release", url), {});
 

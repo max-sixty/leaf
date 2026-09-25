@@ -31,11 +31,11 @@ from render_cases_interaction import (
 from render_harness import (
     CARRIED_PAGE,
     LONG_PAGE,
-    RENDERED,
     SHELL_BOX,
     TOKEN,
     banner_control,
     leaf_page,
+    rendered,
     stamp_page,
 )
 
@@ -202,7 +202,7 @@ def arrival_findings(browser, url):
 def motions(events):
     """The settling motions the browser reported, keyed by the motion, not by its target.
 
-    Settling and not living, which is `rendering.MOVING`'s distinction and is here for
+    Settling and not living, which is the render gate's `moving` distinction and is here for
     its reason: the banner's dot pulses for as long as the tab is open, and something
     that never ends never arrived anywhere. An unbounded iteration count cannot cross
     JSON, so the browser omits it, and that omission is the reading.
@@ -395,12 +395,12 @@ UNMARKABLE_PAGE = LONG_PAGE.replace(
 FLOATING_PAGE = LONG_PAGE.replace(
     "</main>",
     "<style>@media (max-width: 1199px) { .fixture-margin-float { display: none; } }</style>"
-    "<div class='fixture-margin-float' id='in-the-margin' style='float: left; clear: left; width: 180px;"
-    " margin-left: -204px'>Beside <code id='inner-word'>--flag</code>.</div>"
+    "<div class='fixture-margin-float' id='in-the-margin' style='float: left; clear: left; width: 160px;"
+    " margin-left: -184px'>Beside <code id='inner-word'>--flag</code>.</div>"
     "<div class='fixture-margin-float' id='half-out' style='float: left; clear: left; width: 180px;"
     " margin-left: -90px'>Across.</div>"
-    "<div class='fixture-margin-float' id='logical' style='float: inline-start; clear: left; width: 180px;"
-    " margin-left: -204px'>Beside.</div>"
+    "<div class='fixture-margin-float' id='logical' style='float: inline-start; clear: left; width: 160px;"
+    " margin-left: -184px'>Beside.</div>"
     "<div class='fixture-margin-float' id='off-window' style='float: left; clear: left; width: 180px;"
     " margin-left: -900px'>Gone.</div>\n</main>",
 )
@@ -637,21 +637,26 @@ def draw_edge(page, edge, by):
 # The room sampled across an auxiliary-surface motion. The shell owns the value in CSS, so a
 # harmless probe resolves the custom-property expression to the width a wide exhibit
 # would actually receive.
-ROOM_EVERY_FRAME = """(frames) => {
+ROOM_EVERY_FRAME = """() => {
   window.__room = [];
   const main = document.querySelector('main');
   const probe = document.createElement('i');
   probe.style.cssText = 'position:fixed;visibility:hidden;height:0;padding:0;border:0;width:var(--lf-room)';
   main.append(probe);
-  // The first sample is taken now rather than on the first frame, so the width before the
-  // press is always in the trace: a frame is free to land after the keypress that follows
-  // this call, and a trace that opens after the strip is taken has one value in it and
-  // nothing to compare.
+  // Sample before the press and until the test sees the settled tray. Playwright may
+  // spend arbitrarily many frames finding and pressing its control.
+  let nextFrame;
   const tick = () => {
     window.__room.push(probe.getBoundingClientRect().width);
-    if (window.__room.length < frames) requestAnimationFrame(tick);
+    nextFrame = requestAnimationFrame(tick);
   };
   tick();
+  window.__roomStop = () => {
+    cancelAnimationFrame(nextFrame);
+    window.__room.push(probe.getBoundingClientRect().width);
+    probe.remove();
+    return window.__room;
+  };
 }"""
 # Enough code for the roles to differ from each other and from the block: a comment, a
 # keyword, a string, a name, a number.
@@ -824,9 +829,9 @@ BANNER_ORDER = """() => {
 
 def page_at_rest(page):
     """Render the known edge, finish finite motion, then render its ending."""
-    page.evaluate(RENDERED)
+    rendered(page)
     render_checks_model.wait_for_probe(page, "pageSettled")
-    page.evaluate(RENDERED)
+    rendered(page)
 
 
 def displaced(before, boxes):
@@ -1323,11 +1328,9 @@ PANEL_DIFF_MARKUP = WIDE_DIFF_PAGE[
 
 
 def serious_axe_violations(page):
-    """WCAG A/AA violations at serious or critical, as (violations, report) — the
-    one reading both the live sweep and the exported copy's gate assert on."""
-    # Inspect each document directly. Axe's cross-frame postMessage transport
-    # cannot address a standalone srcdoc's opaque origin, and the Python adapter
-    # only injects axe into the document it receives.
+    """WCAG A/AA violations at serious or critical, as (violations, report)."""
+    # Inspect each document directly: the Python adapter only injects axe into the
+    # document it receives.
     options = {
         "iframes": False,
         "runOnly": {
@@ -1436,24 +1439,6 @@ def shown_frames(page):
     return page.evaluate("""() => [...document.querySelectorAll('.lf-shotframe')]
         .filter(f => getComputedStyle(f).visibility === 'visible')
         .map(f => f.dataset.lfState)""")
-
-
-def flip_point(page, sel="lf-shot"):
-    """The middle of a shot's frame — where a user comparing would have the pointer.
-
-    Returned rather than clicked, because what the widget is for is alternating from
-    one place: a helper that clicked would let a test press two different points and
-    still pass, which is the property the old radios failed at.
-
-    Scrolled to first, because `bounding_box` answers in viewport coordinates for an
-    element that may be past the fold — on the long page the shot sits on, the point
-    comes back below the window and `mouse.click` presses whatever is there instead,
-    which reads as the widget refusing the gesture rather than as the test missing it.
-    """
-    frame = page.locator(f"{sel} .lf-shotframe").first
-    frame.scroll_into_view_if_needed()
-    box = frame.bounding_box()
-    return box["x"] + box["width"] / 2, box["y"] + box["height"] / 2
 
 
 # A painted fact whose spoken copy is on the page and drawn nowhere. It is written into

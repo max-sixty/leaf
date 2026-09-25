@@ -6,8 +6,8 @@ runtime when serving from the layer `page init` vendors. Opening one
 from disk gets a dead page, because Chrome refuses ES modules from a file://
 origin — nothing upgrades, and a tabbed page renders as every tab at once. This
 script builds the directory the runtime expects, then watches the fixture and
-selected runtime until stopped. `--export` writes the browser-drawn result as one
-standalone HTML file instead.
+selected runtime until stopped. `--export` instead writes the page as one HTML file
+that opens offline and runs the same runtime with no server.
 
 The live result is a page, not a picture of one: it takes comments. They cross the
 real HTTP and event-log boundary and settle in the page's log, which is all a
@@ -65,9 +65,9 @@ and out of the way of a developer's standing preview.
 
 A slot is its page directory, and `preview.json` in it is what the browser chrome
 and the Stop hook read to know the page is a preview. The lease that says a
-preview is serving the slot is a page lock in the state home, where the page's
-transition lease already lives, so discarding the page cannot replace the inode
-the lease is held on.
+preview is serving the slot is `<slot>.lock` beside that directory, so discarding
+the page cannot replace the inode the lease is held on, and the lease goes with
+the previews root.
 
 Usage: preview.py [page] [options]  (default: triage-board)
 """
@@ -189,7 +189,7 @@ def arguments() -> tuple[argparse.ArgumentParser, argparse.Namespace]:
     parser.add_argument(
         "--export",
         action="store_true",
-        help="write a standalone HTML file instead of serving the page",
+        help="write an offline HTML file instead of serving the page",
     )
     parser.add_argument("--_worker", action="store_true", help=argparse.SUPPRESS)
     parsed = parser.parse_args()
@@ -312,15 +312,13 @@ WATCHER_NOTE = "server   preview (no task claim; stops with this process)"
 
 
 def preview_lease(page: Path) -> Path:
-    """The lock a running preview holds on its slot, keyed by the page.
+    """The lock a running preview holds on its slot, beside the slot's page.
 
-    It sits in the state home beside the page's own transition lease, because a
-    lock inside what it guards is an inode a discard unlinks, and a lock on a
-    replaced inode excludes nobody.
+    Not inside it: a discard removes the page, and a lock on a removed inode
+    excludes nobody.
     """
-    from leaf.leases import page_lock
-
-    return page_lock(page, "preview")
+    page.parent.mkdir(parents=True, exist_ok=True)
+    return page.with_name(f"{page.name}.lock")
 
 
 def refresh_media(source: Path, page: Path) -> None:
@@ -651,27 +649,26 @@ def discard_preview(page: Path) -> None:
     service a `--user` preview left behind when it was killed outright is stopped
     first, since its record goes with the page.
     """
-    from leaf.event_log import flocked
     from leaf.hosting import cmd_stop
-    from leaf.leases import transition_lock
+    from leaf.leases import page_locked
     from leaf.service import PageTransaction, claim_path
 
     if page.exists():
         cmd_stop(page)
-    with flocked(transition_lock(page)):
-        if (page / "events.jsonl").is_file():
-            with PageTransaction(page):
+        with page_locked(page):
+            if (page / "events.jsonl").is_file():
+                with PageTransaction(page):
+                    shutil.rmtree(page)
+            else:
                 shutil.rmtree(page)
-        elif page.exists():
-            shutil.rmtree(page)
-        claim_path(page).unlink(missing_ok=True)
+    claim_path(page).unlink(missing_ok=True)
 
 
 def run_preview(
     source: Path, page: Path, launcher: Path, runtime: Path, user: bool
 ) -> None:
     """Take the slot, build it fresh, and serve it until this process ends."""
-    from leaf.leases import take_lease
+    from leaf.leases import release_lease, take_lease
 
     lease = take_lease(preview_lease(page))
     if lease is None:
@@ -679,9 +676,11 @@ def run_preview(
             f"another preview is serving {page}; stop that process, or choose "
             "another --slot"
         )
-    with lease:
+    try:
         discard_preview(page)
         serve_preview(source, page, launcher, runtime, user)
+    finally:
+        release_lease(lease)
 
 
 def serve_preview(

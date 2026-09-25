@@ -42,8 +42,7 @@ browser reads them off the rendered page, which holds words and geometry no file
 reading can produce, so the door bounds their shape, the stroke count and 500
 characters of `says`, and does not re-read them. Leaf derives the drawing's frame and
 owns ink, weight, SVG construction, and replay. A drawing is immutable once sent,
-follows the thread's resolution state, and is omitted from the default standalone
-export with the rest of discussion chrome.
+follows the thread's resolution state.
 
 ## Undo
 

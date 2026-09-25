@@ -4,9 +4,9 @@ import sys
 from contextlib import nullcontext
 from pathlib import Path
 
-from leaf.event_log import flocked, read_events
+from leaf.event_log import read_events
 from leaf.files import list_revisions
-from leaf.leases import transition_lock
+from leaf.leases import page_locked
 from leaf.revision_artifact import read_artifact
 
 from .source import check_source
@@ -20,7 +20,7 @@ def cmd_check(
     events_override: list | None = None,
 ) -> int:
     """Check the mutable source without activating or stamping it."""
-    with nullcontext() if transition_held else flocked(transition_lock(page_dir)):
+    with nullcontext() if transition_held else page_locked(page_dir):
         return _check(page_dir, render, events_override)
 
 

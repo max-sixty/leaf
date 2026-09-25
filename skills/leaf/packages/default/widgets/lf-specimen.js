@@ -5,7 +5,14 @@
  * final Escape brings focus back to this element. Ordinary children remain static
  * quotation. A disconnect releases the child; moving the retained element within a
  * document does not reset its work. */
-import { mountSpecimen, once, offer, widgetController } from "/runtime/widget-api.js";
+import {
+  cancelRender,
+  mountSpecimen,
+  nextRender,
+  once,
+  offer,
+  widgetController,
+} from "/runtime/widget-api.js";
 
 customElements.define(
   "lf-specimen",
@@ -16,6 +23,7 @@ customElements.define(
     #reset;
     #status;
     #fit;
+    #fitting = 0;
     #ready;
     #mounting = false;
 
@@ -52,6 +60,7 @@ customElements.define(
         if (this.isConnected || !this.#host) return;
         const host = this.#host;
         this.#host = null;
+        cancelRender(this.#fitting);
         host.destroy().catch((error) => this.#failure(error));
       });
     }
@@ -85,15 +94,18 @@ customElements.define(
 
     // The frame's height follows its child's page, so nothing scrolls inside it. The
     // write waits a frame: the new height relays out the containing page, which can
-    // reach the child's body again inside the observation that asked for it.
+    // reach the child's body again inside the observation that asked for it. The observer
+    // is the child's own, watching its own body; the write it queues is this page's, and
+    // this page's settled reading counts it. A reset replaces the child, so it cancels
+    // the write the last child queued.
     #follow(doc) {
       this.#fit?.disconnect();
+      cancelRender(this.#fitting);
       const frame = this.#frame;
       const view = doc.defaultView;
-      let queued = 0;
       const size = () => {
-        view.cancelAnimationFrame(queued);
-        queued = view.requestAnimationFrame(() => {
+        cancelRender(this.#fitting);
+        this.#fitting = nextRender(() => {
           const border = frame.offsetHeight - frame.clientHeight;
           const height = `${Math.ceil(doc.body.getBoundingClientRect().height) + border}px`;
           if (frame.style.height !== height) frame.style.height = height;
@@ -133,11 +145,6 @@ customElements.define(
         return this.#ready;
       }
       return this.#track(this.#host.reset());
-    }
-
-    async lfPrepareExport() {
-      await this.#ready;
-      if (this.#frame) this.querySelector(":scope > .lf-specimen-controls").remove();
     }
   },
 );

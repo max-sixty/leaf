@@ -19,7 +19,13 @@ from .detached import StartRefused
 from .files import file_stamp, next_reading, read_json
 from .host import Harness, session_harness
 from .hosting import start_server
-from .leases import take_lease, take_session_wait, waiter_lease_path
+from .leases import (
+    release_lease,
+    release_session_wait,
+    take_lease,
+    take_session_wait,
+    waiter_lease_path,
+)
 from .locations import path_location, paths_same
 from .machine import state_home
 from .revisioning import activate_source
@@ -399,10 +405,10 @@ class Watch:
         """Release this carrier's liveness proof, however it ended."""
         # The start mark goes before the lease, so the next wait never waits on it.
         if self.start_mark is not None:
-            self.start_mark.close()
+            release_session_wait(self.session_id, self.start_mark)
             self.start_mark = None
         for lease in self.leases:
-            lease.close()
+            release_lease(lease)
         self.leases.clear()
 
 

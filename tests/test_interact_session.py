@@ -1670,6 +1670,73 @@ def test_a_working_claim_can_name_a_widget_until_a_version_completes_it(page_dir
     assert "no active widget work claim" in unearned.output
 
 
+def test_a_delivery_and_its_codex_records_go_once_their_pages_do(
+    claimed, capsys, tmp_path
+):
+    """Envelopes and a Codex task's archived records are read one id at a time, so
+    the writer that adds one removes those whose pages are all gone, and those
+    this version does not read; a task's live records go at the scan that reads
+    them. Pages are deleted from outside leaf, so nothing sees the moment."""
+    gone = tmp_path / "gone"
+
+    def record(path, value):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        files_model.write_json(path, value)
+        return path
+
+    def envelope(delivery_id, page, format=delivery_model.DELIVERY_FORMAT):
+        batches = [{"page": str(page)}]
+        return record(
+            delivery_model.delivery_path(delivery_id),
+            {"format": format, "batches": batches},
+        )
+
+    kept = envelope("0000000a", claimed)
+    retired = [
+        envelope("0000000b", gone),
+        envelope("0000000c", claimed, "v2"),
+        record(delivery_model.delivery_path("00000012"), {"batches": []}),
+        record(
+            delivery_model.delivery_path("00000013"),
+            {"format": delivery_model.DELIVERY_FORMAT},
+        ),
+    ]
+    serving(claimed, 1)
+    events_model.append_event(
+        claimed, {"kind": "comment", "author": "user", "text": "new input"}
+    )
+    assert session_model.cmd_wait(claimed) == 0
+    frozen = delivery_model.delivery_path(json.loads(capsys.readouterr().out)["id"])
+    assert kept.exists() and frozen.exists()
+    assert not any(path.exists() for path in retired)
+
+    def task_record(delivery_id, page, **fields):
+        return {
+            "format": codex_model.RECORD_FORMAT,
+            "state": "collecting",
+            "created_at": 0,
+            "batches": [{"page": str(page), "receipted": True}],
+            **fields,
+        }
+
+    live = record(codex_model.record_path("t", "0000000d"), task_record("d", claimed))
+    stale = record(codex_model.record_path("t", "0000000e"), task_record("e", gone))
+    history = live.parent / "history"
+    archived_gone = record(history / "0000000f.json", task_record("f", gone))
+    archived_other = record(history / "00000010.json", {"batches": []})
+    archived_incomplete = record(
+        history / "00000012.json", {"format": codex_model.RECORD_FORMAT}
+    )
+    archived_kept = record(history / "00000011.json", task_record("g", claimed))
+    with events_model.flocked(codex_model.delivery_lock_path("t")):
+        assert [path for path, _ in codex_model.delivery_records("t")] == [live]
+        assert not stale.exists()
+        codex_model.archive_record(live, task_record("d", claimed, state="accepted"))
+    assert sorted(history.iterdir()) == [history / live.name, archived_kept]
+    assert not archived_gone.exists() and not archived_other.exists()
+    assert not archived_incomplete.exists()
+
+
 def test_direct_delivery_progress_does_not_become_page_activity(claimed, capsys):
     """Delivery stays exact interaction evidence while page activity continues to
     describe the claimant's availability and independently declared work."""
@@ -7807,6 +7874,36 @@ def test_a_connection_failure_in_the_delivery_loop_is_retried(
     assert attempts == ["codex-thread", "codex-thread"]
 
 
+def test_a_codex_adapter_retiring_with_no_page_leaves_only_records_a_page_needs(
+    monkeypatch, tmp_path
+):
+    """Once a task owns no page, its adapter removes the log it wrote, and its
+    leases and locks go with their holders. Retiring, it reads every task's
+    delivery records and removes those whose pages are gone, so an ended task
+    leaves nothing; a record over a standing page stays for a later adapter of
+    its task."""
+    for name in CLAUDE_IDENTITY:
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("CODEX_THREAD_ID", "codex-thread")
+    monkeypatch.setattr(codex_adapter_model, "owned_pages", lambda _session: [])
+    monkeypatch.setattr(codex_adapter_model, "check_queue_command", lambda _path: None)
+    standing = tmp_path / "standing"
+    standing.mkdir()
+    for task, page in (("ended-task", tmp_path / "gone"), ("codex-thread", standing)):
+        history = codex_model.delivery_dir(task) / "history"
+        history.mkdir(parents=True)
+        files_model.write_json(
+            history / "delivered.json",
+            {"format": codex_model.RECORD_FORMAT, "batches": [{"page": str(page)}]},
+        )
+    codex_adapter_model.adapter_log_path("codex-thread").write_text("started\n")
+
+    assert codex_adapter_model.run_adapter("codex") == 0
+    kept = codex_model.delivery_dir("codex-thread")
+    assert list(leases_model.sessions_home().iterdir()) == [kept]
+    assert [path.name for path in kept.rglob("*.json")] == ["delivered.json"]
+
+
 def test_a_delivery_already_being_carried_holds_back_the_next_one(
     codex_claimed_page, monkeypatch
 ):
@@ -9497,9 +9594,12 @@ def test_wait_lease_is_exact_and_excludes_another_wait(
     assert second.returncode == 2
     assert "another `leaf wait` is already active" in second.stderr
 
+    # Stopping a background command sends SIGTERM, which the wait unwinds from,
+    # so its lease file goes with it rather than outliving the session.
     first.terminate()
     first.communicate(timeout=10)
-    assert not leases_model.lock_is_held(lease_path)
+    assert not lease_path.exists()
+    assert not any(leases_model.sessions_home().iterdir())
 
 
 def test_a_question_about_a_lease_does_not_turn_its_taker_away(tmp_path):
@@ -9515,6 +9615,71 @@ def test_a_question_about_a_lease_does_not_turn_its_taker_away(tmp_path):
     assert lease is not None
     assert leases_model.take_lease(path) is None
     lease.close()
+
+
+def test_a_lock_file_ends_with_its_holder_and_a_waiting_taker_follows_the_name(
+    tmp_path,
+):
+    """A purpose lock's holder removes its file on the way out, so a session's
+    locks leave nothing behind. A taker already waiting on that file wakes holding
+    a lock on nothing anyone can find, so it takes the lock again on the name, and
+    excludes the next taker as a lock should."""
+    path = tmp_path / "purpose.lock"
+    entered = threading.Event()
+    release = threading.Event()
+
+    def take():
+        with events_model.flocked(path):
+            entered.set()
+            assert release.wait(10)
+
+    taker = threading.Thread(target=take)
+    with events_model.flocked(path):
+        taker.start()
+        time.sleep(0.2)  # the taker opens the file and waits on this lock
+    assert entered.wait(10)
+    assert leases_model.lock_is_held(path)
+    release.set()
+    taker.join(10)
+    assert not path.exists()
+
+
+def test_a_page_lock_is_its_directory_and_follows_a_page_made_again(tmp_path):
+    """The page lock is the page directory, so it leaves nothing in the state home
+    and ends with the page. A taker that waited on a directory deleted and made
+    again at the same path locks the new one, so it excludes the next taker; a
+    page gone for good raises."""
+    page = tmp_path / "page"
+    assert CliRunner().invoke(cli_model.cli, ["page", "init", str(page)]).exit_code == 0
+    assert not (machine_model.state_home() / "page-locks").exists()
+
+    entered = threading.Event()
+    release = threading.Event()
+
+    def take():
+        with leases_model.page_locked(page):
+            entered.set()
+            assert release.wait(10)
+
+    taker = threading.Thread(target=take)
+    with leases_model.page_locked(page):
+        taker.start()
+        time.sleep(0.2)  # the taker opens the directory and waits on this lock
+        shutil.rmtree(page)
+        page.mkdir()
+    assert entered.wait(10)
+    fd = os.open(page, os.O_RDONLY)
+    try:
+        with pytest.raises(BlockingIOError):
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    finally:
+        os.close(fd)
+    release.set()
+    taker.join(10)
+
+    page.rmdir()
+    with pytest.raises(FileNotFoundError), leases_model.page_locked(page):
+        pass
 
 
 def test_a_new_claim_cannot_borrow_the_previous_sessions_wait_lease(
@@ -10645,6 +10810,24 @@ def test_a_background_wait_start_carries_the_closing_guidance(monkeypatch, capsy
     waits.pop().release()
 
 
+def test_a_wait_that_ends_unnamed_leaves_no_start_mark():
+    """A foreground wait returns before any tool hook runs, so nothing names its
+    start; ending takes its mark with it, and the session's next wait is a new
+    start. A named start's mark is already gone, and ending does not mind."""
+    mark = leases_model.session_state_path("s1", "started")
+    for named in (False, True):
+        watch = session_model.Watch(
+            host_model.ClaudeCodeHarness(session="s1", agent="Claude")
+        )
+        assert watch.acquire()
+        assert mark.exists()
+        if named:
+            assert leases_model.name_wait_start("s1") is True
+        watch.release()
+        assert not mark.exists()
+        assert leases_model.name_wait_start("s1") is False
+
+
 def test_the_registered_tool_hook_speaks_only_under_claude_code(tmp_path):
     """The `PostToolUse` registration runs `leaf hook` only under Claude Code.
 
@@ -11263,6 +11446,27 @@ def test_server_stop_disables_desired_state_without_signalling_a_pid(
 
     assert hosting_model.cmd_stop(page_dir) == "no server running"
     assert files_model.read_json(page_dir / "service.json")["enabled"] is False
+
+
+def test_server_stop_reports_a_server_that_exits_as_soon_as_it_is_disabled(
+    page_dir, standing_server, monkeypatch
+):
+    server = standing_server(page_dir)
+    write_json = hosting_model.write_json
+
+    def write_and_wait_for_exit(path, value):
+        write_json(path, value)
+        if path == page_dir / "service.json" and not value["enabled"]:
+            wait_for(
+                lambda: leases_model.lock_is_held(page_dir / "server.lock"),
+                lambda held: not held,
+                failure="server did not release its lease after stop",
+                timeout=5,
+            )
+
+    monkeypatch.setattr(hosting_model, "write_json", write_and_wait_for_exit)
+    assert hosting_model.cmd_stop(page_dir) == "stopped server"
+    server.wait(timeout=5)
 
 
 def test_session_end_cannot_release_a_page_claimed_by_its_successor(

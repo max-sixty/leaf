@@ -5,7 +5,7 @@
  * heading titles an identified section, that section is the destination: an eyebrow and
  * heading arrive as one title, and the public fragment names the section rather than its
  * label. Otherwise the heading's id is the destination, or a generated sibling supplies
- * a native fragment target. That target remains useful after export removes this module.
+ * a native fragment target.
  * max-level bounds the authored outline before the module creates either links or targets.
  *
  * In the roomy margin the outline becomes a reading map. Each row receives the length
@@ -22,21 +22,24 @@
  * can shorten without the document moving at all; a widget whose view rearranges
  * descendants without changing its own size emits the shared layout signal. The map
  * writes only to itself, never the main box it observes, and never the track either. The
- * ordinary in-flow list remains the script-free, narrow, and paper form.
+ * ordinary in-flow list remains the narrow and paper form.
  *
- * Every link is a real fragment link in both live pages and standalone copies. The
+ * Every link is a real fragment link. The
  * browser owns its navigation, history, :target state, wheel input, and scroll
  * restoration; hidden-until-found reveals a disclosure or tab containing the target.
  * On an initial load the shared arrival pass runs after all widgets settle, so it can
  * honor a generated target that did not exist during HTML parsing. */
 import {
-  LAYOUT,
-  PRESENTATION,
+  cancelRender,
   inChrome,
   landingInsets,
+  LAYOUT,
+  nextRender,
   once,
+  PRESENTATION,
   relabel,
   scrollerFor,
+  sizeObserver,
   wrote,
 } from "/runtime/widget-api.js";
 
@@ -84,8 +87,8 @@ customElements.define(
       this.#main?.removeEventListener(LAYOUT, this.#onLayout);
       document.removeEventListener(PRESENTATION, this.#onPresentation);
       window.removeEventListener("resize", this.#onResize);
-      cancelAnimationFrame(this.#measureFrame);
-      cancelAnimationFrame(this.#paintFrame);
+      cancelRender(this.#measureFrame);
+      cancelRender(this.#paintFrame);
       this.#measureFrame = 0;
       this.#paintFrame = 0;
     }
@@ -184,7 +187,7 @@ customElements.define(
       // each kind of scroller.
       this.#scrollSource =
         this.#scroller === document.scrollingElement ? document : this.#scroller;
-      this.#watching = new ResizeObserver(() => this.#scheduleMeasure());
+      this.#watching = sizeObserver(() => this.#scheduleMeasure());
       this.#watching.observe(this.#main);
       // Watched at the heading rather than at the destination the row points to. A
       // section that grows — an image arriving, a fold opening — moves every marker
@@ -206,7 +209,7 @@ customElements.define(
 
     #scheduleMeasure() {
       if (this.#measureFrame || !this.isConnected) return;
-      this.#measureFrame = requestAnimationFrame(() => {
+      this.#measureFrame = nextRender(() => {
         this.#measureFrame = 0;
         this.#measure();
       });
@@ -394,7 +397,7 @@ customElements.define(
 
     #schedulePaint() {
       if (this.#paintFrame || !this.isConnected) return;
-      this.#paintFrame = requestAnimationFrame(() => {
+      this.#paintFrame = nextRender(() => {
         this.#paintFrame = 0;
         this.#paint();
       });

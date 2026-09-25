@@ -14,12 +14,12 @@ from urllib.parse import urlsplit
 import uvicorn
 
 from .detached import Handshake, start_detached
-from .event_log import flocked, require_cross_process_locking
+from .event_log import require_cross_process_locking
 from .files import read_json, write_json
 from .host import session_harness
 from .http import page_app, page_endpoint
 from .layer import payload_provenance
-from .leases import take_lease, transition_lock
+from .leases import lock_is_held, page_locked, release_lease, take_lease
 from .registry.storage import layer_metadata
 from .schema import SERVER_LOCK, SERVICE_FILE
 from .server import (
@@ -353,7 +353,7 @@ def _bind_server(page_dir: Path, access: dict, token: str, ports: list, lease):
         except OSError as error:
             if error.errno == errno.EADDRINUSE and "port" not in access:
                 continue
-            lease.close()
+            release_lease(lease)
             sys.exit(
                 f"can't serve {page_dir} on {access['bind']}"
                 f"{':' + str(access['port']) if 'port' in access else ''}: "
@@ -403,7 +403,7 @@ def cmd_serve(
     lease = None
     httpd = None
     runtime = payload_provenance(include_path=True)
-    with flocked(transition_lock(page_dir)), PageTransaction(page_dir) as page:
+    with page_locked(page_dir), PageTransaction(page_dir) as page:
         service = read_json(page_dir / SERVICE_FILE)
         claimed = _serve_claim(page_dir, page, service, standing, revive)
         if _reuse_server(page_dir, host, standing, handshake):
@@ -426,7 +426,7 @@ def cmd_serve(
             # Whoever started this server left before committing the start, and
             # its cleanup may already have run a stop that found nothing to stop.
             # An uncommitted start withdraws itself.
-            with flocked(transition_lock(page_dir)):
+            with page_locked(page_dir):
                 write_json(page_dir / SERVICE_FILE, {**service, "enabled": False})
             return
         threading.Thread(
@@ -437,7 +437,7 @@ def cmd_serve(
         httpd.serve_forever()
     finally:
         httpd.server_close()
-        lease.close()
+        release_lease(lease)
 
 
 def start_server(
@@ -494,20 +494,22 @@ def claim_and_start(
 def cmd_stop(page_dir: Path) -> str:
     """Disable the desired service and wait until its process lease is released.
 
-    The barrier is taking the lease under the transition lock, without waiting:
+    The barrier is taking the lease under the page lock, without waiting:
     held together, they keep a new start out of the gap between the old server's
     exit and this return. The wait between attempts is outside the transition,
     since a serving process may need it to withdraw an uncommitted start."""
     require_cross_process_locking()
     stopped = False
     while True:
-        with flocked(transition_lock(page_dir)):
+        with page_locked(page_dir):
+            # The server may release its lease immediately after we disable it.
+            stopped = stopped or lock_is_held(page_dir / SERVER_LOCK)
             service = read_json(page_dir / SERVICE_FILE)
             if service and service["enabled"]:
                 write_json(page_dir / SERVICE_FILE, {**service, "enabled": False})
             lease = take_lease(page_dir / SERVER_LOCK)
             if lease is not None:
-                lease.close()
+                release_lease(lease)
                 return "stopped server" if stopped else "no server running"
         stopped = True
         time.sleep(0.05)

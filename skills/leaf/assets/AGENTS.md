@@ -1,7 +1,7 @@
 # The page in the browser
 
 This file owns browser-wide contracts: module boundaries, startup, state authority,
-layout, export, and validation. Read each module's header for its local contract.
+layout, and validation. Read each module's header for its local contract.
 Page-authoring rules live in `../references/page-authoring.md`; package contracts live
 in `../references/packages.md`. Repository `AGENTS.md`, "Cross-runtime invariants", owns
 rules shared by Python and JavaScript.
@@ -52,7 +52,7 @@ relative to `runtime/` unless stated otherwise.
 | Vocabulary and public helpers | `registry.js`, `widget-api.js`, `widget-elements.js`, `request-elements.js` |
 | External data and authored projections | `data.js`, `projection/data.js`, `projection/authored.js` |
 | Revision installs and continuity | `version.js`, `version-chooser.js`, `carry.js`, `dom-children.js`, `root-state.js`, `restore-state.js` |
-| Shared repaint and geometry | `repaint.js`, `standing.js`, `page-geometry.js`, `geometry.js`, `pointer.js` |
+| Shared repaint and geometry | `rendering.js`, `repaint.js`, `standing.js`, `page-geometry.js`, `geometry.js`, `pointer.js` |
 | Chrome assembly and available room | `chrome.js`, `chrome-layout.js`, `auxiliary-surfaces.js`, `drawn-edge.js` |
 | Reading regions and scrolling | `reading-regions.js`, `reading-place.js`, `bounds.js`, `scrolling.js`, `reach.js`, `user-place.js` |
 | Keyboard commands and their projections | `keyboard/AGENTS.md` |
@@ -186,7 +186,7 @@ attribute as another source for one of these facts. A rendering may expose state
 but callers do not read the rendering to recover it. For example,
 `style.display` does not answer whether the composer is open, and a focus ring
 does not remember where an Ask walk last landed.
-`data-lf-state` and `data-lf-retired` are settlement output for CSS, export, and render
+`data-lf-state` and `data-lf-retired` are settlement output for CSS and render
 checks. Controllers and retirement painters receive the publisher's explicit outcome;
 they never read either attribute back as semantic input.
 
@@ -247,6 +247,13 @@ synchronous `PRESENTATION` signal lets box-derived page apparatus replace provis
 geometry before the browser can paint the presented state. After it, a state change may
 animate only where motion helps the user follow a change. A failed startup does not
 stamp the page presented as if it had read the log.
+
+`data-lf-presented` is stamped before the chrome that presentation paints has landed.
+Whether chrome and geometry have caught up is a separate, live reading,
+`renderingSettled` in `runtime/rendering.js`, whose header owns what it counts and why
+the stamp does not wait on it. Schedule a rendering callback or watch a size through
+that module's `nextRender`, `cancelRender`, and `sizeObserver`; lint refuses the
+browser's own.
 
 ## What crosses to the server
 
@@ -428,7 +435,7 @@ waits and declares the arrival in one call, so `pageArrived` still answers for i
 nothing outside the page has to name the widget that deferred; `deferredArrival` is that
 declaration on its own, for runtime work that defers without waiting for presentation.
 Apparatus that also depends on authoritative replay takes one synchronous reading on
-`PRESENTATION`, then uses `ResizeObserver` or the shared layout signal for later changes.
+`PRESENTATION`, then uses `sizeObserver` or the shared layout signal for later changes.
 An asynchronous producer's default may reserve space without painting; a box-derived
 reading taken before replay does paint, and `PRESENTATION` replaces it.
 
@@ -522,38 +529,6 @@ there under one name, as `FOLD_MS` is, because two numbers written for one reaso
 to disagree. A duration one motion uses states its reason where it is passed. CSS
 transitions answer to the same ceiling.
 
-## Standalone copies and print
-
-`version export` waits for the already-presented DOM, drops scripts, and marks the root
-`.lf-copy`. Anything meant to survive must be present in markup and CSS.
-Module handlers do not survive.
-
-Baking removes `.lf-chrome` from the live page the copy is taken from, and that page's
-state stream goes on running until its tab closes. So a chrome paint has to survive its
-own region leaving the document: a reading that lands after the tray or panel it draws
-has gone has nothing to draw and reports nothing, the way `tickClock` already culls a
-clocked paint whose owner has left. Throwing instead takes the whole state application
-down with chrome the page no longer has.
-
-Widget affordances fall into three groups:
-
-- A control whose state and behavior are native HTML and CSS may remain
-  interactive in a copy. `lf-shot` uses a serialized checkbox state.
-- Generated controls that require JavaScript are stripped or disarmed. Export
-  removes their runtime tab stops and roles while preserving labels declared as
-  page words.
-- Module-specific visual affordances guarded by live script exist only under
-  `html:not(.lf-copy)`.
-
-Projected data is a fourth question with a different answer: a copy keeps the current
-`projectData` rendering, including its projection and datum labels, but loses the
-module that could refresh it. It is therefore a labelled snapshot, not a live
-projection.
-
-`test_the_exported_corpus_stands_on_its_own` strips scripts, opens the copy, and
-asks what still looks actionable. Keep that end-to-end test general rather than
-asserting one widget's exported implementation.
-
 ## Render gates
 
 `leaf version check <page> --render` is the browser contract. It runs both color
@@ -568,9 +543,7 @@ class. That facade is `leaf/render-checks/index.js`; its directory groups runtim
 reachability, layout, replay, word, widget-contract, and framing probe owners. The
 served graph imports the public widget API statically, so the JavaScript parser and
 module loader validate its syntax, dependencies, and named exports.
-`coveredWords` is reexported from the import-free `render-checks/standalone.js`, which
-lets the same implementation inspect an exported `file://` copy after its runtime has
-been removed. `render-checks/init.js` installs the pre-navigation window-error channel.
+`render-checks/init.js` installs the pre-navigation window-error channel.
 `render-checks/driver.js` stays outside `PROBE_SOURCES` and the served probe module graph;
 Playwright installs it as an init script or reads it directly on an already-open page,
 and repository lint checks the source.

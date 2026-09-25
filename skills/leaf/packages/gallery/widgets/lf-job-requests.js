@@ -36,8 +36,8 @@ customElements.define(
           if (!prior) {
             const label = document.createElement("strong");
             // `offer` is how a widget spells a press: it is what marks the control as
-            // one the layer built, so the hand, the aim floor, the here ring, the
-            // generated target map and the standalone copy all read the same fact.
+            // one the layer built, so the hand, the aim floor, the here ring and the
+            // generated target map all read the same fact.
             const button = offer("button", "lf-btn", "Restart");
             item.append(label, " · ", button);
           }

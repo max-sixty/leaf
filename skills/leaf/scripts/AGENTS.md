@@ -56,8 +56,9 @@ The main owners are:
 - `host`: the agent harness declarations — session identity, lifetime, delivery
   carrier, hook remedies, and the nudge that reaches a session with nothing watching —
   and the Claude Code messaging socket behind one of them;
-- `leases`: process-backed page, transition, and waiter leases, and `take_lease`,
-  the one non-blocking take every lease holder uses;
+- `leases`: process-backed page, transition, and waiter leases, `take_lease`, the
+  one non-blocking take every lease holder uses, and `release_lease`, which removes
+  the file as it lets go;
 - `service`: page claims, serialized transactions, and status;
 - `server` and `hosting`: server address and lifetime state, plus durable and
   process-owned HTTP servers;
@@ -90,8 +91,8 @@ The main owners are:
   complete source reading, and the `version check` command;
 - `passages` and `anchor_capture`: the file-side text reading and authored
   anchor construction;
-- `render_checks`, `render_gate/`, and `exporting`: browser probes, validation,
-  and standalone export;
+- `render_checks` and `render_gate/`: browser probes and validation;
+- `exporting`: a stamped version as one file that opens offline;
 - `data` and `data_contracts`: typed snapshot storage, commands, bindings, and
   registry-contract validation;
 - `media` and `publishing`: page-bound media and public version stamps;
@@ -143,8 +144,7 @@ initializer is only a marker.
 Within `render_gate/`, `scheme` owns one browser/color lifecycle, `readings`
 owns the probe readings and the finding each becomes, `version` owns retry
 policy, `page_code` owns the run plain `version check` gives a page's own code,
-`preview` owns ephemeral servers, `browser` owns the launch the two
-user-path gates share — `exporting` is its other caller — and `command` owns the
+`preview` owns ephemeral servers, `browser` owns the browser launch, and `command` owns the
 CLI boundary. Import the owner directly; the package initializer is only a marker.
 
 Within `validation/`, `markup` owns shared document structure rules, `instances`

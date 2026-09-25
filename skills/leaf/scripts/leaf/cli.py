@@ -140,6 +140,9 @@ def codex_run(
 
     from leaf.codex_adapter import run_adapter
     from leaf.detached import Handshake
+    from leaf.leases import release_on_termination
+
+    release_on_termination()
 
     # Tests run the carrier in the foreground, where nobody waits on a handshake.
     with Handshake(handshake) if handshake is not None else nullcontext() as answer:
@@ -550,20 +553,15 @@ def stamp(dir: str, text: str, completes: tuple[str, ...], as_json: bool) -> Non
     metavar="N",
     help="stamped version to export (default: latest)",
 )
-@click.option(
-    "--interactive",
-    is_flag=True,
-    help="keep captured local behavior; disable Leaf host commands",
-)
-def export(dir: str, out: Path, version: int, interactive: bool) -> None:
-    """Export a stamped version to one HTML file.
+def export(dir: str, out: Path, version: int) -> None:
+    """Export a stamped version to one HTML file that opens offline.
 
-    The default is a rendered, script-free record. --interactive keeps the captured
-    local behavior and opens offline without a Leaf server.
+    The file runs the page's own runtime against its captured state, with no Leaf
+    server or host behind it.
     """
     from leaf.exporting import cmd_export
 
-    sys.exit(cmd_export(resolve_dir(dir), out, version, interactive=interactive))
+    sys.exit(cmd_export(resolve_dir(dir), out, version))
 
 
 @cli.group(short_help="Start, run, or stop the local server.")
@@ -731,10 +729,12 @@ def status(dir: str, state: str, detail: str, on: str | None) -> None:
 )
 def wait(dir: str | None, ack: str | None) -> None:
     """Confirm a delivery, if given, then wait for the next batch."""
+    from leaf.leases import release_on_termination
     from leaf.session import cmd_wait
 
     if dir is not None and ack is not None:
         raise click.UsageError("PAGE and --ack cannot be used together")
+    release_on_termination()
     try:
         outcome = cmd_wait(resolve_dir(dir) if dir else None, ack=ack)
     except RuntimeError as error:

@@ -68,8 +68,8 @@ other page files and the external state listed below.
   and reply bindings. [session-lifetime.md](session-lifetime.md) owns their writers and
   lifetimes; `conversation.py` owns response reservations and their release.
 
-- `waiter.lock` — bare-shell wait lease; host sessions instead use
-  `<state-home>/sessions/<id>.wait`. See [session-lifetime.md](session-lifetime.md).
+- `waiter.lock` — bare-shell wait lease, present only while held; host sessions instead
+  use `<state-home>/sessions/<session>.wait`. See [session-lifetime.md](session-lifetime.md).
 
 - `viewed.json` — last visible browser attention, written by the server and absent until
   first viewed. `http.py` owns throttled renewal; hidden tabs do not renew it.
@@ -85,6 +85,10 @@ other page files and the external state listed below.
   provenance. `hosting.py` owns start/stop and revival;
   [session-lifetime.md, “Lifetime”](session-lifetime.md#lifetime) owns the lifetime rule.
   The URL's access key belongs to the machine's state home.
+
+- The page lock is the directory itself: `leases.page_locked` flocks a descriptor on
+  it to serialize service changes, re-vendoring, and contract-bearing writes, so it
+  writes nothing and ends with the page.
 
 - `server.lock` — process-held server lease. `hosting.py` waits for its release on stop,
   after the server has closed its sockets.

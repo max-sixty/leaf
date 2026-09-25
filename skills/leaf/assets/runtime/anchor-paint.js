@@ -6,6 +6,7 @@
  * and frame invalidation are supplied above this module.
  */
 
+import { cancelRender, nextRender } from "./rendering.js";
 import {
   anchoringIsReady,
   annotationAt,
@@ -180,7 +181,7 @@ export function createAnchorPaint({
   // a node at event time would leave reconciliation able to replace it before paint.
   function refreshHover() {
     if (hoverFrame || (!marked.size && !hovering && !hoverThread)) return;
-    hoverFrame = requestAnimationFrame(() => {
+    hoverFrame = nextRender(() => {
       hoverFrame = 0;
       const at = pointer();
       const onMark = markAt(at.x, at.y);
@@ -352,7 +353,7 @@ export function createAnchorPaint({
   function destroy() {
     if (mounted) document.removeEventListener("pointermove", refreshHover);
     mounted = false;
-    if (hoverFrame) cancelAnimationFrame(hoverFrame);
+    if (hoverFrame) cancelRender(hoverFrame);
     hoverFrame = 0;
     for (const where of allMarks())
       if (where instanceof Element) where.classList.remove("lf-mark-el");

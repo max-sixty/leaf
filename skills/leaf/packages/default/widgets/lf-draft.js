@@ -35,8 +35,8 @@
  * the words it edits, and the gesture that used to open the box in place was a
  * double-click nothing advertised. The draft
  * contributes that disclosure to its target's shared margin entry cluster. Save and Cancel
- * replace it for the length of an edit, with their width reserved before presentation,
- * so opening the editor changes what the one RHS item offers without moving the
+ * replace it for the length of an edit; the pair is the two entries the rail is sized
+ * for, so opening the editor changes what the one RHS item offers without moving the
  * document. Unsent
  * keystrokes ride the runtime's draft store
  * (saveDraft/clearDraft), the composer's discipline: written on input, cleared only by a
@@ -75,7 +75,7 @@
  * swap between the two views included: an open edit is the box being in the document, so
  * the CSS reads that and this module writes no display state at all. Which is also what
  * lets paper disagree — it drops the box and keeps the words. History is chrome too and
- * exists only on a live page; a scriptless copy cannot honestly offer restore. Authored
+ * exists only on a live page. Authored
  * content is never discarded, so there is no failSoft.
  */
 import {
@@ -113,12 +113,6 @@ const ctx = (id) => "edit:" + id;
 const saveEdit = (id, text) => saveDraft(ctx(id), text);
 const clearEdit = (id) => clearDraft(ctx(id));
 const loadEdit = (id) => loadDraft(ctx(id));
-const draftReserve = () => {
-  const aim = parseFloat(
-    getComputedStyle(document.documentElement).getPropertyValue("--aim-floor"),
-  );
-  return Math.max(32, aim || 0) * 2 + 4;
-};
 
 // Where the click asked for the caret, as an offset in the body's text — the body holds
 // one text node, so its offsets are the textarea's offsets. Past the end of the text
@@ -416,8 +410,6 @@ customElements.define(
               ? "engaged"
               : "idle",
         side: "before",
-        claim: true,
-        reserve: draftReserve(),
         notice: this.#failed && this.#ta ? { text: "Failed", tone: "negative" } : null,
         entries: this.#entries(),
         readings: [

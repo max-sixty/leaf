@@ -92,7 +92,6 @@ from render_harness import (
     EXAMPLE_PACKAGES,
     IMPORTER_CARD,
     ONE_FRAME,
-    RENDERED,
     REPLAYED_PAGE,
     REPLY_HOST_PAGE,
     SPECIMEN_MARKUP,
@@ -113,6 +112,7 @@ from render_harness import (
     panel_settled,
     post_event,
     refuse,
+    rendered,
     resized,
     round_trip,
     scroll_settled,
@@ -1098,6 +1098,8 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     decoded_css_width = first.locator("lf-shot img").first.evaluate(
         "image => image.naturalWidth / 2"
     )
+    # The widget lays out a scale change in a rendering callback after the click.
+    rendered(page)
     assert first.locator("lf-shot img").first.evaluate(
         "image => image.getBoundingClientRect().width"
     ) == pytest.approx(decoded_css_width, abs=1), (
@@ -1419,35 +1421,6 @@ def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
     ) == pytest.approx(350, abs=1)
     shot_host.evaluate("node => node.style.removeProperty('height')")
     expect(widget).to_have_attribute("data-compare-layout", "side")
-    page.locator("html").evaluate("node => node.classList.add('lf-copy')")
-
-    def read_copy_widths():
-        return widget.locator(".lf-vr-case lf-shot img").evaluate_all(
-            "images => images.map(image => image.getBoundingClientRect().width)"
-        )
-
-    copy_widths = read_copy_widths()
-    assert len(copy_widths) == 6
-    assert copy_widths[:4] == pytest.approx([388] * 4, abs=1)
-    host_widths = widget.locator(".lf-vr-case .lf-vr-shot-host").evaluate_all(
-        """nodes => nodes.map(node => {
-          const style = getComputedStyle(node);
-          return node.getBoundingClientRect().width
-            - parseFloat(style.borderLeftWidth) - parseFloat(style.borderRightWidth);
-        })"""
-    )
-    assert len(host_widths) == 3
-    assert min(copy_widths[4:]) > 1000
-    # The full-width capture uses the stage's content width, inside its frame's borders.
-    assert copy_widths[4:] == pytest.approx([host_widths[2] - 2] * 2, abs=1)
-    # The copy is the whole workspace at its sheet's width on the first frame and every
-    # later one: a user who copies a slower page gets the same evidence.
-    page.evaluate(ONE_FRAME)
-    assert read_copy_widths() == pytest.approx(copy_widths, abs=1)
-    assert widget.locator(".lf-vr-case lf-shot img").evaluate_all(
-        "images => images.every(image => getComputedStyle(image).transform === 'none')"
-    )
-    page.locator("html").evaluate("node => node.classList.remove('lf-copy')")
     widget.locator(".lf-vr-shot-host").evaluate_all(
         "nodes => nodes.forEach(node => node.style.setProperty('--lf-vr-capture-width', '300px'))"
     )
@@ -4341,7 +4314,7 @@ def test_the_ring_says_where_the_user_is_standing(browser, serve):
     # Read after the frame the focus move's repaint is coalesced into, so this states the
     # band the page settles on rather than whichever side of that frame the read lands on.
     page.keyboard.press("Tab")
-    page.evaluate(RENDERED)
+    rendered(page)
     decision_ring = suggestion.evaluate(RING)
     assert decision_ring == row_ring, (
         "the decision lost its ring while the user held one of its own margin "

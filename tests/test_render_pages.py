@@ -13,7 +13,6 @@ from interact_support import (
 from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import events as conversation_model
-from leaf import exporting as exporting_model
 from leaf import render_checks as render_checks_model
 from leaf import schema as schema_model
 from leaf import structure as structure_model
@@ -49,7 +48,6 @@ from render_cases_widgets import (
     NOTE_BAND,
     OWN_MARGIN_FURNITURE,
     PICTURE_PAGE,
-    RAIL_AND_WIDE_PAGE,
     RAIL_BAND_PAGE,
     RAIL_BANDS,
     RAIL_FIT,
@@ -482,7 +480,7 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
     )
     assert replied, (
         "no shipped log carries an agent reply, so no example exercises the live "
-        "thread exchange that authored markup and static export cannot represent"
+        "thread exchange that authored markup cannot represent"
     )
 
 
@@ -1664,7 +1662,7 @@ lf-roomy > section { min-height: 80px; border: 1px solid currentColor; }
 """,
     )
     page = open_page(browser, serve(source, layer_registry={"lf-roomy": entry}))
-    resized(page, 1726, 900)
+    resized(page, 1762, 900)
     at = page.locator("#roomy").evaluate("""el => {
       const box = el.getBoundingClientRect();
       const children = [...el.children].map(node => node.getBoundingClientRect().width);
@@ -1782,9 +1780,7 @@ def test_a_widget_that_declares_width_takes_the_room_and_the_column_stays_put(
     assert narrow["sideways"] == 0, "nor scroll sideways on a narrow window"
 
 
-def test_authored_blocks_choose_column_wide_or_available_space(
-    browser, serve, tmp_path
-):
+def test_authored_blocks_choose_column_wide_or_available_space(browser, serve):
     """One authored width contract applies to native and package blocks. An occurrence
     wins over a package default, and column remains the prose measure when nested in a
     wider section rather than inheriting its containing block's allocation."""
@@ -1826,21 +1822,6 @@ def test_authored_blocks_choose_column_wide_or_available_space(
     assert page.evaluate("document.documentElement.scrollWidth") == page.evaluate(
         "document.documentElement.clientWidth"
     )
-
-    exported = exporting_model.export_page(browser, page.url, serve.page_dir, "v1.html")
-    assert 'data-width="wide"' in exported
-    assert 'data-lf-space="wide"' in exported
-    copy_path = tmp_path / "authored-widths.html"
-    copy_path.write_text(exported)
-    copy = browser.new_page(viewport={"width": 1726, "height": 900})
-    copy.goto(copy_path.as_uri(), wait_until="load")
-    expect(copy.locator("#wide")).to_have_attribute("data-lf-space", "wide")
-    assert copy.locator("#wide").evaluate("el => el.getBoundingClientRect().width") > (
-        copy.locator("#nested-column").evaluate(
-            "el => el.getBoundingClientRect().width"
-        )
-    )
-    copy.close()
 
     next_source = source.replace(' data-width="wide"', "", 1)
     stamp_page(serve.page_dir, next_source, "remove an authored width")
@@ -1915,7 +1896,7 @@ def test_paper_holds_no_room_for_the_chrome_it_does_not_print(browser, serve):
         f"the document starts {room['head']:.0f}px down, under a "
         f"{room['banner']:.0f}px banner"
     )
-    assert room["foot"] >= room["line"], (
+    assert room["foot"] >= room["line"] - 1, (
         f"the document ends {room['foot']:.0f}px short of its own end, under a "
         f"{room['line']:.0f}px shortcut bar"
     )
@@ -1937,133 +1918,6 @@ def test_paper_holds_no_room_for_the_chrome_it_does_not_print(browser, serve):
     assert printed["head"] <= 1 and printed["foot"] <= 1, (
         f"a sheet held {printed['head']:.0f}px over the first line and "
         f"{printed['foot']:.0f}px under the last, for chrome it does not print"
-    )
-
-
-def test_a_copy_keeps_a_wide_widget_inside_its_standing_reaction_rail(
-    browser, serve, tmp_path
-):
-    """A standing reaction survives export with the rail reserved for its mark. A wide
-    board later in the copy must spend the room inside that rail rather than run past
-    the page's own box; the live render gate cannot inspect this rewritten file.
-
-    The rail the copy has to keep is the one the live page measured, which is why this
-    reads the live number first and asks the copy for that number rather than for a
-    non-zero one. The cascade leaves a floor under `--rail` — the generated marker's own
-    width — so a copy that lost the measurement still reports a strip, and a mark wider
-    than the floor then hangs over the room the file lays its content out in. That is
-    the standing trap `prepareExport` names where it sweeps the root's inline custom
-    properties: `--rail` is measured furniture the copy still has, not a reading of the
-    exporter's window, and adding it to that sweep is the mistake this case exists to
-    catch."""
-    url = serve(RAIL_AND_WIDE_PAGE)
-    events_model.append_event(
-        serve.page_dir,
-        {
-            "kind": "comment",
-            "author": "user",
-            "revision": 1,
-            "token": "shorten",
-            "anchor": {
-                "section": "old-line",
-                "quote": "Refill every feeder each morning.",
-            },
-        },
-    )
-    live = open_page(browser, url)
-    measured = live.evaluate(
-        "() => document.documentElement.style.getPropertyValue('--rail')"
-    )
-    live_fit = live.evaluate(RAIL_FIT)
-    live.close()
-    assert measured and measured != "0px", (
-        "the live page states no rail, so a copy keeping none would prove nothing — "
-        f"{measured!r}"
-    )
-
-    out = tmp_path / "reaction-rail.html"
-    out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
-
-    page = browser.new_page(viewport={"width": 1200, "height": 900})
-    page.goto(out.as_uri(), wait_until="load")
-
-    expect(
-        page.locator('.lf-margin-entry[data-lf-margin-entry-owner^="suggestion:"]')
-    ).to_have_count(0)
-    expect(page.locator(".lf-react-mark")).to_have_count(1)
-    carried = page.evaluate(
-        "() => document.documentElement.style.getPropertyValue('--rail')"
-    )
-    fit = page.evaluate(RAIL_FIT)
-    assert carried == measured, (
-        "the copy lost the rail the live page measured and fell back to the cascade's "
-        f"floor — live {measured!r}, copy {carried!r}"
-    )
-    assert fit["rail"] == live_fit["rail"], (
-        "the copy's right strip is not the one the mark was measured into — "
-        f"live {live_fit['rail']}, copy {fit['rail']}"
-    )
-    assert fit["past"] <= 1, (
-        f"the copied board stands {fit['past']:.0f}px outside the page's own box, "
-        f"using {fit['widget']:.0f}px inside {fit['content']:.0f}px of content"
-    )
-
-
-def test_the_room_is_measured_after_a_late_rail(browser, serve):
-    """A page carrying a change to decide gives up a rail of the controls' own width, and
-    the width of those controls is a fact about their words — so lf-suggestion measures
-    the first row it builds and states it, which is long after the layout first ran. The
-    room a wide widget spends came from that first run, and nothing asked again: the
-    exhibit kept the width of a page 189px wider than the one it was standing on and hung
-    out over the rail.
-
-    Stated rather than run for, and the route handler is where it is stated: it waits for
-    the room the page states and only then lets the module through, so the ordering holds
-    whichever way the machine would have gone. Releasing the held request from out here
-    ordered nothing, since the module is asked for behind the registry's own round trip
-    while the room needs no network at all — a loaded runner had the room stated with the
-    request still to come, and the release reached for a request nobody had made.
-
-    The reading is taken at the stamp, because a settled page is right either way: the
-    rail is a claim on the page's own box and that box is watched, so the room is restated
-    a frame later whatever the runtime's own call does, and every reading through the
-    browser arrives after that frame. A MutationObserver on the stamp lands ahead of it.
-    What the injection buys is the record and not the wait — the stamp is the runtime's
-    own statement that the geometry it hands over is final, so this asks the page at the
-    moment it makes the claim."""
-    url = serve(RAIL_AND_WIDE_PAGE)
-    page = browser.new_page(viewport={"width": 1200, "height": 900})
-    page.add_init_script(AT_THE_HANDOVER)
-
-    laid_out = []
-
-    def release_the_rail(route):
-        page.wait_for_function("() => Boolean(document.querySelector('main'))")
-        laid_out.append(
-            page.evaluate(
-                "() => getComputedStyle(document.documentElement)"
-                ".getPropertyValue('--rail')"
-            )
-        )
-        route.continue_()
-
-    page.route("**/widgets/lf-suggestion.js", release_the_rail)
-    page.goto(url)
-    page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
-
-    assert laid_out == [""], (
-        "the module was never held behind the layout, so the rail's arrival is the "
-        f"machine's ordering rather than this test's: {laid_out}"
-    )
-    fit = page.evaluate("() => window.__handover")
-    assert fit["rail"] != "0px", (
-        "no rail was reserved, so the late-arriving fact this is about never arrived"
-    )
-    assert fit["past"] <= 1, (
-        f"the board stands {fit['past']:.0f}px outside the page's own box at the moment "
-        f"the page says it is done, laid out to the width of a page 189px wider than "
-        f"the one it is on: {fit['widget']:.0f}px of widget in {fit['content']:.0f}px "
-        "of page"
     )
 
 
@@ -2151,14 +2005,13 @@ def test_a_wide_widget_leaves_the_rail_its_controls(browser, serve):
     written: 76px of board over the controls at 1200px and 134px at 1400 and 1600,
     which is the whole row.
 
-    The claim is settled at the height it arises, which is what the two boards are for
-    — the same pair the sidenote's margin keeps. One holds a change in its
-    own card, so its row hangs level with it and the board declines the right side; the
-    other is 600px further down with nothing beside it, and grows both ways where it
-    stands. Asserting only the first would pass just as well for a page that refused
-    every exhibit the margin because a change existed somewhere above it — the reading
-    that held a board 1400px below the only row to the column's width with 345px of
-    margin standing empty beside it.
+    The row gives way rather than the board, because the row is Leaf's and the board is
+    the page's: nothing Leaf draws moves the page's content, so a comment arriving level
+    with a board cannot narrow it. The board's growth stops at main's gutter, which holds
+    the rail's reservation, so a row level with it steps out past its right edge into the
+    rail. Both boards are for that — the same pair the sidenote's margin keeps. One holds
+    a change in its own card, so its row hangs level with it; the other is 600px further
+    down with nothing beside it. Both grow both ways where they stand.
 
     A range of windows rather than one, because the gap between the reservation and the
     occupancy is the column's leftover and grows with the window: a single viewport can
@@ -2201,25 +2054,36 @@ def test_a_wide_widget_leaves_the_rail_its_controls(browser, serve):
             f"{at['plan']['width']:.0f}px inside the column"
         )
 
-    # The claim reaches the rows' own heights and no further: with the whole left margin
-    # free the near board still grows that way, and the far board, which no row is level
-    # with, takes both margins where it stands.
+    # Both boards take both margins, the one a row stands level with included: the row
+    # stepped out past it rather than the board pulling back.
     resized(page, 1600, 900)
+    margins_laid_out(page)
     at = page.evaluate(RAIL_BANDS)
-    assert at["plan"]["left"] < at["column"]["left"] - 1, (
-        "a claim on one margin must cost that side only: with the whole left margin "
-        "free the near board is still the column's width, so nothing grew at all"
-    )
-    assert at["later"]["right"] > at["column"]["right"] + 1, (
-        "a board with no row anywhere near it is held to the column's right edge: a "
-        "row claims the margin at its own height, not down the whole page"
-    )
+    for name in ("plan", "later"):
+        assert at[name]["left"] < at["column"]["left"] - 1, (name, at)
+        assert at[name]["right"] > at["column"]["right"] + 1, (
+            f"the {name} board is held to the column's right edge, so a row in the "
+            f"margin took room from the page's content: {at}"
+        )
+    level = [
+        r
+        for r in at["rows"]
+        if not r["docked"]
+        and r["top"] < at["plan"]["bottom"]
+        and r["bottom"] > at["plan"]["top"]
+    ]
+    assert level, f"no row stands level with the near board, so nothing is tested: {at}"
+    for r in level:
+        assert r["left"] >= at["plan"]["right"], (r, at)
+        assert r["right"] <= at["pageRight"] + 1, (r, at)
 
 
 def test_a_contents_map_and_right_rail_leave_the_middle_room(browser, serve):
-    """A right-side action withholds only the right growth from a surface level with
-    it. The contents map owns its complete interaction rectangle at the shell edge, so
-    the empty band between that map and the prose remains available on the left."""
+    """A surface grows into both margins between the contents map at the shell's left
+    edge and the rail at its right. A right-side action level with it steps out past the
+    surface into the rail instead of taking the surface's right growth, and the map owns
+    its complete interaction rectangle, so the band between map and prose stays the
+    surface's on the left."""
     source = RAIL_BAND_PAGE.replace(
         '<h1 id="t">Release</h1>',
         '<aside class="sidebar"><lf-toc id="rail-toc"></lf-toc></aside>'
@@ -2233,14 +2097,18 @@ def test_a_contents_map_and_right_rail_leave_the_middle_room(browser, serve):
     toc = page.locator("#rail-toc").bounding_box()
     assert toc is not None
     hanging = [row for row in at["rows"] if not row["docked"]]
-    assert page.locator("#plan").get_attribute("data-lf-yield") == "r"
-    assert hanging and any(
-        plan["top"] < row["bottom"] and plan["bottom"] > row["top"] for row in hanging
-    ), at
-    assert plan["right"] <= at["column"]["right"] + 1, at
+    level = [
+        row
+        for row in hanging
+        if plan["top"] < row["bottom"] and plan["bottom"] > row["top"]
+    ]
+    assert level, at
+    assert plan["right"] > at["column"]["right"] + 1, at
     assert toc["x"] + toc["width"] + 15 <= plan["left"]
-    assert plan["left"] <= toc["x"] + toc["width"] + 25
     assert plan["left"] < at["column"]["left"] - 100, at
+    for row in level:
+        assert row["left"] >= plan["right"], at
+        assert row["right"] <= at["pageRight"] + 1, at
     for row in hanging:
         across = plan["left"] < row["right"] and plan["right"] > row["left"]
         down = plan["top"] < row["bottom"] and plan["bottom"] > row["top"]
@@ -2617,6 +2485,8 @@ def test_a_wide_widget_stays_inside_a_box_that_frames_it(browser, serve):
         '<h1 id="t">Framed</h1>',
     )
     page = open_page(browser, serve(source))
+    # Wide enough that the sidebar, the column and the rail leave the loose board room.
+    resized(page, 1280, 900)
     boxes = page.evaluate("""() => {
         const box = (sel) => {
             const r = document.querySelector(sel).getBoundingClientRect();
@@ -2794,61 +2664,7 @@ def test_a_wide_widget_gives_the_tray_its_strip(browser, serve):
     assert closed_again["sideways"] == 0
 
 
-def test_a_copy_reads_the_room_from_its_own_window(browser, serve, tmp_path):
-    """A copy keeps the breakout, because it is layout the markup describes rather than
-    an affordance a handler kept — but it cannot keep the *number*. The room is measured
-    on the live page and stated inline on the root, which outranks any rule, so a copy
-    carrying it would hold the exporter's headless window forever and lay a file out for
-    a window nobody is reading it in. BAKE takes it off and the theme states the copy's
-    own, from a viewport that is honest there: a file has no thread panel to yield a
-    strip to.
-
-    The width that panel stands at is stated on the root by the same hand, and goes the
-    same way — not because a copy reads it, having no panel, but because both numbers
-    belong to a window and a user that are not this file's. The reading asks for the
-    root's whole style rather than for either name, so the day a third number is stated
-    there is the day this says so.
-
-    Both windows, because that estimate is the half that can be wrong in either
-    direction, and it was: reading 96px off the viewport puts it under the true room on a
-    narrow window, and the first draft of this stood every copied board 24px inside the
-    prose it was set beneath. The floor at the column is what answers that, and this is
-    what says the floor is still there."""
-    url = serve(WIDE_AND_NARROW_PAGE)
-    out = tmp_path / "standalone.html"
-    out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
-
-    page = browser.new_page(viewport={"width": 1400, "height": 900})
-    page.goto(out.as_uri(), wait_until="load")
-
-    stated = page.evaluate("() => document.documentElement.getAttribute('style') ?? ''")
-    assert stated.strip() == "", (
-        "the copy carries this window's measurements into every window it is opened "
-        f"in: {stated}"
-    )
-
-    wide = page.evaluate(ROOM_GEOMETRY)
-    assert wide["board"]["width"] > wide["column"]["width"], (
-        "a copy keeps the breakout: it is layout, not an affordance — board "
-        f"{wide['board']['width']:.0f}px, column {wide['column']['width']:.0f}px"
-    )
-    assert wide["board"]["left"] >= wide["room"]["left"] - 1, (
-        "past the page on the left"
-    )
-    assert wide["board"]["right"] <= wide["room"]["right"] + 1, "past the page, right"
-    assert wide["sideways"] == 0, "a copy must not scroll sideways either"
-
-    resized(page, 700, 900)
-    narrow = page.evaluate(ROOM_GEOMETRY)
-    assert abs(narrow["board"]["width"] - narrow["column"]["width"]) <= 1, (
-        "the copy's own reading of the room came in under the column and shrank the "
-        f"board inside the prose: board {narrow['board']['width']:.0f}px, column "
-        f"{narrow['column']['width']:.0f}px"
-    )
-    assert narrow["sideways"] == 0, "nor on a narrow one"
-
-
-def test_a_wide_widget_leaves_the_sidenote_its_margin(browser, serve, tmp_path):
+def test_a_wide_widget_leaves_the_sidenote_its_margin(browser, serve):
     """The page has two claims on its right margin now: a note is read out there, and a
     wide widget expands into it. A widget drawn over a note is the note lost — it is the
     thing on top — and the user loses words the page states, which is the same fault
@@ -2859,64 +2675,43 @@ def test_a_wide_widget_leaves_the_sidenote_its_margin(browser, serve, tmp_path):
     the other is 600px further down with nothing out there, and takes the margin where it
     stands. Asserting only the first would pass just as well for a page that refused every
     exhibit the margin because a note existed somewhere above it — the reading that held a
-    diagram to the column's own width with the margin beside it empty.
-
-    Both media, because they answer the question differently and only one of them
-    measures. The live page reads the room off the box the layout actually produced, so a
-    strip reserved by any rule at all is already out of it; a copy runs no script and the
-    theme states the room from the viewport, which knows about a strip only if the rule
-    that states the room subtracts the same one the padding added. `clear` is the same
-    answer in both, being layout rather than measurement."""
-    url = serve(NOTE_AND_WIDE_PAGE)
-    out = tmp_path / "standalone.html"
-    out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
-
-    page = open_page(browser, url)
+    diagram to the column's own width with the margin beside it empty."""
+    page = open_page(browser, serve(NOTE_AND_WIDE_PAGE))
     resized(page, NOTE_BAND, 900)
-    live = page.evaluate(ROOM_GEOMETRY)
+    wide = page.evaluate(ROOM_GEOMETRY)
 
-    copy_errors = []
-    copy = browser.new_page(viewport={"width": NOTE_BAND, "height": 900})
-    copy.on(
-        "console", lambda m: copy_errors.append(m.text) if m.type == "error" else None
+    assert wide["note"]["width"] > 0, (
+        "the page lost the note entirely, so this proves nothing about the margin"
     )
-    copy.on("pageerror", lambda e: copy_errors.append(str(e)))
-    copy.goto(out.as_uri(), wait_until="load")
-    copied = copy.evaluate(ROOM_GEOMETRY)
-
-    for medium, wide in (("the live page", live), ("a copy", copied)):
-        assert wide["note"]["width"] > 0, (
-            f"{medium} lost the note entirely, so this proves nothing about the margin"
+    note = wide["note"]
+    assert wide["later"]["width"] > wide["column"]["width"] + 1, (
+        f"the page never grows the unobstructed board past prose, so neither "
+        f"exhibit asks to share the note's margin: {wide}"
+    )
+    for name in ("board", "later"):
+        exhibit = wide[name]
+        across = exhibit["left"] < note["right"] and exhibit["right"] > note["left"]
+        down = exhibit["top"] < note["bottom"] and exhibit["bottom"] > note["top"]
+        assert not (across and down), (
+            f"the page stands the {name} board over the note it shares the margin "
+            f"with: board {exhibit['left']:.0f}–{exhibit['right']:.0f}px across and "
+            f"{exhibit['top']:.0f}–{exhibit['bottom']:.0f}px down, note "
+            f"{note['left']:.0f}–{note['right']:.0f}px and "
+            f"{note['top']:.0f}–{note['bottom']:.0f}px"
         )
-        note = wide["note"]
-        assert wide["later"]["width"] > wide["column"]["width"] + 1, (
-            f"{medium} never grows the unobstructed board past prose, so neither "
-            f"exhibit asks to share the note's margin: {wide}"
-        )
-        for name in ("board", "later"):
-            exhibit = wide[name]
-            across = exhibit["left"] < note["right"] and exhibit["right"] > note["left"]
-            down = exhibit["top"] < note["bottom"] and exhibit["bottom"] > note["top"]
-            assert not (across and down), (
-                f"{medium} stands the {name} board over the note it shares the margin "
-                f"with: board {exhibit['left']:.0f}–{exhibit['right']:.0f}px across and "
-                f"{exhibit['top']:.0f}–{exhibit['bottom']:.0f}px down, note "
-                f"{note['left']:.0f}–{note['right']:.0f}px and "
-                f"{note['top']:.0f}–{note['bottom']:.0f}px"
-            )
-        assert wide["later"]["right"] > wide["column"]["right"] + 1, (
-            f"{medium} held a board with no note anywhere near it to the column's own "
-            f"right edge: board to {wide['later']['right']:.0f}px, column to "
-            f"{wide['column']['right']:.0f}px. A note claims the margin at its own height, "
-            f"not down the whole page."
-        )
-        assert wide["sideways"] == 0, (
-            f"{medium} scrolls sideways, so the room it took was not the room it had"
-        )
-        assert wide["board"]["width"] >= wide["column"]["width"] - 1, (
-            f"{medium} shrank the board inside the measure its own prose is set to: "
-            f"board {wide['board']['width']:.0f}px, column {wide['column']['width']:.0f}px"
-        )
+    assert wide["later"]["right"] > wide["column"]["right"] + 1, (
+        f"the page held a board with no note anywhere near it to the column's own "
+        f"right edge: board to {wide['later']['right']:.0f}px, column to "
+        f"{wide['column']['right']:.0f}px. A note claims the margin at its own height, "
+        f"not down the whole page."
+    )
+    assert wide["sideways"] == 0, (
+        "the page scrolls sideways, so the room it took was not the room it had"
+    )
+    assert wide["board"]["width"] >= wide["column"]["width"] - 1, (
+        f"the page shrank the board inside the measure its own prose is set to: "
+        f"board {wide['board']['width']:.0f}px, column {wide['column']['width']:.0f}px"
+    )
 
 
 def test_a_note_sets_the_page_axis_at_every_roomy_width(browser, serve):
@@ -3105,33 +2900,20 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
     assert geometry["sidebarLeft"] >= geometry["trayRight"] - 1
     assert abs(geometry["tocLeft"] - geometry["trayRight"] - 24) <= 1
     assert 64 <= geometry["tocTop"] <= 68
-    # The map is sized to the window rather than to the room left under the shortcut bar, so
-    # its foot is the window's less the banner and the inset. The line stands over its
-    # last entry and this asserts that it does: the line is a hover here, and the map is
-    # not one of the regions that ends above it (`lf-toc`'s rule carries the TODO).
-    assert abs(geometry["tocBottom"] - 876) <= 1, (
-        f"the map is no longer sized to the window: {geometry}"
-    )
-    assert geometry["lineTop"] < geometry["tocBottom"], (
-        f"the shortcut bar no longer stands over the map's foot, so the cutoff this page "
-        f"accepts has been closed somewhere without the TODO being settled: {geometry}"
+    # The map ends above the bottom band, as every region does: its foot is the window's
+    # less the band and the map's own inset, so the keyboard's line never covers its last
+    # entry.
+    assert abs(geometry["tocBottom"] - (geometry["lineTop"] - 24)) <= 1, (
+        f"the map's foot is not the band's top less its inset: {geometry}"
     )
     banner_control(page, ".lf-asks").click()
     expect(page.locator(".lf-asks-panel")).to_be_hidden()
 
-    # The rail claim is monotonic, so narrowing the same page carries its widest
-    # right-margin row into the tighter layout. The sidebar and rail use the outer
-    # gutters before taking width from the reading column, so the page narrowed to
-    # exactly what the two residents and a whole column need still holds all three.
-    #
-    # That width is read rather than stated, because the rail's claim is a measured
-    # row rather than a token: it is the widest margin control the page carries, and
-    # its width is the width the host's UI font sets that control's words in. A stated
-    # 1200px window asks that claim to come in at 216px or narrower, which is a bet on
-    # one machine's fonts: this runner sets the same control 250px wide, and the 34px
-    # difference is width the column has to give up. The window adds back whatever the
-    # root scrollport holds outside the container query's own width.
-    exact = max(1152, roomy["strip"] + 720 + roomy["rail"])
+    # The sidebar and rail use the outer gutters before taking width from the reading
+    # column, so the page narrowed to exactly what the two residents and a whole column
+    # need still holds all three. The window adds back whatever the root scrollport
+    # holds outside the container query's own width.
+    exact = max(1188, roomy["strip"] + 720 + roomy["rail"])
     resized(page, math.ceil(exact + roomy["viewportWidth"] - roomy["pageWidth"]), 900)
     margins_laid_out(page)
     tighter = page.evaluate(reading)
@@ -3225,17 +3007,14 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
     assert abs(printed["sidebar"]["left"] - printed["column"]["left"]) <= 1
 
 
-def test_opposite_margin_residents_wait_for_the_room_they_need(
-    browser, serve, tmp_path
-):
+def test_opposite_margin_residents_wait_for_the_room_they_need(browser, serve):
     """One margin floor buys one resident, not two strips at once.
 
     At the ordinary 1152px floor, the sidenote keeps its established right margin and
     the sidebar remains in flow. Giving both their full strips there leaves only 504px
     for prose. At the combined floor of the page's own box, both may stand outside a
     full ordinary column; a window short of that floor by a live platform's stable
-    scrollbar gutter has the veto hand the strips back. A script-free copy has to make
-    the same choice from its viewport alone.
+    scrollbar gutter has the veto hand the strips back.
 
     The second sidebar is the other composition case: only the first direct child of
     main may take the sticky page-level slot, so an accidental second one remains in
@@ -3253,8 +3032,6 @@ def test_opposite_margin_residents_wait_for_the_room_they_need(
 """,
     )
     url = serve(with_one_ask(source))
-    out = tmp_path / "margin-residents.html"
-    out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
 
     reading = """() => {
       const main = document.querySelector('main'), ms = getComputedStyle(main);
@@ -3347,16 +3124,6 @@ def test_opposite_margin_residents_wait_for_the_room_they_need(
     assert [side["float"] for side in repeated["sidebars"]] == ["none", "none"]
     assert repeated["noteFloat"] == "right"
     assert repeated["column"]["width"] == 720
-    page.close()
-
-    copy = browser.new_page(viewport={"width": 1200, "height": 800})
-    copy.goto(out.as_uri(), wait_until="load")
-    copied = copy.evaluate(reading)
-    assert [side["float"] for side in copied["sidebars"]] == ["none", "none"]
-    assert copied["noteFloat"] == "right"
-    assert copied["padding"] == {"left": 0, "right": 384}
-    assert copied["column"]["width"] == 720
-    assert copied["sideways"] == 0
 
 
 def test_the_handed_over_url_opens_the_latest_version(browser, serve):

@@ -26,16 +26,7 @@ const presentationModel = () =>
     label: `All leaves (${rows.length})`,
     rows,
   });
-// A tray that has left the document has no region to present into, and a reading that
-// arrives after it leaves is not the reading's fault. `version export` bakes a copy by
-// removing `.lf-chrome` from the live page while its state stream is still running, so
-// the next read reached a detached list, `present` threw for the handle its
-// `disconnectedCallback` had already dropped, and the throw came back out of the whole
-// state application as `State presentation failed` — a page taken down by chrome it no
-// longer has. `tickClock` states the same rule for clock-driven paints by culling an
-// entry whose owner has left; this is that rule for the one caller that paints directly.
-export const presentLeaves = () =>
-  liveLeavesList.isConnected ? liveLeavesList.present(presentationModel()) : undefined;
+export const presentLeaves = () => liveLeavesList.present(presentationModel());
 
 // The tray's own scope. The walk is the tray's rather than the page's, because ArrowUp
 // and ArrowDown anywhere else are the page's own scroll and stay so; Enter is the

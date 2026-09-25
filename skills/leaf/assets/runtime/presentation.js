@@ -118,7 +118,6 @@ export const PAGE_PAINT_ATTRIBUTE = Object.freeze({
   readingRole: "data-lf-reading-role",
   bound: "data-lf-bound",
   exhibit: "data-lf-exhibit",
-  yield: "data-lf-yield",
   holds: "data-lf-holds",
   moreBefore: "data-lf-more-before",
   moreAfter: "data-lf-more-after",
@@ -245,8 +244,7 @@ export function quietWord(el, word) {
 }
 
 // External page links keep native link behavior but make the boundary explicit: the
-// target opens beside this Leaf, the visible mark says it will leave the page, and its
-// accessible word survives in a standalone copy. A URL on this page's own origin is
+// target opens beside this Leaf, and the visible mark says it will leave the page. A URL on this page's own origin is
 // still local even when the author wrote it absolutely; non-web schemes keep their
 // platform meaning.
 const EXTERNAL_LINK_ATTRIBUTES = ["target", "rel", "aria-describedby"];
@@ -475,9 +473,7 @@ export function dress(root) {
 // read a registry, asks it the same thing.
 //
 // An attribute, because the theme cannot read the registry — the same arrangement x-says
-// already has with data-lf-said, and what carries the two box facts into an exported
-// copy, which runs no script but keeps the markup. The exhibit's rules are the live
-// page's alone (html:not(.lf-copy)), so its mark rides into a copy unread. It is the
+// already has with data-lf-said. It is the
 // runtime's paint on the page's own element, so it joins PAGE_PAINT_ATTRIBUTES: the
 // version diff reads the live DOM against a file nothing has painted, and an attribute
 // missing from that exclusion list is a change the author never made. Written before the
@@ -647,7 +643,7 @@ export function renderSaid(root) {
 //
 // The runtime's three provenance states are said here too. Page Map makes them visible
 // and navigable in a live page, while this quiet word keeps each one attached to its
-// target for assistive technology and for a standalone copy whose chrome was removed.
+// target for assistive technology.
 // They compose into the element's one quiet span, so independent verbs can name user,
 // report, and restatement origins without three writers fighting over the same seat.
 function quietFacts(el) {

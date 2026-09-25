@@ -21,6 +21,7 @@
  * transition while still reaching complete state when the caller ignores it. The swipe
  * package's deck module is the worked example. */
 
+import { nextRender } from "./rendering.js";
 import { onMotionPreferenceChange, reducedMotion } from "./motion.js";
 import { mountSpecimen } from "./specimen.js";
 import { deferredArrival } from "./presentation.js";
@@ -138,9 +139,7 @@ class Demo {
   }
 
   // The sequence the replay is pressing, shown only while it is being pressed. The word
-  // travels as an attribute and lives in the caption for as long as the caption stands,
-  // because a copy exported between replays has no script left to reveal it and words a
-  // file holds without ever showing are words the copy has lost.
+  // travels as an attribute and lives in the caption for as long as the caption stands.
   keypressCaption(shown) {
     if (!this.keypress) return;
     this.keypress.textContent = shown ? this.keypress.dataset.interactionKeypress : "";
@@ -279,7 +278,7 @@ class Demo {
   }
 
   async frame(generation) {
-    await new Promise((resolve) => requestAnimationFrame(resolve));
+    await new Promise((resolve) => nextRender(resolve));
     this.assertCurrent(generation);
   }
 

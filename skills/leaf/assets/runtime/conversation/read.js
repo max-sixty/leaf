@@ -12,6 +12,7 @@
    mark it read: answering its widget does, and so does its thread's Mark read control.
    Each observation pass batches newly completed versions into one `read` event, which
    the application sends outside the gesture queue (delivery.js). */
+import { nextRender, sizeObserver } from "../rendering.js";
 import { shownBand, shownRect } from "../geometry.js";
 import { notice } from "../notifications.js";
 import { whenDocumentPresented } from "../semantic-state.js";
@@ -119,7 +120,7 @@ export function createReadTracking({ markRead, showThread }) {
   let coverage = new WeakMap();
   const renderedBodies = new Map();
   const refusedAutomatic = new Set();
-  const sizes = new ResizeObserver(() => scheduleScan());
+  const sizes = sizeObserver(() => scheduleScan());
   const frameWatches = [];
   let committedThreads = [];
   let presented = false;
@@ -225,7 +226,7 @@ export function createReadTracking({ markRead, showThread }) {
   function scheduleScan() {
     if (scheduled) return;
     scheduled = true;
-    requestAnimationFrame(() => {
+    nextRender(() => {
       scheduled = false;
       scan();
     });

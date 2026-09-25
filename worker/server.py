@@ -46,7 +46,7 @@ from leaf.delivery import read_delivery
 from leaf.host import EmbeddedHarness
 from leaf.hosting import LeafHTTPServer
 from leaf.http import PageEndpoint, scope_page_urls
-from leaf.leases import take_lease, waiter_lease_path
+from leaf.leases import release_lease, take_lease, waiter_lease_path
 from leaf.registry.storage import layer_metadata
 from leaf.revisioning import activate_source
 from leaf.schema import SKILL_ROOT, VENDORED_FILES
@@ -62,7 +62,7 @@ from leaf.service import (
 from starlette.responses import Response
 
 PORT = 8080
-WEBSITE_AGENT = "Leaf guide"
+WEBSITE_AGENT = "The agent"
 WEBSITE_AGENT_SESSION = "leaf-website-agent"
 
 
@@ -146,7 +146,7 @@ LEAF_COMMAND = str(Path(sys.executable).with_name("leaf"))
 # directory, so the contract arrives inline rather than as a path.
 HOSTED_INSTRUCTIONS = """## On leaf.page
 
-You are Leaf guide for one public leaf.page session. This host started the task and
+You are the agent for one public leaf.page session. This host started the task and
 serves its page: the page directory in your working directory, which is the complete
 scope of this task. The `leaf` command takes `.` as the page path. Skip "Hand a page
 over from a terminal" above: this host already serves the page and carries its input,
@@ -694,7 +694,7 @@ class WebsiteCodexHost:
         self.stop_event.set()
         with self.lock:
             for lease in self.waiter_leases.values():
-                lease.close()
+                release_lease(lease)
             self.waiter_leases.clear()
             process = self.process
             self.process = None

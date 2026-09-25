@@ -5,9 +5,9 @@ from leaf import passages as passages_model
 from leaf.registry import storage as registry_storage
 from leaf.structure import SourceDocument
 from render_harness import (
-    RENDERED,
     SHELL_BOX,
     leaf_page,
+    rendered,
 )
 
 # ---------- anchors written without a browser ----------
@@ -483,7 +483,7 @@ CHART_MARKS = """(id) => {
     return {
         series,
         // A colour the module wrote into the drawing, which would freeze the scheme this
-        // browser happened to be in when the copy was exported.
+        // browser happened to be in when the drawing was made.
         painted: svg.outerHTML.match(/(?:fill|stroke)="#[0-9a-fA-F]{3,8}"/g) || [],
         // The painted box of the first tick label. Its computed font-size is the theme's
         // and cannot move; what a scaled drawing changes is the box.
@@ -1005,26 +1005,6 @@ FRAMED_SCROLLER_PAGE = FRAMED_WIDE_PAGE.replace(
 )
 
 
-# A page that reserves the margin rail and stands a wide widget in the flow beside it —
-# the pair no shipped example had until ship-review, and the pair the room has to be
-# measured after rather than before.
-RAIL_AND_WIDE_PAGE = leaf_page(
-    "rail",
-    """
-<h1 id="t">Release</h1>
-<lf-suggestion id="sug-copy">
-  <lf-old><p id="old-line">Refill every feeder each morning.</p></lf-old>
-  <lf-new><p>Refill a feeder when its camera shows it half-empty.</p></lf-new>
-</lf-suggestion>
-<lf-board id="plan">
-  <lf-column id="r1" label="Todo"><lf-card id="rk1"><strong>One</strong></lf-card></lf-column>
-  <lf-column id="r2" label="Doing"></lf-column>
-  <lf-column id="r3" label="Done"></lf-column>
-</lf-board>
-""",
-)
-
-
 # How far the exhibit stands outside the page's own box, and the rail it was supposed to
 # leave — both edges, since a room read too wide spends itself on whichever side is free.
 # One reading for the live page and for a copy of it, the fault being the same fault. The
@@ -1291,7 +1271,7 @@ def _painted_line(page):
     Consume the coalesced frame once: polling could pass on an unrelated later paint.
     Read rows rather than visible text because hidden rows still state liveness.
     """
-    page.evaluate(RENDERED)
+    rendered(page)
     return page.eval_on_selector_all(
         ".lf-shortcut-bar .lf-shortcut",
         "els => els.map(e => [...e.children].map(c => c.textContent).join(' '))",

@@ -28,14 +28,14 @@
    on a window too narrow for them, but active sequence rows do not; More is the one control
    that always survives.
 
-   `syncLayout` reserves the line's footprint only in a scroll region whose horizontal
-   span meets it. Each reservation is the band from the line's top to that region's own
-   foot. The line's height, inset and the device's safe area are therefore one measurement
-   off the rendered box rather than separate numbers to keep in step. A covering thread
-   panel makes the line inert background, so that foreground neither moves it nor reserves
-   its own list around it. A coarse pointer is drawn no hint line at all — there
-   is no keyboard to advertise, and every hint would name a key the user cannot press.
-   A covering-width layout stacks the status above the line. The line, status, and chips
+   The line is the bottom band: one row at the stated `--lf-band-h` (theme.css), which the
+   document, a held workspace, the trays' lists and the contents map all end above, so no
+   reservation is measured off it. A wrapped line grows upward over the page as an overlay
+   and leaves that reservation alone. A covering thread panel makes the line inert
+   background. A coarse pointer is drawn no hint line at all — there is no keyboard to
+   advertise, and every hint would name a key the user cannot press — and states no band.
+   The status stands at the band's far end, over the line's tail where the two meet. The
+   line, status, and chips
    take no pointer events; the More control does, because it is the pointer route to the
    reference. Brief user feedback replaces an ordinal and then restores its live
    reading; background arrivals queue behind user feedback and persistent command
@@ -187,7 +187,7 @@ const boxesOf = (nodes) =>
     .filter((box) => box.height > 0 && box.width > 0);
 
 // Fixed boxes that Go-to hints and target-chooser hints must not cover. The bottom-only
-// subset also bounds composers and reserves the document's foot. A transient notice
+// subset also bounds composers and floating cards. A transient notice
 // alone does not change page geometry; over a standing walk or command context it keeps
 // that surface's last stable footprint rather than making a four-second message reflow
 // the page and its hints.

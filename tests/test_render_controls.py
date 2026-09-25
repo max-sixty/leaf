@@ -73,7 +73,6 @@ from render_harness import (
     EXAMPLES,
     FEATURE_GALLERY,
     LONG_PAGE,
-    RENDERED,
     REPLAYED_PAGE,
     REPLY_HOST_PAGE,
     SHELL_BOX,
@@ -88,6 +87,7 @@ from render_harness import (
     open_versions,
     opened_tab,
     panel_settled,
+    rendered,
     resized,
     round_trip,
     scroll_settled,
@@ -3959,7 +3959,7 @@ def test_threads_covering_a_page_holds_while_its_lock_takes_the_scrollbar(
     readings = []
     for _ in range(4):
         page.evaluate("() => dispatchEvent(new Event('resize'))")
-        page.evaluate(RENDERED)
+        rendered(page)
         readings.append(
             page.evaluate(
                 """() => ({
@@ -4569,7 +4569,7 @@ def test_a_covering_sheet_cannot_move_the_background_shortcut_bar(browser, serve
     field = page.locator(".lf-general textarea")
     field.click()
     field.fill("One line")
-    page.evaluate(RENDERED)
+    rendered(page)
 
     def boxes():
         return page.evaluate("""() => {
@@ -4600,12 +4600,12 @@ def test_a_covering_sheet_cannot_move_the_background_shortcut_bar(browser, serve
     assert one_line["shortcut_bar"]["bottom"] > one_line["foot"]["top"], (
         f"the fixture no longer exercises the old vertical collision: {one_line}"
     )
-    assert (
-        abs(one_line["shortcut_bar"]["bottom"] - (one_line["viewportHeight"] - 14)) < 1
-    ), one_line
+    assert abs(one_line["shortcut_bar"]["bottom"] - one_line["viewportHeight"]) < 1, (
+        one_line
+    )
 
     field.fill("One line\nSecond line\nThird line")
-    page.evaluate(RENDERED)
+    rendered(page)
     multiline = boxes()
     assert multiline["foot"]["height"] > one_line["foot"]["height"], (
         f"the composer did not grow: {one_line}, {multiline}"
@@ -4622,7 +4622,7 @@ def test_a_covering_sheet_cannot_move_the_background_shortcut_bar(browser, serve
     page.locator(".lf-threads").focus()
     for _ in range(6):
         page.keyboard.press("t")
-        page.evaluate(RENDERED)
+        rendered(page)
     expect(page.locator(".lf-bottom-status")).to_contain_text("Thread 6 of 6")
     walked = boxes()
     assert walked["listPad"] >= 20 and walked["listScrollPad"] >= 20, walked
@@ -4642,43 +4642,39 @@ def test_a_covering_sheet_cannot_move_the_background_shortcut_bar(browser, serve
 
 
 def test_dynamic_chrome_offsets_keep_the_safe_area_in_their_arithmetic(browser, serve):
-    """Runtime layout writes preserve the inset tokens stated by the stylesheet."""
+    """The bottom band keeps the inset tokens stated by the stylesheet: it stands on the
+    window's foot, grows by the bottom inset, and holds its hints inside the side insets.
+    The insets are stated on the root, where the band's own height reads them."""
     page = open_page(browser, serve(LONG_PAGE))
     resized(page, 500, 700)
     insets = {"left": 17, "right": 31, "bottom": 23}
     page.evaluate(
         """insets => {
           for (const [side, value] of Object.entries(insets))
-            document.body.style.setProperty(`--lf-safe-${side}`, `${value}px`);
+            document.documentElement.style.setProperty(`--lf-safe-${side}`, `${value}px`);
         }""",
         insets,
     )
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     expect(page.locator(".lf-shortcut-bar")).to_be_visible()
-    page.wait_for_function(
-        """insets => Math.abs(
-          document.querySelector('.lf-shortcut-bar').getBoundingClientRect().left
-          - (18 + insets.left)
-        ) < 1""",
-        arg=insets,
-    )
     boxes = page.evaluate(
         """() => {
-          const rect = selector => {
-            const r = document.querySelector(selector).getBoundingClientRect();
+          const rect = node => {
+            const r = node.getBoundingClientRect();
             return {left: r.left, right: r.right, top: r.top, bottom: r.bottom};
           };
-              return {shortcut_bar: rect('.lf-shortcut-bar'),
-                      width: innerWidth, height: innerHeight};
+          const bar = document.querySelector('.lf-shortcut-bar');
+          const hints = [...bar.children].filter(node => node.checkVisibility());
+          return {shortcut_bar: rect(bar), first: rect(hints[0]),
+                  width: innerWidth, height: innerHeight};
         }"""
     )
-    assert (
-        abs(boxes["shortcut_bar"]["bottom"] - (boxes["height"] - 14 - insets["bottom"]))
-        < 1
-    )
-    assert abs(boxes["shortcut_bar"]["left"] - (18 + insets["left"])) < 1
-    assert boxes["shortcut_bar"]["right"] <= boxes["width"] - insets["right"] + 1
+    band = boxes["shortcut_bar"]
+    assert abs(band["bottom"] - boxes["height"]) < 1, boxes
+    assert abs(band["bottom"] - band["top"] - (44 + insets["bottom"])) < 1, boxes
+    assert boxes["first"]["left"] >= 18 + insets["left"] - 1, boxes
+    assert boxes["first"]["bottom"] <= boxes["height"] - insets["bottom"] + 1, boxes
 
 
 def test_a_covering_composer_keeps_its_controls_inside_the_safe_area(browser, serve):
@@ -5256,7 +5252,7 @@ def test_the_ring_reading_sees_a_neighbour_paint_over_a_ring_drawn_inside_its_bo
     heading.focus()
     page.keyboard.press("Tab")
     page.keyboard.press("Shift+Tab")
-    page.evaluate(RENDERED)
+    rendered(page)
 
     inset = page.evaluate(
         """() => {
@@ -5683,7 +5679,7 @@ def test_the_stop_reading_names_a_control_with_nothing_drawn_on_it(browser, serv
             break
     else:
         raise AssertionError("Tab never reached the banner's comments button")
-    page.evaluate(RENDERED)
+    rendered(page)
 
     assert page.evaluate(SEEN_STOP) is None, (
         "a banner button wearing the layer's own ring reads as a stop nothing draws, so "
@@ -5698,7 +5694,7 @@ def test_the_stop_reading_names_a_control_with_nothing_drawn_on_it(browser, serv
           + ' box-shadow: none !important; }';
         document.head.append(style);
     }""")
-    page.evaluate(RENDERED)
+    rendered(page)
     lost = page.evaluate(SEEN_STOP)
     assert lost and "lf-threads-toggle" in lost, (
         "the ring was taken off a focused control and the reading still called it seen "
@@ -5916,7 +5912,7 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
                 control.click()
             for key in keys:
                 page.keyboard.press(key)
-                page.evaluate(RENDERED)
+                rendered(page)
             page_at_rest(page)
             surface, offers = RING_SCOPE_SURFACE.get(scope, (None, None))
             if surface and (offers is None or offered(page, offers)):
@@ -5952,7 +5948,7 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
                           await elements.reveal(node, () => true);
                         }"""
                     )
-                    page.evaluate(RENDERED)
+                    rendered(page)
                     open_containing_thread(target)
                     page.keyboard.press("Tab")
                     target.focus(timeout=5_000)

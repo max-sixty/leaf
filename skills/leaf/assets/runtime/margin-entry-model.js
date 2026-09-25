@@ -44,7 +44,6 @@ const ENTRY_OPTIONS = new Set([
   "icon",
   "label",
   "accessibleLabel",
-  "staticLabel",
   "context",
   "description",
   "behavior",
@@ -66,8 +65,6 @@ const READING_OPTIONS = new Set([
   "subject",
   "state",
   "side",
-  "claim",
-  "reserve",
   "notice",
   "entries",
   "readings",
@@ -116,7 +113,6 @@ export function marginEntry(offered) {
     icon = null,
     label,
     accessibleLabel = null,
-    staticLabel = null,
     context = null,
     description = null,
     behavior = "action",
@@ -155,7 +151,6 @@ export function marginEntry(offered) {
     icon,
     label: text(label),
     accessibleLabel: text(accessibleLabel) || text(label),
-    staticLabel: text(staticLabel) || null,
     context: text(context) || null,
     description: text(description) || null,
     behavior,
@@ -184,8 +179,6 @@ export function normalizeMarginReading(reading, owner) {
     subject = null,
     state = "idle",
     side = "before",
-    claim = true,
-    reserve = 0,
     notice = null,
     entries = [],
     readings = [],
@@ -194,8 +187,6 @@ export function normalizeMarginReading(reading, owner) {
     throw new TypeError(`Unknown margin contribution state: ${state}`);
   if (side !== "before" && side !== "after")
     throw new TypeError(`Unknown margin contribution side: ${side}`);
-  if (!Number.isFinite(reserve) || reserve < 0)
-    throw new TypeError("A margin contribution reserve must be non-negative");
   if (!Array.isArray(entries))
     throw new TypeError("A margin contribution's entries must be an array");
   if (!Array.isArray(readings))
@@ -231,8 +222,6 @@ export function normalizeMarginReading(reading, owner) {
     subject: text(subject) || null,
     state,
     side,
-    claim: Boolean(claim),
-    reserve,
     notice: normalizedNotice,
     entries: Object.freeze(normalizedEntries),
     readings: Object.freeze(readings.map((item) => Object.freeze({ ...item }))),

@@ -39,7 +39,7 @@ words remain effective across revisions.
 
 The event log preserves user choices, generated options, edits, and suggestion
 outcomes across revisions. Leave their authored inputs unchanged unless the
-content needs revision. The page directory and standalone export preserve that
+content needs revision. The page directory and its export preserve that
 state without it being copied into markup.
 
 A moved card, on a board or in a swipe deck's piles, is one exception. A move

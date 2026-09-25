@@ -8,6 +8,7 @@
  * only through the constructor.
  */
 
+import { nextRender } from "./rendering.js";
 import { sameAnchor } from "./anchor-coordinate.js";
 import { createAnchorNoteProjection } from "./anchor-note-view.js";
 import {
@@ -66,9 +67,7 @@ export function createAnchorControls({
     record.margin?.update({ immediate: true });
     paintKeys();
     if (focus && eventId)
-      requestAnimationFrame(() =>
-        record.margin?.focus(`reaction:${eventId}:remove`, surface),
-      );
+      nextRender(() => record.margin?.focus(`reaction:${eventId}:remove`, surface));
   }
 
   const visualActionAnchor = (anchor) =>
@@ -255,13 +254,11 @@ export function createAnchorControls({
           read: () => ({
             side: "after",
             state: record.expanded ? "engaged" : "idle",
-            claim: false,
             entries: record.roots.flatMap((root) => [
               {
                 key: `reaction:${root.id}:open`,
                 glyph: registry.$reactions.tokens[root.token]?.glyph ?? root.token,
                 label: `${root.token} reaction actions`,
-                staticLabel: root.token,
                 behavior: "disclosure",
                 rank: "secondary",
                 className: "lf-react-mark",

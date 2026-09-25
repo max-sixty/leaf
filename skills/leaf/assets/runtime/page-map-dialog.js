@@ -16,6 +16,7 @@
    mount attaches the dialog and binds controls; importing the module does not
    install application callbacks or activate the map. */
 
+import { nextRender } from "./rendering.js";
 import { blockAt, says } from "./passages.js";
 import { letGo } from "./focus.js";
 import { html, nothing, render, repeat } from "../vendor/browser-runtime.js";
@@ -129,7 +130,7 @@ export function createPageMapDialog({
         surface: "map",
         input: event.detail === 0 ? "keyboard" : "pointer",
       });
-      requestAnimationFrame(() => {
+      nextRender(() => {
         const revealed = relation.keys
           .map((key) =>
             marginContributionSource(offered).registration.control(key, "map", true),

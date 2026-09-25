@@ -9,7 +9,7 @@
    user who was at the end a moment ago. A scroll event can also trail the change it
    answers by a frame, so a box standing above where this module last put it has been
    scrolled back even before its event arrives. The theme bounds the box; this module
-   only holds its place, so a copy with no script keeps the bound and opens at the top.
+   only holds its place.
 
    The box that scrolls is the bounded element, unless its widget's theme moves the
    bound to a box inside it and says so there with `--lf-bound-box: 1` — a captured
@@ -17,6 +17,7 @@
    declaring it is the scroller. Each bounded block is watched on its own,
    for what it holds and for its size, so nothing here runs for a change elsewhere on
    the page; `followBounds` runs after every install and patch to pick up new ones. */
+import { sizeObserver } from "./rendering.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
 
 const BOUNDED = `[${PAGE_PAINT_ATTRIBUTE.bound}]`;
@@ -59,7 +60,7 @@ function follow(bounded) {
     state.left = !atEnd(state.box);
     if (!state.left) state.pinned = state.box.scrollTop;
   };
-  const resize = new ResizeObserver(pin);
+  const resize = sizeObserver(pin);
   new MutationObserver(pin).observe(bounded, {
     childList: true,
     characterData: true,

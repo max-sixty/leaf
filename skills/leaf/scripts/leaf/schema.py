@@ -362,10 +362,12 @@ EXTENSION_SCHEMA = {
         "x-inline": {"type": "boolean"},
         "x-language": _ATTRIBUTE_NAME,
         "x-reading-role": {"enum": ["workspace", "pane", "grid"]},
-        # Attributes holding 1-based line references into the nearest data body —
-        # the element's own <pre>, or its enclosing data element's (lf-note's `at` names a line of
-        # its lf-code). `version check` refuses one outside the body (line_ref_errors).
+        # Attributes holding line references into the nearest data body — the element's
+        # own <pre>, or its enclosing data element's (lf-note's `at` names a line of its
+        # lf-code) — by the numbers x-numbering gives that body, 1-based without it.
+        # `version check` refuses one outside the body (line_ref_errors).
         "x-lines": _ATTRIBUTE_LIST,
+        "x-numbering": _ATTRIBUTE_NAME,
         "x-measured": MEASURED_SCHEMA,
         # Whole-page view navigation when the element is the last root after no more
         # than one native header. The outline advice recognizes this authored shape.
@@ -449,6 +451,7 @@ ATTRIBUTE_KEYS = (
     "x-language",
     "x-lines",
     "x-name",
+    "x-numbering",
     "x-paints",
     "x-refers",
     "x-says",

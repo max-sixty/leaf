@@ -90,8 +90,8 @@ tight semantic container when it has none.
 
 ## Preview a shipped example
 
-From the repository root, run `scripts/preview.py <example> --export` for a
-standalone static rendering. `scripts/preview.py <example>` serves an interactive
+From the repository root, run `scripts/preview.py <example> --export` for one file
+that opens offline. `scripts/preview.py <example>` serves an interactive
 preview the way a dev server runs: in the foreground, printing its URL and serving
 until it is stopped. Run it as the host runs any long-running command, in Claude
 Code with `run_in_background`, and read the URL from its output; stop it the same

@@ -28,7 +28,7 @@ uses the same word.
 | **User session** | One browser tab's temporary interaction with a page instance |
 
 Core Leaf owns revision activation, scoped serving, executable and inert-input
-boundaries, target identity, event admission, requests, comments, and export modes. A
+boundaries, target identity, event admission, requests, comments, and export. A
 package owns reusable declarations, widgets, browser modules, styles, data contracts,
 and guidance. A page instance owns its content, page-local modules, styles, assets, and
 declarations, semantic target choices, drafts, and package selection. A user session
@@ -180,7 +180,9 @@ name for a binding or a shortcut.
 The keyboard help presentations are:
 
 - **Shortcut bar**: the always-visible compact projection of commands applicable in
-  the current keyboard context.
+  the current keyboard context. It is drawn as the **bottom band**: one row across the
+  window's foot at a stated height (`--lf-band-h`), which the page ends above, as it
+  starts below the banner.
 - **Shortcut shelf**: the expanded phase of the shortcut bar, not another surface.
 - **Command reference**: the searchable complete catalog of commands. It includes
   pointer- and platform-triggered commands with no keyboard binding.

@@ -69,7 +69,8 @@ other page files and the external state listed below.
   `(session, sequence)` identifies duplicates. Large browser records arrive as
   `interaction_part` rows whose `json` fields concatenate in `part` order.
   A tab retains at most 512 pending browser records: when delivery falls behind,
-  it sheds repeated observations first, then older records. Sequence gaps show
+  it sheds repeated observations first, then older actions only to admit new
+  actions. New repeated observations yield to pending actions. Sequence gaps show
   where records were lost; a single record too large to fit is marked
   `interaction_omitted`. This is a best-effort diagnostic trace, not an audit
   guarantee: an offline tab closed with unsent data may lose it. The semantic

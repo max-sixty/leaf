@@ -194,6 +194,51 @@ def test_browser_trace_sheds_repeated_gestures_when_delivery_stalls(browser, ser
     consume_browser_errors(page, "503")
 
 
+def test_browser_trace_keeps_actions_ahead_of_new_repeated_observations(browser, serve):
+    url = serve(leaf_page("Trace actions", '<h1 id="trace-target">Trace actions</h1>'))
+    page = open_page(browser, url)
+    page.route("**/api/interaction", lambda route: route.fulfill(status=503))
+    with page.expect_response(
+        lambda response: (
+            response.url.endswith("/api/interaction") and response.status == 503
+        )
+    ):
+        page.locator("#trace-target").click()
+    page.wait_for_timeout(100)
+    page.locator("#trace-target").evaluate("""node => {
+      for (let i = 0; i < 600; i++)
+        node.dispatchEvent(new MouseEvent('click', {
+          bubbles: true, clientX: i,
+        }));
+      for (let i = 0; i < 100; i++)
+        node.dispatchEvent(new PointerEvent('pointermove', {
+          bubbles: true, pointerId: 1, clientX: i,
+        }));
+    }""")
+    page.unroute("**/api/interaction")
+    with page.expect_response(
+        lambda response: (
+            response.url.endswith("/api/interaction")
+            and response.ok
+            and any(
+                entry["type"] == "click" and entry["pointer"]["x"] == 599
+                for entry in response.request.post_data_json["entries"]
+            )
+        ),
+        timeout=15_000,
+    ):
+        page.wait_for_timeout(2500)
+
+    rows = [
+        json.loads(line)
+        for line in (serve.page_dir / "interactions.jsonl").read_text().splitlines()
+    ]
+    browser_rows = [row for row in rows if row.get("source") == "client"]
+    assert sum(row["type"] == "click" for row in browser_rows) == 512
+    assert not any(row["type"] == "pointermove" for row in browser_rows)
+    consume_browser_errors(page, "503")
+
+
 def test_packages_and_panel_share_threads_through_gestures_and_authored_content(
     browser, serve
 ):

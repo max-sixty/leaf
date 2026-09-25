@@ -202,8 +202,10 @@ function evictableGroup(repetitiveOnly) {
 
 function append(rows) {
   if (rows.length > MAX_PENDING_ENTRIES) return;
+  const repetitiveIncoming = repetitive.has(rows[0].originalType ?? rows[0].type);
   while (queue.length + rows.length > MAX_PENDING_ENTRIES) {
-    const group = evictableGroup(true) ?? evictableGroup(false);
+    const group =
+      evictableGroup(true) ?? (!repetitiveIncoming && evictableGroup(false));
     if (!group) return;
     queue.splice(group[0], group[1] - group[0]);
   }

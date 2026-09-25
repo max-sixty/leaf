@@ -2349,7 +2349,6 @@ def test_a_cli_write_is_admitted_through_the_browser_door(page_dir):
             "c1",
             "Answered.",
             "",
-            initiates=True,
             for_event=None,
             attempt="r1",
         )
@@ -2442,7 +2441,7 @@ def test_reply_for_a_stale_event_reports_the_failed_fence(page_dir):
     assert result.exit_code != 0
     assert (
         "event 'c1' takes no reply; c1 is a comment in this page's log, and nothing is "
-        "owed for it — `leaf reply <page> --to c1 --initiates` replies to it"
+        "owed for it — `leaf reply <page> --to c1` replies to it"
     ) in result.output
 
 

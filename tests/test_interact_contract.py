@@ -5164,7 +5164,6 @@ def test_the_reply_door_refuses_a_picture_the_page_directory_has_not_got(page_di
             str(page_dir),
             "--to",
             json.loads(opened.output)["id"],
-            "--initiates",
             "--text",
             "here:",
             "--markup",
@@ -5368,7 +5367,6 @@ def test_the_door_admits_a_reaction_only_as_a_token_the_layer_declares(
         "Which part is long?",
         None,
         for_event=None,
-        initiates=True,
     )
     status, body = fetch(
         f"{server}/api/event",

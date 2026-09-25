@@ -185,9 +185,7 @@ def test_reply_command_guides_selection_and_followup(claimed, server, regtest):
     record(["reply", str(page), "--to", ids[0], "--text", "Answer"], 1)
     record(["reply", str(page), "--for", ids[0], "--text", "Answer"], 0)
     record(["reply", str(page), "--for", ids[0], "--text", "Answer"], 1)
-    record(
-        ["reply", str(page), "--to", ids[0], "--initiates", "--text", "Follow-up"], 0
-    )
+    record(["reply", str(page), "--to", ids[0], "--text", "Follow-up"], 0)
     # A page reaction can close without an answer: it never owed a reply.
     code, response = fetch(
         f"{server}/api/event",
@@ -436,7 +434,7 @@ def test_a_command_that_succeeds_says_what_it_did(tmp_path, monkeypatch):
 
     replied = runner.invoke(
         cli_model.cli,
-        ["reply", str(page_dir), "--to", root, "--initiates", "--text", "sqlite"],
+        ["reply", str(page_dir), "--to", root, "--text", "sqlite"],
     )
     assert replied.exit_code == 0, replied.output
     assert replied.output == f"replied in {root}\n"
@@ -450,7 +448,6 @@ def test_a_command_that_succeeds_says_what_it_did(tmp_path, monkeypatch):
             str(page_dir),
             "--to",
             root,
-            "--initiates",
             "--text",
             "and wal mode",
         ],
@@ -463,7 +460,6 @@ def test_a_command_that_succeeds_says_what_it_did(tmp_path, monkeypatch):
             str(page_dir),
             "--to",
             json.loads(followed.output)["id"],
-            "--initiates",
             "--text",
             "with a checkpoint",
         ],

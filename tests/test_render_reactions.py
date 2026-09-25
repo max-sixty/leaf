@@ -2357,7 +2357,6 @@ def test_a_reply_to_a_reaction_opens_a_thread_and_resolve_is_its_floor(browser, 
         "Which part — the case, or the answer?",
         "",
         for_event=None,
-        initiates=True,
     )
     told(page)
     expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (1)")

@@ -784,18 +784,13 @@ def comment(
 @click.option(
     "--to",
     metavar="ID",
-    help="conversation message ID for --initiates; inferred when answering --for",
+    help="conversation message ID; without --for, posts a new message there",
 )
 @click.option(
     "--for",
     "for_event",
     metavar="EVENT_ID",
     help="delivery event whose current reply obligation this answers",
-)
-@click.option(
-    "--initiates",
-    is_flag=True,
-    help="start an agent turn only when this conversation owes no reply",
 )
 @click.option("--quote", help="new passage text to move this thread onto")
 @click.option("--section", metavar="ID", help="new element ID, or scope for --quote")
@@ -815,7 +810,6 @@ def reply(
     dir: str,
     to: str,
     for_event: str | None,
-    initiates: bool,
     quote: str,
     section: str,
     part: str,
@@ -828,8 +822,9 @@ def reply(
     """Post a threaded reply as the agent (--text or stdin).
 
     Answer user input with --for EVENT_ID. With exactly one outstanding reply
-    in this turn's opened delivery, omit it to select that reply. To add a new
-    agent message when no reply is owed, use --to ID --initiates.
+    in this turn's opened delivery, omit it to select that reply. --to ID
+    without --for posts a new agent message, refused while that conversation
+    owes a reply.
 
     --quote, --section, and --part move the thread's current anchor; --detach
     removes it when the subject leaves the page. The original anchor stays in
@@ -845,7 +840,6 @@ def reply(
         markup,
         awaits,
         for_event=for_event,
-        initiates=initiates,
         quote=quote,
         section=section,
         part=part,

@@ -38,17 +38,21 @@ leaf status <page> working "running the browser suite against the new banner" &&
 ```
 
 Name the operation and its subject in one sentence. "Working on it" tells the user
-nothing the banner's dot does not already say.
+nothing the banner's dot does not already say, and `leaf status` refuses `working`
+with no sentence at all.
 
 User input comes before the work in hand, in this order:
 
 1. Acknowledge the delivery by the host's receipt route, so the user's moves read
-   **Picked up**.
-2. Reply to each move that owes a reply, before starting the work it asks for. The
-   delivered `answering` clause for a reply says how to write the reply now, on your
-   host, and how to report the result later.
-3. Write the page status again, so the banner describes the work that continues
-   rather than the last step before the interruption.
+   **Picked up**. Until you write a status, the banner can say only that you are
+   working on their update.
+2. Answer each move before starting the work it asks for, and name that work on the
+   page in the same command. Each delivered event's `answering` clauses say how on
+   your host: for a comment, a reply saying what you are about to do, chained to a
+   status claim on its thread.
+3. If the move interrupted other work, write the page status again once its own
+   work is done, so the banner describes the work that continues rather than the
+   last step before the interruption.
 
 Then do the work.
 

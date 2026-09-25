@@ -1054,6 +1054,18 @@ def test_the_feature_gallery_exercises_the_injected_core_surfaces(
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
     expect(page.locator(".lf-thread-panel")).to_be_visible()
+    pending_title = page.locator(
+        '.lf-thread[data-id="72e031c5bf0d485ba9054628e09869d4"] .lf-thread-topic'
+    )
+    expect(page.locator("#bg-thread-states")).to_be_visible()
+    expect(pending_title).to_have_text("...")
+    expect(pending_title).to_have_attribute("aria-label", "Title pending")
+    dots = pending_title.locator(".lf-thread-pending-dot")
+    expect(dots).to_have_count(3)
+    animation = dots.first.evaluate(
+        "element => getComputedStyle(element).animationName"
+    )
+    assert animation != "none"
     expect(page.locator('[data-filter-value="resolved"]')).not_to_have_text("Resolved")
     page.locator(".lf-thread-filter-toggle").click()
     page.locator('[data-filter-value="resolved"]').click()
@@ -1475,7 +1487,7 @@ def test_a_thread_walk_card_keeps_its_margin_until_its_anchor_leaves(browser, se
     card = page.locator(".lf-margin-preview")
     expect(
         card.locator(
-            '.lf-conversation-thread[data-thread="2be2443f0bb6cc49fc86b52f340e6073"]'
+            '.lf-conversation-thread[data-thread="72e031c5bf0d485ba9054628e09869d4"]'
         )
     ).to_be_focused()
     owner = page.locator(

@@ -3674,8 +3674,7 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
     expect(page.locator(".lf-thread-panel")).not_to_have_class(re.compile(r"\bopen\b"))
 
     expect(thread).to_be_focused()
-    expect(reply).to_be_hidden()
-    expect(thread.get_by_role("button", name="Reply", exact=True)).to_be_visible()
+    expect(reply).to_be_visible()
     wait_standing(page, "bold text")
     assert "back to page" in shortcut_bar_text(page)
     page.keyboard.press("Enter")
@@ -5219,7 +5218,6 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
     go_to_address(page, "Margin entry", "p1")
     expect(page.locator(".lf-margin-preview")).to_be_visible()
     expect(page.locator(".lf-margin-thread .lf-conversation-thread")).to_be_focused()
-    expect(page.locator(".lf-margin-thread textarea").first).to_be_hidden()
     page.keyboard.press("Escape")  # onto the element the thread is about
     expect(page.locator("#p1")).to_be_focused()
     expect(page.locator(".lf-margin-preview")).to_be_visible()

@@ -2285,11 +2285,7 @@ export function createMarginProjection({
     previewFocusPending = null;
     answerThreadPreviewPosition(false);
     resetThreadPreviewPosition();
-    if (previewOpen()) {
-      for (const reply of previewList.querySelectorAll("textarea"))
-        reply.lfCollapseReply?.();
-      preview.hidden = true;
-    }
+    if (previewOpen()) preview.hidden = true;
     if (forcedOptionsKey && expandedOptionsKey === forcedOptionsKey)
       setOptionsOpen(null, false);
     refreshHighlight();

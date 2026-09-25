@@ -697,13 +697,12 @@ def test_a_margin_reply_shares_its_conversations_opaque_surface(browser, serve, 
     preview = page.locator(".lf-margin-preview")
     thread = preview.locator(".lf-conversation-thread")
     surround = thread.locator(".lf-say")
-    reply = preview.get_by_role("button", name="Reply", exact=True)
-    editor = preview.locator("textarea")
-    expect(reply).to_be_visible()
+    editor = preview.get_by_role("textbox", name="Reply", exact=True)
+    expect(editor).to_be_visible()
 
-    for state in ("collapsed", "editing", "outside"):
+    for state in ("resting", "editing", "outside"):
         if state == "editing":
-            reply.click()
+            editor.click()
             expect(editor).to_be_focused()
         elif state == "outside":
             preview.get_by_role("button", name="Dismiss conversation").focus()

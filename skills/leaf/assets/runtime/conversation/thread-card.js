@@ -630,36 +630,13 @@ export class ThreadView {
   #createReply(model) {
     const panel = model.surface === "panel";
     const row = offer("div", panel ? "lf-compose" : "lf-say");
-    const compact = model.surface === "margin";
-    const disclosure = compact
-      ? offer("button", "lf-btn lf-reply-disclosure", "Reply")
-      : null;
     const input = offer("textarea");
     input.name = "reply";
     const send = offer("button", panel ? "lf-btn lf-thread-send" : "lf-btn", "Send");
-    if (disclosure) row.append(disclosure);
     row.append(input, send);
-    const hasDraft = () => loadDraft("reply:" + model.key) !== null;
-    const reveal = () => {
-      if (!disclosure) return;
-      row.classList.remove("lf-reply-collapsed");
-      disclosure.hidden = true;
-      disclosure.setAttribute("aria-expanded", "true");
-    };
-    const collapse = () => {
-      if (!disclosure || hasDraft()) return;
-      row.classList.add("lf-reply-collapsed");
-      disclosure.hidden = false;
-      disclosure.setAttribute("aria-expanded", "false");
-    };
     if (panel)
       input.lfRevealReply = () =>
         this.#commands.listRoot.revealNavigation(this.#model.id);
-    if (disclosure) {
-      input.lfRevealReply = reveal;
-      input.lfCollapseReply = collapse;
-      disclosure.onclick = () => this.#commands.landInConversation(input);
-    }
     const lifetime = wireReply(
       { root: { id: model.id, attempt: model.attempt } },
       input,
@@ -667,15 +644,13 @@ export class ThreadView {
       {
         liveId: () => this.#model.id,
         ...this.#commands.reply,
+        // Initial construction is already painting this reading; mirrored edits
+        // arrive later and must refresh the collapsed row's Draft indication.
         onDraftLoaded: () => {
-          if (hasDraft()) reveal();
-          // Initial construction is already painting this reading; mirrored edits
-          // arrive later and must refresh the collapsed row's Draft indication.
           if (panel && this.#reply) this.#navigation.draftChanged();
         },
       },
     );
-    collapse();
     return { node: row, dispose: lifetime.dispose };
   }
 

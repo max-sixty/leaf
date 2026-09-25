@@ -400,7 +400,7 @@
     "x-upgrade": true
   },
   "lf-chronology": {
-    "description": "A chronology of what happened and when — the incident-report shape. Its members are lf-chronology-entry elements only. Where lf-milestones tracks planned work by status, lf-chronology records observed facts and interventions.",
+    "description": "A chronology of what happened and when — the incident-report shape. Its members are lf-chronology-entry elements only. Where lf-milestones tracks planned work by status, lf-chronology records observed facts and interventions. It shows entries in the order they are written, oldest or newest first; bound it at the end the newest entry is on.",
     "type": "object",
     "properties": {
       "id": {

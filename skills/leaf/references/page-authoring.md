@@ -151,10 +151,13 @@ height and the page scrolls.
 
 ### Bounds and widths
 
-A log, feed, or long listing bounds its own height with `data-bound="end"`, which
-keeps it on its newest line while the user is at the end and leaves them where
-they scrolled back to otherwise; `data-bound="start"` opens it at the top. Some
-widgets bound themselves by default. Don't make a box scroll vertically with page
+A log, feed, or long listing bounds its own height with `data-bound`, naming the end
+its newest entry is at. Put the entries in the order the reader needs, then bound
+that order. A list that grows downward takes `data-bound="end"`, which opens it on
+its last line, keeps that line in view while the user is at the end, and leaves them
+where they scrolled back to otherwise. A newest-first list takes
+`data-bound="start"`, which opens it at the top, as the page's own activity feed
+does. Some widgets bound themselves by default. Don't make a box scroll vertically with page
 CSS: Leaf keeps no reading position in a scroller it did not make, and `version
 check` advises against one.
 

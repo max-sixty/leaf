@@ -248,10 +248,10 @@
      from the shell and its occupied margins, so a widget stands clear of both. An
      `available` surface is not held to this number. */
   --wide: 1080px;
-  /* The widest a page that is itself a sheet (`<main data-width="available">`) grows.
+  /* The widest a wide page (`<main data-width="available">`) grows.
      Past it a board's columns and a dashboard's tiles stop gaining anything but the
      distance between them. */
-  --sheet-max: 1600px;
+  --wide-page-max: 1600px;
   /* The chrome's line box, said once, because one control in the banner cannot be
      told it. Chrome computes a select's inner height from its own metrics and
      refuses line-height outright — the computed value stays normal however the
@@ -673,7 +673,7 @@ main {
   --strip-l: 0px;
   --strip-r: max(var(--claim-note, 0px), var(--claim-rail, 0px),
     var(--lf-claim-right, 0px));
-  /* Where the page stands, for a column and a sheet alike. The page is its measure
+  /* Where the page stands, for a column and a wide page alike. The page is its measure
    * (--lf-page-measure) with a gutter each side (--lf-page-pad). A resident in a margin
    * — a sidebar, a note, the rail — claims a strip on its side, and that side's gutter
    * is the wider of the pad and the strip. A strip keeps the column's pad between it and
@@ -686,7 +686,7 @@ main {
    * aside.sidebar below). --lf-free-l and --lf-free-r are what is left between the
    * page's content edge and each gutter, the room a wide exhibit may grow into on that
    * side. Centred, they are equal, so an exhibit grows evenly about the prose it belongs
-   * to. A sheet fills its room and leaves neither. */
+   * to. A wide page fills its room and leaves neither. */
   --lf-page-pad: var(--col-pad);
   --lf-page-measure: var(--col);
   --lf-edge: clamp(0px, calc((100cqi - var(--strip-l) - var(--strip-r)
@@ -731,6 +731,13 @@ main {
 @property --lf-width { syntax: "<length>"; inherits: true; initial-value: 0px; }
 @property --lf-free-l { syntax: "<length>"; inherits: true; initial-value: 99999px; }
 @property --lf-free-r { syntax: "<length>"; inherits: true; initial-value: 99999px; }
+/* How wide the page is: the column, or a wide page (below). Stated on body and read
+ * there by name, so it does not inherit. */
+@property --lf-page-width {
+  syntax: "column | wide | available";
+  inherits: false;
+  initial-value: column;
+}
 /* Content that needs more space than the argument about it. The column above is the measure
  * prose is read at, and a board's columns or a diagram's graph are as wide as what they
  * hold — so a page carrying one was a cramped board, or a page whose every paragraph had
@@ -874,37 +881,54 @@ main {
   main > * { --lf-room: inherit; }
 
   /* A page whose subject is wider than an argument — a board, a dashboard, a queue
-   * beside its detail — declares the width on `main` itself. The page is then a sheet:
-   * every block, title included, starts at one left edge, and text keeps the reading
-   * measure the column gave it (--lf-measure, the rule below) rather than being centred
-   * on a narrower axis than the exhibits around it. A column page with a wide exhibit
-   * keeps two axes, the prose's and the exhibit's; a sheet has one. The room is the
-   * sheet's own width, so a wide widget on it fills the sheet instead of breaking out. */
-  main:is([data-width="wide"], [data-width="available"]) {
-    /* A sheet is the page (main, above) at a wider measure. Its edge is the page's
+   * beside its detail — is a wide page: every block, title included, starts at one left
+   * edge, and text keeps the reading measure the column gave it (--lf-measure, the rule
+   * below) rather than being centred on a narrower axis than the exhibits around it. A
+   * column page with a wide exhibit keeps two axes, the prose's and the exhibit's; a
+   * wide page has one. The room is the page's own width, so a wide widget on it fills
+   * the page instead of breaking out.
+   *
+   * Which width the page takes is one reading on body, --lf-page-width, and the frame
+   * below is drawn once for whatever states it. `data-width` on `main` states it here; a
+   * package states it for a page its own element makes wide (the default package, for
+   * a page whose only block is a workspace). Both are selectors on authored markup, so
+   * the frame is in the first paint. The frame's rules ask body (lf-shell) by name, as
+   * a style query answers from an ancestor and never from main itself. */
+  body:has(> main[data-width="wide"]) { --lf-page-width: wide; }
+  body:has(> main[data-width="available"]) { --lf-page-width: available; }
+  @container lf-shell not style(--lf-page-width: column) {
+    /* A wide page is main (above) at a wider measure. Its edge is the page's
      * edge, so its pad grows with the window rather than staying the column's 24px,
-     * which is a phone's margin; a strip no wider than the pad stands in it. */
-    --lf-page-pad: clamp(var(--col-pad), 4cqi, 64px);
-    --lf-measure: var(--col);
-    max-width: none;
-    /* The runtime paints the occurrence like any block's (data-lf-space), and the
-     * block rule's margins would pin the sheet to the left edge. */
-    margin-inline: auto;
-    padding-inline: 0;
+     * which is a phone's margin; a strip no wider than the pad stands in it.
+     *
+     * The runtime paints a `data-width` occurrence like any block's (data-lf-space),
+     * and the block rule's margins would pin the page to the left edge, so the frame
+     * outranks that rule: html:root. */
+    html:root body > main {
+      --lf-page-pad: clamp(var(--col-pad), 4cqi, 64px);
+      --lf-measure: var(--col);
+      max-width: none;
+      margin-inline: auto;
+      padding-inline: 0;
+    }
+    html:root body > main > * { --lf-room: 100%; }
+    /* A wide page's title stands above boards and tiles as wide as the window rather
+     * than a column of prose, so it is set a size up and heavier: at the column's size
+     * it read as a section heading among the panels. It grows with the window (cqi here
+     * is the shell's width, the window less its strips). */
+    html:root body > main > h1,
+    html:root body > main > * > header > h1 {
+      font-size: clamp(36px, 3.2cqi, 46px);
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      line-height: 1.1;
+    }
   }
-  main[data-width="wide"] { --lf-page-measure: var(--wide); }
-  main[data-width="available"] { --lf-page-measure: var(--sheet-max); }
-  main:is([data-width="wide"], [data-width="available"]) > * { --lf-room: 100%; }
-  /* A sheet's title heads a page as wide as the window, above boards and tiles rather
-   * than a column of prose, so it is set a size up and heavier: at the column's size it
-   * read as a section heading among the panels. It grows with the window (cqi here is
-   * the shell's width, the window less its strips). */
-  main:is([data-width="wide"], [data-width="available"]) > h1,
-  main:is([data-width="wide"], [data-width="available"]) > * > header > h1 {
-    font-size: clamp(36px, 3.2cqi, 46px);
-    font-weight: 700;
-    letter-spacing: -0.02em;
-    line-height: 1.1;
+  @container lf-shell style(--lf-page-width: wide) {
+    html:root body > main { --lf-page-measure: var(--wide); }
+  }
+  @container lf-shell style(--lf-page-width: available) {
+    html:root body > main { --lf-page-measure: var(--wide-page-max); }
   }
 
   /* Text keeps the reading measure in every frame; a surface fills its frame. In the
@@ -1170,7 +1194,7 @@ dd { margin: 0 0 8px 0; }
    token, true and inert, and a second place the body's size had to be kept. */
 .callout { background: var(--field); border: 1px solid var(--rule);
            border-radius: var(--r); padding: 12px 16px; margin: 18px 0; --lf-block-frame: 1; }
-/* A panel is one titled region of a sheet: the checks, the log, the steps. Every region
+/* A panel is one titled region of a wide page: the checks, the log, the steps. Every region
    on a dashboard is drawn the same way, so the eye reads the page as a set of like things
    laid on a grid, where a mix of raised tiles, tinted fields, bare tables and bordered logs
    read as a pile. The title is the tile label's voice (lf-metric), small and set in
@@ -1917,11 +1941,13 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
     height: 16px; padding: 0 3px; box-sizing: border-box; border-radius: 999px;
     border: 1px solid var(--paper); background: var(--ink); color: var(--paper);
     font: 600 10px/14px var(--sans); text-align: center; }
-/* A column page keeps a rail and a sheet, whose tracks fill the page, does not: its
- * margin rows stand as pins on their blocks, where a rail at the sheet's far edge could
- * stand hundreds of pixels from the card a marker is about. `data-rail` on `main` says
- * otherwise for either: `right` keeps the rail on a sheet, and `none` gives a column
- * page's right margin to its own notes.
+/* A column page keeps a rail and a wide page, whose tracks fill the page, does not: its
+ * margin rows stand as pins on their blocks, where a rail at the page's far edge could
+ * stand hundreds of pixels from the card a marker is about. Which kind the page is, is
+ * the one reading --lf-page-width on body (the wide page, above), so a page made wide
+ * by its only block, a workspace, pins as a declared one does. `data-rail` on `main`
+ * says otherwise for either: `right` keeps the rail on a wide page, and `none` gives a
+ * column page's right margin to its own notes.
  *
  * The rail stands in a shell wide enough to hold it beside the whole column: the column
  * (720), its padding (2 x 24) and the rail (95), so 863, or 887 where a finger raises the
@@ -1944,10 +1970,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
  * the container answers the same whether a marker stands in the rail or not. */
 @media screen {
   @container lf-shell (width > 863px) {
-    html[data-lf-live] main:is(
-      [data-rail="right"],
-      :not([data-rail], [data-width="wide"], [data-width="available"])
-    ) {
+    html[data-lf-live] main:not([data-rail="none"]) {
       /* The whole rail, focus-ring room included. */
       --claim-rail: var(--rail);
       --lf-rail-posture: margin;
@@ -1956,10 +1979,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 }
 @media screen and (pointer: coarse) {
   @container lf-shell (width <= 887px) {
-    html[data-lf-live] main:is(
-      [data-rail="right"],
-      :not([data-rail], [data-width="wide"], [data-width="available"])
-    ) {
+    html[data-lf-live] main:not([data-rail="none"]) {
       --claim-rail: initial;
       --lf-rail-posture: initial;
     }
@@ -1970,6 +1990,15 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 :root { --rail-hang: 22px; }
 @media (pointer: coarse) {
   :root { --rail-hang: 10px; }
+}
+/* A wide page gives up the claim unless `main` asks for the rail. */
+@media screen {
+  @container lf-shell not style(--lf-page-width: column) {
+    html[data-lf-live] main:not([data-rail="right"]) {
+      --claim-rail: initial;
+      --lf-rail-posture: initial;
+    }
+  }
 }
 @media print {
   .lf-margin-projection, .lf-margin-marker.lf-margin-entry { display: none !important; }

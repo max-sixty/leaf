@@ -1,0 +1,43 @@
+schema_version: '1.0'
+name: visual-change-uses-captures
+description: "Draw the subject, guardrail: a visible change with before/after captures shows the captures and draws nothing beside them."
+tags:
+- draw
+- guardrail
+execution:
+  prompt: |
+    You are writing a Leaf page for the user about a button fix. Your notes:
+
+    Finding. The Save button's disabled state was the same grey as its enabled state, so
+    users clicked it and nothing happened. The fix paints enabled Save in the accent colour
+    and disabled Save at 40% opacity.
+
+    Ask. Approve the new states, or keep the old ones.
+
+    Captures already registered as page media, same viewport and state:
+    - /media/save-before.png: the form with Save disabled and enabled, before (1200x700)
+    - /media/save-after.png: the same, after (1200x700)
+
+    Write the HTML for the finding and the Ask.
+    The page directory is not reachable from here, so reply with the HTML fragment
+    rather than writing a file.
+graders:
+- name: loads-leaf
+  type: tool_used
+  tool: Skill
+  input_match: leaf
+- name: reads-page-authoring
+  type: tool_used
+  tool: Read
+  input_match: page-authoring
+- name: shows-before
+  type: regex
+  pattern: save-before\.png
+- name: shows-after
+  type: regex
+  pattern: save-after\.png
+- name: draws-nothing
+  type: regex
+  pattern: <svg\b|<lf-diagram\b
+  flags: i
+  match: not_contains

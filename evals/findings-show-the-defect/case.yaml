@@ -1,0 +1,56 @@
+schema_version: '1.0'
+name: findings-show-the-defect
+description: "Draw the subject: a finding whose defect has a shape shows it, even after chat already described it."
+tags:
+- draw
+execution:
+  prompt: |
+    You ran a blind eval comparing Leaf pages against plain-CSS pages, and are writing
+    the Leaf review page for the user. You have already looked at the screenshots
+    below, and they show each defect clearly. You already sent the user this summary
+    in chat:
+
+    > The vocabulary cut page CSS from 202 lines to 46, but a blind judge preferred the
+    > plain page in 11 of 18 pairs. Each of these recurred in all three pairs of its subject:
+    > 1. **Rail order.** `columns="2fr 1fr"` puts the body first, so on a phone the
+    >    summary and status stack last. Plain pages put their column first. Fix: the rail
+    >    track comes first when the grid stacks.
+    > 2. **Workspace stacking.** `1fr 2.4fr` stacks below 786px of page width and a 900px
+    >    window leaves 769px, so the queue stacked at 900px, and the workspace split the
+    >    window between two short scroll boxes. Fix: a workspace flows when its grid
+    >    stacks, and `version check` reports each grid's stacking width.
+    > 3. **Rail floor.** At 900px a 14rem rail stayed beside the body, and the checks
+    >    table and event log inside it wrapped at two or three words a line. Fix: a
+    >    track's stacking width comes from what it holds, not one floor.
+
+    Screenshots already registered as page media (full screens):
+    - /media/doc3-phone-last.png: Leaf document 3, last phone screen (390x844)
+    - /media/plain3-phone-first.png: plain document 3, first phone screen (390x844)
+    - /media/queue3-900.png: Leaf queue 3 at a 900px window (900x900)
+    - /media/plainqueue3-900.png: plain queue 3 at a 900px window (900x900)
+    - /media/dash3-900.png: Leaf dashboard 3 at 900px, rail with wrapped table (900x900)
+
+    Write the HTML for the page's Findings view: one section per finding.
+    The page directory is not reachable from here, so reply with the HTML fragment
+    rather than writing a file.
+graders:
+- name: loads-leaf
+  type: tool_used
+  tool: Skill
+  input_match: leaf
+- name: reads-page-authoring
+  type: tool_used
+  tool: Read
+  input_match: page-authoring
+- name: shows-a-capture
+  type: regex
+  pattern: <lf-shot|<img
+  flags: i
+- name: judgment
+  type: llm
+  criteria: |
+    Read the HTML. Pass if each of the three finding sections (rail order, workspace
+    stacking, rail floor) shows its defect in a picture inside that section: a
+    registered screenshot (an `img` or `lf-shot` of a /media capture), a drawing (an
+    `svg` or `lf-diagram`), or both. Fail if any of the three states its defect only
+    in prose, a list, or a table.

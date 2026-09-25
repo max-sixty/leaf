@@ -270,7 +270,7 @@ def test_a_token_press_marks_the_passage_and_its_revealed_remove_takes_it_back(
     page.locator(".lf-threads-toggle").click()
     panel_settled(page, open=False)
     receipt_item = page.locator('.lf-margin-cluster[data-lf-margin-for="how-store"]')
-    expect(receipt_item).not_to_have_class(re.compile("lf-docked"))
+    expect(receipt_item).to_have_attribute("data-lf-place", "rail")
     select_paragraph(page, "#how-store")
     expect(bar).to_be_visible()
     page.evaluate("() => document.body.focus()")

@@ -80,12 +80,16 @@ HEADING_TAGS = {"h2", "h3", "h4", "h5", "h6"}
 # The properties that overflow a column when pinned in pixels. max-width defines the
 # column instead, so it is read there and never counted here.
 OVERFLOW_PROPS = ("width", "min-width")
-# The allocations a page occurrence may state for any block, each attribute with the
-# values it takes: its width in the page's flow, and whether it bounds its own height.
+# The allocations a page occurrence may state, each attribute with the values it takes:
+# a block's width in the page's flow and whether it bounds its own height, and, on
+# `main` alone, whether the page reserves the rail its margin rows stand in.
 AUTHORED_ALLOCATIONS = {
     "data-width": ("column", "wide", "available"),
     "data-bound": ("start", "end"),
+    "data-rail": ("right", "none"),
 }
+# The allocations only the page's one `main` states, being about the page as a whole.
+PAGE_ALLOCATIONS = frozenset({"data-rail"})
 # Page-level declarations the runtime reads from <meta name="lf-*"> in the head,
 # name → allowed content values (None = free-form). A misspelled name or value
 # would silently declare nothing in the browser, so `version check` owns this

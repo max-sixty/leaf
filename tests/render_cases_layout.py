@@ -879,14 +879,23 @@ FOCUS_IN_PAGE = """() => {
 # generated, and structure is compared either way.
 # The page as a press leaves it. Where the pointer is resting and the projection Leaf
 # paints above descendants are not authored state, so neither belongs in this reading.
-PAGE_MARKUP = """() => [...document.body.children]
+PAGE_MARKUP = r"""() => [...document.body.children]
     .filter((n) => !n.classList.contains("lf-chrome"))
     .map((n) => {
         const c = n.cloneNode(true);
         for (const g of c.querySelectorAll("[data-lf-gen]")) g.textContent = "";
         if (c.dataset && c.dataset.lfGen !== undefined) c.textContent = "";
-        for (const el of [c, ...c.querySelectorAll("*")])
+        for (const el of [c, ...c.querySelectorAll("*")]) {
             el.classList?.remove("lf-mark-hover", "lf-projected-mark");
+            // The name a margin row anchors by, which the layout writes on whatever
+            // target a row comes to stand by, on its own schedule rather than a press's.
+            if (el.style?.anchorName) {
+                el.style.anchorName = el.style.anchorName.split(",")
+                    .map((name) => name.trim())
+                    .filter((name) => !/^--lf-a\d+$/.test(name)).join(", ");
+                if (!el.getAttribute("style")) el.removeAttribute("style");
+            }
+        }
         return c.outerHTML;
     })
     .join("").replaceAll(' class=""', "")"""

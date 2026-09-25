@@ -282,6 +282,7 @@ const designMode = createDesignMode({
   repaint,
 });
 aim = createAim({
+  marginTargetAt: (...args) => app.margin.marginTargetAt(...args),
   refreshAim: () => pageGeometry.refreshAim(),
   commentOnTarget: (...args) => responseSurface.commentOnTarget(...args),
   standDown: (...args) => responseSurface.standDown(...args),

@@ -166,6 +166,13 @@
      focus conventions and reads as ink on ivory rather than as UI. */
   --accent: light-dark(#2f5480, #8fb0d8); --ok: light-dark(#3f7d4e, #7fb98c);
   --warn: light-dark(#b4741a, #d8a95c); --danger: light-dark(#b4402f, #d98b7a);
+  /* A pin stands over the page's own words, so it has to read as something laid on the
+     page rather than as more ink on it: a saturated blue, the way a design tool's
+     comment pin sits on a frame, where the accent above is chosen to read as ink. */
+  --pin-fill: light-dark(#0d7ae6, #1f7ae0);
+  /* The pin's working fill: --ok is chosen for a dot on paper and is too light under a
+     white glyph in the dark scheme. */
+  --pin-working: light-dark(#2f7d45, #2d8047);
   --r: 6px;
   --chip-r: 3px;
   --sp-1: 4px; --sp-2: 8px; --sp-3: 16px; --sp-4: 24px;
@@ -185,16 +192,17 @@
      rail's claim below reserves the same length, so it is named rather than written
      into each. */
   --margin-entry: max(32px, var(--aim-floor));
-  /* The rail: the strip beside the column that a live page's margin entries stand in.
+  /* How far inside its block's right edge a pin stands. margin-layout.js reads it too,
+     to know where a pin will stand before packing it. */
+  --pin-inset: 4px;
+  /* The rail: the strip beside the column that a column page's margin entries stand in.
      It is authored rather than measured, so the page's geometry is settled before
      anything lands in the margin and never moves because of what does. It seats the
      resting cluster the margin model budgets (RESTING_MARGIN_ENTRY_BUDGET in
      margin-model.js): two entries and the cluster's 4px gap, hung 22px off the column,
-     with the focus ring's room at the outer edge. A cluster wider than that borrows the
-     room past the rail or docks (margin-layout.js). The rule that spends it is beside
-     .lf-margin-cluster below.
-     TODO: the rail becomes optional, and margin content wider than it (or with no rail
-     at all) overlays the page rather than borrowing room or docking. */
+     with the focus ring's room at the outer edge. A cluster that unfolds past it stands
+     over whatever lies beyond. The rule that spends it is beside .lf-margin-cluster
+     below. */
   --rail: calc(2 * var(--margin-entry) + 4px + 22px + var(--here-ring-room));
   /* A sidenote's strip: a column of text plus its gutter, chosen rather than measured
      off anything the way --rail is. The 360px it leaves the note sets about fifty-six
@@ -1611,15 +1619,53 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
     clip-path: inset(50%); margin-right: 0; }
 }
 /* The margin projection is a retained projection with one cluster per page target. Its
- * primary margin entry, optional `…`, and the secondary margin entries that ellipsis unfolds share
- * one host. One packing pass keeps the clusters clear, docks each whole unit when the
- * margin is too narrow, and tells wide exhibits which occupied bands they must yield. */
-.lf-margin-projection { position: absolute; z-index: 2; pointer-events: none; }
+ * primary margin entry, optional `…`, and the secondary margin entries that ellipsis
+ * unfolds share one host. Every cluster lives in the chrome's margin layer and stands by
+ * its target through anchor positioning (margin-layout.js); nothing is inserted into the
+ * page's content and nothing here moves it.
+ *
+ * The layer and its lanes are static and zero-height, so the initial containing block is
+ * every cluster's: any element of the page is an anchor it may stand by, and the browser
+ * moves it with its target through every scroll between the two, a pane's or a board's.
+ * A positioned wrapper would become the clusters' containing block and make every target
+ * outside it an invalid anchor. The layer lays its lanes out as flex items, which take a
+ * z-index without being positioned. A lane holds the clusters of one pane that scrolls on
+ * its own, and the layout clips it to what the pane shows.
+ *
+ * Nothing clamps a pin to the window: the browser applies a clamp before it moves the pin
+ * with its scrolled target, so a card in a board scrolled sideways would stand its pin
+ * off its corner. A target scrolled out of its scroller withholds its row instead.
+ *
+ * A cluster stands level with its target's top (`--lf-inset` where it anchors to a box
+ * holding the target), pushed down by packing (`--lf-push`). In
+ * the rail it hangs `--rail-hang` off `main`'s edge and unfolds rightward. As a pin it
+ * stands inside its target's top-right corner, `--pin-inset` in from the right edge, and
+ * unfolds leftward over the block. Every position function falls back to a place off screen: an anchor can be
+ * invalid (a target inside `content-visibility: hidden` or gone), and
+ * `position-visibility` hides a cluster only when its anchor is valid and scrolled out of
+ * view. */
+.lf-margin-projection { display: flex; height: 0; pointer-events: none; }
 .lf-margin-projection[hidden] { display: none; }
-.lf-margin-toolbar { position: absolute; inset: 0; }
-.lf-margin-cluster { position: absolute; z-index: 2; left: 100%; margin-left: 22px;
+.lf-margin-toolbar, .lf-margin-lane { height: 0; }
+.lf-margin-lane { z-index: 2; }
+.lf-margin-cluster { position: absolute; z-index: 2;
+    top: calc(anchor(top, -9999px) + var(--lf-inset, 0px) + var(--lf-push, 0px));
+    position-visibility: anchors-visible;
     display: inline-flex; align-items: center; gap: 4px; white-space: nowrap;
     padding-right: var(--here-ring-room); pointer-events: auto; }
+.lf-margin-cluster[data-lf-place="rail"] {
+    left: calc(anchor(--lf-page right, -9999px) + var(--rail-hang) + var(--lf-step, 0px)); }
+.lf-margin-cluster[data-lf-place="pin"] {
+    right: calc(anchor(right, 9999px) + var(--pin-inset)); }
+/* With the annotation layer hidden (`o`, annotation-layer.js) every pin goes, whatever it
+ * holds, and the rail stays, since it covers nothing. A row the user asked for by name
+ * (`data-lf-revealed`) stays while they stand in it. Hidden rather than taken out of
+ * layout, so nothing moves and nothing is measured again. */
+:root[data-lf-annotations="hidden"]
+  .lf-margin-cluster[data-lf-place="pin"]:not([data-lf-revealed]) { visibility: hidden; }
+/* A pin's count stands on its left, over the block it is about: at the window's edge the
+ * page's `overflow-x: hidden` would clip one on the right. */
+.lf-margin-cluster[data-lf-place="pin"] .lf-margin-count { right: auto; left: -7px; }
 /* What a hovered or focused item says about the target it acts on is said on the target:
  * `highlight` (margin-projection.js) hands every item to target paint, which traces the
  * region's own shape. The item draws no leader out to it.
@@ -1627,25 +1673,14 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
  * framed widget, a blockquote and a paragraph each end somewhere different — and a
  * constant one is a hairline ending in the gutter, pointing at nothing. What it would
  * buy once measured is a second statement of the fact the target trace already makes, which is
- * why the item's raise is the whole of its own hover paint. */
-.lf-margin-cluster:is(:hover, :focus-within) { z-index: 3; }
+ * why the item's raise is the whole of its own hover paint. The raise is the runtime
+ * sheet's (chrome.css), which states it above the page paint the item summons; a second
+ * one here would tie it and win or lose by where each sheet stands. */
 .lf-margin-cluster.lf-withheld { display: none; }
-/* display, because the item is inline-flex where it hangs and absolute position is what
- * blockifies it there. Left inline-level once docked, the row joins whatever line box
- * its perch sits on: a change inside a card perches on an inline element, so the ✓/✗
- * landed on the last line of the sentence it decides, straddling the words instead of
- * standing under them. A docked row is a line of its own wherever it comes to rest.
- *
- * fit-content keeps that line the width of the controls standing in it, the box the row
- * had in the margin: a block-level row stretched to the column would take presses across
- * the whole width of a line the user is trying to select in (pointer-events above). */
-.lf-margin-cluster.lf-docked { position: static; display: flex; width: fit-content;
-    max-width: 100%; margin: 2px 0 12px; flex-wrap: wrap; white-space: normal; }
 .lf-margin-inline { display: block; }
 .lf-margin-options { display: inline-flex; align-items: center; gap: 4px;
     white-space: nowrap; }
 .lf-margin-options[hidden] { display: none; }
-.lf-margin-cluster.lf-docked .lf-margin-options { flex-wrap: wrap; white-space: normal; }
 /* The visible label becomes transient hover and focus chrome once the runtime's
  * stylesheet arrives. The accessible name comes from the entry reading. */
 .lf-margin-entry > :is(.lf-margin-entry-space, .lf-margin-entry-label) {
@@ -1838,76 +1873,110 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   transition: none;
 }
 .lf-margin-options [data-lf-margin-entry-overflow] { display: none; }
+/* A pin's marker is filled where a rail marker is paper: it stands on the block it is
+   about, over the block's own words, so it is a solid teardrop pointing into the block
+   with a paper edge that parts it from whatever it covers. It is smaller than a rail
+   marker with a mouse, because it covers what it stands on, and keeps the full aim floor
+   under a finger, so what the user sees is what they press.
+
+   The fill is the pin, so the states a rail marker paints on its paper take the pin's
+   other channels, in the rail's order: a thread on the user carries a ring of the fill
+   outside the edge; pickup turns the edge green; working turns the fill green and
+   outranks both. A read-only status keeps the rail's paper face, since a fill would say
+   it can be pressed. Stated after the entry's states, whose hover and focus contours it
+   has to outrank. */
+.lf-margin-cluster[data-lf-place="pin"] { --margin-entry: max(26px, var(--aim-floor)); }
+.lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry.lf-margin-marker {
+  border-radius: 50% 50% 50% 3px; }
+.lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry.lf-margin-marker:not([data-lf-behavior="status"]) {
+  --lf-pin-edge: var(--paper);
+  border: 2px solid var(--lf-pin-edge);
+  background: var(--lf-pin-face, var(--pin-fill)); color: #fff;
+  box-shadow: var(--lf-pin-halo, 0 0 0 0 transparent),
+    0 1px 2px var(--shade), 0 3px 8px var(--shade); }
+.lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry.lf-margin-marker:not([data-lf-behavior="status"])
+  > :is(.lf-margin-entry-icon, .lf-margin-entry-glyph) {
+  color: #fff; inline-size: 14px; block-size: 14px; }
+.lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry.lf-margin-marker:not([data-lf-behavior="status"]):is(:hover, :focus-visible, .lf-focus-visible, [aria-expanded="true"], [data-lf-target-selected]) {
+  border-color: var(--lf-pin-edge); }
+.lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry.lf-margin-marker:not([data-lf-behavior="status"]):is(:hover, [aria-expanded="true"]) {
+  background: color-mix(in srgb, var(--lf-pin-face, var(--pin-fill)) 82%, #000); }
+.lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry.lf-margin-marker[data-lf-turn="user"]:not([data-lf-agent-workflow]) {
+  --lf-pin-halo: 0 0 0 4px color-mix(in srgb, var(--pin-fill) 45%, transparent); }
+.lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry.lf-margin-marker[data-lf-agent-workflow="picked_up"] {
+  --lf-pin-edge: var(--pin-working); }
+.lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry.lf-margin-marker[data-lf-agent-workflow="working"] {
+  --lf-pin-face: var(--pin-working); }
+.lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry.lf-margin-marker[data-lf-unread]::after {
+  box-shadow: 0 0 0 2px var(--paper); }
 .lf-margin-receipt { color: var(--ink-2); font-weight: 600; }
 .lf-margin-receipt[data-lf-margin-receipt="negative"] { color: var(--danger-ink); }
 .lf-margin-count { position: absolute; top: -7px; right: -7px; min-width: 16px;
     height: 16px; padding: 0 3px; box-sizing: border-box; border-radius: 999px;
     border: 1px solid var(--paper); background: var(--ink); color: var(--paper);
     font: 600 10px/14px var(--sans); text-align: center; }
-/* The rail stands in a shell wide enough to hold it beside the whole column: the column
+/* A column page keeps a rail and a sheet, whose tracks fill the page, does not: its
+ * margin rows stand as pins on their blocks, where a rail at the sheet's far edge could
+ * stand hundreds of pixels from the card a marker is about. `data-rail` on `main` says
+ * otherwise for either: `right` keeps the rail on a sheet, and `none` gives a column
+ * page's right margin to its own notes.
+ *
+ * The rail stands in a shell wide enough to hold it beside the whole column: the column
  * (720), its padding (2 x 24) and the rail (95), so 863, or 887 where a finger raises the
  * entries to the aim floor. The rule that claims it says so on `main` as
- * `--lf-rail-posture`, and that reading is the whole answer: the runtime places rows by
- * it (margin-projection.js), so nothing derives the posture again from a width. A container query cannot read `--rail`, so the two floors
- * are written out, one per pointer, and a change to the rail's width changes them with
- * it. The Page Map the folded banner offers asks this posture (chrome-layout.js). This
- * asks `lf-shell` because the rail is drawn in the shell. No auxiliary surface takes any
- * of it: each stands over the page.
+ * `--lf-rail-posture`, and that reading is the whole answer: the layout stands rows in the
+ * rail by it (margin-layout.js), so nothing derives the posture again from a width. A
+ * container query cannot read `--rail`, so the two floors are written out, one per
+ * pointer, and a change to the rail's width changes them with it. This asks `lf-shell`
+ * because the rail is drawn in the shell. No auxiliary surface takes any of it: each
+ * stands over the page. Where the rail does not stand, every row is a pin.
+ *
+ * A live page claims the strip at load, whether or not anything stands in it yet, so the
+ * user never buys the room with a gesture and nothing arriving in the margin, settling
+ * there, or leaving it moves the column. The claim's width is `--rail`, a constant of the
+ * theme. It is a claim rather than the strip itself because a sidenote may claim the same
+ * side; `main` spends the wider claim, not their sum.
  *
  * The claim cannot feed back into the answer. It comes out of `main`'s room inside the
  * shell (--strip-r, at the column), while the shell's own inline size is the window's, so
  * the container answers the same whether a marker stands in the rail or not. */
 @media screen {
   @container lf-shell (width > 863px) {
-    :is(
-      :root[data-lf-rail],
-      html[data-lf-live]
-    ) main {
-      /* The whole rail, focus-ring room included: claimed short of that last band, it
-         falls past body's room and the layout hides the entry standing in it. What the
-         condition reads is stated with the rest of the claim below. */
+    html[data-lf-live] main:is(
+      [data-rail="right"],
+      :not([data-rail], [data-width="wide"], [data-width="available"])
+    ) {
+      /* The whole rail, focus-ring room included. */
       --claim-rail: var(--rail);
       --lf-rail-posture: margin;
     }
   }
-  @container lf-shell (width <= 863px) {
-    .lf-margin-projection, .lf-margin-marker.lf-margin-entry { display: none; }
-  }
 }
 @media screen and (pointer: coarse) {
   @container lf-shell (width <= 887px) {
-    :is(
-      :root[data-lf-rail],
-      html[data-lf-live]
-    ) main {
+    html[data-lf-live] main:is(
+      [data-rail="right"],
+      :not([data-rail], [data-width="wide"], [data-width="available"])
+    ) {
       --claim-rail: initial;
       --lf-rail-posture: initial;
     }
-    .lf-margin-projection, .lf-margin-marker.lf-margin-entry { display: none; }
   }
 }
+/* How far a rail marker hangs off the column. A finger's larger entries spend the rail's
+ * room themselves, so the hang shrinks with them. */
+:root { --rail-hang: 22px; }
 @media (pointer: coarse) {
-  .lf-margin-cluster { margin-left: 10px; }
+  :root { --rail-hang: 10px; }
 }
 @media print {
   .lf-margin-projection, .lf-margin-marker.lf-margin-entry { display: none !important; }
 }
-/* A page that can grow a page-edge margin entry reserves this strip at load. The runtime says
- * so on the root (data-lf-rail) and never takes it back, so durable apparatus never hangs
- * in accidental leftover space and the user never buys the room for it with a gesture.
- * The claim's width is `--rail`, a constant of the theme rather than a measurement, so
- * the author knows the page's geometry in advance and nothing arriving in the margin,
- * settling there, or leaving it moves the column under the user. A cluster wider than
- * the rail — reaction choices unfolded, a contribution with more than the resting
- * budget — borrows the available RHS and docks the complete item if it does not fit.
- * Below the breakpoint the whole item docks into flow.
- *
- * This is a claim rather than the strip itself because a sidenote may claim the same side;
- * body spends the wider claim, not their sum. The condition is what the page declares,
- * because both readings of the margin's own contents fail. Asking whether an item docked
- * feeds the reservation decision back into itself. Asking whether an item stands there at
- * all put the reflow on the gesture that raised the first one, and a second reflow on the
- * gesture that took it back. */
+/* A browser without anchor positioning cannot stand a row by its target, so it shows none
+ * and the banner offers the Page Map in their place (chrome.css). */
+@supports not (anchor-name: --lf-page) {
+  .lf-margin-projection { display: none !important; }
+}
 /* Where a widget upgrade fails, it fails soft into this box. */
 .lf-error { border: 1px solid var(--danger); background: var(--danger-tint);
             color: var(--danger-ink); border-radius: var(--r); padding: 8px 12px;

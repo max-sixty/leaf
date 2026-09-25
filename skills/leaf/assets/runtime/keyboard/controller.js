@@ -37,12 +37,10 @@ export function mountKeyboard({
   // cancel the control would consume.
   //
   // Not for a placement, which emits the same pair around a focus that never left: the
-  // margin takes a docked cluster out of flow to measure where it can hang and puts it and
-  // the user back, once per layout pass. Answering that as a move painted the standing
-  // chrome, whose layout pass asked for the next placement, and a page with the user
-  // standing in a docked cluster laid its margin out on every frame for as long as they
-  // stood there. The user has not moved and nothing they can see has changed, so there
-  // is nothing here to paint.
+  // margin moves a row between lanes when its target's scroller changes, and puts the
+  // user back where they stood. Answering that as a move paints the standing chrome,
+  // whose layout pass asks for the next placement. The user has not moved and nothing
+  // they can see has changed, so there is nothing here to paint.
   document.addEventListener("focusin", () => {
     if (runtime.placingChrome) return;
     // The same question `setGoToSequence` asks before arming, so it takes the same answer: two

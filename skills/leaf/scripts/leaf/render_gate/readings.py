@@ -135,6 +135,7 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
     overflow = evaluate_probe(page, "rootOverflow")
     misplaced = evaluate_probe(page, "misplacedBoxes")
     withheld = evaluate_probe(page, "withheldRoom")
+    stranded = evaluate_probe(page, "strandedMargins")
     silent_cuts = evaluate_probe(page, "silentCuts")
     squeezed = evaluate_probe(page, "squeezedTables")
     clipped = evaluate_probe(page, "clippedControls")
@@ -324,6 +325,7 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
     ]
     found += [f"[{scheme}] {text}" for _key, text in _overflow(overflow, misplaced)]
     found += [f"[{scheme}] {w}" for w in withheld]
+    found += [f"[{scheme}] {s}" for s in stranded]
     found += [f"[{scheme}] {c}" for c in silent_cuts]
     found += [f"[{scheme}] {s}" for s in squeezed]
     found += [
@@ -440,6 +442,18 @@ def swept_overflow(page, viewports) -> list[str]:
         span = f"{low}px" if low == high else f"{low}–{high}px"
         found.append(f"at {span} wide, {text}")
     return found
+
+
+def margin_cover_advice(page) -> list[str]:
+    """Advice naming each pin that stands over lines of the page's text."""
+    width = page.viewport_size["width"]
+    return [
+        f"at {width}px wide the margin pin for {pin['at']} stands over "
+        f"{pin['covered']} line(s) of text: a pin stands inside its block's "
+        "top-right corner, so give the block padding on its right, or the page a rail "
+        "(page-authoring.md, the rail and the margin), where those words matter"
+        for pin in evaluate_probe(page, "coveringMargins")
+    ]
 
 
 def alignment_advice(page) -> list[str]:

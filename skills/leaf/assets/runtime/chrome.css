@@ -291,6 +291,12 @@ body[data-lf-draw-mode] main .lf-conversation * { cursor: auto !important; }
 :is(.lf-mark-el, .lf-react-el) {
   outline: 1px solid var(--mark-ink); outline-offset: -1px; }
 .lf-mark-el { cursor: pointer; }
+/* The annotation layer hidden (`o`): the resting contour goes with the text marks, here
+   and in the chrome's projection of it (at .lf-visual-mark), and the contours of a
+   gesture (pending, hover, focus, the current thread) stay. */
+:root[data-lf-annotations="hidden"]
+  :is(.lf-mark-el, .lf-react-el):not(.lf-pending, .lf-mark-hover, .lf-mark-here,
+    :focus-visible, .lf-focus-visible) { outline-color: transparent; cursor: auto; }
 /* The glyphs of the reactions standing on a target — a margin entry per reaction,
    revealing a separately named removal action. */
 .lf-react-mark { text-align: center; }
@@ -487,6 +493,10 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      under pointer or focus crosses that paint; the full-page toolbar stays at rest. */
   .lf-margin-projection { z-index: auto; }
   .lf-margin-cluster:is(:hover, :focus-within) { z-index: var(--lf-z-margin-raised); }
+  /* A pane's lane is a stacking context of its own (its clip makes it one), so the lane
+     rises with the row the pointer or the keyboard is on. */
+  .lf-margin-lane:has(.lf-margin-cluster:is(:hover, :focus-within)) {
+    z-index: var(--lf-z-margin-raised); }
   .lf-target-paint[data-lf-paint-plane="chrome"] { z-index: var(--lf-z-chrome-paint); }
   /* Every margin-projection control traces the content it concerns through one quiet
      overlay. Painting above the target keeps a package-owned frame from covering the
@@ -1444,6 +1454,10 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-visual-mark.lf-visual-mark-here {
     border: var(--here-ring-w) solid var(--accent); }
   .lf-visual-mark.lf-shaped { border: 0; border-radius: 0 !important; }
+  html[data-lf-annotations="hidden"] :scope
+    .lf-visual-mark:is(.lf-visual-mark-comment, .lf-visual-mark-reaction):not(
+      .lf-visual-mark-pending, .lf-visual-mark-hover, .lf-visual-mark-focus,
+      .lf-visual-mark-here, .lf-visual-mark-action) { visibility: hidden; }
   .lf-visual-mark-shape { display: block; width: 100%; height: 100%; overflow: hidden; }
   .lf-composer { display: none; }
   .lf-fab-bar .lf-composer > :not(.lf-compose-field, .lf-composer-media) {
@@ -1668,9 +1682,11 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-page-map-group h3 { margin: 0 8px 4px; font-size: var(--t-5); line-height: 1.35; }
   .lf-page-map-actions { display: grid; gap: 2px; }
   /* The banner offers the whole Page Map wherever the rail is not drawn, and asks the
-     same floor the rail does, of the same box: theme.css, at the margin projection. The
-     thread panel takes no room but stands over the rail below about 1700px, and the
-     layout pass marks the root when it does. */
+     same floor the rail does, of the same box: theme.css, at the margin projection. There
+     the markers are pins, small targets over the content, and the searchable map is the
+     better route to them. The thread panel takes no room but stands over the margin
+     below about 1700px, and the layout pass marks the root when it does. A browser that
+     cannot anchor draws no markers at all. */
   @media screen {
     @container lf-shell (width <= 863px) {
       .lf-page-map-toggle:not([hidden]) { display: inline-flex; }
@@ -1681,6 +1697,9 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     @container lf-shell (width <= 887px) {
       .lf-page-map-toggle:not([hidden]) { display: inline-flex; }
     }
+  }
+  @supports not (anchor-name: --lf-page) {
+    .lf-page-map-toggle:not([hidden]) { display: inline-flex; }
   }
   @media (forced-colors: active) {
     .lf-margin-preview, .lf-page-map-dialog { border: 1px solid CanvasText; box-shadow: none; }

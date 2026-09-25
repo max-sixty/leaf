@@ -15,6 +15,7 @@ import { aimTargetAt } from "../anchor-resolution.js";
 // the keyup with it, and a page left armed under nobody's hand is a claim the user
 // cannot dismiss.
 export function createAim({
+  marginTargetAt,
   refreshAim,
   commentOnTarget,
   standDown,
@@ -48,12 +49,19 @@ export function createAim({
   // is no reason to say nothing: the press still acts (it moves the draft onto another
   // target), so the promise still paints — what stood down here left that one press made
   // blind.
+  //
+  // The margin layer is chrome that stands over the page, and a row there is about the
+  // page element it stands by, so over a row the aim is at that element: the row is the
+  // page's corner the user is pointing at, as it is in Design mode.
+  function onPage(node) {
+    const over = node && inChrome(node) ? marginTargetAt(node) : node;
+    return over && !inChrome(over) ? over : null;
+  }
   function aimedTarget() {
     const pointer = pointerAt();
     if (pointer.x < 0) return null;
-    const at = elementFromPointAcross(pointer.x, pointer.y);
-    if (!at || inChrome(at)) return null;
-    return aimTargetAt(at);
+    const at = onPage(elementFromPointAcross(pointer.x, pointer.y));
+    return at && aimTargetAt(at);
   }
   function setAiming(on) {
     aiming = on;
@@ -97,9 +105,9 @@ export function createAim({
   // is an item under it, and acts on nothing where there isn't. That is what the cursor is
   // already saying, over everything the chrome doesn't hold out of it. Falling through to
   // the page instead would leave the user reading the box to find out which of the
-  // two a press is about to be — and a suggestion's ✓ Accept hangs in the page's own
-  // column, outside the element it decides, so there is nothing above it to aim at and
-  // getting that wrong sends Claude a decision.
+  // two a press is about to be — and a suggestion's ✓ Accept stands in the margin
+  // layer over the page, so a press let through there sends Claude a decision. The aim
+  // takes it as a press on the change it stands by.
   //
   // A press is its down, its up and the click they make, a double press one event more, and
   // the aim takes every one of them: which a widget listens on is not something the runtime
@@ -125,7 +133,7 @@ export function createAim({
     if (ev.type === "pointerdown") {
       const designTarget = designMode.press(ev.target);
       const aim =
-        aimIsAvailable() && ev.getModifierState(AIM.modifier) && !inChrome(ev.target);
+        aimIsAvailable() && ev.getModifierState(AIM.modifier) && onPage(ev.target);
       // The item the outline is naming, through the reading that named it (aimedTarget,
       // which aimTarget and so the box itself go through) rather than through this event's own
       // target. Both are hit tests at the one place the pointer is, and asking twice is what

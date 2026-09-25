@@ -166,11 +166,7 @@ export function coveredWords({
   // does. The walk below stays in the light DOM, so the climb does too.
   const painted = (el, drawn) => {
     let box = drawn;
-    for (
-      let ancestor = el;
-      ancestor && ancestor !== document.body && box;
-      ancestor = ancestor.parentElement
-    ) {
+    for (let ancestor = el; ancestor && ancestor !== document.body && box;) {
       const style = getComputedStyle(ancestor);
       if (style.overflowX !== "visible" || style.overflowY !== "visible") {
         const bounds = ancestor.getBoundingClientRect();
@@ -184,10 +180,22 @@ export function coveredWords({
             : null;
       }
       // An out-of-flow box is laid out against its containing block rather than against
-      // the ancestry, so a hidden overflow further out need not reach it at all. Stop
-      // climbing there and keep the rect whole: over-reporting a cover is this reading's
-      // safe direction, and missing one is the fault it was written for.
-      if (style.position === "absolute" || style.position === "fixed") break;
+      // the ancestry: an overflow between the two does not clip it, and one at or above
+      // the containing block does, so the climb goes on from there. A board column's
+      // count hangs absolutely in its column, and the board that scrolls the column out
+      // of view hides the count with it. `offsetParent` is the containing block only
+      // when it is positioned: a static table or cell it may name instead stands below
+      // the real one, so there the climb stops and keeps the rect whole, over-reporting
+      // a cover being this reading's safe direction. A fixed box answers to the
+      // viewport alone.
+      if (style.position === "fixed") break;
+      if (style.position === "absolute") {
+        const holder = ancestor.offsetParent;
+        if (!holder || getComputedStyle(holder).position === "static") break;
+        ancestor = holder;
+        continue;
+      }
+      ancestor = ancestor.parentElement;
     }
     return box;
   };

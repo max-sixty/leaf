@@ -1481,7 +1481,7 @@ def test_the_rail_s_floor_is_one_width_in_every_sheet():
     theme = (schema_model.ASSETS / "theme.css").read_text()
     chrome = (schema_model.ASSETS / "runtime" / "chrome.css").read_text()
     floor = re.search(
-        r"@container lf-shell \(width > (\d+)px\) \{\s*html\[data-lf-live\] main:is\(",
+        r"@container lf-shell \(width > (\d+)px\) \{\s*html\[data-lf-live\] main\b",
         theme,
     ).group(1)
     spelled = f"@container lf-shell (width <= {floor}px) {{"

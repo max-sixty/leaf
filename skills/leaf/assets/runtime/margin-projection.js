@@ -67,7 +67,6 @@ import {
   scheduleMarginEntryLabels,
   scheduleMarginLayout,
   unregisterMarginRow,
-  updateMarginRow,
 } from "./margin-layout.js";
 import {
   marginContributionEntries,
@@ -1905,8 +1904,8 @@ export function createMarginProjection({
         );
         moreMarginEntries.set(entry.key, more);
         hosts.set(entry.key, host);
-        registerMarginRow(host, markerOptions(host, order));
-      } else updateMarginRow(host, markerOptions(host, order));
+      }
+      registerMarginRow(host, markerOptions(host, order));
       // Parked in the root lane, in the inventory's order and off screen until the layout
       // pass anchors it, so the controls it renders are in the document, and in the tab
       // order where they belong, from their first render.

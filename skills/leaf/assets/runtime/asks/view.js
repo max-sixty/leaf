@@ -385,28 +385,6 @@ export function createAskView({
   // it out of the list, so forward is the direction that has somewhere to go, and a walk
   // that clamped there would strand them at the end of it.
   //
-  // Somewhere inside the ask the user can be stood: one within it, or one hoisted out of
-  // it and pointing back (a suggestion's row is the column's child, so that it can hang in
-  // the page margin). Landing on it rather than on the ask puts the user on something
-  // that works it, and Tab walks the rest of that ask's own controls from there.
-  //
-  // Which ask such a control decides, where the widget hoisted it out of the element (the
-  // attribute lf-suggestion writes on the row it hangs in the margin).
-  const ASK_ROW = "data-lf-for";
-  // Chrome that stands *at* an ask without deciding it: the asks tray's rows. Separate
-  // from ASK_ROW above, because the two say different things about the same element and
-  // one of them has a consumer that must not confuse them — stepAsk looks through ASK_ROW
-  // for the control to put the user on, and a row that merely points at the ask is not
-  // that control. What they share is this: focus on either means the user is standing at
-  // that ask, which is the one question askPlace asks.
-  // Where a stand-in stands: the ask decided by the control it re-presents. Separate from
-  // ASK_ROW again, and for a sharper reason than ASK_AT's — ASK_ROW names one element per
-  // ask, the row lf-suggestion hangs in the margin, and the runtime, the theme and the
-  // suite all read `[data-lf-for="<id>"]` as that row. A proxy wearing it would be a second
-  // answer to every selector meaning "the row for this change". What a stand-in needs is
-  // only the reading below: focus on it means the user is standing at the ask its press
-  // decides.
-  const ASK_STANDS = "data-lf-stands";
   // The tab stop this walk lends an ask that holds nothing to work: such an ask has no box
   // in the tab order and the runtime writes it one — which is paint on the author's element,
   // and PAGE_PAINT_ATTRIBUTES is the whole of what the runtime may leave standing there (a
@@ -444,40 +422,13 @@ export function createAskView({
     reviewedThrough = null;
     return false;
   }
-  // The ask a node points back at, as the id it names, or null where it points at none.
+  // The ask a tray row stands at, as the id it names, or null where the node is in none.
   const standsAt = (node) => {
     const el = node.nodeType === 1 ? node : node.parentElement;
-    const row = el?.closest(`[${ASK_ROW}], [${ASK_AT}], [${ASK_STANDS}]`);
-    return (
-      row?.getAttribute(ASK_ROW) ??
-      row?.getAttribute(ASK_AT) ??
-      row?.getAttribute(ASK_STANDS) ??
-      null
-    );
+    return el?.closest(`[${ASK_AT}]`)?.getAttribute(ASK_AT) ?? null;
   };
-  // What a surface re-presenting a control has to say about it: the control's own
-  // attribution, so a stand-in stands where the control it forwards to stands. The living
-  // margin builds one when a hoisted control spills into a More options group, and the
-  // press it forwards decides the same ask. Saying nothing left the proxy standing nowhere:
-  // the ring came off the suggestion for as long as the user held its own ✗ Reject, and
-  // the walk measured its next step from the margin rather than from the change.
-  //
-  // Said in ASK_STANDS rather than in the row's own attribute, because the stand-in is a
-  // second element for the one ask: the row keeps sole answer to `[data-lf-for="<id>"]`,
-  // and standsAt above reads the two together.
-  //
-  // Written only where it changes, like every other repaint of a standing surface: a
-  // heartbeat that re-presents the same control restates nothing.
-  function standsWith(node, source) {
-    const at = (source && standsAt(source)) ?? null;
-    if (node.getAttribute(ASK_STANDS) === at) return;
-    if (at) node.setAttribute(ASK_STANDS, at);
-    else node.removeAttribute(ASK_STANDS);
-  }
   // A place in the document, stated as the ask it belongs to wherever it belongs to one: a
-  // control hoisted out of its ask and pointing back at it stands for that ask and not for
-  // the block it was hung beside, or stepping back from a suggestion's own ✓ Accept would
-  // land on the suggestion the user is already standing on.
+  // tray row stands for the ask it names rather than for the tray.
   function askPlace(node) {
     const projected = projectionTarget(node);
     if (projected) return projected;
@@ -841,7 +792,7 @@ export function createAskView({
   // The route runs through the chrome all the same. A widget frozen into a reply is a
   // ask the walk visits, collected beside the document's, and a user working its
   // controls is standing in the ordered space. So what decides it is membership of that
-  // space: the ask a hoisted control or a tray row names (askPlace), or the one the
+  // space: the ask a tray row names (askPlace), or the one the
   // node stands inside. The rest of the layer names none.
   const walkPlace = (node) => {
     const place = askPlace(node);
@@ -905,9 +856,9 @@ export function createAskView({
     return dir > 0 ? (reach[0] ?? asks.at(-1)) : (reach.at(-1) ?? asks[0]);
   }
   // Putting the user back on the control they were working when a widget rebuilt itself
-  // underneath them (rebuild): the control that works this ask — one inside it, or
-  // one the widget hoisted into the margin and pointed back at it — or the ask
-  // itself, lent a tab stop where it holds nothing to work.
+  // underneath them (rebuild): the control that works this ask — one inside it, or one
+  // the margin presents for it — or the ask itself, lent a tab stop where it holds nothing
+  // to work.
   //
   // This is not where an arrival lands, and the two parted when the scroll and the focus
   // were measured against each other. Arrival puts the ask's opening at the top of
@@ -921,7 +872,6 @@ export function createAskView({
     if (!source) return;
     const control =
       source.querySelector(ASK_CONTROL) ??
-      document.querySelector(`[${ASK_ROW}="${source.id}"] ${ASK_CONTROL}`) ??
       actionsFor(source).map(({ control }) => presentedActionControl(control))[0];
     if (!control) lend(source);
     const target = control ?? source;
@@ -1269,8 +1219,6 @@ export function createAskView({
     destroy,
     buildBulkAnswers,
     syncAsks,
-    standsWith,
-    askPlace,
     standingIn,
     heldAsk,
     captureStanding,

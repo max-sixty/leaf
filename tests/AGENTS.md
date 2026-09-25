@@ -669,10 +669,10 @@ that ordering; the node leaving the list remains the external completion fact.
 Use this pattern only when intermediate order is the contract.
 
 An instant is a state that exists within one rendering turn. In
-`test_the_room_is_measured_after_a_late_rail`, a `MutationObserver` records
-layout when the upgrade stamp changes, before the next frame can restate the
-room. The injected observer captures the instant; the stamp is the completion
-fact.
+`test_the_room_follows_a_margin_taken_after_the_handover`, a `MutationObserver`
+records layout when the upgrade stamp changes, before anything outside the page
+can read it. The injected observer captures the instant; the stamp is the
+completion fact.
 
 Do not substitute frame counts or quiet windows for these distinctions. Ask
 whether the claim concerns the settled state, one frame, the order of frames, or

@@ -159,7 +159,7 @@ export async function importWidgets(scope) {
 
 // The upgrade lifecycle for the whole authored body, at startup: read it while it is
 // still what its author wrote, import what its tags declare, and dress it.
-export async function installDocument(scope) {
+async function installDocument(scope) {
   const presentation = attachApplicationPresentation("document:installation", scope);
   try {
     rememberPassageParts(scope);

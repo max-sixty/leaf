@@ -61,8 +61,7 @@ def leaf_page(
     title: str, body: str, *, head: str = "", width: str | None = None
 ) -> str:
     """A complete page carrying the presentation boundary every fixture shares. `width`
-    makes the page a sheet (`<main data-width>`), as a page whose only block is a
-    workspace must be."""
+    widens the page itself (`<main data-width>`)."""
     extra_head = f"{head}\n" if head else ""
     main = f'<main data-width="{width}">' if width else "<main>"
     return f"""<!doctype html>

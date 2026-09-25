@@ -1038,8 +1038,7 @@ CHROME_ROOM = """() => {
              line: document.querySelector('.lf-shortcut-bar').offsetHeight };
 }"""
 # The same reading taken at the stamp, which is the one moment nothing out here can
-# reach: a MutationObserver's callback is a microtask off the stamp's own write, and
-# the frame after it is where the runtime's layout observer restates the room.
+# reach: a MutationObserver's callback is a microtask off the stamp's own write.
 AT_THE_HANDOVER = (
     "window.__handover = null;\n"
     "new MutationObserver(() => { window.__handover ??= (" + RAIL_FIT + ")(); })\n"
@@ -1058,12 +1057,10 @@ LATE_MARGIN_PAGE = leaf_page(
 """,
 )
 
-# A widget that hangs its controls in the page margin, and can only say how wide a margin
-# once it has heard what they will say — so the claim rides an answer rather than the
-# upgrade that asked for it. lf-suggestion is the same widget with a measurement it
-# happens to be able to take on the spot, which is why the moment a claim lands was never
-# anybody's subject. The request is answered by the test, which is what puts the claim
-# after the handover on every machine rather than on a fast one.
+# A project widget that claims a strip of the page margin, and can only say how wide once
+# it has heard what its controls will say — so the claim rides an answer rather than the
+# upgrade that asked for it. The request is answered by the test, which is what puts the
+# claim after the handover on every machine rather than on a fast one.
 LATE_MARGIN_WIDGET = """\
 import { once } from "/runtime/widget-api.js";
 

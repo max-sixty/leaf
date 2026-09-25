@@ -93,7 +93,7 @@ function menuTemplate() {
 render(rowTemplate(), bannerActions);
 render(menuTemplate(), overflowMenu);
 
-export const overflowBtn = bannerActions.querySelector(".lf-banner-more");
+const overflowBtn = bannerActions.querySelector(".lf-banner-more");
 overflowBtn.popoverTargetElement = overflowMenu;
 overflowMenu.lfInvoker = overflowBtn;
 

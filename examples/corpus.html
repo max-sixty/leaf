@@ -805,7 +805,13 @@
     </style>
 <!-- code-comparison.html authored module -->
 <script type="module">
-      import { keeps, layoutChanged, offer, once } from "/runtime/widget-api.js";
+      import {
+        keeps,
+        layoutChanged,
+        nextRender,
+        offer,
+        once,
+      } from "/runtime/widget-api.js";
 
       const DEFAULT_COMPARISON = {
         candidateA: { density: "compact", wrap: false },
@@ -907,7 +913,7 @@
               candidate.querySelector(".code-candidate-title").textContent =
                 `${name} · ${setting.density} · ${setting.wrap ? "wrap" : "scroll"}`;
             }
-            requestAnimationFrame(() => {
+            nextRender(() => {
               for (const name of ["A", "B"]) {
                 const candidate = this.querySelector(`[data-candidate="${name}"]`);
                 const pre = candidate.querySelector("lf-code pre");

@@ -18,10 +18,10 @@ from render_cases_widgets import (
     PART_DIAGRAM_PAGE,
 )
 from render_harness import (
-    RENDERED,
     ROOT,
     leaf_page,
     open_page,
+    rendered,
     resized,
     sending,
 )
@@ -264,7 +264,7 @@ def test_a_chrome_reflow_repositions_target_hints_in_its_first_layout_frame(
     page.keyboard.press("s")
     hints = page.locator(".lf-target-chooser-hint")
     expect(hints).to_have_count(3)
-    page.evaluate(RENDERED)
+    rendered(page)
 
     page.evaluate(
         """() => {

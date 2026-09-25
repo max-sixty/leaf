@@ -5,6 +5,7 @@
  * imports the conversation presenter to request a refresh.
  */
 
+import { cancelRender, nextRender } from "./rendering.js";
 import { visualAt } from "./anchor-resolution.js";
 import { documentPoint } from "./geometry.js";
 import { inChrome } from "./passages.js";
@@ -80,7 +81,7 @@ export function createPageGeometry({
 
   function queueActionPlacement() {
     if (actionFrame) return;
-    actionFrame = requestAnimationFrame(() => {
+    actionFrame = nextRender(() => {
       actionFrame = 0;
       refreshActionBar();
     });
@@ -128,7 +129,7 @@ export function createPageGeometry({
     document.removeEventListener("scroll", pageShifted, { capture: true });
     document.removeEventListener(LAYOUT, pageShifted);
     globalThis.removeEventListener("resize", onResize);
-    if (actionFrame) cancelAnimationFrame(actionFrame);
+    if (actionFrame) cancelRender(actionFrame);
     actionFrame = 0;
     targetPaint.clearAim();
     paintInspect(null);

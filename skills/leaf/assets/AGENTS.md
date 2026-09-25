@@ -52,7 +52,7 @@ relative to `runtime/` unless stated otherwise.
 | Vocabulary and public helpers | `registry.js`, `widget-api.js`, `widget-elements.js`, `request-elements.js` |
 | External data and authored projections | `data.js`, `projection/data.js`, `projection/authored.js` |
 | Revision installs and continuity | `version.js`, `version-chooser.js`, `carry.js`, `dom-children.js`, `root-state.js`, `restore-state.js` |
-| Shared repaint and geometry | `repaint.js`, `standing.js`, `page-geometry.js`, `geometry.js`, `pointer.js` |
+| Shared repaint and geometry | `rendering.js`, `repaint.js`, `standing.js`, `page-geometry.js`, `geometry.js`, `pointer.js` |
 | Chrome assembly and available room | `chrome.js`, `chrome-layout.js`, `auxiliary-surfaces.js`, `drawn-edge.js` |
 | Reading regions and scrolling | `reading-regions.js`, `reading-place.js`, `bounds.js`, `scrolling.js`, `reach.js`, `user-place.js` |
 | Keyboard commands and their projections | `keyboard/AGENTS.md` |
@@ -248,6 +248,13 @@ geometry before the browser can paint the presented state. After it, a state cha
 animate only where motion helps the user follow a change. A failed startup does not
 stamp the page presented as if it had read the log.
 
+`data-lf-presented` is stamped before the chrome that presentation paints has landed.
+Whether chrome and geometry have caught up is a separate, live reading,
+`renderingSettled` in `runtime/rendering.js`, whose header owns what it counts and why
+the stamp does not wait on it. Schedule a rendering callback or watch a size through
+that module's `nextRender`, `cancelRender`, and `sizeObserver`; lint refuses the
+browser's own.
+
 ## What crosses to the server
 
 The server does not retain refusal receipts. The condition behind a refusal can change
@@ -428,7 +435,7 @@ waits and declares the arrival in one call, so `pageArrived` still answers for i
 nothing outside the page has to name the widget that deferred; `deferredArrival` is that
 declaration on its own, for runtime work that defers without waiting for presentation.
 Apparatus that also depends on authoritative replay takes one synchronous reading on
-`PRESENTATION`, then uses `ResizeObserver` or the shared layout signal for later changes.
+`PRESENTATION`, then uses `sizeObserver` or the shared layout signal for later changes.
 An asynchronous producer's default may reserve space without painting; a box-derived
 reading taken before replay does paint, and `PRESENTATION` replaces it.
 

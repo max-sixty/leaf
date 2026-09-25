@@ -17,6 +17,7 @@
    declaring it is the scroller. Each bounded block is watched on its own,
    for what it holds and for its size, so nothing here runs for a change elsewhere on
    the page; `followBounds` runs after every install and patch to pick up new ones. */
+import { sizeObserver } from "./rendering.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
 
 const BOUNDED = `[${PAGE_PAINT_ATTRIBUTE.bound}]`;
@@ -59,7 +60,7 @@ function follow(bounded) {
     state.left = !atEnd(state.box);
     if (!state.left) state.pinned = state.box.scrollTop;
   };
-  const resize = new ResizeObserver(pin);
+  const resize = sizeObserver(pin);
   new MutationObserver(pin).observe(bounded, {
     childList: true,
     characterData: true,

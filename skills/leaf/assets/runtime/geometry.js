@@ -1,5 +1,6 @@
 /* This module owns the shared readings of visible boxes and clipping, and the one
  * conversion from viewport boxes to document-positioned chrome. */
+import { sizeObserver } from "./rendering.js";
 import { setRuntimeRootStyle } from "./root-state.js";
 import { uiInside, under, upFrom } from "./shadow.js";
 
@@ -231,7 +232,7 @@ const letGo = (cover) => {
   declaredCovers.delete(cover);
 };
 export function declareCoverRoom(host, property, covers) {
-  coverObserver ??= new ResizeObserver((entries) => {
+  coverObserver ??= sizeObserver((entries) => {
     const touched = new Set();
     for (const { target, borderBoxSize } of entries) {
       const host = coverHosts.get(target);

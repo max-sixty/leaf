@@ -784,7 +784,7 @@ export function createVersionController({
       throw new Error(`version v${baseVersion} has no revision`);
     const baseView = baseReading?.views?.[String(baseRevision)];
     if (!baseView) throw new Error(`revision r${baseRevision} has no projection`);
-    const baseProjection = projectView(baseView, baseReading.conversation);
+    const baseProjection = projectView(baseView, baseReading.thread);
     for (const { tag, verb, spec } of stateSpecs()) {
       if (!spec.record || spec.record.kind === "body") continue;
       for (const widget of document.body.querySelectorAll(tag)) {

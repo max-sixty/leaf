@@ -4,9 +4,9 @@ import json
 import re
 
 import pytest
-from leaf import conversation as conversation_model
 from leaf import data as data_model
 from leaf import event_log as events_model
+from leaf import thread as thread_model
 from playwright.sync_api import expect
 from render_cases_interaction import (
     PANEL_PAGE,
@@ -159,7 +159,7 @@ def test_a_token_press_marks_the_passage_and_its_revealed_remove_takes_it_back(
     meets a comment. What the page gets is paint and nothing else: the words washed
     through the highlight registry, a glyph in the margin level with the paragraph,
     no card in the panel and nothing in its count, because a reaction is a mark and not
-    a conversation. Pressing the glyph reveals a separately named remove control;
+    a thread. Pressing the glyph reveals a separately named remove control;
     pressing that sends the ordinary undo naming the event, and the paint goes with the
     gesture."""
     page = open_page(browser, serve(PANEL_PAGE))
@@ -2306,7 +2306,7 @@ def test_removing_an_open_reply_list_disarms_its_keyboard_mode(browser, serve, r
     expect(strip).to_have_class(re.compile("lf-react-open"))
 
     if removal == "resolve":
-        conversation_model.cmd_resolve(serve.page_dir, root)
+        thread_model.cmd_resolve(serve.page_dir, root)
     else:
         events_model.append_event(
             serve.page_dir,
@@ -2331,7 +2331,7 @@ def test_removing_an_open_reply_list_disarms_its_keyboard_mode(browser, serve, r
 
 
 def test_a_reply_to_a_reaction_opens_a_thread_and_resolve_is_its_floor(browser, serve):
-    """A reaction grows into a conversation only when someone replies to it: the agent
+    """A reaction grows into a thread only when someone replies to it: the agent
     answers a puzzling `no` on the reaction itself, and the panel then lists it as a
     thread whose root is the mark, painted as a comment's mark rather than a reaction's.
     Resolving it — the agent's, once it has acted — is the floor: the paint clears and
@@ -2351,7 +2351,7 @@ def test_a_reply_to_a_reaction_opens_a_thread_and_resolve_is_its_floor(browser, 
     painted(page, [["merge-both", "change"]])
     expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (0)")
 
-    conversation_model.cmd_reply(
+    thread_model.cmd_reply(
         serve.page_dir,
         reaction["id"],
         "Which part — the case, or the answer?",
@@ -2367,7 +2367,7 @@ def test_a_reply_to_a_reaction_opens_a_thread_and_resolve_is_its_floor(browser, 
     assert painted(page, []) == {"washed": "", "glyphs": [], "outlined": []}
     assert page.evaluate("() => CSS.highlights.get('lf-mark').size") > 0
 
-    conversation_model.cmd_resolve(serve.page_dir, reaction["id"])
+    thread_model.cmd_resolve(serve.page_dir, reaction["id"])
     told(page)
     expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (0)")
     assert page.evaluate("() => CSS.highlights.get('lf-mark').size") == 0

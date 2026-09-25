@@ -258,7 +258,7 @@ export const inChrome = (node) => Boolean(node && closestAcross(node, ".lf-chrom
 // was this one — a declared label is nearer than the panel and answers for itself, so a
 // drag across a question an agent asked in a reply read as a passage of the page. It
 // raised the page's 💬 and wrote an anchor onto a thread's own id, into an append-only
-// log, naming a section no version holds. `leaf comment --section` refuses exactly that
+// log, naming a section no version holds. `leaf thread open --section` refuses exactly that
 // from the file side, and file capture is the reading that is supposed to promise less.
 export const pageWords = (node) => Boolean(node) && !inChrome(node) && !inUi(node);
 // The runtime's own parts, as against everything else standing in its layer. Its parts
@@ -321,7 +321,7 @@ export const elementOver = (n) => {
 // So chrome between the words and their widget is that widget's own apparatus, and chrome
 // above the widget is somebody else's. Rooting the search at the element handed in says
 // almost the same thing and is wrong in one case that matters: a reading can start
-// *inside* generated chrome. A conversation box's messages are `<p>`s the runtime built,
+// *inside* generated chrome. A thread box's messages are `<p>`s the runtime built,
 // on the page, inside the group they belong to — and `diffBlocks` reads every block on the
 // page, so bounded at the block each of them stopped being generated and the version diff
 // painted the user's own comments as changes to the document.
@@ -547,7 +547,7 @@ export const blockOf = (node) => blockAt(node) ?? upFrom(node);
 // COLLAPSE_CHARS enumerates: JS's \s and Python's str.isspace() disagree at the
 // edges — U+FEFF is whitespace to JS alone, U+0085 and U+001C–001F to Python
 // alone — and a page carrying one of those in prose read differently on the two
-// sides, so a `leaf comment` quote could be written against text this runtime
+// sides, so a `leaf thread open` quote could be written against text this runtime
 // never produces. (trim() removes exactly this class, so it needs no twin.)
 export const COLLAPSE =
   /[\t\n\v\f\r \u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000\ufeff]+/g;

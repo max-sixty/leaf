@@ -945,7 +945,7 @@ def test_render_reads_a_reply_widgets_own_chrome_and_not_the_panel_around_it(
     panel rather than about the gate — while the gate walks text nodes rather
     than boxes, so it had been reading the panel all along with the panel shut.
     It would have refused the first page that carried a question in a reply,
-    which is a shape the vocabulary describes and `leaf reply --markup` posts."""
+    which is a shape the vocabulary describes and `leaf thread reply --markup` posts."""
     monkeypatch.chdir(tmp_path)
     package = author_test_widget(tmp_path, "lf-badge", upgrade=True)
     module = package / "widgets" / "lf-badge.js"

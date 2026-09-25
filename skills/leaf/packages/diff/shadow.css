@@ -250,13 +250,13 @@
                           contain: inline-size; }
 .lf-diff-file-thread-outlet { margin-top: 8px; border: 1px solid var(--rule);
                               border-radius: var(--r); }
-.lf-diff-thread-outlet > .lf-conversation-thread {
+.lf-diff-thread-outlet > .lf-page-thread {
                           max-width: 760px; border: 1px solid var(--border-2);
                           border-radius: 7px; padding: 10px 12px; background: var(--card); }
-.lf-diff-thread-outlet > .lf-conversation-thread + .lf-conversation-thread {
+.lf-diff-thread-outlet > .lf-page-thread + .lf-page-thread {
                           margin-top: 8px; }
-.lf-diff-thread-outlet > details.lf-conversation-thread:not([open]) { padding: 0; }
-.lf-diff-thread-outlet > details.lf-conversation-thread:not([open]) > summary {
+.lf-diff-thread-outlet > details.lf-page-thread:not([open]) { padding: 0; }
+.lf-diff-thread-outlet > details.lf-page-thread:not([open]) > summary {
                           border-radius: inherit; }
 /* Soft wrap. A diff line is `white-space: pre` and the box it sits in scrolls sideways,
    so the only way to read the end of a long line is a scrollbar at the foot of the whole

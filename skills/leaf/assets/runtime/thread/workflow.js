@@ -115,7 +115,7 @@ export function threadAttention(thread) {
           ? thread.user_prompt
             ? "answer question"
             : "answer Ask"
-          : workflow?.subject.kind === "conversation"
+          : workflow?.subject.kind === "thread"
             ? "resend"
             : "retry",
       workflow,

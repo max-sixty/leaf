@@ -22,7 +22,7 @@ Items are ranked within each group. IDs are stable references, not a global prio
 
   **Owner / dependencies:** Sol. The Threads placement this item waited on is settled: Threads stands over the document at every width and takes no room from it, and it takes the modal covering boundary ([PR #536](https://github.com/max-sixty/leaf/pull/536)) only where it leaves less than a usable page beside it. Verify the keyboard route against both: the live page beside an open panel, and the modal boundary where it covers.
 
-  **Sources:** [lf-pane.js:29](https://github.com/max-sixty/leaf/blob/cb7915bb924aa78fcbcf83439110794982bb3b86/skills/leaf/packages/default/widgets/lf-pane.js#L29), [test_render_navigation.py:106](https://github.com/max-sixty/leaf/blob/cb7915bb924aa78fcbcf83439110794982bb3b86/tests/test_render_navigation.py#L106), [panel.js:75](https://github.com/max-sixty/leaf/blob/cb7915bb924aa78fcbcf83439110794982bb3b86/skills/leaf/assets/runtime/conversation/panel.js#L75).
+  **Sources:** [lf-pane.js:29](https://github.com/max-sixty/leaf/blob/cb7915bb924aa78fcbcf83439110794982bb3b86/skills/leaf/packages/default/widgets/lf-pane.js#L29), [test_render_navigation.py:106](https://github.com/max-sixty/leaf/blob/cb7915bb924aa78fcbcf83439110794982bb3b86/tests/test_render_navigation.py#L106), [panel.js:75](https://github.com/max-sixty/leaf/blob/cb7915bb924aa78fcbcf83439110794982bb3b86/skills/leaf/assets/runtime/thread/panel.js#L75).
 
 ## Measure the product boundary
 

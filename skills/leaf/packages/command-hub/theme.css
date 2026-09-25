@@ -157,11 +157,11 @@ lf-command [data-lf-command-goal] > .lf-task-meta { grid-column: 2 / 4;
 .lf-task-crew { cursor: pointer; color: var(--accent); }
 .lf-task-meta > .lf-task-held { color: var(--warn-ink); background: var(--warn-tint); }
 .lf-task-meta > .lf-task-signal { color: var(--accent); }
-lf-command [data-lf-command-goal] > :not(strong):not(.lf-task-meta):not([data-lf-command-goal]):not([data-lf-command-worker]):not(.lf-conversation) {
+lf-command [data-lf-command-goal] > :not(strong):not(.lf-task-meta):not([data-lf-command-goal]):not([data-lf-command-worker]):not(.lf-thread-seat) {
   grid-column: 1 / -1; }
 lf-command [data-lf-command-goal] > [data-lf-command-goal],
 lf-command [data-lf-command-goal] > [data-lf-command-worker],
-lf-command [data-lf-command-goal] > .lf-conversation {
+lf-command [data-lf-command-goal] > .lf-thread-seat {
   grid-column: 1 / -1; }
 lf-command [data-lf-command-goal] > [data-lf-command-worker] {
   display: none; margin: var(--sp-2) 0 0 12px; }

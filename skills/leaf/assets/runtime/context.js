@@ -50,8 +50,8 @@ export const runtime = {
   get agent() {
     // The claimant's own name where a claim answers for the page. Nothing has
     // claimed an exported or never-served page, and "Agent" is what the
-    // conversation already calls a message whose author left no name
-    // (`UNCLAIMED_AGENT`, `conversation/messages.js`).
+    // thread already calls a message whose author left no name
+    // (`UNCLAIMED_AGENT`, `thread/messages.js`).
     return readApplication().authoritative?.agent || "Agent";
   },
   get browser() {

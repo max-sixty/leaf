@@ -945,7 +945,7 @@ export default [
       "skills/leaf/assets/runtime/rendering.js",
       "skills/leaf/assets/runtime/repaint.js",
       "skills/leaf/assets/runtime/root-state.js",
-      "skills/leaf/assets/runtime/conversation/identity.js",
+      "skills/leaf/assets/runtime/thread/identity.js",
     ],
     rules: {
       "no-restricted-imports": [
@@ -971,15 +971,15 @@ export default [
     },
   },
   {
-    // Conversation folding accepts values; it must not obtain them from browser
+    // Thread folding accepts values; it must not obtain them from browser
     // stores or painters. The current derived reading has the same dependency floor.
     files: [
       "skills/leaf/assets/runtime/projection/model.js",
       "skills/leaf/assets/runtime/projection/state.js",
       "skills/leaf/assets/runtime/pending/model.js",
       "skills/leaf/assets/runtime/pending/state.js",
-      "skills/leaf/assets/runtime/conversation/model.js",
-      "skills/leaf/assets/runtime/conversation/state.js",
+      "skills/leaf/assets/runtime/thread/model.js",
+      "skills/leaf/assets/runtime/thread/state.js",
     ],
     rules: {
       "no-restricted-imports": [
@@ -988,8 +988,8 @@ export default [
           patterns: [
             {
               regex:
-                "^(?!\\.\\./(?:anchor-coordinate|semantic-state)\\.js$|(?:\\.\\./conversation/|\\./)(?:identity|workflow)\\.js$|\\./model\\.js$)",
-              message: "Conversation readings depend only on pure record operations.",
+                "^(?!\\.\\./(?:anchor-coordinate|semantic-state)\\.js$|(?:\\.\\./thread/|\\./)(?:identity|workflow)\\.js$|\\./model\\.js$)",
+              message: "Thread readings depend only on pure record operations.",
             },
           ],
         },
@@ -998,8 +998,7 @@ export default [
         "error",
         {
           selector: "ImportExpression",
-          message:
-            "Conversation readings declare their record dependencies statically.",
+          message: "Thread readings declare their record dependencies statically.",
         },
       ],
       "no-restricted-globals": [

@@ -55,7 +55,7 @@ The transport owns **Queued** and **Picked up** because it can prove them withou
 judgment. The agent owns **Active** and the work detail because selecting the work and
 describing it require context. A provisional chat message is not needed merely to show
 activity; the receipt and banner provide that feedback without adding noise to the
-durable conversation.
+durable thread.
 
 ## Agent ordering contract
 

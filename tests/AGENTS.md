@@ -304,7 +304,7 @@ Choose the fixture by the boundary under test:
   markup, it publishes one version; with an example path, it includes companion
   versions, data, log, and referenced media, and returns the newest immutable
   version URL. `serve.page_dir` exposes the directory for later writes.
-- `serve(example, seed_log=False)` omits the conversation log while still copying
+- `serve(example, seed_log=False)` omits the seeded log while still copying
   its referenced media, so the test can append those events itself.
 - `page_dir` in `interact_support.py` supplies command-level files without a
   browser.

@@ -940,7 +940,7 @@ def test_lit_margin_projection_reorders_retained_controls_without_moving_the_use
     expect(host).to_have_attribute("data-lf-options-open", "")
 
 
-def test_lit_inline_margin_projection_keys_controls_inside_conversation_chrome(
+def test_lit_inline_margin_projection_keys_controls_inside_thread_chrome(
     browser, serve
 ):
     """The inline Lit seat reorders one retained control tree and completes its press."""
@@ -1707,9 +1707,9 @@ def test_the_feature_gallery_balances_one_margin_entry_sample_with_feature_secti
             "#bg-editing-guide",
             "#bg-draft",
         ),
-        "bg-conversations": (
-            "Threads: anchored conversations",
-            "#bg-conversations-guide",
+        "bg-threads": (
+            "Threads: anchored threads",
+            "#bg-threads-guide",
             "#bg-new-thread",
         ),
         "bg-thread-states": (
@@ -3240,7 +3240,7 @@ def test_one_target_has_one_primary_margin_entry_and_inline_secondary_margin_ent
     expect(page.locator(".lf-margin-preview")).to_be_visible()
     expect(page.locator(".lf-margin-thread")).to_have_count(1)
     expect(options).to_be_visible()
-    expect(page.locator(".lf-shortcut-bar")).to_contain_text("dismiss conversation")
+    expect(page.locator(".lf-shortcut-bar")).to_contain_text("dismiss thread")
     page.keyboard.press("Escape")
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
     expect(options).to_be_visible()
@@ -3518,7 +3518,7 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
     expect(preview.locator(".lf-margin-thread")).to_have_count(1)
     expect(preview.locator(".lf-margin-preview-position")).to_have_text("1/2")
     expect(preview).to_contain_text(COMMENT_ON_ASK["text"])
-    preview.get_by_role("button", name="Next conversation").click()
+    preview.get_by_role("button", name="Next thread").click()
     expect(preview.locator(".lf-margin-preview-position")).to_have_text("2/2")
     expect(preview.locator(".lf-margin-thread")).to_have_count(1)
     expect(preview).to_contain_text("Check the return visit too.")
@@ -3621,7 +3621,7 @@ def _margin_entry_paint(control):
 
 
 def test_a_thread_waiting_on_the_user_colors_its_margin_entry(browser, serve):
-    """Whose turn a conversation is reaches the margin as colour and as a word.
+    """Whose turn a thread is reaches the margin as colour and as a word.
 
     The user's own comment is the control: one target, one retained marker, and the
     only thing that changes between the two readings is who spoke last. Pickup is the
@@ -3663,7 +3663,7 @@ def test_a_thread_waiting_on_the_user_colors_its_margin_entry(browser, serve):
     }, "the user's turn did not colour the Thread marker's icon and interior"
     assert with_agent["background"] != on_user["background"], with_agent
 
-    # Page Map lists each conversation on its own row, so the user's own thread is the
+    # Page Map lists each thread on its own row, so the user's own thread is the
     # control for the agent's beside it.
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
@@ -4419,9 +4419,7 @@ def test_a_reading_marker_counts_toward_the_expanded_margin_entry_budget(
     )
 
 
-def test_a_spilled_thread_opens_the_full_conversation_without_a_hidden_anchor(
-    browser, serve
-):
+def test_a_spilled_thread_opens_the_full_thread_without_a_hidden_anchor(browser, serve):
     """The Page Map cannot anchor a thread card to a margin entry it has hidden."""
     page = open_page(browser, serve(SUGGESTION_PAGE, events=[COMMENT_ON_SUGGESTION]))
     resized(page, 1440, 900)
@@ -4449,8 +4447,8 @@ def test_a_spilled_thread_opens_the_full_conversation_without_a_hidden_anchor(
 
 
 def _walk_gallery_thread(page, thread_id):
-    """Reach a gallery conversation by identity as specimens change page order."""
-    walked = page.locator(".lf-margin-preview .lf-conversation-thread")
+    """Reach a gallery thread by identity as specimens change page order."""
+    walked = page.locator(".lf-margin-preview .lf-page-thread")
     seen = set()
     while True:
         previous = walked.get_attribute("data-thread") if walked.count() else None
@@ -4702,7 +4700,7 @@ def test_a_thread_in_a_short_rail_crosses_the_column_by_only_what_the_rail_lacks
         geometry
     )
     assert geometry["placement"] in ("below", "above"), geometry
-    # This conversation is taller than the room under or over its cluster. It keeps its
+    # This thread is taller than the room under or over its cluster. It keeps its
     # whole height and holds at the foot, across the controls, rather than shrinking
     # into either room.
     assert geometry["cardBottom"] - geometry["cardTop"] > max(
@@ -5086,7 +5084,7 @@ def test_one_information_margin_entry_does_not_raise_a_preview(browser, serve):
     expect(preview).to_be_hidden()
 
 
-# A conversation longer than the card at 1440x900, so its transcript scrolls under the
+# A thread longer than the card at 1440x900, so its transcript scrolls under the
 # reply pinned to the card's foot.
 LONG_THREAD_PAGE = leaf_page(
     "Long thread",
@@ -5197,7 +5195,7 @@ def test_a_growing_margin_reply_keeps_the_previous_turn_visible(browser, serve):
     editor = preview.locator("textarea")
     transcript.evaluate("list => list.scrollTop = list.scrollHeight")
     editor.fill("A reply that grows.\n" * 30)
-    latest = transcript.locator(".lf-conversation-msg").last
+    latest = transcript.locator(".lf-page-thread-msg").last
     visible = latest.evaluate(
         """message => {
           const list = document.querySelector('.lf-margin-preview-list');
@@ -5240,7 +5238,7 @@ def test_an_incoming_margin_reply_follows_only_at_the_tail(browser, serve):
             "author": "agent",
             "agent": "Codex",
             "parent": LONG_THREAD_ROOT["id"],
-            "text": "A new answer at the end of this conversation. " * 8,
+            "text": "A new answer at the end of this thread. " * 8,
         },
     )
     page.evaluate(
@@ -5390,7 +5388,7 @@ def test_the_margin_reply_keeps_its_shape_when_the_user_enters_it(
     editor = preview.locator("textarea")
     expect(reply).to_be_visible()
     resting_box = reply.bounding_box()
-    message_left = preview.locator(".lf-conversation-msg").first.bounding_box()["x"]
+    message_left = preview.locator(".lf-page-thread-msg").first.bounding_box()["x"]
 
     def text_left(control):
         return control.evaluate(
@@ -5489,7 +5487,7 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
     assert page.evaluate("() => document.scrollingElement.scrollTop") == before
     expect(page.locator(".lf-margin-thread")).to_have_count(1)
     expect(preview).not_to_contain_text("options · choose")
-    close = preview.get_by_role("button", name="Dismiss conversation view", exact=True)
+    close = preview.get_by_role("button", name="Dismiss thread view", exact=True)
     resolve = preview.get_by_role("button", name="Resolve thread", exact=True)
     expect(close.locator('svg[data-lf-icon="cross"]')).to_have_count(1)
     expect(resolve.locator('svg[data-lf-icon="check"]')).to_have_count(1)
@@ -5500,7 +5498,7 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
     expect(preview.locator("textarea")).to_be_hidden()
     geometry = preview.evaluate(
         """preview => {
-          const thread = preview.querySelector('.lf-conversation-thread');
+          const thread = preview.querySelector('.lf-page-thread');
           // The first message's head is hoisted out of its message and onto the row the
           // thread opens with, which carries its controls beside the author.
           const metaRow = thread.querySelector(':scope > .lf-thread-root-meta');
@@ -5546,7 +5544,7 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
     page.keyboard.press("Enter")
     expect(page.locator(".lf-margin-preview")).to_be_visible()
     expect(page.locator(".lf-shortcut-bar")).to_contain_text("back to page")
-    expect(preview.locator(".lf-conversation-thread")).to_be_focused()
+    expect(preview.locator(".lf-page-thread")).to_be_focused()
     expect(preview.locator("textarea")).to_be_visible()
     expect(preview.locator("textarea")).to_have_value("Keep this draft visible.")
     preview.locator("textarea").fill("")
@@ -5606,7 +5604,7 @@ def test_design_mode_retires_and_suppresses_the_top_layer_margin_preview(
     preview = page.locator(".lf-margin-preview")
     expect(preview).to_be_visible()
 
-    preview.get_by_role("button", name="Dismiss conversation view").focus()
+    preview.get_by_role("button", name="Dismiss thread view").focus()
     page.keyboard.press("l")
     expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
     expect(preview).to_be_hidden()
@@ -5622,7 +5620,7 @@ def test_design_mode_retires_and_suppresses_the_top_layer_margin_preview(
     expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
 
 
-def test_the_conversation_card_s_transcript_is_its_scroller_before_and_after_it_opens(
+def test_the_thread_card_s_transcript_is_its_scroller_before_and_after_it_opens(
     browser, serve
 ):
     """The card registers its transcript as a reading region at startup, while it is
@@ -5676,7 +5674,7 @@ def test_the_conversation_card_s_transcript_is_its_scroller_before_and_after_it_
 
 
 def test_anchored_thread_reading_keys_and_page_return(browser, serve):
-    """The focused conversation pages its own transcript; g p returns to the page
+    """The focused thread pages its own transcript; g p returns to the page
     without dismissing the card, and the next d pages the document."""
     url = serve(PANEL_PAGE)
     panel_comment(
@@ -5691,7 +5689,7 @@ def test_anchored_thread_reading_keys_and_page_return(browser, serve):
     marker = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
     marker.click()
     preview = page.locator(".lf-margin-preview")
-    expect(preview.locator(".lf-conversation-thread")).to_be_focused()
+    expect(preview.locator(".lf-page-thread")).to_be_focused()
     transcript = preview.locator(".lf-margin-preview-list")
     assert transcript.evaluate("box => box.scrollHeight > box.clientHeight")
     before = page.evaluate("() => document.scrollingElement.scrollTop")
@@ -5705,7 +5703,7 @@ def test_anchored_thread_reading_keys_and_page_return(browser, serve):
     expect(preview).to_be_visible()
     assert page.evaluate("() => document.activeElement === document.body")
 
-    preview.get_by_role("button", name="Dismiss conversation view").focus()
+    preview.get_by_role("button", name="Dismiss thread view").focus()
     page.keyboard.press("g")
     page.keyboard.press("p")
     expect(preview).to_be_visible()
@@ -5723,7 +5721,7 @@ def test_anchored_thread_reading_keys_and_page_return(browser, serve):
 def test_a_thread_can_be_answered_in_the_margin_without_opening_threads(
     browser, serve, width
 ):
-    """The anchored thread is a complete conversation clear of its source controls."""
+    """The anchored thread is a complete thread clear of its source controls."""
     page = open_page(browser, serve(ASK_PAGE, events=[COMMENT_ON_ASK]))
     resized(page, width, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds="comment"]')
@@ -5734,7 +5732,7 @@ def test_a_thread_can_be_answered_in_the_margin_without_opening_threads(
         """async marker => {
           const card = document.querySelector('.lf-margin-preview');
           const firstFocus = event => {
-            if (!event.target.matches('.lf-margin-preview .lf-conversation-thread'))
+            if (!event.target.matches('.lf-margin-preview .lf-page-thread'))
               return;
             document.removeEventListener('focusin', firstFocus);
             queueMicrotask(() => {
@@ -5780,9 +5778,9 @@ def test_a_thread_can_be_answered_in_the_margin_without_opening_threads(
     if placed["placement"] == "right":
         positioned_top -= placed["height"]
     assert placed["top"] == pytest.approx(positioned_top, abs=0.5), placed
-    expect(thread.locator(".lf-conversation-body")).to_have_text(COMMENT_ON_ASK["text"])
+    expect(thread.locator(".lf-page-thread-body")).to_have_text(COMMENT_ON_ASK["text"])
     expect(preview.get_by_role("button", name=re.compile(r"Threads?"))).to_have_count(0)
-    expect(thread.locator(".lf-conversation-open")).to_have_count(0)
+    expect(thread.locator(".lf-page-thread-open")).to_have_count(0)
     geometry = page.evaluate(
         """() => {
           const main = document.querySelector('main').getBoundingClientRect();
@@ -5803,7 +5801,7 @@ def test_a_thread_can_be_answered_in_the_margin_without_opening_threads(
         or geometry["cardTop"] >= geometry["controlsBottom"] + 7
     ), geometry
     assert 319 <= geometry["cardWidth"] <= 460, geometry
-    expect(thread.locator(".lf-conversation-thread")).to_be_focused()
+    expect(thread.locator(".lf-page-thread")).to_be_focused()
     assert page.evaluate("() => window.__firstReplyHint") == "Reply c"
     expect(reply).to_have_attribute("placeholder", "Reply c")
     expect(marker).to_have_attribute("data-lf-target-selected", "")
@@ -5812,7 +5810,7 @@ def test_a_thread_can_be_answered_in_the_margin_without_opening_threads(
     thread.get_by_role("button", name="Reply", exact=True).click()
     expect(reply).to_be_focused()
     page.keyboard.press("Escape")
-    expect(thread.locator(".lf-conversation-thread")).to_be_focused()
+    expect(thread.locator(".lf-page-thread")).to_be_focused()
     expect(reply).to_have_attribute("placeholder", "Reply c")
     hint = thread.locator(".lf-compose-placeholder")
     expect(hint).to_be_visible()
@@ -5833,7 +5831,7 @@ def test_a_thread_can_be_answered_in_the_margin_without_opening_threads(
     page.keyboard.press("Escape")
     preview.locator(".lf-margin-preview-close").click()
     marker.click()
-    expect(thread.locator(".lf-conversation-thread")).to_be_focused()
+    expect(thread.locator(".lf-page-thread")).to_be_focused()
     expect(reply).to_be_visible()
     expect(reply).to_have_attribute("placeholder", "Reply c")
     page.keyboard.press("c")
@@ -5845,14 +5843,14 @@ def test_a_thread_can_be_answered_in_the_margin_without_opening_threads(
     with sending(page, "the reply"):
         thread.get_by_role("button", name="Send").click()
 
-    expect(thread.locator(".lf-conversation-thread")).to_contain_text(
+    expect(thread.locator(".lf-page-thread")).to_contain_text(
         "Yes. One visit can cover both jobs."
     )
     expect(page.locator(".lf-thread-panel")).not_to_have_class(re.compile(r"\bopen\b"))
     expect(preview).to_be_visible()
     expect(marker).to_have_attribute("aria-controls", "lf-margin-preview")
     expect(marker).to_have_attribute("aria-expanded", "true")
-    root_id = thread.locator(".lf-conversation-thread").get_attribute("data-thread")
+    root_id = thread.locator(".lf-page-thread").get_attribute("data-thread")
     replies = [
         event
         for event in events_model.read_events(serve.page_dir)
@@ -5901,7 +5899,7 @@ def test_a_thread_margin_entry_opens_inline_when_the_panel_is_closed(browser, se
 
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
     expect(page.locator(".lf-margin-preview")).to_be_visible()
-    expect(page.locator(".lf-margin-thread .lf-conversation-thread")).to_be_focused()
+    expect(page.locator(".lf-margin-thread .lf-page-thread")).to_be_focused()
     expect(page.locator(".lf-margin-thread textarea")).to_be_hidden()
     expect(
         page.locator(".lf-margin-thread").get_by_role(
@@ -5915,7 +5913,7 @@ def test_a_thread_margin_entry_opens_inline_when_the_panel_is_closed(browser, se
 @pytest.mark.parametrize(
     ("width", "panel_open"), [(760, False), (1000, True), (1440, False), (1440, True)]
 )
-def test_a_new_anchored_comment_keeps_the_users_conversation_view(
+def test_a_new_anchored_comment_keeps_the_users_thread_view(
     browser, serve, width, panel_open
 ):
     """A send continues in the open panel or beside the passage, keeping the page put."""
@@ -5947,9 +5945,9 @@ def test_a_new_anchored_comment_keeps_the_users_conversation_view(
     else:
         expect(preview).to_be_visible()
         thread = preview.locator(
-            f'.lf-margin-thread .lf-conversation-thread[data-thread="{sent["id"]}"]'
+            f'.lf-margin-thread .lf-page-thread[data-thread="{sent["id"]}"]'
         )
-        expect(thread.locator(".lf-conversation-body")).to_have_text(sent["text"])
+        expect(thread.locator(".lf-page-thread-body")).to_have_text(sent["text"])
         expect(page.locator(".lf-thread-panel")).not_to_have_class(
             re.compile(r"\bopen\b")
         )
@@ -5977,9 +5975,9 @@ def test_a_new_anchored_comment_keeps_the_users_conversation_view(
     # card hangs from — or, where no rail stands, the Page Map button — which the user
     # never stood on and which says its transient label as they arrive.
     page.keyboard.press("Escape")  # out of the reply box the user opened
-    page.keyboard.press("Escape")  # out of the conversation it belongs to
+    page.keyboard.press("Escape")  # out of the thread it belongs to
     if panel_open:
-        # A conversation in Threads releases to whole-panel selection first.
+        # A thread in Threads releases to whole-panel selection first.
         expect(page.locator(".lf-threads")).to_be_focused()
         page.keyboard.press("Escape")
         expect(page.locator(".lf-thread-panel")).not_to_have_class(
@@ -5987,7 +5985,7 @@ def test_a_new_anchored_comment_keeps_the_users_conversation_view(
         )
         assert page.evaluate("() => document.activeElement === document.body")
     else:
-        # A card's conversation releases to the passage it is about, beside which the
+        # A card's thread releases to the passage it is about, beside which the
         # card stays; letting go of the passage takes both.
         expect(preview).to_be_visible()
         expect(page.locator("#mounts-p")).to_be_focused()
@@ -6035,7 +6033,7 @@ def test_a_comment_sent_from_a_control_is_left_by_the_levels_it_opened(
     else:
         expect(preview).to_be_visible()
         expect(
-            preview.locator(f'.lf-conversation-thread[data-thread="{sent["id"]}"]')
+            preview.locator(f'.lf-page-thread[data-thread="{sent["id"]}"]')
         ).to_be_focused()
 
     # The thread releases to what holds it, which then lets go.
@@ -6107,7 +6105,7 @@ def test_standing_on_a_commented_element_shows_its_thread_beside_it(browser, ser
     resized(page, 1201, 900)
     sent = seeded_thread(page, serve.page_dir, "#mounts-p")
     preview = page.locator(".lf-margin-preview")
-    card = preview.locator(f'.lf-conversation-thread[data-thread="{sent["id"]}"]')
+    card = preview.locator(f'.lf-page-thread[data-thread="{sent["id"]}"]')
     passage = page.locator("#mounts-p")
 
     # Keyboard modality, then the user lands on the element as a go-to hint puts them.
@@ -6253,8 +6251,8 @@ def test_a_note_walked_on_inside_the_panel_is_left_by_the_list_holding_it(
         threads.locator(f'.lf-thread[data-id="{second["id"]}"] > .lf-thread-summary')
     ).to_be_focused()
 
-    # The walk moved the user laterally to a second conversation in Threads. Escape
-    # releases that conversation to the whole panel and then closes the panel; the note
+    # The walk moved the user laterally to a second thread in Threads. Escape
+    # releases that thread to the whole panel and then closes the panel; the note
     # that took them there is not a landing.
     page.keyboard.press("Escape")
     expect(page.locator(".lf-threads")).to_be_focused()
@@ -6308,7 +6306,7 @@ def test_a_card_stays_its_press_to_take_off_when_it_moves_on(browser, serve, ent
     seeded_thread(page, serve.page_dir, "#mounts-p")
     seeded_thread(page, serve.page_dir, "#heater-p")
     preview = page.locator(".lf-margin-preview")
-    card = preview.locator(".lf-conversation-thread")
+    card = preview.locator(".lf-page-thread")
     if entry == "note":
         stood = page.locator("#mounts-p .lf-mark-note")
         stood.focus()
@@ -6371,7 +6369,7 @@ def test_a_card_walked_off_the_unfolded_cluster_lands_on_the_page(browser, serve
     )
     thread_margin_entry.click()
     preview = page.locator(".lf-margin-preview")
-    card = preview.locator(".lf-conversation-thread")
+    card = preview.locator(".lf-page-thread")
     expect(preview).to_be_visible()
     card.focus()
     shown = card.get_attribute("data-thread")
@@ -6410,7 +6408,7 @@ def test_a_second_press_into_a_standing_card_leaves_one_level_to_take_off(
     seeded_thread(page, serve.page_dir, "#mounts-p")
     seeded_thread(page, serve.page_dir, "#heater-p")
     preview = page.locator(".lf-margin-preview")
-    card = preview.locator(".lf-conversation-thread")
+    card = preview.locator(".lf-page-thread")
     first = page.locator("#mounts-p .lf-mark-note")
     first.focus()
     page.keyboard.press("Enter")
@@ -6505,13 +6503,13 @@ def test_an_inline_thread_keeps_one_readable_card_across_page_claims(browser, se
     assert wide["cardLeft"] >= wide["controlsRight"] + 7, wide
 
 
-def test_a_shared_passage_steps_between_single_conversation_cards(browser, serve):
-    """A shared target shows one unambiguous conversation and local navigation."""
+def test_a_shared_passage_steps_between_single_thread_cards(browser, serve):
+    """A shared target shows one unambiguous thread and local navigation."""
     second_comment = {
         "kind": "comment",
         "author": "user",
         "revision": 1,
-        "text": "Keep the second conversation separate.",
+        "text": "Keep the second thread separate.",
         "anchor": {"section": "bracket"},
     }
     page = open_page(browser, serve(ASK_PAGE, events=[COMMENT_ON_ASK, second_comment]))
@@ -6521,8 +6519,8 @@ def test_a_shared_passage_steps_between_single_conversation_cards(browser, serve
 
     expect(preview.locator(".lf-margin-thread")).to_have_count(1)
     expect(preview.locator(".lf-margin-preview-position")).to_have_text("1/2")
-    previous = preview.get_by_role("button", name="Previous conversation")
-    next_conversation = preview.get_by_role("button", name="Next conversation")
+    previous = preview.get_by_role("button", name="Previous thread")
+    next_thread = preview.get_by_role("button", name="Next thread")
     controls = preview.evaluate(
         """preview => Object.fromEntries(
           ['.lf-margin-preview-nav', '.lf-resolve', '.lf-margin-preview-close'].map(
@@ -6547,7 +6545,7 @@ def test_a_shared_passage_steps_between_single_conversation_cards(browser, serve
         controls[".lf-resolve"]["right"] < controls[".lf-margin-preview-close"]["left"]
     ), controls
     expect(previous).to_be_disabled()
-    expect(next_conversation).to_be_enabled()
+    expect(next_thread).to_be_enabled()
     disabled_style = previous.evaluate(
         "button => [getComputedStyle(button).backgroundColor, "
         "getComputedStyle(button).color]"
@@ -6561,26 +6559,24 @@ def test_a_shared_passage_steps_between_single_conversation_cards(browser, serve
         == disabled_style
     )
     expect(preview).to_contain_text(COMMENT_ON_ASK["text"])
-    next_conversation.click()
+    next_thread.click()
     expect(preview.locator(".lf-margin-preview-position")).to_have_text("2/2")
     expect(preview).to_contain_text(second_comment["text"])
     expect(preview).not_to_contain_text(COMMENT_ON_ASK["text"])
     expect(previous).to_be_enabled()
-    expect(next_conversation).to_be_disabled()
-    expect(preview.locator(".lf-conversation-thread")).to_be_focused()
+    expect(next_thread).to_be_disabled()
+    expect(preview.locator(".lf-page-thread")).to_be_focused()
     previous.click()
-    expect(next_conversation).to_be_visible()
-    expect(
-        preview.get_by_role("button", name="Dismiss conversation view")
-    ).to_be_visible()
-    next_conversation.click()
-    expect(preview.locator(".lf-conversation-thread")).to_be_focused()
+    expect(next_thread).to_be_visible()
+    expect(preview.get_by_role("button", name="Dismiss thread view")).to_be_visible()
+    next_thread.click()
+    expect(preview.locator(".lf-page-thread")).to_be_focused()
     page.keyboard.press("r")
     told(page)
     expect(preview.locator(".lf-margin-preview-nav")).to_be_hidden()
     expect(preview).to_contain_text(COMMENT_ON_ASK["text"])
     expect(preview).not_to_contain_text(second_comment["text"])
-    expect(preview.locator(".lf-conversation-open")).to_have_count(0)
+    expect(preview.locator(".lf-page-thread-open")).to_have_count(0)
     expect(preview.get_by_role("button", name=re.compile(r"Threads?"))).to_have_count(0)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
@@ -6735,14 +6731,12 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
     preview = page.locator(".lf-margin-preview")
     thread = page.locator(".lf-margin-thread", has_text="One reconnect in forty")
     expect(preview).to_be_visible()
-    expect(preview).to_have_attribute(
-        "aria-label", "Conversation for iOS reconnect stall"
-    )
-    expect(thread.locator(".lf-conversation-msg.user").first).to_be_visible()
+    expect(preview).to_have_attribute("aria-label", "Thread for iOS reconnect stall")
+    expect(thread.locator(".lf-page-thread-msg.user").first).to_be_visible()
     expect(
         thread.get_by_role("button", name="Open interactive reply in Threads")
     ).to_have_count(1)
-    expect(thread.locator(".lf-conversation-thread")).to_be_focused()
+    expect(thread.locator(".lf-page-thread")).to_be_focused()
     expect(thread.locator("textarea")).to_be_hidden()
     geometry = marker.evaluate(
         """markerNode => {
@@ -6776,7 +6770,7 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
     assert geometry["borderLeft"] == geometry["borderRight"] == "1px", geometry
     assert not geometry["panelOpen"], geometry
 
-    words = thread.locator(".lf-conversation-body").first
+    words = thread.locator(".lf-page-thread-body").first
     words_box = words.bounding_box()
     page.mouse.move(words_box["x"] + 1, words_box["y"] + 10)
     page.mouse.down()
@@ -6808,7 +6802,7 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
     assert capped["top"] >= capped["bannerBottom"] + 7, capped
     assert capped["bottom"] <= 472.5, capped
     assert capped["scrollHeight"] > capped["clientHeight"], capped
-    # The conversation scrolls while its opening metadata and settlement remain usable.
+    # The thread scrolls while its opening metadata and settlement remain usable.
     metadata = preview.locator(".lf-thread-root-meta")
     resolve = preview.get_by_role("button", name="Resolve thread", exact=True)
     metadata_box = metadata.bounding_box()
@@ -6841,7 +6835,7 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
     assert page.evaluate("() => document.activeElement === document.body")
     marker.click()
     expect(preview).to_be_visible()
-    expect(thread.locator(".lf-conversation-thread")).to_be_focused()
+    expect(thread.locator(".lf-page-thread")).to_be_focused()
 
     open_full = thread.get_by_role("button", name="Open interactive reply in Threads")
     open_full.focus()
@@ -6857,7 +6851,7 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
     marker.focus()
     page.keyboard.press("Enter")
     expect(preview).to_be_visible()
-    expect(preview.locator(".lf-conversation-thread")).to_be_focused()
+    expect(preview.locator(".lf-page-thread")).to_be_focused()
     expect(preview.locator("textarea")).to_be_hidden()
 
     resized_shell(page, 1436, 900)
@@ -7371,7 +7365,7 @@ def test_an_open_desktop_preview_reconciles_arriving_meanings(browser, serve):
     expect(page.locator(".lf-margin-thread")).not_to_contain_text(
         "A second reading arrived while the preview was pinned."
     )
-    page.get_by_role("button", name="Next conversation").click()
+    page.get_by_role("button", name="Next thread").click()
     expect(page.locator(".lf-margin-preview-position")).to_have_text("2/2")
     expect(page.locator(".lf-margin-thread")).to_contain_text(
         "A second reading arrived while the preview was pinned."

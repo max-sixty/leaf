@@ -110,7 +110,7 @@ test("interaction urgency outranks completion; completion leads equal-state peer
   assert.equal(competing.primary.record.key, "retry");
 });
 
-test("threads aggregate into one control and retain captured conversation order", () => {
+test("threads aggregate into one control and retain captured thread order", () => {
   const entry = inventory({
     items: [
       marker("z-newest", "comment"),
@@ -140,7 +140,7 @@ test("an open thread replaces a spilled peer while Page Map retains every action
         ...["a", "b", "c", "d", "e", "f"].map((key) => control(key)),
       ]),
     ],
-    items: [marker("conversation", "comment")],
+    items: [marker("thread", "comment")],
   });
   const ordinary = clusterProjection(entry, { expandedKey: entry.key });
   assert.deepEqual(choiceNames(ordinary.options.visible), ["a", "b", "c", "d"]);
@@ -154,7 +154,7 @@ test("an open thread replaces a spilled peer while Page Map retains every action
   const [pageMap] = map([entry]);
   assert.deepEqual(
     pageMap.actions.map((action) => action.record?.key ?? action.item.id),
-    ["conversation", "save", "a", "b", "c", "d", "e", "f"],
+    ["thread", "save", "a", "b", "c", "d", "e", "f"],
   );
 });
 
@@ -180,7 +180,7 @@ test("declared representation and a workflow carrier suppress only duplicate rea
       carriesWorkflow: true,
     }),
     marker("other-work", "activity", { workflowFace: KINDS.activity }),
-    marker("conversation", "comment"),
+    marker("thread", "comment"),
   ];
   const entry = inventory({
     items,
@@ -189,7 +189,7 @@ test("declared representation and a workflow carrier suppress only duplicate rea
   });
   assert.deepEqual(
     entry.items.map((item) => item.id),
-    ["declared", "conversation", "other-work"],
+    ["declared", "thread", "other-work"],
   );
   assert.deepEqual(entry.workflowCarrier, {
     key: "apply",
@@ -198,7 +198,7 @@ test("declared representation and a workflow carrier suppress only duplicate rea
   });
   assert.deepEqual(
     map([entry])[0].actions.map((action) => action.record?.key ?? action.item.id),
-    ["conversation", "other-work", "apply"],
+    ["thread", "other-work", "apply"],
   );
   const withoutControl = inventory({ items, workflowReceipt });
   assert.equal(withoutControl.workflowCarrier, null);
@@ -281,7 +281,7 @@ test("focused owner exposes only its controls and retains the six-seat budget", 
         { side: "after" },
       ),
     ],
-    items: [marker("conversation", "comment")],
+    items: [marker("thread", "comment")],
   });
   const focused = clusterProjection(entry, {
     expandedKey: entry.key,

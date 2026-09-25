@@ -8,12 +8,12 @@
    and its completion removes its node through `renderThreads`, under the same hold.
    A new agent turn, or growth of the last one, follows while the user has not named
    another card and the previous last message is visible in the panel's landing band.
-   Where the list scrolls, that conversation's tail must still reach the landing edge.
+   Where the list scrolls, that thread's tail must still reach the landing edge.
    Reading earlier turns keeps the place hold, and a reply in another thread does not
    move this one.
 
    `pageOutline` reads the page's own headings, and `groupFor` names the run of threads
-   under each (conversation/placement.js). A run's heading is one node kept across
+   under each (thread/placement.js). A run's heading is one node kept across
    reconciles and stuck to the top of the list while its run scrolls past. A stuck box
    is held by its margin edge inside the scroller's content, so the room above a
    heading is its own padding and the pin is drawn back over `--lf-list-inset`, the
@@ -68,7 +68,7 @@ import { narrowingView, threadsBox } from "./panel-elements.js";
 import { placeKeeper } from "../user-place.js";
 import { PINNED, declareCoverRoom, landingBand } from "../geometry.js";
 import { retainUserIntent } from "../user-intent.js";
-import { conversational, threadKey } from "./model.js";
+import { discussed, threadKey } from "./model.js";
 import { ago } from "../presence.js";
 import { readApplication, whenWidgetsPresented } from "../semantic-state.js";
 import { reachScrollers } from "../reach.js";
@@ -153,7 +153,7 @@ const finishScrollHold = (hold, panelIsOpen) =>
   listPlace(panelIsOpen).finish(hold, hasFolding);
 
 // The list's place hold reports what the user named. Follow while they have not
-// named another conversation and this conversation's tail meets the landing edge.
+// named another thread and this thread's tail meets the landing edge.
 const FOLLOW_ROOM = 80;
 function incomingAtLatest(reading, panelIsOpen, namedCard) {
   if (!panelIsOpen()) return null;
@@ -203,12 +203,12 @@ function incomingAtLatest(reading, panelIsOpen, namedCard) {
 }
 
 // One immutable presentation reading contains the rows, count, and narrowing paint.
-// The list checkpoints it only when the whole conversation batch commits; retention
+// The list checkpoints it only when the whole thread batch commits; retention
 // restores that reading through the same owners while preserving native identities.
 let renderGeneration = 0;
 
 // A failed candidate may still leave one coherent list on screen. The list returns
-// that recovery to the outer conversation paint, which promotes it to this proof only
+// that recovery to the outer thread paint, which promotes it to this proof only
 // after every sibling surface has finished. Errors elsewhere remain pending.
 export class RetainedThreadListError extends Error {
   constructor(reason, proof) {
@@ -224,9 +224,9 @@ export function retainedThreadListProof(reason) {
 }
 
 const rowModel = (all, commands) => {
-  // The conversations. A bare reaction is paint on the page and a chip on the page
+  // The threads. A bare reaction is paint on the page and a chip on the page
   // row, and counts for nothing here: no card, no destination, no place in the walk.
-  const threads = all.filter(conversational);
+  const threads = all.filter(discussed);
   const open = threads.filter((t) => !t.resolved);
   // The page's outline, read once for the whole reconcile: every thread asks it where it
   // stands and which run it belongs to.
@@ -241,7 +241,7 @@ const rowModel = (all, commands) => {
     commands.panelIsOpen() && Boolean(threadsBox.querySelector(":scope > .lf-thread"));
 
   // Where the user's own narrowing applies, and the only place it does: the page's
-  // marks, the inline conversation seats and the banner's count are readings of the log
+  // marks, the inline thread seats and the banner's count are readings of the log
   // and go on saying what the log says. What the panel shows is the panel's business,
   // and so is the order it shows it in. Under Recent a run is the day its threads last
   // moved. The page's order is kept either way for the walk with the panel shut.
@@ -313,7 +313,7 @@ function configureList(commands) {
       activateGroup: (target) =>
         commands.scrollToElement(target, scrollBehavior(), "start"),
       card: { ...commands.card, openThreads, listRoot: threadsBox },
-      repaintConversation: commands.repaintConversation,
+      repaintThread: commands.repaintThread,
       presentSummary: (model) => postPaint(model, commands),
     },
     Object.freeze({
@@ -363,7 +363,7 @@ async function retainCommitted(current, candidate, reason) {
 // A renderer exception can be transient (for example, a custom element upgrading in
 // the same turn). Restore the committed list before one retry so a second render starts
 // from a coherent tree. Only a retry that fully paints the candidate can prove the
-// surrounding conversation reading; a second failure leaves the region pending.
+// surrounding thread reading; a second failure leaves the region pending.
 async function presentList(model, current) {
   try {
     if (!(await threadsBox.present(model)) || !current()) return null;
@@ -388,7 +388,7 @@ async function presentList(model, current) {
 }
 
 // The Lit update, its geometry-dependent paint, and newly connected frozen widgets are
-// one proof for the existing conversation presentation ticket. Only the newest call can
+// one proof for the existing thread presentation ticket. Only the newest call can
 // run post-paint work, capture authored values, or commit a fallback.
 export async function renderThreads(collection, commands) {
   const all = collection.threads;
@@ -423,7 +423,7 @@ export async function renderThreads(collection, commands) {
       if (!refreshed) return;
       recovered ??= refreshed.recovered;
     }
-    // The surrounding conversation batch commits this complete list with its sibling
+    // The surrounding thread batch commits this complete list with its sibling
     // seats. Frozen descendants already entered the application as authored source;
     // wait only for their connected presentation proof inside this same ticket.
     finishScrollHold(hold, commands.panelIsOpen);

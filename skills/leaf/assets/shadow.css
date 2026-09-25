@@ -158,7 +158,7 @@
 @media (pointer: coarse) {
   :is(input, textarea, select) { font-size: max(var(--entry-floor), 1em) !important; }
 }
-/* The shared boxes of a registry-declared widget conversation. The widget places it.
+/* The shared boxes of a registry-declared widget thread. The widget places it.
    The same Thread view may be seated inside an x-thread-surface shadow tree, so this
    whole vocabulary is in this file. */
 /* A thread mark's accessibility control lives beside the datum it names: the one
@@ -184,82 +184,82 @@ leaf-anchor-note { display: contents; }
           width: auto; height: auto; padding: 6px 10px; overflow: visible; opacity: 1;
           border: 1px solid var(--accent); border-radius: var(--r); background: var(--card);
           color: var(--ink); box-shadow: 0 8px 24px var(--shade); }
-.lf-conversation { display: none; margin-top: var(--sp-2); overflow-wrap: anywhere; }
-.lf-conversation-thread { box-sizing: border-box; min-width: 0; position: relative;
+.lf-thread-seat { display: none; margin-top: var(--sp-2); overflow-wrap: anywhere; }
+.lf-page-thread { box-sizing: border-box; min-width: 0; position: relative;
           padding: var(--sp-1);
           font-family: var(--sans); font-size: var(--t-5); line-height: var(--lf-ui-lh);
           color: var(--ink); overflow-wrap: anywhere; }
-.lf-conversation-thread:is(:focus-within, .lf-focus-within) {
+.lf-page-thread:is(:focus-within, .lf-focus-within) {
           outline: none; border-radius: var(--r); background: var(--here-surface); }
 /* The thread itself holding the keyboard's focus wears the ring, inset over the quiet
    ground its containing state paints; chrome.css says the same of the panel's card. */
-.lf-conversation-thread:is(:focus-visible, .lf-focus-visible) {
-          outline: var(--here-ring); --lf-here-ring: conversation-thread;
+.lf-page-thread:is(:focus-visible, .lf-focus-visible) {
+          outline: var(--here-ring); --lf-here-ring: page-thread;
           outline-offset: calc(-1 * var(--here-ring-w)); }
 @media (forced-colors: active) {
-  .lf-conversation-thread:is(:focus-within, .lf-focus-within) {
+  .lf-page-thread:is(:focus-within, .lf-focus-within) {
           outline: 2px solid Highlight; outline-offset: -2px; box-shadow: none; }
 }
 .lf-say { display: none; align-items: flex-end;
           gap: var(--sp-2); margin-top: var(--sp-3); }
-.lf-conversation-thread > .lf-say:not([hidden]) { display: flex; }
+.lf-page-thread > .lf-say:not([hidden]) { display: flex; }
 .lf-say textarea { flex: 1; min-width: 0; }
-.lf-conversation-thread > .lf-say { flex-direction: column; align-items: stretch; }
-.lf-conversation-thread > .lf-say.lf-reply-collapsed > :not(.lf-reply-disclosure) {
+.lf-page-thread > .lf-say { flex-direction: column; align-items: stretch; }
+.lf-page-thread > .lf-say.lf-reply-collapsed > :not(.lf-reply-disclosure) {
           display: none; }
 /* The collapsed Reply is the empty editor at rest. Its complete path outranks the
    shared aim floor, keeping the same box and surface through hover and entry. */
-.lf-conversation-thread > .lf-say > .lf-reply-disclosure {
+.lf-page-thread > .lf-say > .lf-reply-disclosure {
           box-sizing: border-box; width: 100%;
           min-height: calc(max(28px, var(--aim-floor)) + 12px); padding: 8px 10px;
           border-color: var(--border-2); background: var(--card);
           color: var(--muted-2); text-align: start; }
-.lf-conversation-thread > .lf-say > .lf-reply-disclosure[hidden] { display: none; }
-.lf-conversation-thread > .lf-say > .lf-reply-disclosure:hover {
+.lf-page-thread > .lf-say > .lf-reply-disclosure[hidden] { display: none; }
+.lf-page-thread > .lf-say > .lf-reply-disclosure:hover {
           border-color: var(--border-2); color: var(--ink);
           background: var(--card); }
-.lf-conversation-resolved { display: flex;
+.lf-page-thread-resolved { display: flex;
           align-items: center; justify-content: space-between; gap: var(--sp-2); }
-.lf-conversation > .lf-say { margin-top: 0; }
-.lf-conversation-thread + .lf-conversation-thread { margin-top: calc(2 * var(--sp-3)); }
-.lf-conversation-thread + .lf-conversation-thread::before { content: "";
+.lf-thread-seat > .lf-say { margin-top: 0; }
+.lf-page-thread + .lf-page-thread { margin-top: calc(2 * var(--sp-3)); }
+.lf-page-thread + .lf-page-thread::before { content: "";
           position: absolute; inset-inline: var(--sp-1); inset-block-start: calc(-1 * var(--sp-3));
           border-top: 1px solid var(--rule); pointer-events: none; }
-.lf-conversation-msg { margin: var(--sp-3) 0; }
-.lf-conversation-msg.agent { position: relative; }
-.lf-conversation-head { display: flex; align-items: baseline; gap: var(--sp-2);
+.lf-page-thread-msg { margin: var(--sp-3) 0; }
+.lf-page-thread-msg.agent { position: relative; }
+.lf-page-thread-head { display: flex; align-items: baseline; gap: var(--sp-2);
           font-size: var(--t-6); }
 .lf-thread-root-meta { display: flex; align-items: baseline; gap: var(--sp-2);
           font-size: var(--t-6); }
-.lf-thread-root-meta > .lf-conversation-head { display: contents; }
-.lf-thread-root-meta + .lf-conversation-msg { margin-top: 0; }
+.lf-thread-root-meta > .lf-page-thread-head { display: contents; }
+.lf-thread-root-meta + .lf-page-thread-msg { margin-top: 0; }
 .lf-thread-root-meta b { font-size: 13px; font-weight: 600; color: var(--ink); }
-.lf-conversation-head b { font-size: 13px; font-weight: 600; color: var(--ink); }
+.lf-page-thread-head b { font-size: 13px; font-weight: 600; color: var(--ink); }
 .lf-thread-meta-actions { display: inline-flex; flex: none; align-items: center;
           gap: 4px; margin-inline-start: auto; }
-.lf-conversation-head time { color: var(--muted-2); }
-.lf-conversation-head .lf-edited { color: var(--muted-2); }
-/* A conversation projected inline uses the same receipt emphasis as the panel. */
-.lf-conversation-head .lf-msg-failure { color: var(--warn-ink); font-weight: 600; }
-.lf-conversation-body { margin-top: 4px; line-height: 1.5; }
-.lf-conversation-body > :first-child { margin-top: 0; }
-.lf-conversation-body > :last-child { margin-bottom: 0; }
+.lf-page-thread-head time { color: var(--muted-2); }
+.lf-page-thread-head .lf-edited { color: var(--muted-2); }
+/* A thread projected inline uses the same receipt emphasis as the panel. */
+.lf-page-thread-head .lf-msg-failure { color: var(--warn-ink); font-weight: 600; }
+.lf-page-thread-body { margin-top: 4px; line-height: 1.5; }
+.lf-page-thread-body > :first-child { margin-top: 0; }
+.lf-page-thread-body > :last-child { margin-bottom: 0; }
 .lf-drawing-reference { display: block; margin-top: 2px; color: var(--muted-2);
           font: 500 var(--t-6)/1.35 var(--sans); }
-.lf-conversation-open { margin-top: var(--sp-2); }
-.lf-conversation-resolved { margin-top: var(--sp-2); color: var(--ok); }
-.lf-conversation-summary { padding: 8px 10px; color: var(--ok); cursor: pointer;
+.lf-page-thread-open { margin-top: var(--sp-2); }
+.lf-page-thread-resolved { margin-top: var(--sp-2); color: var(--ok); }
+.lf-page-thread-summary { padding: 8px 10px; color: var(--ok); cursor: pointer;
           font-weight: 600; }
-.lf-conversation-thread[open] > .lf-conversation-summary { margin-bottom: var(--sp-2);
+.lf-page-thread[open] > .lf-page-thread-summary { margin-bottom: var(--sp-2);
           border-bottom: 1px solid var(--rule); }
-.lf-conversation-thread > .lf-conversation-summary[hidden] { display: none; }
-.lf-conversation-thread .lf-btn { font: inherit; }
-.lf-conversation-thread textarea { box-sizing: border-box; padding: 8px 10px;
+.lf-page-thread > .lf-page-thread-summary[hidden] { display: none; }
+.lf-page-thread .lf-btn { font: inherit; }
+.lf-page-thread textarea { box-sizing: border-box; padding: 8px 10px;
           border: 1px solid var(--border-2); border-radius: 6px; background: var(--card);
           color: inherit; font: inherit; resize: none; field-sizing: content;
           max-height: 50vh; overflow-y: auto; }
-.lf-conversation-thread :is(.lf-btn, summary):is(:focus-visible, .lf-focus-visible) {
-          outline: var(--here-ring); outline-offset: 1px; --lf-here-ring: conversation; }
+.lf-page-thread :is(.lf-btn, summary):is(:focus-visible, .lf-focus-visible) {
+          outline: var(--here-ring); outline-offset: 1px; --lf-here-ring: thread; }
 /* The reply is a text box and wears the text box's band: the ring replaces the resting
    border in place rather than standing a second edge off it. The chrome stylesheet
    states that for every text box in the document and reaches this one too, but only
@@ -269,17 +269,17 @@ leaf-anchor-note { display: contents; }
    the text box rule exists to remove. Repeated here on the terms the chrome rule sets,
    so the reply field wears one band wherever the thread is seated, the way .lf-mark-note
    and .lf-chip repeat their own faces through this boundary. */
-.lf-conversation-thread textarea:is(:focus, .lf-focus) {
+.lf-page-thread textarea:is(:focus, .lf-focus) {
           outline: var(--here-ring); outline-offset: 0; border-color: transparent;
           --lf-here-ring: text-box; }
 @media print {
-  .lf-conversation-thread,
-  .lf-conversation-thread :is(.lf-conversation-msg, .lf-conversation-resolved) {
+  .lf-page-thread,
+  .lf-page-thread :is(.lf-page-thread-msg, .lf-page-thread-resolved) {
           display: block !important; }
-  .lf-conversation-thread :is(.lf-say, button, .lf-msg-sending), .lf-mark-note {
+  .lf-page-thread :is(.lf-say, button, .lf-msg-sending), .lf-mark-note {
           display: none !important; }
 }
-/* The compact label shape the chrome and the conversation surfaces share, stated here
+/* The compact label shape the chrome and the thread surfaces share, stated here
    and nowhere else. It stands in this file because a thread seated in a declared
    widget tree is out of every document selector's reach, and drew the platform's button
    instead: on the dark scheme its ButtonFace grey put the muted word at 1.86:1.
@@ -331,7 +331,7 @@ leaf-anchor-note { display: contents; }
 /* A reply with no feedback keeps no row. Its add control sits over the unused
    top-right corner and appears only for the message under pointer or keyboard focus.
    The picker is an overlaid menu below that control; opening it never moves this
-   message or the conversations after it. At rest only feedback already left earns
+   message or the threads after it. At rest only feedback already left earns
    flow space. */
 .lf-react-strip { display: flex; align-items: center; flex-wrap: wrap; gap: 4px;
           margin-top: 0; }
@@ -347,11 +347,11 @@ leaf-anchor-note { display: contents; }
 .lf-react-trigger-icon { inline-size: 16px; block-size: 16px; overflow: visible;
           fill: none; stroke: currentColor; stroke-width: 1.6;
           stroke-linecap: round; stroke-linejoin: round; }
-.lf-conversation-msg.agent:is(:hover, :focus-within)
+.lf-page-thread-msg.agent:is(:hover, :focus-within)
           > .lf-react-strip > .lf-react-trigger,
 .lf-react-strip > .lf-react-trigger:is(:focus-visible, .lf-focus-visible) {
           opacity: 1; }
-.lf-conversation-msg.agent:has(> .lf-react-strip.lf-react-open) { z-index: 4; }
+.lf-page-thread-msg.agent:has(> .lf-react-strip.lf-react-open) { z-index: 4; }
 .lf-react-strip.lf-react-open > .lf-react-palette {
           position: absolute; z-index: 3;
           inset-block-start: calc(max(28px, var(--aim-floor)) + 2px);
@@ -369,7 +369,7 @@ leaf-anchor-note { display: contents; }
 .lf-msg-sending { color: var(--muted); font-weight: 600; white-space: nowrap; }
 .lf-msg-sending::before { content: "\00b7"; margin-inline-end: 6px;
           color: var(--muted-2); }
-:is(.lf-msg-head, .lf-conversation-head) > b,
+:is(.lf-msg-head, .lf-page-thread-head) > b,
 .lf-msg-meta > time { flex: none; }
 /* The runtime's mark on a static box whose computed overflow scrolls (reachScrollers,
  * for what escaped such a box and why the mark is read from the composed page rather
@@ -622,6 +622,6 @@ leaf-anchor-note { display: contents; }
 /* Draw mode takes page-widget presses before their controls can act. This rule is in
    this file because document selectors do not cross a declared shadow root. */
 :host-context(body[data-lf-draw-mode]):host-context(main) * { cursor: crosshair !important; }
-:host-context(body[data-lf-draw-mode]):host-context(main) .lf-conversation,
-:host-context(body[data-lf-draw-mode]):host-context(main) .lf-conversation * {
+:host-context(body[data-lf-draw-mode]):host-context(main) .lf-thread-seat,
+:host-context(body[data-lf-draw-mode]):host-context(main) .lf-thread-seat * {
   cursor: auto !important; }

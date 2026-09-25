@@ -12,7 +12,7 @@ from interact_support import (
 )
 from leaf import cli as cli_model
 from leaf import event_log as events_model
-from leaf import events as conversation_model
+from leaf import events as thread_model
 from leaf import render_checks as render_checks_model
 from leaf import schema as schema_model
 from leaf import structure as structure_model
@@ -115,9 +115,7 @@ def test_sort_film_comment_restores_its_input_and_step(browser, serve):
     expect(composer.locator("blockquote")).to_contain_text("Random, shuffle 7, step 1")
     composer.locator("textarea").fill("Why does this run start here?")
     composer.locator("textarea").press("Enter")
-    expect(
-        page.get_by_role("dialog", name=re.compile("Conversation for"))
-    ).to_be_visible()
+    expect(page.get_by_role("dialog", name=re.compile("Thread for"))).to_be_visible()
     events = [
         json.loads(line)
         for line in (serve.page_dir / "events.jsonl").read_text().splitlines()
@@ -127,7 +125,7 @@ def test_sort_film_comment_restores_its_input_and_step(browser, serve):
         "visual": "moment:random:7:0",
     }
 
-    page.get_by_role("button", name="Dismiss conversation view").click()
+    page.get_by_role("button", name="Dismiss thread view").click()
     layout = page.evaluate(
         """async () => {
           const film = document.querySelector('#sort-film');
@@ -288,8 +286,8 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
     happened, and `version export` drops the layer that draws it. What an example
     *can* ship is the log itself, beside it, exactly as one that wants a screenshot
     ships the bytes beside it. `scripts/preview.py <example>` then opens with those
-    events replayed. A thread-bearing log opens mid-conversation; an action-only log
-    can replay a page-owned decision without inventing a conversation.
+    events replayed. A thread-bearing log opens mid-thread; an action-only log
+    can replay a page-owned decision without inventing a thread.
 
     The anchor in that log is the part that can rot quietly. It is captured from
     the mapped revision, and it has to name the same passage once the browser has
@@ -354,25 +352,25 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
         assert {event["id"] for event in events} <= previous
         # Read standing roots through the same fold as the page. A resolved root keeps
         # its thread and attachment but owes no paint; a withdrawn reaction owes neither.
-        threads = conversation_model.build_threads(
+        threads = thread_model.build_threads(
             logged,
             enclosing_ids(structure_model.SourceDocument(example.read_text())),
         )
         reacted = [
             thread["root"]
             for thread in threads.values()
-            if conversation_model.bare_reaction(thread)
+            if thread_model.bare_reaction(thread)
             and not thread["resolved"]
             and thread["anchor"]
         ]
-        conversations = [
+        listed = [
             thread
             for thread in threads.values()
-            if not conversation_model.bare_reaction(thread)
+            if not thread_model.bare_reaction(thread)
         ]
         anchored = [
             thread["root"]
-            for thread in conversations
+            for thread in listed
             if not thread["resolved"] and thread["anchor"]
         ]
         # The thread node first, because it arrives whether or not the quote found a
@@ -384,9 +382,9 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
         # also paints a mark. Counting threads against the anchored ones would red
         # this gate the day a seed carries a general comment, which is a thing a page
         # may hold.
-        expect(page.locator(".lf-thread")).to_have_count(len(conversations))
+        expect(page.locator(".lf-thread")).to_have_count(len(listed))
         open_targets = {event["anchor"]["section"] for event in anchored}
-        for thread in conversations:
+        for thread in listed:
             if not thread["resolved"]:
                 continue
             card = page.locator(f'.lf-thread[data-id="{thread["root"]["id"]}"]')
@@ -450,7 +448,7 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
         assert detached == [], (
             f"{example.stem} ships an anchor that resolves to nothing: {detached}. "
             "The passage it quotes has been rewritten; recapture it with "
-            "`leaf comment --quote` against the current file."
+            "`leaf thread open --quote` against the current file."
         )
         # Only where the log named a passage. The thread count above already allows a
         # seed of general comments, which a page may hold; waiting unconditionally for
@@ -646,7 +644,7 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
 def test_an_anchor_written_from_the_mapped_revision_lands_on_the_page(
     browser, serve, source
 ):
-    """The claim `leaf comment` makes is that a quote read out of the mapped revision
+    """The claim `leaf thread open` makes is that a quote read out of the mapped revision
     names the same passage in the browser. Four unlike authored pages cover native
     blocks, representative widgets, and projected text that can make the file and
     browser readings disagree. The generated corpus derives its tab bodies from these
@@ -718,7 +716,8 @@ def test_a_written_anchor_keeps_its_copy_when_the_page_grows_another(browser, se
     result = CliRunner().invoke(
         cli_model.cli,
         [
-            "comment",
+            "thread",
+            "open",
             "--json",
             str(d),
             "--quote",
@@ -758,7 +757,8 @@ def test_a_written_comment_keeps_its_originating_agent(browser, serve, monkeypat
         .invoke(
             cli_model.cli,
             [
-                "comment",
+                "thread",
+                "open",
                 str(d),
                 "--quote",
                 "Retries are capped at three",
@@ -803,7 +803,7 @@ def test_a_reply_notice_survives_a_failed_state_and_keeps_its_agent(browser, ser
     The first read reaches panel and version rendering before malformed projection data
     rejects it. That candidate must announce nothing and leave no version behind; a
     complete retry announces the reply once with the agent recorded on the message.
-    The rejected reply must also leave the visible conversation until that retry.
+    The rejected reply must also leave the visible thread until that retry.
     """
     url = serve(TWIN_V1)
     d = serve.page_dir
@@ -911,7 +911,7 @@ def test_a_failed_agent_root_restores_the_focused_first_message_composer(
         layer_widgets=SEATED_ASK_WIDGETS,
     )
     page = open_page(browser, live_url(url))
-    seat = page.locator("#proposal > .lf-conversation")
+    seat = page.locator("#proposal > .lf-thread-seat")
     composer = seat.locator(":scope > .lf-say textarea")
     words = "keep this first message" if draft else ""
     composer.fill(words)
@@ -958,9 +958,7 @@ def test_a_failed_agent_root_restores_the_focused_first_message_composer(
     assert fault.value.text in page.lf_errors
     page.lf_errors.remove(fault.value.text)
 
-    inline = seat.locator(
-        f':scope > .lf-conversation-thread[data-thread="{root["id"]}"]'
-    )
+    inline = seat.locator(f':scope > .lf-page-thread[data-thread="{root["id"]}"]')
     expect(inline).to_have_count(0)
     expect(composer).to_have_count(1)
     expect(composer).to_be_focused()
@@ -975,7 +973,7 @@ def test_a_failed_agent_root_restores_the_focused_first_message_composer(
     page.unroute("**/api/state*")
     nudge(serve.page_dir)
     told(page)
-    expect(inline.locator(".lf-conversation-body")).to_have_text("candidate root")
+    expect(inline.locator(".lf-page-thread-body")).to_have_text("candidate root")
     expect(composer).to_have_count(1 if draft else 0)
     if draft:
         expect(composer).to_have_value(words)
@@ -1002,9 +1000,7 @@ def test_a_failed_resolution_restores_a_focused_inline_reply(browser, serve):
         },
     )
     page = open_page(browser, live_url(url))
-    thread = page.locator(
-        f'#proposal > .lf-conversation > [data-thread="{root["id"]}"]'
-    )
+    thread = page.locator(f'#proposal > .lf-thread-seat > [data-thread="{root["id"]}"]')
     reply = thread.locator(":scope > .lf-say textarea")
     reply.fill("keep this inline reply")
     reply.evaluate("node => node.setSelectionRange(5, 16, 'backward')")
@@ -2773,7 +2769,7 @@ def test_a_wide_widget_leaves_the_sidenote_its_margin(browser, serve):
 def test_a_note_sets_the_page_axis_at_every_roomy_width(browser, serve):
     """An authored note sets the right-side strip and the page's axis.
 
-    Possible future conversations reserve no empty column, so widening the page past
+    Possible future threads reserve no empty column, so widening the page past
     the former thread breakpoint leaves the note's 384px strip as the widest claim.
     Both widths retain readable prose and the complete note on the page.
 

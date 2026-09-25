@@ -137,8 +137,8 @@ def reading(
 
 
 def threads(state: dict) -> dict:
-    """Conversation threads by root id, as the panel is handed them."""
-    return {thread["root"]["id"]: thread for thread in state["conversation"]["threads"]}
+    """Threads by root id, as the panel is handed them."""
+    return {thread["root"]["id"]: thread for thread in state["thread"]["threads"]}
 
 
 def projected(state: dict, revision: int) -> dict:

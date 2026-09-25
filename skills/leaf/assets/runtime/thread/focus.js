@@ -1,4 +1,4 @@
-/* Focus readings shared by conversation paint and commands. */
+/* Focus readings shared by thread paint and commands. */
 import { focused, documentFocused } from "../keyboard/scopes.js";
 
 // Native disclosure owns the panel thread's focus stop. Inline divs have no summary,
@@ -7,15 +7,15 @@ export function focusThread(thread, options) {
   (thread.querySelector(":scope > summary:not([hidden])") ?? thread).focus(options);
 }
 
-// An inline conversation root may itself hold focus. A control inside it keeps its own
+// An inline thread root may itself hold focus. A control inside it keeps its own
 // command scope, while panel summaries are mapped by focusedThreadTarget below.
 export function focusedThread() {
   const active = focused();
-  return active?.matches?.(".lf-thread, .lf-conversation-thread") ? active : null;
+  return active?.matches?.(".lf-thread, .lf-page-thread") ? active : null;
 }
 
 // A native panel summary stands for its details in commands that move the whole
-// thread. Controls deeper in the conversation keep their own command scope.
+// thread. Controls deeper in the thread keep their own command scope.
 export function focusedThreadTarget() {
   const active = focused();
   return active?.matches?.(".lf-thread-summary")
@@ -35,5 +35,5 @@ export function focusedThreadOf() {
 // the page — and a control inside one stands in it too: the standing floor's question,
 // which is where letting go lands rather than which passage to paint.
 export function standingThreadOf() {
-  return documentFocused()?.closest?.(".lf-thread, .lf-conversation-thread");
+  return documentFocused()?.closest?.(".lf-thread, .lf-page-thread");
 }

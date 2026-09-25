@@ -1217,19 +1217,19 @@ def test_the_render_gate_rejects_an_upgrade_that_defines_no_element(
     )
 
 
-def test_the_render_gate_requires_a_declared_conversations_host(
+def test_the_render_gate_requires_a_declared_threads_host(
     browser, serve, tmp_path, monkeypatch
 ):
-    """A conversation declaration whose module omits its host fails visibly.
+    """A thread declaration whose module omits its host fails visibly.
 
     A project widget supplies the declaration and its matching host. The bug-back then
-    removes only its conversationBox placement; a fresh browser context prevents the
+    removes only its threadBox placement; a fresh browser context prevents the
     clean load's module cache from answering for the changed file."""
     monkeypatch.chdir(tmp_path)
     package = author_test_widget(tmp_path, "lf-callout", upgrade=True)
     registry_path = package / "registry.json"
     registry = json.loads(registry_path.read_text())
-    registry["lf-callout"]["x-conversation"] = {"when": {"id": ["custom-note"]}}
+    registry["lf-callout"]["x-thread-seat"] = {"when": {"id": ["custom-note"]}}
     registry_path.write_text(json.dumps(registry, indent=2))
     module = package / "widgets" / "lf-callout.js"
     source = module.read_text()
@@ -1237,12 +1237,10 @@ def test_the_render_gate_requires_a_declared_conversations_host(
     assert source.count(runtime_import) == 1
     source = source.replace(
         runtime_import,
-        'import { conversationBox, once, widgetController } from "/runtime/widget-api.js";',
+        'import { threadBox, once, widgetController } from "/runtime/widget-api.js";',
     )
     once = "      once(this);\n"
-    placement = (
-        '      if (once(this)) this.append(conversationBox(this, "Question"));\n'
-    )
+    placement = '      if (once(this)) this.append(threadBox(this, "Question"));\n'
     assert source.count(once) == 1
     source = source.replace(
         once,
@@ -1261,8 +1259,8 @@ def test_the_render_gate_requires_a_declared_conversations_host(
         browser, serve(CUSTOM_WIDGET_PAGE, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
     ).failures
     assert (
-        "[light] <lf-callout id='custom-note'> declares x-conversation but rendered 0 "
-        "matching hosts; its module must place exactly one conversationBox"
+        "[light] <lf-callout id='custom-note'> declares x-thread-seat but rendered 0 "
+        "matching hosts; its module must place exactly one threadBox"
     ) in failures
 
 
@@ -1758,7 +1756,7 @@ def test_the_render_gate_checks_custom_controls_at_their_form_boundary(browser, 
     ]
 
 
-def test_the_render_gate_checks_undeclared_shadow_roots_inside_conversation_chrome(
+def test_the_render_gate_checks_undeclared_shadow_roots_inside_thread_chrome(
     browser, serve
 ):
     """A reply panel is runtime UI, while a widget inside its message remains page
@@ -1776,7 +1774,7 @@ def test_the_render_gate_checks_undeclared_shadow_roots_inside_conversation_chro
               }
             });
           const panel = document.createElement('div');
-          panel.className = 'lf-conversation-thread lf-ui';
+          panel.className = 'lf-page-thread lf-ui';
           panel.append(offer('generated-control'), document.createElement('reply-widget'));
           document.querySelector('main').append(panel);
         }"""
@@ -3459,7 +3457,7 @@ def test_a_page_hands_its_note_strip_back_when_the_panel_takes_the_room(browser,
 
 @pytest.mark.parametrize("edge", EDGES, ids=EDGE_IDS)
 def test_the_user_draws_an_edge_to_the_width_they_want(browser, serve, edge):
-    """A conversation about a table wants room a conversation about a sentence does not,
+    """A thread about a table wants room a thread about a sentence does not,
     and a tray of long names wants room a tray of short ones does not; only the user
     looking at one knows which this is. So each region's edge is a thing they take hold
     of. The region stands over the page, so the page yields nothing at any width.
@@ -3837,7 +3835,7 @@ def test_the_layer_traps_no_margin_in_the_panel_it_draws(browser, serve):
     control comes first: a rule that traps one inside the panel has to be found, or a
     clean result is only a reading that never arrived. A page is served rather than a
     bare fixture because the panel has to be holding something for its boxes to exist,
-    and a seeded example is the corpus's own conversation. The log has to hold an
+    and a seeded example is the corpus's own thread. The log has to hold an
     anchored comment, not merely exist: the planted rule traps its margin against a
     thread's title, so a page whose log carries only widget events opens the
     panel on nothing and reports the control as missing."""

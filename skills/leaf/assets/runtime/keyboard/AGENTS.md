@@ -2,7 +2,7 @@
 
 This file owns contracts shared by the modules in this directory. Each module's header
 owns its data and behavior. The parent runtime guidance owns interactions with browser
-state, widgets, conversations, and chrome.
+state, widgets, threads, and chrome.
 
 ## Ownership
 
@@ -17,7 +17,7 @@ every binding and presentation from that row. A visible control names the same c
 rather than creating a parallel keyboard action.
 
 Core owns commands that act on Leaf's page, chrome, navigation, comments, and shared
-conversation state. A widget owns commands that interpret or change its content. Widget
+thread state. A widget owns commands that interpret or change its content. Widget
 scopes join the register only while their instance exists.
 
 Owners declare their keys during construction, before the first scope read. Element
@@ -64,9 +64,9 @@ These states have distinct parents:
   coexist beside an auxiliary surface; focus determines which answers first.
 - A composer, reply box, or find box exits to its container. A native layer such as a
   versions menu or modal dialog owns its dismissal.
-- A selected page destination, such as a conversation, Ask, or heading, has a let-go step
+- A selected page destination, such as a thread, Ask, or heading, has a let-go step
   back to the document. Page-side state added there closes before that step.
-- A conversation in the margin's thread card has the element it is about as its parent.
+- A thread in the margin's thread card has the element it is about as its parent.
   Escape from the card lands on that element and leaves the card beside it, because the
   user still stands at the same target; the element's let-go then takes both. The card
   is margin chrome rather than a native layer, so standing on its element and working in
@@ -86,8 +86,8 @@ The Threads panel has two selection levels: the whole panel, reached by `g T`, a
 one thread, reached by the semantic thread walk or focus inside that thread. Escape
 from a reply box returns to its thread, then to the whole panel, preserving disclosures
 and drafts. At the whole-panel level, Escape removes narrowing, then closes the panel.
-A title and its conversation select the same thread. Native focus order runs from the
-title through its open conversation; Enter/Space selects a closed title, leaves an open
+A title and its thread select the same thread. Native focus order runs from the
+title through its open thread; Enter/Space selects a closed title, leaves an open
 one selected, and Comment enters the reply box even from a collapsed title.
 
 TODO(2026-09-22): Reconcile the page's `t` shortcut with this hierarchy for threads that

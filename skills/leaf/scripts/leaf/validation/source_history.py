@@ -122,7 +122,7 @@ def continuity_errors(
     if not revision.predecessor or revision.committed_active or registry is None:
         return [], []
     gone = revision.previous.ids - parser.ids
-    # Only the parts a live conversation still points at, read exactly as the
+    # Only the parts a live thread still points at, read exactly as the
     # protected ids below are. A declared part is authored markup, not a promise:
     # once every thread on it has moved, detached, or closed, the picture may lose
     # the node with them, the way an id no thread holds is dropped. Held for the
@@ -144,7 +144,7 @@ def continuity_errors(
     errors = []
     if dropped_parts:
         errors.append(
-            "visual parts an open conversation anchors on, present in revision "
+            "visual parts an open thread anchors on, present in revision "
             f"r{revision.predecessor} but dropped in index.html: {dropped_parts} — "
             "move, detach, or resolve those threads first"
         )

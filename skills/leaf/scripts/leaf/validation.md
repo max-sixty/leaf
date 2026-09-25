@@ -27,9 +27,9 @@ attribute sits in the runtime's `lf-` and `data-lf-` namespaces, named today or
 not, and ids needed by anchored unresolved threads, standing user actions, or
 effective standing reports survive from the previous revision. A
 declared visual part survives on the same terms as an id: while a live
-conversation's current anchor names it, and no longer once every thread on it
+thread's current anchor names it, and no longer once every thread on it
 has moved, detached, or closed. That release is final — a revision the part has
-left cannot be asked for it back, so reopening the closed conversation restores
+left cannot be asked for it back, so reopening the closed thread restores
 the thread and not its target. An agent reply may detach a thread in the same
 transition that removes its subject. A declared retirement protects its holder and slots until its
 outcome licenses their removal. Other dropped ids are reported as advice. These carry-over rules judge a candidate. A source whose captured artifact is the active revision's had its transition judged when it activated, and the append door has judged every event since against the revision it names, so neither activation nor `version check` re-judges it against the longer log. No fixed-pixel-width
@@ -48,11 +48,11 @@ static reading says whether a module throws. `render_gate/page_code.py` owns the
 
 An ordinary document's comment namespace is the roots present in its log. A
 specimen template's namespace is its `data-specimen-threads` declaration, so a
-first version may name conversations whose seed log has not been written yet.
+first version may name threads whose seed log has not been written yet.
 Static validation applies the same child-document checks using the selected
 history currently available. Specimen allocation copies that same available
 history and no more, so a root the log does not hold leaves the child without
-that conversation rather than refusing the page. Corpus generation selects
+that thread rather than refusing the page. Corpus generation selects
 against the shipped log it is composing from, where a root naming nothing is a
 mistake in the declaration, and refuses it.
 
@@ -123,7 +123,7 @@ the gate does not re-vendor on its behalf.
 ## Passages
 
 An anchor is resolved in the browser and recorded in the event log, so
-`leaf comment` reads the active revision the way the anchor pass reads the DOM — text in
+`leaf thread open` reads the active revision the way the anchor pass reads the DOM — text in
 document order, minus the runtime's own words, plus the words a widget says
 through an x-says attribute, with one space wherever the enclosing text block
 changes and whitespace collapsed. What the file cannot know is what a widget's
@@ -142,7 +142,7 @@ the rendered owner with the same projected passage a user can point at: standing
 user body rewrites replace authored words, retired slots contribute none, and
 declared generated children join their owner. Reports do not license a body rewrite.
 Page expectations stop at the rendered revision; frozen thread markup has no later
-authored version and uses the conversation's whole action window.
+authored version and uses the thread's whole action window.
 Event admission repeats file-side capture only when the transport requests it,
 as the MCP snapshot does. Runtime anchors are already resolved against rendered
 words, including widget labels and module output unavailable to the file reading,

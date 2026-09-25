@@ -1,7 +1,7 @@
 """Disposable page instances built from an authored template and its captured layer.
 
 A specimen owns an ordinary source, revision, data store, and event log. Its parent
-supplies immutable resources and optional selected conversation history, never a live
+supplies immutable resources and optional selected thread history, never a live
 state projection. Its browser dependency URLs retain the creating parent's exact
 immutable resource namespace, including through nested children; only the document
 and API identity are new. Browser gestures enter the ordinary page event door. The

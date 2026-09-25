@@ -13,8 +13,8 @@ When `edit.matches_active` is false, the candidate in `index.html` differs from
 the live revision. Its source locations still refer to the active file; reconcile
 the candidate by stable id and content before editing. `inputs` names external
 values and the source file that holds each; change one with `leaf data set` or by
-rewriting that file. Inspect frozen conversation content with
-`leaf conversation read <page> <id>`; change it through that conversation.
+rewriting that file. Inspect frozen thread content with
+`leaf thread read <page> <id>`; change it through that thread.
 
 ## Revisions and user-owned words
 

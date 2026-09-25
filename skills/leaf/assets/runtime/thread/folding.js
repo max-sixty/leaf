@@ -25,7 +25,7 @@ export async function settleThread({
         return Boolean(await step?.());
       } catch {
         return false;
-      } // The conversation ticket reports presentation failures.
+      } // The thread ticket reports presentation failures.
     };
     let landed = false;
     if (pendingSettlement(pendingEntries(), id()))
@@ -39,7 +39,7 @@ export async function settleThread({
 }
 
 const folding = new Map();
-export function foldOut(id, node, repaintConversation) {
+export function foldOut(id, node, repaintThread) {
   const standing = folding.get(id);
   if (standing?.node.isConnected) return true;
   folding.delete(id);
@@ -63,7 +63,7 @@ export function foldOut(id, node, repaintConversation) {
     () => {
       if (folding.get(id) !== record) return;
       folding.delete(id);
-      repaintConversation();
+      repaintThread();
     },
     () => {},
   );

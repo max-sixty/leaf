@@ -223,7 +223,7 @@ def test_a_compact_comment_carries_its_box_into_the_inline_thread(browser, serve
     page.evaluate("() => (window.__lfForceMarginRender = false)")
     preview = page.locator(".lf-margin-preview")
     expect(preview).to_be_visible()
-    thread = preview.locator(".lf-conversation-thread")
+    thread = preview.locator(".lf-page-thread")
     reply = preview.locator("textarea")
     expect(thread).to_be_focused()
     full = reply.evaluate(
@@ -1792,8 +1792,8 @@ def test_design_mode_comments_on_a_margin_action_without_performing_it(browser, 
     ], "the margin entry action reached the durable log despite Design mode"
     page.close()
 
-    # The same hoist exists inside frozen markup in a conversation. Its target belongs
-    # to that conversation document, so the margin owner hands Design mode the exact
+    # The same hoist exists inside frozen markup in a thread. Its target belongs
+    # to that thread document, so the margin owner hands Design mode the exact
     # element rather than making it reconstruct ownership from a diagnostic id or path.
     url = serve(leaf_page("inline margin entry action", '<h1 id="h">Review</h1>'))
     events_model.append_event(
@@ -2321,7 +2321,7 @@ def test_a_part_drawn_in_another_state_stands_on_its_visual_until_travel_reveals
     assert placed
 
     page.keyboard.press("t")
-    expect(page.locator(".lf-conversation-thread")).to_be_focused()
+    expect(page.locator(".lf-page-thread")).to_be_focused()
     expect(inner).to_be_visible()
     page.wait_for_function(
         """() => {
@@ -2423,9 +2423,7 @@ def test_a_visual_surface_narrows_paint_without_narrowing_semantic_interaction(
     expect(page.locator("body")).to_have_class(re.compile(r"\blf-over-mark\b"))
     page.mouse.click(point["x"], point["y"])
     expect(
-        page.locator(
-            '.lf-margin-preview .lf-conversation-thread[data-thread="outer-comment"]'
-        )
+        page.locator('.lf-margin-preview .lf-page-thread[data-thread="outer-comment"]')
     ).to_be_visible()
     expect(page.locator(".lf-thread-panel")).not_to_have_class(re.compile(r"\bopen\b"))
     expect(page.locator(".lf-composer")).to_be_hidden()

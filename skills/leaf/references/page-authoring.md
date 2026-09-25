@@ -3,6 +3,7 @@
 - [Read the registry](#read-the-registry)
 - [Document scaffold](#document-scaffold)
 - [Composing a page](#composing-a-page)
+- [Draw the subject](#draw-the-subject)
 - [Theme and vocabulary](#theme-and-vocabulary)
 - [Page behavior](#page-behavior)
 - [Live specimens](#live-specimens)
@@ -169,6 +170,41 @@ composition is the subject. A fitted thumbnail is an overview, not a substitute 
 readable detail. Let the package provide inspection controls and Leaf allocate space and
 scrolling; page-local width overrides and wheel handlers should not be needed.
 
+## Draw the subject
+
+Decide what each view draws before writing its words. Most of what a page explains
+has a shape, and the user takes in a picture of it at a glance, where a description
+has to be rebuilt in their head:
+
+- where things sit, and what bounds, covers, or moves what: a layout, a page's
+  regions, the same page at two widths;
+- what contains, calls, or feeds what: a structure, an architecture, a data flow;
+- how a state changes: a sequence, a lifecycle, a plan's phases;
+- how two states differ: today beside proposed, before beside after;
+- how alternatives differ, when they differ in arrangement or mechanism.
+
+A page deciding, planning, or reviewing one of these draws it too. A table or list whose
+rows name places, sizes, or connections is a drawing written out.
+
+Show a visible subject with an image instead of describing its appearance: an
+interface with a screenshot, and a visual change with an `lf-shot` before-and-after
+capture. A proposal or a mechanism has nothing to capture yet, so draw it. A process
+that unfolds over time is a diagram that moves: draw it in a page module from its
+state and the moment, with controls to pause and scrub, so every moment stays
+readable and its parts stay commentable. A recorded video is flat and heavy, and
+belongs only where the explanation leaves the page. Use a table when the user
+compares the same dimensions across items; use `lf-compare` for a few alternatives
+read as wholes, and `lf-options` when the user must choose among them. A headline
+measurement is a metric, and a pattern across measurements is a chart. Movable
+things form a board. Use images only when they carry information.
+`authoring-evidence.md` says which element draws each kind, and how to draw a figure
+of your own.
+
+The prose beside a shape says only what the shape cannot. What is left for prose is
+the claim, the reason it holds, and the question the page is asking. A few sentences
+hold all three. A section that runs longer is carrying either a structure with a
+shape of its own or backing that belongs under `<details>`.
+
 ## Theme and vocabulary
 
 Write semantic HTML and use the class idioms the registry lists under `$idioms`,
@@ -331,23 +367,6 @@ that reaches a finding says it in the heading, briefly enough to scan in an
 it. A name that only says what it holds is right where there is no finding to
 state, over a list, a table, or a board that speaks for itself.
 
-Show a visible subject with an image instead of describing its appearance. Show
-an interface with a screenshot, and a visual change with an `lf-shot`
-before-and-after capture. A relationship, sequence, or system state transition is
-a diagram. A process that unfolds over time is a diagram that moves: draw it in a
-page module from its state and the moment, with controls to pause and scrub, so
-every moment stays readable and its parts stay commentable. A recorded video is
-flat and heavy, and belongs only where the explanation leaves the page. Use a
-table when the user compares the same dimensions across items; use `lf-compare`
-for a few alternatives read as wholes, and `lf-options` when the user must choose
-among them. A headline measurement is a metric, and a pattern
-across measurements is a chart. Movable things form a board. Use images only when
-they carry information. The prose beside a shape says only what the shape cannot.
-What is left for prose is the claim, the reason it holds, and the question the page
-is asking. A few sentences hold all three. A section that runs longer is carrying
-either a structure with a shape of its own or backing that belongs under
-`<details>`.
-
 Write for what the user has seen, which is this conversation and the page so
 far. Introduce the names a decision depends on, put evidence on the page for a
 claim they could doubt, and drop the journey once the conclusion replaces it.
@@ -368,9 +387,9 @@ no separate browser tool. Fix every failure; a screenshot is not a substitute.
 
 Then read the page as the user will. Take the headings on their own first, and
 check that none of them promises a finding it does not give. Confirm that
-referents are introduced, claims have evidence, decisions have controls, diagrams
-add information, and that everything standing open in the column is
-there because the user needs it.
+referents are introduced, claims have evidence, decisions have controls, each
+drawing adds information, no passage describes a shape the page could draw, and
+everything standing open in the column is there because the user needs it.
 
 Follow the page's links and operate its navigation with pointer and keyboard.
 At each destination, check that the visible content and focus leave the user

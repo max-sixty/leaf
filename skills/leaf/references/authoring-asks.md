@@ -19,9 +19,11 @@ Ask depends on an earlier answer, publish it in the next turn instead of authori
 every possible branch.
 
 For an interface or behavior choice, make the relevant interaction work inside
-each option so the user can try every alternative before choosing. Hold everything
-except the disputed treatment constant, and include the current or no-treatment case
-as a neutral control. Put longer rationale or provenance in a disclosure after the
+each option so the user can try every alternative before choosing. For a choice
+between arrangements, structures, or mechanisms that nothing can run yet, draw each
+option inside it, all in one frame at one scale. Either way, hold everything except
+the disputed treatment constant, and include the current or no-treatment case as a
+neutral control. Put longer rationale or provenance in a disclosure after the
 Ask. The `lf-ask`, `lf-options`, and `lf-option` entries say how to word the
 question and shape each option.
 

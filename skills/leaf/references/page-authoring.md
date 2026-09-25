@@ -80,9 +80,9 @@ stands alone, since whoever reads it there has none of the page around it.
 ## Composing a page
 
 A page is a stack of blocks in the reading column. Text keeps the column's measure,
-and a block that needs more room declares it: a diagram, a board or a grid states its
-width in its registry entry and grows out of the column into the room beside it,
-without moving the prose. Most pages need nothing more. Compose the stack from these:
+and a block that needs more room declares it: a diagram or a board states its width in
+its registry entry and grows out of the column into the room beside it, without moving
+the prose, and `data-width` asks the same of any other block. Most pages need nothing more. Compose the stack from these:
 
 - **Prose read in order** — a plan, a review, a write-up, a decision — is plain
   semantic HTML, with nothing declared.
@@ -90,7 +90,9 @@ without moving the prose. Most pages need nothing more. Compose the stack from t
   holds a surface — a metric, chart, table, list or log, with at most a caption —
   rather than paragraphs; a row of headline numbers is a grid of `lf-metric` tiles.
   A grid of paragraphs is prose cut into columns, and reads worse than the column.
-  A grid stands at the wide width, centred on the column.
+  A grid takes the column's width, so its tiles line up with the prose; give it
+  `data-width="wide"` only when what it holds needs room past the prose, as a figure
+  would.
 - **A comparison** is `lf-compare`, which keeps its variants paired at any width.
 - **Controls beside evidence** is a playground, which declares how its controls
   operate its preview.

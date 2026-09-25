@@ -1076,7 +1076,7 @@ GRID_PAGE = leaf_page(
     "Grid cells are frames",
     """<h1>Grid</h1>
 <p id="column-prose">The column this page is read at.</p>
-<lf-grid id="wide-one" columns="1">
+<lf-grid id="wide-one" columns="1" data-width="wide">
   <section id="one-cell">
     <p id="cell-prose">A paragraph in a cell wider than the column keeps the reading
     measure, however much room the cell has, so a line stays one the eye can follow
@@ -1087,7 +1087,7 @@ GRID_PAGE = leaf_page(
 <lf-grid id="surfaces" columns="1">
   <pre id="cell-pre">a listing that is itself a cell</pre>
 </lf-grid>
-<lf-grid id="template" columns="1fr 2fr">
+<lf-grid id="template" columns="1fr 2fr" data-width="wide">
   <section id="narrow-cell"><p>One part</p></section>
   <section id="broad-cell">
     <p>Two parts</p>
@@ -1254,7 +1254,7 @@ def test_paper_stacks_a_template_the_screen_sets_side_by_side(browser, serve):
     grid side by side on screen."""
     source = leaf_page(
         "Paper stacks templates",
-        '<h1>Release</h1><lf-grid id="printed" columns="3fr 1fr">'
+        '<h1>Release</h1><lf-grid id="printed" columns="3fr 1fr" data-width="wide">'
         "<section><p>Body</p></section><section><p>Rail</p></section></lf-grid>",
     )
     page = open_page(browser, serve(source))

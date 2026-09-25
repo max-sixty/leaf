@@ -86,6 +86,13 @@ lf-grid[columns="6"] { --lf-grid-count: 6; }
  * out a body beside a rail of its own (the playground's split, the swipe deck) stands
  * on these lines by restating `2fr 1fr`'s: 43.5rem and minmax(0, 2fr) minmax(0, 1fr). */
 lf-grid[data-lf-grid-stacked] > * { grid-column: 1 / -1; }
+/* Paper stacks every template. The mark is the screen's reading, and nothing reads a
+ * grid's width in the print layout: no observer runs for it, and a container query's
+ * condition cannot hold a template's own width. A printed page is the column's width,
+ * which a body beside its rail rarely fits, and on paper the regions read in order. */
+@media print {
+  lf-grid[columns*="fr"] > * { grid-column: 1 / -1; }
+}
 
 /* lf-workspace keeps task regions together while the space allows, and lf-pane is one of
  * them. Both are authored grammar with no generated wrappers: an optional header, one

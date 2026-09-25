@@ -186,10 +186,16 @@ export function coveredWords({
       // the ancestry: an overflow between the two does not clip it, and one at or above
       // the containing block does, so the climb goes on from there. A board column's
       // count hangs absolutely in its column, and the board that scrolls the column out
-      // of view hides the count with it. A fixed box answers to the viewport alone.
+      // of view hides the count with it. `offsetParent` is the containing block only
+      // when it is positioned: a static table or cell it may name instead stands below
+      // the real one, so there the climb stops and keeps the rect whole, over-reporting
+      // a cover being this reading's safe direction. A fixed box answers to the
+      // viewport alone.
       if (style.position === "fixed") break;
       if (style.position === "absolute") {
-        ancestor = ancestor.offsetParent;
+        const holder = ancestor.offsetParent;
+        if (!holder || getComputedStyle(holder).position === "static") break;
+        ancestor = holder;
         continue;
       }
       ancestor = ancestor.parentElement;

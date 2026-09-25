@@ -27,15 +27,18 @@ let queued = false;
 
 function judge() {
   queued = false;
-  // Every width is read before any mark is written, so the pass lays out once.
+  // Every width is read before any mark is written, so the pass lays out once. A grid
+  // with no width is not laid out (display: none) and keeps its mark; one in a closed
+  // disclosure is laid out though not shown, so it is judged and opens already marked.
   const readings = [...pending]
-    .filter((grid) => templates.has(grid) && grid.checkVisibility())
-    .map((grid) => {
+    .filter((grid) => templates.has(grid))
+    .map((grid) => [grid, grid.getBoundingClientRect().width])
+    .filter(([, width]) => width > 0)
+    .map(([grid, width]) => {
       const { scale, gaps } = templates.get(grid);
       const style = getComputedStyle(grid);
       const floor = parseFloat(style.getPropertyValue("--lf-grid-min"));
       const gap = parseFloat(style.columnGap);
-      const width = grid.getBoundingClientRect().width;
       return [grid, width < floor * scale + gaps * gap];
     });
   pending.clear();

@@ -1246,6 +1246,57 @@ def test_a_body_beside_its_rail_stays_side_by_side_in_a_900px_window(browser, se
     assert reading["beside"], reading
 
 
+def test_paper_stacks_a_template_the_screen_sets_side_by_side(browser, serve):
+    """The stacked mark is the screen's reading, and print lays out at the paper's width,
+    which no observer reads, so paper stacks every template. The control is the same
+    grid side by side on screen."""
+    source = leaf_page(
+        "Paper stacks templates",
+        '<h1>Release</h1><lf-grid id="printed" columns="3fr 1fr">'
+        "<section><p>Body</p></section><section><p>Rail</p></section></lf-grid>",
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1600, 900)
+    beside = """() => {
+      const [a, b] = [...document.getElementById('printed').children]
+        .map((cell) => cell.getBoundingClientRect());
+      return Math.abs(a.top - b.top) < 1 && b.left >= a.right;
+    }"""
+    assert page.evaluate(beside)
+    page.emulate_media(media="print")
+    assert not page.evaluate(beside)
+
+
+def test_a_grid_in_a_closed_disclosure_opens_already_stacked(browser, serve):
+    """A closed disclosure lays its content out without showing it, so a template in
+    one is judged there and opens stacked, with no frame drawn side by side first."""
+    source = leaf_page(
+        "Stacked before it opens",
+        '<h1>Release</h1><details id="more"><summary>More</summary>'
+        '<lf-grid id="folded" columns="2fr 1fr">'
+        '<p id="folded-a">Body.</p><p id="folded-b">Rail.</p></lf-grid></details>',
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 740, 900)
+    rendered(page)
+    assert page.locator("#folded").evaluate("grid => grid.checkVisibility()") is False
+    frames = page.evaluate(
+        """() => new Promise((resolve) => {
+          const grid = document.getElementById('folded');
+          const seen = [];
+          const read = () => {
+            const [a, b] = [...grid.children].map((cell) => cell.getBoundingClientRect());
+            seen.push(b.top > a.top + 1 ? 'stacked' : 'beside');
+            if (seen.length < 4) requestAnimationFrame(read);
+            else resolve(seen);
+          };
+          document.getElementById('more').open = true;
+          requestAnimationFrame(read);
+        })"""
+    )
+    assert set(frames) == {"stacked"}, frames
+
+
 FEED_PAGE = leaf_page(
     "A feed that follows its newest entry",
     """<h1>Feed</h1>

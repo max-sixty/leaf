@@ -92,6 +92,9 @@ with the widths it spans. The gate also gives
 advice, which never refuses a version: at the desktop viewport, a page whose layout
 grids split at more places than its busiest grid needs is told to lay its regions on
 one set of tracks.
+The sweep's readings also give each track template the window width it stacks below,
+interpolated between the two sweep widths around the flip, and a template that stacks
+in a window of 800px or more is told that window.
 The invariants live in render_version, which the tests/test_render_*.py modules drive over
 the shipped examples. The suite uses Chromium's headless shell, while its
 end-to-end render-check tests run the launches used here — the installed Chrome

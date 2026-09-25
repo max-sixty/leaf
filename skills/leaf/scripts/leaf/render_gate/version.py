@@ -4,7 +4,13 @@ from dataclasses import dataclass
 
 from leaf.render_checks import RENDER_VIEWPORT, SERVED_TIMEOUT_MS
 
-from .readings import alignment_advice, margin_cover_advice, swept_overflow
+from .readings import (
+    alignment_advice,
+    margin_cover_advice,
+    stacking_advice,
+    sweep,
+    swept_overflow,
+)
 from .scheme import _render_scheme
 
 RENDER_VIEWPORTS = (
@@ -73,7 +79,9 @@ def _render_version_attempt(
     desktop page in the light scheme, it reads two things more: whether the page's grids
     stand on shared vertical lines, which is advice, and then, resizing that loaded page
     through every width from 360px to 1200px, the sideways readings again: a version
-    holds at each of them, not only at the two it renders. Returns the failures and
+    holds at each of them, not only at the two it renders. The same sweep says in what
+    window each track template stacks, which is advice where that window is a desktop
+    one. Returns the failures and
     the advice; no failures is a pass.
 
     One implementation with two callers — `version check --render` on the page an agent
@@ -98,7 +106,9 @@ def _render_version_attempt(
         # Advice first, at the viewport it is about; the sweep then resizes the page.
         advice.extend(alignment_advice(page))
         advice.extend(margin_cover_advice(page))
-        swept.extend(swept_overflow(page, RENDER_VIEWPORTS))
+        widths = sweep(page, RENDER_VIEWPORTS)
+        swept.extend(swept_overflow(widths, RENDER_VIEWPORTS))
+        advice.extend(stacking_advice(widths))
 
     try:
         for viewport in RENDER_VIEWPORTS:

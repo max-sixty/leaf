@@ -236,6 +236,48 @@ def test_a_wide_page_whose_rows_split_anywhere_gets_advice_and_still_passes(
     assert "lp-status" not in advice, advice
 
 
+def test_a_template_that_stacks_in_a_desktop_window_gets_advice_naming_the_window(
+    browser, serve
+):
+    """A queue beside its detail at `1fr 2.4fr` needs 786px side by side, which a wide
+    page gives it only in a window of 854px or more; the gate names that window, and
+    the page stacks exactly there. The recommended `2fr 1fr` stacks below 757px, a
+    window too narrow to be worth saying, and a template nested in its side track has
+    a cell too narrow for it at any width."""
+    source = _wide_page(
+        "stacking templates",
+        f"""
+<h1>Stacking</h1>
+<lf-grid id="queue" columns="1fr 2.4fr">{_panel("items")}{_panel("detail")}</lf-grid>
+<lf-grid id="layout" columns="2fr 1fr">{_panel("body")}<lf-grid id="side" columns="1fr 1fr">{_panel("left")}{_panel("right")}</lf-grid></lf-grid>
+""",
+    )
+    url = serve(source, packages=())
+
+    reading = render_gate_model.render_version(browser, url)
+
+    assert reading.failures == []
+    stacking = sorted(line for line in reading.advice if "one column" in line)
+    assert len(stacking) == 2, reading.advice
+    queue, side = stacking
+    assert side.startswith("<lf-grid id=side> stands in one column at 1200px wide: "), (
+        side
+    )
+    window = int(
+        re.match(
+            r'<lf-grid id=queue> stacks into one column in a window narrower than (\d+)px: its columns="1fr 2.4fr" tracks need 786px side by side',
+            queue,
+        )[1]
+    )
+    page = open_page(browser, url)
+    grid = page.locator("#queue")
+    resized(page, window - 1, 900)
+    expect(grid).to_have_attribute("data-lf-grid-stacked", "")
+    resized(page, window, 900)
+    expect(grid).not_to_have_attribute("data-lf-grid-stacked", "")
+    page.close()
+
+
 def test_the_pre_upgrade_proof_reads_the_held_authored_document(browser, serve):
     source = leaf_page(
         "pre-upgrade structure",

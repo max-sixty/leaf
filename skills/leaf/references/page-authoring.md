@@ -129,7 +129,9 @@ stacking its regions, rather than a new grid per row whose splits land somewhere
 each time (`version check --render` advises on those). Put what the reader works
 through in the body and what they keep an eye on — status, counts, the verdict's
 follow-ups, the contents — in the side track. The tracks stack where the side track
-would become too narrow.
+would become too narrow, and `version check --render` names the window a template
+stacks below when that is a desktop window: where the regions must stay side by side
+for a reader in it, give the narrow track a larger share.
 
 Draw each region the same way, as a `section.panel` with a short heading, and keep a
 `.callout` with a status tone (`warn`, `danger`, `ok`) for the one thing the reader must

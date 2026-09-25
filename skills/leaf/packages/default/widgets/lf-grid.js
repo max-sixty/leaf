@@ -15,7 +15,11 @@
    delivery: that delivery comes after layout, and a grid changing height there resizes
    every box above it that another observer watches, which the browser reports as a
    ResizeObserver loop. A template painted at upgrade is judged in the pass before the
-   frame paints it; a grid the window or a disclosure resizes is judged one frame after. */
+   frame paints it; a grid the window or a disclosure resizes is judged one frame after.
+
+   `stackWidth` is that width on the element, for a reader that cannot resize the grid to
+   find it: `version check --render` reports it in window terms, so an author learns where
+   a template stacks without a window that narrow. */
 import { nextRender, once, sizeObserver } from "/runtime/widget-api.js";
 
 const COUNT = /^[1-6]$/;
@@ -24,6 +28,14 @@ const STACKED = "data-lf-grid-stacked";
 const templates = new WeakMap();
 const pending = new Set();
 let queued = false;
+
+// The grid width, in pixels, below which a template stacks.
+function stackWidth(grid) {
+  const { scale, gaps } = templates.get(grid);
+  const style = getComputedStyle(grid);
+  const floor = parseFloat(style.getPropertyValue("--lf-grid-min"));
+  return floor * scale + gaps * parseFloat(style.columnGap);
+}
 
 function judge() {
   queued = false;
@@ -34,13 +46,7 @@ function judge() {
     .filter((grid) => templates.has(grid))
     .map((grid) => [grid, grid.getBoundingClientRect().width])
     .filter(([, width]) => width > 0)
-    .map(([grid, width]) => {
-      const { scale, gaps } = templates.get(grid);
-      const style = getComputedStyle(grid);
-      const floor = parseFloat(style.getPropertyValue("--lf-grid-min"));
-      const gap = parseFloat(style.columnGap);
-      return [grid, width < floor * scale + gaps * gap];
-    });
+    .map(([grid, width]) => [grid, width < stackWidth(grid)]);
   pending.clear();
   for (const [grid, stacked] of readings)
     if (grid.hasAttribute(STACKED) !== stacked) grid.toggleAttribute(STACKED, stacked);
@@ -61,6 +67,11 @@ customElements.define(
   "lf-grid",
   class extends HTMLElement {
     static observedAttributes = ["columns"];
+
+    // Null for a count, which rewraps rather than stacking.
+    get stackWidth() {
+      return templates.has(this) ? stackWidth(this) : null;
+    }
 
     connectedCallback() {
       this.#paint();

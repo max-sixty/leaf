@@ -449,6 +449,29 @@ export function misalignedSplits() {
   return { unshared: lines - busiest, grids };
 }
 
+// Each track template on the page, at the current width: how wide the grid is, the width
+// its tracks need side by side, and whether it stands stacked. The last two are the
+// module's own answers (`stackWidth`, `data-lf-grid-stacked`) rather than its rule
+// restated. Read at every width the sweep takes the page through, because the width a
+// grid gets is the page's geometry and not a fixed share of the window: a wide page
+// holds at its cap and then loses 0.92px of grid per pixel of window, as its gutters
+// are 4% of the shell, a column page holds at 720px, and a nested track gets its share.
+// A grid with no box at this width (an unopened tab) has nothing to say about it.
+export function templateGrids() {
+  const main = document.querySelector("main");
+  if (!main) return [];
+  return [...main.querySelectorAll("lf-grid")]
+    .filter((grid) => grid.stackWidth != null && grid.checkVisibility())
+    .map((grid) => ({
+      at: at(grid),
+      columns: grid.getAttribute("columns"),
+      width: grid.getBoundingClientRect().width,
+      need: grid.stackWidth,
+      stacked: grid.hasAttribute("data-lf-grid-stacked"),
+    }))
+    .filter((grid) => grid.width > 0);
+}
+
 // A drawing scrolling beside room that would have shown it whole. Scrolling is the
 // theme's honest degrade when even the room runs short, so every reading above calls
 // such a page well — nothing is clipped without a scrollbar, nothing stands outside any

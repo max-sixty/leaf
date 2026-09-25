@@ -7,7 +7,7 @@ harness shape in `notes/agent-usability-evals.md`.
 
 ## Arms
 
-Both arms are the same Leaf payload, extracted from one git ref by `make_arms.sh`:
+Both arms are the same Leaf payload, extracted from one git ref by `harness.py arms`:
 the same widgets, theme, runtime, render checks, skill and references. They differ in
 how a page is arranged.
 
@@ -38,8 +38,8 @@ Three requests in `subjects/`, each with the same content in both arms:
 
 ## A run
 
-`run.sh` starts a fresh `claude -p` (Opus 5.5, Bash/Read/Write/Edit/Glob/Grep, bypass
-permissions) from a scratch cwd with project-only settings, so neither the user's
+`harness.py run` starts a fresh `claude -p` (Opus 5.5, Bash/Read/Write/Edit/Glob/Grep,
+bypass permissions) from a scratch cwd with project-only settings, so neither the user's
 `CLAUDE.md` nor the installed Leaf plugin loads. The prompt points it at the arm's
 `SKILL.md` and sets `$LEAF` to the arm's launcher; the run's own `XDG_STATE_HOME`
 keeps its pages and claims off this machine's. It asks for a finished record: write
@@ -51,13 +51,13 @@ kept beside the main content at that width. The agent revises and re-checks.
 
 ## Scoring
 
-- `score.py`: per run and phase, the agent's turns, cost and time; how many times it
-  ran `version check` and `--render`, and how many exited non-zero; page writes; CSS
+- `score`: per run and phase, the agent's turns, cost and time; how many times it
+  ran `version check` and `--render`, and how many reported a failure; page writes; CSS
   and JavaScript lines; which arrangement terms the page used; and an independent
   `version check --render` of the phase's page with the arm's launcher.
-- `shoot.py`: screenshots at 1440×900, 900×900 and 390×844, screen by screen down
+- `shoot`: screenshots at 1440×900, 900×900 and 390×844, screen by screen down
   the page, for each phase.
-- `review.py`: a fresh `claude -p` that sees only the request and both pages'
+- `review`: a fresh `claude -p` that sees only the request and both pages'
   screenshots, never the HTML, arm names or guidance, picks the page the user would
   rather have, per width and overall, and says whether each honours the preference.
   Which arm is A is fixed per pair by a hash of the pair's name.
@@ -65,22 +65,24 @@ kept beside the main content at that width. The agent revises and re-checks.
 ## Running
 
 ```sh
-d=.tmp/arrangement-eval
-notes/arrangement-eval/make_arms.sh <ref> $d/arms-<name>
-notes/arrangement-eval/batch.sh $d/arms-<name> <batch> <rounds>
-uv run notes/arrangement-eval/score.py $d/runs/<batch>
-uv run notes/arrangement-eval/shoot.py $d/runs/<batch>
-python3 notes/arrangement-eval/review.py $d/runs/<batch>
-FLIP=1 python3 notes/arrangement-eval/review.py $d/runs/<batch>
-python3 notes/arrangement-eval/summarize.py $d/runs/<batch>
+uv run notes/arrangement-eval/harness.py arms <ref> <name>
+uv run notes/arrangement-eval/harness.py run <name> <batch> <rounds> [subject ...]
+uv run notes/arrangement-eval/harness.py score <batch>
+uv run notes/arrangement-eval/harness.py shoot <batch>
+uv run notes/arrangement-eval/harness.py review <batch>
+uv run notes/arrangement-eval/harness.py review <batch> --flip
+uv run notes/arrangement-eval/harness.py summarize <batch>
 ```
 
-`make_arms.sh` renders a smoke page that uses the plain guide's width hook, and stops if
-that ref's theme no longer passes it. `score.py` runs before `shoot.py`, because it
-writes the phase-one page copy that `shoot.py` serves. `FLIP=1 review.py` repeats the
-review with every pair's sides swapped, and `summarize.py` tabulates both passes.
-A round runs all six subject × arm pairs at once, so machine load lands on both arms.
-Count a run only when its trace's `is_error` is false.
+Names resolve under `.tmp/arrangement-eval/`: the arms `<name>` are `arms-<name>/`, a
+batch is `runs/<batch>/`, and each run records the arms it used in its `arms` file.
+`arms` stops if `plain_arm.py`'s anchors no longer match the ref's guidance, or if the
+ref's theme fails a smoke page that uses the plain guide's width hook. `review --flip`
+repeats the review with every pair's sides swapped, and `summarize` tabulates both
+passes. A round runs all six subject × arm pairs at once, so machine load lands on both
+arms. Count a run only when its trace's `is_error` is false. The docstring of
+`harness.py` holds the design contract: the layout on disk, how each child is isolated,
+and how the review is blinded.
 
 ## Results
 
@@ -114,7 +116,7 @@ many said the page kept its summary, status, contents or queue beside the conten
 | queue | 2 | 0/3/0 | 4, 6 | 1/1/1 | 6, 6 |
 | total | | 1/14/3 | 7, 18 | 4/11/3 | 18, 18 |
 
-`summarize.py` prints the same tables at each width.
+`summarize` prints the same tables at each width.
 
 ### Effort
 

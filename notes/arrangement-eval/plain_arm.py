@@ -1,28 +1,22 @@
-"""Turn an extracted Leaf payload into the plain-CSS arm.
+"""The plain-CSS arm: an extracted Leaf payload with the arrangement vocabulary taken out.
 
-Usage: plain_arm.py ARM_DIR
-
-The plain arm is the same payload with Leaf's arrangement vocabulary taken out: the
-layout elements (`lf-grid`, `lf-workspace`, `lf-pane`), the width attribute
-(`data-width` on blocks and `main`), the layout idioms (`section.panel`,
-`aside.sidebar`, `aside.sidenote`), and every sentence of guidance or check advice
-that names them. In their place the authoring reference tells the agent to lay the
-page out in its own CSS and lists the theme's published sizes. Widgets, the theme's
-typography, the render checks, and the rest of the guidance are untouched, so the
-two arms differ only in how a page is arranged.
+`build(arm)` removes the layout elements (`lf-grid`, `lf-workspace`, `lf-pane`), the
+width attribute (`data-width` on blocks and `main`), the layout idioms (`section.panel`,
+`aside.sidebar`, `aside.sidenote`), and every sentence of guidance or check advice that
+names them. In their place the authoring reference tells the agent to lay the page out
+in its own CSS and lists the theme's published sizes. Widgets, the theme's typography,
+the render checks, and the rest of the guidance are untouched, so the two arms differ
+only in how a page is arranged.
 
 Every edit is an exact replacement that must match once. A payload whose text has
 moved (another ref, a rewritten guide) fails here rather than yielding an arm that
-still carries the vocabulary; update the anchors, then rerun.
+still carries the vocabulary; update the anchors, then rebuild the arms.
 """
 
 import json
 import re
 import sys
 from pathlib import Path
-
-arm = Path(sys.argv[1])
-skill = arm / "skills/leaf"
 
 
 def replace(path: Path, old: str, new: str) -> None:
@@ -125,15 +119,14 @@ Use these names on the semantic block itself, including a native `table`, `lf-co
 """
 
 
-# The theme's name for the widest page, which a later ref renamed.
-theme = (skill / "assets/theme.css").read_text()
-WIDE = "--wide-page-max" if "--wide-page-max:" in theme else "--sheet-max"
-SMOKE = f"""<!doctype html>
+# The harness renders this page when it builds the arms, so a theme that stops
+# honouring the guide's width hook fails the build instead of every plain run.
+SMOKE = """<!doctype html>
 <html lang="en"><head><title>Hook</title><meta name="description" content="Smoke page.">
 <style>
-main {{ --lf-page-measure: var({WIDE}); max-width: none; }}
-.regions {{ display: grid; grid-template-columns: 2fr 1fr; gap: var(--sp-4); }}
-@container (width < 640px) {{ .regions {{ grid-template-columns: 1fr; }} }}
+main { --lf-page-measure: var({WIDE}); max-width: none; }
+.regions { display: grid; grid-template-columns: 2fr 1fr; gap: var(--sp-4); }
+@container (width < 640px) { .regions { grid-template-columns: 1fr; } }
 </style></head><body><main>
 <h1>Hook</h1>
 <div class="regions">
@@ -144,10 +137,25 @@ width, so the check measures text that fills it.</p></section>
 """
 
 
-def patch_references() -> None:
+def build(arm: Path) -> str:
+    """Patch the payload at `arm` into the plain arm, and return the smoke page."""
+    skill = arm / "skills/leaf"
+    # The theme's name for the widest page, which a later ref renamed.
+    theme = (skill / "assets/theme.css").read_text()
+    wide = "--wide-page-max" if "--wide-page-max:" in theme else "--sheet-max"
+    patch_references(skill, wide)
+    patch_registry(skill)
+    patch_advice(skill)
+    check_clean(arm)
+    return SMOKE.replace("{WIDE}", wide)
+
+
+def patch_references(skill: Path, wide: str) -> None:
     authoring = skill / "references/page-authoring.md"
-    composing = COMPOSING.replace("{WIDE}", WIDE)
-    replace_section(authoring, "## Composing a page\n", "A log, feed, or long listing", composing)
+    composing = COMPOSING.replace("{WIDE}", wide)
+    replace_section(
+        authoring, "## Composing a page\n", "A log, feed, or long listing", composing
+    )
     replace(authoring, BOUNDS_WIDTHS, "")
     replace(
         authoring,
@@ -157,12 +165,12 @@ def patch_references() -> None:
     )
     replace(
         skill / "references/authoring-evidence.md",
-        "in a `<figure>` with an `id`, and give the figure `data-width=\"wide\"` when it needs the room.",
+        'in a `<figure>` with an `id`, and give the figure `data-width="wide"` when it needs the room.',
         "in a `<figure>` with an `id`, and give the figure the room it needs in page CSS.",
     )
 
 
-def patch_registry() -> None:
+def patch_registry(skill: Path) -> None:
     path = skill / "packages/default/registry.json"
     reg = json.loads(path.read_text())
     for tag in ("lf-grid", "lf-workspace", "lf-pane"):
@@ -179,23 +187,29 @@ def patch_registry() -> None:
         r'<lf-grid id="k-row">(.*)</lf-grid>',
         r'<div class="k-row">\1</div>',
         metric["x-example"],
-        flags=re.S,
+        flags=re.DOTALL,
     )
     gloss = reg["lf-gloss"]
     gloss["description"] = gloss["description"].replace(
         "a details disclosure, or a sidenote.", "or a details disclosure."
     )
     toc = reg["lf-toc"]
-    toc["description"] = toc["description"].replace(
-        "places one in an `aside.sidebar` near the opening by default",
-        "places one near the opening by default",
-    ).replace(
-        "Root workspaces use their region navigation instead of a page-wide contents sidebar, and root",
-        "Root",
+    toc["description"] = (
+        toc["description"]
+        .replace(
+            "places one in an `aside.sidebar` near the opening by default",
+            "places one near the opening by default",
+        )
+        .replace(
+            "Root workspaces use their region navigation instead of a page-wide contents sidebar, and root",
+            "Root",
+        )
     )
-    toc["x-example"] = toc["x-example"].replace(
-        '<aside class="sidebar" id="plan-sidebar">', '<nav id="plan-sidebar">'
-    ).replace("</aside>", "</nav>")
+    toc["x-example"] = (
+        toc["x-example"]
+        .replace('<aside class="sidebar" id="plan-sidebar">', '<nav id="plan-sidebar">')
+        .replace("</aside>", "</nav>")
+    )
     path.write_text(json.dumps(reg, indent=2, ensure_ascii=False) + "\n")
 
     path = skill / "assets/registry.json"
@@ -212,22 +226,30 @@ def patch_registry() -> None:
         " the runtime resolves that choice into data-lf-space and the theme allocates it"
         " without moving the prose axis."
     )
-    sidebar = "instead of advising an aside.sidebar that would take it out of root placement"
+    sidebar = (
+        "instead of advising an aside.sidebar that would take it out of root placement"
+    )
     for old in (dropped, sidebar):
         if keys.count(old) != 1:
             sys.exit(f"$keys: moved: {old[:60]!r}")
-    keys = keys.replace(dropped, "").replace(sidebar, "instead of advising a contents list")
+    keys = keys.replace(dropped, "").replace(
+        sidebar, "instead of advising a contents list"
+    )
     reg["$keys"] = json.loads(keys)
     path.write_text(json.dumps(reg, indent=2, ensure_ascii=False) + "\n")
 
 
-def patch_advice() -> None:
+def patch_advice(skill: Path) -> None:
     markup = skill / "scripts/leaf/validation/markup.py"
     replace(markup, '>: one in an "', '>: one "')
-    replace(markup, '"aside.sidebar near the opening lists them', '"near the opening lists them')
+    replace(
+        markup,
+        '"aside.sidebar near the opening lists them',
+        '"near the opening lists them',
+    )
 
 
-def check_clean() -> None:
+def check_clean(arm: Path) -> None:
     """Fail if the vocabulary survives anywhere the arm's author reads by default.
 
     Not covered, and so still readable by a plain author who searches for it:
@@ -235,7 +257,10 @@ def check_clean() -> None:
     registries of the optional packages (monitoring, playground, swipe, visual-review,
     command-hub), which name the vocabulary in their examples. No plain page has used
     it, but plain agents have spent turns looking for it there."""
-    pattern = re.compile(r"lf-grid|lf-workspace|lf-pane|data-width|section\.panel|aside\.sidebar|sidenote")
+    skill = arm / "skills/leaf"
+    pattern = re.compile(
+        r"lf-grid|lf-workspace|lf-pane|data-width|section\.panel|aside\.sidebar|sidenote"
+    )
     read = [
         skill / "SKILL.md",
         *sorted((skill / "references").glob("*.md")),
@@ -250,13 +275,3 @@ def check_clean() -> None:
     ]
     if hits:
         sys.exit("vocabulary survives:\n" + "\n".join(hits))
-
-
-patch_references()
-patch_registry()
-patch_advice()
-check_clean()
-# make_arms.sh renders this page, so a theme that stops honouring the guide's width
-# hook fails the arm build instead of every plain run.
-(arm.parent / "plain-smoke.html").write_text(SMOKE)
-print(f"plain arm ready: {arm}")

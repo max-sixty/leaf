@@ -4563,8 +4563,8 @@ def test_the_ask_walk_follows_registry_declarations(browser, serve):
 def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
     browser, serve
 ):
-    """The agent channel, end to end in the browser: a `leaf report` reaches
-    the open page on the next poll and paints as provisional news — the status
+    """The agent channel, end to end in the browser: a `leaf experimental report`
+    reaches the open page on the next poll and paints as provisional news — the status
     attribute moves, the parent's done-fraction recounts, and Page Map identifies a
     Reported update rather than the user's change. Task status remains work
     state and never creates a user request. Then the version that answers the report
@@ -4583,7 +4583,8 @@ def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
     )  # nothing waits on the user
 
     sent = CliRunner().invoke(
-        cli_model.cli, ["report", str(d), "t-parser", "status", "status=review"]
+        cli_model.cli,
+        ["experimental", "report", str(d), "t-parser", "status", "status=review"],
     )
     assert sent.exit_code == 0, sent.output
     told(page)
@@ -4607,7 +4608,8 @@ def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
     # A second report supersedes the first — absolute values fold — and the
     # fraction chip recounts across the tree.
     sent = CliRunner().invoke(
-        cli_model.cli, ["report", str(d), "t-parser", "status", "status=done"]
+        cli_model.cli,
+        ["experimental", "report", str(d), "t-parser", "status", "status=done"],
     )
     assert sent.exit_code == 0, sent.output
     told(page)
@@ -4770,6 +4772,7 @@ def test_a_rosters_row_says_when_the_log_last_heard_from_that_worker(browser, se
         # A state the markup does not already hold, or there is no news to paint: a
         # report saying what the page says is blessed silence, not provisional state.
         [
+            "experimental",
             "report",
             str(d),
             "ag-wren",
@@ -4840,6 +4843,7 @@ def test_claims_and_reports_share_one_canonical_update_feed(
     report = CliRunner().invoke(
         cli_model.cli,
         [
+            "experimental",
             "report",
             str(d),
             "ag-wren",
@@ -4954,6 +4958,7 @@ def test_report_words_and_widget_state_wait_together_for_a_drag(browser, serve):
     first = CliRunner().invoke(
         cli_model.cli,
         [
+            "experimental",
             "report",
             str(d),
             "ag-wren",
@@ -4978,6 +4983,7 @@ def test_report_words_and_widget_state_wait_together_for_a_drag(browser, serve):
     second = CliRunner().invoke(
         cli_model.cli,
         [
+            "experimental",
             "report",
             str(d),
             "ag-wren",
@@ -5061,7 +5067,15 @@ def test_a_rosters_row_survives_the_polls_that_keep_it_fresh(browser, serve):
     )
     sent = CliRunner().invoke(
         cli_model.cli,
-        ["report", str(d), "ag-finch", "state", "state=idle", "doing=picking up"],
+        [
+            "experimental",
+            "report",
+            str(d),
+            "ag-finch",
+            "state",
+            "state=idle",
+            "doing=picking up",
+        ],
     )
     assert sent.exit_code == 0, sent.output
     told(page)
@@ -5076,6 +5090,7 @@ def test_a_rosters_row_survives_the_polls_that_keep_it_fresh(browser, serve):
     sent = CliRunner().invoke(
         cli_model.cli,
         [
+            "experimental",
             "report",
             str(d),
             "ag-wren",
@@ -5148,7 +5163,8 @@ def test_a_recounted_fraction_holds_the_width_it_had(browser, serve):
     before = fraction.bounding_box()["width"]
 
     sent = CliRunner().invoke(
-        cli_model.cli, ["report", str(d), "t-parser", "status", "status=done"]
+        cli_model.cli,
+        ["experimental", "report", str(d), "t-parser", "status", "status=done"],
     )
     assert sent.exit_code == 0, sent.output
     told(page)
@@ -5434,7 +5450,8 @@ def test_the_render_gate_applies_every_standing_action_a_second_time(browser, se
         ("ab-wren", "state", ["state=blocked", "doing=waiting on the fixture"]),
     ]:
         sent = CliRunner().invoke(
-            cli_model.cli, ["report", str(serve.page_dir), widget, verb, *fields]
+            cli_model.cli,
+            ["experimental", "report", str(serve.page_dir), widget, verb, *fields],
         )
         assert sent.exit_code == 0, sent.output
 
@@ -7835,6 +7852,7 @@ def test_command_hub_request_projects_before_waiting_for_one_linked_host_receipt
     result = CliRunner().invoke(
         cli_model.cli,
         [
+            "experimental",
             "receipt",
             str(serve.page_dir),
             request["id"],
@@ -7974,6 +7992,7 @@ def test_a_page_request_gets_a_fresh_seat_in_a_new_revision(browser, serve):
     result = CliRunner().invoke(
         cli_model.cli,
         [
+            "experimental",
             "receipt",
             str(serve.page_dir),
             request["id"],
@@ -8086,6 +8105,7 @@ def test_a_thread_request_uses_its_frozen_lifecycle_in_the_browser(browser, serv
     result = CliRunner().invoke(
         cli_model.cli,
         [
+            "experimental",
             "receipt",
             str(serve.page_dir),
             request["id"],
@@ -8111,6 +8131,7 @@ def test_a_thread_request_uses_its_frozen_lifecycle_in_the_browser(browser, serv
     result = CliRunner().invoke(
         cli_model.cli,
         [
+            "experimental",
             "receipt",
             str(serve.page_dir),
             request["id"],
@@ -8148,6 +8169,7 @@ def test_a_succeeded_host_request_waits_for_an_authored_plan_revision(browser, s
     result = CliRunner().invoke(
         cli_model.cli,
         [
+            "experimental",
             "receipt",
             str(serve.page_dir),
             request["id"],
@@ -8209,6 +8231,7 @@ def test_a_failed_host_request_reopens_its_commands_without_changing_the_plan(
     result = CliRunner().invoke(
         cli_model.cli,
         [
+            "experimental",
             "receipt",
             str(serve.page_dir),
             request["id"],
@@ -8363,7 +8386,8 @@ def test_command_hub_derives_the_operator_reading_from_its_goal_tree(browser, se
     expect(worktree_head).to_be_focused()
 
     sent = CliRunner().invoke(
-        cli_model.cli, ["report", str(d), "api-errors", "status", "status=done"]
+        cli_model.cli,
+        ["experimental", "report", str(d), "api-errors", "status", "status=done"],
     )
     assert sent.exit_code == 0, sent.output
     told(page)
@@ -8411,6 +8435,7 @@ def test_command_hub_reads_one_publication_before_worker_presentation_commits(
     sent = CliRunner().invoke(
         cli_model.cli,
         [
+            "experimental",
             "report",
             str(serve.page_dir),
             "w-1",
@@ -8640,6 +8665,7 @@ def test_command_hub_keeps_projection_focus_when_unrelated_news_arrives(browser,
     sent = CliRunner().invoke(
         cli_model.cli,
         [
+            "experimental",
             "report",
             str(d),
             "w-2",
@@ -8657,6 +8683,7 @@ def test_command_hub_keeps_projection_focus_when_unrelated_news_arrives(browser,
     sent = CliRunner().invoke(
         cli_model.cli,
         [
+            "experimental",
             "report",
             str(d),
             "w-2",
@@ -8698,7 +8725,7 @@ def test_command_hub_repaints_anchors_after_generated_projections_change(
     round_trip(page)
     sent = CliRunner().invoke(
         cli_model.cli,
-        ["report", str(d), "goal-parser", "status", "status=review"],
+        ["experimental", "report", str(d), "goal-parser", "status", "status=review"],
     )
     assert sent.exit_code == 0, sent.output
     told(page)
@@ -9278,6 +9305,7 @@ def test_a_spent_request_and_a_static_badge_say_so_before_the_press(browser, ser
     result = CliRunner().invoke(
         cli_model.cli,
         [
+            "experimental",
             "receipt",
             str(serve.page_dir),
             request["id"],

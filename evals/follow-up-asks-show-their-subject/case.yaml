@@ -1,0 +1,44 @@
+schema_version: '1.0'
+name: follow-up-asks-show-their-subject
+description: "Asks: an Ask about a captured defect shows its capture inside the lf-ask, not only a pointer to where the page shows it."
+tags:
+- asks
+execution:
+  prompt: |
+    Your Leaf review page already has a Findings tab. Two of its sections are:
+    - `#f-diagram`: all three Leaf documents drew a five-step plan as `flowchart LR`, and
+      the diagram scrolls sideways so step 5 is never in view. It shows
+      /media/doc1-diagram.png (1440x900 full screen).
+    - `#f-log`: `lf-chronology` turned the user's newest-first event log oldest-first, and
+      its bounded box opens partway down with its first line cut. It shows
+      /media/dash2-log.png (1440x900 full screen).
+
+    You listed follow-ups in chat. The user replied: "How to get a list of the follow-ups?
+    Or put them into Asks so I can browse through and select?"
+
+    Add a Follow-ups tab holding one Ask per follow-up, for these two: fix the diagram's
+    hidden end, and fix the chronology order. Each offers: start now (its own session and
+    PR), keep it in the backlog, drop it. Write the HTML for that tab's content.
+    The page directory is not reachable from here, so reply with the HTML fragment
+    rather than writing a file.
+graders:
+- name: loads-leaf
+  type: tool_used
+  tool: Skill
+  input_match: leaf
+- name: reads-page-authoring
+  type: tool_used
+  tool: Read
+  input_match: page-authoring
+- name: has-asks
+  type: regex
+  pattern: <lf-ask\b
+  flags: i
+- name: judgment
+  type: llm
+  criteria: |
+    Read the HTML. Pass only if there are two `lf-ask` elements and each displays
+    its registered screenshot inside the Ask: /media/doc1-diagram.png for the
+    diagram follow-up and /media/dash2-log.png for the chronology follow-up.
+    Drawings may supplement a capture. Fail if either Ask only describes or links
+    to its defect, or substitutes a drawing for the registered screenshot.

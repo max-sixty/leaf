@@ -3735,10 +3735,10 @@ def test_a_comment_on_external_data_stays_with_the_revision_the_user_saw(
     assert paper == screen, "paper dropped or rewrote projected data"
 
 
-def test_a_comment_on_a_keyed_record_follows_the_row_across_source_replacements(
+def test_a_comment_on_an_identified_datum_follows_the_subject_across_replacements(
     browser, serve
 ):
-    """A declared record key names the same row when its other fields change."""
+    """The emitter's subject survives even when its rendering key changes."""
     authored = leaf_page(
         "keyed data projection",
         '<h1 id="title">Deployments</h1><lf-feed id="deployments" source="deployments"></lf-feed>',
@@ -3758,8 +3758,7 @@ def test_a_comment_on_a_keyed_record_follows_the_row_across_source_replacements(
         "x-example": '<lf-feed id="example-feed" source="deployments"></lf-feed>',
     }
     contract = {
-        "description": "Deployment records keyed by id.",
-        "records": {"items": "rows", "key": "id"},
+        "description": "Deployment records with durable ids.",
         "schema": {
             "type": "object",
             "properties": {
@@ -3786,11 +3785,11 @@ import {projectData, watchData} from '/runtime/widget-api.js';
 customElements.define('lf-feed', class extends HTMLElement {
   connectedCallback() {
     this.stopWatching ??= watchData(this, 'rows', snapshot => {
-      projectData(this, snapshot?.value?.rows ?? [], row => row.id, row => {
+      projectData(this, snapshot?.value?.rows ?? [], row => `${row.id}-${row.updated}`, row => {
         const node = document.createElement('p');
         node.textContent = `${row.label} ${row.updated}`;
         return node;
-      }, {snapshot});
+      }, {snapshot, identify: row => row.id});
     });
   }
   disconnectedCallback() { this.stopWatching?.(); this.stopWatching = null; }
@@ -3815,18 +3814,18 @@ customElements.define('lf-feed', class extends HTMLElement {
         },
     )
     page = open_page(browser, url)
-    page.locator('[data-lf-datum="a"]').click(click_count=3)
+    page.locator('[data-lf-datum="a-1"]').click(click_count=3)
     page.locator(".lf-fab-input").click()
     page.locator(".lf-composer textarea").fill("Check this deployment.")
     with sending(page, "the keyed record comment"):
         page.keyboard.press("ControlOrMeta+Enter")
     comment = next(e for e in sent_events(serve.page_dir) if e["kind"] == "comment")
-    assert comment["anchor"]["datum"] == "a"
+    assert comment["anchor"]["datum"] == "a-1"
     assert comment["anchor"]["source"] == "deployments"
-    assert comment["anchor"]["keyed"] is True
+    assert comment["anchor"]["identity"] == "a"
     seen = comment["anchor"]["source_revision"]
 
-    page.locator('[data-lf-datum="a"]').click(modifiers=["Alt"])
+    page.locator('[data-lf-datum="a-1"]').click(modifiers=["Alt"])
     page.locator(".lf-fab-bar .lf-response-more").click()
     reaction = page.locator('.lf-fab-bar .lf-react[data-token="keep"]')
     expect(reaction).to_be_visible()
@@ -3834,10 +3833,10 @@ customElements.define('lf-feed', class extends HTMLElement {
         reaction.click()
     marked = next(e for e in sent_events(serve.page_dir) if e.get("token") == "keep")
     assert marked["token"] == "keep"
-    assert marked["anchor"]["keyed"] is True
+    assert marked["anchor"]["identity"] == "a"
     assert "quote" not in marked["anchor"]
 
-    page.locator('[data-lf-datum="a"]').click(click_count=3)
+    page.locator('[data-lf-datum="a-1"]').click(click_count=3)
     draft = page.locator(".lf-fab-input")
     draft.fill("Keep this draft with the row.")
     expect(draft).to_be_focused()
@@ -3854,13 +3853,13 @@ customElements.define('lf-feed', class extends HTMLElement {
     )
     current = source_revision(serve.page_dir, "deployments")
     assert current != seen
-    row = page.locator('[data-lf-datum="a"]')
+    row = page.locator('[data-lf-datum="a-2"]')
     expect(row).to_have_attribute("data-lf-source-revision", current)
     expect(row).to_contain_text("Alpha 2")
     expect(row).to_have_class(re.compile(r"\blf-mark-el\b"))
     expect(draft).to_have_value("Keep this draft with the row.")
     expect(draft).to_be_focused()
-    expect(page.locator('[data-lf-datum="b"]')).not_to_have_class(
+    expect(page.locator('[data-lf-datum="b-1"]')).not_to_have_class(
         re.compile(r"\blf-mark-el\b")
     )
     expect(page.locator(".lf-thread .lf-anchor-status")).to_have_count(0)
@@ -3873,7 +3872,7 @@ customElements.define('lf-feed', class extends HTMLElement {
         if e.get("text") == "Keep this draft with the row."
     )
     assert drafted["anchor"]["source_revision"] == seen
-    assert drafted["anchor"]["keyed"] is True
+    assert drafted["anchor"]["identity"] == "a"
 
     row.click(modifiers=["Alt"])
     page.locator(".lf-fab-bar .lf-response-more").click()

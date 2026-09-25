@@ -1044,21 +1044,23 @@ path segments are object keys or array indices. A formatted or parsed record may
 name its whole input. This identifies construction inputs, not an inverse edit mapping.
 
 Render the value with `projectData(root, records, keyOf, render, options)`. The root is an
-id-bearing authored seat and owns the projection's children. `keyOf` returns a stable
-non-empty string for the logical datum; `render` receives
+id-bearing authored seat and owns the projection's children. `keyOf` returns a
+non-empty rendering key, unique in that projection; `render` receives
 `(record, priorNode, index)` and returns its element, reusing `priorNode` where that
 preserves a focused control or selection. Leaf marks those words as readable data
 rather than authored prose and reconciles their order by key. A renderer
 that owns a nested layout passes `{nested: true}` and returns its existing descendants;
 Leaf labels those nodes without moving them. Add `labelOf(record, index)` when a thread
-should name a projected datum with a human coordinate; the stable key remains opaque to
+should name a projected datum with a human coordinate; the rendering key remains opaque to
 the runtime. A widget declaring `x-data` passes `{snapshot}` with the delivery from
 `watchData`, including `null` when no current value exists. Leaf stamps the projection
-with that snapshot's source and revision. When a projected key matches the input
-contract's `records.key`, a comment follows that record across source revisions and
-retains the quote from the value the user saw. Its anchor records `keyed: true` for this
-identity rule. Other projected keys remain exact only within the captured revision;
-replacing that value marks their placement outdated. Derived projections omit `snapshot`
+with that snapshot's source and revision. Pass `identify(record, index)` when the
+emitter can name the same subject across source replacements. Its non-empty string
+need not equal the rendering key and must be unique within the projection; a comment
+follows that subject and retains the quote from the value the user saw. A reused
+identifier for a new subject needs a new identity. Other projected keys remain exact
+only within the captured revision; replacing that value marks their placement outdated.
+Derived projections omit `snapshot`
 and retain their section/key identity. If a `watchData` callback renders asynchronously,
 it returns that promise so Leaf publishes the source revision as ready only after the
 projection settles. A rejection is reported as that subscriber's page

@@ -48,13 +48,16 @@ export function setAnchoringReady(ready) {
 export const sectionOf = (anchor) =>
   anchor?.section ? elementById(anchor.section) : null;
 
-function currentDatums(source, key) {
+function currentDatums(source, key, identity = null, dataSource = null) {
   if (!source?.id) return [];
   return pageQueryAll(DATUM).filter(
     (datum) =>
       under(datum, source) &&
       datum.dataset.lfProjection === source.id &&
-      datum.dataset.lfDatum === key,
+      (dataSource === null || datum.dataset.lfSource === dataSource) &&
+      (identity === null
+        ? datum.dataset.lfDatum === key
+        : datum.dataset.lfIdentity === identity),
   );
 }
 
@@ -347,7 +350,7 @@ export const anchorForDatum = (datum, fields = {}) => {
     ...(datum.dataset.lfSource && sourceRevision
       ? { source: datum.dataset.lfSource, source_revision: sourceRevision }
       : {}),
-    ...(datum.dataset.lfRecordKey === datum.dataset.lfDatum ? { keyed: true } : {}),
+    ...(datum.dataset.lfIdentity ? { identity: datum.dataset.lfIdentity } : {}),
   };
 };
 
@@ -398,18 +401,24 @@ export function aimTargets() {
 export function resolveAnchor(anchor, text = "") {
   if (anchor.datum) {
     const source = sectionOf(anchor);
-    const datums = currentDatums(source, anchor.datum);
-    // A contract-declared record key follows its source across revisions. Other
-    // projected keys can name a location within one value (such as a diff line), so
-    // those remain pinned to the value the user saw.
+    const datums = currentDatums(
+      source,
+      anchor.datum,
+      anchor.identity ?? null,
+      anchor.source ?? null,
+    );
+    // The emitter's subject identity follows replacements. Other projected keys can
+    // name a location within one value (such as a diff line), so those remain pinned
+    // to the value the user saw.
     const anchoredToData =
       typeof anchor.source === "string" && typeof anchor.source_revision === "string";
     const basis = datums[0] ?? source;
     const basisMatches =
       !anchoredToData ||
       (basis?.dataset.lfSource === anchor.source &&
-        (basis.dataset.lfSourceRevision === anchor.source_revision ||
-          (anchor.keyed === true && basis.dataset.lfRecordKey === anchor.datum)));
+        (anchor.identity
+          ? datums.length > 0 && basis.dataset.lfIdentity === anchor.identity
+          : basis.dataset.lfSourceRevision === anchor.source_revision));
     if (!basisMatches) {
       const contextual = source?.lfDataDatum?.(anchor.datum, { outdated: true });
       const fallback =

@@ -604,6 +604,7 @@ customElements.define(
         {
           nested: true,
           labelOf: (record, index) => `Case ${index + 1}: ${record.title}`,
+          identify: ({ id }) => id,
           snapshot: this.#snapshot,
           originOf: (_, index) => ({
             ...this.#snapshot.origin,

@@ -392,8 +392,8 @@ export function createResponseSurface({
   // Whether a resolution is one this document can still put a box beside, which is not the
   // same question as whether it is on screen. Quoted words that resolve to segments stand
   // wherever they are. A source replacement must not close a draft about its prior
-  // revision: an outdated finding falls back to its section, while a declared keyed
-  // record keeps the draft beside its current datum even if the quoted words changed.
+  // revision: an outdated finding falls back to its section, while an identified
+  // subject keeps the draft beside its current datum even if the quoted words changed.
   // Everything else stands on its element.
   //
   // One rule, because two callers ask it: placement, below, and the route back to a kept
@@ -402,7 +402,7 @@ export function createResponseSurface({
     if (!found) return false;
     if (anchor.quote) {
       if (targetSegments(found).length) return true;
-      if (found.status !== "outdated" && !(anchor.keyed && found.datumElement))
+      if (found.status !== "outdated" && !(anchor.identity && found.datumElement))
         return false;
     }
     return Boolean(targetElement(found));

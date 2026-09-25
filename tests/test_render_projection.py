@@ -7618,6 +7618,59 @@ def test_agent_places_its_live_line_before_command_evidence(browser, serve):
     ) == ["line", "proof"]
 
 
+def test_worktree_identity_does_not_follow_the_missing_evidence_placeholder(
+    browser, serve
+):
+    source = leaf_page(
+        "worktree identity",
+        '<lf-roster id="team"><lf-agent id="worker" state="working">'
+        '<strong>Worker</strong><lf-worktree id="proof" source="atlas-worktrees">'
+        "</lf-worktree></lf-agent></lf-roster>",
+    )
+    url = serve(source)
+    record = {
+        "branch": "proof",
+        "base": "main",
+        "head": "abc123",
+        "ahead": 1,
+        "behind": 0,
+        "additions": 3,
+        "deletions": 1,
+        "commits": 1,
+        "tests": "passing",
+        "observedAt": "2026-09-25T10:00:00-07:00",
+    }
+    data_model.cmd_data_set(serve.page_dir, "atlas-worktrees", {"proof": record})
+    page = open_page(browser, url)
+    datum = page.locator('#proof > [data-lf-datum="proof"]')
+    seen = source_revision(serve.page_dir, "atlas-worktrees")
+    anchor = {
+        "section": "proof",
+        "datum": "proof",
+        "source": "atlas-worktrees",
+        "source_revision": seen,
+        "identity": "proof",
+    }
+
+    def status():
+        return page.evaluate(
+            """anchor => window.__lfRuntimeImport('/runtime/anchor-resolution.js')
+              .then(({resolveAnchor}) => resolveAnchor(anchor)?.status)""",
+            anchor,
+        )
+
+    expect(datum).to_have_attribute("data-lf-identity", "proof")
+    assert status() == "exact"
+    data_model.cmd_data_set(serve.page_dir, "atlas-worktrees", {})
+    expect(datum).not_to_have_attribute("data-lf-identity")
+    assert status() == "outdated"
+    data_model.cmd_data_set(
+        serve.page_dir, "atlas-worktrees", {"proof": {**record, "head": "def456"}}
+    )
+    expect(datum).to_have_attribute("data-lf-identity", "proof")
+    assert status() == "exact"
+
+
 def test_worktree_evidence_names_the_arrow_that_stands_on_it(browser, serve):
     """The head is a disclosure, so the keys that work it are `DISCLOSE`'s answer and not
     a pair the widget picks. A widget row is nearer than the runtime's disclosure scope

@@ -9,7 +9,7 @@
    The last kind is a projection, not another source of truth. An id-bearing element in
    the version is its seat. `projectData(seat, records, keyOf, render, options)` owns
    that seat's children, labels each rendered element with the seat id
-   (`data-lf-projection`) and its record's stable key (`data-lf-datum`), and marks it
+   (`data-lf-projection`) and its rendering key (`data-lf-datum`), and marks it
    generated. With `{nested: true}` it labels descendants a renderer already placed
    without reconciling their layout. An optional `labelOf(record, index)` supplies the
    human coordinate thread chrome reads; core never interprets the opaque key. When
@@ -25,24 +25,25 @@
    reference owns the origin fields; no reading infers them from a datum key or rendered
    text.
 
-   Keys identify facts, not renderings or display strings. They are non-empty strings
-   unique within one projection. A key matching a source contract's `records.key` names
-   the same logical record across refreshes. `render` receives the prior element for the
-   key and may update it in place; returning a replacement is also valid. Reconciliation
+   Keys are non-empty strings unique within one projection and reconcile its nodes.
+   `identify(record, index)` names a durable subject when the emitter can establish one;
+   it is independent of the rendering key and unique within the projection. Without it,
+   a source-backed datum belongs to the observed source revision. `render` receives the
+   prior element for the key and may update it in place. Reconciliation
    retains nodes already in their place and schedules the shared anchor pass after
    synchronous projection work.
 
    A selection wholly inside a derived datum captures `{section, datum, quote}`. A datum
-   projected from `watchData` also captures `{source, source_revision}`. A key matching
-   the source contract's declared `records.key` captures `keyed: true` and follows that
-   record across value replacements. Other keys may name locations within one value,
-   so their placements remain pinned to the captured revision. If the original words
+   projected from `watchData` also captures `{source, source_revision}`. A datum whose
+   emitter supplies an identity follows that subject across value replacements, even if
+   its rendering key changes. Other keys may name locations within one value, so their
+   placements remain pinned to the captured revision. If the original words
    still stand, Leaf marks them. If their display changes, Leaf outlines the same datum
    and keeps the old quote in the thread. A different source makes the placement
    outdated; a duplicate key detaches rather than guessing. Selections crossing datum
    boundaries remain ordinary quote anchors because they name a passage, not one fact.
 
-   `data-lf-projection`, `data-lf-datum`, `data-lf-record-key`, `data-lf-origin`,
+   `data-lf-projection`, `data-lf-datum`, `data-lf-identity`, `data-lf-origin`,
    `data-lf-source`, `data-lf-source-revision`, and `data-lf-gen` are written by
    `projectData`, never authored in a version. A custom widget joins through the helper
    alone; no consumer names its tag. Export preserves the rendered elements and their
@@ -116,7 +117,7 @@ export function createDataProjection({ invalidateDom }) {
     records,
     keyOf,
     render,
-    { nested = false, labelOf = null, snapshot, originOf = null } = {},
+    { nested = false, labelOf = null, snapshot, originOf = null, identify = null } = {},
   ) {
     if (!(root instanceof Element))
       throw new TypeError("projectData root must be an element");
@@ -131,6 +132,8 @@ export function createDataProjection({ invalidateDom }) {
       throw new TypeError("projectData nested must be a boolean");
     if (labelOf !== null && typeof labelOf !== "function")
       throw new TypeError("projectData labelOf must be a function or null");
+    if (identify !== null && typeof identify !== "function")
+      throw new TypeError("projectData identify must be a function or null");
     const declaredInputs = registry[root.localName]?.["x-data"] ?? {};
     if (snapshot === undefined && Object.keys(declaredInputs).length)
       throw new Error(
@@ -170,9 +173,9 @@ export function createDataProjection({ invalidateDom }) {
     }
 
     const keys = new Set();
+    const identities = new Set();
     const nodes = new Set();
     const wanted = [];
-    const recordKey = registry.$data?.contracts?.[snapshot?.contract]?.records?.key;
     let index = 0;
     for (const record of records) {
       const key = keyOf(record, index);
@@ -183,6 +186,18 @@ export function createDataProjection({ invalidateDom }) {
       if (keys.has(key))
         throw new Error(`projectData(${root.id}) received duplicate key ${key}`);
       keys.add(key);
+      const identity = identify?.(record, index);
+      if (identify) {
+        if (typeof identity !== "string" || !identity)
+          throw new TypeError(
+            `projectData(${root.id}) identity ${index} must be a non-empty string`,
+          );
+        if (identities.has(identity))
+          throw new Error(
+            `projectData(${root.id}) received duplicate identity ${identity}`,
+          );
+        identities.add(identity);
+      }
       const node = render(record, prior.get(key) ?? null, index);
       if (!(node instanceof Element))
         throw new TypeError(
@@ -220,8 +235,8 @@ export function createDataProjection({ invalidateDom }) {
       node.dataset.lfProjection = root.id;
       node.dataset.lfDatum = key;
       stampBasis(node);
-      if (recordKey && record?.[recordKey] === key) node.dataset.lfRecordKey = key;
-      else delete node.dataset.lfRecordKey;
+      if (identify) node.dataset.lfIdentity = identity;
+      else delete node.dataset.lfIdentity;
       // The emitter knows which input it transformed. Keep that construction fact,
       // never recover a source path by interpreting its opaque key or displayed words.
       const origin = (originOf ? originOf(record, index) : snapshot?.origin) ?? null;
@@ -242,7 +257,7 @@ export function createDataProjection({ invalidateDom }) {
           delete node.dataset.lfGen;
           delete node.dataset.lfProjection;
           delete node.dataset.lfDatum;
-          delete node.dataset.lfRecordKey;
+          delete node.dataset.lfIdentity;
           delete node.dataset.lfSource;
           delete node.dataset.lfSourceRevision;
           delete node.dataset.lfOrigin;

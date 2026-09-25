@@ -468,8 +468,8 @@ export function misalignedSplits() {
 // box — and that is exactly how both margin claims went wrong before: a claim spent
 // page-wide held a diagram to the column with the margin beside it empty, a diagram in
 // the room's terms merely "scrolling". So the question is the visible result, asked
-// without trusting the mechanisms that decide it (`clear` for a note, data-lf-yield for
-// a suggestion's rail): a drawing that scrolls, inside room that would have held it,
+// without trusting the mechanisms that decide it (`clear` for a note, the margin layout
+// stepping a rail row past an exhibit): a drawing that scrolls, inside room that would have held it,
 // with nothing standing in the margin at its own band, is room withheld from the one
 // widget whose width is its own fact. Drawings alone, because "would the room have held
 // it" needs the exhibit's own width, which a box (a board laying columns into whatever

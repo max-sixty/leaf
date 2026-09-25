@@ -30,7 +30,11 @@
    or the viewport under the banner and over the bottom chrome — measures the card, and
    closes it once what it stands by has left that boundary. The card contains the
    complete inline conversation view; the Threads panel remains the complete index and
-   takes over when already open.
+   takes over when already open. A right-rail card aligns its top to the cluster while
+   reading. While its reply has focus or draft text, its foot stays at the same
+   distance from the cluster as the editor grows; the boundary still has the last
+   word. Leaving an empty reply, closing the card, or selecting another thread
+   restores the reading alignment.
 
    The card is margin chrome, not a native layer: it shows the threads of the target the
    user stands at, from the target, its cluster, or the card itself, so standing on an
@@ -632,6 +636,7 @@ export function createMarginProjection({
   let previewReferenceSeen = false;
   let previewPositionWaiters = [];
   let previewFocusPending = null;
+  let rightFootOffset = null;
   function answerThreadPreviewPosition(positioned) {
     const waiters = previewPositionWaiters;
     previewPositionWaiters = [];
@@ -650,6 +655,7 @@ export function createMarginProjection({
     previewPositionFrame = 0;
     previewPositionDismissDetached = false;
     previewReferenceSeen = false;
+    rightFootOffset = null;
     delete preview.dataset.lfThreadPlacement;
     preview.style.opacity = "0";
     preview.style.pointerEvents = "none";
@@ -719,8 +725,7 @@ export function createMarginProjection({
     }
   }
 
-  function placeThreadPreview({ dismissDetached = false } = {}) {
-    if (!previewOpen() || !previewMarginEntry?.isConnected) return false;
+  function threadCardCluster() {
     // A row the rail has no room for is withheld and has no box. A card placed against
     // that empty box stood in the boundary's corner over the words the user pressed,
     // and read as detached before it had stood anywhere, so no scroll could dismiss it.
@@ -728,9 +733,18 @@ export function createMarginProjection({
     // too, and that target has no box to stand by either.
     const row =
       previewMarginEntry.closest("[data-lf-margin-for]") ?? previewMarginEntry;
-    const cluster = (
+    return (
       row.checkVisibility() ? row : (targetFor(previewEntry) ?? row)
     ).getBoundingClientRect();
+  }
+  function placeThreadPreview({ dismissDetached = false } = {}) {
+    if (!previewOpen() || !previewMarginEntry?.isConnected) return false;
+    const replyEditor = previewList.querySelector(".lf-say textarea");
+    const drafting =
+      replyEditor?.checkVisibility() &&
+      (replyEditor === document.activeElement || replyEditor.value !== "");
+    if (!drafting) rightFootOffset = null;
+    const cluster = threadCardCluster();
     const boundary = threadCardBoundary(targetFor(previewEntry));
     if (!boundary.width || !boundary.height) return false;
     const style = getComputedStyle(preview);
@@ -745,7 +759,10 @@ export function createMarginProjection({
       minWidth: parseFloat(style.getPropertyValue("--thread-card-min")),
       preferredWidth: parseFloat(style.getPropertyValue("--thread-card")),
       heightAt: measureThreadCard,
+      rightFootOffset,
     });
+    if (geometry.placement === "right" && rightFootOffset === null && drafting)
+      rightFootOffset = geometry.y + geometry.height - cluster.top;
     if (geometry.detached) {
       if (previewReferenceSeen && dismissDetached) {
         closePreview();
@@ -753,7 +770,7 @@ export function createMarginProjection({
       }
     } else previewReferenceSeen = true;
     preview.style.left = `${geometry.x}px`;
-    preview.style.top = `${geometry.y}px`;
+    preview.style.top = `${geometry.y + (geometry.placement === "right" ? geometry.height : 0)}px`;
     preview.dataset.lfThreadPlacement = geometry.placement;
     preview.style.removeProperty("opacity");
     preview.style.removeProperty("pointer-events");
@@ -2095,6 +2112,7 @@ export function createMarginProjection({
     const selected = threadItems.find((item) => item.id === wanted) ?? threadItems[0];
     // Another thread starts at its top; an update to this one holds the reader's place.
     const arriving = previewThreadItem !== (selected?.id ?? null);
+    if (arriving) rightFootOffset = null;
     const latest = selected ? turns(sourceItem(selected).thread).at(-1) : null;
     const messageSelector = ":scope > .lf-margin-thread > .lf-margin-thread-body > " +
       ".lf-conversation-thread > .lf-conversation-msg";
@@ -2816,6 +2834,17 @@ export function createMarginProjection({
       if (!onPaper.matches) renderMargin.refresh();
     });
     previewClose.onclick = () => closePreview(true);
+    preview.addEventListener("focusin", (event) => {
+      if (!event.target.matches(".lf-say textarea") || rightFootOffset !== null) return;
+      if (previewMarginEntry && preview.dataset.lfThreadPlacement === "right")
+        rightFootOffset =
+          preview.getBoundingClientRect().bottom - threadCardCluster().top;
+    });
+    preview.addEventListener("focusout", (event) => {
+      if (event.target.matches(".lf-say textarea") && !event.target.value)
+        scheduleThreadPreviewPosition();
+    });
+    sizeObserver(() => scheduleThreadPreviewPosition()).observe(preview);
     previewPrevious.onclick = () => stepPreviewThread(-1);
     previewNext.onclick = () => stepPreviewThread(1);
     watchProjection(document.body, renderMargin);

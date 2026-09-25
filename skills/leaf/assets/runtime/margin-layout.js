@@ -165,8 +165,6 @@ export function unregisterMarginRow(row) {
     observer?.disconnect();
     observer = null;
     observedColumn = null;
-    for (const el of document.querySelectorAll("[data-lf-space][data-lf-yield]"))
-      el.removeAttribute("data-lf-yield");
   }
   scheduleMarginLayout();
 }
@@ -301,32 +299,37 @@ export function layoutMarginRows() {
     .map((row) => ({
       row,
       rect: row.getBoundingClientRect(),
+      hang: parseFloat(getComputedStyle(row).marginLeft) || 0,
       priority: rows.get(row)?.priority ?? 0,
     }))
     .sort((a, b) => a.priority - b.priority || a.rect.top - b.rect.top);
+  // A wide block grows out of the column toward the rail, and a row hangs off the column,
+  // so a row level with one would stand over it. The block's growth stops at main's right
+  // gutter, which the rail's reservation is part of, so the room past the block is the
+  // rail's own: the row steps out to hang off the block instead. The row moves and the
+  // block does not, because nothing Leaf draws moves the page's content, and a comment
+  // arriving beside a board would otherwise narrow it.
+  // Docking moves targets down, never across, so the column's right edge read before
+  // it still stands.
+  const wide = [...marginColumn().querySelectorAll("[data-lf-space]")]
+    .map((el) => el.getBoundingClientRect())
+    .filter((box) => box.right > columnRect.right + 1);
   const bands = [];
-  for (const { row, rect } of placed) {
+  for (const { row, rect, hang } of placed) {
     let top = rect.top;
     for (const band of [...bands].sort((a, b) => a.top - b.top))
       if (top < band.bottom + GAP && top + rect.height > band.top - GAP)
         top = band.bottom + GAP;
     const push = top - rect.top;
-    if (push) row.style.transform = `translateY(${push}px)`;
+    const reach = Math.max(
+      rect.left - hang,
+      ...wide
+        .filter((box) => box.top < top + rect.height && box.bottom > top)
+        .map((box) => box.right),
+    );
+    const step = Math.max(0, Math.min(reach + hang - rect.left, room - rect.right));
+    if (push || step) row.style.transform = `translate(${step}px, ${push}px)`;
     bands.push({ top, bottom: top + rect.height });
-  }
-
-  const wide = [...document.querySelectorAll("[data-lf-space]")].map((el) => {
-    const box = el.getBoundingClientRect();
-    return {
-      el,
-      yieldRight: bands.some((band) => band.top < box.bottom && band.bottom > box.top),
-    };
-  });
-  for (const { el, yieldRight } of wide) {
-    if (yieldRight) {
-      if (el.getAttribute("data-lf-yield") !== "r")
-        el.setAttribute("data-lf-yield", "r");
-    } else if (el.hasAttribute("data-lf-yield")) el.removeAttribute("data-lf-yield");
   }
   document.dispatchEvent(new CustomEvent("lf-margin-layout"));
 }

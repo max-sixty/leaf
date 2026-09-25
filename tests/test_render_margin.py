@@ -5998,14 +5998,17 @@ def test_a_thread_can_be_answered_in_the_margin_without_opening_threads(
     placed = preview.evaluate(
         """card => ({left: card.getBoundingClientRect().left,
                       top: card.getBoundingClientRect().top,
+                      height: card.getBoundingClientRect().height,
+                      placement: card.dataset.lfThreadPlacement,
                       placedLeft: card.style.left, placedTop: card.style.top})"""
     )
     assert placed["left"] == pytest.approx(
         float(placed["placedLeft"].removesuffix("px")), abs=0.5
     ), placed
-    assert placed["top"] == pytest.approx(
-        float(placed["placedTop"].removesuffix("px")), abs=0.5
-    ), placed
+    positioned_top = float(placed["placedTop"].removesuffix("px"))
+    if placed["placement"] == "right":
+        positioned_top -= placed["height"]
+    assert placed["top"] == pytest.approx(positioned_top, abs=0.5), placed
     expect(thread.locator(".lf-conversation-body")).to_have_text(COMMENT_ON_ASK["text"])
     expect(preview.get_by_role("button", name=re.compile(r"Threads?"))).to_have_count(0)
     expect(thread.locator(".lf-conversation-open")).to_have_count(0)
@@ -6814,6 +6817,133 @@ def test_a_shared_passage_steps_between_single_conversation_cards(browser, serve
     expect(preview).to_be_hidden()
     expect(page.locator(".lf-thread-panel")).to_have_class(re.compile(r"\bopen\b"))
     expect(page.locator(".lf-thread.flash")).to_have_count(0)
+
+
+def test_margin_card_anchors_reading_by_top_and_drafting_by_foot(browser, serve):
+    """Incoming reading keeps its target; adding a drafted line keeps the foot."""
+    page = open_page(browser, serve(ASK_PAGE, events=[COMMENT_ON_ASK]))
+    resized(page, 1920, 900)
+    marker = page.locator('.lf-margin-marker[data-lf-kinds="comment"]')
+    marker.evaluate("node => scrollBy(0, node.getBoundingClientRect().top - 160)")
+    marker.click()
+    preview = page.locator(".lf-margin-preview")
+    initial = preview.evaluate(
+        "node => ({top: node.getBoundingClientRect().top, height: node.getBoundingClientRect().height})"
+    )
+    root = events_model.read_events(serve.page_dir)[0]
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Claude",
+            "revision": 1,
+            "parent": root["id"],
+            "responds": root["id"],
+            "text": "The two jobs can share a single visit.",
+        },
+    )
+    told(page)
+    expect(preview).to_contain_text("The two jobs can share a single visit.")
+    reading = preview.evaluate(
+        "node => ({top: node.getBoundingClientRect().top, height: node.getBoundingClientRect().height})"
+    )
+    assert reading["top"] == pytest.approx(initial["top"], abs=0.5), (initial, reading)
+    assert reading["height"] > initial["height"] + 10, (initial, reading)
+    preview.get_by_role("button", name="Reply", exact=True).click()
+    editor = preview.locator("textarea")
+    editor.evaluate("node => node.blur()")
+    page.wait_for_function(
+        """top => Math.abs(document.querySelector('.lf-margin-preview')
+          .getBoundingClientRect().top - top) < 0.5""",
+        arg=initial["top"],
+    )
+    editor.fill("First line")
+
+    measure = """() => {
+      const card = document.querySelector('.lf-margin-preview').getBoundingClientRect();
+      const editor = document.querySelector('.lf-margin-preview textarea').getBoundingClientRect();
+      return {cardTop: card.top, cardBottom: card.bottom, editorTop: editor.top,
+              editorBottom: editor.bottom,
+              placement: document.querySelector('.lf-margin-preview').dataset.lfThreadPlacement};
+    }"""
+    before = page.evaluate(measure)
+    assert before["placement"] == "right", before
+    editor.press("End")
+    editor.press("Shift+Enter")
+    editor.type("Second line")
+    expect(editor).to_have_value("First line\nSecond line")
+    page.wait_for_function(
+        """top => document.querySelector('.lf-margin-preview textarea')
+          .getBoundingClientRect().top < top - 10""",
+        arg=before["editorTop"],
+    )
+    after = page.evaluate(measure)
+    assert after["editorTop"] < before["editorTop"] - 10, (before, after)
+    assert after["cardBottom"] == pytest.approx(before["cardBottom"], abs=0.5), (
+        before,
+        after,
+    )
+    assert after["editorBottom"] == pytest.approx(before["editorBottom"], abs=0.5), (
+        before,
+        after,
+    )
+    editor.fill("\n".join(f"Line {n}" for n in range(30)))
+    page.wait_for_function(
+        """() => {
+          const top = document.querySelector('.lf-margin-preview').getBoundingClientRect().top;
+          return top >= 49 && top <= 51;
+        }"""
+    )
+    tall = page.evaluate(measure)
+    assert tall["cardTop"] >= 49, tall
+    assert tall["cardBottom"] <= 847.5, tall
+    assert tall["editorBottom"] <= tall["cardBottom"] - 12, tall
+
+    editor.fill("Sent")
+    preview.get_by_role("button", name="Send", exact=True).click()
+    expect(preview).to_contain_text("Sent")
+    editor.evaluate("node => node.lfCollapseReply()")
+    expect(preview.locator(".lf-say")).to_have_class(re.compile("lf-reply-collapsed"))
+    page.wait_for_function(
+        """top => Math.abs(document.querySelector('.lf-margin-preview')
+          .getBoundingClientRect().top - top) < 0.5""",
+        arg=initial["top"],
+    )
+
+
+def test_open_reply_keeps_its_foot_after_card_moves_to_right_rail(browser, serve):
+    """A draft opened below its target gains a foot anchor when the rail widens."""
+    sidebar_page = ASK_PAGE.replace(
+        "<main>", '<main><aside class="sidebar">Page reference</aside>', 1
+    )
+    page = open_page(browser, serve(sidebar_page, events=[COMMENT_ON_ASK]))
+    resized(page, 1200, 900)
+    page.locator('.lf-margin-marker[data-lf-kinds="comment"]').click()
+    preview = page.locator(".lf-margin-preview")
+    expect(preview).not_to_have_attribute("data-lf-thread-placement", "right")
+    preview.get_by_role("button", name="Reply", exact=True).click()
+    editor = preview.locator("textarea")
+    editor.fill("First line")
+
+    resized(page, 1920, 900)
+    expect(preview).to_have_attribute("data-lf-thread-placement", "right")
+    before = preview.evaluate(
+        """node => ({card: node.getBoundingClientRect().bottom,
+                      editor: node.querySelector('textarea').getBoundingClientRect()})"""
+    )
+    editor.press("End")
+    editor.press("Shift+Enter")
+    expect(editor).to_have_value("First line\n")
+    after = preview.evaluate(
+        """node => ({card: node.getBoundingClientRect().bottom,
+                      editor: node.querySelector('textarea').getBoundingClientRect()})"""
+    )
+    assert after["editor"]["top"] < before["editor"]["top"] - 10, (before, after)
+    assert after["editor"]["bottom"] == pytest.approx(
+        before["editor"]["bottom"], abs=0.5
+    ), (before, after)
+    assert after["card"] == pytest.approx(before["card"], abs=0.5), (before, after)
 
 
 def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve):

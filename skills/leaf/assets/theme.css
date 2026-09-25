@@ -128,6 +128,11 @@
   --lf-safe-bottom: env(safe-area-inset-bottom, 0px);
   --lf-safe-left: env(safe-area-inset-left, 0px);
   --lf-banner-h: calc(42px + var(--lf-safe-top));
+  /* The bottom band: the keyboard's line and the status, held at the window's foot at one
+     stated height, as the banner is at its head. The page ends above it and a held
+     workspace is the window less the two, so nothing about the page's size is measured
+     off the chrome (chrome.css, at the shortcut bar). */
+  --lf-band-h: calc(44px + var(--lf-safe-bottom));
   /* Stacking: one ascending ladder for everything the runtime lifts over the page.
      A number local to a component's own stacking context stays where it is written. */
   --lf-z-page-paint: 8890;        /* paint on a page element */
@@ -406,7 +411,10 @@
 }
 /* Only a live page draws the banner. Without one, what sticks below the banner sticks
    to the top of the window. */
-html:not([data-lf-live]) { --lf-banner-h: 0px; }
+html:not([data-lf-live]) { --lf-banner-h: 0px; --lf-band-h: 0px; }
+/* A touch screen has no keys to hint, so it draws no band (chrome.css); a status that
+   shows there stands over the page like any other passing notice. */
+@media screen and (pointer: coarse) { :root { --lf-band-h: 0px; } }
 /* The other half of --aim-floor and --entry-floor, and the whole of what a coarse pointer
    changes about how small a control, or the words typed in one, may be. Every rule that
    states a floor reads its token, so a control joins both answers by joining one of them. */
@@ -528,8 +536,7 @@ html { background: var(--paper); }
     overflow-x: hidden;
     overflow-y: scroll;
     scroll-padding-top: calc(var(--lf-banner-h) + 12px);
-    scroll-padding-bottom:
-      max(var(--here-ring-room), var(--lf-bottom-chrome-clear, 0px));
+    scroll-padding-bottom: calc(var(--lf-band-h) + max(12px, var(--here-ring-room)));
     body { min-height: 100%; }
     body::before { content: ""; display: block; height: var(--lf-banner-h); }
   }
@@ -538,13 +545,13 @@ html { background: var(--paper); }
    * frame, which would hold the frame at its tallest, nothing scrolls inside, and a
    * wheel reaches the containing page. The page's rhythm is set for a window; a block
    * takes a block's. The banner keeps only its one row of actions (chrome.css). An open
-   * auxiliary surface covers the window, so the page stands at least a window tall
-   * while one is open, or a short specimen's Threads would have no room to list. */
+   * auxiliary surface covers the specimen at the height its page already has: opening
+   * one changes nothing about the containing page's layout. */
   html[data-lf-live][data-lf-contained] {
     --lf-banner-h: 48px;
+    --lf-band-h: 0px;
     overflow-y: hidden;
     body { min-height: 0; }
-    body[data-lf-auxiliary-surface] { min-height: 32rem; }
     main { padding-block: 24px; }
   }
 }
@@ -782,19 +789,16 @@ main {
  * too: a room read short can only fail to widen an exhibit, never narrow one below the
  * measure its own page is set to.
  *
- * A margin has something to give only if nothing is standing in it, and on most pages here
- * something is. A suggestion's controls hang beside the column and a sidenote is read out
- * there, and both hang off the column rather than out of the strip reserved for them —
- * they have to, being level with the line they belong to, while the column centres in
- * what the strip leaves. So the reservation and the occupancy are at different places on
- * the page, and a widget grown to the reservation is drawn over the occupancy: measured,
- * a board stood 134px over the accept and reject controls of the change above it, and 34px
- * over a note. Whoever claims a margin says so where it claims it, in the layer that
- * claims it, and this rule reads the two sides separately so a claim costs that side only.
+ * The growth stops at main's gutters, and each gutter holds its side's reservation, so an
+ * exhibit never reaches the rail. What stands level with an exhibit in the margin is
+ * decided by what put it there. A sidenote is the page's own, so the page clears it
+ * (`clear`, at aside.sidenote). A margin row is Leaf's, so it steps out past the exhibit
+ * into the rail (margin-layout.js): nothing Leaf draws moves the page's content, and an
+ * exhibit keeps the same width however many comments arrive beside it.
  *
- * A side with a resident gives up its growth. The free side then takes the unused
- * capacity instead of losing half the allocation to symmetry. With neither side
- * occupied, the element keeps the prose axis.
+ * Where one side has less room than the other, the freer side takes what the other
+ * lacks instead of losing half the allocation to symmetry. With both sides equally free,
+ * the element keeps the prose axis.
  *
  * Screen only. Paper has no window to take room from and a printed page is the column's
  * width, so leaving the rule out of print is the whole of what paper needs. On screen,
@@ -1384,9 +1388,9 @@ aside.sidenote { font-size: var(--t-5); line-height: 1.45; color: var(--muted);
        condition — a cramped page has handed the strip back and its notes are indented
        blocks in the flow, so there is no float out there to clear and no margin to take.
 
-       Only the note. The rail claims this side too for a suggestion's controls, which
-       are positioned rather than floated, so `clear` cannot see them; the module that
-       hangs them measures the same collision and applies the resulting layout.
+       Only the note. The rail claims this side too for margin rows, which are Leaf's
+       rather than the page's, so they give way instead: the module that hangs them steps
+       a row level with an exhibit out past it, into the rail (margin-layout.js).
 
        Every wide element, including one inside a box that withheld the room from it. A
        widget with no room has no negative margin and could not have reached the note, so
@@ -1921,27 +1925,6 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
  * feeds the reservation decision back into itself. Asking whether an item stands there at
  * all put the reflow on the gesture that raised the first one, and a second reflow on the
  * gesture that took it back. */
-@container lf-content-frame style(--lf-rail-posture: margin) {
-  /* And the right margin is spoken for where a row hangs in it, so a wide widget level
-     with one grows to the left alone. The row hangs 22px off the column and the strip is
-     reserved out of the far side of the page, which are not the same place once the
-     column centres in what is left: a board grown to the strip stood 134px over these
-     controls at a laptop's width. Refusing the side page-wide answered that collision by
-     never having it, and charged every exhibit on the page for a row somewhere above it —
-     measured, one change near the top of a page held a board 1400px below it to the
-     column's width with 345px of margin standing empty beside it. The collision is a fact
-     about one height, the same fact `clear` states for a sidenote on the left; a row is
-     positioned rather than floated, so no layout rule can see it, and the shared margin
-     layout marks the exhibits whose bands a row reaches (data-lf-yield) here.
-     Said beside the reservation because they are the two halves of taking a margin, and a
-     page that reserves one without saying so is a page whose exhibits are drawn over its
-     own apparatus. */
-  [data-lf-space][data-lf-yield~="r"] {
-    --lf-space-bound: calc(var(--lf-width) + var(--lf-free-l));
-    --lf-grow-l: var(--lf-surplus); --lf-grow-r: 0px;
-  }
-}
-
 /* Where a widget upgrade fails, it fails soft into this box. */
 .lf-error { border: 1px solid var(--danger); background: var(--danger-tint);
             color: var(--danger-ink); border-radius: var(--r); padding: 8px 12px;

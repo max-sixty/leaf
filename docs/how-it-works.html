@@ -137,9 +137,10 @@ sequenceDiagram
               Select a passage and comment on it, pick an option, or drag a card. The
               page shows your move at once, and a status beside it follows the agent's
               side: <em>Sent</em> once the server has it, <em>Picked up</em> once an
-              agent confirms receipt, <em>Working</em> while it acts, and
-              <em>Answered</em> when a reply or revision settles it. A move that stays
-              at Sent has reached no agent yet.
+              agent confirms receipt, <em>Working</em> while it acts. The status clears
+              once a reply or revision answers the move. A move that stays at Sent has
+              reached no agent yet.
+              <a href="#updates-observed-heading">Updates</a> lists every label.
             </p>
           </section>
 
@@ -363,11 +364,11 @@ $ leaf status ./review waiting "Does the API/importer split match what you need?
           <section id="updates-seats">
             <h2>The agent says what it is doing before it does it</h2>
             <p id="updates-lede">
-              While an agent works on a page, it writes short updates to three places:
-              the banner at the top of the page, a line beside the thread or widget the
-              work is about, and replies in the thread itself. Each update is one
-              sentence naming the operation and its subject, written before the step
-              starts, so what you read is what is happening now.
+              While an agent works on a page, it keeps a status: one sentence naming the
+              operation and its subject, written before the step starts, so what you
+              read is what is happening now. The status stands in the banner at the top
+              of the page and beside the thread or widget the work is about, and replies
+              in the thread carry the rest.
             </p>
             <lf-chronology id="updates-timeline">
               <lf-chronology-entry id="updates-sent" at="0s" kind="observation">
@@ -401,6 +402,171 @@ $ leaf status ./review waiting "Does the API/importer split match what you need?
                 <em>Claude awaits — does the shorter lede keep enough?</em>
               </lf-chronology-entry>
             </lf-chronology>
+          </section>
+
+          <section id="updates-map">
+            <h2>Every update, and where you read it</h2>
+            <p id="updates-map-lede">
+              Some updates the agent writes with a command. The rest Leaf writes itself,
+              from what it can observe: how far your input has got, and whether the
+              agent's turn and watcher are still running. A status and the agent's turn
+              each show in two places; the dotted line is a status written with
+              <code>--on</code>.
+            </p>
+            <lf-diagram
+              id="updates-diagram"
+              parts="node:Reply node:Awaits node:Stamp node:Receipt node:Status node:Pickup node:Turn node:Banner node:Beside node:Thread node:Asks node:Versions node:Widget"
+            >
+              <pre>
+flowchart LR
+  subgraph Sources["Who writes it"]
+    Reply["agent: leaf reply · leaf comment"]
+    Awaits["agent: leaf reply --awaits"]
+    Stamp["agent: leaf version stamp"]
+    Receipt["agent: leaf report · leaf receipt"]
+    Status["agent: leaf status"]
+    Pickup["Leaf: how far your input got"]
+    Turn["Leaf: the agent's turn and watcher"]
+  end
+  subgraph Reads["Where you read it"]
+    Thread["the thread"]
+    Asks["the Asks tray"]
+    Versions["the page and its versions menu"]
+    Widget["the widget"]
+    Banner["the banner, tab icon and Leaves tray"]
+    Beside["the label beside your comment or widget"]
+  end
+  Reply --&gt; Thread
+  Awaits --&gt; Asks
+  Stamp --&gt; Versions
+  Receipt --&gt; Widget
+  Status --&gt; Banner
+  Status -.-&gt; Beside
+  Turn --&gt; Banner
+  Turn --&gt; Beside
+  Pickup --&gt; Beside
+  classDef leaf fill:var(--ok-tint),stroke:var(--ok),color:var(--ok-ink)
+  class Pickup,Turn leaf
+</pre>
+            </lf-diagram>
+
+            <h3 id="updates-written-heading">Written by the agent</h3>
+            <ul id="updates-written">
+              <li id="updates-written-working">
+                <strong><code>leaf status … working "…"</code></strong> What it is
+                doing, in the banner:
+                <em>Claude working — running the browser suite</em>. With
+                <code>--on</code>, the same line stands beside that thread or widget
+                until the agent answers there. The tab icon takes the banner's colour,
+                and the page's row in the Leaves tray repeats the line.
+              </li>
+              <li id="updates-written-waiting">
+                <strong><code>leaf status … waiting "…"</code></strong> What it wants
+                from you, as in <em>Claude awaits — pick one of the two layouts</em>.
+              </li>
+              <li id="updates-written-idle">
+                <strong><code>leaf status … idle</code></strong> The agent has finished
+                with the page, and the banner reads <em>Leaf closed</em>. It cannot
+                close while your input is unanswered.
+              </li>
+              <li id="updates-written-reply">
+                <strong><code>leaf reply --for …</code></strong> An answer in your
+                thread, which clears the label beside your comment.
+              </li>
+              <li id="updates-written-initiates">
+                <strong><code>leaf reply --to … --initiates</code></strong> A later
+                message in a thread already answered, such as the result of work the
+                first reply promised.
+              </li>
+              <li id="updates-written-awaits">
+                <strong><code>leaf reply … --awaits</code></strong> A question for you.
+                The thread reads <em>On you</em>, and the question joins the Asks tray.
+              </li>
+              <li id="updates-written-comment">
+                <strong
+                  ><code>leaf comment</code>, <code>leaf edit</code>,
+                  <code>leaf resolve</code></strong
+                >
+                A thread the agent opens on a passage, a message it corrects, marked
+                <em>edited</em>, or a thread it closes (<em>✓ Resolved by Claude</em>).
+              </li>
+              <li id="updates-written-stamp">
+                <strong><code>leaf version stamp --text "…"</code></strong> A revision.
+                The page updates in place, the status line says <em>Updated to v4</em>,
+                and the text joins the versions menu as that revision's note. While you
+                read an earlier revision, a chip offers the new one:
+                <em>New page available → open v4</em>.
+              </li>
+              <li id="updates-written-receipt">
+                <strong><code>leaf report</code>, <code>leaf receipt</code></strong> A
+                widget's progress: its state redraws as the agent reports it, and a
+                request you made from it reads succeeded or failed.
+              </li>
+            </ul>
+
+            <h3 id="updates-observed-heading">Written by Leaf beside your input</h3>
+            <p id="updates-observed-lede">
+              Beside each comment, pick, or drag, a label follows your input through the
+              agent's turn. The label clears once a reply or revision answers it.
+            </p>
+            <table id="updates-observed">
+              <thead>
+                <tr>
+                  <th>Label</th>
+                  <th>What Leaf knows</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr id="updates-observed-sending">
+                  <td>Sending</td>
+                  <td>Your browser is still sending it to the server.</td>
+                </tr>
+                <tr id="updates-observed-sent">
+                  <td>Sent</td>
+                  <td>The server has your input.</td>
+                </tr>
+                <tr id="updates-observed-queued">
+                  <td>Queued</td>
+                  <td>Codex accepted it into the agent's queue.</td>
+                </tr>
+                <tr id="updates-observed-picked">
+                  <td>Picked up</td>
+                  <td>The agent's turn has taken it up.</td>
+                </tr>
+                <tr id="updates-observed-working">
+                  <td>Working</td>
+                  <td>A status names this input's thread or widget.</td>
+                </tr>
+                <tr id="updates-observed-replying">
+                  <td>Replying</td>
+                  <td>With Codex, the answer is streaming into the thread.</td>
+                </tr>
+                <tr id="updates-observed-pickup-late">
+                  <td>Waiting for pickup</td>
+                  <td>Two minutes after sending, no agent has taken it up.</td>
+                </tr>
+                <tr id="updates-observed-ended">
+                  <td>Turn ended</td>
+                  <td>
+                    The turn that picked it up closed before the agent said anything
+                    about it.
+                  </td>
+                </tr>
+                <tr id="updates-observed-stale">
+                  <td>Update stale</td>
+                  <td>
+                    The status about it went a quarter of an hour without renewal, or
+                    the turn behind that status ended.
+                  </td>
+                </tr>
+                <tr id="updates-observed-failed">
+                  <td>Interrupted, Not answered</td>
+                  <td>
+                    With Codex, the turn was interrupted or failed before it answered.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
           </section>
 
           <section id="updates-when">
@@ -460,6 +626,13 @@ $ leaf status ./review waiting "Does the API/importer split match what you need?
                   <td>
                     The agent's current turn picked up your input and has not yet said
                     what it is doing.
+                  </td>
+                </tr>
+                <tr id="updates-reading-steps">
+                  <td>Codex thinking, Codex using a tool</td>
+                  <td>
+                    With Codex, Leaf watches the agent's steps and names the current one
+                    in the banner.
                   </td>
                 </tr>
                 <tr id="updates-reading-ended">

@@ -76,7 +76,7 @@ item.
 | **Frame** | A box whose size comes from outside it: `main`, a root tab panel, a workspace, a pane, a grid cell, or any box declaring `--lf-block-frame: 1`. What it holds takes the frame's width, never the page's room |
 | **Grid** | `lf-grid`, which places its direct children in two dimensions |
 | **Cell** | A direct child of a grid; a frame |
-| **Text** and **surface** | How a block uses its frame's width: text keeps the reading measure, a surface (`x-measure: surface`, or `x-space` past the column) fills the frame; a group (`x-measure: group`) passes the measure to what it holds |
+| **Text** and **surface** | How a block uses its frame's width: text keeps the reading measure, a surface (`x-measure: surface`, or `x-space` past the column) fills the frame; a group (`x-measure: group`) passes the measure to what it holds. A members element that draws its members as cells of one block declares `x-measure: text` |
 | **Bounded block** | A block that holds its own height and scrolls inside it (`x-bound`, `data-bound`); not a reading region |
 | **Workspace** | An authored structural composition that keeps task regions together; as `main`'s only block, or a root tab's, it is the **root workspace** and holds the window |
 | **Pane** | One reading region in a workspace: an optional header, exactly one body element, an optional footer |

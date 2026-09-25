@@ -204,6 +204,7 @@
     },
     "additionalProperties": false,
     "x-content": "members",
+    "x-measure": "text",
     "x-word": "module",
     "x-upgrade": true,
     "x-awaits": {

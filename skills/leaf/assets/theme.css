@@ -969,13 +969,16 @@ main {
    * column), and the plain HTML elements are named here. A surface is never capped and
    * clears the measure for everything it draws. A box that only groups blocks passes
    * the measure through to what it holds, instead of holding a chart in a section to
-   * the width of a paragraph. Everything else is text. The rules have no specificity,
-   * so any rule that sizes a box outranks them. */
+   * the width of a paragraph. Everything else is text, a widget declaring so
+   * (data-lf-measure="text") included: a group whose members are the cells it draws
+   * keeps the measure as one block, so its frame and their edges stand at one width.
+   * The rules have no specificity, so any rule that sizes a box outranks them. */
   :where([data-lf-measure="surface"], [data-lf-space]:not([data-lf-space="column"]),
       table, pre, figure, img, svg, video, canvas, iframe) {
     --lf-measure: none;
   }
-  :where(:not([data-lf-measure], [data-lf-space]:not([data-lf-space="column"]),
+  :where(:not([data-lf-measure="surface"], [data-lf-measure="group"],
+      [data-lf-space]:not([data-lf-space="column"]),
       table, pre, figure, img, svg, video, canvas, iframe,
       section, div, article, header, footer, aside, nav, details, summary, hgroup,
       search, main)) {

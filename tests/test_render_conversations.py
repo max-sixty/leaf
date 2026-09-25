@@ -6316,7 +6316,7 @@ def test_the_line_offers_the_list_its_own_keys_rather_than_the_way_deeper_in(
     unrelated row in front of them here spends the slot the landing exists to fill.
 
     Read off `:not([hidden])`, because `renderShortcutBar` leaves every live row in the DOM and
-    hides the ones it has no room to paint. `to_contain_text` on the line therefore
+    hides the ones outside the shortlist. `to_contain_text` on the line therefore
     answers about the register rather than about the user, and passes just as well
     when the chip is one nobody can see — which is why the rest of the panel's tests
     could not have caught this.

@@ -4,7 +4,7 @@ Research at merged commit `cb7915bb`, 8 September 2026. Research briefs for work
 
 I recommend keeping the current primitives and spending the next cycle on reliable shared contracts, convincing examples and a measured authoring advantage. The larger layout vocabulary should follow evidence from those tasks.
 
-The shared-contract and example items this note opened with have landed; what remains is verification and the product questions the implementation cannot settle. Begin the authoring baseline #19 before improving the recipes, and run the keyboard journey #14 against the examples it protects.
+The shared-contract and example items this note opened with have landed; what remains is verification and the product questions the implementation cannot settle. Use the arrangement baseline in #19 to choose which recipes to improve, and run the keyboard journey #14 against the examples it protects.
 
 Items are ranked within each group. IDs are stable references, not a global priority score. Agent-owned work is distinguished from the repeated-use pilot, which needs Max’s purpose and participation. Evidence labels separate reproduced defects from code gaps and experiments.
 
@@ -30,7 +30,7 @@ Items are ranked within each group. IDs are stable references, not a global prio
 
 - **#19** **Measure what Leaf saves an authoring agent** — Run a small blind authoring comparison against plain HTML, including the cost of the subsequent feedback cycle.
 
-  **Evidence / confidence:** Unanswered positioning question. This session established implementation correctness and found composition flaws. It did not measure whether widgets and package guidance make agents faster or their outputs more useful than arbitrary HTML.
+  **Evidence / confidence:** First slice measured for arrangement: [arrangement-eval](arrangement-eval/README.md#results) compares Leaf's arrangement vocabulary with plain page CSS on a document, a dashboard and a queue, plus a standing-preference revision. On the #45 layout a blind reviewer preferred the plain pages in 11 pairs, the leaf pages in 4, and split 3; the vocabulary cut page CSS about fourfold but not turns. Widgets beyond arrangement, and package guidance, are still unmeasured.
 
   **Next task:** Give comparable agents document-review, configuration and queue/detail tasks with the same content and acceptance criteria. Compare usable output, time/tokens, custom CSS and repair iterations; then require a comment and revision on each result. Counterbalance task order.
 

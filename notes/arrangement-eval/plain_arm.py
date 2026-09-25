@@ -26,11 +26,14 @@ skill = arm / "skills/leaf"
 
 
 def replace(path: Path, old: str, new: str) -> None:
+    """Replace `old` once, matching any run of whitespace in it against any other, so
+    a rewrapped paragraph still matches."""
     text = path.read_text()
-    count = text.count(old)
-    if count != 1:
-        sys.exit(f"{path}: expected one match, found {count}: {old[:80]!r}")
-    path.write_text(text.replace(old, new))
+    pattern = r"\s+".join(re.escape(word) for word in old.split())
+    matches = re.findall(pattern, text)
+    if len(matches) != 1:
+        sys.exit(f"{path}: expected one match, found {len(matches)}: {old[:80]!r}")
+    path.write_text(re.sub(pattern, lambda _: new, text))
 
 
 def replace_section(path: Path, start: str, end: str, new: str) -> None:
@@ -63,7 +66,7 @@ restating numbers, so the page agrees with the theme and Leaf's chrome:
 | `--lf-page-measure` | `var(--col)` | the width `main` takes when the window has room; set it on `main` |
 | `--col-pad` | 24px | `main`'s side padding |
 | `--wide` | 1080px | the shared width for evidence wider than the measure |
-| `--sheet-max` | 1600px | the widest a page of regions should grow |
+| `{WIDE}` | 1600px | the widest a page of regions should grow |
 | `--rail` | about 95px | the strip Leaf keeps at the window's right edge for comment markers |
 | `--lf-banner-h` | 42px, 88px on a narrow window | the fixed banner; the page starts below it |
 | `--lf-band-h` | 44px | the shortcut band fixed at the window's foot |
@@ -78,7 +81,7 @@ centred in the room the window leaves beside the rail. To widen the page, set th
 property on `main` and lift the column's cap:
 
 ```css
-main { --lf-page-measure: var(--sheet-max); max-width: none; }
+main { --lf-page-measure: var({WIDE}); max-width: none; }
 ```
 
 On a window wider than about 864px, Leaf keeps the `--rail` strip at the window's right
@@ -122,9 +125,29 @@ Use these names on the semantic block itself, including a native `table`, `lf-co
 """
 
 
+# The theme's name for the widest page, which a later ref renamed.
+theme = (skill / "assets/theme.css").read_text()
+WIDE = "--wide-page-max" if "--wide-page-max:" in theme else "--sheet-max"
+SMOKE = f"""<!doctype html>
+<html lang="en"><head><title>Hook</title><meta name="description" content="Smoke page.">
+<style>
+main {{ --lf-page-measure: var({WIDE}); max-width: none; }}
+.regions {{ display: grid; grid-template-columns: 2fr 1fr; gap: var(--sp-4); }}
+@container (width < 640px) {{ .regions {{ grid-template-columns: 1fr; }} }}
+</style></head><body><main>
+<h1>Hook</h1>
+<div class="regions">
+<section id="body"><h2>Body</h2><p>A paragraph that runs long enough to wrap across the body region's
+width, so the check measures text that fills it.</p></section>
+<section id="rail"><h2>Rail</h2><p>Status.</p></section>
+</div></main></body></html>
+"""
+
+
 def patch_references() -> None:
     authoring = skill / "references/page-authoring.md"
-    replace_section(authoring, "## Composing a page\n", "A log, feed, or long listing", COMPOSING)
+    composing = COMPOSING.replace("{WIDE}", WIDE)
+    replace_section(authoring, "## Composing a page\n", "A log, feed, or long listing", composing)
     replace(authoring, BOUNDS_WIDTHS, "")
     replace(
         authoring,
@@ -134,7 +157,7 @@ def patch_references() -> None:
     )
     replace(
         skill / "references/authoring-evidence.md",
-        "in a `<figure>` with an `id`, and give the figure `data-width=\"wide\"` when it needs\nthe room.",
+        "in a `<figure>` with an `id`, and give the figure `data-width=\"wide\"` when it needs the room.",
         "in a `<figure>` with an `id`, and give the figure the room it needs in page CSS.",
     )
 
@@ -224,4 +247,7 @@ patch_references()
 patch_registry()
 patch_advice()
 check_clean()
+# make_arms.sh renders this page, so a theme that stops honouring the guide's width
+# hook fails the arm build instead of every plain run.
+(arm.parent / "plain-smoke.html").write_text(SMOKE)
 print(f"plain arm ready: {arm}")

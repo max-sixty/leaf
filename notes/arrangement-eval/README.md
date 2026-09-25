@@ -71,9 +71,14 @@ notes/arrangement-eval/batch.sh $d/arms-<name> <batch> <rounds>
 uv run notes/arrangement-eval/score.py $d/runs/<batch>
 uv run notes/arrangement-eval/shoot.py $d/runs/<batch>
 python3 notes/arrangement-eval/review.py $d/runs/<batch>
+FLIP=1 python3 notes/arrangement-eval/review.py $d/runs/<batch>
+python3 notes/arrangement-eval/summarize.py $d/runs/<batch>
 ```
 
-`score.py` before `shoot.py`: it writes the phase-one page copy that `shoot.py` serves.
+`make_arms.sh` renders a smoke page that uses the plain guide's width hook, and stops if
+that ref's theme no longer passes it. `score.py` runs before `shoot.py`, because it
+writes the phase-one page copy that `shoot.py` serves. `FLIP=1 review.py` repeats the
+review with every pair's sides swapped, and `summarize.py` tabulates both passes.
 A round runs all six subject × arm pairs at once, so machine load lands on both arms.
 Count a run only when its trace's `is_error` is false.
 

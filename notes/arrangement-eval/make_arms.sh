@@ -25,3 +25,8 @@ git -C "$root" rev-parse "$ref" > "$out/REF"
 for arm in leaf plain; do
   "$out/$arm/bin/leaf" --root
 done
+# The plain guide's width hook has to pass the render gate on this ref's theme.
+smoke=$(mktemp -d)
+XDG_STATE_HOME="$smoke/state" "$out/plain/bin/leaf" page init "$smoke/page" > /dev/null
+cp "$out/plain-smoke.html" "$smoke/page/index.html"
+XDG_STATE_HOME="$smoke/state" "$out/plain/bin/leaf" version check "$smoke/page" --render

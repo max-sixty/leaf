@@ -55,6 +55,7 @@ from render_harness import (
     open_page,
     pane_posture,
     panel_settled,
+    rendered,
     resized,
     round_trip,
     scroll_settled,
@@ -7672,6 +7673,52 @@ def test_a_pin_in_a_pane_scrolls_with_it_and_leaves_with_its_target(browser, ser
     expect(row).to_have_class(re.compile(r"\blf-withheld\b"))
     page.locator("#pin-pane > div").evaluate("body => { body.scrollTop = 0; }")
     expect(row).not_to_have_class(re.compile(r"\blf-withheld\b"))
+
+
+def test_a_row_follows_its_target_through_a_scroller_inside_a_shadow_tree(
+    browser, serve
+):
+    """An anchor name reaches only its own tree, so a target inside a shadow root anchors
+    through its host and stands at an inset from it. A scroller inside that tree moves
+    the target and not the host, and its scroll never leaves the tree: the row follows
+    the target once the pass has heard the scroll there, and is withheld once the
+    target has scrolled out of that scroller's view."""
+    page = open_page(browser, serve(PANEL_PAGE))
+    resized(page, 1440, 900)
+    page.evaluate(
+        """async () => {
+          const { marginEntry, registerMarginContribution } =
+            await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const host = document.createElement('div');
+          const root = host.attachShadow({mode: 'open'});
+          root.innerHTML = '<div id="inner" style="height: 100px; overflow: auto">'
+            + '<div style="height: 40px"></div><p id="deep">Deep target</p>'
+            + '<div style="height: 400px"></div></div>';
+          document.querySelector('main').prepend(host);
+          const target = root.getElementById('deep');
+          const margin = registerMarginContribution({key: 'deep', target,
+            read: () => ({entries: [marginEntry({
+              key: 'deep', glyph: '!', label: 'deep controls'})]}),
+            activate: () => {}});
+          window.__deep = {host, target, inner: root.getElementById('inner'), margin};
+        }"""
+    )
+    rendered(page)
+    offset = """() => {
+      const {target, margin} = window.__deep;
+      const row = margin.control('deep', 'margin').closest('.lf-margin-cluster');
+      return {offset: row.getBoundingClientRect().top - target.getBoundingClientRect().top,
+              withheld: row.classList.contains('lf-withheld')};
+    }"""
+    before = page.evaluate(offset)
+    assert not before["withheld"], before
+    page.evaluate("() => { window.__deep.inner.scrollTop = 20; }")
+    rendered(page)
+    after = page.evaluate(offset)
+    assert after["offset"] == pytest.approx(before["offset"], abs=1), (before, after)
+    page.evaluate("() => { window.__deep.inner.scrollTop = 200; }")
+    rendered(page)
+    assert page.evaluate(offset)["withheld"]
 
 
 TAB_PIN_PAGE = leaf_page(

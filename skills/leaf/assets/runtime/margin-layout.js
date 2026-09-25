@@ -154,7 +154,16 @@ export function scheduleMarginEntryLabels() {
 // here, rather than per lane: a table or a board scrolled sideways is no lane of its own.
 export function mountMarginLayer(root) {
   layer = { root, lanes: new Map(), sizes: sizeObserver(scheduleMarginLayout) };
-  document.addEventListener(
+  hearScrolls(document);
+}
+
+// A scroll event does not leave its shadow tree, so a target inside one is heard on each
+// tree holding it as well as on the document.
+const heard = new WeakSet();
+function hearScrolls(root) {
+  if (heard.has(root)) return;
+  heard.add(root);
+  root.addEventListener(
     "scroll",
     (event) => {
       if (event.target === document || !(event.target instanceof Element)) return;
@@ -340,22 +349,21 @@ const shownTop = (target) =>
   Math.min(...shownParts(target).map((part) => part.getBoundingClientRect().top));
 
 // Whether a row has somewhere to stand: its target renders, its scrollers leave some of it
-// in view — the pane that scrolls it, or a table or board it has been scrolled sideways
-// out of — and the point the row stands at is inside that view. That is the target's top
-// line, since a row standing above a pane's top would be clipped by its lane and still
-// take the keyboard, and for a pin the target's right edge too: a card half past a
-// board's edge would stand its pin outside the board, beside nothing and past the page.
+// in view — the pane that scrolls it, a table or board it has been scrolled sideways out
+// of, or a scroller inside the shadow tree it anchors through — and the point the row
+// stands at is inside that view. That is the target's top line, since a row standing
+// above a pane's top would be clipped by its lane and still take the keyboard, and for a
+// pin the anchor's right edge too: a card half past a board's edge would stand its pin
+// outside the board, beside nothing and past the page.
 function targetShown(target, anchor, inset, pin, bands) {
   if (!shownParts(target).some((part) => part.checkVisibility())) return false;
   const box = anchor.getBoundingClientRect();
-  const view = clippedBand(anchor, box, bands);
+  const view = clippedBand(target, box, bands);
   const line = box.top + inset;
-  return (
-    Boolean(view) &&
-    line >= view.top - 1 &&
-    line < view.bottom &&
-    (!pin || box.right <= view.right + 1)
-  );
+  if (!view || line < view.top - 1 || line >= view.bottom) return false;
+  if (!pin) return true;
+  const across = anchor === target ? view : clippedBand(anchor, box, bands);
+  return Boolean(across) && box.right <= across.right + 1;
 }
 
 const pushes = new Map();
@@ -370,7 +378,9 @@ const parked = new WeakMap();
 // A scroll inside anything but the document moves its rows on the compositor. What it can
 // change is which of them still have somewhere to stand, so only rows under a box that
 // scrolled are read again, once a frame, and a row that changes answer brings the whole
-// pass, which places it.
+// pass, which places it. A row anchored through a shadow host stands at an inset from the
+// host, so a scroll inside the host moves its target and not the row: that brings the
+// pass too, which takes the inset again.
 const scrolled = new Set();
 let scrollReading = 0;
 function scheduleScrollReading() {
@@ -384,7 +394,12 @@ function scheduleScrollReading() {
       const target = options.anchor();
       if (!target?.isConnected || parked.has(row)) continue;
       const anchor = anchorElement(target);
-      if (!boxes.some((box) => under(anchor, box))) continue;
+      const moving = boxes.filter((box) => under(target, box));
+      if (!moving.length) continue;
+      if (anchor !== target && moving.some((box) => under(box, anchor))) {
+        scheduleMarginLayout();
+        return;
+      }
       const inset =
         anchor === target ? 0 : shownTop(target) - anchor.getBoundingClientRect().top;
       if (
@@ -428,6 +443,12 @@ export function layoutMarginRows() {
       continue;
     }
     const anchor = anchorElement(target);
+    for (
+      let root = target.getRootNode();
+      root instanceof ShadowRoot;
+      root = root.host.getRootNode()
+    )
+      hearScrolls(root);
     if (parked.has(row) && parked.get(row) !== anchor) parked.delete(row);
     const scroller = scrollerFor(target);
     const rootLane = scroller === pageScroller;

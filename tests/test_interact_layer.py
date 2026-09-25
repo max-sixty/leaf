@@ -3563,6 +3563,9 @@ def test_package_init_starts_one_checked_upgraded_widget(
     assert (page / "widgets" / "lf-risk-note.js").read_text() == module
     (page / "index.html").write_text(
         PAGE.replace(
+            '<section id="plan">',
+            '<section id="plan" style="--lf-passes-block-edge: 1">',
+        ).replace(
             "<h2>Plan</h2>",
             '<h2>Plan</h2><lf-risk-note id="release-risk"><strong>Release risk'
             "</strong> The retry budget is three attempts before manual review."

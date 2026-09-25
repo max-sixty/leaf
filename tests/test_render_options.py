@@ -1847,6 +1847,41 @@ def test_one_chip_holds_every_short_fact(browser, serve):
         )
 
 
+def test_long_chip_labels_stay_inside_a_narrow_column(browser, serve):
+    """A long authored identifier must wrap inside each chip's own box, even when
+    its containing column is narrower than the identifier's intrinsic width."""
+    label = "getConversationThreadPlacementForViewport"
+    source = (
+        CHIP_PAGE.replace("experimental", label)
+        .replace("reversible", label)
+        .replace('owner="finch"', f'owner="{label}"')
+        .replace(
+            "</head>",
+            "<style>#intro, #p-keep, #t-camera .lf-chips { width: 240px; }</style></head>",
+        )
+    )
+    page = open_page(browser, serve(source))
+    for chip_selector in (
+        "#intro > .tag",
+        "#p-keep > lf-chip",
+        "#t-camera .lf-chips > span",
+    ):
+        expect(page.locator(chip_selector)).to_have_text(label)
+        geometry = page.locator(chip_selector).evaluate("""el => {
+            const parent = el.parentElement;
+            const parentBox = parent.getBoundingClientRect();
+            const contentRight = parentBox.right - parseFloat(getComputedStyle(parent).paddingRight);
+            const chipBox = el.getBoundingClientRect();
+            return { chipRight: chipBox.right, contentRight, lines: chipBox.height / parseFloat(getComputedStyle(el).lineHeight) };
+        }""")
+        assert geometry["chipRight"] <= geometry["contentRight"] + 1, (
+            f"{chip_selector} paints past its containing column: {geometry}"
+        )
+        assert geometry["lines"] > 1, (
+            f"{chip_selector} should wrap its long identifier: {geometry}"
+        )
+
+
 def test_what_a_widget_paints_it_says_to_a_user_listening(browser, serve):
     """A tint is a fact to whoever can see it and nothing at all to whoever can't. A
     task's marker and an event's kind band each carried their whole meaning in colour,

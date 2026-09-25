@@ -57,6 +57,25 @@ other page files and the external state listed below.
 
 - `events.jsonl` — append-only event log; an event's seq is its line number (1-based)
 
+- `interactions.jsonl` — diagnostic JSON-lines trace of server requests and browser
+  interactions, including refused requests. It is separate from `events.jsonl` and
+  never enters page state or acknowledgement. `leaf interactions PAGE --follow`
+  reads it. The server appends request method, path without query, status, and
+  duration; `/api/interaction` appends browser batches with a session id, scoped
+  page address, and server receipt time. Specimen activity remains in its parent
+  page's trace. The diagnostic file changes neither page/source reading nor
+  presence cache keys. It is private page data and is never served as an asset.
+  A tab retries failed batches and may resend an in-flight batch on page hide;
+  `(session, sequence)` identifies duplicates. Large browser records arrive as
+  `interaction_part` rows whose `json` fields concatenate in `part` order.
+  A tab retains at most 512 pending browser records: when delivery falls behind,
+  it sheds repeated observations first, then older actions only to admit new
+  actions. New repeated observations yield to pending actions. Sequence gaps show
+  where records were lost; a single record too large to fit is marked
+  `interaction_omitted`. This is a best-effort diagnostic trace, not an audit
+  guarantee: an offline tab closed with unsent data may lose it. The semantic
+  event log remains the durable record of accepted decisions.
+
 - `data.json` — the contract each external-data source id was first set under.
   `data.py` owns storage and updates.
 

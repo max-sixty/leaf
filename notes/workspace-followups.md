@@ -41,7 +41,7 @@ Items are ranked within each group. IDs are stable references, not a global prio
   - Render check: it passed all 72 pages. Render at the width the user names, and flag a figure scrolled sideways out of view, text drawn below about 10px, and an Ask below its pane's first screen.
   - Render check: report the width at which each grid stacks, which no queue author could see.
   - Preferences: `AGENTS.md` promises preferences "stated once and honoured on every page", but nothing holds one, so authors sent the user to `CLAUDE.md` or wrote host memory. Build a Leaf store, or drop the promise and name the host's memory.
-  - The session that landed #1171 holds the layout findings: the rail comes last on a phone and doesn't stick, the 14rem floor cramps it at 900px, a stacked workspace splits the window height, a pane opens with an empty top band, and a wide grid runs past the prose edge.
+  - Rail: it comes last on a phone and doesn't stick, and its 14rem floor cramps a table or log at 900px.
 
   **Next task:** Give comparable agents document-review, configuration and queue/detail tasks with the same content and acceptance criteria. Compare usable output, time/tokens, custom CSS and repair iterations; then require a comment and revision on each result. Counterbalance task order.
 

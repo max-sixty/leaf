@@ -7,11 +7,7 @@
       content="Work through a week of payments pages in a queue beside its evidence: see which alerts caught real incidents, then decide how each noisy one should change."
     />
     <style>
-      /* Each alert is one item in the detail pane: a rule marks where the next begins,
-         and the first starts at the top of the pane. */
-      #ar-alerts > section:first-child > h3 {
-        margin-top: 0;
-      }
+      /* Each alert is one item in the detail pane: a rule marks where the next begins. */
       #ar-alerts > section + section {
         margin-top: var(--sp-4);
         padding-top: var(--sp-4);
@@ -162,7 +158,7 @@
           <lf-pane id="ar-detail" label="Selected alert">
             <header><h2>Evidence and decision</h2></header>
             <div id="ar-alerts">
-              <section id="ar-canary">
+              <section id="ar-canary" style="--lf-passes-block-edge: 1">
                 <h3>Canary health check</h3>
                 <dl class="facts">
                   <dt>Rule</dt>

@@ -538,8 +538,8 @@ CONTROL_ARCHETYPES = (
         "target": "#stable-choice-a .lf-pick",
     },
     {
-        # Classifying the penultimate card removes the decorative backing card;
-        # the verdict row must keep its place when that extra surface disappears.
+        # Classifying the penultimate card removes the decorative backing card and
+        # grows a verdict pile. The two controls keep their places within their row.
         "name": "swipe-verdict",
         "target": "#stable-swipe .lf-swipe-keep",
     },

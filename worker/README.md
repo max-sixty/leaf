@@ -252,6 +252,27 @@ served straight from `server.py` — the test suite, a local preview — has no 
 of it, so the adapter acknowledges the report itself and keeps no record of it. Startup
 profiles exist only for the deployed release.
 
+The deployed site also accepts `POST api/interaction` at the edge and writes each
+validated browser batch as one `component=leaf-interaction`, `event=client_batch`
+Workers Observability record. The record carries the public session `reference`,
+canonical page `route`, site `release`, tab `session`, and ordered interaction
+metadata: event type, time, sequence, pointer coordinates, structural element
+paths and per-tab node ids, command ids and bindings, and event response kinds and status codes. The edge
+removes element ids and names, labels, typed and pasted text, selected text, URL details,
+and arbitrary client fields before logging. Large client entries retain their original
+event type and part numbers, but not the raw JSON pieces. The page's durable `events.jsonl`
+and local interaction trace retain their own raw content. The edge acknowledges the
+batch without starting a container. A batch has at
+most 100 entries and 128 KiB of JSON, leaving room under Cloudflare's
+[256 KiB log limit](https://developers.cloudflare.com/workers/platform/limits/#log-size)
+for request metadata. To retrieve a session's batches, use the Workers
+Observability REST query above with `lookup_key=reference`, the banner's 12-digit
+reference as `lookup_value`, and `component` set to `leaf-interaction`. Keep the
+incident window narrow enough that `result.statistics.abr_level` is `1`.
+Workers Logs retains records for at most seven days, while page-local `events.jsonl`
+lasts with its page directory. TODO(2026-09-25): Export interaction records to durable
+storage if they need to outlive [Workers Logs retention](https://developers.cloudflare.com/workers/observability/logs/workers-logs/).
+
 Workers Observability is the operational log store. Request-path records carry the
 canonical `eventId`; Worker-side records also carry the public `reference` and `route`.
 The public reference finds every request from one user session, and the event id

@@ -27,6 +27,7 @@ The main owners are:
 - `history`: the page's newest moves as served rows, for a page holding a widget
   that declares `x-history`;
 - `event_log`: append-only JSONL storage, locking, and attempt identity;
+- `interaction_log`: page-local diagnostic records of browser gestures and HTTP requests;
 - `event_contracts`: the one append door every writer admits an event through,
   and the per-kind contracts it runs;
 - `read_state`: agent content versions and the one reading of which the user has

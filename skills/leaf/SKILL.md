@@ -53,14 +53,18 @@ directory explicitly; export or copy anything that must outlive the page directo
    not it asks a question. A quick page that will be revised or dropped after an
    immediate reaction needs only `leaf version check <page>`; fix every failure,
    and do not stamp it or delay its handoff for a browser review. For a finished
-   record that work will rely on after the conversation, run the pre-handover
-   review in `references/page-authoring.md`, including
-   `leaf version check <page> --render`, then
-   `leaf version stamp <page> --text "<changelog>"` before its URL first reaches
-   the user. A page declaring `<meta name="lf-review" content="sign-off">`
-   is a record whatever else it looks like, since sign-off is offered only on a
-   stamped version. A later stamp that turns a quick page into a record takes
-   that review first.
+   record that work will rely on after the conversation, run
+   `leaf version check <page> --render`, read the page as "Pre-handover review"
+   in `references/page-authoring.md` says, and fix what the reading finds before
+   `leaf version stamp <page> --text "<changelog>"`. The reading comes between
+   the check and the stamp: the check sees whether the page renders, and only
+   the reading sees whether it shows the user what it should, such as a view
+   that describes what it should have drawn. A record takes this review before
+   its URL first reaches the user and again at each later stamp, for the views
+   and Asks that stamp adds; a quick page takes it at the stamp that makes it a
+   record. A page declaring `<meta name="lf-review" content="sign-off">` is a
+   record whatever else it looks like, since sign-off is offered only on a
+   stamped version.
 4. Read `references/conversation-loop.md` and exactly one host contract:
    `references/host-claude-code.md` in Claude Code; in Codex,
    `references/host-codex-app-server.md` when `LEAF_CODEX_APP_SERVER` is set or the

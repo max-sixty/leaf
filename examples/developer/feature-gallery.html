@@ -371,8 +371,9 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
           agent, or Resolved, and combine Page or Anchored with Content or Layer. Order
           switches the list from the page's order to Recent, which puts the thread
           spoken in last first under its day. Collapsed titles retain their message
-          count and current attention mark. Each thread has a short title chosen by the
-          agent; open one to read the full messages beneath it.
+          count and current status; On you also names the action owed. Each thread has a
+          short title chosen by the agent; open one to read the full messages beneath
+          it.
         </p>
         <p id="bg-thread-notices">
           <strong>New information.</strong> Have the agent add a message after the page
@@ -405,8 +406,8 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
         </h2>
         <p id="bg-thread-states-guide" data-width="column">
           These passages have real conversations in this gallery. Open Threads to
-          compare their title rows, then open a row to inspect its messages. The first
-          pair uses two sample conversations to show the title before and after naming.
+          compare each row's status, then open a row to inspect its messages. The first
+          pair shows a title before and after naming.
         </p>
         <section id="bg-thread-state-titles">
           <h3>Conversation title</h3>
@@ -426,9 +427,10 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
                 for one more topic. Its speech-bubble control carries a blue interior
                 and a blue glyph, and hovering it shows On you under the label. The
                 image question still needs an answer even though the agent added a later
-                progress update. Open the control and reply: the colour goes as the
-                thread comes back to the agent. The same reading fills the panel’s On
-                you filter and this target’s Page Map row.
+                progress update. In Threads, On you still says to answer the question.
+                Open the control and reply: the colour goes as the thread comes back to
+                the agent. The same reading fills the panel’s On you filter and this
+                target’s Page Map row.
               </p>
               <p id="bg-thread-media">
                 <strong>Pasted images.</strong> That conversation includes an image
@@ -794,10 +796,11 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
           </h3>
           <p id="bg-metrics-guide">
             Metrics show individual values as tiles, and a Chart compares the values
-            across runs. Narrow the window: the metric row and the three-column chart
-            grid rewrap a column at a time, and the template grid under them stacks once
-            it is narrower than 600px. Its log holds its own height and stays on its
-            newest line until you scroll back.
+            across runs. The metric row and the template grid under it keep to the
+            column, and the three charts take the wide width. Narrow the window: the
+            metric row and the chart grid rewrap a column at a time, and the template
+            grid stacks once it is narrower than 696px. Its log holds its own height and
+            stays on its newest line until you scroll back.
           </p>
           <lf-grid id="bg-metrics">
             <lf-metric id="bg-metric-complete" value="12" delta="+3" direction="up-good"
@@ -808,7 +811,7 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
             >
             <lf-metric id="bg-metric-neutral" value="4 min">sample duration</lf-metric>
           </lf-grid>
-          <lf-grid id="bg-charts" columns="3">
+          <lf-grid id="bg-charts" columns="3" data-width="wide">
             <lf-chart id="bg-chart" kind="line" y="checks complete">
               <pre>
 run, baseline, candidate
@@ -1384,7 +1387,7 @@ gallery/
                   <p>
                     The candidate changes cache keys, receipts, and settlement jobs.
                   </p>
-                  <ul>
+                  <ul style="--lf-passes-block-edge: 1">
                     <li>Cache migration copies active entries before cutover.</li>
                     <li>Receipts show refunds in the settlement currency.</li>
                     <li>Invalid jobs leave the shared queue for review.</li>
@@ -1461,7 +1464,7 @@ switch --readers checkout-api,orders-api</code></pre>
         <p id="bg-change">The sample walk follows the river to the footbridge.</p>
       </section>
 
-      <section id="bg-delivery">
+      <section id="bg-delivery" style="--lf-passes-block-edge: 1">
         <p class="eyebrow bg-feature-elements">lf-board · lf-column · lf-card</p>
         <h2>
           <strong>Board</strong> and <strong>delivery state</strong

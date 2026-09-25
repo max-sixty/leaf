@@ -12,6 +12,7 @@ const { moved, readThreadRecords, threadSummary } =
 const { inRecentOrder, recentGroup } =
   await import("/runtime/conversation/placement.js");
 const { unreadBoundaries } = await import("/runtime/conversation/summary-ranges.js");
+const { threadAttention } = await import("/runtime/conversation/workflow.js");
 const { DEFAULT_INTENT, narrowingReading, transition } =
   await import("/runtime/conversation/narrowing.js");
 
@@ -94,6 +95,58 @@ test("a message moves when it is edited, and a thread when any turn moves", () =
     ],
   };
   assert.equal(threadSummary(thread).latest, "2026-03-02T09:00:00Z");
+});
+
+test("attention names the outstanding question rather than the latest message", () => {
+  const question = agent("question", {
+    kind: "comment",
+    text: "Does this crop show enough of the room?",
+  });
+  const update = agent("update", {
+    text: "I also added the room number.",
+    seq: 2,
+  });
+  const source = serverThread([question, update], {
+    attention: { kind: "needs_user", reason: "ask", workflow: null },
+    user_prompt: { message: "question", version: "question" },
+  });
+  const [thread] = readThreadRecords([source], NO_DOCUMENT, new Map(), []);
+  const attention = threadAttention(thread);
+  assert.equal(attention.label, "On you");
+  assert.equal(attention.action, "answer question");
+  assert.equal(threadAttention({ ...thread, user_prompt: null }).action, "answer Ask");
+  assert.equal(
+    threadAttention({
+      ...thread,
+      attention: { kind: "needs_user", reason: "recovery", workflow: "send" },
+      workflows: [{ id: "send", subject: { kind: "conversation" } }],
+    }).action,
+    "resend",
+  );
+  assert.equal(
+    threadAttention({
+      ...thread,
+      attention: { kind: "needs_user", reason: "recovery", workflow: "move" },
+      workflows: [{ id: "move", subject: { kind: "widget" } }],
+    }).action,
+    "retry",
+  );
+  assert.equal(
+    threadAttention({
+      ...thread,
+      attention: { kind: "waiting", reason: "uncertain", workflow: null },
+    }).action,
+    undefined,
+  );
+  assert.equal(
+    threadAttention({
+      ...thread,
+      awaits_agent: true,
+      attention: { kind: "waiting", reason: "workflow", workflow: null },
+    }).action,
+    undefined,
+  );
+  assert.equal(threadAttention({ ...thread, attention: null }), null);
 });
 
 const recentThread = (id, ts, edited = null) => {

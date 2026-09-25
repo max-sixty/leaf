@@ -67,6 +67,7 @@ relative to `runtime/` unless stated otherwise.
 | Banner, approvals, and the row, menu, and gesture control seats | `banner.js`, `banner-status-view.js`, `banner-approval.js`, `banner-shelf.js` |
 | Trays and neighboring pages | `trays.js`, `live-leaves.js`, `live-leaves-list.js` |
 | Activity timing and updates | `presence.js`, `updates.js` |
+| Browser interaction diagnostics | `interaction-log.js` |
 | Notices and announcements | `semantic-news.js`, `notifications.js`, `keyboard/shortcut-bar.js` |
 | Reactions and design review | `reactions.js`, `design.js`, `design-readings.js` |
 | Document presentation and validation | `presentation.js`, `validation.js`, `projection-watch.js` |

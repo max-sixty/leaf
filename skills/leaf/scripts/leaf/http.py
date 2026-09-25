@@ -45,6 +45,7 @@ from .files import (
     version_revisions,
     write_json,
 )
+from .interaction_log import append_interactions, client_records, now_iso
 from .locations import path_is_within
 from .media import MAX_MEDIA_UPLOAD_BYTES, MediaUploadError, store_uploaded_media
 from .registry.storage import layer_metadata, require_registry
@@ -495,6 +496,7 @@ class PageEndpoint:
 
     def respond(self) -> Response:
         """Answer this request, on a worker thread of the serving loop's own pool."""
+        started = time.monotonic()
         if self.method == "GET":
             answer = self._answer(self._get)
         elif self.method == "POST":
@@ -502,6 +504,27 @@ class PageEndpoint:
         else:
             answer = self._json({"error": f"unsupported method {self.method}"}, 501)
         answer.headers.update(self._delivery_headers())
+        # The request boundary sees successful answers and refusals alike. Keep
+        # query strings (including the access key) and request bodies out of it.
+        if self.page_dir is not None and getattr(self, "parent", None) is None:
+            try:
+                append_interactions(
+                    self.page_dir,
+                    [
+                        {
+                            "source": "server",
+                            "ts": now_iso(),
+                            "method": self.method,
+                            "path": self.path,
+                            "status": answer.status_code,
+                            "durationMs": round((time.monotonic() - started) * 1000, 3),
+                        }
+                    ],
+                )
+            except OSError as error:
+                # A diagnostic write must not turn an admitted gesture into a
+                # transport failure: the browser would retry an action that landed.
+                self.record_fault(error)
         return answer
 
     def read_body(self, limit: int | None = None) -> bytes | None:
@@ -1168,8 +1191,33 @@ class PageEndpoint:
 
     def _post(self) -> Response:
         path = self.path
-        if path not in {"/api/event", "/api/media", "/api/specimens"}:
+        if path not in {
+            "/api/event",
+            "/api/media",
+            "/api/specimens",
+            "/api/interaction",
+        }:
             return self._json({"error": "not found"}, 404)
+        if path == "/api/interaction":
+            if self.posted_error:
+                return self._refuse(self.posted_error)
+            session = self.posted.get("session")
+            entries = self.posted.get("entries")
+            if not isinstance(session, str) or not session:
+                return self._refuse("interaction requires a nonempty session")
+            if (
+                not isinstance(entries, list)
+                or not entries
+                or any(not isinstance(entry, dict) for entry in entries)
+            ):
+                return self._refuse("interaction requires a nonempty array of entries")
+            # A specimen's directory is temporary. Keep its trace in the owning
+            # page, with the scoped address identifying which child produced it.
+            owner = getattr(self, "parent", None)
+            directory = owner.page_dir if owner is not None else self.page_dir
+            page = self.page_root[len(owner.page_root) :] if owner is not None else "/"
+            append_interactions(directory, client_records(session, page, entries))
+            return self._content(204, "text/plain", b"")
         # Preview requests have passed authentication and body preparation. An event
         # refusal can therefore name its attempt; media uses the route's generic shape.
         # A specimen allocates an independent page from the frozen reading; it does

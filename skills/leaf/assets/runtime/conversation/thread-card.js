@@ -121,6 +121,8 @@ function navigationSummary(navigation, model) {
   const title = model.summary.topic;
   const count = model.summary.count;
   const status = model.resolved ? "Resolved" : model.attention?.label || "";
+  const action = model.attention?.action;
+  const statusText = [status, action].filter(Boolean).join(" · ");
   const draft = Boolean(loadDraft("reply:" + model.key)?.trim());
   return html`<summary
     class="lf-thread-summary"
@@ -147,10 +149,10 @@ function navigationSummary(navigation, model) {
               data-lf-turn=${model.attention?.kind === "needs_user" ? "user" : nothing}
               title=${
                 model.attention?.secondary
-                  ? `${status} · ${model.attention.secondary}`
-                  : status
+                  ? `${statusText} · ${model.attention.secondary}`
+                  : statusText
               }
-              >${status}</span
+              >${statusText}</span
             >`
           : nothing
       }

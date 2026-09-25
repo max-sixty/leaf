@@ -467,7 +467,7 @@ RESTORED_PROSE = "".join(
 
 
 @pytest.mark.parametrize(
-    ("saved", "sheet", "window"),
+    ("saved", "wide", "window"),
     [
         ({"lf-auxiliary-surface": "asks", "lf-tray-slot-width": "280"}, False, 1600),
         (
@@ -475,21 +475,21 @@ RESTORED_PROSE = "".join(
             True,
             1440,
         ),
-        # Where it would leave less than a usable page it covers the sheet instead.
+        # Where it would leave less than a usable page it covers the page instead.
         ({"lf-auxiliary-surface": "threads"}, True, 700),
         # The Asks tray by the same rule: 300 of a 600px window leaves 300.
         ({"lf-auxiliary-surface": "asks"}, False, 600),
     ],
-    ids=["asks", "threads-sheet", "covering", "asks-covering"],
+    ids=["asks", "threads-wide-page", "covering", "asks-covering"],
 )
 @pytest.mark.parametrize("contained", [False, True])
 def test_a_restored_auxiliary_surface_leaves_the_page_where_it_painted(
-    browser, serve, saved, sheet, window, contained
+    browser, serve, saved, wide, window, contained
 ):
     """Returning users do not watch saved auxiliary chrome move the document: a restored
     surface stands over the page, so the paragraph they were reading stands at the same
     place from the first paint, before the runtime has loaded, to presentation."""
-    if contained and sheet:
+    if contained and wide:
         pytest.skip("a specimen's child page is the column its template writes")
     surface = saved["lf-auxiliary-surface"]
     content = "<h1>Restored surface</h1>" + RESTORED_PROSE
@@ -501,7 +501,7 @@ def test_a_restored_auxiliary_surface_leaves_the_page_where_it_painted(
             + "</template></lf-specimen>"
         )
     url = serve(
-        leaf_page("Restored surface", content, width="available" if sheet else None)
+        leaf_page("Restored surface", content, width="available" if wide else None)
     )
     context = browser.new_context(viewport={"width": window, "height": 900})
     if contained:

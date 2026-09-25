@@ -3,7 +3,7 @@
  * one answer about progress and workers.
  *
  * The three readings are panels that stand open, each titled by what it counts. They
- * head the command, or fill the lf-command-readings that names it, so a sheet lays the
+ * head the command, or fill the lf-command-readings that names it, so a wide page lays the
  * tree in its body and the readings in the rail beside it. The command owns the panels
  * it drew wherever they stand: each paint puts them at the head of the current seat, so
  * a seat that arrives or leaves moves them rather than stranding one copy and drawing

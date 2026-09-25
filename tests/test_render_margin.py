@@ -7614,6 +7614,7 @@ PANE_PIN_PAGE = leaf_page(
   <lf-grid id="pin-split" columns="2">
     <lf-pane id="pin-pane" label="Findings">
       <div>
+        <div style="height: 200px"></div>
         <p id="pane-top">The first finding, commented on.</p>
         <div style="height: 1600px"></div>
         <p id="pane-end">The last finding.</p>

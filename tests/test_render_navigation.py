@@ -61,7 +61,6 @@ from render_harness import (
     FEATURE_GALLERY,
     INLINE_PAGE,
     LONG_PAGE,
-    RENDERED,
     ROOT,
     TOKEN,
     ask_actions_hint,
@@ -77,6 +76,7 @@ from render_harness import (
     panel_settled,
     post_event,
     refuse,
+    rendered,
     resized,
     round_trip,
     scroll_settled,
@@ -290,7 +290,7 @@ def test_a_tall_local_comment_survives_its_panes_posture_and_return(browser, ser
     assert sibling_after == sibling_before, (
         f"growing the left composer moved its sibling: {sibling_before}, {sibling_after}"
     )
-    page.evaluate(RENDERED)
+    rendered(page)
     assert field.evaluate(
         """box => {
           box.scrollTop = box.scrollHeight;
@@ -790,7 +790,7 @@ def test_review_queue_decisions_replay_and_reach_the_next_revision_from_the_keyb
     expect(footer).to_contain_text("This revision asks two release-blocking questions")
 
     page.goto(live_url(newest))
-    page.wait_for_function(RENDERED)
+    rendered(page)
     expect(page.locator(".lf-version")).to_have_text("v2")
     expect(page.locator("#review-cache-auto")).to_have_attribute("chosen", "")
     expect(page.locator("#review-billing-legacy")).to_have_attribute("chosen", "")
@@ -942,7 +942,7 @@ def test_comparison_choice_replays_and_is_applied_by_the_next_revision(browser, 
     expect(page.locator("#comparison-policy-shared")).to_have_attribute("chosen", "")
 
     page.goto(live_url(newest))
-    page.wait_for_function(RENDERED)
+    rendered(page)
     expect(page.locator(".lf-version")).to_have_text("v2")
     expect(page.locator("#comparison-policy-shared")).to_have_attribute("chosen", "")
     expect(page.locator("#comparison-proposed > header")).to_contain_text("selected")
@@ -1801,7 +1801,7 @@ def test_a_tab_layout_completion_preserves_native_navigation(browser, serve, int
     page.get_by_role("tab", name="Second", exact=True).focus()
     page.evaluate("scrollTo(0, 400)")
     page.keyboard.press("Enter")
-    page.evaluate(RENDERED)
+    rendered(page)
     page.evaluate("""() => {
       const held = new Promise(resolve => { window.releaseTabLayout = resolve; });
       document.querySelector('#views').addEventListener('lf-layout', event => {
@@ -1823,7 +1823,7 @@ def test_a_tab_layout_completion_preserves_native_navigation(browser, serve, int
             )
     finally:
         page.evaluate("releaseTabLayout()")
-    page.evaluate(RENDERED)
+    rendered(page)
     assert page.evaluate("scrollY") == pytest.approx(expected, abs=1)
 
 
@@ -2087,14 +2087,18 @@ def test_the_ask_walk_position_shares_the_shortcut_line(browser, serve):
     )
     assert "lf-walk-position" not in geometry["first"], geometry
     assert "lf-bottom-status" in geometry["parent"], geometry
+    # The status is a chip standing in the bottom band's row, at its far end.
     assert geometry["status"]["right"] == 1182, geometry
-    assert geometry["status"]["top"] == geometry["line"]["top"], geometry
-    assert geometry["status"]["bottom"] == geometry["line"]["bottom"], geometry
-    assert geometry["status"]["left"] > geometry["line"]["right"], geometry
+    assert geometry["line"]["top"] < geometry["status"]["top"], geometry
+    assert geometry["status"]["bottom"] < geometry["line"]["bottom"], geometry
+    assert (
+        abs(
+            (geometry["status"]["top"] - geometry["line"]["top"])
+            - (geometry["line"]["bottom"] - geometry["status"]["bottom"])
+        )
+        <= 1
+    ), geometry
     assert geometry["font"]["position"] == geometry["font"]["line"], geometry
-    assert geometry["face"]["background"] == geometry["face"]["lineBackground"], (
-        geometry
-    )
     assert geometry["face"]["border"] == "1px", geometry
     assert geometry["face"]["positionBackground"] == "rgba(0, 0, 0, 0)", geometry
     assert geometry["face"]["positionBorder"] == "0px", geometry
@@ -2191,7 +2195,7 @@ def test_a_delayed_ask_reveal_yields_to_programmatic_user_focus(browser, serve):
     expect(page.locator(".lf-threads-toggle")).to_be_focused()
     page.evaluate("releaseAskReveal()")
     page.wait_for_function("window.askRevealSettled === true", timeout=3000)
-    page.evaluate(RENDERED)
+    rendered(page)
 
     expect(page.locator(".lf-threads-toggle")).to_be_focused()
     assert position.text_content() == "Ask 1 of 4 open"
@@ -3288,7 +3292,7 @@ def test_an_ask_navigation_keeps_its_intent_while_materializing_threads(
             page.locator(".lf-general textarea").focus()
     finally:
         page.evaluate("releaseAskMaterialization()")
-    page.evaluate(RENDERED)
+    rendered(page)
     if intervene:
         expect(page.locator(".lf-general textarea")).to_be_focused()
     else:
@@ -4677,7 +4681,7 @@ def test_user_news_interrupts_and_then_restores_background_news(browser, serve):
     }
     expect(live).to_have_text("Agent replied — open Threads")
     expect(notice).to_have_text("Agent replied — open Threads")
-    page.evaluate(RENDERED)
+    rendered(page)
     assert page.evaluate(
         """() => Object.entries(window.__lfStatusNodes).every(
           ([selector, node]) => document.querySelector(selector) === node
@@ -4859,25 +4863,29 @@ def test_a_generated_hint_is_never_drawn_on_the_key_line(browser, serve):
     # corner is an ordinary scroll position with a link resting on the bottom edge. Each
     # step waits for the runtime's own paint frame, since the chips follow a scroll on a
     # frame of their own and boxes read in the same turn are the positions it just left.
-    fouled = page.evaluate(
-        f"""async () => {{
-             const line = () => document.querySelector('.lf-shortcut-bar').getBoundingClientRect();
-             const hit = (a, b) => a.left < b.right && b.left < a.right
-                                && a.top < b.bottom && b.top < a.bottom;
-             const out = [];
-             const room = document.scrollingElement.scrollHeight - document.scrollingElement.clientHeight;
-             for (let i = 0; i <= 20; i++) {{
-               document.scrollingElement.scrollTo(0, Math.round((room * i) / 20));
-               await ({RENDERED})();
-               const bar = line();
-               for (const chip of document.querySelectorAll(
-                 '.lf-go-to-hints > .lf-go-to-hint[data-lf-hint-code]'))
-                 if (hit(chip.getBoundingClientRect(), bar))
-                   out.push(chip.textContent + ' at ' + Math.round(document.scrollingElement.scrollTop));
-             }}
-             return out;
-           }}"""
+    room = page.evaluate(
+        "() => document.scrollingElement.scrollHeight"
+        " - document.scrollingElement.clientHeight"
     )
+    fouled = []
+    for i in range(21):
+        page.evaluate(
+            "top => document.scrollingElement.scrollTo(0, top)", round(room * i / 20)
+        )
+        rendered(page)
+        fouled += page.evaluate(
+            """() => {
+                 const bar = document.querySelector('.lf-shortcut-bar')
+                   .getBoundingClientRect();
+                 const hit = (a, b) => a.left < b.right && b.left < a.right
+                                    && a.top < b.bottom && b.top < a.bottom;
+                 return [...document.querySelectorAll(
+                   '.lf-go-to-hints > .lf-go-to-hint[data-lf-hint-code]')]
+                   .filter(chip => hit(chip.getBoundingClientRect(), bar))
+                   .map(chip => chip.textContent + ' at '
+                     + Math.round(document.scrollingElement.scrollTop));
+               }"""
+        )
     assert fouled == [], (
         f"hints are drawn over the shortcut bar that explains them: {fouled}"
     )
@@ -5047,14 +5055,14 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
         )
 
     page.get_by_role("button", name="? more", exact=True).click()
-    page.evaluate(RENDERED)
+    rendered(page)
     pointer_disclosure = disclosure_state()
     page.reload()
     page.wait_for_function("() => document.querySelectorAll('.lf-thread').length === 3")
     resized(page, 1280, 800)
     page.keyboard.press("g")
     page.keyboard.press("?")
-    page.evaluate(RENDERED)
+    rendered(page)
     key_disclosure = disclosure_state()
     assert pointer_disclosure == key_disclosure, (
         "the visible More control and its ? binding diverged: "
@@ -5065,13 +5073,21 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
 
     for width in (1280, 420):
         resized(page, width, 800)
-        page.wait_for_function(
+        rendered(page)
+        # The sequence's line grows upward over the page; the page's room stays the band's
+        # stated height rather than following it.
+        room = page.evaluate(
             """() => {
-              const line = document.querySelector('.lf-shortcut-bar');
-              const chrome = document.querySelector('.lf-chrome');
-                  return parseFloat(getComputedStyle(chrome).paddingBottom) >= line.offsetHeight + 19;
+              const probe = document.createElement('div');
+              probe.style.cssText = 'position:fixed;visibility:hidden;height:var(--lf-band-h)';
+              document.body.append(probe);
+              const band = probe.getBoundingClientRect().height;
+              probe.remove();
+              return {band, reserved: parseFloat(getComputedStyle(
+                document.querySelector('.lf-chrome')).paddingBottom)};
             }"""
         )
+        assert room["band"] > 0 and room["reserved"] == room["band"], room
         geometry = line.evaluate(
             """node => {
               const visible = [...node.children].filter(el => el.checkVisibility());
@@ -5617,7 +5633,7 @@ def test_no_two_hints_on_the_key_line_say_the_same_word(browser, serve):
     # what this is about is two words a user can see at one time, and the shelf is where
     # the page's own scene is all of it.
     page.keyboard.press("?")
-    page.evaluate(RENDERED)
+    rendered(page)
     standing = page.evaluate(KEY_LINE_HINTS)
     assert {"comment.create", "thread.next thread.previous"} <= {
         hint["commands"] for hint in standing
@@ -5627,7 +5643,7 @@ def test_no_two_hints_on_the_key_line_say_the_same_word(browser, serve):
     # decline promotion, so the shortlist is the walk beside exact numbered travel.
     page.keyboard.press("Escape")
     open_versions(page)
-    page.evaluate(RENDERED)
+    rendered(page)
     versions = page.evaluate(KEY_LINE_HINTS)
     assert {"version.later version.earlier", "version.open-v1 version.open-v2"} <= {
         hint["commands"] for hint in versions
@@ -6837,7 +6853,7 @@ def test_the_arrows_say_which_way_the_section_under_the_user_goes(browser, serve
     page.keyboard.press("ArrowLeft")
     expect(row).to_have_attribute("aria-expanded", "false")
     expect(page.locator("#st-keep")).to_be_hidden()
-    page.evaluate(RENDERED)
+    rendered(page)
     assert row.get_attribute("aria-keyshortcuts") == "Enter Space ArrowRight"
 
     # A disclosure in a message, where the disclosure scope does not reach: thread markup
@@ -7000,7 +7016,7 @@ def test_global_destinations_switch_from_a_covering_workspace(
     expect(versions.locator('.lf-version-row[data-lf-version="1"]')).to_be_focused()
     assert page.locator("main").evaluate("main => main.inert")
     assert not versions.evaluate("surface => surface.inert")
-    page.evaluate(RENDERED)
+    rendered(page)
     version_hints = {hint["commands"] for hint in page.evaluate(KEY_LINE_HINTS)}
     # The phone-width line has room for the scope's first hint only; its presence is what
     # says the covering surface left the versions scope standing.
@@ -7059,7 +7075,7 @@ def test_entering_a_covering_workspace_dismisses_an_existing_popover(browser, se
     expect(versions).to_be_hidden()
     expect(origin).to_be_focused()
     assert page.locator("main").evaluate("main => main.inert")
-    page.evaluate(RENDERED)
+    rendered(page)
     # The selected thread returns to the panel before the panel returns to the page.
     hints = {hint["commands"] for hint in page.evaluate(KEY_LINE_HINTS)}
     assert {"thread.resolution.toggle", "navigation.release"} <= hints, hints
@@ -7158,7 +7174,7 @@ def test_reference_accepts_native_popover_dismissal_across_modal_entry(browser, 
     # lands instead is not settled: sometimes the card they stood on, sometimes the
     # covering panel's list. The card returns to the panel; the panel returns to the
     # page. The versions menu's keys are gone either way.
-    page.evaluate(RENDERED)
+    rendered(page)
     hints = {hint["commands"] for hint in page.evaluate(KEY_LINE_HINTS)}
     assert {"navigation.back", "navigation.release"} & hints, hints
     assert not any(command.startswith("version.") for command in hints), hints
@@ -7407,7 +7423,7 @@ def test_a_comments_quoted_passage_is_in_the_keyboard_journey(browser, serve):
     # left rather than folding the card away under them, so the card comes back open and
     # a press on its summary here would shut it.
     expect(page.locator(".lf-thread:not([hidden])")).to_have_attribute("open", "")
-    page.evaluate(RENDERED)
+    rendered(page)
     resolved_quote = page.locator(".lf-thread:not([hidden]) .lf-quote")
     expect(resolved_quote).not_to_have_class(re.compile(r"\bdetached\b"))
     expect(resolved_quote).to_have_attribute("aria-disabled", "false")
@@ -8230,7 +8246,7 @@ def test_a_key_the_runtime_binds_is_a_key_some_surface_names(browser, serve):
     # disclosure is the one control on it: whatever the face costs, More stays painted and
     # the line stays inside its own box rather than clipping the way out of itself.
     resized(page, 320, 800)
-    page.evaluate(RENDERED)
+    rendered(page)
     smallest = line.evaluate(
         """node => {
           const more = node.querySelector('.lf-shortcut-more');
@@ -8904,7 +8920,7 @@ def test_the_key_line_keeps_local_and_page_hints_and_progressively_reveals_the_r
     expect(line).to_contain_text("less")
     for width in (1200, 420):
         page.set_viewport_size({"width": width, "height": 800})
-        page.evaluate(RENDERED)
+        rendered(page)
         assert more_node.evaluate("button => button === window.__lfShortcutMore")
         geometry = line.evaluate(
             """node => {
@@ -8932,7 +8948,7 @@ def test_the_key_line_keeps_local_and_page_hints_and_progressively_reveals_the_r
         assert geometry["scrollHeight"] <= geometry["clientHeight"], geometry
         assert geometry["bandHeight"] <= geometry["maxItemHeight"] * 2 + 8, geometry
     page.set_viewport_size({"width": 1200, "height": 800})
-    page.evaluate(RENDERED)
+    rendered(page)
     expect(visible_hints).to_have_count(wide_hint_count)
     assert more_node.evaluate("button => button === window.__lfShortcutMore")
     more = page.get_by_role("button", name="? command reference", exact=True)
@@ -9084,15 +9100,25 @@ def test_a_coarse_pointer_keeps_useful_status_without_keyboard_hints(browser, se
     expect(position).to_have_text("Ask 1 of 4 open")
     expect(position).to_be_visible()
     active_room = page.evaluate(
-        """() => ({
-              height: document.querySelector('.lf-walk-position')
-                .getBoundingClientRect().height,
-              reserved: parseFloat(getComputedStyle(
-                document.querySelector('.lf-chrome')).paddingBottom),
-            })"""
+        """() => {
+              const chip = document.querySelector('.lf-bottom-status')
+                .getBoundingClientRect();
+              return {
+                height: document.querySelector('.lf-walk-position')
+                  .getBoundingClientRect().height,
+                top: chip.top, bottom: chip.bottom, viewport: innerHeight,
+                reserved: parseFloat(getComputedStyle(
+                  document.querySelector('.lf-chrome')).paddingBottom),
+              };
+            }"""
     )
+    # A touch screen draws no band, so the standing status overlays the page like a
+    # passing notice: showing it changes nothing about where the page ends, and the
+    # whole chip stands inside the window, clear of its foot.
     assert active_room["height"] > 0, active_room
-    assert active_room["reserved"] > 0, active_room
+    assert active_room["reserved"] == 0, active_room
+    assert 0 <= active_room["top"], active_room
+    assert active_room["bottom"] <= active_room["viewport"] - 14 + 1, active_room
 
     page.locator("#h").click()
     expect(line).to_be_hidden()
@@ -9103,7 +9129,7 @@ def test_a_coarse_pointer_keeps_useful_status_without_keyboard_hints(browser, se
     # same green.
     fine = open_page(browser, serve(NOTED_PAGE))
     resized(fine, 390, 844)
-    fine.evaluate(RENDERED)
+    rendered(fine)
     reserved = fine.evaluate(
         "() => getComputedStyle(document.querySelector('.lf-chrome')).paddingBottom"
     )
@@ -9164,16 +9190,11 @@ UNDER_THE_LINE = """(id) => {
 
 
 def test_the_key_line_stands_in_a_band_of_its_own(browser, serve):
-    """The line is fixed at the foot of the window, so what it owes the page is a band:
-    room of its own where the document ends, and no press taken from what it stands over
-    on the way there.
-
-    The room was measured as the line's height alone. Its own 14px inset came out of the
-    20px of air that was supposed to be left over, so the document's last line cleared the
-    line by five pixels rather than twenty. The band from the line's top to a region's own
-    foot is one measurement and covers every inset. A covering sheet leaves that viewport
-    band unchanged: its growing foreground footer is not geometry owned by the background
-    line.
+    """The line is the bottom band, fixed at the foot of the window at one stated height,
+    so what it owes the page is exactly that band: room of its own where the document
+    ends, and no press taken from what it stands over on the way there. The page's own
+    foot keeps its air above the band. A covering sheet leaves the band unchanged: its
+    growing foreground footer is not geometry owned by the background line.
 
     The press is the other half. The line and its chips take no pointer events, so a
     control the line stands over on some scroll position is still a control. Its More
@@ -9186,13 +9207,12 @@ def test_the_key_line_stands_in_a_band_of_its_own(browser, serve):
     page.evaluate(
         "() => { const s = document.scrollingElement; s.scrollTo({top: s.scrollHeight}); }"
     )
-    page.evaluate(RENDERED)
+    rendered(page)
     ended = page.evaluate(FOOT_ROOM)
     assert ended["atEnd"] and ended["lineHeight"] > 0, ended
-    # The band, and the air over it. Reserving the height alone spent 14 of the 20px on
-    # the line's own inset and left five, which clears and says nothing about whether the
-    # reservation knows what it is reserving for.
-    assert ended["reserved"] >= ended["footprint"] + 20, ended
+    # The reservation is the band itself, and the band reaches the window's foot.
+    assert ended["reserved"] == pytest.approx(ended["footprint"], abs=1), ended
+    assert ended["footprint"] == pytest.approx(ended["lineHeight"], abs=1), ended
     assert ended["clearance"] >= 20, (
         f"the document's last control ends in the shortcut bar's band: {ended}"
     )
@@ -9202,13 +9222,13 @@ def test_the_key_line_stands_in_a_band_of_its_own(browser, serve):
     # the viewport-fixed line when the sheet closes again.
     resized(page, 420, 900)
     page.get_by_role("button", name=re.compile("^Threads")).click()
-    page.evaluate(RENDERED)
+    rendered(page)
     covered = page.evaluate(FOOT_ROOM)
     assert covered["footprint"] == pytest.approx(ended["footprint"], abs=1), (
         f"the covering sheet moved the viewport-fixed line: {ended}, {covered}"
     )
-    assert covered["reserved"] >= covered["footprint"] + 20, (
-        f"the document lost the line's standing reservation: {covered}"
+    assert covered["reserved"] == pytest.approx(covered["footprint"], abs=1), (
+        f"the document lost the band's standing reservation: {covered}"
     )
     page.keyboard.press("Escape")
 
@@ -9224,7 +9244,7 @@ def test_the_key_line_stands_in_a_band_of_its_own(browser, serve):
           scrollBy(0, box.top + box.height / 2 - (line.top + line.height / 2));
         }"""
     )
-    page.evaluate(RENDERED)
+    rendered(page)
     under = page.evaluate(UNDER_THE_LINE, "foot-change")
     assert under["band"] > 8 and under["covered"] > 0, (
         f"the aim never reached page under the line's chips, so it proves nothing: {under}"
@@ -9283,7 +9303,7 @@ def test_the_walk_reaches_more_and_goes_on_after_the_line_has_repainted(browser,
 
     That is why the frame is the whole of this test. Pressed back to back the walk is
     whole, because the repaint has not run yet between the presses — the failure hid
-    behind the one habit every browser test has. So each press waits two frames, and the
+    behind the one habit every browser test has. So each press waits for `rendered`, and the
     contrast is against the same walk pressed fast: they have to agree.
 
     Reaching More is the claim, and going on past it is the other half — a walk that
@@ -9307,7 +9327,7 @@ def test_the_walk_reaches_more_and_goes_on_after_the_line_has_repainted(browser,
         for _ in range(24):
             page.keyboard.press("Tab")
             if settled:
-                page.evaluate(RENDERED)
+                rendered(page)
             trail.append(page.evaluate(who))
         walks["frame" if settled else "fast"] = trail
 
@@ -9333,7 +9353,7 @@ def test_the_walk_reaches_more_and_goes_on_after_the_line_has_repainted(browser,
         ):
             break
     expect(page.locator(".lf-shortcut-more")).to_be_focused()
-    page.evaluate(RENDERED)
+    rendered(page)
     expect(page.locator(".lf-shortcut-more")).to_be_focused()
     page.evaluate(
         """() => {
@@ -9343,7 +9363,7 @@ def test_the_walk_reaches_more_and_goes_on_after_the_line_has_repainted(browser,
           dispatchEvent(new Event('resize'));
         }"""
     )
-    page.evaluate(RENDERED)
+    rendered(page)
     assert page.evaluate(
         """() => {
           const line = document.querySelector('.lf-shortcut-bar');
@@ -9762,7 +9782,7 @@ def test_reactionless_other_responses_can_turn_the_compact_field_into_a_suggesti
     expect(box).to_have_value(
         re.compile("A paragraph carrying bold text and emphasis inside it")
     )
-    page.evaluate(RENDERED)
+    rendered(page)
     expect(box).to_have_attribute("placeholder", re.compile(r"^Replacement text .*⏎$"))
 
 
@@ -10530,7 +10550,7 @@ def test_c_comments_on_what_the_user_is_standing_in(browser, serve):
 
     # A decision with no seat: focus on its action names the rewrite, and the composer
     # anchors there rather than on the page.
-    page.evaluate(RENDERED)
+    rendered(page)
     rewrite_action = page.locator(
         '[data-lf-margin-entry-owner="suggestion:sug-window"]'
         '[data-lf-margin-entry-key="accept"]:visible'
@@ -10552,7 +10572,7 @@ def test_c_comments_on_what_the_user_is_standing_in(browser, serve):
     # doing it: it always said "option", and the open one used to say "options".
     for expected_id in ("sh-steel", "st-keep"):
         drop()
-        page.evaluate(RENDERED)
+        rendered(page)
         if expected_id == "st-keep":
             settled = page.locator("#settled .lf-settled")
             settled.click()
@@ -10569,7 +10589,7 @@ def test_c_comments_on_what_the_user_is_standing_in(browser, serve):
         drop()
 
     # Below any ask, the innermost item: the paragraph the focused link sits in.
-    page.evaluate(RENDERED)
+    rendered(page)
     passage_link = page.locator("#p1 a")
     passage_link.focus()
     expect(passage_link).to_be_focused()

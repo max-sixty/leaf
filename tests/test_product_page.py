@@ -225,13 +225,9 @@ def test_how_it_works_delivery_has_the_shape_a_real_delivery_has(page_dir):
     reworded clause has to be copied into the sample.
     """
     transcript = html.unescape((DOCS / "how-it-works.html").read_text())
-    shown = json.loads(
-        next(
-            line
-            for line in transcript.splitlines()
-            if delivery_model.DELIVERY_FORMAT in line
-        )
-    )
+    # The page indents the envelope for reading, so it opens on a line of its own.
+    shown, _ = json.JSONDecoder().raw_decode(transcript, transcript.index("\n{\n") + 1)
+    assert shown["format"] == delivery_model.DELIVERY_FORMAT
     comment = events_model.append_event(
         page_dir, {"kind": "comment", "author": "user", "text": "Please answer"}
     )

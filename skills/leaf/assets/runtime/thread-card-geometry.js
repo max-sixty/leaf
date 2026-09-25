@@ -22,7 +22,9 @@
    The inputs are client rectangles and lengths and the module reads no DOM, so the rule
    is arithmetic a test can state. `heightAt(width)` is the one measurement: the card's
    rendered height at that width under the boundary's height cap, which the caller
-   reads from the live card. */
+   reads from the live card. While a right-hand reply is being edited,
+   `rightFootOffset` keeps the card's foot at its original distance below the
+   cluster; the boundary still clamps a card that grows too tall. */
 
 const clamp = (value, low, high) => Math.max(low, Math.min(high, value));
 
@@ -34,6 +36,7 @@ export function threadCardGeometry({
   minWidth,
   preferredWidth,
   heightAt,
+  rightFootOffset = null,
 }) {
   const preferred = Math.min(preferredWidth, boundary.width);
   const minimum = Math.min(minWidth, preferred);
@@ -52,12 +55,18 @@ export function threadCardGeometry({
     : under + height <= boundary.bottom || over < boundary.top
       ? "below"
       : "above";
-  const y = { right: cluster.top, below: under, above: over }[placement];
+  const y = {
+    right:
+      rightFootOffset === null ? cluster.top : cluster.top + rightFootOffset - height,
+    below: under,
+    above: over,
+  }[placement];
   return {
     placement,
     x,
     y: clamp(y, boundary.top, boundary.bottom - height),
     width,
+    height,
     detached: cluster.bottom <= boundary.top || cluster.top >= boundary.bottom,
   };
 }

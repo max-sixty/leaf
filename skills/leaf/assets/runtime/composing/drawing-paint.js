@@ -5,6 +5,7 @@
  * retained node identity, resize observation, and its scheduled geometry refresh.
  */
 
+import { cancelRender, nextRender, sizeObserver } from "../rendering.js";
 import { setChildren } from "../dom-children.js";
 import { shownBox } from "../geometry.js";
 import { el } from "../widget-elements.js";
@@ -58,7 +59,7 @@ export function createDrawingPaint({ anchors, activeDrawing, draftDrawings }) {
   let mounted = new Map();
   let mounting = new Map();
   const observed = new Set();
-  const sizes = new ResizeObserver(() => shifted());
+  const sizes = sizeObserver(() => shifted());
 
   // The complete description is the retained-node key. Two equal marks in one pass
   // still consume distinct prior nodes in order.
@@ -165,14 +166,14 @@ export function createDrawingPaint({ anchors, activeDrawing, draftDrawings }) {
 
   function shifted() {
     if (paintFrame) return;
-    paintFrame = requestAnimationFrame(() => {
+    paintFrame = nextRender(() => {
       paintFrame = 0;
       paint();
     });
   }
 
   function destroy() {
-    if (paintFrame) cancelAnimationFrame(paintFrame);
+    if (paintFrame) cancelRender(paintFrame);
     paintFrame = 0;
     sizes.disconnect();
     observed.clear();

@@ -51,6 +51,7 @@
  * open, including when the platform dismisses it. Scopes sharing a title merge their
  * rows; an unavailable contributor supplies none.
  */
+import { nextRender } from "./rendering.js";
 import { pageUrl, revisionLabel, runtime } from "./context.js";
 import {
   documentWidgetDigests,
@@ -1603,7 +1604,7 @@ export function createVersionController({
     scrolled.add(event?.target === document ? pageScroller : event?.target);
     if (recordQueued) return;
     recordQueued = true;
-    requestAnimationFrame(() => {
+    nextRender(() => {
       recordQueued = false;
       const moved = scrolled.has(undefined) ? null : new Set(scrolled);
       scrolled.clear();
@@ -1685,7 +1686,7 @@ export function createVersionController({
     // Announced from a resize observer's delivery; restoring there could reveal a
     // region and resize what the observer watches, so it waits for the next frame.
     if (phase === "shift") {
-      requestAnimationFrame(() => restoreShifted(shifted));
+      nextRender(() => restoreShifted(shifted));
       return;
     }
     // A composition change captures the intact view before hiding any region, and its

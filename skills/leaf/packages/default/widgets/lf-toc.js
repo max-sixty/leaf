@@ -30,13 +30,16 @@
  * On an initial load the shared arrival pass runs after all widgets settle, so it can
  * honor a generated target that did not exist during HTML parsing. */
 import {
-  LAYOUT,
-  PRESENTATION,
+  cancelRender,
   inChrome,
   landingInsets,
+  LAYOUT,
+  nextRender,
   once,
+  PRESENTATION,
   relabel,
   scrollerFor,
+  sizeObserver,
   wrote,
 } from "/runtime/widget-api.js";
 
@@ -84,8 +87,8 @@ customElements.define(
       this.#main?.removeEventListener(LAYOUT, this.#onLayout);
       document.removeEventListener(PRESENTATION, this.#onPresentation);
       window.removeEventListener("resize", this.#onResize);
-      cancelAnimationFrame(this.#measureFrame);
-      cancelAnimationFrame(this.#paintFrame);
+      cancelRender(this.#measureFrame);
+      cancelRender(this.#paintFrame);
       this.#measureFrame = 0;
       this.#paintFrame = 0;
     }
@@ -184,7 +187,7 @@ customElements.define(
       // each kind of scroller.
       this.#scrollSource =
         this.#scroller === document.scrollingElement ? document : this.#scroller;
-      this.#watching = new ResizeObserver(() => this.#scheduleMeasure());
+      this.#watching = sizeObserver(() => this.#scheduleMeasure());
       this.#watching.observe(this.#main);
       // Watched at the heading rather than at the destination the row points to. A
       // section that grows — an image arriving, a fold opening — moves every marker
@@ -206,7 +209,7 @@ customElements.define(
 
     #scheduleMeasure() {
       if (this.#measureFrame || !this.isConnected) return;
-      this.#measureFrame = requestAnimationFrame(() => {
+      this.#measureFrame = nextRender(() => {
         this.#measureFrame = 0;
         this.#measure();
       });
@@ -394,7 +397,7 @@ customElements.define(
 
     #schedulePaint() {
       if (this.#paintFrame || !this.isConnected) return;
-      this.#paintFrame = requestAnimationFrame(() => {
+      this.#paintFrame = nextRender(() => {
         this.#paintFrame = 0;
         this.#paint();
       });

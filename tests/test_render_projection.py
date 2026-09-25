@@ -92,7 +92,6 @@ from render_harness import (
     EXAMPLE_PACKAGES,
     IMPORTER_CARD,
     ONE_FRAME,
-    RENDERED,
     REPLAYED_PAGE,
     REPLY_HOST_PAGE,
     SPECIMEN_MARKUP,
@@ -113,6 +112,7 @@ from render_harness import (
     panel_settled,
     post_event,
     refuse,
+    rendered,
     resized,
     round_trip,
     scroll_settled,
@@ -1098,6 +1098,8 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     decoded_css_width = first.locator("lf-shot img").first.evaluate(
         "image => image.naturalWidth / 2"
     )
+    # The widget lays out a scale change in a rendering callback after the click.
+    rendered(page)
     assert first.locator("lf-shot img").first.evaluate(
         "image => image.getBoundingClientRect().width"
     ) == pytest.approx(decoded_css_width, abs=1), (
@@ -4312,7 +4314,7 @@ def test_the_ring_says_where_the_user_is_standing(browser, serve):
     # Read after the frame the focus move's repaint is coalesced into, so this states the
     # band the page settles on rather than whichever side of that frame the read lands on.
     page.keyboard.press("Tab")
-    page.evaluate(RENDERED)
+    rendered(page)
     decision_ring = suggestion.evaluate(RING)
     assert decision_ring == row_ring, (
         "the decision lost its ring while the user held one of its own margin "

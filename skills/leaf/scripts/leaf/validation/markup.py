@@ -1,7 +1,8 @@
 """Shared structural and authored-markup validation rules."""
 
-import re
 from pathlib import Path
+
+from markdown_it import MarkdownIt
 
 from leaf.schema import MEDIA_DIR
 from leaf.structure import (
@@ -13,17 +14,7 @@ from leaf.structure import (
 )
 from leaf.styles import inline_presentation_override_errors
 
-# One media reference as a message's Markdown writes it: an inline destination, or the
-# definition a reference-style link resolves through, read where the runtime's own
-# `isCanonicalMediaUrl` reads one — so a path standing in a sentence or a fence keeps
-# being the author's words rather than a file the page owes. Any `/media/…` it names,
-# which is the predicate the markup door's attribute harvest already keeps: the
-# directory holds digest-named files and nothing else, so every other destination is
-# one it cannot answer either.
-MEDIA_REFERENCE = re.compile(
-    rf"(?:\]\(\s*|^ {{0,3}}\[[^\]\n]+\]:\s*)<?(/{MEDIA_DIR}/[^\s)>]+)",
-    re.MULTILINE,
-)
+_message_markdown = MarkdownIt("commonmark")
 
 
 def reserved_ids_error(ids: list) -> str:
@@ -324,16 +315,18 @@ def text_media_errors(text: str, page_dir: Path) -> list:
     through the one door that never asked. `check_markup` runs only when `--markup` is
     given, and text on its own reached the log unread.
 
-    A reference is a link or image destination, never a scan of the words: the runtime
-    resolves `/media/…` off a token's href and nowhere else, `version check` says the
-    same of authored markup, and `inline_assets` learned it from an export a text scan
-    crashed. So a path quoted in prose is the author writing about leaf, and only a
-    destination is a file the directory has to answer. A destination is written two
-    ways, and `marked` resolves both to the same href: inline after `](`, or as the
-    definition a reference-style `![shot][ref]` points at. The residual is a fence
-    quoting either construct — the one `inline_assets` names and accepts too — and a
-    definition nothing references, which renders nothing but reads as one."""
-    return _unanswered_media(set(MEDIA_REFERENCE.findall(text)), page_dir)
+    A reference is a rendered link or image destination, never a scan of the words.
+    Parsing the Markdown resolves referenced definitions and leaves fenced examples
+    and unused definitions as text, so neither asks for a file the page will not load."""
+    refs = {
+        url
+        for token in _message_markdown.parse(text)
+        for child in token.children or ()
+        if child.type in {"link_open", "image"}
+        if (url := child.attrGet("href" if child.type == "link_open" else "src"))
+        and url.startswith(f"/{MEDIA_DIR}/")
+    }
+    return _unanswered_media(refs, page_dir)
 
 
 def _unanswered_media(refs, page_dir: Path) -> list:

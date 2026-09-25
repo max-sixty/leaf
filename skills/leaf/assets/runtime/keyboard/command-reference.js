@@ -16,6 +16,7 @@
    The catalog is deliberately frozen while open. A command that becomes live waits until
    the next opening; one that becomes unavailable is rejected by fresh dispatch and causes
    the reference to reopen with an explanation. */
+import { nextRender } from "../rendering.js";
 import { html, nothing, render, repeat } from "../../vendor/browser-runtime.js";
 
 import {
@@ -498,7 +499,7 @@ function activateCommandEntry(entry) {
   // next frame.
   const invokeCommand = commandReferenceInvoke;
   closeCommandReference();
-  requestAnimationFrame(() => {
+  nextRender(() => {
     if (invokeCommand?.(entry.id)) return;
     openCommandReference(invokeCommand);
     commandReferenceState = {
@@ -783,7 +784,7 @@ function handBackTo(control) {
   // the reference was up — and the page is where the user was. A user who has moved
   // on meanwhile keeps their own place: their press is the newer word.
   const mayLand = retainUserIntent();
-  requestAnimationFrame(() => {
+  nextRender(() => {
     if (!mayLand() || landed()) return;
     if (!control.isConnected || !control.checkVisibility()) letGo();
   });

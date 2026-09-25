@@ -983,6 +983,7 @@ BOTH_STAMPS = """() => {
   ) return false;
   const entry = document.querySelector('script[data-lf-entry]');
   if (!(entry?.lfCurrentPresentationReady?.() ?? false)) return false;
+  if (!(entry.lfRenderingSettled?.() ?? false)) return false;
   return entry.lfPageArrived?.() ?? false;
 }"""
 FIRST_PAINT = """() => performance
@@ -1181,18 +1182,46 @@ FRAMES = (
     "  let left = turns;\n"
     "  const step = () => {\n"
     "    if (--left > 0) return requestAnimationFrame(step);\n"
-    "    clearTimeout(deadline);\n"
-    "    rendered();\n"
+    "    setTimeout(() => {\n"
+    "      clearTimeout(deadline);\n"
+    "      rendered();\n"
+    "    });\n"
     "  };\n"
     "  requestAnimationFrame(step);\n"
     "})"
 )
-# One turn is the frame a write has been through; two is a turn whose own consequences
-# have been through one, which is what a read after a coalesced repaint needs. Nested
-# animation-frame callbacks have one complete rendering turn between them, so this states
-# rendered progress rather than elapsed time between two frame polls.
+# One turn is the frame a write has been through: nested animation-frame callbacks have one
+# complete rendering turn between them, so this states rendered progress rather than
+# elapsed time between two frame polls. Each wait ends in a task queued from its last
+# callback, after that update's ResizeObserver deliveries.
 ONE_FRAME = f"() => ({FRAMES})(1)"
-RENDERED = f"() => ({FRAMES})(2)"
+RENDERING_SETTLED = """() => {
+  const settled = document.querySelector('script[data-lf-entry]')?.lfRenderingSettled;
+  if (!settled) throw new Error('this document has no Leaf rendering reading');
+  return settled();
+}"""
+
+
+def rendered(page):
+    """Wait until the runtime has rendered what the input so far asked for.
+
+    Its settled reading (runtime/rendering.js) says nothing it queued is waiting and its
+    last rendering update was quiet. A read after a coalesced repaint, however many
+    updates that repaint chains through, waits here instead of guessing a count. One
+    whole update passes first, observers included, so a change no Leaf callback took
+    part in — a wheel, a resize — has had its turn to unsettle the reading.
+
+    Work that re-queues itself on every update never settles: a fold the test holds
+    mid-animation keeps its place hold correcting each frame. Wait `ONE_FRAME` there,
+    where one update is the claim."""
+    page.evaluate(ONE_FRAME)
+    try:
+        page.wait_for_function(RENDERING_SETTLED, timeout=FRAME_DEADLINE_MS)
+    except PlaywrightTimeout as error:
+        raise AssertionError(
+            "the page's rendering never settled: counted work was queued again on "
+            "every update"
+        ) from error
 
 
 # What navigate reports when a ResizeObserver loop notice comes back on the confirming
@@ -1245,11 +1274,12 @@ def navigate(page, url, *, wait_until="load", ready=BOTH_STAMPS):
 
 
 def shortcut_bar_text(page):
-    """What the shortcut bar says, once the runtime has had its frame to say it.
+    """What the shortcut bar says, once the runtime's rendering has settled.
 
-    The shared repaint coalesces to a `requestAnimationFrame`, so a read taken in the same
-    round-trip as the press that caused it is a read of the frame before. Two frames,
-    because the repaint's own rAF may be queued behind this one's.
+    The shared repaint coalesces to a rendering update, so a read taken in the same
+    round-trip as the press that caused it is a read of the update before. `rendered`
+    reads after the whole repaint chain the press queued, and only that: nothing waits
+    for the heartbeat.
 
     Read once and never retried, which is the point of it: a disclosure's word is either
     what the watch painted within the press or what the two-second heartbeat paints
@@ -1257,7 +1287,7 @@ def shortcut_bar_text(page):
     budget —
     reading a stale line as an eventually right one.
     """
-    page.evaluate(RENDERED)
+    rendered(page)
     return page.locator(".lf-shortcut-bar").inner_text()
 
 
@@ -1790,7 +1820,7 @@ def hold_selection(page, start, end, steps=8, frame_the_press=False):
     page.mouse.move(math.floor(start[0]), math.floor(start[1]))
     page.mouse.down()
     if frame_the_press:
-        page.evaluate(RENDERED)
+        rendered(page)
     page.mouse.move(end[0], end[1], steps=steps)
 
 

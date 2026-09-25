@@ -21,8 +21,8 @@ from render_cases_layout import (
 )
 from render_harness import (
     LONG_PAGE,
-    RENDERED,
     leaf_page,
+    rendered,
     told,
 )
 
@@ -266,7 +266,7 @@ CHIPS = ".lf-go-to-hints > .lf-go-to-hint[data-lf-hint-code]"
 
 
 def address_codes(page):
-    page.evaluate(RENDERED)
+    rendered(page)
     return page.locator(CHIPS).evaluate_all(
         "chips => chips.map(chip => chip.dataset.lfHintCode)"
     )

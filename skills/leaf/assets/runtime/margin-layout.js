@@ -15,6 +15,7 @@
    never gives it back. The runtime states that reservation as `data-lf-rail` on the root,
    and the cascade spends it there; neither reads what is standing in the margin, because
    a row's placement depends on the strip it would be answering about. */
+import { cancelRender, nextRender, sizeObserver } from "./rendering.js";
 import { shellRight } from "./geometry.js";
 
 const rows = new Map();
@@ -100,7 +101,7 @@ function placeMarginEntryLabel(control) {
 let labelPlacementFrame = 0;
 export function scheduleMarginEntryLabels() {
   if (labelPlacementFrame) return;
-  labelPlacementFrame = requestAnimationFrame(() => {
+  labelPlacementFrame = nextRender(() => {
     labelPlacementFrame = 0;
     for (const control of document.querySelectorAll(
       '.lf-margin-entry:is(:hover, :focus-visible, .lf-focus-visible):not([aria-expanded="true"])',
@@ -124,13 +125,13 @@ export function reserveRail() {
 
 function scheduleMarginLayout() {
   if (pending) return;
-  pending = requestAnimationFrame(layoutMarginRows);
+  pending = nextRender(layoutMarginRows);
 }
 
 function observeLayout() {
   const column = marginColumn();
   if (!observer) {
-    observer = new ResizeObserver(scheduleMarginLayout);
+    observer = sizeObserver(scheduleMarginLayout);
     observer.observe(document.body);
   }
   if (observedColumn === column) return;
@@ -186,7 +187,7 @@ function placeRows(columnRect) {
 }
 
 export function layoutMarginRows() {
-  cancelAnimationFrame(pending);
+  cancelRender(pending);
   pending = 0;
   // A compact page keeps every margin row in document flow. Pulling those rows out to
   // re-measure the same posture briefly shortens the document, so a browser clamps a

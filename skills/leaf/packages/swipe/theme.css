@@ -19,7 +19,7 @@ lf-ask:has(> lf-swipe-deck) {
 }
 
 /* Every pile is a region of the deck and is drawn as one: a panel headed by its verdict
- * and count, like a sheet's panels, so an empty Kept or Passed pile still reads as a
+ * and count, like a wide page's panels, so an empty Kept or Passed pile still reads as a
  * place a card can go rather than a rule under a label. */
 lf-swipe-pile {
   display: block;
@@ -353,12 +353,12 @@ lf-swipe-pile[verdict="keep"]
   }
 }
 
-/* Wide enough for a rail, the deck is a sheet's body beside its rail on the sheet's own
+/* Wide enough for a rail, the deck is a wide page's body beside its rail on the page's own
  * tracks (2fr 1fr, lf-grid's gap): the queue and its controls in the body, Kept above
  * Passed in the rail, so both piles stay in view while the reader sorts. The rows are
  * auto: the queue spans the two the rail piles take, so it grows to the rail's height
  * and a taller queue shares its extra height evenly between Kept and Passed. */
-@container lf-swipe-frame (min-width: 51rem) {
+@container lf-swipe-frame (min-width: 43.5rem) {
   lf-swipe-deck {
     width: 100%;
     margin-inline: 0;

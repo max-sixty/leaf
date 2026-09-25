@@ -1331,7 +1331,7 @@ def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
     assert geometry["widget"]["width"] > 1000
     assert geometry["widget"]["bottom"] <= 768
     assert geometry["decision"]["bottom"] <= geometry["evidence"]["top"]
-    # 340 rather than 360 since a sheet's workspace keeps its title clear of the banner
+    # 340 rather than 360 since a root workspace keeps its title clear of the banner
     # (the sp-4 it pads its own top by comes out of the stage at a 768px laptop).
     assert geometry["evidence"]["height"] >= 340, geometry
     assert geometry["evidence"]["bottom"] <= 768, geometry

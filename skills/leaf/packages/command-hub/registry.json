@@ -264,7 +264,7 @@
     "x-example": "<lf-command id=\"aviary-command\" label=\"A squirrel-proof garden\" phase=\"week 2 of 4\">\n  <lf-agent id=\"lead\" state=\"working\"><strong>lead</strong> Coordinates the whole garden.</lf-agent>\n  <lf-task id=\"goal-feeders\" status=\"active\">\n    <strong>Rebuild the feeders</strong>\n    <lf-agent id=\"w-1\" state=\"working\" on=\"goal-feeders\"><strong>w-1</strong> Fitting the baffles.</lf-agent>\n  </lf-task>\n</lf-command>"
   },
   "lf-command-readings": {
-    "description": "Where a command's readings stand when they belong beside its tree rather than at its head: the outcome with its done fraction and counts, the stopped work oldest first, and the live workers. Author it empty, with `for` naming the lf-command, in the rail of a sheet whose body holds the tree; the command fills it and keeps it current. Without one, the command heads itself with the same panels.",
+    "description": "Where a command's readings stand when they belong beside its tree rather than at its head: the outcome with its done fraction and counts, the stopped work oldest first, and the live workers. Author it empty, with `for` naming the lf-command, in the rail of a wide page whose body holds the tree; the command fills it and keeps it current. Without one, the command heads itself with the same panels.",
     "type": "object",
     "properties": {
       "id": {
@@ -291,7 +291,7 @@
       }
     },
     "x-upgrade": true,
-    "x-example": "<lf-grid id=\"plan-sheet\" columns=\"2fr 1fr\">\n  <lf-command id=\"garden-command\" label=\"A squirrel-proof garden\" phase=\"week 2 of 4\">\n    <lf-task id=\"goal-feeders\" status=\"active\"><strong>Rebuild the feeders</strong></lf-task>\n  </lf-command>\n  <lf-command-readings for=\"garden-command\"></lf-command-readings>\n</lf-grid>"
+    "x-example": "<lf-grid id=\"plan-tracks\" columns=\"2fr 1fr\">\n  <lf-command id=\"garden-command\" label=\"A squirrel-proof garden\" phase=\"week 2 of 4\">\n    <lf-task id=\"goal-feeders\" status=\"active\"><strong>Rebuild the feeders</strong></lf-task>\n  </lf-command>\n  <lf-command-readings for=\"garden-command\"></lf-command-readings>\n</lf-grid>"
   },
   "lf-task": {
     "description": "One piece of the work. Lead with a <strong> title; prose follows, and child lf-task elements after the prose are its decomposition. `status` colors the marker: planned, active, blocked (stuck — the prose says on what), review (finished by whoever held it and ready to be reviewed), stalled (work produced no durable progress), or done. Status describes the work. User work is a nested Ask whose widget supplies the answer control; the task rolls that Ask through the plan but never originates one. `owner` names who holds the work, `when` is a free-text schedule label, and `tags` adds one chip per entry. A parent with children gets a generated done-fraction chip. The `status` report is provisional agent state (`leaf report <page> <task-id> status status=review`); a stamped version absorbs or overrules it through `overruled` (see $report).",

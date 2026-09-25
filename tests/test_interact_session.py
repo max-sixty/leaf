@@ -254,12 +254,19 @@ def test_delivery_claim_marks_only_a_current_delivered_move_active(page_dir):
     first_delivery = freeze_events(page_dir, [first])
 
     claimed = CliRunner().invoke(
-        cli_model.cli, ["delivery", "claim", first_delivery["id"]]
+        cli_model.cli,
+        [
+            "delivery",
+            "claim",
+            first_delivery["id"],
+            "--detail",
+            "Answering the comment",
+        ],
     )
     assert claimed.exit_code == 0, claimed.output
     assert "working on conversation first for event first" in claimed.output
     status = files_model.read_json(page_dir / "status.json")
-    assert status["detail"] == session_model.DELIVERY_CLAIM_DETAIL
+    assert status["detail"] == "Answering the comment"
     assert status["handling"]["target"] == {"kind": "conversation", "id": "first"}
     assert status["handling"]["event"] == first["id"]
     live = page_state(page_dir)
@@ -268,7 +275,7 @@ def test_delivery_claim_marks_only_a_current_delivered_move_active(page_dir):
     assert (workflow["input"], workflow["stage"], workflow["detail"]) == (
         first["id"],
         "working",
-        session_model.DELIVERY_CLAIM_DETAIL,
+        "Answering the comment",
     )
     assert all(
         update.get("id") != status["handling"]["id"]
@@ -293,7 +300,14 @@ def test_delivery_claim_marks_only_a_current_delivered_move_active(page_dir):
         (second["id"], "sent", True),
     ]
     stale = CliRunner().invoke(
-        cli_model.cli, ["delivery", "claim", first_delivery["id"]]
+        cli_model.cli,
+        [
+            "delivery",
+            "claim",
+            first_delivery["id"],
+            "--detail",
+            "Answering the comment",
+        ],
     )
     assert stale.exit_code == 0, stale.output
     assert "no outstanding user move" in stale.output
@@ -333,7 +347,15 @@ def test_delivery_claim_refuses_an_event_outside_the_delivery(page_dir):
 
     result = CliRunner().invoke(
         cli_model.cli,
-        ["delivery", "claim", delivery["id"], "--event", "another-event"],
+        [
+            "delivery",
+            "claim",
+            delivery["id"],
+            "--event",
+            "another-event",
+            "--detail",
+            "Answering the comment",
+        ],
     )
 
     assert result.exit_code != 0
@@ -774,7 +796,10 @@ def test_a_frozen_move_that_answers_no_ask_keeps_a_receipt_and_owes_nothing(
     delivery = freeze_events(page_dir, [moved])
     [event] = delivery["batches"][0]["events"]
     assert "answer" not in event
-    claimed = CliRunner().invoke(cli_model.cli, ["delivery", "claim", delivery["id"]])
+    claimed = CliRunner().invoke(
+        cli_model.cli,
+        ["delivery", "claim", delivery["id"], "--detail", "Rearranging the cards"],
+    )
     assert claimed.exit_code == 0, claimed.output
     state, attention = reading()
     [workflow] = state["workflows"]
@@ -903,7 +928,10 @@ def test_delivery_claim_uses_the_projected_widget_receipt(page_dir):
     )
     delivery = freeze_events(page_dir, [chosen])
 
-    result = CliRunner().invoke(cli_model.cli, ["delivery", "claim", delivery["id"]])
+    result = CliRunner().invoke(
+        cli_model.cli,
+        ["delivery", "claim", delivery["id"], "--detail", "Building the flag"],
+    )
 
     assert result.exit_code == 0, result.output
     assert f"working on widget choice for event {chosen['id']}" in result.output
@@ -1417,7 +1445,8 @@ def test_an_active_receipt_says_which_thread_the_agent_is_on(
     comment_seq = events_model.read_events(page_dir)[-1]["seq"]
     # A line names a thread, says what is being done, and says it about work in hand:
     # the two other states have nothing to put on a thread, and a line with no words
-    # says nothing the thread does not already show.
+    # says nothing the thread does not already show. The banner's own line is held to
+    # the same rule: its dot already says working.
     assert (
         "not a comment thread"
         in _status(page_dir, "working", "reading the traces", "--on", "nope").output
@@ -1427,6 +1456,7 @@ def test_an_active_receipt_says_which_thread_the_agent_is_on(
         in _status(page_dir, "waiting", "your read on this", "--on", "c1").output
     )
     assert "needs a detail" in _status(page_dir, "working", "--on", "c1").output
+    assert "needs a detail" in _status(page_dir, "working").output
     assert "work" not in files_model.read_json(page_dir / "status.json")
 
     monkeypatch.setenv("LEAF_AGENT", "Trace reader")
@@ -2087,15 +2117,6 @@ def test_a_current_declaration_keeps_the_sentence_a_live_stream_stands_beside(cl
         "Running the tests",
     )
 
-    # A declaration with no words is not a sentence to prefer: `leaf status <page>
-    # working` says only that work is happening, which the step says better.
-    session_model.cmd_status(claimed, "working", "")
-    wordless = page_state(claimed)["activity"]
-    assert (wordless["kind"], wordless["detail"], wordless["observed"]) == (
-        "working",
-        "Running the tests",
-        "Running the tests",
-    )
     session_model.cmd_status(claimed, "waiting", "which store should own it")
 
     # A newer user move has its own pending delivery; it does not reclassify current
@@ -2116,48 +2137,6 @@ def test_a_current_declaration_keeps_the_sentence_a_live_stream_stands_beside(cl
         "Running the tests",
     )
     assert quiet["counts"]["pending"] == 1
-    lease.close()
-
-
-def test_leaf_wording_for_a_claim_gives_way_to_a_watched_step(claimed):
-    """`delivery claim` writes a sentence so a taken-up move says so at once.
-
-    It is Leaf's wording rather than the agent's, and a transport watching the session's
-    real steps knows more than it does, so the step is the one the user gets. An
-    agent's own sentence, the same command's `--detail`, outranks both."""
-    serving(claimed, 1)
-    claim = service_model.page_claim(claimed)
-    lease = leases_model.take_lease(
-        leases_model.waiter_lease_path(claimed, claim["id"])
-    )
-    assert lease
-    comment = events_model.append_event(
-        claimed, {"kind": "comment", "author": "user", "text": "Change the heading"}
-    )
-    delivery = freeze_events(claimed, [comment])
-    session_model.cmd_delivery_claim(delivery["id"])
-    with service_model.PageTransaction(claimed) as transaction:
-        transaction.set_stream_activity(
-            claim["id"],
-            "turn-live",
-            {"kind": "tool", "detail": "Editing index.html"},
-        )
-
-    activity = page_state(claimed)["activity"]
-    assert (activity["kind"], activity["detail"], activity["observed"]) == (
-        "working",
-        "Editing index.html",
-        "Editing index.html",
-    )
-
-    session_model.cmd_delivery_claim(
-        delivery["id"], detail="Rewriting the heading the user asked about"
-    )
-    stated = page_state(claimed)["activity"]
-    assert (stated["detail"], stated["observed"]) == (
-        "Rewriting the heading the user asked about",
-        "Editing index.html",
-    )
     lease.close()
 
 
@@ -12110,7 +12089,7 @@ def test_a_page_pick_holds_the_turn_until_the_markup_records_it(claimed, capsys)
     assert "answer" not in edited
     assert event["answer"] == workflow["answer"]
     told = [batch["handling"][ref] for ref in event["handling"]]
-    assert any("write it in and stamp a version" in text for text in told)
+    assert any("write it in, and stamp a version" in text for text in told)
     receive_through(claimed, last_deliverable_seq(claimed))
 
     assert f"records action {picked['id']}" in _stop(capsys)

@@ -20,7 +20,8 @@
 import { banner } from "../banner.js";
 import { elementFromPointAcross, inChrome } from "../passages.js";
 import { bottomChromeBoxes } from "./shortcut-bar.js";
-import { overlaps, shownParts, shownRect, startsAt } from "../geometry.js";
+import { shownParts, shownRect, startsAt } from "../geometry.js";
+import { clamp, overlaps } from "../rect.js";
 import { under } from "../shadow.js";
 
 // The top of the room the user has. Chrome above the page covers what it stands over
@@ -171,8 +172,8 @@ export function keyBadgePlacement() {
             }));
     return (aims.length ? aims : [box]).some((aim) => {
       const onTop = elementFromPointAcross(
-        Math.max(0, Math.min(innerWidth - 1, (aim.left + aim.right) / 2)),
-        Math.max(covered, Math.min(innerHeight - 1, (aim.top + aim.bottom) / 2)),
+        clamp((aim.left + aim.right) / 2, 0, innerWidth - 1),
+        clamp((aim.top + aim.bottom) / 2, covered, innerHeight - 1),
       );
       if (!member) return !inChrome(onTop);
       return exposure === "self" ? member.contains(onTop) : under(onTop, member);
@@ -207,8 +208,8 @@ export function keyBadgePlacement() {
     }));
     for (const { chip, start, left, top } of measured) {
       const box = new DOMRect(
-        Math.max(0, Math.min(start.left, right - start.width)),
-        Math.max(covered, Math.min(start.top, bottom - start.height)),
+        clamp(start.left, 0, right - start.width),
+        clamp(start.top, covered, bottom - start.height),
         start.width,
         start.height,
       );

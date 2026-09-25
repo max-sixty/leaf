@@ -3,6 +3,7 @@
 import { sizeObserver } from "./rendering.js";
 import { setRuntimeRootStyle } from "./root-state.js";
 import { uiInside, under, upFrom } from "./shadow.js";
+import { overlaps, overlapsAcross } from "./rect.js";
 
 /* Shared readings of the boxes the page actually shows.
 
@@ -34,11 +35,6 @@ import { uiInside, under, upFrom } from "./shadow.js";
 // which is what a margin resident is placed against and what the response surface may not
 // overhang. The auxiliary surfaces stand over the page and take none of it.
 export const shellRight = () => document.body.getBoundingClientRect().right;
-// Whether two boxes share any pixel. The one spelling of a question three chrome passes
-// ask: placement, badge reservation, and the clear part left of a box behind furniture.
-export const overlaps = (a, b) =>
-  a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
-
 // Document-anchored chrome is positioned from the document origin, while the boxes it
 // follows are read in viewport coordinates. Convert once at that boundary.
 export function documentPoint(left, top) {
@@ -290,9 +286,7 @@ function measureUnseenCovers(host, paint = true) {
 // band from the edge to its far side, the inset with it. The inset is room kept clear
 // for something standing there, the banner in a live page.
 export function insetBand(band, covers) {
-  const across = covers.filter(
-    (cover) => cover.left < band.right && cover.right > band.left,
-  );
+  const across = covers.filter((cover) => overlapsAcross(cover, band));
   let { top, bottom } = band;
   for (const cover of [...across].sort((a, b) => a.top - b.top))
     if (

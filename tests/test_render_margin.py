@@ -308,21 +308,19 @@ def test_page_map_qualifies_only_duplicate_subjects_with_their_reading_region(
 def test_a_settled_page_with_a_standing_reaction_stops_rendering_its_margin(
     browser, serve
 ):
-    """A chrome layout pass repacks the margin's rows; it does not restate its offers.
+    """A page standing still with a reaction in its margin renders no margin per frame.
 
-    `syncLayout` ends in the anchor runtime's `dockSeats`, and the here-paint frame
-    ends in `syncLayout`; a margin render ends in `paintKeys`, which ends in the next
-    the shared repaint. So a `dockSeats` that restated every seat's offer closed a cycle —
-    chrome layout, margin render, paint, chrome layout — on any page carrying a
-    standing reaction, and the gallery ran a whole margin render every frame with
-    nothing dispatched and nothing on the page moving. Measured then: ~350ms of main
-    thread per frame, which is also long enough that every Playwright read of that
-    page waits on it.
+    A margin render ends in `paintKeys`, which ends in the shared repaint, and that
+    repaint runs chrome layout. Anything chrome layout did that restated a reaction
+    seat's offer would close a cycle — chrome layout, margin render, paint, chrome
+    layout — and the gallery once ran a whole margin render every frame with nothing
+    dispatched and nothing on the page moving: ~350ms of main thread per frame, long
+    enough that every Playwright read of that page waited on it.
 
-    The reaction seat is asserted first, because it is the ingredient the cycle needed:
-    with no seat `dockSeats` visits nothing and a page passes this without saying
-    anything. The heartbeat is the one render a settled page is allowed here, and it
-    comes every two seconds, so at most one of these frames can carry it.
+    The reaction seat is asserted first, because it is the ingredient that cycle needed:
+    a page with no seat passes this without saying anything. The heartbeat is the one
+    render a settled page is allowed here, and it comes every two seconds, so at most
+    one of these frames can carry it.
     """
     page = open_page(browser, serve(FEATURE_GALLERY))
     resized(page, 1280, 900)
@@ -399,8 +397,8 @@ def test_unchanged_margin_refresh_cost_is_bounded_by_refresh_count(browser, serv
 
 # Both pages stand still with nothing dispatched, so both give the settled reading:
 # ten frames on an untouched page report no record at all. That is a property of the
-# runtime rather than of either fixture, and a recent one — before #298 stopped
-# `dockSeats` restating every seat's offer, the same ten frames on the gallery
+# runtime rather than of either fixture, and a recent one — before #298 stopped chrome
+# layout restating every reaction seat's offer, the same ten frames on the gallery
 # reported about 1700 records with nothing dispatched.
 HEARTBEAT_PAGES = (
     # The corpus is the widest margin the examples draw, most of it withheld at this
@@ -7502,14 +7500,14 @@ def _comment_on(section, text="A comment on this.", quote=None):
         ('<main data-width="available" data-rail="right">', "rail"),
         ('<main data-rail="none">', "pin"),
     ],
-    ids=["column", "sheet", "sheet-keeps-the-rail", "column-gives-it-up"],
+    ids=["column", "wide", "wide-keeps-the-rail", "column-gives-it-up"],
 )
 def test_the_page_form_decides_the_rail_and_main_can_say_otherwise(
     browser, serve, main, place
 ):
-    """A document keeps a rail beside its column and a sheet does not: its markers stand
-    as pins on their blocks. `data-rail` on `main` turns either round. Where no rail is
-    kept the page claims no strip for one, so the sheet has the room."""
+    """A column page keeps a rail beside its column and a wide page does not: its markers
+    stand as pins on their blocks. `data-rail` on `main` turns either round. Where no rail
+    is kept the page claims no strip for one, so the wide page has the room."""
     source = leaf_page(
         "rail by form",
         '<h1 id="t">Rail by form</h1><p id="p">A paragraph with a comment on it.</p>',
@@ -7524,6 +7522,24 @@ def test_the_page_form_decides_the_rail_and_main_can_say_otherwise(
              .getPropertyValue('--lf-rail-posture').trim() === 'margin'"""
     )
     assert claimed == (place == "rail")
+
+
+def test_a_page_made_wide_by_its_workspace_claims_no_rail(browser, serve):
+    """A page whose only block is a workspace is a wide page without declaring one, so it
+    gives up the rail's strip as `<main data-width="available">` does."""
+    source = leaf_page(
+        "workspace page",
+        '<lf-workspace id="w"><header><h1 id="t">Workspace</h1></header>'
+        '<lf-pane id="pane" label="Queue"><div><p id="p">A paragraph.</p></div>'
+        "</lf-pane></lf-workspace>",
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1440, 900)
+    posture = page.evaluate(
+        """() => getComputedStyle(document.querySelector('main'))
+             .getPropertyValue('--lf-rail-posture').trim()"""
+    )
+    assert posture != "margin"
 
 
 def test_o_hides_what_is_drawn_over_the_page_and_moves_nothing(browser, serve):

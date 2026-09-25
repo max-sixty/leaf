@@ -4,6 +4,7 @@ Bounded readings of exact CSS text keep state requests from reparsing unchanged
 stylesheets. Their results are read-only; edits select a new cache entry.
 """
 
+from collections.abc import Mapping
 from functools import lru_cache
 from itertools import pairwise
 
@@ -437,9 +438,13 @@ def _places(block) -> list:
     ]
 
 
-def layout_css_advice(parser: SourceDocument, registry: dict) -> list:
+def layout_css_advice(
+    parser: SourceDocument, registry: dict, stylesheets: Mapping[str, str]
+) -> list:
     """Page CSS that makes a box scroll, or that places an element declaring a reading
-    role. Each line names the rule and the property."""
+    role. Each line names the rule and the property. The page's CSS is its `<style>`,
+    its `style` attributes, and `stylesheets`: the files it links from `page/`, by
+    path, as the revision's capture resolved them (`RevisionArtifact.page_stylesheets`)."""
     layout_tags = {
         tag
         for tag, entry in registry.items()
@@ -452,13 +457,17 @@ def layout_css_advice(parser: SourceDocument, registry: dict) -> list:
         if rec["tag"] in layout_tags and (element_id := rec["attrs"].get("id")):
             layout[f"#{element_id}"] = rec["tag"]
     advice = []
+    # Each sheet by the prefix its rules are named with: the page's own <style> needs
+    # none, and a linked file is named by its path.
+    sheets = {"": parser.css, **{f"{path} ": css for path, css in stylesheets.items()}}
     stated = [
         (
-            f"rule `{selector}`",
+            f"{prefix}rule `{selector}`",
             block,
             _subjects(tinycss2.parse_component_value_list(selector)),
         )
-        for selector, block, _ in css_rules(parser.css)
+        for prefix, css in sheets.items()
+        for selector, block, _ in css_rules(css)
     ] + [
         (inline_style_at(inline), css_block(inline["style"]), {inline["tag"]})
         for inline in parser.inline_styles

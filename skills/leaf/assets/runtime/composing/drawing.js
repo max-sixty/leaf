@@ -15,7 +15,8 @@
  * whoever reads the comment without the page.
  */
 
-import { clippedContents, documentPoint, overlaps, shownBox } from "../geometry.js";
+import { clippedContents, documentPoint, shownBox } from "../geometry.js";
+import { clamp, overlaps } from "../rect.js";
 import {
   closestAcross,
   COLLAPSE,
@@ -41,7 +42,6 @@ const MIN_DISTANCE = 2;
 const MIN_GESTURE = 4;
 const PRESS_EVENTS = ["mousedown", "mouseup", "click", "dblclick"];
 
-const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const rounded = (value) => Number(value.toFixed(4));
 
 // Where each word of a text node starts and ends, split on the class the page's own

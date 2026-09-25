@@ -1,5 +1,5 @@
-/* The shortcut bar at the foot of the page, the useful status opposite it or stacked
-   above it when room is tight, and the More control that leads to the reference.
+/* The shortcut bar at the foot of the page, the useful status at the band's far end,
+   and the More control that leads to the reference.
 
    The status keeps navigation state out of the command list. It appears after a
    semantic list walk and briefly takes the accent face when a repeated press cannot move
@@ -462,7 +462,7 @@ export function renderShortcutBar(goToStatus) {
   while (rowsUsed() > 2 && removable.length) removable.shift().hidden = true;
 }
 
-export const shortcutShelfOpen = () => shortcutShelfIsOpen && shortcutHelpAvailable();
+const shortcutShelfOpen = () => shortcutShelfIsOpen && shortcutHelpAvailable();
 
 // Boot supplies the two transient interactions More closes. The shelf renderer and its
 // reference rows never import those command owners to draw their current declarations.
@@ -477,7 +477,7 @@ export function mountShortcutBar({ setGoToSequence, setReact }) {
   repaint();
 }
 
-export const SHORTCUT_HELP = pageCommand({
+const SHORTCUT_HELP = pageCommand({
   id: "command.reference.open",
   runFromCommandReference: false,
   keys: ["?"],
@@ -487,7 +487,7 @@ export const SHORTCUT_HELP = pageCommand({
   run: () => shortcutBarMore.click(),
 });
 
-export const CLOSE_SHORTCUT_SHELF = {
+const CLOSE_SHORTCUT_SHELF = {
   id: "shortcut.shelf.close",
   keys: ["Escape"],
   does: "Show fewer keyboard shortcuts",

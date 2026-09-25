@@ -27,7 +27,6 @@ import {
 } from "./anchor-resolution.js";
 import { registerMarginContribution } from "./margin-entries.js";
 import { commandScope } from "./keyboard/scopes.js";
-import { scheduleMarginLayout } from "./margin-layout.js";
 import { pageQueryAll, pageText } from "./passages.js";
 import { registry } from "./registry.js";
 import { upFrom } from "./shadow.js";
@@ -393,18 +392,11 @@ export function createAnchorControls({
     reconcileVisualActions(new Map());
   }
 
-  // A layout pass repacks existing seats; it does not restate their contribution and
-  // reopen the margin/repaint cycle.
-  function dockSeats() {
-    if (reactionSeats.size) scheduleMarginLayout();
-  }
-
   return {
     mount,
     destroy,
     render,
     publishVisualActions,
-    dockSeats,
     visualActionAnchor,
   };
 }

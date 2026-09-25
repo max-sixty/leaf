@@ -2084,21 +2084,20 @@ def test_the_room_follows_a_margin_taken_after_the_handover(
     browser, serve, tmp_path, monkeypatch
 ):
     """A wide widget spends the room, the room is measured off the page's own box, and a
-    widget may take a strip of that box at any moment at all. The one above takes it while
-    upgrading, and the call at the end of the upgrade chain is what answers that; a widget
-    that takes one a frame later was answered by nothing, and the page went on stating the
-    room of a wider box than the one its exhibit was standing in — silently, since a
-    room too wide is a board that fits everywhere except the page it is on.
+    widget may take a strip of that box at any moment at all. The one here takes it after
+    upgrade has handed over, and the page must still state the room of the box its
+    exhibit stands in — a room too wide is a board that fits everywhere except the page
+    it is on, and nothing would say so.
 
-    The list of the ways the box was known to move is what made that possible, and a list
-    of the ways a widget may behave is the closed list the norms are about. So the box is
-    watched instead, and what a widget does to it needs no entry anywhere.
+    The room is the stylesheet's reading of that box (`--lf-room`, off the shell's
+    container), so it follows whatever a widget does to the box, and no list of the ways
+    a widget may behave stands between them.
 
     The fixture is the case in its smallest honest form — a project-layer widget claiming
     the margin theme.css already reserves for one. What holds it to the case is that the
     claim waits on a request this test answers, and answers only once the page has said it
-    is done: a claim landing any earlier is the one the call at the end of upgrade already
-    covers, and on a fast machine that is where an unheld one would land."""
+    is done: a claim landing any earlier would stand before the handover, and on a fast
+    machine that is where an unheld one would land."""
     monkeypatch.chdir(tmp_path)
     author_test_widget(tmp_path, "lf-callout", upgrade=True)
     (tmp_path / ".leaf" / "widgets" / "lf-callout.js").write_text(LATE_MARGIN_WIDGET)
@@ -2109,9 +2108,8 @@ def test_the_room_follows_a_margin_taken_after_the_handover(
 
     def answer_after_the_handover(route):
         # Both stamps, not the first alone: what makes a claim late is not the handover
-        # by itself but everything the page finishes around it, since the panel's first
-        # render resizes a box this layout writer watches and would restate the room by
-        # accident. The second stamp is the replay that render waits on.
+        # by itself but everything the page finishes around it. The second stamp is the
+        # replay the panel's first render waits on.
         page.wait_for_function(BOTH_STAMPS)
         answered.append(True)
         route.fulfill(status=204)

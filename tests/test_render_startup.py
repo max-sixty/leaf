@@ -468,7 +468,7 @@ RESTORED_PROSE = "".join(
 
 
 @pytest.mark.parametrize(
-    ("saved", "sheet", "window"),
+    ("saved", "wide", "window"),
     [
         ({"lf-auxiliary-surface": "asks", "lf-tray-slot-width": "280"}, False, 1600),
         (
@@ -476,21 +476,21 @@ RESTORED_PROSE = "".join(
             True,
             1440,
         ),
-        # Where it would leave less than a usable page it covers the sheet instead.
+        # Where it would leave less than a usable page it covers the page instead.
         ({"lf-auxiliary-surface": "threads"}, True, 700),
         # The Asks tray by the same rule: 300 of a 600px window leaves 300.
         ({"lf-auxiliary-surface": "asks"}, False, 600),
     ],
-    ids=["asks", "threads-sheet", "covering", "asks-covering"],
+    ids=["asks", "threads-wide-page", "covering", "asks-covering"],
 )
 @pytest.mark.parametrize("contained", [False, True])
 def test_a_restored_auxiliary_surface_leaves_the_page_where_it_painted(
-    browser, serve, saved, sheet, window, contained
+    browser, serve, saved, wide, window, contained
 ):
     """Returning users do not watch saved auxiliary chrome move the document: a restored
     surface stands over the page, so the paragraph they were reading stands at the same
     place from the first paint, before the runtime has loaded, to presentation."""
-    if contained and sheet:
+    if contained and wide:
         pytest.skip("a specimen's child page is the column its template writes")
     surface = saved["lf-auxiliary-surface"]
     content = "<h1>Restored surface</h1>" + RESTORED_PROSE
@@ -502,7 +502,7 @@ def test_a_restored_auxiliary_surface_leaves_the_page_where_it_painted(
             + "</template></lf-specimen>"
         )
     url = serve(
-        leaf_page("Restored surface", content, width="available" if sheet else None)
+        leaf_page("Restored surface", content, width="available" if wide else None)
     )
     context = browser.new_context(viewport={"width": window, "height": 900})
     if contained:
@@ -2792,6 +2792,22 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     )
     expect(dot).to_have_class(re.compile(r"\bworking\b"))
 
+    # Picked up into the claimant's open turn before the agent has said anything: the
+    # page is working, and the row names what the turn holds rather than a bare
+    # "working", while the disclosure says the agent's own words are still to come.
+    with service_model.PageTransaction(d) as transaction:
+        delivery_model.record_pickup(
+            transaction, [first_comment], phase="opened", session="s", turn="turn-1"
+        )
+    declare("waiting", "your read on the plan")
+    expect(summary).to_have_text("Claude working — on your update")
+    expect(text).to_have_text(
+        re.compile(
+            r"^Claude is working on your update, and hasn't said what it is doing yet"
+        )
+    )
+    expect(dot).to_have_class(re.compile(r"\bworking\b"))
+
     events_model.append_event(
         d,
         {
@@ -3077,7 +3093,8 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     expect(held_workflow).to_have_attribute("data-identity-probe", "kept")
     expect(other_workflow).to_have_text("Sent")
     expect(page.locator(".lf-status-detail")).to_have_text(
-        "Claude is working (just now). 1 update waiting."
+        "Claude is working on your update, and hasn't said what it is doing yet"
+        " (just now). 1 update waiting."
     )
     expect(page.locator(".lf-others-self .lf-others-line")).to_have_text(
         "Working · 1 update waiting"
@@ -3090,7 +3107,8 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     told(page)
     expect(held_workflow).to_have_text("Picked up")
     expect(page.locator(".lf-status-detail")).to_have_text(
-        "Claude is working (just now). 1 update waiting."
+        "Claude is working on your update, and hasn't said what it is doing yet"
+        " (just now). 1 update waiting."
     )
 
     with service_model.PageTransaction(d) as transaction:
@@ -3262,7 +3280,8 @@ def test_feature_gallery_workflow_and_banner_share_agent_activity(browser, serve
     told(page)
     expect(workflow).to_have_text("Picked up")
     expect(page.locator(".lf-status-detail")).to_have_text(
-        "Claude is working (just now)"
+        "Claude is working on your update, and hasn't said what it is doing yet"
+        " (just now)"
     )
 
 

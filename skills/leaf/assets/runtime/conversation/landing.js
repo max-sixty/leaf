@@ -112,13 +112,13 @@ export function conversationInput(node) {
   return conversationInputOf(held);
 }
 
-export const heldConversation = () => focused() && closestAcross(focused(), SAYS_IN);
+const heldConversation = () => focused() && closestAcross(focused(), SAYS_IN);
 export const standingConversation = () => {
   const held = heldConversation();
   const box = conversationInputOf(held);
   return box ? { held, box } : null;
 };
-export const backFromConversation = (box) => conversationReturns.get(box) ?? null;
+const backFromConversation = (box) => conversationReturns.get(box) ?? null;
 
 // Where a box hands the user back, however they reached it. This once asked only for
 // `.lf-thread` and the panel, so the two boxes outside the chrome — a conversation seated

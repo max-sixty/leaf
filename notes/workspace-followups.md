@@ -35,12 +35,10 @@ Items are ranked within each group. IDs are stable references, not a global prio
   **Follow-ups from the first run** (reproduced in the judge's defect lists and checked against the screenshots):
 
   - `lf-diagram`: a `flowchart LR` wider than its box scrolls sideways with nothing to show it, since macOS hides the scrollbar and no edge marks the cut; all three leaf documents on that layout lost step 5 of their plan. Mark the edge where the drawing continues, leaving the drawing as written, and have the registry example draw a long sequence top-down.
-  - Log order: every Leaf author set the user's newest-first log in an `lf-grid` tile, as the guide's grid bullet suggests for a log, bounded it with `data-bound="end"`, and reversed it to match, one on a plain `<ol>`. The Bounds paragraph offered that bound for a log and said it keeps the log on its newest line, which holds only with the newest line last. The plain authors read the same paragraph but, with no grid, kept the log in the flow and in the request's order. The result is defensible, but the judge cited it in 8 of 12 dashboard judgments. The guide now offers both orders, each with its bound.
   - Drawn text: the theme scales a drawing to its box, so labels become unreadable at 900px and on a phone. The render check should measure each label's drawn height and flag a drawing whose smallest label is under about 10px; drawn size, not the percentage it shrank by, is what decides legibility.
   - `lf-options`: on a wide page the radio marks sit inset from the card's right edge and the dividers stop short of it.
-  - Render check: it passed all 72 pages. Render at the width the user names, and flag a figure scrolled sideways out of view and an Ask below its pane's first screen.
+  - Render check: it passed all 72 pages. At its one desktop width, 1200px, flag a figure scrolled sideways out of view and an Ask below its pane's first screen; testing across widths is a TODO.md item beside the mobile ones.
   - Render check: report the width at which each grid stacks, which no queue author could see.
-  - Preferences: `AGENTS.md` promises preferences "stated once and honoured on every page", but nothing holds one, so authors sent the user to `CLAUDE.md` or wrote host memory. Build a Leaf store, or drop the promise and name the host's memory.
   - Rail: it comes last on a phone and doesn't stick, and its 14rem floor cramps a table or log at 900px.
 
   **Next task:** Give comparable agents document-review, configuration and queue/detail tasks with the same content and acceptance criteria. Compare usable output, time/tokens, custom CSS and repair iterations; then require a comment and revision on each result. Counterbalance task order.

@@ -1,5 +1,5 @@
 /* This module owns user travel. */
-import { cancelRender, nextRender } from "./rendering.js";
+import { cancelRender, nextFrame } from "./rendering.js";
 import { clampedRow } from "./keyboard/bindings.js";
 import { inPanel as panelFocusIsInside } from "./conversation/panel-elements.js";
 import { openThreads } from "./conversation/thread-list.js";
@@ -181,10 +181,10 @@ export function glideTo(box, goal) {
     // Where the write left the box, not what it asked for: the box clamps at its ends
     // and snaps to pixels, and the claim the next tick tests is about the box.
     glide.wrote = box.scrollTop;
-    if (t < 1) glide.raf = nextRender(tick);
+    if (t < 1) glide.raf = nextFrame(tick);
     else glide = null;
   };
-  glide = { box, goal, wrote: start, raf: nextRender(tick) };
+  glide = { box, goal, wrote: start, raf: nextFrame(tick) };
 }
 
 // A spatial command takes the page where it is now. Stop only the travel this owner is

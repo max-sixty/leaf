@@ -2,7 +2,8 @@
    fixed phases after every module has evaluated; callers only invalidate the frame.
 
    Pending work is cleared before the phases run. An invalidation raised by a phase
-   therefore schedules another frame instead of being lost in the frame being flushed. */
+   therefore queues another repaint, which the rendering loop runs before this frame
+   paints, instead of being lost in the repaint being flushed. */
 
 import { nextRender } from "./rendering.js";
 

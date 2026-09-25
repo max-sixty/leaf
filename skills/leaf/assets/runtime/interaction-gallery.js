@@ -21,7 +21,7 @@
  * transition while still reaching complete state when the caller ignores it. The swipe
  * package's deck module is the worked example. */
 
-import { nextRender } from "./rendering.js";
+import { nextFrame } from "./rendering.js";
 import { onMotionPreferenceChange, reducedMotion } from "./motion.js";
 import { mountSpecimen } from "./specimen.js";
 import { deferredArrival } from "./presentation.js";
@@ -278,7 +278,7 @@ class Demo {
   }
 
   async frame(generation) {
-    await new Promise((resolve) => nextRender(resolve));
+    await new Promise((resolve) => nextFrame(resolve));
     this.assertCurrent(generation);
   }
 

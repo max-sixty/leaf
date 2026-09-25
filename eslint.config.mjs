@@ -61,6 +61,7 @@ const browserGlobals = Object.fromEntries(
     "navigator",
     "performance",
     "queueMicrotask",
+    "reportError",
     "requestAnimationFrame",
     "scrollX",
     "scrollY",
@@ -73,7 +74,7 @@ const browserGlobals = Object.fromEntries(
 );
 
 const RENDERING_MESSAGE =
-  "Use nextRender, cancelRender, or sizeObserver (runtime/rendering.js) so the settled reading counts it.";
+  "Use nextRender, nextFrame, cancelRender, or sizeObserver (runtime/rendering.js) so the settled reading counts it.";
 
 const entryBoundary = {
   "no-restricted-imports": [

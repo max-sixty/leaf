@@ -670,6 +670,61 @@ flowchart LR
               </tbody>
             </table>
           </section>
+          <section id="updates-notices">
+            <h2>What the status line announces</h2>
+            <p id="updates-notices-lede">
+              News that arrives without you doing anything shows for a few seconds in
+              the status line at the bottom of the page, and a screen reader hears the
+              same words. News arriving together shares one notice, as in
+              <em>Claude replied; Input needed</em>. What was already there when you
+              opened the page isn't announced, except messages you haven't read.
+            </p>
+            <table id="updates-notice-kinds">
+              <thead>
+                <tr>
+                  <th>Notice</th>
+                  <th>When</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr id="updates-notice-content">
+                  <td>
+                    Claude replied, Claude commented, Claude updated a reply, 3 replies
+                    in 2 threads
+                  </td>
+                  <td>An agent message you haven't read arrives, or one is edited.</td>
+                </tr>
+                <tr id="updates-notice-input">
+                  <td>Input needed, 2 items need your input</td>
+                  <td>
+                    Something new waits on you: an Ask on the page or in a thread, or a
+                    thread whose turn is yours.
+                  </td>
+                </tr>
+                <tr id="updates-notice-failure">
+                  <td>Response failed, Response interrupted</td>
+                  <td>
+                    The agent's host reports that an answer to you failed or stopped.
+                  </td>
+                </tr>
+                <tr id="updates-notice-request">
+                  <td>Request succeeded, Request failed</td>
+                  <td>A request you made from a widget gets its outcome.</td>
+                </tr>
+                <tr id="updates-notice-active">
+                  <td>Agent active on this page</td>
+                  <td>
+                    An agent starts watching or working on the page after a time with
+                    none.
+                  </td>
+                </tr>
+                <tr id="updates-notice-version">
+                  <td>Updated to v4</td>
+                  <td>A new revision replaces the page in place.</td>
+                </tr>
+              </tbody>
+            </table>
+          </section>
         </lf-tab>
 
         <lf-tab id="revisions" label="Revisions">

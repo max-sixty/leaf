@@ -962,7 +962,9 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      walking down, cut at the top and under the find row walking up. Gap plus width is the
      room it needs, and it is the layer's own number (theme.css) rather than one
      worked out from the controls this list happens to hold. */
-  .lf-threads-frame { flex: 1; min-height: 0; display: grid; }
+  /* The editor takes a share of this actual list, so typing leaves the preceding
+     turn readable even when the panel is short. */
+  .lf-threads-frame { flex: 1; min-height: 0; display: grid; container-type: size; }
   .lf-threads-frame::after, .lf-threads { grid-area: 1 / 1; min-height: 0; }
   .lf-threads { overflow-y: auto; overscroll-behavior: contain; z-index: 0;
     --lf-list-inset: 4px; padding: var(--lf-list-inset) 8px; --lf-block-frame: 1;
@@ -1117,6 +1119,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     font-size: 13px; line-height: 1.5; padding: 7px;
     padding-inline-end: calc(var(--lf-icon-action-hit) + 12px);
     border: 0; border-radius: 0; background: transparent;
+    max-height: min(50vh, 35cqh);
   }
   .lf-thread-compact > .lf-compose .lf-compose-field > textarea:is(:focus, .lf-focus) {
     outline: none; border: 0;

@@ -517,10 +517,9 @@ html:not([data-lf-live]) { --lf-banner-h: 0px; --lf-band-h: 0px; }
  * was the one with no width to spare at all, and a twelve-character value ran 287px out
  * of a 138px card and across whatever the grid had put beside it. */
 /* Margin features claim named strips instead of overwriting page padding themselves.
- * The right side hosts
- * sidenotes, suggestion controls, and the margin projection's inline conversations. They occupy
- * the same strip and are collision-laid-out rather than summed, so the page reserves only
- * the widest claim.
+ * The right side has three claims: sidenotes (--claim-note), the margin rail
+ * (--claim-rail), and a project layer's own (--lf-claim-right). They share one strip, so
+ * main reserves the widest rather than their sum.
  * The left still has one claimant: aside.sidebar writes --strip-l directly. */
 body { position: static !important; box-sizing: border-box !important;
        margin: 0; background: var(--paper); color: var(--ink);

@@ -29,7 +29,7 @@
    scroller inherits its reference, because a mutation in flight (a fold) has already
    moved whatever the pointer would now name. `finish` corrects once, then follows frame
    by frame while `following()` says the mutation is still running. */
-import { nextRender } from "./rendering.js";
+import { nextFrame } from "./rendering.js";
 import { visibleBand } from "./geometry.js";
 import { focused } from "./keyboard/scopes.js";
 import { pointerAt } from "./pointer.js";
@@ -173,13 +173,13 @@ export function placeKeeper(scroller, { items, identity, active = () => true }) 
 
   function follow(hold, following) {
     if (!correct(hold) || !following()) release(hold);
-    else nextRender(() => follow(hold, following));
+    else nextFrame(() => follow(hold, following));
   }
 
   function finish(hold, following = () => false) {
     if (!hold) return;
     correct(hold);
-    if (following()) nextRender(() => follow(hold, following));
+    if (following()) nextFrame(() => follow(hold, following));
     else release(hold);
   }
 

@@ -88,6 +88,164 @@ from render_harness import (
 pytestmark = pytest.mark.nightly
 
 
+def test_sort_film_comment_restores_its_input_and_step(browser, serve):
+    """A moment thread returns to the trace it described after input changes."""
+    example = next(path for path in EXAMPLES if path.stem == "rust-sort")
+    context = browser.new_context(
+        reduced_motion="reduce", viewport={"width": 1715, "height": 1046}
+    )
+    page = open_page(browser, serve(example), context=context)
+    moment = page.locator("#sort-film .sort-moment")
+    play = page.locator("#sort-film .sort-play")
+
+    play.focus()
+    page.keyboard.press("ArrowRight")
+    expect(moment).to_have_attribute("data-part", "moment:random:7:1")
+    page.keyboard.press("ArrowLeft")
+    expect(moment).to_have_attribute("data-part", "moment:random:7:0")
+    page.locator("#sort-film .sort-scrub").focus()
+    page.keyboard.press("ArrowRight")
+    expect(moment).to_have_attribute("data-part", "moment:random:7:1")
+    page.keyboard.press("ArrowLeft")
+    expect(moment).to_have_attribute("data-part", "moment:random:7:0")
+
+    moment.click(modifiers=["Alt"])
+    composer = page.locator(".lf-composer[data-lf-open]")
+    expect(composer).to_be_visible()
+    expect(composer.locator("blockquote")).to_contain_text("Random, shuffle 7, step 1")
+    composer.locator("textarea").fill("Why does this run start here?")
+    composer.locator("textarea").press("Enter")
+    expect(
+        page.get_by_role("dialog", name=re.compile("Conversation for"))
+    ).to_be_visible()
+    events = [
+        json.loads(line)
+        for line in (serve.page_dir / "events.jsonl").read_text().splitlines()
+    ]
+    assert next(event for event in events if event["kind"] == "comment")["anchor"] == {
+        "section": "sort-film",
+        "visual": "moment:random:7:0",
+    }
+
+    page.get_by_role("button", name="Dismiss conversation view").click()
+    layout = page.evaluate(
+        """async () => {
+          const film = document.querySelector('#sort-film');
+          const play = film.querySelector('.sort-play');
+          const host = document.querySelector('.lf-margin-cluster[data-lf-margin-for="sort-film"]');
+          const states = new Set();
+          play.click();
+          const until = performance.now() + 900;
+          while (performance.now() < until) {
+            await new Promise(requestAnimationFrame);
+            // The marker stands on the film, from the margin layer, whatever step
+            // the film shows.
+            const f = film.getBoundingClientRect(), h = host.getBoundingClientRect();
+            states.add(JSON.stringify([
+              document.documentElement.scrollHeight,
+              h.top >= f.top - 1 && h.top < f.bottom && h.left < f.right + 40,
+            ]));
+          }
+          play.click();
+          return [...states].map(JSON.parse);
+        }"""
+    )
+    assert layout == [[1046, True]]
+    page.locator('#sort-film input[value="nearly"]').check()
+    expect(moment).to_have_attribute("data-part", "moment:nearly:7:0")
+    expect(page.locator(".lf-thread")).to_contain_text("Random, shuffle 7, step 1")
+    page.get_by_role("button", name="1 comment").click()
+    expect(moment).to_have_attribute("data-part", "moment:random:7:0")
+
+
+def test_sort_film_playback_keeps_the_stage_and_controls_still(browser, serve):
+    """Each trace step paints inside a fixed layout at both wide pane widths."""
+    example = next(path for path in EXAMPLES if path.stem == "rust-sort")
+    context = browser.new_context(
+        reduced_motion="reduce", viewport={"width": 1715, "height": 1046}
+    )
+    page = open_page(browser, serve(example), context=context)
+
+    for width in (1715, 1200):
+        page.set_viewport_size({"width": width, "height": 1046})
+        page.locator("#sort-film .sort-play").focus()
+        page.keyboard.press("Home")
+        layouts = page.evaluate(
+            """async () => {
+              const film = document.querySelector('#sort-film');
+              const stage = film.querySelector('.sort-stage');
+              const moment = film.querySelector('.sort-moment');
+              const bar = film.querySelector('.sort-bar');
+              const play = film.querySelector('.sort-play');
+              const samples = new Set();
+              play.click();
+              const until = performance.now() + 900;
+              while (performance.now() < until) {
+                await new Promise(requestAnimationFrame);
+                const top = stage.getBoundingClientRect().top;
+                samples.add(JSON.stringify([
+                  Math.round(stage.getBoundingClientRect().height),
+                  Math.round(moment.getBoundingClientRect().top - top),
+                  Math.round(bar.getBoundingClientRect().top - top),
+                ]));
+              }
+              play.click();
+              return [...samples];
+            }"""
+        )
+        assert len(layouts) == 1, (width, layouts)
+
+
+def test_sort_film_readout_and_narration(browser, serve):
+    """Changing step numbers hold their space, and narration renders inline Markdown."""
+    example = next(path for path in EXAMPLES if path.stem == "rust-sort")
+    page = open_page(browser, serve(example))
+    readings = page.evaluate(
+        """async () => {
+          const widget = performance.getEntriesByType('resource')
+            .find(resource => resource.name.endsWith('/page/widgets/lf-sort-film.js'));
+          const source = new URL('../sort.js', widget.name);
+          const {makeInput, trace} = await import(source);
+          const steps = trace(makeInput('random', 7)).steps;
+          const film = document.querySelector('#sort-film');
+          const scrub = film.querySelector('.sort-scrub');
+          const moment = film.querySelector('.sort-moment');
+          const tail = film.querySelector('.sort-moment-tail');
+          const widths = [];
+          for (const index of [0, 1, 8, 9, 98, 99, 198, 199]) {
+            scrub.value = steps[index].start + steps[index].dur - 0.01;
+            scrub.dispatchEvent(new Event('input', {bubbles: true}));
+            widths.push([
+              moment.getBoundingClientRect().width,
+              tail.getBoundingClientRect().left - moment.getBoundingClientRect().left,
+            ]);
+          }
+          const comparison = steps.find(step => step.note.includes('≤') && step.note.includes('buf'));
+          const run = steps.find(step => step.note.startsWith('A natural run'));
+          return {
+            widths,
+            comparisonTime: comparison.start + comparison.dur - 0.01,
+            runTime: run.start + run.dur - 0.01,
+          };
+        }"""
+    )
+    assert all(max(values) - min(values) < 0.1 for values in zip(*readings["widths"]))
+    note = page.locator("#sort-film .sort-narration > span:first-of-type")
+    scrub = page.locator("#sort-film .sort-scrub")
+    scrub.evaluate(
+        "(element, time) => { element.value = time; element.dispatchEvent(new Event('input', {bubbles: true})); }",
+        readings["runTime"],
+    )
+    expect(note.locator("code")).to_have_text(re.compile(r"v\[\d+\.\.\d+\]"))
+    expect(note).to_contain_text("A natural run")
+    scrub.evaluate(
+        "(element, time) => { element.value = time; element.dispatchEvent(new Event('input', {bubbles: true})); }",
+        readings["comparisonTime"],
+    )
+    expect(note.locator("strong")).to_contain_text("≤")
+    expect(note.locator("code")).to_have_text("buf")
+
+
 def test_ship_review_summary_is_addressable_and_baseline_aligned(browser, serve):
     example = next(path for path in EXAMPLES if path.stem == "ship-review")
     page = open_page(browser, serve(example))

@@ -8502,6 +8502,28 @@ def test_command_hub_goal_metadata_wraps_on_a_phone(browser, serve):
     )
 
 
+def test_command_hub_operations_fit_their_column(browser, serve):
+    page = open_page(browser, serve(COMMAND_HUB_EXAMPLE))
+    operations = page.locator("lf-operations").first
+
+    resized(page, 320, 900)
+    assert operations.evaluate(
+        "holder => [...holder.querySelectorAll('lf-operation')].every("
+        "card => card.getBoundingClientRect().right <= "
+        "holder.getBoundingClientRect().right + 1)"
+    )
+    assert page.evaluate(
+        "() => document.documentElement.scrollWidth <= document.documentElement.clientWidth"
+    )
+
+    resized(page, 1280, 900)
+    assert operations.evaluate(
+        "holder => { const [first, second] = holder.querySelectorAll('lf-operation'); "
+        "return first.getBoundingClientRect().top === second.getBoundingClientRect().top "
+        "&& first.getBoundingClientRect().right < second.getBoundingClientRect().left; }"
+    )
+
+
 def test_command_hub_input_is_trimmed_before_it_enters_the_record(browser, serve):
     """The replica cargo is visible in the real editor before Save. Trimming it
     changes the one payload that enters the log, leaves a receipt naming the input,

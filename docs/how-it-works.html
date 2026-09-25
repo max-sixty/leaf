@@ -527,7 +527,7 @@ flowchart LR
                 </tr>
                 <tr id="updates-observed-queued">
                   <td>Queued</td>
-                  <td>Codex accepted it into the agent's queue.</td>
+                  <td>The agent's host queued it for the agent's next turn.</td>
                 </tr>
                 <tr id="updates-observed-picked">
                   <td>Picked up</td>
@@ -539,7 +539,7 @@ flowchart LR
                 </tr>
                 <tr id="updates-observed-replying">
                   <td>Replying</td>
-                  <td>With Codex, the answer is streaming into the thread.</td>
+                  <td>The answer is streaming into the thread.</td>
                 </tr>
                 <tr id="updates-observed-pickup-late">
                   <td>Waiting for pickup</td>
@@ -562,11 +562,18 @@ flowchart LR
                 <tr id="updates-observed-failed">
                   <td>Interrupted, Not answered</td>
                   <td>
-                    With Codex, the turn was interrupted or failed before it answered.
+                    The host stopped the turn, or reported that it failed, before it
+                    answered.
                   </td>
                 </tr>
               </tbody>
             </table>
+            <p id="updates-observed-hosts">
+              Queued, Replying, and the failure labels need the agent's host to report
+              more than a pickup, so a host that doesn't report them never shows them.
+              The same holds for the banner's step readings. Today Codex reports all of
+              these, and Claude Code none.
+            </p>
           </section>
 
           <section id="updates-when">
@@ -629,11 +636,8 @@ flowchart LR
                   </td>
                 </tr>
                 <tr id="updates-reading-steps">
-                  <td>Codex thinking, Codex using a tool</td>
-                  <td>
-                    With Codex, Leaf watches the agent's steps and names the current one
-                    in the banner.
-                  </td>
+                  <td>Claude thinking, Claude using a tool</td>
+                  <td>The agent's host reported its current step.</td>
                 </tr>
                 <tr id="updates-reading-ended">
                   <td>Claude’s turn ended 3m ago</td>

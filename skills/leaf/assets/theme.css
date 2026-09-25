@@ -494,18 +494,32 @@ html:not([data-lf-live]) { --lf-banner-h: 0px; --lf-band-h: 0px; }
  * dissolves the specimen's two arrangements into one, its "quoted ·" note being a
  * generated child on a live page and a pseudo-element on a page carrying no script.
  *
- * What the trim cannot reach is a first or last child that hands its own children's
- * margins on rather than reserving room itself — a boxless one, whose margin the rule
- * has nowhere to land, and a bare wrapper, through which a grandchild's margin collapses
- * to the frame's edge unchanged. The answer is the same sentence one level in: that box
- * declares the frame too, which is why `.facts` does. Reaching a level further from out
- * here is the fix that suggests itself and is worse, since the same selector over a
- * padded grandchild closes up that box's own first line. `version check --render` is what
- * says when a box hasn't declared (TRAPPED_MARGINS), because a trapped margin renders
+ * A first or last child can also hand its own children's margins on rather than
+ * reserving room itself: a boxless one, and a bare wrapper, through which a grandchild's
+ * margin collapses to the frame's edge unchanged. A section wrapping a detail pane's
+ * content opened on its eyebrow's 48px, an empty band above the pane's first words. So
+ * the trim follows the edge down: a block the trim reached marks itself as standing at
+ * that edge (--lf-edge-start, --lf-edge-end), and its own first or last child is trimmed
+ * in turn. A box that draws an inset declares the frame (the render gate holds it to
+ * that), and the frame trims what it holds the same way, so following the edge into a
+ * drawn box trims nothing the box would keep. `version check --render` still says when a
+ * box that draws has not declared (TRAPPED_MARGINS), because a trapped margin renders
  * perfectly and reads as a number somebody chose. */
+@property --lf-edge-start { syntax: "<integer>"; inherits: false; initial-value: 0; }
+@property --lf-edge-end { syntax: "<integer>"; inherits: false; initial-value: 0; }
+@container style(--lf-block-frame: 1) or style(--lf-edge-start: 1) {
+  :nth-child(1 of :not(.lf-ui, [data-lf-gen])) {
+    margin-block-start: 0;
+    --lf-edge-start: 1;
+  }
+}
+@container style(--lf-block-frame: 1) or style(--lf-edge-end: 1) {
+  :nth-last-child(1 of :not(.lf-ui, [data-lf-gen])) {
+    margin-block-end: 0;
+    --lf-edge-end: 1;
+  }
+}
 @container style(--lf-block-frame: 1) {
-  :nth-child(1 of :not(.lf-ui, [data-lf-gen])) { margin-block-start: 0; }
-  :nth-last-child(1 of :not(.lf-ui, [data-lf-gen])) { margin-block-end: 0; }
   * { --lf-block-frame: 0; }
 }
 

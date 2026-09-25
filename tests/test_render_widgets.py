@@ -288,6 +288,47 @@ def test_a_workspace_whose_regions_stack_lets_the_page_scroll_them(browser, serv
         assert pane_height >= body_height, heights
 
 
+PANE_BAND_PAGE = leaf_page(
+    "A pane that opens on its words",
+    """
+<lf-workspace id="band-workspace">
+  <lf-grid id="band-regions" columns="1fr 2fr">
+    <lf-pane id="band-queue" label="Queue"><ul><li>First ticket</li></ul></lf-pane>
+    <lf-pane id="band-detail" label="Detail">
+      <div id="band-body">
+        <section id="band-ticket">
+          <p class="eyebrow" id="band-eyebrow">ESC-1 · sev 1</p>
+          <h2>The ticket's title</h2>
+          <p>What happened.</p>
+        </section>
+        <section><h2>Another ticket</h2><p>Its account.</p></section>
+      </div>
+    </lf-pane>
+  </lf-grid>
+</lf-workspace>
+""",
+)
+
+
+def test_a_pane_opens_on_its_first_words_through_a_bare_wrapper(browser, serve):
+    """A pane's body trims the margin at its top edge, and a section wrapping its
+    content passes its first child's margin to that edge. The eyebrow above a heading
+    carries the heading's 48px, which stood as an empty band at the top of the pane;
+    the body's own padding is all that stands above the first words."""
+    page = open_page(browser, serve(PANE_BAND_PAGE))
+    resized(page, 1440, 900)
+    rendered(page)
+    above = page.evaluate(
+        """() => {
+          const body = document.getElementById('band-body');
+          const top = body.getBoundingClientRect().top
+            + parseFloat(getComputedStyle(body).paddingTop);
+          return document.getElementById('band-eyebrow').getBoundingClientRect().top - top;
+        }"""
+    )
+    assert abs(above) < 1, above
+
+
 ROOT_TABS_PAGE = Path(__file__).parent / "fixtures/pages/root-tabs.html"
 
 
@@ -2371,7 +2412,7 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
 <section><h2 id="move">Move each cohort while preserving its reading position</h2><p>Shift one cohort at a time.</p></section>
 <div style="height: 640px"></div>
 <section><h2 id="verify">Verify both readings before releasing the original copy</h2><p>Compare the totals.</p></section>
-<div style="height: 360px"></div>
+<div style="height: 380px"></div>
 """,
     )
     url = serve(with_one_ask(source))

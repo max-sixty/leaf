@@ -658,10 +658,7 @@ def test_a_growing_comment_is_independent_of_page_controls(browser, serve):
     grown_scroll = page.evaluate("scrollY")
     assert bar.get_attribute("data-lf-placement") == placement
     assert abs(grown["x"] - compact["x"]) <= 1, (compact, grown)
-    assert abs(grown["y"] + grown_scroll - compact["y"] - compact_scroll) <= 1, (
-        compact,
-        grown,
-    )
+    assert grown["y"] >= 48 and grown["y"] + grown["height"] <= 378, grown
 
     peers = page.evaluate(
         """() => {
@@ -743,6 +740,69 @@ def test_a_growing_comment_is_independent_of_page_controls(browser, serve):
     )
     assert abs(returned["width"] - compact["width"]) <= 1, (compact, returned)
     assert abs(returned["height"] - compact["height"]) <= 1, (compact, returned)
+
+
+@pytest.mark.parametrize("shift, placement", [(0, "right-start"), (250, "left-start")])
+def test_side_comment_keeps_its_submit_steady_as_the_field_grows(
+    browser, serve, shift, placement
+):
+    """A side comment expands above the action the user is composing beside."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Side comment growth",
+                '<div style="height: 240px"></div>'
+                f'<p id="passage" style="position:relative;left:{shift}px">'
+                "This passage has room beside it for a response.</p>"
+                '<div style="height: 700px"></div>',
+            )
+        ),
+    )
+    resized(page, 1440, 900)
+    page.locator("#passage").click(modifiers=["Alt"])
+    field = open_compact_comment(page)
+    bar = page.locator(".lf-fab-bar")
+    assert bar.get_attribute("data-lf-placement") == placement
+    resting = bar.bounding_box()
+    submit = bar.locator(".lf-compose-submit")
+    resting_submit = submit.bounding_box()
+
+    field.fill("First line\nSecond line\nThird line")
+    rendered(page)
+    grown = bar.bounding_box()
+    grown_submit = submit.bounding_box()
+    assert grown["height"] > resting["height"] + 20, (resting, grown)
+    assert grown["y"] < resting["y"] - 20, (resting, grown)
+    assert grown["y"] + grown["height"] == pytest.approx(
+        resting["y"] + resting["height"], abs=1
+    ), (resting, grown)
+    assert grown_submit["y"] == pytest.approx(resting_submit["y"], abs=1), (
+        resting_submit,
+        grown_submit,
+    )
+
+    field.fill("Short again")
+    rendered(page)
+    shortened = bar.bounding_box()
+    assert shortened["y"] + shortened["height"] == pytest.approx(
+        resting["y"] + resting["height"], abs=1
+    ), (resting, shortened)
+
+    field.fill("First line\nSecond line\nThird line")
+    page.reload()
+    rendered(page)
+    page.locator("#passage").click(modifiers=["Alt"])
+    field = open_compact_comment(page)
+    expect(field).to_have_value("First line\nSecond line\nThird line")
+    rendered(page)
+    restored = bar.bounding_box()
+    field.fill("Short again")
+    rendered(page)
+    shortened = bar.bounding_box()
+    assert shortened["y"] + shortened["height"] == pytest.approx(
+        restored["y"] + restored["height"], abs=1
+    ), (restored, shortened)
 
 
 def test_a_comment_near_the_bottom_grows_up_before_it_scrolls(browser, serve):

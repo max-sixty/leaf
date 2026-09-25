@@ -13,9 +13,10 @@ The suite is early and needs a lot of work. It has three cases, all cold single-
 prompts that ask for an HTML fragment in the reply. None writes a page, runs `leaf`, or
 continues a long session, and the graders have not been checked against pages a person
 has judged. The child cannot search the plugin, so it writes widget markup from the
-references without reading the registry. Until that changes, a pass here is weak evidence. Still, keeping each
-instruction fix's cases here is better than leaving them in a worktree's scratch, so add
-them as you go, and improve the suite in the same change when it gets in the way.
+references without reading the registry. Until that changes, a pass here is weak
+evidence. Still, keeping each instruction fix's cases here is better than leaving them
+in a worktree's scratch, so add them as you go, and improve the suite in the same change
+when it gets in the way.
 
 Run it from the repository root:
 

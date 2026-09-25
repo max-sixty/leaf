@@ -95,7 +95,7 @@ const deriveEntryState = (entry) => {
 };
 // Every state but idle keeps the cluster open, so the reading is the absence of idle
 // rather than a second list of states beside the grammar's.
-export const entryState = (entry) => entry.state;
+const entryState = (entry) => entry.state;
 export const entryEngaged = (entry) => entry.state !== "idle";
 
 export const contributionItem = (offered, record, surface = "margin", cluster = null) =>

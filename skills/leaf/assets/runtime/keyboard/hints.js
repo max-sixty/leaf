@@ -22,7 +22,7 @@
    than removed. Geometry belongs to each caller and is passed in so this module
    introduces no ownership cycle through the shortcut bar. */
 import { html, nothing, render, repeat } from "../../vendor/browser-runtime.js";
-import { overlaps } from "../geometry.js";
+import { clamp, overlaps, overlapsAcross } from "../rect.js";
 import { announce } from "../notifications.js";
 import { repaint } from "../repaint.js";
 import { beginWalk, listWalkPosition } from "../walk-position.js";
@@ -60,8 +60,6 @@ const movedTo = (box, left, top) => ({
   height: box.height,
 });
 
-const clamp = (value, start, end) => Math.max(start, Math.min(value, end));
-
 function nearestOpenTop(box, preferred, barriers, top, bottom, gap) {
   const last = Math.max(top, bottom - box.height);
   const seats = [preferred, top, last];
@@ -80,7 +78,7 @@ function nearestOpenTop(box, preferred, barriers, top, bottom, gap) {
 // chips first and provide the visible rectangle each chip names. `belowTarget` makes
 // that edge the preferred seat and the target an obstacle. The returned boxes can be
 // barriers for a following pass.
-export function spreadHints(
+function spreadHints(
   hints,
   {
     barriers = [],
@@ -169,16 +167,11 @@ export function seatHints(
   });
   const placed = [];
   for (const [seated, ownTarget] of measured) {
-    const barriers = [...fixedBarriers, ...placed].filter(
-      (other) => other.left < seated.right && seated.left < other.right,
+    const barriers = [...fixedBarriers, ...placed].filter((other) =>
+      overlapsAcross(other, seated),
     );
-    if (ownTarget && ownTarget.left < seated.right && seated.left < ownTarget.right)
-      barriers.push(ownTarget);
-    if (
-      lineBand.bottom > lineBand.top &&
-      lineBand.left < seated.right &&
-      seated.left < lineBand.right
-    )
+    if (ownTarget && overlapsAcross(ownTarget, seated)) barriers.push(ownTarget);
+    if (lineBand.bottom > lineBand.top && overlapsAcross(lineBand, seated))
       barriers.push(lineBand);
     const top = nearestOpenTop(
       seated,

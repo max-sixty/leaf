@@ -26,7 +26,7 @@
    `rightFootOffset` keeps the card's foot at its original distance below the
    cluster; the boundary still clamps a card that grows too tall. */
 
-const clamp = (value, low, high) => Math.max(low, Math.min(high, value));
+import { clamp } from "./rect.js";
 
 export function threadCardGeometry({
   cluster,

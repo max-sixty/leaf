@@ -53,7 +53,7 @@ function prune() {
 // top: `toggle` is queued rather than synchronous, so moving a layer on that last
 // declaration would make it the newest thing on the stack after something else opened over
 // it. A closed entry is pruned and an actual reopening joins at the top.
-export function pushNativeLayer(node, kind) {
+function pushNativeLayer(node, kind) {
   const at = entries.findIndex((entry) => entry.root === node);
   const standing = at < 0 ? null : entries[at];
   if (standing?.active()) return;

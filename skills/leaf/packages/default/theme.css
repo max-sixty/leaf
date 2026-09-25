@@ -422,6 +422,7 @@ lf-chip {
  * restated so a band of chips and an inline label stand the same height. */
 lf-chip, .lf-chips span {
   display: inline-block; font-size: var(--t-6); line-height: 1.6; padding: 0 8px;
+  box-sizing: border-box; max-width: 100%; overflow-wrap: anywhere;
   border-radius: var(--chip-r); background: var(--chip); color: var(--ink-2); }
 
 /* Titled alternatives carry an argument and keep the document's serif. Compact
@@ -538,9 +539,9 @@ lf-option > strong { display: block; margin: 0 0 4px; }
  * the author's own markup, quotable and diffable like any other content. The chip is the
  * shared one — inline-block there, which is what leaves each form free to decide where
  * the band sits — and what a chip adds is the band: margins that space and wrap a row of
- * them, and a max-width bounding a long one against the card, since the words are the
- * author's and there is no length the theme can assume. */
-lf-chip { max-width: 100%; margin: 0 6px 2px 0; }
+ * them. The shared chip face bounds and wraps the author's words against the card;
+ * there is no length the theme can assume. */
+lf-chip { margin: 0 6px 2px 0; }
 /* The tint is the author's, per chip. The theme knows the three semantic pairs and
  * nothing about which facet earns one — the pair this replaced tinted `risk` and not
  * `effort`, which was the theme holding an opinion about a word, and the opinion went

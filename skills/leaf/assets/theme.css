@@ -1176,6 +1176,7 @@ dd { margin: 0 0 8px 0; }
  * own where the tint is the point. */
 .tag {
   display: inline-block; font-size: var(--t-6); line-height: 1.6; padding: 0 8px;
+  box-sizing: border-box; max-width: 100%; overflow-wrap: anywhere;
   border-radius: var(--chip-r); background: var(--chip); color: var(--ink-2); }
 
 /* ---------- class idioms ---------- */

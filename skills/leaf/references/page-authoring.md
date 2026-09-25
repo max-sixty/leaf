@@ -82,7 +82,8 @@ stands alone, since whoever reads it there has none of the page around it.
 A page is a stack of blocks in the reading column. Text keeps the column's measure,
 and a block that needs more room declares it: a diagram or a board states its width in
 its registry entry and grows out of the column into the room beside it, without moving
-the prose, and `data-width` asks the same of any other block. Most pages need nothing more. Compose the stack from these:
+the prose, and `data-width` asks the same of any other block. Most pages need nothing
+more. Compose the stack from these:
 
 - **Prose read in order** — a plan, a review, a write-up, a decision — is plain
   semantic HTML, with nothing declared.

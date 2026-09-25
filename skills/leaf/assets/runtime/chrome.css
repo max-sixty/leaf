@@ -1685,14 +1685,17 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      stands over the page's right edge. A covering auxiliary surface makes it inert
      background. A line whose rows need more than one row wraps, whatever put them there: one
      row fills the band's stated height exactly, and each further row grows the line
-     upward. Overflow is the backstop for a single hint wider than the window. */
+     upward. The rows pack to the foot, and the foot's padding centres a row of key
+     badges in the band, so the last row stands where a one-row line does, level with
+     the status. Overflow is the backstop for a single hint wider than the window. */
   .lf-shortcut-bar { position: fixed; left: 0; right: var(--lf-shortcut-bar-right, 0px);
     bottom: 0; z-index: var(--lf-z-shortcut-bar); pointer-events: none;
     box-sizing: border-box; min-height: var(--lf-band-h);
-    padding: 9px calc(18px + var(--lf-safe-right)) calc(9px + var(--lf-safe-bottom))
+    padding: 9px calc(18px + var(--lf-safe-right))
+      calc((var(--lf-band-h) + var(--lf-safe-bottom) - var(--lf-key-badge-size)) / 2)
       calc(18px + var(--lf-safe-left));
     display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center;
-    align-content: center;
+    align-content: flex-end;
     color: var(--muted); font-size: var(--t-6);
     background: var(--veil); backdrop-filter: blur(6px); border-top: 1px solid var(--rule);
     overflow: hidden; white-space: nowrap; }

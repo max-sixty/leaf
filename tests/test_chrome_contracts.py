@@ -1070,6 +1070,7 @@ def test_notices_stay_at_the_visible_pages_right_edge(browser, serve):
         (390, True),
         (320, True),
         (390, False),
+        (300, False),
     ]:
         resized(page, width, 800)
         if panel_open != page.locator(".lf-thread-panel").is_visible():

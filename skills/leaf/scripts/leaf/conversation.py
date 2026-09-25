@@ -358,7 +358,6 @@ def cmd_reply(
     part: str = "",
     detach: bool = False,
     attempt: str | None = None,
-    initiates: bool = False,
     when_settled: str = "refuse",
     only_if_unclaimed: bool = False,
     failure: str | None = None,
@@ -370,8 +369,9 @@ def cmd_reply(
 
     ``for_event`` fences the write to the exact current obligation. Its response
     address may differ from ``to`` when a widget gesture belongs to a frozen
-    conversation. One unambiguous delivered reply supplies both values. ``initiates``
-    explicitly posts when the conversation currently owes no reply.
+    conversation. One unambiguous delivered reply supplies both values. ``to``
+    without ``for_event`` posts a new agent message, which the conversation must
+    currently owe no reply for; the event then carries no ``responds``.
 
     ``when_settled`` distinguishes completed delivery answers from failure receipts.
     ``post`` retains the delivered response address even after settlement; ``skip``
@@ -399,9 +399,7 @@ def cmd_reply(
             if existing:
                 same_scope = (
                     existing.get("responds") == for_event
-                    if for_event is not None
-                    else existing.get("initiates") is True
-                    if initiates
+                    if for_event is not None or to is not None
                     else True
                 )
                 if (
@@ -412,17 +410,7 @@ def cmd_reply(
                     sys.exit(f"attempt {attempt!r} already belongs to another event")
                 return existing
         responses = current_responses(page_dir, events)
-        if initiates:
-            if for_event is not None:
-                sys.exit("reply accepts --for or --initiates, not both")
-            if to is None:
-                sys.exit("reply --initiates requires --to")
-        elif for_event is None:
-            if to is not None:
-                sys.exit(
-                    "use --for EVENT_ID to answer user input; "
-                    "--to ID --initiates starts a new message when no reply is owed"
-                )
+        if for_event is None and to is None:
             claim = page.active_claim
             delivered = (
                 {
@@ -450,12 +438,12 @@ def cmd_reply(
                     "cannot infer a reply: this turn's opened delivery holds "
                     f"{len(pending)} reply obligations. Read what the page still "
                     "owes with `leaf page state <page>`; use --for EVENT_ID to "
-                    "answer one, or --to ID --initiates only if that read shows "
-                    "nothing owed"
+                    "answer one, or --to ID to post a new message only if that "
+                    "read shows nothing owed"
                 )
             for_event, expected = pending[0]
             to = expected["to"]
-        else:
+        elif for_event is not None:
             expected = responses.get(for_event)
             if expected is None or expected["kind"] not in THREAD_ANSWER_KINDS:
                 held = logged_id(events, for_event, responses)
@@ -499,7 +487,7 @@ def cmd_reply(
             if standing is not None:
                 sys.exit(
                     f"conversation {root_id!r} currently requires a response; "
-                    f"use `--for {standing['for']}` instead of --initiates"
+                    f"answer it with `--for {standing['for']}`"
                 )
         if only_if_unclaimed and any(
             event["kind"] == "pickup" and for_event in event["events"]
@@ -628,11 +616,7 @@ def cmd_reply(
             **posting_identity,
             "parent": to,
             "text": body,
-            **(
-                {"responds": for_event}
-                if for_event is not None
-                else {"initiates": True}
-            ),
+            **({"responds": for_event} if for_event is not None else {}),
         }
         if awaits:
             event["awaits"] = True

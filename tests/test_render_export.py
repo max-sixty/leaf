@@ -16,6 +16,7 @@ from typing import NamedTuple
 import preview as preview_model
 import pytest
 from click.testing import CliRunner
+from conftest import LEAF_COMMAND
 from example_data import patch_manifest
 from interact_support import install_payload, wait_for
 from leaf import cli as cli_model
@@ -547,9 +548,13 @@ def served_preview(tmp_path, preview_slot, spawn):
 def test_a_user_preview_restarts_under_its_original_codex_claim(
     tmp_path, preview_slot, codex_program, codex_env, spawn
 ):
-    """The claim names the Codex task above the preview, and survives each reload."""
+    """The claim names the Codex task above the preview, and survives each restart.
+
+    A restart is a runtime edit's: a source edit leaves the server up."""
     source = tmp_path / "detached.html"
     source.write_text(REPLAYED_PAGE)
+    runtime = install_payload(tmp_path / "detached-runtime")
+    theme = runtime / "skills" / "leaf" / "assets" / "theme.css"
     slot, directory = preview_slot
     log = tmp_path / "preview.log"
     # The Codex task runs the preview as its own long-running command.
@@ -567,6 +572,8 @@ def test_a_user_preview_restarts_under_its_original_codex_claim(
             PREVIEW_SCRIPT,
             "--source",
             str(source),
+            "--runtime",
+            str(runtime),
             "--slot",
             slot,
             "--user",
@@ -587,20 +594,21 @@ def test_a_user_preview_restarts_under_its_original_codex_claim(
     )
     claim = service_model.page_claim(directory)
     assert claim["pid"] == owner.pid
-    revised = source.read_text().replace("Rollout", "Detached revision")
-    source.write_text(revised)
+    with theme.open("a", encoding="utf-8") as stream:
+        stream.write("\nh1 { color: navy; }\n")
     wait_for(
         log.read_text,
         lambda output: "Reloaded detached" in output,
-        failure="the preview did not reload its source",
-        timeout=30,
+        failure="the preview did not restart for its runtime",
+        timeout=60,
     )
     assert server_model.running_server(directory)
     assert service_model.page_claim(directory) == claim
 
-    # SessionEnd can win while recompose waits for the page transaction.
+    # SessionEnd can win while the re-vendor waits for the page transaction.
     with service_model.PageTransaction(directory) as transaction:
-        source.write_text(revised.replace("Detached revision", "Released revision"))
+        with theme.open("a", encoding="utf-8") as stream:
+            stream.write("\nh1 { color: teal; }\n")
         wait_for(
             lambda: server_model.running_server(directory),
             lambda running: not running,
@@ -654,43 +662,36 @@ def test_preview_watches_runtime_and_source_without_losing_user_state(
     assert (directory / "events.jsonl").read_bytes().startswith(feedback)
     assert (directory / "events.jsonl").stat().st_ino == inode
 
+    # A source edit leaves the server up, so it is not a restart span: the tab takes
+    # the new revision in place, and anything it complains about is a fault.
     revised = original.replace("Rollout", "A watched source revision", 1)
-    with restarting(page):
-        source.write_text(revised, encoding="utf-8")
-        expect(
-            page.get_by_role("heading", name="A watched source revision")
-        ).to_be_visible(timeout=30000)
+    source.write_text(revised, encoding="utf-8")
+    expect(page.get_by_role("heading", name="A watched source revision")).to_be_visible(
+        timeout=30000
+    )
     expect(page.locator("#opt-shim")).to_have_attribute("chosen", "")
     assert (directory / "events.jsonl").read_bytes().startswith(feedback)
 
-    with restarting(page):
-        source.write_text("<p>invalid source</p>", encoding="utf-8")
-        wait_for(
-            log.read_text,
-            lambda output: "Preview update refused" in output,
-            failure="the invalid preview update was not refused",
-            timeout=30,
-        )
-        refused_generation = json.loads((directory / "registry.json").read_text())[
-            "$layer"
-        ]["generation"]
-        expect(page.locator("script[data-lf-server]")).to_have_attribute(
-            "data-lf-layer", refused_generation, timeout=30000
-        )
+    source.write_text("<p>invalid source</p>", encoding="utf-8")
+    wait_for(
+        log.read_text,
+        lambda output: "Preview update refused" in output,
+        failure="the invalid preview update was not refused",
+        timeout=30,
+    )
     expect(
         page.get_by_role("heading", name="A watched source revision")
     ).to_be_visible()
     assert (directory / "index.html").read_text() == revised
     assert (directory / "events.jsonl").read_bytes().startswith(feedback)
 
-    with restarting(page):
-        source.write_text(
-            revised.replace("A watched source revision", "Recovered watched source"),
-            encoding="utf-8",
-        )
-        expect(
-            page.get_by_role("heading", name="Recovered watched source")
-        ).to_be_visible(timeout=30000)
+    source.write_text(
+        revised.replace("A watched source revision", "Recovered watched source"),
+        encoding="utf-8",
+    )
+    expect(page.get_by_role("heading", name="Recovered watched source")).to_be_visible(
+        timeout=30000
+    )
     expect(page.locator("#opt-shim")).to_have_attribute("chosen", "")
     assert (directory / "events.jsonl").read_bytes().startswith(feedback)
     assert (directory / "events.jsonl").stat().st_ino == inode
@@ -983,6 +984,65 @@ def test_terminating_a_preview_mid_update_leaves_no_service(served_preview):
     assert server_model.running_server(directory) is None
     assert (directory / "events.jsonl").is_file()
     assert (directory / "index.html").read_bytes() == source.read_bytes()
+
+
+@pytest.mark.parametrize("edit", ["source", "runtime"])
+def test_a_user_preview_update_keeps_the_sessions_wait_watching(
+    tmp_path, served_preview, spawn, edit
+):
+    """A `--user` preview's update is not a stop, so the session's wait carries on.
+
+    The update used to disable the page's service for its whole length, and a wait
+    watching the page read that as a server someone stopped: with no other page to
+    carry, it ended with `server is not running` on every save. A source edit now
+    leaves the server up, and a runtime edit's restart says it is one while it runs.
+    The comment after the update is the proof: only a wait still watching delivers it.
+    """
+    source, runtime, directory, _, _, log = served_preview
+    waited = tmp_path / "wait.log"
+    with waited.open("w", encoding="utf-8") as output:
+        waiter = spawn(
+            [*LEAF_COMMAND, "wait"],
+            stdout=output,
+            stderr=subprocess.STDOUT,
+            start_new_session=True,
+            text=True,
+        )
+    session = os.environ["CLAUDE_CODE_SESSION_ID"]
+    wait_for(
+        lambda: waiter.poll() is None and leases_model.wait_is_live(directory, session),
+        bool,
+        failure="the wait did not start watching the preview",
+        timeout=30,
+    )
+    if edit == "source":
+        source.write_text(
+            source.read_text().replace("Rollout", "A watched revision", 1)
+        )
+    else:
+        theme = runtime / "skills" / "leaf" / "assets" / "theme.css"
+        with theme.open("a", encoding="utf-8") as stream:
+            stream.write("\nh1 { color: navy; }\n")
+    wait_for(
+        log.read_text,
+        lambda output: "Reloaded watched" in output,
+        failure="the preview did not finish its update",
+        timeout=60,
+    )
+    assert server_model.running_server(directory)
+    assert waiter.poll() is None, waited.read_text()
+
+    events_model.append_event(
+        directory,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": files_model.latest_revision(directory),
+            "text": "still there?",
+        },
+    )
+    assert waiter.wait(timeout=30) == 0, waited.read_text()
+    assert "still there?" in waited.read_text()
 
 
 # ---------- export: the page as one file ----------

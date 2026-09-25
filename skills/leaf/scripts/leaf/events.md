@@ -10,7 +10,7 @@ page and is not a global identifier. The kinds:
 | Kind | Author | Door | Fields | Meaning |
 | --- | --- | --- | --- | --- |
 | `comment` | user or agent | `POST /api/event`, `leaf comment` | `text`, `drawing`, or `token`; optional `anchor`, `suggestion`, `about: "design"`, `response`, `markup` (CLI only) | opens a question, or with `token` puts a reaction mark on the anchor |
-| `reply` | user or agent | `POST /api/event`, `leaf reply` | `parent`; `text` or `token`; agent `responds` or `initiates`; `awaits`, `markup`, and a replacement `anchor` or null detachment (CLI only) | answers the exact named obligation without closing its conversation; an agent reply may also replace or remove the conversation's current location |
+| `reply` | user or agent | `POST /api/event`, `leaf reply` | `parent`; `text` or `token`; agent `responds` when answering; `awaits`, `markup`, and a replacement `anchor` or null detachment (CLI only) | answers the exact named obligation without closing its conversation; an agent reply may also replace or remove the conversation's current location |
 | `edit` | agent | `leaf edit` | `message`, `text` | replaces one message's visible text; the original stays in the log |
 | `read` | user | `POST /api/event` | `messages: [{message, version}]` | records that this page's one user has read exact current or historical agent-content versions; `$events` declares it bookkeeping, so it adds no conversation turn or agent work |
 | `conversation_title` | agent | `leaf conversation title` | `conversation`, `title` | names a conversation in the panel; latest title wins without adding a turn or settling work |
@@ -19,9 +19,9 @@ page and is not a global identifier. The kinds:
 | `unresolve` | user | `POST /api/event` | `parent` | the user reopens a resolved thread |
 | `done` | user | the banner, only on a page declaring `<meta name="lf-review" content="sign-off">` | `version`, the stamp approved | approval of the declared sign-off; a page that asks nothing gets no terminal control |
 | `action` | user | `POST /api/event` from a widget | `widget`, `action`, `detail`; server-stamped `meaning` | the user edited the document through the widget |
-| `report` | agent or worker | `leaf report` | as `action`, validated by an `x-state` verb declaring `writer: "agent"` | provisional state that stands until a stamped revision answers it |
+| `report` | agent or worker | `leaf experimental report` | as `action`, validated by an `x-state` verb declaring `writer: "agent"` | provisional state that stands until a stamped revision answers it |
 | `request` | user | `POST /api/event` from a widget | `widget`, `action`, `detail`, and `source_revision` for a projected record; validated by the holder's `x-request` | a durable, non-undoable one-shot instruction to the host, seated on its admitted document, widget, and unit |
-| `receipt` | agent | `leaf receipt`; a host failure receipt | `request`, `succeeded` or `failed`, `text`; host `failure` with `failed` | exactly one terminal outcome per accepted request |
+| `receipt` | agent | `leaf experimental receipt`; a host failure receipt | `request`, `succeeded` or `failed`, `text`; host `failure` with `failed` | exactly one terminal outcome per accepted request |
 | `pickup` | page | the delivery carrier; a host failure receipt | `events`, `phase` (`queued`, `opened`, or `failed`), `session`, `turn`; `failure` with `failed` | the named user events reached the durable Codex queue or entered an exact agent turn, or the host gave up on them with no answer coming; idempotent per event, phase, session, and turn; never a work claim |
 | `note` | agent | `leaf version stamp` | `version`, `revision`, changelog `text`, `restated`, `settles` | one public version mapped to an immutable revision, naming the decisions it took back and the reports or work it answered |
 | `error` | page | the runtime | | the page reported a failure in front of the user; heard like a report, never counted against the user |
@@ -67,8 +67,8 @@ of the undo re-derives the still-standing action.
 ## Authorship and voice
 
 The server stamps every browser-posted event `author=user`. `leaf comment`,
-`leaf reply`, `leaf edit`, `leaf report`, `leaf receipt`, and `version stamp`
-stamp `author=agent` plus the posting session's own voice: `agent`, its display
+`leaf reply`, `leaf edit`, `leaf experimental report`, `leaf experimental receipt`,
+and `version stamp` stamp `author=agent` plus the posting session's own voice: `agent`, its display
 name, and `session`, its host session id. Several agent sessions can write to one
 page, so the voice is read from the poster's environment rather than from the
 watcher's claim record, and identity is the session id, because a display name is
@@ -181,7 +181,7 @@ records `awaits: true`. The browser cannot write that field. A user reply
 always hands the thread back to the agent, so it needs no parallel declaration.
 An agent reply records the delivery event it answers as `responds`, including a
 completed delivery answer whose move was settled during the turn. A proactive
-message with no response address records `initiates: true` instead. Settlement
+message (`leaf reply --to` without `--for`) carries no `responds`. Settlement
 consumes this exact identity rather than log order, so answering older work cannot
 erase newer user input. A substantive reply reopens a resolved conversation;
 reactions and host failure receipts leave its closure standing. A later resolution

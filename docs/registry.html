@@ -640,15 +640,15 @@
                   projected holder contributes one Ask while any displayed row is ready.
                   Pending excludes another request on that seat, failure reopens it, and
                   success completes it. Each request is durable and not undoable because
-                  the host may already have acted. <code>leaf receipt</code> appends
-                  exactly one linked <code>succeeded</code> or
-                  <code>failed</code> outcome, and the widget controller supplies the
-                  server-projected request seat, exact request/receipt attempts, latest
-                  attempt, and ready/pending/completed phase to its package module. A
-                  projected row reads and dispatches through
-                  <code>request(key)</code> on that controller. Leaf transports and
-                  validates the protocol but does not interpret verbs or execute them;
-                  package-owned guidance tells the host what each verb means, and
+                  the host may already have acted.
+                  <code>leaf experimental receipt</code> appends exactly one linked
+                  <code>succeeded</code> or <code>failed</code> outcome, and the widget
+                  controller supplies the server-projected request seat, exact
+                  request/receipt attempts, latest attempt, and ready/pending/completed
+                  phase to its package module. A projected row reads and dispatches
+                  through <code>request(key)</code> on that controller. Leaf transports
+                  and validates the protocol but does not interpret verbs or execute
+                  them; package-owned guidance tells the host what each verb means, and
                   external data carries replaceable evidence produced by it.
                 </p>
               </details>
@@ -773,42 +773,42 @@
                 <p>
                   A verb is the user's unless it declares <code>writer: "agent"</code>:
                   the user writes theirs through the page as <code>action</code> events,
-                  and the agent reports its own through <code>leaf report</code> as
-                  <code>report</code> events, so every coordinate has one writer. A user
-                  verb may declare a created child (<code>creates</code>). An agent verb
-                  requires a record form other than <code>body</code>, since a report
-                  moves declared state and never the page's words, which keeps the
-                  passage reading untouched by it; it may name with
-                  <code>update</code> the required non-empty string detail field that is
-                  the report's short human-readable news, which the canonical update
-                  feed exposes without guessing from a widget, verb, or field name. The
-                  runtime paints a standing report live (data-lf-reported); it is
-                  provisional news, standing only until a version answers it, as $report
-                  says. Each verb is its own state: the owning Leaf element, the unit,
-                  and the verb together name one independently standing fact, the latest
-                  surviving action of that verb there supersedes its predecessors, and
-                  different verbs coexist. The framework composes the last surviving
-                  action per coordinate with typed authored values and gives every
-                  widget its complete state through renderState, keyed by verb, and one
-                  declaration drives the POST and re-vendor contract gates,
-                  <code>version check</code>'s state gate (a version whose markup
-                  actively contradicts the fold without <code>restated</code> is
-                  refused; writing the folded state is honoring; re-emitting the
-                  previous version's state is blessed silence, except for a position
-                  whose container the version changes, which it writes),
-                  construction-linked inspection, the runtime's user- and report-origin
-                  readings, and the version diff's state half. When an action's
-                  admission makes its widget's x-awaits <code>answered</code> condition
-                  hold, admission records meaning.answer on it: the widget's authored
-                  <code>resolves</code> attribute, read from the sending document, names
-                  the comment thread the answer closes, and null answers without closing
-                  one, which is also what a decision whose outcome is the widget's
-                  x-withdrawn-as records: it leaves the page as if nothing had been
-                  proposed. Historical settlement uses the admitted owner-unit-verb
-                  coordinate even after the widget retires. One detail field name is
-                  reserved: <code>outcome</code>, on the one user widget-unit verb that
-                  decides which retirable members leave the page (x-retired-when). The
-                  unit, creates, and record forms are $state's.
+                  and the agent reports its own through
+                  <code>leaf experimental report</code> as <code>report</code> events,
+                  so every coordinate has one writer. A user verb may declare a created
+                  child (<code>creates</code>). An agent verb requires a record form
+                  other than <code>body</code>, since a report moves declared state and
+                  never the page's words, which keeps the passage reading untouched by
+                  it; it may name with <code>update</code> the required non-empty string
+                  detail field that is the report's short human-readable news, which the
+                  canonical update feed exposes without guessing from a widget, verb, or
+                  field name. The runtime paints a standing report live
+                  (data-lf-reported); it is provisional news, standing only until a
+                  version answers it, as $report says. Each verb is its own state: the
+                  owning Leaf element, the unit, and the verb together name one
+                  independently standing fact, the latest surviving action of that verb
+                  there supersedes its predecessors, and different verbs coexist. The
+                  framework composes the last surviving action per coordinate with typed
+                  authored values and gives every widget its complete state through
+                  renderState, keyed by verb, and one declaration drives the POST and
+                  re-vendor contract gates, <code>version check</code>'s state gate (a
+                  version whose markup actively contradicts the fold without
+                  <code>restated</code> is refused; writing the folded state is
+                  honoring; re-emitting the previous version's state is blessed silence,
+                  except for a position whose container the version changes, which it
+                  writes), construction-linked inspection, the runtime's user- and
+                  report-origin readings, and the version diff's state half. When an
+                  action's admission makes its widget's x-awaits
+                  <code>answered</code> condition hold, admission records meaning.answer
+                  on it: the widget's authored <code>resolves</code> attribute, read
+                  from the sending document, names the comment thread the answer closes,
+                  and null answers without closing one, which is also what a decision
+                  whose outcome is the widget's x-withdrawn-as records: it leaves the
+                  page as if nothing had been proposed. Historical settlement uses the
+                  admitted owner-unit-verb coordinate even after the widget retires. One
+                  detail field name is reserved: <code>outcome</code>, on the one user
+                  widget-unit verb that decides which retirable members leave the page
+                  (x-retired-when). The unit, creates, and record forms are $state's.
                 </p>
               </details>
             </div>

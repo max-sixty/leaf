@@ -518,8 +518,8 @@ screen a token at a time. leaf has no state object. The version's markup states 
 initial condition, the log records every transition, and the standing state is the fold
 over it. Each widget's `renderState` receives the complete result, including the
 initial values restored by undo. CopilotKit streams down to the token, where a leaf page changes
-a version at a time and `leaf report` is what lets a dashboard tick over between
-versions. leaf keeps a decision across a rewrite: a card the user moved is still where
+a version at a time and `leaf experimental report` is what lets a dashboard tick over
+between versions. leaf keeps a decision across a rewrite: a card the user moved is still where
 they moved it after the agent publishes v4, and taking that back costs the author the
 word `restated`. CopilotKit has nothing equivalent because it has nothing to rewrite —
 the components are fixed before the run, and state is the only thing that moves.
@@ -675,8 +675,8 @@ TypeScript — `exposeComponent(Component, {description, name, props, children})
 one. What it has instead is Skillet, a Zod-shaped schema language in which
 `s.streaming.string()` marks a value safe to render half-written, and a streaming JSON
 parser that mounts a component while the model is still writing its props. That is the
-axis leaf is weakest on: a leaf page changes a version at a time, `leaf report` is what
-lets a dashboard tick over between them, and nothing in leaf paints a sentence as it
+axis leaf is weakest on: a leaf page changes a version at a time,
+`leaf experimental report` is what lets a dashboard tick over between them, and nothing in leaf paints a sentence as it
 arrives. It is also the axis leaf's design makes expensive, since a version is published
 whole and a comment anchors into it.
 

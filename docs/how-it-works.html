@@ -206,7 +206,7 @@ $ leaf wait ./review
         "h2": "If you need clarification, ask in a thread on the picked option. To override the pick in a later version, mark the element `restated` and say why in the version note.",
         "h3": "It answers the page's Ask, so the page shows it as waiting on you until the markup records it. Name the work it selects or unblocks with `leaf status &lt;page&gt; working \"&lt;the work, in a line&gt;\"` before starting it, then do it, write it in, and stamp a version.",
         "h4": "This event's conversation has no title yet: name it with `leaf conversation title &lt;page&gt; &lt;conversation-id&gt; --text \"&lt;a few words&gt;\"`, so the thread panel lists its subject rather than its opening words.",
-        "h5": "Answer with `leaf reply &lt;page&gt; --for &lt;event-id&gt;` before any other work, including the work this event asks for: give the answer, or say what you are about to do and where the result will appear. When work follows, name it on the page in the same command, as in `leaf reply &lt;page&gt; --for &lt;event-id&gt; --text \"…\" &amp;&amp; leaf status &lt;page&gt; working \"&lt;the work, in a line&gt;\" --on &lt;address&gt;`, where `&lt;address&gt;` is the event's `answer.to`: the line stands beside the thread and in the banner until your next reply there. Once that work lands, report it with `leaf reply &lt;page&gt; --to &lt;address&gt; --initiates`. `leaf reply` checks any saved page edit and makes it live before posting. If a revision removes what the thread is anchored on, move the thread in the reply that reports it with `--section &lt;id&gt;` (narrowed by `--quote` or `--part` if needed), or `--detach` it if its subject has left the page. Add `--awaits` only if your reply's prose asks the user something.",
+        "h5": "Answer with `leaf reply &lt;page&gt; --for &lt;event-id&gt;` before any other work, including the work this event asks for: give the answer, or say what you are about to do and where the result will appear. When work follows, name it on the page in the same command, as in `leaf reply &lt;page&gt; --for &lt;event-id&gt; --text \"…\" &amp;&amp; leaf status &lt;page&gt; working \"&lt;the work, in a line&gt;\" --on &lt;address&gt;`, where `&lt;address&gt;` is the event's `answer.to`: the line stands beside the thread and in the banner until your next reply there. Once that work lands, report it with `leaf reply &lt;page&gt; --to &lt;address&gt;`. `leaf reply` checks any saved page edit and makes it live before posting. If a revision removes what the thread is anchored on, move the thread in the reply that reports it with `--section &lt;id&gt;` (narrowed by `--quote` or `--part` if needed), or `--detach` it if its subject has left the page. Add `--awaits` only if your reply's prose asks the user something.",
         "h6": "Your reply renders as Markdown, so show code or markup in a fenced block."
       },
       "events": [
@@ -293,7 +293,7 @@ $ leaf wait --ack 2d5bdcc4
 $ leaf reply ./review --for ebe8f367 --text "I’ll use drop-oldest for the batch importer and keep rejection at the API boundary." &amp;&amp; leaf status ./review working "splitting the shed policy between the API and the importer" --on ebe8f367
 
 # revise ./review/index.html; a valid save goes live at once
-$ leaf reply ./review --to ebe8f367 --initiates --text "Done: the shed section now splits the policy by caller."
+$ leaf reply ./review --to ebe8f367 --text "Done: the shed section now splits the policy by caller."
 $ leaf status ./review waiting "Does the API/importer split match what you need?"</code></pre>
             </lf-specimen>
             <p id="loop-shell-read">
@@ -426,7 +426,7 @@ flowchart LR
     Reply["agent: leaf reply · leaf comment"]
     Awaits["agent: leaf reply --awaits"]
     Stamp["agent: leaf version stamp"]
-    Receipt["agent: leaf report · leaf receipt"]
+    Receipt["agent: leaf experimental report · receipt"]
     Status["agent: leaf status"]
     Pickup["Leaf: how far your input got"]
     Turn["Leaf: the agent's turn and watcher"]
@@ -476,10 +476,10 @@ flowchart LR
                 <strong><code>leaf reply --for …</code></strong> An answer in your
                 thread, which clears the label beside your comment.
               </li>
-              <li id="updates-written-initiates">
-                <strong><code>leaf reply --to … --initiates</code></strong> A later
-                message in a thread already answered, such as the result of work the
-                first reply promised.
+              <li id="updates-written-followup">
+                <strong><code>leaf reply --to …</code></strong> A later message in a
+                thread already answered, such as the result of work the first reply
+                promised.
               </li>
               <li id="updates-written-awaits">
                 <strong><code>leaf reply … --awaits</code></strong> A question for you.
@@ -500,12 +500,13 @@ flowchart LR
                 read an earlier revision, a chip offers the new one:
                 <em>New page available → open v4</em>.
               </li>
-              <li id="updates-written-receipt">
-                <strong><code>leaf report</code>, <code>leaf receipt</code></strong> A
-                widget's progress: its state redraws as the agent reports it, and a
-                request you made from it reads succeeded or failed.
-              </li>
             </ul>
+            <p id="updates-written-experimental">
+              <code>leaf experimental report</code> and
+              <code>leaf experimental receipt</code> let optional packages' widgets show
+              a worker's progress and the outcome of a request you made. Both may
+              change.
+            </p>
 
             <h3 id="updates-observed-heading">Written by Leaf beside your input</h3>
             <p id="updates-observed-lede">
@@ -530,7 +531,7 @@ flowchart LR
                 </tr>
                 <tr id="updates-observed-queued">
                   <td>Queued</td>
-                  <td>Codex accepted it into the agent's queue.</td>
+                  <td>The agent's host queued it for the agent's next turn.</td>
                 </tr>
                 <tr id="updates-observed-picked">
                   <td>Picked up</td>
@@ -542,7 +543,7 @@ flowchart LR
                 </tr>
                 <tr id="updates-observed-replying">
                   <td>Replying</td>
-                  <td>With Codex, the answer is streaming into the thread.</td>
+                  <td>The answer is streaming into the thread.</td>
                 </tr>
                 <tr id="updates-observed-pickup-late">
                   <td>Waiting for pickup</td>
@@ -565,11 +566,18 @@ flowchart LR
                 <tr id="updates-observed-failed">
                   <td>Interrupted, Not answered</td>
                   <td>
-                    With Codex, the turn was interrupted or failed before it answered.
+                    The host stopped the turn, or reported that it failed, before it
+                    answered.
                   </td>
                 </tr>
               </tbody>
             </table>
+            <p id="updates-observed-hosts">
+              Queued, Replying, and the failure labels need the agent's host to report
+              more than a pickup, so a host that doesn't report them never shows them.
+              The same holds for the banner's step readings. Today Codex reports all of
+              these, and Claude Code none.
+            </p>
           </section>
 
           <section id="updates-when">
@@ -633,10 +641,7 @@ flowchart LR
                 </tr>
                 <tr id="updates-reading-steps">
                   <td>Codex thinking, Codex using a tool</td>
-                  <td>
-                    With Codex, Leaf watches the agent's steps and names the current one
-                    in the banner.
-                  </td>
+                  <td>The agent's host reported its current step.</td>
                 </tr>
                 <tr id="updates-reading-ended">
                   <td>Claude’s turn ended 3m ago</td>
@@ -665,6 +670,61 @@ flowchart LR
                     a quarter of an hour. Your comments are saved until a message in the
                     agent's terminal starts its next turn.
                   </td>
+                </tr>
+              </tbody>
+            </table>
+          </section>
+          <section id="updates-notices">
+            <h2>What the status line announces</h2>
+            <p id="updates-notices-lede">
+              News that arrives without you doing anything shows for a few seconds in
+              the status line at the bottom of the page, and a screen reader hears the
+              same words. News arriving together shares one notice, as in
+              <em>Claude replied; Input needed</em>. What was already there when you
+              opened the page isn't announced, except messages you haven't read.
+            </p>
+            <table id="updates-notice-kinds">
+              <thead>
+                <tr>
+                  <th>Notice</th>
+                  <th>When</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr id="updates-notice-content">
+                  <td>
+                    Claude replied, Claude commented, Claude updated a reply, 3 replies
+                    in 2 threads
+                  </td>
+                  <td>An agent message you haven't read arrives, or one is edited.</td>
+                </tr>
+                <tr id="updates-notice-input">
+                  <td>Input needed, 2 items need your input</td>
+                  <td>
+                    Something new waits on you: an Ask on the page or in a thread, or a
+                    thread whose turn is yours.
+                  </td>
+                </tr>
+                <tr id="updates-notice-failure">
+                  <td>Response failed, Response interrupted</td>
+                  <td>
+                    The agent's host reports that an answer to you failed or stopped.
+                  </td>
+                </tr>
+                <tr id="updates-notice-request">
+                  <td>Request succeeded, Request failed</td>
+                  <td>A request you made from a widget gets its outcome.</td>
+                </tr>
+                <tr id="updates-notice-active">
+                  <td>Agent active on this page</td>
+                  <td>
+                    An agent starts watching or working on the page after a time with
+                    none.
+                  </td>
+                </tr>
+                <tr id="updates-notice-version">
+                  <td>Updated to v4</td>
+                  <td>A new revision replaces the page in place.</td>
                 </tr>
               </tbody>
             </table>

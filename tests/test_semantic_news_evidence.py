@@ -90,7 +90,6 @@ def test_user_prompt_names_the_latest_question_content_version(page_dir):
             "id": "status-update",
             "author": "agent",
             "parent": first["id"],
-            "initiates": True,
             "text": "Still checking.",
         },
     )
@@ -104,7 +103,6 @@ def test_user_prompt_names_the_latest_question_content_version(page_dir):
             "id": "second-question",
             "author": "agent",
             "parent": first["id"],
-            "initiates": True,
             "awaits": True,
             "text": "Second question?",
         },

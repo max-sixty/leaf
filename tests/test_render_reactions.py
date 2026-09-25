@@ -130,7 +130,6 @@ def test_a_late_standing_reaction_does_not_move_the_readable_column(browser, ser
     column = page.locator("main").evaluate(
         "el => { const box = el.getBoundingClientRect(); return [box.left, box.right]; }"
     )
-    rail = page.locator("html").evaluate("el => el.style.getPropertyValue('--rail')")
     events_model.append_event(
         serve.page_dir,
         {
@@ -149,13 +148,6 @@ def test_a_late_standing_reaction_does_not_move_the_readable_column(browser, ser
         )
         == column
     )
-    # The page reserves its strip at load, so the column standing still says only that
-    # the reading found room in what was already claimed. The claim itself not growing
-    # is the other half, and it is what "without claiming space" means.
-    assert (
-        page.locator("html").evaluate("el => el.style.getPropertyValue('--rail')")
-        == rail
-    ), "a passive reading widened the page rail"
 
 
 def test_a_token_press_marks_the_passage_and_its_revealed_remove_takes_it_back(

@@ -13,7 +13,7 @@
  * reading through `registerMarginContribution`; the margin projection joins it to comment threads,
  * decisions, delivery status, activity, and temporary reaction controls for this same
  * target.
- * That owner renders and places the resulting entries, measures the rail, docks them when
+ * That owner renders and places the resulting entries, docks them when
  * the margin is too narrow, and reads rendered descendants when a project makes the
  * target `display: contents`. A suggestion never creates a second RHS surface or
  * geometry model of its own. */
@@ -290,8 +290,6 @@ customElements.define(
             ? "busy"
             : "idle",
         side: "before",
-        claim: true,
-        reserve: 0,
         notice: this.#failed
           ? {
               text: this.#failed.undo

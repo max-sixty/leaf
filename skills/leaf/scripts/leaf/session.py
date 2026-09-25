@@ -20,6 +20,7 @@ from .files import file_stamp, next_reading, read_json
 from .host import Harness, session_harness
 from .hosting import start_server
 from .leases import (
+    release_lease,
     release_session_wait,
     take_lease,
     take_session_wait,
@@ -407,7 +408,7 @@ class Watch:
             release_session_wait(self.session_id, self.start_mark)
             self.start_mark = None
         for lease in self.leases:
-            lease.close()
+            release_lease(lease)
         self.leases.clear()
 
 

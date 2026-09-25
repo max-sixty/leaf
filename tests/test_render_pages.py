@@ -48,7 +48,6 @@ from render_cases_widgets import (
     NOTE_BAND,
     OWN_MARGIN_FURNITURE,
     PICTURE_PAGE,
-    RAIL_AND_WIDE_PAGE,
     RAIL_BAND_PAGE,
     RAIL_BANDS,
     RAIL_FIT,
@@ -1663,7 +1662,7 @@ lf-roomy > section { min-height: 80px; border: 1px solid currentColor; }
 """,
     )
     page = open_page(browser, serve(source, layer_registry={"lf-roomy": entry}))
-    resized(page, 1726, 900)
+    resized(page, 1762, 900)
     at = page.locator("#roomy").evaluate("""el => {
       const box = el.getBoundingClientRect();
       const children = [...el.children].map(node => node.getBoundingClientRect().width);
@@ -1919,64 +1918,6 @@ def test_paper_holds_no_room_for_the_chrome_it_does_not_print(browser, serve):
     assert printed["head"] <= 1 and printed["foot"] <= 1, (
         f"a sheet held {printed['head']:.0f}px over the first line and "
         f"{printed['foot']:.0f}px under the last, for chrome it does not print"
-    )
-
-
-def test_the_room_is_measured_after_a_late_rail(browser, serve):
-    """A page carrying a change to decide gives up a rail of the controls' own width, and
-    the width of those controls is a fact about their words — so lf-suggestion measures
-    the first row it builds and states it, which is long after the layout first ran. The
-    room a wide widget spends came from that first run, and nothing asked again: the
-    exhibit kept the width of a page 189px wider than the one it was standing on and hung
-    out over the rail.
-
-    Stated rather than run for, and the route handler is where it is stated: it waits for
-    the room the page states and only then lets the module through, so the ordering holds
-    whichever way the machine would have gone. Releasing the held request from out here
-    ordered nothing, since the module is asked for behind the registry's own round trip
-    while the room needs no network at all — a loaded runner had the room stated with the
-    request still to come, and the release reached for a request nobody had made.
-
-    The reading is taken at the stamp, because a settled page is right either way: the
-    rail is a claim on the page's own box and that box is watched, so the room is restated
-    a frame later whatever the runtime's own call does, and every reading through the
-    browser arrives after that frame. A MutationObserver on the stamp lands ahead of it.
-    What the injection buys is the record and not the wait — the stamp is the runtime's
-    own statement that the geometry it hands over is final, so this asks the page at the
-    moment it makes the claim."""
-    url = serve(RAIL_AND_WIDE_PAGE)
-    page = browser.new_page(viewport={"width": 1200, "height": 900})
-    page.add_init_script(AT_THE_HANDOVER)
-
-    laid_out = []
-
-    def release_the_rail(route):
-        page.wait_for_function("() => Boolean(document.querySelector('main'))")
-        laid_out.append(
-            page.evaluate(
-                "() => getComputedStyle(document.documentElement)"
-                ".getPropertyValue('--rail')"
-            )
-        )
-        route.continue_()
-
-    page.route("**/widgets/lf-suggestion.js", release_the_rail)
-    page.goto(url)
-    page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
-
-    assert laid_out == [""], (
-        "the module was never held behind the layout, so the rail's arrival is the "
-        f"machine's ordering rather than this test's: {laid_out}"
-    )
-    fit = page.evaluate("() => window.__handover")
-    assert fit["rail"] != "0px", (
-        "no rail was reserved, so the late-arriving fact this is about never arrived"
-    )
-    assert fit["past"] <= 1, (
-        f"the board stands {fit['past']:.0f}px outside the page's own box at the moment "
-        f"the page says it is done, laid out to the width of a page 189px wider than "
-        f"the one it is on: {fit['widget']:.0f}px of widget in {fit['content']:.0f}px "
-        "of page"
     )
 
 
@@ -2530,6 +2471,8 @@ def test_a_wide_widget_stays_inside_a_box_that_frames_it(browser, serve):
         '<h1 id="t">Framed</h1>',
     )
     page = open_page(browser, serve(source))
+    # Wide enough that the sidebar, the column and the rail leave the loose board room.
+    resized(page, 1280, 900)
     boxes = page.evaluate("""() => {
         const box = (sel) => {
             const r = document.querySelector(sel).getBoundingClientRect();
@@ -2907,19 +2850,11 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
     banner_control(page, ".lf-asks").click()
     expect(page.locator(".lf-asks-panel")).to_be_hidden()
 
-    # The rail claim is monotonic, so narrowing the same page carries its widest
-    # right-margin row into the tighter layout. The sidebar and rail use the outer
-    # gutters before taking width from the reading column, so the page narrowed to
-    # exactly what the two residents and a whole column need still holds all three.
-    #
-    # That width is read rather than stated, because the rail's claim is a measured
-    # row rather than a token: it is the widest margin control the page carries, and
-    # its width is the width the host's UI font sets that control's words in. A stated
-    # 1200px window asks that claim to come in at 216px or narrower, which is a bet on
-    # one machine's fonts: this runner sets the same control 250px wide, and the 34px
-    # difference is width the column has to give up. The window adds back whatever the
-    # root scrollport holds outside the container query's own width.
-    exact = max(1152, roomy["strip"] + 720 + roomy["rail"])
+    # The sidebar and rail use the outer gutters before taking width from the reading
+    # column, so the page narrowed to exactly what the two residents and a whole column
+    # need still holds all three. The window adds back whatever the root scrollport
+    # holds outside the container query's own width.
+    exact = max(1188, roomy["strip"] + 720 + roomy["rail"])
     resized(page, math.ceil(exact + roomy["viewportWidth"] - roomy["pageWidth"]), 900)
     margins_laid_out(page)
     tighter = page.evaluate(reading)

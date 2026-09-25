@@ -42,7 +42,9 @@ import { prepareDeclaredInlineMarkdown } from "./markdown.js";
    names the tags it needs, so nothing imports on a mutation after the element is already
    connected. A module whose own payload is large (`lf-diff`'s renderer) imports it on
    first render for the same reason. `missingUpgrades` therefore reports the page's own
-   widgets; that a declared module exists at all stays `package check`'s.
+   widgets; that a declared module exists at all stays `package check`'s. An offline
+   export embeds only the widget modules these boundaries can ask for
+   (`_module_urls` in `exporting.py`), so a new boundary is one it has to read too.
 
    Required widget imports reject through the startup or activation boundary; a missing
    module cannot count as a completed upgrade. */

@@ -233,8 +233,6 @@ export function createReactionController({
         );
         return {
           side: "after",
-          // Temporary response choices use existing room; they never widen the page rail.
-          claim: false,
           entries: reactionTokens().map(([name, entry], ordinal) => ({
             key: marginReactionKey(name, ordinal),
             activation: name,

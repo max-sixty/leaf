@@ -395,12 +395,12 @@ UNMARKABLE_PAGE = LONG_PAGE.replace(
 FLOATING_PAGE = LONG_PAGE.replace(
     "</main>",
     "<style>@media (max-width: 1199px) { .fixture-margin-float { display: none; } }</style>"
-    "<div class='fixture-margin-float' id='in-the-margin' style='float: left; clear: left; width: 180px;"
-    " margin-left: -204px'>Beside <code id='inner-word'>--flag</code>.</div>"
+    "<div class='fixture-margin-float' id='in-the-margin' style='float: left; clear: left; width: 160px;"
+    " margin-left: -184px'>Beside <code id='inner-word'>--flag</code>.</div>"
     "<div class='fixture-margin-float' id='half-out' style='float: left; clear: left; width: 180px;"
     " margin-left: -90px'>Across.</div>"
-    "<div class='fixture-margin-float' id='logical' style='float: inline-start; clear: left; width: 180px;"
-    " margin-left: -204px'>Beside.</div>"
+    "<div class='fixture-margin-float' id='logical' style='float: inline-start; clear: left; width: 160px;"
+    " margin-left: -184px'>Beside.</div>"
     "<div class='fixture-margin-float' id='off-window' style='float: left; clear: left; width: 180px;"
     " margin-left: -900px'>Gone.</div>\n</main>",
 )

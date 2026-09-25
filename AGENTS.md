@@ -128,6 +128,7 @@ Claude Code and Codex install the tracked tree whole. Its main parts are:
   vocabulary;
 - `hooks/hooks.json`: the shared host hooks.
 
+`evals/` scores the shipped guidance with cases a headless agent answers.
 `examples/` is the authored-page and render corpus. `tests/` covers the file,
 CLI, browser, and published-site boundaries, and in `tests/runtime/` the folds the
 shipped runtime performs, which Node runs without one. `scripts/` owns developer preview,
@@ -303,6 +304,8 @@ Before finishing a feature:
   section by name rather than restating it, since each copy drifts on the next
   change. Shipped guidance sets goals for the user's experience and names the
   surface they read on; it leaves format and phrasing to the agent's judgment.
+  Score the change with `evals/` before and after, and add a case for the
+  behavior it targets; `evals/README.md` says how.
 - Update any public docs or generated outputs the feature affects.
 
 `tests/AGENTS.md` owns environment setup, focused runs, nightly selection, and

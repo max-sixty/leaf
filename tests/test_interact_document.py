@@ -2933,8 +2933,8 @@ def test_restating_a_widget_that_kept_its_words_is_refused(page_dir):
 
 
 def test_report_validates_at_the_door_and_stamps_identity(page_dir, monkeypatch):
-    """`leaf report` is the report event's one door, so the widget, verb, and
-    detail are held to the widget's agent verb there — the CLI mirror of the
+    """`leaf experimental report` is the report event's one door, so the widget,
+    verb, and detail are held to the widget's agent verb there — the CLI mirror of the
     POST door's action gate — and the event leaves stamped with the posting
     session's voice and the exact revision the user is looking at."""
     _tasks_version(page_dir, "active")
@@ -2993,7 +2993,8 @@ def test_report_validates_at_the_door_and_stamps_identity(page_dir, monkeypatch)
 
     # A bare call names the coordinate it moved; `_report` above asks for the event.
     named = CliRunner().invoke(
-        cli_model.cli, ["report", str(page_dir), "t-parser", "status", "status=done"]
+        cli_model.cli,
+        ["experimental", "report", str(page_dir), "t-parser", "status", "status=done"],
     )
     assert named.exit_code == 0, named.output
     assert named.output == "reported status on t-parser\n"
@@ -3040,7 +3041,15 @@ def test_receipt_settles_one_known_request_once(page_dir, monkeypatch):
     assert lifecycle["latest"]["receipt"] is None
     unknown = CliRunner().invoke(
         cli_model.cli,
-        ["receipt", str(page_dir), "missing", "failed", "--text", "No request"],
+        [
+            "experimental",
+            "receipt",
+            str(page_dir),
+            "missing",
+            "failed",
+            "--text",
+            "No request",
+        ],
     )
     assert unknown.exit_code == 1
     assert f"unknown request 'missing'; open requests: {request['id']!r}" in (
@@ -3053,7 +3062,15 @@ def test_receipt_settles_one_known_request_once(page_dir, monkeypatch):
     )
     misdirected = CliRunner().invoke(
         cli_model.cli,
-        ["receipt", str(page_dir), comment["id"], "failed", "--text", "No request"],
+        [
+            "experimental",
+            "receipt",
+            str(page_dir),
+            comment["id"],
+            "failed",
+            "--text",
+            "No request",
+        ],
     )
     assert misdirected.exit_code == 1
     assert (
@@ -3066,7 +3083,7 @@ def test_receipt_settles_one_known_request_once(page_dir, monkeypatch):
     # either door, since what settles it is what the log still owes for it.
     settles = (
         f"{request['id']} is a request in this page's log — "
-        f"`leaf receipt <page> {request['id']} succeeded|failed` answers it"
+        f"`leaf experimental receipt <page> {request['id']} succeeded|failed` answers it"
     )
     resolved = CliRunner().invoke(
         cli_model.cli, ["resolve", str(page_dir), "--to", request["id"]]
@@ -3085,6 +3102,7 @@ def test_receipt_settles_one_known_request_once(page_dir, monkeypatch):
     accepted = CliRunner().invoke(
         cli_model.cli,
         [
+            "experimental",
             "receipt",
             str(page_dir),
             request["id"],
@@ -3115,7 +3133,15 @@ def test_receipt_settles_one_known_request_once(page_dir, monkeypatch):
 
     duplicate = CliRunner().invoke(
         cli_model.cli,
-        ["receipt", str(page_dir), request["id"], "failed", "--text", "Again"],
+        [
+            "experimental",
+            "receipt",
+            str(page_dir),
+            request["id"],
+            "failed",
+            "--text",
+            "Again",
+        ],
     )
     assert duplicate.exit_code == 1
     assert "already has receipt" in duplicate.output
@@ -3170,6 +3196,7 @@ def test_page_state_groups_failed_retry_as_one_request_lifecycle(page_dir):
     failed = CliRunner().invoke(
         cli_model.cli,
         [
+            "experimental",
             "receipt",
             "--json",
             str(page_dir),

@@ -6,10 +6,13 @@ import "/widgets/lf-shot.js";
 import "../vendor/webawesome.esm.js";
 
 import {
+  cancelRender,
   commands,
   compoundReadingRegionId,
+  consumeThreads,
   failSoft,
   layoutChanged,
+  nextRender,
   notice,
   offer,
   once,
@@ -17,11 +20,11 @@ import {
   PRESS,
   projectData,
   registerReadingRegion,
-  consumeThreads,
   relabel,
   scopedMediaUrl,
-  widgetController,
+  sizeObserver,
   watchData,
+  widgetController,
 } from "/runtime/widget-api.js";
 
 const CLASSIFICATION = {
@@ -123,7 +126,7 @@ customElements.define(
         body: this.#casesBody,
       });
       for (const [id, entry] of this.#caseEntries) this.#registerCaseRegion(id, entry);
-      this.#sizes = new ResizeObserver(() => this.#scheduleEvidenceLayout());
+      this.#sizes = sizeObserver(() => this.#scheduleEvidenceLayout());
       this.#sizes.observe(this);
       for (const stage of this.querySelectorAll(".lf-vr-shot-host"))
         this.#sizes.observe(stage);
@@ -156,7 +159,7 @@ customElements.define(
       this.#sizes?.disconnect();
       this.#sizes = null;
       window.removeEventListener("resize", this.#onResize);
-      if (this.#layoutFrame !== null) cancelAnimationFrame(this.#layoutFrame);
+      if (this.#layoutFrame !== null) cancelRender(this.#layoutFrame);
       this.#layoutFrame = null;
       this.#stopEvidence?.();
       this.#stopEvidence = null;
@@ -349,7 +352,7 @@ customElements.define(
 
     #scheduleEvidenceLayout() {
       if (this.#layoutFrame !== null) return;
-      this.#layoutFrame = requestAnimationFrame(() => {
+      this.#layoutFrame = nextRender(() => {
         this.#layoutFrame = null;
         this.#paintEvidenceLayout();
       });

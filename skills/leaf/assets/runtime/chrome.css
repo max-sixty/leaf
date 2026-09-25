@@ -1518,6 +1518,9 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     margin: 0; padding: 12px; border: 1px solid var(--border-2); border-radius: 10px;
     background: var(--paper); color: var(--ink); box-shadow: 0 12px 36px var(--shade); }
   .lf-margin-preview:not([hidden]) { display: flex; flex-direction: column; }
+  /* The positioned top is the card's foot in the right rail. As the reply gains a line,
+     the percentage translation grows upward in the same layout pass. */
+  .lf-margin-preview[data-lf-thread-placement="right"] { translate: 0 -100%; }
   .lf-thread-transition { position: fixed; z-index: var(--lf-z-thread-transition); margin: 0;
     padding-inline: 12px; overflow: hidden; pointer-events: none;
     white-space: pre-wrap; }

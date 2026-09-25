@@ -19,7 +19,7 @@ from .files import read_json, write_json
 from .host import session_harness
 from .http import page_app, page_endpoint
 from .layer import payload_provenance
-from .leases import page_locked, release_lease, take_lease
+from .leases import lock_is_held, page_locked, release_lease, take_lease
 from .registry.storage import layer_metadata
 from .schema import SERVER_LOCK, SERVICE_FILE
 from .server import (
@@ -502,6 +502,8 @@ def cmd_stop(page_dir: Path) -> str:
     stopped = False
     while True:
         with page_locked(page_dir):
+            # The server may release its lease immediately after we disable it.
+            stopped = stopped or lock_is_held(page_dir / SERVER_LOCK)
             service = read_json(page_dir / SERVICE_FILE)
             if service and service["enabled"]:
                 write_json(page_dir / SERVICE_FILE, {**service, "enabled": False})

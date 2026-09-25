@@ -56,6 +56,7 @@
    Boot supplies composer, travel, and mode commands to one surface owner. Its
    constructor binds no document listeners; mount installs the selection gesture
    lifecycle and field-focus tracking after all capabilities have been composed. */
+import { cancelRender, nextRender } from "../rendering.js";
 import {
   addressableWord,
   anchoringIsReady,
@@ -271,7 +272,7 @@ export function createResponseSurface({
   // put in the field that the bar has no position, in the middle of giving it one.
   function stopFabPositioning({ reset = false, repositioning = false } = {}) {
     fabPositionEpoch += 1;
-    cancelAnimationFrame(fabPositionFrame);
+    cancelRender(fabPositionFrame);
     fabPositionFrame = 0;
     fabPositionCleanup?.();
     fabPositionCleanup = null;
@@ -363,7 +364,7 @@ export function createResponseSurface({
 
   function scheduleFabPosition() {
     if (fabPositionFrame || !fabAnchor || !fabFloating) return;
-    fabPositionFrame = requestAnimationFrame(() => {
+    fabPositionFrame = nextRender(() => {
       fabPositionFrame = 0;
       placeFab();
     });

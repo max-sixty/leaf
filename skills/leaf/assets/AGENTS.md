@@ -382,8 +382,8 @@ authors choose the reading sequence and evidence. Width demand is independent of
 widget's internal drawing layout. Compact navigation must not reserve a full sidebar
 when its presentation no longer needs one, and a free side may use room the other side
 cannot take. Nothing Leaf draws at run time moves the page's content: a margin row
-stands in the rail a column page reserves, or over the page as a pin at its target's
-top-right, and expanding content keeps the allocation its own declaration gave it.
+stands in the rail a column page reserves, or over the page as a pin inside its target's
+top-right corner, and expanding content keeps the allocation its own declaration gave it.
 
 Ordinary document content grows in flow. A bounded inspection object may scroll inside
 that document, with native scroll chaining into the document at its boundary, including

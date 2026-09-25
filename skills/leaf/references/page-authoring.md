@@ -179,11 +179,13 @@ geometry without them:
 
 - A document keeps a rail, a strip `--rail` wide beside its column, from a shell of
   863px up; its markers stand in it, 22px past the column.
-- A sheet, and so a workspace, keeps no rail. Its markers stand as pins over the page at
-  the top-right of their blocks, as every marker does where the rail does not stand: in
-  a narrower window, and in a pane that scrolls on its own. A pin stands beside its block
-  where the room past it holds the pin, and otherwise covers what is missing; it never
-  stands on a control of the block, such as a card's grip, and goes below one instead.
+- A sheet, and so a workspace, keeps no rail. Its markers stand as pins over the page
+  inside the top-right corner of their blocks, as every marker does where the rail does
+  not stand: in a narrower window, and in a pane that scrolls on its own. A pin covers
+  that corner of its block, 26px of it with a mouse and 44px under a finger, so a block
+  whose first line runs to its right edge loses the end of that line under a pin. It
+  never stands on a control of the block, such as a card's grip, and goes below one
+  instead.
 - A marker on a figure grown past the rail stands on the figure as a pin.
 - The user hides every pin and passage mark with `o` to see what lies under them; the
   rail stays, since it covers nothing.

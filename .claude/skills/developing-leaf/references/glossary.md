@@ -122,7 +122,7 @@ The margin projection has a separate registration and layout hierarchy:
 | Term | Identity criterion |
 |---|---|
 | **Rail** | The right-hand strip a column page reserves beside its column, where margin rows stand beside their targets |
-| **Pin** | A margin row standing over the page at the top-right of its target's block, where no rail stands: the page declared none, the shell is too narrow, or the target sits in a pane that scrolls on its own |
+| **Pin** | A margin row standing over the page inside the top-right corner of its target's block, where no rail stands: the page declared none, the shell is too narrow, or the target sits in a pane that scrolls on its own |
 | **Margin row** | One target-anchored geometry participant whose placement is `rail`, `pin`, or `withheld` |
 | **Margin lane** | The layer holding the margin rows of one scroller: the root lane for the document, one lane per bounded reading region, clipped to what that region shows |
 | **Contributed control** | A margin entry a package puts in a target's cluster, such as a suggestion's Accept and Reject |

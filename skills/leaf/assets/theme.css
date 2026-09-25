@@ -166,6 +166,10 @@
      focus conventions and reads as ink on ivory rather than as UI. */
   --accent: light-dark(#2f5480, #8fb0d8); --ok: light-dark(#3f7d4e, #7fb98c);
   --warn: light-dark(#b4741a, #d8a95c); --danger: light-dark(#b4402f, #d98b7a);
+  /* A pin stands over the page's own words, so it has to read as something laid on the
+     page rather than as more ink on it: a saturated blue, the way a design tool's
+     comment pin sits on a frame, where the accent above is chosen to read as ink. */
+  --pin: light-dark(#0d7ae6, #3d9bff);
   --r: 6px;
   --chip-r: 3px;
   --sp-1: 4px; --sp-2: 8px; --sp-3: 16px; --sp-4: 24px;
@@ -185,6 +189,9 @@
      rail's claim below reserves the same length, so it is named rather than written
      into each. */
   --margin-entry: max(32px, var(--aim-floor));
+  /* How far inside its block's right edge a pin stands. margin-layout.js reads it too,
+     to know where a pin will stand before packing it. */
+  --pin-inset: 4px;
   /* The rail: the strip beside the column that a column page's margin entries stand in.
      It is authored rather than measured, so the page's geometry is settled before
      anything lands in the margin and never moves because of what does. It seats the
@@ -1592,10 +1599,9 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
  *
  * A cluster stands level with its target's top (`--lf-inset` where it anchors to a box
  * holding the target), pushed down by packing (`--lf-push`). In
- * the rail it hangs `--rail-hang` off `main`'s edge and unfolds rightward. As a pin its
- * right edge stands `--lf-dx` past its target's right edge: wholly beside the block where
- * the room there holds it, so an unfolding cluster grows into that room and then leftward
- * over the block. Every position function falls back to a place off screen: an anchor can be
+ * the rail it hangs `--rail-hang` off `main`'s edge and unfolds rightward. As a pin it
+ * stands inside its target's top-right corner, `--pin-inset` in from the right edge, and
+ * unfolds leftward over the block. Every position function falls back to a place off screen: an anchor can be
  * invalid (a target inside `content-visibility: hidden` or gone), and
  * `position-visibility` hides a cluster only when its anchor is valid and scrolled out of
  * view. */
@@ -1611,7 +1617,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-margin-cluster[data-lf-place="rail"] {
     left: calc(anchor(--lf-page right, -9999px) + var(--rail-hang) + var(--lf-step, 0px)); }
 .lf-margin-cluster[data-lf-place="pin"] {
-    right: calc(anchor(right, 9999px) - var(--lf-dx, 0px)); }
+    right: calc(anchor(right, 9999px) + var(--pin-inset)); }
 /* With the annotation layer hidden (`o`, annotation-layer.js) every pin goes, whatever it
  * holds, and the rail stays, since it covers nothing. A row the user asked for by name
  * (`data-lf-revealed`) stays while they stand in it. Hidden rather than taken out of
@@ -1621,15 +1627,6 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 /* A pin's count stands on its left, over the block it is about: at the window's edge the
  * page's `overflow-x: hidden` would clip one on the right. */
 .lf-margin-cluster[data-lf-place="pin"] .lf-margin-count { right: auto; left: -7px; }
-/* LOOK PASS (temporary): the open visual candidates, chosen on the root for stills. */
-:root[data-lf-look-pin="corner"] .lf-margin-cluster[data-lf-place="pin"] {
-    --margin-entry: 24px; }
-@media (pointer: coarse) {
-  :root[data-lf-look-touch="small"] .lf-margin-cluster[data-lf-place="pin"] {
-      --margin-entry: 28px; }
-  :root[data-lf-look-touch="small"] .lf-margin-cluster[data-lf-place="pin"]
-    .lf-margin-entry::after { content: ""; position: absolute; inset: -8px; }
-}
 /* What a hovered or focused item says about the target it acts on is said on the target:
  * `highlight` (margin-projection.js) hands every item to target paint, which traces the
  * region's own shape. The item draws no leader out to it.
@@ -1837,21 +1834,28 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   transition: none;
 }
 .lf-margin-options [data-lf-margin-entry-overflow] { display: none; }
-/* LOOK PASS (temporary): a filled corner pin, the way a design tool's comment pin sits on
- * a frame. Stated after the entry's states so its face outranks theirs. */
-:root[data-lf-look-pin="figma"] { --pin-fill: light-dark(#0d7ae6, #3d9bff); }
-:root[data-lf-look-pin="figma"] .lf-margin-cluster[data-lf-place="pin"] { --margin-entry: max(26px, var(--aim-floor)); }
-:root[data-lf-look-pin="figma"] .lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry.lf-margin-marker {
+/* A pin's marker is filled where a rail marker is paper: it stands on the block it is
+   about, over the block's own words, so it is a solid teardrop pointing into the block
+   with a paper edge that parts it from whatever it covers. It is smaller than a rail
+   marker with a mouse, because it covers what it stands on, and keeps the full aim floor
+   under a finger, so what the user sees is what they press. Working turns the fill green,
+   as it turns a paper marker's interior green. Stated after the entry's states, whose
+   hover it has to outrank. */
+.lf-margin-cluster[data-lf-place="pin"] { --margin-entry: max(26px, var(--aim-floor)); }
+.lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry.lf-margin-marker {
   border: 2px solid var(--paper); border-radius: 50% 50% 50% 3px;
-  background: var(--lf-pin-face, var(--pin-fill)); color: #fff;
+  background: var(--lf-pin-face, var(--pin)); color: #fff;
   box-shadow: 0 1px 2px rgb(0 0 0 / .22), 0 3px 8px rgb(0 0 0 / .14); }
-:root[data-lf-look-pin="figma"] .lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry.lf-margin-marker
-  > :is(.lf-margin-entry-icon, .lf-margin-entry-glyph) { color: #fff; inline-size: 14px; block-size: 14px; }
-:root[data-lf-look-pin="figma"] .lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry.lf-margin-marker:is(:hover, [aria-expanded="true"]) {
-  background: color-mix(in srgb, var(--lf-pin-face, var(--pin-fill)) 82%, #000);
+.lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry.lf-margin-marker
+  > :is(.lf-margin-entry-icon, .lf-margin-entry-glyph) {
+  color: #fff; inline-size: 14px; block-size: 14px; }
+.lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry.lf-margin-marker:is(:hover, [aria-expanded="true"]) {
+  background: color-mix(in srgb, var(--lf-pin-face, var(--pin)) 82%, #000);
   border-color: var(--paper); }
-:root[data-lf-look-pin="figma"] .lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry.lf-margin-marker[data-lf-agent-workflow="working"] {
+.lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry.lf-margin-marker[data-lf-agent-workflow="working"] {
   --lf-pin-face: var(--ok); }
+.lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry.lf-margin-marker[data-lf-unread]::after {
+  box-shadow: 0 0 0 2px var(--paper); }
 .lf-margin-receipt { color: var(--ink-2); font-weight: 600; }
 .lf-margin-receipt[data-lf-margin-receipt="negative"] { color: var(--danger-ink); }
 .lf-margin-count { position: absolute; top: -7px; right: -7px; min-width: 16px;

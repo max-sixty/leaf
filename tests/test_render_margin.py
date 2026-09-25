@@ -3114,11 +3114,13 @@ def test_one_target_has_one_primary_margin_entry_and_inline_secondary_margin_ent
     page.mouse.move(0, 0)
     expect(edit.locator(".lf-margin-entry-label")).to_be_hidden()
 
+    # In the rail; a pin's entries are smaller, since a pin covers what it stands on.
     shapes = page.locator(
         ".lf-sug-accept:visible, .lf-draft-pencil:visible, .lf-margin-more:visible, "
         ".lf-margin-marker:visible"
     ).evaluate_all(
-        "els => els.map(el => { const box = el.getBoundingClientRect(); "
+        "els => els.filter(el => el.closest('[data-lf-place=\"rail\"]'))"
+        ".map(el => { const box = el.getBoundingClientRect(); "
         "const style = getComputedStyle(el); "
         "return [Math.round(box.width), Math.round(box.height), style.borderRadius]; })"
     )
@@ -3245,8 +3247,9 @@ def test_one_target_has_one_primary_margin_entry_and_inline_secondary_margin_ent
     expect(draft_item.locator(".lf-margin-entry:visible")).to_have_count(6)
     expect(draft_item.locator(":scope > .lf-margin-more")).to_be_hidden()
 
-    # On a narrow screen each item stands as a pin at the right edge of its own target,
-    # at its top or just below a control of the target it would otherwise stand on, and
+    # On a narrow screen each item stands as a pin inside the top-right corner of its own
+    # target, at its top or just below a control of the target it would otherwise stand
+    # on, and
     # the desktop map marker leaves the compact action row to the Page Map dialog.
     page.keyboard.press("Escape")
     page.evaluate("() => document.activeElement.blur()")
@@ -3261,10 +3264,10 @@ def test_one_target_has_one_primary_margin_entry_and_inline_secondary_margin_ent
               const row = item.getBoundingClientRect();
               const box = item.lfTarget.getBoundingClientRect();
               return {within: row.top >= box.top - 1 && row.top < box.bottom,
-                      atEdge: row.left <= box.right + 1 && row.right >= box.right};
+                      inCorner: row.right <= box.right && row.right >= box.right - 12};
             }"""
         )
-        assert stands == {"within": True, "atEdge": True}, stands
+        assert stands == {"within": True, "inCorner": True}, stands
     expect(suggestion_item.locator(":scope > .lf-margin-marker")).to_be_hidden()
     page.keyboard.press("e")
     expect(suggestion_item.locator(".lf-margin-entry:visible")).to_have_count(6)

@@ -1,4 +1,4 @@
-/* Where a margin row stands: rail or pin, how far past its block, and how far down.
+/* Where a margin row stands: rail or pin, and how far down.
 
    A 1440px window with the column's padding box ending at 1057, so the rail's inner edge
    is 1079 and a 32px marker's half is 16. */
@@ -6,12 +6,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import {
-  packRows,
-  pinOffset,
-  rowPosture,
-  stepPast,
-} from "/runtime/margin-placement.js";
+import { packRows, rowPosture } from "/runtime/margin-placement.js";
 
 const posture = (blockRight, over = {}) =>
   rowPosture({
@@ -20,7 +15,6 @@ const posture = (blockRight, over = {}) =>
     blockRight,
     railInner: 1079,
     half: 16,
-    wide: "pin",
     ...over,
   });
 
@@ -37,23 +31,6 @@ test("a row whose block grows past the rail stands on the block as a pin", () =>
 test("without a rail, or inside a pane that scrolls, every row is a pin", () => {
   assert.equal(posture(700, { railStands: false }), "pin");
   assert.equal(posture(700, { rootLane: false }), "pin");
-});
-
-test("the step alternate keeps every root-lane row in the rail", () => {
-  assert.equal(posture(1300, { wide: "step" }), "rail");
-  assert.equal(posture(1300, { wide: "step", railStands: false }), "pin");
-});
-
-test("a pin takes the room beside its block, up to its own width", () => {
-  assert.equal(pinOffset({ room: 64, size: 32 }), 32);
-  assert.equal(pinOffset({ room: 24, size: 32 }), 24);
-  // No room at all: the pin stands wholly inside the block's corner.
-  assert.equal(pinOffset({ room: -3, size: 32 }), 0);
-});
-
-test("the look pass's alternates ignore the room", () => {
-  assert.equal(pinOffset({ room: 64, size: 32, pin: "straddle" }), 16);
-  assert.equal(pinOffset({ room: 64, size: 24, pin: "corner" }), -4);
 });
 
 const rect = (left, top, width = 37, height = 32) => ({
@@ -108,35 +85,6 @@ test("rows are packed from the top, so a push carries on down the stack", () => 
   );
   // c goes under a, which is where b stands, so b goes under c.
   assert.deepEqual(Object.fromEntries(pushes), { a: 0, c: 32, b: 36 });
-});
-
-test("the step alternate hangs a rail row past a grown box level with it", () => {
-  const wide = [{ top: 90, bottom: 400, right: 1200 }];
-  const step = (top) =>
-    stepPast({
-      left: 1079,
-      width: 37,
-      hang: 22,
-      top,
-      height: 32,
-      wide,
-      shellRight: 1440,
-    });
-  assert.equal(step(100), 143);
-  assert.equal(step(500), 0);
-  // Never past the shell's edge.
-  assert.equal(
-    stepPast({
-      left: 1079,
-      width: 37,
-      hang: 22,
-      top: 100,
-      height: 32,
-      wide,
-      shellRight: 1200,
-    }),
-    84,
-  );
 });
 
 test("a pin level with a control of the page goes below it", () => {

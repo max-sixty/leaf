@@ -5943,8 +5943,9 @@ def test_suggestion_controls_stay_out_of_the_column(browser, serve, reduced_moti
     change sits costs it nothing: one inside a card — a positioned ancestor, which
     `left: 100%` used to resolve against, dropping the row back into the text —
     hangs in the rail beside its card like any other. What is left is a
-    measurement no lint can make: a window with no rail stands each row as a pin at
-    the top-right of the change it decides, over the page and never beside it."""
+    measurement no lint can make: a window with no rail stands each row as a pin
+    inside the top-right corner of the change it decides, over the change and never
+    beside it."""
     page = open_page(browser, serve(SUGGESTION_PAGE), init_script=HOLD_MOTION)
     page.emulate_media(reduced_motion=reduced_motion)
     column = page.locator("main").evaluate("el => el.getBoundingClientRect().right")
@@ -5966,13 +5967,14 @@ def test_suggestion_controls_stay_out_of_the_column(browser, serve, reduced_moti
     # The card is positioned and the change is three elements down inside it, and
     # the row still stands on the line that change starts — which is what the anchor
     # buys, and what a static position never could. The board it sits in grows past
-    # the rail, so the row stands on the board as a pin at the change's top-right.
+    # the rail, so the row stands on the board as a pin in the change's top-right
+    # corner.
     in_card_row = page.locator("[data-lf-margin-for='sug-in-card']")
     expect(in_card_row).to_have_attribute("data-lf-place", "pin")
     in_card = in_card_row.evaluate(box)
     change = page.locator("#sug-in-card").evaluate(box)
-    assert in_card["left"] < change["right"] <= in_card["right"] <= room, (
-        "a change inside a board is decided at its own top-right corner"
+    assert change["right"] - 12 <= in_card["right"] <= change["right"] <= room, (
+        "a change inside a board is decided inside its own top-right corner"
     )
     assert (
         abs(in_card["top"] - page.locator("#sug-in-card lf-old").evaluate(box)["top"])
@@ -5992,11 +5994,11 @@ def test_suggestion_controls_stay_out_of_the_column(browser, serve, reduced_moti
               const r = row.getBoundingClientRect();
               const t = row.lfTarget.getBoundingClientRect();
               return {top: r.top - t.top,
-                      atEdge: r.left <= t.right + 1 && r.right >= t.right};
+                      inCorner: r.right <= t.right && r.right >= t.right - 12};
             }"""
         )
-        assert stands["atEdge"] and stands["top"] >= -1, (
-            f"a pin belongs at the top-right of the change it decides: {stands}"
+        assert stands["inCorner"] and stands["top"] >= -1, (
+            f"a pin belongs inside the top-right corner of the change it decides: {stands}"
         )
 
 

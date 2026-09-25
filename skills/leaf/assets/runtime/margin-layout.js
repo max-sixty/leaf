@@ -6,8 +6,7 @@
    in the rail, the strip a column page reserves beside its column, or as a pin over the
    page at the top-right of its target's block. The stylesheet places each row from what
    this pass writes on it (theme.css, at .lf-margin-cluster): its posture as
-   `data-lf-place`, a pin's offset past its block as `--lf-dx`, and the push packing gives
-   it as `--lf-push`. Scrolling moves a row with its target on the compositor, whether the
+   `data-lf-place`, and the push packing gives it as `--lf-push`. Scrolling moves a row with its target on the compositor, whether the
    document scrolls or a pane does, with no pass at all.
 
    The layer is a static, zero-height block. A positioned wrapper would become every row's
@@ -34,7 +33,7 @@ import { shellRight, shownBand, shownParts } from "./geometry.js";
 import { under, upFrom } from "./shadow.js";
 import { scrollerFor } from "./reading-regions.js";
 import { pageScroller } from "./scrolling.js";
-import { packRows, pinOffset, rowPosture, stepPast } from "./margin-placement.js";
+import { packRows, rowPosture } from "./margin-placement.js";
 
 const rows = new Map();
 const GAP = 4;
@@ -275,27 +274,6 @@ function controlsIn(anchor) {
     .filter((box) => box.width && box.height);
 }
 
-// What the page leaves free past a block's right edge: the nearest frame's inline-end
-// padding, or, for a block standing in `main`, the room to the shell's edge. Only the
-// nearest frame counts: climbing past a grid cell with no padding to the pane beyond
-// would put a left cell's pin over the right cell's content.
-function roomBeside(anchor, box, main, shell, frames) {
-  for (let el = anchor.parentElement; el && el !== main; el = el.parentElement) {
-    let frame = frames.get(el);
-    if (frame === undefined) {
-      frame =
-        getComputedStyle(el).getPropertyValue("--lf-block-frame").trim() === "1"
-          ? el
-          : null;
-      frames.set(el, frame);
-    }
-    if (!frame) continue;
-    const edge = frame.getBoundingClientRect();
-    return Math.max(0, edge.left + frame.clientLeft + frame.clientWidth - box.right);
-  }
-  return shell - box.right;
-}
-
 function scheduleMarginLayout() {
   if (pending) return;
   pending = nextRender(layoutMarginRows);
@@ -331,13 +309,7 @@ export function unregisterMarginRow(row) {
     row.classList.remove("lf-withheld");
     row.removeAttribute("data-lf-place");
     row.removeAttribute("data-lf-parked");
-    for (const property of [
-      "--lf-dx",
-      "--lf-inset",
-      "--lf-push",
-      "--lf-step",
-      "position-anchor",
-    ])
+    for (const property of ["--lf-inset", "--lf-push", "--lf-step", "position-anchor"])
       row.style.removeProperty(property);
     pushes.delete(row);
     steps.delete(row);
@@ -426,13 +398,6 @@ function scheduleScrollReading() {
   });
 }
 
-// LOOK PASS (temporary): the open visual candidates, chosen on the root for stills.
-const look = () => ({
-  pin: { figma: "corner" }[document.documentElement.dataset.lfLookPin]
-    ?? document.documentElement.dataset.lfLookPin ?? "room",
-  wide: document.documentElement.dataset.lfLookWide === "b4" ? "step" : "pin",
-});
-
 export function layoutMarginRows() {
   cancelRender(pending);
   pending = 0;
@@ -442,9 +407,9 @@ export function layoutMarginRows() {
   const columnRect = main.getBoundingClientRect();
   const shell = shellRight();
   const stands = railStands();
-  const { pin, wide } = look();
   const rootStyle = getComputedStyle(document.documentElement);
   const hang = parseFloat(rootStyle.getPropertyValue("--rail-hang")) || 0;
+  const pinInset = parseFloat(rootStyle.getPropertyValue("--pin-inset")) || 0;
   const railInner = columnRect.right + hang;
   const entry = layer.root.parentElement.querySelector(
     ".lf-margin-entry:not([hidden])",
@@ -452,7 +417,6 @@ export function layoutMarginRows() {
   const size = entry?.offsetWidth || 32;
 
   // Every read before any write: a write between two reads forces a layout per row.
-  const frames = new Map();
   const bands = new Map();
   const reaches = new Map();
   const reads = [];
@@ -474,7 +438,6 @@ export function layoutMarginRows() {
       blockRight: reach(anchor, box, main, reaches),
       railInner,
       half: size / 2,
-      wide,
     });
     const shown =
       !parked.has(row) && targetShown(target, anchor, inset, place === "pin", bands);
@@ -489,7 +452,6 @@ export function layoutMarginRows() {
       place,
       inset,
       edge: box.right,
-      room: place === "pin" ? roomBeside(anchor, box, main, shell, frames) : 0,
       controls: place === "pin" && shown ? controlsIn(anchor) : [],
     });
   }
@@ -548,32 +510,29 @@ export function layoutMarginRows() {
     setStyle(row, "position-anchor", nameAnchor(naming));
     setStyle(row, "--lf-inset", inset ? `${inset}px` : null);
     if (row.dataset.lfPlace !== place) row.dataset.lfPlace = place;
-    if (place !== "pin") setStyle(row, "--lf-dx", null);
   }
 
   // Packing reads where each row stands with no push, then writes every push together. A
-  // pin's offset takes its own width, which is read here, so where the pin will stand
-  // across is worked out rather than read back.
+  // pin stands `--pin-inset` inside its block's right edge, which is read here, so where
+  // it will stand across is worked out rather than read back.
   const placed = reads
     .filter((read) => read.shown)
     .map((read) => {
       const box = read.row.getBoundingClientRect();
       const push = pushes.get(read.row) ?? 0;
       const step = steps.get(read.row) ?? 0;
-      const dx =
-        read.place === "pin" ? pinOffset({ room: read.room, size: box.width, pin }) : 0;
       return {
         key: read.row,
         // At its off-screen fallback: the browser did not take the anchor.
         stranded: box.bottom + scrollY < -1000,
         rect: {
-          left: read.place === "pin" ? read.edge + dx - box.width : box.left - step,
-          right: read.place === "pin" ? read.edge + dx : box.right - step,
+          left:
+            read.place === "pin" ? read.edge - pinInset - box.width : box.left - step,
+          right: read.place === "pin" ? read.edge - pinInset : box.right - step,
           top: box.top - push,
           bottom: box.bottom - push,
         },
         priority: read.options.priority ?? 0,
-        dx,
         read,
       };
     });
@@ -590,36 +549,13 @@ export function layoutMarginRows() {
     GAP,
     standing.flatMap(({ read }) => read.controls ?? []),
   );
-  const grown =
-    wide === "step"
-      ? [...main.querySelectorAll("[data-lf-space]")]
-          .map((el) => el.getBoundingClientRect())
-          .filter((box) => box.right > columnRect.right + 1)
-      : [];
-  for (const { key: row, rect, read, dx } of standing) {
-    if (read.place === "pin") setStyle(row, "--lf-dx", `${dx}px`);
+  for (const { key: row, rect, read } of standing) {
     const push = packed.get(row) ?? 0;
     pushes.set(row, push);
     setStyle(row, "--lf-push", push ? `${push}px` : null);
     // A rail row wider than the rail, unfolded or holding more than its resting budget,
     // steps back from the shell's edge rather than widening the page.
-    const step =
-      read.place === "rail"
-        ? Math.min(
-            grown.length
-              ? stepPast({
-                  left: rect.left,
-                  width: rect.right - rect.left,
-                  hang,
-                  top: rect.top + push,
-                  height: rect.bottom - rect.top,
-                  wide: grown,
-                  shellRight: shell,
-                })
-              : 0,
-            shell - rect.right,
-          )
-        : 0;
+    const step = read.place === "rail" ? Math.min(0, shell - rect.right) : 0;
     steps.set(row, step);
     setStyle(row, "--lf-step", step ? `${step}px` : null);
   }

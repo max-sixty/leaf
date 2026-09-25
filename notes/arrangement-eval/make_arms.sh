@@ -16,6 +16,7 @@ root=$(git -C "$here" rev-parse --show-toplevel)
 ref=$1; out=$2
 mkdir -p "$out"
 for arm in leaf plain; do
+  [ -d "$out/$arm" ] && chmod -R u+w "$out/$arm"
   rm -rf "${out:?}/$arm"
   mkdir -p "$out/$arm"
   git -C "$root" archive "$ref" bin skills pyproject.toml uv.lock | tar -x -C "$out/$arm"
@@ -30,3 +31,6 @@ smoke=$(mktemp -d)
 XDG_STATE_HOME="$smoke/state" "$out/plain/bin/leaf" page init "$smoke/page" > /dev/null
 cp "$out/plain-smoke.html" "$smoke/page/index.html"
 XDG_STATE_HOME="$smoke/state" "$out/plain/bin/leaf" version check "$smoke/page" --render
+rm -rf "$smoke"
+# Authors read the payload but must not write into it, where the other rounds would see it.
+chmod -R a-w "$out/leaf/skills" "$out/plain/skills"

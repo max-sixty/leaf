@@ -9,8 +9,8 @@ For each run directory (<subject>-<arm>-<n>) and each phase (1: the first page,
 - iterations: how many times it ran `version check`, how many with `--render`, how many
   of those exited non-zero, and how many times it wrote or edited the page;
 - what it read: the references and registry lookups in its trace;
-- what it wrote: page CSS (non-blank lines of <style>, style attributes, page/*.css),
-  page JavaScript, and each arrangement term it used;
+- what it wrote: page CSS (non-blank lines of <style> and page/*.css; style
+  attributes counted apart), page JavaScript, and each arrangement term it used;
 - the gate: an independent `version check --render` on the phase's page, run with the
   arm's own launcher, and whether it passed.
 
@@ -66,14 +66,15 @@ def trace(stream: Path) -> dict:
         name, inp = call["name"], call.get("input", {})
         if name == "Bash":
             cmd = inp.get("command", "")
-            if "version check" in cmd:
+            if "version check" in cmd and "--help" not in cmd:
                 checks += 1
                 renders += "--render" in cmd
                 # The exit status is often masked by a pipe or a chained command, so
-                # read the check's own verdict mark.
+                # read the check's own verdict mark. A `| tail` that cuts the mark off
+                # hides a failure, so this is a floor.
                 out = results.get(cid, {}).get("content")
-                out = out if isinstance(out, str) else json.dumps(out)
-                refused += "\u2717" in out or "✗" in out
+                out = out if isinstance(out, str) else json.dumps(out, ensure_ascii=False)
+                refused += "✗" in out
             elif "index.html" in cmd and re.search(
                 r"-pi\b|sed -i|write_text|open\([^)]*['\"]w|>\s*\S*index\.html", cmd
             ):

@@ -37,6 +37,10 @@ page="$run/page"
 export LEAF="$payload/bin/leaf"
 export XDG_STATE_HOME="$run/state"
 export CLAUDE_CODE_DISABLE_AUTO_MEMORY=1
+# A run's own temp dir: concurrent runs of the two arms otherwise write the same
+# /tmp names (an export, a screenshot) and can read each other's.
+export TMPDIR="$work/tmp"
+mkdir -p "$TMPDIR"
 model=${MODEL:-claude-opus-5-5}
 
 {

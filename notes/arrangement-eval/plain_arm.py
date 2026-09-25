@@ -167,6 +167,9 @@ def patch_registry() -> None:
     reg = json.loads(path.read_text())
     for tag in ("lf-grid", "lf-workspace", "lf-pane"):
         del reg[tag]
+        # The module goes too: loading is registry-driven, and an author listing the
+        # payload would otherwise find the element there.
+        (skill / f"packages/default/widgets/{tag}.js").unlink(missing_ok=True)
     metric = reg["lf-metric"]
     metric["description"] = metric["description"].replace(
         " A row of metrics is an lf-grid of lf-metric tiles.",
@@ -225,7 +228,13 @@ def patch_advice() -> None:
 
 
 def check_clean() -> None:
-    """Fail if the vocabulary survives anywhere the arm's author reads by default."""
+    """Fail if the vocabulary survives anywhere the arm's author reads by default.
+
+    Not covered, and so still readable by a plain author who searches for it:
+    `references/packages.md`, the package-author reference, and the guidance and
+    registries of the optional packages (monitoring, playground, swipe, visual-review,
+    command-hub), which name the vocabulary in their examples. No plain page has used
+    it, but plain agents have spent turns looking for it there."""
     pattern = re.compile(r"lf-grid|lf-workspace|lf-pane|data-width|section\.panel|aside\.sidebar|sidenote")
     read = [
         skill / "SKILL.md",

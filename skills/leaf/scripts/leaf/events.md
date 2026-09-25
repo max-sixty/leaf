@@ -29,7 +29,7 @@ page and is not a global identifier. The kinds:
 
 An `anchor` names a passage by `section` and `quote`, with `prefix` and `suffix`
 where neighbouring text tells two identical passages apart; a selection on
-projected data names `datum` (the stable key local to its section) and, when the
+projected data names `datum` (the rendering key local to its section) and, when the
 projection names an external input, `source` and `source_revision`. `identity` names a
 subject the emitter knows persists across source replacements, independently of the
 `datum` key used to reconcile its rendering. `source_revision` records the value seen.

@@ -10,11 +10,29 @@ const url = enabled ? new URL("api/interaction", canonical.href).href : null;
 const root = enabled ? new URL(canonical.href).pathname.replace(/\/$/, "") : "";
 const session = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 const queue = [];
+// Bound the tab's diagnostic backlog during an outage. Repeated observations
+// yield first; the remaining sequence gaps make any loss visible to a reader.
+const MAX_PENDING_ENTRIES = 512;
+const repetitive = new Set([
+  "pointermove",
+  "pointerover",
+  "pointerout",
+  "pointerenter",
+  "pointerleave",
+  "wheel",
+  "scroll",
+  "selectionchange",
+  "drag",
+  "dragover",
+  "touchmove",
+  "compositionupdate",
+]);
 const encoder = new window.TextEncoder();
 const nodeIds = new WeakMap();
 let nextSequence = 0;
 let nextNodeId = 0;
 let sending = false;
+let inFlightCount = 0;
 let scheduled = null;
 let retryTimer = null;
 
@@ -159,6 +177,39 @@ function schedule() {
   }, 250);
 }
 
+function groupEnd(start) {
+  const row = queue[start];
+  if (row.type !== "interaction_part") return start + 1;
+  let end = start + 1;
+  while (end < queue.length && queue[end].partOf === row.partOf) end++;
+  return end;
+}
+
+function evictableGroup(repetitiveOnly) {
+  let start = 0;
+  while (start < queue.length) {
+    const end = groupEnd(start);
+    if (
+      start >= inFlightCount &&
+      (!repetitiveOnly ||
+        repetitive.has(queue[start].originalType ?? queue[start].type))
+    )
+      return [start, end];
+    start = end;
+  }
+  return null;
+}
+
+function append(rows) {
+  if (rows.length > MAX_PENDING_ENTRIES) return;
+  while (queue.length + rows.length > MAX_PENDING_ENTRIES) {
+    const group = evictableGroup(true) ?? evictableGroup(false);
+    if (!group) return;
+    queue.splice(group[0], group[1] - group[0]);
+  }
+  queue.push(...rows);
+}
+
 function enqueue(entry) {
   if (!enabled) return;
   const ts = timestamp();
@@ -166,14 +217,30 @@ function enqueue(entry) {
   const serialized = JSON.stringify(row);
   if (encoder.encode(serialized).length <= 40_000) {
     nextSequence++;
-    queue.push(row);
+    append([row]);
   } else {
-    // Preserve even a large paste or draft as reconstructable pieces. Each piece
-    // fits a pagehide Beacon and the hosted Worker's log-record limit.
+    // Split large pastes and drafts into pieces that fit a pagehide Beacon and
+    // the hosted Worker's record limit, subject to the tab's backlog bound.
     const partOf = nextSequence + 1;
     const parts = Math.ceil(serialized.length / 8_000);
+    if (parts > MAX_PENDING_ENTRIES) {
+      nextSequence += parts;
+      append([
+        {
+          type: "interaction_omitted",
+          originalType: entry.type,
+          ts,
+          sequence: ++nextSequence,
+          reason: "record_exceeds_backlog",
+          characters: serialized.length,
+        },
+      ]);
+      schedule();
+      return;
+    }
+    const rows = [];
     for (let part = 0; part < parts; part++)
-      queue.push({
+      rows.push({
         type: "interaction_part",
         originalType: entry.type,
         ts,
@@ -183,6 +250,7 @@ function enqueue(entry) {
         parts,
         json: serialized.slice(part * 8_000, (part + 1) * 8_000),
       });
+    append(rows);
   }
   schedule();
 }
@@ -206,6 +274,7 @@ async function flush() {
   if (sending || !queue.length) return;
   sending = true;
   const { entries, body } = batch(0, 100_000);
+  inFlightCount = entries.length;
   try {
     const response = await fetch(url, {
       method: "POST",
@@ -231,6 +300,7 @@ async function flush() {
       schedule();
     }, 2000);
   } finally {
+    inFlightCount = 0;
     sending = false;
     schedule();
   }

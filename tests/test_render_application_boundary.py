@@ -2,6 +2,7 @@
 
 import json
 import re
+from itertools import pairwise
 
 from leaf import event_log as events_model
 from playwright.sync_api import expect
@@ -148,6 +149,49 @@ def test_browser_interactions_are_recorded_beside_server_requests(browser, serve
         and row["status"] == 204
         for row in rows
     )
+
+
+def test_browser_trace_sheds_repeated_gestures_when_delivery_stalls(browser, serve):
+    url = serve(leaf_page("Trace backlog", '<h1 id="trace-target">Trace backlog</h1>'))
+    page = open_page(browser, url)
+    page.route("**/api/interaction", lambda route: route.fulfill(status=503))
+    with page.expect_response(
+        lambda response: (
+            response.url.endswith("/api/interaction") and response.status == 503
+        )
+    ):
+        page.locator("#trace-target").click()
+    page.locator("#trace-target").evaluate("""node => {
+      for (let i = 0; i < 1200; i++)
+        node.dispatchEvent(new PointerEvent('pointermove', {
+          bubbles: true, pointerId: 1, clientX: i,
+        }));
+      node.click();
+    }""")
+    page.unroute("**/api/interaction")
+    with page.expect_response(
+        lambda response: (
+            response.url.endswith("/api/interaction")
+            and response.ok
+            and any(
+                entry["type"] == "click"
+                for entry in response.request.post_data_json["entries"]
+            )
+        ),
+        timeout=15_000,
+    ):
+        page.wait_for_timeout(2500)
+
+    rows = [
+        json.loads(line)
+        for line in (serve.page_dir / "interactions.jsonl").read_text().splitlines()
+    ]
+    browser_rows = [row for row in rows if row.get("source") == "client"]
+    assert any(row["type"] == "click" for row in browser_rows)
+    assert sum(row["type"] == "pointermove" for row in browser_rows) < 512
+    sequences = sorted(row["sequence"] for row in browser_rows)
+    assert any(later - earlier > 1 for earlier, later in pairwise(sequences))
+    consume_browser_errors(page, "503")
 
 
 def test_packages_and_panel_share_threads_through_gestures_and_authored_content(

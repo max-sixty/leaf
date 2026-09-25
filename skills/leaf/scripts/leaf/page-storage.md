@@ -68,9 +68,12 @@ other page files and the external state listed below.
   A tab retries failed batches and may resend an in-flight batch on page hide;
   `(session, sequence)` identifies duplicates. Large browser records arrive as
   `interaction_part` rows whose `json` fields concatenate in `part` order.
-  This is a best-effort diagnostic trace, not an audit guarantee: an offline tab
-  closed with more unsent data than the browser's Beacon budget can discard its
-  tail. The semantic event log remains the durable record of accepted decisions.
+  A tab retains at most 512 pending browser records: when delivery falls behind,
+  it sheds repeated observations first, then older records. Sequence gaps show
+  where records were lost; a single record too large to fit is marked
+  `interaction_omitted`. This is a best-effort diagnostic trace, not an audit
+  guarantee: an offline tab closed with unsent data may lose it. The semantic
+  event log remains the durable record of accepted decisions.
 
 - `data.json` — the contract each external-data source id was first set under.
   `data.py` owns storage and updates.

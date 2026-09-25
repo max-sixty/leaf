@@ -10,6 +10,8 @@
    then writes. Each fold answers from its arguments alone, so `tests/runtime/` runs them
    without a browser. */
 
+import { overlapsAcross } from "./rect.js";
+
 // A row stands in the rail when the page has one, its target scrolls with the document,
 // and its block does not reach into the rail. A block grown past the rail's inner edge by
 // more than half a marker would stand under a rail marker, so its row stands on it as a
@@ -18,8 +20,6 @@ export function rowPosture({ railStands, rootLane, blockRight, railInner, half }
   if (!railStands || !rootLane) return "pin";
   return blockRight - half > railInner ? "pin" : "rail";
 }
-
-const overlapsAcross = (a, b) => a.left < b.right && b.left < a.right;
 
 // Rows that would stand over one another are pushed down, the more important first and
 // then from the top. Two rows collide only where their rectangles do: a pin and a rail

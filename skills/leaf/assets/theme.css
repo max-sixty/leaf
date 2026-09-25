@@ -519,10 +519,9 @@ html:not([data-lf-live]) { --lf-banner-h: 0px; --lf-band-h: 0px; }
  * was the one with no width to spare at all, and a twelve-character value ran 287px out
  * of a 138px card and across whatever the grid had put beside it. */
 /* Margin features claim named strips instead of overwriting page padding themselves.
- * The right side hosts
- * sidenotes, suggestion controls, and the margin projection's inline conversations. They occupy
- * the same strip and are collision-laid-out rather than summed, so the page reserves only
- * the widest claim.
+ * The right side has three claims: sidenotes (--claim-note), the margin rail
+ * (--claim-rail), and a project layer's own (--lf-claim-right). They share one strip, so
+ * main reserves the widest rather than their sum.
  * The left still has one claimant: aside.sidebar writes --strip-l directly. */
 body { position: static !important; box-sizing: border-box !important;
        margin: 0; background: var(--paper); color: var(--ink);
@@ -642,9 +641,8 @@ body {
     }
   }
 }
-/* Positioned so it is the containing block for anything a widget hangs in the
- * page margin (lf-suggestion's controls): `left: 100%` then means the column's
- * right edge, and `anchor()` reaches the anchor names declared inside it.
+/* Positioned so `left: var(--lf-shift)` can move the column off the window's centre
+ * when something claims room on one side of it.
  *
  * 720px is stated as a number and not as a token, because `version check` reads
  * this very declaration to find the column it measures every pinned width
@@ -763,9 +761,10 @@ main {
  * The growth stops at main's gutters, and each gutter holds its side's reservation, so an
  * exhibit never reaches the rail. What stands level with an exhibit in the margin is
  * decided by what put it there. A sidenote is the page's own, so the page clears it
- * (`clear`, at aside.sidenote). A margin row is Leaf's, so it steps out past the exhibit
- * into the rail (margin-layout.js): nothing Leaf draws moves the page's content, and an
- * exhibit keeps the same width however many comments arrive beside it.
+ * (`clear`, at aside.sidenote). A margin row is Leaf's, so where an author's own CSS
+ * widens a block into the rail, the row stands on it as a pin (margin-placement.js):
+ * nothing Leaf draws moves the page's content, and an exhibit keeps the same width however
+ * many comments arrive beside it.
  *
  * Where one side has less room than the other, the freer side takes what the other
  * lacks instead of losing half the allocation to symmetry. With both sides equally free,
@@ -820,11 +819,10 @@ main {
     width: calc(100% + var(--lf-surplus));
   }
   [data-lf-space="wide"], main [data-width="wide"] {
-    --lf-reach: min(var(--wide), var(--lf-room, 0px),
-      var(--lf-space-bound, 99999px));
+    --lf-reach: min(var(--wide), var(--lf-room, 0px));
   }
   [data-lf-space="available"], main [data-width="available"] {
-    --lf-reach: min(var(--lf-room, 0px), var(--lf-space-bound, 99999px));
+    --lf-reach: var(--lf-room, 0px);
   }
   [data-lf-space] [data-lf-space],
   main :is([data-lf-space], [data-width]) :is([data-lf-space], [data-width]) {
@@ -1001,12 +999,12 @@ hr { border: none; border-top: 1px solid var(--rule); margin: 40px 0; }
  * hands room to its neighbour the same way (a flex item measured 691px to 359px).
  * A block (pre) wraps nothing, so this reaches nothing there.
  *
- * A name that wraps keeps its side padding at its two ends only. Cloned onto every
- * fragment it painted past the column: Chromium breaks the line where the text fits
- * and then adds the cloned end padding, so a chip ending a line at the column's edge
- * stood 3-5px out in the margin (feature gallery, 600px). */
+ * Slice the decoration across lines so side padding belongs only to the span's
+ * start and end. Cloning each fragment adds padding after line breaking and can
+ * paint past the column. */
 code { background: var(--code-bg); border-radius: 4px; padding: 1px 5px;
-       font-size: 82%; font-family: var(--mono); overflow-wrap: anywhere; }
+       font-size: 82%; font-family: var(--mono); overflow-wrap: anywhere;
+       box-decoration-break: slice; }
 /* A code block is sized by how many characters it takes across, which is why its size
  * is off the serif ladder above. At --code-size, the column keeps comfortably more
  * than the 80 characters most source is written to.
@@ -1088,8 +1086,7 @@ img, svg, video { max-width: 100%; height: auto; }
  * one. */
 table { display: block; overflow-x: auto; border-collapse: collapse;
         font: var(--t-5)/1.5 var(--sans); margin: 18px 0; font-variant-numeric: tabular-nums; }
-/* A cell already supplies the identifier's frame and spacing. Cloned inline-code
-   padding can overflow a wrapped line even when its words fit the column. */
+/* A cell already supplies the identifier's frame and spacing. */
 :is(th, td) code:not(pre code) { padding: 0; background: none; font-size: var(--t-6); }
 caption { text-align: left; font-size: var(--t-6); color: var(--muted);
           margin-bottom: 6px; }

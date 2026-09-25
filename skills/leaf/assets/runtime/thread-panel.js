@@ -14,6 +14,7 @@ import { letGo } from "./focus.js";
 import { pageRung } from "./keyboard/register.js";
 import { currentAuxiliarySurface } from "./auxiliary-surfaces.js";
 import { slide } from "./motion.js";
+import { pressIsKeyboardActivation } from "./pointer.js";
 
 export const panelIsOpen = () => currentAuxiliarySurface() === "threads";
 
@@ -89,23 +90,21 @@ export function createThreadPanelController({
     hide: () => paintPanel(false),
   });
   function mountThreadPanel() {
+    // The press moves focus off the inline thread before its click arrives, so a pointer
+    // click reads the thread the press recorded. A keyboard click has no press and reads
+    // the thread where it stands.
     let pressedInlineThread = null;
     toggleBtn.addEventListener("pointerdown", () => {
       pressedInlineThread = activeInlineThread()?.dataset.thread ?? null;
     });
-    toggleBtn.addEventListener("pointercancel", () => {
+    toggleBtn.onclick = (event) => {
+      const pressed = pressIsKeyboardActivation(event) ? null : pressedInlineThread;
       pressedInlineThread = null;
-    });
-    toggleBtn.addEventListener("pointerup", () => {
-      setTimeout(() => (pressedInlineThread = null));
-    });
-    toggleBtn.onclick = () => {
       if (panelIsOpen()) {
         setPanel(false);
         return;
       }
-      const inlineThread = pressedInlineThread ?? activeInlineThread()?.dataset.thread;
-      pressedInlineThread = null;
+      const inlineThread = pressed ?? activeInlineThread()?.dataset.thread;
       if (inlineThread) showThread(inlineThread, { focus: "thread" });
       else setPanel(true);
     };

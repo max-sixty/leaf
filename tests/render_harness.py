@@ -1508,7 +1508,6 @@ def opened_tab(page, destination, press, timeout=10_000):
 # The arm is the render gate's own, which needs it for the other end of the same
 # fact: interception comes back down when a route list empties, and requests
 # crossing that transition are lost just as silently.
-NEVER_ASKED_FOR = render_gate_model.INTERCEPTION_ARM
 arm_interception = render_gate_model.arm_interception
 
 
@@ -1667,11 +1666,6 @@ SHELL_BOX = """(() => {
   return { left, right: left + b.clientWidth, width: b.clientWidth,
            centre: left + b.clientWidth / 2 };
 })()"""
-
-
-def page_right(page):
-    """Where the page shell ends on the right; see `SHELL_BOX`."""
-    return page.evaluate(f"() => {SHELL_BOX}.right")
 
 
 # How long a scroller holds one position before its travel is over, counted in the

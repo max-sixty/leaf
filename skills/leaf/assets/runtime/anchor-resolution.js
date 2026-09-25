@@ -58,12 +58,12 @@ function currentDatums(source, key) {
   );
 }
 
-export const currentDatum = (source, key) => {
+const currentDatum = (source, key) => {
   const matches = currentDatums(source, key);
   return matches.length === 1 ? matches[0] : null;
 };
 
-export function suppliedDatum(source, key) {
+function suppliedDatum(source, key) {
   const supplied = source?.lfDataDatum?.(key);
   return supplied instanceof Element &&
     under(supplied, source) &&
@@ -149,7 +149,7 @@ export function visualParts(visual) {
 
 const admitsVisualPart = (visual, part) => visualPartRank(visual)?.(part) >= 0;
 
-export function visualPart(visual, part) {
+function visualPart(visual, part) {
   return admitsVisualPart(visual, part) ? registeredVisualPart(visual, part) : null;
 }
 
@@ -159,7 +159,7 @@ export function revealVisualPart(visual, part) {
     : null;
 }
 
-export function visualPartAt(visual, target) {
+function visualPartAt(visual, target) {
   const rank = visualPartRank(visual);
   return rank
     ? registeredVisualPartAt(visual, target, (part) => rank(part.id) >= 0)

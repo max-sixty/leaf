@@ -404,7 +404,6 @@ export function mountApplication(dependencies) {
     pageMapDialogContains: dependencies.margin.pageMapDialogContains,
     renderPageMapDialog: dependencies.margin.renderPageMapDialog,
     openAsks,
-    standsWith: dependencies.margin.standsWith,
     revealConversation: dependencies.margin.revealConversation,
     goToAsk: dependencies.margin.goToAsk,
     renderMarginThread: (host, thread, controls) =>

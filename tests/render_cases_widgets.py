@@ -1178,6 +1178,31 @@ graph LR
 <pre id="short">one short line</pre>
 """,
 )
+# A five-step plan drawn left to right, the shape three agent-written pages gave their
+# plan, and the same five steps drawn top-down beside it: the chain runs past the room a
+# 1440px window gives it, and the stack fits the column, so it is the control a shaded
+# edge must not appear on. The page's own rule is the plant: a class that outranks the
+# diagram's paint while the mark stays written.
+PLAN_STEPS = """\
+  A[1. Snapshot the primary and restore it on the new cluster] --> B[2. Start logical replication from the old primary]
+  B --> C[3. Verify row counts and checksums on every table]
+  C --> D[4. Cut writes over during the maintenance window]
+  D --> E[5. Retire the old primary after seven quiet days]
+"""
+LONG_CHAIN_PAGE = leaf_page(
+    "long chain",
+    f"""
+<style>lf-diagram.lf-unshaded::before, lf-diagram.lf-unshaded::after {{
+  box-shadow: none !important; }}</style>
+<h1 id="t">Plan</h1>
+<lf-diagram id="chain"><pre>
+flowchart LR
+{PLAN_STEPS}</pre></lf-diagram>
+<lf-diagram id="stack"><pre>
+flowchart TD
+{PLAN_STEPS}</pre></lf-diagram>
+""",
+)
 
 
 # A board with more columns than the room holds, so every one of them is at the floor the

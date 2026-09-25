@@ -34,7 +34,6 @@ Items are ranked within each group. IDs are stable references, not a global prio
 
   **Follow-ups from the first run** (reproduced in the judge's defect lists and checked against the screenshots):
 
-  - `lf-diagram`: a `flowchart LR` wider than its box hides its last steps; all three leaf documents on that layout lost step 5 of their plan. Fit or wrap it, and have the registry example model a top-down sequence.
   - `lf-chronology`: it reverses a newest-first log and opens a bounded log partway down with its first line cut. Keep the author's order and open on a whole entry.
   - Fitted SVG: the theme scales a drawing to its box, so labels become unreadable at 900px and on a phone. Floor the scale, or have the render check flag the drawing.
   - `lf-options`: on a wide page the radio marks sit inset from the card's right edge and the dividers stop short of it.

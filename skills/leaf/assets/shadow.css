@@ -389,9 +389,11 @@ leaf-anchor-note { display: contents; }
  * The visible content fades at each edge that has more beyond it. The fade follows the
  * scroll position: inline end at the start, both edges in the middle, and inline start
  * at the end. Masking the box makes the content itself recede instead of casting an
- * unexplained shadow behind it. Focus within removes the mask so the scroller's complete
- * ring and controls painted outside its box remain visible; the user standing there
- * already has the platform's scroll affordance.
+ * unexplained shadow behind it. That is right for text, where a word fading at the edge
+ * reads as cut; a widget whose content it fails for paints the same marks its own way
+ * (lf-diagram's theme, for a drawing). Focus within removes the mask so the scroller's
+ * complete ring and controls painted outside its box remain visible; the user standing
+ * there already has the platform's scroll affordance.
  *
  * Neither the mask nor its attributes affect layout, so observing the scroller cannot
  * feed the measurement back into itself. Screen only, because a mark whose whole

@@ -52,7 +52,7 @@ export function drawnEdge({ side, noun, wide, min, prop, key, when, land }) {
   const held = (want) => Math.min(cap(), Math.max(min, want));
   const width = () => held(chosen);
   // The one writer of the property the cascade reads that width from: the region's own box
-  // and the strip the page yields are both stated against it. Written rather than read back
+  // and the covering rule are both stated against it. Written rather than read back
   // off the region because a closed one measures zero, which is exactly when the page most
   // needs to know how wide it will be. The runtime's own readers — the shortcut bar's cap, the
   // room a wide widget spends — ask `width` instead of this property, so what the cascade
@@ -124,7 +124,6 @@ export function drawnEdge({ side, noun, wide, min, prop, key, when, land }) {
         pointerId: event.pointerId,
         grab: event.clientX - (side === "right" ? box.left : box.right),
       };
-      document.body.toggleAttribute("data-lf-sizing", true);
     });
     edge.addEventListener("pointermove", (event) => {
       if (
@@ -149,7 +148,6 @@ export function drawnEdge({ side, noun, wide, min, prop, key, when, land }) {
         return;
       activeResize = null;
       edge.focus({ preventScroll: true });
-      document.body.toggleAttribute("data-lf-sizing", false);
     };
     for (const ending of ["pointerup", "pointercancel", "lostpointercapture"])
       edge.addEventListener(ending, finish);

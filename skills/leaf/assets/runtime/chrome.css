@@ -837,10 +837,10 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
        left, and both take the bottom. */
     padding: 0 var(--lf-safe-right) var(--lf-safe-bottom) 0; }
   .lf-thread-panel[open] { display: flex; }
-  /* The panel stands over a column page and beside a sheet, which yields it a strip
-     (theme.css, at the body strip). It shares the auxiliary scrim only where it leaves
-     less than a usable page and covers it; elsewhere the page beside it stays live and
-     no scrim shows. The dialog is shown non-modally either way, so it
+  /* The panel stands over the page and takes no room from it (theme.css, at
+     `--lf-auxiliary-beside`). It shares the auxiliary scrim only where it leaves less than
+     a usable page and covers it; elsewhere the page beside it stays live and no scrim
+     shows. The dialog is shown non-modally either way, so it
      needs no ::backdrop of its own. */
   /* An edge, offered as a thing to take hold of — the thread panel's on the right of
      the page, the trays' on the left, and nothing here knows which it is drawing except
@@ -848,8 +848,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      is the line the user already sees, and this is the room around that line in which
      a pointer counts as being on it. It straddles the border rather than sitting inside
      it, because the user aims at the line and arrives from whichever side they were
-     reading — and where the region stands beside the page, the 3px of it outside is
-     body's own margin, which holds no words.
+     reading — and the 3px of it outside stand over the page's edge.
      What hover and focus add is a line drawn over the border, growing a pixel each way
      into room that was already the border's and the region's padding; never a thicker
      border, which would move everything in the region under the pointer that had just
@@ -963,7 +962,9 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      walking down, cut at the top and under the find row walking up. Gap plus width is the
      room it needs, and it is the layer's own number (theme.css) rather than one
      worked out from the controls this list happens to hold. */
-  .lf-threads-frame { flex: 1; min-height: 0; display: grid; }
+  /* The editor takes a share of this actual list, so typing leaves the preceding
+     turn readable even when the panel is short. */
+  .lf-threads-frame { flex: 1; min-height: 0; display: grid; container-type: size; }
   .lf-threads-frame::after, .lf-threads { grid-area: 1 / 1; min-height: 0; }
   .lf-threads { overflow-y: auto; overscroll-behavior: contain; z-index: 0;
     --lf-list-inset: 4px; padding: var(--lf-list-inset) 8px; --lf-block-frame: 1;
@@ -1118,6 +1119,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     font-size: 13px; line-height: 1.5; padding: 7px;
     padding-inline-end: calc(var(--lf-icon-action-hit) + 12px);
     border: 0; border-radius: 0; background: transparent;
+    max-height: min(50vh, 35cqh);
   }
   .lf-thread-compact > .lf-compose .lf-compose-field > textarea:is(:focus, .lf-focus) {
     outline: none; border: 0;
@@ -1646,12 +1648,9 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-page-map-group h3 { margin: 0 8px 4px; font-size: var(--t-5); line-height: 1.35; }
   .lf-page-map-actions { display: grid; gap: 2px; }
   /* The banner offers the whole Page Map wherever the rail is not drawn, and asks the
-     same floor the rail does, of the same box: theme.css, at the margin projection. A
-     standing tray takes its strip out of the shell, so a window wide enough for both is
-     not a page with room for both, and a user who opened one would otherwise lose the
-     map and the markers together. Beside a sheet the thread panel takes its strip the
-     same way; over a column page it takes no room but stands over the rail below about
-     1700px, and the layout pass marks the root when it does. */
+     same floor the rail does, of the same box: theme.css, at the margin projection. The
+     thread panel takes no room but stands over the rail below about 1700px, and the
+     layout pass marks the root when it does. */
   @media screen {
     @container lf-shell (width <= 863px) {
       .lf-page-map-toggle:not([hidden]) { display: inline-flex; }

@@ -71,11 +71,6 @@ has tried; settle that before building it.
   and remaining undersized touch targets.
 - **Give the thread panel's touch grip its own space.** Reserve room for the grip
   and collapse inactive reply controls if more thread cards should fit.
-- **Keep wrapped inline code inside the column.** `theme.css` gives inline `code`
-  `box-decoration-break: clone`, which pads every wrapped fragment and pushes it
-  about 4px past the text column; `slice` keeps it inside, with a squared-off end
-  where a code span breaks. Compare both in a rendered narrow column before
-  choosing the treatment.
 
 ### Layout
 

@@ -44,11 +44,16 @@ VOCAB = {
 def trace(stream: Path) -> dict:
     if not stream.exists():
         return {"missing": True}
-    calls, results, reads, result = {}, {}, [], {}
+    calls, results, reads, result, memory = {}, {}, [], {}, False
     for line in stream.read_text().splitlines():
         d = json.loads(line)
         if d.get("type") == "result":
             result = d
+        # A child that loaded auto-memory read the user's notes, so the run is void.
+        if d.get("type") == "system" and d.get("memory_paths"):
+            memory = True
+        if not isinstance(d.get("message"), dict):
+            continue
         for block in (d.get("message") or {}).get("content") or []:
             if not isinstance(block, dict):
                 continue
@@ -81,6 +86,7 @@ def trace(stream: Path) -> dict:
             writes += 1
     usage = result.get("usage", {})
     return {
+        "memory": memory,
         "turns": result.get("num_turns"),
         "is_error": result.get("is_error"),
         "cost_usd": round(result.get("total_cost_usd", 0), 2),
@@ -176,7 +182,8 @@ for r in rows:
     t, p = r["trace"], r["page"] or {}
     g = r.get("gate", {})
     print(
-        f"{r['subject'] + '-' + r['arm'] + '-' + str(r['n']):24} {r['phase']}  "
+        f"{r['subject'] + '-' + r['arm'] + '-' + str(r['n']):24} {r['phase']}"
+        f"{'M' if t.get('memory') else ' '} "
         f"{('pass' if g.get('passed') else 'FAIL') if g else '  - ':4} "
         f"{t.get('turns') or 0:5} {t.get('cost_usd') or 0:4.1f} {t.get('minutes') or 0:4.0f} "
         f"{t.get('checks', 0):3} {t.get('renders', 0):3} {t.get('refused', 0):3} "

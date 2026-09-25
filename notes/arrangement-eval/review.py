@@ -14,6 +14,7 @@ and B, and the raw answer, then prints a summary.
 
 import hashlib
 import json
+import os
 import re
 import subprocess
 import sys
@@ -101,6 +102,7 @@ def review(job):
              "--strict-mcp-config", "--tools", "Read", "--add-dir", str(batch),
              "--permission-mode", "bypassPermissions", "--output-format", "json"],
             capture_output=True, text=True, cwd=cwd, stdin=subprocess.DEVNULL,
+            env={**os.environ, "CLAUDE_CODE_DISABLE_AUTO_MEMORY": "1"},
         )
     answer = json.loads(proc.stdout) if proc.stdout.strip() else {"is_error": True}
     raw = answer.get("result", "")

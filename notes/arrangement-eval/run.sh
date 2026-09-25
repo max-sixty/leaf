@@ -9,14 +9,19 @@
 #   <n>         run number, so repeats do not overwrite each other
 #   <batch>     directory name under .tmp/arrangement-eval/runs/
 #
-# The child is `claude -p` from a scratch cwd with project-only settings, so neither
-# the user's CLAUDE.md nor the installed Leaf plugin loads; it reads the arm's
+# The child is `claude -p` from a scratch cwd outside any repository, with project-only
+# settings and auto-memory off, so neither the user's CLAUDE.md, their memory, nor the
+# installed Leaf plugin loads, and nothing it saves reaches them. Without the memory
+# switch a child whose cwd sits in this checkout shares the repository's memory: in the
+# first full run, children saved the standing preference there and later runs read it.
+# It reads the arm's
 # SKILL.md by path, as a host that loaded the skill would hand it over, and runs the
 # arm's launcher through $LEAF. Its state home is the run's own, so no claim reaches
 # this machine's real pages.
 #
 # Output in <run>: prompt-{1,2}.txt, stream-{1,2}.jsonl (the full trace), page/ (the
-# page directory), phase1.html (index.html after the first phase), err-{1,2}.txt.
+# page directory), phase1.html (index.html after the first phase), err-{1,2}.txt,
+# work-dir (the child's scratch cwd).
 set -u
 here=$(cd "$(dirname "$0")" && pwd)
 root=$(git -C "$here" rev-parse --show-toplevel)
@@ -24,11 +29,14 @@ arms=$(cd "$1" && pwd); arm=$2; subject=$3; n=$4; batch=$5
 payload="$arms/$arm"
 run="$root/.tmp/arrangement-eval/runs/$batch/$subject-$arm-$n"
 rm -rf "$run"
-mkdir -p "$run/work" "$run/state"
+mkdir -p "$run/state"
+work=$(mktemp -d)
+echo "$work" > "$run/work-dir"
 page="$run/page"
 
 export LEAF="$payload/bin/leaf"
 export XDG_STATE_HOME="$run/state"
+export CLAUDE_CODE_DISABLE_AUTO_MEMORY=1
 model=${MODEL:-claude-opus-5-5}
 
 {
@@ -65,7 +73,7 @@ flags=(--model "$model" --setting-sources project --strict-mcp-config
   --permission-mode bypassPermissions --tools "Bash,Read,Write,Edit,Glob,Grep"
   --add-dir "$payload" --add-dir "$run" --output-format stream-json --verbose)
 
-cd "$run/work" || exit 1
+cd "$work" || exit 1
 claude -p "$(cat "$run/prompt-1.txt")" "${flags[@]}" < /dev/null > "$run/stream-1.jsonl" 2> "$run/err-1.txt"
 session=$(python3 -c '
 import json, sys

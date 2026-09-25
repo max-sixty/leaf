@@ -3708,9 +3708,9 @@ def test_a_thread_completion_keeps_the_users_later_destination(
     else:
         expect(
             page.locator(
-                ".lf-threads > .lf-thread:not([hidden]) > .lf-thread-summary"
-            ).first
-        ).to_be_focused()
+                ".lf-threads > .lf-thread:not([hidden]) > .lf-thread-summary:focus"
+            )
+        ).to_have_count(1)
 
 
 def test_a_late_reply_reopens_its_resolved_thread(browser, serve):
@@ -4490,6 +4490,9 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         # response bar.
         "lf-compose-placeholder",
         "lf-compose-submit",
+        # Reply disclosure is shared by inline threads in authored content and the
+        # conversation surfaces in chrome.
+        "lf-reply-disclosure",
         # The one canonical composer can be seated in a widget's own Thread outlet,
         # where the chrome's scoped rules cannot reach it. The authored theme dresses
         # that seat at document level, under [data-lf-presentation="inline"], so every

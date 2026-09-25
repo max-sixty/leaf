@@ -11,7 +11,7 @@ import { notice } from "./notifications.js";
 import { pendingTraffic } from "./traffic.js";
 import { unresolvedAttempts } from "./pending/model.js";
 
-export const RETRY_MS = 2000;
+const RETRY_MS = 2000;
 const retryPause = () => new Promise((resolve) => setTimeout(resolve, RETRY_MS));
 
 export function createDelivery({

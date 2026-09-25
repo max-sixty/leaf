@@ -116,7 +116,7 @@ export function misplacedBoxes() {
   // A widget the registry declares wide is answered for out here, the way an
   // absolutely-positioned resident is: standing past the column is what it was
   // declared for. What still has to hold is the page's own box — the room the layout
-  // measured is the column's leftover and the rail a suggestion hangs in, and an
+  // measured is the column's leftover and the rail margin rows stand in, and an
   // exhibit over that edge is in the margin whether or not the window happened to
   // scroll for it. So the question is the same one, asked
   // against the wider bound: this gate renders at one viewport with no panel open, and
@@ -238,22 +238,19 @@ export function misplacedBoxes() {
       );
   }
   // The room being the page's own box is not the whole of what a wide widget owes,
-  // because the page hangs things in that box. A suggestion's controls stand 22px off
-  // the column and a sidenote a gutter off it on the other side, while the strip each
-  // is reserved out of comes off the far edge of the page — and those are the same
-  // place only when the column is flush against the strip, which it never is, since it
-  // centres in what the strip leaves. So the reservation says where the room ends and
-  // the occupancy says where the furniture is, and between them is a band that is
-  // inside the page's box and already spoken for. A board grown to the box was drawn
-  // 134px over the controls that decide the change above it, which is the change made
-  // undecidable by the page's own exhibit.
+  // because the page hangs things in that box. A sidenote stands a gutter off the
+  // column, while the strip it is reserved out of comes off the far edge of the page —
+  // and those are the same place only when the column is flush against the strip, which
+  // it never is, since it centres in what the strip leaves. So the reservation says
+  // where the room ends and the occupancy says where the furniture is, and between them
+  // is a band that is inside the page's box and already spoken for.
   //
-  // The theme is where a margin's claimant gives up that side (--lf-grow-l, --lf-grow-r),
-  // and this is what says so when one of them doesn't — the same bargain the framing
-  // rule above has, and the reason neither has to be a list anybody maintains. A
-  // resident is whatever answered for itself in the margin above (MARGIN_RESIDENTS),
-  // so a project hanging its own furniture out there is covered without declaring
-  // anything to this pass.
+  // The theme holds a wide widget's growth to what is free beside the page (--lf-free-l,
+  // --lf-free-r), and this is what says so when a widget grows past it anyway — the same
+  // bargain the framing rule above has, and the reason neither has to be a list anybody
+  // maintains. A resident is whatever `marginReading` finds standing past the column, so
+  // a project hanging its own furniture out there is covered without declaring anything
+  // to this pass.
   for (const el of main.querySelectorAll("[data-lf-space]")) {
     if (!el.checkVisibility()) continue;
     const b = el.getBoundingClientRect();
@@ -458,8 +455,9 @@ export function misalignedSplits() {
 // page-wide held a diagram to the column with the margin beside it empty, a diagram in
 // the room's terms merely "scrolling". So the question is the visible result, asked
 // without trusting the mechanisms that decide it (`clear` for a note, the margin layout
-// stepping a rail row past an exhibit): a drawing that scrolls, inside room that would have held it,
-// with nothing standing in the margin at its own band, is room withheld from the one
+// pinning a row on a block grown into the rail): a drawing that scrolls, inside room that
+// would have held it, with nothing standing in the margin at its own band, is room
+// withheld from the one
 // widget whose width is its own fact. Drawings alone, because "would the room have held
 // it" needs the exhibit's own width, which a box (a board laying columns into whatever
 // it is given) does not state. A drawing inside a frame reads the frame's withheld room

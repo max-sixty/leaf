@@ -97,8 +97,8 @@ A compound widget may own reading regions without being a pane.
 | **Chrome** | Runtime-owned interface outside authored content, rooted at the one `.lf-chrome` container |
 | **Banner** | The persistent chrome row carrying page status and the primary Approval and Threads controls, with secondary global controls in its overflow disclosure. While a user's gesture holds a next step, such as Comment on selection after a touch selection, that step stands on the row in Approval and Threads' place |
 | **Auxiliary surface** | Chrome opened `beside`, `over`, or `covering` the content frame |
-| **Thread panel** | The right-side auxiliary surface containing threads; it stands over a column page and takes no width from it, stands beside a sheet, which yields it a strip, and covers either only where it leaves less than a usable page beside it |
-| **Tray** | A mutually exclusive auxiliary surface admitted by the one left-side tray position; the Asks tray stands beside the content frame, which yields it a strip, and covers it only where it leaves less than a usable page beside it, as the thread panel does; the Leaves tray always covers |
+| **Thread panel** | The right-side auxiliary surface containing threads; it stands over the page and takes no width from it, leaving the page live beside it, and covers the page only where it leaves less than a usable page beside it |
+| **Tray** | A mutually exclusive auxiliary surface admitted by the one left-side tray position; the Asks tray stands over the page, live beside it, and covers it only where it leaves less than a usable page beside it, as the thread panel does; the Leaves tray always covers |
 
 The current trays are the **Asks tray** and **Leaves tray**. Use *covering auxiliary
 surface*, not *modal workspace*: a covering surface and a modal dialog are different

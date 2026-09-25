@@ -629,7 +629,7 @@ export function stateSignoff(next, syncLayout, paintApproval) {
 // The two primary controls hold the widest words they can show, so an asynchronous
 // count or approval result cannot move its sibling. Secondary controls can grow inside
 // More without changing the page's reading loop.
-export function reserveBannerControls() {
+function reserveBannerControls() {
   if (signoff) reserve(approveBtn, ["Approve version", "✓ Version approved"]);
   reserve(toggleBtn, ["Threads", "Threads (999)"]);
 }

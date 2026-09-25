@@ -422,7 +422,7 @@ const TICK_MS = 2000;
 
 // How long the page waits before reopening a news stream the server refused.
 // This is a retry delay, not a polling cadence; an open stream delivers news immediately.
-export const RETRY_MS = 2000;
+const RETRY_MS = 2000;
 
 // How long the news stream may say nothing before the page takes it for dead. The
 // server speaks at least every five seconds, so half a minute of silence is a

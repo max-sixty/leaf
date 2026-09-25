@@ -17,6 +17,7 @@ import {
   PRESENTATION_ORDER,
 } from "../semantic-state.js";
 import { runtime } from "../context.js";
+import { DRAGGING_CHANGED } from "../widget-elements.js";
 import { authored, elementById, inChrome, pageQueryAll } from "../passages.js";
 import {
   PAGE_PAINT_ATTRIBUTE,
@@ -59,7 +60,7 @@ function paintStateOrigins(projection) {
 export function createProjectionPresentation({ onDeferredReady }) {
   const committedProjection = new Map();
 
-  let projectionDragObserver = null;
+  let dragEnded = null;
 
   const presenter = applicationPresenter({
     region: "projection:chrome",
@@ -147,19 +148,21 @@ export function createProjectionPresentation({ onDeferredReady }) {
   const retireProjectionCoverage = () =>
     document.body.removeAttribute(PAGE_PAINT_ATTRIBUTE.applied);
 
+  // A drag holds the projection until the last one ends. `dragging` is the one writer of
+  // the class and announces each change (widget-elements.js).
   function watchProjectionDrag() {
-    if (projectionDragObserver) return;
-    projectionDragObserver = new MutationObserver(() => {
+    if (dragEnded) return;
+    dragEnded = () => {
       if (document.querySelector(".lf-dragging")) return;
-      projectionDragObserver.disconnect();
-      projectionDragObserver = null;
+      stopWatchingDrag();
       onDeferredReady();
-    });
-    projectionDragObserver.observe(document.body, {
-      attributes: true,
-      subtree: true,
-      attributeFilter: ["class"],
-    });
+    };
+    document.addEventListener(DRAGGING_CHANGED, dragEnded);
+  }
+
+  function stopWatchingDrag() {
+    document.removeEventListener(DRAGGING_CHANGED, dragEnded);
+    dragEnded = null;
   }
 
   function presentCurrent(snapshot) {
@@ -181,8 +184,7 @@ export function createProjectionPresentation({ onDeferredReady }) {
       watchProjectionDrag();
       return projection;
     }
-    projectionDragObserver?.disconnect();
-    projectionDragObserver = null;
+    stopWatchingDrag();
     setProjectionDeferred(false);
     for (const entry of projection.classified.values())
       for (const id of entry.restated ?? [])

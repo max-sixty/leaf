@@ -308,21 +308,19 @@ def test_page_map_qualifies_only_duplicate_subjects_with_their_reading_region(
 def test_a_settled_page_with_a_standing_reaction_stops_rendering_its_margin(
     browser, serve
 ):
-    """A chrome layout pass repacks the margin's rows; it does not restate its offers.
+    """A page standing still with a reaction in its margin renders no margin per frame.
 
-    `syncLayout` ends in the anchor runtime's `dockSeats`, and the here-paint frame
-    ends in `syncLayout`; a margin render ends in `paintKeys`, which ends in the next
-    the shared repaint. So a `dockSeats` that restated every seat's offer closed a cycle —
-    chrome layout, margin render, paint, chrome layout — on any page carrying a
-    standing reaction, and the gallery ran a whole margin render every frame with
-    nothing dispatched and nothing on the page moving. Measured then: ~350ms of main
-    thread per frame, which is also long enough that every Playwright read of that
-    page waits on it.
+    A margin render ends in `paintKeys`, which ends in the shared repaint, and that
+    repaint runs chrome layout. Anything chrome layout did that restated a reaction
+    seat's offer would close a cycle — chrome layout, margin render, paint, chrome
+    layout — and the gallery once ran a whole margin render every frame with nothing
+    dispatched and nothing on the page moving: ~350ms of main thread per frame, long
+    enough that every Playwright read of that page waited on it.
 
-    The reaction seat is asserted first, because it is the ingredient the cycle needed:
-    with no seat `dockSeats` visits nothing and a page passes this without saying
-    anything. The heartbeat is the one render a settled page is allowed here, and it
-    comes every two seconds, so at most one of these frames can carry it.
+    The reaction seat is asserted first, because it is the ingredient that cycle needed:
+    a page with no seat passes this without saying anything. The heartbeat is the one
+    render a settled page is allowed here, and it comes every two seconds, so at most
+    one of these frames can carry it.
     """
     page = open_page(browser, serve(FEATURE_GALLERY))
     resized(page, 1280, 900)
@@ -399,8 +397,8 @@ def test_unchanged_margin_refresh_cost_is_bounded_by_refresh_count(browser, serv
 
 # Both pages stand still with nothing dispatched, so both give the settled reading:
 # ten frames on an untouched page report no record at all. That is a property of the
-# runtime rather than of either fixture, and a recent one — before #298 stopped
-# `dockSeats` restating every seat's offer, the same ten frames on the gallery
+# runtime rather than of either fixture, and a recent one — before #298 stopped chrome
+# layout restating every reaction seat's offer, the same ten frames on the gallery
 # reported about 1700 records with nothing dispatched.
 HEARTBEAT_PAGES = (
     # The corpus is the widest margin the examples draw, most of it withheld at this

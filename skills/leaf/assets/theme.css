@@ -640,9 +640,8 @@ body {
     }
   }
 }
-/* Positioned so it is the containing block for anything a widget hangs in the
- * page margin (lf-suggestion's controls): `left: 100%` then means the column's
- * right edge, and `anchor()` reaches the anchor names declared inside it.
+/* Positioned so `left: var(--lf-shift)` can move the column off the window's centre
+ * when something claims room on one side of it.
  *
  * 720px is stated as a number and not as a token, because `version check` reads
  * this very declaration to find the column it measures every pinned width
@@ -754,9 +753,10 @@ main {
  * The growth stops at main's gutters, and each gutter holds its side's reservation, so an
  * exhibit never reaches the rail. What stands level with an exhibit in the margin is
  * decided by what put it there. A sidenote is the page's own, so the page clears it
- * (`clear`, at aside.sidenote). A margin row is Leaf's, so it steps out past the exhibit
- * into the rail (margin-layout.js): nothing Leaf draws moves the page's content, and an
- * exhibit keeps the same width however many comments arrive beside it.
+ * (`clear`, at aside.sidenote). A margin row is Leaf's, so where an author's own CSS
+ * widens a block into the rail, the row stands on it as a pin (margin-placement.js):
+ * nothing Leaf draws moves the page's content, and an exhibit keeps the same width however
+ * many comments arrive beside it.
  *
  * Where one side has less room than the other, the freer side takes what the other
  * lacks instead of losing half the allocation to symmetry. With both sides equally free,
@@ -811,11 +811,10 @@ main {
     width: calc(100% + var(--lf-surplus));
   }
   [data-lf-space="wide"], main [data-width="wide"] {
-    --lf-reach: min(var(--wide), var(--lf-room, 0px),
-      var(--lf-space-bound, 99999px));
+    --lf-reach: min(var(--wide), var(--lf-room, 0px));
   }
   [data-lf-space="available"], main [data-width="available"] {
-    --lf-reach: min(var(--lf-room, 0px), var(--lf-space-bound, 99999px));
+    --lf-reach: var(--lf-room, 0px);
   }
   [data-lf-space] [data-lf-space],
   main :is([data-lf-space], [data-width]) :is([data-lf-space], [data-width]) {

@@ -181,7 +181,8 @@ geometry without them:
 - A sheet, and so a workspace, keeps no rail. Its markers stand as pins over the page at
   the top-right of their blocks, as every marker does where the rail does not stand: in
   a narrower window, and in a pane that scrolls on its own. A pin stands beside its block
-  where the room past it holds the pin, and otherwise covers what is missing.
+  where the room past it holds the pin, and otherwise covers what is missing; it never
+  stands on a control of the block, such as a card's grip, and goes below one instead.
 - A marker on a figure grown past the rail stands on the figure as a pin.
 - The user hides every pin and passage mark with `o` to see what lies under them; the
   rail stays, since it covers nothing.

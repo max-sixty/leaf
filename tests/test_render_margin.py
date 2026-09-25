@@ -3245,8 +3245,9 @@ def test_one_target_has_one_primary_margin_entry_and_inline_secondary_margin_ent
     expect(draft_item.locator(".lf-margin-entry:visible")).to_have_count(6)
     expect(draft_item.locator(":scope > .lf-margin-more")).to_be_hidden()
 
-    # On a narrow screen each item stands as a pin at the top-right of its own target,
-    # and the desktop map marker leaves the compact action row to the Page Map dialog.
+    # On a narrow screen each item stands as a pin at the right edge of its own target,
+    # at its top or just below a control of the target it would otherwise stand on, and
+    # the desktop map marker leaves the compact action row to the Page Map dialog.
     page.keyboard.press("Escape")
     page.evaluate("() => document.activeElement.blur()")
     resized(page, 390, 900)
@@ -3259,11 +3260,11 @@ def test_one_target_has_one_primary_margin_entry_and_inline_secondary_margin_ent
             """item => {
               const row = item.getBoundingClientRect();
               const box = item.lfTarget.getBoundingClientRect();
-              return {top: Math.round(row.top - box.top),
+              return {within: row.top >= box.top - 1 && row.top < box.bottom,
                       atEdge: row.left <= box.right + 1 && row.right >= box.right};
             }"""
         )
-        assert stands == {"top": 0, "atEdge": True}, stands
+        assert stands == {"within": True, "atEdge": True}, stands
     expect(suggestion_item.locator(":scope > .lf-margin-marker")).to_be_hidden()
     page.keyboard.press("e")
     expect(suggestion_item.locator(".lf-margin-entry:visible")).to_have_count(6)

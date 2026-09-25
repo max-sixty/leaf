@@ -138,3 +138,16 @@ test("the step alternate hangs a rail row past a grown box level with it", () =>
     84,
   );
 });
+
+test("a pin level with a control of the page goes below it", () => {
+  const grip = { left: 1060, right: 1076, top: 98, bottom: 114 };
+  const pushes = packRows([{ key: "pin", rect: rect(1045, 96), priority: 10 }], 4, [
+    grip,
+  ]);
+  assert.deepEqual(Object.fromEntries(pushes), { pin: 22 });
+  // A control beside the pin rather than under it moves nothing.
+  const aside = packRows([{ key: "pin", rect: rect(1045, 96), priority: 10 }], 4, [
+    { left: 900, right: 916, top: 98, bottom: 114 },
+  ]);
+  assert.deepEqual(Object.fromEntries(aside), { pin: 0 });
+});

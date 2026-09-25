@@ -61,12 +61,19 @@ const overlapsAcross = (a, b) => a.left < b.right && b.left < a.right;
 
 // Rows that would stand over one another are pushed down, the more important first and
 // then from the top. Two rows collide only where their rectangles do: a pin and a rail
-// marker at the same height stand apart and stay where they are.
+// marker at the same height stand apart and stay where they are. `fixed` are boxes a row
+// may not stand on and that never move — the page's own controls under a pin, such as a
+// card's grip — so a pin level with one goes below it rather than taking its presses.
 //
 // Each row is `{ key, rect, priority }`, its rect the one it takes with no push. The answer
 // maps each key to its push.
-export function packRows(rows, gap) {
-  const placed = [];
+export function packRows(rows, gap, fixed = []) {
+  const placed = fixed.map(({ left, right, top, bottom }) => ({
+    left,
+    right,
+    top,
+    bottom,
+  }));
   const pushes = new Map();
   const order = [...rows].sort(
     (a, b) => a.priority - b.priority || a.rect.top - b.rect.top,

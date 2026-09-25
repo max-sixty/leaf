@@ -263,6 +263,18 @@ function reach(anchor, box, main, reaches) {
   return right;
 }
 
+// The page's own controls in a pin's block, which the pin may not stand on: a pin at a
+// card's top-right would otherwise take the presses meant for the card's grip. Anything
+// the keyboard can reach is a control, so a package need declare nothing.
+const CONTROLS =
+  'button, a[href], input, select, textarea, summary, [contenteditable], [tabindex]:not([tabindex="-1"])';
+function controlsIn(anchor) {
+  return [...anchor.querySelectorAll(CONTROLS)]
+    .filter((control) => control.checkVisibility())
+    .map((control) => control.getBoundingClientRect())
+    .filter((box) => box.width && box.height);
+}
+
 // What the page leaves free past a block's right edge: the nearest frame's inline-end
 // padding, or, for a block standing in `main`, the room to the shell's edge. Only the
 // nearest frame counts: climbing past a grid cell with no padding to the pane beyond
@@ -356,15 +368,22 @@ const shownTop = (target) =>
   Math.min(...shownParts(target).map((part) => part.getBoundingClientRect().top));
 
 // Whether a row has somewhere to stand: its target renders, its scrollers leave some of it
-// in view — the pane that scrolls it, or a table it has been scrolled sideways out of —
-// and the line the row stands on, the target's top, is inside that view, since a row
-// standing above a pane's top would be clipped by its lane and still take the keyboard.
-function targetShown(target, anchor, inset, bands) {
+// in view — the pane that scrolls it, or a table or board it has been scrolled sideways
+// out of — and the point the row stands at is inside that view. That is the target's top
+// line, since a row standing above a pane's top would be clipped by its lane and still
+// take the keyboard, and for a pin the target's right edge too: a card half past a
+// board's edge would stand its pin outside the board, beside nothing and past the page.
+function targetShown(target, anchor, inset, pin, bands) {
   if (!shownParts(target).some((part) => part.checkVisibility())) return false;
   const box = anchor.getBoundingClientRect();
   const view = clippedBand(anchor, box, bands);
   const line = box.top + inset;
-  return Boolean(view) && line >= view.top - 1 && line < view.bottom;
+  return (
+    Boolean(view) &&
+    line >= view.top - 1 &&
+    line < view.bottom &&
+    (!pin || box.right <= view.right + 1)
+  );
 }
 
 const pushes = new Map();
@@ -397,7 +416,7 @@ function scheduleScrollReading() {
       const inset =
         anchor === target ? 0 : shownTop(target) - anchor.getBoundingClientRect().top;
       if (
-        targetShown(target, anchor, inset, bands) ===
+        targetShown(target, anchor, inset, row.dataset.lfPlace === "pin", bands) ===
         row.classList.contains("lf-withheld")
       ) {
         scheduleMarginLayout();
@@ -448,7 +467,6 @@ export function layoutMarginRows() {
     const rootLane = scroller === pageScroller;
     const box = anchor.getBoundingClientRect();
     const inset = anchor === target ? 0 : shownTop(target) - box.top;
-    const shown = !parked.has(row) && targetShown(target, anchor, inset, bands);
     const place = rowPosture({
       railStands: stands,
       rootLane,
@@ -457,6 +475,8 @@ export function layoutMarginRows() {
       half: size / 2,
       wide,
     });
+    const shown =
+      !parked.has(row) && targetShown(target, anchor, inset, place === "pin", bands);
     reads.push({
       row,
       options,
@@ -469,6 +489,7 @@ export function layoutMarginRows() {
       inset,
       edge: box.right,
       room: place === "pin" ? roomBeside(anchor, box, main, shell, frames) : 0,
+      controls: place === "pin" && shown ? controlsIn(anchor) : [],
     });
   }
   // What each lane's region shows, cut by the scrollers around it but not by the window,
@@ -563,7 +584,11 @@ export function layoutMarginRows() {
     } else if (row.hasAttribute("data-lf-parked"))
       row.removeAttribute("data-lf-parked");
   const standing = placed.filter(({ stranded }) => !stranded);
-  const packed = packRows(standing, GAP);
+  const packed = packRows(
+    standing,
+    GAP,
+    standing.flatMap(({ read }) => read.controls ?? []),
+  );
   const grown =
     wide === "step"
       ? [...main.querySelectorAll("[data-lf-space]")]

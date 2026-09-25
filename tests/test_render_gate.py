@@ -2461,7 +2461,9 @@ def test_the_adopted_sheet_decides_nothing_by_standing_last(browser, serve):
     the page that holds every widget and every idiom at once."""
     # The corpus's sort film otherwise repaints SVG values while the sheets move.
     page = open_page(
-        browser, serve(CORPUS_PAGE), context=browser.new_context(reduced_motion="reduce")
+        browser,
+        serve(CORPUS_PAGE),
+        context=browser.new_context(reduced_motion="reduce"),
     )
     page.evaluate("() => document.getAnimations().forEach((one) => one.pause())")
     adopted = page.evaluate(COMPUTED_FACES, [list(ORDER_SENSITIVE)])

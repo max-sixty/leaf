@@ -124,7 +124,9 @@ def answer_command(answer: dict) -> str:
     if answer["kind"] == "turn":
         return f"your turn's final message for {answer['for']}"
     if answer["kind"] == "receipt":
-        return f"`leaf receipt <page> {answer['request']} succeeded|failed`"
+        return (
+            f"`leaf experimental receipt <page> {answer['request']} succeeded|failed`"
+        )
     return f"a stamped version whose markup records action {answer['action']}"
 
 

@@ -704,9 +704,9 @@ document already holds, and version checks enforce the declared tag and
 direct-ownership relation once an author writes the child into the markup.
 
 A verb whose state the agent writes rather than the user declares `"writer": "agent"`
-beside its `detail`, `unit`, and `record`. A worker posts it with `leaf report`, the
-page paints it live, and it stands until a version answers it; the user has no control
-for it. Its record is required and may not be `body`, and it may name the detail field
+beside its `detail`, `unit`, and `record`. A worker posts it with
+`leaf experimental report`, the page paints it live, and it stands until a version
+answers it; the user has no control for it. Its record is required and may not be `body`, and it may name the detail field
 carrying its short human-readable news with `update`. Every verb has exactly one
 writer, so a coordinate never holds a user's action and an agent's report at once.
 Command Hub's `lf-task` `status` is the shipped example, and a widget declaring such a

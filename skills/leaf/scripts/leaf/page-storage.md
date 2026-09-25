@@ -112,6 +112,10 @@ other page files and the external state listed below.
 - `server.lock` — process-held server lease. `hosting.py` waits for its release on stop,
   after the server has closed its sockets.
 
+- `restart.lock` — process-held restart lease, taken by `hosting.restarting_server`
+  before its stop and held until the holder has started the service again, so a
+  disabled service under it reads as restarting rather than stopped.
+
 - `<state-home>/claims/` — one atomic claim per resolved page, independent of its page
   directory, and removed by the first scan that finds that directory gone
   (`service.claim_records`). [session-lifetime.md](session-lifetime.md) owns claimant

@@ -146,6 +146,10 @@ Revisit these when their stated trigger becomes real; they are not an active que
 
 ### Product and host ideas
 
+- **Revisit a pin's icons if they read unclearly.** A pin shows the rail's outline
+  icon in white on its fill, at 26px. A filled icon reads more clearly at that size,
+  and needs no second copy — the same SVG with its fill set — but only an icon whose
+  outline is a closed shape fills cleanly. Trigger: a user misreads what a pin holds.
 - **Explore independent jobs.** Work out their identity, observer, continuation
   owner, and outcomes across background commands, delegates, and external waits.
   See the [Thread plan](notes/threads.md#independent-jobs-delegation-and-continuation).

@@ -44,7 +44,6 @@ def _agent_metric_reply(page_dir, root, number, for_event=None):
             "Completed steps</lf-metric></lf-grid>"
         ),
         for_event=for_event,
-        initiates=for_event is None,
         when_settled="post",
     )["id"]
 

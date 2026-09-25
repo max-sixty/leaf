@@ -1192,7 +1192,10 @@ def test_init_refuses_a_logged_report_the_incoming_layer_no_longer_speaks(page_d
     publish(page_dir)
     assert (
         CliRunner()
-        .invoke(cli_model.cli, ["report", str(page_dir), "t1", "status", "status=done"])
+        .invoke(
+            cli_model.cli,
+            ["experimental", "report", str(page_dir), "t1", "status", "status=done"],
+        )
         .exit_code
         == 0
     )
@@ -5164,7 +5167,6 @@ def test_the_reply_door_refuses_a_picture_the_page_directory_has_not_got(page_di
             str(page_dir),
             "--to",
             json.loads(opened.output)["id"],
-            "--initiates",
             "--text",
             "here:",
             "--markup",
@@ -5368,7 +5370,6 @@ def test_the_door_admits_a_reaction_only_as_a_token_the_layer_declares(
         "Which part is long?",
         None,
         for_event=None,
-        initiates=True,
     )
     status, body = fetch(
         f"{server}/api/event",

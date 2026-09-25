@@ -1,5 +1,6 @@
 """Durable and process-owned page servers."""
 
+import contextlib
 import errno
 import logging
 import secrets
@@ -21,7 +22,7 @@ from .http import page_app, page_endpoint
 from .layer import payload_provenance
 from .leases import lock_is_held, page_locked, release_lease, take_lease
 from .registry.storage import layer_metadata
-from .schema import SERVER_LOCK, SERVICE_FILE
+from .schema import RESTART_LOCK, SERVER_LOCK, SERVICE_FILE
 from .server import (
     host_key,
     lifetime_note,
@@ -513,3 +514,26 @@ def cmd_stop(page_dir: Path) -> str:
                 return "stopped server" if stopped else "no server running"
         stopped = True
         time.sleep(0.05)
+
+
+@contextlib.contextmanager
+def restarting_server(page_dir: Path):
+    """Hold a page's service down for a transition whose holder starts it again.
+
+    The service goes down through `cmd_stop`, since a disabled service is what keeps
+    a revival and a second start out of the transition and what lets `page init`
+    re-vendor. A watching `leaf wait` would read that alone as a service someone
+    stopped, and end. The restart lease, taken first and held until the holder
+    lets go, says the stop is a restart's: the holder starts the service again
+    inside the block, so a wait reads the gap as the page coming back
+    (`server.server_restarting`). The lease is the holder's process, so a holder
+    killed mid-restart leaves the plain stop behind, which is what it then is.
+    """
+    lease = take_lease(page_dir / RESTART_LOCK)
+    if lease is None:
+        raise RuntimeError(f"another process is restarting the server for {page_dir}")
+    try:
+        cmd_stop(page_dir)
+        yield
+    finally:
+        release_lease(lease)

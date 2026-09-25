@@ -184,15 +184,15 @@ def test_a_section_handed_a_message_id_is_sent_to_the_option_that_takes_one(page
 
 def test_a_section_handed_a_message_owed_nothing_is_sent_to_to(page_dir):
     """A message the log owes nothing is still one `--to` takes. `--to` is the one
-    writer keyed on the kind rather than the obligation, and `--initiates` is refused
-    only while a response is owed, so the agent's own comment — owed nothing — is
+    writer keyed on the kind rather than the obligation, and `--to` without `--for` is
+    refused only while a response is owed, so the agent's own comment — owed nothing — is
     replied to there, and a refusal calling it unroutable would be a dead end."""
     own = json.loads(
         comment(published(page_dir), "--quote", "Ship dark", "--text", "note").output
     )
     mistaken = comment(page_dir, "--section", own["id"], "--text", "more")
     assert mistaken.exit_code != 0
-    route = f"`leaf reply <page> --to {own['id']} --initiates` replies to it"
+    route = f"`leaf reply <page> --to {own['id']}` replies to it"
     assert (
         f"{own['id']} is a comment in this page's log, and nothing is owed for it — "
         f"{route}"
@@ -200,7 +200,7 @@ def test_a_section_handed_a_message_owed_nothing_is_sent_to_to(page_dir):
 
     followed = CliRunner().invoke(
         cli_model.cli,
-        ["reply", str(page_dir), "--to", own["id"], "--initiates", "--text", "more"],
+        ["reply", str(page_dir), "--to", own["id"], "--text", "more"],
     )
     assert followed.exit_code == 0, followed.output
 
@@ -209,9 +209,9 @@ def test_a_message_whose_thread_owes_a_reply_is_sent_to_for(page_dir):
     """A thread's response is owed by the thread, not by the message carrying it.
 
     A message with nothing against its own id can sit in a conversation waiting on
-    one, and `--initiates` is refused for the whole thread. A refusal reading the
-    message's own obligation named `--initiates` there, which the writer it named
-    then refused — so both readings are one, and the route is the `--for` that the
+    one, and `--to` without `--for` is refused for the whole thread. A refusal reading
+    the message's own obligation named `--to` there, which the writer it named then
+    refused — so both readings are one, and the route is the `--for` that the
     guard would have demanded.
     """
     own = json.loads(
@@ -230,12 +230,12 @@ def test_a_message_whose_thread_owes_a_reply_is_sent_to_for(page_dir):
     ) in mistaken.output
 
     # The writer the refusal names takes it, and the one it passed over says so too.
-    initiated = CliRunner().invoke(
+    posted = CliRunner().invoke(
         cli_model.cli,
-        ["reply", str(page_dir), "--to", own["id"], "--initiates", "--text", "more"],
+        ["reply", str(page_dir), "--to", own["id"], "--text", "more"],
     )
-    assert initiated.exit_code != 0
-    assert f"use `--for {asked['id']}` instead of --initiates" in initiated.output
+    assert posted.exit_code != 0
+    assert f"answer it with `--for {asked['id']}`" in posted.output
     answered = CliRunner().invoke(
         cli_model.cli,
         ["reply", str(page_dir), "--for", asked["id"], "--text", "a week"],
@@ -493,7 +493,6 @@ def test_an_agent_reply_can_move_a_thread_to_its_revised_visual(page_dir):
             str(page_dir),
             "--to",
             root["id"],
-            "--initiates",
             "--section",
             "flowe",
             "--text",
@@ -513,7 +512,6 @@ def test_an_agent_reply_can_move_a_thread_to_its_revised_visual(page_dir):
             str(page_dir),
             "--to",
             root["id"],
-            "--initiates",
             "--section",
             "flow",
             "--part",
@@ -580,7 +578,6 @@ def test_an_agent_reply_can_remove_a_subject_and_detach_its_open_thread(page_dir
             str(page_dir),
             "--to",
             root["id"],
-            "--initiates",
             "--detach",
             "--text",
             "This must not partly land.",
@@ -603,7 +600,6 @@ def test_an_agent_reply_can_remove_a_subject_and_detach_its_open_thread(page_dir
             str(page_dir),
             "--to",
             root["id"],
-            "--initiates",
             "--detach",
             "--text",
             "I removed the section; this conversation no longer has a page target.",
@@ -639,7 +635,6 @@ def test_an_agent_reply_can_remove_a_subject_and_detach_its_open_thread(page_dir
             str(page_dir),
             "--to",
             root["id"],
-            "--initiates",
             "--section",
             "flow",
             "--text",
@@ -664,7 +659,6 @@ def test_detach_is_a_distinct_reply_target_transition(page_dir):
             str(page_dir),
             "--to",
             root["id"],
-            "--initiates",
             "--detach",
             "--section",
             "plan",
@@ -701,7 +695,6 @@ def test_a_withdrawn_reaction_root_can_still_be_moved_but_not_detached(page_dir)
             str(page_dir),
             "--to",
             root["id"],
-            "--initiates",
             "--detach",
             "--text",
             "There is no current subject to detach.",
@@ -718,7 +711,6 @@ def test_a_withdrawn_reaction_root_can_still_be_moved_but_not_detached(page_dir)
             str(page_dir),
             "--to",
             root["id"],
-            "--initiates",
             "--section",
             "plan",
             "--text",
@@ -810,7 +802,6 @@ def test_a_moving_reply_validates_markup_against_the_prospective_revision(page_d
             str(page_dir),
             "--to",
             root["id"],
-            "--initiates",
             "--section",
             "answer",
             "--text",
@@ -894,7 +885,6 @@ def test_a_detached_conversation_releases_the_visual_part_it_left(page_dir):
             str(page_dir),
             "--to",
             root["id"],
-            "--initiates",
             "--detach",
             "--text",
             "Removing this node; the conversation has no page target.",
@@ -933,7 +923,6 @@ def test_a_moved_conversation_releases_the_visual_part_it_left(page_dir):
             str(page_dir),
             "--to",
             root["id"],
-            "--initiates",
             "--section",
             "flow",
             "--text",

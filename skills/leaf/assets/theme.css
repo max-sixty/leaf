@@ -167,10 +167,10 @@
      focus conventions and reads as ink on ivory rather than as UI. */
   --accent: light-dark(#2f5480, #8fb0d8); --ok: light-dark(#3f7d4e, #7fb98c);
   --warn: light-dark(#b4741a, #d8a95c); --danger: light-dark(#b4402f, #d98b7a);
-  /* A pin stands over the page's own words, so it has to read as something laid on the
-     page rather than as more ink on it: a saturated blue, the way a design tool's
-     comment pin sits on a frame, where the accent above is chosen to read as ink. */
-  --pin-fill: light-dark(#0d7ae6, #1f7ae0);
+  /* A pin is filled with the accent, the ink the page already points with. The dark
+     scheme's accent is a pale tint a white glyph cannot stand on, so there the pin
+     takes a deeper one. */
+  --pin-fill: light-dark(var(--accent), #4d74a8);
   /* The pin's working fill: --ok is chosen for a dot on paper and is too light under a
      white glyph in the dark scheme. */
   --pin-working: light-dark(#2f7d45, #2d8047);

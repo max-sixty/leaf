@@ -905,6 +905,7 @@ def test_hosted_agent_receives_the_response_instructions_and_delivery(
         result = CliRunner().invoke(
             cli,
             [
+                "experimental",
                 "receipt",
                 str(page_dir),
                 event["id"],
@@ -2900,7 +2901,6 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
     assert answer["parent"] == comment["id"]
     assert answer["text"] == "deployment verified"
     assert answer["responds"] == comment["id"]
-    assert "initiates" not in answer
     # Retrying the same delivery keeps one answer and its original response scope.
     assert (
         cmd_reply(

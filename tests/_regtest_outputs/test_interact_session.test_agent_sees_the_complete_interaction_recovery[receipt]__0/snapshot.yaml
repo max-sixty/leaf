@@ -53,9 +53,10 @@ delivered:
         h2: >-
           Say what it will do with `leaf status <page> working "<what it does, in
           a line>"`, run it at most once, then record its outcome with exactly one
-          `leaf receipt <page> <request-id> succeeded|failed --text "…"`. The receipt
-          does not change the page: refresh any data the page shows, update `index.html`
-          to reflect the result, and stamp it if it is worth a note.
+          `leaf experimental receipt <page> <request-id> succeeded|failed --text
+          "…"`. The receipt does not change the page: refresh any data the page
+          shows, update `index.html` to reflect the result, and stamp it if it is
+          worth a note.
       events:
         - kind: request
           author: user
@@ -87,14 +88,14 @@ acknowledged at stop:
   decision: block
   reason: |-
     Leaf needs attention:
-    - <page>: 1 acknowledged user move with no answer (`leaf receipt <page> event-2 succeeded|failed`).
+    - <page>: 1 acknowledged user move with no answer (`leaf experimental receipt <page> event-2 succeeded|failed`).
 
     Each move takes the answer named for it. Read current obligations with `leaf page state <page>` and conversation history with `leaf conversation read <page> <id>`.
 
 idle before answer:
   exit: 1
   output: |
-    1 acknowledged user move with no answer (`leaf receipt <page> event-2 succeeded|failed`); answer before idling. Each move takes the answer named for it. Read current obligations with `leaf page state <page>` and conversation history with `leaf conversation read <page> <id>`.
+    1 acknowledged user move with no answer (`leaf experimental receipt <page> event-2 succeeded|failed`); answer before idling. Each move takes the answer named for it. Read current obligations with `leaf page state <page>` and conversation history with `leaf conversation read <page> <id>`.
 
 answer: |
   settled request event-2 as succeeded

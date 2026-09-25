@@ -840,7 +840,7 @@ def test_widget_ids_are_one_universe_across_page_and_replies(page_dir):
     )
 
     def reply(markup, *, for_event=None, to="c1"):
-        response = ["--for", for_event] if for_event else ["--initiates"]
+        response = ["--for", for_event] if for_event else []
         return CliRunner().invoke(
             cli_model.cli,
             [
@@ -985,7 +985,6 @@ def test_agent_messages_preserve_a_single_space(page_dir):
             str(page_dir),
             "--to",
             root["id"],
-            "--initiates",
             "--text",
             " ",
             "--json",
@@ -1060,8 +1059,7 @@ def test_each_agent_session_posts_as_its_own_voice(page_dir, monkeypatch):
                 str(page_dir),
                 "--to",
                 "c1",
-                "--for" if text == "indexing done" else "--initiates",
-                *(["c1"] if text == "indexing done" else []),
+                *(["--for", "c1"] if text == "indexing done" else []),
                 "--text",
                 text,
             ],
@@ -1131,7 +1129,6 @@ def test_an_agent_reply_records_only_a_question_it_leaves_with_the_user(page_dir
             str(page_dir),
             "--to",
             root["id"],
-            "--initiates",
             "--text",
             "Which store?",
             "--awaits",
@@ -1144,7 +1141,6 @@ def test_an_agent_reply_records_only_a_question_it_leaves_with_the_user(page_dir
             str(page_dir),
             "--to",
             root["id"],
-            "--initiates",
             "--text",
             "Pick one.",
             "--markup",
@@ -1164,7 +1160,6 @@ def test_an_agent_reply_records_only_a_question_it_leaves_with_the_user(page_dir
             str(page_dir),
             "--to",
             root["id"],
-            "--initiates",
             "--text",
             "Should I continue?",
             "--markup",
@@ -1182,7 +1177,6 @@ def test_an_agent_reply_records_only_a_question_it_leaves_with_the_user(page_dir
             str(page_dir),
             "--to",
             root["id"],
-            "--initiates",
             "--text",
             "Restart it?",
             "--markup",
@@ -1587,7 +1581,6 @@ def test_reply_markup_uses_the_captured_registry_after_candidate_files_disappear
             str(page_dir),
             "--to",
             "c1",
-            "--initiates",
             "--text",
             "See:",
             "--markup",
@@ -1711,7 +1704,6 @@ def test_every_seeded_fragment_passes_the_door_it_never_came_through(
                     str(d),
                     "--to",
                     root,
-                    "--initiates",
                     "--text",
                     "carrying it",
                     "--markup",
@@ -1755,7 +1747,6 @@ def test_page_state_and_the_transcript_read_reactions_as_marks(page_dir):
         "Which part?",
         None,
         for_event=None,
-        initiates=True,
     )
     state = state_json(page_dir)
     assert [t["id"] for t in state["conversations"]] == [answered["id"]]

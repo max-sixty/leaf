@@ -95,10 +95,10 @@
 #              work, in a line>" --on <address>`, where `<address>` is the event's
 #              `answer.to`: the line stands beside the thread and in the banner until
 #              your next reply there. Once that work lands, report it with `leaf reply
-#              <page> --to <address> --initiates`. `leaf reply` checks any saved page
-#              edit and makes it live before posting. If a revision removes what the
-#              thread is anchored on, move the thread in the reply that reports it
-#              with `--section <id>` (narrowed by `--quote` or `--part` if needed), or
+#              <page> --to <address>`. `leaf reply` checks any saved page edit and
+#              makes it live before posting. If a revision removes what the thread is
+#              anchored on, move the thread in the reply that reports it with
+#              `--section <id>` (narrowed by `--quote` or `--part` if needed), or
 #              `--detach` it if its subject has left the page. Add `--awaits` only if
 #              your reply's prose asks the user something.
 #      clause 8, applies:
@@ -151,7 +151,7 @@
 #            ],
 #            "handling": {
 #              "h1": "This event's conversation has no title yet: name it with `leaf conversation title <page> <conversation-id> --text \"<a few words>\"`, so the thread panel lists its subject rather than its opening words.",
-#              "h2": "Answer with `leaf reply <page> --for <event-id>` before any other work, including the work this event asks for: give the answer, or say what you are about to do and where the result will appear. When work follows, name it on the page in the same command, as in `leaf reply <page> --for <event-id> --text \"\u2026\" && leaf status <page> working \"<the work, in a line>\" --on <address>`, where `<address>` is the event's `answer.to`: the line stands beside the thread and in the banner until your next reply there. Once that work lands, report it with `leaf reply <page> --to <address> --initiates`. `leaf reply` checks any saved page edit and makes it live before posting. If a revision removes what the thread is anchored on, move the thread in the reply that reports it with `--section <id>` (narrowed by `--quote` or `--part` if needed), or `--detach` it if its subject has left the page. Add `--awaits` only if your reply's prose asks the user something.",
+#              "h2": "Answer with `leaf reply <page> --for <event-id>` before any other work, including the work this event asks for: give the answer, or say what you are about to do and where the result will appear. When work follows, name it on the page in the same command, as in `leaf reply <page> --for <event-id> --text \"\u2026\" && leaf status <page> working \"<the work, in a line>\" --on <address>`, where `<address>` is the event's `answer.to`: the line stands beside the thread and in the banner until your next reply there. Once that work lands, report it with `leaf reply <page> --to <address>`. `leaf reply` checks any saved page edit and makes it live before posting. If a revision removes what the thread is anchored on, move the thread in the reply that reports it with `--section <id>` (narrowed by `--quote` or `--part` if needed), or `--detach` it if its subject has left the page. Add `--awaits` only if your reply's prose asks the user something.",
 #              "h3": "Your reply renders as Markdown, so show code or markup in a fenced block."
 #            },
 #            "events": [
@@ -240,10 +240,10 @@
 #              --text "…" && leaf status <page> working "<the work, in a line>" --on <address>`,
 #              where `<address>` is the event's `answer.to`: the line stands beside the
 #              thread and in the banner until your next reply there. Once that work lands,
-#              report it with `leaf reply <page> --to <address> --initiates`. `leaf reply`
-#              checks any saved page edit and makes it live before posting. If a revision
-#              removes what the thread is anchored on, move the thread in the reply that
-#              reports it with `--section <id>` (narrowed by `--quote` or `--part` if needed),
+#              report it with `leaf reply <page> --to <address>`. `leaf reply` checks any
+#              saved page edit and makes it live before posting. If a revision removes
+#              what the thread is anchored on, move the thread in the reply that reports
+#              it with `--section <id>` (narrowed by `--quote` or `--part` if needed),
 #              or `--detach` it if its subject has left the page. Add `--awaits` only if
 #              your reply's prose asks the user something.
 #          - text: >-
@@ -274,10 +274,10 @@ comment:
         --text "…" && leaf status <page> working "<the work, in a line>" --on <address>`,
         where `<address>` is the event's `answer.to`: the line stands beside the
         thread and in the banner until your next reply there. Once that work lands,
-        report it with `leaf reply <page> --to <address> --initiates`. `leaf reply`
-        checks any saved page edit and makes it live before posting. If a revision
-        removes what the thread is anchored on, move the thread in the reply that
-        reports it with `--section <id>` (narrowed by `--quote` or `--part` if needed),
+        report it with `leaf reply <page> --to <address>`. `leaf reply` checks any
+        saved page edit and makes it live before posting. If a revision removes
+        what the thread is anchored on, move the thread in the reply that reports
+        it with `--section <id>` (narrowed by `--quote` or `--part` if needed),
         or `--detach` it if its subject has left the page. Add `--awaits` only if
         your reply's prose asks the user something.
     - text: >-
@@ -335,10 +335,10 @@ comment with a drawing:
         --text "…" && leaf status <page> working "<the work, in a line>" --on <address>`,
         where `<address>` is the event's `answer.to`: the line stands beside the
         thread and in the banner until your next reply there. Once that work lands,
-        report it with `leaf reply <page> --to <address> --initiates`. `leaf reply`
-        checks any saved page edit and makes it live before posting. If a revision
-        removes what the thread is anchored on, move the thread in the reply that
-        reports it with `--section <id>` (narrowed by `--quote` or `--part` if needed),
+        report it with `leaf reply <page> --to <address>`. `leaf reply` checks any
+        saved page edit and makes it live before posting. If a revision removes
+        what the thread is anchored on, move the thread in the reply that reports
+        it with `--section <id>` (narrowed by `--quote` or `--part` if needed),
         or `--detach` it if its subject has left the page. Add `--awaits` only if
         your reply's prose asks the user something.
     - text: >-
@@ -364,10 +364,10 @@ comment with a pasted image:
         --text "…" && leaf status <page> working "<the work, in a line>" --on <address>`,
         where `<address>` is the event's `answer.to`: the line stands beside the
         thread and in the banner until your next reply there. Once that work lands,
-        report it with `leaf reply <page> --to <address> --initiates`. `leaf reply`
-        checks any saved page edit and makes it live before posting. If a revision
-        removes what the thread is anchored on, move the thread in the reply that
-        reports it with `--section <id>` (narrowed by `--quote` or `--part` if needed),
+        report it with `leaf reply <page> --to <address>`. `leaf reply` checks any
+        saved page edit and makes it live before posting. If a revision removes
+        what the thread is anchored on, move the thread in the reply that reports
+        it with `--section <id>` (narrowed by `--quote` or `--part` if needed),
         or `--detach` it if its subject has left the page. Add `--awaits` only if
         your reply's prose asks the user something.
     - text: >-
@@ -397,10 +397,10 @@ suggestion:
         --text "…" && leaf status <page> working "<the work, in a line>" --on <address>`,
         where `<address>` is the event's `answer.to`: the line stands beside the
         thread and in the banner until your next reply there. Once that work lands,
-        report it with `leaf reply <page> --to <address> --initiates`. `leaf reply`
-        checks any saved page edit and makes it live before posting. If a revision
-        removes what the thread is anchored on, move the thread in the reply that
-        reports it with `--section <id>` (narrowed by `--quote` or `--part` if needed),
+        report it with `leaf reply <page> --to <address>`. `leaf reply` checks any
+        saved page edit and makes it live before posting. If a revision removes
+        what the thread is anchored on, move the thread in the reply that reports
+        it with `--section <id>` (narrowed by `--quote` or `--part` if needed),
         or `--detach` it if its subject has left the page. Add `--awaits` only if
         your reply's prose asks the user something.
     - text: >-
@@ -434,10 +434,10 @@ design comment:
         --text "…" && leaf status <page> working "<the work, in a line>" --on <address>`,
         where `<address>` is the event's `answer.to`: the line stands beside the
         thread and in the banner until your next reply there. Once that work lands,
-        report it with `leaf reply <page> --to <address> --initiates`. `leaf reply`
-        checks any saved page edit and makes it live before posting. If a revision
-        removes what the thread is anchored on, move the thread in the reply that
-        reports it with `--section <id>` (narrowed by `--quote` or `--part` if needed),
+        report it with `leaf reply <page> --to <address>`. `leaf reply` checks any
+        saved page edit and makes it live before posting. If a revision removes
+        what the thread is anchored on, move the thread in the reply that reports
+        it with `--section <id>` (narrowed by `--quote` or `--part` if needed),
         or `--detach` it if its subject has left the page. Add `--awaits` only if
         your reply's prose asks the user something.
     - text: >-
@@ -477,10 +477,10 @@ reply:
         --text "…" && leaf status <page> working "<the work, in a line>" --on <address>`,
         where `<address>` is the event's `answer.to`: the line stands beside the
         thread and in the banner until your next reply there. Once that work lands,
-        report it with `leaf reply <page> --to <address> --initiates`. `leaf reply`
-        checks any saved page edit and makes it live before posting. If a revision
-        removes what the thread is anchored on, move the thread in the reply that
-        reports it with `--section <id>` (narrowed by `--quote` or `--part` if needed),
+        report it with `leaf reply <page> --to <address>`. `leaf reply` checks any
+        saved page edit and makes it live before posting. If a revision removes
+        what the thread is anchored on, move the thread in the reply that reports
+        it with `--section <id>` (narrowed by `--quote` or `--part` if needed),
         or `--detach` it if its subject has left the page. Add `--awaits` only if
         your reply's prose asks the user something.
     - text: >-
@@ -512,10 +512,10 @@ reply in an untitled thread:
         --text "…" && leaf status <page> working "<the work, in a line>" --on <address>`,
         where `<address>` is the event's `answer.to`: the line stands beside the
         thread and in the banner until your next reply there. Once that work lands,
-        report it with `leaf reply <page> --to <address> --initiates`. `leaf reply`
-        checks any saved page edit and makes it live before posting. If a revision
-        removes what the thread is anchored on, move the thread in the reply that
-        reports it with `--section <id>` (narrowed by `--quote` or `--part` if needed),
+        report it with `leaf reply <page> --to <address>`. `leaf reply` checks any
+        saved page edit and makes it live before posting. If a revision removes
+        what the thread is anchored on, move the thread in the reply that reports
+        it with `--section <id>` (narrowed by `--quote` or `--part` if needed),
         or `--detach` it if its subject has left the page. Add `--awaits` only if
         your reply's prose asks the user something.
     - text: >-
@@ -546,10 +546,10 @@ reply with a pasted image:
         --text "…" && leaf status <page> working "<the work, in a line>" --on <address>`,
         where `<address>` is the event's `answer.to`: the line stands beside the
         thread and in the banner until your next reply there. Once that work lands,
-        report it with `leaf reply <page> --to <address> --initiates`. `leaf reply`
-        checks any saved page edit and makes it live before posting. If a revision
-        removes what the thread is anchored on, move the thread in the reply that
-        reports it with `--section <id>` (narrowed by `--quote` or `--part` if needed),
+        report it with `leaf reply <page> --to <address>`. `leaf reply` checks any
+        saved page edit and makes it live before posting. If a revision removes
+        what the thread is anchored on, move the thread in the reply that reports
+        it with `--section <id>` (narrowed by `--quote` or `--part` if needed),
         or `--detach` it if its subject has left the page. Add `--awaits` only if
         your reply's prose asks the user something.
     - text: >-
@@ -587,10 +587,10 @@ reply in a long thread:
         --text "…" && leaf status <page> working "<the work, in a line>" --on <address>`,
         where `<address>` is the event's `answer.to`: the line stands beside the
         thread and in the banner until your next reply there. Once that work lands,
-        report it with `leaf reply <page> --to <address> --initiates`. `leaf reply`
-        checks any saved page edit and makes it live before posting. If a revision
-        removes what the thread is anchored on, move the thread in the reply that
-        reports it with `--section <id>` (narrowed by `--quote` or `--part` if needed),
+        report it with `leaf reply <page> --to <address>`. `leaf reply` checks any
+        saved page edit and makes it live before posting. If a revision removes
+        what the thread is anchored on, move the thread in the reply that reports
+        it with `--section <id>` (narrowed by `--quote` or `--part` if needed),
         or `--detach` it if its subject has left the page. Add `--awaits` only if
         your reply's prose asks the user something.
     - text: >-
@@ -723,10 +723,10 @@ pick inside a thread:
         --text "…" && leaf status <page> working "<the work, in a line>" --on <address>`,
         where `<address>` is the event's `answer.to`: the line stands beside the
         thread and in the banner until your next reply there. Once that work lands,
-        report it with `leaf reply <page> --to <address> --initiates`. `leaf reply`
-        checks any saved page edit and makes it live before posting. If a revision
-        removes what the thread is anchored on, move the thread in the reply that
-        reports it with `--section <id>` (narrowed by `--quote` or `--part` if needed),
+        report it with `leaf reply <page> --to <address>`. `leaf reply` checks any
+        saved page edit and makes it live before posting. If a revision removes
+        what the thread is anchored on, move the thread in the reply that reports
+        it with `--section <id>` (narrowed by `--quote` or `--part` if needed),
         or `--detach` it if its subject has left the page. Add `--awaits` only if
         your reply's prose asks the user something.
     - text: >-
@@ -800,9 +800,9 @@ request:
     - text: >-
         Say what it will do with `leaf status <page> working "<what it does, in
         a line>"`, run it at most once, then record its outcome with exactly one
-        `leaf receipt <page> <request-id> succeeded|failed --text "…"`. The receipt
-        does not change the page: refresh any data the page shows, update `index.html`
-        to reflect the result, and stamp it if it is worth a note.
+        `leaf experimental receipt <page> <request-id> succeeded|failed --text "…"`.
+        The receipt does not change the page: refresh any data the page shows, update
+        `index.html` to reflect the result, and stamp it if it is worth a note.
 
 undo:
   event:

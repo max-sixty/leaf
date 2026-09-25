@@ -2,11 +2,11 @@ Your brief names `LEAF`, `PAGE`, `WORKER`, `ROW`, and `TASK`. Use that launcher
 for every Leaf write, under that name. Start by moving your agent row and task:
 
 ```bash
-LEAF_AGENT="$WORKER" "$LEAF" report "$PAGE" "$ROW" state state=working doing="<current activity>"
-LEAF_AGENT="$WORKER" "$LEAF" report "$PAGE" "$TASK" status status=active
+LEAF_AGENT="$WORKER" "$LEAF" experimental report "$PAGE" "$ROW" state state=working doing="<current activity>"
+LEAF_AGENT="$WORKER" "$LEAF" experimental report "$PAGE" "$TASK" status status=active
 ```
 
-If `report` fails, return its exact error through the host task and run no other
+If a report fails, return its exact error through the host task and run no other
 Leaf command. Report the row whenever the activity changes and often enough that
 silence means something: the page calls out a working row that goes quiet for the
 working grace, about a quarter of an hour. Both `state` and

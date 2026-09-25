@@ -22,6 +22,7 @@ from render_cases_layout import (
 from render_harness import (
     LONG_PAGE,
     leaf_page,
+    panel_settled,
     rendered,
     told,
 )
@@ -372,7 +373,9 @@ def card_body(page, says):
 
     Low on the card *as the user sees it*: the list scrolls, so the last card's own
     bottom can sit below the scroller and behind the panel's foot. A point read off the
-    card's rect alone lands on the general box there, which hovers no card at all."""
+    card's rect alone lands on the general box there, which hovers no card at all. Read
+    once the panel has finished sliding in, which is where the user's hand finds it."""
+    panel_settled(page)
     box = page.locator(".lf-thread").filter(has_text=says).first.bounding_box()
     seen = page.locator(".lf-threads").bounding_box()
     bottom = min(box["y"] + box["height"], seen["y"] + seen["height"])

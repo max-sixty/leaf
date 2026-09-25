@@ -87,7 +87,6 @@ from render_harness import (
     holds_the_window,
     leaf_page,
     open_page,
-    page_right,
     pane_posture,
     panel_settled,
     post_event,
@@ -2576,10 +2575,11 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
     expect(start).to_have_css("outline-width", "2px")
     expect(start).to_have_css("outline-offset", "-2px")
 
+    # The Asks tray stands over the map and changes nothing about it.
     page.locator("body").focus()
     toggle_asks(page)
-    expect(prepare).to_have_css("opacity", "1")
-    expect(start).to_be_hidden()
+    expect(toc).to_have_css("position", "fixed")
+    expect(prepare).to_have_css("opacity", "0")
     toggle_asks(page, open=False)
 
     resized(page, 700, 900)
@@ -2668,8 +2668,8 @@ def test_the_reading_map_returns_when_a_hidden_sidebar_comes_back(browser, serve
     """A wrapper that leaves the box tree and returns leaves the map as it found it.
 
     An author whose sidebar has nothing to say on a narrow shell hides it, which is
-    what the developer gallery does; opening the Asks tray takes enough width to cross
-    that floor, so one open-and-close removes the map's whole wrapper and puts it back. The
+    what the developer gallery does; narrowing the window across that floor and back
+    removes the map's whole wrapper and puts it back. The
     map is restored from the page's own posture, not from anything the wrapper
     remembers, because a box that has been away answers a style query with the reading
     it left with: asking the wrapper cost the user the spine for the rest of the
@@ -2692,7 +2692,7 @@ def test_the_reading_map_returns_when_a_hidden_sidebar_comes_back(browser, serve
 """,
     )
     context = browser.new_context(viewport={"width": 1200, "height": 900})
-    page = open_page(browser, serve(with_one_ask(source)), context=context)
+    page = open_page(browser, serve(source), context=context)
     toc = page.locator("#contents")
     nav = page.get_by_role("navigation", name="On this page")
     heading = nav.locator(".lf-toc-heading")
@@ -2710,14 +2710,14 @@ def test_the_reading_map_returns_when_a_hidden_sidebar_comes_back(browser, serve
     laid = rows()
     assert laid >= 3, f"the fixture laid only {laid} map rows to begin with"
 
-    toggle_asks(page)
+    resized(page, 1100, 900)
     # Read the hidden posture rather than merely waiting the wrapper out. The page reads
     # it too — the map measures its own track on every reflow, hidden or not — and the
     # reading is what leaves the wrapper repeating it after the box comes back.
     expect(page.locator("#route")).to_have_css("display", "none")
     expect(toc).to_have_css("position", "static")
 
-    toggle_asks(page, open=False)
+    resized(page, 1200, 900)
     # The wrapper itself holds no height in this posture — the map inside it is fixed —
     # so its return is a display reading rather than a visible box.
     expect(page.locator("#route")).to_have_css("display", "flow-root")
@@ -5935,17 +5935,8 @@ def test_suggestion_controls_stay_out_of_the_column(browser, serve, reduced_moti
     `left: 100%` used to resolve against, dropping the row back into the text —
     hangs in the rail beside its card like any other. What is left is a
     measurement no lint can make: a window with no margin to hold the row docks it
-    into flow, under the block it decides rather than overlapping the page.
-
-    The margin the row hangs in is reserved out of the page shell rather than left
-    over in the window, so the strip a tray takes is what decides the posture. With the
-    Asks tray open at 1400 the shell is 1100px and still holds the column and the rail,
-    and the rows keep their line; at 1100 it is 800px and cannot, so they dock under
-    the blocks they decide, the way they would in a window that narrow. Threads stands
-    over the page and takes no room, so it moves no row."""
-    page = open_page(
-        browser, serve(with_one_ask(SUGGESTION_PAGE)), init_script=HOLD_MOTION
-    )
+    into flow, under the block it decides rather than overlapping the page."""
+    page = open_page(browser, serve(SUGGESTION_PAGE), init_script=HOLD_MOTION)
     page.emulate_media(reduced_motion=reduced_motion)
     column = page.locator("main").evaluate("el => el.getBoundingClientRect().right")
     room = page.evaluate("() => document.body.getBoundingClientRect().right")
@@ -5975,43 +5966,9 @@ def test_suggestion_controls_stay_out_of_the_column(browser, serve, reduced_moti
         <= 5
     ), "the row must hang on the change's own line, not on the block it follows"
 
-    # The tray takes the left of the window, and the rail survives it wherever the
-    # shell it leaves can hold one: the rows keep their line, clear of the column.
-    # Measured after the layout has moved, since opening the tray resizes the page and
-    # the rows re-place on the frame after that. Under full motion the rows used to dock
-    # for the length of the column's glide and come back at its end; there is no glide
-    # now, so both arms go straight to the settled page.
-    resized(page, 1400, 900)
-    toggle_asks(page)
-    page.wait_for_function(
-        "() => [...document.querySelectorAll("
-        "'[data-lf-margin-for=sug-refill], [data-lf-margin-for=sug-thistle]')]"
-        ".every(r => !r.classList.contains('lf-docked'))"
-    )
-    narrowed = page.locator("main").evaluate("el => el.getBoundingClientRect().right")
-    room = page_right(page)
-    for i in range(2):
-        rect = margin_rows.nth(i).evaluate(box)
-        assert rect["left"] > narrowed and rect["right"] <= room, (
-            "with the tray open the row must still hang between column and window"
-        )
-
-    # Take the room away without closing the tray: a 1100px window leaves an 800px
-    # shell, which cannot hold the column and the rail together, so every row docks.
-    resized(page, 1100, 900)
-    page.wait_for_function(
-        "() => [...document.querySelectorAll('[data-lf-margin-for^=sug-]')]"
-        ".every(r => r.classList.contains('lf-docked'))"
-    )
-
     # No margin anywhere: every row docks, and nothing spills sideways. Docked is
     # the same box in flow where the row was hoisted to, so it reads as a control
     # line under the block holding the change and never as the one before's.
-    # The tray gives the room back in one responsive layout, and the column is already
-    # in it. Its slide is held with every other motion here, so what says it closed is
-    # its door rather than its box.
-    banner_control(page, ".lf-asks").click()
-    expect(page.locator(".lf-asks")).to_have_attribute("aria-expanded", "false")
     resized(page, 820, 900)
     page.wait_for_function(
         "() => [...document.querySelectorAll('[data-lf-margin-for^=sug-]')]"
@@ -8930,11 +8887,36 @@ def test_a_tray_the_user_left_standing_comes_back_standing(browser, serve):
     page.wait_for_function(BOTH_STAMPS)
     expect(tray).to_be_visible()
     expect(page.locator("button.lf-asks-row")).to_have_count(len(ALL_ASKS_IN_ORDER))
-    # And the room it takes comes back with it, or the tray returns lying over the
-    # column it is meant to stand beside.
-    page.wait_for_function(
-        """() => getComputedStyle(document.body).borderLeftWidth !== '0px'"""
-    )
+
+
+def test_a_tray_standing_over_most_of_an_ask_clears_for_it(browser, serve):
+    """The tray stands over the page, so an Ask its row sends the user to may be under it.
+    Drawn wide but still leaving a usable page, the tray stays live and stands over most of
+    the column; pressing a row then clears the tray, as travel clears any surface hiding
+    its destination, rather than landing the user on a decision they cannot see. Beside
+    a tray at its default width the same press keeps the tray up."""
+    page = open_page(browser, serve(ASKS_PAGE))
+    resized(page, 1440, 900)
+    tray = page.locator(".lf-asks-panel")
+    row = page.locator("button.lf-asks-row[data-lf-at='t-bath-decision']")
+    covering = page.locator("body[data-lf-covering-surface]")
+
+    banner_control(page, ".lf-asks").click()
+    expect(tray).to_be_visible()
+    row.click()
+    expect(page.locator("#t-bath-decision")).to_be_focused()
+    expect(tray).to_be_visible()
+
+    edge = page.locator(".lf-asks-panel > .lf-edge")
+    edge.focus()
+    for _ in range(21):
+        page.keyboard.press("ArrowRight")
+    width = tray.evaluate("el => el.getBoundingClientRect().width")
+    assert 1440 - width >= 320 and width > 360 + 360, width
+    expect(covering).to_have_count(0)
+    row.click()
+    expect(tray).to_be_hidden()
+    expect(page.locator("#t-bath-decision")).to_be_focused()
 
 
 def test_a_row_stands_the_user_on_the_ask_it_names(browser, serve):
@@ -8978,17 +8960,16 @@ def test_a_row_stands_the_user_on_the_ask_it_names(browser, serve):
     assert sorted(set(marked)) == ["t-bath-decision"], marked
 
 
-def test_the_asks_tray_takes_room_rather_than_covering_the_column(browser, serve):
-    """A leaf's row is a way out of this page and an Ask's row is a way around it, so
-    pressing one sends the user into the document — and a tray lying over the
-    document would be hiding the thing it just sent them to. At a 720px column the two
-    overlap on any window under about 1320px, which is most of them, so the strip comes
-    out of the page the way the thread panel's does on the other side.
-
-    Where the strip would leave less than a usable page beside it, it covers instead —
-    the rule the panel follows, asked of the room the tray leaves rather than of the
-    window, so a narrow window and a tray drawn wide on a wide one come to the same
-    answer, and a user who has learned one edge has learned the other."""
+def test_the_asks_tray_covers_the_page_only_where_it_leaves_no_usable_page(
+    browser, serve
+):
+    """An Ask's row is a way around this page, so pressing one sends the user into the
+    document, and the page beside the tray stays live for it. Where the tray would leave
+    less than a usable page beside it, it covers instead — the rule the panel follows,
+    asked of the room the tray leaves rather than of the window, so a narrow window and a
+    tray drawn wide on a wide one come to the same answer, and a user who has learned one
+    edge has learned the other. Either way the tray stands over the page and moves none
+    of it."""
     page = open_page(browser, serve(ASKS_PAGE))
     geometry = """() => ({
       column: Math.round(document.querySelector('main').getBoundingClientRect().left),
@@ -8999,23 +8980,18 @@ def test_the_asks_tray_takes_room_rather_than_covering_the_column(browser, serve
     })"""
 
     resized(page, 1200, 800)
+    closed = page.evaluate(geometry)
     banner_control(page, ".lf-asks").click()
     expect(page.locator(".lf-asks-panel")).to_be_visible()
     covering = page.locator("body[data-lf-covering-surface='lf-asks']")
-    strip = "() => getComputedStyle(document.body).borderLeftWidth"
-    page.wait_for_function(f"() => ({strip})() !== '0px'")
     expect(covering).to_have_count(0)
     wide = page.evaluate(geometry)
-    assert wide["column"] >= wide["tray"], (
-        f"the tray covers the column: it ends at {wide['tray']} and the column "
-        f"begins at {wide['column']}"
-    )
+    assert wide["column"] == closed["column"], "the tray moved the column"
     assert wide["sideways"] == 0, "the page scrolls sideways with the tray up"
 
-    # At 610 the default 300px strip would leave 310, short of a usable page.
+    # At 610 the default 300px tray would leave 310, short of a usable page.
     resized(page, 610, 800)
     expect(covering).to_have_count(1)
-    assert page.evaluate(strip) == "0px"
     assert page.evaluate(geometry)["sideways"] == 0
     resized(page, 1200, 800)
     expect(covering).to_have_count(0)
@@ -9034,11 +9010,9 @@ def test_the_asks_tray_takes_room_rather_than_covering_the_column(browser, serve
              - document.querySelector('.lf-asks-panel').getBoundingClientRect().width"""
     )
     assert left < 320, f"the tray covered with {left}px of page beside it"
-    assert page.evaluate(strip) == "0px"
     page.keyboard.press("ArrowLeft")
     expect(covering).to_have_count(0)
-    beside = page.evaluate(geometry)
-    assert beside["column"] >= beside["tray"], beside
+    assert page.evaluate(geometry)["column"] == closed["column"]
 
 
 def test_one_tray_stands_on_the_left_edge_at_a_time(browser, serve, other_leaf):
@@ -9068,10 +9042,6 @@ def test_one_tray_stands_on_the_left_edge_at_a_time(browser, serve, other_leaf):
     page.keyboard.press("Shift+l")
     expect(leaves).to_be_visible()
     expect(decisions).to_be_hidden()
-    # The page has its room back the moment the Asks tray goes down.
-    page.wait_for_function(
-        """() => getComputedStyle(document.body).borderLeftWidth === '0px'"""
-    )
 
     # Leaves is a modal covering workspace, so its scrim correctly makes the page and
     # banner inert. The global destination remains the route from one tray to the other.
@@ -9644,9 +9614,8 @@ def test_a_redraw_keeps_the_words_the_runtime_hung_on_the_chart(browser, serve):
     read that very comment, for the life of the tab, since nothing puts it back. So the
     drawing lives in a box of its own and the redraw replaces what is in that box.
 
-    The room is changed by the window rather than by the panel, because the panel's strip
-    is a layout the test would then be asserting about; what this is about is that a
-    redraw happened at all, which the drawing's own width says."""
+    The room is changed by the window, the one thing that changes it; what this is about
+    is that a redraw happened at all, which the drawing's own width says."""
     page = open_page(
         browser, serve(CHART_PAGE, anchored=[("c-bars", "")]), context=None
     )

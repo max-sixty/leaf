@@ -467,56 +467,31 @@ RESTORED_PROSE = "".join(
 
 
 @pytest.mark.parametrize(
-    ("saved", "sheet", "window", "strip"),
+    ("saved", "sheet", "window"),
     [
-        # The Asks tray takes its strip on the left at every page shape.
-        (
-            {"lf-auxiliary-surface": "asks", "lf-tray-slot-width": "280"},
-            False,
-            1600,
-            280,
-        ),
-        # The thread panel stands over a column page and takes nothing from it.
-        (
-            {"lf-auxiliary-surface": "threads", "lf-thread-panel-width": "500"},
-            False,
-            1600,
-            0,
-        ),
-        # Beside a sheet it takes a strip, at its default width and at a drawn one.
-        ({"lf-auxiliary-surface": "threads"}, True, 1440, 420),
+        ({"lf-auxiliary-surface": "asks", "lf-tray-slot-width": "280"}, False, 1600),
         (
             {"lf-auxiliary-surface": "threads", "lf-thread-panel-width": "500"},
             True,
             1440,
-            500,
         ),
         # Where it would leave less than a usable page it covers the sheet instead.
-        ({"lf-auxiliary-surface": "threads"}, True, 700, 0),
+        ({"lf-auxiliary-surface": "threads"}, True, 700),
         # The Asks tray by the same rule: 300 of a 600px window leaves 300.
-        ({"lf-auxiliary-surface": "asks"}, False, 600, 0),
+        ({"lf-auxiliary-surface": "asks"}, False, 600),
     ],
-    ids=[
-        "asks",
-        "threads-column",
-        "threads-sheet",
-        "threads-sheet-drawn",
-        "covering",
-        "asks-covering",
-    ],
+    ids=["asks", "threads-sheet", "covering", "asks-covering"],
 )
 @pytest.mark.parametrize("contained", [False, True])
-def test_a_restored_auxiliary_surface_has_final_geometry_before_runtime_loads(
-    browser, serve, saved, sheet, window, strip, contained
+def test_a_restored_auxiliary_surface_leaves_the_page_where_it_painted(
+    browser, serve, saved, sheet, window, contained
 ):
-    """Returning users do not watch saved auxiliary chrome move the document: a surface
-    that takes a strip has it reserved before the runtime loads, so the paragraph they
-    were reading stands at the same place from first paint to presentation, and one that
-    stands over or covers the page takes nothing from it either time."""
+    """Returning users do not watch saved auxiliary chrome move the document: a restored
+    surface stands over the page, so the paragraph they were reading stands at the same
+    place from the first paint, before the runtime has loaded, to presentation."""
     if contained and sheet:
         pytest.skip("a specimen's child page is the column its template writes")
     surface = saved["lf-auxiliary-surface"]
-    side = "left" if surface == "asks" else "right"
     content = "<h1>Restored surface</h1>" + RESTORED_PROSE
     if contained:
         content = (
@@ -553,17 +528,14 @@ def test_a_restored_auxiliary_surface_has_final_geometry_before_runtime_loads(
 
     def geometry():
         return page.evaluate(
-            """side => {
+            """() => {
                 const main = document.querySelector('body > main').getBoundingClientRect();
                 return {
-                    strip: parseFloat(
-                        getComputedStyle(document.body)[`border-${side}-width`]),
                     x: main.x,
                     width: main.width,
                     reading: document.querySelector('#p6').getBoundingClientRect().y,
                 };
-            }""",
-            side,
+            }"""
         )
 
     try:
@@ -571,19 +543,10 @@ def test_a_restored_auxiliary_surface_has_final_geometry_before_runtime_loads(
             page.goto(url, wait_until="commit")
         displayed(page)
         expect(page.locator("h1")).to_be_visible()
-        expect(page.locator("html")).to_have_attribute(
-            "data-lf-restore-surface", surface
-        )
         initial = geometry()
-        assert initial["strip"] == pytest.approx(strip, abs=1), (
-            f"the first paint reserved {initial['strip']}px on the {side}"
-        )
 
         held.pop().continue_()
         page.wait_for_function(BOTH_STAMPS)
-        expect(page.locator("html")).not_to_have_attribute(
-            "data-lf-restore-surface", re.compile(".*")
-        )
         expect(page.locator("body")).to_have_attribute(
             "data-lf-auxiliary-surface", surface
         )

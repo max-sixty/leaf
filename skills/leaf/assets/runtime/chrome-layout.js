@@ -3,19 +3,14 @@
 // container, `main` composes its left and right claims, and queries grant or withdraw
 // margin postures. JavaScript may hear the shell's content-box size without deriving a
 // posture or mirroring cramped state. `layoutSizes` schedules `syncLayout` and page
-// repaint after a width change. `moveContentFrame` lands the final responsive shell in one
-// pass and repaints page-attached chrome in the same gesture. Nothing here holds the
-// user's place across the reflow that lands with the new shell: the browser does, because
-// the strip the shell yields is a transparent border rather than a margin, and `border-width`
-// is not a scroll-anchoring suppression trigger (theme.css, at the body strip, carries the
-// measurement and the reasoning). A height-only change sends `pageShifted` directly so a content
-// reflow re-places document-attached paint without re-running chrome reservation.
+// repaint after a width change. No auxiliary surface changes the shell: each stands over
+// the page. A height-only change sends `pageShifted` directly so a content reflow
+// re-places document-attached paint without re-running chrome reservation.
 //
 // `syncLayout` measures only chrome whose placement or reservation depends on rendered
 // chrome, and writes only chrome boxes. `layoutSizes` watches `document.body`'s
 // content-box size without deriving a posture from it. A width change schedules
-// `syncLayout` and page repaint in the following frame after an auxiliary surface lands its final
-// shell; a height-only content reflow calls `pageShifted` during observer delivery so
+// `syncLayout` and page repaint in the following frame; a height-only content reflow calls `pageShifted` during observer delivery so
 // page paint follows targets that moved. That direct path may write only unobserved paint
 // hosts and state or queue work for a frame. A `ResizeObserver` callback must not resize
 // the box it observes, directly or through a class or attribute that changes that box.
@@ -26,19 +21,15 @@
 // while nested scrollports report on their elements. Use `scrollerFor(el)` where a widget
 // may be one an agent sent, since a widget in a message is scrolled by the panel's own
 // list and by nothing else. Threads and trays are alternate auxiliary surfaces, so only
-// one stands at a time. Leaves always covers the page. Threads and the Asks tray cover it
-// only where they would leave less than a usable page beside them, one rule for both
-// (`standsBeside`, auxiliary-surfaces.js; `--lf-auxiliary-beside`, theme.css at the body
-// strip). Elsewhere the Asks tray takes a strip on the left, and Threads stands over a
-// column page and takes no width from it, and beside a sheet, which yields it a strip on
-// the right. Auxiliary modality
-// is a shared inert boundary outside this geometry owner; the reference and Page Map
-// keep native `showModal()`. The shell's inline size already reflects the strip a beside
-// surface takes. `--strip-l`, `--strip-r`,
+// one stands at a time, over the page and taking no width from it. Leaves always covers
+// the page. Threads and the Asks tray cover it only where they would leave less than a
+// usable page beside them, one rule for both (`standsBeside`, auxiliary-surfaces.js;
+// `--lf-auxiliary-beside`, theme.css); elsewhere the page beside them stays live.
+// Auxiliary modality is a shared inert boundary outside this geometry owner; the
+// reference and Page Map keep native `showModal()`. `--strip-l`, `--strip-r`,
 // `--lf-room`, `--lf-sidebar-posture`, and `--lf-rail-posture` are CSS-owned readings
 // resolved on `main`, which is the named `lf-content-frame` style container a margin
-// resident asks for them; `--lf-shell-inset-left`
-// carries the left auxiliary-surface offset to viewport-fixed page furniture, and `--lf-bottom-chrome-clear`
+// resident asks for them; `--lf-bottom-chrome-clear`
 // carries the bottom chrome's band to whatever has to end above it; `--lf-claim-right` is the
 // project-layer extension claim.
 
@@ -84,20 +75,16 @@ export function createChromeLayout({
   refreshFab,
   dockSeats,
   pageShifted,
-  layoutMarginRows,
   repaint,
   repaintPage,
 }) {
-  // The panel stands over a column page and takes no room from it: the centred column
-  // mostly clears it. A sheet has no column to clear it with — its rail is under the
-  // panel — so it yields the panel a strip and reflows its tracks beside it. Either way
-  // the panel covers the page — the modal boundary that makes the page inert — only where
-  // what it leaves beside it is less than a usable page, the rule every surface that may
-  // stand beside the page shares (`standsBeside`).
+  // The panel stands over the page and takes no room from it. It covers the page — the
+  // modal boundary that makes the page inert — only where what it leaves beside it is
+  // less than a usable page, the rule every surface that may stand beside the page shares
+  // (`standsBeside`).
   const panelCovers = () => panelIsOpen() && !standsBeside();
   // Every writer here is a writer of the chrome, so nothing this function does resizes the
-  // box it reads: the strip the page yields to a tray is the stylesheet's, and the strip
-  // it yields to a margin idiom is stated above.
+  // box it reads.
   function syncLayout() {
     scheduleThreadPreviewPosition();
     const panelLive = panelIsOpen() && !panelCovers();
@@ -114,7 +101,9 @@ export function createChromeLayout({
     // under the panel, so the rail's own posture says nothing; what says the user lost
     // them is a rail row the panel's edge reaches. Where one does, the banner offers the
     // Page Map in their place, as it does where the rail is not drawn at all (chrome.css).
-    const panelLeft = panelLive ? panel.getBoundingClientRect().left : Infinity;
+    // Where the panel stands, not where its slide has carried it this frame: offsetLeft
+    // ignores the slide's transform.
+    const panelLeft = panelLive ? panel.offsetLeft : Infinity;
     const railCovered = [
       ...document.querySelectorAll(".lf-margin-projection .lf-margin-cluster"),
     ].some(
@@ -206,51 +195,11 @@ export function createChromeLayout({
     dockSeats();
   }
   // The response bar lives in the viewport plane, and syncLayout is where its usable
-  // reading boundary changes shape — a tray takes or returns its strip and a resize
-  // moves every rect. Re-place it against the durable anchor so it cannot overhang the
-  // narrowed shell.
+  // reading boundary changes shape — a resize moves every rect. Re-place it against the
+  // durable anchor so it cannot overhang the shell.
   function syncFloats() {
     if (syncReactLayout()) return;
     refreshFab();
-  }
-  // An auxiliary chrome state is a responsive-layout boundary, not a sequence of temporary
-  // viewport sizes. Apply the state and every container query reads the final shell in one
-  // pass; the reading column arrives at its new horizontal position in that same pass.
-  //
-  // It used to glide there over 180ms. That glide animated `main`'s `left`, which is a
-  // scroll-anchoring suppression trigger on every frame it ran, so the page bought a
-  // moving column at the price of dropping the user each time a strip was returned. The
-  // browser carries them now (theme.css, at the body strip), and the column jumps — which
-  // is what every editor with a side panel does, and cheaper than it looks against words
-  // that stay put.
-  //
-  // So the paint that follows the column follows it here, in the gesture, not a frame
-  // later. The repaint was deferred only because the column used to be in flight; with
-  // it already at rest there is nothing to wait for, and waiting left a frame in which
-  // the margin's rows and the marks on the page stood where the column had been. They are
-  // placed off the column's box, which a resize observer cannot report — it hears a box
-  // change size, not place. The observers still run on the frame after, and re-placing
-  // what is already placed is a no-op.
-  //
-  // `change` carries the shell write, and chrome reconciliation rides with it: `landEdge`
-  // passes `syncLayout` through this call and the user stays on the same words across
-  // the reflow. What may not go inside is a surface's own rendering. The hold the browser
-  // carries rests on an ordering (theme.css, at the body strip): nothing may move the
-  // reading column except the container-query recalc that runs inside layout, and showing
-  // a surface in the same batch as the shell write switches that hold off — measured at
-  // 900px, the user landed three paragraphs back. So the frame is private,
-  // and what leaves this module is `takeShell`, which carries a surface's key rather than
-  // a callback: a surface owner has no way to render inside it, and renders either side.
-  function moveContentFrame(change) {
-    change();
-    pageShifted();
-    layoutMarginRows();
-  }
-  function takeShell(surface) {
-    moveContentFrame(() => {
-      if (surface) document.body.dataset.lfAuxiliarySurface = surface;
-      else delete document.body.dataset.lfAuxiliarySurface;
-    });
   }
   // Field sizing and every other chrome-size change feed the one layout pass.
   // The document shell's size also feeds the page repaint door: content landing can move
@@ -259,11 +208,8 @@ export function createChromeLayout({
     if (shellChanged) repaintPage();
     else if (chromeChanged) repaint();
   };
-  // Body's own box is the first of them: taking or returning room changes body's content box,
-  // since the strip is a border inside it, so width observation hears every auxiliary
-  // surface arrive and leave. `moveContentFrame` has already placed page-attached paint by
-  // then; this pass is the one that also covers a window resize, which has no gesture to
-  // repaint from.
+  // Body's own box is the first of them: width observation hears a window resize, which has
+  // no gesture to repaint from.
   //
   // A height-only body resize is repaint-only. An image or font can move a later target
   // without resizing that target or mutating the DOM, while sending that ordinary page
@@ -320,17 +266,12 @@ export function createChromeLayout({
   // chrome they arrange and expect to find arranged wherever they are reading (see
   // `userStore`). Live activation keeps the edges themselves; document travel and reload
   // restore the same choices, so no revision or visit asks the user to draw them again.
-  // How the shell takes an edge's new width. A drag follows the hand exactly. An arrow is
-  // a discrete change whose page move the user can follow through the same final-layout
-  // motion as opening a region.
+  // An edge's new width moves only its region: the page beneath it keeps its geometry.
+  // What the width changes is whether the region still leaves a usable page beside it.
   function landEdge(state) {
-    const apply = () => {
-      state();
-      syncAuxiliarySurfaces();
-      syncLayout();
-    };
-    if (document.body.hasAttribute("data-lf-sizing")) apply();
-    else moveContentFrame(apply);
+    state();
+    syncAuxiliarySurfaces();
+    syncLayout();
   }
   const commentsEdge = drawnEdge({
     side: "right",
@@ -345,7 +286,6 @@ export function createChromeLayout({
   return {
     syncLayout,
     mountLayoutObservers,
-    takeShell,
     landEdge,
     commentsEdge,
   };

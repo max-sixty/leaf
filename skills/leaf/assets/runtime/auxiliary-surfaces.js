@@ -2,15 +2,16 @@
 
    Registered surfaces retain their own rendering and scrollports. Selecting one closes
    the previous surface before opening it; there is no per-surface visibility state.
-   Restoration reserves the selected surface's room immediately. A surface whose rows
-   need the first server reading declares presentation-time arrival, so its rendering
-   and covering boundary wait for that reading without postponing the shell geometry.
+   Every surface stands over the page and takes no room from it, so selecting one never
+   changes the page's geometry. A surface whose rows need the first server reading
+   declares presentation-time arrival, so its rendering and covering boundary wait for
+   that reading.
 
-   A surface either always covers the page or declares that it may stand `beside` it. One
-   that may stand beside covers the page only where it would leave less than a usable page
-   beside it, and the stylesheet states that once for every such surface, as the width the
-   selected one stands at beside the page or nothing where it covers (theme.css,
-   `--lf-auxiliary-beside`); `standsBeside` is the runtime's one reading of it.
+   A surface either always covers the page or declares that it may stand `beside` it,
+   leaving the page live. One that may stand beside covers the page only where it would
+   leave less than a usable page beside it, and the stylesheet states that once for every
+   such surface, as the width the selected one stands at or nothing where it covers
+   (theme.css, `--lf-auxiliary-beside`); `standsBeside` is the runtime's one reading of it.
 
    In the covering posture this owner makes every sibling reading surface inert, dims that
    entire background, gives the surface modal semantics, and moves focus in only when it was
@@ -36,11 +37,8 @@ import { pagePresented } from "./presentation.js";
 export const AUXILIARY_SURFACE_KEY = "lf-auxiliary-surface";
 let selectedKey = null;
 export const currentAuxiliarySurface = () => selectedKey;
-// Whether the selected surface stands beside the page: the room it takes there, which the
-// stylesheet answers from its width and the window's, is more than nothing. The strip the
-// page yields is drawn with the same length, so where the page yields none the surface
-// covers it. Read rather than recomputed, because the first paint of a reloaded page needs
-// the answer before this module exists.
+// Whether the selected surface stands beside the page, leaving it live: the length the
+// stylesheet answers from the surface's width and the window's is more than nothing.
 export const standsBeside = () =>
   parseFloat(
     getComputedStyle(document.body).getPropertyValue("--lf-auxiliary-beside"),
@@ -49,7 +47,6 @@ export const standsBeside = () =>
 export function createAuxiliarySurfaces({
   chromeRoot,
   focusable,
-  takeShell,
   syncLayout,
   afterChange,
 }) {
@@ -208,10 +205,10 @@ export function createAuxiliarySurfaces({
     selectedKey = key;
     arriving = null;
     const selected = controllers.get(key);
-    // One surface goes down, the shell changes, the next comes up (`takeShell` says why
-    // nothing renders in between).
     previous?.hide({ returnFocus });
-    takeShell(key);
+    // The selected surface's width reaches the stylesheet's covering rule through this.
+    if (key) document.body.dataset.lfAuxiliarySurface = key;
+    else delete document.body.dataset.lfAuxiliarySurface;
     if (selected) {
       if (
         phase === "arrival" &&

@@ -32,11 +32,8 @@ import { uiInside, under, upFrom } from "./shadow.js";
    declared items with no visible part on which a mark can land. */
 // Where the page's shell ends on the right — the far edge of the room the document has,
 // which is what a margin resident is placed against and what the response surface may not
-// overhang. A strip the shell yields is a border on body — the Asks tray's on the left, the
-// thread panel's on the right beside a sheet — so the room ends inside the right border.
-export const shellRight = () =>
-  document.body.getBoundingClientRect().right -
-  parseFloat(getComputedStyle(document.body).borderRightWidth);
+// overhang. The auxiliary surfaces stand over the page and take none of it.
+export const shellRight = () => document.body.getBoundingClientRect().right;
 // Whether two boxes share any pixel. The one spelling of a question three chrome passes
 // ask: placement, badge reservation, and the clear part left of a box behind furniture.
 export const overlaps = (a, b) =>
@@ -482,6 +479,17 @@ function clipped(box, item, clips, held) {
 // every pixel of the answer is one the user sees, and a box the occluder reaches into
 // reads as less than whole.
 const occluders = new Set();
+// An occluder on its way out (motion.js, `slide`) covers nothing the user is reading past.
+export const LEAVING = "data-lf-leaving";
+// Where an occluder stands, not where its slide has carried it this frame: every declared
+// occluder is fixed to the window, so its offset box is its viewport box without the
+// slide's transform.
+const standingBox = (surface) => ({
+  left: surface.offsetLeft,
+  top: surface.offsetTop,
+  right: surface.offsetLeft + surface.offsetWidth,
+  bottom: surface.offsetTop + surface.offsetHeight,
+});
 export const declareOccluder = (surface) => occluders.add(surface);
 // A clip pass that reads past some occluders. Travel asks what the page shows of a
 // destination beside the surface it leaves standing, which is the most any movement of
@@ -499,7 +507,13 @@ export const clipsPast = (surfaces) => new Map([[PAST, new Set(surfaces)]]);
 // where the landing will bring it into view.
 export function hides(surface, where) {
   const holder = placeHolder(where);
-  if (!holder || !occluders.has(surface) || !surface.checkVisibility()) return false;
+  if (
+    !holder ||
+    !occluders.has(surface) ||
+    surface.hasAttribute(LEAVING) ||
+    !surface.checkVisibility()
+  )
+    return false;
   if (under(holder, surface) || stackLevel(holder) >= stackLevel(surface)) return false;
   const box = where instanceof Range ? where.getBoundingClientRect() : shownBox(where);
   const seen =
@@ -507,7 +521,7 @@ export function hides(surface, where) {
       ? clippedContents(box, holder, clipsPast([surface]))
       : clippedRect(box, holder, clipsPast([surface]));
   const { left, right } = seen ?? box;
-  const column = surface.getBoundingClientRect();
+  const column = standingBox(surface);
   const covered = Math.min(right, column.right) - Math.max(left, column.left);
   return covered > (right - left) / 2;
 }
@@ -536,11 +550,16 @@ function standingOccluders(clips) {
   if (standing) return standing;
   const past = clips.get(PAST);
   standing = [...occluders]
-    .filter((surface) => surface.isConnected && surface.checkVisibility())
+    .filter(
+      (surface) =>
+        surface.isConnected &&
+        !surface.hasAttribute(LEAVING) &&
+        surface.checkVisibility(),
+    )
     .filter((surface) => !past?.has(surface))
     .map((surface) => ({
       surface,
-      box: surface.getBoundingClientRect(),
+      box: standingBox(surface),
       level: stackLevel(surface),
     }));
   clips.set(OCCLUDERS, standing);

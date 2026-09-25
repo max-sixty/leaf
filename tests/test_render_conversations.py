@@ -5481,6 +5481,7 @@ def test_forced_colors_keep_current_conversation_regions_distinct(browser, serve
     panel_settled(page, open=False)
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
+    panel_settled(page)
     threads = page.locator(".lf-threads")
     expect(threads).to_be_focused()
     expect(threads).to_have_css("outline-style", "none")

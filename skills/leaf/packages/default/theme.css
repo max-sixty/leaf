@@ -1593,10 +1593,6 @@ lf-tabs.lf-rendered > lf-tab { margin-top: 14px; }
     lf-tabs.lf-rendered > lf-tab:not([hidden]) {
       padding: var(--sp-4); --lf-block-frame: 1;
     }
-    /* A section is the usual one-child wrapper for a self-contained view. Let it
-     * pass the panel's edge trim through, so its opening heading and closing paragraph
-     * spend exactly the panel inset rather than adding collapsed block margins to it. */
-    lf-tabs.lf-rendered > lf-tab:not([hidden]) > :only-child { --lf-block-frame: 1; }
     /* until-found keeps the element's own box in flow; zero it so inactive panels
      * leave no stray gap below the active one. */
     lf-tabs.lf-rendered > lf-tab[hidden] { margin: 0; }
@@ -2043,7 +2039,7 @@ lf-activity .lf-activity-empty { margin: 0; color: var(--muted); font: var(--t-5
  * Block rather than the custom-element default inline so its box begins at the
  * question's opening and reaches around the context and control the standing ring says
  * are one Ask. */
-lf-ask { display: block; }
+lf-ask { display: block; --lf-passes-block-edge: 1; }
 
 /* lf-specimen: quoted material — a widget or section the page exhibits rather
  * than speaks (a sample decision, a demo board). It wears the quotation idiom, a
@@ -2188,6 +2184,7 @@ lf-chart, lf-tree, lf-code { display: block; margin: 14px 0;
              color: var(--code-muted); overflow-x: auto; }
 lf-chart.lf-rendered, lf-tree.lf-rendered, lf-code.lf-rendered {
              font: inherit; color: inherit; overflow: visible; }
+lf-code.lf-rendered { --lf-passes-block-edge: 1; }
 /* The authored body, before its module replaces it. Nothing here says white-space: the
    body is a <pre>, which is the whole reason it is one. Everything here undoes the rule
    near the top that dresses a <pre> as evidence the page is showing — a box, a rule, a
@@ -2240,10 +2237,12 @@ lf-chart .lf-chart-swatch { width: 9px; height: 9px; border-radius: 2px;
    tree's own reason for taking it is that its lines are paths, the same words a code block
    holds, set to the same measure beside them. */
 lf-tree.lf-rendered { font-family: var(--mono); font-size: var(--code-size);
-                      line-height: var(--code-line); color: var(--code-ink); }
-lf-tree ul { list-style: none; margin: 0; padding-left: 0; }
+                      line-height: var(--code-line); color: var(--code-ink);
+                      --lf-passes-block-edge: 1; }
+lf-tree ul { list-style: none; margin: 0; padding-left: 0;
+             --lf-passes-block-edge: 1; }
 lf-tree ul ul { padding-left: 18px; border-left: 1px solid var(--rule); margin-left: 5px; }
-lf-tree li { margin: 3px 0; }
+lf-tree li { margin: 3px 0; --lf-passes-block-edge: 1; }
 lf-tree .lf-tree-dir { font-weight: 600; }
 /* nowrap because the module appends name and badges with no whitespace between them and
  * spaces them by margin, so a line is one word to the breaker: told it may break inside
@@ -2440,12 +2439,13 @@ lf-draft { font-size: max(var(--entry-floor), 1em); }
   }
 }
 .lf-draft-history { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--rule);
+                    --lf-block-frame: 1;
                     font-size: var(--t-5); color: var(--ink-2); }
 .lf-draft-history > summary { width: max-content; cursor: pointer; color: var(--muted); }
 .lf-draft-history > summary:hover { color: var(--ink-2); }
 .lf-draft-current { margin: 10px 0; }
 .lf-draft-current > strong { display: block; margin-bottom: 4px; }
-.lf-draft-revisions { margin: 0; padding-left: 20px; }
+.lf-draft-revisions { margin: 0; padding-left: 20px; --lf-passes-block-edge: 1; }
 .lf-draft-revisions > li { margin: 8px 0; padding-left: 3px; }
 .lf-draft-revision-head { display: flex; align-items: center; justify-content: space-between;
                           gap: 8px; margin-bottom: 3px; }

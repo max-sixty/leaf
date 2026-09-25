@@ -4355,6 +4355,30 @@ def test_check_advises_page_css_that_scrolls_a_box_or_places_a_layout_element(
     assert "lf-grid::before" not in result.output
 
 
+def test_check_advises_the_same_css_in_a_stylesheet_the_page_links(page_dir):
+    """A stylesheet the page links from page/, and one that sheet imports, are page CSS
+    as much as its <style>, so the advice reads them and names the file."""
+    (page_dir / "page").mkdir(exist_ok=True)
+    (page_dir / "page" / "app.css").write_text(
+        '@import "grid.css";\n.feed { overflow-y: auto }\n'
+    )
+    (page_dir / "page" / "grid.css").write_text("#cells { display: flex }\n")
+    (page_dir / "index.html").write_text(
+        PAGE.replace(
+            "<title>t</title>",
+            '<title>t</title><link rel="stylesheet" href="/page/app.css">',
+        ).replace(
+            "<h2>Plan</h2>",
+            '<h2>Plan</h2><lf-grid id="cells"><p>One</p><p>Two</p></lf-grid>'
+            '<div class="feed"><p>Log</p></div>',
+        )
+    )
+    result = check(page_dir)
+    assert result.exit_code == 0, result.output
+    assert "/page/app.css rule `.feed` sets overflow-y to scroll" in result.output
+    assert "/page/grid.css rule `#cells` sets display on <lf-grid>" in result.output
+
+
 def test_check_rejects_an_invalid_bound_and_loose_grid_text(page_dir):
     (page_dir / "index.html").write_text(
         PAGE.replace(

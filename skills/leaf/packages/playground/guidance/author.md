@@ -8,8 +8,8 @@ elements, register structured state with its playground, and derive the output.
 
 The playground draws its own regions: the preview is a stage, and the controls and the
 instruction to the agent stand in a rail beside it, on the same `2fr 1fr` tracks as a
-sheet's body and rail, wherever it has 50rem; narrower, they stack. A preview that needs
-width, such as two candidates side by side, belongs on a sheet (`<main
+wide page's body and rail, wherever it has 49.5rem; narrower, they stack. A preview that needs
+width, such as two candidates side by side, belongs on a wide page (`<main
 data-width="available">`), where later body content can stand under the stage in an
 `lf-grid columns="2fr 1fr"`. Draw candidates on the stage without a card of their own;
 the stage is their surface.

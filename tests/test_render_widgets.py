@@ -145,13 +145,15 @@ WORKSPACE_PAGE = leaf_page(
   <footer>2 items</footer>
 </lf-workspace>
 """,
-    width="available",
 )
 
 
 def test_a_root_workspace_bounds_independent_regions_and_flows_when_it_cannot_fit(
     browser, serve
 ):
+    """A workspace that is main's only block holds the window with no width declared on
+    main: it takes the room the page shell leaves, as its declaration says, and the
+    window's height below the banner."""
     page = open_page(browser, serve(WORKSPACE_PAGE))
     resized(page, 1280, 720)
     workspace = page.locator("#review-workspace")
@@ -161,6 +163,9 @@ def test_a_root_workspace_bounds_independent_regions_and_flows_when_it_cannot_fi
 
     pane_posture(page, queue_pane, "bounded")
     holds_the_window(page, workspace, True)
+    held = workspace.bounding_box()
+    assert held["width"] > 1080, held
+    assert held["x"] >= 0 and held["x"] + held["width"] <= 1280, held
     assert page.evaluate("() => document.scrollingElement.scrollTop") == 0
     readings = page.evaluate(
         """() => {
@@ -1004,8 +1009,8 @@ def test_regions_inside_a_bounded_pane_body_flow_within_the_body_that_scrolls(
     }
 
 
-def test_a_release_page_is_a_sheet_and_keeps_the_log_on_its_newest_line(browser, serve):
-    """A sheet of two tracks: the lede starts at the sheet's edge and keeps the reading
+def test_a_release_page_is_wide_and_keeps_the_log_on_its_newest_line(browser, serve):
+    """A wide page of two tracks: the lede starts at the page's edge and keeps the reading
     measure, every region of the body shares the body's two edges and every region of
     the rail the rail's, and the checks table fills its panel. On a narrow window the
     rail stacks under the body, and the bounded log opens on its newest line. Paper
@@ -1021,18 +1026,18 @@ def test_a_release_page_is_a_sheet_and_keeps_the_log_on_its_newest_line(browser,
         ?? document.querySelector(id)).getBoundingClientRect().toJSON()]))"""
 
     wide = page.evaluate(boxes)
-    sheet = wide["main"]
-    assert sheet["width"] > 1080, "the sheet should take the room past the wide width"
-    assert wide["lp-layout"]["width"] == pytest.approx(sheet["width"], abs=1)
-    assert wide["lp-lede"]["left"] == pytest.approx(sheet["left"], abs=1)
+    page_box = wide["main"]
+    assert page_box["width"] > 1080, "the page should take the room past the wide width"
+    assert wide["lp-layout"]["width"] == pytest.approx(page_box["width"], abs=1)
+    assert wide["lp-lede"]["left"] == pytest.approx(page_box["left"], abs=1)
     assert wide["lp-lede"]["width"] <= 720 + 1
     for track in (body, rail):
         for edge in ("left", "right"):
             assert {round(wide[i][edge]) for i in track} == {
                 round(wide[track[0]][edge])
             }
-    assert wide["lp-status"]["left"] == pytest.approx(sheet["left"], abs=1)
-    assert wide["lp-steps"]["right"] == pytest.approx(sheet["right"], abs=1)
+    assert wide["lp-status"]["left"] == pytest.approx(page_box["left"], abs=1)
+    assert wide["lp-steps"]["right"] == pytest.approx(page_box["right"], abs=1)
     assert wide["lp-log"]["right"] < wide["lp-steps"]["left"]
     assert wide["lp-checks-table"]["width"] > wide["lp-checks"]["width"] - 48
     listing = page.locator("#lp-live-log pre")
@@ -1113,6 +1118,68 @@ def test_a_grid_cell_is_a_frame_that_holds_text_to_the_measure_and_lets_a_surfac
           const b = document.getElementById('broad-cell').getBoundingClientRect();
           return b.top >= a.bottom && a.width === b.width; }"""
     )
+
+
+# Templates the `columns` pattern admits, integer and not: two to six tracks, decimals.
+STACKING_TEMPLATES = [
+    "2fr 1fr",
+    "3fr 2fr",
+    "5fr 3fr",
+    "1.5fr 1fr 1fr",
+    "2fr 1fr 1fr 1fr 1fr 1.5fr",
+]
+STACKING_PAGE = leaf_page(
+    "Templates stack at their own width",
+    "<h1>Stacking</h1>"
+    + "".join(
+        f'<div id="holder-{i}" style="font-size: 13px">'
+        f'<lf-grid id="stack-{i}" columns="{template}">'
+        + "".join(f"<p>Cell {j}</p>" for j in range(len(template.split())))
+        + "</lf-grid></div>"
+        for i, template in enumerate(STACKING_TEMPLATES)
+    )
+    + '<div style="font-size: 13px"><lf-grid id="outer" columns="2fr 1fr">'
+    '<lf-grid id="inner" columns="3fr 2fr"><p id="inner-a">A</p><p>B</p></lf-grid>'
+    "<p>Beside</p></lf-grid></div>",
+)
+
+
+def test_a_template_stacks_where_its_narrowest_track_would_fall_below_16rem(
+    browser, serve
+):
+    """Each template stacks at its own width: 16rem for each narrowest track it is
+    wide, plus its gaps. A pixel wider, its tracks stand side by side with the narrowest
+    at 16rem or more; a pixel narrower, every cell takes the row. `3fr 2fr` and `5fr
+    3fr` once stacked at `2fr 1fr`'s width. The cells keep the type size of what holds
+    the grid, a template nested in another's cell included."""
+    context = browser.new_context(viewport={"width": 1600, "height": 1000})
+    page = open_page(browser, live_url(serve(STACKING_PAGE)), context=context)
+    reading = """([id, width]) => {
+      const grid = document.getElementById(id);
+      grid.style.width = `${width}px`;
+      const cells = [...grid.children].map((cell) => cell.getBoundingClientRect());
+      return {
+        oneRow: cells.every((cell) => Math.abs(cell.top - cells[0].top) < 1),
+        stacked: cells.every((cell, i) => i === 0 || cell.top >= cells[i - 1].bottom),
+        narrowest: Math.min(...cells.map((cell) => cell.width)),
+        font: getComputedStyle(grid.children[0]).fontSize,
+      };
+    }"""
+    rem = page.evaluate(
+        "parseFloat(getComputedStyle(document.documentElement).fontSize)"
+    )
+    for i, template in enumerate(STACKING_TEMPLATES):
+        fr = [float(track.removesuffix("fr")) for track in template.split()]
+        stack = 16 * rem * sum(fr) / min(fr) + 24 * (len(fr) - 1)
+        wide = page.evaluate(reading, [f"stack-{i}", stack + 1])
+        assert wide["oneRow"] and wide["narrowest"] >= 16 * rem, (template, wide)
+        narrow = page.evaluate(reading, [f"stack-{i}", stack - 1])
+        assert narrow["stacked"], (template, narrow)
+        assert wide["font"] == narrow["font"] == "13px", template
+
+    page.evaluate(reading, ["outer", 1500])
+    inner = page.evaluate(reading, ["inner", 16 * rem * 2.5 + 24 + 1])
+    assert inner["oneRow"] and inner["font"] == "13px", inner
 
 
 FEED_PAGE = leaf_page(
@@ -5166,7 +5233,7 @@ def test_ideas_to_implement_is_a_fast_mobile_decision_queue(browser, serve):
           };
         }"""
     )
-    # The sheet gives the deck room for its rail: both piles stay beside the queue.
+    # The wide page gives the deck room for its rail: both piles stay beside the queue.
     assert wide["queueRight"] < wide["keptLeft"], wide
     assert wide["keptBottom"] < wide["passedTop"], wide
     assert wide["pageWidth"] == wide["viewportWidth"] == 1200

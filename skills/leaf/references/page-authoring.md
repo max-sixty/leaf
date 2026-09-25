@@ -79,50 +79,50 @@ stands alone, since whoever reads it there has none of the page around it.
 
 ## Composing a page
 
-Choose the page's form from the shape of its subject, before anything else:
+A page is a stack of blocks in the reading column. Text keeps the column's measure,
+and a block that needs more room declares it: a diagram, a board or a grid states its
+width in its registry entry and grows out of the column into the room beside it,
+without moving the prose. Most pages need nothing more. Compose the stack from these:
 
-- **A document** is an argument read in order: a plan, a review, a write-up, a
-  decision. It stays in the reading column, and nothing is declared. Most pages are
-  documents.
-- **A sheet** is a set of regions read side by side: a board with its status, a
-  release dashboard, a queue sorted into buckets, a long review whose contents and
-  verdict stay beside the code. Write `<main data-width="available">`.
-- **A workspace** is a sheet whose regions must stay in view together while each
-  scrolls on its own: a queue beside its detail, a playground's controls beside its
-  preview. Write `<main data-width="available">` with an `lf-workspace` as its only
-  block.
-
-A page can move between forms as it grows without changing kind: a report that gains
-live status gains a grid, and its comments and anchors stay put. Width alone is not a
-reason to change form: a wide comparison or diagram stays in a document at the width it
-declares.
-
-### A document
-
-Within the column, compose with these:
-
+- **Prose read in order** — a plan, a review, a write-up, a decision — is plain
+  semantic HTML, with nothing declared.
 - **Independent status tiles** are an `lf-grid` inside the explanation. Each cell
   holds a surface — a metric, chart, table, list or log, with at most a caption —
   rather than paragraphs; a row of headline numbers is a grid of `lf-metric` tiles.
   A grid of paragraphs is prose cut into columns, and reads worse than the column.
-  A grid in a document stands at the wide width, centred on the column; when the
-  tiles are the page, the page is a sheet.
+  A grid stands at the wide width, centred on the column.
 - **A comparison** is `lf-compare`, which keeps its variants paired at any width.
 - **Controls beside evidence** is a playground, which declares how its controls
   operate its preview.
+- **Regions that stay in view together** while each scrolls on its own, such as a
+  queue beside its detail, are an `lf-workspace` (below).
 - **Several views of one artifact** are one `lf-tabs` set: page tabs for
   project-scale views that share one history, Threads panel, Ask inventory, and
   revision sequence, and a tabbed section for local alternatives within the
   surrounding view. The `lf-tabs` entry says which placement makes which, and how to
   order and retire views.
 
-### A sheet
+A page grows without changing kind: a report that gains live status gains a grid, and
+its comments and anchors stay put.
 
-On a sheet every block, the title included, starts at one left edge and takes the
-sheet's width, while text keeps the reading measure; the title is set larger. A sheet
-reads as one structure when every region stands on the same vertical lines, so give it
-one set of tracks: typically a body beside a rail as one `lf-grid` of
-`columns="2fr 1fr"` (`3fr 1fr` for a board), each track a nested `columns="1"` grid
+Leaf's chrome never moves the page's content. The banner, the shortcut band at the
+foot of the window and the margin rail are fixed reservations, so the room a page has
+depends only on the window; the Asks tray, the Threads panel and thread cards stand
+over the page.
+
+### A wide page
+
+When the regions are the page rather than exhibits in an argument — a board with its
+status, a release dashboard, a queue sorted into buckets, a long review whose contents
+and verdict stay beside the code — widen the page itself: write
+`<main data-width="available">`, or `data-width="wide"` to cap it at the shared
+evidence width instead of the window. Every block, the title included, then starts at
+one left edge and takes the page's width, while text keeps the reading measure; the
+title is set larger.
+
+A wide page reads as one structure when every region stands on the same vertical
+lines, so give it one set of tracks: typically a body beside a rail as one `lf-grid`
+of `columns="2fr 1fr"` (`3fr 1fr` for a board), each track a nested `columns="1"` grid
 stacking its regions, rather than a new grid per row whose splits land somewhere new
 each time (`version check --render` advises on those). Put what the reader works
 through in the body and what they keep an eye on — status, counts, the verdict's
@@ -132,19 +132,20 @@ too narrow.
 Draw each region the same way, as a `section.panel` with a short heading, and keep a
 `.callout` with a status tone (`warn`, `danger`, `ok`) for the one thing the reader must
 act on; a row of `.tag` chips in the same tones under the lede says the page's state at a
-glance. `data-width="wide"` caps the sheet at the shared evidence width instead of the
-window.
+glance.
 
 ### A workspace
 
-A workspace holds its regions in view together only as a sheet's, or a page tab's,
-sole content element, and elsewhere stays in document flow; `version check` refuses a
-page made of one workspace that is not a sheet. The `lf-workspace` entry says where the
-title goes and which elements its body can be, and the `lf-pane` entry what a pane
-holds. Place several panes with an `lf-grid`, such as `columns="1fr 2fr"` for a queue
-beside its detail. Let Leaf allocate the space: page-specific positioning should not be
-needed to keep a pane or footer reachable. Where the window cannot hold the regions,
-the workspace flows like a sheet and the page scrolls.
+An `lf-workspace` takes all the room the page leaves, as a diagram does. When it is
+`main`'s only block, or a page tab's, it also holds the window's height, and each pane
+scrolls on its own under the banner; anywhere else it stays in document flow. `main`
+needs no width for it, and a page that declares one hands the workspace that page's
+width. The `lf-workspace` entry says where the title goes and which elements its body
+can be, and the `lf-pane` entry what a pane holds. Place several panes with an
+`lf-grid`, such as `columns="1fr 2fr"` for a queue beside its detail. Let Leaf allocate
+the space: page-specific positioning should not be needed to keep a pane or footer
+reachable. Where the window cannot hold the regions, the panes take their natural
+height and the page scrolls.
 
 ### Bounds and widths
 

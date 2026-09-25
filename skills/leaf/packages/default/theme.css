@@ -72,22 +72,42 @@ lf-grid[columns="6"] { --lf-grid-count: 6; }
   width: 100%;
 }
 /* A template stacks where its narrowest track would fall below 16rem, the least a rail
- * of panels and controls reads at: a grid `scale` narrowest tracks wide (painted by the
- * module, rounded up) stacks below that many 16rem tracks and the gaps between them. One
- * width for every template made a rail beside a body 207px wide at 700px while a queue
- * beside its detail still wanted two columns at 780. A container query cannot read a
- * custom property, so each scale states its width, in 16rem tracks and the grid's
- * --sp-4 (1.5rem) gap. The tracks are minmax(0, …fr) (lf-grid.js), so what a cell holds
- * never moves the split. A widget that lays out a body beside a rail of its own (the
- * playground's split, the swipe deck) stands on these lines by restating scale 3: 51rem
- * and minmax(0, 2fr) minmax(0, 1fr). */
-@container lf-grid (width < 33.5rem) { lf-grid[data-lf-grid-scale="2"] > * { grid-column: 1 / -1; } }
-@container lf-grid (width < 51rem) { lf-grid[data-lf-grid-scale="3"] > * { grid-column: 1 / -1; } }
-@container lf-grid (width < 68.5rem) { lf-grid[data-lf-grid-scale="4"] > * { grid-column: 1 / -1; } }
-@container lf-grid (width < 86rem) { lf-grid[data-lf-grid-scale="5"] > * { grid-column: 1 / -1; } }
-@container lf-grid (width < 103.5rem) { lf-grid[data-lf-grid-scale="6"] > * { grid-column: 1 / -1; } }
-@container lf-grid (width < 121rem) { lf-grid[data-lf-grid-scale="7"] > * { grid-column: 1 / -1; } }
-@container lf-grid (width < 138.5rem) { lf-grid[data-lf-grid-scale="8"] > * { grid-column: 1 / -1; } }
+ * of panels and controls reads at: every cell takes the row. With the tracks at
+ * minmax(0, …fr) (lf-grid.js), so that what a cell holds never moves the split, the
+ * narrowest track is (width − gaps) × min ÷ sum of the fr values, so the grid stacks
+ * below 16rem × (sum ÷ min) plus its gaps. `3fr 2fr` stacks below 41.5rem, `2fr 1fr`
+ * below 49.5rem.
+ *
+ * That width is a different number for every template, and a container query's
+ * condition cannot read a custom property. It can read `em`, which it resolves against
+ * the query container's own font-size, so the grid states the width as its font-size
+ * and the query asks for `width < 1em`. The module paints the two numbers the width is
+ * made of (--lf-grid-scale, the sum over the narrowest; --lf-grid-gaps, the tracks less
+ * one); before it has, the font-size is invalid, falls back to inheriting, and the grid
+ * stands unstacked. Rounding the width to a ladder of fixed queries made `3fr 2fr` and
+ * `5fr 3fr` stack at `2fr 1fr`'s width, 150px of window early.
+ *
+ * The grid holds no text of its own (`version check` refuses loose text in a grid), so
+ * its font-size draws nothing. Its cells take back the font-size the grid would have
+ * had: the grid's parent states it as a length (--lf-grid-font), which inherits past
+ * the grid. A template grid never states it, so a template standing as another's cell
+ * inherits what the outer grid's parent stated, never the outer grid's width. `:where()` leaves the cell rule
+ * no specificity, so any rule that sizes a cell's type still wins.
+ *
+ * A widget that lays out a body beside a rail of its own (the playground's split, the
+ * swipe deck) stands on these lines by restating `2fr 1fr`'s: 49.5rem and
+ * minmax(0, 2fr) minmax(0, 1fr). */
+@property --lf-grid-font {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 16px;
+}
+:not(lf-grid[columns*="fr"]):has(> lf-grid[columns*="fr"]) { --lf-grid-font: 1em; }
+lf-grid[columns*="fr"] {
+  font-size: calc(16rem * var(--lf-grid-scale) + var(--lf-grid-gaps) * var(--lf-grid-gap));
+}
+:where(lf-grid[columns*="fr"]) > * { font-size: var(--lf-grid-font); }
+@container lf-grid (width < 1em) { lf-grid[columns*="fr"] > * { grid-column: 1 / -1; } }
 
 /* lf-workspace keeps task regions together while the space allows, and lf-pane is one of
  * them. Both are authored grammar with no generated wrappers: an optional header, one
@@ -96,8 +116,8 @@ lf-grid[columns="6"] { --lf-grid-count: 6; }
  * nothing and the row takes what the header and footer leave, while a body that
  * doesn't holds the row at its full height and the box overflows into the page.
  *
- * Posture is one container query on the workspace's own box. A root workspace (the
- * sole content of a sheet, or of a root tab) is a size container at the window's height;
+ * Posture is one container query on the workspace's own box. A root workspace (main's
+ * only block, or a root tab's) is a size container at the window's height;
  * when that box holds the regions (--lf-workspace-min, below) each pane's body scrolls
  * and its header and footer stay in view. When it doesn't, nothing scrolls inside and
  * the page does, with each grid keeping the columns its width allows. Any other
@@ -146,8 +166,8 @@ lf-workspace > footer { margin-top: var(--sp-3); }
   font: 600 var(--t-5)/1.4 var(--sans);
   --lf-block-frame: 1;
 }
-/* A pane is a region of a sheet, so its name takes a panel's voice (section.panel,
- * theme.css): small capitals that rank below the sheet's title and the pane's own
+/* A pane is a region of a workspace, so its name takes a panel's voice (section.panel,
+ * theme.css): small capitals that rank below the page's title and the pane's own
  * headings, where a bare h2 drew the region's label larger than anything it held. */
 :is(lf-pane, :where([data-lf-reading-role="pane"])) > header > :is(h2, h3, h4, h5, h6) {
   margin: 0;
@@ -203,21 +223,22 @@ lf-ask:has(> :is(h1, h2, h3, h4, h5, h6):first-child:nth-last-child(2)) {
 }
 
 @media screen {
-  /* A workspace is a sheet whose regions are held in view: the root workspace is the
-   * only authored block of a sheet's main (what the runtime puts in main beside it, a
-   * margin cluster or generated words, is not), or a root tab's only block. The sheet
-   * gives it its width, gutters and the margin rail's strip (theme.css, the sheet);
-   * the workspace adds only the height, the window's below the banner and above the
-   * bottom chrome, and the chain of held boxes starts at it. A workspace in a column
-   * page, or beside other blocks, flows like any block. */
+  /* The root workspace holds the window: it is main's only authored block (what the
+   * runtime puts in main beside it, a margin cluster or generated words, is not), or a
+   * root tab's only block. Its width is its declaration's, the room the page shell
+   * leaves (x-space, theme.css), so the page needs no width of its own for it; a page
+   * that declares one (`main[data-width]`) hands it that page's width instead. The rule
+   * here adds only the height, the window's below the banner and above the bottom
+   * chrome, and the chain of held boxes starts at it. A workspace beside other blocks
+   * flows like any block. */
   html:root
     body
-    > main:is([data-width="wide"], [data-width="available"]):has(> lf-workspace):not(:has(> :not(lf-workspace, script, style, template, .lf-ui, [data-lf-gen]))) {
+    > main:has(> lf-workspace):not(:has(> :not(lf-workspace, script, style, template, .lf-ui, [data-lf-gen]))) {
     padding-block: 0;
   }
   html:root
     body
-    > main:is([data-width="wide"], [data-width="available"]):has(> lf-workspace):not(:has(> :not(lf-workspace, script, style, template, .lf-ui, [data-lf-gen])))
+    > main:has(> lf-workspace):not(:has(> :not(lf-workspace, script, style, template, .lf-ui, [data-lf-gen])))
     > lf-workspace,
   html:root
     body
@@ -230,10 +251,10 @@ lf-ask:has(> :is(h1, h2, h3, h4, h5, h6):first-child:nth-last-child(2)) {
   }
   html:root
     body
-    > main:is([data-width="wide"], [data-width="available"]):has(> lf-workspace):not(:has(> :not(lf-workspace, script, style, template, .lf-ui, [data-lf-gen])))
+    > main:has(> lf-workspace):not(:has(> :not(lf-workspace, script, style, template, .lf-ui, [data-lf-gen])))
     > lf-workspace {
-    /* The sheet gives up its block padding to the workspace, which keeps the top of it
-     * inside its own height, so its title stands clear of the banner as a sheet's does. */
+    /* The page gives up its block padding to the workspace, which keeps the top of it
+     * inside its own height, so its title stands clear of the banner as a page's does. */
     box-sizing: border-box;
     padding-top: var(--sp-4);
     block-size: calc(100dvh - var(--lf-banner-h) - var(--lf-band-h, 0px));

@@ -455,7 +455,7 @@ def alignment_advice(page) -> list[str]:
     return [
         (
             f"at {width}px wide the page's grids split at {reading['unshared']} more "
-            f"place(s) than its busiest grid needs — {named}: lay a sheet on one set "
-            "of tracks (page-authoring.md, the sheet)"
+            f"place(s) than its busiest grid needs — {named}: lay the page's regions on "
+            'one set of tracks (page-authoring.md, "A wide page")'
         )
     ]

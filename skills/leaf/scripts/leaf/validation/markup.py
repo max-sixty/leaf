@@ -142,23 +142,6 @@ def sole_workspace(roots: list, registry: dict) -> dict | None:
     return None
 
 
-def workspace_sheet_errors(parser: SourceDocument, registry: dict) -> list:
-    """A workspace holds the window as a sheet's sole content, so a page whose only
-    block is a workspace declares the sheet. Without it the workspace flows in the
-    reading column, which is never what a page made of one workspace means."""
-    main, roots = main_roots(parser)
-    workspace = sole_workspace(roots, registry)
-    if workspace is None or main["attrs"].get("data-width") in {"wide", "available"}:
-        return []
-    return [
-        (
-            f"line {main['line']}: <main> holds only <{workspace['tag']}>, and a "
-            "workspace holds the window as a sheet's sole content: write "
-            '<main data-width="available">'
-        )
-    ]
-
-
 def missing_outline(parser: SourceDocument, registry: dict) -> list:
     """A document with several headings and nothing that lists them. Advice, never a
     gate: the outline widget's own entry states the default — a page with two or

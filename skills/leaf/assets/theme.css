@@ -240,10 +240,10 @@
      from the shell and its occupied margins, so a widget stands clear of both. An
      `available` surface is not held to this number. */
   --wide: 1080px;
-  /* The widest a page that is itself a sheet (`<main data-width="available">`) grows.
+  /* The widest a wide page (`<main data-width="available">`) grows.
      Past it a board's columns and a dashboard's tiles stop gaining anything but the
      distance between them. */
-  --sheet-max: 1600px;
+  --wide-page-max: 1600px;
   /* The chrome's line box, said once, because one control in the banner cannot be
      told it. Chrome computes a select's inner height from its own metrics and
      refuses line-height outright — the computed value stays normal however the
@@ -663,7 +663,7 @@ main {
   --strip-l: 0px;
   --strip-r: max(var(--claim-note, 0px), var(--claim-rail, 0px),
     var(--lf-claim-right, 0px));
-  /* Where the page stands, for a column and a sheet alike. The page is its measure
+  /* Where the page stands, for a column and a wide page alike. The page is its measure
    * (--lf-page-measure) with a gutter each side (--lf-page-pad). A resident in a margin
    * — a sidebar, a note, the rail — claims a strip on its side, and that side's gutter
    * is the wider of the pad and the strip. A strip keeps the column's pad between it and
@@ -676,7 +676,7 @@ main {
    * aside.sidebar below). --lf-free-l and --lf-free-r are what is left between the
    * page's content edge and each gutter, the room a wide exhibit may grow into on that
    * side. Centred, they are equal, so an exhibit grows evenly about the prose it belongs
-   * to. A sheet fills its room and leaves neither. */
+   * to. A wide page fills its room and leaves neither. */
   --lf-page-pad: var(--col-pad);
   --lf-page-measure: var(--col);
   --lf-edge: clamp(0px, calc((100cqi - var(--strip-l) - var(--strip-r)
@@ -864,28 +864,28 @@ main {
   main > * { --lf-room: inherit; }
 
   /* A page whose subject is wider than an argument — a board, a dashboard, a queue
-   * beside its detail — declares the width on `main` itself. The page is then a sheet:
+   * beside its detail — declares the width on `main` itself. The page is then wide:
    * every block, title included, starts at one left edge, and text keeps the reading
    * measure the column gave it (--lf-measure, the rule below) rather than being centred
    * on a narrower axis than the exhibits around it. A column page with a wide exhibit
-   * keeps two axes, the prose's and the exhibit's; a sheet has one. The room is the
-   * sheet's own width, so a wide widget on it fills the sheet instead of breaking out. */
+   * keeps two axes, the prose's and the exhibit's; a wide page has one. The room is the
+   * page's own width, so a wide widget on it fills the page instead of breaking out. */
   main:is([data-width="wide"], [data-width="available"]) {
-    /* A sheet is the page (main, above) at a wider measure. Its edge is the page's
+    /* A wide page is main (above) at a wider measure. Its edge is the page's
      * edge, so its pad grows with the window rather than staying the column's 24px,
      * which is a phone's margin; a strip no wider than the pad stands in it. */
     --lf-page-pad: clamp(var(--col-pad), 4cqi, 64px);
     --lf-measure: var(--col);
     max-width: none;
     /* The runtime paints the occurrence like any block's (data-lf-space), and the
-     * block rule's margins would pin the sheet to the left edge. */
+     * block rule's margins would pin the page to the left edge. */
     margin-inline: auto;
     padding-inline: 0;
   }
   main[data-width="wide"] { --lf-page-measure: var(--wide); }
-  main[data-width="available"] { --lf-page-measure: var(--sheet-max); }
+  main[data-width="available"] { --lf-page-measure: var(--wide-page-max); }
   main:is([data-width="wide"], [data-width="available"]) > * { --lf-room: 100%; }
-  /* A sheet's title heads a page as wide as the window, above boards and tiles rather
+  /* A wide page's title stands above boards and tiles as wide as the window rather
    * than a column of prose, so it is set a size up and heavier: at the column's size it
    * read as a section heading among the panels. It grows with the window (cqi here is
    * the shell's width, the window less its strips). */
@@ -1160,7 +1160,7 @@ dd { margin: 0 0 8px 0; }
    token, true and inert, and a second place the body's size had to be kept. */
 .callout { background: var(--field); border: 1px solid var(--rule);
            border-radius: var(--r); padding: 12px 16px; margin: 18px 0; --lf-block-frame: 1; }
-/* A panel is one titled region of a sheet: the checks, the log, the steps. Every region
+/* A panel is one titled region of a wide page: the checks, the log, the steps. Every region
    on a dashboard is drawn the same way, so the eye reads the page as a set of like things
    laid on a grid, where a mix of raised tiles, tinted fields, bare tables and bordered logs
    read as a pile. The title is the tile label's voice (lf-metric), small and set in

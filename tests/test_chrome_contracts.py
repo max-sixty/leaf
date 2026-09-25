@@ -1098,17 +1098,20 @@ def test_notices_stay_at_the_visible_pages_right_edge(browser, serve):
             foot = page.locator(".lf-thread-panel-foot").bounding_box()
             assert geometry["bottom"] == pytest.approx(foot["y"] - 14, abs=1)
         else:
-            # Centred on the bottom band's row, inside the band.
+            # Centred on the bottom band's row, inside the band. A line too wide for a
+            # narrow window wraps upward, so the row is the one More stands on rather
+            # than the middle of the line's whole box.
             band = page.locator(".lf-shortcut-bar").bounding_box()
+            more = page.locator(".lf-shortcut-more").bounding_box()
             assert band["y"] <= geometry["top"] and geometry["bottom"] <= 800, (
                 width,
                 panel_open,
                 geometry,
                 band,
             )
-            assert (geometry["top"] - band["y"]) == pytest.approx(
-                800 - geometry["bottom"], abs=1
-            ), (width, panel_open, geometry, band)
+            assert (geometry["top"] + geometry["bottom"]) / 2 == pytest.approx(
+                more["y"] + more["height"] / 2, abs=1
+            ), (width, panel_open, geometry, more)
         pixels = Image.open(io.BytesIO(page.screenshot())).convert("RGB")
         accent = tuple(map(int, re.findall(r"\d+", token_colour(page, "--accent"))))
         assert (

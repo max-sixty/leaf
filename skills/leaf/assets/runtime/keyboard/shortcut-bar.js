@@ -24,9 +24,10 @@
    Hint chips are `aria-hidden` because placeholders and live announcements carry the same
    facts for assistive technology.
 
-   The compact line wraps when sequence rows need the room. Ordinary hints yield from the end
-   on a window too narrow for them, but active sequence rows do not; More is the one control
-   that always survives.
+   The line wraps when its rows need more room than one row holds, the short line on a
+   window too narrow for it as much as a sequence's whole menu, so nothing, More
+   included, is dropped to fit. Only the shelf, which holds the rest of the register, yields rows to
+   stay within two.
 
    The line is the bottom band: one row at the stated `--lf-band-h` (theme.css), which the
    document, a held workspace, the trays' lists and the contents map all end above, so no
@@ -108,7 +109,6 @@ const EMPTY_BAR = Object.freeze({
   }),
   tail: null,
   shelf: false,
-  multiline: false,
 });
 
 const bottomStatusTemplate = (model) => html`
@@ -425,27 +425,23 @@ export function renderShortcutBar(goToStatus) {
           })
         : null,
     shelf,
-    multiline: shelf || Boolean(complete),
   });
   shortcutBarEl.dataset.lfShelfOpen = String(model.shelf);
-  shortcutBarEl.dataset.lfMultiline = String(model.multiline);
   render(shortcutBarTemplate(model), shortcutBarEl);
   const rowSpans = shortcutBarEl.querySelectorAll(":scope > .lf-shortcut");
   const drawn = model.items.map((presentation, index) => ({
     presentation,
     span: rowSpans[index],
   }));
-  // Fitting is the sole owner of visibility. Lit leaves `hidden` alone; every frame
-  // first restores semantic eligibility, then this synchronous measurement may hide
-  // lower-priority chips to fit the current width.
+  // Lit leaves `hidden` alone, so every paint first restores each row's semantic
+  // eligibility; the shelf's trim below is then the one measurement that may hide more.
   for (const { presentation, span } of drawn) span.hidden = presentation.hidden;
+  if (!shelf) return;
 
-  const visible = () =>
-    [...shortcutBarEl.children].filter(
+  const rowsUsed = () => {
+    const items = [...shortcutBarEl.children].filter(
       (node) => !node.hidden && node.checkVisibility(),
     );
-  const rowsUsed = () => {
-    const items = visible();
     const tolerance = Math.min(...items.map((node) => node.offsetHeight)) / 2;
     const tops = [];
     for (const node of items)
@@ -453,37 +449,17 @@ export function renderShortcutBar(goToStatus) {
         tops.push(node.offsetTop);
     return tops.length;
   };
-
-  // The shelf and ordinary line have two-row ceilings rather than permission to clip. The
-  // shelf yields its lowest-ranked current commands until both disclosure controls fit;
-  // hidden rows remain available to inspection and the reference. Active sequences return
-  // below before any row can yield.
-  if (shelf) {
-    // The way out is the one row the trim may not spend. A shelf covering the page at a
-    // narrow width is exactly where the user needs it, and the ordinary line already
-    // keeps it whatever its rank: the way out sits last in the register's order, so a
-    // trim that only counts from the end would drop it first of all.
-    const removable = drawn
-      .filter(({ span, presentation }) => !span.hidden && !presentation.wayOut)
-      .map(({ span }) => span)
-      .toReversed();
-    while (rowsUsed() > 2 && removable.length) removable.shift().hidden = true;
-    return;
-  }
-  // A sequence is the complete menu of the interaction it names. Its live rows wrap rather than
-  // disappearing, even where the ordinary shortlist would yield a lower-ranked hint.
-  if (complete) return;
-  // On a window narrower than those two
-  // computed sentences, yield the lower-ranked hint and then the first; More is the one
-  // control that always survives. At most two layouts are spent, independent of the size
-  // of the register, while all hidden rows stay available to inspection and the reference.
-  for (const span of drawn
-    .filter(({ span }) => !span.hidden)
+  // The shelf has a two-row ceiling rather than permission to clip. It yields its
+  // lowest-ranked current commands until both disclosure controls fit; hidden rows remain
+  // available to inspection and the reference. The way out is the one row the trim may
+  // not spend. A shelf covering the page at a narrow width is exactly where the user
+  // needs it: the way out sits last in the register's order, so a trim that only counted
+  // from the end would drop it first of all.
+  const removable = drawn
+    .filter(({ span, presentation }) => !span.hidden && !presentation.wayOut)
     .map(({ span }) => span)
-    .toReversed()) {
-    if (shortcutBarEl.scrollWidth <= shortcutBarEl.clientWidth) break;
-    span.hidden = true;
-  }
+    .toReversed();
+  while (rowsUsed() > 2 && removable.length) removable.shift().hidden = true;
 }
 
 export const shortcutShelfOpen = () => shortcutShelfIsOpen && shortcutHelpAvailable();
@@ -496,7 +472,7 @@ export function mountShortcutBar({ setGoToSequence, setReact }) {
     setReact(false);
     advanceShortcutHelp();
   };
-  // A narrower window changes which rows fit even without another user input.
+  // A narrower window changes which shelf rows fit even without another user input.
   addEventListener("resize", repaint);
   repaint();
 }

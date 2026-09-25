@@ -24,8 +24,9 @@ the matching lines without saying which file each came from.
 
 ## Review threshold
 
-Apply `AGENTS.md`'s **Stage** section to the verdict. Once a change moves Leaf
-toward a coherent architecture and its claimed path works, the review is done.
+Apply `AGENTS.md`'s **Stage** and **Fix the underlying issue** sections to the
+verdict. Once a change moves Leaf toward a coherent architecture and its claimed
+path works, the review is done.
 Reserve findings for architectural seams, cross-runtime invariants, public
 surface traps, regressions on the claimed path, or a central claim or test that
 is false. Omit bounded edge cases, exhaustive same-pattern cleanup, minor

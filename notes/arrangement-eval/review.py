@@ -96,6 +96,9 @@ Reply with only a JSON object:
 
 def review(job):
     subject, n, phase, runs = job
+    done = out / f"{subject}-{n}-p{phase}.json"
+    if done.exists() and json.loads(done.read_text())["verdict"]:
+        return json.loads(done.read_text())
     flip = int(hashlib.sha256(f"{subject}-{n}-{phase}".encode()).hexdigest(), 16) % 2 ^ flipped
     order = ["plain", "leaf"] if flip else ["leaf", "plain"]
     text = prompt(subject, runs[order[0]], runs[order[1]], phase)
@@ -110,10 +113,13 @@ def review(job):
     answer = json.loads(proc.stdout) if proc.stdout.strip() else {"is_error": True}
     raw = answer.get("result", "")
     found = re.search(r"\{.*\}", raw, re.S)
-    verdict = json.loads(found[0]) if found else None
+    try:
+        verdict = json.loads(found[0]) if found else None
+    except json.JSONDecodeError:
+        verdict = None
     record = {"subject": subject, "n": n, "phase": phase, "A": order[0], "B": order[1],
               "is_error": answer.get("is_error"), "verdict": verdict, "raw": raw}
-    (out / f"{subject}-{n}-p{phase}.json").write_text(json.dumps(record, indent=2))
+    done.write_text(json.dumps(record, indent=2))
     return record
 
 

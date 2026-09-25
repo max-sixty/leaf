@@ -2033,8 +2033,17 @@ lf-activity .lf-activity-empty { margin: 0; color: var(--muted); font: var(--t-5
 /* lf-ask: a semantic reading and arrival boundary, with no presentation of its own.
  * Block rather than the custom-element default inline so its box begins at the
  * question's opening and reaches around the context and control the standing ring says
- * are one Decision. Child margins keep the same ordinary block rhythm they have in a section. */
-lf-ask { display: block; }
+ * are one Ask. */
+lf-ask { display: block; --lf-ask-at-frame-start: 0; }
+/* An Ask passes its first heading's margin through its boxless boundary. If it is
+ * the first authored block in a frame, trim that margin at the frame's edge;
+ * elsewhere the heading keeps its ordinary space from the preceding block. */
+@container style(--lf-block-frame: 1) {
+  lf-ask:nth-child(1 of :not(.lf-ui, [data-lf-gen])) { --lf-ask-at-frame-start: 1; }
+}
+@container style(--lf-ask-at-frame-start: 1) {
+  lf-ask > :nth-child(1 of :not(.lf-ui, [data-lf-gen])) { margin-block-start: 0; }
+}
 
 /* lf-specimen: quoted material — a widget or section the page exhibits rather
  * than speaks (a sample decision, a demo board). It wears the quotation idiom, a

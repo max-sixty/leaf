@@ -90,8 +90,8 @@ again at each: a version holds at every width from the narrowest phone to the de
 not only at the two the gate renders, and each fault the sweep alone finds is reported
 with the widths it spans. The gate also gives
 advice, which never refuses a version: at the desktop viewport, a page whose layout
-grids split at more places than its busiest grid needs is told to lay a sheet on one
-set of tracks.
+grids split at more places than its busiest grid needs is told to lay its regions on
+one set of tracks.
 The invariants live in render_version, which the tests/test_render_*.py modules drive over
 the shipped examples. The suite uses Chromium's headless shell, while its
 end-to-end render-check tests run the launches used here — the installed Chrome
@@ -159,7 +159,8 @@ and unresolved ambiguous passages are refused before append.
 A page source is written in more than one language. TurboHTML's WHATWG tree drives
 the one SourceDocument reading of what the markup declares and says;
 SourceDocument also retains exact source spans. tinycss2 reads the CSS a <style> block
-holds. A new question about a page becomes a field on one of those readings rather
+holds; layout advice also reads the stylesheets the page links from `page/`, as the
+revision's capture resolves them (`RevisionArtifact.page_stylesheets`). A new question about a page becomes a field on one of those readings rather
 than a pattern over the file's text, because a pattern answers something adjacent to
 the question asked — `leaf.styles._overwide_elements` carries the evidence of that
 cost.

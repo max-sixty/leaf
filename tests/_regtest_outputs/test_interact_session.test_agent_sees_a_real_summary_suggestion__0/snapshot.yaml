@@ -89,14 +89,17 @@ delivery:
         h4: >-
           Answer with `leaf reply <page> --for <event-id>` before any other work,
           including the work this event asks for: give the answer, or say what you
-          are about to do and where the result will appear. Once that work lands,
-          report it with `leaf reply <page> --to <address> --initiates`, where `<address>`
-          is the event's `answer.to`. `leaf reply` checks any saved page edit and
-          makes it live before posting. If a revision removes what the thread is
-          anchored on, move the thread in the reply that reports it with `--section
-          <id>` (narrowed by `--quote` or `--part` if needed), or `--detach` it
-          if its subject has left the page. Add `--awaits` only if your reply's
-          prose asks the user something.
+          are about to do and where the result will appear. When work follows, name
+          it on the page in the same command, as in `leaf reply <page> --for <event-id>
+          --text "…" && leaf status <page> working "<the work, in a line>" --on
+          <address>`, where `<address>` is the event's `answer.to`: the line stands
+          beside the thread and in the banner until your next reply there. Once
+          that work lands, report it with `leaf reply <page> --to <address> --initiates`.
+          `leaf reply` checks any saved page edit and makes it live before posting.
+          If a revision removes what the thread is anchored on, move the thread
+          in the reply that reports it with `--section <id>` (narrowed by `--quote`
+          or `--part` if needed), or `--detach` it if its subject has left the page.
+          Add `--awaits` only if your reply's prose asks the user something.
         h5: >-
           Your reply renders as Markdown, so show code or markup in a fenced block.
       events:

@@ -4,509 +4,70 @@
     <title>How leaf works</title>
     <meta
       name="description"
-      content="The mechanism behind leaf, one part per tab: the loop that carries your feedback to the agent, what a page is made of, its three forms, how revisions keep your decisions, and where a page is stored and served."
+      content="The mechanism behind leaf, one part per tab: the loop that carries your feedback to the agent, what a page is made of, how it is laid out, how revisions keep your decisions, and where a page is stored and served."
     />
     <link rel="icon" href="/icon.svg" type="image/svg+xml" />
     <style>
-      /* Schematic windows. Every drawing is a miniature browser window built from the
-         theme's own tokens, so it follows light and dark with the page. */
-      .between {
+      /* The Layout tab's drawings are the theme's svg.drawing idiom. A figure of several
+         panels sets them side by side and stacks them on a narrow window, so no panel's
+         words shrink past reading. */
+      .panels {
         display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: 28px;
+        grid-template-columns: repeat(var(--panels, 3), minmax(0, 1fr));
+        gap: 24px;
         margin-block: 8px 28px;
       }
-      .between figure,
-      .tracks figure {
+      .panels.two {
+        --panels: 2;
+      }
+      .panels figure,
+      figure.fig {
         margin: 0;
       }
-      .between figcaption,
-      .tracks figcaption,
-      .matrix .cap {
+      .panels figcaption,
+      figure.fig figcaption {
         font: 14px/1.45 var(--sans);
         color: var(--muted);
         margin-top: 10px;
       }
-      figcaption strong {
+      .panels figcaption strong,
+      figure.fig figcaption strong {
         color: var(--ink);
         display: block;
         font-size: 15px;
         margin-bottom: 2px;
       }
-
-      .win {
-        position: relative;
-        aspect-ratio: 16 / 10;
-        overflow: hidden;
-        container-type: inline-size;
-        border: 1px solid var(--rule);
-        border-radius: var(--r);
-        background: var(--card);
-        isolation: isolate;
-        box-shadow: 0 1px 2px var(--shade);
-      }
-      .win > .bar {
-        position: absolute;
-        inset: 0 0 auto 0;
-        height: 7%;
-        background: var(--field);
-        border-bottom: 1px solid var(--rule);
-      }
-      .win > .bar::before {
-        content: "";
-        position: absolute;
-        left: 3cqi;
-        top: 50%;
-        translate: 0 -50%;
-        width: 7cqi;
-        height: 1.4cqi;
-        border-radius: 1cqi;
-        background: radial-gradient(circle, var(--rule) 0.7cqi, transparent 0.75cqi) 0
-          0 / 2.4cqi 100%;
-      }
-      .win > .view {
-        position: absolute;
-        inset: 7% 0 0 0;
-        overflow: hidden;
-      }
-
-      .win span {
-        display: block;
-      }
-      .t {
-        height: 3.6cqi;
-        width: 58%;
-        border-radius: 0.6cqi;
-        background: var(--ink);
-        opacity: 0.82;
-        margin-bottom: 2.4cqi;
-      }
-      .sheet .t,
-      .ws .t {
-        height: 4.4cqi;
-        width: 34%;
-      }
-      .l {
-        height: 1.3cqi;
-        border-radius: 1cqi;
-        background: color-mix(in srgb, var(--muted) 38%, transparent);
-        margin-bottom: 1.5cqi;
-      }
-      .l:nth-of-type(3n) {
-        width: 84%;
-      }
-      .l:nth-of-type(4n) {
-        width: 62%;
-      }
-      .l:nth-of-type(5n) {
-        width: 91%;
-      }
-      .gap {
-        height: 2.2cqi;
-      }
-      .h {
-        height: 2.2cqi;
-        width: 38%;
-        border-radius: 0.6cqi;
-        background: var(--ink);
-        opacity: 0.6;
-        margin: 1cqi 0 1.8cqi;
-      }
-      .blk {
-        height: 13cqi;
-        border-radius: 0.8cqi;
-        background: var(--field);
-        border: 1px solid var(--rule);
-        margin-bottom: 2.4cqi;
-      }
-      .tags {
-        display: flex !important;
-        gap: 1cqi;
-        margin-bottom: 2.4cqi;
-      }
-      .tags::before,
-      .tags::after {
-        content: "";
-        height: 2cqi;
-        width: 8cqi;
-        border-radius: 0.5cqi;
-        background: color-mix(in srgb, var(--ok) 35%, transparent);
-      }
-      .tags::after {
-        background: color-mix(in srgb, var(--warn) 35%, transparent);
-      }
-
-      /* A document: one centred reading column. */
-      .col {
-        width: 46%;
+      figure.fig svg {
+        max-width: 480px;
         margin-inline: auto;
-        padding-top: 5cqi;
       }
-
-      /* A sheet: a gutter in from the window, one set of tracks. */
-      .sheetpage {
-        padding: 4cqi 5% 0;
+      /* Marks particular to these drawings, on the same tokens as the theme's
+         svg.drawing idiom: the rail's reservation, a surface drawn over the page, an
+         attribute's outline, a split that lands somewhere new, and a scroll thumb. */
+      svg.drawing .rail {
+        fill: var(--accent-tint);
       }
-      .tr {
-        display: grid !important;
-        grid-template-columns: 2fr 1fr;
-        gap: 2cqi;
-        align-items: start;
+      svg.drawing .over {
+        fill: var(--paper);
+        fill-opacity: 0.92;
+        stroke: var(--accent);
+        stroke-width: 1.5;
+        stroke-dasharray: 5 4;
       }
-      .tr > span {
-        display: grid !important;
-        gap: 2cqi;
+      svg.drawing .attr {
+        fill: none;
+        stroke: var(--ok);
+        stroke-width: 1.5;
+        stroke-dasharray: 2 3;
       }
-      .panel-m {
-        border: 1px solid var(--rule);
-        border-radius: 0.8cqi;
-        background: var(--paper);
-        padding: 1.6cqi;
+      svg.drawing .split {
+        stroke: var(--danger);
+        stroke-width: 1.2;
+        stroke-dasharray: 4 3;
       }
-      .panel-m .h {
-        margin-top: 0;
-        width: 46%;
-        height: 1.8cqi;
-      }
-      .panel-m > span:last-child {
-        margin-bottom: 0;
-      }
-      .panel-m.warn {
-        border-color: color-mix(in srgb, var(--warn) 55%, var(--rule));
-        background: color-mix(in srgb, var(--warn) 9%, var(--paper));
-      }
-      .panel-m.tall {
-        min-height: 20cqi;
-      }
-
-      /* A workspace: held to the window, each pane scrolls under its own header. */
-      .wsview {
-        display: grid !important;
-        grid-template-rows: auto minmax(0, 1fr);
-        padding: 3cqi 5% 3cqi;
-        height: 100%;
-        box-sizing: border-box;
-      }
-      .wsview .t {
-        margin-bottom: 2cqi;
-      }
-      .panes {
-        display: grid !important;
-        grid-template-columns: 1fr 2fr;
-        gap: 2cqi;
-        min-height: 0;
-      }
-      .pane {
-        position: relative;
-        overflow: hidden;
-        border: 1px solid var(--rule);
-        border-radius: 0.8cqi;
-        background: var(--paper);
-      }
-      .pane > .ph {
-        position: absolute;
-        inset: 0 0 auto 0;
-        z-index: 1;
-        height: 5cqi;
-        background: var(--card);
-        border-bottom: 1px solid var(--rule);
-      }
-      .pane > .ph::before {
-        content: "";
-        position: absolute;
-        left: 1.6cqi;
-        top: 50%;
-        translate: 0 -50%;
-        width: 40%;
-        height: 1.6cqi;
-        border-radius: 0.5cqi;
-        background: var(--ink);
+      svg.drawing .thumb {
+        fill: var(--muted);
         opacity: 0.6;
-      }
-      .pane > .pb {
-        padding: 6.6cqi 1.6cqi 0;
-      }
-      .pane .row {
-        height: 4cqi;
-        border-radius: 0.6cqi;
-        background: var(--field);
-        margin-bottom: 1.2cqi;
-      }
-      .pane .row.on {
-        background: color-mix(in srgb, var(--accent) 22%, var(--field));
-      }
-
-      /* What scrolls: the page's thumb runs down the window's edge, a pane's down its own. */
-      .thumb {
-        position: absolute;
-        right: 0.8cqi;
-        width: 0.9cqi;
-        height: 22%;
-        border-radius: 1cqi;
-        background: color-mix(in srgb, var(--muted) 55%, transparent);
-        top: 12%;
-      }
-      .pane .thumb {
-        right: 0.6cqi;
-        height: 26%;
-        top: 20%;
-        z-index: 2;
-      }
-      .doc .scroll,
-      .sheet .scroll {
-        animation: page-scroll 7s ease-in-out infinite;
-      }
-      .doc > .thumb,
-      .sheet > .thumb {
-        animation: page-thumb 7s ease-in-out infinite;
-      }
-      .ws .pane .pb {
-        animation: pane-scroll 5.2s ease-in-out infinite;
-      }
-      .ws .pane .thumb {
-        animation: pane-thumb 5.2s ease-in-out infinite;
-      }
-      .ws .pane + .pane .pb,
-      .ws .pane + .pane .thumb {
-        animation-duration: 7.6s;
-        animation-delay: -2.4s;
-      }
-      @keyframes page-scroll {
-        0%,
-        18% {
-          transform: translateY(0);
-        }
-        52%,
-        72% {
-          transform: translateY(-42%);
-        }
-        100% {
-          transform: translateY(0);
-        }
-      }
-      @keyframes page-thumb {
-        0%,
-        18% {
-          top: 10%;
-        }
-        52%,
-        72% {
-          top: 72%;
-        }
-        100% {
-          top: 10%;
-        }
-      }
-      @keyframes pane-scroll {
-        0%,
-        18% {
-          transform: translateY(0);
-        }
-        52%,
-        72% {
-          transform: translateY(-38%);
-        }
-        100% {
-          transform: translateY(0);
-        }
-      }
-      @keyframes pane-thumb {
-        0%,
-        18% {
-          top: 20%;
-        }
-        52%,
-        72% {
-          top: 68%;
-        }
-        100% {
-          top: 20%;
-        }
-      }
-      .still .scroll,
-      .still .pb,
-      .still .thumb {
-        animation: none !important;
-      }
-      @media (prefers-reduced-motion: reduce) {
-        .scroll,
-        .pb,
-        .thumb {
-          animation: none !important;
-        }
-      }
-
-      /* The page's left edge, drawn where every block starts. */
-      .edge {
-        position: absolute;
-        top: 7%;
-        bottom: 0;
-        border-left: 1.5px dashed var(--accent);
-        z-index: 3;
-      }
-      .edge.bad {
-        border-left-color: var(--danger);
-      }
-      .doc .edge {
-        left: 27%;
-      }
-      .sheet .edge,
-      .ws .edge {
-        left: 5%;
-      }
-
-      /* The two axes. */
-      .matrix {
-        display: grid;
-        grid-template-columns: max-content repeat(2, minmax(0, 1fr));
-        gap: 14px 22px;
-        align-items: center;
-        margin-block: 8px 24px;
-      }
-      .matrix .ax {
-        font: 600 13px/1.3 var(--sans);
-        color: var(--muted);
-        letter-spacing: 0.04em;
-        text-transform: uppercase;
-      }
-      .matrix .ax.col-h {
-        text-align: center;
-      }
-      .matrix .ax.row-h {
-        writing-mode: vertical-rl;
-        rotate: 180deg;
-        text-align: center;
-      }
-      .matrix .cell {
-        min-width: 0;
-      }
-      .matrix .cap {
-        margin-top: 6px;
-        text-align: center;
-      }
-      .matrix .cap strong {
-        display: inline;
-        font-size: 14px;
-      }
-      .void {
-        aspect-ratio: 16 / 10;
-        border: 1.5px dashed color-mix(in srgb, var(--danger) 60%, var(--rule));
-        border-radius: var(--r);
-        display: grid;
-        place-items: center;
-        padding: 12px;
-        text-align: center;
-        font: 13px/1.4 var(--sans);
-        color: var(--muted);
-        background: repeating-linear-gradient(
-          -45deg,
-          transparent 0 9px,
-          color-mix(in srgb, var(--danger) 6%, transparent) 9px 18px
-        );
-      }
-      .void strong {
-        color: var(--danger);
-      }
-
-      /* One set of tracks against a grid per row. */
-      .tracks {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 28px;
-        margin-block: 8px 24px;
-      }
-      .rows {
-        display: grid !important;
-        gap: 2cqi;
-      }
-      .rows > span {
-        display: grid !important;
-        gap: 2cqi;
-      }
-      .rows .r1 {
-        grid-template-columns: 2fr 1fr;
-        --split: calc((100% - 2cqi) * 2 / 3 + 1cqi);
-      }
-      .rows .r2 {
-        grid-template-columns: 1fr 1fr;
-        --split: 50%;
-      }
-      .rows .r3 {
-        grid-template-columns: 1fr 2fr;
-        --split: calc((100% - 2cqi) / 3 + 1cqi);
-      }
-      /* Each row's own split, drawn through that row only. */
-      .rows > span {
-        position: relative;
-      }
-      .rows > span::after {
-        content: "";
-        position: absolute;
-        top: -1cqi;
-        bottom: -1cqi;
-        left: var(--split);
-        border-left: 1.5px dashed var(--danger);
-      }
-      .rows .panel-m {
-        min-height: 10cqi;
-      }
-      .guide {
-        position: absolute;
-        top: 7%;
-        bottom: 0;
-        border-left: 1.5px dashed var(--accent);
-        z-index: 3;
-      }
-      .guide.bad {
-        border-left-color: var(--danger);
-      }
-
-      /* Phones: all three forms reduce to one scrolling column. */
-      .phones {
-        display: flex;
-        gap: 20px;
-        justify-content: center;
-        margin-block: 8px 24px;
-        flex-wrap: wrap;
-      }
-      .phones figure {
-        margin: 0;
-        width: min(132px, calc((100% - 40px) / 3));
-        text-align: center;
-      }
-      .phone {
-        aspect-ratio: 9 / 17;
-      }
-      .phone .stack {
-        padding: 6cqi 7cqi 0;
-      }
-      .phone .t {
-        height: 7cqi;
-        width: 70%;
-        margin-bottom: 5cqi;
-      }
-      .phone .l {
-        height: 3cqi;
-        margin-bottom: 3.4cqi;
-      }
-      .phone .panel-m {
-        padding: 4cqi;
-        margin-bottom: 5cqi;
-        border-radius: 2cqi;
-      }
-      .phone .panel-m .h {
-        height: 4cqi;
-        margin-bottom: 4cqi;
-      }
-      .phone > .thumb {
-        width: 2cqi;
-        right: 1.6cqi;
-      }
-      .phone .scroll {
-        animation: page-scroll 7s ease-in-out infinite;
-      }
-      .phone > .thumb {
-        animation: page-thumb 7s ease-in-out infinite;
       }
 
       /* A terminal wraps a long line rather than scrolling it, so the transcript
@@ -517,13 +78,12 @@
       }
 
       @media (max-width: 760px) {
-        .between,
-        .tracks {
+        .panels {
           grid-template-columns: minmax(0, 1fr);
         }
-        .matrix {
-          grid-template-columns: max-content minmax(0, 1fr) minmax(0, 1fr);
-          gap: 10px;
+        .panels svg {
+          max-width: 360px;
+          margin-inline: auto;
         }
       }
     </style>
@@ -640,9 +200,9 @@ $ leaf wait ./review
       "handling": {
         "h1": "The user already sees the action applied.",
         "h2": "If you need clarification, ask in a thread on the picked option. To override the pick in a later version, mark the element `restated` and say why in the version note.",
-        "h3": "It answers the page's Ask, so the page shows it as waiting on you until the markup records it. Continue the work it selects or unblocks, then write it in and stamp a version.",
+        "h3": "It answers the page's Ask, so the page shows it as waiting on you until the markup records it. Name the work it selects or unblocks with `leaf status &lt;page&gt; working \"&lt;the work, in a line&gt;\"` before starting it, then do it, write it in, and stamp a version.",
         "h4": "This event's conversation has no title yet: name it with `leaf conversation title &lt;page&gt; &lt;conversation-id&gt; --text \"&lt;a few words&gt;\"`, so the thread panel lists its subject rather than its opening words.",
-        "h5": "Answer with `leaf reply &lt;page&gt; --for &lt;event-id&gt;` before any other work, including the work this event asks for: give the answer, or say what you are about to do and where the result will appear. Once that work lands, report it with `leaf reply &lt;page&gt; --to &lt;address&gt; --initiates`, where `&lt;address&gt;` is the event's `answer.to`. `leaf reply` checks any saved page edit and makes it live before posting. If a revision removes what the thread is anchored on, move the thread in the reply that reports it with `--section &lt;id&gt;` (narrowed by `--quote` or `--part` if needed), or `--detach` it if its subject has left the page. Add `--awaits` only if your reply's prose asks the user something.",
+        "h5": "Answer with `leaf reply &lt;page&gt; --for &lt;event-id&gt;` before any other work, including the work this event asks for: give the answer, or say what you are about to do and where the result will appear. When work follows, name it on the page in the same command, as in `leaf reply &lt;page&gt; --for &lt;event-id&gt; --text \"…\" &amp;&amp; leaf status &lt;page&gt; working \"&lt;the work, in a line&gt;\" --on &lt;address&gt;`, where `&lt;address&gt;` is the event's `answer.to`: the line stands beside the thread and in the banner until your next reply there. Once that work lands, report it with `leaf reply &lt;page&gt; --to &lt;address&gt; --initiates`. `leaf reply` checks any saved page edit and makes it live before posting. If a revision removes what the thread is anchored on, move the thread in the reply that reports it with `--section &lt;id&gt;` (narrowed by `--quote` or `--part` if needed), or `--detach` it if its subject has left the page. Add `--awaits` only if your reply's prose asks the user something.",
         "h6": "Your reply renders as Markdown, so show code or markup in a fenced block."
       },
       "events": [
@@ -725,10 +285,11 @@ $ leaf wait ./review
 # after the complete envelope reaches the agent, start the next background task
 $ leaf wait --ack 2d5bdcc4
 
-# while that wait runs, answer the comment
-$ leaf reply ./review --for ebe8f367 --text "I’ll use drop-oldest for the batch importer and keep rejection at the API boundary."
+# while that wait runs, answer the comment and name the work it starts
+$ leaf reply ./review --for ebe8f367 --text "I’ll use drop-oldest for the batch importer and keep rejection at the API boundary." &amp;&amp; leaf status ./review working "splitting the shed policy between the API and the importer" --on ebe8f367
 
 # revise ./review/index.html; a valid save goes live at once
+$ leaf reply ./review --to ebe8f367 --initiates --text "Done: the shed section now splits the policy by caller."
 $ leaf status ./review waiting "Does the API/importer split match what you need?"</code></pre>
             </lf-specimen>
             <p id="loop-shell-read">
@@ -767,7 +328,10 @@ $ leaf status ./review waiting "Does the API/importer split match what you need?
                 <strong>Work</strong>: what the agent is doing. A delivery entering the
                 agent's turn marks it working; <code>leaf status</code> names the
                 operation, and
-                <code>leaf delivery claim &lt;id&gt; --event &lt;event-id&gt;</code>
+                <code
+                  >leaf delivery claim &lt;id&gt; --event &lt;event-id&gt; --detail
+                  "…"</code
+                >
                 names the move being worked on.
               </li>
               <li id="response-evidence">
@@ -792,6 +356,142 @@ $ leaf status ./review waiting "Does the API/importer split match what you need?
               the thread panel beside their passages, and the banner and tab icon say
               whether an agent is working, waiting for you, or absent.
             </p>
+          </section>
+        </lf-tab>
+
+        <lf-tab id="updates" label="Updates">
+          <section id="updates-seats">
+            <h2>The agent says what it is doing before it does it</h2>
+            <p id="updates-lede">
+              While an agent works on a page, it writes short updates to three places:
+              the banner at the top of the page, a line beside the thread or widget the
+              work is about, and replies in the thread itself. Each update is one
+              sentence naming the operation and its subject, written before the step
+              starts, so what you read is what is happening now.
+            </p>
+            <lf-chronology id="updates-timeline">
+              <lf-chronology-entry id="updates-sent" at="0s" kind="observation">
+                <strong>Sent</strong> You comment on the lede. The page shows your
+                comment at once, marked Sent.
+              </lf-chronology-entry>
+              <lf-chronology-entry id="updates-picked" at="2s" kind="observation">
+                <strong>Picked up</strong> The agent confirms receipt with
+                <code>leaf wait --ack</code>. Your comment reads Picked up, and until
+                the agent writes its own words the banner reads
+                <em>Claude working — on your update</em>.
+              </lf-chronology-entry>
+              <lf-chronology-entry id="updates-reply" at="8s" kind="intervention">
+                <strong>A reply says what comes next</strong> Before doing the work, the
+                agent replies in your thread:
+                <em>I’ll cut the lede to two sentences.</em> In the same command,
+                <code
+                  >leaf status … working "cutting the lede to two sentences" --on
+                  &lt;thread&gt;</code
+                >
+                puts that line beside the thread and in the banner.
+              </lf-chronology-entry>
+              <lf-chronology-entry id="updates-phase" at="1m" kind="intervention">
+                <strong>Each new phase gets a new line</strong> When the work moves from
+                editing to checking, the agent writes the status again:
+                <em>Claude working — checking the page at phone width</em>.
+              </lf-chronology-entry>
+              <lf-chronology-entry id="updates-done" at="2m" kind="observation">
+                <strong>Answered</strong> The revision goes live, a second reply reports
+                it, and a waiting status names what the agent wants back:
+                <em>Claude awaits — does the shorter lede keep enough?</em>
+              </lf-chronology-entry>
+            </lf-chronology>
+          </section>
+
+          <section id="updates-when">
+            <h2>When the agent writes one</h2>
+            <ul id="updates-moments">
+              <li id="updates-on-input">
+                <strong>When your input arrives.</strong> Your comment comes before the
+                work in hand: the agent confirms receipt, answers or says what it is
+                about to do, and names that work, all before starting it. Each delivery
+                repeats these steps to the agent beside the events they apply to.
+              </li>
+              <li id="updates-on-phase">
+                <strong>When the work changes.</strong> A new subject, or a new phase
+                such as reading, editing, testing, or waiting on a result, gets a new
+                line. <code>leaf status</code> refuses <code>working</code> with no
+                sentence, since the banner already says that the agent is working.
+              </li>
+              <li id="updates-on-long-work">
+                <strong>During long work.</strong> Work longer than a few minutes goes
+                to background workers, so the agent stays free to answer your next
+                comment. Its status names what is still running, and it writes it again
+                when a worker reports.
+              </li>
+              <li id="updates-on-handoff">
+                <strong>When it is your move.</strong> A waiting status names the answer
+                or decision the agent wants, rather than saying that it is waiting.
+              </li>
+            </ul>
+            <p id="updates-reference">
+              The
+              <a
+                href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/conversation-loop.md#when-to-write"
+                >conversation loop reference</a
+              >
+              is the agent's copy of these rules.
+            </p>
+          </section>
+
+          <section id="updates-silence">
+            <h2>What the banner says without an update</h2>
+            <p id="updates-silence-lede">
+              The banner states only what the page directory can prove, so a quiet agent
+              reads differently from a busy one. Once an update is about a minute old,
+              the banner shows its age, as in
+              <em>Claude working · 5m ago — running the browser suite</em>.
+            </p>
+            <table id="updates-readings">
+              <thead>
+                <tr>
+                  <th>Banner</th>
+                  <th>What Leaf knows</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr id="updates-reading-held">
+                  <td>Claude working — on your update</td>
+                  <td>
+                    The agent's current turn picked up your input and has not yet said
+                    what it is doing.
+                  </td>
+                </tr>
+                <tr id="updates-reading-ended">
+                  <td>Claude’s turn ended 3m ago</td>
+                  <td>
+                    The agent's turn finished without renewing its last update. The
+                    disclosure keeps that update's words.
+                  </td>
+                </tr>
+                <tr id="updates-reading-quiet">
+                  <td>Claude last checked in 20m ago</td>
+                  <td>
+                    Nothing has renewed the update for about a quarter of an hour.
+                  </td>
+                </tr>
+                <tr id="updates-reading-away">
+                  <td>Claude away</td>
+                  <td>
+                    No watcher is running. Your comments are saved, and the agent picks
+                    them up on its next turn.
+                  </td>
+                </tr>
+                <tr id="updates-reading-nudge">
+                  <td>Nudge Claude in terminal</td>
+                  <td>
+                    No watcher is running, and nothing has renewed the update for about
+                    a quarter of an hour. Your comments are saved until a message in the
+                    agent's terminal starts its next turn.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
           </section>
         </lf-tab>
 
@@ -1023,266 +723,806 @@ $ leaf status ./review waiting "Does the API/importer split match what you need?
         </lf-tab>
 
         <lf-tab id="layout" label="Layout">
-          <section id="forms">
-            <h2>Every page takes one of three forms</h2>
-            <p id="forms-lede">
-              A Leaf page is a document, a sheet, or a workspace. The form is set for
-              the whole page because it answers two questions a page can answer only
-              once: how wide the page is, the reading column or the window, and what
-              scrolls, the page itself or each region on its own.
+          <section id="one-kind">
+            <h2>Every page is a stack of blocks</h2>
+            <p id="one-kind-lede">
+              A Leaf page has one kind: blocks read top to bottom in the reading column.
+              A block changes the layout by declaring what it needs. A wide block grows
+              past the column, <code>data-width</code> on <code>main</code> widens the
+              whole page, and a workspace that is the page's only block holds the
+              window.
             </p>
 
-            <div class="matrix" id="axes-figure">
-              <span></span>
-              <span class="ax col-h">The reading column</span>
-              <span class="ax col-h">The window</span>
-
-              <span class="ax row-h">Page scrolls</span>
-              <div class="cell">
-                <div class="win doc" aria-hidden="true">
-                  <span class="bar"></span>
-                  <span class="view"
-                    ><span class="col scroll">
-                      <span class="t"></span><span class="l"></span
-                      ><span class="l"></span><span class="l"></span
-                      ><span class="l"></span><span class="l"></span>
-                      <span class="h"></span><span class="l"></span
-                      ><span class="l"></span><span class="l"></span
-                      ><span class="blk"></span> <span class="l"></span
-                      ><span class="l"></span><span class="l"></span
-                      ><span class="l"></span><span class="h"></span>
-                      <span class="l"></span><span class="l"></span
-                      ><span class="l"></span><span class="l"></span
-                      ><span class="l"></span><span class="l"></span> </span
-                  ></span>
-                  <span class="edge"></span><span class="thumb"></span>
-                </div>
-                <p class="cap" id="cell-document"><strong>Document</strong></p>
-              </div>
-              <div class="cell">
-                <div class="win sheet" aria-hidden="true">
-                  <span class="bar"></span>
-                  <span class="view"
-                    ><span class="sheetpage scroll">
-                      <span class="t"></span><span class="tags"></span>
-                      <span class="tr">
-                        <span
-                          ><span class="panel-m warn"
-                            ><span class="h"></span><span class="l"></span
-                            ><span class="l"></span
-                          ></span>
-                          <span class="panel-m tall"
-                            ><span class="h"></span><span class="blk"></span
-                            ><span class="l"></span><span class="l"></span
-                          ></span>
-                          <span class="panel-m"
-                            ><span class="h"></span><span class="l"></span
-                            ><span class="l"></span><span class="l"></span></span
-                        ></span>
-                        <span
-                          ><span class="panel-m"
-                            ><span class="h"></span><span class="l"></span
-                            ><span class="l"></span><span class="l"></span
-                          ></span>
-                          <span class="panel-m"
-                            ><span class="h"></span><span class="l"></span
-                            ><span class="l"></span
-                          ></span>
-                          <span class="panel-m"
-                            ><span class="h"></span><span class="l"></span
-                            ><span class="l"></span><span class="l"></span
-                            ><span class="l"></span></span
-                        ></span>
-                      </span> </span
-                  ></span>
-                  <span class="edge"></span><span class="thumb"></span>
-                </div>
-                <p class="cap" id="cell-sheet"><strong>Sheet</strong></p>
-              </div>
-
-              <span class="ax row-h">Regions scroll</span>
-              <div class="cell">
-                <div class="void" id="cell-void">
-                  <strong>Refused</strong>
-                </div>
-                <p class="cap"><strong>No form</strong></p>
-              </div>
-              <div class="cell">
-                <div class="win ws" aria-hidden="true">
-                  <span class="bar"></span>
-                  <span class="view"
-                    ><span class="wsview">
-                      <span class="t"></span>
-                      <span class="panes">
-                        <span class="pane"
-                          ><span class="ph"></span
-                          ><span class="pb">
-                            <span class="row on"></span><span class="row"></span
-                            ><span class="row"></span><span class="row"></span
-                            ><span class="row"></span><span class="row"></span
-                            ><span class="row"></span><span class="row"></span
-                            ><span class="row"></span><span class="row"></span
-                            ><span class="row"></span><span class="row"></span> </span
-                          ><span class="thumb"></span
-                        ></span>
-                        <span class="pane"
-                          ><span class="ph"></span
-                          ><span class="pb">
-                            <span class="l"></span><span class="l"></span
-                            ><span class="l"></span><span class="blk"></span
-                            ><span class="l"></span><span class="l"></span
-                            ><span class="l"></span><span class="l"></span
-                            ><span class="blk"></span><span class="l"></span
-                            ><span class="l"></span><span class="l"></span
-                            ><span class="l"></span> </span
-                          ><span class="thumb"></span
-                        ></span>
-                      </span> </span
-                  ></span>
-                  <span class="edge"></span>
-                </div>
-                <p class="cap" id="cell-workspace"><strong>Workspace</strong></p>
-              </div>
-            </div>
-
-            <p id="axes-void">
-              Try the fourth: regions that each scroll, held to the window, inside the
-              reading column. The column is too narrow to set them side by side, and
-              once they stack the page has to scroll, so it is a document again.
-            </p>
-            <p id="axes-exclusive">
-              Any mix goes the same way. A workspace inside a document cannot hold the
-              window, because the page already scrolls, so its panes flow with the text.
-              A page has one width and one scroll, so it has one form. It can change
-              form as it grows: a report that gains live status becomes a sheet, and its
-              comments and anchors stay where they were.
-            </p>
-          </section>
-
-          <section id="document">
-            <h2>A document</h2>
-            <p id="document-what">
-              A document is an argument read in order: a plan, a review, a write-up, a
-              decision. Nothing is declared. Headings, prose, tables, and diagrams all
-              start at the reading column's edge, and the page scrolls. Most pages are
-              documents.
-            </p>
-            <p id="document-wide">
-              A block that needs more room than the column, such as a wide diagram or a
-              side-by-side comparison, declares <code>data-width="wide"</code> and is
-              centred on the column, so the page keeps the column's left edge. This page
-              is a document, and its drawings are wide blocks of that kind.
-            </p>
-            <pre id="document-markup"><code>&lt;main&gt;
-  &lt;h1&gt;Adopt the queue-based retry&lt;/h1&gt;
-  &lt;p class="lede"&gt;…&lt;/p&gt;
-  &lt;section&gt;…&lt;/section&gt;
-&lt;/main&gt;</code></pre>
-            <p id="document-examples">
-              Examples: <a href="/examples/review-a-plan/">Review a plan</a>,
-              <a href="/examples/security-boundary/">Security boundary</a>,
-              <a href="/examples/release-notes/">Release notes</a>.
-            </p>
-          </section>
-
-          <section id="sheet">
-            <h2>A sheet</h2>
-            <p id="sheet-what">
-              A sheet is a set of regions read side by side: a release in progress, a
-              board and its status, a review whose verdict stays beside the diff. It
-              declares <code>&lt;main data-width="available"&gt;</code> to take the
-              window's width. Every block, the title included, starts at the same left
-              edge, one gutter in from the window, and text inside a region keeps the
-              reading measure.
-            </p>
-            <p id="sheet-tracks">
-              A sheet reads as one structure when its regions stand on the same vertical
-              lines. Give it one set of tracks, usually a body beside a rail, and stack
-              each track's regions as panels. A new grid per row puts each row's split
-              somewhere new, and <code>leaf version check --render</code> advises when
-              it finds that.
-            </p>
-
-            <div class="tracks" data-width="wide" id="tracks-figure">
-              <figure>
-                <div class="win sheet still" aria-hidden="true">
-                  <span class="bar"></span
-                  ><span class="view"
-                    ><span class="sheetpage">
-                      <span class="t"></span>
-                      <span class="tr"
-                        ><span
-                          ><span class="panel-m warn"
-                            ><span class="h"></span><span class="l"></span></span
-                          ><span class="panel-m tall"
-                            ><span class="h"></span><span class="blk"></span></span
-                          ><span class="panel-m"
-                            ><span class="h"></span><span class="l"></span
-                            ><span class="l"></span></span
-                        ></span>
-                        <span
-                          ><span class="panel-m"
-                            ><span class="h"></span><span class="l"></span
-                            ><span class="l"></span><span class="l"></span></span
-                          ><span class="panel-m"
-                            ><span class="h"></span><span class="l"></span></span
-                          ><span class="panel-m"
-                            ><span class="h"></span><span class="l"></span
-                            ><span class="l"></span></span></span
-                      ></span> </span
-                  ></span>
-                  <span class="guide" style="left: 5%"></span
-                  ><span class="guide" style="left: 65.8%"></span>
-                </div>
-                <figcaption id="cap-tracks-one">
-                  <strong>One set of tracks</strong>Every region starts on one of two
-                  lines. The body holds what you work through; the rail holds what you
-                  keep an eye on.
+            <div class="panels" id="kind-figure">
+              <figure id="kind-column">
+                <svg class="drawing" viewBox="0 0 240 160" role="img">
+                  <title>
+                    Prose in the reading column, with a wide block growing past it
+                  </title>
+                  <rect class="frame" x="1" y="1" width="238" height="158" rx="6" />
+                  <rect class="frame-head" x="2" y="2" width="236" height="11" rx="5" />
+                  <g id="kind-prose">
+                    <rect class="line" x="72" y="22" width="60" height="6" rx="2" />
+                    <rect
+                      class="line soft"
+                      x="72"
+                      y="34"
+                      width="96"
+                      height="4"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="72"
+                      y="42"
+                      width="90"
+                      height="4"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="72"
+                      y="50"
+                      width="96"
+                      height="4"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="72"
+                      y="110"
+                      width="96"
+                      height="4"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="72"
+                      y="118"
+                      width="88"
+                      height="4"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="72"
+                      y="126"
+                      width="96"
+                      height="4"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="72"
+                      y="134"
+                      width="60"
+                      height="4"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="72"
+                      y="142"
+                      width="92"
+                      height="4"
+                      rx="2"
+                    />
+                  </g>
+                  <g id="kind-wide-block">
+                    <rect
+                      class="box hot"
+                      x="30"
+                      y="60"
+                      width="180"
+                      height="40"
+                      rx="3"
+                    />
+                    <text x="120" y="84" text-anchor="middle">wide block</text>
+                  </g>
+                </svg>
+                <figcaption id="cap-kind-column">
+                  <strong>Prose and wide blocks</strong>Nothing is declared on the page.
+                  Text keeps the column, and a block that declares a width, such as a
+                  diagram, grows past it.
                 </figcaption>
               </figure>
-              <figure>
-                <div class="win sheet still" aria-hidden="true">
-                  <span class="bar"></span
-                  ><span class="view"
-                    ><span class="sheetpage">
-                      <span class="t"></span>
-                      <span class="rows">
-                        <span class="r1"
-                          ><span class="panel-m"
-                            ><span class="h"></span><span class="l"></span></span
-                          ><span class="panel-m"
-                            ><span class="h"></span><span class="l"></span></span
-                        ></span>
-                        <span class="r2"
-                          ><span class="panel-m"
-                            ><span class="h"></span><span class="l"></span></span
-                          ><span class="panel-m"
-                            ><span class="h"></span><span class="l"></span></span
-                        ></span>
-                        <span class="r3"
-                          ><span class="panel-m"
-                            ><span class="h"></span><span class="l"></span></span
-                          ><span class="panel-m"
-                            ><span class="h"></span><span class="l"></span></span
-                        ></span>
-                      </span> </span
-                  ></span>
-                  <span class="guide" style="left: 5%"></span>
-                </div>
+              <figure id="kind-wide">
+                <svg class="drawing" viewBox="0 0 240 160" role="img">
+                  <title>
+                    A wide page: main declares a width, and its regions share one left
+                    edge
+                  </title>
+                  <rect class="frame" x="1" y="1" width="238" height="158" rx="6" />
+                  <rect class="frame-head" x="2" y="2" width="236" height="11" rx="5" />
+                  <g id="kind-wide-main">
+                    <rect class="attr" x="8" y="18" width="224" height="136" rx="3" />
+                    <text class="mono" x="14" y="30">main data-width</text>
+                  </g>
+                  <rect class="line" x="14" y="37" width="80" height="8" rx="2" />
+                  <g id="kind-wide-body">
+                    <rect class="box" x="14" y="52" width="136" height="50" rx="3" />
+                    <rect class="box" x="14" y="108" width="136" height="40" rx="3" />
+                    <text class="small" x="22" y="66">body</text>
+                  </g>
+                  <g id="kind-wide-status">
+                    <rect class="box" x="156" y="52" width="70" height="30" rx="3" />
+                    <rect class="box" x="156" y="88" width="70" height="28" rx="3" />
+                    <rect class="box" x="156" y="122" width="70" height="26" rx="3" />
+                    <text class="small" x="164" y="66">status</text>
+                  </g>
+                </svg>
+                <figcaption id="cap-kind-wide">
+                  <strong>A wide page</strong><code>data-width</code> on
+                  <code>main</code> widens the whole page. Every block starts at one
+                  left edge, and text keeps its measure.
+                </figcaption>
+              </figure>
+              <figure id="kind-workspace">
+                <svg class="drawing" viewBox="0 0 240 160" role="img">
+                  <title>
+                    A workspace alone in main holds the window, and each pane scrolls on
+                    its own
+                  </title>
+                  <rect class="frame" x="1" y="1" width="238" height="158" rx="6" />
+                  <rect class="frame-head" x="2" y="2" width="236" height="11" rx="5" />
+                  <rect class="line" x="12" y="20" width="70" height="7" rx="2" />
+                  <g id="kind-ws-queue">
+                    <rect
+                      class="box hot"
+                      x="12"
+                      y="34"
+                      width="72"
+                      height="118"
+                      rx="3"
+                    />
+                    <text class="small" x="18" y="46">queue</text>
+                    <rect
+                      class="line soft"
+                      x="18"
+                      y="56"
+                      width="54"
+                      height="5"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="18"
+                      y="66"
+                      width="54"
+                      height="5"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="18"
+                      y="76"
+                      width="54"
+                      height="5"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="18"
+                      y="86"
+                      width="54"
+                      height="5"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="18"
+                      y="96"
+                      width="54"
+                      height="5"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="18"
+                      y="106"
+                      width="54"
+                      height="5"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="18"
+                      y="116"
+                      width="54"
+                      height="5"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="18"
+                      y="126"
+                      width="54"
+                      height="5"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="18"
+                      y="136"
+                      width="54"
+                      height="5"
+                      rx="2"
+                    />
+                    <rect class="thumb" x="77" y="54" width="3" height="26" rx="1.5" />
+                  </g>
+                  <g id="kind-ws-detail">
+                    <rect
+                      class="box hot"
+                      x="90"
+                      y="34"
+                      width="138"
+                      height="118"
+                      rx="3"
+                    />
+                    <text class="small" x="96" y="46">detail</text>
+                    <rect
+                      class="line soft"
+                      x="96"
+                      y="56"
+                      width="110"
+                      height="4"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="96"
+                      y="64"
+                      width="100"
+                      height="4"
+                      rx="2"
+                    />
+                    <rect class="box" x="96" y="74" width="116" height="30" rx="2" />
+                    <rect
+                      class="line soft"
+                      x="96"
+                      y="112"
+                      width="110"
+                      height="4"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="96"
+                      y="120"
+                      width="96"
+                      height="4"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="96"
+                      y="128"
+                      width="110"
+                      height="4"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="96"
+                      y="136"
+                      width="70"
+                      height="4"
+                      rx="2"
+                    />
+                    <rect class="thumb" x="221" y="70" width="3" height="34" rx="1.5" />
+                  </g>
+                </svg>
+                <figcaption id="cap-kind-workspace">
+                  <strong>A workspace alone</strong>An <code>lf-workspace</code> that is
+                  <code>main</code>'s only block holds the window, and each pane scrolls
+                  on its own.
+                </figcaption>
+              </figure>
+            </div>
+
+            <p id="one-kind-grows">
+              A page grows without changing kind: a report that gains live status gains
+              a grid, and its comments and anchors stay where they were.
+            </p>
+          </section>
+
+          <section id="chrome">
+            <h2>The room a page has depends only on the window</h2>
+            <p id="chrome-what">
+              The room a page has is the window less three fixed reservations, and the
+              surfaces Leaf opens while you read stand over the page. So the page is
+              laid out as the agent wrote it, and opening Threads or a thread card never
+              moves what you were reading.
+            </p>
+
+            <div class="panels" id="chrome-figure">
+              <figure id="chrome-reserved">
+                <svg class="drawing" viewBox="0 0 240 160" role="img">
+                  <title>
+                    The banner, the shortcut band and the rail are reserved at fixed
+                    sizes
+                  </title>
+                  <rect class="frame" x="1" y="1" width="238" height="158" rx="6" />
+                  <g id="chrome-banner">
+                    <rect
+                      class="frame-head"
+                      x="2"
+                      y="2"
+                      width="236"
+                      height="18"
+                      rx="5"
+                    />
+                    <text x="10" y="15">Banner</text>
+                  </g>
+                  <g id="chrome-band">
+                    <rect
+                      class="frame-head"
+                      x="2"
+                      y="140"
+                      width="236"
+                      height="18"
+                      rx="5"
+                    />
+                    <text x="10" y="153">Shortcut band</text>
+                  </g>
+                  <g id="chrome-rail">
+                    <rect class="rail" x="194" y="20" width="44" height="120" />
+                    <text x="216" y="36" text-anchor="middle">Rail</text>
+                    <circle class="mark" cx="202" cy="60" r="4" />
+                    <circle class="mark" cx="202" cy="104" r="4" />
+                  </g>
+                  <g id="chrome-page">
+                    <rect class="line" x="60" y="30" width="60" height="6" rx="2" />
+                    <rect
+                      class="line soft"
+                      x="60"
+                      y="42"
+                      width="100"
+                      height="4"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="60"
+                      y="50"
+                      width="94"
+                      height="4"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="60"
+                      y="58"
+                      width="100"
+                      height="4"
+                      rx="2"
+                    />
+                    <rect class="box" x="40" y="68" width="140" height="30" rx="3" />
+                    <rect
+                      class="line soft"
+                      x="60"
+                      y="106"
+                      width="100"
+                      height="4"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="60"
+                      y="114"
+                      width="92"
+                      height="4"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="60"
+                      y="122"
+                      width="100"
+                      height="4"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="60"
+                      y="130"
+                      width="70"
+                      height="4"
+                      rx="2"
+                    />
+                  </g>
+                </svg>
+                <figcaption id="cap-chrome-reserved">
+                  <strong>Three fixed reservations</strong>The banner, the shortcut band
+                  and the rail each have a fixed size, so the room a page has depends
+                  only on the window.
+                </figcaption>
+              </figure>
+              <figure id="chrome-surfaces">
+                <svg class="drawing" viewBox="0 0 240 160" role="img">
+                  <title>
+                    The Asks tray and the Threads panel open over the page's edges
+                  </title>
+                  <rect class="frame" x="1" y="1" width="238" height="158" rx="6" />
+                  <rect class="frame-head" x="2" y="2" width="236" height="18" rx="5" />
+                  <rect
+                    class="frame-head"
+                    x="2"
+                    y="140"
+                    width="236"
+                    height="18"
+                    rx="5"
+                  />
+                  <rect class="rail" x="194" y="20" width="44" height="120" />
+                  <rect class="line" x="60" y="30" width="60" height="6" rx="2" />
+                  <rect class="line soft" x="60" y="42" width="100" height="4" rx="2" />
+                  <rect class="line soft" x="60" y="50" width="94" height="4" rx="2" />
+                  <rect class="line soft" x="60" y="58" width="100" height="4" rx="2" />
+                  <rect class="box" x="40" y="68" width="140" height="30" rx="3" />
+                  <rect
+                    class="line soft"
+                    x="60"
+                    y="106"
+                    width="100"
+                    height="4"
+                    rx="2"
+                  />
+                  <rect class="line soft" x="60" y="114" width="92" height="4" rx="2" />
+                  <rect
+                    class="line soft"
+                    x="60"
+                    y="122"
+                    width="100"
+                    height="4"
+                    rx="2"
+                  />
+                  <g id="chrome-asks-tray">
+                    <rect class="over" x="6" y="24" width="72" height="112" rx="5" />
+                    <text class="strong" x="42" y="44" text-anchor="middle">
+                      Asks tray
+                    </text>
+                  </g>
+                  <g id="chrome-threads-panel">
+                    <rect class="over" x="152" y="24" width="82" height="112" rx="5" />
+                    <text class="strong" x="193" y="44" text-anchor="middle">
+                      Threads
+                    </text>
+                    <text class="strong" x="193" y="58" text-anchor="middle">
+                      panel
+                    </text>
+                  </g>
+                </svg>
+                <figcaption id="cap-chrome-surfaces">
+                  <strong>Surfaces open over the page</strong>The Asks tray and the
+                  Threads panel open one at a time over its edges. The page under them
+                  keeps its width, its wrapping and your place.
+                </figcaption>
+              </figure>
+              <figure id="chrome-card">
+                <svg class="drawing" viewBox="0 0 240 160" role="img">
+                  <title>A thread card stands in the rail beside its marker</title>
+                  <rect class="frame" x="1" y="1" width="238" height="158" rx="6" />
+                  <rect class="frame-head" x="2" y="2" width="236" height="18" rx="5" />
+                  <rect
+                    class="frame-head"
+                    x="2"
+                    y="140"
+                    width="236"
+                    height="18"
+                    rx="5"
+                  />
+                  <rect class="rail" x="194" y="20" width="44" height="120" />
+                  <circle class="mark" cx="202" cy="104" r="4" />
+                  <rect class="line" x="60" y="30" width="60" height="6" rx="2" />
+                  <rect class="line soft" x="60" y="42" width="100" height="4" rx="2" />
+                  <rect class="line soft" x="60" y="50" width="94" height="4" rx="2" />
+                  <g id="chrome-passage">
+                    <rect class="box hot" x="58" y="56" width="104" height="8" rx="2" />
+                    <circle class="mark" cx="202" cy="60" r="4" />
+                  </g>
+                  <rect class="box" x="40" y="68" width="140" height="30" rx="3" />
+                  <rect
+                    class="line soft"
+                    x="60"
+                    y="106"
+                    width="100"
+                    height="4"
+                    rx="2"
+                  />
+                  <rect class="line soft" x="60" y="114" width="92" height="4" rx="2" />
+                  <rect
+                    class="line soft"
+                    x="60"
+                    y="122"
+                    width="100"
+                    height="4"
+                    rx="2"
+                  />
+                  <rect class="line soft" x="60" y="130" width="70" height="4" rx="2" />
+                  <g id="chrome-thread-card">
+                    <rect class="over" x="176" y="68" width="58" height="62" rx="5" />
+                    <text class="strong" x="205" y="94" text-anchor="middle">
+                      Thread
+                    </text>
+                    <text class="strong" x="205" y="108" text-anchor="middle">
+                      card
+                    </text>
+                  </g>
+                </svg>
+                <figcaption id="cap-chrome-card">
+                  <strong>A card stands in the rail</strong>It opens beside its marker,
+                  crosses into the column only by what the rail lacks, and pushes
+                  nothing down.
+                </figcaption>
+              </figure>
+            </div>
+
+            <p id="chrome-narrow">
+              A touch screen draws no shortcut band, and a window too narrow for the
+              rail draws no rail. A margin entry with no rail to stand in, such as one
+              for a passage inside a pane, sits in the text beside what it marks.
+            </p>
+          </section>
+
+          <section id="vocabulary">
+            <h2>Elements name a role, attributes size a block, classes only style</h2>
+            <p id="vocabulary-what">
+              Leaf reads a page's markup to lay it out and to act on it. What it has to
+              recognise is an element, what sizes a block is an attribute, and
+              everything else is a class for the theme.
+            </p>
+
+            <div class="panels" id="vocabulary-figure">
+              <figure id="vocabulary-element">
+                <svg class="drawing" viewBox="0 0 240 160" role="img">
+                  <title>Elements: a workspace holding a grid of two panes</title>
+                  <rect class="frame" x="1" y="1" width="238" height="158" rx="6" />
+                  <rect class="frame-head" x="2" y="2" width="236" height="11" rx="5" />
+                  <g id="vocab-workspace">
+                    <rect
+                      class="box hot"
+                      x="8"
+                      y="18"
+                      width="224"
+                      height="136"
+                      rx="3"
+                    />
+                    <text class="mono" x="14" y="30">lf-workspace</text>
+                  </g>
+                  <g id="vocab-grid">
+                    <rect
+                      class="box hot"
+                      x="14"
+                      y="36"
+                      width="212"
+                      height="112"
+                      rx="3"
+                    />
+                    <text class="mono" x="20" y="48">lf-grid</text>
+                  </g>
+                  <g id="vocab-pane-queue">
+                    <rect class="box hot" x="20" y="54" width="76" height="88" rx="3" />
+                    <text class="mono" x="26" y="68">lf-pane</text>
+                  </g>
+                  <g id="vocab-pane-detail">
+                    <rect
+                      class="box hot"
+                      x="102"
+                      y="54"
+                      width="118"
+                      height="88"
+                      rx="3"
+                    />
+                    <text class="mono" x="108" y="68">lf-pane</text>
+                  </g>
+                </svg>
+                <figcaption id="cap-vocabulary-element">
+                  <strong>An element when Leaf needs the role</strong>A workspace holds
+                  the window, reading keys and scroll restore find each pane, and the
+                  render check compares a page's grid tracks.
+                </figcaption>
+              </figure>
+              <figure id="vocabulary-attribute">
+                <svg class="drawing" viewBox="0 0 240 160" role="img">
+                  <title>Attributes: data-width on main and on one block</title>
+                  <rect class="frame" x="1" y="1" width="238" height="158" rx="6" />
+                  <rect class="frame-head" x="2" y="2" width="236" height="11" rx="5" />
+                  <g id="vocab-main-width">
+                    <rect class="attr" x="8" y="18" width="224" height="136" rx="3" />
+                    <text class="mono" x="14" y="30">main data-width</text>
+                  </g>
+                  <rect class="line" x="14" y="38" width="70" height="7" rx="2" />
+                  <rect class="line soft" x="14" y="52" width="120" height="4" rx="2" />
+                  <rect class="line soft" x="14" y="60" width="110" height="4" rx="2" />
+                  <g id="vocab-block-width">
+                    <rect class="attr" x="14" y="72" width="212" height="44" rx="3" />
+                    <text class="mono" x="120" y="98" text-anchor="middle">
+                      figure data-width
+                    </text>
+                  </g>
+                  <rect
+                    class="line soft"
+                    x="14"
+                    y="126"
+                    width="120"
+                    height="4"
+                    rx="2"
+                  />
+                  <rect
+                    class="line soft"
+                    x="14"
+                    y="134"
+                    width="104"
+                    height="4"
+                    rx="2"
+                  />
+                  <rect
+                    class="line soft"
+                    x="14"
+                    y="142"
+                    width="116"
+                    height="4"
+                    rx="2"
+                  />
+                </svg>
+                <figcaption id="cap-vocabulary-attribute">
+                  <strong>An attribute to size a block</strong
+                  ><code>data-width</code> on any block, or on <code>main</code> for the
+                  whole page. A widget declares its own default width the same way.
+                </figcaption>
+              </figure>
+              <figure id="vocabulary-class">
+                <svg class="drawing" viewBox="0 0 240 160" role="img">
+                  <title>Classes: a sidebar and two panels the theme styles</title>
+                  <rect class="frame" x="1" y="1" width="238" height="158" rx="6" />
+                  <rect class="frame-head" x="2" y="2" width="236" height="11" rx="5" />
+                  <g id="vocab-sidebar">
+                    <rect class="ghost" x="12" y="22" width="60" height="96" rx="3" />
+                    <text class="mono" x="42" y="38" text-anchor="middle">aside</text>
+                    <text class="mono" x="42" y="51" text-anchor="middle">
+                      .sidebar
+                    </text>
+                    <rect
+                      class="line soft"
+                      x="20"
+                      y="62"
+                      width="44"
+                      height="4"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="20"
+                      y="70"
+                      width="36"
+                      height="4"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="20"
+                      y="78"
+                      width="42"
+                      height="4"
+                      rx="2"
+                    />
+                  </g>
+                  <rect class="line" x="82" y="22" width="80" height="7" rx="2" />
+                  <rect class="line soft" x="82" y="36" width="140" height="4" rx="2" />
+                  <rect class="line soft" x="82" y="44" width="126" height="4" rx="2" />
+                  <g id="vocab-panel-steps">
+                    <rect class="ghost" x="82" y="56" width="70" height="90" rx="3" />
+                    <text class="mono" x="117" y="100" text-anchor="middle">
+                      section
+                    </text>
+                    <text class="mono" x="117" y="113" text-anchor="middle">
+                      .panel
+                    </text>
+                  </g>
+                  <g id="vocab-panel-checks">
+                    <rect class="ghost" x="158" y="56" width="70" height="90" rx="3" />
+                    <text class="mono" x="193" y="100" text-anchor="middle">
+                      section
+                    </text>
+                    <text class="mono" x="193" y="113" text-anchor="middle">
+                      .panel
+                    </text>
+                  </g>
+                </svg>
+                <figcaption id="cap-vocabulary-class">
+                  <strong>A class only to style</strong><code>section.panel</code>,
+                  <code>aside.sidebar</code>, <code>.callout</code>. The theme styles
+                  these, and a page can write its own CSS in their place.
+                </figcaption>
+              </figure>
+            </div>
+          </section>
+
+          <section id="wide-page">
+            <h2>A wide page lays its regions on one set of tracks</h2>
+            <p id="wide-page-what">
+              When the regions are the page, such as a release in progress, a board and
+              its status, or a review whose verdict stays beside the diff,
+              <code>&lt;main data-width="available"&gt;</code> widens the whole page.
+              Every block, the title included, starts at one left edge, one gutter in
+              from the window, and text inside a region keeps the reading measure.
+            </p>
+            <p id="wide-page-tracks">
+              A wide page reads as one structure when its regions stand on the same
+              vertical lines. Give it one set of tracks, usually a wide body beside a
+              narrow column of status, and stack each track's regions as panels. A new
+              grid per row puts each row's split somewhere new, and
+              <code>leaf version check --render</code> advises when it finds that.
+            </p>
+
+            <div class="panels two" id="tracks-figure">
+              <figure id="tracks-one">
+                <svg class="drawing" viewBox="0 0 240 160" role="img">
+                  <title>
+                    One set of tracks: every region starts on one of two lines
+                  </title>
+                  <rect class="frame" x="1" y="1" width="238" height="158" rx="6" />
+                  <rect class="frame-head" x="2" y="2" width="236" height="11" rx="5" />
+                  <rect class="line" x="12" y="20" width="80" height="8" rx="2" />
+                  <g id="tracks-body">
+                    <rect class="box" x="12" y="34" width="140" height="44" rx="3" />
+                    <rect class="box" x="12" y="84" width="140" height="30" rx="3" />
+                    <rect class="box" x="12" y="120" width="140" height="32" rx="3" />
+                    <text class="small" x="20" y="48">body</text>
+                  </g>
+                  <g id="tracks-status">
+                    <rect class="box" x="158" y="34" width="70" height="26" rx="3" />
+                    <rect class="box" x="158" y="66" width="70" height="40" rx="3" />
+                    <rect class="box" x="158" y="112" width="70" height="40" rx="3" />
+                    <text class="small" x="166" y="48">status</text>
+                  </g>
+                  <g id="tracks-lines">
+                    <line class="guide" x1="12" y1="14" x2="12" y2="158" />
+                    <line class="guide" x1="158" y1="14" x2="158" y2="158" />
+                  </g>
+                </svg>
+                <figcaption id="cap-tracks-one">
+                  <strong>One set of tracks</strong>Every region starts on one of two
+                  lines. The body holds what you work through; the status column holds
+                  what you keep an eye on.
+                </figcaption>
+              </figure>
+              <figure id="tracks-rows">
+                <svg class="drawing" viewBox="0 0 240 160" role="img">
+                  <title>A grid per row: each row splits somewhere new</title>
+                  <rect class="frame" x="1" y="1" width="238" height="158" rx="6" />
+                  <rect class="frame-head" x="2" y="2" width="236" height="11" rx="5" />
+                  <rect class="line" x="12" y="20" width="80" height="8" rx="2" />
+                  <g id="tracks-row-1">
+                    <rect class="box" x="12" y="34" width="140" height="36" rx="3" />
+                    <rect class="box" x="158" y="34" width="70" height="36" rx="3" />
+                    <line class="split" x1="155" y1="31" x2="155" y2="73" />
+                  </g>
+                  <g id="tracks-row-2">
+                    <rect class="box" x="12" y="76" width="105" height="36" rx="3" />
+                    <rect class="box" x="123" y="76" width="105" height="36" rx="3" />
+                    <line class="split" x1="120" y1="73" x2="120" y2="115" />
+                  </g>
+                  <g id="tracks-row-3">
+                    <rect class="box" x="12" y="118" width="70" height="34" rx="3" />
+                    <rect class="box" x="88" y="118" width="140" height="34" rx="3" />
+                    <line class="split" x1="85" y1="115" x2="85" y2="155" />
+                  </g>
+                </svg>
                 <figcaption id="cap-tracks-rows">
                   <strong>A grid per row</strong>Each row splits somewhere new, so the
                   regions line up with nothing and the page reads as a pile of parts.
                 </figcaption>
               </figure>
             </div>
-            <pre id="sheet-markup"><code>&lt;main data-width="available"&gt;
+            <pre id="wide-page-markup"><code>&lt;main data-width="available"&gt;
   &lt;h1&gt;Release 4.2 rollout&lt;/h1&gt;
   &lt;lf-grid columns="2fr 1fr"&gt;
     &lt;lf-grid columns="1"&gt;…&lt;/lf-grid&gt;  &lt;!-- body: panels you work through --&gt;
-    &lt;lf-grid columns="1"&gt;…&lt;/lf-grid&gt;  &lt;!-- rail: status, counts, contents --&gt;
+    &lt;lf-grid columns="1"&gt;…&lt;/lf-grid&gt;  &lt;!-- status, counts, contents --&gt;
   &lt;/lf-grid&gt;
 &lt;/main&gt;</code></pre>
-            <p id="sheet-examples">
+            <p id="wide-page-examples">
               Examples: <a href="/examples/live-progress/">Live progress</a>,
               <a href="/examples/triage-board/">Triage board</a>,
               <a href="/examples/command-hub/">Command hub</a>.
@@ -1290,21 +1530,265 @@ $ leaf status ./review waiting "Does the API/importer split match what you need?
           </section>
 
           <section id="workspace">
-            <h2>A workspace</h2>
+            <h2>A workspace holds the window</h2>
             <p id="workspace-what">
-              A workspace is a sheet whose regions stay in view together while each
+              An <code>lf-workspace</code> keeps regions in view together while each
               scrolls on its own: a queue beside the item it opens, a playground's
-              controls beside its preview. It uses a sheet's
-              <code>&lt;main data-width="available"&gt;</code>, and its only block is an
-              <code>lf-workspace</code>. Each <code>lf-pane</code>'s body scrolls under
-              the pane's header, and actions in a pane's footer stay in reach.
+              controls beside its preview. A page whose only block is a workspace is a
+              wide page without declaring one, and the workspace holds the window's
+              height as well as its width: each <code>lf-pane</code>'s body scrolls
+              under the pane's header, and actions in a pane's footer stay in reach. The
+              title goes in the workspace's header.
             </p>
-            <p id="workspace-height">
-              It takes the window's height as well as its width, so it is the page's
-              only block: the title goes in its header, and nothing sits below the
-              panes.
-            </p>
-            <pre id="workspace-markup"><code>&lt;main data-width="available"&gt;
+
+            <div class="panels two" id="workspace-figure">
+              <figure id="workspace-held">
+                <svg class="drawing" viewBox="0 0 240 160" role="img">
+                  <title>
+                    Alone in main, a workspace holds the window and its panes scroll
+                  </title>
+                  <rect class="frame" x="1" y="1" width="238" height="158" rx="6" />
+                  <rect class="frame-head" x="2" y="2" width="236" height="11" rx="5" />
+                  <rect class="line" x="12" y="20" width="70" height="7" rx="2" />
+                  <g id="workspace-held-queue">
+                    <rect
+                      class="box hot"
+                      x="12"
+                      y="34"
+                      width="72"
+                      height="118"
+                      rx="3"
+                    />
+                    <text class="small" x="18" y="46">queue</text>
+                    <rect
+                      class="line soft"
+                      x="18"
+                      y="56"
+                      width="54"
+                      height="5"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="18"
+                      y="66"
+                      width="54"
+                      height="5"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="18"
+                      y="76"
+                      width="54"
+                      height="5"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="18"
+                      y="86"
+                      width="54"
+                      height="5"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="18"
+                      y="96"
+                      width="54"
+                      height="5"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="18"
+                      y="106"
+                      width="54"
+                      height="5"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="18"
+                      y="116"
+                      width="54"
+                      height="5"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="18"
+                      y="126"
+                      width="54"
+                      height="5"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="18"
+                      y="136"
+                      width="54"
+                      height="5"
+                      rx="2"
+                    />
+                    <rect class="thumb" x="77" y="54" width="3" height="26" rx="1.5" />
+                  </g>
+                  <g id="workspace-held-detail">
+                    <rect
+                      class="box hot"
+                      x="90"
+                      y="34"
+                      width="138"
+                      height="118"
+                      rx="3"
+                    />
+                    <text class="small" x="96" y="46">detail</text>
+                    <rect
+                      class="line soft"
+                      x="96"
+                      y="56"
+                      width="110"
+                      height="4"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="96"
+                      y="64"
+                      width="100"
+                      height="4"
+                      rx="2"
+                    />
+                    <rect class="box" x="96" y="74" width="116" height="30" rx="2" />
+                    <rect
+                      class="line soft"
+                      x="96"
+                      y="112"
+                      width="104"
+                      height="4"
+                      rx="2"
+                    />
+                    <rect class="thumb" x="221" y="62" width="3" height="30" rx="1.5" />
+                  </g>
+                  <g id="workspace-held-footer">
+                    <rect class="frame-head" x="91" y="128" width="136" height="23" />
+                    <rect class="mark" x="186" y="133" width="36" height="13" rx="3" />
+                    <text class="small" x="96" y="143">footer</text>
+                  </g>
+                </svg>
+                <figcaption id="cap-workspace-held">
+                  <strong>Alone in main</strong>The workspace holds the window. Each
+                  pane scrolls under its header, and a footer's actions stay in reach.
+                </figcaption>
+              </figure>
+              <figure id="workspace-flows">
+                <svg class="drawing" viewBox="0 0 240 160" role="img">
+                  <title>
+                    Among other blocks, a workspace's panes take their natural height
+                    and the page scrolls
+                  </title>
+                  <rect class="frame" x="1" y="1" width="238" height="158" rx="6" />
+                  <rect class="frame-head" x="2" y="2" width="236" height="11" rx="5" />
+                  <g id="workspace-flows-prose">
+                    <rect class="line" x="40" y="20" width="60" height="6" rx="2" />
+                    <rect
+                      class="line soft"
+                      x="40"
+                      y="32"
+                      width="150"
+                      height="4"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="40"
+                      y="40"
+                      width="140"
+                      height="4"
+                      rx="2"
+                    />
+                  </g>
+                  <g id="workspace-flows-panes">
+                    <rect
+                      class="box hot"
+                      x="20"
+                      y="52"
+                      width="72"
+                      height="104"
+                      rx="3"
+                    />
+                    <rect
+                      class="box hot"
+                      x="98"
+                      y="52"
+                      width="122"
+                      height="104"
+                      rx="3"
+                    />
+                    <text class="small" x="26" y="64">queue</text>
+                    <text class="small" x="104" y="64">detail</text>
+                    <rect
+                      class="line soft"
+                      x="26"
+                      y="74"
+                      width="54"
+                      height="5"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="26"
+                      y="84"
+                      width="54"
+                      height="5"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="26"
+                      y="94"
+                      width="54"
+                      height="5"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="26"
+                      y="104"
+                      width="54"
+                      height="5"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="104"
+                      y="74"
+                      width="100"
+                      height="4"
+                      rx="2"
+                    />
+                    <rect
+                      class="line soft"
+                      x="104"
+                      y="82"
+                      width="92"
+                      height="4"
+                      rx="2"
+                    />
+                    <rect class="box" x="104" y="92" width="104" height="30" rx="2" />
+                  </g>
+                  <g id="workspace-flows-scroll">
+                    <rect class="thumb" x="232" y="18" width="4" height="30" rx="2" />
+                  </g>
+                </svg>
+                <figcaption id="cap-workspace-flows">
+                  <strong>Among other blocks</strong>The panes take their natural height
+                  and flow with the text, and the page scrolls them.
+                </figcaption>
+              </figure>
+            </div>
+            <pre id="workspace-markup"><code>&lt;main&gt;
   &lt;lf-workspace&gt;
     &lt;header&gt;&lt;h1&gt;Payments alerts&lt;/h1&gt;&lt;/header&gt;
     &lt;lf-grid columns="1fr 2fr"&gt;
@@ -1320,193 +1804,68 @@ $ leaf status ./review waiting "Does the API/importer split match what you need?
             </p>
           </section>
 
-          <section id="between">
-            <h2>Between the forms</h2>
-            <p id="between-lede">
-              Three arrangements that sit between the forms, and what Leaf makes of
-              each.
-            </p>
-
-            <div class="between" data-width="wide" id="between-figure">
-              <figure>
-                <div class="win doc still" aria-hidden="true">
-                  <span class="bar"></span
-                  ><span class="view"
-                    ><span class="col">
-                      <span class="t"></span><span class="l"></span
-                      ><span class="l"></span><span class="l"></span>
-                    </span>
-                    <span
-                      class="sheetpage"
-                      style="padding-top: 1cqi; padding-inline: 12%"
-                      ><span class="tr"
-                        ><span
-                          ><span class="panel-m"
-                            ><span class="h"></span><span class="l"></span
-                            ><span class="l"></span></span></span
-                        ><span
-                          ><span class="panel-m"
-                            ><span class="h"></span><span class="l"></span
-                            ><span class="l"></span></span></span></span
-                    ></span> </span
-                  ><span class="edge"></span
-                  ><span class="edge bad" style="left: 12%"></span>
-                </div>
-                <figcaption id="cap-regions-in-document">
-                  <strong>Regions in a document</strong>The title and prose keep the
-                  column's edge; a wide grid centred beneath them starts at a second
-                  edge. When the regions are the page, make it a sheet.
-                </figcaption>
-              </figure>
-              <figure>
-                <div class="win doc still" aria-hidden="true">
-                  <span class="bar"></span
-                  ><span class="view"
-                    ><span class="col">
-                      <span class="t"></span><span class="l"></span
-                      ><span class="l"></span>
-                      <span
-                        class="panes"
-                        style="grid-template-columns: 1fr 1.6fr; margin-bottom: 2.4cqi"
-                        ><span class="pane" style="height: 30cqi"
-                          ><span class="ph"></span
-                          ><span class="pb"
-                            ><span class="row on"></span><span class="row"></span
-                            ><span class="row"></span><span class="row"></span
-                            ><span class="row"></span></span></span
-                        ><span class="pane" style="height: 30cqi"
-                          ><span class="ph"></span
-                          ><span class="pb"
-                            ><span class="l"></span><span class="l"></span
-                            ><span class="blk"></span
-                            ><span class="l"></span></span></span
-                      ></span>
-                      <span class="l"></span><span class="l"></span> </span></span
-                  ><span class="edge"></span>
-                </div>
-                <figcaption id="cap-workspace-in-document">
-                  <strong>A workspace inside a document</strong>The page already
-                  scrolls, so the workspace cannot hold the window. Its panes take their
-                  natural height and flow with the text.
-                </figcaption>
-              </figure>
-              <figure>
-                <div class="win doc still" aria-hidden="true">
-                  <span class="bar"></span
-                  ><span class="view"
-                    ><span
-                      class="wsview"
-                      style="width: 46%; margin-inline: auto; padding-inline: 0"
-                    >
-                      <span class="t" style="width: 60%"></span>
-                      <span class="panes"
-                        ><span class="pane"
-                          ><span class="ph"></span
-                          ><span class="pb"
-                            ><span class="row on"></span><span class="row"></span
-                            ><span class="row"></span></span></span
-                        ><span class="pane"
-                          ><span class="ph"></span
-                          ><span class="pb"
-                            ><span class="l"></span><span class="l"></span
-                            ><span class="l"></span></span></span
-                      ></span> </span></span
-                  ><span class="edge"></span>
-                </div>
-                <figcaption id="cap-workspace-in-column">
-                  <strong>A workspace alone in the column</strong>Refused by
-                  <code>leaf version check</code>: a workspace holds the window as a
-                  sheet's sole content, so write
-                  <code>&lt;main data-width="available"&gt;</code>.
-                </figcaption>
-              </figure>
-            </div>
-          </section>
-
           <section id="narrow">
-            <h2>On a phone, all three are one column</h2>
+            <h2>On a phone, every page is one column</h2>
             <p id="narrow-what">
-              The forms differ only in how they use a wide window. In a narrow one a
-              sheet's tracks stack where the rail would fall below 16rem, a workspace
-              flows like a sheet once the window cannot hold its regions, and every page
-              becomes one scrolling column in source order. So write a sheet's or a
-              workspace's regions in an order that reads top to bottom.
+              A grid's tracks stack where its narrowest would fall below 14rem, and a
+              workspace's panes flow once the window cannot hold them, so on a phone
+              every page becomes one scrolling column in source order. Write regions in
+              an order that reads top to bottom.
             </p>
-
-            <div class="phones" data-width="wide" id="narrow-figure">
-              <figure>
-                <div class="win phone" aria-hidden="true">
-                  <span class="bar" style="height: 4%"></span
-                  ><span class="view" style="inset-block-start: 4%"
-                    ><span class="stack scroll"
-                      ><span class="t"></span><span class="l"></span
-                      ><span class="l"></span><span class="l"></span
-                      ><span class="l"></span><span class="l"></span
-                      ><span class="h"></span><span class="l"></span
-                      ><span class="l"></span><span class="l"></span
-                      ><span class="l"></span><span class="blk"></span
-                      ><span class="l"></span><span class="l"></span
-                      ><span class="l"></span><span class="l"></span
-                      ><span class="h"></span><span class="l"></span
-                      ><span class="l"></span><span class="l"></span
-                      ><span class="l"></span><span class="l"></span
-                      ><span class="blk"></span><span class="l"></span
-                      ><span class="l"></span><span class="l"></span></span></span
-                  ><span class="thumb"></span>
-                </div>
-                <figcaption id="cap-phone-document">
-                  <strong>Document</strong>
-                </figcaption>
-              </figure>
-              <figure>
-                <div class="win phone" aria-hidden="true">
-                  <span class="bar" style="height: 4%"></span
-                  ><span class="view" style="inset-block-start: 4%"
-                    ><span class="stack scroll"
-                      ><span class="t"></span
-                      ><span class="panel-m warn"
-                        ><span class="h"></span><span class="l"></span
-                        ><span class="l"></span></span
-                      ><span class="panel-m"
-                        ><span class="h"></span><span class="blk"></span
-                        ><span class="l"></span></span
-                      ><span class="panel-m"
-                        ><span class="h"></span><span class="l"></span
-                        ><span class="l"></span><span class="l"></span></span
-                      ><span class="panel-m"
-                        ><span class="h"></span><span class="l"></span
-                        ><span class="l"></span></span
-                      ><span class="panel-m"
-                        ><span class="h"></span
-                        ><span class="blk"></span></span></span></span
-                  ><span class="thumb"></span>
-                </div>
-                <figcaption id="cap-phone-sheet"><strong>Sheet</strong></figcaption>
-              </figure>
-              <figure>
-                <div class="win phone" aria-hidden="true">
-                  <span class="bar" style="height: 4%"></span
-                  ><span class="view" style="inset-block-start: 4%"
-                    ><span class="stack scroll"
-                      ><span class="t"></span
-                      ><span class="panel-m"
-                        ><span class="h"></span><span class="l"></span
-                        ><span class="l"></span><span class="l"></span
-                        ><span class="l"></span><span class="l"></span></span
-                      ><span class="panel-m"
-                        ><span class="h"></span><span class="l"></span
-                        ><span class="blk"></span><span class="l"></span
-                        ><span class="l"></span><span class="l"></span></span
-                      ><span class="panel-m"
-                        ><span class="h"></span><span class="l"></span
-                        ><span class="l"></span></span></span></span
-                  ><span class="thumb"></span>
-                </div>
-                <figcaption id="cap-phone-workspace">
-                  <strong>Workspace</strong>
-                </figcaption>
-              </figure>
-            </div>
+            <figure class="fig" id="narrow-figure">
+              <svg class="drawing" viewBox="0 0 360 190" role="img">
+                <title>
+                  A wide page's regions, numbered in source order, stack into one column
+                  on a phone
+                </title>
+                <g id="narrow-desktop">
+                  <rect class="frame" x="1" y="20" width="220" height="150" rx="6" />
+                  <rect
+                    class="frame-head"
+                    x="2"
+                    y="21"
+                    width="218"
+                    height="11"
+                    rx="5"
+                  />
+                  <rect class="line" x="10" y="38" width="70" height="7" rx="2" />
+                  <rect class="box" x="10" y="52" width="128" height="52" rx="3" />
+                  <rect class="box" x="10" y="110" width="128" height="52" rx="3" />
+                  <rect class="box" x="144" y="52" width="68" height="36" rx="3" />
+                  <rect class="box" x="144" y="94" width="68" height="36" rx="3" />
+                  <circle class="mark" cx="22" cy="64" r="7" />
+                  <text class="glyph" x="22" y="64" text-anchor="middle">1</text>
+                  <circle class="mark" cx="22" cy="122" r="7" />
+                  <text class="glyph" x="22" y="122" text-anchor="middle">2</text>
+                  <circle class="mark" cx="156" cy="64" r="7" />
+                  <text class="glyph" x="156" y="64" text-anchor="middle">3</text>
+                  <circle class="mark" cx="156" cy="106" r="7" />
+                  <text class="glyph" x="156" y="106" text-anchor="middle">4</text>
+                </g>
+                <line class="arrow" x1="228" y1="95" x2="256" y2="95" />
+                <path class="tip" d="M256,90 L264,95 L256,100 z" />
+                <g id="narrow-phone">
+                  <rect class="frame" x="270" y="1" width="88" height="188" rx="10" />
+                  <rect class="line" x="278" y="12" width="50" height="6" rx="2" />
+                  <rect class="box" x="278" y="24" width="72" height="38" rx="3" />
+                  <rect class="box" x="278" y="68" width="72" height="38" rx="3" />
+                  <rect class="box" x="278" y="112" width="72" height="30" rx="3" />
+                  <rect class="box" x="278" y="148" width="72" height="30" rx="3" />
+                  <circle class="mark" cx="290" cy="36" r="7" />
+                  <text class="glyph" x="290" y="36" text-anchor="middle">1</text>
+                  <circle class="mark" cx="290" cy="80" r="7" />
+                  <text class="glyph" x="290" y="80" text-anchor="middle">2</text>
+                  <circle class="mark" cx="290" cy="124" r="7" />
+                  <text class="glyph" x="290" y="124" text-anchor="middle">3</text>
+                  <circle class="mark" cx="290" cy="160" r="7" />
+                  <text class="glyph" x="290" y="160" text-anchor="middle">4</text>
+                </g>
+              </svg>
+              <figcaption id="cap-narrow">
+                <strong>Source order becomes reading order</strong>The status column
+                stacks under the body, so region 3 follows region 2.
+              </figcaption>
+            </figure>
           </section>
         </lf-tab>
 

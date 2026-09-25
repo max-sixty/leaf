@@ -90,6 +90,7 @@ import {
   whenApplicationPresented,
 } from "./semantic-state.js";
 import { highlightBlocks } from "./syntax.js";
+import { setRuntimeRootAttribute } from "./root-state.js";
 
 // Attributes the runtime itself may paint onto elements the page owns. This is the
 // replay signature's one exclusion vocabulary as well as the source each writer uses:
@@ -130,19 +131,12 @@ export const PAGE_PAINT_ATTRIBUTE = Object.freeze({
 export const PAGE_PAINT_ATTRIBUTES = new Set(Object.values(PAGE_PAINT_ATTRIBUTE));
 export const pagePresented = () =>
   document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented);
-export function whenPagePresented() {
-  if (pagePresented()) return Promise.resolve();
-  return new Promise((resolve) => {
-    const observer = new MutationObserver(() => {
-      if (!pagePresented()) return;
-      observer.disconnect();
-      resolve();
-    });
-    observer.observe(document.body, {
-      attributes: true,
-      attributeFilter: [PAGE_PAINT_ATTRIBUTE.presented],
-    });
-  });
+// The stamp is written here and nowhere else, and never taken back, so the promise it
+// resolves answers every later waiter too.
+const { promise: presented, resolve: resolvePresented } = Promise.withResolvers();
+export function markPagePresented() {
+  setRuntimeRootAttribute(document.body, PAGE_PAINT_ATTRIBUTE.presented, "1");
+  resolvePresented();
 }
 
 // The arrivals their owners placed after presentation and that have not landed yet.
@@ -160,8 +154,7 @@ export function deferredArrival(work) {
 }
 
 /** Run `work` once the page has presented, as an arrival the page answers for. */
-export const afterPresentation = (work) =>
-  deferredArrival(whenPagePresented().then(work));
+export const afterPresentation = (work) => deferredArrival(presented.then(work));
 
 /** The page has presented and nothing it deferred past presentation is still arriving.
     Not the render gate's `pageSettled`, which is about animation rather than arrival. */

@@ -1714,20 +1714,18 @@ def test_layout_grammar_rejects_invalid_slots_and_split_content(page_dir):
     )
 
 
-def test_a_page_made_of_one_workspace_declares_the_sheet(page_dir):
-    """A workspace holds the window as a sheet's sole content, so a page whose only
-    block is a workspace and whose main is not a sheet is refused with the fix."""
+def test_a_page_made_of_one_workspace_needs_no_page_width(page_dir):
+    """A workspace declares its own width, so a page whose only block is a workspace
+    passes with a plain `main`, as it does with a wide one."""
     body = (
         '<lf-workspace id="solo"><lf-pane id="solo-pane" label="Solo">'
         "<p>Only region.</p></lf-pane></lf-workspace>"
     )
     version = page_dir / "index.html"
-    version.write_text(leaf_page("Solo workspace", body))
-    result = check(page_dir)
-    assert result.exit_code != 0
-    assert 'write <main data-width="available">' in result.output
-    version.write_text(leaf_page("Solo workspace", body, width="available"))
-    assert check(page_dir).exit_code == 0
+    for width in (None, "available"):
+        version.write_text(leaf_page("Solo workspace", body, width=width))
+        result = check(page_dir)
+        assert result.exit_code == 0, result.output
 
 
 def test_workspace_requires_one_element_body(page_dir):
@@ -5317,7 +5315,7 @@ def test_check_advises_a_page_whose_headings_have_nothing_listing_them(page_dir)
     assert outline_advice(PAGE.replace("<h2>Plan</h2>", "")) == []
     workspace = PAGE.replace(
         "<main>",
-        '<main data-width="available"><lf-workspace id="outline-workspace">'
+        '<main><lf-workspace id="outline-workspace">'
         '<lf-pane id="outline-region" label="Proposal">',
     ).replace("</main>", "</lf-pane></lf-workspace></main>")
     assert outline_advice(workspace) == []

@@ -22,7 +22,7 @@
    than removed. Geometry belongs to each caller and is passed in so this module
    introduces no ownership cycle through the shortcut bar. */
 import { html, nothing, render, repeat } from "../../vendor/browser-runtime.js";
-import { overlaps } from "../geometry.js";
+import { clamp, overlaps, overlapsAcross } from "../rect.js";
 import { announce } from "../notifications.js";
 import { repaint } from "../repaint.js";
 import { beginWalk, listWalkPosition } from "../walk-position.js";
@@ -60,8 +60,6 @@ const movedTo = (box, left, top) => ({
   height: box.height,
 });
 
-const clamp = (value, start, end) => Math.max(start, Math.min(value, end));
-
 function nearestOpenTop(box, preferred, barriers, top, bottom, gap) {
   const last = Math.max(top, bottom - box.height);
   const seats = [preferred, top, last];
@@ -80,16 +78,55 @@ function nearestOpenTop(box, preferred, barriers, top, bottom, gap) {
 // chips first and provide the visible rectangle each chip names. `belowTarget` makes
 // that edge the preferred seat and the target an obstacle. The returned boxes can be
 // barriers for a following pass.
-export function spreadHints(
+function spreadHints(
   hints,
   {
-    barriers: fixedBarriers = [],
+    barriers = [],
     lineBox,
     viewportLeft = 0,
     viewportTop = 0,
     viewportRight = document.documentElement.clientWidth,
     viewportBottom = document.documentElement.clientHeight,
   } = {},
+) {
+  const band =
+    parseFloat(
+      getComputedStyle(document.documentElement).getPropertyValue("--here-ring-w"),
+    ) || 0;
+  const faces = hints.map(({ chip, target, belowTarget = false }) => ({
+    start: chip.getBoundingClientRect(),
+    target,
+    belowTarget,
+  }));
+  const placed = seatHints(faces, {
+    barriers,
+    lineBox,
+    band,
+    viewport: {
+      left: viewportLeft,
+      top: viewportTop,
+      right: viewportRight,
+      bottom: viewportBottom,
+    },
+  });
+  hints.forEach(({ chip }, index) => {
+    const { start } = faces[index];
+    const box = placed[index];
+    if (box.left !== start.left)
+      chip.style.left = `${parseFloat(chip.style.left) + box.left - start.left}px`;
+    if (box.top !== start.top)
+      chip.style.top = `${parseFloat(chip.style.top) + box.top - start.top}px`;
+  });
+  return placed;
+}
+
+// Where each face stands, folded from rectangles `spreadHints` has already read. Each
+// face is `{ start, target, belowTarget }`, `start` the box it was drawn at; the answer
+// is one box per face, in order, each clear of the barriers, the key line and every face
+// seated before it.
+export function seatHints(
+  faces,
+  { barriers: fixedBarriers = [], lineBox, band, viewport },
 ) {
   const gap = 2;
   // The browsed hint wears the layer's band (--here-shadow, theme.css), which a face's
@@ -100,24 +137,19 @@ export function spreadHints(
   // because a band may stand in the gap it keeps but not past it; only the browsed chip
   // paints one, so it has that space to itself. Seated to the gap alone both cleared by
   // coincidence, the gap and the band both being 2px.
-  const band =
-    parseFloat(
-      getComputedStyle(document.documentElement).getPropertyValue("--here-ring-w"),
-    ) || 0;
   const clear = Math.max(gap, band);
-  const line = lineBox ?? { left: 0, top: viewportBottom, right: 0, height: 0 };
+  const line = lineBox ?? { left: 0, top: viewport.bottom, right: 0, height: 0 };
   const lineBand = {
     left: line.left,
     top: line.top,
     right: line.right,
-    bottom: viewportBottom,
+    bottom: viewport.bottom,
   };
-  const edgeLeft = viewportLeft + band;
-  const edgeTop = viewportTop + band;
-  const edgeRight = viewportRight - band;
-  const edgeBottom = viewportBottom - band;
-  const measured = hints.map(({ chip, target, belowTarget = false }) => {
-    const start = chip.getBoundingClientRect();
+  const edgeLeft = viewport.left + band;
+  const edgeTop = viewport.top + band;
+  const edgeRight = viewport.right - band;
+  const edgeBottom = viewport.bottom - band;
+  const measured = faces.map(({ start, target, belowTarget }) => {
     const preferredLeft = belowTarget
       ? target.left + (target.width - start.width) / 2
       : start.left;
@@ -131,20 +163,15 @@ export function spreadHints(
     const canSitRight = rightSeat + start.width <= Math.min(target.right, edgeRight);
     const left =
       line.height && overlaps(first, lineBand) && canSitRight ? rightSeat : first.left;
-    return [chip, movedTo(first, left, first.top), start, belowTarget ? target : null];
+    return [movedTo(first, left, first.top), belowTarget ? target : null];
   });
   const placed = [];
-  for (const [chip, seated, start, ownTarget] of measured) {
-    const barriers = [...fixedBarriers, ...placed].filter(
-      (other) => other.left < seated.right && seated.left < other.right,
+  for (const [seated, ownTarget] of measured) {
+    const barriers = [...fixedBarriers, ...placed].filter((other) =>
+      overlapsAcross(other, seated),
     );
-    if (ownTarget && ownTarget.left < seated.right && seated.left < ownTarget.right)
-      barriers.push(ownTarget);
-    if (
-      lineBand.bottom > lineBand.top &&
-      lineBand.left < seated.right &&
-      seated.left < lineBand.right
-    )
+    if (ownTarget && overlapsAcross(ownTarget, seated)) barriers.push(ownTarget);
+    if (lineBand.bottom > lineBand.top && overlapsAcross(lineBand, seated))
       barriers.push(lineBand);
     const top = nearestOpenTop(
       seated,
@@ -157,12 +184,7 @@ export function spreadHints(
     // A viewport can be physically too small for every face. Keep the preferred clamped
     // seat in that impossible case; ordinary scenes always have an open interval, and
     // the invariant tests exercise collisions at every viewport edge.
-    const box = movedTo(seated, seated.left, top ?? seated.top);
-    const sideShift = box.left - start.left;
-    const shift = box.top - start.top;
-    if (sideShift) chip.style.left = `${parseFloat(chip.style.left) + sideShift}px`;
-    if (shift) chip.style.top = `${parseFloat(chip.style.top) + shift}px`;
-    placed.push(box);
+    placed.push(movedTo(seated, seated.left, top ?? seated.top));
   }
   return placed;
 }

@@ -944,7 +944,10 @@
         font-size: var(--t-5);
       }
 
+      /* A check's verdict stands under its name, so the table is two columns and
+         fits the rail at its narrowest. */
       .release-check-result {
+        display: block;
         font: 650 var(--t-6) / 1.2 var(--sans);
       }
 
@@ -2651,44 +2654,43 @@ minutes since deploy, checkout-v2
               <thead>
                 <tr>
                   <th>Check</th>
-                  <th>Result</th>
                   <th>Observed / required</th>
                 </tr>
               </thead>
               <tbody>
                 <tr id="lp-check-errors">
-                  <th scope="row">Error rate</th>
-                  <td>
+                  <th scope="row">
+                    Error rate
                     <span class="release-check-result" data-status="pass">Pass</span>
-                  </td>
+                  </th>
                   <td><code>0.11%</code> / below <code>0.50%</code></td>
                 </tr>
                 <tr id="lp-check-latency">
-                  <th scope="row">p95 latency</th>
-                  <td>
+                  <th scope="row">
+                    p95 latency
                     <span class="release-check-result" data-status="pass">Pass</span>
-                  </td>
+                  </th>
                   <td><code>184 ms</code> / below <code>300 ms</code></td>
                 </tr>
                 <tr id="lp-check-orders">
-                  <th scope="row">Order parity</th>
-                  <td>
+                  <th scope="row">
+                    Order parity
                     <span class="release-check-result" data-status="pass">Pass</span>
-                  </td>
+                  </th>
                   <td><code>2,000</code> / <code>2,000</code></td>
                 </tr>
                 <tr id="lp-check-finance">
-                  <th scope="row">Finance export</th>
-                  <td>
+                  <th scope="row">
+                    Finance export
                     <span class="release-check-result" data-status="fail">Fail</span>
-                  </td>
+                  </th>
                   <td><code>1,998</code> / <code>1,999</code> rows</td>
                 </tr>
                 <tr id="lp-check-rollback">
-                  <th scope="row">Rollback target</th>
-                  <td>
+                  <th scope="row">
+                    Rollback target
                     <span class="release-check-result" data-status="pass">Pass</span>
-                  </td>
+                  </th>
                   <td>3 batches / zero delta</td>
                 </tr>
               </tbody>

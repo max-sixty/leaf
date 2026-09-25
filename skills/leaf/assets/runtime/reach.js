@@ -1,5 +1,6 @@
 /* Keyboard reachability and continuation paint for scrollable page and shadow content. */
 
+import { sizeObserver } from "./rendering.js";
 import { ANCHOR_NOTE_TAG } from "./anchor-note-view.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
 import { shadowRootsIn } from "./shadow.js";
@@ -197,7 +198,7 @@ export function reachScrollers(root) {
 // to, and a tab stop on it is a press that goes nowhere. The candidate sets keep the
 // pass to a couple of dozen boxes in the corpus. `tabIndex` and the paint attributes move
 // no box, which keeps the pass safe inside syncLayout.
-const reachSizes = new ResizeObserver(() => paintReach());
+const reachSizes = sizeObserver(() => paintReach());
 // A pixel of tolerance, where the stop takes any overflow at all: the stop is owed
 // wherever the keyboard cannot reach something, and a fade drawn for sub-pixel rounding
 // is a promise of more with nothing behind it. scrollLeft follows the inline direction:

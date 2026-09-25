@@ -422,10 +422,11 @@ def swept_overflow(page, viewports) -> list[str]:
     # out for the desktop for a frame under load, and the sweep read that frame.
     for width in sorted({*SWEEP_WIDTHS, *fixed}, reverse=True):
         page.set_viewport_size({"width": width, "height": height})
-        # Two frames, so what a resize sets moving in script (a ResizeObserver, and the
-        # layout that observer's write causes) has run and been laid out.
-        for _ in range(2):
-            wait_for_probe(page, "framePresented", evaluate_probe(page, "requestFrame"))
+        # One rendering turn for the resize to be heard, then the runtime's settled
+        # reading, so what it set moving in script (an observer, the layout that
+        # observer's write causes, and whatever that chains into) has run and been laid out.
+        wait_for_probe(page, "framePresented", evaluate_probe(page, "requestFrame"))
+        wait_for_probe(page, "renderingSettled")
         for key, text in _overflow(
             evaluate_probe(page, "rootOverflow"), evaluate_probe(page, "misplacedBoxes")
         ):

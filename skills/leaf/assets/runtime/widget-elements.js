@@ -36,6 +36,7 @@
    caller names that apparatus, which is the container's to press. The answer otherwise
    fails closed: declining one ambiguous container gesture is safer than recording a
    choice while the user operates nested evidence. */
+import { sizeObserver } from "./rendering.js";
 import { tagsDeclaring } from "./registry.js";
 import { paintKeys } from "./keyboard/scopes.js";
 import { shownBox } from "./geometry.js";
@@ -181,7 +182,7 @@ const drawn = (el) => {
   const box = shownBox(el);
   return Boolean(box.width || box.height);
 };
-const unmeasured = new ResizeObserver((entries) => {
+const unmeasured = sizeObserver((entries) => {
   const taking = [];
   for (const { target } of entries) {
     if (!drawn(target)) continue;

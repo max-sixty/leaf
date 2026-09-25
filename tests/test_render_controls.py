@@ -72,7 +72,6 @@ from render_harness import (
     EXAMPLES,
     FEATURE_GALLERY,
     LONG_PAGE,
-    RENDERED,
     REPLAYED_PAGE,
     REPLY_HOST_PAGE,
     SHELL_BOX,
@@ -87,6 +86,7 @@ from render_harness import (
     open_versions,
     opened_tab,
     panel_settled,
+    rendered,
     resized,
     round_trip,
     scroll_settled,
@@ -2188,7 +2188,7 @@ def test_coarse_pointer_resize_reach_stays_reachable_without_trapping_scroll(
         x = round((edge["left"] + edge["right"]) / 2)
         y = round((edge["top"] + edge["bottom"]) / 2)
         _touch_drag(cdp, x, y, dx=dx, steps=1)
-        page.evaluate("() => new Promise(requestAnimationFrame)")
+        rendered(page)
 
     # At the product's 320px floor the comment sheet has no possible width to move
     # through, so it offers no inert separator. A user standing on the grip lands on
@@ -3891,7 +3891,7 @@ def test_threads_covering_a_page_holds_while_its_lock_takes_the_scrollbar(
     readings = []
     for _ in range(4):
         page.evaluate("() => dispatchEvent(new Event('resize'))")
-        page.evaluate(RENDERED)
+        rendered(page)
         readings.append(
             page.evaluate(
                 """() => ({
@@ -4501,7 +4501,7 @@ def test_a_covering_sheet_cannot_move_the_background_shortcut_bar(browser, serve
     field = page.locator(".lf-general textarea")
     field.click()
     field.fill("One line")
-    page.evaluate(RENDERED)
+    rendered(page)
 
     def boxes():
         return page.evaluate("""() => {
@@ -4537,7 +4537,7 @@ def test_a_covering_sheet_cannot_move_the_background_shortcut_bar(browser, serve
     ), one_line
 
     field.fill("One line\nSecond line\nThird line")
-    page.evaluate(RENDERED)
+    rendered(page)
     multiline = boxes()
     assert multiline["foot"]["height"] > one_line["foot"]["height"], (
         f"the composer did not grow: {one_line}, {multiline}"
@@ -4554,7 +4554,7 @@ def test_a_covering_sheet_cannot_move_the_background_shortcut_bar(browser, serve
     page.locator(".lf-threads").focus()
     for _ in range(6):
         page.keyboard.press("t")
-        page.evaluate(RENDERED)
+        rendered(page)
     expect(page.locator(".lf-bottom-status")).to_contain_text("Thread 6 of 6")
     walked = boxes()
     assert walked["listPad"] >= 20 and walked["listScrollPad"] >= 20, walked
@@ -5188,7 +5188,7 @@ def test_the_ring_reading_sees_a_neighbour_paint_over_a_ring_drawn_inside_its_bo
     heading.focus()
     page.keyboard.press("Tab")
     page.keyboard.press("Shift+Tab")
-    page.evaluate(RENDERED)
+    rendered(page)
 
     inset = page.evaluate(
         """() => {
@@ -5615,7 +5615,7 @@ def test_the_stop_reading_names_a_control_with_nothing_drawn_on_it(browser, serv
             break
     else:
         raise AssertionError("Tab never reached the banner's comments button")
-    page.evaluate(RENDERED)
+    rendered(page)
 
     assert page.evaluate(SEEN_STOP) is None, (
         "a banner button wearing the layer's own ring reads as a stop nothing draws, so "
@@ -5630,7 +5630,7 @@ def test_the_stop_reading_names_a_control_with_nothing_drawn_on_it(browser, serv
           + ' box-shadow: none !important; }';
         document.head.append(style);
     }""")
-    page.evaluate(RENDERED)
+    rendered(page)
     lost = page.evaluate(SEEN_STOP)
     assert lost and "lf-threads-toggle" in lost, (
         "the ring was taken off a focused control and the reading still called it seen "
@@ -5848,7 +5848,7 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
                 control.click()
             for key in keys:
                 page.keyboard.press(key)
-                page.evaluate(RENDERED)
+                rendered(page)
             page_at_rest(page)
             surface, offers = RING_SCOPE_SURFACE.get(scope, (None, None))
             if surface and (offers is None or offered(page, offers)):
@@ -5884,7 +5884,7 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
                           await elements.reveal(node, () => true);
                         }"""
                     )
-                    page.evaluate(RENDERED)
+                    rendered(page)
                     open_containing_thread(target)
                     page.keyboard.press("Tab")
                     target.focus(timeout=5_000)

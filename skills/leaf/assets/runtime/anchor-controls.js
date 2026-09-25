@@ -8,6 +8,7 @@
  * only through the constructor.
  */
 
+import { nextRender } from "./rendering.js";
 import { sameAnchor } from "./anchor-coordinate.js";
 import { createAnchorNoteProjection } from "./anchor-note-view.js";
 import {
@@ -66,9 +67,7 @@ export function createAnchorControls({
     record.margin?.update({ immediate: true });
     paintKeys();
     if (focus && eventId)
-      requestAnimationFrame(() =>
-        record.margin?.focus(`reaction:${eventId}:remove`, surface),
-      );
+      nextRender(() => record.margin?.focus(`reaction:${eventId}:remove`, surface));
   }
 
   const visualActionAnchor = (anchor) =>

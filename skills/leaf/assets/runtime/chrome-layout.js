@@ -35,6 +35,7 @@
 
 // Application composition supplies feature-local geometry. This owner cannot open
 // auxiliary surfaces, send commands, or reconcile conversation DOM.
+import { sizeObserver } from "./rendering.js";
 import { drawnEdge } from "./drawn-edge.js";
 import { overlaps } from "./geometry.js";
 import { standsBeside } from "./auxiliary-surfaces.js";
@@ -220,7 +221,7 @@ export function createChromeLayout({
   // box, while hover, legend, and action placement defer their work to frames.
   let bodyContentWidth = 0;
   let bodyContentHeight = 0;
-  const layoutSizes = new ResizeObserver((entries) => {
+  const layoutSizes = sizeObserver((entries) => {
     let layoutChanged = false;
     let shellMoved = false;
     let chromeMoved = false;

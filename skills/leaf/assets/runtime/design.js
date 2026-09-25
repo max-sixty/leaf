@@ -1,4 +1,5 @@
 /* This module owns layer-review (design) mode, its targets, and legend geometry. */
+import { cancelRender, nextRender, sizeObserver } from "./rendering.js";
 import { documentPoint, shownRect } from "./geometry.js";
 import { el, WORKS } from "./widget-elements.js";
 import { tabStore } from "./storage.js";
@@ -95,7 +96,7 @@ export function createDesignMode({
   // hundred boxes cannot afford on every scroll frame. So the box set is settled first,
   // every rect is read, and only then is anything placed.
   const legendBoxes = new Map(); // addressable → { box, radius, tagW }
-  const legendSizes = new ResizeObserver(() => pageGeometry.pageShifted());
+  const legendSizes = sizeObserver(() => pageGeometry.pageShifted());
   const legendMoves = new MutationObserver((records) => {
     // The legend's own writes are mutations too, inside the chrome; a repaint that heard
     // itself would never stop.
@@ -107,7 +108,7 @@ export function createDesignMode({
   let legendTagH = 0;
   function queueLegend() {
     if (!designModeOn || legendFrame) return;
-    legendFrame = requestAnimationFrame(() => {
+    legendFrame = nextRender(() => {
       legendFrame = 0;
       paintLegend();
     });
@@ -283,7 +284,7 @@ export function createDesignMode({
   }
 
   function destroy() {
-    if (legendFrame) cancelAnimationFrame(legendFrame);
+    if (legendFrame) cancelRender(legendFrame);
     legendFrame = 0;
     legendSizes.disconnect();
     legendMoves.disconnect();

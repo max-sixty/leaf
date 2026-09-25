@@ -538,8 +538,8 @@ CONTROL_ARCHETYPES = (
         "target": "#stable-choice-a .lf-pick",
     },
     {
-        # Classifying the penultimate card removes the decorative backing card;
-        # the verdict row must keep its place when that extra surface disappears.
+        # Classifying the penultimate card removes the decorative backing card and
+        # grows a verdict pile. The two controls keep their places within their row.
         "name": "swipe-verdict",
         "target": "#stable-swipe .lf-swipe-keep",
     },
@@ -3995,7 +3995,7 @@ def test_a_walk_down_the_asks_tray_stops_clear_of_the_shortcut_bar_text(browser,
     so, because no example ships enough Asks to fill a tray and the walk that would have
     shown it had only ever been made down the other one.
 
-    So the two lists reserve it together (`trayLists`), and this is the half of that the
+    So both lists end above the same band (`--lf-band-h`), and this is the half of that the
     leaves reading could not cover: a fact stated per tray is a fact the second tray
     goes without, and the second tray is the one nobody looks at."""
     page = open_page(browser, serve(MANY_ASKS_PAGE))
@@ -5902,11 +5902,9 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
                               const owner = node.getAttribute(
                                 'data-lf-margin-entry-owner'
                               );
-                              if (owner?.startsWith('suggestion:'))
-                                return owner.slice('suggestion:'.length);
-                              return node.closest('[data-lf-for]')?.getAttribute(
-                                'data-lf-for'
-                              );
+                              return owner?.startsWith('suggestion:')
+                                ? owner.slice('suggestion:'.length)
+                                : null;
                             }"""
                         )
                         assert ask_id, f"{selector} {where} names no ask carrier"

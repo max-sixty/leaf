@@ -73,6 +73,25 @@ from render_harness import (
 pytestmark = pytest.mark.nightly
 
 
+def test_gallery_thread_rows_name_action_in_existing_status(browser, serve):
+    page = open_page(browser, serve(FEATURE_GALLERY))
+    resized(page, 1440, 900)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+
+    asked = page.locator('.lf-thread[data-id="2be2443f0bb6cc49fc86b52f340e6073"]')
+    expect(asked.locator(":scope > .lf-thread-summary .lf-thread-status")).to_have_text(
+        "On you · answer question"
+    )
+    asked.locator(":scope > .lf-thread-summary").focus()
+    asked.locator(":scope > .lf-thread-summary").press("Enter")
+    expect(asked).to_have_attribute("open", "")
+    resolved = page.locator('.lf-thread[data-id="bab3cdfcfb8c02aacbb27da731de947a"]')
+    expect(
+        resolved.locator(":scope > .lf-thread-summary .lf-thread-status")
+    ).to_have_text("Resolved")
+
+
 def focus_panel_thread(thread):
     """Stand on a panel thread through its native disclosure title."""
     title = thread.locator(":scope > .lf-thread-summary")
@@ -2813,6 +2832,8 @@ def test_a_run_of_threads_says_which_part_of_the_page_it_is_about(browser, serve
     expect(quote).to_contain_text("Two people editing one document")
     expect(quote).not_to_contain_text("The merge rule")
     focus_panel_thread(page.locator(f'.lf-thread[data-id="{merge_threads[0]}"]'))
+    # Opening the card can restore the list's position after the click.
+    scroll_settled(page, ".lf-threads")
     gutter = quote.evaluate(
         """label => { const quote = label.closest('.lf-quote');
           const box = quote.getBoundingClientRect();
@@ -3346,7 +3367,7 @@ def test_an_agent_reply_says_when_the_user_owes_an_answer(browser, serve):
     expect(page.locator(".lf-thread")).to_have_count(2)
     expect(
         page.locator(f'.lf-thread[data-id="{asked}"] .lf-thread-status')
-    ).to_have_text("On you")
+    ).to_have_text("On you · answer question")
     expect(
         page.locator(f'.lf-thread[data-id="{answered}"] .lf-thread-status')
     ).to_have_count(0)
@@ -3485,7 +3506,7 @@ def test_a_host_failure_receipt_does_not_read_as_an_answer(browser, serve):
     panel = page.locator(f'.lf-msg[data-mid="{receipt["id"]}"]')
     expect(panel.locator(".lf-msg-failure")).to_have_text("Not answered")
     status = page.locator(f'.lf-thread[data-id="{unanswered["id"]}"] .lf-thread-status')
-    expect(status).to_have_text("Not answered")
+    expect(status).to_have_text("Not answered · resend")
     assert status.evaluate("el => el.scrollWidth <= el.clientWidth"), (
         "the summary clips its failure status"
     )
@@ -3512,7 +3533,7 @@ def test_a_host_failure_receipt_does_not_read_as_an_answer(browser, serve):
     expect(recovery).to_have_text("You (0)")
     expect(recovery).to_have_attribute("aria-pressed", "true")
     held.pop().fulfill(json={"ok": False, "final": True, "error": "Please retry."})
-    expect(status).to_have_text("Not answered")
+    expect(status).to_have_text("Not answered · resend")
     expect(recovery).to_have_text("You (1)")
     expect(recovery).to_be_enabled()
     expect(draft).to_have_value("Try the south pair again.")
@@ -4436,7 +4457,11 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         probe.className = [...scoped]
             .filter(c => !global_.has(c) && !themed.has(c)).join(" ");
         probe.textContent = plain.textContent = "probe";
-        document.getElementById("s").append(plain, probe);
+        // A block after both, so neither twin stands at the section's edge, where the
+        // theme trims a margin whichever classes it wears.
+        const after = document.createElement("p");
+        after.textContent = "after";
+        document.getElementById("s").append(plain, probe, after);
         const cs = el => { const c = getComputedStyle(el), out = {};
                            for (const p of c) out[p] = c.getPropertyValue(p); return out; };
         const a = cs(probe), b = cs(plain);

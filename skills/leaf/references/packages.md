@@ -153,7 +153,13 @@ under `$idioms` in the package's
 A rule that draws a box's inset — padding, border, or tinted field — declares
 `--lf-block-frame: 1` in the same rule. The shared layout uses that declaration to trim child
 margins and bound wide content, and the render gate reports a frame that omits it. The
-runtime exposes declared layout facts as `[data-lf-inline]`, `[data-lf-space]`,
+first or last child may be a transparent wrapper whose own child margin reaches the
+frame. Such a wrapper declares `--lf-passes-block-edge: 1`; each transparent wrapper
+along that edge does the same. A wrapper with its own padding, border, or formatting
+context keeps its interior margins and does not pass the edge. The render gate follows
+transparent wrappers and reports an untrimmed frame edge.
+
+The runtime exposes declared layout facts as `[data-lf-inline]`, `[data-lf-space]`,
 `[data-lf-measure]`, `[data-lf-bound]`, and `[data-lf-exhibit]`; shared selectors read
 those attributes instead of naming widget tags. The registry's `$keys` entries for
 `x-space`, `x-measure`, and `x-bound` say what each declaration requests; none of them

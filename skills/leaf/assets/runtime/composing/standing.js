@@ -22,9 +22,7 @@ import { addressableAt } from "../anchor-resolution.js";
 // keys; this says what a remark made here is about. They agree wherever the user is
 // working the Ask, which is every arrival the Ask walk makes.
 //
-// Below that, the innermost addressable element — the aim's own reading — through `askPlace`, so a
-// control a widget hoisted into the margin speaks for the Ask it points back at rather
-// than for the block it hangs beside.
+// Below that, the innermost addressable element — the aim's own reading.
 //
 // A projected margin control is chrome with an explicit page target, so that target wins
 // before the general chrome fence. The banner, panel, and trays have no such coordinate:
@@ -36,12 +34,7 @@ import { addressableAt } from "../anchor-resolution.js";
 // staged in a shadow tree retargets to its host, and the host is the place in the document
 // both the chrome guard and the element walk want. standingConversation below wants the inner
 // reading, and says so.
-export function createStandingElement({
-  isAskControl,
-  askPlace,
-  standingIn,
-  projectionTarget,
-}) {
+export function createStandingElement({ isAskControl, standingIn, projectionTarget }) {
   return function standingElement() {
     const held = documentFocused();
     if (!held || held === document.body) return null;
@@ -49,6 +42,6 @@ export function createStandingElement({
     if (projected) return projected;
     if (inChrome(held)) return null;
     const working = isAskControl(held) ? standingIn() : null;
-    return working ?? addressableAt(askPlace(held));
+    return working ?? addressableAt(held);
   };
 }

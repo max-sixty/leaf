@@ -70,39 +70,38 @@ def test_the_gate_passes_a_page_that_carries_a_comment(browser, serve):
     the gate knows the difference, one comment on an option is a page nobody can hand over,
     and every page the sweep above renders is a page with no comments on it.
 
-    The pass hunting words drawn on other words has to know the same difference, and
-    knows it as a float the runtime hangs over the page. The resting control is drawn
-    nowhere twice over — transparent, and clipped to the pixel it is parked on — and the
-    paint check correctly omits it for either reason. This test takes both away to plant
-    the fault it is about: its characters then fall down the document through the
-    paragraphs under the passage, painted. Holding the runtime float out is the only
-    thing keeping the reading clean, so it is taken twice: once as the gate runs it, and
-    once with the hold defeated, where it has to report.
+    The pass hunting words drawn on other words has to know the same difference,
+    and knows it as a float the runtime hangs over the page. The resting control
+    is transparent and clipped to one pixel, so this test gives it paint and
+    places it over prose. The normal reading holds the float out; the reading
+    with that hold disabled must report the planted overlap.
 
     The hold is the float predicate rather than a class named in the skip list, which is
     what the second reading has to reach for now: the line is out-of-flow chrome like a
     suggestion's controls, so one rule answers for both and a name beside it would be the
     same guarantee kept twice."""
-    # The last option, because the unheld half below needs the line to land on words:
-    # the note is the holder's last child, so its characters fall from the end of the
-    # option's own prose, and from a mid-group option they fall through the whitespace
-    # tails of the shorter cells below and are spent before any paragraph. From the
-    # group's last option they cross straight into #p, whose full-width lines have a
-    # word at any x the option's prose can end on.
     url = serve(INLINE_PAGE, anchored=[("opt-b", "quietly puts one back")])
     page = open_page(browser, url)
     # Vacuous otherwise: the gate has to be looking at a page that has the line on it.
     page.wait_for_function(
         "() => document.querySelectorAll('.lf-mark-note').length === 1"
     )
-    # Give the real runtime control paint so this tests the floating exemption rather
-    # than passing because the ordinary resting state is not drawn. Both halves of "not
-    # drawn": the transparency, and the one-pixel box whose hidden overflow keeps the
-    # characters off the screen however opaque they are.
-    # The one-pixel box stays: it is what turns the label into a column of characters
-    # falling through the paragraphs, which is the shape of the fault.
+    # Plant the floating label on its option's words. Its resting one-pixel,
+    # transparent box cannot paint an overlap, and relying on its incidental position
+    # makes this test depend on the page's current spacing.
     page.locator(".lf-mark-note").evaluate(
-        "note => Object.assign(note.style, {opacity: '1', overflow: 'visible'})"
+        """note => {
+          const text = document.querySelector('#opt-b strong').firstChild;
+          const range = document.createRange();
+          range.selectNodeContents(text);
+          const word = range.getClientRects()[0];
+          Object.assign(note.style, {
+            width: 'auto', height: 'auto', whiteSpace: 'nowrap',
+            opacity: '1', overflow: 'visible'
+          });
+          const resting = note.getBoundingClientRect();
+          note.style.transform = `translate(${word.left - resting.left}px, ${word.top - resting.top}px)`;
+        }"""
     )
     held = render_checks_model.evaluate_probe(page, "coveredWords")
     reported = render_checks_model.evaluate_probe(
@@ -112,7 +111,7 @@ def test_the_gate_passes_a_page_that_carries_a_comment(browser, serve):
     assert render_gate_model.render_version(browser, url).failures == []
     assert held == []
     assert any("1 comment" in found for found in reported), (
-        "the line falls on nobody, so a gate that never looked would pass this too"
+        "the planted label covers no words, so a gate that never looked would pass too"
     )
 
 

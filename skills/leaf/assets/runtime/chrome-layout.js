@@ -38,7 +38,7 @@
 // auxiliary surfaces, send commands, or reconcile conversation DOM.
 import { sizeObserver } from "./rendering.js";
 import { drawnEdge } from "./drawn-edge.js";
-import { overlaps } from "./geometry.js";
+import { overlaps, overlapsAcross } from "./rect.js";
 import { standsBeside } from "./auxiliary-surfaces.js";
 
 // The width the panel stands at for a user who has not moved its edge. 420 since
@@ -72,7 +72,6 @@ export function createChromeLayout({
   syncAuxiliarySurfaces,
   syncReactLayout,
   refreshFab,
-  dockSeats,
   pageShifted,
   repaint,
   repaintPage,
@@ -87,8 +86,6 @@ export function createChromeLayout({
   function syncLayout() {
     scheduleThreadPreviewPosition();
     const panelLive = panelIsOpen() && !panelCovers();
-    const overlapsAcross = (one, other) =>
-      one.left < other.right && other.left < one.right;
     const foot = panelFoot.getBoundingClientRect();
     // Over a live page, the thread panel owns the right of the window all the way to its
     // foot. Cap the line's room at its edge rather than letting a long hint cross into it.
@@ -142,7 +139,6 @@ export function createChromeLayout({
     threadsBox.style.paddingBottom = listClear;
     threadsBox.style.scrollPaddingBottom = listClear;
     syncFloats();
-    dockSeats();
   }
   // The response bar lives in the viewport plane, and syncLayout is where its usable
   // reading boundary changes shape — a resize moves every rect. Re-place it against the
@@ -162,8 +158,8 @@ export function createChromeLayout({
   // no gesture to repaint from.
   //
   // A height-only body resize is repaint-only. An image or font can move a later target
-  // without resizing that target or mutating the DOM, while sending that ordinary page
-  // growth through syncLayout would feed it into the writer that reserves flow content.
+  // without resizing that target or mutating the DOM, and that ordinary page growth
+  // changes nothing syncLayout writes.
   // A width change schedules syncLayout and its page repaint in the following animation
   // frame, outside ResizeObserver delivery, so a reservation changing another watched
   // chrome box cannot create an undelivered-notification loop. A height-only change calls

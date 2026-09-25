@@ -34,6 +34,7 @@ import { under, upFrom } from "./shadow.js";
 import { scrollerFor } from "./reading-regions.js";
 import { pageScroller } from "./scrolling.js";
 import { packRows, rowPosture } from "./margin-placement.js";
+import { overlaps } from "./rect.js";
 
 const rows = new Map();
 const GAP = 4;
@@ -61,7 +62,7 @@ const readRailPosture = () => {
   );
 };
 let railReading = null;
-export const railStands = () => {
+const railStands = () => {
   if (railReading === null) {
     railReading = readRailPosture();
     queueMicrotask(() => (railReading = null));
@@ -78,12 +79,6 @@ const labelRect = (name, left, top, label) => ({
     bottom: top + label.height,
   },
 });
-
-const rectsOverlap = (left, right) =>
-  left.left < right.right &&
-  left.right > right.left &&
-  left.top < right.bottom &&
-  left.bottom > right.top;
 
 function placeMarginEntryLabel(control) {
   const label = control.querySelector(":scope > .lf-margin-entry-label");
@@ -124,7 +119,7 @@ function placeMarginEntryLabel(control) {
     candidates.find(
       (candidate) =>
         fits(candidate) &&
-        !blockers.some((blocker) => rectsOverlap(candidate.rect, blocker)),
+        !blockers.some((blocker) => overlaps(candidate.rect, blocker)),
     ) ??
     candidates.find(fits) ??
     candidates[0];
@@ -307,10 +302,7 @@ export function registerMarginRow(row, options = {}) {
   rows.set(row, options);
   observeLayout();
   scheduleMarginLayout();
-  return () => unregisterMarginRow(row);
 }
-
-export const updateMarginRow = registerMarginRow;
 
 export function unregisterMarginRow(row) {
   rows.delete(row);

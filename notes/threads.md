@@ -40,6 +40,16 @@ older work, a healthy external wait, interrupted progress, and an unfinished dra
 Exercise direct gestures and keyboard routes in light/dark themes and wide/narrow
 layouts. Keep these independent slices; retire each plan when its contract lands.
 
+For compact Thread rows, evaluate three separate facts: whose move is owed, what
+delivery or work evidence exists for that move, and which unanswered input or Ask
+establishes it. A later agent update must not replace an unanswered question;
+an old user message must not remain the next move after it is answered. Test prose
+questions, frozen widget Asks, failed responses, locally pending sends, and resolved
+Threads in the same panel. Score the collapsed row by whether a reader can name the
+next actor and kind of action without opening it, then open it to check the exact
+question or control is reachable. A time or latest-message label is only recency
+evidence, not a next move.
+
 ## Later: long-thread reading
 
 See how agent-written summary checkpoints work in real long discussions before

@@ -1,5 +1,6 @@
 /* Leaf runtime boot and application composition root. */
 import "./vendor/browser-runtime.js";
+import "./runtime/interaction-log.js";
 // Restored panels and the first keyboard gesture share the ordinary synchronous
 // control routes, so their controls must be upgraded before those routes mount.
 import "./vendor/webawesome-chrome.js";
@@ -12,6 +13,7 @@ import { chromeSheet, marksSheet } from "./runtime/stylesheets.js";
 import { reportPageError, uploadMedia } from "./runtime/layer-client.js";
 import { upgradeWidgets } from "./runtime/widget-loader.js";
 import {
+  markPagePresented,
   pageArrived,
   settlePageInterface,
   PAGE_INTERFACE,
@@ -417,7 +419,6 @@ app = mountApplication({
     openPageMap: (...args) => pageMapDialog.openPageMap(...args),
     pageMapDialogContains: (...args) => pageMapDialog.pageMapDialogContains(...args),
     renderPageMapDialog: (...args) => pageMapDialog.renderPageMapDialog(...args),
-    standsWith: (...args) => asks.standsWith(...args),
     revealConversation,
     goToAsk: (...args) => asks.goToAsk(...args),
   },
@@ -492,7 +493,6 @@ asks = createAskView({
 
 const standingElement = createStandingElement({
   isAskControl: (node) => node?.matches?.(ASK_CONTROL),
-  askPlace: asks.askPlace,
   standingIn: asks.standingIn,
   projectionTarget: app.margin.marginTargetAt,
 });
@@ -637,7 +637,6 @@ layout = createChromeLayout({
   syncAuxiliarySurfaces: auxiliarySurfaces.sync,
   syncReactLayout: reactions.syncReactLayout,
   refreshFab: responseSurface.refreshFab,
-  dockSeats: anchorControls.dockSeats,
   pageShifted: pageGeometry.pageShifted,
   repaint,
   repaintPage,
@@ -877,7 +876,7 @@ async function presentPage() {
     setAnchoringReady(false);
     throw error;
   }
-  document.body.setAttribute(PAGE_PAINT_ATTRIBUTE.presented, "1");
+  markPagePresented();
   anchorControls.publishVisualActions();
   if (offlineInteractive) {
     landFragment();

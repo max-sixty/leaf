@@ -91,12 +91,6 @@ has tried; settle that before building it.
   narrow-width rule; a selection-and-detail component whose phone form shows one side
   at a time; canvas regions, whose reading position is two-dimensional; slides as a
   presentation of `lf-tabs`.
-- **Trim a heading's margin at the top of a page when a block wraps it.** A page
-  whose first block is an `lf-ask` opens 48px lower than one that starts with its
-  own heading: the Ask's `h2` margin collapses through the boxless `lf-ask` to
-  `main`'s edge, and the `--lf-block-frame` trim reaches only `main`'s direct
-  children. Inside a specimen, whose `main` pads only 24px, it leaves 72px of blank
-  space above the question.
 - **Place the comment composer correctly on a page that sets a margin on `html`.**
   With `html { margin-left: 40px }` the floating composer lands 40px left of its lane
   and overlaps the element it comments on, on any page wide enough to place it

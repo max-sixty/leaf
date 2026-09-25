@@ -498,9 +498,11 @@ html:not([data-lf-live]) { --lf-banner-h: 0px; --lf-band-h: 0px; }
  * margins on rather than reserving room itself — a boxless one, whose margin the rule
  * has nowhere to land, and a bare wrapper, through which a grandchild's margin collapses
  * to the frame's edge unchanged. The answer is the same sentence one level in: that box
- * declares the frame too, which is why `.facts` does. Reaching a level further from out
- * here is the fix that suggests itself and is worse, since the same selector over a
- * padded grandchild closes up that box's own first line. `version check --render` is what
+ * declares the frame too, which is why `.facts` does. The default package's boxless
+ * `lf-ask` instead trims its first heading only when the Ask itself is the first
+ * authored child of a frame. Reaching a level further from out here is the fix that
+ * suggests itself and is worse, since the same selector over a padded grandchild closes
+ * up that box's own first line. `version check --render` is what
  * says when a box hasn't declared (TRAPPED_MARGINS), because a trapped margin renders
  * perfectly and reads as a number somebody chose. */
 @container style(--lf-block-frame: 1) {

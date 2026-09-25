@@ -883,6 +883,69 @@ def test_an_ask_leads_with_one_authored_heading(browser, serve, ask, group, ques
     )
 
 
+def test_a_first_ask_starts_at_the_pages_content_edge_even_in_a_live_specimen(
+    browser, serve
+):
+    """An Ask's heading begins at the edge of the frame that holds it."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "First Ask",
+                """<lf-ask id="page-ask"><h2>Choose the route</h2>
+<lf-options id="page-options" choose><lf-option id="page-route">Route A</lf-option></lf-options>
+</lf-ask>
+<p id="between-asks">Context before another question.</p>
+<lf-ask id="later-ask"><h2>Choose the backup</h2>
+  <lf-options id="later-options" choose><lf-option id="later-route">Route B</lf-option></lf-options>
+</lf-ask>
+<div id="own-frame" style="padding: 24px; border: 1px solid; --lf-block-frame: 1">
+  <lf-ask id="framed-ask"><h2>Choose the route</h2>
+    <lf-options id="framed-options" choose><lf-option id="framed-route">Route A</lf-option></lf-options>
+  </lf-ask>
+</div>
+<lf-specimen id="sample" label="a first Ask">
+  <template id="sample-page" data-specimen>
+    <lf-ask id="sample-ask"><h2>Choose the route</h2>
+      <lf-options id="sample-options" choose><lf-option id="sample-route">Route A</lf-option></lf-options>
+    </lf-ask>
+  </template>
+</lf-specimen>""",
+            )
+        ),
+    )
+
+    for root in (page, page.frame_locator("#sample iframe")):
+        gap = root.locator("main").evaluate(
+            """main => {
+                const heading = main.querySelector('lf-ask > h2');
+                return heading.getBoundingClientRect().top
+                  - main.getBoundingClientRect().top
+                  - parseFloat(getComputedStyle(main).paddingTop);
+            }"""
+        )
+        assert abs(gap) < 1, f"the first Ask leaves {gap}px above its question"
+
+    framed_gap = page.locator("#own-frame").evaluate(
+        """frame => {
+            const heading = frame.querySelector('lf-ask > h2');
+            const style = getComputedStyle(frame);
+            return heading.getBoundingClientRect().top
+              - frame.getBoundingClientRect().top
+              - parseFloat(style.borderTopWidth)
+              - parseFloat(style.paddingTop);
+        }"""
+    )
+    assert abs(framed_gap) < 1, f"a framed Ask leaves {framed_gap}px above its question"
+    later_gap = page.locator("#later-ask > h2").evaluate(
+        """heading => heading.getBoundingClientRect().top
+          - document.querySelector('#between-asks').getBoundingClientRect().bottom"""
+    )
+    assert abs(later_gap - 48) < 1, (
+        f"an Ask later in the page keeps {later_gap}px rather than 48px above its question"
+    )
+
+
 @pytest.mark.parametrize("group", ["cards", "rows"])
 def test_joined_option_cells_share_edges_and_text_column(browser, serve, group):
     """Read over the joined option cells and the full-width Done control.

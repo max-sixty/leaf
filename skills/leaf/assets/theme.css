@@ -1410,6 +1410,42 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
                         background: var(--accent); color: var(--card); font-size: 12px;
                         font-weight: 600; display: grid; place-items: center; }
 
+/* A schematic drawing the page makes itself: every mark takes a theme token, so the
+   figure follows the palette as the prose does, which an SVG loaded as an image cannot.
+   Sizes are in the drawing's own units and scale with its viewBox. One without a width
+   of its own fills its figure; a thumbnail states one.
+
+   TODO: revisit whether this set is too specific. It ships as taken from one page's
+   drawings of Leaf's own layout, less the marks only that subject used (its rail, pins
+   and suggestion tints). If later pages leave most of it unused, or keep adding local
+   classes beside it, trim it to the text defaults and let each page draw its own. */
+svg.drawing { display: block; height: auto; font-family: var(--sans); font-size: 11px; }
+svg.drawing:not([width]) { width: 100%; }
+svg.drawing text { fill: var(--muted); }
+svg.drawing .strong { fill: var(--ink); font-weight: 600; font-size: 12px; }
+svg.drawing .small { font-size: 10px; }
+svg.drawing .mono { font-family: var(--mono); font-size: 10.5px; fill: var(--ink-2); }
+svg.drawing .frame { fill: var(--paper); stroke: var(--border-2); }
+svg.drawing .frame-head { fill: color-mix(in srgb, var(--ink) 7%, transparent); }
+svg.drawing .box { fill: var(--card); stroke: var(--border-2); }
+svg.drawing .box.hot { fill: color-mix(in srgb, var(--accent) 9%, var(--card));
+  stroke: var(--accent); }
+svg.drawing .line { fill: color-mix(in srgb, var(--ink) 20%, transparent); }
+svg.drawing .line.soft { fill: color-mix(in srgb, var(--ink) 11%, transparent); }
+svg.drawing .highlight { fill: color-mix(in srgb, var(--accent) 24%, transparent); }
+svg.drawing .ghost { fill: none; stroke: var(--muted-2); stroke-dasharray: 3 3; }
+svg.drawing .guide { fill: none; stroke: var(--accent); stroke-opacity: .5;
+  stroke-dasharray: 2 3; }
+svg.drawing .dim { fill: none; stroke: var(--ink-2); }
+svg.drawing .arrow { fill: none; stroke: var(--muted); stroke-width: 1.2; }
+svg.drawing .tip { fill: var(--muted); }
+svg.drawing .mark, svg.drawing .tip.hot { fill: var(--accent); }
+svg.drawing .glyph { fill: var(--paper); font-size: 9px; font-weight: 700;
+  text-anchor: middle; dominant-baseline: central; }
+svg.drawing .ok { fill: var(--ok); }
+svg.drawing .warn { fill: var(--warn); }
+svg.drawing .danger { fill: var(--danger); }
+
 @media screen {
   html:root {
     /* :not([hidden]), because a caller may take the box behind a collapse (a settled

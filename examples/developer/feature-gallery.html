@@ -982,6 +982,72 @@ gallery/
           </lf-tabs>
         </section>
 
+        <section id="bg-drawing">
+          <p class="eyebrow">svg.drawing</p>
+          <h3>
+            <strong>Drawing</strong
+            ><span class="bg-feature-detail">: a schematic in theme colours</span>
+          </h3>
+          <p id="bg-drawing-guide">
+            Two states of a sample page drawn alike in one frame. Switch the colour
+            scheme: every mark follows it.
+          </p>
+          <figure id="bg-drawing-figure" data-width="wide">
+            <svg
+              class="drawing"
+              viewBox="0 0 560 150"
+              role="img"
+              aria-labelledby="bg-drawing-title"
+            >
+              <title id="bg-drawing-title">
+                A note moves from the column into the right margin
+              </title>
+              <defs>
+                <marker
+                  id="bg-drawing-tip"
+                  viewBox="0 0 8 8"
+                  refX="7"
+                  refY="4"
+                  markerWidth="8"
+                  markerHeight="8"
+                  orient="auto"
+                >
+                  <path class="tip" d="M0 0 8 4 0 8z" />
+                </marker>
+              </defs>
+              <text class="strong" x="14" y="16">Before</text>
+              <rect class="frame" x="4" y="24" width="240" height="118" rx="6" />
+              <rect class="frame-head" x="4" y="24" width="240" height="14" rx="6" />
+              <rect class="line" x="24" y="52" width="160" height="6" rx="3" />
+              <rect class="line soft" x="24" y="64" width="140" height="6" rx="3" />
+              <rect class="box hot" x="24" y="80" width="160" height="22" rx="3" />
+              <text class="small" x="32" y="94">note</text>
+              <rect class="line soft" x="24" y="112" width="150" height="6" rx="3" />
+              <path class="arrow" d="M262 83H300" marker-end="url(#bg-drawing-tip)" />
+              <text class="strong" x="326" y="16">After</text>
+              <rect class="frame" x="316" y="24" width="240" height="118" rx="6" />
+              <rect class="frame-head" x="316" y="24" width="240" height="14" rx="6" />
+              <rect class="line" x="336" y="52" width="140" height="6" rx="3" />
+              <rect class="line soft" x="336" y="64" width="120" height="6" rx="3" />
+              <rect class="ghost" x="336" y="80" width="140" height="22" rx="3" />
+              <rect class="box hot" x="488" y="52" width="56" height="30" rx="3" />
+              <text class="small" x="496" y="70">note</text>
+              <line class="guide" x1="482" y1="46" x2="482" y2="134" />
+              <circle class="mark" cx="336" cy="120" r="7" />
+              <text class="glyph" x="336" y="120">1</text>
+              <circle class="ok" cx="356" cy="120" r="4" />
+              <circle class="warn" cx="370" cy="120" r="4" />
+              <circle class="danger" cx="384" cy="120" r="4" />
+              <rect class="highlight" x="396" y="116" width="40" height="8" rx="2" />
+              <line class="dim" x1="488" y1="92" x2="544" y2="92" />
+              <text class="mono" x="500" y="106">96px</text>
+            </svg>
+            <figcaption>
+              The margin exists only above 1152px; the drawing shows the wide case.
+            </figcaption>
+          </figure>
+        </section>
+
         <section id="bg-quoted-and-visual">
           <p class="eyebrow bg-feature-elements">
             lf-specimen · lf-shot · lf-options · lf-option

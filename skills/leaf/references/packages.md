@@ -457,6 +457,14 @@ surviving key. Keep text fields, history, and other mechanical editing state in 
 widget. Publish only action and status records to the margin, with explicit `element` or
 `entries` relations when a disclosure owns another surface or entry.
 
+A contribution stands in its target's cluster wherever that cluster stands: in the rail
+beside a column page, or as a pin over the page at the top-right of the target's block,
+where a pin's cluster unfolds leftward over the block. Leaf inserts nothing into the
+page's content for it, so its controls come after the page's content in the tab order;
+the margin's own keyboard routes, `t`, and the Page Map reach them from the target.
+Nothing about the contribution changes with the posture, and a package never places or
+sizes its controls itself.
+
 ### Following a reference
 
 A module reaches another widget through an attribute its entry declares in `x-refers`

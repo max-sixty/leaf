@@ -1217,7 +1217,7 @@ def test_the_interaction_gallery_drives_real_widgets(serve, browser):
         """controls => {
                 const cluster = controls.closest('.lf-margin-cluster');
                 const box = controls.getBoundingClientRect();
-                return !cluster.classList.contains('lf-docked')
+                return cluster.dataset.lfPlace === 'rail'
                     && box.left >= 0 && box.right <= innerWidth;
             }"""
     )

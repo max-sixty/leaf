@@ -68,6 +68,7 @@ from render_harness import (
     hold_selection,
     holding,
     leaf_page,
+    margins_laid_out,
     navigate,
     open_page,
     open_versions,
@@ -406,19 +407,24 @@ def test_a_pane_comment_stays_in_its_reading_region(browser, serve):
     page = open_page(browser, url)
     cluster = page.locator('[data-lf-margin-for="left-start"].lf-margin-cluster')
     expect(cluster).to_have_count(1)
-    expect(cluster).to_have_class(re.compile(r"\blf-docked\b"))
+    margins_laid_out(page)
+    # A pin in the pane's own lane, standing inside the pane's body and nothing of it in
+    # the pane beside it. The page's content holds none of the margin.
+    expect(cluster).to_have_attribute("data-lf-place", "pin")
     placement = cluster.evaluate(
         """el => ({
-          inOwner: document.querySelector('#left-reading > :not(header, footer)').contains(el),
-          inSibling: document.querySelector('#right-reading').contains(el),
+          inLane: Boolean(el.closest('.lf-margin-lane')),
+          inPage: Boolean(el.closest('main')),
           cluster: el.getBoundingClientRect().toJSON(),
           body: document.querySelector('#left-reading > :not(header, footer)')
             .getBoundingClientRect().toJSON(),
+          sibling: document.querySelector('#right-reading').getBoundingClientRect().toJSON(),
         })"""
     )
-    assert placement["inOwner"] and not placement["inSibling"], placement
+    assert placement["inLane"] and not placement["inPage"], placement
     assert placement["cluster"]["left"] >= placement["body"]["left"], placement
-    assert placement["cluster"]["right"] <= placement["body"]["right"], placement
+    assert placement["cluster"]["right"] <= placement["body"]["right"] + 6, placement
+    assert placement["cluster"]["right"] <= placement["sibling"]["left"], placement
 
     page.locator("#left-start .lf-mark-note").click()
     preview = page.locator(".lf-margin-preview")
@@ -2756,8 +2762,12 @@ def test_the_thread_walk_stays_inline_until_threads_is_opened(browser, serve):
     )
     assert position_is_front(), "the margin thread painted over its walk position"
 
+    # The rail falling leaves the card up beside the marker's pin; the walk goes on from
+    # there once the user has let the thread go.
     resized(page, 600, 844)
-    page.keyboard.press("Escape")
+    expect(page.locator(".lf-margin-preview")).to_be_visible()
+    page.keyboard.press("Escape")  # onto the passage, the card beside it
+    page.keyboard.press("Escape")  # letting go of the passage takes the card
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
     page.keyboard.press("t")
     expect(first).to_be_focused()

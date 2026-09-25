@@ -93,6 +93,7 @@ const PAGE_COMMANDS = [
   "navigation.go-to.open",
   "draw.mode.enter",
   "design.mode.enter",
+  "annotations.toggle",
   // The reference's own binding. Its place here is nominal: renderShortcutBar gives it the
   // permanent More control instead of spending a hint slot on it.
   COMMAND_REFERENCE,

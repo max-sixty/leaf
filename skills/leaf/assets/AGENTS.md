@@ -61,7 +61,7 @@ relative to `runtime/` unless stated otherwise.
 | Comment capture and entry | `composing/`, `drafts.js`, `media.js` |
 | Threads and reply surfaces | `conversation/`, `thread-panel.js` |
 | Margin inventory, controls, and Page Map | `margin-entries.js`, `margin-entry-model.js`, `margin-model.js`, `margin-map-model.js`, `margin-projection.js`, `margin-cluster-view.js`, `page-map-dialog.js` |
-| Margin placement | `margin-layout.js`, `thread-card-geometry.js` |
+| Margin placement | `margin-layout.js`, `margin-placement.js`, `thread-card-geometry.js` |
 | Passage reading and target identity | `passages.js`, `text-alignment.js`, `anchor-coordinate.js`, `target-references.js`, `resolved-target.js`, `anchor-resolution.js` |
 | Anchor paint, controls, and travel | `anchor-paint.js`, `anchor-note-view.js`, `anchor-controls.js`, `anchor-travel.js`, `target-paint.js`, `visual-parts.js`, `indication.js` |
 | Banner, approvals, and the row, menu, and gesture control seats | `banner.js`, `banner-status-view.js`, `banner-approval.js`, `banner-shelf.js` |
@@ -157,7 +157,7 @@ Each mutable fact has one writer:
 | the draft a hidden composer can be brought back to | the stored composer records, narrowed to those whose passage this document still holds | `keptDraft`, read by the `g D` destination and by the notice `showComposer` writes when a box holding words goes down |
 | auxiliary-surface selection | the auxiliary-surface owner's one registered key | `select` closes the previous surface before opening the next; `restore` reserves its room and `present` completes state-dependent arrival |
 | the narrowing and order of the thread list | the user's find words, lifecycle, scope, subject, and detached-placement facets, and Page or Recent order | `renarrow`, `revealThread`, and `widen`; neither of the last two changes the order |
-| how much of a scroller's top a pinned cover takes | the tallest declared cover's rendered box | `declareCoverRoom` (`geometry.js`) observes the covers and writes the property a `scroll-padding` or `scroll-margin` reads: the thread list's run headings as `--lf-head-room` on the list (`renderThreads`), each `lf-diff` file header on its file, a root `lf-tabs` strip as `--lf-root-tab-clear` on the document |
+| how much of a scroller's top a sticky cover takes | the tallest declared cover's rendered box | `declareCoverRoom` (`geometry.js`) observes the covers and writes the property a `scroll-padding` or `scroll-margin` reads: the thread list's run headings as `--lf-head-room` on the list (`renderThreads`), each `lf-diff` file header on its file, a root `lf-tabs` strip as `--lf-root-tab-clear` on the document |
 | a nested scroller's viewport position through a re-render | one reference node in the scroller's visible band, handed across to whatever the render puts under its identity | `user-place.js`'s place hold, taken by whatever re-renders the scroller: the thread list's `renderThreads` (generated presentation, receipt updates, provisional work, resolution folds) and `holdThroughDisclosure`, the Page Map's `renderSheet`, and the margin card's `buildThreadCard` for the same thread; a package takes it through the widget API. The document's scroller takes none: native anchoring holds it |
 | where the thread holding the focus stands in the list | the band the list declares landable through `scroll-padding` | `threadsBox`'s `focusin`, and its press through `pointerdown`/`pointerup`; `stepThread` for a key press that moves no focus, `landIn` for the box it puts the user in, `placeThreadEdge` for an explicit edge placement, and `showThread` for a deliberate arrival. A press's correction is instant, because the click that follows it in the same gesture writes this same scroll and a write cancels an animation instead of superseding it (`landing.js`, at `land`) |
 | whether the margin card shows, and which target's threads | the user's standing target: focus on the target or inside it, its margin cluster, or the card | `margin-projection.js`'s `followStanding` on focus arrival, the standing scope's `release` (`focus.js`), `pressAway` for a press outside the card, its target, and its cluster, and the explicit opens (`t`, a marker, a mark); with Threads open, `followStanding` expands the target's thread in the list instead (`accompanyThread`, `conversation/landing.js`) |
@@ -378,7 +378,9 @@ occupancy. Packages declare their space needs and arrange content within the all
 authors choose the reading sequence and evidence. Width demand is independent of a
 widget's internal drawing layout. Compact navigation must not reserve a full sidebar
 when its presentation no longer needs one, and a free side may use room the other side
-cannot take. Keep annotation access and visible residents clear of expanding content.
+cannot take. Nothing Leaf draws at run time moves the page's content: a margin row
+stands in the rail a column page reserves, or over the page as a pin at its target's
+top-right, and expanding content keeps the allocation its own declaration gave it.
 
 Ordinary document content grows in flow. A bounded inspection object may scroll inside
 that document, with native scroll chaining into the document at its boundary, including

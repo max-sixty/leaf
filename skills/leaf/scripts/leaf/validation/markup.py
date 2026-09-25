@@ -7,6 +7,7 @@ from leaf.schema import MEDIA_DIR
 from leaf.structure import (
     AUTHORED_ALLOCATIONS,
     HEADING_TAGS,
+    PAGE_ALLOCATIONS,
     SECTIONING_TAGS,
     SourceDocument,
     links_with_rel,
@@ -252,12 +253,18 @@ def page_boundary_errors(parser: SourceDocument) -> list:
 
 
 def authored_allocation_errors(parser: SourceDocument) -> list:
-    """Authored allocations use the layer's named values."""
+    """Authored allocations use the layer's named values, and a page's own allocation
+    stands on its `main`."""
     return [
         f"{at(item, item['attr'] + '=' + repr(item['value']))} has an invalid value; "
         f"expected one of {', '.join(AUTHORED_ALLOCATIONS[item['attr']])}"
         for item in parser.authored_allocations
         if item["value"] not in AUTHORED_ALLOCATIONS[item["attr"]]
+    ] + [
+        f"{at(item, item['attr'])} belongs on <main>, where it says whether the page "
+        f"keeps a rail"
+        for item in parser.authored_allocations
+        if item["attr"] in PAGE_ALLOCATIONS and item["tag"] != "main"
     ]
 
 

@@ -14,6 +14,7 @@
 import { userStore, tabStore } from "./storage.js";
 import { AUXILIARY_SURFACE_KEY } from "./auxiliary-surfaces.js";
 import { DESIGN_MODE_KEY } from "./design-readings.js";
+import { ANNOTATIONS_KEY, setAnnotationsHidden } from "./annotation-layer.js";
 
 export const USER_VIEW_RESTORE_CASES = [
   {
@@ -37,6 +38,7 @@ export const USER_VIEW_RESTORE_CASES = [
     value: tray,
   })),
   { name: "design mode on", ...tabStore.where(DESIGN_MODE_KEY), value: "1" },
+  { name: "annotations hidden", ...tabStore.where(ANNOTATIONS_KEY), value: "hidden" },
 ];
 
 // The chrome put back the way this user left it, before the page is presented: the
@@ -54,4 +56,5 @@ export function restoreUserView({
   traysEdge.restore();
   restoreAuxiliarySurface();
   if (tabStore.get(DESIGN_MODE_KEY) === "1") setDesignMode(true, { spoken: false });
+  if (tabStore.get(ANNOTATIONS_KEY) === "hidden") setAnnotationsHidden(true);
 }

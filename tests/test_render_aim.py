@@ -107,7 +107,7 @@ AIM_PRESS_CASES = (
     (
         "release-notes",
         next(p for p in EXAMPLES if p.stem == "release-notes"),
-        frozenset({"draft mousedown", "suggestion no-item control"}),
+        frozenset({"draft mousedown", "suggestion margin control"}),
     ),
     (
         "ship-review",
@@ -1278,7 +1278,12 @@ def test_an_aimed_press_does_only_what_the_outline_promised(
         for e in events_model.read_events(serve.page_dir)
         if e["kind"] == "action"
     ]
-    targets = aim_targets(serve.page_dir)
+    # A suggestion's ✓/✗ stands in the margin layer, which is chrome and no aim target,
+    # but a press there is one the page answers, so the sweep takes it as well.
+    targets = (
+        f"{aim_targets(serve.page_dir)}, "
+        ".lf-margin-cluster :is(.lf-sug-accept, .lf-sug-reject)"
+    )
     total = page.locator(targets).count()
     pressed = aimed = 0
     reached_paths = set()
@@ -1331,14 +1336,14 @@ def test_an_aimed_press_does_only_what_the_outline_promised(
         page.keyboard.up("Alt")
         composer = page.locator(".lf-composer")
         bar = page.locator(".lf-fab-bar")
+        if "suggestion control" in target_paths and promised:
+            # A suggestion's ✓ Accept stands in the margin layer over the page, and a
+            # press let through there would send Claude a decision. The aim takes it as
+            # a press on the change it stands by, which the markup reading below holds.
+            reached_paths.add("suggestion margin control")
         if promised is None:
-            if "suggestion control" in target_paths:
-                reached_paths.add("suggestion no-item control")
             # Nothing outlined is nothing to aim at — no item encloses this point — and an
-            # armed press then acts on nothing rather than falling back to the page. A
-            # suggestion's ✓ Accept is where that matters: its row hangs in the page's own
-            # column, outside the element it decides, so nothing is above it to aim at and
-            # a press let through would send Claude a decision.
+            # armed press then acts on nothing rather than falling back to the page.
             expect(bar).to_be_hidden()
             expect(composer).to_be_hidden()
         else:
@@ -2453,9 +2458,8 @@ def test_a_visual_part_mark_follows_its_drawn_svg_shape(browser, serve):
     )
     told(page)
     expect(diamond).to_have_class(re.compile(r"\blf-mark-el\b"))
-    # The comment's margin row stands level with the diagram, which yields its right
-    # growth to it (data-lf-yield) and moves the diamond, so compare the diamond where
-    # it now stands.
+    # The comment's margin row stands on the diagram; nothing Leaf draws moves the
+    # page's content, so the diamond is read where it stands rather than assumed.
     moved = diamond.bounding_box()
     clip = {**clip, "x": math.floor(moved["x"]), "y": math.floor(moved["y"])}
     painted = Image.open(io.BytesIO(page.screenshot(clip=clip))).convert("RGB")

@@ -1532,8 +1532,9 @@ def test_a_drawing_stands_on_the_columns_axis_until_it_needs_the_free_margin(
     resized(page, 1920, 900)
     at = page.evaluate(DRAWING_PLACEMENT)
 
-    assert not at["docked"], (
-        "the row docked, so there is no claim on the margin and nothing here is proved"
+    assert at["place"] == "rail", (
+        "the row is not in the rail, so there is no claim on the margin and nothing "
+        "here is proved"
     )
     assert at["small"]["width"] < at["col"]["right"] - at["col"]["left"], (
         "the small drawing must fit the column, or its placement says nothing"
@@ -1996,94 +1997,56 @@ def test_the_room_follows_a_margin_taken_after_the_handover(
     )
 
 
-def test_a_wide_widget_leaves_the_rail_its_controls(browser, serve):
+def test_a_wide_widget_keeps_its_margins_and_its_comment_lands_on_it(browser, serve):
     """The rail is reserved out of the right of the page and the controls hang 22px off
     the column, and those are the same place only when the column is flush against the
     strip. It never is — the column centres in what the strip leaves — so on any window
-    wider than that the controls stand well inside the page's own box, and a widget
-    grown to the edge of that box is drawn over them. Measured before the claim was
-    written: 76px of board over the controls at 1200px and 134px at 1400 and 1600,
-    which is the whole row.
+    wider than that a widget grown toward the strip reaches the rail's markers.
 
-    The row gives way rather than the board, because the row is Leaf's and the board is
-    the page's: nothing Leaf draws moves the page's content, so a comment arriving level
-    with a board cannot narrow it. The board's growth stops at main's gutter, which holds
-    the rail's reservation, so a row level with it steps out past its right edge into the
-    rail. Both boards are for that — the same pair the sidenote's margin keeps. One holds
-    a change in its own card, so its row hangs level with it; the other is 600px further
-    down with nothing beside it. Both grow both ways where they stand.
+    Nothing Leaf draws moves the page's content, so a comment arriving on a board cannot
+    narrow it: both boards grow both ways at every width. The change inside the near
+    board belongs to the board, which reaches past the rail's inner edge, so its row
+    stands on the board as a pin at the top-right of the change it decides, where it
+    lands on what it is about. The change above the board keeps the rail. Either way
+    the controls stay pressable: they stand over the page, not under it.
 
     A range of windows rather than one, because the gap between the reservation and the
     occupancy is the column's leftover and grows with the window: a single viewport can
-    be picked where the two happen to agree, and 1000px is that viewport here. What the
-    controls are for is being pressed, so anything over them is the change undecidable —
-    the page's own loop, stopped by its own exhibit."""
+    be picked where the two happen to agree."""
     url = serve(RAIL_BAND_PAGE)
     page = open_page(browser, url)
 
     for width in (1000, 1200, 1400, 1600):
         resized(page, width, 900)
+        margins_laid_out(page)
         at = page.evaluate(RAIL_BANDS)
-        hanging = [r for r in at["rows"] if not r["docked"]]
-        assert hanging, (
-            f"at {width}px every row docked, so nothing is in the margin to run over"
+        places = {r["for"]: r["place"] for r in at["rows"]}
+        assert places == {"sug-copy": "rail", "sug-card": "pin"}, (width, at)
+        for r in at["rows"]:
+            assert r["pressable"], f"at {width}px a row is covered: {r}"
+        card = next(r for r in at["rows"] if r["for"] == "sug-card")
+        plan = at["plan"]
+        assert plan["left"] < card["left"] and card["right"] <= plan["right"] + 1, (
+            f"at {width}px the change's pin stands off its board: {at}"
         )
         for name in ("plan", "later"):
             b = at[name]
-            for r in hanging:
-                across = b["left"] < r["right"] and b["right"] > r["left"]
-                down = b["top"] < r["bottom"] and b["bottom"] > r["top"]
-                assert not (across and down), (
-                    f"at {width}px the {name} board is drawn over the controls that "
-                    f"decide a change: board {b['left']:.0f}–{b['right']:.0f}px across "
-                    f"and {b['top']:.0f}–{b['bottom']:.0f}px down, controls "
-                    f"{r['left']:.0f}–{r['right']:.0f}px and "
-                    f"{r['top']:.0f}–{r['bottom']:.0f}px"
-                )
+            assert b["left"] < at["column"]["left"] - 1, (width, name, at)
+            assert b["right"] > at["column"]["right"] + 1, (
+                f"at {width}px the {name} board is held to the column's right edge, so "
+                f"a row in the margin took room from the page's content: {at}"
+            )
             assert b["right"] <= at["pageRight"] + 1, (
                 f"at {width}px the {name} board is past the page's box as well"
             )
-            assert b["left"] >= at["pageLeft"] + at["pageGutter"] - 1, (
-                f"at {width}px the {name} board is past the page's own gutter"
-            )
         assert at["sideways"] == 0, f"at {width}px the page scrolls sideways"
-        assert (
-            at["plan"]["width"] >= at["column"]["right"] - at["column"]["left"] - 1
-        ), (
-            f"at {width}px the claim cost the exhibit its own measure: board "
-            f"{at['plan']['width']:.0f}px inside the column"
-        )
-
-    # Both boards take both margins, the one a row stands level with included: the row
-    # stepped out past it rather than the board pulling back.
-    resized(page, 1600, 900)
-    margins_laid_out(page)
-    at = page.evaluate(RAIL_BANDS)
-    for name in ("plan", "later"):
-        assert at[name]["left"] < at["column"]["left"] - 1, (name, at)
-        assert at[name]["right"] > at["column"]["right"] + 1, (
-            f"the {name} board is held to the column's right edge, so a row in the "
-            f"margin took room from the page's content: {at}"
-        )
-    level = [
-        r
-        for r in at["rows"]
-        if not r["docked"]
-        and r["top"] < at["plan"]["bottom"]
-        and r["bottom"] > at["plan"]["top"]
-    ]
-    assert level, f"no row stands level with the near board, so nothing is tested: {at}"
-    for r in level:
-        assert r["left"] >= at["plan"]["right"], (r, at)
-        assert r["right"] <= at["pageRight"] + 1, (r, at)
 
 
 def test_a_contents_map_and_right_rail_leave_the_middle_room(browser, serve):
     """A surface grows into both margins between the contents map at the shell's left
-    edge and the rail at its right. A right-side action level with it steps out past the
-    surface into the rail instead of taking the surface's right growth, and the map owns
-    its complete interaction rectangle, so the band between map and prose stays the
-    surface's on the left."""
+    edge and the rail at its right. A comment on it stands on it as a pin rather than
+    taking its right growth, and the map owns its complete interaction rectangle, so
+    the band between map and prose stays the surface's on the left."""
     source = RAIL_BAND_PAGE.replace(
         '<h1 id="t">Release</h1>',
         '<aside class="sidebar"><lf-toc id="rail-toc"></lf-toc></aside>'
@@ -2096,23 +2059,12 @@ def test_a_contents_map_and_right_rail_leave_the_middle_room(browser, serve):
     plan = at["plan"]
     toc = page.locator("#rail-toc").bounding_box()
     assert toc is not None
-    hanging = [row for row in at["rows"] if not row["docked"]]
-    level = [
-        row
-        for row in hanging
-        if plan["top"] < row["bottom"] and plan["bottom"] > row["top"]
-    ]
-    assert level, at
     assert plan["right"] > at["column"]["right"] + 1, at
     assert toc["x"] + toc["width"] + 15 <= plan["left"]
     assert plan["left"] < at["column"]["left"] - 100, at
-    for row in level:
-        assert row["left"] >= plan["right"], at
-        assert row["right"] <= at["pageRight"] + 1, at
-    for row in hanging:
-        across = plan["left"] < row["right"] and plan["right"] > row["left"]
-        down = plan["top"] < row["bottom"] and plan["bottom"] > row["top"]
-        assert not (across and down), at
+    card = next(r for r in at["rows"] if r["for"] == "sug-card")
+    assert card["place"] == "pin" and card["right"] <= plan["right"] + 1, at
+    assert all(r["pressable"] for r in at["rows"]), at
     assert at["sideways"] == 0
 
 

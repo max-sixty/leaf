@@ -95,11 +95,11 @@ export function createChromeLayout({
     const panelRoom = (panelLive ? commentsEdge.width() : 0) + "px";
     shortcutBarEl.style.setProperty("--lf-shortcut-bar-right", panelRoom);
     bottomStatusEl.style.setProperty("--lf-shortcut-bar-right", panelRoom);
-    // The rail stands in the page's right margin, and over a live page the panel stands
-    // over that margin at any window short of about 1700px. The markers are still drawn,
-    // under the panel, so the rail's own posture says nothing; what says the user lost
-    // them is a rail row the panel's edge reaches. Where one does, the banner offers the
-    // Page Map in their place, as it does where the rail is not drawn at all (chrome.css).
+    // Over a live page the panel stands over the page's right margin at any window short
+    // of about 1700px, and over the pins at the column's edge at the same widths. The
+    // markers are still drawn, under the panel; what says the user lost them is a margin
+    // row the panel's edge reaches. Where one does, the banner offers the Page Map in
+    // their place, as it does on a compact page (chrome.css).
     // Where the panel stands, not where its slide has carried it this frame: offsetLeft
     // ignores the slide's transform.
     const panelLeft = panelLive ? panel.offsetLeft : Infinity;
@@ -107,7 +107,7 @@ export function createChromeLayout({
       ...document.querySelectorAll(".lf-margin-projection .lf-margin-cluster"),
     ].some(
       (row) =>
-        !row.classList.contains("lf-docked") &&
+        !row.classList.contains("lf-withheld") &&
         row.getBoundingClientRect().right > panelLeft,
     );
     panel.closest(".lf-chrome")?.toggleAttribute("data-lf-rail-covered", railCovered);

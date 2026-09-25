@@ -5171,6 +5171,20 @@ def test_the_text_door_refuses_a_picture_the_page_directory_has_not_got(page_dir
         f"door already keeps, not a picture the page owes:\n{mention.output}"
     )
 
+    quoted = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "comment",
+            str(page_dir),
+            "--text",
+            f"Here is the source:\n\n```md\n![shot]({missing})\n```\n\n[unused]: {missing}",
+        ],
+    )
+    assert quoted.exit_code == 0, (
+        f"code and an unused reference definition render no media, so neither "
+        f"requires a file:\n{quoted.output}"
+    )
+
     linked = CliRunner().invoke(
         cli_model.cli,
         ["comment", str(page_dir), "--text", f'[the panel](<{missing}> "shot")'],

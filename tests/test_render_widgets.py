@@ -77,7 +77,6 @@ from render_harness import (
     BOTH_STAMPS,
     FEATURE_GALLERY,
     LONG_PAGE,
-    RENDERED,
     REPLY_HOST_PAGE,
     CutOff,
     ask_actions_hint,
@@ -93,6 +92,7 @@ from render_harness import (
     panel_settled,
     post_event,
     refuse,
+    rendered,
     resized,
     round_trip,
     scroll_settled,
@@ -2224,7 +2224,7 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
 
     resized(page, 1800, 900)
     expect(nav).to_have_css("width", "320px")
-    resized(page, 1152, 900)
+    resized(page, 1188, 900)
     expect(nav).to_have_css("width", "320px")
     underlying = page.locator("#underlying")
     underlying.evaluate(
@@ -2589,12 +2589,12 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
 
     resized(page, 1400, 900)
     page.emulate_media(media="print")
-    page.evaluate(RENDERED)
+    rendered(page)
     expect(prepare).to_have_css("opacity", "1")
     expect(start).to_be_visible()
 
     page.emulate_media(media="screen", forced_colors="active")
-    page.evaluate(RENDERED)
+    rendered(page)
     page.mouse.move(1200, 700)
     expect(prepare).to_have_css("opacity", "0")
     forced_colors = nav.evaluate(
@@ -2617,7 +2617,7 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
     assert all(color == forced_colors["spine"] for color in forced_colors["inactive"])
 
     page.emulate_media(media="screen", forced_colors="none", reduced_motion="reduce")
-    page.evaluate(RENDERED)
+    rendered(page)
     prepare_box = prepare.bounding_box()
     assert prepare_box is not None
     page.mouse.move(prepare_box["x"] + 4, prepare_box["y"] + 4)
@@ -2872,7 +2872,7 @@ def test_a_route_taller_than_the_map_returns_to_an_open_outline(browser, serve):
     expect(links.last).to_be_focused()
     expect(links.last).to_be_in_viewport()
 
-    resized(page, 1152, 600)
+    resized(page, 1188, 600)
     expect(toc).to_have_attribute("data-lf-outline", "")
     nav_box = nav.bounding_box()
     column_left = page.locator("h1").bounding_box()["x"]
@@ -8066,8 +8066,8 @@ def test_a_widget_a_message_carries_holds_the_room_its_words_will_need(browser, 
     page.locator(".lf-thread-summary").click()
     expect(page.locator("#mr-msg-b")).to_be_visible()
     # The re-measure is delivered with the layout that gave these their boxes, so the
-    # reading waits for a frame that has been through one.
-    page.evaluate(RENDERED)
+    # reading waits for the rendering it queued to settle.
+    rendered(page)
     for suffix, prop in ROOMS:
         assert page.evaluate(ROOM_HELD, [f"mr-msg{suffix}", prop]) == held[suffix], (
             suffix,

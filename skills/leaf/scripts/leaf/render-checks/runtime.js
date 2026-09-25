@@ -83,6 +83,11 @@ export function requestFrame() {
 }
 export const framePresented = (requested) => presentedFrame >= requested;
 
+// The runtime's settled reading for chrome and geometry (runtime/rendering.js): nothing
+// it queued for a rendering update is waiting and its last update was quiet.
+export const renderingSettled = () =>
+  document.querySelector("script[data-lf-entry]").lfRenderingSettled();
+
 // Every post this tab has made to /api/event has ended, the page's error reports
 // among them (`runtime/traffic.js`). A page that has posted nothing paints no ledger.
 export function sendsAcked() {

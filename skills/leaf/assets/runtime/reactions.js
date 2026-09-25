@@ -32,6 +32,7 @@
    capabilities; conversation views register their template-owned trigger and palette.
    mount installs the mode teardown listeners after composition. */
 
+import { nextRender } from "./rendering.js";
 import { registerMarginContribution } from "./margin-entries.js";
 import { runtime } from "./context.js";
 import { registry } from "./registry.js";
@@ -233,8 +234,6 @@ export function createReactionController({
         );
         return {
           side: "after",
-          // Temporary response choices use existing room; they never widen the page rail.
-          claim: false,
           entries: reactionTokens().map(([name, entry], ordinal) => ({
             key: marginReactionKey(name, ordinal),
             activation: name,
@@ -394,7 +393,7 @@ export function createReactionController({
         // body before the browser paints. The user may choose another control during
         // that frame; only those two states mean the palette still owes its return.
         if (destination !== document.body)
-          requestAnimationFrame(() => {
+          nextRender(() => {
             if (
               destination.isConnected &&
               destination.checkVisibility?.() &&

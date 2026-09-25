@@ -1,28 +1,22 @@
 /* One geometry owner for controls and readings that hang in the document margin.
 
    `margin-layout` places, packs, docks, and measures the complete host and its transient
-   control labels. Its rail claim is
-   the widest stable contribution seen over a floor of the generated marker's own margin entry,
-   and is monotonic for the document's lifetime, so neither settling an action nor taking
-   one back shifts the readable column. A first contribution wider than that floor still
-   widens the claim once; `reserve` is how a contribution declares that width in advance.
-   A temporary contribution registers with `claim: false`: it borrows available RHS room
-   and docks the complete host when it cannot fit, without moving the column on first open
-   or leaving blank room after close. A stable contribution whose future primary and `…`
-   margin entry is wider than its resting one declares that pixel width with `reserve`; the
-   claim includes it before the control changes. Below the margin breakpoint the complete
-   host docks into flow. Visibility and vertical placement read `shownParts` and
-   `shownBox`, not the target's raw client rect: a project may set `display: contents`
-   while its rendered descendants remain usable, and a collapsed target has no rendered
-   part to offer.
+   control labels. It never sizes the rail: the rail's width is the theme's `--rail`, a
+   constant stated before anything contributes, so nothing that lands in the margin,
+   settles there, or leaves it can move the readable column. A host wider than the rail
+   borrows the RHS room past it and docks the complete host when it cannot fit. Below
+   the margin breakpoint the complete host docks into flow. Visibility and vertical
+   placement read `shownParts` and `shownBox`, not the target's raw client rect: a
+   project may set `display: contents` while its rendered descendants remain usable, and
+   a collapsed target has no rendered part to offer.
 
    Every live page may grow a page-edge margin entry — an anchored comment can arrive on one
    made entirely of prose — so the margin projection reserves the rail as it is built and
    never gives it back. The runtime states that reservation as `data-lf-rail` on the root,
    and the cascade spends it there; neither reads what is standing in the margin, because
    a row's placement depends on the strip it would be answering about. */
+import { cancelRender, nextRender, sizeObserver } from "./rendering.js";
 import { shellRight } from "./geometry.js";
-import { setRuntimeRootStyle } from "./root-state.js";
 
 const rows = new Map();
 // The horizontal space a row was last docked against. A dock holds while that space and
@@ -33,7 +27,6 @@ const GAP = 4;
 let pending = 0;
 let observer = null;
 let observedColumn = null;
-let claimedRail = 0;
 let railReserved = false;
 
 const marginColumn = () => document.querySelector("main") || document.body;
@@ -108,7 +101,7 @@ function placeMarginEntryLabel(control) {
 let labelPlacementFrame = 0;
 export function scheduleMarginEntryLabels() {
   if (labelPlacementFrame) return;
-  labelPlacementFrame = requestAnimationFrame(() => {
+  labelPlacementFrame = nextRender(() => {
     labelPlacementFrame = 0;
     for (const control of document.querySelectorAll(
       '.lf-margin-entry:is(:hover, :focus-visible, .lf-focus-visible):not([aria-expanded="true"])',
@@ -117,14 +110,13 @@ export function scheduleMarginEntryLabels() {
   });
 }
 
-// Whether the page takes a margin strip at all, as distinct from how wide the strip is.
-// The width is `--rail` below and only ever grows; this says the page has taken the
-// strip, and once taken it is never given back. Claimed only while something stands in
-// it, the strip arrived with the gesture that raised the first margin entry and left again
-// with the undo, and each of those moved the readable column under the user. The
-// cascade reads this attribute rather than asking whether a row is standing, because a
-// row's own placement depends on the strip and a live question about it would feed the
-// reservation back into itself.
+// Whether the page takes a margin strip at all; its width is the theme's `--rail`. Once
+// taken, the strip is never given back. Claimed only while something stands in it, the
+// strip arrived with the gesture that raised the first margin entry and left again with
+// the undo, and each of those moved the readable column under the user. The cascade reads
+// this attribute rather than asking whether a row is standing, because a row's own
+// placement depends on the strip and a live question about it would feed the reservation
+// back into itself.
 export function reserveRail() {
   if (railReserved) return;
   railReserved = true;
@@ -133,13 +125,13 @@ export function reserveRail() {
 
 function scheduleMarginLayout() {
   if (pending) return;
-  pending = requestAnimationFrame(layoutMarginRows);
+  pending = nextRender(layoutMarginRows);
 }
 
 function observeLayout() {
   const column = marginColumn();
   if (!observer) {
-    observer = new ResizeObserver(scheduleMarginLayout);
+    observer = sizeObserver(scheduleMarginLayout);
     observer.observe(document.body);
   }
   if (observedColumn === column) return;
@@ -195,7 +187,7 @@ function placeRows(columnRect) {
 }
 
 export function layoutMarginRows() {
-  cancelAnimationFrame(pending);
+  cancelRender(pending);
   pending = 0;
   // A compact page keeps every margin row in document flow. Pulling those rows out to
   // re-measure the same posture briefly shortens the document, so a browser clamps a
@@ -269,34 +261,16 @@ export function layoutMarginRows() {
     const anchor =
       typeof options.anchor === "function" ? options.anchor() : options.anchor;
     const rect = row.getBoundingClientRect();
-    const width =
-      typeof options.claim === "function"
-        ? options.claim(row, rect)
-        : options.claim
-          ? rect.width
-          : 0;
-    const claim = width
-      ? Math.ceil(width + (parseFloat(getComputedStyle(row).marginLeft) || 0))
-      : 0;
     return {
       row,
       options,
       rect,
-      claim,
       hangs: options.hangs?.(row, rect, columnRect, room) ?? true,
       shown:
         options.shown?.(anchor) ??
         (anchor instanceof Element ? anchor.checkVisibility() : row.checkVisibility()),
     };
   });
-  const claim = Math.max(0, ...measured.map(({ claim }) => claim));
-  if (claim) {
-    reserveRail();
-    if (claim > claimedRail) {
-      claimedRail = claim;
-      setRuntimeRootStyle(document.documentElement, "--rail", `${claimedRail}px`);
-    }
-  }
   const inMargin = [];
   let docked = false;
   for (const { row, options, rect, shown, hangs } of measured) {

@@ -3142,12 +3142,12 @@ def test_the_render_gate_tells_a_fixed_margin_resident_from_a_fixed_spill(
     moves beneath the pointer. The second differs only in its horizontal position and
     straddles the readable column, so exempting fixed boxes outright would make the gate
     blind to the same spill it catches in flow and in floats. Only the desktop viewport
-    leaves an outer gutter 204px wide, so neither synthetic resident stands narrower."""
+    leaves an outer gutter wider than the 174px the margin resident takes."""
     source = leaf_page(
         "fixed margin residents",
         """
 <style>
-#fixed-margin { position: fixed; top: 80px; left: 24px; width: 180px; }
+#fixed-margin { position: fixed; top: 80px; left: 24px; width: 150px; }
 #fixed-half { position: fixed; top: 500px; left: 180px; width: 180px; }
 @media (max-width: 1199px) {
   #fixed-margin, #fixed-half { display: none; }
@@ -3751,11 +3751,12 @@ def test_the_room_does_not_flicker_while_a_strip_arrives(browser, serve, other_l
     """
     page = open_page(browser, serve(ASKS_PAGE))
     resized(page, 1200, 900)
-    page.evaluate(ROOM_EVERY_FRAME, 60)
+    page.evaluate(ROOM_EVERY_FRAME)
+    # The press may wait past the old 60-frame recording window on a busy runner.
+    page.wait_for_function("() => window.__room.length >= 60")
     banner_control(page, ".lf-asks").click()
     edge_settled(page, EDGES[1])
-    page.wait_for_function("() => window.__room.length >= 60")
-    trace = page.evaluate("() => window.__room")
+    trace = page.evaluate("() => window.__roomStop()")
     page.close()
 
     steps = [room for i, room in enumerate(trace) if i == 0 or room != trace[i - 1]]

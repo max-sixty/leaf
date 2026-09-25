@@ -150,6 +150,13 @@ Revisit these when their stated trigger becomes real; they are not an active que
 - **#22 — MCP workspace hosting:** compare an iframe, a constrained host, and
   browser handoff when an inline-hosting task calls for it. See the
   [research brief](notes/workspace-followups.md#item-22).
+- **Decide whether an exported page carries its conversations.** `leaf version
+  export` writes a file that boots the page's own runtime offline, and that file
+  embeds the page's threads in its state reading. The runtime turns the
+  conversation surface off offline (`conversationAvailable: !offlineInteractive`
+  in `leaf.js`), so a reader of the file sees no comments or agent replies.
+  Decide whether an export is the page alone or the page with its discussion; the
+  likely answer is threads shown read-only, with the composer and sends off.
 - **Favicon count:** keep a pending count only if it reads clearly at 16px.
 - **Character bindings:** let users disable them when real use calls for it.
 - **Authoring vocabulary:** add tabbed sections only when root and embedded

@@ -62,6 +62,7 @@
    that names it. A control that itself stands under a fixed bar is not a finding —
    that is a fact about where it was put — and neither is a box too tall for the region
    it is in. */
+import { nextRender } from "../rendering.js";
 import { scrollBehavior } from "../motion.js";
 import { narrowingView, threadsBox } from "./panel-elements.js";
 import { placeKeeper } from "../user-place.js";
@@ -130,7 +131,7 @@ function holdThroughDisclosure(panelIsOpen) {
       const summary = event.target?.closest?.(".lf-thread-summary");
       if (!summary || !summary.parentElement?.matches?.(".lf-thread")) return;
       const hold = takeScrollHold(panelIsOpen);
-      if (hold) requestAnimationFrame(() => finishScrollHold(hold, panelIsOpen));
+      if (hold) nextRender(() => finishScrollHold(hold, panelIsOpen));
     },
     true,
   );

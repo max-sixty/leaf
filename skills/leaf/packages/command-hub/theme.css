@@ -172,7 +172,7 @@ lf-command [data-lf-command-goal][data-lf-held] {
 /* Host operations are a compact command set, distinct from lf-options' replayable
  * document decisions. The prose stays authored and selectable; the trailing press is
  * apparatus after it, and a linked receipt replaces its availability with a terminal account. */
-lf-operations { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+lf-operations { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(14rem, 100%), 1fr));
   gap: var(--sp-2); margin: var(--sp-3) 0; }
 lf-operation { display: block; padding: var(--sp-3);
   border: 1px solid var(--rule); border-radius: var(--r); background: var(--paper);

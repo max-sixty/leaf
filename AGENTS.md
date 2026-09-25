@@ -350,6 +350,8 @@ upgrade, authoritative presentation, and requests and bytes loaded by presentati
 Compare request counts and bytes directly; elapsed time is diagnostic because it
 varies with the machine and network. If a change adds work before presentation,
 state the user-visible benefit and why that work cannot wait until after presentation.
+Bytes outside that profile — a lazily loaded module, a vendored file, the size of the
+install — are not a reason for a change on their own.
 
 Land through a pull request or with `wt merge`, which squash-merges directly to
 `main`. User-directed landing requires the user's authorization; Tend sessions

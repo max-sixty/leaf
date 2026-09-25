@@ -4,7 +4,7 @@ import { paintKeys } from "../keyboard/scopes.js";
 import { FOLD_MS, motion } from "../motion.js";
 import { pendingForParent } from "../pending/model.js";
 
-export const pendingSettlement = (entries, id) =>
+const pendingSettlement = (entries, id) =>
   pendingForParent(entries, id, ["resolve", "unresolve"]);
 
 export async function settleThread({

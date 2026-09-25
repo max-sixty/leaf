@@ -2791,6 +2791,22 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     )
     expect(dot).to_have_class(re.compile(r"\bworking\b"))
 
+    # Picked up into the claimant's open turn before the agent has said anything: the
+    # page is working, and the row names what the turn holds rather than a bare
+    # "working", while the disclosure says the agent's own words are still to come.
+    with service_model.PageTransaction(d) as transaction:
+        delivery_model.record_pickup(
+            transaction, [first_comment], phase="opened", session="s", turn="turn-1"
+        )
+    declare("waiting", "your read on the plan")
+    expect(summary).to_have_text("Claude working — on your update")
+    expect(text).to_have_text(
+        re.compile(
+            r"^Claude is working on your update, and hasn't said what it is doing yet"
+        )
+    )
+    expect(dot).to_have_class(re.compile(r"\bworking\b"))
+
     events_model.append_event(
         d,
         {
@@ -3076,7 +3092,8 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     expect(held_workflow).to_have_attribute("data-identity-probe", "kept")
     expect(other_workflow).to_have_text("Sent")
     expect(page.locator(".lf-status-detail")).to_have_text(
-        "Claude is working (just now). 1 update waiting."
+        "Claude is working on your update, and hasn't said what it is doing yet"
+        " (just now). 1 update waiting."
     )
     expect(page.locator(".lf-others-self .lf-others-line")).to_have_text(
         "Working · 1 update waiting"
@@ -3089,7 +3106,8 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     told(page)
     expect(held_workflow).to_have_text("Picked up")
     expect(page.locator(".lf-status-detail")).to_have_text(
-        "Claude is working (just now). 1 update waiting."
+        "Claude is working on your update, and hasn't said what it is doing yet"
+        " (just now). 1 update waiting."
     )
 
     with service_model.PageTransaction(d) as transaction:
@@ -3261,7 +3279,8 @@ def test_feature_gallery_workflow_and_banner_share_agent_activity(browser, serve
     told(page)
     expect(workflow).to_have_text("Picked up")
     expect(page.locator(".lf-status-detail")).to_have_text(
-        "Claude is working (just now)"
+        "Claude is working on your update, and hasn't said what it is doing yet"
+        " (just now)"
     )
 
 

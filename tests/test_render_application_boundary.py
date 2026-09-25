@@ -934,8 +934,12 @@ def test_widget_controller_owns_presentation_across_values_and_lifetimes(
     page.evaluate("window.pageLocal = document.querySelector('#page-local')")
     before = int(page.locator("#page-local").get_attribute("data-readings"))
     page.evaluate(
-        "document.body.classList.add('lf-dragging'); "
-        "window.resumeLocal = pageLocal.controller.defer(); true"
+        """async () => {
+          const {dragging} = await window.__lfRuntimeImport(
+            '/runtime/widget-elements.js');
+          dragging(document.body, true);
+          window.resumeLocal = pageLocal.controller.defer();
+        }"""
     )
     page.locator("#page-local").get_by_role("button", name="Choose").click()
     expect(page.locator("#page-local").get_by_role("status")).to_have_text("chosen")
@@ -945,10 +949,14 @@ def test_widget_controller_owns_presentation_across_values_and_lifetimes(
         "projection:chrome",
     ]
     page.evaluate(
-        "projectionReady = false; "
-        "whenLeafRegionsPresented(['projection:chrome'], () => true)"
-        ".then(() => { projectionReady = true; }); "
-        "document.body.classList.remove('lf-dragging'); true"
+        """async () => {
+          const {dragging} = await window.__lfRuntimeImport(
+            '/runtime/widget-elements.js');
+          projectionReady = false;
+          whenLeafRegionsPresented(['projection:chrome'], () => true)
+            .then(() => { projectionReady = true; });
+          dragging(document.body, false);
+        }"""
     )
     page.wait_for_function("projectionReady", timeout=3000)
     assert page.evaluate("readLeafPresentation().pending") == [

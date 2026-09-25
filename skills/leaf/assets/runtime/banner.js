@@ -387,6 +387,7 @@ function statusWords({
   dated,
   shortDate,
   detail,
+  handling,
   kind,
   pending,
   progressSummary,
@@ -412,12 +413,19 @@ function statusWords({
   // renewed needs no date; an older one is dated ahead of the detail, because the detail
   // is what the ellipsis eats first and a stale sentence with its date cut off is the one
   // reading this row must not give.
+  //
+  // Until the agent writes that sentence, what Leaf knows is which of the user's
+  // updates its open turn took up, so the row names them rather than standing on a
+  // bare "working", and the disclosure says the agent's own words are still to come.
   if (kind === "working") {
     const work = workWords(workKind);
-    const said = detail ? " — " + detail : "";
+    const held = handling === 1 ? "your update" : `your ${handling} updates`;
+    const said = detail ? " — " + detail : handling ? " — on " + held : "";
     return [
       `${agent} ${work}${age && age !== JUST_NOW ? " · " + age : ""}${said}${progressSummary}`,
-      `${agent} is ${work}${said}`,
+      detail || !handling
+        ? `${agent} is ${work}${said}`
+        : `${agent} is ${work} on ${held}, and hasn't said what it is doing yet`,
     ];
   }
   // A declared request tells the user what to do. Preserve it on the row when
@@ -539,6 +547,7 @@ function renderStatusNow(state) {
       ? `${agentName()}’s turn ended ${ago(state.turn_closed)}`
       : `${agentName()} last checked in ${ago(activity.ts)}`,
     detail,
+    handling: activity.counts.handling,
     kind,
     total: activity.counts.total,
     pending: activity.counts.pending || activity.counts.queued,
@@ -629,7 +638,7 @@ export function stateSignoff(next, syncLayout, paintApproval) {
 // The two primary controls hold the widest words they can show, so an asynchronous
 // count or approval result cannot move its sibling. Secondary controls can grow inside
 // More without changing the page's reading loop.
-export function reserveBannerControls() {
+function reserveBannerControls() {
   if (signoff) reserve(approveBtn, ["Approve version", "✓ Version approved"]);
   reserve(toggleBtn, ["Threads", "Threads (999)"]);
 }

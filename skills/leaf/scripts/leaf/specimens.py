@@ -115,7 +115,6 @@ class Specimens:
                     "detail": "",
                     "ts": now_iso(),
                     "after": 0,
-                    "stated": False,
                 },
             )
             activation = activate_source(child)

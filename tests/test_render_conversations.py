@@ -4436,7 +4436,11 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         probe.className = [...scoped]
             .filter(c => !global_.has(c) && !themed.has(c)).join(" ");
         probe.textContent = plain.textContent = "probe";
-        document.getElementById("s").append(plain, probe);
+        // A block after both, so neither twin stands at the section's edge, where the
+        // theme trims a margin whichever classes it wears.
+        const after = document.createElement("p");
+        after.textContent = "after";
+        document.getElementById("s").append(plain, probe, after);
         const cs = el => { const c = getComputedStyle(el), out = {};
                            for (const p of c) out[p] = c.getPropertyValue(p); return out; };
         const a = cs(probe), b = cs(plain);

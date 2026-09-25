@@ -899,7 +899,7 @@
     "x-example": "<lf-specimen id=\"spec-gear\" label=\"next season's kit\">\n  <lf-options>\n    <lf-option id=\"sp-paper\"><lf-chip>effort: low</lf-chip><strong>Paper maps</strong> Nothing to charge.</lf-option>\n    <lf-option id=\"sp-gps\"><lf-chip>effort: med</lf-chip><strong>Dedicated GPS</strong> Offline maps, week-long battery. <em>My take: this is the better field tool.</em></lf-option>\n  </lf-options>\n</lf-specimen>"
   },
   "lf-grid": {
-    "description": "Places blocks in two dimensions at the shared wide width, centred on the reading column, or across the whole page where `main` declares a width (`<main data-width=\"available\">`); `data-width=\"available\"` gives it all the room the page shell leaves. Each direct child is one cell, and each cell is a frame: what it holds takes the cell's width, text keeps the reading measure, and a surface fills the cell. Without `columns` the grid fits as many equal columns as the width allows; `columns` takes a count (at most that many equal columns, fewer when the width runs out) or a template of fr tracks such as `1fr 2fr`, which stacks into one column where its narrowest track would be narrower than 14rem, the least a counted column takes (a `2fr 1fr` grid below 43.5rem, a `3fr 2fr` grid below 36.5rem), and stacks on paper. Cells keep authored order and align to their top. Nest a grid in a cell for a cell that spans rows. Let the grid place its cells: page CSS that sets a grid's own `display`, `grid-*`, or `position` fights it, and `version check` says so.",
+    "description": "Places blocks in two dimensions. In a column page it takes the column's width, as a paragraph does, so its tiles line up with the prose; `data-width=\"wide\"` or `data-width=\"available\"` asks for more, as on a figure, for a board or surfaces that need room past the prose. On a wide page (`<main data-width=\"available\">`) it takes the page's width. Each direct child is one cell, and each cell is a frame: what it holds takes the cell's width, text keeps the reading measure, and a surface fills the cell. Without `columns` the grid fits as many equal columns as the width allows; `columns` takes a count (at most that many equal columns, fewer when the width runs out) or a template of fr tracks such as `1fr 2fr`, which stacks into one column where its narrowest track would be narrower than 14rem, the least a counted column takes (a `2fr 1fr` grid below 43.5rem, a `3fr 2fr` grid below 36.5rem), and stacks on paper. Cells keep authored order and align to their top. Nest a grid in a cell for a cell that spans rows. Let the grid place its cells: page CSS that sets a grid's own `display`, `grid-*`, or `position` fights it, and `version check` says so.",
     "type": "object",
     "properties": {
       "id": {
@@ -918,7 +918,6 @@
     "x-content": "markup",
     "x-measure": "group",
     "x-reading-role": "grid",
-    "x-space": "wide",
     "x-upgrade": true,
     "x-verbatim": true,
     "x-example": "<lf-grid id=\"status\" columns=\"3\"><section><h3>Errors</h3><lf-metric id=\"errors\" value=\"0.11%\">error rate</lf-metric></section><section><h3>Latency</h3><lf-metric id=\"p95\" value=\"184 ms\">p95</lf-metric></section><section><h3>Traffic</h3><lf-metric id=\"traffic\" value=\"25%\">candidate</lf-metric></section></lf-grid>"

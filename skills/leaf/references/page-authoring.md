@@ -105,10 +105,12 @@ without moving the prose. Most pages need nothing more. Compose the stack from t
 A page grows without changing kind: a report that gains live status gains a grid, and
 its comments and anchors stay put.
 
-Leaf's chrome never moves the page's content. The banner, the shortcut band at the
-foot of the window and the margin rail are fixed reservations, so the room a page has
-depends only on the window; the Asks tray, the Threads panel and thread cards stand
-over the page.
+The banner, the shortcut band at the foot of the window and the margin rail are fixed
+reservations, so the room a page has depends only on the window, and the Asks tray,
+the Threads panel and thread cards stand over the page. What Leaf puts in the text is
+a margin entry with no rail to stand in: one for a passage inside a pane, and a
+package's margin controls in a window too narrow for the rail, sit in the flow beside
+what they mark.
 
 ### A wide page
 
@@ -136,11 +138,11 @@ glance.
 
 ### A workspace
 
-An `lf-workspace` takes all the room the page leaves, as a diagram does. When it is
-`main`'s only block, or a page tab's, it also holds the window's height, and each pane
-scrolls on its own under the banner; anywhere else it stays in document flow. `main`
-needs no width for it, and a page that declares one hands the workspace that page's
-width. The `lf-workspace` entry says where the title goes and which elements its body
+An `lf-workspace` takes all the room the page leaves, as a diagram does. A page whose
+only block is a workspace is a wide page without declaring one, so write it in a plain
+`<main>`: the workspace takes the wide page's width, and holds the window's height as
+well, with each pane scrolling on its own under the banner. As a page tab's only block
+it holds the window the same way; anywhere else it stays in document flow. The `lf-workspace` entry says where the title goes and which elements its body
 can be, and the `lf-pane` entry what a pane holds. Place several panes with an
 `lf-grid`, such as `columns="1fr 2fr"` for a queue beside its detail. Let Leaf allocate
 the space: page-specific positioning should not be needed to keep a pane or footer

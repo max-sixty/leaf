@@ -721,6 +721,13 @@ main {
 @property --lf-width { syntax: "<length>"; inherits: true; initial-value: 0px; }
 @property --lf-free-l { syntax: "<length>"; inherits: true; initial-value: 99999px; }
 @property --lf-free-r { syntax: "<length>"; inherits: true; initial-value: 99999px; }
+/* How wide the page is: the column, or a wide page (below). Stated on body and read
+ * there by name, so it does not inherit. */
+@property --lf-page-width {
+  syntax: "column | wide | available";
+  inherits: false;
+  initial-value: column;
+}
 /* Content that needs more space than the argument about it. The column above is the measure
  * prose is read at, and a board's columns or a diagram's graph are as wide as what they
  * hold — so a page carrying one was a cramped board, or a page whose every paragraph had
@@ -864,37 +871,54 @@ main {
   main > * { --lf-room: inherit; }
 
   /* A page whose subject is wider than an argument — a board, a dashboard, a queue
-   * beside its detail — declares the width on `main` itself. The page is then wide:
-   * every block, title included, starts at one left edge, and text keeps the reading
-   * measure the column gave it (--lf-measure, the rule below) rather than being centred
-   * on a narrower axis than the exhibits around it. A column page with a wide exhibit
-   * keeps two axes, the prose's and the exhibit's; a wide page has one. The room is the
-   * page's own width, so a wide widget on it fills the page instead of breaking out. */
-  main:is([data-width="wide"], [data-width="available"]) {
+   * beside its detail — is a wide page: every block, title included, starts at one left
+   * edge, and text keeps the reading measure the column gave it (--lf-measure, the rule
+   * below) rather than being centred on a narrower axis than the exhibits around it. A
+   * column page with a wide exhibit keeps two axes, the prose's and the exhibit's; a
+   * wide page has one. The room is the page's own width, so a wide widget on it fills
+   * the page instead of breaking out.
+   *
+   * Which width the page takes is one reading on body, --lf-page-width, and the frame
+   * below is drawn once for whatever states it. `data-width` on `main` states it here; a
+   * package states it for a page its own element makes wide (the default package, for
+   * a page whose only block is a workspace). Both are selectors on authored markup, so
+   * the frame is in the first paint. The frame's rules ask body (lf-shell) by name, as
+   * a style query answers from an ancestor and never from main itself. */
+  body:has(> main[data-width="wide"]) { --lf-page-width: wide; }
+  body:has(> main[data-width="available"]) { --lf-page-width: available; }
+  @container lf-shell not style(--lf-page-width: column) {
     /* A wide page is main (above) at a wider measure. Its edge is the page's
      * edge, so its pad grows with the window rather than staying the column's 24px,
-     * which is a phone's margin; a strip no wider than the pad stands in it. */
-    --lf-page-pad: clamp(var(--col-pad), 4cqi, 64px);
-    --lf-measure: var(--col);
-    max-width: none;
-    /* The runtime paints the occurrence like any block's (data-lf-space), and the
-     * block rule's margins would pin the page to the left edge. */
-    margin-inline: auto;
-    padding-inline: 0;
+     * which is a phone's margin; a strip no wider than the pad stands in it.
+     *
+     * The runtime paints a `data-width` occurrence like any block's (data-lf-space),
+     * and the block rule's margins would pin the page to the left edge, so the frame
+     * outranks that rule: html:root. */
+    html:root body > main {
+      --lf-page-pad: clamp(var(--col-pad), 4cqi, 64px);
+      --lf-measure: var(--col);
+      max-width: none;
+      margin-inline: auto;
+      padding-inline: 0;
+    }
+    html:root body > main > * { --lf-room: 100%; }
+    /* A wide page's title stands above boards and tiles as wide as the window rather
+     * than a column of prose, so it is set a size up and heavier: at the column's size
+     * it read as a section heading among the panels. It grows with the window (cqi here
+     * is the shell's width, the window less its strips). */
+    html:root body > main > h1,
+    html:root body > main > * > header > h1 {
+      font-size: clamp(36px, 3.2cqi, 46px);
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      line-height: 1.1;
+    }
   }
-  main[data-width="wide"] { --lf-page-measure: var(--wide); }
-  main[data-width="available"] { --lf-page-measure: var(--wide-page-max); }
-  main:is([data-width="wide"], [data-width="available"]) > * { --lf-room: 100%; }
-  /* A wide page's title stands above boards and tiles as wide as the window rather
-   * than a column of prose, so it is set a size up and heavier: at the column's size it
-   * read as a section heading among the panels. It grows with the window (cqi here is
-   * the shell's width, the window less its strips). */
-  main:is([data-width="wide"], [data-width="available"]) > h1,
-  main:is([data-width="wide"], [data-width="available"]) > * > header > h1 {
-    font-size: clamp(36px, 3.2cqi, 46px);
-    font-weight: 700;
-    letter-spacing: -0.02em;
-    line-height: 1.1;
+  @container lf-shell style(--lf-page-width: wide) {
+    html:root body > main { --lf-page-measure: var(--wide); }
+  }
+  @container lf-shell style(--lf-page-width: available) {
+    html:root body > main { --lf-page-measure: var(--wide-page-max); }
   }
 
   /* Text keeps the reading measure in every frame; a surface fills its frame. In the

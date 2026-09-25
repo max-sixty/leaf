@@ -158,6 +158,10 @@ runtime exposes declared layout facts as `[data-lf-inline]`, `[data-lf-space]`,
 those attributes instead of naming widget tags. The registry's `$keys` entries for
 `x-space`, `x-measure`, and `x-bound` say what each declaration requests; none of them
 chooses the widget's internal layout, which the package arranges inside the allocation.
+A page is a wide page when `body` states `--lf-page-width: wide` or `available`, which
+`main[data-width]` does; a package whose element makes the page it stands in wide sets
+the same property on `body` with a selector on its authored markup, as the default
+package does for a page whose only block is a workspace, and the kernel draws the frame.
 When a bounded widget's scroller should be a box inside it, such as a listing under a
 caption that stays in view, the package theme moves the bound there under
 `[data-lf-bound]` and declares `--lf-bound-box: 1` on that box, which is the one Leaf

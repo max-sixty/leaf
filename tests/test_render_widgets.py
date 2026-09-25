@@ -151,9 +151,21 @@ WORKSPACE_PAGE = leaf_page(
 def test_a_root_workspace_bounds_independent_regions_and_flows_when_it_cannot_fit(
     browser, serve
 ):
-    """A workspace that is main's only block holds the window with no width declared on
-    main: it takes the room the page shell leaves, as its declaration says, and the
-    window's height below the banner."""
+    """A page whose only block is a workspace is a wide page with no width declared on
+    main: the workspace stands where it stands on a page that declares one, title
+    included, and takes the window's height below the banner."""
+    frame = """() => {
+      const box = document.getElementById('review-workspace').getBoundingClientRect();
+      const title = document.querySelector('#review-workspace h1');
+      return [box.left, box.width, getComputedStyle(title).fontSize];
+    }"""
+    declared = open_page(
+        browser,
+        serve(WORKSPACE_PAGE.replace("<main>", '<main data-width="available">')),
+    )
+    resized(declared, 1280, 720)
+    wide = declared.evaluate(frame)
+    declared.close()
     page = open_page(browser, serve(WORKSPACE_PAGE))
     resized(page, 1280, 720)
     workspace = page.locator("#review-workspace")
@@ -163,9 +175,8 @@ def test_a_root_workspace_bounds_independent_regions_and_flows_when_it_cannot_fi
 
     pane_posture(page, queue_pane, "bounded")
     holds_the_window(page, workspace, True)
-    held = workspace.bounding_box()
-    assert held["width"] > 1080, held
-    assert held["x"] >= 0 and held["x"] + held["width"] <= 1280, held
+    assert page.evaluate(frame) == wide
+    assert wide[1] > 1080, wide
     assert page.evaluate("() => document.scrollingElement.scrollTop") == 0
     readings = page.evaluate(
         """() => {
@@ -1128,6 +1139,7 @@ STACKING_TEMPLATES = [
     "1.5fr 1fr 1fr",
     "2fr 1fr 1fr 1fr 1fr 1.5fr",
 ]
+STACKING_CODE = '<lf-code id="{id}" language="python"><pre>x = 1</pre></lf-code>'
 STACKING_PAGE = leaf_page(
     "Templates stack at their own width",
     "<h1>Stacking</h1>"
@@ -1140,23 +1152,31 @@ STACKING_PAGE = leaf_page(
     )
     + '<div style="font-size: 13px"><lf-grid id="outer" columns="2fr 1fr">'
     '<lf-grid id="inner" columns="3fr 2fr"><p id="inner-a">A</p><p>B</p></lf-grid>'
-    "<p>Beside</p></lf-grid></div>",
+    "<p>Beside</p></lf-grid>"
+    # A cell sized in em, and a widget whose rendered face takes `font: inherit`,
+    # beside the same widget outside any grid.
+    '<lf-grid id="sized" columns="2fr 1fr">'
+    '<p id="em-cell" style="font-size: 0.5em">Half</p>'
+    + STACKING_CODE.format(id="code-cell")
+    + "</lf-grid>"
+    + STACKING_CODE.format(id="code-alone")
+    + "</div>",
 )
 
 
-def test_a_template_stacks_where_its_narrowest_track_would_fall_below_16rem(
+def test_a_template_stacks_where_its_narrowest_track_would_fall_below_the_grid_min(
     browser, serve
 ):
-    """Each template stacks at its own width: 16rem for each narrowest track it is
-    wide, plus its gaps. A pixel wider, its tracks stand side by side with the narrowest
-    at 16rem or more; a pixel narrower, every cell takes the row. `3fr 2fr` and `5fr
-    3fr` once stacked at `2fr 1fr`'s width. The cells keep the type size of what holds
-    the grid, a template nested in another's cell included."""
+    """Each template stacks at its own width: the floor a counted grid's column takes
+    (14rem) for each narrowest track it is wide, plus its gaps. A pixel wider, its tracks
+    stand side by side with the narrowest at the floor or more; a pixel narrower, every
+    cell takes the row. `3fr 2fr` and `5fr 3fr` once stacked at `2fr 1fr`'s width.
+    Stacking touches nothing a cell inherits: a cell sized in em, and a widget that
+    inherits its font, read the type size of what holds the grid."""
     context = browser.new_context(viewport={"width": 1600, "height": 1000})
     page = open_page(browser, live_url(serve(STACKING_PAGE)), context=context)
-    reading = """([id, width]) => {
+    shape = """(id) => {
       const grid = document.getElementById(id);
-      grid.style.width = `${width}px`;
       const cells = [...grid.children].map((cell) => cell.getBoundingClientRect());
       return {
         oneRow: cells.every((cell) => Math.abs(cell.top - cells[0].top) < 1),
@@ -1165,21 +1185,65 @@ def test_a_template_stacks_where_its_narrowest_track_would_fall_below_16rem(
         font: getComputedStyle(grid.children[0]).fontSize,
       };
     }"""
+
+    def reading(grid, width):
+        page.evaluate(
+            "([id, width]) => document.getElementById(id).style.width = `${width}px`",
+            [grid, width],
+        )
+        rendered(page)
+        return page.evaluate(shape, grid)
+
     rem = page.evaluate(
         "parseFloat(getComputedStyle(document.documentElement).fontSize)"
     )
+    floor = 14 * rem
     for i, template in enumerate(STACKING_TEMPLATES):
         fr = [float(track.removesuffix("fr")) for track in template.split()]
-        stack = 16 * rem * sum(fr) / min(fr) + 24 * (len(fr) - 1)
-        wide = page.evaluate(reading, [f"stack-{i}", stack + 1])
-        assert wide["oneRow"] and wide["narrowest"] >= 16 * rem, (template, wide)
-        narrow = page.evaluate(reading, [f"stack-{i}", stack - 1])
+        stack = floor * sum(fr) / min(fr) + 24 * (len(fr) - 1)
+        wide = reading(f"stack-{i}", stack + 1)
+        assert wide["oneRow"] and wide["narrowest"] >= floor, (template, wide)
+        narrow = reading(f"stack-{i}", stack - 1)
         assert narrow["stacked"], (template, narrow)
         assert wide["font"] == narrow["font"] == "13px", template
 
-    page.evaluate(reading, ["outer", 1500])
-    inner = page.evaluate(reading, ["inner", 16 * rem * 2.5 + 24 + 1])
+    reading("outer", 1500)
+    inner = reading("inner", floor * 2.5 + 24 + 1)
     assert inner["oneRow"] and inner["font"] == "13px", inner
+
+    for width in (1500, 400):
+        reading("sized", width)
+        faces = page.evaluate(
+            """() => Object.fromEntries(['em-cell', 'code-cell', 'code-alone'].map(
+              (id) => [id, getComputedStyle(document.getElementById(id)).fontSize]))"""
+        )
+        assert faces["em-cell"] == "6.5px", faces
+        assert faces["code-cell"] == faces["code-alone"], faces
+
+
+def test_a_body_beside_its_rail_stays_side_by_side_in_a_900px_window(browser, serve):
+    """Pages are read side by side at about 900px: with the margin rail standing, a
+    `1fr 2fr` grid in the page keeps its two tracks rather than stacking."""
+    source = leaf_page(
+        "Side by side at 900px",
+        '<h1>Queue</h1><lf-grid id="beside" columns="1fr 2fr">'
+        "<section><p>Queue</p></section><section><p>Detail</p></section></lf-grid>",
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 900, 800)
+    rendered(page)
+    reading = page.evaluate(
+        """() => {
+          const grid = document.getElementById('beside');
+          const [a, b] = [...grid.children].map((cell) => cell.getBoundingClientRect());
+          return {rail: getComputedStyle(document.querySelector('main'))
+                    .getPropertyValue('--lf-rail-posture').trim(),
+                  width: grid.getBoundingClientRect().width,
+                  beside: Math.abs(a.top - b.top) < 1 && b.left >= a.right};
+        }"""
+    )
+    assert reading["rail"] == "margin", reading
+    assert reading["beside"], reading
 
 
 FEED_PAGE = leaf_page(
@@ -4993,7 +5057,7 @@ def test_a_swipe_deck_reflows_with_its_parent_allocation(browser, serve):
     assert narrow["controls"]["bottom"] < narrow["passed"]["top"], narrow
     assert narrow["passed"]["bottom"] < narrow["kept"]["top"], narrow
 
-    stacked = layout("44rem")
+    stacked = layout("40rem")
     assert len(stacked["columns"]) == 2, stacked
     assert stacked["passed"]["top"] == pytest.approx(stacked["kept"]["top"]), stacked
     assert stacked["passed"]["right"] < stacked["kept"]["left"], stacked

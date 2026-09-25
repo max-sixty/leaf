@@ -358,7 +358,7 @@ lf-swipe-pile[verdict="keep"]
  * Passed in the rail, so both piles stay in view while the reader sorts. The rows are
  * auto: the queue spans the two the rail piles take, so it grows to the rail's height
  * and a taller queue shares its extra height evenly between Kept and Passed. */
-@container lf-swipe-frame (min-width: 49.5rem) {
+@container lf-swipe-frame (min-width: 43.5rem) {
   lf-swipe-deck {
     width: 100%;
     margin-inline: 0;

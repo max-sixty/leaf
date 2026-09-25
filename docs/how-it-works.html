@@ -887,12 +887,12 @@ $ leaf status ./review waiting "Does the API/importer split match what you need?
           </section>
 
           <section id="chrome">
-            <h2>Leaf's chrome never moves your page</h2>
+            <h2>The room a page has depends only on the window</h2>
             <p id="chrome-what">
-              The room a page has is the window less three fixed reservations, and
-              everything else Leaf draws while you read stands over the page. So the
-              page is laid out exactly as the agent wrote it, and opening Threads or a
-              thread card never moves what you were reading.
+              The room a page has is the window less three fixed reservations, and the
+              surfaces Leaf opens while you read stand over the page. So the page is
+              laid out as the agent wrote it, and opening Threads or a thread card never
+              moves what you were reading.
             </p>
 
             <div class="panels" id="chrome-figure">
@@ -1119,7 +1119,8 @@ $ leaf status ./review waiting "Does the API/importer split match what you need?
 
             <p id="chrome-narrow">
               A touch screen draws no shortcut band, and a window too narrow for the
-              rail draws no rail.
+              rail draws no rail. A margin entry with no rail to stand in, such as one
+              for a passage inside a pane, sits in the text beside what it marks.
             </p>
           </section>
 
@@ -1393,12 +1394,11 @@ $ leaf status ./review waiting "Does the API/importer split match what you need?
             <p id="workspace-what">
               An <code>lf-workspace</code> keeps regions in view together while each
               scrolls on its own: a queue beside the item it opens, a playground's
-              controls beside its preview. It takes all the room the page leaves, as a
-              diagram does, so <code>main</code> needs no width for it. When it is
-              <code>main</code>'s only block it also holds the window's height: each
-              <code>lf-pane</code>'s body scrolls under the pane's header, and actions
-              in a pane's footer stay in reach. The title goes in the workspace's
-              header.
+              controls beside its preview. A page whose only block is a workspace is a
+              wide page without declaring one, and the workspace holds the window's
+              height as well as its width: each <code>lf-pane</code>'s body scrolls
+              under the pane's header, and actions in a pane's footer stay in reach. The
+              title goes in the workspace's header.
             </p>
 
             <div class="panels two" id="workspace-figure">
@@ -1667,7 +1667,7 @@ $ leaf status ./review waiting "Does the API/importer split match what you need?
           <section id="narrow">
             <h2>On a phone, every page is one column</h2>
             <p id="narrow-what">
-              A grid's tracks stack where its narrowest would fall below 16rem, and a
+              A grid's tracks stack where its narrowest would fall below 14rem, and a
               workspace's panes flow once the window cannot hold them, so on a phone
               every page becomes one scrolling column in source order. Write regions in
               an order that reads top to bottom.

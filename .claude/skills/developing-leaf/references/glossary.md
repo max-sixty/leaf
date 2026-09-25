@@ -72,7 +72,7 @@ item.
 |---|---|
 | **Page shell** | The body-level responsive sizing envelope after chrome reservations |
 | **Content frame** | `body > main`, the root of authored content and its reading column in flow posture |
-| **Wide page** | A content frame that declares its own width (`main[data-width]`): every block starts at one left edge and takes the page's width, while text keeps the reading measure. It is a width, not a separate kind of page |
+| **Wide page** | A content frame that declares its own width (`main[data-width]`), or whose only block is a workspace: every block starts at one left edge and takes the page's width, while text keeps the reading measure. It is a width, not a separate kind of page |
 | **Frame** | A box whose size comes from outside it: `main`, a root tab panel, a workspace, a pane, a grid cell, or any box declaring `--lf-block-frame: 1`. What it holds takes the frame's width, never the page's room |
 | **Grid** | `lf-grid`, which places its direct children in two dimensions |
 | **Cell** | A direct child of a grid; a frame |

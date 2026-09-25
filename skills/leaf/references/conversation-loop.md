@@ -10,7 +10,7 @@ The user follows your work on the page:
 | Beside a thread or widget | **Working** and your sentence, above the message or on the control the work answers | `leaf delivery claim`, `leaf status … --on <id>` |
 | Thread | your answer to the user's message | `leaf reply` |
 | Page | the revised content in place, and a stamp's changelog | saving `index.html`, `leaf version stamp` |
-| Request | the outcome of a request the user made | `leaf receipt` |
+| Request | the outcome of a request the user made | `leaf experimental receipt` |
 
 Leaf itself marks each user move **Sent**, **Queued**, and **Picked up**, including
 a move that owes you nothing, such as a moved card. A pick before the Done its Ask

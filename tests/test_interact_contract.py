@@ -1192,7 +1192,10 @@ def test_init_refuses_a_logged_report_the_incoming_layer_no_longer_speaks(page_d
     publish(page_dir)
     assert (
         CliRunner()
-        .invoke(cli_model.cli, ["report", str(page_dir), "t1", "status", "status=done"])
+        .invoke(
+            cli_model.cli,
+            ["experimental", "report", str(page_dir), "t1", "status", "status=done"],
+        )
         .exit_code
         == 0
     )

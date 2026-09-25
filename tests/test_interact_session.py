@@ -6944,6 +6944,42 @@ def test_watch_does_not_revive_a_disabled_service(page_dir, monkeypatch, snapsho
     )
 
 
+def test_watch_waits_out_a_restart_and_loses_a_restart_that_left_it_stopped(
+    page_dir, monkeypatch
+):
+    """A restart disables the service as a stop does, but its holder starts it
+    again, so a wait reads the gap as the page coming back: neither lost nor due a
+    revival. A holder that lets go without starting it leaves a plain stop."""
+    files_model.write_json(
+        page_dir / "service.json",
+        {
+            "host": "127.0.0.1",
+            "bind": "127.0.0.1",
+            "port": available_loopback_port(),
+            "enabled": True,
+            "lifetime": "session",
+        },
+    )
+    session_model.cmd_status(page_dir, "waiting", "review the page")
+
+    def unexpected_start(*_args, **_kwargs):
+        pytest.fail("a restarting service was revived")
+
+    monkeypatch.setattr(session_model, "start_server", unexpected_start)
+    watch = session_model.Watch(None, pages=(page_dir,))
+    try:
+        assert watch.acquire()
+        with hosting_model.restarting_server(page_dir):
+            assert not files_model.read_json(page_dir / "service.json")["enabled"]
+            restarting = next(watch.tick())
+        stopped = next(watch.tick())
+    finally:
+        watch.release()
+
+    assert restarting.live and not restarting.lost
+    assert stopped.lost
+
+
 def test_a_watch_wakes_on_what_its_pass_read_moving(page_dir):
     """Between passes a watch follows the stamps of what the last pass read, so an
     append wakes it in a look rather than on a timer; with nothing moved it wakes
@@ -11875,6 +11911,7 @@ def test_agent_sees_the_complete_interaction_recovery(
             result = CliRunner().invoke(
                 cli_model.cli,
                 [
+                    "experimental",
                     "receipt",
                     str(page),
                     sent["id"],

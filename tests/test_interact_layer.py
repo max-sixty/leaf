@@ -60,6 +60,7 @@ EXPECTED_PAGE_STATE_FILES = (
     "viewed.json",
     "service.json",
     "server.lock",
+    "restart.lock",
     "preview.json",
 )
 EXPECTED_PAGE_DIRECTORIES = (
@@ -137,7 +138,8 @@ def test_agent_interaction_command_help(regtest):
         "comment",
         "reply",
         "resolve",
-        "receipt",
+        "experimental",
+        "experimental receipt",
         "version check",
         "version stamp",
     ):

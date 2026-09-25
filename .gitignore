@@ -7,3 +7,4 @@ node_modules/
 .wrangler/
 docs/example-*.jpg
 .claude/settings.local.json
+evals/results/

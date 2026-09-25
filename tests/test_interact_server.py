@@ -1517,8 +1517,8 @@ def test_server_round_trip(server, page_dir):
         },
         {"kind": "reply", "parent": "nope", "revision": 2, "text": "hi"},
         {"kind": "resolve", "parent": "nope"},
-        # A report is agent-authored: its one door is `leaf report`, so the
-        # browser door refuses the kind outright rather than minting user
+        # A report is agent-authored: its one door is `leaf experimental report`,
+        # so the browser door refuses the kind outright rather than minting user
         # events that outrank nothing.
         {
             "kind": "report",

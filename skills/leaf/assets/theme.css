@@ -1637,8 +1637,9 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
  * framed widget, a blockquote and a paragraph each end somewhere different — and a
  * constant one is a hairline ending in the gutter, pointing at nothing. What it would
  * buy once measured is a second statement of the fact the target trace already makes, which is
- * why the item's raise is the whole of its own hover paint. */
-.lf-margin-cluster:is(:hover, :focus-within) { z-index: 3; }
+ * why the item's raise is the whole of its own hover paint. The raise is the runtime
+ * sheet's (chrome.css), which states it above the page paint the item summons; a second
+ * one here would tie it and win or lose by where each sheet stands. */
 .lf-margin-cluster.lf-withheld { display: none; }
 .lf-margin-inline { display: block; }
 .lf-margin-options { display: inline-flex; align-items: center; gap: 4px;

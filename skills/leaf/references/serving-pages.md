@@ -1,5 +1,21 @@
 # Serving pages
 
+## Inspecting interactions
+
+For a served page, read the private diagnostic stream while reproducing a user or
+test-agent path:
+
+```bash
+leaf interactions <page> --follow
+```
+
+It combines browser gestures and server request outcomes in delivery order. Browser
+rows carry a tab session, event time, and sequence; large values appear as ordered
+`interaction_part` rows whose `json` fields concatenate to the original row.
+The semantic decisions remain in `leaf events <page>`. See [page-storage.md](../scripts/leaf/page-storage.md)
+for the file contract. The public site stores its browser batches in Workers
+Observability; `worker/README.md` describes lookup by session reference.
+
 ## Exported files
 
 When `$ARGUMENTS` asks for `--export`, build the page as a finished record (the

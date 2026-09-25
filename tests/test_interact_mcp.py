@@ -12,6 +12,7 @@ from urllib.parse import urljoin
 import pytest
 from interact_support import PAGE, run_async, yaml_document
 from leaf import event_log as events_model
+from leaf import interaction_log as interaction_model
 from leaf.files import replace_files, revision_path
 from leaf.mcp_app import APP_MIME, SNAPSHOT_FORMAT, app_snapshot, apply_event
 from leaf.mcp_page import PAGE_RESOURCE_URI, ProcessPageServer
@@ -68,6 +69,20 @@ def test_mcp_specimens_keep_the_parent_capability_and_their_own_log(page_dir):
                 json.load(response)["state"]["events"][-1]["text"] == "Child feedback"
             )
         assert events_model.read_events(page_dir) == []
+        request = urllib.request.Request(
+            urljoin(child, "api/interaction"),
+            data=b'{"session":"mcp-tab","entries":[{"type":"click","location":"/"}]}',
+            headers={"Content-Type": "application/json"},
+        )
+        with urllib.request.urlopen(request) as response:
+            assert response.status == 204
+        trace = list(interaction_model.lines(page_dir))
+        capability = urllib.parse.urlsplit(parent).path.split("/")[2]
+        assert all(capability not in row for row in trace)
+        specimen = path.rstrip("/").split("/")[-1]
+        assert any(
+            json.loads(row).get("page") == f"/api/specimens/{specimen}" for row in trace
+        )
     finally:
         pages.close()
 

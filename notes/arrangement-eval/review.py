@@ -24,7 +24,10 @@ from pathlib import Path
 
 here = Path(__file__).resolve().parent
 batch = Path(sys.argv[1]).resolve()
-out = batch / "reviews"
+# FLIP=1 swaps every pair's sides and writes to reviews-flip/, so the two passes
+# together say how often the reviewer's pick follows the page rather than the side.
+flipped = os.environ.get("FLIP") == "1"
+out = batch / ("reviews-flip" if flipped else "reviews")
 out.mkdir(exist_ok=True)
 WIDTHS = [("laptop", "a 1440px laptop window"), ("narrow", "a 900px window"),
           ("phone", "a 390px phone")]
@@ -93,7 +96,7 @@ Reply with only a JSON object:
 
 def review(job):
     subject, n, phase, runs = job
-    flip = int(hashlib.sha256(f"{subject}-{n}-{phase}".encode()).hexdigest(), 16) % 2
+    flip = int(hashlib.sha256(f"{subject}-{n}-{phase}".encode()).hexdigest(), 16) % 2 ^ flipped
     order = ["plain", "leaf"] if flip else ["leaf", "plain"]
     text = prompt(subject, runs[order[0]], runs[order[1]], phase)
     with tempfile.TemporaryDirectory() as cwd:

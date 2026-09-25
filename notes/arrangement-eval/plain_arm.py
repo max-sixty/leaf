@@ -83,7 +83,10 @@ main { --lf-page-measure: var(--sheet-max); max-width: none; }
 
 On a window wider than about 864px, Leaf keeps the `--rail` strip at the window's right
 edge for comment markers and the thread cards they open; `main` sized this way leaves it
-clear, and so must anything you position outside `main`'s box.
+clear, and so must anything you position outside `main`'s box. Leaf's chrome never moves
+the page's content: the banner, the band and the rail are fixed reservations, so the
+room a page has depends only on the window, and the Asks tray, the Threads panel and
+thread cards stand over the page.
 
 Keep running text at the measure inside a wider layout (`max-width: var(--col)` on
 paragraphs and lists); tables, charts, and code may fill their region. Make every

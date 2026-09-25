@@ -1,9 +1,31 @@
-# Arrangement comparison
+# Arrangement eval harness
 
 Does Leaf's arrangement vocabulary make an agent's pages better, or should the agent
-lay a page out in its own HTML and CSS? This eval answers that with paired authoring
-runs. It is the first slice of #19 in `notes/workspace-followups.md`, run from the
+lay a page out in its own HTML and CSS? This harness answers that with paired authoring
+runs. It is the first slice of #19 in `notes/workspace-followups.md`, built from the
 harness shape in `notes/agent-usability-evals.md`.
+
+This note is the harness, not its results. A run's findings go to whoever acts on them:
+the pull request or page that reports the run, and a follow-up for each defect in the
+backlog (#19 in `notes/workspace-followups.md` lists the first run's).
+
+## State of the harness
+
+It is early: one run on two refs, and it needs work. A session that runs it improves
+it in the same change, fixing what broke and adding what the run showed it lacked, and
+updates this section. What the first run left:
+
+- `plain_arm.py` edits the authoring guide at fixed text anchors, so each rewrite of
+  the guide breaks the plain arm. #1171 broke it: `arms` stops on main until the
+  anchors are rewritten. Deriving the plain arm from the guide's structure, or keeping
+  the arrangement guidance in one section it can drop whole, would end that.
+- The judge reads static screenshots. It cannot see a pane scroll, a rail stick, or
+  any interaction, and it reads a pane's first screen as the whole pane.
+- One judge model and three pairs per cell. A batch costs about $50 and 1.5 hours.
+- The plain arm can still read the vocabulary in `references/packages.md` and the
+  optional packages' guidance.
+- Results live only in `.tmp/arrangement-eval/`, which leaves with the worktree.
+  `summarize` prints tables; nothing writes a result a later run can compare against.
 
 ## Arms
 
@@ -83,98 +105,3 @@ passes. A round runs all six subject × arm pairs at once, so machine load lands
 arms. Count a run only when its trace's `is_error` is false. The docstring of
 `harness.py` holds the design contract: the layout on disk, how each child is isolated,
 and how the review is blinded.
-
-## Results
-
-Two batches of three rounds each: main at `ad7504125` (`main-clean`, arms built by
-the harness at `5d0eeaa0a`, whose plain guide lacked the sentence on fixed chrome) and
-the #45 branch at `54b323246` (`pr45`: one page kind, `lf-grid` templates stacking at
-a 14rem narrowest track read from the grid's width, and the plain guide naming
-`--wide-page-max`, which #45 renamed from `--sheet-max`). All 72 pages pass the
-independent `version check --render`. No run loaded auto-memory, and no plain page used
-a vocabulary term.
-
-The screenshots were judged blind: under neutral file names, in a directory holding
-nothing else. Each pair was judged twice, once with each arm as page A. A pair counts
-for an arm only when both passes pick it; otherwise it is a split. The judge agreed
-with itself on 15 of 18 pairs in each batch. In 5 of the 6 splits it picked page B both
-times, so a split pair is a close one.
-
-### Pairs won in both passes
-
-Leaf/plain/split out of three pairs per row. Preference: of six judgments per arm, how
-many said the page kept its summary, status, contents or queue beside the content at
-900px.
-
-| subject | phase | main: overall | main: preference leaf, plain | #45: overall | #45: preference leaf, plain |
-|---|---|---|---|---|---|
-| document | 1 | 0/2/1 | | 1/2/0 | |
-| document | 2 | 0/3/0 | 0, 6 | 0/2/1 | 6, 6 |
-| dashboard | 1 | 0/1/2 | | 1/1/1 | |
-| dashboard | 2 | 1/2/0 | 3, 6 | 1/2/0 | 6, 6 |
-| queue | 1 | 0/3/0 | | 0/3/0 | |
-| queue | 2 | 0/3/0 | 4, 6 | 1/1/1 | 6, 6 |
-| total | | 1/14/3 | 7, 18 | 4/11/3 | 18, 18 |
-
-`summarize` prints the same tables at each width.
-
-### Effort
-
-Totals over nine runs per arm and phase:
-
-| batch | arm | phase 1 turns | phase 1 cost | phase 2 turns | phase 2 cost | CSS lines | JS lines |
-|---|---|---|---|---|---|---|---|
-| main | leaf | 114 | $6.60 | 86 | $9.67 | 92 → 97 | 0 |
-| main | plain | 161 | $7.64 | 82 | $10.40 | 326 → 402 | 165 |
-| #45 | leaf | 143 | $7.16 | 137 | $11.53 | 46 → 46 | 63 |
-| #45 | plain | 132 | $6.88 | 71 | $9.14 | 202 → 284 | 169 |
-
-CSS is after phase 1 → after phase 2. By subject, the gap is in the dashboard (main:
-39 lines against 150) and the queue (16 against 134, plus 165 lines of JavaScript to
-select a ticket). A document takes little CSS in either arm (37 against 42 on main).
-On #45 the leaf revisions took longer in every subject (dashboard 44 turns against 18,
-document 55 against 42, queue 38 against 11), though they changed no CSS.
-
-### Findings
-
-**The render gate doesn't separate the arms.** It reads every box, whatever produced
-it, and all 72 pages pass.
-
-**On main, a reader prefers the plain pages: 14 pairs to 1.** The preference lands in
-the plain arm every time and in the leaf arm in 7 of 18 judgments.
-
-**#45 fixes the preference and narrows the gap to 11 pairs to 4.** With the grid's
-stacking width fixed, the leaf arm meets the 900px preference in 18 of 18 judgments. It
-does so without CSS, by choosing a ratio the grid keeps side by side at a 769px `main`
-(`1fr 2fr`). In phase 1 all three #45 leaf queues chose `1fr 2.4fr`, which stacks below
-about 786px, and so stacked at 900px until the revision.
-
-**The vocabulary saves CSS and a selection script, but not turns.** The plain arm writes
-three to four times the CSS on the dashboard and queue, and writes its own ticket
-selection. The leaf arm used fewer turns on main (114 against 161) and more on #45 (143
-against 132, and 137 against 71 for the revision).
-
-**The defects the judge names in leaf pages.** These are keyword counts over the
-judge's defect lists, 12 judgments per subject and batch; I checked the document edge
-and the queue stacking against main's screenshots:
-
-- *Document*: wide tiles and figures run past the prose's right edge (6 on main, 7 on
-  #45), because a grid in a document stands at the wide width; the rail comes last on a
-  phone (6, 5), because the body-and-rail grid keeps authored order; the rail isn't
-  sticky (5, 4). All three #45 plain documents made their rail sticky.
-- *Queue*: the ticket's decision sits below the pane's fold and the queue shows only
-  part of itself (6, 7), because each pane scrolls on its own. A static screenshot shows
-  only a pane's first screen, so the capture itself accounts for part of this.
-  Stacking at 900px (5, 5) is the grid threshold on main and the `2.4fr` choice on #45.
-
-### Limits
-
-- One judge model reading static screenshots, three pairs per cell.
-- Opus 5.5 authors only.
-- The plain arm can still read the vocabulary in `references/packages.md` and in the
-  optional packages' guidance. No plain page used it, but every plain queue agent
-  searched for `lf-workspace`, which adds to that arm's turns.
-- Runs before the harness at `4158aa599` shared `/tmp` across arms and could write into
-  the payload. In #45 round 3 the two dashboard agents wrote the same `/tmp` file
-  names about six seconds apart, close enough that one agent could have read the
-  other's screenshot.

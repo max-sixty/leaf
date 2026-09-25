@@ -30,7 +30,18 @@ Items are ranked within each group. IDs are stable references, not a global prio
 
 - **#19** **Measure what Leaf saves an authoring agent** — Run a small blind authoring comparison against plain HTML, including the cost of the subsequent feedback cycle.
 
-  **Evidence / confidence:** First slice measured for arrangement: [arrangement-eval](arrangement-eval/README.md#results) compares Leaf's arrangement vocabulary with plain page CSS on a document, a dashboard and a queue, plus a standing-preference revision. On the #45 layout a blind reviewer preferred the plain pages in 11 pairs, the leaf pages in 4, and split 3; the vocabulary cut page CSS about fourfold but not turns. Widgets beyond arrangement, and package guidance, are still unmeasured.
+  **Evidence / confidence:** First slice measured for arrangement with the [arrangement-eval harness](arrangement-eval/README.md): Leaf's arrangement vocabulary against plain page CSS on a document, a dashboard and a queue, plus a standing-preference revision. On the #45 layout a blind reviewer preferred the plain pages in 11 pairs, the leaf pages in 4, and split 3; the vocabulary cut page CSS about fourfold but not turns. The full write-up is the harness README at `5e7fc3acf`. Widgets beyond arrangement, and package guidance, are still unmeasured.
+
+  **Follow-ups from the first run** (reproduced in the judge's defect lists and checked against the screenshots):
+
+  - `lf-diagram`: a `flowchart LR` wider than its box hides its last steps; all three #45 leaf documents lost step 5 of their plan. Fit or wrap it, and have the registry example model a top-down sequence.
+  - `lf-chronology`: it reverses a newest-first log and opens a bounded log partway down with its first line cut. Keep the author's order and open on a whole entry.
+  - Fitted SVG: the theme scales a drawing to its box, so labels become unreadable at 900px and on a phone. Floor the scale, or have the render check flag the drawing.
+  - `lf-options`: on a wide page the radio marks sit inset from the card's right edge and the dividers stop short of it.
+  - Render check: it passed all 72 pages. Render at the width the user names, and flag a figure scrolled sideways out of view, text drawn below about 10px, and an Ask below its pane's first screen.
+  - Render check: report the width at which each grid stacks, which no queue author could see.
+  - Preferences: `AGENTS.md` promises preferences "stated once and honoured on every page", but nothing holds one, so authors sent the user to `CLAUDE.md` or wrote host memory. Build a Leaf store, or drop the promise and name the host's memory.
+  - The #45 branch holds the layout findings: the rail comes last on a phone and doesn't stick, the 14rem floor cramps it at 900px, a stacked workspace splits the window height, a pane opens with an empty top band, and a wide grid runs past the prose edge (#51).
 
   **Next task:** Give comparable agents document-review, configuration and queue/detail tasks with the same content and acceptance criteria. Compare usable output, time/tokens, custom CSS and repair iterations; then require a comment and revision on each result. Counterbalance task order.
 

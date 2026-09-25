@@ -7500,14 +7500,14 @@ def _comment_on(section, text="A comment on this.", quote=None):
         ('<main data-width="available" data-rail="right">', "rail"),
         ('<main data-rail="none">', "pin"),
     ],
-    ids=["column", "sheet", "sheet-keeps-the-rail", "column-gives-it-up"],
+    ids=["column", "wide", "wide-keeps-the-rail", "column-gives-it-up"],
 )
 def test_the_page_form_decides_the_rail_and_main_can_say_otherwise(
     browser, serve, main, place
 ):
-    """A document keeps a rail beside its column and a sheet does not: its markers stand
-    as pins on their blocks. `data-rail` on `main` turns either round. Where no rail is
-    kept the page claims no strip for one, so the sheet has the room."""
+    """A column page keeps a rail beside its column and a wide page does not: its markers
+    stand as pins on their blocks. `data-rail` on `main` turns either round. Where no rail
+    is kept the page claims no strip for one, so the wide page has the room."""
     source = leaf_page(
         "rail by form",
         '<h1 id="t">Rail by form</h1><p id="p">A paragraph with a comment on it.</p>',
@@ -7522,6 +7522,24 @@ def test_the_page_form_decides_the_rail_and_main_can_say_otherwise(
              .getPropertyValue('--lf-rail-posture').trim() === 'margin'"""
     )
     assert claimed == (place == "rail")
+
+
+def test_a_page_made_wide_by_its_workspace_claims_no_rail(browser, serve):
+    """A page whose only block is a workspace is a wide page without declaring one, so it
+    gives up the rail's strip as `<main data-width="available">` does."""
+    source = leaf_page(
+        "workspace page",
+        '<lf-workspace id="w"><header><h1 id="t">Workspace</h1></header>'
+        '<lf-pane id="pane" label="Queue"><div><p id="p">A paragraph.</p></div>'
+        "</lf-pane></lf-workspace>",
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1440, 900)
+    posture = page.evaluate(
+        """() => getComputedStyle(document.querySelector('main'))
+             .getPropertyValue('--lf-rail-posture').trim()"""
+    )
+    assert posture != "margin"
 
 
 def test_o_hides_what_is_drawn_over_the_page_and_moves_nothing(browser, serve):

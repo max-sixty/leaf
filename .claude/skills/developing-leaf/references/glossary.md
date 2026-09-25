@@ -72,12 +72,13 @@ item.
 |---|---|
 | **Page shell** | The body-level responsive sizing envelope after chrome reservations |
 | **Content frame** | `body > main`, the root of authored content and its reading column in flow posture |
+| **Wide page** | A content frame that declares its own width (`main[data-width]`), or whose only block is a workspace: every block starts at one left edge and takes the page's width, while text keeps the reading measure. It is a width, not a separate kind of page |
 | **Frame** | A box whose size comes from outside it: `main`, a root tab panel, a workspace, a pane, a grid cell, or any box declaring `--lf-block-frame: 1`. What it holds takes the frame's width, never the page's room |
 | **Grid** | `lf-grid`, which places its direct children in two dimensions |
 | **Cell** | A direct child of a grid; a frame |
 | **Text** and **surface** | How a block uses its frame's width: text keeps the reading measure, a surface (`x-measure: surface`, or `x-space` past the column) fills the frame; a group (`x-measure: group`) passes the measure to what it holds |
 | **Bounded block** | A block that holds its own height and scrolls inside it (`x-bound`, `data-bound`); not a reading region |
-| **Workspace** | An authored structural composition that keeps task regions together |
+| **Workspace** | An authored structural composition that keeps task regions together; as `main`'s only block, or a root tab's, it is the **root workspace** and holds the window |
 | **Pane** | One reading region in a workspace: an optional header, exactly one body element, an optional footer |
 | **Reading region** | A stable semantic place used by navigation and reading-position recovery |
 | **Effective reading scroller** | The scroll container currently governing one reading region |
@@ -97,8 +98,8 @@ A compound widget may own reading regions without being a pane.
 | **Chrome** | Runtime-owned interface outside authored content, rooted at the one `.lf-chrome` container |
 | **Banner** | The persistent chrome row carrying page status and the primary Approval and Threads controls, with secondary global controls in its overflow disclosure. While a user's gesture holds a next step, such as Comment on selection after a touch selection, that step stands on the row in Approval and Threads' place |
 | **Auxiliary surface** | Chrome opened `beside`, `over`, or `covering` the content frame |
-| **Thread panel** | The right-side auxiliary surface containing threads; it stands over the page and takes no width from it, leaving the page live beside it, and covers the page only where it leaves less than a usable page beside it |
-| **Tray** | A mutually exclusive auxiliary surface admitted by the one left-side tray position; the Asks tray stands over the page, live beside it, and covers it only where it leaves less than a usable page beside it, as the thread panel does; the Leaves tray always covers |
+| **Thread panel** | The right-side auxiliary surface containing threads; it stands over the page and takes no width from it, and covers the page only where it leaves less than a usable page beside it |
+| **Tray** | A mutually exclusive auxiliary surface admitted by the one left-side tray position; the Asks tray stands over the page as the thread panel does, and the Leaves tray always covers |
 
 The current trays are the **Asks tray** and **Leaves tray**. Use *covering auxiliary
 surface*, not *modal workspace*: a covering surface and a modal dialog are different

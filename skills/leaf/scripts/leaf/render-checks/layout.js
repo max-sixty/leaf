@@ -374,9 +374,10 @@ export function misplacedBoxes() {
   return found.filter(({ text }) => !texts.has(text) && texts.add(text));
 }
 
-// Whether a page's grids stand on one set of vertical lines. A sheet reads as one
-// structure when every region shares the same tracks (page-authoring.md, the sheet), and
-// reads as a jumble when each row is a grid of its own whose split lands somewhere new.
+// Whether a page's grids stand on one set of vertical lines. A wide page reads as one
+// structure when every region shares the same tracks (page-authoring.md, "A wide
+// page"), and reads as a jumble when each row is a grid of its own whose split lands
+// somewhere new.
 // So each split — the midpoint of the gutter between two cells side by side — is a line
 // the page draws, and the count that matters is how many lines the page draws beyond what
 // its busiest grid needs: `unshared` is the distinct splits across the page, clustered at

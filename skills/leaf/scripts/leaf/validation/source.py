@@ -47,7 +47,6 @@ from leaf.validation.markup import (
     page_boundary_errors,
     structure_errors,
     unpointable_blocks,
-    workspace_sheet_errors,
 )
 from leaf.validation.source_history import (
     RevisionReading,
@@ -180,7 +179,6 @@ def _instance_errors(
         return errors
     errors.extend(widget_errors(parser.lf_elements, registry))
     errors.extend(layout_errors(parser.lf_elements, registry))
-    errors.extend(workspace_sheet_errors(parser, registry))
     errors.extend(visual_part_errors(parser.lf_elements, registry))
     errors.extend(addressable_instance_errors(parser.lf_elements, registry))
     errors.extend(ask_surface_errors(parser.lf_elements, registry))
@@ -247,6 +245,7 @@ def _source_advice(
     stored_data: dict,
     revision: RevisionReading,
     dropped_ids: list[str],
+    artifact: RevisionArtifact | None,
 ) -> list[str]:
     """Report non-blocking drift after every error-producing phase has run."""
     return [
@@ -266,7 +265,11 @@ def _source_advice(
         *(f"data source unreadable: {error}" for error in data_errors(stored_data)),
         *unpointable_blocks(parser),
         *missing_outline(parser, registry or {}),
-        *layout_css_advice(parser, registry or {}),
+        *layout_css_advice(
+            parser,
+            registry or {},
+            artifact.page_stylesheets if artifact is not None else {},
+        ),
     ]
 
 
@@ -392,5 +395,6 @@ def check_source(
         stored_data,
         revision,
         dropped_advice,
+        artifact,
     )
     return SourceCheck(document, registry, errors, advice, column, artifact)

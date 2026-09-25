@@ -2034,6 +2034,47 @@ def test_a_picture_is_one_addressable_element_however_many_ids_its_renderer_coin
     expect(page.locator(".lf-inspect")).to_have_text("lf-diagram · flow")
 
 
+def test_an_authored_drawing_offers_each_named_group_to_a_comment(browser, serve):
+    """An id on a group inside a page's own inline SVG makes that part a target.
+
+    Only a registered visual keeps the ids inside it to itself; a figure the author drew
+    is ordinary markup, so a named group takes the aim and the comment, and a shape
+    without an id still reaches the figure around it."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "drawing",
+                """
+<h1 id="t">Drawing</h1>
+<figure id="fig"><svg viewBox="0 0 240 60" width="240" height="60" role="img"
+aria-label="A tray beside a page"><g id="fig-tray"><rect x="2" y="2" width="100"
+height="56" fill="#ddd"></rect><text x="52" y="34" text-anchor="middle">Tray</text></g>
+<rect x="130" y="2" width="100" height="56" fill="#ddd"></rect></svg></figure>
+""",
+            )
+        ),
+    )
+    tray = page.locator("#fig-tray rect")
+    corner = {"x": 8, "y": 8}
+    tray.hover(position=corner)
+    page.keyboard.down("Alt")
+    expect(page.locator(".lf-aim")).to_have_attribute("data-for", "fig-tray")
+    page.keyboard.up("Alt")
+    page.locator("#fig svg > rect").hover()
+    page.keyboard.down("Alt")
+    expect(page.locator(".lf-aim")).to_have_attribute("data-for", "fig")
+    page.keyboard.up("Alt")
+
+    tray.click(modifiers=["Alt"], position=corner)
+    open_compact_comment(page, "wider")
+    with sending(page, "the comment on the tray"):
+        page.keyboard.press("Enter")
+    sent = events_model.read_events(serve.page_dir)[-1]
+    assert sent["kind"] == "comment"
+    assert sent["anchor"] == {"section": "fig-tray"}
+
+
 def test_a_visual_part_aim_follows_its_drawn_svg_shape(browser, serve):
     """A visual part's rendered SVG supplies its contour without a package contract.
 

@@ -68,8 +68,21 @@ The registry's `$languages.names` lists
 accepted language names. Keep logs and transcripts plain when they are not source
 code.
 
-A diagram's authored source ids also give the user something to comment on: the
-`lf-diagram` entry says which boxes `parts` can open to a comment of their own.
+A user can comment on a drawing as a whole and quote the words in it, but a part
+of it takes a comment of its own only when the author named that part. In an
+`lf-diagram`, the entry says which boxes `parts` opens to a comment of their own.
+In an inline `<svg>`, give an `id` to each element the user may want to point at,
+usually a `<g>` that holds one shape and its label. The user can then aim at that
+part alone, and the thread's anchor reports its `id` to you, so choose ids that
+name what the part is.
+
+Leaf paints a comment's mark where its part stood when the mark was painted, so a
+part that CSS animates or a script redraws moves away from its mark. Draw moving
+parts in a page widget that registers them: declare `x-visual` parts on its entry,
+call `registerVisualParts` from its module, and call the registration's `update()`
+after each paint so marks move with their parts. A `reveal` that draws a frame
+holding a part the current frame lacks lets a thread still take the user to it. The
+registry's `$keys` entry for `x-visual` states the contract.
 
 ## Source files and media
 

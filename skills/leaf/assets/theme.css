@@ -1013,12 +1013,12 @@ hr { border: none; border-top: 1px solid var(--rule); margin: 40px 0; }
  * hands room to its neighbour the same way (a flex item measured 691px to 359px).
  * A block (pre) wraps nothing, so this reaches nothing there.
  *
- * A name that wraps keeps its side padding at its two ends only. Cloned onto every
- * fragment it painted past the column: Chromium breaks the line where the text fits
- * and then adds the cloned end padding, so a chip ending a line at the column's edge
- * stood 3-5px out in the margin (feature gallery, 600px). */
+ * Slice the decoration across lines so side padding belongs only to the span's
+ * start and end. Cloning each fragment adds padding after line breaking and can
+ * paint past the column. */
 code { background: var(--code-bg); border-radius: 4px; padding: 1px 5px;
-       font-size: 82%; font-family: var(--mono); overflow-wrap: anywhere; }
+       font-size: 82%; font-family: var(--mono); overflow-wrap: anywhere;
+       box-decoration-break: slice; }
 /* A code block is sized by how many characters it takes across, which is why its size
  * is off the serif ladder above. At --code-size, the column keeps comfortably more
  * than the 80 characters most source is written to.
@@ -1100,8 +1100,7 @@ img, svg, video { max-width: 100%; height: auto; }
  * one. */
 table { display: block; overflow-x: auto; border-collapse: collapse;
         font: var(--t-5)/1.5 var(--sans); margin: 18px 0; font-variant-numeric: tabular-nums; }
-/* A cell already supplies the identifier's frame and spacing. Cloned inline-code
-   padding can overflow a wrapped line even when its words fit the column. */
+/* A cell already supplies the identifier's frame and spacing. */
 :is(th, td) code:not(pre code) { padding: 0; background: none; font-size: var(--t-6); }
 caption { text-align: left; font-size: var(--t-6); color: var(--muted);
           margin-bottom: 6px; }

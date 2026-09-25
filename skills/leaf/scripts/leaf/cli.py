@@ -324,10 +324,10 @@ def delivery() -> None:
 )
 @click.option(
     "--detail",
-    default=None,
-    help='What the page says the agent is doing (default: "Reading your feedback").',
+    required=True,
+    help="What the page says the agent is doing, naming the work and its subject.",
 )
-def delivery_claim(delivery_id: str, event_id: str | None, detail: str | None) -> None:
+def delivery_claim(delivery_id: str, event_id: str | None, detail: str) -> None:
     """Claim one still-outstanding user move from DELIVERY_ID.
 
     The page and subject come from the immutable delivery. Current page state is
@@ -689,13 +689,13 @@ def _status_line(state: str, detail: str, on: str | None) -> str:
 def status(dir: str, state: str, detail: str, on: str | None) -> None:
     """Set the agent's banner state.
 
-    Use working with DETAIL naming your current work, or waiting with the answer
-    you want from the user. Waiting without DETAIL invites text comments.
-    Use idle when finished; unacknowledged input and unanswered user moves
-    prevent it.
+    Use working with DETAIL, required, naming your current work and its
+    subject, or waiting with the answer you want from the user. Waiting without
+    DETAIL invites text comments. Use idle when finished; unacknowledged input
+    and unanswered user moves prevent it.
 
-    With working, --on names an open conversation or page widget and requires
-    DETAIL. The user sees it beside that subject as well as in the banner.
+    With working, --on names an open conversation or page widget. The user sees
+    DETAIL beside that subject as well as in the banner.
     Your next reply ends a thread claim; a version stamp with --completes ends
     a widget claim. Renew the status as work changes: a claim left after your
     turn ends, or without updates, eventually reads as stalled.

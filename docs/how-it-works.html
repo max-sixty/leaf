@@ -200,9 +200,9 @@ $ leaf wait ./review
       "handling": {
         "h1": "The user already sees the action applied.",
         "h2": "If you need clarification, ask in a thread on the picked option. To override the pick in a later version, mark the element `restated` and say why in the version note.",
-        "h3": "It answers the page's Ask, so the page shows it as waiting on you until the markup records it. Continue the work it selects or unblocks, then write it in and stamp a version.",
+        "h3": "It answers the page's Ask, so the page shows it as waiting on you until the markup records it. Name the work it selects or unblocks with `leaf status &lt;page&gt; working \"&lt;the work, in a line&gt;\"` before starting it, then do it, write it in, and stamp a version.",
         "h4": "This event's conversation has no title yet: name it with `leaf conversation title &lt;page&gt; &lt;conversation-id&gt; --text \"&lt;a few words&gt;\"`, so the thread panel lists its subject rather than its opening words.",
-        "h5": "Answer with `leaf reply &lt;page&gt; --for &lt;event-id&gt;` before any other work, including the work this event asks for: give the answer, or say what you are about to do and where the result will appear. Once that work lands, report it with `leaf reply &lt;page&gt; --to &lt;address&gt; --initiates`, where `&lt;address&gt;` is the event's `answer.to`. `leaf reply` checks any saved page edit and makes it live before posting. If a revision removes what the thread is anchored on, move the thread in the reply that reports it with `--section &lt;id&gt;` (narrowed by `--quote` or `--part` if needed), or `--detach` it if its subject has left the page. Add `--awaits` only if your reply's prose asks the user something.",
+        "h5": "Answer with `leaf reply &lt;page&gt; --for &lt;event-id&gt;` before any other work, including the work this event asks for: give the answer, or say what you are about to do and where the result will appear. When work follows, name it on the page in the same command, as in `leaf reply &lt;page&gt; --for &lt;event-id&gt; --text \"…\" &amp;&amp; leaf status &lt;page&gt; working \"&lt;the work, in a line&gt;\" --on &lt;address&gt;`, where `&lt;address&gt;` is the event's `answer.to`: the line stands beside the thread and in the banner until your next reply there. Once that work lands, report it with `leaf reply &lt;page&gt; --to &lt;address&gt; --initiates`. `leaf reply` checks any saved page edit and makes it live before posting. If a revision removes what the thread is anchored on, move the thread in the reply that reports it with `--section &lt;id&gt;` (narrowed by `--quote` or `--part` if needed), or `--detach` it if its subject has left the page. Add `--awaits` only if your reply's prose asks the user something.",
         "h6": "Your reply renders as Markdown, so show code or markup in a fenced block."
       },
       "events": [
@@ -285,10 +285,11 @@ $ leaf wait ./review
 # after the complete envelope reaches the agent, start the next background task
 $ leaf wait --ack 2d5bdcc4
 
-# while that wait runs, answer the comment
-$ leaf reply ./review --for ebe8f367 --text "I’ll use drop-oldest for the batch importer and keep rejection at the API boundary."
+# while that wait runs, answer the comment and name the work it starts
+$ leaf reply ./review --for ebe8f367 --text "I’ll use drop-oldest for the batch importer and keep rejection at the API boundary." &amp;&amp; leaf status ./review working "splitting the shed policy between the API and the importer" --on ebe8f367
 
 # revise ./review/index.html; a valid save goes live at once
+$ leaf reply ./review --to ebe8f367 --initiates --text "Done: the shed section now splits the policy by caller."
 $ leaf status ./review waiting "Does the API/importer split match what you need?"</code></pre>
             </lf-specimen>
             <p id="loop-shell-read">
@@ -327,7 +328,10 @@ $ leaf status ./review waiting "Does the API/importer split match what you need?
                 <strong>Work</strong>: what the agent is doing. A delivery entering the
                 agent's turn marks it working; <code>leaf status</code> names the
                 operation, and
-                <code>leaf delivery claim &lt;id&gt; --event &lt;event-id&gt;</code>
+                <code
+                  >leaf delivery claim &lt;id&gt; --event &lt;event-id&gt; --detail
+                  "…"</code
+                >
                 names the move being worked on.
               </li>
               <li id="response-evidence">
@@ -352,6 +356,142 @@ $ leaf status ./review waiting "Does the API/importer split match what you need?
               the thread panel beside their passages, and the banner and tab icon say
               whether an agent is working, waiting for you, or absent.
             </p>
+          </section>
+        </lf-tab>
+
+        <lf-tab id="updates" label="Updates">
+          <section id="updates-seats">
+            <h2>The agent says what it is doing before it does it</h2>
+            <p id="updates-lede">
+              While an agent works on a page, it writes short updates to three places:
+              the banner at the top of the page, a line beside the thread or widget the
+              work is about, and replies in the thread itself. Each update is one
+              sentence naming the operation and its subject, written before the step
+              starts, so what you read is what is happening now.
+            </p>
+            <lf-chronology id="updates-timeline">
+              <lf-chronology-entry id="updates-sent" at="0s" kind="observation">
+                <strong>Sent</strong> You comment on the lede. The page shows your
+                comment at once, marked Sent.
+              </lf-chronology-entry>
+              <lf-chronology-entry id="updates-picked" at="2s" kind="observation">
+                <strong>Picked up</strong> The agent confirms receipt with
+                <code>leaf wait --ack</code>. Your comment reads Picked up, and until
+                the agent writes its own words the banner reads
+                <em>Claude working — on your update</em>.
+              </lf-chronology-entry>
+              <lf-chronology-entry id="updates-reply" at="8s" kind="intervention">
+                <strong>A reply says what comes next</strong> Before doing the work, the
+                agent replies in your thread:
+                <em>I’ll cut the lede to two sentences.</em> In the same command,
+                <code
+                  >leaf status … working "cutting the lede to two sentences" --on
+                  &lt;thread&gt;</code
+                >
+                puts that line beside the thread and in the banner.
+              </lf-chronology-entry>
+              <lf-chronology-entry id="updates-phase" at="1m" kind="intervention">
+                <strong>Each new phase gets a new line</strong> When the work moves from
+                editing to checking, the agent writes the status again:
+                <em>Claude working — checking the page at phone width</em>.
+              </lf-chronology-entry>
+              <lf-chronology-entry id="updates-done" at="2m" kind="observation">
+                <strong>Answered</strong> The revision goes live, a second reply reports
+                it, and a waiting status names what the agent wants back:
+                <em>Claude awaits — does the shorter lede keep enough?</em>
+              </lf-chronology-entry>
+            </lf-chronology>
+          </section>
+
+          <section id="updates-when">
+            <h2>When the agent writes one</h2>
+            <ul id="updates-moments">
+              <li id="updates-on-input">
+                <strong>When your input arrives.</strong> Your comment comes before the
+                work in hand: the agent confirms receipt, answers or says what it is
+                about to do, and names that work, all before starting it. Each delivery
+                repeats these steps to the agent beside the events they apply to.
+              </li>
+              <li id="updates-on-phase">
+                <strong>When the work changes.</strong> A new subject, or a new phase
+                such as reading, editing, testing, or waiting on a result, gets a new
+                line. <code>leaf status</code> refuses <code>working</code> with no
+                sentence, since the banner already says that the agent is working.
+              </li>
+              <li id="updates-on-long-work">
+                <strong>During long work.</strong> Work longer than a few minutes goes
+                to background workers, so the agent stays free to answer your next
+                comment. Its status names what is still running, and it writes it again
+                when a worker reports.
+              </li>
+              <li id="updates-on-handoff">
+                <strong>When it is your move.</strong> A waiting status names the answer
+                or decision the agent wants, rather than saying that it is waiting.
+              </li>
+            </ul>
+            <p id="updates-reference">
+              The
+              <a
+                href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/conversation-loop.md#when-to-write"
+                >conversation loop reference</a
+              >
+              is the agent's copy of these rules.
+            </p>
+          </section>
+
+          <section id="updates-silence">
+            <h2>What the banner says without an update</h2>
+            <p id="updates-silence-lede">
+              The banner states only what the page directory can prove, so a quiet agent
+              reads differently from a busy one. Once an update is about a minute old,
+              the banner shows its age, as in
+              <em>Claude working · 5m ago — running the browser suite</em>.
+            </p>
+            <table id="updates-readings">
+              <thead>
+                <tr>
+                  <th>Banner</th>
+                  <th>What Leaf knows</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr id="updates-reading-held">
+                  <td>Claude working — on your update</td>
+                  <td>
+                    The agent's current turn picked up your input and has not yet said
+                    what it is doing.
+                  </td>
+                </tr>
+                <tr id="updates-reading-ended">
+                  <td>Claude’s turn ended 3m ago</td>
+                  <td>
+                    The agent's turn finished without renewing its last update. The
+                    disclosure keeps that update's words.
+                  </td>
+                </tr>
+                <tr id="updates-reading-quiet">
+                  <td>Claude last checked in 20m ago</td>
+                  <td>
+                    Nothing has renewed the update for about a quarter of an hour.
+                  </td>
+                </tr>
+                <tr id="updates-reading-away">
+                  <td>Claude away</td>
+                  <td>
+                    No watcher is running. Your comments are saved, and the agent picks
+                    them up on its next turn.
+                  </td>
+                </tr>
+                <tr id="updates-reading-nudge">
+                  <td>Nudge Claude in terminal</td>
+                  <td>
+                    No watcher is running, and nothing has renewed the update for about
+                    a quarter of an hour. Your comments are saved until a message in the
+                    agent's terminal starts its next turn.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
           </section>
         </lf-tab>
 

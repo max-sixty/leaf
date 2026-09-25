@@ -71,11 +71,6 @@ has tried; settle that before building it.
   and remaining undersized touch targets.
 - **Give the thread panel's touch grip its own space.** Reserve room for the grip
   and collapse inactive reply controls if more thread cards should fit.
-- **Keep wrapped inline code inside the column.** `theme.css` gives inline `code`
-  `box-decoration-break: clone`, which pads every wrapped fragment and pushes it
-  about 4px past the text column; `slice` keeps it inside, with a squared-off end
-  where a code span breaks. Compare both in a rendered narrow column before
-  choosing the treatment.
 
 ### Layout
 
@@ -84,7 +79,9 @@ has tried; settle that before building it.
   a report into a report with live status while keeping its comments. The recipes hold
   if revisions happen by ordinary composition, with no page-wide CSS and no wholesale
   restructuring. Include a cold agent asked for "a dashboard", the likeliest trigger
-  for over-tiling. Run it with the agent-usability baseline (#19). **Unconfirmed:**
+  for over-tiling. Run it with the agent-usability baseline (#19), by extending the
+  [arrangement eval](notes/arrangement-eval/README.md), which already runs a document,
+  a dashboard and a queue with a revision. **Unconfirmed:**
   that one global threshold (720×480) suits the comparison and queue-with-detail
   pages.
 - **Layout values that wait for a task:** row and column spans in `lf-grid` with a

@@ -79,4 +79,69 @@ Count a run only when its trace's `is_error` is false.
 
 ## Results
 
-Pending.
+### main at `ad7504125`, 24 September 2026
+
+Three rounds, 18 runs per arm across the three subjects and both phases (batch
+`main-clean`). No run loaded auto-memory, and no plain-arm page used a vocabulary term.
+
+**Every page passes.** The independent `version check --render` passed all 36 pages,
+and the median agent saw no failing check along the way. The render checks read every
+box whatever produced it, so they don't separate the arms.
+
+**The vocabulary saves authoring work, mostly on the queue.** Phase-one totals across
+nine runs per arm:
+
+| arm | turns | cost | minutes | page CSS lines | page JS lines |
+|---|---|---|---|---|---|
+| leaf | 114 | $6.60 | 18 | 92 | 0 |
+| plain | 161 | $7.64 | 24 | 326 | 165 |
+
+The document and the dashboard cost about the same in both arms; the plain arm writes
+two to four times the CSS. The queue is where the arms diverge: the leaf arm's median
+run took 11 turns and 6 CSS lines with `lf-workspace` and `lf-pane`, while the plain
+arm's took 25 turns, 45 CSS lines and 69 lines of JavaScript to select a ticket.
+
+**The reviewer prefers the plain pages.** Each pair was judged twice, once with each
+arm as page A; the judge picked the same page in 16 of 18 pairs.
+
+| subject | phase | overall leaf/plain | layout only leaf/plain | 1440px | 900px | 390px |
+|---|---|---|---|---|---|---|
+| dashboard | 1 | 3/3 | 3/3 | 5/1 | 0/4 | 0/5 |
+| dashboard | 2 | 1/5 | 1/5 | 2/3 | 0/5 | 0/5 |
+| document | 1 | 2/4 | 2/4 | 2/4 | 2/4 | 2/3 |
+| document | 2 | 0/6 | 0/6 | 0/6 | 0/6 | 2/4 |
+| queue | 1 | 0/6 | 0/6 | 1/5 | 0/6 | 0/5 |
+| queue | 2 | 0/6 | 0/6 | 0/6 | 0/6 | 0/4 |
+
+Ties make up the rest of each width's six judgments. The leaf arm's one clear strength
+is the dashboard at laptop width.
+
+**The standing preference lands in the plain arm and mostly not in the leaf arm.** The
+reviewer judged the 900px preference met in 18 of 18 plain judgments and 5 of 18 leaf
+judgments (dashboard 3/6, document 0/6, queue 2/6). Plain agents added 76 lines of CSS
+for it, setting their own breakpoints; leaf agents added 5, changing `lf-grid` ratios
+and trusting the grid to hold.
+
+What the reviewer's defects come down to, each checked against the screenshots or the
+code:
+
+- **The grid stacks at 900px.** `lf-grid` stacks a template once its narrowest track
+  would fall under 16rem, and it rounds the template's ratio up to a whole number
+  (`lf-grid.js:38`), so `3fr 2fr` stacks like `2fr 1fr`, below a 51rem grid. A 900px
+  window leaves `main` about 769px beside the rail, so a body-and-rail split and a
+  queue beside its detail both stack there. An author can't move that threshold short
+  of switching to `1fr 1fr`. The #45 branch changes the rounding. `1fr 2fr` still
+  stacks below 51rem after that change, because 16rem × 3 plus the gaps is that width.
+- **A workspace hides its own ending.** On a laptop each pane scrolls separately, and
+  the decision under a ticket sits below the pane's fold. Once the grid stacks at 900px,
+  the queue pane is a short box showing two or three tickets. Two of the three plain
+  queues scroll as one page with a sticky queue, and the reviewer preferred the plain
+  queue at every width.
+- **A wide grid in a document breaks the text's edge.** A grid in a document stands at
+  the wide width, so its right edge runs well past the prose. The reviewer called that
+  misaligned in 6 of its 12 document judgments.
+- **Two of three leaf queues added an `lf-tabs` strip** of ticket numbers beside the
+  queue, which the reviewer flagged as a second list of the same tickets.
+
+Limits: one judge model reading static screenshots; three runs per cell; a pane's inner
+scroll isn't exercised (the reviewer is told it scrolls); Opus 5.5 authors only.

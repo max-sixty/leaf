@@ -428,7 +428,8 @@ function scheduleScrollReading() {
 
 // LOOK PASS (temporary): the open visual candidates, chosen on the root for stills.
 const look = () => ({
-  pin: document.documentElement.dataset.lfLookPin ?? "room",
+  pin: { figma: "corner" }[document.documentElement.dataset.lfLookPin]
+    ?? document.documentElement.dataset.lfLookPin ?? "room",
   wide: document.documentElement.dataset.lfLookWide === "b4" ? "step" : "pin",
 });
 

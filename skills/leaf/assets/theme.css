@@ -1837,6 +1837,21 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   transition: none;
 }
 .lf-margin-options [data-lf-margin-entry-overflow] { display: none; }
+/* LOOK PASS (temporary): a filled corner pin, the way a design tool's comment pin sits on
+ * a frame. Stated after the entry's states so its face outranks theirs. */
+:root[data-lf-look-pin="figma"] { --pin-fill: light-dark(#0d7ae6, #3d9bff); }
+:root[data-lf-look-pin="figma"] .lf-margin-cluster[data-lf-place="pin"] { --margin-entry: max(26px, var(--aim-floor)); }
+:root[data-lf-look-pin="figma"] .lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry.lf-margin-marker {
+  border: 2px solid var(--paper); border-radius: 50% 50% 50% 3px;
+  background: var(--lf-pin-face, var(--pin-fill)); color: #fff;
+  box-shadow: 0 1px 2px rgb(0 0 0 / .22), 0 3px 8px rgb(0 0 0 / .14); }
+:root[data-lf-look-pin="figma"] .lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry.lf-margin-marker
+  > :is(.lf-margin-entry-icon, .lf-margin-entry-glyph) { color: #fff; inline-size: 14px; block-size: 14px; }
+:root[data-lf-look-pin="figma"] .lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry.lf-margin-marker:is(:hover, [aria-expanded="true"]) {
+  background: color-mix(in srgb, var(--lf-pin-face, var(--pin-fill)) 82%, #000);
+  border-color: var(--paper); }
+:root[data-lf-look-pin="figma"] .lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry.lf-margin-marker[data-lf-agent-workflow="working"] {
+  --lf-pin-face: var(--ok); }
 .lf-margin-receipt { color: var(--ink-2); font-weight: 600; }
 .lf-margin-receipt[data-lf-margin-receipt="negative"] { color: var(--danger-ink); }
 .lf-margin-count { position: absolute; top: -7px; right: -7px; min-width: 16px;

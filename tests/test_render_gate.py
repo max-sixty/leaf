@@ -2304,7 +2304,70 @@ def test_page_fixture_renders(browser, serve, source):
     is the shape of failure a static lint cannot see. The invariants live in
     render_gate.version.render_version — the pass `version check --render` runs on
     agent-authored pages — so this sweep also proves the gate a user's page goes through."""
-    assert render_gate_model.render_version(browser, serve(source)).failures == []
+    failures = render_gate_model.render_version(browser, serve(source)).failures
+    assert failures == [], "\n".join(failures)
+
+
+def test_frame_edges_pass_only_through_declared_transparent_wrappers(browser, serve):
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Frame edges",
+                """<div id="frame" style="padding:24px;--lf-block-frame:1">
+  <section id="first" style="--lf-passes-block-edge:1">
+    <h2 id="opening">Opening</h2>
+    <p>First section.</p>
+  </section>
+  <section id="middle"><h2 id="middle-heading">Middle</h2></section>
+  <section id="last" style="--lf-passes-block-edge:1">
+    <p id="closing">Closing.</p>
+  </section>
+</div>
+<div id="grid-frame" style="padding:24px;--lf-block-frame:1">
+  <section style="display:grid;padding:12px">
+    <h2 id="grid-heading">Grid item</h2>
+  </section>
+</div>
+<div id="contents-frame" style="padding:24px;--lf-block-frame:1">
+  <section style="display:contents;--lf-passes-block-edge:1">
+    <h2 id="contents-heading">Boxless section</h2>
+  </section>
+</div>""",
+            )
+        ),
+    )
+    margins = page.evaluate(
+        """() => Object.fromEntries(
+          ['opening', 'middle-heading', 'closing', 'grid-heading', 'contents-heading'].map(id => {
+            const s = getComputedStyle(document.getElementById(id));
+            return [id, [parseFloat(s.marginBlockStart), parseFloat(s.marginBlockEnd)]];
+          }))"""
+    )
+    assert margins["opening"][0] == 0
+    assert margins["middle-heading"][0] > 0
+    assert margins["closing"][1] == 0
+    assert margins["grid-heading"][0] > 0
+    assert margins["contents-heading"][0] == 0
+    assert not [
+        f
+        for f in render_checks_model.evaluate_probe(page, "trappedMargins")
+        if f["id"] == "frame"
+    ]
+    page.locator("#first").evaluate(
+        "el => el.style.removeProperty('--lf-passes-block-edge')"
+    )
+    assert any(
+        f["id"] == "frame" and f["child"] == "h2" and f["through"] == ["section"]
+        for f in render_checks_model.evaluate_probe(page, "trappedMargins")
+    )
+    page.locator("#contents-frame > section").evaluate(
+        "el => el.style.removeProperty('--lf-passes-block-edge')"
+    )
+    assert any(
+        f["id"] == "contents-frame" and f["through"] == ["section"]
+        for f in render_checks_model.evaluate_probe(page, "trappedMargins")
+    )
 
 
 def test_every_idiom_in_the_catalog_stands_in_a_corpus_source(browser):

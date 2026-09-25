@@ -368,13 +368,26 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
         )
     for t in {(x["tag"], x["edge"]): x for x in trapped}.values():
         box = f"<{t['tag']}" + (f" class={t['cls']!r}" if t["cls"] else "") + ">"
+        path = t.get("through", [])
+        declarations = []
+        if not t["frameDeclared"]:
+            declarations.append("--lf-block-frame: 1 in the rule that draws the frame")
+        if path:
+            declarations.append(
+                "--lf-passes-block-edge: 1 on each transparent wrapper along the edge"
+            )
+        remedy = (
+            "Declare " + " and ".join(declarations)
+            if declarations
+            else "Remove the edge margin that overrides the shared trim"
+        )
         found.append(
             f"[{scheme}] {box} draws {t['drawn']:g}px of inset and shows "
             f"{t['drawn'] + t['margin']:g}px {t['edge']} what it holds "
             f"(id={t['id']!r}): its {t['edge'] == 'above' and 'first' or 'last'} "
             f"block is a <{t['child']}> reserving {t['margin']:g}px against a "
             f"neighbour it hasn't got, and the box is where that margin stops. "
-            f"Declare --lf-block-frame: 1 in the rule that draws the frame, so the trim "
+            f"{remedy}{' (' + ' > '.join(path) + ')' if path else ''}, so the trim "
             f"in theme.css reaches it"
         )
 

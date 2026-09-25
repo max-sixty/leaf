@@ -479,9 +479,8 @@ html:not([data-lf-live]) { --lf-banner-h: 0px; --lf-band-h: 0px; }
  * layer's own, so a project's card is outside it and the failure is a silent 13px rather
  * than an error. A box says so itself instead, in the same declaration where it draws the
  * frame, and the trim finds it through a style query. `--lf-block-frame` inherits, so the reset
- * inside is what holds the claim to the box's own children: a grandchild's margin is
- * between blocks, where it belongs, and a nested frame outranks the reset by being a
- * selector rather than `*`.
+ * inside holds the claim to the box's own children; a nested frame outranks the reset
+ * by being a selector rather than `*`.
  *
  * Which child is at the edge is a question about the page's own blocks, and `:first-child`
  * is the DOM's answer to it. The two are the same only where no module has written
@@ -494,21 +493,51 @@ html:not([data-lf-live]) { --lf-banner-h: 0px; --lf-band-h: 0px; }
  * dissolves the specimen's two arrangements into one, its "quoted ·" note being a
  * generated child on a live page and a pseudo-element on a page carrying no script.
  *
- * What the trim cannot reach is a first or last child that hands its own children's
- * margins on rather than reserving room itself — a boxless one, whose margin the rule
- * has nowhere to land, and a bare wrapper, through which a grandchild's margin collapses
- * to the frame's edge unchanged. The answer is the same sentence one level in: that box
- * declares the frame too, which is why `.facts` does. The default package's boxless
- * `lf-ask` instead trims its first heading only when the Ask itself is the first
- * authored child of a frame. Reaching a level further from out here is the fix that
- * suggests itself and is worse, since the same selector over a padded grandchild closes
- * up that box's own first line. `version check --render` is what
- * says when a box hasn't declared (TRAPPED_MARGINS), because a trapped margin renders
- * perfectly and reads as a number somebody chose. */
+ * A transparent wrapper hands its child's margin to the same edge. It declares
+ * --lf-passes-block-edge instead of claiming to draw another frame: that would also
+ * bound wide content, and a padded grandchild would lose its own interior spacing.
+ * Each wrapper on the first or last path passes the token one level further. The
+ * render check follows the same collapsible path to report a missing declaration. */
+/* A transparent block can pass a framed edge through to its own first or last
+ * authored child. These tokens do not inherit: each step must be an edge child,
+ * and its wrapper must explicitly declare that it passes the edge. */
+@property --lf-frame-start {
+  syntax: "<integer>";
+  inherits: false;
+  initial-value: 0;
+}
+@property --lf-frame-end {
+  syntax: "<integer>";
+  inherits: false;
+  initial-value: 0;
+}
+@property --lf-passes-block-edge {
+  syntax: "<integer>";
+  inherits: false;
+  initial-value: 0;
+}
 @container style(--lf-block-frame: 1) {
-  :nth-child(1 of :not(.lf-ui, [data-lf-gen])) { margin-block-start: 0; }
-  :nth-last-child(1 of :not(.lf-ui, [data-lf-gen])) { margin-block-end: 0; }
+  :nth-child(1 of :not(.lf-ui, [data-lf-gen])) {
+    margin-block-start: 0;
+    --lf-frame-start: 1;
+  }
+  :nth-last-child(1 of :not(.lf-ui, [data-lf-gen])) {
+    margin-block-end: 0;
+    --lf-frame-end: 1;
+  }
   * { --lf-block-frame: 0; }
+}
+@container style(--lf-frame-start: 1) and style(--lf-passes-block-edge: 1) {
+  :nth-child(1 of :not(.lf-ui, [data-lf-gen])) {
+    margin-block-start: 0;
+    --lf-frame-start: 1;
+  }
+}
+@container style(--lf-frame-end: 1) and style(--lf-passes-block-edge: 1) {
+  :nth-last-child(1 of :not(.lf-ui, [data-lf-gen])) {
+    margin-block-end: 0;
+    --lf-frame-end: 1;
+  }
 }
 
 /* A run with nothing to break on breaks anyway rather than painting outside the box that

@@ -37,6 +37,7 @@ from leaf import schema as schema_model
 from leaf.event_log import _parse_events, read_events
 from leaf.events import bare_reaction, build_threads
 from leaf.passages import enclosing_ids
+from leaf.render_gate import version as render_gate_model
 from leaf.structure import SourceDocument
 from PIL import Image
 from playwright.sync_api import expect
@@ -277,6 +278,15 @@ def test_product_pages_vendor_the_composed_theme(site):
             assert theme.read_text().rstrip() in (target / "theme.css").read_text(), (
                 f"{page.name} is missing {theme.parent.name}'s theme"
             )
+
+
+@pytest.mark.parametrize("source", pages_under(DOCS), ids=lambda p: p.stem)
+def test_published_product_page_renders(site, browser, source):
+    product = site_build.product_page(site, source.name)
+    with hosting_model.TemporaryPageServer(product) as server:
+        url = f"{server.origin}/versions/v1.html?t={server.token}"
+        failures = render_gate_model.render_version(browser, url).failures
+    assert failures == [], "\n".join(failures)
 
 
 def test_published_examples_keep_the_site_theme_out_of_their_layer(site):

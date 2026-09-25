@@ -43,7 +43,6 @@ from render_cases_layout import (
     NOTE_BESIDE_A_CHANGE,
     OVER_ITS_CONTAINER,
     RESIZE_LOOP_EVENT,
-    ROOM_EVERY_FRAME,
     SCROLLED_CONTAINER,
     SHADOW_HOST_PAGE,
     SIDENOTE_IN_A_WIDGET,
@@ -3437,15 +3436,7 @@ def test_the_user_draws_an_edge_to_the_width_they_want(browser, serve, edge):
     """A conversation about a table wants room a conversation about a sentence does not,
     and a tray of long names wants room a tray of short ones does not; only the user
     looking at one knows which this is. So each region's edge is a thing they take hold
-    of. Where the region stands beside the page, the page yields exactly the strip they
-    leave it; where it stands over the page, the page yields nothing at any width.
-
-    Both sides of that strip are read, because the failure this is written against does
-    not show on either alone: a region that resizes while the page keeps yielding the old
-    margin lays out perfectly well, with a band of page underneath it or a band of nothing
-    beside it, and either is a width stated twice by two writers who have come apart. They
-    are one number here — the property the runtime writes — and the reading is what says
-    so.
+    of. The region stands over the page, so the page yields nothing at any width.
 
     Then the same edge from the keyboard, because a user who is not holding a pointer is
     still reading the same page, and then a reload, because a width set once and lost on
@@ -3479,16 +3470,16 @@ def test_the_user_draws_an_edge_to_the_width_they_want(browser, serve, edge):
     assert drawn["width"] == edge.wide + 160, (
         f"the edge did not follow the hand: {default} then {drawn}"
     )
-    assert drawn["page"] == (drawn["edge"] if edge.strip else default["page"]), (
-        f"the page yielded a strip of its own rather than the one the region took: {drawn}"
+    assert drawn["page"] == default["page"], (
+        f"the page yielded room to the region: {drawn}"
     )
     assert drawn["chosen"] == str(edge.wide + 160), (
         f"the user's width was not kept: {drawn}"
     )
     assert (stepped["width"], stepped["page"]) == (
         drawn["width"] - 24,
-        stepped["edge"] if edge.strip else default["page"],
-    ), f"the arrow moved something other than the edge and the page with it: {stepped}"
+        default["page"],
+    ), f"the arrow moved something other than the edge: {stepped}"
     assert returned["width"] == stepped["width"], (
         f"the width did not survive the reload a version switch makes: {returned}"
     )
@@ -3595,7 +3586,6 @@ def test_edge_resizing_belongs_to_one_primary_pointer(browser, serve, edge):
     page.mouse.down(button="right")
     page.mouse.move(x + dx, y)
     assert geometry(page, edge)["width"] == before
-    assert not page.evaluate("() => document.body.hasAttribute('data-lf-sizing')")
     page.mouse.up(button="right")
 
     page.mouse.move(x - 150 if edge.side == "right" else x + 150, y)
@@ -3628,12 +3618,10 @@ def test_edge_resizing_belongs_to_one_primary_pointer(browser, serve, edge):
     page.evaluate("() => new Promise(requestAnimationFrame)")
     assert geometry(page, edge)["width"] == before + 60
     touch("touchEnd", (2, second_x))
-    assert page.evaluate("() => document.body.hasAttribute('data-lf-sizing')")
     touch("touchMove", (1, x + dx + dx))
     page.evaluate("() => new Promise(requestAnimationFrame)")
     assert geometry(page, edge)["width"] == before + 80
     touch("touchEnd", (1, x + dx + dx))
-    assert not page.evaluate("() => document.body.hasAttribute('data-lf-sizing')")
 
 
 @pytest.mark.parametrize("edge", EDGES, ids=EDGE_IDS)
@@ -3709,63 +3697,6 @@ def test_both_trays_stand_on_the_one_edge_the_user_drew(browser, serve, other_le
 
     assert round(leaves) == trays.wide + 160, (
         f"the second tray came up at a width the user had already moved: {leaves}"
-    )
-
-
-def test_a_tray_that_takes_a_strip_is_counted_against_the_margins_floor(browser, serve):
-    """A tray narrows the shell that CSS margin queries see, and closing it restores the
-    same sidenote posture without a JavaScript cramped-state mirror."""
-    page = open_page(browser, serve(ASKS_PAGE))
-    resized(page, 1200, 900)
-    page.evaluate("""() => {
-      const note = document.createElement('aside');
-      note.className = 'sidenote'; note.textContent = 'A marginal note.';
-      document.querySelector('main').prepend(note);
-    }""")
-    posture = "() => getComputedStyle(document.querySelector('aside.sidenote')).float"
-    room = page.evaluate(posture)
-
-    banner_control(page, ".lf-asks").click()
-    edge_settled(page, EDGES[1])
-    standing = page.evaluate(posture)
-
-    banner_control(page, ".lf-asks").click()
-    expect(page.locator(".lf-asks-panel")).to_be_hidden()
-    given_back = page.evaluate(posture)
-    page.close()
-
-    assert room == "right", "a 1200px shell did not grant the note its margin"
-    assert standing == "none", (
-        "the tray took 300px out of a 1200px page and the margins were granted anyway"
-    )
-    assert given_back == "right", "the page kept the note in flow after the tray closed"
-
-
-def test_the_room_does_not_flicker_while_a_strip_arrives(browser, serve, other_leaf):
-    """The shell adopts a workspace's final room in one layout pass.
-
-    The first sample precedes the press. Every later frame should read the final room,
-    which the column is already laid out in. More than those two values means the shell is
-    moving through transient widths and making its container queries repeatedly lay out
-    the page.
-    """
-    page = open_page(browser, serve(ASKS_PAGE))
-    resized(page, 1200, 900)
-    page.evaluate(ROOM_EVERY_FRAME)
-    # The press may wait past the old 60-frame recording window on a busy runner.
-    page.wait_for_function("() => window.__room.length >= 60")
-    banner_control(page, ".lf-asks").click()
-    edge_settled(page, EDGES[1])
-    trace = page.evaluate("() => window.__roomStop()")
-    page.close()
-
-    steps = [room for i, room in enumerate(trace) if i == 0 or room != trace[i - 1]]
-    assert len(steps) > 1, (
-        f"the tray took no room out of the page, so nothing here was measured: {steps}"
-    )
-    assert len(steps) == 2, (
-        "the workspace made the page visit intermediate shell widths instead of landing "
-        f"its final responsive layout once: {steps}"
     )
 
 

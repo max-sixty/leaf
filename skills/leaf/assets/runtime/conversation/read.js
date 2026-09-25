@@ -14,6 +14,7 @@
    the application sends outside the gesture queue (delivery.js). */
 import { nextRender, sizeObserver } from "../rendering.js";
 import { shownBand, shownRect } from "../geometry.js";
+import { SLIDE_END } from "../motion.js";
 import { notice } from "../notifications.js";
 import { whenDocumentPresented } from "../semantic-state.js";
 import { moved } from "./model.js";
@@ -242,6 +243,7 @@ export function createReadTracking({ markRead, showThread }) {
       else scheduleScan();
     });
     document.addEventListener("close", scheduleScan, true);
+    document.addEventListener(SLIDE_END, scheduleScan, true);
     addEventListener("blur", () => {
       coverage = new WeakMap();
     });

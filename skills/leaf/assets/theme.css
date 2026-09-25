@@ -517,7 +517,6 @@ html:not([data-lf-live]) { --lf-banner-h: 0px; --lf-band-h: 0px; }
 body { position: static !important; box-sizing: border-box !important;
        margin: 0; background: var(--paper); color: var(--ink);
        font: var(--t-4)/1.6 var(--serif); overflow-wrap: break-word;
-       --lf-shell-inset-left: 0px;
        container: lf-shell / inline-size; }
 /* A container is contained, and containment keeps the body's background off the canvas,
  * so the root paints the page's colour itself: a page shorter than the window, with no
@@ -555,60 +554,26 @@ html { background: var(--paper); }
     main { padding-block: 24px; }
   }
 }
-/* Two surfaces held to an edge of the window may stand beside the page rather than cover
- * it: the Asks tray on the left and the thread panel on the right. The Leaves tray stands
- * over the page at every width and takes no room from it.
+/* The auxiliary surfaces — the Asks tray on the left, the thread panel on the right, the
+ * Leaves tray — stand over the page and never take room from it. The page's geometry is
+ * the author's, and a surface the user raises for a moment does not reflow it: the shell
+ * is the same width with a surface up as without one, so every container query, rail and
+ * wide exhibit reads what the author laid out.
  *
- * Whether one stands beside the page is one rule for both, asked of the room it leaves
- * rather than of a breakpoint: it stands beside where the window keeps a usable page
- * beside it, and covers the page where it does not. A usable page is 320px, the narrowest
- * window anything here is laid out in; narrower than that, what shows beside the surface
- * is a sliver no one can read or work in. What makes the page unusable is how much of it
- * the surface leaves — a phone's window at either default width, or anywhere a user draws
+ * Standing over the page, a surface either leaves the page live beside it or covers it,
+ * which makes the page inert behind a scrim. One rule decides that for both edge-held
+ * surfaces that may leave the page live, asked of the room the surface leaves rather than
+ * of a breakpoint: it leaves the page live where the window keeps a usable page beside
+ * it, and covers the page where it does not. A usable page is 320px, the narrowest window
+ * anything here is laid out in; narrower than that, what shows beside the surface is a
+ * sliver no one can read or work in. What makes the page unusable is how much of it the
+ * surface leaves — a phone's window at either default width, or anywhere a user draws
  * one that wide — so the width the surface stands at is half the question.
  *
- * The rule is `--lf-auxiliary-beside`, below: the room the selected surface takes beside
- * the page, which is its width where it stands beside and nothing where it covers. Each
- * surface states only its width (`--lf-auxiliary-width`), and the runtime reads the same
- * length to decide where the selected surface covers (auxiliary-surfaces.js,
- * `standsBeside`), so the strip the page yields and the modal boundary cannot disagree.
- *
- * Standing beside, the Asks tray takes its strip out of every page. The thread panel takes
- * none from a column page, whose centred column mostly clears it. A sheet
- * (`main[data-width]`, below) runs to the window's edge and its rail is the part the panel
- * would stand on, so the sheet yields it a strip on the right, the same border the tray
- * takes on the left, and reflows its tracks beside it.
- *
- * Both surfaces reach the first paint of a page reloaded with one open: the bootstrap
- * states the stored surface as `data-lf-restore-surface` and the stored width as the
- * property the runtime later writes, and the rules below read those until the runtime
- * replaces them with body state.
- *
- * The strip is a border and not a margin, and that is the whole of what keeps the user
- * where they were standing. Narrowing the shell reflows the page inside it — residents
- * hand their strips back, prose re-wraps — and the browser absorbs that for free through
- * scroll anchoring. Except that the spec's suppression triggers include `margin`,
- * `padding`, `width` and `height` on the path from the anchor up to the scroller, and
- * body is on every such path, so the page yielding its strip that way switched off the
- * one mechanism that was going to carry the user across the reflow it caused. Measured
- * when the thread panel still took a 420px strip, on a page with both margin residents:
- * the user's paragraph fell 149px at 1728 and 1409px at 900.
- *
- * `border-width` is in neither the spec's list nor Chromium's. Body is `border-box`, so
- * the `lf-shell` container's inline size is the same number either way (measured: 1308 at
- * a 1728px window, both spellings), every container query below reads what it read
- * before, and the fixed tray paints over the strip the border reserves. What changes is
- * only that the browser goes on anchoring, which is what it is for.
- *
- * The hold also rests on an ordering, and it is worth knowing before moving anything
- * below. `main`'s `left` (through `--lf-shift`) and its `width` do change when the strip
- * is taken, and both are on Chromium's suppression list. They do not suppress because
- * they are container-driven: Chromium walks the anchor's ancestors once, just before
- * layout (`ScrollAnchor::NotifyBeforeLayout`), and the container-query recalc that moves
- * `main` runs inside layout, after that walk. So a `--lf-shift` or column width set some
- * other way — a class toggled from script, an inline style, an animation — would switch
- * anchoring off again. `test_taking_the_trays_strip_leaves_the_user_on_the_same_words`
- * is the guard, and passes with no script holding the user's place. */
+ * The rule is `--lf-auxiliary-beside`, below: the selected surface's width where it leaves
+ * a usable page beside it, and nothing where it covers. Each surface states only its
+ * width (`--lf-auxiliary-width`); the runtime reads the resolved length (auxiliary-surfaces.js,
+ * `standsBeside`) and makes the page inert where it is nothing. */
 /* A workspace that covers the document owns the one visible reading scrollport. The
  * runtime's shared modality boundary states this independently of which workspace is
  * open, including Leaves, whose overlay posture does not depend on viewport width. */
@@ -637,22 +602,11 @@ body {
     var(--lf-auxiliary-width, 0px));
 }
 @media screen {
-  :is(
-    html[data-lf-restore-surface="asks"] body,
-    html[data-lf-live] body[data-lf-auxiliary-surface="asks"]
-  ) {
+  html[data-lf-live] body[data-lf-auxiliary-surface="asks"] {
     --lf-auxiliary-width: var(--lf-tray-slot-width, 300px);
-    --lf-shell-inset-left: var(--lf-auxiliary-beside);
-    border-left: var(--lf-auxiliary-beside) solid transparent;
   }
-  :is(
-    html[data-lf-restore-surface="threads"] body,
-    html[data-lf-live] body[data-lf-auxiliary-surface="threads"]
-  ) {
+  html[data-lf-live] body[data-lf-auxiliary-surface="threads"] {
     --lf-auxiliary-width: var(--lf-thread-panel-width, 420px);
-    &:has(> main:is([data-width="wide"], [data-width="available"])) {
-      border-right: var(--lf-auxiliary-beside) solid transparent;
-    }
   }
 }
 /* Authored HTML is the page's useful initial condition, so it paints from stylesheet
@@ -1340,16 +1294,13 @@ main > aside.sidebar:nth-child(1 of aside.sidebar) { --lf-sidebar-slot: margin; 
    the float.
 
    The composer opens out there too and covers a note whole while it stands, which is a
-   box the user summoned and dismisses. The thread panel stands over that side of the
-   window and takes no room from the page, so the note stays where it stands under it;
-   the Asks tray takes a strip on the other side, and both the note's strip and the
-   column come out of the box it leaves, so a note moves exactly as far as the paragraph
-   it annotates and no further.
+   box the user summoned and dismisses. The thread panel and the trays stand over the
+   window's edges and take no room from the page, so the note stays where it stands
+   under them.
 
    The strip is a claim on the shell, so the column centres in what is left rather than
-   hanging the note in whatever the centring happened to leave over. A standing tray
-   narrows that named container, and the same query therefore returns the note to flow
-   only when the page itself no longer has room.
+   hanging the note in whatever the centring happened to leave over, and the same query
+   returns the note to flow only when the page itself no longer has room.
 
    The breakpoint below is that same width asked of the window; under it the strip would
    come out of the column's own width. Under it, and on paper, the note is a small
@@ -1436,8 +1387,7 @@ aside.sidenote { font-size: var(--t-5); line-height: 1.45; color: var(--muted);
   @container lf-shell (width <= 640px) {
     /* A long term must not spend most of a phone's line on the first column and leave
        its explanation as a one-word ribbon. Stack each fact while the reading column is
-       narrow, which a tray standing beside makes it at any window; later terms keep
-       the ordinary block rhythm through the row gap. */
+       narrow; later terms keep the ordinary block rhythm through the row gap. */
     .facts { grid-template-columns: minmax(0, 1fr); align-items: start; }
     .facts dd + dt { margin-top: var(--sp-2); }
   }
@@ -1459,6 +1409,42 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
                         top: 2px; width: 21px; height: 21px; border-radius: 50%;
                         background: var(--accent); color: var(--card); font-size: 12px;
                         font-weight: 600; display: grid; place-items: center; }
+
+/* A schematic drawing the page makes itself: every mark takes a theme token, so the
+   figure follows the palette as the prose does, which an SVG loaded as an image cannot.
+   Sizes are in the drawing's own units and scale with its viewBox. One without a width
+   of its own fills its figure; a thumbnail states one.
+
+   TODO: revisit whether this set is too specific. It ships as taken from one page's
+   drawings of Leaf's own layout, less the marks only that subject used (its rail, pins
+   and suggestion tints). If later pages leave most of it unused, or keep adding local
+   classes beside it, trim it to the text defaults and let each page draw its own. */
+svg.drawing { display: block; height: auto; font-family: var(--sans); font-size: 11px; }
+svg.drawing:not([width]) { width: 100%; }
+svg.drawing text { fill: var(--muted); }
+svg.drawing .strong { fill: var(--ink); font-weight: 600; font-size: 12px; }
+svg.drawing .small { font-size: 10px; }
+svg.drawing .mono { font-family: var(--mono); font-size: 10.5px; fill: var(--ink-2); }
+svg.drawing .frame { fill: var(--paper); stroke: var(--border-2); }
+svg.drawing .frame-head { fill: color-mix(in srgb, var(--ink) 7%, transparent); }
+svg.drawing .box { fill: var(--card); stroke: var(--border-2); }
+svg.drawing .box.hot { fill: color-mix(in srgb, var(--accent) 9%, var(--card));
+  stroke: var(--accent); }
+svg.drawing .line { fill: color-mix(in srgb, var(--ink) 20%, transparent); }
+svg.drawing .line.soft { fill: color-mix(in srgb, var(--ink) 11%, transparent); }
+svg.drawing .highlight { fill: color-mix(in srgb, var(--accent) 24%, transparent); }
+svg.drawing .ghost { fill: none; stroke: var(--muted-2); stroke-dasharray: 3 3; }
+svg.drawing .guide { fill: none; stroke: var(--accent); stroke-opacity: .5;
+  stroke-dasharray: 2 3; }
+svg.drawing .dim { fill: none; stroke: var(--ink-2); }
+svg.drawing .arrow { fill: none; stroke: var(--muted); stroke-width: 1.2; }
+svg.drawing .tip { fill: var(--muted); }
+svg.drawing .mark, svg.drawing .tip.hot { fill: var(--accent); }
+svg.drawing .glyph { fill: var(--paper); font-size: 9px; font-weight: 700;
+  text-anchor: middle; dominant-baseline: central; }
+svg.drawing .ok { fill: var(--ok); }
+svg.drawing .warn { fill: var(--warn); }
+svg.drawing .danger { fill: var(--danger); }
 
 @media screen {
   html:root {
@@ -1864,25 +1850,22 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
  * `--lf-rail-posture`, and that reading is the whole answer: the runtime places rows by
  * it (margin-projection.js), so nothing derives the posture again from a width. A container query cannot read `--rail`, so the two floors
  * are written out, one per pointer, and a change to the rail's width changes them with
- * it. The Page Map the folded banner offers asks this posture (chrome-layout.js), so a
- * tray that takes the markers away hands the user the map in their place. This asks
- * `lf-shell` because the rail is drawn in the shell, and a tray standing beside takes
- * its room as surely as a narrow window does. The thread panel takes none: it covers
- * the page.
+ * it. The Page Map the folded banner offers asks this posture (chrome-layout.js). This
+ * asks `lf-shell` because the rail is drawn in the shell. No auxiliary surface takes any
+ * of it: each stands over the page.
  *
  * The claim cannot feed back into the answer. It comes out of `main`'s room inside the
- * shell (--strip-r, at the column), while the shell's own inline size is the window less
- * whatever strip a tray holds, so the container answers the same whether a marker stands
- * in the rail or not. */
+ * shell (--strip-r, at the column), while the shell's own inline size is the window's, so
+ * the container answers the same whether a marker stands in the rail or not. */
 @media screen {
   @container lf-shell (width > 863px) {
     :is(
       :root[data-lf-rail],
       html[data-lf-live]
     ) main {
-      /* The whole rail, focus-ring room included: claimed short of that last band, a
-         side tray leaves it past body's room and the layout hides the entry standing in
-         it. What the condition reads is stated with the rest of the claim below. */
+      /* The whole rail, focus-ring room included: claimed short of that last band, it
+         falls past body's room and the layout hides the entry standing in it. What the
+         condition reads is stated with the rest of the claim below. */
       --claim-rail: var(--rail);
       --lf-rail-posture: margin;
     }

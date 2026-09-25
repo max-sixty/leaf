@@ -3457,7 +3457,7 @@ def test_the_reading_page_keys_move_the_region_the_user_is_scrolling(browser, se
 def test_the_reading_page_keys_follow_the_user_into_the_panel(browser, serve):
     """Which region the keys move is where the user is standing, and covering is only
     one of the two ways they come to be standing in the list. Beside the page — the wide
-    window, where the panel takes a strip of its own — a user working down a long
+    window, where the page beside the panel stays live — a user working down a long
     conversation presses d and the page behind them steps instead, which is the same
     nothing the covering case was written to prevent: the region they are reading does
     not move, and the document is somewhere else when they look back at it.

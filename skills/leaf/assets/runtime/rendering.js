@@ -1,17 +1,34 @@
-/* The one settled reading for the page's chrome and geometry: nothing Leaf has queued
-   for a rendering update is still waiting, and the last update produced no size change a
-   Leaf observer heard. A reader outside the page waits on it after a gesture rather
-   than guessing a number of frames.
+/* Leaf's one rendering loop, and the one settled reading for the page's chrome and
+   geometry: nothing Leaf has queued for a rendering update is still waiting, and the
+   last update produced no size change a Leaf observer heard. A reader outside the page
+   waits on it after a gesture rather than guessing a number of frames.
 
-   Leaf's rendering callbacks and size observers go through this module: `nextRender`
-   and `cancelRender` in place of `requestAnimationFrame` and `cancelAnimationFrame`,
-   `sizeObserver` in place of `new ResizeObserver`. The lint gate refuses the browser's
-   own in the runtime and in the bundled packages, so the reading answers for every owner
-   there without a list of them. Coalescing owners keep their own queues; this module
-   only counts what they put in the browser's.
+   Leaf's rendering callbacks and size observers go through this module: `nextRender`,
+   `nextFrame` and `cancelRender` in place of `requestAnimationFrame` and
+   `cancelAnimationFrame`, `sizeObserver` in place of `new ResizeObserver`. The lint gate
+   refuses the browser's own in the runtime and in the bundled packages, so the loop and
+   the reading answer for every owner there without a list of them. Coalescing owners
+   keep their own flags; this module holds the one queue behind them.
+
+   The loop takes one animation frame and works through every queued callback in it, in
+   the order they were queued. `nextRender` asked for from inside that pass runs in the
+   same pass, before the frame paints: a repaint that moves the page and the boxes that
+   follow the page land in one frame, where a browser frame per owner painted each
+   follower a frame behind what it follows. Asked for anywhere else — an input handler,
+   a ResizeObserver delivery, which comes after the frame's callbacks — it runs in the
+   next frame's pass. A chain that keeps asking stops after `ROUNDS` generations and
+   finishes on the next frame. Between callbacks the pass waits one microtask step, so
+   what a callback queued directly — a publication's render pass — has run before the
+   next callback reads the page; a longer asynchronous tail, which the browser would
+   drain between its own frame callbacks, lands after it.
+
+   `nextFrame` is for a step that must not run in the pass that asked for it: an
+   animation tick, a loop that follows the page frame by frame, a pause for one frame.
+   Asked for inside a pass, it runs in the next frame's; asked for outside one, it is
+   `nextRender`, and no frame paints first.
 
    Work toward a resting state is counted; a playback loop is not. A loop through
-   `nextRender` holds the page unsettled for as long as it runs, which is right for a
+   `nextFrame` holds the page unsettled for as long as it runs, which is right for a
    glide that lands in a moment and wrong for a film that plays until the user stops it,
    so a page's own playback schedules with the browser directly.
 
@@ -39,27 +56,60 @@
    why `data-lf-presented`, which such a host waits on before showing the frame, never
    waits on this reading. */
 
-const pending = new Set();
+const ROUNDS = 8;
+// What the next pass runs, what the running pass is working through, and what a
+// `nextFrame` asked for during a pass, which waits for the pass after it. One id space
+// across the three, so `cancelRender` needs no word on which queue holds its callback.
+let queued = new Map();
+let running = null;
+let afterPaint = new Map();
+let lastId = 0;
+let frame = 0;
 // A counted observer delivered since the last check.
 let heard = false;
 let quiet = false;
 let checking = false;
 
-/** `requestAnimationFrame`, counted by the settled reading. */
-export function nextRender(callback) {
-  const id = requestAnimationFrame((time) => {
-    pending.delete(id);
-    callback(time);
-  });
-  pending.add(id);
+function request(into, callback) {
+  const id = ++lastId;
+  into.set(id, callback);
+  if (!running && !frame) frame = requestAnimationFrame(pass);
   unsettle();
   return id;
 }
 
-/** `cancelAnimationFrame` for a callback `nextRender` queued. */
+/** Run `callback` in the running pass, or else in the next frame's. */
+export const nextRender = (callback) => request(queued, callback);
+
+/** Run `callback` in the next frame's pass, never in the running one. */
+export const nextFrame = (callback) => request(running ? afterPaint : queued, callback);
+
+/** Withdraw a callback `nextRender` or `nextFrame` queued. */
 export function cancelRender(id) {
-  pending.delete(id);
-  cancelAnimationFrame(id);
+  queued.delete(id) || afterPaint.delete(id) || running?.delete(id);
+}
+
+async function pass(time) {
+  frame = 0;
+  for (let round = 0; queued.size && round < ROUNDS; round++) {
+    running = queued;
+    queued = new Map();
+    for (const [id, callback] of running) {
+      running.delete(id);
+      try {
+        callback(time);
+      } catch (error) {
+        // One owner's failure is reported as the browser reports a frame callback's,
+        // and the owners after it still paint.
+        reportError(error);
+      }
+      await null;
+    }
+  }
+  running = null;
+  for (const entry of afterPaint) queued.set(...entry);
+  afterPaint = new Map();
+  if (queued.size) frame = requestAnimationFrame(pass);
 }
 
 /** A `ResizeObserver` whose deliveries the settled reading counts. */
@@ -90,7 +140,7 @@ function unsettle() {
 const afterUpdate = () => setTimeout(check);
 
 function check() {
-  if (pending.size || heard) {
+  if (queued.size || heard) {
     heard = false;
     requestAnimationFrame(afterUpdate);
     return;

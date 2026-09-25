@@ -1235,9 +1235,25 @@
     </style>
 <!-- rust-sort.html authored styles -->
 <style>
+      .sort-intro {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        gap: clamp(18px, 3vw, 48px);
+        align-items: start;
+      }
+      .sort-intro > :is(h1, p) {
+        margin: 0;
+      }
+      @container lf-workspace (max-width: 1050px) {
+        .sort-intro {
+          grid-template-columns: 1fr;
+          gap: 8px;
+        }
+      }
       lf-sort-film {
         display: grid;
         gap: 10px;
+        grid-auto-rows: max-content;
       }
       lf-sort-film .sort-stage {
         border: 1px solid var(--rule);
@@ -1254,27 +1270,38 @@
       }
       lf-sort-film .sort-narration {
         display: grid;
+        grid-template-rows: auto minmax(3.2em, auto) auto;
         gap: 2px;
-        min-height: 3.6em;
+        align-content: start;
         font-family: var(--serif);
       }
-      lf-sort-film .sort-narration strong {
+      lf-sort-film .sort-narration > strong {
         font-family: var(--sans);
         font-size: var(--t-6);
         letter-spacing: 0.04em;
         text-transform: uppercase;
         color: var(--muted);
       }
-      lf-sort-film[data-phase="insert"] .sort-narration strong {
+      lf-sort-film .sort-moment {
+        color: var(--accent);
+        font: 600 var(--t-6)/1.4 var(--sans);
+        width: fit-content;
+      }
+      lf-sort-film .sort-moment-count {
+        display: inline-block;
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+      }
+      lf-sort-film[data-phase="insert"] .sort-narration > strong {
         color: var(--warn-ink);
       }
-      lf-sort-film[data-phase="merge"] .sort-narration strong {
+      lf-sort-film[data-phase="merge"] .sort-narration > strong {
         color: var(--accent);
       }
-      lf-sort-film[data-phase="stack"] .sort-narration strong {
+      lf-sort-film[data-phase="stack"] .sort-narration > strong {
         color: var(--mark-ink);
       }
-      lf-sort-film[data-phase="done"] .sort-narration strong {
+      lf-sort-film[data-phase="done"] .sort-narration > strong {
         color: var(--ok-ink);
       }
       lf-sort-film .sort-timeline {
@@ -3873,7 +3900,7 @@ assert!(offscreen_worktree_preview.is_demand_loaded());
 
 <lf-tab id="corpus-rust-sort" label="Sort film">
 <lf-workspace id="sort-workspace">
-        <header>
+        <header class="sort-intro">
           <h1>How Rust's 2016 merge sort uses the order already in a slice</h1>
           <p id="sort-lede">
             In December 2016
@@ -3897,7 +3924,6 @@ assert!(offscreen_worktree_preview.is_demand_loaded());
               sort-code="code-merge-sort"
               head-code="code-insert-head"
               merge-code="code-merge"
-              parts="v:0 v:1 v:2 v:3 v:4 v:5 v:6 v:7 v:8 v:9 v:10 v:11 v:12 v:13 v:14 v:15 v:16 v:17 v:18 v:19 v:20 v:21 v:22 v:23 v:24 v:25 v:26 v:27 v:28 v:29 v:30 v:31 v:32 v:33 v:34 v:35 v:36 v:37 v:38 v:39 lane:scratch stack check:start0 check:inv1 check:inv2 check:inv3"
             ></lf-sort-film>
           </lf-pane>
           <lf-pane id="sort-source-pane" label="Source">
@@ -6816,6 +6842,72 @@ gallery/
               <p id="bg-tab-context-text">The earlier route crossed the courtyard.</p>
             </lf-tab>
           </lf-tabs>
+        </section>
+
+        <section id="bg-drawing">
+          <p class="eyebrow">svg.drawing</p>
+          <h3>
+            <strong>Drawing</strong
+            ><span class="bg-feature-detail">: a schematic in theme colours</span>
+          </h3>
+          <p id="bg-drawing-guide">
+            Two states of a sample page drawn alike in one frame. Switch the colour
+            scheme: every mark follows it.
+          </p>
+          <figure id="bg-drawing-figure" data-width="wide">
+            <svg
+              class="drawing"
+              viewBox="0 0 560 150"
+              role="img"
+              aria-labelledby="bg-drawing-title"
+            >
+              <title id="bg-drawing-title">
+                A note moves from the column into the right margin
+              </title>
+              <defs>
+                <marker
+                  id="bg-drawing-tip"
+                  viewBox="0 0 8 8"
+                  refX="7"
+                  refY="4"
+                  markerWidth="8"
+                  markerHeight="8"
+                  orient="auto"
+                >
+                  <path class="tip" d="M0 0 8 4 0 8z" />
+                </marker>
+              </defs>
+              <text class="strong" x="14" y="16">Before</text>
+              <rect class="frame" x="4" y="24" width="240" height="118" rx="6" />
+              <rect class="frame-head" x="4" y="24" width="240" height="14" rx="6" />
+              <rect class="line" x="24" y="52" width="160" height="6" rx="3" />
+              <rect class="line soft" x="24" y="64" width="140" height="6" rx="3" />
+              <rect class="box hot" x="24" y="80" width="160" height="22" rx="3" />
+              <text class="small" x="32" y="94">note</text>
+              <rect class="line soft" x="24" y="112" width="150" height="6" rx="3" />
+              <path class="arrow" d="M262 83H300" marker-end="url(#bg-drawing-tip)" />
+              <text class="strong" x="326" y="16">After</text>
+              <rect class="frame" x="316" y="24" width="240" height="118" rx="6" />
+              <rect class="frame-head" x="316" y="24" width="240" height="14" rx="6" />
+              <rect class="line" x="336" y="52" width="140" height="6" rx="3" />
+              <rect class="line soft" x="336" y="64" width="120" height="6" rx="3" />
+              <rect class="ghost" x="336" y="80" width="140" height="22" rx="3" />
+              <rect class="box hot" x="488" y="52" width="56" height="30" rx="3" />
+              <text class="small" x="496" y="70">note</text>
+              <line class="guide" x1="482" y1="46" x2="482" y2="134" />
+              <circle class="mark" cx="336" cy="120" r="7" />
+              <text class="glyph" x="336" y="120">1</text>
+              <circle class="ok" cx="356" cy="120" r="4" />
+              <circle class="warn" cx="370" cy="120" r="4" />
+              <circle class="danger" cx="384" cy="120" r="4" />
+              <rect class="highlight" x="396" y="116" width="40" height="8" rx="2" />
+              <line class="dim" x1="488" y1="92" x2="544" y2="92" />
+              <text class="mono" x="500" y="106">96px</text>
+            </svg>
+            <figcaption>
+              The margin exists only above 1152px; the drawing shows the wide case.
+            </figcaption>
+          </figure>
         </section>
 
         <section id="bg-quoted-and-visual">

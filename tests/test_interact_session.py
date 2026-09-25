@@ -1417,7 +1417,8 @@ def test_an_active_receipt_says_which_thread_the_agent_is_on(
     comment_seq = events_model.read_events(page_dir)[-1]["seq"]
     # A line names a thread, says what is being done, and says it about work in hand:
     # the two other states have nothing to put on a thread, and a line with no words
-    # says nothing the thread does not already show.
+    # says nothing the thread does not already show. The banner's own line is held to
+    # the same rule: its dot already says working.
     assert (
         "not a comment thread"
         in _status(page_dir, "working", "reading the traces", "--on", "nope").output
@@ -1427,6 +1428,7 @@ def test_an_active_receipt_says_which_thread_the_agent_is_on(
         in _status(page_dir, "waiting", "your read on this", "--on", "c1").output
     )
     assert "needs a detail" in _status(page_dir, "working", "--on", "c1").output
+    assert "needs a detail" in _status(page_dir, "working").output
     assert "work" not in files_model.read_json(page_dir / "status.json")
 
     monkeypatch.setenv("LEAF_AGENT", "Trace reader")
@@ -2087,15 +2089,6 @@ def test_a_current_declaration_keeps_the_sentence_a_live_stream_stands_beside(cl
         "Running the tests",
     )
 
-    # A declaration with no words is not a sentence to prefer: `leaf status <page>
-    # working` says only that work is happening, which the step says better.
-    session_model.cmd_status(claimed, "working", "")
-    wordless = page_state(claimed)["activity"]
-    assert (wordless["kind"], wordless["detail"], wordless["observed"]) == (
-        "working",
-        "Running the tests",
-        "Running the tests",
-    )
     session_model.cmd_status(claimed, "waiting", "which store should own it")
 
     # A newer user move has its own pending delivery; it does not reclassify current
@@ -12110,7 +12103,7 @@ def test_a_page_pick_holds_the_turn_until_the_markup_records_it(claimed, capsys)
     assert "answer" not in edited
     assert event["answer"] == workflow["answer"]
     told = [batch["handling"][ref] for ref in event["handling"]]
-    assert any("write it in and stamp a version" in text for text in told)
+    assert any("write it in, and stamp a version" in text for text in told)
     receive_through(claimed, last_deliverable_seq(claimed))
 
     assert f"records action {picked['id']}" in _stop(capsys)

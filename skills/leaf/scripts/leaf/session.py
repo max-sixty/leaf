@@ -54,19 +54,15 @@ DELIVERY_CLAIM_DETAIL = "Reading your feedback"
 REVIVAL_CHECK_S = 5
 
 
-def check_local_claim(state: str, detail: str) -> None:
-    """What a local claim needs before it can name a subject.
-
-    A local claim says "I am on this now", so the two other states have nothing
-    to put there: `waiting` is the user's move, and `idle` is the end of the
-    agent's side. Its own function because `idle` takes a different route to the
-    same status write, and a claim admitted on one route and refused on the other
-    would be reported to the agent as written either way.
+def check_local_claim(state: str) -> None:
+    """A local claim says "I am on this now", so the two other states have
+    nothing to put there: `waiting` is the user's move, and `idle` is the end of
+    the agent's side. Its own function because `idle` takes a different route to
+    the same status write, and a claim admitted on one route and refused on the
+    other would be reported to the agent as written either way.
     """
     if state != "working":
         sys.exit("--on says what you are working on; use it with `working`")
-    if not detail:
-        sys.exit("--on needs a detail; a Working receipt with no words says nothing")
 
 
 def cmd_status(
@@ -77,11 +73,19 @@ def cmd_status(
 ) -> list[dict]:
     """Write the declaration and return the user moves still owed an answer,
     which the page goes on showing over a `waiting` written ahead of them."""
+    # The banner's dot already says the agent is working; the sentence is the
+    # whole of what a working status adds, so a status without one is refused
+    # rather than shown as a bare "working".
+    if state == "working" and not detail:
+        sys.exit(
+            "working needs a detail naming the work and its subject, such as "
+            '"running the browser suite against the new banner"'
+        )
     with PageTransaction(page_dir) as page:
         activate_source(page_dir)
         work = None
         if on is not None:
-            check_local_claim(state, detail)
+            check_local_claim(state)
             work = work_subject(page_dir, page.events, on)
             previous = next(
                 (
@@ -186,7 +190,7 @@ def cmd_idle(page_dir: Path, detail: str, on: str | None) -> None:
     # refused here, `idle --on` cannot be reported back as a claim the page
     # never took.
     if on is not None:
-        check_local_claim("idle", detail)
+        check_local_claim("idle")
     with PageTransaction(page_dir) as page:
         events = page.events
         cursor = page.cursor

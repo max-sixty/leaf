@@ -72,6 +72,8 @@ directory explicitly; export or copy anything that must outlive the page directo
 5. When a delivery arrives, read `references/event-batches.md`, the host
    contract, and, for user messages,
    `references/conversation-threads.md`, and answer every event as they say.
+   Say what you are doing before doing it, as `references/conversation-loop.md`,
+   "When to write", orders it.
 6. Stamp checkpoints and end the page as `references/page-checkpoints.md` says.
 
 From the first hand-over on, every chat message repeats the page's exact URL,

@@ -2791,6 +2791,22 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     )
     expect(dot).to_have_class(re.compile(r"\bworking\b"))
 
+    # Picked up into the claimant's open turn before the agent has said anything: the
+    # page is working, and the row names what the turn holds rather than a bare
+    # "working", while the disclosure says the agent's own words are still to come.
+    with service_model.PageTransaction(d) as transaction:
+        delivery_model.record_pickup(
+            transaction, [first_comment], phase="opened", session="s", turn="turn-1"
+        )
+    declare("waiting", "your read on the plan")
+    expect(summary).to_have_text("Claude working — on your update")
+    expect(text).to_have_text(
+        re.compile(
+            r"^Claude is working on your update, and hasn't said what it is doing yet"
+        )
+    )
+    expect(dot).to_have_class(re.compile(r"\bworking\b"))
+
     events_model.append_event(
         d,
         {

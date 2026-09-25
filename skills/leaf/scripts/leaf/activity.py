@@ -333,9 +333,8 @@ def canonical_activity(
         # written for them for the one that happens to be newest. So a current
         # declaration keeps the sentence and its own date, and the step stands beside it
         # as `observed`. Leaf's own wording, written so a claimed move says something at
-        # once, is not that sentence: a step the transport watched says more. Nor is a
-        # declaration with no words at all, which `leaf status <page> working` writes.
-        if declared_work and status.get("stated", True) and status.get("detail"):
+        # once, is not that sentence: a step the transport watched says more.
+        if declared_work and status.get("stated", True):
             detail = status.get("detail", "")
         elif stream_current:
             detail, ts, quiet, dropped = (

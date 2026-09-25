@@ -52,10 +52,11 @@ from render_harness import (
     margins_laid_out,
     navigate,
     open_page,
-    panel_settled,
     pane_posture,
+    panel_settled,
     resized,
     round_trip,
+    scroll_settled,
     select,
     sending,
     stamp_page,
@@ -5188,6 +5189,142 @@ def test_the_margin_reply_pinned_to_the_card_foot_shows_its_whole_ring(browser, 
     expect(editor).to_be_focused()
     assert page.evaluate(pinned, [row.element_handle(), transcript.element_handle()])
     assert standing_ring(page)["cuts"] == []
+
+
+def test_a_growing_margin_reply_keeps_the_previous_turn_visible(browser, serve):
+    page = open_page(browser, serve(LONG_THREAD_PAGE, events=LONG_THREAD))
+    resized(page, 1440, 250)
+    page.locator('[data-lf-margin-for="open"] .lf-margin-marker').click()
+    preview = page.locator(".lf-margin-preview")
+    expect(preview).to_be_visible()
+    transcript = preview.locator(".lf-margin-preview-list")
+    preview.get_by_role("button", name="Reply", exact=True).click()
+    editor = preview.locator("textarea")
+    transcript.evaluate("list => list.scrollTop = list.scrollHeight")
+    editor.fill("A reply that grows.\n" * 30)
+    latest = transcript.locator(".lf-conversation-msg").last
+    visible = latest.evaluate(
+        """message => {
+          const list = document.querySelector('.lf-margin-preview-list');
+          const band = list.getBoundingClientRect();
+          const editor = list.querySelector('textarea').getBoundingClientRect();
+          return {
+            tail: message.getBoundingClientRect().bottom,
+            top: band.top,
+            editor: editor.top,
+          };
+        }"""
+    )
+    assert visible["tail"] >= visible["top"] + 20, visible
+    assert visible["tail"] <= visible["editor"], visible
+    assert editor.evaluate("input => input.scrollTop > 0")
+
+
+def test_a_short_margin_thread_lets_the_editor_use_available_room(browser, serve):
+    page = open_page(browser, serve(LONG_THREAD_PAGE, events=[LONG_THREAD_ROOT]))
+    resized(page, 1440, 900)
+    page.locator('[data-lf-margin-for="open"] .lf-margin-marker').click()
+    preview = page.locator(".lf-margin-preview")
+    preview.get_by_role("button", name="Reply", exact=True).click()
+    editor = preview.locator("textarea")
+    editor.fill("A reply with several lines.\n" * 8)
+    assert editor.evaluate("input => input.getBoundingClientRect().height") > 120
+
+
+def test_an_incoming_margin_reply_follows_only_at_the_tail(browser, serve):
+    page = open_page(browser, serve(LONG_THREAD_PAGE, events=LONG_THREAD))
+    resized(page, 1440, 900)
+    page.locator('[data-lf-margin-for="open"] .lf-margin-marker').click()
+    transcript = page.locator(".lf-margin-preview-list")
+    transcript.evaluate("list => list.scrollTop = list.scrollHeight")
+    before = transcript.evaluate("list => list.scrollTop")
+    newest = events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Codex",
+            "parent": LONG_THREAD_ROOT["id"],
+            "text": "A new answer at the end of this conversation. " * 8,
+        },
+    )
+    page.evaluate(
+        "async () => (await window.__lfRuntimeImport('/runtime/application.js')).readAndApply()"
+    )
+    incoming = transcript.locator(f'[data-event="{newest["id"]}"]')
+    expect(incoming).to_be_visible()
+    page.wait_for_function(
+        "before => document.querySelector('.lf-margin-preview-list').scrollTop > before",
+        arg=before,
+    )
+    scroll_settled(page, ".lf-margin-preview-list")
+    assert incoming.evaluate(
+        """message => {
+          const list = document.querySelector('.lf-margin-preview-list');
+          return message.getBoundingClientRect().bottom <=
+            list.querySelector('.lf-say').getBoundingClientRect().top;
+        }"""
+    )
+    at_tail = transcript.evaluate("list => list.scrollTop")
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "edit",
+            "author": "agent",
+            "agent": "Codex",
+            "message": newest["id"],
+            "text": "The answer now has more detail. " * 25,
+        },
+    )
+    page.evaluate(
+        "async () => (await window.__lfRuntimeImport('/runtime/application.js')).readAndApply()"
+    )
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "edit",
+            "author": "agent",
+            "agent": "Codex",
+            "message": newest["id"],
+            "text": "The answer now has even more detail. " * 30,
+        },
+    )
+    page.evaluate(
+        "async () => (await window.__lfRuntimeImport('/runtime/application.js')).readAndApply()"
+    )
+    page.wait_for_function(
+        "before => document.querySelector('.lf-margin-preview-list').scrollTop > before",
+        arg=at_tail,
+    )
+    scroll_settled(page, ".lf-margin-preview-list")
+    assert (
+        transcript.evaluate(
+            "list => list.scrollHeight - list.clientHeight - list.scrollTop"
+        )
+        <= 2
+    )
+    assert incoming.evaluate(
+        "message => message.getBoundingClientRect().bottom <= document.querySelector('.lf-say').getBoundingClientRect().top"
+    )
+
+    transcript.evaluate("list => list.scrollTop -= 10")
+    earlier = transcript.evaluate("list => list.scrollTop")
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Codex",
+            "parent": LONG_THREAD_ROOT["id"],
+            "text": "A later answer should not interrupt earlier reading.",
+        },
+    )
+    page.evaluate(
+        "async () => (await window.__lfRuntimeImport('/runtime/application.js')).readAndApply()"
+    )
+    assert transcript.evaluate("list => list.scrollTop") == pytest.approx(
+        earlier, abs=2
+    )
 
 
 def test_agent_status_leaves_the_margin_transcript_where_the_user_scrolled_it(

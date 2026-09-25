@@ -6433,56 +6433,44 @@ def test_a_narrowing_that_hides_the_card_the_user_stands_in_lands_them_on_the_li
     expect(page.locator(".lf-threads")).to_be_focused()
 
 
-def test_a_growing_reply_keeps_its_send_in_the_list(browser, serve):
-    """A reply box grows under the user and carries its embedded Send with it.
-
-    Landing in a reply reveals the composer and its controls. Growing the box past the
-    list's foot then left the blue Send a sliver at the scrollport's edge — reachable by
-    the send key the placeholder happened to name, and by nothing a pointer could find.
-    Growth is the landing's claim made again.
-
-    On a card taller than the list — the shipped example's second thread, two long
-    turns and the reply — because a short card's Send never leaves the scrollport
-    whatever the box does."""
-    page = open_page(
-        browser, serve(next(p for p in EXAMPLES if p.stem == "log-retention"))
+def test_a_growing_panel_reply_keeps_the_previous_turn_visible(browser, serve):
+    url = serve(PANEL_PAGE)
+    root = panel_comment(serve.page_dir, "A question with a reply.")
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Codex",
+            "parent": root,
+            "text": "The last answer remains useful while composing a response.",
+        },
     )
+    page = open_page(browser, url)
+    resized(page, 800, 520)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    card = page.locator(".lf-threads > .lf-thread:not([hidden])").last
-    thread = card.get_attribute("data-id")
+    card = page.locator(f'.lf-thread[data-id="{root}"]')
     card.locator(".lf-thread-summary").click()
     reply = card.locator("textarea")
-    reply.click()
-    # The card has to overrun the list, or Send never left the scrollport and the claim
-    # below is proved by nothing. How many lines that takes is a function of everything
-    # else the card is carrying — eight was enough until a strip left the card and took
-    # eleven pixels with it — so the typing asks the page rather than naming a count.
-    #
-    # Shift+Return is the line break in a Leaf composer; Return submits
-    # (keyboard/bindings.js). Plain Return here sent each line as its own reply, which
-    # overran the card just as well — with messages rather than with the box this test
-    # names — so the box is measured before the typing and read again after it.
-    box = reply.bounding_box()["height"]
-    room = page.evaluate("() => document.querySelector('.lf-threads').clientHeight")
-    overran = False
-    for line in range(24):
-        page.keyboard.type(f"line {line} of a reply that keeps growing the box")
-        page.keyboard.press("Shift+Enter")
-        overran = card.bounding_box()["height"] > room
-        if overran:
-            break
-    assert overran, (
-        f"{line + 1} lines left the card at {card.bounding_box()['height']:.0f} in a "
-        f"list {room} tall, so it never pushed its Send out; this proves nothing"
+    reply.fill("A reply that grows.\n" * 30)
+    latest = card.locator(".lf-msg.agent").last
+    visible = latest.evaluate(
+        """message => {
+          const list = document.querySelector('.lf-threads');
+          const band = list.getBoundingClientRect();
+          const style = getComputedStyle(list);
+          return {
+            tail: message.getBoundingClientRect().bottom,
+            top: band.top + parseFloat(style.scrollPaddingTop),
+            editor: list.querySelector('.lf-thread[open] textarea').getBoundingClientRect().top,
+          };
+        }"""
     )
-    # And the box is what overran it: a card also grows on an arriving message, and the
-    # reading above cannot tell that from the growth this test is here for.
-    assert reply.bounding_box()["height"] > box, (
-        "the card overran the list while the reply box stayed at "
-        f"{box:.0f}, so something other than the box pushed Send out"
-    )
-    in_threads_scrollport(page, f'.lf-thread[data-id="{thread}"] .lf-thread-send')
+    assert visible["tail"] >= visible["top"] + 20, visible
+    assert visible["tail"] < visible["editor"], visible
+    assert reply.evaluate("input => input.scrollTop > 0")
+    in_threads_scrollport(page, f'.lf-thread[data-id="{root}"] .lf-thread-send')
 
 
 def test_a_walk_to_a_question_the_narrowing_hides_widens_the_list(browser, serve):

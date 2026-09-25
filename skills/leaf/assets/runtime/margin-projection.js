@@ -46,11 +46,9 @@
    card's part: the same arrival expands the target's thread there (`accompanyThread`).
 
    Placing the card changes its geometry and nothing inside it. The user's place in
-   its transcript is the list's own scroll, which the browser holds through reflow; only
-   a gesture moves it — a landing through `revealConversation`, a send revealing the
-   reply, a step to another thread starting it at the top. Every state read places the
-   card, so a scroll written there would move a user partway up the transcript on each
-   status the agent writes.
+   its transcript is the list's own scroll, held through reflow. A landing, send, or
+   step moves it; a new or growing agent turn follows while the reader is at the tail.
+   Other state reads leave the transcript where the user put it.
 
    Each frozen cluster model names controls by contribution and entry identity. The Lit view
    retains their native nodes, so a state refresh cannot cancel a held pointer or move focus.
@@ -139,7 +137,7 @@ import { addressableSays, addressableWord, visualAt } from "./anchor-resolution.
 import { paintTrace } from "./target-paint.js";
 import { updateSequence } from "./updates.js";
 import { threadList } from "./conversation/state.js";
-import { threadKey } from "./conversation/model.js";
+import { threadKey, turns } from "./conversation/model.js";
 
 import { projectionOrigins } from "./projection/model.js";
 import { authoredStates } from "./projection/authored.js";
@@ -473,6 +471,7 @@ export function createMarginProjection({
   let pageInventory = [];
   let previewEntry = null;
   let previewThreadItem = null;
+  let previewLatest = null;
   let previewMarginEntry = null;
   let transferThreadFocus = false;
   let pinnedKey = null;
@@ -631,22 +630,26 @@ export function createMarginProjection({
   }
   function measureThreadCard(width) {
     preview.style.setProperty("--lf-thread-width", `${width}px`);
+    fitThreadCardEditors();
     return preview.getBoundingClientRect().height;
   }
-  // The reply scrolls internally once it fills the conversation's remaining room. A
-  // viewport-only cap can put its first line and Send on opposite sides of the
-  // transcript's clipping boundary.
+  // Keep room for the last turn above the pinned reply, while letting the editor
+  // scroll internally once it fills its share of the transcript.
   function fitThreadCardEditors() {
+    const maxListHeight =
+      parseFloat(preview.style.getPropertyValue("--lf-thread-max-height")) -
+      (preview.offsetHeight - previewList.clientHeight);
     for (const input of previewList.querySelectorAll(".lf-say textarea")) {
       const row = input.closest(".lf-say");
       const thread = row.closest(".lf-conversation-thread");
       const style = getComputedStyle(thread);
       const furniture = row.offsetHeight - input.offsetHeight;
       const inset = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
-      input.style.setProperty(
-        "--lf-thread-editor-room",
-        `${Math.max(40, previewList.clientHeight - furniture - inset)}px`,
+      const room = Math.max(
+        40,
+        Math.min(maxListHeight * 0.35, maxListHeight - furniture - inset),
       );
+      input.style.setProperty("--lf-thread-editor-room", `${room}px`);
     }
   }
 
@@ -699,7 +702,6 @@ export function createMarginProjection({
     preview.dataset.lfThreadPlacement = geometry.placement;
     preview.style.removeProperty("opacity");
     preview.style.removeProperty("pointer-events");
-    fitThreadCardEditors();
     answerThreadPreviewPosition(true);
     return true;
   }
@@ -2014,9 +2016,29 @@ export function createMarginProjection({
     const threadItems = entry.items.filter((item) => item.kind === "comment");
     const wanted = requestedItem ?? previewThreadItem ?? focusedItem;
     const selected = threadItems.find((item) => item.id === wanted) ?? threadItems[0];
-    // Another thread starts at its top; the same one re-rendering keeps the user's place.
+    // Another thread starts at its top; an update to this one holds the reader's place.
     const arriving = previewThreadItem !== (selected?.id ?? null);
     if (arriving) rightFootOffset = null;
+    const latest = selected ? turns(sourceItem(selected).thread).at(-1) : null;
+    const messageSelector =
+      ":scope > .lf-margin-thread > .lf-margin-thread-body > " +
+      ".lf-conversation-thread > .lf-conversation-msg";
+    const replySelector =
+      ":scope > .lf-margin-thread > .lf-margin-thread-body > " +
+      ".lf-conversation-thread > .lf-say";
+    const lastShown = [...previewList.querySelectorAll(messageSelector)].at(-1);
+    const lastBox = lastShown?.getBoundingClientRect();
+    const listBox = previewList.getBoundingClientRect();
+    const replyBox = previewList.querySelector(replySelector)?.getBoundingClientRect();
+    const follow =
+      !arriving &&
+      previewLatest?.thread === selected?.id &&
+      latest?.author === "agent" &&
+      (latest.id !== previewLatest.id || latest.text !== previewLatest.text) &&
+      lastBox &&
+      lastBox.bottom >= listBox.top &&
+      lastBox.bottom <= (replyBox?.top ?? listBox.bottom) + 80 &&
+      previewList.scrollHeight - previewList.clientHeight - previewList.scrollTop <= 2;
     const hold = arriving ? null : previewPlace.take();
     if (arriving) previewList.scrollTop = 0;
     previewThreadItem = selected?.id ?? null;
@@ -2064,6 +2086,8 @@ export function createMarginProjection({
       });
     placeThreadPreview();
     previewPlace.finish(hold);
+    previewLatest = latest && { thread: selected.id, id: latest.id, text: latest.text };
+    if (follow) previewList.scrollTop = previewList.scrollHeight;
   }
 
   function stepPreviewThread(step) {
@@ -2204,6 +2228,7 @@ export function createMarginProjection({
     forcedInlineOptionsKey = null;
     previewEntry = null;
     previewThreadItem = null;
+    previewLatest = null;
     previewMarginEntry = null;
     previewFocusPending = null;
     answerThreadPreviewPosition(false);

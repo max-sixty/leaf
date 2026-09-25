@@ -242,6 +242,52 @@ def test_a_root_workspace_bounds_independent_regions_and_flows_when_it_cannot_fi
     holds_the_window(page, workspace, True)
 
 
+LONG_REGION = "".join(f"<p>Line {i} of a long region.</p>" for i in range(40))
+STACKING_WORKSPACE_PAGE = leaf_page(
+    "A queue beside its detail",
+    f"""
+<lf-workspace id="stacking-workspace">
+  <header><h1>Escalations</h1></header>
+  <lf-grid id="stacking-regions" columns="1fr 2.4fr">
+    <lf-pane id="stacking-queue" label="Queue"><div>{LONG_REGION}</div></lf-pane>
+    <lf-pane id="stacking-detail" label="Detail"><div>{LONG_REGION}</div></lf-pane>
+  </lf-grid>
+</lf-workspace>
+""",
+)
+
+
+def test_a_workspace_whose_regions_stack_lets_the_page_scroll_them(browser, serve):
+    """Regions that stack are no longer in view together, so the workspace stops holding
+    them in the window's height: each pane takes its natural height and the page
+    scrolls. The control is the same workspace wide enough to set them side by side,
+    where each pane's body scrolls on its own."""
+    page = open_page(browser, serve(STACKING_WORKSPACE_PAGE))
+    grid = page.locator("#stacking-regions")
+    workspace = page.locator("#stacking-workspace")
+    resized(page, 1280, 900)
+    rendered(page)
+    expect(grid).not_to_have_attribute("data-lf-grid-stacked", "")
+    pane_posture(page, page.locator("#stacking-queue"), "bounded")
+    holds_the_window(page, workspace, True)
+
+    resized(page, 820, 900)
+    rendered(page)
+    expect(grid).to_have_attribute("data-lf-grid-stacked", "")
+    for pane in ("#stacking-queue", "#stacking-detail"):
+        pane_posture(page, page.locator(pane), "flow")
+    holds_the_window(page, workspace, False)
+    heights = page.evaluate(
+        """() => ['stacking-queue', 'stacking-detail'].map((id) => {
+          const pane = document.getElementById(id);
+          const body = pane.querySelector(':scope > div');
+          return [pane.getBoundingClientRect().height, body.scrollHeight];
+        })"""
+    )
+    for pane_height, body_height in heights:
+        assert pane_height >= body_height, heights
+
+
 ROOT_TABS_PAGE = Path(__file__).parent / "fixtures/pages/root-tabs.html"
 
 

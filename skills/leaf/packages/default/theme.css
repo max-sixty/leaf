@@ -86,6 +86,12 @@ lf-grid[columns="6"] { --lf-grid-count: 6; }
  * out a body beside a rail of its own (the playground's split, the swipe deck) stands
  * on these lines by restating `2fr 1fr`'s: 43.5rem and minmax(0, 2fr) minmax(0, 1fr). */
 lf-grid[data-lf-grid-stacked] > * { grid-column: 1 / -1; }
+/* Stacked regions are no longer in view together, so a stacked grid passes no height
+ * on: in a held workspace its cells take their natural height and the page scrolls
+ * them, which is what the workspace promises where the window cannot hold its regions
+ * (the chain of held boxes, below). The window's height split between stacked panes
+ * left each one a sliver. */
+lf-grid[data-lf-grid-stacked] { --lf-passes-hold: 0; min-height: auto; }
 /* Paper stacks every template. The mark is the screen's reading, and nothing reads a
  * grid's width in the print layout: no observer runs for it, and a container query's
  * condition cannot hold a template's own width. A printed page is the column's width,
@@ -285,7 +291,7 @@ lf-ask:has(> :is(h1, h2, h3, h4, h5, h6):first-child:nth-last-child(2)) {
         overscroll-behavior: contain;
         scrollbar-gutter: stable;
       }
-      html:root :is(lf-grid, [data-lf-reading-role="grid"]) {
+      html:root :is(lf-grid, [data-lf-reading-role="grid"]):not([data-lf-grid-stacked]) {
         align-items: stretch;
         grid-auto-rows: minmax(0, 1fr);
       }

@@ -4411,6 +4411,27 @@ def test_check_rejects_an_unknown_authored_width(page_dir):
     )
 
 
+def test_check_takes_a_rail_only_on_main_and_only_by_name(page_dir):
+    """`data-rail` says whether the page keeps a rail, so it stands on `main` and names
+    one of the two answers; anywhere else it would silently declare nothing."""
+    (page_dir / "index.html").write_text(
+        PAGE.replace("<main>", '<main data-rail="none">')
+    )
+    result = check(page_dir)
+    assert result.exit_code == 0, result.output
+    (page_dir / "index.html").write_text(
+        PAGE.replace("<main>", '<main data-rail="left">').replace(
+            "<h2>Plan</h2>", '<h2>Plan</h2><section data-rail="none"><p>A</p></section>'
+        )
+    )
+    result = check(page_dir)
+    assert result.exit_code == 1
+    assert "data-rail='left'> (line" in result.output
+    assert "expected one of right, none" in result.output
+    assert "data-rail> (line" in result.output
+    assert "belongs on <main>" in result.output
+
+
 def test_activation_rechecks_changed_css_while_the_document_stays_identical(page_dir):
     """Reused CSS readings must follow theme bytes, including tokens and diagnostics."""
     theme = page_dir / "theme.css"
@@ -5193,6 +5214,20 @@ def test_the_text_door_refuses_a_picture_the_page_directory_has_not_got(page_dir
     assert mention.exit_code == 0, (
         f"a path named in a sentence is the author's words, the reading the markup "
         f"door already keeps, not a picture the page owes:\n{mention.output}"
+    )
+
+    quoted = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "comment",
+            str(page_dir),
+            "--text",
+            f"Here is the source:\n\n```md\n![shot]({missing})\n```\n\n[unused]: {missing}",
+        ],
+    )
+    assert quoted.exit_code == 0, (
+        f"code and an unused reference definition render no media, so neither "
+        f"requires a file:\n{quoted.output}"
     )
 
     linked = CliRunner().invoke(

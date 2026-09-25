@@ -14,7 +14,7 @@ const at = (el) => (el === pageScroller ? "<root scrollport>" : element(el));
 // sideways-scroll reading is the same question asked of the window, and the
 // window is the wider of the two: the gate renders at 1200px against a 720px
 // column, so 200px of margin on each side absorbs a spill that scrolls nothing.
-// What is out there is the margin, where a suggestion's controls hang, and the
+// What is out there is the margin, where Leaf's rail and a page's notes stand, and the
 // user's own window is free to be narrower than this one — so a page that passed
 // here scrolls sideways on the machine it was written for.
 //
@@ -26,8 +26,8 @@ const at = (el) => (el === pageScroller ? "<root scrollport>" : element(el));
 // widget that came out wider than its content.
 //
 // Two kinds of element answer for their own width and not to this, and both say
-// so in their computed style. The margin has legitimate residents — a
-// suggestion's controls, a sidenote, the hidden line the paint pass writes — and
+// so in their computed style. The margin has legitimate residents — a sidenote,
+// the hidden line the paint pass writes, a page's own furniture — and
 // each is out there by its own declaration: placed absolutely or fixed, or floated
 // clear of the column. Where the box sits is what separates a resident from a spill,
 // which crosses the column's edge rather than clearing it, having started inside
@@ -741,4 +741,55 @@ export function squeezedTables() {
     );
   }
   return found;
+}
+
+// A margin marker with nowhere to stand. The layout withholds a row whose anchor the
+// browser will not take — an element behind the page's own `anchor-scope`, say — and marks
+// it `data-lf-parked`, so the user has no marker for that element and the page has no
+// way to show its thread or its decision beside it. Only the page can fix it: anchor the
+// thread or the widget to an element in the page's flow.
+export function strandedMargins() {
+  return [...document.querySelectorAll(".lf-margin-cluster[data-lf-parked]")].map(
+    (row) =>
+      `the margin marker for ${row.lfTarget ? at(row.lfTarget) : row.dataset.lfMarginFor} ` +
+      "has nowhere to stand: its element sits where a marker cannot anchor to it " +
+      "(behind an anchor-scope, say), so the user sees no marker for it",
+  );
+}
+
+// Pins standing over words. A pin stands inside its block's top-right corner and covers
+// whatever reaches it, which is expected and is why this is advice: the agent looks, and
+// gives the block padding on its right, or the page a rail, where the words matter.
+export function coveringMargins() {
+  const pins = [
+    ...document.querySelectorAll('.lf-margin-cluster[data-lf-place="pin"]'),
+  ].filter((row) => row.checkVisibility({ visibilityProperty: true }));
+  const main = document.querySelector("main");
+  if (!pins.length || !main) return [];
+  const lines = [];
+  const walk = document.createTreeWalker(main, NodeFilter.SHOW_TEXT);
+  for (let node = walk.nextNode(); node; node = walk.nextNode()) {
+    if (!node.data.trim() || node.parentElement.closest(".lf-ui")) continue;
+    const range = document.createRange();
+    range.selectNodeContents(node);
+    lines.push(...range.getClientRects());
+  }
+  return pins
+    .map((row) => {
+      const box = row.getBoundingClientRect();
+      const covered = lines.filter(
+        (line) =>
+          line.left < box.right &&
+          line.right > box.left &&
+          line.top < box.bottom &&
+          line.bottom > box.top,
+      ).length;
+      return covered
+        ? {
+            at: row.lfTarget ? at(row.lfTarget) : row.dataset.lfMarginFor,
+            covered,
+          }
+        : null;
+    })
+    .filter(Boolean);
 }

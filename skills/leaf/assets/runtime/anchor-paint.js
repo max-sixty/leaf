@@ -28,6 +28,7 @@ import {
 } from "./passages.js";
 import { bareReaction } from "./conversation/model.js";
 import { under } from "./shadow.js";
+import { annotationsHidden } from "./annotation-layer.js";
 
 const MARK = "lf-mark";
 const PENDING = "lf-pending";
@@ -155,8 +156,10 @@ export function createAnchorPaint({
   }
 
   // Which thread's painted mark lies under a point. Text highlights have no DOM node,
-  // so their client rects are the only exact hit test.
+  // so their client rects are the only exact hit test. With the annotation layer hidden
+  // there is no mark to be under: an unseen passage shows no hand and opens nothing.
   function markAt(x, y) {
+    if (annotationsHidden()) return null;
     const over = document.elementFromPoint(x, y);
     if (!pageWords(over)) return null;
     const deep = elementFromPointAcross(x, y);

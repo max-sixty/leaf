@@ -92,14 +92,11 @@ export function paperWords() {
 // What floats over the document on purpose is answered for, and that is one exemption
 // rather than two. It reads as the runtime's, because for a long time the runtime owned
 // every float there was; the sentence is about the float and not about the owner. A
-// suggestion's controls hang out of the flow, level with the change they decide, and a
-// sidenote hangs out of the flow level with the block it annotates — both in the right
-// margin now, both pinned by what they belong to, so where a page stands them level the
-// controls are drawn over the note and neither can move. Reporting that would refuse
-// every page that writes a note beside a change, which is a composition the vocabulary
-// is meant to have; so the float is exempt and the note is what it may cover. Where the
-// same row docks back into the flow it is a resident again, and covering a word there is
-// a fault this still reports.
+// sidenote hangs out of the flow level with the block it annotates, pinned by what it
+// belongs to, and a page's own absolutely placed furniture does the same; covering a
+// word there is the page's composition, not a fault. A control in the flow covering a
+// word is a fault this still reports. Leaf's margin rows stand in its own layer over the
+// page, which the chrome skip below takes whole.
 //
 // A pair where one element contains the other is skipped: a paragraph and the <em>
 // inside it are one run of words that the flow lays out together, and their boxes

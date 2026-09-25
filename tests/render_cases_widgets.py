@@ -637,7 +637,7 @@ DRAWING_PLACEMENT = """() => {
                  box: { left: h.left, right: h.right },
                  scrolls: holder.scrollWidth > holder.clientWidth };
     };
-    return { col, docked: acts.classList.contains('lf-docked'),
+    return { col, place: acts.closest('.lf-margin-cluster')?.dataset.lfPlace,
              rail: acts.getBoundingClientRect().left,
              small: at('small'), flow: at('flow'),
              sideways: document.body.scrollWidth - document.body.clientWidth };
@@ -1122,7 +1122,9 @@ RAIL_BANDS = """() => {
     return { rows: [...document.querySelectorAll(
                  '[data-lf-margin-for="sug-copy"], [data-lf-margin-for="sug-card"]'
              )].map(r => ({
-                 ...box(r), docked: r.classList.contains('lf-docked') })),
+                 ...box(r), for: r.dataset.lfMarginFor, place: r.dataset.lfPlace,
+                 pressable: r.contains(document.elementFromPoint(
+                   (box(r).left + box(r).right) / 2, (box(r).top + box(r).bottom) / 2)) })),
              plan: box(document.getElementById('plan')),
              later: box(document.getElementById('later')),
              column: { left: mb.left + parseFloat(ms.paddingLeft),

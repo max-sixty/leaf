@@ -172,12 +172,8 @@ export function createAnchorControls({
         html`${repeat(targets, ({ key }) => key, visualActionTemplate)}`,
         holder,
       );
-      // Margin contributions and visual proxies share the authored seat. Keep a stable
-      // order and preserve focus when reconciliation has to move a retained holder.
-      let after = seat;
-      while (after.nextSibling?.matches?.(".lf-margin-cluster[data-lf-external]"))
-        after = after.nextSibling;
-      if (after.nextSibling !== holder) after.after(holder);
+      // Preserve focus when reconciliation has to move a retained holder.
+      if (seat.nextSibling !== holder) seat.after(holder);
       if (standing?.isConnected && focused() !== standing)
         standing.focus({ preventScroll: true });
     }

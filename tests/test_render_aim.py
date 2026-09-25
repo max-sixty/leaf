@@ -107,7 +107,7 @@ AIM_PRESS_CASES = (
     (
         "release-notes",
         next(p for p in EXAMPLES if p.stem == "release-notes"),
-        frozenset({"draft mousedown", "suggestion no-item control"}),
+        frozenset({"draft mousedown", "suggestion margin control"}),
     ),
     (
         "ship-review",
@@ -658,10 +658,7 @@ def test_a_growing_comment_is_independent_of_page_controls(browser, serve):
     grown_scroll = page.evaluate("scrollY")
     assert bar.get_attribute("data-lf-placement") == placement
     assert abs(grown["x"] - compact["x"]) <= 1, (compact, grown)
-    assert abs(grown["y"] + grown_scroll - compact["y"] - compact_scroll) <= 1, (
-        compact,
-        grown,
-    )
+    assert grown["y"] >= 48 and grown["y"] + grown["height"] <= 378, grown
 
     peers = page.evaluate(
         """() => {
@@ -743,6 +740,69 @@ def test_a_growing_comment_is_independent_of_page_controls(browser, serve):
     )
     assert abs(returned["width"] - compact["width"]) <= 1, (compact, returned)
     assert abs(returned["height"] - compact["height"]) <= 1, (compact, returned)
+
+
+@pytest.mark.parametrize("shift, placement", [(0, "right-start"), (250, "left-start")])
+def test_side_comment_keeps_its_submit_steady_as_the_field_grows(
+    browser, serve, shift, placement
+):
+    """A side comment expands above the action the user is composing beside."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Side comment growth",
+                '<div style="height: 240px"></div>'
+                f'<p id="passage" style="position:relative;left:{shift}px">'
+                "This passage has room beside it for a response.</p>"
+                '<div style="height: 700px"></div>',
+            )
+        ),
+    )
+    resized(page, 1440, 900)
+    page.locator("#passage").click(modifiers=["Alt"])
+    field = open_compact_comment(page)
+    bar = page.locator(".lf-fab-bar")
+    assert bar.get_attribute("data-lf-placement") == placement
+    resting = bar.bounding_box()
+    submit = bar.locator(".lf-compose-submit")
+    resting_submit = submit.bounding_box()
+
+    field.fill("First line\nSecond line\nThird line")
+    rendered(page)
+    grown = bar.bounding_box()
+    grown_submit = submit.bounding_box()
+    assert grown["height"] > resting["height"] + 20, (resting, grown)
+    assert grown["y"] < resting["y"] - 20, (resting, grown)
+    assert grown["y"] + grown["height"] == pytest.approx(
+        resting["y"] + resting["height"], abs=1
+    ), (resting, grown)
+    assert grown_submit["y"] == pytest.approx(resting_submit["y"], abs=1), (
+        resting_submit,
+        grown_submit,
+    )
+
+    field.fill("Short again")
+    rendered(page)
+    shortened = bar.bounding_box()
+    assert shortened["y"] + shortened["height"] == pytest.approx(
+        resting["y"] + resting["height"], abs=1
+    ), (resting, shortened)
+
+    field.fill("First line\nSecond line\nThird line")
+    page.reload()
+    rendered(page)
+    page.locator("#passage").click(modifiers=["Alt"])
+    field = open_compact_comment(page)
+    expect(field).to_have_value("First line\nSecond line\nThird line")
+    rendered(page)
+    restored = bar.bounding_box()
+    field.fill("Short again")
+    rendered(page)
+    shortened = bar.bounding_box()
+    assert shortened["y"] + shortened["height"] == pytest.approx(
+        restored["y"] + restored["height"], abs=1
+    ), (restored, shortened)
 
 
 def test_a_comment_near_the_bottom_grows_up_before_it_scrolls(browser, serve):
@@ -1278,7 +1338,12 @@ def test_an_aimed_press_does_only_what_the_outline_promised(
         for e in events_model.read_events(serve.page_dir)
         if e["kind"] == "action"
     ]
-    targets = aim_targets(serve.page_dir)
+    # A suggestion's ✓/✗ stands in the margin layer, which is chrome and no aim target,
+    # but a press there is one the page answers, so the sweep takes it as well.
+    targets = (
+        f"{aim_targets(serve.page_dir)}, "
+        ".lf-margin-cluster :is(.lf-sug-accept, .lf-sug-reject)"
+    )
     total = page.locator(targets).count()
     pressed = aimed = 0
     reached_paths = set()
@@ -1331,14 +1396,14 @@ def test_an_aimed_press_does_only_what_the_outline_promised(
         page.keyboard.up("Alt")
         composer = page.locator(".lf-composer")
         bar = page.locator(".lf-fab-bar")
+        if "suggestion control" in target_paths and promised:
+            # A suggestion's ✓ Accept stands in the margin layer over the page, and a
+            # press let through there would send Claude a decision. The aim takes it as
+            # a press on the change it stands by, which the markup reading below holds.
+            reached_paths.add("suggestion margin control")
         if promised is None:
-            if "suggestion control" in target_paths:
-                reached_paths.add("suggestion no-item control")
             # Nothing outlined is nothing to aim at — no item encloses this point — and an
-            # armed press then acts on nothing rather than falling back to the page. A
-            # suggestion's ✓ Accept is where that matters: its row hangs in the page's own
-            # column, outside the element it decides, so nothing is above it to aim at and
-            # a press let through would send Claude a decision.
+            # armed press then acts on nothing rather than falling back to the page.
             expect(bar).to_be_hidden()
             expect(composer).to_be_hidden()
         else:
@@ -2494,9 +2559,8 @@ def test_a_visual_part_mark_follows_its_drawn_svg_shape(browser, serve):
     )
     told(page)
     expect(diamond).to_have_class(re.compile(r"\blf-mark-el\b"))
-    # The comment's margin row stands level with the diagram, which yields its right
-    # growth to it (data-lf-yield) and moves the diamond, so compare the diamond where
-    # it now stands.
+    # The comment's margin row stands on the diagram; nothing Leaf draws moves the
+    # page's content, so the diamond is read where it stands rather than assumed.
     moved = diamond.bounding_box()
     clip = {**clip, "x": math.floor(moved["x"]), "y": math.floor(moved["y"])}
     painted = Image.open(io.BytesIO(page.screenshot(clip=clip))).convert("RGB")

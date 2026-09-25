@@ -106,11 +106,8 @@ A page grows without changing kind: a report that gains live status gains a grid
 its comments and anchors stay put.
 
 The banner, the shortcut band at the foot of the window and the margin rail are fixed
-reservations, so the room a page has depends only on the window, and the Asks tray,
-the Threads panel and thread cards stand over the page. What Leaf puts in the text is
-a margin entry with no rail to stand in: one for a passage inside a pane, and a
-package's margin controls in a window too narrow for the rail, sit in the flow beside
-what they mark.
+reservations, so the room a page has depends only on the window, and nothing Leaf draws
+moves the page's content ("The rail and the margin", below).
 
 ### A wide page
 
@@ -123,13 +120,13 @@ one left edge and takes the page's width, while text keeps the reading measure; 
 title is set larger.
 
 A wide page reads as one structure when every region stands on the same vertical
-lines, so give it one set of tracks: typically a body beside a rail as one `lf-grid`
+lines, so give it one set of tracks: typically a body beside a side track as one `lf-grid`
 of `columns="2fr 1fr"` (`3fr 1fr` for a board), each track a nested `columns="1"` grid
 stacking its regions, rather than a new grid per row whose splits land somewhere new
 each time (`version check --render` advises on those). Put what the reader works
 through in the body and what they keep an eye on — status, counts, the verdict's
-follow-ups, the contents — in the rail. The tracks stack where the rail would become
-too narrow.
+follow-ups, the contents — in the side track. The tracks stack where the side track
+would become too narrow.
 
 Draw each region the same way, as a `section.panel` with a short heading, and keep a
 `.callout` with a status tone (`warn`, `danger`, `ok`) for the one thing the reader must
@@ -162,8 +159,9 @@ An individual block or section may request a responsive allocation with
 `data-width="column"`, `data-width="wide"`, or `data-width="available"`. `column`
 uses the standard prose measure, including inside a wider section. `wide` uses the
 shared capped evidence width. `available` uses all room left by the page shell, frames,
-chrome, and occupied margins. The occurrence overrides a widget's package default, so
-`data-width="column"` can deliberately keep a normally wide widget with the prose.
+chrome, the rail, and the page's own margin residents. The occurrence overrides a
+widget's package default, so `data-width="column"` can deliberately keep a normally wide
+widget with the prose.
 Use these names on the semantic block itself, including a native `table`, `lf-code`, or
 `lf-diff`; do not reproduce their responsive widths in page CSS.
 
@@ -172,6 +170,30 @@ detail view with the complete object available for context; use whole frames whe
 composition is the subject. A fitted thumbnail is an overview, not a substitute for
 readable detail. Let the package provide inspection controls and Leaf allocate space and
 scrolling; page-local width overrides and wheel handlers should not be needed.
+
+### The rail and the margin
+
+Leaf marks each commented or decided element with a marker: a thread, an Ask, a
+suggestion's ✓/✗. Nothing Leaf draws moves the page's content, so plan the page's
+geometry without them:
+
+- A column page keeps a rail, a strip `--rail` wide beside its column, from a shell of
+  863px up; its markers stand in it, 22px past the column.
+- A wide page, and so a page whose only block is a workspace, keeps no rail. Its
+  markers stand as pins over the page inside the top-right corner of their blocks, as
+  every marker does where the rail does not stand: in a narrower window, and in a pane
+  that scrolls on its own. A pin covers that corner of its block, 26px of it with a
+  mouse and 44px under a finger, so a block whose first line runs to its right edge
+  loses the end of that line under a pin. It never stands on a control of the block,
+  such as a card's grip, and goes below one instead.
+- A marker on a figure grown past the rail stands on the figure as a pin.
+- The user hides every pin and passage mark with `o` to see what lies under them; the
+  rail stays, since it covers nothing.
+
+`data-rail="right"` on `main` keeps the rail on a wide page, and `data-rail="none"`
+gives a column page's right margin to something else: a page that hangs
+`aside.sidenote`s on the right writes it, since the notes and the rail claim the same
+strip.
 
 ## Draw the subject
 

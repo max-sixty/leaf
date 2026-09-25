@@ -291,6 +291,12 @@ body[data-lf-draw-mode] main .lf-conversation * { cursor: auto !important; }
 :is(.lf-mark-el, .lf-react-el) {
   outline: 1px solid var(--mark-ink); outline-offset: -1px; }
 .lf-mark-el { cursor: pointer; }
+/* The annotation layer hidden (`o`): the resting contour goes with the text marks, here
+   and in the chrome's projection of it (at .lf-visual-mark), and the contours of a
+   gesture (pending, hover, focus, the current thread) stay. */
+:root[data-lf-annotations="hidden"]
+  :is(.lf-mark-el, .lf-react-el):not(.lf-pending, .lf-mark-hover, .lf-mark-here,
+    :focus-visible, .lf-focus-visible) { outline-color: transparent; cursor: auto; }
 /* The glyphs of the reactions standing on a target — a margin entry per reaction,
    revealing a separately named removal action. */
 .lf-react-mark { text-align: center; }
@@ -404,7 +410,10 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
 /* Keyframe names are document-global even beside an @scope block. The stable salt
    makes this runtime-private in the one CSS namespace scoping cannot protect. */
 @keyframes lf-runtime-4f3c2a8d-pulse { 50% { opacity: .35; } }
-@keyframes lf-runtime-4f3c2a8d-title-pulse { 50% { opacity: .6; } }
+@keyframes lf-runtime-4f3c2a8d-title-pulse {
+  0%, 60%, 100% { opacity: .18; }
+  30% { opacity: 1; }
+}
 @keyframes lf-runtime-4f3c2a8d-working { to { opacity: .5; } }
 @keyframes lf-runtime-4f3c2a8d-flash {
   0% { background: var(--hi-tint); } 100% { background: var(--card); }
@@ -484,6 +493,10 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      under pointer or focus crosses that paint; the full-page toolbar stays at rest. */
   .lf-margin-projection { z-index: auto; }
   .lf-margin-cluster:is(:hover, :focus-within) { z-index: var(--lf-z-margin-raised); }
+  /* A pane's lane is a stacking context of its own (its clip makes it one), so the lane
+     rises with the row the pointer or the keyboard is on. */
+  .lf-margin-lane:has(.lf-margin-cluster:is(:hover, :focus-within)) {
+    z-index: var(--lf-z-margin-raised); }
   .lf-target-paint[data-lf-paint-plane="chrome"] { z-index: var(--lf-z-chrome-paint); }
   /* Every margin-projection control traces the content it concerns through one quiet
      overlay. Painting above the target keeps a package-owned frame from covering the
@@ -1042,10 +1055,15 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-thread-summary:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring);
     outline-offset: calc(-1 * var(--here-ring-w)); --lf-here-ring: thread-summary; }
   .lf-thread-topic { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .lf-thread-topic[data-lf-pending-title] { color: var(--muted);
-    animation: lf-runtime-4f3c2a8d-title-pulse 1.8s ease-in-out infinite; }
+  .lf-thread-topic[data-lf-pending-title] { display: inline-flex; align-items: center;
+    gap: 3px; color: var(--ink-2); }
+  .lf-thread-pending-dot { display: inline-block; width: 5px; height: 5px;
+    border-radius: 50%; background: currentColor; font-size: 0;
+    animation: lf-runtime-4f3c2a8d-title-pulse 1.2s ease-in-out infinite; }
+  .lf-thread-pending-dot:nth-child(2) { animation-delay: .15s; }
+  .lf-thread-pending-dot:nth-child(3) { animation-delay: .3s; }
   @media (prefers-reduced-motion: reduce) {
-    .lf-thread-topic[data-lf-pending-title] { animation: none; }
+    .lf-thread-pending-dot { animation: none; }
   }
   .lf-thread-meta { display: flex; align-items: center; gap: 8px; min-width: 0; }
   .lf-thread-draft { color: var(--muted); font-size: 10px; white-space: nowrap; }
@@ -1288,6 +1306,11 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-fab-bar { position: fixed; display: none; width: max-content;
     align-items: flex-end; gap: 4px; white-space: nowrap;
     max-width: var(--lf-float-w, calc(100vw - 16px)); }
+  /* A side response and a right-rail thread card both write top as their foot. Intrinsic
+     field growth moves their top edge upward in the same layout pass. */
+  :is(.lf-fab-bar:is([data-lf-placement^="right"], [data-lf-placement^="left"]),
+    .lf-margin-preview[data-lf-thread-placement="right"]) {
+    translate: 0 -100%; }
   .lf-fab-bar[data-lf-margin-raised] { display: none !important; }
   /* The field and its choices are one anchored response control. This primitive owns
      their height, vertical padding, type, border, corners, and elevation. Tab extends
@@ -1431,6 +1454,10 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-visual-mark.lf-visual-mark-here {
     border: var(--here-ring-w) solid var(--accent); }
   .lf-visual-mark.lf-shaped { border: 0; border-radius: 0 !important; }
+  html[data-lf-annotations="hidden"] :scope
+    .lf-visual-mark:is(.lf-visual-mark-comment, .lf-visual-mark-reaction):not(
+      .lf-visual-mark-pending, .lf-visual-mark-hover, .lf-visual-mark-focus,
+      .lf-visual-mark-here, .lf-visual-mark-action) { visibility: hidden; }
   .lf-visual-mark-shape { display: block; width: 100%; height: 100%; overflow: hidden; }
   .lf-composer { display: none; }
   .lf-fab-bar .lf-composer > :not(.lf-compose-field, .lf-composer-media) {
@@ -1527,9 +1554,6 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     margin: 0; padding: 12px; border: 1px solid var(--border-2); border-radius: 10px;
     background: var(--paper); color: var(--ink); box-shadow: 0 12px 36px var(--shade); }
   .lf-margin-preview:not([hidden]) { display: flex; flex-direction: column; }
-  /* The positioned top is the card's foot in the right rail. As the reply gains a line,
-     the percentage translation grows upward in the same layout pass. */
-  .lf-margin-preview[data-lf-thread-placement="right"] { translate: 0 -100%; }
   .lf-thread-transition { position: fixed; z-index: var(--lf-z-thread-transition); margin: 0;
     padding-inline: 12px; overflow: hidden; pointer-events: none;
     white-space: pre-wrap; }
@@ -1556,13 +1580,23 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-margin-thread:first-child { padding-top: 0; border-top: 0; }
   /* The conversation's first message opens directly at the card edge. */
   .lf-margin-thread .lf-conversation-msg:first-of-type { margin-top: 0; }
+  /* Following messages keep their top margin; the sticky reply owns the final gap
+     so its opaque background covers text scrolling beneath it. */
+  .lf-margin-thread .lf-conversation-msg { margin-bottom: 0; }
+  /* The reply uses the scroll area's width while its text shares the
+     conversation column. */
+  .lf-margin-thread .lf-conversation-thread { padding-inline: 12px; }
   /* The reply surround shares the conversation's opaque surface, including its focus
      tint, so pinning the reply cannot introduce a separate background band. */
   :where(.lf-margin-thread) .lf-conversation-thread { background: var(--paper); }
   /* Pinned to the transcript's foot, the row keeps its controls' ring room as bottom
      padding (the compact ring's room, in this file's header). */
   .lf-margin-thread .lf-say { align-items: stretch; position: sticky; bottom: 0;
-    padding-block: 12px var(--here-ring-room); background: inherit; }
+    margin-top: 0; margin-inline: calc(-1 * var(--sp-2));
+    padding-block: var(--sp-3) var(--here-ring-room);
+    background: inherit; }
+  .lf-margin-thread .lf-conversation-thread > .lf-say > .lf-reply-disclosure,
+  .lf-margin-thread .lf-say textarea { padding-inline-start: 7px; }
   .lf-margin-thread .lf-say textarea { min-width: 0;
     max-height: min(50vh, var(--lf-thread-editor-room, 50vh)); }
   .lf-margin-preview .lf-margin-thread-body > .lf-conversation-thread {
@@ -1648,9 +1682,11 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-page-map-group h3 { margin: 0 8px 4px; font-size: var(--t-5); line-height: 1.35; }
   .lf-page-map-actions { display: grid; gap: 2px; }
   /* The banner offers the whole Page Map wherever the rail is not drawn, and asks the
-     same floor the rail does, of the same box: theme.css, at the margin projection. The
-     thread panel takes no room but stands over the rail below about 1700px, and the
-     layout pass marks the root when it does. */
+     same floor the rail does, of the same box: theme.css, at the margin projection. There
+     the markers are pins, small targets over the content, and the searchable map is the
+     better route to them. The thread panel takes no room but stands over the margin
+     below about 1700px, and the layout pass marks the root when it does. A browser that
+     cannot anchor draws no markers at all. */
   @media screen {
     @container lf-shell (width <= 863px) {
       .lf-page-map-toggle:not([hidden]) { display: inline-flex; }
@@ -1661,6 +1697,9 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     @container lf-shell (width <= 887px) {
       .lf-page-map-toggle:not([hidden]) { display: inline-flex; }
     }
+  }
+  @supports not (anchor-name: --lf-page) {
+    .lf-page-map-toggle:not([hidden]) { display: inline-flex; }
   }
   @media (forced-colors: active) {
     .lf-margin-preview, .lf-page-map-dialog { border: 1px solid CanvasText; box-shadow: none; }

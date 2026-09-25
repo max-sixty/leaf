@@ -82,7 +82,7 @@ item.
 | **Pane** | One reading region in a workspace: an optional header, exactly one body element, an optional footer |
 | **Reading region** | A stable semantic place used by navigation and reading-position recovery |
 | **Effective reading scroller** | The scroll container currently governing one reading region |
-| **Pinned cover** | A sticky box declared through `declareCoverRoom` that stands over an edge of the scroller it sticks in, such as a thread-list run heading, an `lf-diff` file header, or a root `lf-tabs` strip. What passes under it is not on screen, and a landing arrives clear of it |
+| **Sticky cover** | A sticky box declared through `declareCoverRoom` that stands over an edge of the scroller it sticks in, such as a thread-list run heading, an `lf-diff` file header, or a root `lf-tabs` strip. What passes under it is not on screen, and a landing arrives clear of it |
 | **Reading posture** | Whether a region's body scrolls on its own (`bounded`) or the region is carried by its container (`flow`); a root workspace's container query decides, and the runtime reads the result |
 
 A root `lf-tabs` and an embedded `lf-tabs` remain the same element type; placement
@@ -105,7 +105,7 @@ The current trays are the **Asks tray** and **Leaves tray**. Use *covering auxil
 surface*, not *modal workspace*: a covering surface and a modal dialog are different
 web interaction primitives. A covering surface makes the page inert behind it; a surface
 over the page, such as the thread panel on a desktop window, takes no width from
-it and leaves it live. A covering surface covers the content frame; a **pinned cover**
+it and leaves it live. A covering surface covers the content frame; a **sticky cover**
 stands over one edge of one scroller, and nothing about it is modal.
 
 ## Page Map and the margin
@@ -122,14 +122,18 @@ The margin projection has a separate registration and layout hierarchy:
 
 | Term | Identity criterion |
 |---|---|
-| **Rail** | The right-hand lane and shell reservation used when the margin projection stands beside content |
-| **Margin row** | One target-anchored geometry participant whose placement is `rail`, `docked`, or `withheld` |
+| **Rail** | The right-hand strip a column page reserves beside its column, where margin rows stand beside their targets |
+| **Pin** | A margin row standing over the page inside the top-right corner of its target's block, where no rail stands: the page declared none, the shell is too narrow, or the target sits in a pane that scrolls on its own |
+| **Margin row** | One target-anchored geometry participant whose placement is `rail`, `pin`, or `withheld` |
+| **Margin lane** | The layer holding the margin rows of one scroller: the root lane for the document, one lane per bounded reading region, clipped to what that region shows |
+| **Contributed control** | A margin entry a package puts in a target's cluster, such as a suggestion's Accept and Reject |
 | **Margin cluster** | The visible group attached to one target |
 | **Margin contribution** | One provider's registered bundle of margin content |
 | **Margin entry** | One ranked action, disclosure, or status in a contribution |
 
-*Withheld* means no spatial allocation is currently available; it does not imply that
-time alone will make the entry appear.
+*Withheld* means the row's target shows no part of itself in its region: a closed
+`details`, an inactive tab, or a pane scrolled past it. A withheld row is out of the tab
+order; it does not imply that time alone will make the entry appear.
 
 ## Contents outline
 
@@ -150,6 +154,7 @@ spine instead.
 | **Scope** | A registered command-applicability and shadowing boundary |
 | **Design mode** | The `l` interaction that reinterprets input for interface comments until the user exits |
 | **Draw mode** | The `w` interaction that reinterprets pointer input as a drawing until the user exits |
+| **Annotation layer** | Everything Leaf draws over the page's content: the margin rows standing as pins, the durable marks on commented and reacted passages with their contours, an open card, an unfolded cluster. The rail covers nothing and is not part of it. `o` toggles whether it shows, as tab view state rather than a mode |
 | **Go-to sequence** | The `g` prefix grammar that builds a current map of Go-to targets, paints transient hint codes, and resolves complete ordered addresses |
 | **Target chooser** | The `s` interaction that presents addressable elements and ends when the user chooses one or closes it |
 | **Page search** | The `/` interaction that filters or walks text matches for a query |
@@ -166,7 +171,8 @@ spine instead.
 | **Binding badge** | A key badge showing a command's currently resolved binding |
 
 Reserve *mode* for Design mode and Draw mode, which persist until explicit exit. `g`
-opens a sequence and `s` opens a chooser. A scope is the command-resolution mechanism
+opens a sequence, `s` opens a chooser, and `o` is a toggle: it changes what the page
+shows, not what input means. A scope is the command-resolution mechanism
 that these interactions may make applicable. Commands have stable dotted ids; bindings
 are canonical normalized chords matched against keyboard events.
 

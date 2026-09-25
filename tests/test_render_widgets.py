@@ -940,10 +940,9 @@ def test_the_page_end_clears_the_bottom_chrome_around_a_workspace(browser, serve
 
 
 def test_a_comment_in_a_pane_leaves_its_grammar_whole(browser, serve):
-    """With the rail down, a comment's controls hang beside the block they serve. A
-    pane whose one body element is that block would take a sibling as a second body,
-    so the controls hang at the end of the block instead and the pane keeps scrolling
-    its one body."""
+    """A comment in a pane stands as a pin in the pane's own lane, over the block it
+    serves. Leaf inserts nothing into the pane, so a pane whose one body element is that
+    block keeps it as its one body and goes on scrolling it."""
     source = leaf_page(
         "a comment in a pane",
         """
@@ -965,7 +964,10 @@ def test_a_comment_in_a_pane_leaves_its_grammar_whole(browser, serve):
         page.keyboard.press("ControlOrMeta+Enter")
     page.keyboard.press("Escape")
     page.keyboard.press("Escape")
-    expect(page.locator("#only > .lf-margin-cluster")).to_have_count(1)
+    row = page.locator('.lf-margin-lane > [data-lf-margin-for="only"]')
+    expect(row).to_have_count(1)
+    expect(row).to_have_attribute("data-lf-place", "pin")
+    expect(page.locator("#held-pane .lf-margin-cluster")).to_have_count(0)
     expect(page.locator("#held-pane > *")).to_have_count(1)
     pane_posture(page, page.locator("#held-pane"), "bounded")
 
@@ -1704,7 +1706,8 @@ def test_a_milestone_marker_is_centred_on_its_title(browser, serve):
 
 
 def test_suggestions_sharing_a_block_keep_source_and_keyboard_order(browser, serve):
-    """Hoisted decision rows keep source order through upgrade and reconnection."""
+    """Decision rows keep source order in the margin layer, and so in the tab order,
+    through upgrade and reconnection."""
     source = leaf_page(
         "suggestion-order",
         """
@@ -1759,7 +1762,9 @@ def test_suggestions_sharing_a_block_keep_source_and_keyboard_order(browser, ser
         # them in the same item. Walk past whichever row currently owns that one stop.
         page.keyboard.press("Tab")
         page.keyboard.press("Tab")
-        if page.locator(":focus").evaluate("el => el.matches('.lf-margin-marker')"):
+        # The rows stand after the page's content in the margin layer, so the last
+        # row's Tab leaves the document.
+        if page.evaluate("() => document.activeElement.matches('.lf-margin-marker')"):
             page.keyboard.press("Tab")
     assert walked == ["first-change", "second-change", "third-change"]
 
@@ -6120,8 +6125,9 @@ def test_suggestion_controls_stay_out_of_the_column(browser, serve, reduced_moti
     change sits costs it nothing: one inside a card — a positioned ancestor, which
     `left: 100%` used to resolve against, dropping the row back into the text —
     hangs in the rail beside its card like any other. What is left is a
-    measurement no lint can make: a window with no margin to hold the row docks it
-    into flow, under the block it decides rather than overlapping the page."""
+    measurement no lint can make: a window with no rail stands each row as a pin
+    inside the top-right corner of the change it decides, over the change and never
+    beside it."""
     page = open_page(browser, serve(SUGGESTION_PAGE), init_script=HOLD_MOTION)
     page.emulate_media(reduced_motion=reduced_motion)
     column = page.locator("main").evaluate("el => el.getBoundingClientRect().right")
@@ -6141,31 +6147,41 @@ def test_suggestion_controls_stay_out_of_the_column(browser, serve, reduced_moti
     assert first["bottom"] <= second["top"], "control rows must not stack on each other"
 
     # The card is positioned and the change is three elements down inside it, and
-    # the row still hangs in the rail on the line that change starts — which is
-    # what the anchor buys, and what a static position never could.
-    in_card = page.locator("[data-lf-margin-for='sug-in-card']").evaluate(box)
-    assert in_card["left"] > column and in_card["right"] <= room, (
-        "a change inside a widget is still a change the user decides in the margin"
+    # the row still stands on the line that change starts — which is what the anchor
+    # buys, and what a static position never could. The board it sits in grows past
+    # the rail, so the row stands on the board as a pin in the change's top-right
+    # corner.
+    in_card_row = page.locator("[data-lf-margin-for='sug-in-card']")
+    expect(in_card_row).to_have_attribute("data-lf-place", "pin")
+    in_card = in_card_row.evaluate(box)
+    change = page.locator("#sug-in-card").evaluate(box)
+    assert change["right"] - 12 <= in_card["right"] <= change["right"] <= room, (
+        "a change inside a board is decided inside its own top-right corner"
     )
     assert (
         abs(in_card["top"] - page.locator("#sug-in-card lf-old").evaluate(box)["top"])
         <= 5
     ), "the row must hang on the change's own line, not on the block it follows"
 
-    # No margin anywhere: every row docks, and nothing spills sideways. Docked is
-    # the same box in flow where the row was hoisted to, so it reads as a control
-    # line under the block holding the change and never as the one before's.
+    # No rail: every row is a pin on its own change, and nothing spills sideways.
     resized(page, 820, 900)
     page.wait_for_function(
         "() => [...document.querySelectorAll('[data-lf-margin-for^=sug-]')]"
-        ".every(r => r.classList.contains('lf-docked'))"
+        ".every(r => r.dataset.lfPlace === 'pin')"
     )
     assert page.evaluate("() => document.body.scrollWidth <= document.body.clientWidth")
-    for widget, block in [("sug-refill", "#replace"), ("sug-in-card", "#sug-in-card")]:
-        assert (
-            page.locator(f"[data-lf-margin-for='{widget}']").evaluate(box)["top"]
-            >= page.locator(block).evaluate(box)["bottom"]
-        ), "a docked row belongs under the block whose change it decides"
+    for widget in ("sug-refill", "sug-in-card"):
+        stands = page.locator(f"[data-lf-margin-for='{widget}']").evaluate(
+            """row => {
+              const r = row.getBoundingClientRect();
+              const t = row.lfTarget.getBoundingClientRect();
+              return {top: r.top - t.top,
+                      inCorner: r.right <= t.right && r.right >= t.right - 12};
+            }"""
+        )
+        assert stands["inCorner"] and stands["top"] >= -1, (
+            f"a pin belongs inside the top-right corner of the change it decides: {stands}"
+        )
 
 
 def test_the_page_says_a_change_is_only_proposed(browser, serve):
@@ -6236,10 +6252,15 @@ def test_a_moved_change_takes_its_controls_with_it(browser, serve):
     box = "el => el.getBoundingClientRect()"
     row = page.locator("[data-lf-margin-for='sug-in-card']")
     expect(row).to_be_visible()
+    # The row stands on the moved card: at its line, or packed just below the card's
+    # own marker where the two would otherwise stand on one corner.
+    card = page.locator("#card-heater").evaluate(box)
     change = page.locator("#sug-in-card lf-old").evaluate(box)
-    assert abs(row.evaluate(box)["top"] - change["top"]) <= 5, (
+    stands = row.evaluate(box)
+    assert change["top"] - 5 <= stands["top"] <= change["top"] + 48, (
         "the row must find the moved change's line again, not the one it left"
     )
+    assert card["left"] < stands["right"] <= card["right"] + 40, (stands, card)
     row.locator(".lf-sug-accept").click()
     expect(page.locator("#sug-in-card lf-old")).to_be_hidden()
 
@@ -6742,8 +6763,8 @@ def test_a_user_who_asked_for_less_motion_gets_the_collapse_at_once(browser, ser
 def test_accept_all_decides_every_pending_suggestion(browser, serve):
     """The banner's button is a shortcut for the user who has read the page
     and wants all of it, so it has to reach the ones their eye didn't: the
-    suggestion inside a widget, whose controls dock in flow rather than hang in
-    the margin. Each is decided individually, so the log records what was
+    suggestion inside a widget, whose controls stand on the widget as a pin rather
+    than in the rail. Each is decided individually, so the log records what was
     consented to one change at a time rather than one blanket yes."""
     page = open_page(browser, serve(SUGGESTION_PAGE))
     answer_all = page.locator(".lf-answer-all")

@@ -13,9 +13,8 @@
  * reading through `registerMarginContribution`; the margin projection joins it to comment threads,
  * decisions, delivery status, activity, and temporary reaction controls for this same
  * target.
- * That owner renders and places the resulting entries, docks them when
- * the margin is too narrow, and reads rendered descendants when a project makes the
- * target `display: contents`. A suggestion never creates a second RHS surface or
+ * That owner renders and places the resulting entries, in the rail or as a pin, and
+ * reads rendered descendants when a project makes the target `display: contents`. A suggestion never creates a second RHS surface or
  * geometry model of its own. */
 import {
   alignText,

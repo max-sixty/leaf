@@ -938,10 +938,12 @@ export function createAskView({
     const ask = askNode(record);
     if (!ask) return;
     reviewedThrough = review ? ask : null;
-    ask.focus({ preventScroll: true });
+    // Through the margin's door, which also shows the Ask's row where the annotation
+    // layer is hidden: an arrival is a request for what decides it.
+    focusForNavigation(ask);
     if (ask.matches(":focus")) return;
     lend(ask);
-    ask.focus({ preventScroll: true });
+    focusForNavigation(ask);
     if (ask.matches(":focus")) return;
     // An Ask the page styles boxless generates nothing to stand on, and a lent stop
     // does not change that. There the control that answers it is the only place the

@@ -4523,11 +4523,13 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         "lf-fab",
         "lf-fab-bar",
         "lf-focus-within",
-        # The rail is chrome, and its whole document face — placement, the hidden
-        # state, and the widths that fold it away — is the authored theme's. The
-        # runtime sheet names it only to say which plane it stands on, so the movement
-        # the theme's rule causes is that deliberate face rather than a leaked one.
+        # The margin layer is chrome, and its whole document face — placement by
+        # anchor, the rail and pin postures, the lanes a pane's rows stand in — is the
+        # authored theme's. The runtime sheet names it only to say which plane it
+        # stands on, so the movement the theme's rule causes is that deliberate face
+        # rather than a leaked one.
         "lf-margin-cluster",
+        "lf-margin-lane",
         "lf-margin-projection",
         "lf-msg-head",
         "lf-react-open",
@@ -6632,9 +6634,18 @@ def test_agent_titles_update_without_losing_the_users_draft(browser, serve):
     topic = thread.locator(".lf-thread-topic")
     expect(topic).to_have_text("...")
     expect(topic).to_have_attribute("aria-label", "Title pending")
+    dots = topic.locator(".lf-thread-pending-dot")
+    expect(dots).to_have_count(3)
     assert (
-        topic.evaluate("element => getComputedStyle(element).animationName") != "none"
+        dots.first.evaluate("element => getComputedStyle(element).animationName")
+        != "none"
     )
+    page.emulate_media(reduced_motion="reduce")
+    assert (
+        dots.first.evaluate("element => getComputedStyle(element).animationName")
+        == "none"
+    )
+    page.emulate_media(reduced_motion="no-preference")
     focus_panel_thread(thread)
     editor = thread.locator("textarea")
     editor.fill("Keep this unfinished reply")

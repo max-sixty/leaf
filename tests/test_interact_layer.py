@@ -1474,20 +1474,17 @@ def test_the_layer_sheets_spell_the_runtime_s_layout_numbers():
 
 
 def test_the_rail_s_floor_is_one_width_in_every_sheet():
-    """theme.css claims the rail in a shell wider than its floor and stops drawing the
-    margin at or under it, and chrome.css offers the Page Map toggle at or under it. No
-    runtime constant stands behind the number — the runtime reads the posture the claim
-    states — so the three spellings are held to each other."""
+    """theme.css claims the rail in a shell wider than its floor, and chrome.css offers
+    the Page Map toggle at or under it, where the markers are pins. No runtime constant
+    stands behind the number — the runtime reads the posture the claim states — so the
+    two spellings are held to each other."""
     theme = (schema_model.ASSETS / "theme.css").read_text()
     chrome = (schema_model.ASSETS / "runtime" / "chrome.css").read_text()
     floor = re.search(
-        r"@container lf-shell \(width > (\d+)px\) \{\s*:is\(\s*:root\[data-lf-rail\]",
+        r"@container lf-shell \(width > (\d+)px\) \{\s*html\[data-lf-live\] main:is\(",
         theme,
     ).group(1)
     spelled = f"@container lf-shell (width <= {floor}px) {{"
-    assert spelled in theme, (
-        "the margin is drawn under a different floor than it is claimed"
-    )
     assert spelled in chrome, (
         "the Page Map toggle appears at a different floor than the rail"
     )

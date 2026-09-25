@@ -7688,3 +7688,24 @@ def test_a_row_behind_an_inactive_tab_is_withheld(browser, serve):
     margins_laid_out(page)
     expect(row).not_to_have_class(re.compile(r"\blf-withheld\b"))
     expect(row).to_be_visible()
+
+
+def test_the_feature_gallery_shows_a_pin_on_a_wide_figure_and_o_hides_it(
+    browser, serve
+):
+    """The gallery's rail-and-pins specimen: a comment on the schedule, which is wider
+    than the column, stands on it as a pin while the prose beside it keeps the rail, and
+    `o` hides the pin while the rail stays."""
+    page = open_page(browser, serve(FEATURE_GALLERY))
+    resized(page, 1440, 900)
+    margins_laid_out(page)
+    pin = page.locator('.lf-margin-cluster[data-lf-margin-for="bg-margin-layer-figure"]')
+    expect(pin).to_have_attribute("data-lf-place", "pin")
+    rail = page.locator('.lf-margin-cluster[data-lf-place="rail"]')
+    assert rail.count() > 0
+    page.locator("body").focus()
+    page.keyboard.press("o")
+    expect(pin).to_be_hidden()
+    expect(rail.first).to_be_visible()
+    page.keyboard.press("o")
+    expect(pin).to_be_visible()

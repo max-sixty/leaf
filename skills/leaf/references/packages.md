@@ -213,6 +213,12 @@ widget's role on the page:
 | `x-history`          | `lf-activity`                                                  |
 | `x-thread-surface`   | `lf-diff` in `diff`, `lf-visual-review` in `visual-review`     |
 
+A visual with generated part ids declares accepted `x-visual.prefixes` and calls
+`registerVisualParts(source, read, {reveal, label})`. The `read` function returns
+the parts currently drawn as `{id, element, label}` records. `reveal(id)` draws an
+absent part when someone follows its thread; `label(id)` names that part in
+Threads without changing the visual's state, and returns `null` for an unknown id.
+
 A CSS-only widget is an entry and a theme rule. One with reusable behavior takes a
 module. The widget owns its implementation: supporting modules can sit beside its entry
 module and use relative imports, while third-party or data files can live under
@@ -225,6 +231,12 @@ query private chrome, or duplicate a runtime helper inside itself. Resolve canon
 `/media/…` paths from typed data with `scopedMediaUrl(path)` before assigning them to
 generated images or links. It uses the page's public root across ordinary, MCP, and
 published pages while the source retains its canonical path.
+
+Registry-declared inline Markdown formats authored text, not strings a module assigns
+with `textContent`. For changing Markdown prose, load the renderer with `loadMarkdown()`
+and paint the current value with `inlineMarkdownFragment()`; repaint that value when
+loading completes. A changing numeric readout keeps surrounding text still with
+tabular numerals and a slot wide enough for its largest value.
 
 ### What a behavior module owes
 

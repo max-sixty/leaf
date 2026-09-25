@@ -84,7 +84,7 @@ export function plainMergeComparisons(values) {
 // steps that change the structure (a run found, a push, a stack check, a copy into buf)
 // hold long enough to read.
 const DUR = {
-  begin: 1.6,
+  begin: 0.3,
   compare: 0.12,
   reverse: 0.9,
   run: 0.8,
@@ -172,8 +172,8 @@ export function trace(values) {
       "compare",
       "ih-test",
       g
-        ? `v[${s}] = ${val[v[s]]} is greater than v[${s + 1}] = ${val[v[s + 1]]}, so it has to move right.`
-        : `v[${s}] = ${val[v[s]]} is not greater than v[${s + 1}]: already in place.`,
+        ? `\`v[${s}]\` = ${val[v[s]]} is greater than \`v[${s + 1}]\` = ${val[v[s + 1]]}, so it has to move right.`
+        : `\`v[${s}]\` = ${val[v[s]]} is not greater than \`v[${s + 1}]\`: already in place.`,
       { pair: [at("v", s), at("v", s + 1)] },
     );
     if (!g) return;
@@ -183,7 +183,7 @@ export function trace(values) {
     emit(
       "lift",
       "ih-tmp",
-      `Copy ${val[tmp.id]} out into tmp. Its slot is now the hole.`,
+      `Copy ${val[tmp.id]} out into \`tmp\`. Its slot is now the hole.`,
     );
     v[s] = v[s + 1];
     v[s + 1] = null;
@@ -192,7 +192,7 @@ export function trace(values) {
     emit(
       "shift",
       "ih-first",
-      `Slide v[${s + 1}] left into the hole; the hole moves right.`,
+      `Slide \`v[${s + 1}]\` left into the hole; the hole moves right.`,
       { wrote: at("v", s) },
     );
     for (let i = s + 2; i < e; i++) {
@@ -201,8 +201,8 @@ export function trace(values) {
         "compare",
         "ih-cmp",
         g2
-          ? `tmp ${val[tmp.id]} > ${val[v[i]]}: keep sliding.`
-          : `tmp ${val[tmp.id]} ≤ ${val[v[i]]}: stop here.`,
+          ? `\`tmp\` ${val[tmp.id]} > ${val[v[i]]}: keep sliding.`
+          : `\`tmp\` ${val[tmp.id]} ≤ ${val[v[i]]}: stop here.`,
         { pair: [at("tmp", 0), at("v", i)] },
       );
       if (!g2) break;
@@ -221,7 +221,7 @@ export function trace(values) {
     emit(
       "drop",
       "ih-drop",
-      "`hole` is dropped, and its Drop copies tmp into the hole.",
+      "`hole` is dropped, and its Drop copies `tmp` into the hole.",
       { wrote: at("v", landed) },
     );
   };
@@ -235,8 +235,8 @@ export function trace(values) {
       "choose",
       "m-choose",
       L <= R
-        ? `The left run (${L}) is the shorter: copy it into buf and merge forwards, smallest first.`
-        : `The right run (${R}) is the shorter: copy it into buf and merge backwards, largest first.`,
+        ? `The left run (${L}) is the shorter: copy it into \`buf\` and merge forwards, smallest first.`
+        : `The right run (${R}) is the shorter: copy it into \`buf\` and merge backwards, largest first.`,
     );
     if (L <= R) {
       bufAt = lo;
@@ -248,7 +248,7 @@ export function trace(values) {
       emit(
         "to-buf",
         "m-copy-left",
-        `${L} elements into buf. v[${lo}..${mid}] is now the hole the merge fills.`,
+        `${L} elements into \`buf\`. \`v[${lo}..${mid}]\` is now the hole the merge fills.`,
       );
       let left = 0;
       let right = mid;
@@ -264,8 +264,8 @@ export function trace(values) {
           "compare",
           "m-fwd-cmp",
           g
-            ? `${val[buf[left]]} > ${val[v[right]]}: take from the right run.`
-            : `${val[buf[left]]} ≤ ${val[v[right]]}: take from buf (ties go left, so the sort is stable).`,
+            ? `**${val[buf[left]]} > ${val[v[right]]}**: take from the right run.`
+            : `**${val[buf[left]]} ≤ ${val[v[right]]}**: take from \`buf\` (ties go left, so the sort is stable).`,
           { pair: [at("buf", left), at("v", right)], ptr: ptr() },
         );
         let id;
@@ -281,7 +281,7 @@ export function trace(values) {
         v[out] = id;
         out++;
         moves++;
-        emit("copy", "m-fwd-copy", `Copy ${val[id]} to out, and advance.`, {
+        emit("copy", "m-fwd-copy", `Copy ${val[id]} to \`out\`, and advance.`, {
           ptr: ptr(),
           wrote: at("v", out - 1),
         });
@@ -295,7 +295,7 @@ export function trace(values) {
         emit(
           "rest",
           "m-drop",
-          "The right run ran out first. Dropping `hole` copies what is left of buf into place.",
+          "The right run ran out first. Dropping `hole` copies what is left of `buf` into place.",
         );
       }
     } else {
@@ -308,7 +308,7 @@ export function trace(values) {
       emit(
         "to-buf",
         "m-copy-right",
-        `${R} elements into buf. v[${mid}..${hi}] is now the hole the merge fills.`,
+        `${R} elements into \`buf\`. \`v[${mid}..${hi}]\` is now the hole the merge fills.`,
       );
       let left = mid;
       let right = R;
@@ -324,8 +324,8 @@ export function trace(values) {
           "compare",
           "m-bwd-cmp",
           g
-            ? `${val[v[left - 1]]} > ${val[buf[right - 1]]}: take from the left run.`
-            : `${val[v[left - 1]]} ≤ ${val[buf[right - 1]]}: take from buf (ties go right, so the sort is stable).`,
+            ? `**${val[v[left - 1]]} > ${val[buf[right - 1]]}**: take from the left run.`
+            : `**${val[v[left - 1]]} ≤ ${val[buf[right - 1]]}**: take from \`buf\` (ties go right, so the sort is stable).`,
           { pair: [at("v", left - 1), at("buf", right - 1)], ptr: ptr() },
         );
         let id;
@@ -341,7 +341,7 @@ export function trace(values) {
         out--;
         v[out] = id;
         moves++;
-        emit("copy", "m-bwd-copy", `Copy ${val[id]} to out, and step back.`, {
+        emit("copy", "m-bwd-copy", `Copy ${val[id]} to \`out\`, and step back.`, {
           ptr: ptr(),
           wrote: at("v", out),
         });
@@ -355,7 +355,7 @@ export function trace(values) {
         emit(
           "rest",
           "m-drop",
-          "The left run ran out first. Dropping `hole` copies what is left of buf into place.",
+          "The left run ran out first. Dropping `hole` copies what is left of `buf` into place.",
         );
       }
     }
@@ -468,12 +468,12 @@ export function trace(values) {
         }
       }
     }
-    emit("run", "loop", `A natural run v[${start}..${end}], ${end - start} long.`);
+    emit("run", "loop", `A natural run \`v[${start}..${end}]\`, ${end - start} long.`);
     while (start > 0 && end - start < MIN_RUN) {
       emit(
         "extend",
         "extend",
-        `The run is ${end - start} long, under MIN_RUN (${MIN_RUN}). Insertion sort pulls in the next element.`,
+        `The run is ${end - start} long, under \`MIN_RUN\` (${MIN_RUN}). Insertion sort pulls in the next element.`,
       );
       start -= 1;
       focus = { start, end };
@@ -484,7 +484,7 @@ export function trace(values) {
     emit(
       "push",
       "push",
-      `Push the run v[${start}..${end}] onto the stack of runs waiting to be merged.`,
+      `Push the run \`v[${start}..${end}]\` onto the stack of runs waiting to be merged.`,
     );
     end = start;
     for (;;) {
@@ -497,7 +497,7 @@ export function trace(values) {
           ? runs.length < 2
             ? "One run on the stack: nothing to merge yet."
             : "Every invariant holds, so the stack stays as it is and the scan continues."
-          : `A clause fired, so merge runs[${c.r}] with runs[${c.r + 1}].`,
+          : `A clause fired, so merge \`runs[${c.r}]\` with \`runs[${c.r + 1}]\`.`,
       );
       if (c.r === null) break;
       const left = runs[c.r + 1];
@@ -505,7 +505,7 @@ export function trace(values) {
       emit(
         "choose",
         "merge-call",
-        `Merge runs[${c.r + 1}] (${left.len}) and runs[${c.r}] (${right.len}): v[${left.start}..${right.start + right.len}].`,
+        `Merge \`runs[${c.r + 1}]\` (${left.len}) and \`runs[${c.r}]\` (${right.len}): \`v[${left.start}..${right.start + right.len}]\`.`,
         {
           win: {
             lo: left.start,
@@ -670,7 +670,7 @@ export class Painter {
         this.hits,
       ),
     );
-    this.#part("stack", "the run stack", this.stack);
+    this.#part("stack:all", "the run stack", this.stack);
     this.checkEls = {};
     for (const key of CLAUSES.map((c) => c.key)) {
       const g = el("g", {}, this.checksG);

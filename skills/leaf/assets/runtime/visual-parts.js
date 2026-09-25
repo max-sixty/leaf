@@ -10,7 +10,8 @@
  * hold every declared part at every moment. Its registration names `reveal(id)`, which
  * synchronously moves the visual to a state whose inventory holds that part. A declared
  * part missing from the current inventory then stands in for the whole visual until
- * travel or the render gate asks for it, rather than detaching. */
+ * travel or the render gate asks for it, rather than detaching. A label reader can
+ * name an absent part in Threads without changing the visual's state. */
 
 import { under, upFrom } from "./shadow.js";
 import { layoutChanged } from "./widget-elements.js";
@@ -28,18 +29,25 @@ const words = (value) =>
  * any rendering or geometry change, including in-place attribute or style changes; it
  * emits the same layout signal used by every other package-owned geometry change.
  * `reveal(id)`, when given, draws the state that holds declared part `id` before it
- * returns, so the next `read` includes it.
+ * returns, so the next `read` includes it. `label(id)` names a part absent from the
+ * current state without revealing it.
  */
-export function registerVisualParts(source, read, { reveal = null } = {}) {
+export function registerVisualParts(
+  source,
+  read,
+  { reveal = null, label = null } = {},
+) {
   if (!(source instanceof Element))
     throw new TypeError("Visual parts need an Element source");
   if (typeof read !== "function")
     throw new TypeError("Visual parts need an ordered reading function");
   if (reveal !== null && typeof reveal !== "function")
     throw new TypeError("A visual part reveal must be a function");
+  if (label !== null && typeof label !== "function")
+    throw new TypeError("A visual part label must be a function");
   if (registrations.has(source))
     throw new TypeError("A visual source may register its parts only once");
-  registrations.set(source, { read, reveal });
+  registrations.set(source, { read, reveal, label });
   return { update: () => layoutChanged(source) };
 }
 
@@ -129,6 +137,13 @@ export function visualParts(source) {
 
 export const visualPart = (source, id) =>
   visualParts(source).find((part) => part.id === id) ?? null;
+
+export const visualPartLabel = (source, id) => {
+  const current = visualPart(source, id)?.label;
+  if (current) return current;
+  const label = registrations.get(source)?.label?.(id);
+  return words(label) || null;
+};
 
 export function visualPartAt(source, target, admits = () => true) {
   const byElement = new Map(

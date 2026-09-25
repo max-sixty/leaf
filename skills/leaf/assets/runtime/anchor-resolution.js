@@ -15,6 +15,7 @@ import {
   revealVisualPart as revealRegisteredVisualPart,
   visualPart as registeredVisualPart,
   visualPartAt as registeredVisualPartAt,
+  visualPartLabel as registeredVisualPartLabel,
   visualParts as registeredVisualParts,
 } from "./visual-parts.js";
 import {
@@ -166,7 +167,7 @@ export function visualPartAt(visual, target) {
 }
 
 export const visualPartLabel = (visual, part) =>
-  visualPart(visual, part)?.label ?? null;
+  admitsVisualPart(visual, part) ? registeredVisualPartLabel(visual, part) : null;
 
 const declaredVisualSelector = () =>
   [...tagsDeclaring((entry) => entry["x-visual"])].join(",");

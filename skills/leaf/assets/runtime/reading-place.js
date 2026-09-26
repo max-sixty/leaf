@@ -17,13 +17,13 @@
 import { banner } from "./banner.js";
 import { clippedContents, landingInsets, shownBox } from "./geometry.js";
 import {
+  blockAt,
   closestAcross,
   cut,
   inChrome,
   pageText,
   quoteFrom,
   rangeOf,
-  TEXT_BLOCK,
   textNodesUnder,
 } from "./passages.js";
 import { resolveAnchor } from "./anchor-resolution.js";
@@ -54,9 +54,10 @@ export function textBlocks(root = document.querySelector("body > main")) {
   // Walk the page's composed text rather than querying only its light DOM. A declared
   // shadow root renders authored words at its host's place in reading order; those
   // words are pointable and resolvable through the shared passage reading, so version
-  // continuity must be able to choose the same blocks as landmarks.
+  // continuity must be able to choose the same blocks as landmarks. Each word's block
+  // is the one every passage reading uses (`blockAt`).
   return textNodesUnder(root)
-    .map(({ node }) => closestAcross(node.parentElement, TEXT_BLOCK))
+    .map(({ node }) => blockAt(node))
     .filter((block) => block && !seen.has(block) && seen.add(block));
 }
 

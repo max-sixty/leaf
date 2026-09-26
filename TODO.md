@@ -154,6 +154,17 @@ has tried; settle that before building it.
   operations as Asks, or keep them and cut what only the gallery uses: projected
   holders (`records`, one seat per data row).
 
+### Shared definitions
+
+- **Give each concept defined twice one owner.** The
+  [concept survey](notes/concept-consolidation.md) found ten concepts whose copies
+  have already drifted: the thread-turn reading behind the
+  "Waiting on: Agent" filter, unread state after an answering action, the Stop
+  hook vs `leaf status idle`, undo eligibility, the storage page scope, the chrome
+  over the window, the page-ready wait, the vendored-bundle CSP check, the revision
+  vocabulary readers, and resource re-addressing. Most are a primitive whose
+  callers were never all cut over.
+
 ## Etc
 
 Revisit these when their stated trigger becomes real; they are not an active queue.

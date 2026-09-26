@@ -1024,7 +1024,7 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge { position: absolute; z-
    * scoped to :not([settled]) this rule left a user who had Tabbed into it with
    * nothing on screen saying where they were. */
   lf-options[choose]:not(:where([data-lf-exhibit]) *)
-    > .lf-another:has(:is(textarea, leaf-text):is(:focus-visible, .lf-focus-visible)) {
+    > .lf-another:has(leaf-text:is(:focus-visible, .lf-focus-visible)) {
       outline: var(--here-ring); --lf-here-ring: options-row;
       outline-offset: calc(-1 * var(--here-ring-w));
   }
@@ -1053,7 +1053,7 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge { position: absolute; z-
                      --lf-compose-pad-block: 0px; --lf-compose-pad-inline-start: 0px;
                      --lf-compose-border-width: 0px;
                      position: static; }
-  .lf-another :is(textarea, leaf-text) { flex: 1; min-width: 0; min-height: 0; padding: 0;
+  .lf-another leaf-text { flex: 1; min-width: 0; min-height: 0; padding: 0;
                      margin-inline-start: var(--lf-compose-text-margin-inline-start, 0px);
                      padding-inline-end: var(--lf-option-action-room);
                      border: 0; outline: none; background: transparent; color: inherit;
@@ -1146,7 +1146,7 @@ lf-options[choose]:not(:where([data-lf-exhibit]) *):not(:has(> lf-option > stron
                      > :is(lf-option, .lf-another) {
                      padding-inline-start: calc(var(--lf-key-badge-col) + var(--lf-pick-col)); }
 /* A row's table spacing holds its prose off the mark column. The form has no anonymous
- * table cell to supply that space, so its textarea takes the same named gap. Matching the
+ * table cell to supply that space, so its text field takes the same named gap. Matching the
  * option's vertical inset makes the draft and the option it becomes one stable row. */
 lf-options:not(:has(> lf-option > strong)) > .lf-another:not([hidden]) {
                      gap: 0; padding-block: 5px; padding-inline-end: var(--lf-row-gap); }

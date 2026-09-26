@@ -115,7 +115,7 @@ const mayScroll = new Set();
 // nothing to say so.
 const sideways = new Set();
 // A reading region is the narrower vertical case. Ordinary vertical overflow is often
-// intentional and self-explanatory (a textarea, disclosure, or the document itself),
+// intentional and self-explanatory (a text box, disclosure, or the document itself),
 // so `reachScrollers` must not infer this mark from overflow-y. Reading-region owners
 // opt their bounded body in when they register it. The cue follows remaining content,
 // because the pane's fixed lower edge would otherwise keep promising another part of
@@ -160,7 +160,7 @@ export function reachScrollers(root) {
         !/^(auto|scroll)$/.test(style.overflowY)
       )
         continue;
-      // Not a textarea, which scrolls its own value and can hold nothing laid out inside
+      // Not a text box, which scrolls its own value and can hold nothing laid out inside
       // it: the mark would claim containment of a box that contains nothing. Written once, because the attribute
       // is observed (design.js) and this runs on every panel reconcile.
       if (
@@ -169,7 +169,7 @@ export function reachScrollers(root) {
         !el.hasAttribute(PAGE_PAINT_ATTRIBUTE.holds)
       )
         el.setAttribute(PAGE_PAINT_ATTRIBUTE.holds, "1");
-      // A textarea is out of the continuation marks for its own reason: it scrolls a
+      // A text box is out of the continuation marks for its own reason: it scrolls a
       // value its user is writing and already knows continues.
       if (
         /^(auto|scroll)$/.test(style.overflowX) &&

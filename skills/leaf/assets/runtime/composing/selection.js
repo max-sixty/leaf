@@ -1,7 +1,7 @@
 /* The selection composer: the response bar's field bound to a passage's draft.
 
    The selection composer keeps its passage painted after an explicit Comment gesture
-   moves focus into the textarea. Automatic passage selection leaves the native
+   moves focus into the field. Automatic passage selection leaves the native
    selection in place. Its `.lf-composer` wrapper contributes state and draft machinery
    through `display: contents`; only `.lf-fab-input` draws. `showComposer` states the
    whole visible outcome from `composerOpen`, `pendingAnchor`, and `fabAnchor`;
@@ -106,7 +106,7 @@ suggestCheck.type = "checkbox";
 suggestCheck.name = "suggest-replacement";
 suggestRow.append(suggestCheck, document.createTextNode("Suggest replacement text"));
 // The page-anchored composer is the extended Comment control itself. The hidden
-// composer node keeps the draft's controls and quote description, while this textarea
+// composer node keeps the draft's controls and quote description, while this field
 // stays in the response bar and never jumps to a second box.
 const composerInput = fabInput;
 // The mark is a paint, and a paint is nothing to a screen reader (see "Paint; don't wrap"
@@ -225,10 +225,10 @@ export function createSelectionComposer({
   const keptDraft = () => pendingComposer((record) => anchorStands(record.anchor));
   let composerEpoch = 0;
   // What the box holds that a user would miss, asked once. The complete draft, because a
-  // pasted image is in it and not in the textarea, plus a drawing, which stands beside the
+  // pasted image is in it and not in the field, plus a drawing, which stands beside the
   // words rather than in them. Three places ask: the send's own guard, the sentence a
   // hiding box says about what became of the words, and the word Escape's row shows. They
-  // had a spelling each, and the one over the textarea alone read a box holding a picture
+  // had a spelling each, and the one over the field alone read a box holding a picture
   // and nothing else as empty.
   const holdsContent = (draft) => Boolean(draft || pendingDrawing);
   const composerHolds = () => holdsContent(syncComposer.value());
@@ -383,11 +383,11 @@ export function createSelectionComposer({
           : "Draft kept — it returns when its passage does",
       );
     composerOpen = open;
-    // The wrapper contributes no card or box. Its textarea is the extended Comment
+    // The wrapper contributes no card or box. Its field is the extended Comment
     // control inside the response bar; the other composer controls stay hidden there.
     composer.style.display = open ? "contents" : "none";
     composer.toggleAttribute("data-lf-open", open);
-    // An explicit Comment gesture focuses the textarea and drops the native selection, so
+    // An explicit Comment gesture focuses the field and drops the native selection, so
     // this mark then becomes the durable pointer to the quoted passage. Automatic passage
     // selection leaves both readings standing until the user enters the field.
     refreshThread();
@@ -413,8 +413,8 @@ export function createSelectionComposer({
   ) {
     closeReactions();
     // A box holding nothing but the machine's seed is a box holding nothing. Asked of the
-    // seed rather than of the box, because an empty seed matches an empty textarea, and a
-    // draft that is one pasted image and no words has exactly that textarea.
+    // seed rather than of the box, because an empty seed matches an empty field, and a
+    // draft that is one pasted image and no words has exactly that field.
     if (seededQuote && composerInput.value === seededQuote) syncComposer.load("");
     seededQuote = "";
     const ctx = composerCtx(anchor || null);
@@ -454,7 +454,7 @@ export function createSelectionComposer({
     if (text) syncComposer.load(text);
     suggestCheck.checked = Boolean(suggest);
     syncSuggestMode();
-    // Chromium may collapse the native page Selection before dispatching the textarea's
+    // Chromium may collapse the native page Selection before dispatching the field's
     // focus event. Mark the handoff before showing the surface so that an intermediate
     // selectionchange cannot dismiss the durable passage this composer is opening on.
     let handoff = 0;

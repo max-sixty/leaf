@@ -7,16 +7,15 @@ import { LitElement, html } from "../../vendor/browser-runtime.js";
 import "./text-field.js";
 // One helper wires every durable composition surface: the general box, each per-thread
 // reply, the compact anchored composer, and composition boxes contributed by widgets.
-// `wireInput` gives every such textarea one input contract: persist each edit, keep the
+// `wireInput` gives every such text field one input contract: persist each edit, keep the
 // action button and placeholder current, prevent parallel submissions of one local
 // surface (an impatient second click), and submit with Enter on a physical keyboard.
-// Shift+Enter retains the textarea's native newline; on touch keyboards Enter does too.
-// Mod+Enter remains another route to submit. The stylesheet owns
-// textarea growth through `field-sizing: content`, within the room supplied by floating
-// placement; script does not derive textarea height from its text. When the surface
+// Shift+Enter inserts a line, the field's own binding; on touch keyboards Enter does too.
+// Mod+Enter remains another route to submit. The field grows with its words, within the
+// room supplied by floating placement; script does not derive its height from its text. When the surface
 // accepts images, a paste uploads bytes to page media; one that does not says so in a
 // notice, so no box answers a pasted picture with silence. The draft keeps the resulting
-// Markdown, while the textarea shows only the user's words and a thumbnail projection.
+// Markdown, while the field shows only the user's words and a thumbnail projection.
 // So the box holds more than its .value, and wire() returns the seam that says so:
 // sync.value() reads the complete draft, sync.load() replaces it — a stored record, a
 // draft mirrored from another tab, or the emptiness a send leaves — and sync() repaints
@@ -81,9 +80,9 @@ class PastedMediaShelf extends LitElement {
 if (!customElements.get(MEDIA_SHELF_TAG))
   customElements.define(MEDIA_SHELF_TAG, PastedMediaShelf);
 
-// A wired textarea's visible value omits generated image Markdown. Readers outside
-// this module ask through this seam for the complete draft; an unwired textarea keeps
-// the platform's ordinary value.
+// A wired field's visible value omits generated image Markdown. Readers outside
+// this module ask through this seam for the complete draft; an unwired box keeps
+// its ordinary value.
 export const draftOf = (ta) => inputDrafts.get(ta)?.value() ?? ta?.value ?? "";
 // Boot binds one input owner to the app's upload command and contextual-hint
 // reading. Fields keep those capabilities for their lifetime; importing this module

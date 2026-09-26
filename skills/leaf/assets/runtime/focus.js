@@ -2,8 +2,8 @@
 
 // The runtime's text field (`composing/text-field.js`): every box the runtime builds
 // for the user to write in is one. Code that looks for such a box names it by this, and
-// code asking whether something takes typed paragraphs asks `TEXT_BOX`, since a widget
-// may still stage a native textarea of its own. One spelling of each, so the field's
+// code asking whether something takes typed paragraphs asks `TEXT_BOX`, since a native
+// textarea still does: `lf-draft` edits plain text in one, and an author's page may hold one. One spelling of each, so the field's
 // element can change without a lookup somewhere silently finding nothing.
 export const TEXT_FIELD = "leaf-text";
 export const TEXT_BOX = `textarea, ${TEXT_FIELD}`;

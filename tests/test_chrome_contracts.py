@@ -42,6 +42,7 @@ from render_harness import (
     sending,
     told,
     watched,
+    write,
 )
 
 
@@ -82,8 +83,8 @@ def test_agent_reply_arrivals_keep_open_panel_drafts_and_summarize_batches(
     expect(page.locator(f'.lf-thread[data-id="{drafting["id"]}"]')).to_have_attribute(
         "open", ""
     )
-    draft = page.locator(f'.lf-thread[data-id="{drafting["id"]}"] textarea')
-    draft.fill("Keep this draft")
+    draft = page.locator(f'.lf-thread[data-id="{drafting["id"]}"] leaf-text')
+    write(draft, "Keep this draft")
     draft.focus()
     page.evaluate(
         """() => {
@@ -110,7 +111,7 @@ def test_agent_reply_arrivals_keep_open_panel_drafts_and_summarize_batches(
     expect(live).to_have_text("Codex replied")
     expect(notice).to_have_text("Codex replied")
     expect(draft).to_be_focused()
-    expect(draft).to_have_value("Keep this draft")
+    expect(draft).to_have_js_property("value", "Keep this draft")
 
     reads = CutOff().hold(page)
     events_model.append_event(
@@ -138,7 +139,7 @@ def test_agent_reply_arrivals_keep_open_panel_drafts_and_summarize_batches(
     expect(live).to_have_text("2 replies in 2 threads")
     expect(notice).to_have_text("2 replies in 2 threads", timeout=5_000)
     expect(draft).to_be_focused()
-    expect(draft).to_have_value("Keep this draft")
+    expect(draft).to_have_js_property("value", "Keep this draft")
 
     page.evaluate(
         "async () => (await window.__lfRuntimeImport('/runtime/notifications.js')).holdStatus(10000)"
@@ -166,7 +167,7 @@ def test_agent_reply_arrivals_keep_open_panel_drafts_and_summarize_batches(
     expect(notice).to_have_text("4 replies in 2 threads")
     expect(notice).to_be_visible()
     expect(draft).to_be_focused()
-    expect(draft).to_have_value("Keep this draft")
+    expect(draft).to_have_js_property("value", "Keep this draft")
 
     # A duplicate read makes no fresh announcement; a fresh document announces what
     # the user has still not read.
@@ -203,7 +204,7 @@ def test_incoming_reply_follows_a_thread_at_its_latest_message(browser, serve):
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     threads = page.locator(".lf-threads")
-    page.locator(".lf-thread[open] .lf-compose textarea").fill("A short follow-up.")
+    write(page.locator(".lf-thread[open] .lf-compose leaf-text"), "A short follow-up.")
     assert threads.evaluate("el => el.scrollHeight > el.clientHeight")
     threads.evaluate("el => el.scrollTop = el.scrollHeight")
     threads.evaluate("el => el.scrollTop -= 40")
@@ -363,7 +364,7 @@ def test_incoming_reply_follows_a_visible_composer_below_earlier_words(browser, 
     panel_settled(page)
     threads = page.locator(".lf-threads")
     card = page.locator(f'.lf-thread[data-id="{root}"]')
-    card.locator(".lf-compose textarea").fill(("A draft line.\n" * 8).strip())
+    write(card.locator(".lf-compose leaf-text"), ("A draft line.\n" * 8).strip())
     threads.evaluate("el => el.scrollTop = el.scrollHeight")
     before = threads.evaluate("el => el.scrollTop")
     prior = card.locator(".lf-msg").last
@@ -698,7 +699,7 @@ def test_a_margin_reply_shares_its_threads_opaque_surface(browser, serve, scheme
     thread = preview.locator(".lf-page-thread")
     surround = thread.locator(".lf-say")
     reply = preview.get_by_role("button", name="Reply", exact=True)
-    editor = preview.locator("textarea")
+    editor = preview.locator("leaf-text")
     expect(reply).to_be_visible()
 
     for state in ("collapsed", "editing", "outside"):
@@ -742,7 +743,7 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_with_its_metadata(
     thread = page.locator(".lf-threads > .lf-thread:not([hidden])")
     thread.locator(".lf-thread-summary").click()
     compose = thread.locator(".lf-compose")
-    textarea = compose.locator("textarea")
+    field_box = compose.locator("leaf-text")
     send = thread.get_by_role("button", name="Send", exact=True)
     resolve = thread.get_by_role("button", name="Resolve thread", exact=True)
     close = page.get_by_role("button", name="Close threads", exact=True)
@@ -767,7 +768,7 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_with_its_metadata(
                             right: r.right, bottom: r.bottom};
                   };
                   const own = thread.getBoundingClientRect();
-                  const inputStyle = getComputedStyle(thread.querySelector('textarea'));
+                  const inputStyle = getComputedStyle(thread.querySelector('leaf-text'));
                   const messageStyle = getComputedStyle(thread.querySelector('.lf-msg-body'));
                   const padding = parseFloat(inputStyle.paddingInlineEnd);
                   const radius = (selector, pseudo = null) => getComputedStyle(
@@ -777,7 +778,7 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_with_its_metadata(
                   return {thread: {x: own.x, y: own.y, width: own.width,
                                    height: own.height, right: own.right, bottom: own.bottom},
                           compose: rect('.lf-compose'), field: rect('.lf-compose-field'),
-                          textarea: rect('.lf-compose textarea'),
+                          field_box: rect('.lf-compose leaf-text'),
                           metadata: rect('.lf-thread-root-meta'),
                           metadataActions: rect('.lf-thread-meta-actions'),
                           send: rect('.lf-thread-send'), resolve: rect('.lf-resolve'),
@@ -797,10 +798,10 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_with_its_metadata(
                           message: rect('.lf-msg-body'),
                           messageFont: messageStyle.font,
                           inputFont: inputStyle.font,
-                          textStart: rect('.lf-compose textarea').x +
+                          textStart: rect('.lf-compose leaf-text').x +
                             parseFloat(inputStyle.borderInlineStartWidth) +
                             parseFloat(inputStyle.paddingInlineStart),
-                          textEnd: rect('.lf-compose textarea').right -
+                          textEnd: rect('.lf-compose leaf-text').right -
                             parseFloat(inputStyle.borderInlineEndWidth) - padding,
                           padding,
                           overflow: thread.scrollWidth - thread.clientWidth};
@@ -813,10 +814,10 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_with_its_metadata(
     assert short["field"]["x"] - short["thread"]["x"] == pytest.approx(
         short["thread"]["right"] - short["field"]["right"], abs=1
     )
-    assert short["textarea"]["right"] == pytest.approx(short["field"]["right"], abs=1)
-    assert short["send"]["right"] < short["textarea"]["right"]
-    assert short["textarea"]["y"] < short["send"]["y"]
-    assert short["send"]["bottom"] < short["textarea"]["bottom"]
+    assert short["field_box"]["right"] == pytest.approx(short["field"]["right"], abs=1)
+    assert short["send"]["right"] < short["field_box"]["right"]
+    assert short["field_box"]["y"] < short["send"]["y"]
+    assert short["send"]["bottom"] < short["field_box"]["bottom"]
     assert short["textEnd"] <= short["send"]["x"]
     assert short["field"]["height"] < 50
     assert short["resolve"]["y"] == pytest.approx(short["metadata"]["y"], abs=1)
@@ -834,30 +835,30 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_with_its_metadata(
     assert set(short["radii"].values()) == {button_radius(page)}
     assert short["overflow"] == 0
 
-    textarea.focus()
+    field_box.focus()
     focused = geometry()
     assert focused["send"] == short["send"]
     assert focused["resolve"] == short["resolve"]
 
-    textarea.fill("First line.\nSecond line.\nThird line.\nFourth line.")
+    write(field_box, "First line.\nSecond line.\nThird line.\nFourth line.")
     grown = geometry()
     assert grown["inputFont"] == grown["messageFont"]
     assert grown["textStart"] == pytest.approx(grown["message"]["x"], abs=1)
     assert grown["textEnd"] <= grown["send"]["x"]
     assert grown["padding"] == pytest.approx(short["padding"], abs=1)
-    assert grown["send"]["bottom"] < grown["textarea"]["bottom"]
+    assert grown["send"]["bottom"] < grown["field_box"]["bottom"]
     assert grown["send"]["x"] == pytest.approx(short["send"]["x"], abs=1)
     assert grown["send"]["y"] > short["send"]["y"]
     assert grown["metadataActions"] == short["metadataActions"]
     assert grown["resolve"] == short["resolve"]
     assert grown["overflow"] == 0
 
-    textarea.fill("A long draft remains readable while scrolling. " * 120)
-    assert textarea.evaluate("el => el.scrollHeight > el.clientHeight")
+    write(field_box, "A long draft remains readable while scrolling. " * 120)
+    assert field_box.evaluate("el => el.scrollHeight > el.clientHeight")
     for position in (0, 80, 99999):
-        textarea.evaluate("(el, top) => el.scrollTop = top", position)
+        field_box.evaluate("(el, top) => el.scrollTop = top", position)
         scrolling = geometry()
-        assert scrolling["send"]["bottom"] < scrolling["textarea"]["bottom"]
+        assert scrolling["send"]["bottom"] < scrolling["field_box"]["bottom"]
         assert scrolling["textStart"] == pytest.approx(scrolling["message"]["x"], abs=1)
         assert scrolling["textEnd"] <= scrolling["send"]["x"]
 
@@ -1173,7 +1174,7 @@ def test_a_phone_starts_the_page_and_comments_on_a_selection(iphone, serve, view
     comment.tap()
     expect(page.locator(".lf-banner-menu")).to_be_hidden()
     expect(field).to_be_focused()
-    field.fill("From a phone")
+    write(field, "From a phone")
     with sending(page, "the comment"):
         page.locator(".lf-fab-bar").get_by_role("button", name="Comment").tap()
     [comment] = [
@@ -1219,7 +1220,7 @@ def test_a_phone_comment_field_keeps_its_passage_clear(iphone, serve):
       const sizes = {};
       const walk = (root) => {
         for (const node of root.querySelectorAll('*')) {
-          if (node.matches('input, textarea, select')) {
+          if (node.matches('input, textarea, leaf-text, select')) {
             const host = node.getRootNode().host;
             const name = (host ?? node).localName + '.' + ((host ?? node).className || '');
             sizes[name] = Math.min(

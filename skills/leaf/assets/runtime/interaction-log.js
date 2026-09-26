@@ -63,10 +63,7 @@ function targetValue(target) {
       return { checked: target.checked, value: target.value };
     return { value: target.value };
   }
-  if (
-    target instanceof window.HTMLTextAreaElement ||
-    target instanceof window.HTMLSelectElement
-  )
+  if (target instanceof Element && target.matches(`${TEXT_BOX}, select`))
     return { value: target.value };
   if (target instanceof Element && target.isContentEditable)
     return { value: target.textContent };

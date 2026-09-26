@@ -23,7 +23,7 @@
    Radio and slider navigation has its own narrow claim at the focused control, so
    an arrow changes that control without also moving its containing widget. Open select
    options retain typeahead when focus moves into their list. An exact element scope
-   stands before these native claims, so a wired textarea keeps its own Escape or submit
+   stands before these native claims, so a wired text field keeps its own Escape or submit
    binding; the claims then stand before ancestor widget scopes.
 
    One box inside another scope states only what it does differently. The find box

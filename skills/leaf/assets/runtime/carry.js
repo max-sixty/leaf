@@ -12,7 +12,7 @@
  * which lands it on a passage rather than on a pixel offset the revision has moved.
  * Restoring this state creates no event and leaves draft values unsent.
  *
- * Value capture supports textarea and non-file inputs; checked state supports checkbox
+ * Value capture supports text boxes (`TEXT_BOX`) and non-file inputs; checked state supports checkbox
  * and radio inputs. Select values, contenteditable markup, and file-input values are
  * excluded.
  * Modules restore their own stored state, such as tabs and drafts, through their own

@@ -11,9 +11,11 @@
  *
  * Focus is the field's own, as a textarea's is. `focus()` puts the user in the words
  * with the caret where it stood, `blur()` takes them out, and a press anywhere in the
- * box's padding puts the caret at the nearest character. The shadow root does not
- * delegate focus: the platform would hand it to the first focusable node in the tree,
- * which is CodeMirror's scroller, a node that holds no caret.
+ * box's padding puts the caret at the nearest character. The root delegates focus, so a
+ * focus that never meets the element's own `focus()` — the platform's, or a test
+ * driver's from its isolated world — still lands in the words rather than on a host
+ * that takes none; CodeMirror's scroller gives up its tab stop so that it is not the
+ * node delegation picks.
  *
  * The root is closed because the field is one control, the way a native textarea is:
  * focus, the scope climb and every `focused() === box` comparison land on the host,
@@ -21,6 +23,12 @@
  * runtime uses — `value`, the selection triple, `setSelectionRange`, `placeholder`,
  * `readOnly`, `name` — and fires `input` for a user edit only, as a textarea does; a
  * write to `value` fires nothing and puts the caret at the end.
+ *
+ * The host is also the control accessibility tooling addresses, since nothing outside a
+ * closed root sees into it: it takes `role="textbox"` and `aria-multiline` unless the
+ * page gave it its own, and it carries the name, description and busy state the page
+ * writes on it. The content node inside is where focus and assistive technology land,
+ * so it wears the same `aria-label` and the placeholder as `aria-placeholder`.
  *
  * Enter, Mod+Enter and Escape are not bound here. Leaf's key dispatcher owns them on the
  * document, and cancels the press it acts on; Shift+Enter inserts a line and continues
@@ -49,7 +57,7 @@ const programmatic = Annotation.define();
 
 const sheet = new CSSStyleSheet();
 sheet.replaceSync(`
-  :host { cursor: text; }
+  :host { display: block; cursor: text; }
   /* The placeholder is a layer under the words, as a textarea's is, never content in
      the line: a widget in an empty line is what the platform would draw the caret
      against. Both layers share one grid cell, inside the host's padding. */
@@ -199,12 +207,13 @@ class LeafText extends HTMLElement {
   #attributes = new Compartment();
   #placeholderLayer = document.createElement("div");
   #frame = document.createElement("div");
-  #placeholderText = "";
   #readOnly = false;
+
+  static observedAttributes = ["aria-label", "placeholder"];
 
   constructor() {
     super();
-    this.#root = this.attachShadow({ mode: "closed" });
+    this.#root = this.attachShadow({ mode: "closed", delegatesFocus: true });
     this.#frame.className = "lf-field";
     this.#placeholderLayer.className = "lf-field-placeholder";
     this.#placeholderLayer.setAttribute("aria-hidden", "true");
@@ -234,8 +243,20 @@ class LeafText extends HTMLElement {
     });
   }
 
+  attributeChangedCallback(name) {
+    if (name === "placeholder") this.#placeholderLayer.textContent = this.placeholder;
+    this.#apply({
+      effects: this.#attributes.reconfigure(
+        EditorView.contentAttributes.of(this.#contentAttributes()),
+      ),
+    });
+  }
+
   connectedCallback() {
     if (this.#view) return;
+    if (!this.hasAttribute("role")) this.setAttribute("role", "textbox");
+    if (!this.hasAttribute("aria-multiline"))
+      this.setAttribute("aria-multiline", "true");
     this.#internals = this.attachInternals();
     this.#root.adoptedStyleSheets = [sheet];
     this.#view = new EditorView({
@@ -255,32 +276,33 @@ class LeafText extends HTMLElement {
       },
     });
     this.#model = null;
+    // The scroller is focusable only so a press on it keeps focus in the editor, and
+    // the field's scroller never scrolls; left focusable it is the node the root
+    // delegates focus to, which holds no caret.
+    this.#view.scrollDOM.removeAttribute("tabindex");
     this.addEventListener("mousedown", (event) => this.#pressPadding(event));
     // The content node's own input events would reach the host too, retargeted, and
     // announce every edit twice. The host's is the one the page hears.
     for (const type of ["input", "beforeinput"])
       this.#root.addEventListener(type, (event) => event.stopPropagation());
     this.#paintEmpty();
-    new MutationObserver(() =>
-      this.#apply({
-        effects: this.#attributes.reconfigure(
-          EditorView.contentAttributes.of(this.#contentAttributes()),
-        ),
-      }),
-    ).observe(this, {
-      attributes: true,
-      attributeFilter: ["aria-label", "aria-busy", "aria-describedby"],
-    });
-    this.#apply({
-      effects: this.#attributes.reconfigure(
-        EditorView.contentAttributes.of(this.#contentAttributes()),
-      ),
-    });
   }
 
+  // A focus through the element puts the caret back where it stood, as a textarea's
+  // does. The platform, delegating, lands it at the start of the words; CodeMirror's own
+  // focus leaves the page's selection wherever the user last pressed when its record of
+  // the DOM selection predates that press, and then reads the platform's caret back as
+  // the user's. So the element writes the page's selection from the field's own.
   focus(options) {
-    if (!this.#view) return;
-    this.#view.focus();
+    if (!this.#view) return super.focus(options);
+    const view = this.#view;
+    view.focus();
+    const { anchor, head } = view.state.selection.main;
+    const from = view.domAtPos(anchor);
+    const to = view.domAtPos(head);
+    // A shadow root answers for its own selection only in Chromium, as CodeMirror reads it.
+    const selection = this.#root.getSelection?.() ?? document.getSelection();
+    selection.setBaseAndExtent(from.node, from.offset, to.node, to.offset);
     if (!options?.preventScroll) this.scrollIntoView({ block: "nearest" });
   }
 
@@ -321,11 +343,9 @@ class LeafText extends HTMLElement {
       autocorrect: "on",
       autocapitalize: "sentences",
     };
-    if (this.#placeholderText) attributes["aria-placeholder"] = this.#placeholderText;
-    for (const name of ["aria-label", "aria-busy", "aria-describedby"]) {
-      const value = this.getAttribute(name);
-      if (value !== null) attributes[name] = value;
-    }
+    if (this.placeholder) attributes["aria-placeholder"] = this.placeholder;
+    const label = this.getAttribute("aria-label");
+    if (label !== null) attributes["aria-label"] = label;
     return attributes;
   }
 
@@ -373,16 +393,10 @@ class LeafText extends HTMLElement {
   }
 
   get placeholder() {
-    return this.#placeholderText;
+    return this.getAttribute("placeholder") ?? "";
   }
   set placeholder(text) {
-    this.#placeholderText = String(text);
-    this.#placeholderLayer.textContent = this.#placeholderText;
-    this.#apply({
-      effects: this.#attributes.reconfigure(
-        EditorView.contentAttributes.of(this.#contentAttributes()),
-      ),
-    });
+    this.setAttribute("placeholder", text);
   }
 
   get readOnly() {

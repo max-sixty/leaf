@@ -612,16 +612,22 @@ choice the command reference does not have, such as a generated hint tied to the
 optional `reach` on a row or scope supplies the short place phrase shown when a command
 is not available (for example, `in an open draft editor`).
 
-A widget-owned composition box uses `wireInput()`. It registers Enter for the
-contextual action on physical keyboards and leaves Shift+Enter as a newline. On touch
-keyboards, Enter stays a newline and the visible control submits; Mod+Enter is also
-available where a modifier key exists. The helper also owns shared draft persistence,
-busy state, and shortcut projections. A direct editor that needs more commands, such as
-Save and Cancel, registers those rows on its textarea with the same text-entry meanings.
+A widget-owned composition box is the runtime's text field, `offer(TEXT_FIELD)` from the
+widget API: a Markdown editor that shows the draft the way the sent message will read
+and answers the textarea members a box needs (`value`, the selection, `placeholder`,
+`readOnly`, `name`, `aria-label`), firing `input` for the user's edits only. Wire it
+with `wireInput()`, which registers Enter for the contextual action on physical
+keyboards and leaves Shift+Enter as a newline. On touch keyboards, Enter stays a newline
+and the visible control submits; Mod+Enter is also available where a modifier key
+exists. The helper also owns shared draft persistence, busy state, and shortcut
+projections. A direct editor that needs more commands, such as Save and Cancel,
+registers those rows on its box with the same text-entry meanings. `TEXT_BOX` matches
+the text field and any native textarea, for code asking whether an element takes typed
+paragraphs.
 
 The call returns the box's one seam onto its draft, and a box holds more than its
 `.value`: an image pasted into one is kept as Markdown and shown as a thumbnail beside
-the words, never in the textarea. So `sync.value()` reads the whole draft, `sync.load()`
+the words, never in the field. So `sync.value()` reads the whole draft, `sync.load()`
 replaces it — a stored record, a draft arriving from another tab, the emptiness a send
 leaves — and `sync()` repaints the send button and placeholder around whatever stands.
 Write `.value` only to seed the box before wiring it.

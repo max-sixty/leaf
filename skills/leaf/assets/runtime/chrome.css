@@ -190,8 +190,8 @@
 }
 /* The general leaf text box, in one rule. The compact response field is excluded
    because it shares its complete control geometry with the response buttons below.
-   field-sizing does the growing, so no script
-   measures a textarea: the JS that did had to reset height to auto to re-measure,
+   The box grows with its words — a textarea through field-sizing, a text field
+   through its own content — so no script measures one: the JS that did had to reset height to auto to re-measure,
    which made the box briefly too small for its own text on every keystroke — and a
    box that overflows, however briefly, flashes a scrollbar. Past max-height the
    scrollbar is real and stays — and the ceiling is the viewport's share, not a count
@@ -204,13 +204,13 @@
   border: 1px solid var(--border-2);
   border-radius: 6px; background: var(--card); color: inherit; resize: none;
   field-sizing: content; max-height: 50vh; overflow-y: auto; }
-.lf-ui :is(input, :is(textarea, leaf-text))::placeholder,
-:is(input, :is(textarea, leaf-text)).lf-ui::placeholder { color: var(--muted); opacity: 1; }
+.lf-ui :is(input, textarea)::placeholder,
+:is(input, textarea).lf-ui::placeholder { color: var(--muted); opacity: 1; }
 .lf-ui :is(textarea, leaf-text):where(:not(.lf-fab-input)):is(:focus, .lf-focus),
 :is(textarea, leaf-text).lf-ui:where(:not(.lf-fab-input)):is(:focus, .lf-focus) { outline: var(--here-ring);
   --lf-here-ring: text-box; outline-offset: 0; border-color: transparent; }
 /* Pasted media stays in the draft's Markdown, but the writing surface shows the thing
-   rather than its transport. The strip takes its own row beside every textarea shape;
+   rather than its transport. The strip takes its own row beside every text-box shape;
    the compact response bar overrides that row below. */
 :is(.lf-compose, .lf-general, .lf-say):has(> .lf-composer-media:not([hidden])) {
   flex-wrap: wrap; }
@@ -1124,22 +1124,22 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     outline: var(--here-ring); --lf-here-ring: summary-fold;
     outline-offset: calc(-1 * var(--here-ring-w)); }
   /* Drafts begin at the sent message's text edge. Send shares the field's row;
-     right padding keeps draft text clear of it as the textarea grows. */
+     right padding keeps draft text clear of it as the field grows. */
   .lf-thread-compact > .lf-compose { margin: 16px 0 8px; }
   .lf-thread-compact > .lf-compose .lf-compose-field {
     border: 1px solid var(--border-2); border-radius: 6px; background: var(--card);
   }
-  .lf-thread-compact > .lf-compose .lf-compose-field:has(> :is(textarea, leaf-text):is(:focus, .lf-focus)) {
+  .lf-thread-compact > .lf-compose .lf-compose-field:has(> leaf-text:is(:focus, .lf-focus)) {
     outline: var(--here-ring); --lf-here-ring: text-box;
     border-color: transparent;
   }
-  .lf-thread-compact > .lf-compose .lf-compose-field > :is(textarea, leaf-text) {
+  .lf-thread-compact > .lf-compose .lf-compose-field > leaf-text {
     font-size: 13px; line-height: 1.5; padding: 7px;
     padding-inline-end: calc(var(--lf-icon-action-hit) + 12px);
     border: 0; border-radius: 0; background: transparent;
     max-height: min(50vh, 35cqh);
   }
-  .lf-thread-compact > .lf-compose .lf-compose-field > :is(textarea, leaf-text):is(:focus, .lf-focus) {
+  .lf-thread-compact > .lf-compose .lf-compose-field > leaf-text:is(:focus, .lf-focus) {
     outline: none; border: 0;
   }
   .lf-thread-compact > .lf-compose .lf-compose-placeholder {
@@ -1163,7 +1163,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-going .lf-resolve::before { background: var(--ok-tint); }
   /* Direct navigation cues the same bounded box it revealed: a short card, one
      message, the reply row, or an oversized editor. */
-  .lf-thread.flash, .lf-msg.flash, .lf-compose.flash, .lf-compose :is(textarea, leaf-text).flash {
+  .lf-thread.flash, .lf-msg.flash, .lf-compose.flash, .lf-compose leaf-text.flash {
     animation: lf-runtime-4f3c2a8d-flash 1.2s ease-out;
   }
   /* An arrival the reconcile added while the user was watching. Motion, not a
@@ -1262,7 +1262,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      paintAnchors is the one writer. */
   .lf-msg-body a.detached { color: var(--muted-2); text-decoration: underline dashed; cursor: default; }
   .lf-compose { display: block; margin-top: 16px; }
-  .lf-compose :is(textarea, leaf-text) { display: block; width: 100%; min-width: 0; }
+  .lf-compose leaf-text { display: block; width: 100%; min-width: 0; }
   /* The foot is a column of its own so the composer and the page's reaction strip keep
      the flex-item margins they had as the panel's own children, and so the one box the
      chrome measures for its lift is the one the user sees standing there. */
@@ -1342,7 +1342,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      one-line minimum, so content cannot re-seat the bar. The room's width caps the
      whole bar, and the field is the flex item that shrinks, so on a narrow screen the
      words wrap sooner and the ellipsis keeps its room. */
-  :is(textarea, leaf-text).lf-fab-input { --lf-response-min-width: 216px; width: auto;
+  leaf-text.lf-fab-input { --lf-response-min-width: 216px; width: auto;
     min-width: min(var(--lf-response-min-width), var(--lf-response-room, 100vw));
     max-width: min(80ch, var(--lf-response-room, 100vw));
     max-height: var(--lf-float-h, 60vh);
@@ -1596,8 +1596,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     padding-block: var(--sp-3) var(--here-ring-room);
     background: inherit; }
   .lf-margin-thread .lf-page-thread > .lf-say > .lf-reply-disclosure,
-  .lf-margin-thread .lf-say :is(textarea, leaf-text) { padding-inline-start: 7px; }
-  .lf-margin-thread .lf-say :is(textarea, leaf-text) { min-width: 0;
+  .lf-margin-thread .lf-say leaf-text { padding-inline-start: 7px; }
+  .lf-margin-thread .lf-say leaf-text { min-width: 0;
     max-height: min(50vh, var(--lf-thread-editor-room, 50vh)); }
   .lf-margin-preview .lf-margin-thread-body > .lf-page-thread {
     position: static; }

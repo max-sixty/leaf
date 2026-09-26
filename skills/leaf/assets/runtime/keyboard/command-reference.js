@@ -37,7 +37,7 @@ import {
   keySequenceTemplate,
   neutralStates,
 } from "./presentation.js";
-import { focusDestination, letGo } from "../focus.js";
+import { handBack, tabStops } from "../focus.js";
 import { el, keeps } from "../widget-elements.js";
 import { ELEMENTS, pageScope, pageScopes } from "./register.js";
 import { EVERYTHING } from "./text-entry.js";
@@ -54,7 +54,6 @@ import { repaint } from "../repaint.js";
 import { pageSelection } from "../composing/capture.js";
 import { availableCommandRoutes, userIn } from "./dispatch.js";
 import { reachScrollers } from "../reach.js";
-import { retainUserIntent } from "../user-intent.js";
 import { openPopovers } from "./layer-stack.js";
 
 export const commandReferenceDialog = document.createElement("dialog");
@@ -710,8 +709,9 @@ function showCommandReference(open, restoreFocus, invokeCommand) {
   // Focusing a text input replaces the document selection. Keep a passage the user has
   // in hand and focus Close instead; an ordinary opening lands directly in search.
   const preserveSelection = fresh && Boolean(pageSelection());
-  const handBack = !open && restoreFocus && commandReferenceDialog.contains(focused());
-  const restore = handBack ? commandReferenceOrigin : null;
+  const handingBack =
+    !open && restoreFocus && commandReferenceDialog.contains(focused());
+  const restore = handingBack ? commandReferenceOrigin : null;
   if (fresh) {
     commandReferenceInvoke = invokeCommand;
     for (const popover of openPopovers())
@@ -760,45 +760,16 @@ function showCommandReference(open, restoreFocus, invokeCommand) {
       )
       .focus({ preventScroll: true });
   repaint();
-  if (handBack) handBackTo(restore);
+  // The reference is a bounded interaction rather than a level of the page: it claims the
+  // whole keyboard while it stands and hands the user back itself, to the control the
+  // press displaced, or to the page where that control has gone — the layer it stood in
+  // may have closed under the user while the reference was up — which is where a user
+  // who pressed `?` from the page was all along.
+  if (handingBack) handBack(restore);
 }
-
-// The reference is a bounded interaction rather than a level of the page: it claims the
-// whole keyboard while it stands and hands the user back itself. What it hands back is
-// the control the press displaced, and the page where that control has gone — the layer
-// it stood in may have closed under the user while the reference was up — which is
-// where a user who pressed `?` from the page was all along.
-function handBackTo(control) {
-  if (!control) {
-    letGo();
-    return;
-  }
-  const landed = () => {
-    if (control.isConnected) focusDestination(control);
-    return control.matches(":focus");
-  };
-  if (landed()) return;
-  // Reconciliation may replace a control in the same task, and the paint the close asked
-  // for may still hold it hidden, so give that exact node one frame before conceding. A
-  // control then gone or hidden is gone for good — the layer it stood in closed while
-  // the reference was up — and the page is where the user was. A user who has moved
-  // on meanwhile keeps their own place: their press is the newer word.
-  const mayLand = retainUserIntent();
-  nextRender(() => {
-    if (!mayLand() || landed()) return;
-    if (!control.isConnected || !control.checkVisibility()) letGo();
-  });
-}
-
-const commandReferenceStops = () =>
-  [
-    ...commandReferenceDialog.querySelectorAll(
-      'button, input, [tabindex]:not([tabindex="-1"])',
-    ),
-  ].filter((node) => node.tabIndex >= 0 && node.checkVisibility());
 
 export function moveCommandReferenceFocus(dir) {
-  const stops = commandReferenceStops();
+  const stops = tabStops(commandReferenceDialog);
   if (!stops.length) return commandReferenceDialog.focus({ preventScroll: true });
   const at = stops.indexOf(focused());
   const next =

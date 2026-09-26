@@ -28,7 +28,7 @@
    Visibility reads `shownParts`, not the target's raw client rect: a project may set
    `display: contents` while its rendered descendants remain usable, and a collapsed
    target has no rendered part to offer. */
-import { TEXT_BOX } from "./focus.js";
+import { TAB_STOP } from "./focus.js";
 import { cancelRender, nextRender, sizeObserver } from "./rendering.js";
 import { shellRight, shownBand, shownParts } from "./geometry.js";
 import { under, upFrom } from "./shadow.js";
@@ -48,28 +48,17 @@ let layer = null;
 
 const marginColumn = () => document.querySelector("main") || document.body;
 
-// Whether the margin's rail stands, as the stylesheet decided it: theme.css states the
-// posture on `main` where it claims the rail, and this reads that answer rather than
-// deriving one of its own from a width. It resolves a container query, so a read after a
-// write forces layout, and the layout pass reads it once. So the answer is read once per
-// task and reused: nothing a pass writes can change the reading, since the claim comes out
-// of `main`'s room inside the shell while the container answers on the shell itself. The
-// microtask that clears it runs before anything outside the pass can ask.
-const readRailPosture = () => {
-  const main = document.querySelector("main");
-  return (
-    Boolean(main) &&
-    getComputedStyle(main).getPropertyValue("--lf-rail-posture").trim() === "margin"
-  );
-};
-let railReading = null;
-const railStands = () => {
-  if (railReading === null) {
-    railReading = readRailPosture();
-    queueMicrotask(() => (railReading = null));
-  }
-  return railReading;
-};
+// Whether the margin's rail stands: where the room between `main` and the shell's right
+// edge holds a rail, measured, so a centred column in a wide window keeps its markers in
+// the margin and a page laid out to the edge pins them. Nothing claims the room. A page
+// declares otherwise on `main`: `data-rail="right"` makes the shell give up the rail's
+// width on its right (theme.css), which this reads as room like any other, and
+// `data-rail="none"` keeps its margin for its own residents, so its markers are pins.
+function railStands(main, mainRect, shell) {
+  if (main.getAttribute("data-rail") === "none") return false;
+  const rail = parseFloat(getComputedStyle(main).getPropertyValue("--rail")) || 0;
+  return shell - mainRect.right >= rail;
+}
 
 const labelRect = (name, left, top, label) => ({
   name,
@@ -270,9 +259,8 @@ function reach(anchor, box, main, reaches) {
 // The page's own controls in a pin's block, which the pin may not stand on: a pin at a
 // card's top-right would otherwise take the presses meant for the card's grip. Anything
 // the keyboard can reach is a control, so a package need declare nothing.
-const CONTROLS = `button, a[href], input, select, ${TEXT_BOX}, summary, [contenteditable], [tabindex]:not([tabindex="-1"])`;
 function controlsIn(anchor) {
-  return [...anchor.querySelectorAll(CONTROLS)]
+  return [...anchor.querySelectorAll(TAB_STOP)]
     .filter((control) => control.checkVisibility())
     .map((control) => control.getBoundingClientRect())
     .filter((box) => box.width && box.height);
@@ -432,7 +420,10 @@ export function layoutMarginRows() {
   const page = anchorReading(main, PAGE_ANCHOR);
   const columnRect = main.getBoundingClientRect();
   const shell = shellRight();
-  const stands = railStands();
+  const stands = railStands(main, columnRect, shell);
+  // Said once, for the chrome: where the markers are pins, the banner offers the Page
+  // Map in their place (chrome.css).
+  layer.root.toggleAttribute("data-lf-pins", !stands);
   const rootStyle = getComputedStyle(document.documentElement);
   const hang = parseFloat(rootStyle.getPropertyValue("--rail-hang")) || 0;
   const pinInset = parseFloat(rootStyle.getPropertyValue("--pin-inset")) || 0;
@@ -442,6 +433,11 @@ export function layoutMarginRows() {
     '.lf-margin-cluster:not([data-lf-place="pin"]) .lf-margin-entry:not([hidden])',
   );
   const size = entry?.offsetWidth || 32;
+  // The notes hanging in the margin the rail stands in (theme.css, aside.sidenote): a
+  // marker level with one would be drawn over it.
+  const notes = [...main.querySelectorAll("aside.sidenote")]
+    .map((note) => note.getBoundingClientRect())
+    .filter((note) => note.width && note.left >= columnRect.right - 1);
 
   // Every read before any write: a write between two reads forces a layout per row.
   const bands = new Map();
@@ -471,6 +467,7 @@ export function layoutMarginRows() {
       blockRight: reach(anchor, box, main, reaches),
       railInner,
       half: size / 2,
+      noted: notes.some((note) => note.top < box.top + size && note.bottom > box.top),
     });
     const shown =
       !parked.has(row) && targetShown(target, extent, place === "pin", bands);

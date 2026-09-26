@@ -1,6 +1,7 @@
 /* User gestures and drafts that a document replacement would discard. */
 import { TEXT_BOX } from "../focus.js";
 import { runtime } from "../context.js";
+import { dragHeld } from "../widget-elements.js";
 import { focused } from "../keyboard/scopes.js";
 import { replyBoxHasDraft } from "../thread/replies.js";
 import { draftOf } from "./input.js";
@@ -13,9 +14,7 @@ export function createEngagement({
   pageComposerDrawing,
 }) {
   function unaccountedGesture() {
-    return (
-      runtime.undoing || hasPending() || Boolean(document.querySelector(".lf-dragging"))
-    );
+    return runtime.undoing || hasPending() || dragHeld();
   }
 
   function midComposition() {

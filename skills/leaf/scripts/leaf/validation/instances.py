@@ -116,9 +116,8 @@ def widget_errors(lf_elements: list, registry: dict) -> list:
 
 
 def layout_errors(lf_elements: list, registry: dict) -> list:
-    """Validate the direct grammar of registry-declared structural elements: a workspace
-    or pane is an optional header, exactly one body element, and an optional footer; a
-    grid holds its cells as elements."""
+    """Validate the direct grammar of registry-declared structural elements: a pane is an
+    optional header, exactly one body element, and an optional footer."""
     errors = []
     for rec in lf_elements:
         role = registry.get(rec["tag"], {}).get("x-reading-role")
@@ -126,14 +125,6 @@ def layout_errors(lf_elements: list, registry: dict) -> list:
             continue
         where = at(rec)
         direct = rec["direct"]
-        if role == "grid":
-            # Every direct child is a cell, so loose text would be a cell nobody wrote.
-            if "#text" in direct:
-                errors.append(
-                    f"{where}: x-reading-role grid holds its cells as elements; wrap "
-                    "loose text in one"
-                )
-            continue
         headers = [i for i, child in enumerate(direct) if child == "header"]
         footers = [i for i, child in enumerate(direct) if child == "footer"]
         if len(headers) > 1 or len(footers) > 1:

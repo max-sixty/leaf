@@ -121,18 +121,34 @@ export function keepsHidden(node, hidden) {
 }
 
 // The user's hand on a widget, in the layer's own word: a drag the log has not taken
-// yet. The class is half of composing/engagement.js's `unaccountedGesture`, so taking it up or
+// yet. This module holds it, and everything that has to wait for the hand asks here:
+// `dragHeld` is whether any widget holds one, and `watchDragRelease` is told each time
+// the last one is put down. The widget calls `dragging` as it takes the hand up and puts
+// it down, and puts it down in `disconnectedCallback` too, since a widget that leaves
+// with the hand up would hold every waiter for the rest of the page's life.
+//
+// Held is half of composing/engagement.js's `unaccountedGesture`, so taking it up or
 // putting it down moves core's `z` row — a row no widget declares, and therefore the one
-// no widget would think to repaint. So the paint is owed here, where the class is
-// written, rather than by whoever remembers. Coalesced to a frame like every paint, which
-// is what lets it stand for everything else the same gesture moved: the widget's own
-// rows where the grab is a press on an already-focused grip and no focus event fires,
-// and a send the drop states after this returns.
-export const DRAGGING_CHANGED = "lf-dragging-changed";
+// no widget would think to repaint. So the paint is owed here, where the hand is
+// recorded, rather than by whoever remembers. Coalesced to a frame like every paint,
+// which is what lets it stand for everything else the same gesture moved: the widget's
+// own rows where the grab is a press on an already-focused grip and no focus event
+// fires, and a send the drop states after this returns.
+const hands = new Set();
+const releaseWatchers = new Set();
+
+export const dragHeld = () => hands.size > 0;
+
+// Told, in the order they began watching, each time the last hand is put down.
+export function watchDragRelease(released) {
+  releaseWatchers.add(released);
+  return () => releaseWatchers.delete(released);
+}
 
 export const dragging = (el, on) => {
-  el.classList.toggle("lf-dragging", on);
-  document.dispatchEvent(new Event(DRAGGING_CHANGED));
+  if (on) hands.add(el);
+  else hands.delete(el);
+  if (!hands.size) for (const released of [...releaseWatchers]) released();
   paintKeys();
 };
 

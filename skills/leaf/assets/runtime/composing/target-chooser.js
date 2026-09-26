@@ -24,6 +24,7 @@ import {
 import { shownParts } from "../geometry.js";
 import { focused } from "../keyboard/scopes.js";
 import { repaint } from "../repaint.js";
+import { handBack } from "../focus.js";
 import {
   createHintSession,
   HINT_KEYS,
@@ -247,7 +248,7 @@ export function createTargetChooser({
       if (!on) opener = null;
     }
     repaint();
-    if (returnTo?.isConnected) returnTo.focus({ preventScroll: true });
+    if (returnTo) handBack(returnTo);
   }
 
   function setPageSearch(on) {

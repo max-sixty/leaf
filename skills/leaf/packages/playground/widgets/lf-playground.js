@@ -540,7 +540,7 @@ customElements.define(
     // The playground is a workspace whose relationship is declared: the controls, and the
     // instruction they write, operate the preview. It composes the layout layer's own
     // grammar out of boxes it generates, a grid of three panes (packages/default/theme.css,
-    // at lf-workspace), so the theme alone decides whether each pane's body scrolls or the
+    // at lf-pane), so the stylesheet alone decides whether each pane's body scrolls or the
     // page does. The playground theme places them: the preview is the stage, and the
     // controls stand above the instruction and its actions in a rail beside it. Each pane
     // is a reading region under the playground's id.
@@ -564,7 +564,6 @@ customElements.define(
 
       const split = document.createElement("div");
       split.className = "lf-playground-split";
-      split.dataset.lfReadingRole = "grid";
       split.append(
         pane("preview", "Preview", null, previewBody),
         pane("controls", "Controls", presetBar, panel),

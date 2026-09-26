@@ -6,7 +6,6 @@ stylesheets. Their results are read-only; edits select a new cache entry.
 
 from collections.abc import Mapping
 from functools import lru_cache
-from itertools import pairwise
 
 import tinycss2
 
@@ -30,7 +29,8 @@ def css_rules(css: str) -> tuple:
     holds both declarations and a nested rule states one of its own. `conditional` is
     true for a rule inside an at-rule, which applies only when a condition this check
     never evaluates holds: `@media print`, a viewport query. Nesting alone is not a
-    condition, so a rule nested in a conditional one is conditional and no more."""
+    condition, so a rule nested in a conditional one is conditional and no more, and
+    neither is `@layer`, which orders its rules and always applies them."""
     return tuple(
         _rules(tinycss2.parse_stylesheet(css, skip_comments=True, skip_whitespace=True))
     )
@@ -129,7 +129,9 @@ def _rules(nodes, conditional=False):
             yield tinycss2.serialize(node.prelude).strip(), block, conditional
             yield from _rules(block, conditional)
         elif node.type == "at-rule" and node.content:
-            yield from _rules(css_block(node.content), True)
+            # A cascade layer orders rules rather than conditioning them.
+            layered = node.lower_at_keyword == "layer"
+            yield from _rules(css_block(node.content), conditional or not layered)
 
 
 PRESENTATION_PROPERTIES = {
@@ -163,69 +165,12 @@ def inline_presentation_override_errors(parser: SourceDocument) -> list:
 
 # ---------- page CSS that fights the layout ----------
 # Leaf keeps the user's place in the regions it knows: the page, a pane, a bounded
-# block. Page CSS stays free inside a block, so these are advice rather than errors: a
-# box the page makes scroll vertically keeps no reading position across a revision or a
-# reflow, and a layout element the page places itself is geometry the layout no longer
-# owns. Sideways scrolling is the theme's own answer to a wide table or listing, and a
+# block. Page CSS stays free inside a block, so this is advice rather than an error: a box
+# the page makes scroll vertically keeps no reading position across a revision or a
+# reflow. Sideways scrolling is the theme's own answer to a wide table or listing, and a
 # bound says nothing about it, so only the block axis is read.
 SCROLL_VALUES = {"auto", "scroll"}
 SCROLL_PROPS = {"overflow", "overflow-y", "overflow-block"}
-PLACEMENT_PROPS = {"display", "position", "float", "order", "columns", "column-count"}
-PLACEMENT_PREFIXES = ("grid", "flex")
-COMBINATORS = {">", "+", "~"}
-
-
-def _split_commas(tokens):
-    part = []
-    for token in tokens:
-        if token.type == "literal" and token.value == ",":
-            yield part
-            part = []
-        else:
-            part.append(token)
-    yield part
-
-
-def _subjects(tokens) -> set:
-    """How each complex selector names its subject — the element a rule styles, not an
-    ancestor it names as context — as `tag`, `#id` and `.class` names. `:is()` and
-    `:where()` pass their arguments through; `:not()` and `:has()` name other
-    elements."""
-    names = set()
-    for complex_ in _split_commas(tokens):
-        subject, after_combinator = [], False
-        for token in complex_:
-            if token.type == "whitespace" or (
-                token.type == "literal" and token.value in COMBINATORS
-            ):
-                after_combinator = True
-                continue
-            if after_combinator:
-                subject, after_combinator = [], False
-            subject.append(token)
-        # A pseudo-element (`::before`) is a box of its own, not the element named.
-        if any(
-            a.type == b.type == "literal" and a.value == b.value == ":"
-            for a, b in pairwise(subject)
-        ):
-            continue
-        previous = None
-        for token in subject:
-            after = (
-                previous.value
-                if previous is not None and previous.type == "literal"
-                else None
-            )
-            if token.type == "ident" and after == ".":
-                names.add(f".{token.value}")
-            elif token.type == "ident" and after != ":":
-                names.add(token.lower_value)
-            elif token.type == "hash":
-                names.add(f"#{token.value}")
-            elif token.type == "function" and token.lower_name in {"is", "where"}:
-                names |= _subjects(token.arguments)
-            previous = token
-    return names
 
 
 def _scrolls(block) -> list:
@@ -239,63 +184,25 @@ def _scrolls(block) -> list:
     ]
 
 
-def _places(block) -> list:
-    return [
-        declaration.lower_name
-        for declaration in block
-        if declaration.type == "declaration"
-        and (
-            declaration.lower_name in PLACEMENT_PROPS
-            or declaration.lower_name.startswith(PLACEMENT_PREFIXES)
-        )
-    ]
-
-
-def layout_css_advice(
-    parser: SourceDocument, registry: dict, stylesheets: Mapping[str, str]
-) -> list:
-    """Page CSS that makes a box scroll, or that places an element declaring a reading
-    role. Each line names the rule and the property. The page's CSS is its `<style>`,
-    its `style` attributes, and `stylesheets`: the files it links from `page/`, by
-    path, as the revision's capture resolved them (`RevisionArtifact.page_stylesheets`)."""
-    layout_tags = {
-        tag
-        for tag, entry in registry.items()
-        if not tag.startswith("$") and entry.get("x-reading-role")
-    }
-    # Every name a rule can reach a layout element by on this page: its tag, and the id
-    # each occurrence carries (a widget admits no class).
-    layout = {tag: tag for tag in layout_tags}
-    for rec in parser.lf_elements:
-        if rec["tag"] in layout_tags and (element_id := rec["attrs"].get("id")):
-            layout[f"#{element_id}"] = rec["tag"]
-    advice = []
+def scroller_css_advice(parser: SourceDocument, stylesheets: Mapping[str, str]) -> list:
+    """Page CSS that makes a box scroll, each line naming the rule and the property. The
+    page's CSS is its `<style>`, its `style` attributes, and `stylesheets`: the files it
+    links from `page/`, by path, as the revision's capture resolved them
+    (`RevisionArtifact.page_stylesheets`)."""
     # Each sheet by the prefix its rules are named with: the page's own <style> needs
     # none, and a linked file is named by its path.
     sheets = {"": parser.css, **{f"{path} ": css for path, css in stylesheets.items()}}
     stated = [
-        (
-            f"{prefix}rule `{selector}`",
-            block,
-            _subjects(tinycss2.parse_component_value_list(selector)),
-        )
+        (f"{prefix}rule `{selector}`", block)
         for prefix, css in sheets.items()
         for selector, block, _ in css_rules(css)
     ] + [
-        (inline_style_at(inline), css_block(inline["style"]), {inline["tag"]})
+        (inline_style_at(inline), css_block(inline["style"]))
         for inline in parser.inline_styles
     ]
-    for where, block, subjects in stated:
-        for prop in _scrolls(block):
-            advice.append(
-                f"{where} sets {prop} to scroll, and Leaf keeps no reading position "
-                "in a scroller page CSS makes; bound the block with "
-                "data-bound=start|end instead"
-            )
-        if placed := sorted({layout[name] for name in subjects if name in layout}):
-            for prop in _places(block):
-                advice.append(
-                    f"{where} sets {prop} on <{'>, <'.join(placed)}>, whose geometry "
-                    "the layout owns"
-                )
-    return advice
+    return [
+        f"{where} sets {prop} to scroll, and Leaf keeps no reading position "
+        "in a scroller page CSS makes; bound the block with data-bound=start|end instead"
+        for where, block in stated
+        for prop in _scrolls(block)
+    ]

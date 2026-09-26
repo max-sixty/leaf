@@ -72,70 +72,97 @@ stands alone, since whoever reads it there has none of the page around it.
   <meta name="description" content="…">
 </head>
 <body>
-  <main>…</main>
+  <main class="layout-column">…</main>
 </body>
 </html>
 ```
 
 ## Composing a page
 
-A page is a stack of blocks in the reading column. Text keeps the column's measure,
-and a block that needs more room declares it: a diagram or a board states its width in
-its registry entry and grows out of the column into the room beside it, without moving
-the prose, and `data-width` asks the same of any other block. Most pages need nothing
-more. Compose the stack from these:
+A page is a stack of blocks, and most pages are a reading column,
+`<main class="layout-column">`: text keeps the column's measure, and a block that needs
+more room grows out of the column into the room beside it without moving the prose. A
+`main` with no Layout class has no arrangement at all, and its blocks run the window's
+width. A diagram, a board or a
+wide table states that width in its registry entry, and `data-width` asks the same of
+any other block ("Bounds and widths", below). Most pages need nothing more. Compose
+the stack from these:
 
 - **Prose read in order** — a plan, a review, a write-up, a decision — is plain
   semantic HTML, with nothing declared.
-- **Independent status tiles** are an `lf-grid` inside the explanation. Each cell
-  holds a surface — a metric, chart, table, list or log, with at most a caption —
-  rather than paragraphs; a row of headline numbers is a grid of `lf-metric` tiles.
-  A grid of paragraphs is prose cut into columns, and reads worse than the column.
-  A grid takes the column's width, so its tiles line up with the prose; give it
-  `data-width="wide"` only when what it holds needs room past the prose, as a figure
-  would.
+- **Independent status tiles** are a block with `class="layout-tiles"`, which sets its
+  children in equal cells, as many to a row as fit. Each cell holds a surface — a
+  metric, chart, table, list or log, with at most a caption — rather than paragraphs;
+  a row of headline numbers is `lf-metric` tiles in one. Tiles of paragraphs are prose
+  cut into columns, and read worse than the column.
 - **A comparison** is `lf-compare`, which keeps its variants paired at any width.
 - **Controls beside evidence** is a playground, which declares how its controls
   operate its preview.
 - **Regions that stay in view together** while each scrolls on its own, such as a
-  queue beside its detail, are an `lf-workspace` (below).
+  queue beside its detail, are a workspace (below).
 - **Several views of one artifact** are one `lf-tabs` set: page tabs for
   project-scale views that share one history, Threads panel, Ask inventory, and
   revision sequence, and a tabbed section for local alternatives within the
   surrounding view. Page tabs are sections of one page: each panel takes the page's
-  width, so `data-width` on `main` widens every tab, and a sidebar stands beside
+  width, so a Layout class on `main` widens every tab, and a sidebar stands beside
   them as on any page. The `lf-tabs` entry says which placement makes which, and how
   to order and retire views.
 
-A page grows without changing kind: a report that gains live status gains a grid, and
-its comments and anchors stay put.
+A page grows without changing kind: a report that gains live status gains a row of
+tiles, and its comments and anchors stay put.
 
-The banner, the shortcut band at the foot of the window and the margin rail are fixed
-reservations, so the room a page has depends only on the window, and nothing Leaf draws
-moves the page's content ("The rail and the margin", below).
+The banner and the shortcut band at the foot of the window are fixed reservations, so
+the room a page has depends only on the window, and nothing Leaf draws moves the page's
+content: the rail stands in room the page leaves beside its column ("The rail and the
+margin", below).
+
+### Layouts
+
+A Layout is a class that arranges the box it is on. Put one on `main` to shape the
+page, or on any block to arrange that block's children. `layout-column` on a block keeps
+the measure but gives it no room to break out into, since that room is the page's:
+
+| Class | Arranges |
+| --- | --- |
+| `layout-column` | the reading column, and a block's breakout beside it |
+| `layout-wide` | a page as wide as the window, up to a cap, holding one flow |
+| `layout-sidebar` | a body beside a side track, with a `header` and `footer` across both |
+| `layout-tiles` | equal cells, as many to a row as fit |
+| `layout-workspace` | a page that fills the window: `header`, one body, `footer` |
+
+On `main`, every class but `layout-column` makes a wide page: every block, the title
+included, starts at one left edge and takes the page's width, text keeps the reading
+measure, and the title is set larger.
+
+A Layout is a starting point. The page's own `<style>` comes after it in the cascade, so
+an ordinary rule adjusts it — a different track share, a gap, an order — and a page
+whose arrangement no Layout fits writes its own grid or flex rules on its own boxes.
+Where a Layout fits, use it rather than rebuilding it, since its tracks already hold
+the widths and wrapping every page needs.
 
 ### A wide page
 
 When the regions are the page rather than exhibits in an argument — a board with its
 status, a release dashboard, a queue sorted into buckets, a long review whose contents
-and verdict stay beside the code — widen the page itself: write
-`<main data-width="available">`, or `data-width="wide"` to cap it at the shared
-evidence width instead of the window. Every block, the title included, then starts at
-one left edge and takes the page's width, while text keeps the reading measure; the
-title is set larger.
+and verdict stay beside the code — widen the page itself. `<main class="layout-wide">`
+holds one flow at the page's width. `<main class="layout-sidebar">` puts what the reader
+works through in its first block and what they keep an eye on — status, counts, the
+verdict's follow-ups, the contents — in its last, with the page's `header` above both:
 
-A wide page reads as one structure when every region stands on the same vertical
-lines, so give it one set of tracks: typically a body beside a side track as one `lf-grid`
-of `columns="2fr 1fr"` (`3fr 1fr` for a board), each track a nested `columns="1"` grid
-stacking its regions, rather than a new grid per row whose splits land somewhere new
-each time (`version check --render` advises on those). Put what the reader works
-through in the body and what they keep an eye on — status, counts, the verdict's
-follow-ups, the contents — in the side track. The tracks stack where the side track
-would become too narrow, and `version check --render` names the window a template
-stacks below when that is a desktop window: where the regions must stay side by side
-for a reader in it, give the narrow track a larger share. A board is the exception:
-its `3fr 1fr` stacks below a 1000px window, where the board's columns are better given
-the page's whole width.
+```html
+<main class="layout-sidebar">
+  <header><h1>…</h1><p class="lede">…</p></header>
+  <div id="body">…</div>        <!-- what the reader works through -->
+  <div id="status">…</div>      <!-- what they keep an eye on -->
+</main>
+```
+
+The body takes two parts of the row and the side track one, and the track wraps below
+the body where the two no longer fit side by side, or where the body could not keep the
+width its content declares: a board whose columns need the room gets the page's whole
+width rather than clipping. Stack each track's regions inside it, so every region stands
+on the same two vertical lines, rather than a new split per row whose edges land
+somewhere new each time.
 
 Draw each region the same way, as a `section.panel` with a short heading, and keep a
 `.callout` with a status tone (`warn`, `danger`, `ok`) for the one thing the reader must
@@ -144,16 +171,32 @@ glance.
 
 ### A workspace
 
-An `lf-workspace` takes all the room the page leaves, as a diagram does. A page whose
-only block is a workspace is a wide page without declaring one, so write it in a plain
-`<main>`: the workspace takes the wide page's width, and holds the window's height as
-well, with each pane scrolling on its own under the banner. As a page tab's only block
-it holds the window the same way; anywhere else it stays in document flow. The `lf-workspace` entry says where the title goes and which elements its body
-can be, and the `lf-pane` entry what a pane holds. Place several panes with an
-`lf-grid`, such as `columns="1fr 2fr"` for a queue beside its detail. Let Leaf allocate
-the space: page-specific positioning should not be needed to keep a pane or footer
-reachable. Where the window cannot hold the regions, the panes take their natural
-height and the page scrolls.
+`<main class="layout-workspace">` fills the window's height below the banner: its
+`header` and `footer` take what they hold, and its one body between them takes the
+rest. The body is one `lf-pane`, a widget that composes its own regions, or the page's
+own grid of panes, such as a queue beside its detail, which the page's `<style>`
+places:
+
+```html
+<main class="layout-workspace">
+  <header><h1>…</h1></header>
+  <div id="regions">
+    <lf-pane id="queue" label="Queue">…</lf-pane>
+    <lf-pane id="detail" label="Detail">…</lf-pane>
+  </div>
+</main>
+```
+
+```css
+#regions { display: grid; grid-template-columns: minmax(16rem, 1fr) 2fr; gap: var(--sp-4); }
+@media (width < 900px) { #regions { grid-template-columns: 1fr; } }
+```
+
+Each pane's body scrolls on its own, and a widget that fills a held body, such as a
+playground's stage, grows to the window's height. The `lf-pane` entry says what a pane
+holds. Let the Layout allocate the height: page-specific positioning should not be
+needed to keep a pane or footer reachable. Where the window is too small to hold the
+regions, the panes take their natural height and the page scrolls.
 
 ### Bounds and widths
 
@@ -171,7 +214,9 @@ An individual block or section may request a responsive allocation with
 `data-width="column"`, `data-width="wide"`, or `data-width="available"`. `column`
 uses the standard prose measure, including inside a wider section. `wide` uses the
 shared capped evidence width. `available` uses all room left by the page shell, frames,
-chrome, the rail, and the page's own margin residents. The occurrence overrides a
+chrome, and a margin resident that takes its side, such as a sidebar standing in the
+margin or the contents map's spine; the markers beside it then stand as pins on it, and
+it moves below a note hanging level with it. The occurrence overrides a
 widget's package default, so `data-width="column"` can deliberately keep a normally wide
 widget with the prose.
 Use these names on the semantic block itself, including a native `table`, `lf-code`, or
@@ -189,9 +234,11 @@ Leaf marks each commented or decided element with a marker: a thread, an Ask, a
 suggestion's ✓/✗. Nothing Leaf draws moves the page's content, so plan the page's
 geometry without them:
 
-- A column page keeps a rail, a strip `--rail` wide beside its column, from a shell of
-  863px up; its markers stand in it, 22px past the column.
-- A wide page, and so a page whose only block is a workspace, keeps no rail. Its
+- A column page keeps a rail, a strip `--rail` wide beside its column, wherever the
+  room beside the column holds it: from a window of about 960px with a mouse and about
+  1010px with a finger. Its markers stand in it, 22px past the column. A marker level
+  with a note hanging in the margin stands as a pin instead.
+- A wide page fills the window up to its cap and keeps no rail there. Its
   markers stand as pins over the page inside the top-right corner of their blocks, as
   every marker does where the rail does not stand: in a narrower window, and in a pane
   that scrolls on its own. A pin covers that corner of its block, 26px of it with a
@@ -204,9 +251,9 @@ geometry without them:
   rail stays, since it covers nothing.
 
 `data-rail="right"` on `main` keeps the rail on a wide page, and `data-rail="none"`
-gives a column page's right margin to something else: a page that hangs
-`aside.sidenote`s on the right writes it, since the notes and the rail claim the same
-strip.
+gives a column page's right margin to something of the page's own. A marker level
+with a hanging `aside.sidenote` stands as a pin on its block, so a page with notes needs
+neither.
 
 ## Draw the subject
 

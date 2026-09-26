@@ -62,6 +62,11 @@ from render_harness import (
     write,
 )
 
+DRAG_HELD = (
+    "async () => (await window.__lfRuntimeImport("
+    "'/runtime/widget-elements.js')).dragHeld()"
+)
+
 pytestmark = pytest.mark.nightly
 
 
@@ -1532,7 +1537,7 @@ def test_a_refused_action_waits_for_a_live_gesture_before_reconciling(browser, s
 
     baffle.focus()
     page.keyboard.press("Enter")
-    expect(page.locator("#sprint")).to_have_class(re.compile(r"\blf-dragging\b"))
+    page.wait_for_function(DRAG_HELD)
     attempt = held[0].request.post_data_json["attempt"]
     with page.expect_response(lambda response: "/api/event" in response.url):
         held[0].fulfill(
@@ -2342,13 +2347,13 @@ def test_a_draft_that_outlives_its_passage_returns_with_that_passage(browser, se
 
 
 def test_a_pointer_drag_stops_the_line_offering_the_press_it_refuses(browser, serve):
-    """`.lf-dragging` is half of the `z` liveness the runtime declares, and a pointer
+    """A held drag is half of the `z` liveness the runtime declares, and a pointer
     drag is a whole gesture rather than a frame: the focus paint lands on the
     mousedown, `fallbackTolerance` fires the drag's start after it, and on a quiet
     board nothing repaints between the pick-up and the drop. So unpainted, the line
     goes on offering `undo` for as long as the user holds the card, over a press the
     dispatcher is already refusing. The drop is the same gap read backwards: a card
-    put down where it was picked up takes the class off and returns before #send, so
+    put down where it was picked up puts the hand down and returns before #send, so
     there is no send downstream to paint in its place."""
     url = serve(BOARD_PAGE)
     append_command(
@@ -2386,7 +2391,7 @@ def test_a_pointer_drag_stops_the_line_offering_the_press_it_refuses(browser, se
     page.mouse.move(*start)
     page.mouse.down()
     page.mouse.move(start[0], start[1] + 24, steps=8)  # past fallbackTolerance
-    page.wait_for_selector("lf-board.lf-dragging")  # the gesture is live in the page
+    page.wait_for_function(DRAG_HELD)  # the gesture is live in the page
     # Read once, on the frame the paint coalesces to, rather than through `expect`:
     # a heartbeat two seconds out repaints the line whatever this drag did, so an
     # assertion that re-decisions passes on the poll and says nothing about the edge.
@@ -2395,7 +2400,7 @@ def test_a_pointer_drag_stops_the_line_offering_the_press_it_refuses(browser, se
     )
 
     page.mouse.up()
-    assert page.locator("lf-board.lf-dragging").count() == 0
+    assert not page.evaluate(DRAG_HELD)
     assert "z undo" in _painted_line(page), (
         "the drop that sent nothing left the line refusing a press that is live"
     )

@@ -220,9 +220,9 @@ SAID_PAGE = leaf_page(
     "said",
     """
 <h1 id="h">This week</h1>
-<lf-grid id="numbers">
+<div class="layout-tiles" id="numbers">
   <lf-metric id="m-open" value="1,204" delta="+18%" direction="up-good">Open sessions</lf-metric>
-</lf-grid>
+</div>
 <lf-board id="board">
   <lf-column id="col-now" label="In flight">
     <lf-card id="c-importer"><strong>Wire the importer</strong> Half done.</lf-card>
@@ -1732,6 +1732,15 @@ def panel_settled(page, open=True):
         }""",
         arg=open,
     )
+
+
+def regions_side_by_side(regions: str, columns: str = "1fr 1fr") -> str:
+    """The page's own stylesheet setting a workspace body's panes side by side, as a
+    page writes it: a grid, which stacks in a narrow window."""
+    return f"""<style>
+#{regions} {{ display: grid; grid-template-columns: {columns}; gap: var(--sp-4); }}
+@media (width < 900px) {{ #{regions} {{ grid-template-columns: 1fr; }} }}
+</style>"""
 
 
 def pane_posture(page, pane, posture):

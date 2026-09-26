@@ -1,6 +1,6 @@
 /* Keyboard reachability and continuation paint for scrollable page and shadow content. */
 
-import { TEXT_BOX } from "./focus.js";
+import { TAB_STOP, TEXT_BOX } from "./focus.js";
 import { sizeObserver } from "./rendering.js";
 import { ANCHOR_NOTE_TAG } from "./anchor-note-view.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
@@ -57,10 +57,6 @@ import { LAYOUT } from "./widget-elements.js";
 // after the mark, whichever of the two lands first. Held when a sweep reaches the box,
 // which is what the callers above owe this: a scroller a module builds outside its
 // own settlement calls this on the subtree, as it would for the stop.
-// What the platform puts in the tab order without being asked. Exported because the skip
-// link needs the same reading of the banner: "the first thing in there a user can
-// stand on" and "does this box already hold a stop" are the one question.
-export const FOCUSABLE = `a[href], button, input, select, ${TEXT_BOX}, [tabindex]:not([tabindex="-1"])`;
 // The declaration picks the candidates and the measurement decides. A rule saying a box
 // may scroll is not the same fact as a box with something out of sight: the theme sets
 // `table { display: block; overflow-x: auto }` on every table there is, so the declaration
@@ -78,7 +74,7 @@ const overflows = (el) =>
   el.scrollWidth > el.clientWidth || el.scrollHeight > el.clientHeight;
 // The box's own controls, which is every focusable inside it but the note above.
 function holdsOwnStop(el) {
-  for (const node of el.querySelectorAll(FOCUSABLE))
+  for (const node of el.querySelectorAll(TAB_STOP))
     if (!node.closest(ANCHOR_NOTE_TAG)) return true;
   return false;
 }

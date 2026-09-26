@@ -35,6 +35,7 @@ import { overlaps, overlapsAcross } from "./rect.js";
 // which is what a margin resident is placed against and what the response surface may not
 // overhang. The auxiliary surfaces stand over the page and take none of it.
 export const shellRight = () => document.body.getBoundingClientRect().right;
+
 // Document-anchored chrome is positioned from the document origin, while the boxes it
 // follows are read in viewport coordinates. Convert once at that boundary.
 export function documentPoint(left, top) {

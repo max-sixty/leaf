@@ -1,4 +1,12 @@
-/* Putting the user on an element: the focus, and the caret inside it. */
+/* Putting the user on an element: the focus, and the caret inside it, what the
+   keyboard can stand on, and where a closing layer hands the user back.
+
+   Nearly every owner imports this module, and several spell their selectors from
+   `TEXT_BOX` as they evaluate, so it imports only rendering.js, which imports nothing:
+   an import that reached back into one of them would have it read `TEXT_BOX` before
+   this module had defined it. That is why the hand-back reads a later focus move off
+   `focusin` rather than from user-intent.js. */
+import { nextRender } from "./rendering.js";
 
 // The runtime's text field (`composing/text-field.js`): every box the runtime builds
 // for the user to write in is one. Code that looks for such a box names it by this, and
@@ -7,6 +15,22 @@
 // element can change without a lookup somewhere silently finding nothing.
 export const TEXT_FIELD = "leaf-text";
 export const TEXT_BOX = `textarea, ${TEXT_FIELD}`;
+
+// What the platform puts in the tab order without being asked, which is what a layout
+// keeps clear of and what "does this box already hold a stop" asks about. A disclosure's
+// `summary` is one, and so is an editable region.
+export const TAB_STOP = `a[href], button, input, select, ${TEXT_BOX}, summary, [contenteditable]:not([contenteditable="false"]), [tabindex]:not([tabindex="-1"])`;
+
+// The stops Tab walks inside `root` right now, in document order: the candidates above
+// that are in the order, enabled, and drawn. A modal's own Tab loop reads this.
+export const tabStops = (root) =>
+  [...root.querySelectorAll(TAB_STOP)].filter(
+    (node) =>
+      node.tabIndex >= 0 &&
+      !node.matches(":disabled") &&
+      !node.inert &&
+      node.checkVisibility(),
+  );
 
 // Put the user on an element that may not be a tab stop: focus it, and where it will
 // not take focus, lend it the tab stop a control has for exactly as long as it holds it —
@@ -194,4 +218,41 @@ export function letGo() {
   }
   focusDestination(block);
   block.blur();
+}
+
+// Handing the user back when a layer closes with them inside it. The closer names where,
+// most particular first — the control whose press opened the layer, the proxy the
+// layer's subject has on the page, the door a folded shelf shows in a control's place —
+// and the user lands on the first that takes focus. The page's body is nowhere: an
+// opener read while nothing held focus names no place to return to.
+//
+// A destination still in the document may not take focus yet: reconciliation can
+// replace a control in the same task, and the paint the close asked for may still hold
+// it hidden. So where none lands but one is still there, the list is read once more on
+// the next frame. A destination then gone or hidden is gone for good — the layer it
+// stood in closed while this one was up — and the user lands where `letGo` puts them,
+// which is also where a closer that names nothing sends them. Focus placed anywhere in
+// that frame keeps its place: a user who moved on, or a caller that landed them itself,
+// said the newer word.
+export function handBack(...destinations) {
+  const places = destinations.filter((node) => node && node !== document.body);
+  const landed = () =>
+    places.some((node) => {
+      if (!node.isConnected || !node.checkVisibility()) return false;
+      focusDestination(node);
+      return node.matches(":focus");
+    });
+  if (landed()) return;
+  if (!places.some((node) => node.isConnected)) {
+    letGo();
+    return;
+  }
+  let placed = false;
+  const place = () => (placed = true);
+  document.addEventListener("focusin", place, { capture: true, once: true });
+  nextRender(() => {
+    document.removeEventListener("focusin", place, { capture: true });
+    if (placed || landed()) return;
+    letGo();
+  });
 }

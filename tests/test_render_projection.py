@@ -112,6 +112,7 @@ from render_harness import (
     panel_settled,
     post_event,
     refuse,
+    regions_side_by_side,
     rendered,
     resized,
     round_trip,
@@ -2378,8 +2379,8 @@ def test_a_word_the_revision_adds_to_a_surviving_element_is_said(browser, serve)
     first = leaf_page(
         "Said first",
         '<h1 id="sd-title">Said</h1>\n'
-        '<lf-grid id="sd-metrics"><lf-metric id="sd-metric" value="42">'
-        "checks complete</lf-metric></lf-grid>",
+        '<div class="layout-tiles" id="sd-metrics"><lf-metric id="sd-metric" value="42">'
+        "checks complete</lf-metric></div>",
     )
     second = first.replace("Said first", "Said second").replace(
         'value="42"', 'value="45" delta="+3"'
@@ -3089,15 +3090,16 @@ def test_revision_remembers_the_active_region_when_a_workspace_reflows(browser, 
     </div></lf-pane>"""
 
     workspace_markup = f"""
-<lf-workspace id="reading-workspace">
-  <header><h1>Reading workspace</h1></header>
-  <lf-grid id="reading-split" columns="2">
-    {pane("left")}
-    {pane("right")}
-  </lf-grid>
-</lf-workspace>
+<header><h1>Reading workspace</h1></header>
+<div id="reading-split">
+  {pane("left")}
+  {pane("right")}
+</div>
 """
-    first = leaf_page("Active region continuity", workspace_markup, width="available")
+    split = regions_side_by_side("reading-split")
+    first = leaf_page(
+        "Active region continuity", workspace_markup, head=split, layout="workspace"
+    )
     page = open_page(browser, live_url(serve(first)))
     resized(page, 900, 760)
     right_pane = page.locator("#right-reading")
@@ -3115,6 +3117,7 @@ def test_revision_remembers_the_active_region_when_a_workspace_reflows(browser, 
     revised = leaf_page(
         "Active region continuity",
         "<p>The revision adds context before the workspace.</p>" + workspace_markup,
+        head=split,
     )
     stamp_page(serve.page_dir, revised, "put the workspace in the document")
     wait_for_revision(page, 2)
@@ -3216,16 +3219,16 @@ def test_revision_does_not_move_a_page_offset_into_a_new_bounded_region(browser,
 """
 
     workspace_markup = f"""
-<lf-workspace id="reading-workspace">
-  <lf-grid id="all-panes" columns="2">
-    {pane("active", standing=True)}
-    {pane("second")}
-  </lf-grid>
-</lf-workspace>
+<div id="all-panes">
+  {pane("active", standing=True)}
+  {pane("second")}
+</div>
 """
+    split = regions_side_by_side("all-panes")
     first = leaf_page(
         "Changing offset ownership",
         "<p>Context before the workspace.</p>" + workspace_markup,
+        head=split,
     )
     page = open_page(browser, live_url(serve(first)))
     resized(page, 900, 760)
@@ -3239,7 +3242,7 @@ def test_revision_does_not_move_a_page_offset_into_a_new_bounded_region(browser,
     assert before == 300
 
     revised = leaf_page(
-        "Changing offset ownership", workspace_markup, width="available"
+        "Changing offset ownership", workspace_markup, head=split, layout="workspace"
     )
     stamp_page(serve.page_dir, revised, "make the workspace the page")
     wait_for_revision(page, 2)
@@ -6730,8 +6733,8 @@ def test_a_reply_renders_the_markdown_it_was_written_in(browser, serve):
     expect(body.locator('pre code [data-lf-syn="kw"]').first).to_have_text("def")
     # Tags are text in this dialect, a block of them as much as one in a sentence, so
     # markup shown without a fence keeps the lines it was written in.
-    markup = body.locator("p", has_text='<lf-grid columns="3">')
-    assert markup.inner_text() == '<lf-grid columns="3">\n<div>a tile</div>\n</lf-grid>'
+    markup = body.locator("p", has_text="<lf-callout>")
+    assert markup.inner_text() == "<lf-callout>\n<div>a tile</div>\n</lf-callout>"
     link = body.locator('a[href="https://example.com/notes"]')
     expect(link).to_have_attribute("target", "_blank")
     expect(link).to_have_attribute("rel", re.compile(r"(?:^| )noopener(?: |$)"))
@@ -8638,7 +8641,7 @@ WIDE_TREE_PAGE = leaf_page(
     "A plan on a wide page",
     """
 <h1>The aviary rebuild</h1>
-<lf-grid id="layout" columns="2fr 1fr">
+<div id="layout">
 <section class="panel" id="body">
 <h2>Plan</h2>
 <p id="body-prose">Every goal below is held by one worker, and the lead coordinates
@@ -8652,7 +8655,7 @@ the whole garden from the top of the tree.</p>
 </lf-command>
 </section>
 <section id="aside"><p>Beside the plan.</p></section>
-</lf-grid>
+</div>
 <lf-tasks id="work">
   <lf-task id="t-feeders" status="active">
     <strong>Rebuild the feeders</strong> Two of four mounted.
@@ -8662,7 +8665,8 @@ the whole garden from the top of the tree.</p>
   </lf-task>
 </lf-tasks>
 """,
-    width="available",
+    head=regions_side_by_side("layout", "2fr 1fr"),
+    layout="wide",
 )
 
 

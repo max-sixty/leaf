@@ -2712,10 +2712,15 @@ def test_a_composer_on_one_passage_is_one_box_in_every_tab(browser, serve, one_u
 
     The mirrored value is read for its height as well, because a box that took another
     tab's words and did not grow to them is one whose text is out of sight — the shape
-    of bug a script sizing the box on `input` alone would reintroduce."""
+    of bug a script sizing the box on `input` alone would reintroduce.
+
+    Read in a window whose margin holds the bar beside the passage, so both tabs size
+    one box in one place."""
     url = serve(LONG_PAGE)
     first = open_page(browser, url, context=one_user)
     second = open_page(browser, url, context=one_user)
+    for tab in (first, second):
+        resized(tab, 1440, 900)
 
     height = "ta => Math.round(ta.getBoundingClientRect().height)"
     compose(first, "#p3")

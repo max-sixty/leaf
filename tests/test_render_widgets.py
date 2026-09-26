@@ -91,6 +91,7 @@ from render_harness import (
     panel_settled,
     post_event,
     refuse,
+    regions_side_by_side,
     rendered,
     resized,
     round_trip,
@@ -104,6 +105,11 @@ from render_harness import (
     undo,
     wait_for_revision,
     write,
+)
+
+DRAG_HELD = (
+    "async () => (await window.__lfRuntimeImport("
+    "'/runtime/widget-elements.js')).dragHeld()"
 )
 
 pytestmark = pytest.mark.nightly
@@ -125,9 +131,12 @@ def observe_live_region(page):
 WORKSPACE_PAGE = leaf_page(
     "workspace reading regions",
     """
-<lf-workspace id="review-workspace">
-  <header><h1>Review queue</h1></header>
-  <lf-grid id="review-regions" columns="2">
+  <header>
+    <h1>Review queue</h1>
+    <p>Work through the queue on the left one item at a time, reading each item's
+    evidence and decision on the right before settling it and moving to the next.</p>
+  </header>
+  <div id="review-regions">
     <lf-pane id="queue" label="Items">
       <div>
         <p>Queue start</p>
@@ -142,34 +151,43 @@ WORKSPACE_PAGE = leaf_page(
         <p>Detail end</p>
       </div>
     </lf-pane>
-  </lf-grid>
+  </div>
   <footer>2 items</footer>
-</lf-workspace>
 """,
+    head=regions_side_by_side("review-regions"),
+    layout="workspace",
 )
 
 
 def test_a_root_workspace_bounds_independent_regions_and_flows_when_it_cannot_fit(
     browser, serve
 ):
-    """A page whose only block is a workspace is a wide page with no width declared on
-    main: the workspace stands where it stands on a page that declares one, title
-    included, and takes the window's height below the banner."""
+    """The workspace Layout stands in the wide page's frame, title included, with its
+    lede at the reading measure, and takes the window's height below the banner: each
+    pane's body scrolls on its own. A window too short to hold it hands the scroll to
+    the page."""
     frame = """() => {
-      const box = document.getElementById('review-workspace').getBoundingClientRect();
-      const title = document.querySelector('#review-workspace h1');
-      return [box.left, box.width, getComputedStyle(title).fontSize];
+      const main = document.querySelector('main');
+      const style = getComputedStyle(main);
+      const box = main.getBoundingClientRect();
+      const lede = document.querySelector('main > header > p');
+      return [box.left + parseFloat(style.paddingLeft),
+              box.width - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight),
+              getComputedStyle(document.querySelector('main h1')).fontSize,
+              lede.getBoundingClientRect().width];
     }"""
     declared = open_page(
         browser,
-        serve(WORKSPACE_PAGE.replace("<main>", '<main data-width="available">')),
+        serve(
+            WORKSPACE_PAGE.replace('class="layout-workspace"', 'class="layout-wide"')
+        ),
     )
     resized(declared, 1280, 720)
     wide = declared.evaluate(frame)
     declared.close()
     page = open_page(browser, serve(WORKSPACE_PAGE))
     resized(page, 1280, 720)
-    workspace = page.locator("#review-workspace")
+    workspace = page.locator("main")
     queue_pane = page.locator("#queue")
     queue = page.locator("#queue > :not(header, footer)")
     detail = page.locator("#detail > :not(header, footer)")
@@ -178,6 +196,12 @@ def test_a_root_workspace_bounds_independent_regions_and_flows_when_it_cannot_fi
     holds_the_window(page, workspace, True)
     assert page.evaluate(frame) == wide
     assert wide[1] > 1080, wide
+    column = page.evaluate(
+        "() => parseFloat(getComputedStyle(document.body).getPropertyValue('--col'))"
+    )
+    # The workspace groups what it holds, so its lede keeps the measure every wide
+    # page's text does rather than running the workspace's width.
+    assert wide[3] == column, (wide, column)
     assert page.evaluate("() => document.scrollingElement.scrollTop") == 0
     readings = page.evaluate(
         """() => {
@@ -199,7 +223,7 @@ def test_a_root_workspace_bounds_independent_regions_and_flows_when_it_cannot_fi
     assert detail.evaluate("el => el.scrollTop") == 0
     # A pane that leaves the document and returns registers its body again, so the cue
     # that the body holds more comes back with it.
-    workspace.evaluate(
+    queue_pane.evaluate(
         """owner => {
           const parent = owner.parentNode;
           const next = owner.nextSibling;
@@ -221,8 +245,9 @@ def test_a_root_workspace_bounds_independent_regions_and_flows_when_it_cannot_fi
     )
     expect(queue).to_have_attribute("data-lf-more-below", "")
 
-    # A window too short to hold the regions hands the scroll to the page, and the grid
-    # keeps the columns its width allows: posture decides heights, not placement.
+    # A window too short to hold the regions hands the scroll to the page, and the
+    # page's grid keeps the columns its width allows: the hold decides heights, not
+    # placement.
     resized(page, 1280, 420)
     pane_posture(page, queue_pane, "flow")
     holds_the_window(page, workspace, False)
@@ -243,57 +268,10 @@ def test_a_root_workspace_bounds_independent_regions_and_flows_when_it_cannot_fi
     holds_the_window(page, workspace, True)
 
 
-LONG_REGION = "".join(f"<p>Line {i} of a long region.</p>" for i in range(40))
-STACKING_WORKSPACE_PAGE = leaf_page(
-    "A queue beside its detail",
-    f"""
-<lf-workspace id="stacking-workspace">
-  <header><h1>Escalations</h1></header>
-  <lf-grid id="stacking-regions" columns="1fr 2.4fr">
-    <lf-pane id="stacking-queue" label="Queue"><div>{LONG_REGION}</div></lf-pane>
-    <lf-pane id="stacking-detail" label="Detail"><div>{LONG_REGION}</div></lf-pane>
-  </lf-grid>
-</lf-workspace>
-""",
-)
-
-
-def test_a_workspace_whose_regions_stack_lets_the_page_scroll_them(browser, serve):
-    """Regions that stack are no longer in view together, so the workspace stops holding
-    them in the window's height: each pane takes its natural height and the page
-    scrolls. The control is the same workspace wide enough to set them side by side,
-    where each pane's body scrolls on its own."""
-    page = open_page(browser, serve(STACKING_WORKSPACE_PAGE))
-    grid = page.locator("#stacking-regions")
-    workspace = page.locator("#stacking-workspace")
-    resized(page, 1280, 900)
-    rendered(page)
-    expect(grid).not_to_have_attribute("data-lf-grid-stacked", "")
-    pane_posture(page, page.locator("#stacking-queue"), "bounded")
-    holds_the_window(page, workspace, True)
-
-    resized(page, 820, 900)
-    rendered(page)
-    expect(grid).to_have_attribute("data-lf-grid-stacked", "")
-    for pane in ("#stacking-queue", "#stacking-detail"):
-        pane_posture(page, page.locator(pane), "flow")
-    holds_the_window(page, workspace, False)
-    heights = page.evaluate(
-        """() => ['stacking-queue', 'stacking-detail'].map((id) => {
-          const pane = document.getElementById(id);
-          const body = pane.querySelector(':scope > div');
-          return [pane.getBoundingClientRect().height, body.scrollHeight];
-        })"""
-    )
-    for pane_height, body_height in heights:
-        assert pane_height >= body_height, heights
-
-
 PANE_BAND_PAGE = leaf_page(
     "A pane that opens on its words",
     """
-<lf-workspace id="band-workspace">
-  <lf-grid id="band-regions" columns="1fr 2fr">
+  <div id="band-regions">
     <lf-pane id="band-queue" label="Queue"><ul><li>First ticket</li></ul></lf-pane>
     <lf-pane id="band-detail" label="Detail">
       <div id="band-body">
@@ -305,9 +283,10 @@ PANE_BAND_PAGE = leaf_page(
         <section><h2>Another ticket</h2><p>Its account.</p></section>
       </div>
     </lf-pane>
-  </lf-grid>
-</lf-workspace>
+  </div>
 """,
+    head=regions_side_by_side("band-regions", "1fr 2fr"),
+    layout="workspace",
 )
 
 
@@ -613,157 +592,11 @@ def test_back_to_a_fragment_the_page_has_hidden_since_lands_on_it(browser, serve
     expect(target).to_be_in_viewport()
 
 
-@pytest.mark.parametrize(
-    "with_header", [True, False], ids=["shared-header", "tabs-only"]
-)
-def test_root_tabs_allocate_the_active_workspace_and_preserve_its_pane_scroll(
-    browser, serve, with_header
-):
-    """Hidden workspaces cannot capture the document; active ones fit below its tabs."""
-    source = (
-        ROOT_TABS_PAGE
-        if with_header
-        else re.sub(
-            r"<header>.*?</header>",
-            "",
-            ROOT_TABS_PAGE.read_text(),
-            count=1,
-            flags=re.DOTALL,
-        )
-    )
-    page = open_page(browser, serve(source))
-    resized(page, 1440, 900)
-    tabs = page.locator("#root-tabs")
-    plan = tabs.get_by_role("tab", name="Plan", exact=True)
-    work = tabs.get_by_role("tab", name="Workbench", exact=True)
-    expect(plan).to_have_attribute("aria-selected", "true")
-    assert (
-        page.evaluate("getComputedStyle(document.documentElement).overflowY")
-        != "hidden"
-    )
-    expect(tabs).to_have_css("border-left-width", "0px")
-
-    page.locator("#plan-return").hover()
-    page.mouse.wheel(0, 450)
-    page.wait_for_function("() => document.scrollingElement.scrollTop > 100")
-    scroll_settled(page)
-    plan_read = page.evaluate("scrollY")
-    # Locator.click scrolls this sticky descendant back to its static-flow position.
-    # A user clicks the strip where it is painted.
-    work_box = work.bounding_box()
-    page.mouse.click(
-        work_box["x"] + work_box["width"] / 2,
-        work_box["y"] + work_box["height"] / 2,
-    )
-    queue_pane = page.locator("#queue-pane")
-    pane_posture(page, queue_pane, "bounded")
-    # A bounded workspace is never taller than the room its tab gives it, so the page
-    # can carry a shared header away but cannot scroll the panes themselves out from
-    # under the strip: at the page's furthest scroll the workspace is still whole.
-    furthest = page.evaluate("""() => {
-      const y = scrollY;
-      scrollTo({top: document.scrollingElement.scrollHeight, behavior: 'instant'});
-      const box = selector => document.querySelector(selector).getBoundingClientRect().toJSON();
-      const seen = {strip: box('#root-tabs > .lf-tabstrip'), workspace: box('#workbench'),
-                    height: innerHeight};
-      scrollTo({top: y, behavior: 'instant'});
-      return seen;
-    }""")
-    assert furthest["workspace"]["top"] >= furthest["strip"]["bottom"] - 1, furthest
-    assert furthest["workspace"]["bottom"] <= furthest["height"], furthest
-    scroll_settled(page)
-    geometry = page.evaluate("""() => {
-      const box = selector => document.querySelector(selector).getBoundingClientRect().toJSON();
-      return {strip: box('#root-tabs > .lf-tabstrip'), workspace: box('#workbench'),
-              queue: box('#queue-pane'), detail: box('#detail-pane'), height: innerHeight};
-    }""")
-    assert geometry["workspace"]["top"] >= geometry["strip"]["bottom"] - 1, geometry
-    assert geometry["workspace"]["bottom"] <= geometry["height"], geometry
-    assert geometry["detail"]["left"] >= geometry["queue"]["right"] - 1, geometry
-
-    detail_body = "#detail-pane > :not(header, footer)"
-    detail = page.locator(detail_body)
-    detail.hover()
-    page.mouse.wheel(0, 350)
-    page.wait_for_function(
-        "body => document.querySelector(body).scrollTop > 100", arg=detail_body
-    )
-    scroll_settled(page, scroller=detail_body)
-    detail_scroll = detail.evaluate("element => element.scrollTop")
-    plan_box = plan.bounding_box()
-    page.mouse.click(
-        plan_box["x"] + plan_box["width"] / 2,
-        plan_box["y"] + plan_box["height"] / 2,
-    )
-    expect(plan).to_have_attribute("aria-selected", "true")
-    scroll_settled(page)
-    # The document view reopens where the user left it.
-    assert page.evaluate("scrollY") == pytest.approx(plan_read, abs=2)
-    work_box = work.bounding_box()
-    page.mouse.click(
-        work_box["x"] + work_box["width"] / 2,
-        work_box["y"] + work_box["height"] / 2,
-    )
-    pane_posture(page, queue_pane, "bounded")
-    page.wait_for_function(
-        "([body, expected]) => Math.abs(document.querySelector(body).scrollTop - expected) < 2",
-        arg=[detail_body, detail_scroll],
-    )
-    page.go_back()
-    expect(plan).to_have_attribute("aria-selected", "true")
-    scroll_settled(page)
-    assert page.url.endswith("#plan-tab")
-    page.go_forward()
-    pane_posture(page, queue_pane, "bounded")
-    page.wait_for_function(
-        "([body, expected]) => Math.abs(document.querySelector(body).scrollTop - expected) < 2",
-        arg=[detail_body, detail_scroll],
-    )
-    resized(page, 520, 900)
-    pane_posture(page, queue_pane, "flow")
-    flow = page.evaluate("""() => ({
-      queue: document.querySelector('#queue-pane').getBoundingClientRect().toJSON(),
-      detail: document.querySelector('#detail-pane').getBoundingClientRect().toJSON(),
-      width: document.documentElement.scrollWidth, viewport: innerWidth
-    })""")
-    assert flow["detail"]["top"] >= flow["queue"]["bottom"] - 1, flow
-    assert flow["width"] <= flow["viewport"], flow
-    plan.click()
-    expect(plan).to_have_attribute("aria-selected", "true")
-    work.click()
-    expect(work).to_have_attribute("aria-selected", "true")
-    page.evaluate("scrollTo({top: 550, behavior: 'instant'})")
-    scroll_settled(page)
-    workspace_read = page.evaluate("scrollY")
-    assert workspace_read > 100
-    plan_box = plan.bounding_box()
-    page.mouse.click(
-        plan_box["x"] + plan_box["width"] / 2,
-        plan_box["y"] + plan_box["height"] / 2,
-    )
-    expect(plan).to_have_attribute("aria-selected", "true")
-    scroll_settled(page)
-    work.click()
-    expect(work).to_have_attribute("aria-selected", "true")
-    scroll_settled(page)
-    # A flowing workspace is a view read like any other, and reopens where it was left.
-    assert page.evaluate("scrollY") == pytest.approx(workspace_read, abs=2)
-    resized(page, 1440, 900)
-    pane_posture(page, queue_pane, "bounded")
-
-
 def test_page_tabs_take_the_page_width_and_its_one_left_edge(browser, serve):
     """Page tabs are sections of one page: on a wide page the header, the strip and the
-    open panel share main's left edge and the panel takes main's width, and a sidebar
-    stands beside the tabs as on any page."""
-    source = (
-        ROOT_TABS_PAGE.read_text()
-        .replace("<main>", '<main data-width="available">', 1)
-        .replace(
-            "<header>",
-            '<aside class="sidebar" id="page-contents"><p>Contents</p></aside><header>',
-            1,
-        )
+    open panel share main's left edge and the panel takes main's width."""
+    source = ROOT_TABS_PAGE.read_text().replace(
+        '<main class="layout-column">', '<main class="layout-wide">', 1
     )
     page = open_page(browser, serve(source))
     resized(page, 1440, 900)
@@ -787,8 +620,6 @@ def test_page_tabs_take_the_page_width_and_its_one_left_edge(browser, serve):
             title: box(document.querySelector('main > header h1')),
             strip: box(document.querySelector('#root-tabs > .lf-tabstrip')),
             panel: box(document.querySelector('#root-tabs > lf-tab:not([hidden])')),
-            sidebar: Math.round(
-              document.querySelector('#page-contents').getBoundingClientRect().right),
           };
         }"""
     )
@@ -796,35 +627,6 @@ def test_page_tabs_take_the_page_width_and_its_one_left_edge(browser, serve):
     assert boxes["panel"] == boxes["content"], boxes
     assert boxes["strip"]["left"] == boxes["content"]["left"], boxes
     assert boxes["title"]["left"] == boxes["content"]["left"], boxes
-    assert boxes["sidebar"] <= boxes["panel"]["left"], boxes
-
-
-def test_a_page_tab_workspace_holds_the_window_only_where_the_tabs_end_the_page(
-    browser, serve
-):
-    """A workspace alone in a page tab holds the window when the tab set is main's last
-    block. With a block after the set, the page goes on past it: the workspace flows and
-    the page keeps its closing room."""
-    closing = ROOT_TABS_PAGE.read_text().replace(
-        "</lf-tabs>", '</lf-tabs><p id="after-tabs">Shared closing context.</p>', 1
-    )
-    for source, held in ((ROOT_TABS_PAGE, True), (closing, False)):
-        page = open_page(browser, serve(source))
-        resized(page, 1440, 900)
-        page.locator("#root-tabs").get_by_role(
-            "tab", name="Workbench", exact=True
-        ).click()
-        reading = page.evaluate(
-            """() => ({
-              held: getComputedStyle(
-                document.querySelector('lf-tab:not([hidden]) > lf-workspace')
-              ).containerType === 'size',
-              pad: parseFloat(getComputedStyle(document.querySelector('main'))
-                .paddingBottom),
-            })"""
-        )
-        assert reading["held"] is held, reading
-        assert (reading["pad"] == 0) is held, reading
 
 
 def test_root_tab_targets_remain_global(browser, serve):
@@ -854,14 +656,14 @@ def test_root_tab_targets_remain_global(browser, serve):
     )
     expect(page.locator("#plan-return")).to_be_in_viewport()
     tabs.get_by_role("tab", name="Workbench", exact=True).click()
-    pane_posture(page, page.locator("#queue-pane"), "bounded")
+    pane_posture(page, page.locator("#queue-pane"), "flow")
 
 
 def test_an_ordinary_two_part_ask_retains_document_flow(browser, serve):
     """An Ask in a document is prose and a control, not a workspace's region.
 
-    The control is the same Ask as a root workspace's body, which the workspace makes a
-    grid that hands its height to the answer."""
+    The control is the same Ask as a held workspace's body, which hands its height to
+    the answer."""
     source = SWIPE_PAGE.replace(
         "  <p>Pass removes an item from this design; Keep carries it into implementation.</p>\n",
         "",
@@ -884,53 +686,12 @@ def test_an_ordinary_two_part_ask_retains_document_flow(browser, serve):
     )
     page.close()
 
-    held = (
-        source.replace("<h1>Session-store follow-ups</h1>\n", "")
-        .replace("<main>", '<main data-width="available">')
-        .replace(
-            '<lf-ask id="session-triage-decision">',
-            '<lf-workspace id="triage-workspace"><lf-ask id="session-triage-decision">',
-        )
-        .replace("</lf-ask>", "</lf-ask></lf-workspace>")
+    held = source.replace("<h1>Session-store follow-ups</h1>\n", "").replace(
+        '<main class="layout-column">', '<main class="layout-workspace">'
     )
     page = open_page(browser, serve(held))
     resized(page, 1280, 720)
-    expect(page.locator("#session-triage-decision")).to_have_css("display", "grid")
-
-
-def test_a_direct_embedded_workspace_keeps_the_root_in_document_flow(browser, serve):
-    """A workspace inside another has no window of its own: its panes flow and the page
-    scrolls to their ends. The control is the same pane in the root workspace itself."""
-    embedded = leaf_page(
-        "embedded workspace",
-        """
-<lf-workspace id="outer-workspace">
-  <header><h1>Outer workspace</h1></header>
-  <lf-workspace id="embedded-workspace">
-    <lf-pane id="embedded-pane" label="Long reading">
-      <div><p>Start</p><div style="height: 900px"></div><p id="pane-end">End</p></div>
-    </lf-pane>
-  </lf-workspace>
-</lf-workspace>
-""",
-        width="available",
-    )
-    page = open_page(browser, serve(embedded))
-    resized(page, 1280, 720)
-    pane_posture(page, page.locator("#embedded-pane"), "flow")
-    assert page.evaluate(
-        "document.documentElement.scrollHeight > document.documentElement.clientHeight"
-    )
-    page.locator("#pane-end").scroll_into_view_if_needed()
-    expect(page.locator("#pane-end")).to_be_in_viewport()
-    page.close()
-
-    root = embedded.replace('<lf-workspace id="embedded-workspace">', "").replace(
-        "</lf-pane>\n  </lf-workspace>", "</lf-pane>"
-    )
-    page = open_page(browser, serve(root))
-    resized(page, 1280, 720)
-    pane_posture(page, page.locator("#embedded-pane"), "bounded")
+    expect(page.locator("#session-triage-decision")).to_have_css("display", "flex")
 
 
 def clear_of_the_bottom_chrome(page, selector):
@@ -955,20 +716,37 @@ LONG_PANE = """<lf-pane id="held-pane" label="Long reading"><div>
 </div></lf-pane>"""
 
 
-def test_a_pane_inside_a_plain_section_of_a_root_workspace_flows(browser, serve):
-    """Only a box that passes the height on holds what it contains. A section is a
-    grouping, so a pane in one takes its natural height and the page scrolls it to its
-    end. The control is the same pane as the workspace's body, which the window holds."""
-    sectioned = leaf_page(
-        "a pane in a section",
-        f"""
-<lf-workspace id="held-workspace">
+SECTIONED_PANE_PAGE = leaf_page(
+    "a pane in a section",
+    f"""<div id="cells">
   <section><h2>Section heading</h2>{LONG_PANE}</section>
-</lf-workspace>
+  <section><h2>Beside it</h2><p>A short cell.</p></section>
+</div>""",
+    head=regions_side_by_side("cells"),
+    layout="workspace",
+)
+THREE_PART_ASK_PAGE = leaf_page(
+    "a three-part Ask as the workspace",
+    """
+  <lf-ask id="held-ask">
+    <h2>Which release should go out?</h2>
+    <div id="ask-context" style="height: 900px">The context the user weighs.</div>
+    <lf-options id="held-options" choose>
+      <lf-option id="held-ship">Ship it</lf-option>
+      <lf-option id="held-hold">Hold it</lf-option>
+    </lf-options>
+  </lf-ask>
 """,
-        width="available",
-    )
-    page = open_page(browser, serve(sectioned))
+    layout="workspace",
+)
+
+
+def test_a_pane_inside_a_plain_section_of_a_workspace_flows(browser, serve):
+    """Only a box that passes the height on holds what it contains. A section in the
+    body's grid is a grouping, so a pane in one takes its natural height and the page
+    scrolls it. The control is the same pane as the workspace's body, which the window
+    holds."""
+    page = open_page(browser, serve(SECTIONED_PANE_PAGE))
     resized(page, 1280, 720)
     pane = page.locator("#held-pane")
     pane_posture(page, pane, "flow")
@@ -979,87 +757,71 @@ def test_a_pane_inside_a_plain_section_of_a_root_workspace_flows(browser, serve)
             && leaf.effectiveScroller(node) === document.scrollingElement;
         }"""
     )
-    end = clear_of_the_bottom_chrome(page, "#pane-end")
-    assert end["clear"], end
     page.close()
 
-    direct = leaf_page(
-        "a pane as the workspace body",
-        f'<lf-workspace id="held-workspace">{LONG_PANE}</lf-workspace>',
-        width="available",
-    )
+    direct = leaf_page("a pane as the workspace body", LONG_PANE, layout="workspace")
     page = open_page(browser, serve(direct))
     resized(page, 1280, 720)
     pane_posture(page, page.locator("#held-pane"), "bounded")
-    holds_the_window(page, page.locator("#held-workspace"), True)
+    holds_the_window(page, page.locator("main"), True)
 
 
-def test_an_ask_with_more_than_one_answer_part_flows_in_a_root_workspace(
-    browser, serve
-):
+def test_an_ask_with_more_than_one_answer_part_keeps_each_parts_height(browser, serve):
     """An Ask passes the height on only when it is a heading and one answer, which then
     takes what is left. With context between the heading and the options there is no one
-    box to give it to, so the Ask stays a block, nothing is drawn over the options, and
-    the page scrolls to them. The control is a heading and a playground, which the
-    workspace holds as a grid."""
-    three_part = leaf_page(
-        "a three-part Ask as the workspace",
-        """
-<lf-workspace id="held-workspace">
-  <lf-ask id="held-ask">
-    <h2>Which release should go out?</h2>
-    <div id="ask-context" style="height: 900px">The context the user weighs.</div>
-    <lf-options id="held-options" choose>
-      <lf-option id="held-ship">Ship it</lf-option>
-      <lf-option id="held-hold">Hold it</lf-option>
-    </lf-options>
-  </lf-ask>
-</lf-workspace>
-""",
-        width="available",
-    )
-    page = open_page(browser, serve(three_part))
+    box to give it to, so nothing is drawn over the options and none is squeezed. The
+    control is a heading and a playground, whose answer the workspace holds."""
+    page = open_page(browser, serve(THREE_PART_ASK_PAGE))
     resized(page, 1280, 720)
-    ask = page.locator("#held-ask")
-    expect(ask).to_have_css("display", "block")
     geometry = page.evaluate(
         """() => ({
           context: document.querySelector('#ask-context').getBoundingClientRect().bottom,
-          options: document.querySelector('#held-options').getBoundingClientRect().top,
+          options: document.querySelector('#held-options').getBoundingClientRect(),
         })"""
     )
-    assert geometry["options"] >= geometry["context"] - 1, geometry
-    holds_the_window(page, page.locator("#held-workspace"), False)
+    assert geometry["options"]["top"] >= geometry["context"] - 1, geometry
+    assert geometry["options"]["height"] > 40, geometry
     end = clear_of_the_bottom_chrome(page, "#held-options")
     assert end["clear"], end
     page.close()
 
-    two_part = (
-        PLAYGROUND_PAGE.replace("<h1>Card playground</h1>\n", "")
-        .replace("<main>", '<main data-width="available">')
-        .replace(
-            '<lf-ask id="card-playground-ask">',
-            '<lf-workspace id="held-workspace"><lf-ask id="card-playground-ask">',
-        )
-        .replace("</lf-ask>", "</lf-ask></lf-workspace>")
+    two_part = PLAYGROUND_PAGE.replace("<h1>Card playground</h1>\n", "").replace(
+        '<main class="layout-column">', '<main class="layout-workspace">'
     )
     page = open_page(browser, serve(two_part))
     resized(page, 1280, 720)
-    expect(page.locator("#card-playground-ask")).to_have_css("display", "grid")
+    expect(page.locator("#card-playground-ask")).to_have_css("display", "flex")
     pane_posture(page, page.locator(".lf-playground-controls-region"), "bounded")
-    holds_the_window(page, page.locator("#held-workspace"), True)
+    holds_the_window(page, page.locator("main"), True)
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="A held workspace keeps no end room: a pane in a grid cell that passes no "
+    "height on overflows the window-high main, and its end scrolls under the band; "
+    "TODO.md, Layouts, 'Give a held workspace's overflow its end room'",
+)
+def test_a_held_workspace_that_overflows_scrolls_its_end_clear_of_the_band(
+    browser, serve
+):
+    """Whatever the page scrolls to in a held workspace clears the shortcut band, as a
+    document's last line does."""
+    page = open_page(browser, serve(SECTIONED_PANE_PAGE))
+    resized(page, 1280, 720)
+    end = clear_of_the_bottom_chrome(page, "#pane-end")
+    assert end["clear"], end
 
 
 def test_the_page_end_clears_the_bottom_chrome_around_a_workspace(browser, serve):
-    """A document keeps its end room with a workspace inside it; a root workspace that
-    flows gives its last block that room, and one the window holds does not scroll."""
+    """A document keeps its end room with a pane inside it; a workspace that flows gives
+    its last block that room, and one the window holds does not scroll."""
     document = leaf_page(
-        "a workspace mid-document",
+        "a pane mid-document",
         f"""
-<h1>A document with a workspace</h1>
-<p>Before the workspace.</p>
-<lf-workspace id="held-workspace">{LONG_PANE}</lf-workspace>
-{"<p>After the workspace.</p>" * 30}
+<h1>A document with a pane</h1>
+<p>Before the pane.</p>
+{LONG_PANE}
+{"<p>After the pane.</p>" * 30}
 <p id="document-end">The document's last line.</p>
 """,
     )
@@ -1086,11 +848,7 @@ def test_the_page_end_clears_the_bottom_chrome_around_a_workspace(browser, serve
     assert end["clear"], end
     page.close()
 
-    root = leaf_page(
-        "a root workspace",
-        f'<lf-workspace id="held-workspace">{LONG_PANE}</lf-workspace>',
-        width="available",
-    )
+    root = leaf_page("a workspace", LONG_PANE, layout="workspace")
     page = open_page(browser, serve(root))
     resized(page, 1280, 420)
     pane_posture(page, page.locator("#held-pane"), "flow")
@@ -1099,7 +857,7 @@ def test_the_page_end_clears_the_bottom_chrome_around_a_workspace(browser, serve
 
     resized(page, 1280, 720)
     pane_posture(page, page.locator("#held-pane"), "bounded")
-    holds_the_window(page, page.locator("#held-workspace"), True)
+    holds_the_window(page, page.locator("main"), True)
 
 
 def test_a_comment_in_a_pane_leaves_its_grammar_whole(browser, serve):
@@ -1109,13 +867,11 @@ def test_a_comment_in_a_pane_leaves_its_grammar_whole(browser, serve):
     source = leaf_page(
         "a comment in a pane",
         """
-<lf-workspace id="held-workspace">
   <lf-pane id="held-pane" label="Only a paragraph">
     <p id="only">A paragraph that is the whole body of its pane.</p>
   </lf-pane>
-</lf-workspace>
 """,
-        width="available",
+        layout="workspace",
     )
     page = open_page(browser, serve(source))
     resized(page, 1000, 720)
@@ -1138,28 +894,26 @@ def test_a_comment_in_a_pane_leaves_its_grammar_whole(browser, serve):
 def test_regions_inside_a_bounded_pane_body_flow_within_the_body_that_scrolls(
     browser, serve
 ):
-    """A workspace or pane written inside a bounded pane's body is that body's content:
-    it takes its natural height and the outer body scrolls it, so reading keys and
-    continuity name the box that actually moves. The control is the outer pane, which
-    the same window holds."""
+    """A pane written inside a bounded pane's body is that body's content, loose or in a
+    section: it takes its natural height and the outer body scrolls it, so reading keys
+    and continuity name the box that actually moves. The control is the outer pane,
+    which the same window holds."""
     source = leaf_page(
         "regions inside a pane body",
         """
-<lf-workspace id="outer-workspace">
   <lf-pane id="host" label="Host"><div id="host-body">
     <p>Host start</p>
-    <lf-workspace id="inner-workspace">
+    <section>
       <lf-pane id="inner-pane" label="Inner pane">
         <div><p>Start</p><div style="height: 900px"></div><p>End</p></div>
       </lf-pane>
-    </lf-workspace>
+    </section>
     <lf-pane id="loose-pane" label="Loose pane">
       <div><p>Start</p><div style="height: 900px"></div><p>End</p></div>
     </lf-pane>
   </div></lf-pane>
-</lf-workspace>
 """,
-        width="available",
+        layout="workspace",
     )
     page = open_page(browser, serve(source))
     resized(page, 1280, 720)
@@ -1186,25 +940,32 @@ def test_regions_inside_a_bounded_pane_body_flow_within_the_body_that_scrolls(
 
 
 def test_a_release_page_is_wide_and_keeps_the_log_on_its_newest_line(browser, serve):
-    """A wide page of two tracks: the lede starts at the page's edge and keeps the reading
-    measure, every region of the body shares the body's two edges and every region of
-    the rail the rail's, and the checks table fills its panel. On a narrow window the
-    rail stacks under the body, and the bounded log opens on its newest line. Paper
-    shows the log whole."""
+    """A sidebar page of body and track: the lede starts at the page's edge and keeps
+    the reading measure, every region of the body shares the body's two edges and every
+    region of the track the track's, and the checks table fills its panel. On a narrow
+    window the track stacks under the body, and the bounded log opens on its newest
+    line. Paper shows the log whole."""
     example = Path(__file__).parent.parent / "examples" / "live-progress.html"
     context = browser.new_context(viewport={"width": 1600, "height": 1000})
     page = open_page(browser, live_url(serve(example)), context=context)
     body = ["lp-status", "lp-current-state", "lp-traffic", "lp-log"]
     rail = ["lp-steps", "lp-checks", "lp-release"]
-    ids = [*body, *rail, "lp-layout", "lp-checks-table", "lp-lede"]
-    boxes = f"""() => Object.fromEntries(
-      [...{ids!r}, 'main'].map(id => [id, (document.getElementById(id)
-        ?? document.querySelector(id)).getBoundingClientRect().toJSON()]))"""
+    ids = [*body, *rail, "lp-checks-table", "lp-lede"]
+    boxes = f"""() => {{
+      const read = Object.fromEntries({ids!r}.map(id =>
+        [id, document.getElementById(id).getBoundingClientRect().toJSON()]));
+      const main = document.querySelector('main');
+      const style = getComputedStyle(main);
+      const box = main.getBoundingClientRect();
+      const left = box.left + parseFloat(style.paddingLeft);
+      const right = box.right - parseFloat(style.paddingRight);
+      read.main = {{left, right, width: right - left}};
+      return read;
+    }}"""
 
     wide = page.evaluate(boxes)
     page_box = wide["main"]
     assert page_box["width"] > 1080, "the page should take the room past the wide width"
-    assert wide["lp-layout"]["width"] == pytest.approx(page_box["width"], abs=1)
     assert wide["lp-lede"]["left"] == pytest.approx(page_box["left"], abs=1)
     assert wide["lp-lede"]["width"] <= 720 + 1
     for track in (body, rail):
@@ -1233,233 +994,6 @@ def test_a_release_page_is_wide_and_keeps_the_log_on_its_newest_line(browser, se
 
     page.emulate_media(media="print")
     assert listing.evaluate("pre => getComputedStyle(pre).maxHeight") == "none"
-
-
-GRID_PAGE = leaf_page(
-    "Grid cells are frames",
-    """<h1>Grid</h1>
-<p id="column-prose">The column this page is read at.</p>
-<lf-grid id="wide-one" columns="1" data-width="wide">
-  <section id="one-cell">
-    <p id="cell-prose">A paragraph in a cell wider than the column keeps the reading
-    measure, however much room the cell has, so a line stays one the eye can follow
-    back from its end to the start of the next.</p>
-    <table id="cell-table"><tr><th>Surface</th><td>fills the cell</td></tr></table>
-  </section>
-</lf-grid>
-<lf-grid id="surfaces" columns="1">
-  <pre id="cell-pre">a listing that is itself a cell</pre>
-</lf-grid>
-<lf-grid id="template" columns="1fr 2fr" data-width="wide">
-  <section id="narrow-cell"><p>One part</p></section>
-  <section id="broad-cell">
-    <p>Two parts</p>
-    <lf-grid id="nested"><p id="nested-a">A</p><p id="nested-b">B</p></lf-grid>
-  </section>
-</lf-grid>""",
-)
-
-
-def test_a_grid_cell_is_a_frame_that_holds_text_to_the_measure_and_lets_a_surface_fill(
-    browser, serve
-):
-    """A cell takes the grid's width, not the page's room; text in it keeps the reading
-    measure and a surface fills it. A template's tracks stand as written until its
-    narrowest track would fall below the grid minimum, where each cell takes the row,
-    and a grid nested in a cell takes none of its parent's template."""
-    context = browser.new_context(viewport={"width": 1600, "height": 1000})
-    page = open_page(browser, live_url(serve(GRID_PAGE)), context=context)
-    width = "id => document.getElementById(id).getBoundingClientRect().width"
-    column = page.evaluate(width, "column-prose")
-
-    assert page.evaluate(width, "one-cell") > column + 300
-    assert page.evaluate(width, "cell-prose") == pytest.approx(column, abs=1)
-    assert page.evaluate(width, "cell-table") == page.evaluate(width, "one-cell")
-    assert page.evaluate(width, "cell-pre") == page.evaluate(width, "surfaces")
-
-    narrow, broad = (
-        page.evaluate(width, "narrow-cell"),
-        page.evaluate(width, "broad-cell"),
-    )
-    assert broad == pytest.approx(2 * narrow, abs=2)
-    assert page.evaluate(
-        """() => { const a = document.getElementById('nested-a').getBoundingClientRect();
-          const b = document.getElementById('nested-b').getBoundingClientRect();
-          return a.top === b.top && Math.abs(a.width - b.width) < 1; }"""
-    ), "a nested count grid should lay out equal columns, not its parent's template"
-
-    resized(page, 560, 900)
-    assert page.evaluate(
-        """() => { const a = document.getElementById('narrow-cell').getBoundingClientRect();
-          const b = document.getElementById('broad-cell').getBoundingClientRect();
-          return b.top >= a.bottom && a.width === b.width; }"""
-    )
-
-
-# Templates the `columns` pattern admits, integer and not: two to six tracks, decimals.
-STACKING_TEMPLATES = [
-    "2fr 1fr",
-    "3fr 2fr",
-    "5fr 3fr",
-    "1.5fr 1fr 1fr",
-    "2fr 1fr 1fr 1fr 1fr 1.5fr",
-]
-STACKING_CODE = '<lf-code id="{id}" language="python"><pre>x = 1</pre></lf-code>'
-STACKING_PAGE = leaf_page(
-    "Templates stack at their own width",
-    "<h1>Stacking</h1>"
-    + "".join(
-        f'<div id="holder-{i}" style="font-size: 13px">'
-        f'<lf-grid id="stack-{i}" columns="{template}">'
-        + "".join(f"<p>Cell {j}</p>" for j in range(len(template.split())))
-        + "</lf-grid></div>"
-        for i, template in enumerate(STACKING_TEMPLATES)
-    )
-    + '<div style="font-size: 13px"><lf-grid id="outer" columns="2fr 1fr">'
-    '<lf-grid id="inner" columns="3fr 2fr"><p id="inner-a">A</p><p>B</p></lf-grid>'
-    "<p>Beside</p></lf-grid>"
-    # A cell sized in em, and a widget whose rendered face takes `font: inherit`,
-    # beside the same widget outside any grid.
-    '<lf-grid id="sized" columns="2fr 1fr">'
-    '<p id="em-cell" style="font-size: 0.5em">Half</p>'
-    + STACKING_CODE.format(id="code-cell")
-    + "</lf-grid>"
-    + STACKING_CODE.format(id="code-alone")
-    + "</div>",
-)
-
-
-def test_a_template_stacks_where_its_narrowest_track_would_fall_below_the_grid_min(
-    browser, serve
-):
-    """Each template stacks at its own width: the floor a counted grid's column takes
-    (14rem) for each narrowest track it is wide, plus its gaps. A pixel wider, its tracks
-    stand side by side with the narrowest at the floor or more; a pixel narrower, every
-    cell takes the row. `3fr 2fr` and `5fr 3fr` once stacked at `2fr 1fr`'s width.
-    Stacking touches nothing a cell inherits: a cell sized in em, and a widget that
-    inherits its font, read the type size of what holds the grid."""
-    context = browser.new_context(viewport={"width": 1600, "height": 1000})
-    page = open_page(browser, live_url(serve(STACKING_PAGE)), context=context)
-    shape = """(id) => {
-      const grid = document.getElementById(id);
-      const cells = [...grid.children].map((cell) => cell.getBoundingClientRect());
-      return {
-        oneRow: cells.every((cell) => Math.abs(cell.top - cells[0].top) < 1),
-        stacked: cells.every((cell, i) => i === 0 || cell.top >= cells[i - 1].bottom),
-        narrowest: Math.min(...cells.map((cell) => cell.width)),
-        font: getComputedStyle(grid.children[0]).fontSize,
-      };
-    }"""
-
-    def reading(grid, width):
-        page.evaluate(
-            "([id, width]) => document.getElementById(id).style.width = `${width}px`",
-            [grid, width],
-        )
-        rendered(page)
-        return page.evaluate(shape, grid)
-
-    rem = page.evaluate(
-        "parseFloat(getComputedStyle(document.documentElement).fontSize)"
-    )
-    floor = 14 * rem
-    for i, template in enumerate(STACKING_TEMPLATES):
-        fr = [float(track.removesuffix("fr")) for track in template.split()]
-        stack = floor * sum(fr) / min(fr) + 24 * (len(fr) - 1)
-        wide = reading(f"stack-{i}", stack + 1)
-        assert wide["oneRow"] and wide["narrowest"] >= floor, (template, wide)
-        narrow = reading(f"stack-{i}", stack - 1)
-        assert narrow["stacked"], (template, narrow)
-        assert wide["font"] == narrow["font"] == "13px", template
-
-    reading("outer", 1500)
-    inner = reading("inner", floor * 2.5 + 24 + 1)
-    assert inner["oneRow"] and inner["font"] == "13px", inner
-
-    for width in (1500, 400):
-        reading("sized", width)
-        faces = page.evaluate(
-            """() => Object.fromEntries(['em-cell', 'code-cell', 'code-alone'].map(
-              (id) => [id, getComputedStyle(document.getElementById(id)).fontSize]))"""
-        )
-        assert faces["em-cell"] == "6.5px", faces
-        assert faces["code-cell"] == faces["code-alone"], faces
-
-
-def test_a_body_beside_its_rail_stays_side_by_side_in_a_900px_window(browser, serve):
-    """Pages are read side by side at about 900px: with the margin rail standing, a
-    `1fr 2fr` grid in the page keeps its two tracks rather than stacking."""
-    source = leaf_page(
-        "Side by side at 900px",
-        '<h1>Queue</h1><lf-grid id="beside" columns="1fr 2fr">'
-        "<section><p>Queue</p></section><section><p>Detail</p></section></lf-grid>",
-    )
-    page = open_page(browser, serve(source))
-    resized(page, 900, 800)
-    rendered(page)
-    reading = page.evaluate(
-        """() => {
-          const grid = document.getElementById('beside');
-          const [a, b] = [...grid.children].map((cell) => cell.getBoundingClientRect());
-          return {rail: getComputedStyle(document.querySelector('main'))
-                    .getPropertyValue('--lf-rail-posture').trim(),
-                  width: grid.getBoundingClientRect().width,
-                  beside: Math.abs(a.top - b.top) < 1 && b.left >= a.right};
-        }"""
-    )
-    assert reading["rail"] == "margin", reading
-    assert reading["beside"], reading
-
-
-def test_paper_stacks_a_template_the_screen_sets_side_by_side(browser, serve):
-    """The stacked mark is the screen's reading, and print lays out at the paper's width,
-    which no observer reads, so paper stacks every template. The control is the same
-    grid side by side on screen."""
-    source = leaf_page(
-        "Paper stacks templates",
-        '<h1>Release</h1><lf-grid id="printed" columns="3fr 1fr" data-width="wide">'
-        "<section><p>Body</p></section><section><p>Rail</p></section></lf-grid>",
-    )
-    page = open_page(browser, serve(source))
-    resized(page, 1600, 900)
-    beside = """() => {
-      const [a, b] = [...document.getElementById('printed').children]
-        .map((cell) => cell.getBoundingClientRect());
-      return Math.abs(a.top - b.top) < 1 && b.left >= a.right;
-    }"""
-    assert page.evaluate(beside)
-    page.emulate_media(media="print")
-    assert not page.evaluate(beside)
-
-
-def test_a_grid_in_a_closed_disclosure_opens_already_stacked(browser, serve):
-    """A closed disclosure lays its content out without showing it, so a template in
-    one is judged there and opens stacked, with no frame drawn side by side first."""
-    source = leaf_page(
-        "Stacked before it opens",
-        '<h1>Release</h1><details id="more"><summary>More</summary>'
-        '<lf-grid id="folded" columns="2fr 1fr">'
-        '<p id="folded-a">Body.</p><p id="folded-b">Rail.</p></lf-grid></details>',
-    )
-    page = open_page(browser, serve(source))
-    resized(page, 740, 900)
-    rendered(page)
-    assert page.locator("#folded").evaluate("grid => grid.checkVisibility()") is False
-    frames = page.evaluate(
-        """() => new Promise((resolve) => {
-          const grid = document.getElementById('folded');
-          const seen = [];
-          const read = () => {
-            const [a, b] = [...grid.children].map((cell) => cell.getBoundingClientRect());
-            seen.push(b.top > a.top + 1 ? 'stacked' : 'beside');
-            if (seen.length < 4) requestAnimationFrame(read);
-            else resolve(seen);
-          };
-          document.getElementById('more').open = true;
-          requestAnimationFrame(read);
-        })"""
-    )
-    assert set(frames) == {"stacked"}, frames
 
 
 FEED_PAGE = leaf_page(
@@ -2423,8 +1957,9 @@ def test_table_of_contents_history_is_native_back_and_forward(browser, serve):
     move = navigation.get_by_role("link", name="Move the readers")
     navigation_box = navigation.bounding_box()
     assert navigation_box is not None
+    # At rest the map takes the pointer on its spine alone.
     page.mouse.move(
-        navigation_box["x"] + 20,
+        navigation_box["x"] + 2,
         navigation_box["y"] + navigation_box["height"] / 2,
     )
     expect(move).to_have_css("pointer-events", "auto")
@@ -2549,13 +2084,17 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
         toc_box["y"] + toc_box["height"] - padding, abs=1
     )
 
-    # The dedicated lane, rather than only its visible spine, owns pointer entry. Its
-    # padding keeps the map clear of the banner without opening a dead gap between them.
-    page.mouse.move(500, nav_box["y"] - 8)
-    page.mouse.move(nav_box["x"] + 100, nav_box["y"] - 8, steps=8)
+    # At rest the map takes the pointer on its spine alone, so the words beside it stay
+    # the page's; once entered, the whole map keeps the pointer across its labels and
+    # the padding that keeps it clear of the banner.
+    page.mouse.move(nav_box["x"] + 100, nav_box["y"] + 20)
+    assert not toc.evaluate("node => node.matches(':hover')")
+    page.mouse.move(nav_box["x"] + 2, nav_box["y"] + 20, steps=4)
     assert toc.evaluate("node => node.matches(':hover')")
     expect(prepare).to_have_css("opacity", "1")
     expect(prepare).to_have_css("pointer-events", "auto")
+    page.mouse.move(nav_box["x"] + 100, nav_box["y"] - 8, steps=8)
+    assert toc.evaluate("node => node.matches(':hover')")
     page.mouse.move(nav_box["x"] + 100, toc_box["y"] - 2)
     assert page.evaluate(
         "point => document.elementFromPoint(point.x, point.y)?.closest('.lf-banner') !== null",
@@ -2569,12 +2108,7 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
     assert nav_box["y"] + nav_box["height"] <= line_box["y"] + 1, (
         f"the bottom band stands over the map's foot: map {nav_box}, band {line_box}"
     )
-    prepare_box = page.locator("#prepare").bounding_box()
-    assert prepare_box is not None
     assert nav_box["width"] == pytest.approx(320, abs=1)
-    assert prepare_box["x"] >= nav_box["x"] + nav_box["width"] + 15, (
-        "the contents map's interaction rectangle overlaps the document"
-    )
 
     resized(page, 1800, 900)
     expect(nav).to_have_css("width", "320px")
@@ -2591,7 +2125,6 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
         "x": underlying_box["x"] + 4,
         "y": underlying_box["y"] + underlying_box["height"] / 2,
     }
-    assert underlying_point["x"] >= nav_box["x"] + nav_box["width"] + 15
     assert page.evaluate(
         "point => document.elementFromPoint(point.x, point.y)?.closest('#underlying') !== null",
         underlying_point,
@@ -2745,12 +2278,12 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
     prepare_box = prepare.bounding_box()
     assert prepare_box is not None
     label_point = {"x": prepare_box["x"] + 100, "y": prepare_box["y"] + 4}
-    # A normal right-to-left approach reveals and activates the label in the same
-    # pointer movement. There is no discovery click or dwell time to learn.
+    # Entering at the spine reveals the labels, and the map keeps the pointer as it
+    # moves on to one. There is no discovery click or dwell time to learn.
     page.mouse.move(1200, 700)
     expect(prepare).to_have_css("opacity", "0")
     expect(prepare).to_have_css("pointer-events", "none")
-    page.mouse.move(500, label_point["y"])
+    page.mouse.move(nav_box["x"] + 2, label_point["y"])
     page.mouse.move(label_point["x"], label_point["y"], steps=8)
     assert nav.evaluate("node => node.matches(':hover')")
     assert prepare.evaluate("node => getComputedStyle(node).pointerEvents") == "auto"
@@ -3034,7 +2567,7 @@ def test_the_reading_map_returns_when_a_hidden_sidebar_comes_back(browser, serve
         "hidden sidebar map",
         """
 <style>
-  @container lf-shell (max-width: 1151px) { #route { display: none; } }
+  @container lf-shell (max-width: 847px) { #route { display: none; } }
 </style>
 <h1>Migration plan for the readers already in flight</h1>
 <aside class="sidebar" id="route"><lf-toc id="contents"></lf-toc></aside>
@@ -3065,7 +2598,7 @@ def test_the_reading_map_returns_when_a_hidden_sidebar_comes_back(browser, serve
     laid = rows()
     assert laid >= 3, f"the fixture laid only {laid} map rows to begin with"
 
-    resized(page, 1100, 900)
+    resized(page, 800, 900)
     # Read the hidden posture rather than merely waiting the wrapper out. The page reads
     # it too — the map measures its own track on every reflow, hidden or not — and the
     # reading is what leaves the wrapper repeating it after the box comes back.
@@ -3125,7 +2658,7 @@ def test_a_crowded_document_map_reveals_every_heading_on_one_fitted_scale(
     )
     assert any(abs(shift) > 1 for shift in shifts), shifts
 
-    page.mouse.move(nav_box["x"] + 30, nav_box["y"] + 100)
+    page.mouse.move(nav_box["x"] + 2, nav_box["y"] + 100)
     page.wait_for_function(
         """nav => {
           const links = [...nav.querySelectorAll('.lf-toc-start a, li a')];
@@ -3917,7 +3450,7 @@ def test_notification_playground_sets_regions_side_by_side_while_its_workspace_h
         "sideBySide": True,
         "presetsHeadControls": True,
         "pageScrolls": False,
-        "askDisplay": "grid",
+        "askDisplay": "flex",
         "authoredWords": True,
         "spokenWords": True,
     }
@@ -4522,26 +4055,28 @@ body { font-family: system-ui, sans-serif; }
 </html>
 """
     artifact.write_text(first_artifact, encoding="utf-8")
-    artifact_binding = """              <section id="notification-artifact" hidden>
-                <lf-text-document
-                  id="notification-artifact-source"
-                  source="notification-artifact"
-                  language="html"
-                ></lf-text-document>
-              </section>
+    artifact_binding = """            <section id="notification-artifact" hidden>
+              <lf-text-document
+                id="notification-artifact-source"
+                source="notification-artifact"
+                language="html"
+              ></lf-text-document>
+            </section>
 """
+    # The result is a document: the configuration folds away above the artifact, so
+    # the page leaves the workspace Layout.
     result_source = (
         source.replace(artifact_binding, "")
         .replace(
-            '      <lf-workspace id="notification-workspace">',
-            """      <h1>Review the deployment notification</h1>
+            '    <main class="layout-workspace" id="notification-workspace">',
+            """    <main class="layout-column">
+      <h1>Review the deployment notification</h1>
       <details id="notification-configuration">
-        <summary>Original configuration</summary>
-        <lf-workspace id="notification-workspace">""",
+        <summary>Original configuration</summary>""",
         )
         .replace(
-            "      </lf-workspace>",
-            """        </lf-workspace>
+            "      </lf-ask>\n    </main>",
+            """      </lf-ask>
       </details>
       <section id="notification-artifact">
         <lf-text-document
@@ -4550,10 +4085,14 @@ body { font-family: system-ui, sans-serif; }
           label="deployment-notification.html"
           language="html"
         ></lf-text-document>
-      </section>""",
+      </section>
+    </main>""",
             1,
         )
     )
+    assert "notification-configuration" in result_source
+    assert "layout-workspace" not in result_source
+    assert 'notification-artifact" hidden' not in result_source
     data_model.cmd_data_set(
         serve.page_dir,
         "notification-artifact",
@@ -6002,9 +5541,7 @@ def test_swipe_deck_pointer_threshold_cancel_and_commit(browser, serve):
     card.dispatch_event("pointercancel", {"pointerId": pointer_id})
     expect(page.locator("#session-queue > #swipe-a")).to_have_count(1)
     expect(card).not_to_have_class(re.compile(r"\blf-swipe-dragging\b"))
-    expect(page.locator("#session-triage")).not_to_have_class(
-        re.compile(r"\blf-dragging\b")
-    )
+    assert not page.evaluate(DRAG_HELD), "a cancelled pointer left the drag held"
     assert card.evaluate("el => el.style.getPropertyValue('--lf-swipe-drag-x')") == ""
     page.mouse.up()
 

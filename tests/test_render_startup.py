@@ -96,6 +96,11 @@ from render_harness import (
     write,
 )
 
+DRAG_HELD = (
+    "async () => (await window.__lfRuntimeImport("
+    "'/runtime/widget-elements.js')).dragHeld()"
+)
+
 pytestmark = pytest.mark.nightly
 
 
@@ -707,9 +712,7 @@ def test_a_restored_auxiliary_surface_leaves_the_page_where_it_painted(
             + content
             + "</template></lf-specimen>"
         )
-    url = serve(
-        leaf_page("Restored surface", content, width="available" if wide else None)
-    )
+    url = serve(leaf_page("Restored surface", content, layout="wide" if wide else None))
     context = browser.new_context(viewport={"width": window, "height": 900})
     if contained:
         host = context.new_page()
@@ -1869,7 +1872,7 @@ def test_foreign_state_waits_until_a_live_drag_releases_the_page(browser, serve)
     page.mouse.move(grip["x"] + grip["width"] / 2, grip["y"] + grip["height"] / 2)
     page.mouse.down()
     page.mouse.move(grip["x"] + grip["width"] / 2 + 12, grip["y"] + 12, steps=4)
-    expect(page.locator(".lf-dragging")).to_have_count(1)
+    page.wait_for_function(DRAG_HELD)
 
     append_command(
         serve.page_dir,
@@ -2171,7 +2174,6 @@ def test_a_page_loads_only_the_widget_modules_its_markup_uses(browser, serve):
     assert modules == [
         "/widgets/lf-activity.js",
         "/widgets/lf-board.js",
-        "/widgets/lf-grid.js",
     ], modules
     assert not [p for p in asked if "pierre-diffs" in p], asked
     assert not [p for p in asked if "agentic-mermaid" in p], asked

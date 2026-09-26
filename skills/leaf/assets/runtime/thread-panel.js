@@ -22,7 +22,7 @@ export function createThreadPanelController({
   auxiliarySurfaces,
   elements: { panel, toggleBtn, threadsBox },
   widen,
-  activeInlineThread,
+  threadHere,
   showThread,
   refreshThread,
   closeReactionMode,
@@ -95,7 +95,7 @@ export function createThreadPanelController({
     // the thread where it stands.
     let pressedInlineThread = null;
     toggleBtn.addEventListener("pointerdown", () => {
-      pressedInlineThread = activeInlineThread()?.dataset.thread ?? null;
+      pressedInlineThread = threadHere()?.dataset.thread ?? null;
     });
     toggleBtn.onclick = (event) => {
       const pressed = pressIsKeyboardActivation(event) ? null : pressedInlineThread;
@@ -104,7 +104,7 @@ export function createThreadPanelController({
         setPanel(false);
         return;
       }
-      const inlineThread = pressed ?? activeInlineThread()?.dataset.thread;
+      const inlineThread = pressed ?? threadHere()?.dataset.thread;
       if (inlineThread) showThread(inlineThread, { focus: "thread" });
       else setPanel(true);
     };

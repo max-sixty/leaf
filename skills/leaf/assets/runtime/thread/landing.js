@@ -439,11 +439,14 @@ async function showThreadNow(id, focus, revealThread) {
 // narrowing that hides the thread, and moves the list only as far as shows it. `ids` are
 // the target's threads: one of them already expanded is where the user is on that
 // target, perhaps mid-reply, so it stays; otherwise the first the list shows expands.
-export function accompanyThread(ids) {
-  const shown = ids
+const listedThreads = (ids) =>
+  ids
     .map((id) => listNode(id))
     .filter((node) => node?.matches(".lf-thread") && !node.closest(".lf-going"));
-  const thread = shown.find((node) => node.open) ?? shown[0];
+export const accompaniedThread = (ids) =>
+  listedThreads(ids).find((node) => node.open) ?? null;
+export function accompanyThread(ids) {
+  const thread = accompaniedThread(ids) ?? listedThreads(ids)[0];
   if (!thread) return;
   threadsBox.revealNavigation(thread.dataset.id);
   const room = landingBand(threadsBox);

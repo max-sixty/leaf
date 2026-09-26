@@ -20,13 +20,16 @@ const walkableThreads = (panelIsOpen) =>
   (panelIsOpen() ? threadsBox.navigationThreads() : null) ??
   openThreads({ visibleOnly: panelIsOpen() });
 
-const threadPosition = (activeInlineThread, panelIsOpen) => {
+// The walk's place: the list thread holding focus, or the thread the user is at from
+// its target (`threadHere`), in the list or beside the page.
+const currentThread = (threads, threadHere, panelIsOpen) =>
+  panelIsOpen()
+    ? (closestAcross(document.activeElement, ".lf-thread[data-id]") ?? threadHere())
+    : threads.find((thread) => thread.dataset.id === threadHere()?.dataset.thread);
+
+const threadPosition = (threadHere, panelIsOpen) => {
   const threads = walkableThreads(panelIsOpen);
-  const current = panelIsOpen()
-    ? closestAcross(document.activeElement, ".lf-thread[data-id]")
-    : threads.find(
-        (thread) => thread.dataset.id === activeInlineThread()?.dataset.thread,
-      );
+  const current = currentThread(threads, threadHere, panelIsOpen);
   return listWalkPosition(threads, current, {
     identity: (thread) => thread.dataset.id,
     qualifier: panelIsOpen() && narrowed() ? "shown" : "",
@@ -38,24 +41,16 @@ const threadPosition = (activeInlineThread, panelIsOpen) => {
 // thread with no page destination is indexed only by Threads, so that destination opens the panel.
 // Once the panel is open, the walk stays in its list, in whichever order the list shows.
 // Both paths are clamped, not wrapped.
-function stepThread(
-  dir,
-  { openPageThread, scrollToThread, activeInlineThread },
-  panelIsOpen,
-) {
+function stepThread(dir, { openPageThread, scrollToThread, threadHere }, panelIsOpen) {
   const threads = walkableThreads(panelIsOpen);
-  const inline = activeInlineThread();
-  const current = panelIsOpen()
-    ? document.activeElement?.closest?.(".lf-thread")
-    : threads.find((thread) => thread.dataset.id === inline?.dataset.thread);
+  const current = currentThread(threads, threadHere, panelIsOpen);
   const next = clampedRow(threads, current, dir);
   if (!next) return;
   if (!panelIsOpen()) {
     openPageThread(next.dataset.id, { focus: "thread" });
     announce(
-      beginWalk("thread", "Thread", () =>
-        threadPosition(activeInlineThread, panelIsOpen),
-      ) ?? walkPositionLabel("Thread", threads.indexOf(next) + 1, threads.length),
+      beginWalk("thread", "Thread", () => threadPosition(threadHere, panelIsOpen)) ??
+        walkPositionLabel("Thread", threads.indexOf(next) + 1, threads.length),
     );
     return;
   }
@@ -71,9 +66,8 @@ function stepThread(
   if (standing) next.scrollIntoView({ behavior: scrollBehavior(), block: "nearest" });
   scrollToThread(next.dataset.id, { keep: true });
   announce(
-    beginWalk("thread", "Thread", () =>
-      threadPosition(activeInlineThread, panelIsOpen),
-    ) ?? walkPositionLabel("Thread", threads.indexOf(next) + 1, threads.length),
+    beginWalk("thread", "Thread", () => threadPosition(threadHere, panelIsOpen)) ??
+      walkPositionLabel("Thread", threads.indexOf(next) + 1, threads.length),
   );
 }
 

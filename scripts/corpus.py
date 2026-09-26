@@ -84,11 +84,13 @@ authored page in one document so the browser suite can exercise their combined
 weight and distributed controls. It is a test fixture, not the public examples
 catalog.</p>
 
+<section id="corpus-sources">
 <lf-tabs id="corpus">
 """
 
 FOOT = """\
 </lf-tabs>
+</section>
 </main>
 </body>
 </html>

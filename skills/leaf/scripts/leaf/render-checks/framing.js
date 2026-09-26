@@ -77,8 +77,9 @@ export function trappedMargins() {
     return out;
   };
   // Follow an edge only through boxes whose children's margins can collapse through
-  // them. A formatting context or an inset owns its interior spacing. The shared trim
-  // needs an explicit --lf-passes-block-edge declaration at each box on this path.
+  // them, which is where a margin inside the frame reaches the frame's edge. The shared
+  // trim follows every edge child, so a margin found on this path means the frame
+  // itself has not declared (or something overrides the trim).
   const edgeMargin = (kid, edge, through = []) => {
     if (!kid.node) return null;
     const path = [...through, ...(kid.contents || [])];
@@ -141,6 +142,70 @@ export function trappedMargins() {
             child: leak.child,
             through: leak.through,
             frameDeclared: s.getPropertyValue("--lf-block-frame").trim() === "1",
+            chrome: inChrome(el),
+          });
+      }
+    }
+  return found;
+}
+
+// A box that lays its children out side by side and stands at a frame's edge, where the
+// shared trim took the margin off its edge item but not off the items beside it: the row
+// no longer lines up. The trim follows the edge through whatever stands at it, and a
+// stylesheet cannot ask a box for its display, so a flex or grid box says so itself
+// (`--lf-holds-edge: 1`, theme.css) and this says when one hasn't. Items are in one row
+// when their margin boxes start (or end) on the same line.
+export function splitEdges() {
+  const px = (v) => parseFloat(v) || 0;
+  const found = [];
+  for (const root of openRoots(document))
+    for (const el of root.querySelectorAll("*")) {
+      const s = getComputedStyle(el);
+      if (!s.display.includes("flex") && !s.display.includes("grid")) continue;
+      if (el.closest("[hidden]")) continue;
+      if (s.getPropertyValue("--lf-holds-edge").trim() === "1") continue;
+      const items = [...el.children].filter((child) => {
+        if (child.matches(".lf-ui, [data-lf-gen]")) return false;
+        const c = getComputedStyle(child);
+        return (
+          c.display !== "none" && c.position !== "absolute" && c.position !== "fixed"
+        );
+      });
+      if (items.length < 2) continue;
+      for (const [edge, token, prop, item, line] of [
+        [
+          "above",
+          "--lf-frame-start",
+          "marginBlockStart",
+          items[0],
+          (b, m) => b.top - m,
+        ],
+        [
+          "below",
+          "--lf-frame-end",
+          "marginBlockEnd",
+          items[items.length - 1],
+          (b, m) => b.bottom + m,
+        ],
+      ]) {
+        if (s.getPropertyValue(token).trim() !== "1") continue;
+        const own = px(getComputedStyle(item)[prop]);
+        if (own > 0.5) continue;
+        const at = line(item.getBoundingClientRect(), own);
+        const beside = items
+          .filter((other) => other !== item)
+          .map((other) => {
+            const m = px(getComputedStyle(other)[prop]);
+            return { m, at: line(other.getBoundingClientRect(), m) };
+          })
+          .find(({ m, at: other }) => m > 0.5 && Math.abs(other - at) < 2);
+        if (beside)
+          found.push({
+            tag: el.tagName.toLowerCase(),
+            id: el.id || null,
+            cls: el.classList[0] || null,
+            edge,
+            margin: beside.m,
             chrome: inChrome(el),
           });
       }

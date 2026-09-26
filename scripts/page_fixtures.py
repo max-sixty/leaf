@@ -126,6 +126,18 @@ def prepare_page(
     current_note: str = "Draft as authored",
     earlier_note: str = "Earlier draft",
 ) -> PreparedPage:
+    """Build one page directory from an authored fixture.
+
+    `preview.py`, `site.py`, and the render harness's `serve` all build through
+    here. The current source is written before the data operations, because
+    `leaf data set` validates a source against the page's markup and the current
+    version is the one that has to bind it. Versions are then stamped oldest first,
+    and the seed log goes in after the first stamp and before any later one, so a
+    revised example reads in the order it happened: a version, what the user said
+    about it, then the version that answered. The cursor ends past the seed, since a
+    seed is history: a cursor at zero would hand the next agent session questions
+    the log already answers.
+    """
     selection = package_selection_args(fixture.packages)
     if initialize:
         run_leaf("page", "init", *selection, str(page))

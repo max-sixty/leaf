@@ -83,9 +83,8 @@ support that judgment. Computed styles and geometry explain a visual result; the
 establish that it looks coherent. Test affected paint in both color schemes and in
 print.
 
-Use visual treatments to communicate content hierarchy and state. Avoid rounded
-one-sided borders and reflexive cards, tints, gradients, or soft shadows. Keep
-visual grammar in browser judgment; automate the concrete failures it causes.
+Judge against `skills/leaf/assets/AGENTS.md`, "Layout and motion". Keep visual
+grammar in browser judgment; automate the concrete failures it causes.
 
 ## Reconcile
 

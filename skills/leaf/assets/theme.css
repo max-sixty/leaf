@@ -93,10 +93,9 @@
 
    The shared style query trims the outer margins of the first and last non-generated
    children inside a frame. It ignores `GENERATED` because a positioned pick mark or
-   clipped spoken word must not become the visible content edge. A transparent wrapper
-   that lets a grandchild's margin collapse through it declares
-   `--lf-passes-block-edge: 1` so the frame's trim reaches that grandchild. A wrapper
-   that draws its own inset instead declares its own frame.
+   clipped spoken word must not become the visible content edge. The trim follows the
+   edge down through each first or last child, so a wrapper needs no declaration; a box
+   that draws its own inset declares its own frame and trims its own edge the same way.
 
    Put a layout grant in a selector strong enough to override the withheld base rule.
    A screen rule that refines a base rule by one class of weight spells that weight
@@ -494,25 +493,22 @@ html:not([data-lf-live]) { --lf-banner-h: 0px; --lf-band-h: 0px; }
  * dissolves the specimen's two arrangements into one, its "quoted ·" note being a
  * generated child on a live page and a pseudo-element on a page carrying no script.
  *
- * A transparent wrapper hands its child's margin to the same edge. It declares
- * --lf-passes-block-edge instead of claiming to draw another frame: that would also
- * bound wide content, and a padded grandchild would lose its own interior spacing.
- * Each wrapper on the first or last path passes the token one level further. The
- * render check follows the same collapsible path to report a missing declaration. */
-/* A transparent block can pass a framed edge through to its own first or last
- * authored child. These tokens do not inherit: each step must be an edge child,
- * and its wrapper must explicitly declare that it passes the edge. */
+ * A first or last child can also hand its own children's margins on rather than
+ * reserving room itself: a bare wrapper, through which a grandchild's margin collapses to
+ * the frame's edge unchanged. So the trim follows the edge down: a block the trim reached
+ * marks itself as standing at that edge (--lf-frame-start, --lf-frame-end), and its own
+ * first or last child is trimmed in turn, with no declaration from the wrapper. A box
+ * that draws an inset declares the frame, and the frame trims what it holds the same
+ * way, so following the edge into a drawn box trims nothing the box would keep; a
+ * heading's margin inside an undeclared padded box is the trapped margin this exists to
+ * remove, and `version check --render` says to declare that box's frame. The tokens do
+ * not inherit: each step must itself be an edge child. */
 @property --lf-frame-start {
   syntax: "<integer>";
   inherits: false;
   initial-value: 0;
 }
 @property --lf-frame-end {
-  syntax: "<integer>";
-  inherits: false;
-  initial-value: 0;
-}
-@property --lf-passes-block-edge {
   syntax: "<integer>";
   inherits: false;
   initial-value: 0;
@@ -528,13 +524,13 @@ html:not([data-lf-live]) { --lf-banner-h: 0px; --lf-band-h: 0px; }
   }
   * { --lf-block-frame: 0; }
 }
-@container style(--lf-frame-start: 1) and style(--lf-passes-block-edge: 1) {
+@container style(--lf-frame-start: 1) {
   :nth-child(1 of :not(.lf-ui, [data-lf-gen])) {
     margin-block-start: 0;
     --lf-frame-start: 1;
   }
 }
-@container style(--lf-frame-end: 1) and style(--lf-passes-block-edge: 1) {
+@container style(--lf-frame-end: 1) {
   :nth-last-child(1 of :not(.lf-ui, [data-lf-gen])) {
     margin-block-end: 0;
     --lf-frame-end: 1;

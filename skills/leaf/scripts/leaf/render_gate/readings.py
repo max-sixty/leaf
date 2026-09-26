@@ -367,17 +367,10 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
     for t in {(x["tag"], x["edge"]): x for x in trapped}.values():
         box = f"<{t['tag']}" + (f" class={t['cls']!r}" if t["cls"] else "") + ">"
         path = t.get("through", [])
-        declarations = []
-        if not t["frameDeclared"]:
-            declarations.append("--lf-block-frame: 1 in the rule that draws the frame")
-        if path:
-            declarations.append(
-                "--lf-passes-block-edge: 1 on each transparent wrapper along the edge"
-            )
         remedy = (
-            "Declare " + " and ".join(declarations)
-            if declarations
-            else "Remove the edge margin that overrides the shared trim"
+            "Remove the edge margin that overrides the shared trim"
+            if t["frameDeclared"]
+            else "Declare --lf-block-frame: 1 in the rule that draws the frame"
         )
         found.append(
             f"[{scheme}] {box} draws {t['drawn']:g}px of inset and shows "

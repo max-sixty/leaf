@@ -2306,19 +2306,23 @@ def test_page_fixture_renders(browser, serve, source):
     assert failures == [], "\n".join(failures)
 
 
-def test_frame_edges_pass_only_through_declared_transparent_wrappers(browser, serve):
+def test_frame_edges_pass_through_whatever_stands_at_them(browser, serve):
+    """A frame trims the margin at its edge through every first or last child: a bare
+    section, a boxless one, and a padded grid section alike, with nothing declared on
+    them. A padded box away from any frame's edge keeps its heading's margin inside its
+    inset, and the gate says to declare that box's frame."""
     page = open_page(
         browser,
         serve(
             leaf_page(
                 "Frame edges",
                 """<div id="frame" style="padding:24px;--lf-block-frame:1">
-  <section id="first" style="--lf-passes-block-edge:1">
+  <section id="first">
     <h2 id="opening">Opening</h2>
     <p>First section.</p>
   </section>
   <section id="middle"><h2 id="middle-heading">Middle</h2></section>
-  <section id="last" style="--lf-passes-block-edge:1">
+  <section id="last">
     <p id="closing">Closing.</p>
   </section>
 </div>
@@ -2328,16 +2332,22 @@ def test_frame_edges_pass_only_through_declared_transparent_wrappers(browser, se
   </section>
 </div>
 <div id="contents-frame" style="padding:24px;--lf-block-frame:1">
-  <section style="display:contents;--lf-passes-block-edge:1">
+  <section style="display:contents">
     <h2 id="contents-heading">Boxless section</h2>
   </section>
-</div>""",
+</div>
+<p>Between the frames.</p>
+<div id="padded" style="padding:12px;border:1px solid">
+  <h2 id="padded-heading">Padded, undeclared</h2>
+</div>
+<p>After the padded box.</p>""",
             )
         ),
     )
     margins = page.evaluate(
         """() => Object.fromEntries(
-          ['opening', 'middle-heading', 'closing', 'grid-heading', 'contents-heading'].map(id => {
+          ['opening', 'middle-heading', 'closing', 'grid-heading', 'contents-heading',
+           'padded-heading'].map(id => {
             const s = getComputedStyle(document.getElementById(id));
             return [id, [parseFloat(s.marginBlockStart), parseFloat(s.marginBlockEnd)]];
           }))"""
@@ -2345,27 +2355,25 @@ def test_frame_edges_pass_only_through_declared_transparent_wrappers(browser, se
     assert margins["opening"][0] == 0
     assert margins["middle-heading"][0] > 0
     assert margins["closing"][1] == 0
-    assert margins["grid-heading"][0] > 0
+    assert margins["grid-heading"][0] == 0
     assert margins["contents-heading"][0] == 0
+    assert margins["padded-heading"][0] > 0
+    trapped = render_checks_model.evaluate_probe(page, "trappedMargins")
+    assert not [
+        f for f in trapped if f["id"] in {"frame", "grid-frame", "contents-frame"}
+    ], trapped
+    assert any(
+        f["id"] == "padded" and f["child"] == "h2" and not f["frameDeclared"]
+        for f in trapped
+    ), trapped
+    page.locator("#padded").evaluate(
+        "el => el.style.setProperty('--lf-block-frame', '1')"
+    )
     assert not [
         f
         for f in render_checks_model.evaluate_probe(page, "trappedMargins")
-        if f["id"] == "frame"
+        if f["id"] == "padded"
     ]
-    page.locator("#first").evaluate(
-        "el => el.style.removeProperty('--lf-passes-block-edge')"
-    )
-    assert any(
-        f["id"] == "frame" and f["child"] == "h2" and f["through"] == ["section"]
-        for f in render_checks_model.evaluate_probe(page, "trappedMargins")
-    )
-    page.locator("#contents-frame > section").evaluate(
-        "el => el.style.removeProperty('--lf-passes-block-edge')"
-    )
-    assert any(
-        f["id"] == "contents-frame" and f["through"] == ["section"]
-        for f in render_checks_model.evaluate_probe(page, "trappedMargins")
-    )
 
 
 def test_every_idiom_in_the_catalog_stands_in_a_corpus_source(browser):

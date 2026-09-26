@@ -296,7 +296,7 @@ PANE_BAND_PAGE = leaf_page(
     <lf-pane id="band-queue" label="Queue"><ul><li>First ticket</li></ul></lf-pane>
     <lf-pane id="band-detail" label="Detail">
       <div id="band-body">
-        <section id="band-ticket" style="--lf-passes-block-edge: 1">
+        <section id="band-ticket">
           <p class="eyebrow" id="band-eyebrow">ESC-1 · sev 1</p>
           <h2>The ticket's title</h2>
           <p>What happened.</p>

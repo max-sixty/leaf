@@ -77,8 +77,9 @@ export function trappedMargins() {
     return out;
   };
   // Follow an edge only through boxes whose children's margins can collapse through
-  // them. A formatting context or an inset owns its interior spacing. The shared trim
-  // needs an explicit --lf-passes-block-edge declaration at each box on this path.
+  // them, which is where a margin inside the frame reaches the frame's edge. The shared
+  // trim follows every edge child, so a margin found on this path means the frame
+  // itself has not declared (or something overrides the trim).
   const edgeMargin = (kid, edge, through = []) => {
     if (!kid.node) return null;
     const path = [...through, ...(kid.contents || [])];

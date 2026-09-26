@@ -540,7 +540,9 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     user.keyboard.press("Shift+t")
     threads = user.get_by_role("dialog")
     expect(threads).to_contain_text("Restore Back to releases")
-    expect(threads).not_to_contain_text("Earlier data")
+    expect(threads.locator(".lf-quote")).to_have_attribute(
+        "title", "Jump to this passage"
+    )
 
     review_events = [
         event

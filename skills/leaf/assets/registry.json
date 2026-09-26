@@ -1090,7 +1090,7 @@
       "example": "<details>\n  <summary>The parser drops the slash on self-closed custom tags</summary>\n  <pre><code>document.querySelector(\"lf-metric\").textContent\n// → \"rest of the paragraph\"</code></pre>\n</details>"
     },
     "pre > code[class*=\"language-\"]": {
-      "description": "A literal the user can select and quote: a command to run, a config file, a snippet of output. Name the language to color it — one of $languages, the same list a widget's own language attribute is held to, and `version check` refuses one outside it. Leave the class off where the body isn't source; nothing is guessed from the text. Reach for an annotated code block instead when the block is a walkthrough: numbered lines, highlighted ranges, remarks anchored at a line.",
+      "description": "A literal the user can select and quote: a command to run, a config file, a snippet of output. Name the language to color it — one of $languages, the same list a widget's own language attribute is held to; a language outside it stays uncolored. Leave the class off where the body isn't source; nothing is guessed from the text. Reach for an annotated code block instead when the block is a walkthrough: numbered lines, highlighted ranges, remarks anchored at a line.",
       "example": "<pre><code class=\"language-bash\">leaf version check ~/.local/state/leaf/pages/auth-diagnosis --render</code></pre>"
     }
   }

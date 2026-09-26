@@ -1,4 +1,4 @@
-import { USER_VIEW_RESTORE_CASES, upFrom } from "/runtime/widget-api.js";
+import { USER_VIEW_RESTORE_CASES } from "/runtime/widget-api.js";
 import { validationPresentationReady } from "/runtime/validation.js";
 import { at } from "./locate.js";
 import { openRoots } from "./open-roots.js";
@@ -48,28 +48,6 @@ export function issueNode(node) {
   for (let root = node.getRootNode(); root.host; root = root.host.getRootNode())
     if (formControl(root.host)) owned = false;
   return { at: at(node), owned };
-}
-
-export function unnamedFormFields() {
-  // A form-associated custom element owns the field's identity, including its
-  // shadow implementation and light-DOM choices in a grouped control.
-  const insideControl = (field) => {
-    for (let parent = upFrom(field); parent; parent = upFrom(parent))
-      if (formControl(parent)) return true;
-    return false;
-  };
-  return openRoots(document).flatMap((root) =>
-    [...root.querySelectorAll("*")]
-      .filter((field) => field.matches("input,select,textarea") || formControl(field))
-      .filter((field) => !insideControl(field))
-      .filter((field) => !field.id && !field.getAttribute("name"))
-      .map((field) => ({
-        tag: field.localName,
-        className: field.className,
-        label:
-          field.getAttribute("aria-label") ?? field.getAttribute("placeholder") ?? "",
-      })),
-  );
 }
 
 export function applyRestoreCase(restoreCase) {

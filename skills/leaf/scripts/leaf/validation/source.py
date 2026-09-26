@@ -10,19 +10,12 @@ from leaf.data_contracts import (
     measurement_lag,
     working_data_document_readings,
 )
-from leaf.files import latest_revision
 from leaf.registry.contract import RegistryError
 from leaf.registry.storage import read_page_registry
-from leaf.revision_artifact import (
-    ArtifactError,
-    RevisionArtifact,
-    capture_artifact,
-    read_artifact,
-)
+from leaf.revision_artifact import ArtifactError, RevisionArtifact, capture_artifact
 from leaf.schema import VENDORED_FILES
 from leaf.structure import LF_META, SourceDocument, links_with_rel
 from leaf.styles import (
-    _overwide_elements,
     css_syntax_errors,
     inline_presentation_override_errors,
     inline_style_at,
@@ -34,7 +27,6 @@ from leaf.validation.instances import (
     addressable_instance_errors,
     ask_surface_errors,
     declared_word_errors,
-    language_class_errors,
     layout_errors,
     line_ref_errors,
     reference_errors,
@@ -189,7 +181,6 @@ def _instance_errors(
     errors.extend(
         reference_errors(parser.lf_elements, registry, parser.ids, parser.by_id)
     )
-    errors.extend(language_class_errors(parser.language_blocks, registry))
     errors.extend(declared_word_errors(parser.lf_elements, registry))
     errors.extend(line_ref_errors(parser.lf_elements, registry))
     errors.extend(suggestion_errors(parser.lf_elements, registry, comment_ids))
@@ -208,44 +199,18 @@ def _authored_document_checks(
     if registry is not None:
         errors.extend(data_document_errors(readings, contracts))
     errors.extend(media_errors(document, page_dir))
-    errors.extend(_presentation_errors(page_dir, document))
+    errors.extend(_presentation_errors(document))
     return errors
 
 
-def _presentation_errors(page_dir: Path, parser) -> list[str]:
-    """Validate the page's CSS: its own <style>, each inline style, each vendored
-    sheet the active revision does not already carry, and what the page pins against
-    the column.
-
-    Every sheet the page vendors is checked, not theme.css alone: shadow.css is the
-    one each widget's shadow root adopts, so a malformed rule there reaches a user
-    as an unstyled widget with nothing said about it. A sheet the active revision
-    captured was checked when that revision activated, and the vendored theme is
-    large enough that checking it again would cost more than the rest of the page.
-    """
+def _presentation_errors(parser) -> list[str]:
+    """Validate the page's own CSS: its <style> and each inline style."""
     errors = list(css_syntax_errors(parser.css, "page <style>"))
     for inline in parser.inline_styles:
         errors.extend(
             css_syntax_errors(inline["style"], inline_style_at(inline), block=True)
         )
-    active = latest_revision(page_dir)
-    carried = read_artifact(page_dir, active).resources if active else {}
-    for name in VENDORED_FILES:
-        path = page_dir / name
-        if not name.endswith(".css") or not path.exists():
-            continue
-        data = path.read_bytes()
-        if (held := carried.get("/" + name)) is None or held.data != data:
-            errors.extend(css_syntax_errors(data.decode("utf-8"), name))
-    errors.extend(inline_presentation_override_errors(parser))
-    errors.extend(_overwide_elements(parser, theme_css(page_dir)))
-    return errors
-
-
-def theme_css(page_dir: Path) -> str:
-    """The vendored theme, or nothing where `page init` has not written one."""
-    theme = page_dir / "theme.css"
-    return theme.read_text(encoding="utf-8") if theme.exists() else ""
+    return errors + inline_presentation_override_errors(parser)
 
 
 def _source_advice(

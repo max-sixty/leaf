@@ -1028,7 +1028,7 @@ def test_a_bad_source_save_keeps_the_last_revision_live_and_reports_the_error(
 def test_state_validation_follows_css_edits_and_recovers_cached_readings(
     server, page_dir, monkeypatch
 ):
-    """State reads reuse CSS work, while edits still change syntax and width checks."""
+    """State reads reuse CSS work, while edits still change the syntax check."""
     parsed = []
     parse_stylesheet = tinycss2.parse_stylesheet
 
@@ -1058,15 +1058,6 @@ def test_state_validation_follows_css_edits_and_recovers_cached_readings(
     assert status == 200, body
     assert json.loads(body)["state"]["events"][-1]["text"] == comment["text"]
     assert len(parsed) == parsed_count, "a new event reparsed unchanged CSS"
-
-    theme_path = page_dir / "theme.css"
-    theme = theme_path.read_text()
-    theme_path.write_text(theme.replace("--col: 720px", "--col: 600px"))
-    assert (
-        "column is 600px" in json.loads(fetch(f"{server}/api/state")[1])["source_error"]
-    )
-    theme_path.write_text(theme)
-    assert json.loads(fetch(f"{server}/api/state")[1])["source_error"] is None
 
     path.write_text(source.replace("--probe-width: 700px", "--probe-width  700px"))
     assert (

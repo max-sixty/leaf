@@ -16,6 +16,7 @@
 // below dodges the same rewrite; neither may be spelled the obvious way.
 import { LitElement, html } from "../vendor/browser-runtime.js";
 import { offlineInteractive, pageUrl, runtimeResource } from "./context.js";
+import { handBack } from "./focus.js";
 
 const CANONICAL_MEDIA_ROOT = "/" + "media/";
 const MEDIA_NAME = /^[a-f0-9]{16}\.(?:png|jpe?g|gif|webp|svg)$/;
@@ -114,7 +115,7 @@ const open = (url, alt, from) => {
 };
 mediaViewer.addEventListener("close", () => {
   viewerFace.present(null);
-  if (origin?.isConnected) origin.focus({ preventScroll: true });
+  if (origin) handBack(origin);
   origin = null;
 });
 document.addEventListener("click", (event) => {

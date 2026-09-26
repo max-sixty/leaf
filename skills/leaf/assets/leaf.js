@@ -177,12 +177,12 @@ import {
   declareReading,
   focusDestination,
   releaseFocus,
+  tabStops,
 } from "./runtime/focus.js";
 import { setRuntimeRootAttribute } from "./runtime/root-state.js";
 import { announce, liveEl, notice } from "./runtime/notifications.js";
 import { mediaViewer } from "./runtime/media.js";
 import { offer } from "./runtime/widget-elements.js";
-import { FOCUSABLE } from "./runtime/reach.js";
 
 let app;
 const paintVersionApproval = () =>
@@ -209,7 +209,6 @@ let goToSequence;
 
 const auxiliarySurfaces = createAuxiliarySurfaces({
   chromeRoot,
-  focusable: FOCUSABLE,
   syncLayout: () => layout.syncLayout(),
   afterChange: () => {
     app.margin.renderMargin();
@@ -469,8 +468,8 @@ pageMapDialog = createPageMapDialog({
   activeInMargin: app.margin.pageMapActive,
   activateItem: app.margin.activateMapItem,
   faceFor: app.margin.faceForMap,
+  mapControlPlaces: app.margin.mapControlPlaces,
   targetFor: app.margin.targetFor,
-  focusFallback: app.margin.focusMapControl,
 });
 
 // Ask view is constructed below by its owner factory; all accesses above are inert closures.
@@ -700,7 +699,7 @@ const standing = createStanding({
 
 const skipToChrome = offer("button", "lf-skip", "Skip to Leaf controls");
 skipToChrome.onclick = () => {
-  for (const control of banner.querySelectorAll(FOCUSABLE)) {
+  for (const control of tabStops(banner)) {
     control.focus({ preventScroll: true });
     if (control.matches(":focus")) return;
   }

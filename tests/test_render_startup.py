@@ -96,6 +96,11 @@ from render_harness import (
     write,
 )
 
+DRAG_HELD = (
+    "async () => (await window.__lfRuntimeImport("
+    "'/runtime/widget-elements.js')).dragHeld()"
+)
+
 pytestmark = pytest.mark.nightly
 
 
@@ -1867,7 +1872,7 @@ def test_foreign_state_waits_until_a_live_drag_releases_the_page(browser, serve)
     page.mouse.move(grip["x"] + grip["width"] / 2, grip["y"] + grip["height"] / 2)
     page.mouse.down()
     page.mouse.move(grip["x"] + grip["width"] / 2 + 12, grip["y"] + 12, steps=4)
-    expect(page.locator(".lf-dragging")).to_have_count(1)
+    page.wait_for_function(DRAG_HELD)
 
     append_command(
         serve.page_dir,

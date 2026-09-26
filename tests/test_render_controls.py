@@ -3635,6 +3635,7 @@ def test_covering_threads_keeps_the_user_and_their_work_inside(browser, serve):
     panel_settled(page)
     expect(summary).to_be_focused()
     expect(page.locator(".lf-thread-panel")).to_have_attribute("aria-modal", "true")
+    reading_place()
 
     # The card releases to whole-panel selection, and the press after that closes the
     # sheet.

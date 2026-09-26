@@ -42,11 +42,13 @@ from interact_support import (
     read_page_data,
     record_claim,
     running_http_server,
+    vendored_by_another_leaf,
     wait_for,
 )
 from leaf import cli as cli_model
 from leaf import data as data_model
 from leaf import detached as detached_model
+from leaf import document_reading as document_reading_model
 from leaf import event_log as event_model
 from leaf import events as event_folds_model
 from leaf import files as files_model
@@ -196,6 +198,19 @@ def test_interaction_trace_does_not_change_page_or_presence_readings(page_dir):
     assert served_reading.page_reading(page_dir) != reading
     assert served_reading.source_readings(page_dir)[0] != sources[0]
     assert presence_model._page_stamp(page_dir) != presence_stamp
+
+
+def test_a_staged_write_moves_neither_the_page_nor_its_presence_reading(page_dir):
+    """An atomic write stages its bytes beside the target before the rename, and a
+    look between the two sees a file the page never has. Both readings of the page
+    directory look past it, so the write moves each once, at the rename."""
+    reading = served_reading.page_reading(page_dir)
+    presence_stamp = presence_model._page_stamp(page_dir)
+
+    (page_dir / ".0123456789abcdef.tmp").write_text("{}")
+
+    assert served_reading.page_reading(page_dir) == reading
+    assert presence_model._page_stamp(page_dir) == presence_stamp
 
 
 def test_interaction_trace_does_not_keep_an_unattended_page_active(page_dir):
@@ -2249,15 +2264,94 @@ def test_undo_candidates_keep_only_standing_user_gestures():
         },
     ]
     empty = projection_model.StateProjection({}, {}, {}, {}, {}, frozenset())
+    document = document_reading_model.DocumentReading(
+        None, empty, {}, None, [], {}, {}, {}
+    )
     undo_reading = event_folds_model.UndoReading(
         events, within={}, absorbed=frozenset()
     )
 
     candidates = served_document.browser_undo_candidates(
-        events, empty, empty, undo_reading=undo_reading
+        events, document, empty, undo_reading=undo_reading, stamp=None
     )
 
     assert [candidate["event"]["id"] for candidate in candidates] == ["rx1", "r2"]
+
+
+def test_each_view_offers_only_the_gestures_it_paints(page_dir):
+    """The view's undo list is final: `z` takes its head and a widget filters it.
+
+    A decision carried into a later revision stays undoable there. One that revision
+    restated, one whose widget it dropped, and an approval of another stamp are
+    offered only by the view that still paints them.
+    """
+    old_page = PAGE.replace("<lf-options>", '<lf-options id="picks">').replace(
+        "</section>",
+        '<lf-ask id="kept-decision"><h3>Kept</h3><lf-options id="kept">'
+        '<lf-option id="kept-one">One</lf-option></lf-options></lf-ask>'
+        '<lf-ask id="gone-decision"><h3>Gone</h3><lf-options id="gone">'
+        '<lf-option id="gone-one">One</lf-option></lf-options></lf-ask></section>',
+    )
+    new_page = re.sub(
+        r'<lf-ask id="gone-decision">.*?</lf-ask>', "", old_page, flags=re.DOTALL
+    )
+    documents = {
+        1: structure_model.SourceDocument(old_page),
+        2: structure_model.SourceDocument(new_page),
+    }
+    (page_dir / "index.html").write_text(old_page)
+    publish(page_dir, 1)
+
+    def choose(widget, option):
+        return event_model.append_event(
+            page_dir,
+            {
+                "kind": "action",
+                "author": "user",
+                "revision": 1,
+                "widget": widget,
+                "action": "choose",
+                "detail": {"options": [option]},
+                "meaning": {"scope": "page", "unit": widget, "depends": [widget]},
+            },
+        )
+
+    kept = choose("kept", "kept-one")
+    gone = choose("gone", "gone-one")
+    restated = choose("picks", "flag-first")
+    approval = event_model.append_event(
+        page_dir, {"kind": "done", "author": "user", "version": 1}
+    )
+    # The fold reads revision 2 from `documents`; it is never written to disk, since
+    # the door refuses to activate a revision that drops a standing decision.
+    event_model.append_event(
+        page_dir,
+        {
+            "kind": "note",
+            "author": "agent",
+            "version": 2,
+            "revision": 2,
+            "text": "Rewrote the plan choice.",
+            "restated": ["picks"],
+        },
+    )
+    events = event_model.read_events(page_dir)
+    views = served_browser.browser_state(
+        documents,
+        events,
+        registry_storage.require_registry(page_dir),
+        2,
+        presence_model.presence(page_dir, events),
+        {},
+        {1, 2},
+        event_model.now_iso(),
+    )["views"]
+
+    def offered(revision):
+        return [item["event"]["id"] for item in views[str(revision)]["undo"]]
+
+    assert offered(1) == [approval["id"], restated["id"], gone["id"], kept["id"]]
+    assert offered(2) == [kept["id"]]
 
 
 def test_a_comparison_view_explains_an_unpublished_page(server, page_dir):
@@ -4630,6 +4724,36 @@ def test_server_start_names_the_page_layer_and_running_payload(page_dir):
         server = json.loads(state.output)["server"]
         assert server["runtime"]["path"] == str(schema_model.PLUGIN_ROOT)
         assert server["url"] in started.output
+    finally:
+        stopped = runner.invoke(cli_model.cli, ["server", "stop", str(page_dir)])
+        assert stopped.exit_code == 0, stopped.output
+
+
+def test_a_server_refuses_a_page_another_leaf_vendored_until_it_is_re_vendored(
+    page_dir,
+):
+    """A server speaks the contract of the Leaf that started it, and the page speaks
+    the one its last `page init` copied in. Served across the two, the page breaks in
+    the browser on every read, so the start is refused before it claims the page or
+    records a service, and the refusal names the re-vendor that ends it."""
+    runner = CliRunner()
+    foreign = vendored_by_another_leaf(page_dir)
+
+    refused = runner.invoke(cli_model.cli, ["server", "start", str(page_dir)])
+
+    assert refused.exit_code != 0, refused.output
+    assert foreign in refused.output
+    assert f"leaf page init {page_dir}" in refused.output
+    assert not service_model.claim_path(page_dir).exists()
+    assert files_model.read_json(page_dir / "service.json") is None
+    assert not leases_model.lock_is_held(page_dir / "server.lock")
+
+    reinitialized = runner.invoke(cli_model.cli, ["page", "init", str(page_dir)])
+    assert reinitialized.exit_code == 0, reinitialized.output
+    started = runner.invoke(cli_model.cli, ["server", "start", str(page_dir)])
+    try:
+        assert started.exit_code == 0, started.output
+        assert server_model.running_server(page_dir)
     finally:
         stopped = runner.invoke(cli_model.cli, ["server", "stop", str(page_dir)])
         assert stopped.exit_code == 0, stopped.output

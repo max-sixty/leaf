@@ -1,7 +1,7 @@
 /* The accepted external data and its watchers.
 
    The browser orders data readings by when the server took them, independently of
-   `lastEventSeq`, because overlapping poll and POST responses can order the authorities
+   the log sequence, because overlapping poll and POST responses can order the authorities
    differently. `watchData(widget, input, callback)` delivers a clone of `{source,
    contract, revision, updated, value, origin}`, or `null` while the bound source has no
    readable value. It redelivers only when that source revision changes; overlapping

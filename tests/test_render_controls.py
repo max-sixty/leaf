@@ -3244,7 +3244,7 @@ def test_a_failed_leaves_restore_keeps_application_presentation_pending(
 def test_the_leaves_tray_takes_the_keyboard(browser, serve, live_leaf, one_user):
     """The tray is a list, and a user walks it without reaching for the mouse: g L
     opens it and lands on the first neighbour, up and down step between them and clamp
-    at the ends, Enter opens the focused one in its own tab, and Esc gives that press
+    at the ends, Home and End reach the ends, Enter opens the focused one in its own tab, and Esc gives that press
     back — the user is returned to the reading place they pressed `g L` from, not left
     holding the button that names the tray. The go-to menu names the panel, and the shortcut bar names
     the tray's own keys once focus is inside it — the promise and the press being one
@@ -3254,7 +3254,7 @@ def test_the_leaves_tray_takes_the_keyboard(browser, serve, live_leaf, one_user)
     page = open_page(browser, serve(LONG_PAGE), context=one_user)
     btn = page.locator(".lf-others")
     expect(page.locator(".lf-others-panel")).to_have_attribute(
-        "aria-keyshortcuts", "ArrowUp ArrowDown"
+        "aria-keyshortcuts", "ArrowUp ArrowDown Home End"
     )
     expect(page.locator("a.lf-others-row").first).to_have_attribute(
         "aria-keyshortcuts", "Enter"
@@ -3279,6 +3279,10 @@ def test_the_leaves_tray_takes_the_keyboard(browser, serve, live_leaf, one_user)
     expect(rows.nth(1)).to_be_focused()
     page.keyboard.press("ArrowUp")
     expect(rows.first).to_be_focused()
+    page.keyboard.press("End")
+    expect(rows.nth(1)).to_be_focused()
+    page.keyboard.press("Home")
+    expect(rows.first).to_be_focused()
     # Enter is the browser's own on a link, which is why the row is one.
     page.keyboard.press("ArrowDown")
     destination = rows.nth(1).get_attribute("href")
@@ -3299,6 +3303,8 @@ def test_the_leaves_tray_takes_the_keyboard(browser, serve, live_leaf, one_user)
     expect(help_el).to_contain_text("In the leaves tray")
     expect(help_el).to_contain_text("Previous leaf")
     expect(help_el).to_contain_text("Next leaf")
+    expect(help_el).to_contain_text("First leaf")
+    expect(help_el).to_contain_text("Last leaf")
 
 
 def test_a_page_nobody_has_touched_scrolls_from_the_keyboard(browser, serve):
@@ -4008,6 +4014,12 @@ def test_a_walk_down_the_asks_tray_stops_clear_of_the_shortcut_bar_text(browser,
     expect(rows.first).to_be_focused()
     for _ in range(24):
         page.keyboard.press("ArrowDown")
+    expect(rows.last).to_be_focused()
+    # Home and End are the same walk's ends, and End parks the last row where the
+    # stepping walk did.
+    page.keyboard.press("Home")
+    expect(rows.first).to_be_focused()
+    page.keyboard.press("End")
     expect(rows.last).to_be_focused()
     tray = page.locator(".lf-asks-panel .lf-tray-list")
     assert page.evaluate(

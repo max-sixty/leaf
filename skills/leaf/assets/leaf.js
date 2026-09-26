@@ -78,7 +78,7 @@ import {
 } from "./runtime/thread/landing.js";
 import { createPanelComposer } from "./runtime/thread/panel.js";
 import { focusSurface } from "./runtime/thread/surfaces.js";
-import { focusedThreadOf } from "./runtime/thread/focus.js";
+import { heldThreadId } from "./runtime/thread/focus.js";
 import { mountThreadList } from "./runtime/thread/thread-list.js";
 import {
   mountNarrowing,
@@ -225,6 +225,7 @@ const navigation = createNavigation({
     openPageThread: (...args) => app.margin.openPageThread(...args),
     scrollToThread: (...args) => anchorTravel.scrollToThread(...args),
     threadHere: () => app.margin.threadHere(),
+    threadTarget: (...args) => app.margin.threadTarget(...args),
     inlineThreadView: () => app.margin.inlineThreadView,
   },
 });
@@ -245,13 +246,10 @@ const hintChrome = {
   lineBox: () => shortcutBarEl.getBoundingClientRect(),
   viewportTop: chromeTop,
 };
-const focusedAnchorThreadId = () =>
-  focused()?.closest?.(".lf-page-thread")?.dataset.thread ??
-  focusedThreadOf()?.dataset.id;
 const anchorPaint = createAnchorPaint({
   targetPaint: targetPaintCaps,
   pointer: pointerAt,
-  focusedAnchorThreadId,
+  focusedAnchorThreadId: heldThreadId,
   hoveredPanelThreadId: () => {
     const { x, y } = pointerAt();
     const thread = document.elementFromPoint(x, y)?.closest(".lf-thread");
@@ -458,7 +456,6 @@ declareCovering({
 // The let-go's external readings stand by now, so the scope is declared before anything
 // reads the register.
 declareStanding({
-  askHeld: () => Boolean(asks?.heldAsk()),
   pageState: () =>
     Boolean(
       responseSurface.fabAnchorAt() ||
@@ -482,7 +479,6 @@ asks = createAskView({
   readingBlock,
   focusForNavigation: app.margin.focusForNavigation,
   presentedControl: app.margin.presentedControl,
-  projectionTarget: app.margin.marginTargetAt,
   setPanel: (...args) => threadPanelController.setPanel(...args),
   trip: anchorTravel.trip,
   scrollToElement: anchorTravel.scrollToElement,
@@ -494,7 +490,6 @@ asks = createAskView({
 const standingElement = createStandingElement({
   isAskControl: (node) => node?.matches?.(ASK_CONTROL),
   standingIn: asks.standingIn,
-  projectionTarget: app.margin.marginTargetAt,
 });
 
 panelComposer = createPanelComposer({
@@ -539,6 +534,8 @@ responseSurface = createResponseSurface({
   landIn: landing.landIn,
   setPanel: (...args) => threadPanelController.setPanel(...args),
   threadHere: () => app.margin.threadHere(),
+  threadTarget: (thread) =>
+    app.margin.threadTarget(thread.dataset.thread ?? thread.dataset.id),
   standingElement,
   composerHolds: selectionComposer.composerHolds,
   responseOptionsAreOpen: selectionComposer.responseOptionsAreOpen,
@@ -690,7 +687,7 @@ const standing = createStanding({
       { kind: "ask", target: asks.standingIn() },
       {
         kind: "comment",
-        target: anchorPaint.placedAt(focusedAnchorThreadId())?.element,
+        target: anchorPaint.placedAt(heldThreadId())?.element,
       },
     ]),
   renderShortcutBar: () => renderShortcutBar(goToSequence.goToStatus),

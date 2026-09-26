@@ -21,7 +21,6 @@ and requests another reading at its next deadline; it does not run a second fold
 | pickup transition | a `pickup` event in `events.jsonl` | an unobserved carrier records `queued` when Codex accepts a batch; whichever carrier puts the batch into a turn records `opened` with session and turn identity: a direct `leaf wait --ack` confirmation, the prompt hook re-presenting an acknowledged unanswered move, or an App Server turn start | never; each event/phase/session/turn transition is idempotent |
 | page claim: session, display name, harness, carrier, lifetime | `~/.local/state/leaf/claims/<page>` | `server start` from an agent host; released by the hook when the session exits | `released` is set, or the lifetime it rests on is gone: the pid, the background job's directory, or — for a host that multiplexes every session into one process, where there is no pid to name — the page going untouched for ACTIVITY_GRACE_SECS, which a *visible* tab's `viewed.json` writes keep renewing — a backgrounded tab closes the news stream and stops renewing |
 | service lifetime | `service.json` | `server start` at launch: session, or standing | `leaf server stop`; a session server also retires when no live claim holds it |
-| service restart | `restart.lock` | `hosting.restarting_server`, held from its stop until the holder has started the service again: a `--user` preview's re-vendor | process exit |
 | Codex delivery record | `sessions/<session>.deliveries/` in the state home | the detached adapter or an embedded App Server host | an unaccepted record is inactive while the session owns no page; an accepted record moves under `history/` after every batch is receipted; a record, live or archived, goes at the next scan that finds its pages all gone: its own task's reading, its next archiving, or any Codex adapter's retirement, which scans every task's records and removes a directory it empties |
 | Codex adapter log | `sessions/<session>.codex.log` | the detached adapter's own output, begun afresh by each `leaf codex start` | removed when the adapter retires owning no page; a run that ended any other way leaves it for the next start of that task |
 | Leaf delivery | `<state-home>/deliveries/<id>.json` | any carrier freezes the host-neutral envelope before presenting it | once every page it names is gone, removed when the next delivery is frozen; until then every transport resolves the same immutable id |
@@ -66,8 +65,11 @@ A workflow's `stage` and its `answer` are separate readings. The stage reports
 delivery for every move the user has handed over; the answer, which `workflows.py`
 states, is what the agent owes it: a reply, a version for a thread that asked
 for one, a version whose markup records a user's answer to a page Ask, a request's
-receipt, or null. Every owed answer blocks the Stop hook and `leaf status idle` once
-its move is acknowledged, and only owed answers enter activity counts. A widget move
+receipt, or null. Only owed answers enter activity counts. The Stop hook and
+`leaf status idle` refuse over one set of them, `activity.blocking_obligations`:
+the acknowledged moves nothing else is set to answer. A move still `queued` is
+answered by the later turn that opens it, and a `turn` answer the open turn has
+finished is committed by the claimant's carrier while that carrier is live. A widget move
 that answers no Ask, such as a draft edit or a moved card, owes nothing: its workflow
 reports delivery until its document takes it in — for a page action, until the markup
 records the move or a later version supersedes it; for a move in frozen thread markup,
@@ -289,8 +291,17 @@ Whether a session's end reaches a server is decided at launch and written in
 records the page's claim under the state home's claims directory; a successor arriving
 before the session server's final recheck keeps that process, and one arriving
 afterward finds the process and lease gone and revives the still-enabled service.
-Neither path changes the page's authored work status. A serve from a bare shell claims
+A revival is a start by the Leaf running the wait, so it is refused as any start is
+for a page vendored from another Leaf's runtime (`layer.foreign_runtime`): the wait
+prints the refusal and reads the page as lost, and the service stays enabled until
+`server stop`. Neither path changes the page's authored work status. A serve from a bare shell claims
 nothing, and a claim on a standing page comes and goes without changing its service.
-A disabled service ends a `leaf wait` that has no other live page to carry, since
-nothing will bring it back, except while a restart lease holds it: its holder starts
-the service again, so the wait neither reports it lost nor revives it meanwhile.
+A `leaf wait` revives an enabled service whose process has died, once per death,
+and says on stderr that it did. A page nothing will serve is lost: one with no
+`service.json`, never served, or one whose revival was refused or died again. A
+lost page ends a named wait, and a session's wait once no other live page is
+left to carry, with the `leaf server start` command that serves it. A disabled
+service is not lost, since a stop is the agent's own move and may be followed by
+a start: `page init` stops and restarts a served page's server around a
+re-vendor. The wait neither revives nor ends on it, and goes on watching until
+the page goes idle or changes hands.

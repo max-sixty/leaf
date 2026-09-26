@@ -139,6 +139,7 @@ import { PAGE_PAINT_ATTRIBUTE } from "../presentation.js";
 import { scrollBehavior } from "../motion.js";
 import { ASK_CONTROL, askActionLayer } from "./view-elements.js";
 import { ASK_AT } from "./tray-list.js";
+import { askHolding, declareSide, placeOf, standingPlace } from "../standing-target.js";
 import { availableCommandRoutes } from "../keyboard/dispatch.js";
 import { coveringAuxiliarySurface, pageCommand } from "../keyboard/register.js";
 import { PRESENTATION } from "../presentation.js";
@@ -164,7 +165,6 @@ export function createAskView({
   refreshThread,
   focusForNavigation,
   presentedControl,
-  projectionTarget,
   readingBlock,
   announce,
   repaint,
@@ -380,10 +380,10 @@ export function createAskView({
     return presenter.present();
   }
 
-  // The walk over what the page is waiting on the user for. It wraps at both ends,
-  // because asks are a worklist rather than a document to read through: answering one takes
-  // it out of the list, so forward is the direction that has somewhere to go, and a walk
-  // that clamped there would strand them at the end of it.
+  // The walk over what the page is waiting on the user for, clamped at the first and last
+  // open asks as the thread walk is (askStep). Answering an ask takes it out of the list,
+  // so a press from an answered ask steps from its document position and still reaches an
+  // open one.
   //
   // The tab stop this walk lends an ask that holds nothing to work: such an ask has no box
   // in the tab order and the runtime writes it one — which is paint on the author's element,
@@ -422,40 +422,18 @@ export function createAskView({
     reviewedThrough = null;
     return false;
   }
-  // The ask a tray row stands at, as the id it names, or null where the node is in none.
-  const standsAt = (node) => {
-    const el = node.nodeType === 1 ? node : node.parentElement;
-    return el?.closest(`[${ASK_AT}]`)?.getAttribute(ASK_AT) ?? null;
-  };
-  // A place in the document, stated as the ask it belongs to wherever it belongs to one: a
-  // tray row stands for the ask it names rather than for the tray.
-  function askPlace(node) {
-    const projected = projectionTarget(node);
-    if (projected) return projected;
-    const at = standsAt(node);
-    return (at && elementById(at)) ?? node;
-  }
+  // A tray row stands at the ask it names rather than at the tray.
+  declareSide((node) => {
+    const at = node.closest(`[${ASK_AT}]`)?.getAttribute(ASK_AT);
+    return at ? elementById(at) : null;
+  });
   // Resolve a mechanical standing back to one record from the publisher-owned
-  // inventory. DOM containment says where focus is; it never decides whether the Ask
-  // belongs to that inventory.
-  function askAt(asks, node) {
-    const named = standsAt(node);
-    if (named) {
-      const record = asks.findLast((ask) => ask.id === named);
-      if (record) return record;
-    }
-    const place = askPlace(node);
-    return (
-      asks.findLast((ask) => {
-        const candidate = askNode(ask);
-        return candidate && (candidate === place || under(place, candidate));
-      }) ?? null
-    );
-  }
+  // inventory: the innermost of `asks` holding the place `node` stands at
+  // (standing-target.js). DOM containment says where focus is; it never decides whether
+  // the Ask belongs to that inventory.
+  const askAt = (asks, node) => askHolding(asks, placeOf(node));
   // The ask the user is standing in: the one holding the focus, or the one a control
-  // hoisted into the margin decides. The innermost of them, an ask being able to hold
-  // another (a question inside a suggestion's lf-new) — the list answers in document order,
-  // so the last container in the list is the nearest one.
+  // hoisted into the margin decides, or the one a thread about it holds the focus for.
   //
   // The unanswered asks rather than the user's list, because standing in a question is
   // about where the user is working and not about what they owe. The two part on a widget
@@ -468,9 +446,8 @@ export function createAskView({
   // Asks tray can return the user to it, and standing there restores the same numeric
   // action route so they can revise the recorded answer.
   //
-  // Document focus rather than the inner control, for the reason askPosition gives: a
-  // control staged in a shadow tree retargets to its host, and the host is the place in the
-  // document this wants.
+  // Document focus rather than the inner control: a control staged in a shadow tree
+  // retargets to its host, and the host is the place in the document this wants.
   function standingAsk() {
     const held = documentFocused();
     if (!held || held === document.body) return null;
@@ -489,11 +466,6 @@ export function createAskView({
       : null;
   }
   const standingIn = () => askNode(standingAsk());
-  // Whether the user holds an Ask at all, answered or not: the standing floor's
-  // question, which is where letting go lands rather than which Ask is the walk's. The
-  // same resolution as above, so a control hoisted into the margin holds the Ask it
-  // serves, and an answered Ask keeps its picks a place to stand.
-  const heldAsk = () => Boolean(askAt(allAsks(), documentFocused()));
 
   // The Ask-local action map. A package contributes exact controls through the same
   // command scopes dispatch and Help already consume. Each action receives a contextual
@@ -781,58 +753,21 @@ export function createAskView({
     for (const marked of wearing) marked.setAttribute(PAGE_PAINT_ATTRIBUTE.ask, "1");
     paintActionProjections();
   }
-  // The place a node puts the user in the space this walk measures against, and null where
-  // it puts them outside that space. The chrome stands over the page rather than in it, and
-  // its controls are binding badges the user holds from wherever they are: a user who pressed
-  // the Asks button is standing on it, so measuring from it would send the next press back to
-  // the top. The layer is also appended after the page, so once the walk clamped at its edges
-  // instead of wrapping, taking any of it for a place put the user behind every ask
-  // there is. From a thread in the thread panel, `a` and `A` both landed on the last.
-  //
-  // The route runs through the chrome all the same. A widget frozen into a reply is a
-  // ask the walk visits, collected beside the document's, and a user working its
-  // controls is standing in the ordered space. So what decides it is membership of that
-  // space: the ask a tray row names (askPlace), or the one the
-  // node stands inside. The rest of the layer names none.
-  const walkPlace = (node) => {
-    const place = askPlace(node);
-    if (!inChrome(place)) return place;
-    const holding = askAt(allAsks(), node);
-    return holding ? (askNode(holding) ?? place) : null;
-  };
   // Where the walk measures from: where the user is standing, rather than where the walk
   // last put them. It carried an id of its own, so every walk the user had not made with
   // this key started at the top of the page — select a paragraph and press `d` and you were
   // taken back past everything you had read, and so was anyone scrolled halfway down
-  // pressing it for the first time. Space page travel measures from the scroll position and t/T from the
-  // focused thread; this measured from its own memory, which is the one place the user
-  // isn't.
+  // pressing it for the first time. Space page travel measures from the scroll position and
+  // t/T from where the user stands too; this measured from its own memory, which is the one
+  // place the user isn't.
   //
-  // Read in the order of how directly each says where they are: what they have focused,
-  // what they have selected, where this walk last left off (`landed`), and what they are
-  // reading. Every one of them can be absent, and then the first ask is the only answer
-  // there is.
-  //
-  // Document focus rather than the inner control: a control staged in a shadow tree
-  // retargets to its host, which is exactly what this question wants — a place in the
-  // document to measure the asks against, not the control the register would dispatch to.
-  function askPosition() {
-    const held = documentFocused();
-    if (held && held !== document.body) {
-      const place = walkPlace(held);
-      if (place) return place;
-    }
-    const sel = getSelection();
-    // A caret counts here, where the composer's reading of the selection (pageSelection)
-    // wants words to quote: a click that placed one is the user saying where they are.
-    if (sel?.focusNode) {
-      const place = walkPlace(sel.focusNode);
-      if (place) return place;
-    }
-    // A landing whose element a later version dropped is no place at all, and
-    // compareDocumentPosition against a detached node answers about no document.
-    return (landed?.isConnected ? landed : null) ?? readingBlock();
-  }
+  // Read in the order of how directly each says where they are: where they stand, by focus
+  // or by caret (standing-target.js), where this walk last left off (`landed`), and what
+  // they are reading. Every one of them can be absent, and then the first ask is the only
+  // answer there is. A landing whose element a later version dropped is no place at all,
+  // and compareDocumentPosition against a detached node answers about no document.
+  const askPosition = () =>
+    standingPlace() ?? (landed?.isConnected ? landed : null) ?? readingBlock();
   // The ask `dir` steps to from there, clamped at the first and last open asks.
   // Document position rather than an index into the list, because the user's place is a
   // place and not a row: an ask holding it is the one they are standing on, so it is
@@ -1220,7 +1155,6 @@ export function createAskView({
     buildBulkAnswers,
     syncAsks,
     standingIn,
-    heldAsk,
     captureStanding,
     restoreStanding,
     markHere,

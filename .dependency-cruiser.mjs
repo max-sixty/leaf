@@ -30,7 +30,7 @@ const exactClosures = {
   "margin-entry-model.js": [],
   "margin-model.js": ["margin-entry-model.js"],
   "margin-map-model.js": ["margin-entry-model.js"],
-  "projection/model.js": [],
+  "projection/model.js": ["collapse.js"],
   "projection/state.js": ["semantic-state.js"],
   "thread/model.js": [
     "anchor-coordinate.js",

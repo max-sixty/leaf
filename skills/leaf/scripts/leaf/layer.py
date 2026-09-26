@@ -5,6 +5,7 @@ import json
 import re
 import subprocess
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import NamedTuple
 
@@ -282,10 +283,11 @@ def payload_runtime_fingerprint() -> str:
 
     The kernel is the payload's own directory, so this reads the same from any working
     directory and on any machine, and a page's selected packages cannot move it. That
-    is what the browser gates need: they serve probe modules out of the Leaf running
-    the command and the runtime those modules import out of the page, and a page's
-    recorded layer fingerprint cannot be recomposed away from the project its packages
-    were resolved in. `page init` records this reading under `$layer.runtime`.
+    is what a page's server and the browser gates need: each runs out of the Leaf
+    running the command against the runtime out of the page, and a page's recorded
+    layer fingerprint cannot be recomposed away from the project its packages were
+    resolved in. `page init` records this reading under `$layer.runtime`, and
+    `foreign_runtime` compares the two.
     """
     runtime = ASSETS / "runtime"
     return files_identity(
@@ -297,8 +299,41 @@ def payload_runtime_fingerprint() -> str:
     )
 
 
+def foreign_runtime(page_dir: Path, layer: dict) -> str | None:
+    """Why this Leaf cannot serve a page, given its recorded `$layer`: the page's
+    runtime came from another Leaf. None when the page carries this Leaf's own.
+
+    Whatever serves a page runs the Leaf that started it, while the page's browser
+    runtime is whatever its last `page init` copied in, and the two speak one
+    contract: the state a server sends and the probe modules the render gate serves
+    beside the page's runtime. Served by another Leaf, the page breaks in the
+    browser on every read, in a way that reads as a defect in the page. Every page
+    server, the gate's included, refuses on this one reading (`http.page_endpoint`).
+
+    It compares only the runtime's modules (`payload_runtime_fingerprint`), so a
+    contract change made on the Python side alone passes it. A page vendored before
+    the identity was recorded names none, and is refused too.
+    """
+    vendored = layer.get("runtime")
+    running = payload_runtime_fingerprint()
+    if vendored == running:
+        return None
+    return (
+        f"{page_dir} was vendored from another Leaf's runtime: its layer names "
+        f"{vendored or 'no runtime identity'}, and this Leaf ({PLUGIN_ROOT}) ships "
+        f"{running}. Leaf serves and checks a page only against the runtime it "
+        f"ships, so re-vendor it with `leaf page init {page_dir}`."
+    )
+
+
 def payload_provenance(*, include_path: bool = False) -> dict:
-    """Describe the Leaf payload that is running this command, when its source can."""
+    """Describe the Leaf payload that is running this command, when its source can.
+
+    Beside the commit, one of two dates says how old the payload is: `committed`,
+    the commit's committer date, where Git can read it; or `installed`, when a host
+    copied the payload into its plugin cache without `.git`. Both are ISO 8601 with
+    an offset.
+    """
     provenance = {"path": str(PLUGIN_ROOT)} if include_path else {}
     # Claude Code copies a marketplace plugin without its .git directory into a cache
     # whose final component is the resolved plugin version. Leaf leaves its manifest
@@ -313,7 +348,16 @@ def payload_provenance(*, include_path: bool = False) -> dict:
         and parents[3].name == "plugins"
         and re.fullmatch(r"[0-9a-f]{7,40}", PLUGIN_ROOT.name)
     ):
-        provenance.update(commit=PLUGIN_ROOT.name, dirty=False)
+        # The copy stamps every file with the time it was made, and Leaf never
+        # rewrites its own modules. A host copies only the marketplace's newest
+        # commit, one update sweep after it lands, so this dates the commit to
+        # within that sweep; the commit date itself left with `.git`.
+        installed = datetime.fromtimestamp(Path(__file__).stat().st_mtime, UTC)
+        provenance.update(
+            commit=PLUGIN_ROOT.name,
+            dirty=False,
+            installed=installed.astimezone().isoformat(timespec="seconds"),
+        )
         return provenance
 
     git = ["git", "--no-optional-locks", "-C", str(PLUGIN_ROOT)]
@@ -332,6 +376,12 @@ def payload_provenance(*, include_path: bool = False) -> dict:
     if len(lines) != 2 or Path(lines[0]).resolve() != PLUGIN_ROOT.resolve():
         return provenance
     provenance["commit"] = lines[1]
+    provenance["committed"] = subprocess.run(
+        [*git, "show", "--no-patch", "--format=%cI", "HEAD"],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
     try:
         dirty = subprocess.run(
             [
@@ -352,6 +402,21 @@ def payload_provenance(*, include_path: bool = False) -> dict:
     if dirty.returncode == 0:
         provenance["dirty"] = bool(dirty.stdout)
     return provenance
+
+
+def provenance_label(provenance: dict) -> str:
+    """One line naming a payload's commit and date, as `payload_provenance` read it.
+
+    `+` marks uncommitted changes, as the page banner does.
+    """
+    commit = provenance.get("commit")
+    if not commit:
+        return "unknown source"
+    label = commit + ("+" if provenance.get("dirty") else "")
+    for kind in ("committed", "installed"):
+        if kind in provenance:
+            return f"{label}, {kind} {provenance[kind]}"
+    return label
 
 
 def compose_layer(roots: list[Path]) -> LayerComposition:

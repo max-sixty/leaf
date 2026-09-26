@@ -350,8 +350,7 @@ def _render_scheme(
     # the presentation boundary moving rather than teleporting. Both waits are taken in
     # both schemes, because every reading below has boxes or words in it. The
     # windows open under load alone, which is how one page passed at a desk and
-    # reported words drawn over words under a full suite ("The page finishes
-    # twice", in the layer's own AGENTS.md).
+    # reported words drawn over words under a full suite.
     failed_stage = wait_for_presentation(page, state, applied, settled=True)
     replayed = _projection_was_applied(failed_stage)
     if failed_stage == "dataApplied":

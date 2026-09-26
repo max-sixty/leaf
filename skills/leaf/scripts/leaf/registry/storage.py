@@ -2,10 +2,12 @@
 
 import re
 import sys
+from collections.abc import Collection
+from datetime import datetime
 from functools import lru_cache
 from pathlib import Path
 
-from leaf.files import file_stamp
+from leaf.files import file_stamp, latest_revision, read_json
 
 from .contract import RegistryError, read_registry_declarations
 from .validation import validate_registry
@@ -13,34 +15,32 @@ from .validation import validate_registry
 _registries = {}  # registry.json -> (its stamp, the vocabulary it holds)
 
 
-def read_registry(path: Path):
-    """Read and validate one complete registry vocabulary, once per vendored file.
+def load_registry(page_dir: Path):
+    """The page's complete vendored layer, or None before `page init`.
 
-    `page init` writes a page's registry.json and nothing writes it again, while an
-    action POST asks for the whole vocabulary before it can check a single press —
-    so every press re-linted forty frozen entries, an order of magnitude more work
-    than the contract check it was preparing for."""
+    The layer is `page init`'s own output rather than anything an author writes, so a
+    reader that rejects it wants a re-vendor rather than an edit.
+
+    Validated once per vendored file: `page init` writes a page's registry.json and
+    nothing writes it again, while an action POST asks for the whole vocabulary before
+    it can check a single press — so every press re-linted forty frozen entries, an
+    order of magnitude more work than the contract check it was preparing for."""
+    path = page_dir / "registry.json"
     stamp = file_stamp(path)
     if stamp and (held := _registries.get(path)) and held[0] == stamp:
         return held[1]
-    declarations = read_registry_declarations(path)
-    registry = None if declarations is None else validate_registry(declarations, path)
-    if stamp:
-        _registries[path] = (stamp, registry)
-    return registry
-
-
-def load_registry(page_dir: Path):
-    """The page's complete vendored vocabulary, or None before `page init`.
-
-    The layer is `page init`'s own output rather than anything an author writes, so a
-    reader that rejects it wants a re-vendor rather than an edit."""
     try:
-        return read_registry(page_dir / "registry.json")
+        declarations = read_registry_declarations(path)
+        registry = (
+            None if declarations is None else validate_registry(declarations, path)
+        )
     except RegistryError as error:
         raise RegistryError(
             f"{error}; run `leaf page init {page_dir}` to re-vendor it"
         ) from None
+    if stamp:
+        _registries[path] = (stamp, registry)
+    return registry
 
 
 def read_page_registry(page_dir: Path):
@@ -51,22 +51,15 @@ def read_page_registry(page_dir: Path):
     examining the authored candidate, never an already activated revision.
     """
     page_dir = page_dir.absolute()
-    source = page_dir / "page" / "registry.json"
     widgets = tuple(
-        sorted(
-            (
-                path.relative_to(page_dir).as_posix(),
-                file_stamp(path),
-            )
-            for directory in (page_dir / "widgets", page_dir / "page" / "widgets")
-            for path in directory.glob("lf-*.js")
-            if path.is_file()
-        )
+        (path, file_stamp(page_dir / path))
+        for directory in ("widgets", "page/widgets")
+        for path in widget_paths(page_dir, directory)
     )
     return _read_page_registry_stamped(
         page_dir,
         file_stamp(page_dir / "registry.json"),
-        file_stamp(source),
+        file_stamp(page_dir / "page" / "registry.json"),
         widgets,
     )
 
@@ -79,19 +72,61 @@ def _read_page_registry_stamped(
     widgets: tuple[tuple[str, tuple], ...],
 ):
     """Compose one candidate vocabulary until any input file changes."""
-    from .page import compose_page_registry
-
     layer = load_registry(page_dir)
     if layer is None:
         return None
+    return compose_candidate(page_dir, layer, [path for path, _stamp in widgets])
+
+
+def widget_paths(page_dir: Path, directory: str) -> list[str]:
+    """The widget modules under one of a page's directories, page-root-relative."""
+    return sorted(
+        path.relative_to(page_dir).as_posix()
+        for path in (page_dir / directory).glob("lf-*.js")
+        if path.is_file()
+    )
+
+
+def compose_candidate(page_dir: Path, layer: dict, widgets: Collection[str]):
+    """The candidate's vocabulary: the page's own declarations over `layer`.
+
+    `widgets` are the page-root-relative widget files the candidate can load, the
+    layer's `widgets/` and the page's own `page/widgets/`. `read_page_registry`
+    composes the vendored layer; `page init` composes the layer it is about to
+    vendor, to check a re-vendor before writing it."""
+    from .page import compose_page_registry
+
     source = page_dir / "page" / "registry.json"
-    declarations = read_registry_declarations(source) or {}
     return compose_page_registry(
         layer,
-        declarations,
-        [path for path, _stamp in widgets],
+        read_registry_declarations(source) or {},
+        widgets,
         source=source,
     )
+
+
+def _layer_packages(layer: dict, path: Path) -> list[str]:
+    packages = layer.get("packages", [])
+    if (
+        not isinstance(packages, list)
+        or not all(isinstance(value, str) and value for value in packages)
+        or len(set(packages)) != len(packages)
+    ):
+        raise RegistryError(
+            f"{path}: $layer.packages must be a unique list of non-empty strings"
+        )
+    return packages
+
+
+def layer_packages(page_dir: Path) -> list[str]:
+    """The package selections this page's vendored layer records.
+
+    Read on its own, rather than through `layer_metadata` or the declarations
+    reader, since a re-vendor exists to repair the rest of the file: `page init`
+    reuses the recorded selection when no `--package` is given, so the page it
+    would fix must not refuse it."""
+    path = page_dir / "registry.json"
+    return _layer_packages((read_json(path) or {}).get("$layer", {}), path)
 
 
 def layer_metadata(page_dir: Path) -> dict:
@@ -104,15 +139,7 @@ def layer_metadata(page_dir: Path) -> dict:
         raise RegistryError(
             f"{path}: vendored registry lacks $layer.generation; run `leaf page init`"
         )
-    packages = layer.get("packages", [])
-    if (
-        not isinstance(packages, list)
-        or not all(isinstance(value, str) and value for value in packages)
-        or len(set(packages)) != len(packages)
-    ):
-        raise RegistryError(
-            f"{path}: $layer.packages must be a unique list of non-empty strings"
-        )
+    packages = _layer_packages(layer, path)
     fingerprint = layer.get("fingerprint")
     if not (
         isinstance(fingerprint, str)
@@ -140,9 +167,27 @@ def layer_metadata(page_dir: Path) -> dict:
             )
         if dirty is not None and not isinstance(dirty, bool):
             raise RegistryError(f"{path}: $layer.producer.dirty must be true or false")
+        dates = {
+            kind: producer[kind]
+            for kind in ("committed", "installed")
+            if producer.get(kind) is not None
+        }
+        # An offset is required: without one, each viewer's browser reads the time
+        # in its own zone, and one page shows different ages.
+        for kind, value in dates.items():
+            try:
+                offset = datetime.fromisoformat(value).utcoffset()
+            except (TypeError, ValueError):
+                offset = None
+            if offset is None:
+                raise RegistryError(
+                    f"{path}: $layer.producer.{kind} must be an ISO 8601 date "
+                    "with a timezone offset"
+                )
         producer = {
             **({"commit": commit} if commit is not None else {}),
             **({"dirty": dirty} if dirty is not None else {}),
+            **dates,
         }
     return {
         "generation": generation,
@@ -168,11 +213,20 @@ def require_registry(page_dir: Path) -> dict:
 
 def active_registry(page_dir: Path) -> dict | None:
     """Read semantic commands against the same declarations as the live document."""
-    from leaf.files import latest_revision
-    from leaf.revision_artifact import read_artifact
+    return page_vocabulary(page_dir, latest_revision(page_dir))
 
-    revision = latest_revision(page_dir)
+
+def page_vocabulary(page_dir: Path, revision: int | None) -> dict | None:
+    """The vocabulary one of the page's documents is read in.
+
+    A revision's is the registry its capture froze, which a later re-vendor or page
+    declaration cannot reach. With no revision, the document is the candidate, so its
+    vocabulary is the layer composed with the page's own declarations — the same one
+    the candidate would be captured under. None before `page init`.
+    """
     if revision is not None:
-        return read_artifact(page_dir, revision).registry
+        from leaf.revision_artifact import read_registry
+
+        return read_registry(page_dir, revision)
     candidate = read_page_registry(page_dir)
     return candidate.registry if candidate is not None else None

@@ -4,7 +4,7 @@ import sys
 from pathlib import Path
 
 from .asks import quoted_in
-from .events import awaits_agent, build_threads, note_settlements, spoken_turns
+from .events import build_threads, note_settlements, unanswered_agent_turn
 from .files import latest_revision
 from .passages import enclosing_of, page_passages
 from .projection import (
@@ -138,12 +138,8 @@ def work_subject(page_dir: Path, events: list, target: str) -> dict:
             "subject": {"kind": "thread", "id": target},
             "after": events[-1]["seq"] if events else 0,
         }
-        if awaits_agent(thread):
-            work["event"] = next(
-                message["id"]
-                for message in reversed(spoken_turns(thread))
-                if message["author"] != "agent"
-            )
+        if address := unanswered_agent_turn(thread):
+            work["event"] = address["id"]
         return work
     if widget is not None:
         assert (

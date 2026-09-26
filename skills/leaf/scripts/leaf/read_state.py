@@ -6,11 +6,20 @@ log holds evidence the user took it in. Two kinds of evidence count:
 
 - a `read` event naming that exact version, which the browser posts when the version
   has been shown to the user or when they mark its thread read;
-- a user move in the version's thread logged after the version: a reply or reaction,
-  a resolve or reopen, or an action or request on a widget a message of that thread
-  carries. A move the user took back with `undo` is no evidence, as it is none
-  for every other fold over the standing log. Answering, resolving and replying are all things a user does with what
-  the thread says, so each implies they have read it as it then stood.
+- a user move made in the version's thread and logged after the version, which is
+  the thread the move names (`thread_context.event_threads`): a reply or reaction,
+  a resolve or reopen, an action or request on a widget a message of that thread
+  carries, and an action whose admitted answer closes the thread, such as accepting
+  the page suggestion it asked for. Answering, resolving and replying are all things
+  a user does with what the thread says, so each implies they have read it as it
+  then stood.
+
+Only the thread a move names counts. Delivery also files a move under threads it
+changes without naming them (`thread_context.thread_memberships`): a later decision
+on a suggestion that had answered a thread, or the `undo` of an answer. Neither
+shows the user what the thread says, so neither is evidence here. A move the user
+took back is no evidence either, as it is none for every other fold over the
+standing log.
 
 An edit is a new version logged after every earlier move, so it reads as unread again
 until fresh evidence arrives. A summary does not mark read what it covers. Unread is
@@ -20,6 +29,7 @@ an Ask, and answering one does mark it read.
 
 from .events import taken_back
 from .schema import MESSAGE_KINDS
+from .thread_context import event_threads
 
 
 def user_message_content(event: dict) -> bool:
@@ -67,19 +77,13 @@ def read_contract_error(event: dict, events: list[dict]) -> str | None:
 
 
 def unread_content(
-    events: list[dict], threads: dict, thread_by_widget: dict[str, str]
+    events: list[dict], threads: dict, roots: dict, widgets: dict
 ) -> dict[str, list[dict]]:
     """Each thread's agent content versions the user has not taken in, in log order.
 
-    `threads` is the `build_threads` fold keyed by root id; `thread_by_widget` maps a
-    widget carried in a thread message to that thread's root.
+    `threads` is the `build_threads` fold keyed by root id; `roots` and `widgets`
+    are `thread_context.thread_roots` and `thread_widgets` over the same log.
     """
-    # A thread's root id names it even when the log lost the opening message.
-    thread_of_message = {root: root for root in threads} | {
-        message["id"]: root
-        for root, thread in threads.items()
-        for message in thread["msgs"]
-    }
     marked = set()
     latest_move: dict[str, int] = {}
     withdrawn = taken_back(events)
@@ -91,13 +95,7 @@ def unread_content(
             continue
         if event["author"] != "user" or event["id"] in withdrawn:
             continue
-        if event["kind"] in {"reply", "resolve", "unresolve"}:
-            root = thread_of_message.get(event["parent"])
-        elif event["kind"] in {"action", "request"}:
-            root = thread_by_widget.get(event["widget"])
-        else:
-            continue
-        if root is not None:
+        for root in event_threads(event, roots, widgets):
             latest_move[root] = event["seq"]
     unread = {}
     for root, thread in threads.items():

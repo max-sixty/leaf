@@ -2534,7 +2534,11 @@ def test_the_panel_reads_the_thread_in_the_pages_own_order(browser, serve):
     expect(page.locator(f'.lf-thread[data-id="{lede}"] textarea')).to_have_attribute(
         "placeholder", "Reply"
     )
-    page.locator("body").click()
+    # From no place on the page the walk starts at the list's first thread; a caret a
+    # click leaves is a place, as it is for `a`.
+    page.evaluate(
+        "() => { document.activeElement?.blur(); getSelection().removeAllRanges(); }"
+    )
     page.keyboard.press("t")
     expect(
         page.locator(f'.lf-thread[data-id="{lede}"] > .lf-thread-summary')
@@ -2631,9 +2635,13 @@ def test_recent_order_lists_threads_by_their_latest_message(browser, serve):
     ]
 
     # The page's walk is the page's order whatever the panel shows.
+    # From no place on the page, which is where the walk starts from its first thread:
+    # a caret a click leaves is a place, as it is for `a`.
     order.get_by_role("button", name="Recent").click()
     page.locator(".lf-threads-toggle").click()
-    page.locator("body").click()
+    page.evaluate(
+        "() => { document.activeElement?.blur(); getSelection().removeAllRanges(); }"
+    )
     page.keyboard.press("t")
     page.wait_for_function("() => document.activeElement?.closest('[data-thread]')")
     assert (

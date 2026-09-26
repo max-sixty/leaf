@@ -4,10 +4,7 @@
    This module combines those values without consulting the DOM, registry, runtime
    state, or delivery state. Authored snapshots have the same shape captured by
    projection/authored.js: a map from widget id to `{state, specs}`. */
-
-// Keep this spelling aligned with passages.js's cross-runtime whitespace reading.
-const COLLAPSE =
-  /[\t\n\v\f\r \u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000\ufeff]+/g;
+import { COLLAPSE } from "../collapse.js";
 
 export function foldedValue(event, record) {
   const value = event.detail[record.value];

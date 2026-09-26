@@ -333,22 +333,23 @@ test("agent availability is an episode, not a work-stage notice", () => {
   );
 });
 
-test("the adapter selects the active server document for page obligations", () => {
-  const current = reading({ pageAsks: [ask("current")] });
+test("page obligations come from the shown revision, not a waiting activation", () => {
+  const shown = reading({ pageAsks: [ask("shown")] });
+  const waiting = reading({ pageAsks: [ask("waiting")] });
   const selected = semanticNewsReading({
-    active: { revision: 2 },
-    browser: {
-      views: {
-        1: { document: reading({ pageAsks: [ask("historical")] }).page },
-        2: { document: current.page },
+    effective: { view: { document: shown.page } },
+    authoritative: {
+      active: { revision: 2 },
+      browser: {
+        views: { 1: { document: shown.page }, 2: { document: waiting.page } },
+        thread: shown.thread,
+        request_outcomes: [],
       },
-      thread: current.thread,
-      request_outcomes: [],
+      workflows: [],
+      activity: shown.activity,
     },
-    workflows: [],
-    activity: current.activity,
   });
-  assert.deepEqual([...selected.page.asks.user], [ask("current")]);
+  assert.deepEqual([...selected.page.asks.user], [ask("shown")]);
 });
 
 test("one producer notice states a reply and new obligation as separate facts", () => {

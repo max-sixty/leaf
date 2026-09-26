@@ -81,7 +81,7 @@ export const runtime = {
     return readApplication().authoritative?.events ?? [];
   },
   get lastEventSeq() {
-    return readApplication().authoritative?.browser.basis.through_seq ?? -1;
+    return readApplication().authoritative?.browser.basis.through_seq ?? null;
   },
   // A chrome placement is moving a box the user may be standing in, so the focus it
   // takes off and hands straight back is the layer's own, not the user going
@@ -107,8 +107,9 @@ export const runtime = {
   get workflows() {
     return readApplication().effective.workflows;
   },
+  // The shown revision's server view, less its basis, as the publisher resolved it.
   get view() {
-    return runtime.browser?.views[String(runtime.currentRevision)] ?? null;
+    return readApplication().effective.view;
   },
 };
 

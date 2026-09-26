@@ -19,7 +19,7 @@
    remains with each surface. For example, a key badge may share type, border, and
    color while a reply box and an option reserve and position it differently.
 
-   Typography follows Data projections. An authored `lf-note` inside `lf-code` takes
+   An authored `lf-note` inside `lf-code` takes
    `--sans` because the module presents it as a review row inside evidence; its words
    remain selectable page prose. `.lf-ui` also reads `--sans`. Form-control normalization
    lives in the `lf-reset` cascade layer so an unlayered semantic type choice can override

@@ -1359,6 +1359,25 @@ def test_report_validation_and_append_cannot_straddle_revendoring(
     assert "x-state" in json.loads((page_dir / "registry.json").read_text())["lf-task"]
 
 
+def test_a_bare_re_vendor_replaces_a_broken_vendored_registry(page_dir):
+    """Re-vendoring is the remedy for a broken vendored layer, so the selection a bare
+    `page init` repeats is read on its own: a malformed entry or a missing layer
+    generation is replaced rather than refused."""
+    path = page_dir / "registry.json"
+    registry = json.loads(path.read_text())
+    selection = registry["$layer"]["packages"]
+    registry["lf-corrupt"] = "broken"
+    del registry["$layer"]["generation"]
+    path.write_text(json.dumps(registry))
+
+    vendoring_model.cmd_init(page_dir)
+
+    revendored = json.loads(path.read_text())
+    assert "lf-corrupt" not in revendored
+    assert revendored["$layer"]["packages"] == selection
+    assert registry_storage.layer_metadata(page_dir)["generation"]
+
+
 def test_a_preview_holds_one_contract_until_it_closes(page_dir, monkeypatch):
     before = registry_storage.layer_generation(page_dir)
     init_waiting = threading.Event()

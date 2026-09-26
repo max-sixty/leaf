@@ -18,7 +18,7 @@ sequence (Startup and presentation, below). It exports no capability and no owne
 imports it back. The HTTP boundary places the vendored
 `runtime/bootstrap.js` before loadable resources, carrying the delivery's CSP nonce; it can
 show startup failure and hear a replacement server even if the module graph or
-stylesheet never loads. A delivery carrying a site release also uses that bootstrap
+stylesheet never loads, and it holds the page keys pressed before presentation (below). A delivery carrying a site release also uses that bootstrap
 to send one content-free startup profile after presentation, failure, timeout, or
 navigation away; ordinary Leaf servers carry no release and emit no telemetry.
 `runtime/widget-api.js` is the one public
@@ -56,7 +56,7 @@ relative to `runtime/` unless stated otherwise.
 | Chrome assembly and available room | `chrome.js`, `chrome-layout.js`, `auxiliary-surfaces.js`, `drawn-edge.js` |
 | Reading regions and scrolling | `reading-regions.js`, `reading-place.js`, `bounds.js`, `scrolling.js`, `reach.js`, `user-place.js` |
 | Keyboard commands and their projections | `keyboard/AGENTS.md` |
-| Focus and navigation | `focus.js`, `navigation.js`, `history.js`, `user-intent.js`, `walk-position.js` |
+| Focus and navigation | `focus.js`, `standing-target.js`, `navigation.js`, `history.js`, `user-intent.js`, `walk-position.js` |
 | Asks | `asks/view.js`, `asks/view-elements.js`, `asks/model.js` |
 | Comment capture and entry | `composing/`, `drafts.js`, `media.js` |
 | Threads and reply surfaces | `thread/`, `thread-panel.js` |
@@ -229,7 +229,17 @@ Authored HTML paints immediately on every page. The prepaint bootstrap marks the
 and the shortcut band, so mounting the runtime does not move the document. A restored
 auxiliary surface stands over the page and reserves nothing.
 Prose, ordinary links, scrolling, and layout remain usable while widgets upgrade and the
-first state read is pending.
+first state read is pending. Page keys wait: a command such as `t` reads state the first
+answer brings, so dispatching one earlier acts on an empty page. The bootstrap therefore
+holds a run of printed keys from first parse: an unmodified printed key pressed on the
+page starts the run, every printed key after it joins, and the held keys are shown after a
+beat. At `lf-presentation` the keyboard controller takes the run and works through it in
+order, a frame apart: a key whose turn comes in a text box an earlier key opened is typed
+into it, and any other is pressed through the controller's own handler. A printed key
+pressed meanwhile joins the run until it is empty. Any other key, a Ctrl, Alt or Meta chord
+included, or a pointer press ends the run: what was held is dropped and the new press keeps its native meaning, which no
+replay could reproduce. A startup failure, or a page still unpresented ten seconds in,
+ends the hold and drops what it held.
 Generated interface constructed from authored markup participates in layout while it
 settles, then `data-lf-upgraded` releases it from authored and tab-local state without
 waiting for the first server reading. Durable controls remain unavailable until

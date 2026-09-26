@@ -102,7 +102,7 @@ import { reportPageError } from "./layer-client.js";
 import { projectView, readApplication } from "./semantic-state.js";
 
 import { anchoringIsReady, fragmentId, resolveAnchor } from "./anchor-resolution.js";
-import { beginWalk } from "./walk-position.js";
+import { rowWalk } from "./walk-position.js";
 import {
   domValue,
   rememberAuthoredParents,
@@ -358,42 +358,41 @@ export function createVersionController({
     // row remains Enter's exact-version destination.
     run: () => goActive(),
   };
-  const VERSION_WALK = {
-    id: "version.walk",
-    keys: ["ArrowUp", "ArrowDown"],
-    routes: [
-      { id: "version.later", binding: "ArrowUp", does: "Later version" },
-      { id: "version.earlier", binding: "ArrowDown", does: "Earlier version" },
-    ],
-    // The walk marks as it goes, which is what the list is for: the note says in words
-    // what a version changed and the page behind the menu then says it in the passages
-    // themselves, without the user having to leave the list to find out. A note is
-    // Claude's sentence about a version and the marks are the version's own account of
-    // itself, so reading them together is the only way to tell the two apart.
-    does: "Walk the versions, marking what changed since the one you are on",
-    line: "walk — marking changes",
-    repeat: true,
-    when: versionsToWalk,
-    run: (binding) => {
-      const was = document.activeElement;
-      const row = versionChooser.walk(binding === "ArrowDown" ? 1 : -1);
-      if (!row) return;
-      beginWalk("version", "Version", () => versionChooser.walkPosition());
-      // A press at either end lands on the row it started from, and now that the walk
-      // states a comparison, landing is not free — it would re-fetch the base and say
-      // its count again for a press that moved nothing.
-      if (row === was) return;
-      // The comparison the row states: its own version as the base, or none at all where
-      // that version is not older than the one being read. So the user walks down to mark
-      // from further back and back up to stop, and the row that stops it is the version
-      // they are reading — the end of the walk in the direction they came from, which is
-      // why it needs no key of its own and no user has to be told where it is — and,
-      // the page having no key for a comparison, the whole of the way off one.
+  // The walk marks as it goes, which is what the list is for: the note says in words
+  // what a version changed and the page behind the menu then says it in the passages
+  // themselves, without the user having to leave the list to find out. A note is
+  // Claude's sentence about a version and the marks are the version's own account of
+  // itself, so reading them together is the only way to tell the two apart. The list
+  // runs newest first, so its ends are the latest and the earliest version.
+  const [walk, edge] = rowWalk({
+    id: "version",
+    noun: "Version",
+    plural: "versions",
+    rows: () => versionChooser.rows(),
+    steps: ["later", "earlier", "latest", "earliest"],
+    // A press at either end lands on the row it started from and calls nothing here:
+    // the walk states a comparison, so landing is not free — it would re-fetch the base
+    // and say its count again for a press that moved nothing.
+    //
+    // The comparison the row states: its own version as the base, or none at all where
+    // that version is not older than the one being read. So the user walks down to mark
+    // from further back and back up to stop, and the row that stops it is the version
+    // they are reading — the end of the walk in the direction they came from, which is
+    // why it needs no key of its own and no user has to be told where it is — and,
+    // the page having no key for a comparison, the whole of the way off one.
+    landed: (row) => {
       const version = +row.dataset.lfVersion;
       if (comparable(version)) showComparison(version);
       else setDiff(false);
     },
+  });
+  const VERSION_WALK = {
+    ...walk,
+    does: "Walk the versions, marking what changed since the one you are on",
+    line: "walk — marking changes",
+    when: versionsToWalk,
   };
+  const VERSION_EDGE = { ...edge, when: versionsToWalk };
 
   // The chooser represents the menu standing, not whether it has multiple versions to walk.
   // It suspends page shortcuts and owns exact numbered destinations plus the Tab-boundary
@@ -420,6 +419,7 @@ export function createVersionController({
     claims: allButCommandReference,
     rows: [
       VERSION_WALK,
+      VERSION_EDGE,
       OPEN_NUMBER,
       // Two rows, both live at either end of a one-row menu, so the line prints both at
       // once — and while they shared a word it printed it twice, leaving the user to
@@ -1847,6 +1847,7 @@ export function createVersionController({
       "In the versions menu",
       [
         VERSION_WALK,
+        VERSION_EDGE,
         OPEN_NUMBER,
         // The browser's own, the row being a real <button> — no `run`, or the press would
         // click a control the platform has already activated. The word is the line's all the

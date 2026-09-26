@@ -25,7 +25,7 @@ def _apply_thread_attention(
     """Attach the shared attention aggregate, with user Asks taking precedence.
 
     This is the browser's one reading of whose turn a thread is: `needs_user` for
-    an open Ask or a question the agent's latest turn leaves (`awaits_user`), or a
+    an open Ask or a question the agent's latest turn leaves (`user_prompt`), or a
     response the user must recover; `waiting` while a workflow holds the thread with
     the agent, which covers every input `events.unanswered_turns` holds and any work
     claimed on the thread after it was answered; else None."""
@@ -80,7 +80,7 @@ def _apply_thread_attention(
         if thread["resolved"]:
             thread["attention"] = None
             continue
-        if thread["root"]["id"] in user_threads or thread["awaits_user"]:
+        if thread["root"]["id"] in user_threads or thread["user_prompt"]:
             thread["attention"] = {
                 "kind": "needs_user",
                 "reason": "ask",

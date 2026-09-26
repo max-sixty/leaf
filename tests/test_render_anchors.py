@@ -3610,8 +3610,8 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve, color_sch
     closing, and the keys between. A select came with all of that, so what this
     asserts is the part that had to be written back — the pointer route opens through
     More, focus lands on the version being read so the walk starts where the user is,
-    ↑/↓ clamp at the ends, Escape closes the replacing panel, and a click anywhere
-    else closes without navigating.
+    ↑/↓ clamp at the ends and Home/End reach them, Escape closes the replacing panel,
+    and a click anywhere else closes without navigating.
 
     The note is the reason the menu exists at all: a select's closed label is its
     selected option's whole text, so the note had to be on the bar or nowhere, and on
@@ -3715,6 +3715,8 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve, color_sch
     )
     expect(page.locator(".lf-command-reference")).to_contain_text("Later version")
     expect(page.locator(".lf-command-reference")).to_contain_text("Earlier version")
+    expect(page.locator(".lf-command-reference")).to_contain_text("Latest version")
+    expect(page.locator(".lf-command-reference")).to_contain_text("Earliest version")
     expect(page.locator(".lf-command-reference")).to_contain_text("Open v1")
     page.keyboard.press("Escape")
     expect(page.locator(".lf-command-reference")).not_to_have_class(re.compile("open"))
@@ -3744,6 +3746,14 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve, color_sch
     page.keyboard.press("ArrowDown")  # clamped at the other end too
     expect(page.locator('.lf-version-row[data-lf-version="1"]')).to_be_focused()
     expect(position).to_have_attribute("data-lf-boundary", "")
+    # Home and End reach either end in one press; End lands where the walk down did and
+    # states the same comparison.
+    page.keyboard.press("Home")
+    expect(page.locator('.lf-version-row[data-lf-version="3"]')).to_be_focused()
+    expect(position).to_have_text("Version 1 of 3")
+    page.keyboard.press("End")
+    expect(page.locator('.lf-version-row[data-lf-version="1"]')).to_be_focused()
+    expect(position).to_have_text("Version 3 of 3")
     # The comparison the row it landed on states, which the reopen below reads: the base is
     # settled when the chooser says so, and the base's document is a fetch away, so a test
     # that closed the menu on the press alone would ask where the walk stands from a loaded

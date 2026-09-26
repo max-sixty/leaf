@@ -3,6 +3,7 @@
 import re
 import sys
 from collections.abc import Collection
+from datetime import datetime
 from functools import lru_cache
 from pathlib import Path
 
@@ -166,9 +167,27 @@ def layer_metadata(page_dir: Path) -> dict:
             )
         if dirty is not None and not isinstance(dirty, bool):
             raise RegistryError(f"{path}: $layer.producer.dirty must be true or false")
+        dates = {
+            kind: producer[kind]
+            for kind in ("committed", "installed")
+            if producer.get(kind) is not None
+        }
+        # An offset is required: without one, each viewer's browser reads the time
+        # in its own zone, and one page shows different ages.
+        for kind, value in dates.items():
+            try:
+                offset = datetime.fromisoformat(value).utcoffset()
+            except (TypeError, ValueError):
+                offset = None
+            if offset is None:
+                raise RegistryError(
+                    f"{path}: $layer.producer.{kind} must be an ISO 8601 date "
+                    "with a timezone offset"
+                )
         producer = {
             **({"commit": commit} if commit is not None else {}),
             **({"dirty": dirty} if dirty is not None else {}),
+            **dates,
         }
     return {
         "generation": generation,

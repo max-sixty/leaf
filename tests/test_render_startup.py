@@ -81,6 +81,7 @@ from render_harness import (
     open_page,
     open_versions,
     panel_settled,
+    primed,
     refuse,
     rendered,
     round_trip,
@@ -2367,10 +2368,22 @@ def test_a_widget_a_reply_carries_arrives_with_its_module(browser, serve):
 def test_a_state_waiting_for_markdown_cannot_overwrite_a_newer_one(browser, serve):
     """Sequence order is judged again after the lazy Markdown import. A newer POST
     response can enter that await before an older held poll; when the shared import
-    finishes, the older continuation must not repaint the log backwards."""
-    page = open_page(browser, serve(LONG_PAGE))
+    finishes, the older continuation must not repaint the log backwards. A composer
+    starts that import as it mounts, so the module is held from navigation onward."""
+    marked = []
+    page = open_page(
+        primed(
+            browser,
+            lambda page: page.route(
+                "**/vendor/marked.esm.js", lambda route: marked.append(route)
+            ),
+        ),
+        serve(LONG_PAGE),
+    )
     page.get_by_role("button", name=re.compile("^Threads")).click()
     panel_settled(page)
+    holding(page, marked, 1, "the Markdown module")
+    assert len(marked) == 1
 
     older = []
 
@@ -2397,13 +2410,9 @@ def test_a_state_waiting_for_markdown_cannot_overwrite_a_newer_one(browser, serv
     old_route = older[0]
     old_state = old_route.fetch().json()
 
-    marked = []
-    page.route("**/vendor/marked.esm.js", lambda route: marked.append(route))
     write(page.locator(".lf-general leaf-text"), "Newest **snapshot**")
-    with page.expect_request("**/vendor/marked.esm.js"):
+    with sending(page, "the newer comment"):
         page.locator(".lf-general button").click()
-    holding(page, marked, 1, "the Markdown module")
-    assert len(marked) == 1
 
     old_route.fulfill(json=old_state)
     page.title()  # let the old response join the shared import before releasing it

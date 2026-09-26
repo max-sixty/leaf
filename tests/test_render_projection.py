@@ -7417,7 +7417,7 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     expect(page.locator(".lf-threads")).to_be_focused()
     page.keyboard.press("t")
     page.keyboard.press("c")
-    expect(page.locator(".lf-thread leaf-text").first).to_be_focused()
+    expect(page.locator(".lf-thread:has(#tq-set) leaf-text")).to_be_focused()
     sent = [
         e for e in events_model.read_events(serve.page_dir) if e["kind"] == "action"
     ]

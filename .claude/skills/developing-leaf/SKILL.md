@@ -108,7 +108,7 @@ container:
 ```bash
 npm ci --prefix <root>/worker
 npm run build --prefix <root>/worker
-<root>/scripts/verify-site-local.sh --agent
+uv run <root>/scripts/verify_site.py wrangler --agent
 ```
 
 The `publish-site` workflow's run against the deployed release is the only

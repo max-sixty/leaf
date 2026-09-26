@@ -11,10 +11,18 @@
    * so it is the same arithmetic wherever the column stands. Whatever stands in a
    * margin states the room it takes there (`--lf-taken-l`, `--lf-taken-r`), which comes
    * off that side's free room: the contents map's spine, a sidebar, a project widget's
-   * own resident. */
+   * own resident.
+   *
+   * The free room is the shell's (100cqi), so only a column on `main` has it. A column
+   * Layout on a block inside another Layout keeps the measure and centres in its box,
+   * and a breakout in it stays in that box rather than reaching past the Layout around
+   * it. */
   .layout-column {
     max-width: var(--col);
     margin-inline: auto;
+  }
+  :not(main).layout-column { --lf-free-l: 0px; --lf-free-r: 0px; --lf-room: 100%; }
+  main.layout-column {
     padding-inline: var(--col-pad);
     --lf-width: min(var(--col), max(0px, 100cqi - 2 * var(--col-pad)));
     --lf-beside: calc((100cqi - var(--lf-width)) / 2);
@@ -54,7 +62,8 @@
   }
   .layout-sidebar > :is(header, footer) { flex: 1 0 100%; margin-block: 0; }
   .layout-sidebar > :not(header, footer) { flex: 2 1 30rem; margin-block: 0; }
-  .layout-sidebar > :not(header, footer):last-child { flex: 1 1 18rem; }
+  .layout-sidebar > :nth-last-child(1 of :not(header, footer, script, style, template)) {
+    flex: 1 1 18rem; }
   .layout-sidebar > :not(header, footer) > :first-child { margin-top: 0; }
   /* Tiles: equal cells, as many to a row as fit at 9rem each. */
   .layout-tiles {

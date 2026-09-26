@@ -245,9 +245,9 @@ geometry without them:
   rail stays, since it covers nothing.
 
 `data-rail="right"` on `main` keeps the rail on a wide page, and `data-rail="none"`
-gives a column page's right margin to something else: a page that hangs
-`aside.sidenote`s on the right writes it, since the notes and the rail claim the same
-strip.
+gives a column page's right margin to something of the page's own. A marker level
+with a hanging `aside.sidenote` stands as a pin on its block, so a page with notes needs
+neither.
 
 ## Draw the subject
 

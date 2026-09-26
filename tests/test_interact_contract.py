@@ -4458,6 +4458,30 @@ def test_check_rejects_an_unknown_authored_width(page_dir):
     )
 
 
+def test_check_takes_a_page_s_width_from_a_layout_and_not_from_data_width(page_dir):
+    """A page's width is a Layout class on `main`. `data-width` sizes a block in the
+    page's flow, so on `main` it would widen nothing and is refused; a `main` with no
+    Layout at all is advice, since nothing arranges it unless the page's own CSS does."""
+    unarranged = "<main> has no Layout class"
+    (page_dir / "index.html").write_text(
+        PAGE.replace("<main>", '<main class="layout-column">')
+    )
+    result = check(page_dir)
+    assert result.exit_code == 0, result.output
+    assert unarranged not in result.output
+    (page_dir / "index.html").write_text(PAGE)
+    result = check(page_dir)
+    assert result.exit_code == 0, result.output
+    assert unarranged in result.output
+    (page_dir / "index.html").write_text(
+        PAGE.replace("<main>", '<main data-width="available">')
+    )
+    result = check(page_dir)
+    assert result.exit_code == 1
+    assert "data-width> (line" in result.output
+    assert "its width is a Layout class on it" in result.output
+
+
 def test_check_takes_a_rail_only_on_main_and_only_by_name(page_dir):
     """`data-rail` says whether the page keeps a rail, so it stands on `main` and names
     one of the two answers; anywhere else it would silently declare nothing."""

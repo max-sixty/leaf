@@ -7305,6 +7305,35 @@ def test_the_complete_page_map_survives_a_crossing_to_the_wide_screen(browser, s
     ).to_be_visible()
 
 
+def test_a_marker_level_with_a_hanging_note_pins_and_one_below_it_keeps_the_rail(
+    browser, serve
+):
+    """A sidenote hanging in the right margin holds the strip the rail stands in, so the
+    marker of a paragraph level with it stands on the paragraph as a pin rather than
+    over the note. The control is a paragraph far below the note, whose marker keeps
+    the rail."""
+    filler = "".join(f"<p>Filler paragraph {i}.</p>" for i in range(12))
+    source = leaf_page(
+        "a note beside its paragraph",
+        '<h1 id="t">Notes</h1><aside class="sidenote" id="note">A note beside the '
+        "paragraph it glosses, long enough to stand a few lines tall.</aside>"
+        f'<p id="beside">The paragraph the note glosses.</p>{filler}'
+        '<p id="below">A paragraph well below the note.</p>',
+    )
+    page = open_page(
+        browser, serve(source, events=[_comment_on("beside"), _comment_on("below")])
+    )
+    resized(page, 1600, 900)
+    margins_laid_out(page)
+    assert (
+        page.evaluate("() => getComputedStyle(document.getElementById('note')).float")
+        == "right"
+    )
+    for target, place in (("beside", "pin"), ("below", "rail")):
+        row = page.locator(f'.lf-margin-cluster[data-lf-margin-for="{target}"]')
+        expect(row).to_have_attribute("data-lf-place", place)
+
+
 def test_the_banner_offers_the_map_wherever_the_markers_are_pins(browser, serve):
     """The Page Map toggle follows the rail the margin measures, not a window width: a
     920px window leaves a column page too little room beside it for the rail, so its

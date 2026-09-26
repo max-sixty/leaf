@@ -154,16 +154,44 @@ def page_boundary_errors(parser: SourceDocument) -> list:
 def authored_allocation_errors(parser: SourceDocument) -> list:
     """Authored allocations use the layer's named values, and a page's own allocation
     stands on its `main`."""
+    return (
+        [
+            f"{at(item, item['attr'] + '=' + repr(item['value']))} has an invalid value; "
+            f"expected one of {', '.join(AUTHORED_ALLOCATIONS[item['attr']])}"
+            for item in parser.authored_allocations
+            if item["value"] not in AUTHORED_ALLOCATIONS[item["attr"]]
+        ]
+        + [
+            f"{at(item, item['attr'])} belongs on <main>, where it says whether the page "
+            f"keeps a rail"
+            for item in parser.authored_allocations
+            if item["attr"] in PAGE_ALLOCATIONS and item["tag"] != "main"
+        ]
+        + [
+            f"{at(item, item['attr'])} sizes a block in the page's flow, and <main> is the "
+            "page: its width is a Layout class on it (layout-wide, layout-sidebar, "
+            "layout-workspace)"
+            for item in parser.authored_allocations
+            if item["attr"] not in PAGE_ALLOCATIONS and item["tag"] == "main"
+        ]
+    )
+
+
+def unarranged_main(parser: SourceDocument) -> list:
+    """Advice for a `main` with no Layout class. Nothing arranges such a page, so its
+    blocks run the window's width; the page's own CSS may mean exactly that, which is
+    why this is advice rather than an error."""
+    main = next((node for node in parser.nodes if node["tag"] == "main"), None)
+    if main is None or any(
+        name.startswith("layout-") for name in main["attrs"].get("class", "").split()
+    ):
+        return []
     return [
-        f"{at(item, item['attr'] + '=' + repr(item['value']))} has an invalid value; "
-        f"expected one of {', '.join(AUTHORED_ALLOCATIONS[item['attr']])}"
-        for item in parser.authored_allocations
-        if item["value"] not in AUTHORED_ALLOCATIONS[item["attr"]]
-    ] + [
-        f"{at(item, item['attr'])} belongs on <main>, where it says whether the page "
-        f"keeps a rail"
-        for item in parser.authored_allocations
-        if item["attr"] in PAGE_ALLOCATIONS and item["tag"] != "main"
+        (
+            "<main> has no Layout class, so nothing arranges the page and its blocks "
+            'run the window\'s width; class="layout-column" sets the reading column, '
+            "unless the page's own CSS arranges it"
+        )
     ]
 
 

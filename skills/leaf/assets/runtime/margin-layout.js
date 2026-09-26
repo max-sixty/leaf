@@ -434,6 +434,11 @@ export function layoutMarginRows() {
     '.lf-margin-cluster:not([data-lf-place="pin"]) .lf-margin-entry:not([hidden])',
   );
   const size = entry?.offsetWidth || 32;
+  // The notes hanging in the margin the rail stands in (theme.css, aside.sidenote): a
+  // marker level with one would be drawn over it.
+  const notes = [...main.querySelectorAll("aside.sidenote")]
+    .map((note) => note.getBoundingClientRect())
+    .filter((note) => note.width && note.left >= columnRect.right - 1);
 
   // Every read before any write: a write between two reads forces a layout per row.
   const bands = new Map();
@@ -463,6 +468,7 @@ export function layoutMarginRows() {
       blockRight: reach(anchor, box, main, reaches),
       railInner,
       half: size / 2,
+      noted: notes.some((note) => note.top < box.top + size && note.bottom > box.top),
     });
     const shown =
       !parked.has(row) && targetShown(target, extent, place === "pin", bands);

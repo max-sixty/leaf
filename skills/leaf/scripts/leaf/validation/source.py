@@ -41,6 +41,7 @@ from leaf.validation.markup import (
     media_errors,
     page_boundary_errors,
     structure_errors,
+    unarranged_main,
     unpointable_blocks,
 )
 from leaf.validation.source_history import (
@@ -237,6 +238,7 @@ def _source_advice(
         ),
         *(f"data source unreadable: {error}" for error in data_errors(stored_data)),
         *unpointable_blocks(parser),
+        *unarranged_main(parser),
         *scroller_css_advice(
             parser, artifact.page_stylesheets if artifact is not None else {}
         ),

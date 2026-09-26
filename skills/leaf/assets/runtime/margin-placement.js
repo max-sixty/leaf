@@ -15,9 +15,11 @@ import { overlapsAcross } from "./rect.js";
 // A row stands in the rail when the page has one, its target scrolls with the document,
 // and its block does not reach into the rail. A block grown past the rail's inner edge by
 // more than half a marker would stand under a rail marker, so its row stands on it as a
-// pin instead: the figure keeps its shape and the comment lands on what it is about.
-export function rowPosture({ railStands, rootLane, blockRight, railInner, half }) {
-  if (!railStands || !rootLane) return "pin";
+// pin instead: the figure keeps its shape and the comment lands on what it is about. A
+// note hanging in the right margin level with the row holds the rail's strip there, so
+// that row pins too (`noted`).
+export function rowPosture({ railStands, rootLane, blockRight, railInner, half, noted }) {
+  if (!railStands || !rootLane || noted) return "pin";
   return blockRight - half > railInner ? "pin" : "rail";
 }
 

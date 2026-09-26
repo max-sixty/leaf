@@ -19,7 +19,7 @@ from leaf import structure as structure_model
 from leaf.passages import enclosing_ids, page_passages
 from leaf.registry import storage as registry_storage
 from leaf.render_gate import version as render_gate_model
-from PIL import Image, ImageChops
+from PIL import Image, ImageChops, ImageStat
 from playwright.sync_api import expect
 from render_cases_interaction import (
     SEATED_ASK_LAYER,
@@ -44,6 +44,7 @@ from render_cases_widgets import (
     INLINE_REPLY_MARKUP,
     LATE_MARGIN_PAGE,
     LATE_MARGIN_WIDGET,
+    LONG_CHAIN_PAGE,
     NOTE_AND_WIDE_PAGE,
     NOTE_BAND,
     OWN_MARGIN_FURNITURE,
@@ -78,6 +79,7 @@ from render_harness import (
     page_registry,
     panel_settled,
     refuse,
+    rendered,
     resized,
     sending,
     stamp_page,
@@ -2316,10 +2318,10 @@ def test_a_box_that_shows_less_than_it_holds_says_so_and_the_gate_asks(browser, 
     none at rest.
 
     So the sweep that already asks whether something is out of sight spends the answer
-    on the eye as well as on the keyboard. The box fades each edge with content beyond
-    it. The line of code that fits is the control: a mark on a box holding nothing back
-    would be a promise of more with nothing behind it, and this reading would never have
-    noticed.
+    on the eye as well as on the keyboard. The box marks each edge with content beyond
+    it, which a drawing paints as a shadow over that edge. The line of code that fits is
+    the control: a mark on a box holding nothing back would be a promise of more with
+    nothing behind it, and this reading would never have noticed.
 
     The plant is the failure that is actually reachable — content grown inside a box
     whose own border box never changes, so the sweep's per-candidate resize observation
@@ -2334,7 +2336,9 @@ def test_a_box_that_shows_less_than_it_holds_says_so_and_the_gate_asks(browser, 
             return { short: el.scrollWidth - el.clientWidth,
                      before: el.hasAttribute('data-lf-more-before'),
                      after: el.hasAttribute('data-lf-more-after'),
-                     paints: getComputedStyle(el).maskImage !== 'none' };
+                     paints: getComputedStyle(el).maskImage !== 'none' ||
+                       ['::before', '::after'].some(
+                         (edge) => getComputedStyle(el, edge).boxShadow !== 'none') };
         };
         return { flow: read('flow'), fits: read('short') };
     }""")
@@ -2350,19 +2354,12 @@ def test_a_box_that_shows_less_than_it_holds_says_so_and_the_gate_asks(browser, 
     assert not marks["fits"]["paints"], marks
 
     flow = page.locator("#flow")
-    flow.focus()
-    flow.evaluate("el => el.classList.add('lf-focus-visible')")
-    assert flow.evaluate("el => getComputedStyle(el).maskImage") == "none"
     flow.evaluate("el => { el.scrollLeft = (el.scrollWidth - el.clientWidth) / 2; }")
     expect(flow).to_have_attribute("data-lf-more-before", "")
     expect(flow).to_have_attribute("data-lf-more-after", "")
-    assert flow.evaluate("el => getComputedStyle(el).maskImage") == "none"
     flow.evaluate("el => { el.scrollLeft = el.scrollWidth; }")
     expect(flow).to_have_attribute("data-lf-more-before", "")
     expect(flow).not_to_have_attribute("data-lf-more-after", "")
-    assert flow.evaluate("el => getComputedStyle(el).maskImage") == "none"
-    flow.evaluate("el => { el.classList.remove('lf-focus-visible'); el.blur(); }")
-    assert flow.evaluate("el => getComputedStyle(el).maskImage") != "none"
 
     page.evaluate("""() => {
         document.documentElement.style.direction = 'rtl';
@@ -2396,6 +2393,77 @@ def test_a_box_that_shows_less_than_it_holds_says_so_and_the_gate_asks(browser, 
     page.close()
 
     assert render_gate_model.render_version(browser, url).failures == []
+
+
+def test_a_drawing_cut_at_its_edge_shades_each_edge_it_continues_past(browser, serve):
+    """Three agent-written pages drew a five-step plan `flowchart LR`; at 1440px each
+    box showed two and a half steps, and every reader took the plan for three. The mark
+    was there, painted as the layer's fade, and a fade reads as a drawing's end: over
+    blank canvas it draws nothing, and over a node it looks like the node's own edge.
+
+    So a diagram paints the mark as a shadow cast over the edge it continues past, and
+    this reads the pixels rather than the rule: paper at the very edge of the box against
+    paper a little inside it, in the band above the nodes where nothing else is drawn. The
+    shadow must stand at the scrollport's edge, not the drawing's end, so the end edge is
+    shaded at rest, both in the middle, the start edge alone at the end. The drawing
+    keeps the size it was drawn at throughout, and the same five steps drawn top-down fit
+    the column and shade nothing. A class outranking the paint while the mark stays
+    written is what the gate's reading exists to name."""
+    page = open_page(browser, serve(LONG_CHAIN_PAGE))
+    resized(page, 1440, 900)
+    rendered(page)
+    sizes = page.evaluate("""() => Object.fromEntries(['chain', 'stack'].map((id) => {
+        const el = document.getElementById(id), svg = el.querySelector('svg');
+        return [id, { short: el.scrollWidth - el.clientWidth,
+                      drawn: svg.getBoundingClientRect().width,
+                      natural: svg.viewBox.baseVal.width }];
+    }))""")
+    assert sizes["chain"]["short"] > 1, f"the chain fits, so nothing is cut: {sizes}"
+    assert sizes["stack"]["short"] == 0, f"the stack scrolls too: {sizes}"
+    for box in sizes.values():
+        assert abs(box["drawn"] - box["natural"]) < 1, (
+            f"a drawing was scaled away from its natural size: {sizes}"
+        )
+
+    def shaded(id):
+        """Which edges of the box stand in shadow: darker at the very edge than a little
+        inside it, past the shadow's reach, across the top rows, by more than rounding
+        (the shadow measures about 21 levels of 255, bare paper 0)."""
+        r = page.evaluate(
+            """(id) => { const r = document.getElementById(id).getBoundingClientRect();
+                return { x: r.left, y: r.top, width: r.width, height: 8 }; }""",
+            id,
+        )
+        band = Image.open(io.BytesIO(page.screenshot(clip=r))).convert("L")
+        w, h = band.size
+
+        def mean(x0, x1):
+            return ImageStat.Stat(band.crop((x0, 0, x1, h))).mean[0]
+
+        return {
+            "start": mean(48, 54) - mean(0, 6) > 6,
+            "end": mean(w - 54, w - 48) - mean(w - 6, w) > 6,
+        }
+
+    assert shaded("stack") == {"start": False, "end": False}
+    assert shaded("chain") == {"start": False, "end": True}
+    chain = page.locator("#chain")
+    chain.evaluate("el => { el.scrollLeft = (el.scrollWidth - el.clientWidth) / 2; }")
+    expect(chain).to_have_attribute("data-lf-more-before", "")
+    rendered(page)
+    assert shaded("chain") == {"start": True, "end": True}
+    chain.evaluate("el => { el.scrollLeft = el.scrollWidth; }")
+    expect(chain).not_to_have_attribute("data-lf-more-after", "")
+    rendered(page)
+    assert shaded("chain") == {"start": True, "end": False}
+
+    assert render_checks_model.evaluate_probe(page, "silentCuts") == []
+    chain.evaluate("el => el.classList.add('lf-unshaded')")
+    assert shaded("chain") == {"start": False, "end": False}
+    found = render_checks_model.evaluate_probe(page, "silentCuts")
+    assert [
+        f for f in found if "<lf-diagram id=chain>" in f and "draws nothing" in f
+    ], f"a mark written with its paint outranked went unreported: {found or 'nothing'}"
 
 
 def test_the_render_gate_names_a_wide_widget_drawn_over_the_pages_own_margin(

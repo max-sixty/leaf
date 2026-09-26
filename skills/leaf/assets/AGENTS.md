@@ -70,7 +70,7 @@ relative to `runtime/` unless stated otherwise.
 | Browser interaction diagnostics | `interaction-log.js` |
 | Notices and announcements | `semantic-news.js`, `notifications.js`, `keyboard/shortcut-bar.js` |
 | Reactions and design review | `reactions.js`, `design.js`, `design-readings.js` |
-| Document presentation and validation | `presentation.js`, `validation.js`, `projection-watch.js` |
+| Document presentation and validation | `presentation.js`, `validation.js`, `projection-watch.js`, `retained-face.js` |
 | Child pages and gallery playback | `specimen.js`, `interaction-gallery.js`, `interaction-gallery-frame.js` |
 | Shadow trees and styles | `shadow.js`, `shadow-stage.js`, `stylesheets.js` |
 | Rendering utilities | `icons.js`, `markdown.js`, `syntax.js`, `motion.js`, `storage.js` |

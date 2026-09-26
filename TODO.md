@@ -69,6 +69,12 @@ has tried; settle that before building it.
 - **Finish what a phone user still cannot reach.** Give touch users visible passage
   threads, and remove keyboard-only hints, hover-only reasons, clipped diagram content,
   and remaining undersized touch targets.
+- **Take the layout readings across widths.** The render check renders each page at
+  1200px and 540px and sweeps sideways overflow from 360px to 1200px. The arrangement
+  eval's pages also failed at 900px and on a phone with labels drawn below legibility
+  and an Ask below its pane's first screen, which no reading measures;
+  [#19](notes/workspace-followups.md#item-19) adds those readings at 1200px. Once they
+  hold there, take them across widths, phones included.
 - **Give the thread panel's touch grip its own space.** Reserve room for the grip
   and collapse inactive reply controls if more thread cards should fit.
 

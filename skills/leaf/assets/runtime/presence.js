@@ -66,15 +66,21 @@ export const observeServerNow = (now) => {
   if (now) clockSkew = Date.parse(now) - Date.now();
 };
 export const JUST_NOW = "just now";
-export const ago = (ts) =>
+const age = (ts, compact) =>
   clockValue((now) => {
     if (!ts) return "";
     const secs = Math.max(0, (now - new Date(ts).getTime()) / 1000);
-    if (secs < 45) return JUST_NOW;
-    if (secs < 3600) return `${Math.round(secs / 60)}m ago`;
-    if (secs < 86400) return `${Math.round(secs / 3600)}h ago`;
-    return `${Math.round(secs / 86400)}d ago`;
+    if (secs < 45) return compact ? "now" : JUST_NOW;
+    const [count, unit] =
+      secs < 3600
+        ? [Math.round(secs / 60), "m"]
+        : secs < 86400
+          ? [Math.round(secs / 3600), "h"]
+          : [Math.round(secs / 86400), "d"];
+    return `${count}${unit}${compact ? "" : " ago"}`;
   });
+export const ago = (ts) => age(ts, false);
+export const shortAgo = (ts) => age(ts, true);
 
 // How long working may go unheard before it reads as quiet. The server's activity fold
 // owns the number and serves it beside `now`; until a state has arrived nothing is

@@ -169,6 +169,13 @@ below don't block it.
 
 ### The agent's text interface
 
+- **Read the render checks after handover.** `version check --render` blocks the
+  agent for the whole browser pass, so quick pages skip it and get none of its
+  advice. Run the render readings on the server when a version goes live and
+  deliver the findings through `leaf wait`: the agent hands the page over at once
+  and refines it if a reading warrants, while a failure still blocks a record's
+  stamp. **Unconfirmed:** measure how long the pass takes on a typical page, and
+  whether agents act on findings that arrive after handover, before building it.
 - **Scale a drawing by the box it was drawn in.** On replay, scale the strokes by
   the anchored element's size over the recorded `box`, so a mark stays on its
   element in a narrower window; reflowed text still moves under it. Verify replay

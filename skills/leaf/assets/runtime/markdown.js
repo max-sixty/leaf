@@ -64,7 +64,9 @@ export const markdownReady = () => render !== escapedSource;
 
 const WEB_PROTOCOLS = new Set(["http:", "https:", "mailto:"]);
 
-function safeUrl(href) {
+// Whether a destination stays a link once rendered; one that does not renders as its
+// words. The composer's preview asks the same question (`composing/text-field.js`).
+export function safeUrl(href) {
   if (href.startsWith("#")) return true;
   try {
     return WEB_PROTOCOLS.has(new URL(href, location.href).protocol);

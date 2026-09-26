@@ -62,6 +62,7 @@ import {
   insertNewlineContinueMarkup,
 } from "../../vendor/codemirror.esm.js";
 import { TEXT_FIELD } from "../focus.js";
+import { safeUrl } from "../markdown.js";
 
 const sheet = new CSSStyleSheet();
 sheet.replaceSync(`
@@ -139,15 +140,32 @@ function decorate(view) {
             add(mark.from, mark.to, active ? dim : hide);
           return;
         }
-        if (name === "Link") {
-          // `[words](url)`: the words are the link; the brackets and destination are
-          // syntax, shown only while the selection is in the link. Brackets with no
-          // destination (`[1]`, `array[0]`) are no link once sent, so none here. A
-          // destination on the next line keeps its syntax drawn: a hidden range may not
-          // hold a line break.
+        // A link is drawn as one exactly where the sent message has one: the renderer's
+        // own URL policy decides, so a destination it drops (`javascript:`) leaves plain
+        // words here too. An image's or a definition's destination is no link.
+        if (name === "Image" || name === "LinkReference") return false;
+        const links = (url) => safeUrl(state.doc.sliceString(url.from, url.to));
+        if (name === "URL") {
+          // A bare address, which the renderer makes a link.
+          if (links(node)) add(node.from, node.to, marked("lf-md-link"));
+          return;
+        }
+        if (name === "Link" || name === "Autolink") {
+          // `[words](url)` and `<url>`: the words, or the address, are the link; the
+          // brackets and destination are syntax, shown only while the selection is in
+          // the link. Brackets with no destination (`[1]`, `array[0]`) are no link once
+          // sent, so none here. A destination on the next line keeps its syntax drawn: a
+          // hidden range may not hold a line break.
           const marks = node.node.getChildren("LinkMark");
-          if (marks.length < 2 || !node.node.getChild("URL")) return;
-          add(marks[0].to, marks[1].from, marked("lf-md-link"));
+          const url = node.node.getChild("URL");
+          if (marks.length < 2 || !url) return false;
+          if (name === "Autolink") {
+            if (links(url)) add(url.from, url.to, marked("lf-md-link"));
+            add(marks[0].from, marks[0].to, active ? dim : hide);
+            add(marks[1].from, marks[1].to, active ? dim : hide);
+            return false;
+          }
+          if (links(url)) add(marks[0].to, marks[1].from, marked("lf-md-link"));
           const oneLine =
             state.doc.lineAt(marks[1].from).number === state.doc.lineAt(node.to).number;
           const syntax = active || !oneLine ? dim : hide;

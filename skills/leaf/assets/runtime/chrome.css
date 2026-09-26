@@ -1046,6 +1046,9 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-thread-compact { --lf-thread-pad: 0px; margin: 0; padding: 0;
     background: transparent; border-radius: 0; }
   .lf-pinned + .lf-thread-compact { padding-top: 0; }
+  /* TODO: The 420px panel row is crowded when attention and unread status join
+     count and recency. Revisit its scanning hierarchy without hiding the title
+     or the action owed. */
   .lf-thread-summary { display: grid; grid-template-columns: minmax(0, 1fr) auto auto;
     align-items: center; gap: 8px; width: 100%; min-height: max(32px, var(--aim-floor)); border: 0;
     padding: 4px 8px; background: transparent; color: var(--ink);

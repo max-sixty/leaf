@@ -9,6 +9,12 @@
  * Nothing is converted: the value is always the source the user typed, which is what
  * the agent reads and what `marked` renders once the message is sent.
  *
+ * Focus is the field's own, as a textarea's is. `focus()` puts the user in the words
+ * with the caret where it stood, `blur()` takes them out, and a press anywhere in the
+ * box's padding puts the caret at the nearest character. The shadow root does not
+ * delegate focus: the platform would hand it to the first focusable node in the tree,
+ * which is CodeMirror's scroller, a node that holds no caret.
+ *
  * The root is closed because the field is one control, the way a native textarea is:
  * focus, the scope climb and every `focused() === box` comparison land on the host,
  * never on CodeMirror's content node. Outside, the host answers the textarea members the
@@ -35,7 +41,6 @@ import {
   markdown,
   markdownLanguage,
   insertNewlineContinueMarkup,
-  placeholder as placeholderExtension,
 } from "../../vendor/codemirror.esm.js";
 
 const TAG = "leaf-text";
@@ -44,7 +49,15 @@ const programmatic = Annotation.define();
 
 const sheet = new CSSStyleSheet();
 sheet.replaceSync(`
-  :host { display: block; cursor: text; }
+  :host { cursor: text; }
+  /* The placeholder is a layer under the words, as a textarea's is, never content in
+     the line: a widget in an empty line is what the platform would draw the caret
+     against. Both layers share one grid cell, inside the host's padding. */
+  .lf-field { display: grid; }
+  .lf-field > * { grid-area: 1 / 1; min-width: 0; }
+  .lf-field-placeholder { pointer-events: none; white-space: pre-wrap;
+    overflow-wrap: anywhere; color: var(--lf-placeholder-color, var(--muted)); }
+  :host(:not(:state(placeholder-shown))) .lf-field-placeholder { visibility: hidden; }
   .lf-md-mark { color: var(--muted); }
   .lf-md-code { font-family: var(--mono); font-size: 0.9em;
     background: var(--code-bg); border-radius: 3px; padding: 0.1em 0.25em; }
@@ -68,7 +81,6 @@ const fieldTheme = EditorView.theme({
   ".cm-scroller": { fontFamily: "inherit", lineHeight: "inherit", overflow: "visible" },
   ".cm-content": { padding: "0", caretColor: "currentColor", minHeight: "1lh" },
   ".cm-line": { padding: "0" },
-  ".cm-placeholder": { color: "var(--lf-placeholder-color, var(--muted))" },
 });
 
 // The inline constructs whose syntax hides away from the selection, and the class
@@ -185,13 +197,19 @@ class LeafText extends HTMLElement {
   #internals = null;
   #editable = new Compartment();
   #attributes = new Compartment();
-  #placeholder = new Compartment();
+  #placeholderLayer = document.createElement("div");
+  #frame = document.createElement("div");
   #placeholderText = "";
   #readOnly = false;
 
   constructor() {
     super();
-    this.#root = this.attachShadow({ mode: "closed", delegatesFocus: true });
+    this.#root = this.attachShadow({ mode: "closed" });
+    this.#frame.className = "lf-field";
+    this.#placeholderLayer.className = "lf-field-placeholder";
+    this.#placeholderLayer.setAttribute("aria-hidden", "true");
+    this.#frame.append(this.#placeholderLayer);
+    this.#root.append(this.#frame);
     this.#model = EditorState.create({
       extensions: [
         history(),
@@ -212,7 +230,6 @@ class LeafText extends HTMLElement {
         EditorView.lineWrapping,
         this.#editable.of(EditorState.readOnly.of(false)),
         this.#attributes.of(EditorView.contentAttributes.of(this.#contentAttributes())),
-        this.#placeholder.of([]),
       ],
     });
   }
@@ -223,7 +240,7 @@ class LeafText extends HTMLElement {
     this.#root.adoptedStyleSheets = [sheet];
     this.#view = new EditorView({
       root: this.#root,
-      parent: this.#root,
+      parent: this.#frame,
       state: this.#model,
       dispatchTransactions: (transactions, view) => {
         view.update(transactions);
@@ -238,6 +255,7 @@ class LeafText extends HTMLElement {
       },
     });
     this.#model = null;
+    this.addEventListener("mousedown", (event) => this.#pressPadding(event));
     // The content node's own input events would reach the host too, retargeted, and
     // announce every edit twice. The host's is the one the page hears.
     for (const type of ["input", "beforeinput"])
@@ -260,6 +278,34 @@ class LeafText extends HTMLElement {
     });
   }
 
+  focus(options) {
+    if (!this.#view) return;
+    this.#view.focus();
+    if (!options?.preventScroll) this.scrollIntoView({ block: "nearest" });
+  }
+
+  blur() {
+    this.#view?.contentDOM.blur();
+  }
+
+  // A press on the box outside the editor's own area — its padding — lands in the words
+  // at the nearest character, the way a textarea's does. Presses inside the editor are
+  // CodeMirror's to place.
+  #pressPadding(event) {
+    if (event.button !== 0 || !this.#view) return;
+    const area = this.#view.scrollDOM.getBoundingClientRect();
+    const { clientX: x, clientY: y } = event;
+    if (x >= area.left && x < area.right && y >= area.top && y < area.bottom) return;
+    event.preventDefault();
+    const clamp = (value, low, high) => Math.min(Math.max(value, low), high - 1);
+    const at = this.#view.posAtCoords(
+      { x: clamp(x, area.left, area.right), y: clamp(y, area.top, area.bottom) },
+      false,
+    );
+    this.#view.focus();
+    this.#view.dispatch({ selection: { anchor: at } });
+  }
+
   get #state() {
     return this.#view?.state ?? this.#model;
   }
@@ -275,6 +321,7 @@ class LeafText extends HTMLElement {
       autocorrect: "on",
       autocapitalize: "sentences",
     };
+    if (this.#placeholderText) attributes["aria-placeholder"] = this.#placeholderText;
     for (const name of ["aria-label", "aria-busy", "aria-describedby"]) {
       const value = this.getAttribute(name);
       if (value !== null) attributes[name] = value;
@@ -330,9 +377,10 @@ class LeafText extends HTMLElement {
   }
   set placeholder(text) {
     this.#placeholderText = String(text);
+    this.#placeholderLayer.textContent = this.#placeholderText;
     this.#apply({
-      effects: this.#placeholder.reconfigure(
-        this.#placeholderText ? placeholderExtension(this.#placeholderText) : [],
+      effects: this.#attributes.reconfigure(
+        EditorView.contentAttributes.of(this.#contentAttributes()),
       ),
     });
   }

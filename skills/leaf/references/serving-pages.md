@@ -80,18 +80,16 @@ file.
 
 ## Re-vendoring and layer epochs
 
-Re-vendor a served page only through the quiescent sequence:
-
-```bash
-leaf server stop <page>
-leaf page init <page>
-leaf server start <page>
-```
-
-Stopping disables desired service and waits for the old process to retire.
-Initialization preserves the recorded address, lifetime, and page status, and
-writes a new layer epoch so an open tab reloads onto the new layer rather than
-posting into it.
+Re-vendor a served page with `leaf page init <page>` alone. It checks the
+incoming layer against the page first, so a refused re-vendor leaves the running
+server as it was. An admitted one takes the server down, re-vendors, and starts
+the server again at the recorded URL under its recorded lifetime, and a `leaf wait`
+watching the page carries on through the restart. A page whose server was stopped
+stays stopped. Re-vendor a session's page from the session that holds it: init
+refuses a page that another live session serves. A page whose session has ended
+stays stopped after init, and `leaf server start` then serves it for this session.
+Initialization preserves the page status and writes a new layer epoch, so an open
+tab reloads onto the new layer rather than posting into it.
 
 ## Page lifetime
 
@@ -99,7 +97,8 @@ On a page with no recorded lifetime, a normal `server start` from an agent
 session chooses a session lifetime. Its process retires when no live session
 claims the page, but desired service remains enabled: a `leaf wait` watching any
 enabled page revives its server under the recorded lifetime and exact URL if the
-process dies. Only `leaf server stop <page>` disables a service.
+process dies. Only `leaf server stop <page>` disables a service, and a `leaf wait`
+goes on watching a stopped page until it is idle.
 
 `server start --standing`, or a serve started from the user's own shell, chooses
 a standing lifetime. Its process ignores session claims and remains live between

@@ -6,10 +6,11 @@ page directory, composed on the order and merge grains in
 The page directory itself lives wherever the caller says —
 conventionally ~/.local/state/leaf/pages/<slug>/ — and is self-contained,
 so an approved version can't change under its user; re-running `page init`
-is the explicit re-vendor, on the sequence in `../../references/serving-pages.md`,
-"Re-vendoring and layer epochs". One transition covers start, stop, init,
-contract-bearing CLI writes, and preview reads. Stop retains it through the server's
-release, so no operation can cross the old process's contract.
+is the explicit re-vendor, which restarts a served page's server around it
+(`../../references/serving-pages.md`, "Re-vendoring and layer epochs"). One
+transition covers start, stop, init, contract-bearing CLI writes, and preview reads.
+Stop retains it through the server's release, so no operation can cross the old
+process's contract.
 
 A candidate layer must retain every page action or report whose sender it retains,
 including superseded predecessors that a later undo can expose. It must also retain

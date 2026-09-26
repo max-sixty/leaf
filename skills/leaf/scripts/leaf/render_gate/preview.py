@@ -30,8 +30,7 @@ def _refuse_a_foreign_runtime(page_dir: Path) -> None:
         f"{page_dir} was vendored from another Leaf's runtime modules — its layer "
         f"names {vendored or 'no runtime identity'} where this Leaf's are {running}. "
         "The browser gate loads the page's runtime into its own probe modules, so "
-        f"re-vendor with `leaf page init {page_dir}` — stopping its server first if "
-        "one is running."
+        f"re-vendor with `leaf page init {page_dir}`."
     )
 
 

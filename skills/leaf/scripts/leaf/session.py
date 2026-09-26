@@ -36,7 +36,7 @@ from .schema import (
 )
 from .served_state.page import full_state
 from .served_state.reading import page_reading
-from .server import running_server, server_restarting
+from .server import running_server
 from .service import (
     PageTransaction,
     claim_page,
@@ -216,8 +216,7 @@ class PageTick(NamedTuple):
     batch: list
     live: bool
     watch_state: str
-    lost: bool
-    restarted: str | None
+    revival: str | None
     transaction: PageTransaction
 
 
@@ -231,8 +230,10 @@ class Watch:
     A revival releases that transaction before waiting for the service
     transition, then rereads under a new transaction; no delivery snapshot
     crosses that unlocked interval.
-    `watch_state` is ownership/lifetime; `lost` separately says the server is
-    down with no restart left to make.
+    `watch_state` is ownership/lifetime. The server is neither: a stopped
+    service, or one whose revival failed, leaves the page watched, since a wait
+    ends only when its pages go idle or change hands. `revival` is the line a
+    revival leaves for the agent, said once per death.
 
     Between passes the watch follows `reading`, the stamps of what a pass reads:
     the machine's claims, which say which pages the session holds, and each page a
@@ -251,8 +252,10 @@ class Watch:
         )
         self.leases = []
         self.start_mark = None
+        # Pages whose server has had its one revival since last seen running, and
+        # those of them whose revival has been reported as failed.
         self._revived: set = set()
-        self._lost: set = set()
+        self._failed: set = set()
         self._check_at: dict = {}
         self.claims = state_home() / "claims"
         self.watched: list[Path] = []
@@ -327,30 +330,24 @@ class Watch:
                 # Discovery can race deletion; a missing marker is no page.
                 continue
 
-            try:
-                started = start_server(page_dir, revive=True)
-            except StartRefused as error:
-                print(error, file=sys.stderr)
-                started = None
             key = str(page_dir)
-            if started:
-                self._revived.add(key)
-                self._lost.discard(key)
-            else:
-                self._lost.add(key)
+            self._revived.add(key)
+            try:
+                url, _ = start_server(page_dir, revive=True)
+                revival = f"{page_dir}: server had died; restarted at {url}"
+            except StartRefused as error:
+                self._failed.add(key)
+                revival = _server_down(
+                    page_dir, f"had died and did not restart ({error})"
+                )
 
             # Ownership or status may have changed while the service transition
             # ran. Only this second transactional reading may be delivered.
             try:
                 with PageTransaction(page_dir) as page:
                     reading, _ = self._read(page, observed)
-                    if (
-                        started
-                        and reading.watch_state == "watching"
-                        and reading.live
-                        and not reading.lost
-                    ):
-                        reading = reading._replace(restarted=started[0])
+                    if reading.watch_state == "watching" and reading.live:
+                        reading = reading._replace(revival=revival)
                     yield reading
             except FileNotFoundError:
                 continue
@@ -366,41 +363,29 @@ class Watch:
         )
         service = read_json(page_dir / SERVICE_FILE)
         enabled = bool(service and service["enabled"])
-        key, now, revive = str(page_dir), time.time(), False
+        key, now, revive, revival = str(page_dir), time.time(), False, None
         # Desired service state owns revival. Status says what the page is doing;
-        # it does not turn a deliberately disabled service back on. A restart
-        # disables the service too, but its holder starts it again, so while one
-        # runs the page is neither lost nor due a revival.
-        if watch_state == "watching" and live and server_restarting(page_dir):
-            self._lost.discard(key)
-        elif watch_state == "watching" and live and not enabled:
-            self._lost.add(key)
-        elif watch_state == "watching" and live and now > self._check_at.get(key, 0):
+        # it does not turn a disabled service back on, whether someone stopped it
+        # or `page init` holds it down to re-vendor. Neither ends the watch.
+        watched = watch_state == "watching" and live
+        if watched and enabled and now > self._check_at.get(key, 0):
             self._check_at[key] = now + REVIVAL_CHECK_S
             if running_server(page_dir):
                 # A server seen running earns the next death its own revival —
                 # one attempt per death, so a server dying on arrival still
                 # can't respawn every five seconds.
                 self._revived.discard(key)
-                self._lost.discard(key)
-            elif key in self._revived:
-                self._lost.add(key)
-            else:
+                self._failed.discard(key)
+            elif key not in self._revived:
                 revive = True
-        elif watch_state != "watching" or not live:
-            self._lost.discard(key)
+            elif key not in self._failed:
+                self._failed.add(key)
+                revival = _server_down(page_dir, "died again after its restart")
+        elif not watched:
             self._revived.discard(key)
+            self._failed.discard(key)
         return (
-            PageTick(
-                page_dir,
-                status,
-                batch,
-                live,
-                watch_state,
-                key in self._lost,
-                None,
-                page,
-            ),
+            PageTick(page_dir, status, batch, live, watch_state, revival, page),
             revive,
         )
 
@@ -413,6 +398,12 @@ class Watch:
         for lease in self.leases:
             release_lease(lease)
         self.leases.clear()
+
+
+def _server_down(page_dir: Path, what: str) -> str:
+    """The line a wait leaves when a dead server did not come back. The wait
+    goes on watching: a later `leaf server start` is the page coming back."""
+    return f"{page_dir}: server {what}; `leaf server start {page_dir}` serves it again"
 
 
 def _page_stamp(page_dir: Path) -> str | None:
@@ -481,42 +472,16 @@ def read_watch_pass(
                 )
                 return _WatchPass(readings, live, 2)
             continue
-        if reading.live and not reading.lost:
+        if reading.live:
             live.append(reading)
-        if reading.restarted:
-            print(
-                f"{reading.page_dir}: server had died; "
-                f"restarted at {reading.restarted}",
-                file=sys.stderr,
-                flush=True,
-            )
+        if reading.revival:
+            print(reading.revival, file=sys.stderr, flush=True)
         # A batch outranks the page's state: a wait already holding events owes
         # them to the agent whatever became of the leaf, so an idled page still
         # delivers here — it just no longer holds the wait open below.
         if reading.batch:
             deliver(reading)
             return _WatchPass(readings, live, 0)
-        if reading.lost:
-            # A session-wide carrier still serves its other leaves. Treat the
-            # unavailable page as fatal only when it is the named watch, or when
-            # the completed pass finds no live page left to carry.
-            if named is None or not paths_same(reading.page_dir, named):
-                continue
-            print(
-                f"{reading.page_dir}: server is not running; restart it with "
-                f"`leaf server start {reading.page_dir}`",
-                file=sys.stderr,
-            )
-            return _WatchPass(readings, live, 2)
-    lost = [reading for reading in readings if reading.lost]
-    if lost and not live:
-        for reading in lost:
-            print(
-                f"{reading.page_dir}: server is not running; restart it with "
-                f"`leaf server start {reading.page_dir}`",
-                file=sys.stderr,
-            )
-        return _WatchPass(readings, live, 2)
     return _WatchPass(readings, live, None)
 
 

@@ -990,13 +990,14 @@ def test_terminating_a_preview_mid_update_leaves_no_service(served_preview):
 def test_a_user_preview_update_keeps_the_sessions_wait_watching(
     tmp_path, served_preview, spawn, edit
 ):
-    """A `--user` preview's update is not a stop, so the session's wait carries on.
+    """A `--user` preview's update leaves the session's wait watching.
 
     The update used to disable the page's service for its whole length, and a wait
-    watching the page read that as a server someone stopped: with no other page to
-    carry, it ended with `server is not running` on every save. A source edit now
-    leaves the server up, and a runtime edit's restart says it is one while it runs.
-    The comment after the update is the proof: only a wait still watching delivers it.
+    watching the page read that as a page it had lost: with no other page to carry,
+    it ended on every save. A source edit leaves the server up, and a runtime edit's
+    re-vendor restarts it, which a wait watches through as it watches any stopped
+    server. The comment after the update is the proof: only a wait still watching
+    delivers it.
     """
     source, runtime, directory, _, _, log = served_preview
     waited = tmp_path / "wait.log"

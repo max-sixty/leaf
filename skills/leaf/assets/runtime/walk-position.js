@@ -63,12 +63,22 @@ export function walkPosition() {
 // `<id>.edge`, for the owner's own scope; `id` is also the walk's position key and the
 // prefix of each route. `steps` names the four routes and their words, in the order
 // ArrowUp, ArrowDown, Home, End, for a list whose ends have a meaning of their own.
-// `landed(row)` runs after a press that moved focus to another row. Tabs and spatial
-// grids own cyclic policies; the Page Map and the page's Ask walk keep their own
-// placement readings.
+// `landed(row)` runs after a press that moved focus to another row. `scroll: false`
+// holds the page still for a list read off what is in view, such as the Page Map's
+// visible markers, where scrolling to the landed row would change the list the walk
+// is over. Tabs and spatial grids own cyclic policies; the page's Ask walk steps by
+// document position.
 const STEPS = Object.freeze(["previous", "next", "first", "last"]);
 const capital = (word) => word[0].toUpperCase() + word.slice(1);
-export function rowWalk({ id, noun, plural, rows, steps = STEPS, landed }) {
+export function rowWalk({
+  id,
+  noun,
+  plural,
+  rows,
+  steps = STEPS,
+  landed,
+  scroll = true,
+}) {
   const [up, down, home, end] = steps;
   const route = (binding, step) => ({
     id: `${id}.${step}`,
@@ -79,7 +89,7 @@ export function rowWalk({ id, noun, plural, rows, steps = STEPS, landed }) {
     const was = document.activeElement;
     const row = pick(rows());
     if (!row) return;
-    row.focus();
+    row.focus({ preventScroll: !scroll });
     beginWalk(id, noun, () => listWalkPosition(rows(), document.activeElement));
     if (row !== was) landed?.(row);
   };

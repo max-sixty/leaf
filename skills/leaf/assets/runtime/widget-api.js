@@ -118,7 +118,7 @@ export {
   verbatimOwnerIdentity,
   wrote,
 } from "./passages.js";
-export { ago, clocked, clockValue, quietSince } from "./presence.js";
+export { ago, clocked, clockValue, quietSince, shortAgo } from "./presence.js";
 export { shallowSigs } from "./application.js";
 export { shadowStage } from "./shadow-stage.js";
 export { agentName, revisionLabel } from "./context.js";

@@ -1,14 +1,13 @@
 /* One diagnostic record of this tab's browser input. The page event log remains the
    authority for decisions; this stream explains the gestures that led to them. */
 import { TEXT_BOX } from "./focus.js";
+import { PAGE_ROOT } from "./storage.js";
 
-const canonical = document.querySelector('link[rel="canonical"][data-lf-runtime]');
-const offline = document.querySelector(
-  'script[type="application/json"][data-lf-runtime][data-lf-offline]',
-);
-const enabled = Boolean(canonical && !offline);
-const url = enabled ? new URL("api/interaction", canonical.href).href : null;
-const root = enabled ? new URL(canonical.href).pathname.replace(/\/$/, "") : "";
+// A document with no declared root has no server to record to: an interactive export,
+// or a file opened on its own.
+const enabled = PAGE_ROOT !== null;
+const url = enabled ? new URL("api/interaction", PAGE_ROOT).href : null;
+const root = enabled ? new URL(PAGE_ROOT).pathname.replace(/\/$/, "") : "";
 const session = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 const queue = [];
 // Bound the tab's diagnostic backlog during an outage. Repeated observations

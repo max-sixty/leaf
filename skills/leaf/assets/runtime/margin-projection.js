@@ -116,8 +116,8 @@ import {
   letGo,
 } from "./focus.js";
 import { el, keeps, keepsHidden, offer } from "./widget-elements.js";
-import { clampedRow, PRESS } from "./keyboard/bindings.js";
-import { beginWalk, listWalkPosition } from "./walk-position.js";
+import { PRESS } from "./keyboard/bindings.js";
+import { beginWalk, listWalkPosition, rowWalk } from "./walk-position.js";
 import { ago, clocked } from "./presence.js";
 import { runtime } from "./context.js";
 import {
@@ -1340,22 +1340,6 @@ export function createMarginProjection({
     });
   }
 
-  function walkMarkers(direction, edge = null) {
-    const visible = visibleRows();
-    if (!visible.length) return;
-    const next =
-      edge === "first"
-        ? visible[0]
-        : edge === "last"
-          ? visible.at(-1)
-          : clampedRow(visible, document.activeElement, direction);
-    holdTabStop(next);
-    next.focus({ preventScroll: true });
-    beginWalk("page-map", "Marker", () =>
-      listWalkPosition(visibleRows(), document.activeElement),
-    );
-  }
-
   // `o`: the annotation layer (annotation-layer.js). Hiding it takes off what it hides
   // that the user could be standing in: the card closes through its ordinary close, an
   // unfolded cluster folds, and focus held by a pin goes to the pin's target, since the
@@ -1443,31 +1427,19 @@ export function createMarginProjection({
       },
       run: stepClusterMarginEntries,
     },
-    {
-      id: "margin.walk",
-      keys: ["ArrowUp", "ArrowDown"],
-      does: "Walk the visible page-map markers",
-      line: "walk the Page Map",
-      repeat: true,
+    // The walk answers from a marker, not from the entries beside it, which Left and
+    // Right move between.
+    ...rowWalk({
+      id: "margin",
+      noun: "Marker",
+      plural: "visible markers",
+      rows: visibleRows,
+      landed: holdTabStop,
+      scroll: false,
+    }).map((row) => ({
+      ...row,
       when: () => focused()?.matches?.(".lf-margin-marker") && visibleRows().length > 0,
-      run: (binding) => walkMarkers(binding === "ArrowDown" ? 1 : -1),
-    },
-    {
-      id: "margin.first",
-      keys: ["Home"],
-      does: "First visible page-map marker",
-      line: "first marker",
-      when: () => focused()?.matches?.(".lf-margin-marker") && visibleRows().length > 0,
-      run: () => walkMarkers(0, "first"),
-    },
-    {
-      id: "margin.last",
-      keys: ["End"],
-      does: "Last visible page-map marker",
-      line: "last marker",
-      when: () => focused()?.matches?.(".lf-margin-marker") && visibleRows().length > 0,
-      run: () => walkMarkers(0, "last"),
-    },
+    })),
   ];
 
   function pressMarker(event) {

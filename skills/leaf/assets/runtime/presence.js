@@ -66,6 +66,9 @@ export const observeServerNow = (now) => {
   if (now) clockSkew = Date.parse(now) - Date.now();
 };
 export const JUST_NOW = "just now";
+// How long ago a server timestamp was, rounded to its nearest unit, in the one wording
+// the page and every package use: `ago` for a sentence, `shortAgo` where a seat has
+// room for the figure alone, so two seats never give one moment two different ages.
 const age = (ts, compact) =>
   clockValue((now) => {
     if (!ts) return "";

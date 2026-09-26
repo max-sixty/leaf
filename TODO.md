@@ -152,14 +152,11 @@ has tried; settle that before building it.
 
 ### Shared definitions
 
-- **Give each concept defined twice one owner.** The
-  [concept survey](notes/concept-consolidation.md) found ten concepts whose copies
-  have already drifted: the thread-turn reading behind the
-  "Waiting on: Agent" filter, unread state after an answering action, the Stop
-  hook vs `leaf status idle`, undo eligibility, the storage page scope, the chrome
-  over the window, the page-ready wait, the vendored-bundle CSP check, the revision
-  vocabulary readers, and resource re-addressing. Most are a primitive whose
-  callers were never all cut over.
+- **Finish giving each concept defined twice one owner.** The
+  [concept survey](notes/concept-consolidation.md) lists what remains: the chrome
+  over the window, the page-ready wait, the vendored-bundle CSP check, drag state,
+  focus hand-back and thread identity wait on the markdown-composer branch; chip
+  geometry and margin-carrier paint on the layout-survey branch.
 
 ## Etc
 

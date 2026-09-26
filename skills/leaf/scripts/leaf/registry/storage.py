@@ -8,7 +8,7 @@ from pathlib import Path
 from leaf.files import file_stamp, latest_revision
 
 from .contract import RegistryError, read_registry_declarations
-from .validation import validate_registry
+from .layer import required_layer_declarations, validate_event_contracts
 
 _registries = {}  # registry.json -> (its stamp, the vocabulary it holds)
 
@@ -17,25 +17,24 @@ def load_registry(page_dir: Path):
     """The page's complete vendored layer, or None before `page init`.
 
     The layer is `page init`'s own output rather than anything an author writes, so a
-    reader that rejects it wants a re-vendor rather than an edit.
+    reader that rejects it wants a re-vendor rather than an edit. It checks only what
+    the running Leaf can disagree with, the kernel's event contract, which a page
+    vendored by an earlier Leaf may carry in an older form; `read_page_registry`
+    validates the vocabulary where it is new.
 
-    Validated once per vendored file: `page init` writes a page's registry.json and
-    nothing writes it again, while an action POST asks for the whole vocabulary before
-    it can check a single press — so every press re-linted forty frozen entries, an
-    order of magnitude more work than the contract check it was preparing for."""
+    Held once per vendored file, because an action POST asks for the whole vocabulary
+    before it can check a single press."""
     path = page_dir / "registry.json"
     stamp = file_stamp(path)
     if stamp and (held := _registries.get(path)) and held[0] == stamp:
         return held[1]
     try:
-        declarations = read_registry_declarations(path)
-        registry = (
-            None if declarations is None else validate_registry(declarations, path)
-        )
+        registry = read_registry_declarations(path)
+        if registry is not None:
+            kinds = required_layer_declarations(registry, path)[0]
+            validate_event_contracts(kinds, path)
     except RegistryError as error:
-        raise RegistryError(
-            f"{error}; run `leaf page init {page_dir}` to re-vendor it"
-        ) from None
+        raise _revendor(page_dir, error) from None
     if stamp:
         _registries[path] = (stamp, registry)
     return registry
@@ -47,6 +46,10 @@ def read_page_registry(page_dir: Path):
     Revision capture uses ``compose_page_registry`` directly with its captured
     declarations and file inventory. This filesystem reading is for callers
     examining the authored candidate, never an already activated revision.
+
+    The candidate is validated where it differs from the active revision's
+    vocabulary, which was validated when its revision activated: a page whose layer
+    and declarations have not moved is not validated again.
     """
     page_dir = page_dir.absolute()
     source = page_dir / "page" / "registry.json"
@@ -66,6 +69,7 @@ def read_page_registry(page_dir: Path):
         file_stamp(page_dir / "registry.json"),
         file_stamp(source),
         widgets,
+        latest_revision(page_dir),
     )
 
 
@@ -75,8 +79,12 @@ def _read_page_registry_stamped(
     layer_stamp: tuple | None,
     declaration_stamp: tuple | None,
     widgets: tuple[tuple[str, tuple], ...],
+    active: int | None,
 ):
-    """Compose one candidate vocabulary until any input file changes."""
+    """Compose one candidate vocabulary until any input file or the active revision
+    changes."""
+    from leaf.revision_artifact import read_artifact
+
     from .page import compose_page_registry
 
     layer = load_registry(page_dir)
@@ -84,12 +92,23 @@ def _read_page_registry_stamped(
         return None
     source = page_dir / "page" / "registry.json"
     declarations = read_registry_declarations(source) or {}
-    return compose_page_registry(
-        layer,
-        declarations,
-        [path for path, _stamp in widgets],
-        source=source,
-    )
+    try:
+        return compose_page_registry(
+            layer,
+            declarations,
+            [path for path, _stamp in widgets],
+            source=source if declarations else page_dir / "registry.json",
+            validated=read_artifact(page_dir, active).registry if active else None,
+        )
+    except RegistryError as error:
+        if declarations:
+            raise
+        raise _revendor(page_dir, error) from None
+
+
+def _revendor(page_dir: Path, error: RegistryError) -> RegistryError:
+    """A fault in the vendored layer, which `page init` wrote and re-vendoring fixes."""
+    return RegistryError(f"{error}; run `leaf page init {page_dir}` to re-vendor it")
 
 
 def layer_metadata(page_dir: Path) -> dict:

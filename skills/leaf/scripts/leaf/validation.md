@@ -37,6 +37,9 @@ element is wider than the readable column (the rule that draws that column claim
 it with `--lf-reading-column: 1`, so the width and the claim come from one block). Near-free
 and deterministic is what makes running it on every save affordable, so keep a new
 check that way; anything needing a browser belongs in the command's browser half.
+The effective registry and each vendored sheet are validated where they differ from
+the active revision's captured copies, which were validated when that revision
+activated, and the theme is parsed for the column only on a page that states a width.
 
 That half has one piece plain `version check` runs too. A page that runs code of its
 own, a module script or a page widget the document places, is served and run once at

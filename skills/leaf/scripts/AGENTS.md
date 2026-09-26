@@ -82,7 +82,7 @@ predecessor readings, `transitions` compares revisions with standing actions,
 
 ## Protocol references
 
-Read the reference that owns the boundary before changing it:
+The references that own each boundary:
 
 - `leaf/page-storage.md` for page files and atomic state;
 - `leaf/events.md` for event shapes, threads, undo, edits, and reactions;
@@ -96,6 +96,3 @@ Read the reference that owns the boundary before changing it:
 `../references/packages.md` owns the public package contract, and
 `../assets/AGENTS.md` owns the browser's parallel projection, passage, registry, and
 render rules.
-
-Where a shared parser or projection already answers a question, use it instead of
-reconstructing the answer from source text, events, CSS selectors, or tag names.

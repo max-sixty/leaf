@@ -43,7 +43,7 @@ below.
 ## The corpus
 
 `corpus.html`, `corpus.data.json`, `corpus.jsonl`, and `corpus.page/` are generated
-by `scripts/corpus.py`. Edit the source page and regenerate; never patch an output.
+from the sources by `scripts/corpus.py`.
 
 Every widget and idiom in the shipped vocabulary stands in some corpus source, and
 the suite refuses one that does not. `examples/layer.json` lists every bundled
@@ -99,8 +99,3 @@ the palette from the pair already here. A mock's generator belongs in scratch, s
 nothing can make a depicted console false. A generator for images that depict Leaf
 itself, such as `scripts/record-demo.py`, stays in `scripts/` because a change to
 Leaf can make them stale.
-
-## Previewing
-
-`scripts/preview.py [page]` serves a fixture with its companions as a live page. A
-page outside this corpus uses `page init` and the normal server commands.

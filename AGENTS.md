@@ -169,8 +169,7 @@ host supplies Chrome and `jq`; leaf never downloads a browser.
 
 Files under `skills/leaf/assets/vendor/`, each package's `vendor/`, and
 `skills/leaf/mcp-app/` are generated and committed where their consumer reads
-them. Regenerate them with their owning script (`scripts/AGENTS.md`); never
-patch one by hand.
+them; `scripts/AGENTS.md` names the script that regenerates each.
 
 ## Cross-runtime invariants
 
@@ -274,7 +273,6 @@ Layer-wide facts live under `$` keys; each tag entry is one complete schema.
 
 Before finishing a feature:
 
-- Keep the implementation, tests, and any owning protocol or reference aligned.
 - Give every action a keyboard route, without spending a page-level binding on
   each one.
 - Follow `examples/AGENTS.md` when adding or changing a feature, and regenerate
@@ -285,7 +283,6 @@ Before finishing a feature:
   for the user's experience and names the surface they read on; it leaves
   format and phrasing to the agent. Score the change with `evals/` before and
   after, and add a case for the behavior it targets (`evals/README.md`).
-- Update any public docs or generated outputs the feature affects.
 
 `uv run pytest tests` and `npm run test:runtime` are the everyday gate
 (`tests/AGENTS.md`). Two TypeScript trees and the JavaScript lock have gates the
@@ -309,13 +306,13 @@ npm ci && npm run build:browser && uv run scripts/vendor.py
 For a change that can alter browser startup, compare base and candidate at the
 boundary it affects: served previews for a runtime change,
 `scripts/verify-site-local.sh` for site delivery, Worker routing, or containers.
-Read the comparison as a phase profile: document receipt,
-widget upgrade, authoritative presentation, and the requests and bytes loaded by
-presentation. Compare requests and bytes directly; elapsed time is diagnostic. A change that adds work before
-presentation states the user-visible benefit and why it cannot wait. Bytes
-outside that profile, such as a lazily loaded module, a vendored file, or the
-install's size, are not a reason for a change on their own.
+Read the comparison as a phase profile: document receipt, widget upgrade,
+authoritative presentation, and the requests and bytes loaded by presentation.
+Compare requests and bytes directly; elapsed time is diagnostic. A change that
+adds work before presentation states the user-visible benefit and why it cannot
+wait. Bytes outside that profile, such as a lazily loaded module, a vendored file,
+or the install's size, are not a reason for a change on their own.
 
-Land through a pull request or with `wt merge` once the user authorizes it;
-`/developing-leaf` covers landing with a red gate. Tend sessions follow
+Land through a pull request or with `wt merge`, which squash-merges to `main`.
+`/developing-leaf` covers landing with a red gate; Tend sessions follow
 **Landing** in `.claude/skills/running-tend/SKILL.md`.

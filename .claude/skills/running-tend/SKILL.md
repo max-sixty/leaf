@@ -15,9 +15,7 @@ the tests pass. Changes to workflows, Tend's configuration, CODEOWNERS, or agent
 instructions require the control-plane owner's fresh approval.
 
 Merging squashes with `PR_TITLE` / `PR_BODY`, so the description becomes `main`'s
-commit message; hold its claims to the standard the diff is held to. Attribute
-a file's change from that commit's per-file diff (`git show <sha> -- <path>`),
-not a grep over a whole-directory diff.
+commit message; hold its claims to the standard the diff is held to.
 
 ## Review threshold
 
@@ -47,9 +45,7 @@ profiles from CI.
 ## Reading a red suite
 
 Nearly every test drives a real browser, so a traceback can name a symptom
-several boundaries after its cause. Find the first violated contract, reproduce
-at the lowest boundary that preserves it, then decide whether the product, the
-test, or the environment owns it. Two test-owned failures recur:
+several boundaries after its cause. Two test-owned failures recur:
 
 - **A read or press before the page said it was ready**, which a re-run hides.
   State the ordering (`tests/AGENTS.md`, **State races are arrangements, not
@@ -91,7 +87,7 @@ permission first) still applies when the target shows no agent signals.
 
 Leave a **"Bot temporarily unavailable"** tracker open until `tend-review-runs`
 drains its rows, whatever its body says, since each row names a stranded
-trigger. A comment can record recovery. This applies by title; `ci-fix`
+trigger. This applies by title; `ci-fix`
 diagnosis trackers have no rows and `ci-fix` closes them.
 
 ## Weekly: interface sweep
@@ -113,9 +109,8 @@ npm run build:browser
 uv run scripts/vendor.py
 ```
 
-Commit the result to the same branch, then run the suite, since the browser tests
-load the bundles. Read each `*.LICENSES.txt` diff: a package listed at two
-versions means the bump split a closure (Shiki's packages pin each other
-exactly); `npm update <package>` moves a locked dependency within its dependant's
+Commit the result to the same branch. Read each `*.LICENSES.txt` diff: a package
+listed at two versions means the bump split a closure (Shiki's packages pin each
+other exactly); `npm update <package>` moves a locked dependency within its dependant's
 range. Drop a Lit bump the Web Awesome build refuses. `esbuild` is left to move
 by hand when a bundle needs it; bump it and rebuild everything.

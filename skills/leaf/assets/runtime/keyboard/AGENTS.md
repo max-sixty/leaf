@@ -89,9 +89,7 @@ scopes), `register.js` (scope order, page commands, the Escape ladder),
 (native editing claims), `layer-stack.js` (popovers and dialogs over the page),
 `page.js` (the page's own parts and the foot of the ladder), `control-keys.js`,
 `presentation.js`, `shortcut-bar.js`, `command-reference.js`, `hints.js`,
-`key-badge-placement.js`, and `disclosure.js`. Each header states its contract.
+`key-badge-placement.js`, and `disclosure.js`.
 
-Before changing a binding, read the whole register for conflicting meanings,
-native behavior, entry and exit symmetry, focus restoration, and every
-projection that advertises it, and test the press inside and outside its scope
-and inside any native editor the scope contains.
+Test a changed binding inside and outside its scope and inside any native editor
+the scope contains, and check entry and exit symmetry against the whole register.

@@ -292,9 +292,6 @@ interpretation of it.
 
 `scripts/browser/build.mjs` compiles the TypeScript foundation into
 `vendor/browser-runtime.js` and writes `vendor/lit.js`, the page's one copy of Lit
-(`scripts/AGENTS.md` owns the commands). While iterating, run `node --check`,
-formatting, and a focused browser test. What a module decides on its own is tested
-under `tests/runtime/` (`npm run test:runtime`; `tests/AGENTS.md` says which
-readings may go there). Before handing over a runtime or theme change, run the
-relevant browser test file or `leaf version check --render` on an affected
-example; `node --check` cannot see browser bindings, layout, or reconciliation.
+(`scripts/AGENTS.md` owns the commands). What a module decides on its own is
+tested under `tests/runtime/` (`npm run test:runtime`; `tests/AGENTS.md` says
+which readings may go there).

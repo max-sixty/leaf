@@ -18,9 +18,9 @@ independent reviewer the task and candidate before giving them the author's asse
 
 ## Derive
 
-Read the changed code and its callers. For a standing sweep, start from a user
-workflow in the examples. Use `skills/leaf/assets/AGENTS.md` for UI contracts,
-render gates, and the ownership map; read the relevant owners' module headers.
+For a standing sweep, start from a user workflow in the examples. Use
+`skills/leaf/assets/AGENTS.md` for UI contracts, render gates, and the
+ownership map.
 Source access belongs in this audit, including when delegating it.
 
 Keep a short working interaction model: the user's goal; the source, control,
@@ -55,9 +55,8 @@ viewport.
 
 ## Observe
 
-Re-vendor before testing. Use `serve` and `open_page` from
-`tests/render_harness.py`, or `scripts/preview.py <example>` run as a background
-task that holds the preview across tool calls, stopped when done.
+Use `serve` and `open_page` from `tests/render_harness.py`, or
+`scripts/preview.py <example>` run as a background task.
 These process-owned servers exercise the real HTTP and event-log loop without
 delivering user feedback to the task. Give independent runs separate page state.
 Drive with real input and confirm each intended transition occurred.
@@ -95,9 +94,7 @@ repeat the failing experiment and a sibling derived from the same relationship.
 
 Pin measurable page defects in render_version and gesture defects in the owning
 `test_render_*.py` module. Put the bug back once and watch the new check fail.
-Keep the implementation, tests, and owning contracts aligned, and run the
-required checks. Report established behavior, unresolved findings, and untested
+Report established behavior, unresolved findings, and untested
 relationships explicitly; uncompleted transitions remain untested. Report functional and
 visual coverage separately, naming the regions and states judged in the browser. Passing
-interaction checks or collecting screenshots is not a visual verdict. Hand over the
-reviewed branch and evidence; landing waits for the go-ahead.
+interaction checks or collecting screenshots is not a visual verdict.

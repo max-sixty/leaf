@@ -9,9 +9,7 @@ only where it proves boundaries working together. When a high-level browser test
 slow, or fails on timing or geometry outside its contract, repair its arrangement or
 move its contract to the lower boundary.
 
-Product protocols belong to `skills/leaf/assets/AGENTS.md` and the contracts
-`/developing-leaf` routes, and each helper's docstring owns its contract. Code cites
-sections here by heading.
+Each helper's docstring owns its contract, and code cites sections here by heading.
 
 ## Run the narrowest useful surface
 
@@ -68,9 +66,7 @@ in the suite. The render gate never opens the thread panel, so the suite opens i
 puts the gate's geometry readings to it, asserting each population and planting a
 fault there first.
 
-Prefer the public route: a CLI command or the function its entry point uses, a
-vendored page through its HTTP API, `render_version` rather than one of its probes.
-Where the product already answers a reading's question, such as `shownBand` for the
+A render-gate test calls `render_version`, not one of its probes. Where the product already answers a reading's question, such as `shownBand` for the
 band a box shows, consume that answer instead of copying it.
 
 A corpus source gets its own case only when its content is the cause under test. Put
@@ -82,9 +78,6 @@ declarations runs on a widget that declares them, passed to `serve` as
 A test over prose compares it with something the machine states: a shown command
 against the click tree, an `x-` key against the guide, a table against its registry.
 Leave wording with no machine side to review.
-
-Re-vendor before trusting a result that depends on runtime, theme, registry, or widget
-changes; a page holds the layer `page init` copied into it.
 
 Focus evidence starts in keyboard modality: press `Tab` to the exact stop and require
 `:focus-visible`; `element.focus()` alone is not that evidence.
@@ -124,9 +117,8 @@ of one user share `one_user`.
 
 ## Drive the browser a user gets
 
-Drive gestures with `locator.click()`, `page.keyboard`, and `page.mouse`, and drag
-selections with `select`; a synthetic `dispatchEvent` skips the event sequence the
-runtime listens to. `locator.click()` scrolls its target into view, so where the
+Drag selections with `select`; a synthetic `dispatchEvent` skips the event
+sequence the runtime listens to. `locator.click()` scrolls its target into view, so where the
 subject is a press's effect on scroll, scroll it into view first and read the baseline
 after.
 
@@ -244,7 +236,7 @@ final state say nothing about the motion between them.
 - An instant exists within one rendering turn, such as layout when a stamp changes; a
   page-side observer captures it and the stamp marks completion.
 
-Choose the smallest observation that preserves the claim. Measure a node the layer
+Measure a node the layer
 rebuilds in one page-side call that resolves and reads it; a detached node reads as
 zeros. A movement test covers a press and arriving news, with a pixel diff for
 borders, outlines, and shadows.
@@ -280,8 +272,5 @@ conditional assertion whose condition can vanish with the behavior.
 
 Pair `capture_output=True` with `check=True` only when the exception is unpacked. A
 test that needs the streams asserts the return code and puts stdout and stderr in the
-message. Name the URL, version, widget, event, or traffic counters that distinguish
-causes. Assert output by meaning: collapse whitespace, use `spoken` for the
-registry-backed reading, and match the attribute carrying a claim. Keep exact source
-and line assertions for tests whose subject is source structure or a diagnostic
-location.
+message. Assert output by meaning: use `spoken` for the registry-backed reading,
+and match the attribute carrying a claim.

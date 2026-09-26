@@ -16,14 +16,9 @@ those concepts. It is Leaf's canonical implementation vocabulary.
 
 ## Read the owning contract
 
-Read the scoped `AGENTS.md` for every area the change reaches and the header of
-each module changed. For a contract shared across modules or runtimes, read the
-sidecar beside the Python code that owns the boundary;
+For a contract shared across modules or runtimes, read the sidecar beside the
+Python code that owns the boundary;
 `<root>/skills/leaf/scripts/AGENTS.md` lists them under "Protocol references".
-
-This skill is maintainer workflow, not a home for product specifications. Agents
-using Leaf read `<root>/skills/leaf/SKILL.md`; package authors read
-`<root>/skills/leaf/references/packages.md`.
 
 ## Leave old state out of the handoff
 
@@ -67,20 +62,18 @@ sentence and matched before/after screenshots, embedded in the reply or as one
 interaction-only change, keep both previews live and hand off the labeled URL
 pair with the action that reveals the difference.
 
-Before calling a served page or visible runtime change finished, open the exact
-candidate URL, exercise the same journey in baseline and candidate (fragment,
-viewport, theme, interaction state), and check both consoles. A live preview
-handed to the user carries the fragment of the semantic block it is about (a
-titled section's own id) and stays running.
+Exercise the same journey in baseline and candidate at the same fragment,
+viewport, theme, and interaction state. A live preview handed to the user
+carries the fragment of the semantic block it is about (a titled section's own
+id) and stays running.
 
 ## Preview a shipped example
 
 `scripts/preview.py <example> --export` writes one file that opens offline.
 `scripts/preview.py <example>` serves a live page at `.tmp/previews/<example>`
-in the foreground, like a dev server: run it as a long-running command
-(`run_in_background` in Claude Code), read its URL from the output, and stop it
-when done. It follows source and runtime edits at one URL; each start rebuilds
-the page from the fixture, and `--slot <name>` runs another copy.
+in the foreground, like a dev server, so run it as a long-running command
+(`run_in_background` in Claude Code). It follows source and runtime edits at one
+URL; each start rebuilds the page from the fixture, and `--slot <name>` runs another copy.
 
 A plain preview takes no task claim, so its presses reach only the page's log;
 use it for screenshots and browser checks. `--user` claims the page at
@@ -118,8 +111,8 @@ npm run build --prefix <root>/worker
 <root>/scripts/verify-site-local.sh --agent
 ```
 
-Neither loop proves edge rollout or production latency; the `publish-site`
-workflow's run against the deployed release is the production reading.
+The `publish-site` workflow's run against the deployed release is the only
+production reading.
 
 ## Compare checkout versions
 
@@ -151,13 +144,6 @@ the user:
   --slot <slot>-candidate
 ```
 
-After stopping both, remove the baseline:
-
-```bash
-git worktree remove "$baseline_root"
-rmdir "$baseline_parent"
-```
-
 ## Author or revise a page
 
 Read `<root>/skills/leaf/SKILL.md` completely and follow its authoring,
@@ -181,9 +167,9 @@ commands, ask the user to run `wt config approvals add`.
 
 ## Land a change
 
-A branch may land with a red gate only
-when every failure also fails on the exact merge-base SHA under the same CI job
-and selection; until it reproduces there, it is the branch's. Use the base SHA's
+A branch may land with a red gate only when every failure also fails on the
+exact merge-base SHA under the same CI job and selection; until it reproduces
+there, it is the branch's. Use the base SHA's
 GitHub Actions run as the control, not a local container or a green run a few
 commits back. Main holds one nightly slot, so a base commit may carry no nightly
 result; push that SHA as a branch and dispatch `ci` on it. A case can differ
@@ -191,8 +177,8 @@ between Linux and a Mac, or between the full suite under `-n 2` and a run alone.
 
 `wt merge --no-hooks` lands past a red local hook whose failures reproduce on the
 base, and reuses a passing result when a newer `main` dislodges the merge. Finish
-either with `git push origin main:main`, since the skipped hook normally pushes. `✗ Can't push to local main branch` is a
-fast-forward failure.
+either with `git push origin main:main`, since the skipped hook normally pushes.
+`✗ Can't push to local main branch` is a fast-forward failure.
 
 Installed sessions load host caches, not the checkout. Claude Code picks up a
 push on its marketplace sweep; the post-merge hook refreshes an installed Codex

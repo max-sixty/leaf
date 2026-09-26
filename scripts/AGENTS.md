@@ -10,9 +10,6 @@ path: the vendored bundles, `examples/corpus.html` and its companions, the catal
 pin in `example-previews.json`, and the demo frames the README and site cards draw.
 Evidence, previews, staged sites, and probe results leave the tracked tree unchanged.
 
-Each script's docstring and `--help` own its behavior, flags, and lifecycle. This
-file says which script owns what.
-
 ## Examples and previews
 
 - `preview.py` serves one example or developer fixture as a live page, or exports it
@@ -23,8 +20,6 @@ file says which script owns what.
 - `keydocs.py` writes the `x-` key index in `docs/registry.html`.
 - `example_assets.py` fetches the pinned `max-sixty/leaf-assets` revision;
   `example-previews.py`, run as `wt refresh-previews`, redraws and republishes it.
-
-`examples/AGENTS.md` owns the rules a new or changed example meets.
 
 ## Website and demo
 

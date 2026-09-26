@@ -130,6 +130,7 @@ export function createResponseSurface({
   landIn,
   setPanel,
   activeInlineThread,
+  shownThreadAt,
   standingElement,
   composerHolds,
   responseOptionsAreOpen,
@@ -1535,7 +1536,20 @@ export function createResponseSurface({
         box: said.box,
         go: () => landIn(said),
       };
+    // Standing at an element whose thread the card or the Threads list is showing, the
+    // press continues that thread: the conversation about the element is already in
+    // front of the user. Only a thread about this very element counts. A card showing an
+    // enclosing block's thread is about that block, so an Ask inside it takes a thread of
+    // its own, and a selection still starts one on its words.
     const here = standingElement();
+    const shown = here && shownThreadAt(here);
+    const shownBox = shown?.target === here && threadInput(shown.thread);
+    if (shownBox)
+      return {
+        ...commenting("thread"),
+        box: shownBox,
+        go: () => landIn({ held: shown.thread, box: shownBox }),
+      };
     if (here)
       return {
         ...commenting(addressableWord(here)),

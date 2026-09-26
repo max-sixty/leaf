@@ -44,6 +44,9 @@
    outside the card, its target, and its cluster takes it down (`followStanding`). Escape from inside the
    card lands on its target. With Threads open the list's one expanded thread plays the
    card's part: the same arrival expands the target's thread there (`accompanyThread`).
+   This owner answers both halves for every other reader: `standingTargetAt` gives the
+   page target a card, cluster, or panel thread stands for, and `shownThreadAt` gives the
+   thread shown beside a place on the page.
 
    Placing the card changes its geometry and nothing inside it. The user's place in
    its transcript is the list's own scroll, held through reflow. A landing, send, or
@@ -129,7 +132,7 @@ import { repaint } from "./repaint.js";
 import { chromeRoot } from "./chrome.js";
 import { versionBtn } from "./version-chooser.js";
 import { motion, scrollBehavior } from "./motion.js";
-import { panel } from "./thread/panel-elements.js";
+import { panel, threadsBox } from "./thread/panel-elements.js";
 import { accompanyThread } from "./thread/landing.js";
 import { closestAcross, elementById, inChrome } from "./passages.js";
 import { addressableSays, addressableWord, visualAt } from "./anchor-resolution.js";
@@ -2676,6 +2679,49 @@ export function createMarginProjection({
     if (!pending && active !== previewMarginEntry) return null;
     return threads.length === 1 ? threads[0] : null;
   };
+
+  // ---------- the standing target, from every side ----------
+  // The page element a thread is about: the target its inventory entry stands by. A
+  // general or detached thread has none.
+  function threadTarget(id) {
+    const itemId = marginThreadItem(threadList().find((t) => t.root.id === id));
+    const entry =
+      itemId &&
+      pageInventory.find((candidate) =>
+        candidate.items.some((item) => item.id === itemId),
+      );
+    return entry ? targetFor(entry) : null;
+  }
+  // The page element a node stands for. A node on the page stands for itself, so this
+  // answers only for chrome that shows one target: a margin cluster control, the card
+  // (its threads and its own controls), and a thread in the Threads panel. The rest of the
+  // chrome stands for nothing. Readers climb from the node itself first, since a thread
+  // Ask or a reply box inside the card or panel is a nearer answer than the target.
+  function standingTargetAt(node) {
+    const projected = marginTargetAt(node);
+    if (projected) return projected;
+    const at = node?.nodeType === 1 ? node : node?.parentElement;
+    if (!at) return null;
+    if (preview.contains(at)) return targetFor(previewEntry);
+    const listed = panel.contains(at) ? closestAcross(at, ".lf-thread[data-id]") : null;
+    return listed ? threadTarget(listed.dataset.id) : null;
+  }
+  // The thread shown beside a user standing at `node`, with the page target it is about:
+  // with Threads shut, the card's selected thread when its target holds the node; with
+  // Threads open, the list's expanded thread when its target holds the node. The card and
+  // the list follow standing on keyboard arrival (`followStanding`), so this reads what
+  // the user can see rather than every thread the target has.
+  function shownThreadAt(node) {
+    if (!node) return null;
+    if (panelIsOpen()) {
+      const open = threadsBox.querySelector(":scope > .lf-thread[open]");
+      const target = open && threadTarget(open.dataset.id);
+      return target && under(node, target) ? { thread: open, target } : null;
+    }
+    const target = previewOpen() && targetFor(previewEntry);
+    const thread = target && previewList.querySelector(".lf-page-thread[data-thread]");
+    return thread && under(node, target) ? { thread, target } : null;
+  }
   // A live revision replaces the browser document, so DOM identity cannot carry a
   // user standing in retained margin chrome. Carry the target and margin-entry keys
   // instead; this owner alone can revalidate those keys against the new projection and
@@ -2837,6 +2883,9 @@ export function createMarginProjection({
     unfoldedMarginEntries,
     foldMarginEntryOptions,
     activeInlineThread,
+    standingTargetAt,
+    shownThreadAt,
+    threadTarget,
     captureStanding,
     restoreStanding,
     mount,

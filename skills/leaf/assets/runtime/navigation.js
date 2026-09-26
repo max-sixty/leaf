@@ -10,7 +10,8 @@ import { threadsBox } from "./thread/panel-elements.js";
 import { pageScroller } from "./scrolling.js";
 import { landingInsets } from "./geometry.js";
 import { effectiveScroller, readingRegionFor } from "./reading-regions.js";
-import { closestAcross } from "./passages.js";
+import { closestAcross, inChrome } from "./passages.js";
+import { documentFocused } from "./keyboard/scopes.js";
 import { under } from "./shadow.js";
 import { announce } from "./notifications.js";
 import { focusThread } from "./thread/focus.js";
@@ -33,22 +34,56 @@ const threadPosition = (activeInlineThread, panelIsOpen) => {
   });
 };
 
+// The page place a walk that is not in a thread measures from: the focused page node,
+// the page target focused chrome stands for, or the selection's end.
+function pagePlace(standingTargetAt) {
+  const held = documentFocused();
+  if (held && held !== document.body)
+    return inChrome(held) ? standingTargetAt(held) : held;
+  const node = getSelection()?.focusNode;
+  const at = node?.nodeType === 1 ? node : node?.parentElement;
+  return at && !inChrome(at) ? at : null;
+}
+
+// The thread a press steps to. From inside a thread, the next in the list. From a place
+// on the page, the thread shown beside it (the card, or the list's expanded thread) is
+// the one the user stands at, and otherwise the walk measures document position against
+// each thread's target, as the Ask walk does (asks/view.js, `askStep`): a target holding
+// the place is where the user already is, so the press steps off it. A general or
+// detached thread has no target, and is reached from the list's ends.
+function threadStep(threads, current, dir, place, { shownThreadAt, threadTarget }) {
+  if (current || !place) return clampedRow(threads, current, dir);
+  const shown = shownThreadAt(place)?.thread;
+  const shownId = shown?.dataset.id ?? shown?.dataset.thread;
+  const standing = threads.find((thread) => thread.dataset.id === shownId);
+  if (standing) return clampedRow(threads, standing, dir);
+  const side =
+    dir > 0 ? Node.DOCUMENT_POSITION_FOLLOWING : Node.DOCUMENT_POSITION_PRECEDING;
+  const reach = threads.filter((thread) => {
+    const target = threadTarget(thread.dataset.id);
+    if (!target) return false;
+    const rel = place.compareDocumentPosition(target);
+    return !(rel & Node.DOCUMENT_POSITION_CONTAINS) && rel & side;
+  });
+  return dir > 0 ? (reach[0] ?? threads.at(-1)) : (reach.at(-1) ?? threads[0]);
+}
+
 // t/T walk open threads. A closed panel walks them in page order, at each thread's
 // inline destination: a declared widget outlet first, then the thread margin entry's card. A
 // thread with no page destination is indexed only by Threads, so that destination opens the panel.
 // Once the panel is open, the walk stays in its list, in whichever order the list shows.
-// Both paths are clamped, not wrapped.
-function stepThread(
-  dir,
-  { openPageThread, scrollToThread, activeInlineThread },
-  panelIsOpen,
-) {
+// Both paths are clamped, not wrapped, and both start from where the user stands
+// (`threadStep`).
+function stepThread(dir, destinations, panelIsOpen) {
+  const { openPageThread, scrollToThread, activeInlineThread, standingTargetAt } =
+    destinations;
   const threads = walkableThreads(panelIsOpen);
   const inline = activeInlineThread();
   const current = panelIsOpen()
     ? document.activeElement?.closest?.(".lf-thread")
     : threads.find((thread) => thread.dataset.id === inline?.dataset.thread);
-  const next = clampedRow(threads, current, dir);
+  const place = current ? null : pagePlace(standingTargetAt);
+  const next = threadStep(threads, current, dir, place, destinations);
   if (!next) return;
   if (!panelIsOpen()) {
     openPageThread(next.dataset.id, { focus: "thread" });

@@ -428,7 +428,9 @@ export function createAskView({
     return el?.closest(`[${ASK_AT}]`)?.getAttribute(ASK_AT) ?? null;
   };
   // A place in the document, stated as the ask it belongs to wherever it belongs to one: a
-  // tray row stands for the ask it names rather than for the tray.
+  // tray row stands for the ask it names rather than for the tray, and chrome showing one
+  // target — its margin cluster, its thread card, its thread in the panel — stands for
+  // that target (`projectionTarget`).
   function askPlace(node) {
     const projected = projectionTarget(node);
     if (projected) return projected;
@@ -438,19 +440,21 @@ export function createAskView({
   // Resolve a mechanical standing back to one record from the publisher-owned
   // inventory. DOM containment says where focus is; it never decides whether the Ask
   // belongs to that inventory.
+  //
+  // The node's own containers answer before the place it stands for: an Ask frozen into
+  // a reply is nearer to a user working it than the page target its thread is about.
   function askAt(asks, node) {
     const named = standsAt(node);
     if (named) {
       const record = asks.findLast((ask) => ask.id === named);
       if (record) return record;
     }
-    const place = askPlace(node);
-    return (
+    const holding = (place) =>
       asks.findLast((ask) => {
         const candidate = askNode(ask);
         return candidate && (candidate === place || under(place, candidate));
-      }) ?? null
-    );
+      }) ?? null;
+    return holding(node) ?? holding(askPlace(node));
   }
   // The ask the user is standing in: the one holding the focus, or the one a control
   // hoisted into the margin decides. The innermost of them, an ask being able to hold
@@ -792,13 +796,16 @@ export function createAskView({
   // The route runs through the chrome all the same. A widget frozen into a reply is a
   // ask the walk visits, collected beside the document's, and a user working its
   // controls is standing in the ordered space. So what decides it is membership of that
-  // space: the ask a tray row names (askPlace), or the one the
-  // node stands inside. The rest of the layer names none.
+  // space: the ask the node stands inside or its tray row names, else the page target the
+  // chrome stands for (askPlace), so a user in an Ask's thread card steps from that Ask.
+  // The rest of the layer names none.
   const walkPlace = (node) => {
+    if (inChrome(node)) {
+      const holding = askAt(allAsks(), node);
+      if (holding) return askNode(holding);
+    }
     const place = askPlace(node);
-    if (!inChrome(place)) return place;
-    const holding = askAt(allAsks(), node);
-    return holding ? (askNode(holding) ?? place) : null;
+    return inChrome(place) ? null : place;
   };
   // Where the walk measures from: where the user is standing, rather than where the walk
   // last put them. It carried an id of its own, so every walk the user had not made with

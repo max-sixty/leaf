@@ -24,10 +24,11 @@ import { addressableAt } from "../anchor-resolution.js";
 //
 // Below that, the innermost addressable element — the aim's own reading.
 //
-// A projected margin control is chrome with an explicit page target, so that target wins
-// before the general chrome fence. The banner, panel, and trays have no such coordinate:
-// they are where a user works on the page rather than where they stand in it, so a press
-// made from one means the page whole. A box that takes letters never arrives here at all:
+// Chrome that shows one page target — a margin cluster control, the thread card, a thread
+// in the Threads panel — stands for that target, so the target wins before the general
+// chrome fence (margin-projection.js, `standingTargetAt`). The banner, the panel's own
+// controls, and the trays have no such coordinate: they are where a user works on the page
+// rather than where they stand in it, so a press made from one means the page whole. A box that takes letters never arrives here at all:
 // the typing scope claims the letter before the page is asked.
 //
 // `documentFocused()` rather than `focused()`: a control

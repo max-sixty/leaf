@@ -226,6 +226,9 @@ const navigation = createNavigation({
     scrollToThread: (...args) => anchorTravel.scrollToThread(...args),
     activeInlineThread: () => app.margin.activeInlineThread(),
     inlineThreadView: () => app.margin.inlineThreadView,
+    shownThreadAt: (...args) => app.margin.shownThreadAt(...args),
+    standingTargetAt: (...args) => app.margin.standingTargetAt(...args),
+    threadTarget: (...args) => app.margin.threadTarget(...args),
   },
 });
 
@@ -482,7 +485,7 @@ asks = createAskView({
   readingBlock,
   focusForNavigation: app.margin.focusForNavigation,
   presentedControl: app.margin.presentedControl,
-  projectionTarget: app.margin.marginTargetAt,
+  projectionTarget: app.margin.standingTargetAt,
   setPanel: (...args) => threadPanelController.setPanel(...args),
   trip: anchorTravel.trip,
   scrollToElement: anchorTravel.scrollToElement,
@@ -494,7 +497,7 @@ asks = createAskView({
 const standingElement = createStandingElement({
   isAskControl: (node) => node?.matches?.(ASK_CONTROL),
   standingIn: asks.standingIn,
-  projectionTarget: app.margin.marginTargetAt,
+  projectionTarget: app.margin.standingTargetAt,
 });
 
 panelComposer = createPanelComposer({
@@ -539,6 +542,7 @@ responseSurface = createResponseSurface({
   landIn: landing.landIn,
   setPanel: (...args) => threadPanelController.setPanel(...args),
   activeInlineThread: () => app.margin.activeInlineThread(),
+  shownThreadAt: (...args) => app.margin.shownThreadAt(...args),
   standingElement,
   composerHolds: selectionComposer.composerHolds,
   responseOptionsAreOpen: selectionComposer.responseOptionsAreOpen,

@@ -106,6 +106,11 @@ from render_harness import (
     write,
 )
 
+DRAG_HELD = (
+    "async () => (await window.__lfRuntimeImport("
+    "'/runtime/widget-elements.js')).dragHeld()"
+)
+
 pytestmark = pytest.mark.nightly
 
 
@@ -6002,9 +6007,7 @@ def test_swipe_deck_pointer_threshold_cancel_and_commit(browser, serve):
     card.dispatch_event("pointercancel", {"pointerId": pointer_id})
     expect(page.locator("#session-queue > #swipe-a")).to_have_count(1)
     expect(card).not_to_have_class(re.compile(r"\blf-swipe-dragging\b"))
-    expect(page.locator("#session-triage")).not_to_have_class(
-        re.compile(r"\blf-dragging\b")
-    )
+    assert not page.evaluate(DRAG_HELD), "a cancelled pointer left the drag held"
     assert card.evaluate("el => el.style.getPropertyValue('--lf-swipe-drag-x')") == ""
     page.mouse.up()
 

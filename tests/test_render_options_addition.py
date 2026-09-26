@@ -252,7 +252,7 @@ def test_the_draft_binding_badge_and_send_press_share_the_row_end(browser, serve
 def test_an_option_mark_keeps_addition_and_clarification_as_separate_routes(
     browser, serve
 ):
-    """The add form stays in Tab order while c opens a clarification thread."""
+    """The add form stays in Tab order while c enters the visible thread."""
     url = serve(ASK_WITH_CONTEXT_PAGE)
     events_model.append_event(
         serve.page_dir,
@@ -278,15 +278,17 @@ def test_an_option_mark_keeps_addition_and_clarification_as_separate_routes(
     expect(page.locator("#storage-options > .lf-another leaf-text")).not_to_be_focused()
     expect(page.locator("#storage-options > lf-option[chosen]")).to_have_count(0)
 
-    # c keeps its page-wide meaning: it comments on the focused option rather than
-    # adding an answer. Closing the box lands the user on the page, the question it
-    # was opened about being a group rather than something they could stand on.
+    # The existing thread's card stands beside the option, so c enters its reply
+    # instead of adding an answer or opening another comment box.
+    reply = page.locator(".lf-margin-preview .lf-page-thread leaf-text")
+    expect(page.locator(".lf-margin-preview")).to_be_visible()
     page.keyboard.press("c")
-    expect(page.locator(".lf-fab-input")).to_be_focused()
+    expect(reply).to_be_focused()
+    expect(page.locator(".lf-composer")).to_be_hidden()
     expect(page.locator("#storage-options > .lf-another leaf-text")).not_to_be_focused()
     page.keyboard.press("Escape")
-    expect(page.locator(".lf-composer")).to_be_hidden()
-    assert page.evaluate("() => document.activeElement === document.body")
+    expect(reply).not_to_be_focused()
+    expect(page.locator("#storage-options > lf-option[chosen]")).to_have_count(0)
 
 
 def test_another_option_becomes_a_real_option_without_starting_a_thread(browser, serve):

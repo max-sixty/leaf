@@ -990,13 +990,14 @@ def test_terminating_a_preview_mid_update_leaves_no_service(served_preview):
 def test_a_user_preview_update_keeps_the_sessions_wait_watching(
     tmp_path, served_preview, spawn, edit
 ):
-    """A `--user` preview's update is not a stop, so the session's wait carries on.
+    """A `--user` preview's update leaves the session's wait watching.
 
     The update used to disable the page's service for its whole length, and a wait
-    watching the page read that as a server someone stopped: with no other page to
-    carry, it ended with `server is not running` on every save. A source edit now
-    leaves the server up, and a runtime edit's restart says it is one while it runs.
-    The comment after the update is the proof: only a wait still watching delivers it.
+    watching the page read that as a page it had lost: with no other page to carry,
+    it ended on every save. A source edit leaves the server up, and a runtime edit's
+    re-vendor restarts it, which a wait watches through as it watches any stopped
+    server. The comment after the update is the proof: only a wait still watching
+    delivers it.
     """
     source, runtime, directory, _, _, log = served_preview
     waited = tmp_path / "wait.log"
@@ -1043,6 +1044,38 @@ def test_a_user_preview_update_keeps_the_sessions_wait_watching(
     )
     assert waiter.wait(timeout=30) == 0, waited.read_text()
     assert "still there?" in waited.read_text()
+
+
+def test_a_user_preview_brings_back_a_service_that_is_down_but_wanted(
+    served_preview,
+):
+    """A `--user` service still enabled with no server is the preview's to bring
+    back on its next update, and does not end it: that is a server that died, or
+    one a re-vendor could not start again (its recorded port taken), which is left
+    enabled and down in just this way. Only a stop, or the claim leaving this
+    session, ends the preview."""
+    source, _, directory, process, _, log = served_preview
+    port = server_model.running_server(directory)["port"]
+    killed = subprocess.run(
+        ["pkill", "-KILL", "-f", f"server _serve {directory}"], check=False
+    )
+    assert killed.returncode == 0
+    wait_for(
+        lambda: server_model.running_server(directory),
+        lambda running: running is None,
+        failure="the killed server still held its lease",
+    )
+    assert files_model.read_json(directory / "service.json")["enabled"]
+
+    source.write_text(source.read_text().replace("Rollout", "Back up", 1))
+    wait_for(
+        log.read_text,
+        lambda output: "Reloaded watched" in output,
+        failure="the preview did not bring its server back",
+        timeout=60,
+    )
+    assert process.poll() is None, log.read_text()
+    assert server_model.running_server(directory)["port"] == port
 
 
 # ---------- export: the page as one file ----------

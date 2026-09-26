@@ -51,58 +51,13 @@ moves again or the markup records the move anyway.
 """
 
 from .asks import ask_answered, part_of_ask
-from .events import spoken_turns
+from .events import spoken_turns, unanswered_turns
 from .projection import (
     NO_RECORD,
     PageReading,
     canonical_updates,
     recorded_state,
 )
-
-
-def thread_response_batch(turns: list[dict]) -> tuple[list[dict], dict | None]:
-    """Return the consecutive user-input batch and its response address.
-
-    A thread exposes one response obligation, addressed by its newest user
-    input. Before that address is answered every unresponded input retains its
-    own workflow. Answering the newest address settles the batch; answering an
-    older address removes only that input while the newer address remains owed.
-    Independent widget Asks use their own settlement fold and never enter here.
-    """
-    floor = -1
-    newest_before = None
-    for index, message in enumerate(turns):
-        if message["author"] != "agent":
-            newest_before = message
-        elif (
-            newest_before is not None and message.get("responds") == newest_before["id"]
-        ):
-            # Answering the batch's newest address settles every user input
-            # accumulated through it. A later user input starts a fresh batch.
-            floor = index
-            newest_before = None
-    standing = turns[floor + 1 :]
-    newest = next(
-        (message for message in reversed(standing) if message["author"] != "agent"),
-        None,
-    )
-    if newest is None:
-        return [], None
-    responses = {
-        message.get("responds")
-        for message in standing
-        if message["author"] == "agent" and message.get("responds")
-    }
-    if newest["id"] in responses:
-        return [], None
-    return (
-        [
-            message
-            for message in standing
-            if message["author"] != "agent" and message["id"] not in responses
-        ],
-        newest,
-    )
 
 
 def page_action_unsettled(
@@ -307,7 +262,6 @@ def canonical_workflows(
     workflows = []
     for thread_id, thread in threads.items():
         turns = spoken_turns(thread)
-        unanswered_inputs, response_address = thread_response_batch(turns)
         if thread["resolved"]:
             continue
         target = {"kind": "thread", "id": thread_id}
@@ -321,11 +275,13 @@ def canonical_workflows(
             ):
                 continue
             workflows.append(failed(source, target, coordinate, response))
-        if response_address is None:
+        unanswered_inputs = unanswered_turns(thread)
+        if not unanswered_inputs:
             continue
         # Every exact input keeps its own transport/work evidence. The response
         # contract deliberately coalesces consecutive user turns onto the newest
         # address, so only that workflow carries the answer.
+        response_address = unanswered_inputs[-1]
         answer = {
             "kind": "reply",
             "to": response_address["id"],

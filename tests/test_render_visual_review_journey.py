@@ -499,6 +499,7 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
         "identity": "follow-release-link",
         "source": "journey-run",
         "source_revision": drafted_revision,
+        "identity": "follow-release-link",
     }
     review_events = [
         event
@@ -545,11 +546,9 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     user.keyboard.press("Shift+t")
     threads = user.get_by_role("dialog")
     expect(threads).to_contain_text("Restore Back to releases")
-    # The comment names its case by identity, so the corrected run keeps it on the
-    # current case rather than marking it as earlier data.
-    expect(threads.locator(".lf-quote")).not_to_have_count(0)
-    expect(threads.locator(".lf-quote.detached")).to_have_count(0)
-    expect(threads.locator(".lf-anchor-status")).to_have_count(0)
+    expect(threads.locator(".lf-quote")).to_have_attribute(
+        "title", "Jump to this passage"
+    )
 
     review_events = [
         event

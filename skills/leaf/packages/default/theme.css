@@ -233,23 +233,27 @@ lf-ask:has(> :is(h1, h2, h3, h4, h5, h6):first-child:nth-last-child(2)) {
     body
     > main:has(> lf-workspace):not(:has(> :not(lf-workspace, script, style, template, .lf-ui, [data-lf-gen]))) {
     padding-block: 0;
+    /* The page gives up its block padding to the workspace, which keeps the top of it
+     * inside its own height, so its title stands clear of the banner as a page's does. */
     & > lf-workspace {
-      container-type: size;
-      --lf-held: 1;
-      /* The page gives up its block padding to the workspace, which keeps the top of it
-       * inside its own height, so its title stands clear of the banner as a page's
-       * does. */
       box-sizing: border-box;
       padding-top: var(--sp-4);
-      block-size: calc(100dvh - var(--lf-banner-h) - var(--lf-band-h, 0px));
     }
   }
-  /* A root tab's workspace ends the page and stands under the sticky tab strip:
-   * scrolled to its end, the page puts it between the strip and the bottom chrome. */
+  /* The hold. The page is `main`, or the section of it a page tab shows, and a
+   * workspace that is its only block takes the window's height under everything that
+   * sticks above it: the banner, the bottom chrome, and a page tab strip where there is
+   * one (--lf-root-tab-clear, 0 without). Scrolled to its end, the page stands it
+   * between those covers. A page tab's workspace holds only where the tab set ends the
+   * page: with blocks after it, the page goes on past the workspace, which flows. */
+  html:root
+    body
+    > main:has(> lf-workspace):not(:has(> :not(lf-workspace, script, style, template, .lf-ui, [data-lf-gen])))
+    > lf-workspace,
   html:root
     body
     > main
-    > lf-tabs[data-lf-tabs-context="root"]
+    > lf-tabs[data-lf-tabs-context="root"]:nth-last-child(1 of :not(script, style, template, .lf-ui, [data-lf-gen]))
     > lf-tab[data-lf-root-reading]
     > lf-workspace:only-child {
     container-type: size;
@@ -257,16 +261,13 @@ lf-ask:has(> :is(h1, h2, h3, h4, h5, h6):first-child:nth-last-child(2)) {
     block-size: calc(100dvh - var(--lf-banner-h) - var(--lf-band-h, 0px)
       - var(--lf-root-tab-clear, 0px));
   }
+  /* A page tab's workspace ends the page, so the page and the tab set give up the room
+   * they keep after their last block. */
   html:root
     body
-    > main:has(> lf-tabs[data-lf-tabs-context="root"] > lf-tab[data-lf-root-reading] > lf-workspace:only-child) {
+    > main:has(> lf-tabs[data-lf-tabs-context="root"]:nth-last-child(1 of :not(script, style, template, .lf-ui, [data-lf-gen])) > lf-tab[data-lf-root-reading] > lf-workspace:only-child) {
     padding-bottom: 0;
-  }
-  html:root
-    body
-    > main
-    > lf-tabs[data-lf-tabs-context="root"]:has(> lf-tab[data-lf-root-reading] > lf-workspace:only-child) {
-    margin-block-end: 0;
+    & > lf-tabs[data-lf-tabs-context="root"] { margin-block-end: 0; }
   }
 
   /* Bounded: the root workspace holds the regions, so each held pane's body scrolls in
@@ -1600,24 +1601,11 @@ lf-tabs.lf-rendered > lf-tab { margin-top: 14px; }
      * display:block above outranks the UA's [hidden] rule. */
     lf-tabs.lf-rendered > lf-tab[hidden]:not([hidden="until-found"]) { display: none; }
 
-    /* A root tab set is the page's composition rather than a framed widget inside it.
-     * Its shared authored header remains above a sticky horizontal index. Ordinary
-     * panels retain the reading measure, and the header and index keep that column's
-     * left edge, so a page of tabs has one edge as a page without them does; a sole root
-     * workspace can spend the page room and height declared by the structural layout
-     * above. */
-    body > main:has(> lf-tabs[data-lf-tabs-context="root"]) {
-      box-sizing: border-box;
-      width: 100cqi;
-      max-width: none;
-      margin-inline: 0;
-      left: 0;
-    }
-    body > main:has(> lf-tabs[data-lf-tabs-context="root"]) > :is(header, lf-tabs) {
-      width: min(var(--col), var(--lf-room));
-      max-width: var(--col);
-      margin-inline: auto;
-    }
+    /* A root tab set is navigation over sections of one page rather than a framed
+     * widget inside it: a sticky horizontal index, one panel shown. It lays out nothing
+     * of its own. The strip and the panel are blocks of `main` like any other, so they
+     * take the page's width, column or wide, and whatever stands in `main` beside the set
+     * (a header, a sidebar) stays where it would on a page without tabs. */
     :where(lf-tabs.lf-rendered[data-lf-tabs-context="root"]) {
       margin-block: 0 32px;
       border: 0;
@@ -1654,15 +1642,12 @@ lf-tabs.lf-rendered > lf-tab { margin-top: 14px; }
       background: transparent;
     }
     lf-tabs.lf-rendered[data-lf-tabs-context="root"] > lf-tab:not([hidden]) {
-      box-sizing: border-box;
-      width: min(var(--col), 100%);
-      max-width: var(--col);
-      margin-inline: auto;
       padding: var(--sp-4) 0 0;
     }
-    /* A page tab is the page's column, not a box on it: it declares the frame for its
-     * first line's trim and, like main's column, hands the room back to what it holds,
-     * so a wide exhibit in a page tab breaks out as it would on a page without tabs. */
+    /* A page tab is a section of the page, not a box on it: it declares the frame only
+     * so its first line trims under the strip and, like `main`, hands the room back to
+     * what it holds, so a wide exhibit or a workspace in a page tab grows out as it would
+     * on a page without tabs. */
     lf-tabs.lf-rendered[data-lf-tabs-context="root"] > lf-tab:not([hidden]) > * {
       --lf-room: inherit;
     }
@@ -1672,13 +1657,6 @@ lf-tabs.lf-rendered > lf-tab { margin-top: 14px; }
       min-height: 0;
       overflow: hidden;
       pointer-events: none;
-    }
-    lf-tabs.lf-rendered[data-lf-tabs-context="root"]
-      > lf-tab[data-lf-root-reading]:has(> lf-workspace:only-child) {
-      width: var(--lf-room);
-      max-width: none;
-      margin-left: calc((100% - var(--lf-room)) / 2);
-      padding: 0;
     }
   }
 }
@@ -2039,7 +2017,7 @@ lf-activity .lf-activity-empty { margin: 0; color: var(--muted); font: var(--t-5
  * Block rather than the custom-element default inline so its box begins at the
  * question's opening and reaches around the context and control the standing ring says
  * are one Ask. */
-lf-ask { display: block; --lf-passes-block-edge: 1; }
+lf-ask { display: block; }
 
 /* lf-specimen: quoted material — a widget or section the page exhibits rather
  * than speaks (a sample decision, a demo board). It wears the quotation idiom, a
@@ -2184,7 +2162,6 @@ lf-chart, lf-tree, lf-code { display: block; margin: 14px 0;
              color: var(--code-muted); overflow-x: auto; }
 lf-chart.lf-rendered, lf-tree.lf-rendered, lf-code.lf-rendered {
              font: inherit; color: inherit; overflow: visible; }
-lf-code.lf-rendered { --lf-passes-block-edge: 1; }
 /* The authored body, before its module replaces it. Nothing here says white-space: the
    body is a <pre>, which is the whole reason it is one. Everything here undoes the rule
    near the top that dresses a <pre> as evidence the page is showing — a box, a rule, a
@@ -2237,12 +2214,10 @@ lf-chart .lf-chart-swatch { width: 9px; height: 9px; border-radius: 2px;
    tree's own reason for taking it is that its lines are paths, the same words a code block
    holds, set to the same measure beside them. */
 lf-tree.lf-rendered { font-family: var(--mono); font-size: var(--code-size);
-                      line-height: var(--code-line); color: var(--code-ink);
-                      --lf-passes-block-edge: 1; }
-lf-tree ul { list-style: none; margin: 0; padding-left: 0;
-             --lf-passes-block-edge: 1; }
+                      line-height: var(--code-line); color: var(--code-ink); }
+lf-tree ul { list-style: none; margin: 0; padding-left: 0; }
 lf-tree ul ul { padding-left: 18px; border-left: 1px solid var(--rule); margin-left: 5px; }
-lf-tree li { margin: 3px 0; --lf-passes-block-edge: 1; }
+lf-tree li { margin: 3px 0; }
 lf-tree .lf-tree-dir { font-weight: 600; }
 /* nowrap because the module appends name and badges with no whitespace between them and
  * spaces them by margin, so a line is one word to the breaker: told it may break inside
@@ -2445,7 +2420,7 @@ lf-draft { font-size: max(var(--entry-floor), 1em); }
 .lf-draft-history > summary:hover { color: var(--ink-2); }
 .lf-draft-current { margin: 10px 0; }
 .lf-draft-current > strong { display: block; margin-bottom: 4px; }
-.lf-draft-revisions { margin: 0; padding-left: 20px; --lf-passes-block-edge: 1; }
+.lf-draft-revisions { margin: 0; padding-left: 20px; }
 .lf-draft-revisions > li { margin: 8px 0; padding-left: 3px; }
 .lf-draft-revision-head { display: flex; align-items: center; justify-content: space-between;
                           gap: 8px; margin-bottom: 3px; }

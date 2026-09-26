@@ -409,12 +409,13 @@ export function misalignedSplits() {
   const walk = (parent) => {
     for (const el of parent.children) {
       if (!standing(el)) continue;
-      // A workspace and its panes are the page's regions, so the grids they hold are
-      // the page's tracks too.
+      // A workspace and its panes are the page's regions, and a page tab's panel is a
+      // section of the page, so the grids they hold are the page's tracks too.
       if (!layoutGrid(el) || !tracked(el)) {
         if (
           el.matches(
-            '[data-lf-reading-role="workspace"], [data-lf-reading-role="pane"]',
+            '[data-lf-reading-role="workspace"], [data-lf-reading-role="pane"], ' +
+              '[data-lf-tabs-context="root"], [data-lf-root-reading]',
           )
         )
           walk(el);

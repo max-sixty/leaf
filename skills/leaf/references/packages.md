@@ -153,11 +153,11 @@ under `$idioms` in the package's
 A rule that draws a box's inset — padding, border, or tinted field — declares
 `--lf-block-frame: 1` in the same rule. The shared layout uses that declaration to trim child
 margins and bound wide content, and the render gate reports a frame that omits it. The
-first or last child may be a transparent wrapper whose own child margin reaches the
-frame. Such a wrapper declares `--lf-passes-block-edge: 1`; each transparent wrapper
-along that edge does the same. A wrapper with its own padding, border, or formatting
-context keeps its interior margins and does not pass the edge. The render gate follows
-transparent wrappers and reports an untrimmed frame edge.
+trim follows the frame's edge down through each first or last child, so a wrapper
+between the frame and the margin it trims declares nothing. A box that lays its children
+out side by side (a flex row, a grid) declares `--lf-holds-edge: 1`, so the trim stops at
+it rather than taking one item's margin and leaving the others'; the render gate names
+one that splits a row at a frame's edge.
 
 The runtime exposes declared layout facts as `[data-lf-inline]`, `[data-lf-space]`,
 `[data-lf-measure]`, `[data-lf-bound]`, and `[data-lf-exhibit]`; shared selectors read
@@ -1102,8 +1102,8 @@ presentation and on later publications and placement updates. `readThreads()` re
 that collection outside a surface; `threadTurns(thread)` selects a Thread's displayed
 turns and `threadSummary(thread)` its topic, turn count, and `latest`. For whether a
 Thread waits on the user, read unresolved `attention.kind === "needs_user"`, which
-includes recovery after a failed response, rather than the raw `awaits_user` turn
-flag. Each Thread's `key` survives admission of a pending gesture, and its `anchor`
+includes recovery after a failed response; `"waiting"` means it is with the agent.
+Each Thread's `key` survives admission of a pending gesture, and its `anchor`
 names the `section` (the widget's id) and `datum` it rests on. A returned promise
 participates in document presentation. The second argument's `signal` is aborted when
 presentation fails, a newer render supersedes it, or the consumer unregisters;
@@ -1160,9 +1160,9 @@ Escape may return focus. Widgets do not receive draft, submission, or event APIs
 
 ## Seeing it
 
-After the re-vendoring sequence in `serving-pages.md` restores the recorded URL, run
-`leaf version check <page> --render` on the version that uses the replacement
-layer. Note the re-vendor in the next stamped version's changelog.
+After `leaf page init` re-vendors the page (`serving-pages.md`, "Re-vendoring and
+layer epochs"), run `leaf version check <page> --render` on the version that uses
+the replacement layer. Note the re-vendor in the next stamped version's changelog.
 
 The render gate is where a module's mistakes surface — an upgrade that defines no element, a widget of no
 size, a `x-verbatim` the rendered words contradict, a shadow root the declaration doesn't

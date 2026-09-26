@@ -70,7 +70,7 @@ relative to `runtime/` unless stated otherwise.
 | Browser interaction diagnostics | `interaction-log.js` |
 | Notices and announcements | `semantic-news.js`, `notifications.js`, `keyboard/shortcut-bar.js` |
 | Reactions and design review | `reactions.js`, `design.js`, `design-readings.js` |
-| Document presentation and validation | `presentation.js`, `validation.js`, `projection-watch.js` |
+| Document presentation and validation | `presentation.js`, `validation.js`, `projection-watch.js`, `retained-face.js` |
 | Child pages and gallery playback | `specimen.js`, `interaction-gallery.js`, `interaction-gallery-frame.js` |
 | Shadow trees and styles | `shadow.js`, `shadow-stage.js`, `stylesheets.js` |
 | Rendering utilities | `icons.js`, `markdown.js`, `syntax.js`, `motion.js`, `storage.js` |
@@ -289,15 +289,17 @@ revision and the active revision it may install. Version comparison requests its
 from `/api/view` at the sequence already applied to the DOM, keeping related views on
 one log snapshot without projecting all historical revisions on every read.
 
-Python supplies each thread's raw `awaits_user` and aggregated `attention`.
-`awaitsUser` reads unresolved `attention`, which includes recovery even when the raw
-flag is false. The browser never ranks workflows into attention again; it adjusts the
-server's reading for unresolved local sends only. The thread model sets a thread
-holding an unresolved send to wait on that send, which also retires a failed workflow's
-recovery while keeping its historical message status; the publisher restores a
-standing structural Ask that send cannot answer, and hands a thread the server left
-with the agent back to the user when a send there is refused. Otherwise refusal
-restores the accepted attention.
+Python supplies each thread's aggregated `attention`, the browser's one reading of whose
+turn a thread is.
+`awaitsUser` reads unresolved `needs_user` attention, which includes recovery, and
+`awaitsAgent` unresolved `waiting` attention, which includes work claimed on a thread
+the agent has already answered. The browser never ranks workflows into attention
+again; it adjusts the server's reading for unresolved local sends only. The thread
+model sets a thread holding an unresolved send to wait on that send, which also
+retires a failed workflow's recovery while keeping its historical message status; the
+publisher restores a standing structural Ask that send cannot answer, and hands a
+thread the server left with the agent back to the user when a send there is refused.
+Otherwise refusal restores the accepted attention.
 The server's rules for structural and prose obligations live in `../scripts/leaf/events.md`,
 "Threads".
 
@@ -482,7 +484,7 @@ read**. An edit is a new version and reads as unread again.
 Each Thread's canonical `attention` is its aggregate user obligation or waiting
 workflow. A concrete user Ask outranks concurrent agent work; that work remains the
 secondary status. Local failure or recovery may add user-owned attention beyond the
-server's raw `awaits_user` value. Margin, Page Map, and compact thread rows consume
+server's reading. Margin, Page Map, compact thread rows, and the Threads filters consume
 that same attention instead of deriving another aggregate from member turns or workflow
 stages. User attention wears the same two channels in blue — icon and interior — and
 says "On you" for an Ask or the exact recovery label in its visible and accessible name.
@@ -576,6 +578,7 @@ and repository lint checks the source.
 | `undeclaredAttrs` | modules do not write undeclared author-namespace state |
 | `retiredSlots` | declared settlement marks and retired-slot visibility agree with the projection |
 | `trappedMargins` | framed boxes show only their declared inset |
+| `splitEdges` | a row at a frame's edge keeps its items lined up under the shared trim |
 | `paperWords` | print keeps every page statement and removes only affordance |
 | `paperVoids` | print gives room to nothing it does not also draw |
 | `replayOverrides` | the log, not conflicting authored markup, determines projected state |

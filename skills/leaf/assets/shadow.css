@@ -472,11 +472,9 @@ leaf-anchor-note { display: contents; }
 .lf-btn[hidden]:not([hidden="until-found"]) { display: none; }
 .lf-btn:not(:disabled, [aria-disabled="true"]):hover { background: var(--chip); }
 /* The committing action carries the accent as ink on the ordinary card, under a
-   softened accent hairline, with the tint rising on hover. It is not the row's only
-   accent face: chrome.css draws a folded-news door and a pinned Versions door in a
-   full accent border on no ground at all, and the card is what holds a commitment
-   apart from them. .lf-btn.on below is the other neighbour — a full accent border on
-   the chip ground — so a toggle and a commitment never read as one. */
+   softened accent hairline, with the tint rising on hover. .lf-btn.on below is its
+   neighbour — a full accent border on the chip ground — so a toggle and a commitment
+   never read as one. */
 .lf-btn.primary { color: var(--accent);
           border-color: color-mix(in srgb, var(--accent) 45%, var(--card)); }
 .lf-btn.primary:not(:disabled, [aria-disabled="true"]):hover { background: var(--accent-tint); }

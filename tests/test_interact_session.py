@@ -49,6 +49,7 @@ from interact_support import (
     stamp,
     start_server_command,
     state_json,
+    vendored_by_another_leaf,
     wait_for,
     yaml_document,
 )
@@ -77,6 +78,7 @@ from leaf import session as session_model
 from leaf import thread as thread_model
 from leaf import thread_context as thread_context_model
 from leaf import vendoring as vendoring_model
+from leaf.detached import StartRefused
 from leaf.registry import contract as registry_contract
 from leaf.registry import storage as registry_storage
 from leaf.served_state import browser as browser_served_model
@@ -6887,56 +6889,15 @@ def test_wait_preserves_a_working_status_on_mid_work_output(page_dir, capsys):
     assert status_path.read_bytes() == before
 
 
-def test_watch_does_not_revive_a_disabled_service(page_dir, monkeypatch, snapshot):
-    files_model.write_json(
-        page_dir / "service.json",
-        {
-            "host": "127.0.0.1",
-            "bind": "127.0.0.1",
-            "port": available_loopback_port(),
-            "enabled": False,
-            "lifetime": "session",
-        },
-    )
-    session_model.cmd_status(page_dir, "waiting", "review the page")
-
-    def unexpected_start(*_args, **_kwargs):
-        pytest.fail("disabled desired state was revived")
-
-    monkeypatch.setattr(session_model, "start_server", unexpected_start)
-    watch = session_model.Watch(None, pages=(page_dir,))
-    try:
-        assert watch.acquire()
-        reading = next(watch.tick())
-    finally:
-        watch.release()
-
-    assert reading.lost is True
-    assert reading.restarted is None
-
-    result = CliRunner().invoke(cli_model.cli, ["wait", str(page_dir)])
-    assert result.exit_code == 2, result.output
-    snapshot.check(
-        yaml_document(
-            "A deliberately stopped server is not revived; wait supplies its restart command.",
-            _interaction_prompt_evidence(
-                page_dir,
-                {
-                    "exit": result.exit_code,
-                    "stdout": result.stdout,
-                    "stderr": result.stderr,
-                },
-            ),
-        )
-    )
-
-
-def test_watch_waits_out_a_restart_and_loses_a_restart_that_left_it_stopped(
-    page_dir, monkeypatch
+def test_a_wait_watches_a_stopped_server_until_its_page_ends(
+    page_dir, monkeypatch, capsys
 ):
-    """A restart disables the service as a stop does, but its holder starts it
-    again, so a wait reads the gap as the page coming back: neither lost nor due a
-    revival. A holder that lets go without starting it leaves a plain stop."""
+    """A stopped server neither ends a `leaf wait` nor is the wait's to start
+    again: the page ends the wait, by going idle or changing hands.
+
+    A wait used to read a disabled service as a page it had lost, and end, so
+    every restart, which disables the service as a stop does, had to say it was
+    not a stop."""
     files_model.write_json(
         page_dir / "service.json",
         {
@@ -6944,27 +6905,342 @@ def test_watch_waits_out_a_restart_and_loses_a_restart_that_left_it_stopped(
             "bind": "127.0.0.1",
             "port": available_loopback_port(),
             "enabled": True,
-            "lifetime": "session",
+            "lifetime": "standing",
         },
     )
     session_model.cmd_status(page_dir, "waiting", "review the page")
 
     def unexpected_start(*_args, **_kwargs):
-        pytest.fail("a restarting service was revived")
+        pytest.fail("a disabled service was revived")
 
     monkeypatch.setattr(session_model, "start_server", unexpected_start)
+    assert hosting_model.cmd_stop(page_dir) == "no server running"
+
+    def unexpected_delivery(reading):
+        pytest.fail(f"nothing was sent, yet {reading.page_dir} delivered")
+
     watch = session_model.Watch(None, pages=(page_dir,))
     try:
         assert watch.acquire()
-        with hosting_model.restarting_server(page_dir):
-            assert not files_model.read_json(page_dir / "service.json")["enabled"]
-            restarting = next(watch.tick())
-        stopped = next(watch.tick())
+        passed = session_model.read_watch_pass(watch, page_dir, unexpected_delivery)
+    finally:
+        watch.release()
+    assert passed.outcome is None
+    assert [reading.page_dir for reading in passed.live] == [page_dir]
+
+    session_model.cmd_status(page_dir, "idle", "")
+    capsys.readouterr()
+    assert session_model.cmd_wait(page_dir) == 2
+    assert "the leaf ended" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("revival", ["refused", "died again"])
+def test_a_revival_that_does_not_hold_ends_the_wait(
+    page_dir, monkeypatch, capsys, revival
+):
+    """An enabled service whose process died gets one revival. When that does not
+    bring it back, refused or dead again once it did, nothing else will, so the
+    wait ends and wakes the agent with the command that serves the page."""
+    files_model.write_json(
+        page_dir / "service.json",
+        {
+            "host": "127.0.0.1",
+            "bind": "127.0.0.1",
+            "port": available_loopback_port(),
+            "enabled": True,
+            "lifetime": "standing",
+        },
+    )
+    session_model.cmd_status(page_dir, "waiting", "review the page")
+
+    def refused_start(*_args, **_kwargs):
+        raise StartRefused("the port is taken")
+
+    def start_that_dies(*_args, **_kwargs):
+        return "http://127.0.0.1:1/", ""
+
+    monkeypatch.setattr(
+        session_model,
+        "start_server",
+        refused_start if revival == "refused" else start_that_dies,
+    )
+
+    def unexpected_delivery(reading):
+        pytest.fail(f"nothing was sent, yet {reading.page_dir} delivered")
+
+    watch = session_model.Watch(None, pages=(page_dir,))
+    try:
+        assert watch.acquire()
+        passed = session_model.read_watch_pass(watch, page_dir, unexpected_delivery)
+        if revival == "died again":
+            assert passed.outcome is None
+            # Past the recheck interval, as the next pass five seconds on would be.
+            watch._check_at.clear()
+            passed = session_model.read_watch_pass(watch, page_dir, unexpected_delivery)
     finally:
         watch.release()
 
-    assert restarting.live and not restarting.lost
-    assert stopped.lost
+    assert passed.outcome == 2
+    assert (
+        f"{page_dir}: server is not running; restart it with "
+        f"`leaf server start {page_dir}`"
+    ) in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("wait", ["named", "session"])
+def test_a_wait_on_a_page_never_served_ends_at_once(page_dir, capsys, wait):
+    """A page with no service record has nothing that will serve it, so a wait
+    on it ends on its first pass with the command that does, whether it was
+    named or claimed earlier and found by the session's wait."""
+    assert not (page_dir / "service.json").exists()
+    session_model.cmd_status(page_dir, "waiting", "review the page")
+    service_model.claim_page(page_dir)
+
+    def unexpected_delivery(reading):
+        pytest.fail(f"nothing was sent, yet {reading.page_dir} delivered")
+
+    named = page_dir if wait == "named" else None
+    watch = session_model.Watch(
+        host_model.session_harness(), pages=(page_dir,) if named else ()
+    )
+    try:
+        assert watch.acquire()
+        passed = session_model.read_watch_pass(watch, named, unexpected_delivery)
+    finally:
+        watch.release()
+
+    assert passed.outcome == 2
+    assert f"restart it with `leaf server start {page_dir}`" in (
+        capsys.readouterr().err
+    )
+
+
+@pytest.mark.parametrize(
+    "stopped", ["during the block", "during the lease wait", "never"]
+)
+def test_a_stop_during_a_restart_keeps_the_service_stopped(
+    page_dir, monkeypatch, stopped
+):
+    """`leaf server stop` while `page init` holds a service down to re-vendor it
+    finds the service already disabled, and the restart must not enable it
+    again after the block: the stop is the later word. Without one, the restart
+    enables the service and starts it as a revival. A stop can also land while the
+    restart's own stop is still waiting out the old server's lease, between two of
+    its passes, and a later pass must not write the restart's mark back over it."""
+    files_model.write_json(
+        page_dir / "service.json",
+        {
+            "host": "127.0.0.1",
+            "bind": "127.0.0.1",
+            "port": available_loopback_port(),
+            "enabled": True,
+            "lifetime": "standing",
+        },
+    )
+    starts = []
+
+    def recorded_start(page, **kwargs):
+        starts.append(kwargs)
+        return "http://127.0.0.1:1/", ""
+
+    monkeypatch.setattr(hosting_model, "start_server", recorded_start)
+    if stopped == "during the lease wait":
+        # The old server holds its lease through the restart's first pass, and the
+        # plain stop runs in the pause before the next one.
+        take_lease, sleep = hosting_model.take_lease, hosting_model.time.sleep
+        held = iter([True])
+        monkeypatch.setattr(
+            hosting_model,
+            "take_lease",
+            lambda path: None if next(held, False) else take_lease(path),
+        )
+        paused = iter([True])
+
+        def stop_in_the_pause(seconds):
+            if next(paused, False):
+                hosting_model.cmd_stop(page_dir)
+            sleep(seconds)
+
+        monkeypatch.setattr(hosting_model.time, "sleep", stop_in_the_pause)
+    with hosting_model.restarting_server(page_dir):
+        assert not files_model.read_json(page_dir / "service.json")["enabled"]
+        if stopped == "during the block":
+            hosting_model.cmd_stop(page_dir)
+
+    service = files_model.read_json(page_dir / "service.json")
+    assert "restart" not in service
+    if stopped == "never":
+        assert service["enabled"]
+        assert starts == [{"standing": True, "revive": True}]
+    else:
+        assert not service["enabled"]
+        assert starts == []
+
+
+def test_page_init_restarts_a_served_page_under_the_sessions_wait(
+    page_dir, tmp_path, spawn
+):
+    """`page init` on a served page restarts its server itself, so the session's
+    `leaf wait` carries on watching it.
+
+    Re-vendoring a served page used to be three commands, and the first,
+    `server stop`, disabled the service: a wait watching the page read that as a
+    page it had lost, and ended. The comment after the re-vendor is the proof: only
+    a wait still watching delivers it.
+    """
+    publish(page_dir)
+    session = os.environ["CLAUDE_CODE_SESSION_ID"]
+    started = start_server_command(page_dir, session_id=session)
+    assert started.returncode == 0, started.stderr
+    url = started.stdout.strip()
+    claim = service_model.page_claim(page_dir)
+    generation = files_model.read_json(page_dir / "registry.json")["$layer"][
+        "generation"
+    ]
+    session_model.cmd_status(page_dir, "waiting", "review the page")
+    waited = tmp_path / "wait.log"
+    with waited.open("w", encoding="utf-8") as output:
+        waiter = spawn(
+            [*LEAF_COMMAND, "wait"],
+            stdout=output,
+            stderr=subprocess.STDOUT,
+            start_new_session=True,
+            text=True,
+        )
+    wait_for(
+        lambda: waiter.poll() is None and leases_model.wait_is_live(page_dir, session),
+        bool,
+        failure="the wait did not start watching the page",
+        timeout=30,
+    )
+
+    revendored = subprocess.run(
+        [*LEAF_COMMAND, "page", "init", str(page_dir)],
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=False,
+    )
+    assert revendored.returncode == 0, revendored.stderr
+    assert (
+        files_model.read_json(page_dir / "registry.json")["$layer"]["generation"]
+        != generation
+    )
+    assert server_model.running_server(page_dir)["url"] == url
+    # The restart claims nothing, so the turn the claim records is left as it was.
+    assert service_model.page_claim(page_dir) == claim
+    assert waiter.poll() is None, waited.read_text()
+
+    events_model.append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": files_model.latest_revision(page_dir),
+            "text": "still there?",
+        },
+    )
+    assert waiter.wait(timeout=30) == 0, waited.read_text()
+    assert "still there?" in waited.read_text()
+
+
+def test_a_refused_revendor_leaves_the_running_server_alone(page_dir):
+    """A re-vendor the page's log refuses is refused before the server goes down.
+
+    A restart after the refusal would put this Leaf's server over the layer the
+    page keeps, so a page vendored by another Leaf would be served by code its
+    runtime does not speak. The same process answers at the same URL before and
+    after, which is what `Leaf-Server`, the server's incarnation, says."""
+    # A page made under a registry where lf-draft declared `decide`: the log keeps
+    # a decision the incoming layer no longer speaks.
+    version = page_dir / "index.html"
+    version.write_text(
+        version.read_text().replace(
+            "<h2>Plan</h2>",
+            '<h2>Plan</h2><lf-draft id="d1"><pre>A decision.</pre></lf-draft>',
+        )
+    )
+    publish(page_dir)
+    events_model.append_event(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "d1",
+            "action": "decide",
+            "detail": {"decision": "approved"},
+            "meaning": {
+                "scope": "page",
+                "unit": "d1",
+                "depends": ["d1"],
+                "answer": None,
+            },
+        },
+    )
+    started = start_server_command(
+        page_dir, session_id=os.environ["CLAUDE_CODE_SESSION_ID"]
+    )
+    assert started.returncode == 0, started.stderr
+    url = started.stdout.strip()
+    state = urllib.parse.urlsplit(url)._replace(path="/api/state").geturl()
+
+    def incarnation():
+        with urllib.request.urlopen(state) as response:
+            return response.headers["Leaf-Server"], response.headers["Leaf-Layer"]
+
+    before = incarnation()
+
+    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
+
+    assert result.exit_code == 1
+    assert "no longer speaks" in result.output
+    assert server_model.running_server(page_dir)["url"] == url
+    assert incarnation() == before
+
+
+@pytest.mark.parametrize("service", ["stopped", "orphaned", "foreign"])
+def test_page_init_leaves_a_service_it_cannot_restart_for_this_session(
+    page_dir, service
+):
+    """Only an enabled service this command may restart comes back.
+
+    A stopped service was stopped on purpose and stays stopped. A session service
+    whose session has ended has nobody to come back for, so the re-vendor stops it
+    and leaves it for the next `server start`. One another live session holds is
+    refused before anything stops, since only that session could start it again.
+    """
+    publish(page_dir)
+    started = start_server_command(page_dir, session_id="other")
+    assert started.returncode == 0, started.stderr
+    generation = files_model.read_json(page_dir / "registry.json")["$layer"][
+        "generation"
+    ]
+    if service == "stopped":
+        assert hosting_model.cmd_stop(page_dir) == "stopped server"
+    elif service == "orphaned":
+        with service_model.PageTransaction(page_dir) as page:
+            page.release_claim()
+
+    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
+
+    revendored = (
+        files_model.read_json(page_dir / "registry.json")["$layer"]["generation"]
+        != generation
+    )
+    if service == "foreign":
+        assert result.exit_code == 1
+        assert "served for another session" in result.output
+        assert server_model.running_server(page_dir)
+        assert not revendored
+        return
+    assert result.exit_code == 0, result.output
+    assert revendored
+    assert server_model.running_server(page_dir) is None
+    assert not files_model.read_json(page_dir / "service.json")["enabled"]
+    assert ("belonged to a session that has ended" in result.output) == (
+        service == "orphaned"
+    )
 
 
 def test_a_watch_wakes_on_what_its_pass_read_moving(page_dir):
@@ -7048,7 +7324,9 @@ def test_a_delayed_revival_cannot_cross_an_explicit_stop(page_dir, monkeypatch):
 
     assert not reviving.is_alive()
     assert errors == []
-    assert readings[0].lost is True
+    # The stop disabled the service, which the wait goes on watching.
+    assert readings[0].watch_state == "watching"
+    assert readings[0].lost is False
     assert readings[0].restarted is None
     assert files_model.read_json(page_dir / "service.json")["enabled"] is False
     assert not leases_model.lock_is_held(page_dir / "server.lock")
@@ -7100,6 +7378,45 @@ def test_wait_restarts_a_server_that_died_under_it(
     # session's server and dies with that session. Here the session is the
     # worker (conftest), which is what keeps a killed run from stranding this.
     assert files_model.read_json(page_dir / "service.json")["lifetime"] == "session"
+
+
+def test_wait_does_not_revive_a_page_another_leaf_vendored(page_dir, capsys):
+    """A server that died under a page another Leaf has since been updated past
+    stays down: the wait's revival is a start like any other, served by the Leaf
+    running the wait. The page reads as lost, and the refusal reaches the agent
+    reading the wait with the re-vendor that brings it back."""
+    files_model.write_json(
+        page_dir / "service.json",
+        {
+            "host": "127.0.0.1",
+            "bind": "127.0.0.1",
+            "port": available_loopback_port(),
+            "enabled": True,
+            "lifetime": "session",
+        },
+    )
+    assert service_model.claim_page(page_dir)
+    session_model.cmd_status(page_dir, "waiting", "review the page")
+    vendored_by_another_leaf(page_dir)
+
+    # One pass first, so a revival that went through fails here rather than
+    # leaving the wait below holding a live page open for input.
+    watch = session_model.Watch(host_model.session_harness(), pages=(page_dir,))
+    try:
+        assert watch.acquire()
+        reading = next(watch.tick())
+    finally:
+        watch.release()
+    assert reading.lost is True
+    assert reading.restarted is None
+    assert server_model.running_server(page_dir) is None
+    refused = capsys.readouterr().err
+    assert f"leaf page init {page_dir}" in refused
+
+    assert session_model.cmd_wait(page_dir) == 2
+    printed = capsys.readouterr().err
+    assert f"leaf page init {page_dir}" in printed
+    assert "server had died; restarted" not in printed
 
 
 def test_wait_revival_cannot_take_a_page_back_after_claim_transfer(
@@ -8549,11 +8866,14 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
     )
 
 
-def test_codex_adapter_exits_after_its_offline_page_cannot_restart(
+def test_codex_adapter_stays_on_a_stopped_page_until_it_goes_idle(
     codex_claimed_page, under_codex, codex_env, tmp_path
 ):
+    """A stopped server is no ending for the adapter's watch either: it carries
+    the page until the page goes idle."""
     page = codex_claimed_page
     program, log = fake_codex_cli(tmp_path)
+    release_start = tmp_path / "release-start"
     session_model.cmd_status(page, "waiting", "comment on the prototype")
     assert hosting_model.cmd_stop(page) == "stopped server"
 
@@ -8573,22 +8893,40 @@ def test_codex_adapter_exits_after_its_offline_page_cannot_restart(
             "CODEX_THREAD_ID": "codex-thread",
             "FAKE_CODEX_LOG": str(log),
         },
+        hold_until=release_start,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
     )
-    out, err = started.communicate(timeout=60)
-    assert started.returncode == 0, f"{out}{err}"
-
+    # The start claims the page for its own short-lived Codex; hand the claim to
+    # this process, whose life a real task's Codex stands for, before it exits.
     wait_for(
         lambda: codex_adapter_model.adapter_is_live("codex-thread"),
-        lambda live: not live,
-        failure="the Codex adapter stayed live with no restartable page",
+        bool,
+        failure="the detached Codex carrier did not start",
     )
-    adapter_log = codex_adapter_model.adapter_log_path("codex-thread").read_text(
-        encoding="utf-8"
+    claim = service_model.page_claim(page)
+    files_model.write_json(
+        service_model.claim_path(page), {**claim, "pid": os.getpid()}
     )
-    assert adapter_log.count("server is not running") == 2
+    release_start.touch()
+    out, err = started.communicate(timeout=60)
+    assert started.returncode == 0, f"{out}{err}"
+    try:
+        # The adapter passes over its pages once a second; two of them have read
+        # the stopped page by now.
+        time.sleep(2.5)
+        assert codex_adapter_model.adapter_is_live("codex-thread")
+
+        session_model.cmd_status(page, "idle", "")
+        wait_for(
+            lambda: codex_adapter_model.adapter_is_live("codex-thread"),
+            lambda live: not live,
+            failure="the Codex adapter stayed live after its page went idle",
+        )
+    finally:
+        with service_model.PageTransaction(page) as transaction:
+            transaction.release_claim()
 
 
 def test_an_offline_sibling_does_not_stop_browser_comments_reaching_codex(
@@ -9056,13 +9394,15 @@ raise SystemExit(codex_adapter_model.run_adapter(os.environ["CODEX_PATH"]))
                 lambda claim: claim and claim["id"] == "codex-thread",
                 failure="the second start did not claim before the exit lock",
             )
+            # The starter's process is short lived. Keep the claim active before
+            # the adapter can take the exit lock and recheck its watched pages.
+            claim = service_model.page_claim(second)
+            files_model.write_json(
+                service_model.claim_path(second), {**claim, "pid": os.getpid()}
+            )
 
         out, err = starter.communicate(timeout=60)
         assert starter.returncode == 0, f"{out}{err}"
-        claim = service_model.page_claim(second)
-        files_model.write_json(
-            service_model.claim_path(second), {**claim, "pid": os.getpid()}
-        )
         wait_for(
             lambda: (
                 codex_adapter_model.adapter_is_live("codex-thread"),
@@ -11002,13 +11342,7 @@ def test_idle_cannot_close_a_page_over_events_nobody_read(claimed, capsys):
     # user is still waiting, and now nothing will raise the comment again, so
     # idle holds until the thread has something under it.
     assert CliRunner().invoke(cli_model.cli, ["wait", str(claimed)]).exit_code == 0
-    # 2 is the re-armed wait's own ending; a refused acknowledgement would be 1.
-    assert (
-        CliRunner()
-        .invoke(cli_model.cli, ["wait", "--ack", delivery_through(claimed, 1)])
-        .exit_code
-        == 2
-    )
+    session_model.receive_delivery(delivery_through(claimed, 1))
     refused = CliRunner().invoke(cli_model.cli, ["status", str(claimed), "idle"])
     assert refused.exit_code == 1
     assert "1 acknowledged user move with no answer" in refused.output
@@ -11317,10 +11651,11 @@ def test_server_start_forwards_flags_and_returns_service_output(page_dir):
 
 
 @pytest.mark.parametrize("lifetime", ["standing", "session"])
-def test_init_requires_explicit_quiescence_before_revendoring_the_contract(
+def test_init_restarts_a_served_page_onto_the_replacement_contract(
     page_dir, spawn, monkeypatch, lifetime
 ):
-    """Re-vendor requires quiescence and preserves the active revision contract."""
+    """Re-vendoring a served page restarts its server under the recorded lifetime
+    and URL, onto the new layer, and preserves the active revision contract."""
     publish(page_dir)
     old_skill = page_dir.parent / "old-skill"
     old_scripts = old_skill / "scripts"
@@ -11373,36 +11708,7 @@ def test_init_requires_explicit_quiescence_before_revendoring_the_contract(
     project_layer = page_dir.parent / ".leaf"
     project_layer.mkdir()
     (project_layer / "theme.css").write_text(":root { --accent: red; }\n")
-    files_before = {
-        path.relative_to(page_dir): path.read_bytes()
-        for path in page_dir.rglob("*")
-        if path.is_file()
-    }
-    runner = CliRunner()
-    refused = runner.invoke(
-        cli_model.cli,
-        [
-            "page",
-            "init",
-            *package_selection_args((*PAGE_PACKAGES, "./.leaf")),
-            str(page_dir),
-        ],
-    )
-    assert refused.exit_code == 1
-    assert "cannot re-vendor" in refused.output
-    assert "server stop" in refused.output
-    assert old_server.poll() is None
-    assert {
-        path.relative_to(page_dir): path.read_bytes()
-        for path in page_dir.rglob("*")
-        if path.is_file()
-    } == files_before
-
-    stopped = runner.invoke(cli_model.cli, ["server", "stop", str(page_dir)])
-    assert stopped.exit_code == 0, stopped.output
-    old_server.wait(timeout=5)
-
-    revendored = runner.invoke(
+    revendored = CliRunner().invoke(
         cli_model.cli,
         [
             "page",
@@ -11413,15 +11719,12 @@ def test_init_requires_explicit_quiescence_before_revendoring_the_contract(
     )
     assert revendored.exit_code == 0, revendored.output
     assert b":root { --accent: red; }" in (page_dir / "theme.css").read_bytes()
-    owner_id = prior_owner["id"] if prior_owner else "starter"
-    started = start_server_command(
-        page_dir,
-        session_id=owner_id,
-    )
-    assert started.returncode == 0, started.stderr
-    assert started.stdout.strip() == url
+    # The old server went down with the restart, and this checkout's came up in its
+    # place at the same URL, under the lifetime and claim it had.
+    old_server.wait(timeout=5)
+    assert server_model.running_server(page_dir)["url"] == url
     assert files_model.read_json(page_dir / "service.json")["lifetime"] == lifetime
-    assert service_model.page_claim(page_dir)["id"] == owner_id
+    assert service_model.page_claim(page_dir) == prior_owner
     restored = files_model.read_json(page_dir / "status.json")
     assert restored == prior_status
 

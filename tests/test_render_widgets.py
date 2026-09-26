@@ -297,7 +297,7 @@ PANE_BAND_PAGE = leaf_page(
     <lf-pane id="band-queue" label="Queue"><ul><li>First ticket</li></ul></lf-pane>
     <lf-pane id="band-detail" label="Detail">
       <div id="band-body">
-        <section id="band-ticket" style="--lf-passes-block-edge: 1">
+        <section id="band-ticket">
           <p class="eyebrow" id="band-eyebrow">ESC-1 · sev 1</p>
           <h2>The ticket's title</h2>
           <p>What happened.</p>
@@ -750,6 +750,81 @@ def test_root_tabs_allocate_the_active_workspace_and_preserve_its_pane_scroll(
     assert page.evaluate("scrollY") == pytest.approx(workspace_read, abs=2)
     resized(page, 1440, 900)
     pane_posture(page, queue_pane, "bounded")
+
+
+def test_page_tabs_take_the_page_width_and_its_one_left_edge(browser, serve):
+    """Page tabs are sections of one page: on a wide page the header, the strip and the
+    open panel share main's left edge and the panel takes main's width, and a sidebar
+    stands beside the tabs as on any page."""
+    source = (
+        ROOT_TABS_PAGE.read_text()
+        .replace("<main>", '<main data-width="available">', 1)
+        .replace(
+            "<header>",
+            '<aside class="sidebar" id="page-contents"><p>Contents</p></aside><header>',
+            1,
+        )
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1440, 900)
+    tabs = page.locator("#root-tabs")
+    expect(tabs).to_have_attribute("data-lf-tabs-context", "root")
+    boxes = page.evaluate(
+        """() => {
+          const box = (el) => {
+            const r = el.getBoundingClientRect();
+            return {left: Math.round(r.left), width: Math.round(r.width)};
+          };
+          const main = document.querySelector('main');
+          const style = getComputedStyle(main);
+          const r = main.getBoundingClientRect();
+          return {
+            content: {
+              left: Math.round(r.left + parseFloat(style.paddingLeft)),
+              width: Math.round(r.width - parseFloat(style.paddingLeft)
+                - parseFloat(style.paddingRight)),
+            },
+            title: box(document.querySelector('main > header h1')),
+            strip: box(document.querySelector('#root-tabs > .lf-tabstrip')),
+            panel: box(document.querySelector('#root-tabs > lf-tab:not([hidden])')),
+            sidebar: Math.round(
+              document.querySelector('#page-contents').getBoundingClientRect().right),
+          };
+        }"""
+    )
+    assert boxes["content"]["width"] > 720, boxes
+    assert boxes["panel"] == boxes["content"], boxes
+    assert boxes["strip"]["left"] == boxes["content"]["left"], boxes
+    assert boxes["title"]["left"] == boxes["content"]["left"], boxes
+    assert boxes["sidebar"] <= boxes["panel"]["left"], boxes
+
+
+def test_a_page_tab_workspace_holds_the_window_only_where_the_tabs_end_the_page(
+    browser, serve
+):
+    """A workspace alone in a page tab holds the window when the tab set is main's last
+    block. With a block after the set, the page goes on past it: the workspace flows and
+    the page keeps its closing room."""
+    closing = ROOT_TABS_PAGE.read_text().replace(
+        "</lf-tabs>", '</lf-tabs><p id="after-tabs">Shared closing context.</p>', 1
+    )
+    for source, held in ((ROOT_TABS_PAGE, True), (closing, False)):
+        page = open_page(browser, serve(source))
+        resized(page, 1440, 900)
+        page.locator("#root-tabs").get_by_role(
+            "tab", name="Workbench", exact=True
+        ).click()
+        reading = page.evaluate(
+            """() => ({
+              held: getComputedStyle(
+                document.querySelector('lf-tab:not([hidden]) > lf-workspace')
+              ).containerType === 'size',
+              pad: parseFloat(getComputedStyle(document.querySelector('main'))
+                .paddingBottom),
+            })"""
+        )
+        assert reading["held"] is held, reading
+        assert (reading["pad"] == 0) is held, reading
 
 
 def test_root_tab_targets_remain_global(browser, serve):

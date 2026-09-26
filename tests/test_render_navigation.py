@@ -11424,3 +11424,108 @@ def test_a_user_at_the_top_of_the_document_is_one_press_from_the_chrome(browser,
         f"the skip link's press left the user on {landed['name']}, outside the layer "
         f"it names"
     )
+
+
+ASK_THREAD_PAGE = leaf_page(
+    "an ask and its thread",
+    """<h1>Cache review</h1>
+<p id="lead">The budget note covers latency budgets for the cache.</p>
+<lf-ask id="cache-ask">
+  <h2>Which cache should we keep?</h2>
+  <lf-options id="cache" choose>
+    <lf-option id="cache-disk">Keep the disk cache</lf-option>
+    <lf-option id="cache-memory">Keep the memory cache</lf-option>
+  </lf-options>
+</lf-ask>
+<lf-ask id="ship-ask">
+  <h2>Ship on Friday?</h2>
+  <lf-options id="ship" choose>
+    <lf-option id="ship-friday">Ship Friday</lf-option>
+    <lf-option id="ship-wait">Wait a week</lf-option>
+  </lf-options>
+</lf-ask>
+<lf-tasks id="tasks">
+  <lf-task id="retry" status="review" owner="infra">
+    <strong>Retry budget</strong> The retry budget doubles under load.
+    <lf-ask id="retry-ask">
+      <h3>Raise the retry budget?</h3>
+      <lf-options id="retry-pick" choose>
+        <lf-option id="retry-raise">Raise it</lf-option>
+        <lf-option id="retry-keep">Keep it</lf-option>
+      </lf-options>
+    </lf-ask>
+  </lf-task>
+</lf-tasks>""",
+)
+
+
+def test_an_ask_and_its_thread_are_one_standing_target(browser, serve):
+    """An Ask whose own thread the card shows is one place held from two sides
+    (glossary, Standing target). From the Ask, `c` continues that thread and `t` steps
+    on past it; from its thread, in the card or in the Threads list, the Ask keeps its
+    ring and its digits. A thread about an enclosing block is that block's, so an Ask
+    inside the block still starts a thread of its own. From an element with no thread,
+    `t` measures from its place in the document, as `a` does."""
+    url = serve(ASK_THREAD_PAGE)
+    d = serve.page_dir
+    panel_comment(
+        d, "Budgets are tight.", {"section": "lead", "quote": "latency budgets"}
+    )
+    about_ask = panel_comment(d, "The disk cache costs more.", {"section": "cache-ask"})
+    about_task = panel_comment(
+        d,
+        "Doubling is a lot.",
+        {"section": "retry", "quote": "The retry budget doubles under load."},
+    )
+    page = open_page(browser, url)
+    line = page.locator(".lf-shortcut-bar")
+    card = page.locator(".lf-margin-preview")
+    ask = page.locator("#cache-ask")
+    ask_thread = card.locator(f'.lf-page-thread[data-thread="{about_ask}"]')
+
+    # From the Ask, the card beside it holds its thread, and `c` continues that thread
+    # rather than starting a second one.
+    page.keyboard.press("a")
+    expect(ask).to_be_focused()
+    expect(ask_thread).to_be_visible()
+    expect(line).to_contain_text("comment on the thread")
+    page.keyboard.press("c")
+    expect(ask_thread.locator("textarea")).to_be_focused()
+    page.keyboard.press("Escape")
+    page.keyboard.press("Escape")
+    expect(ask).to_be_focused()
+
+    # From an Ask with no thread, `t` goes to the next thread after it in the document,
+    # which is the task's. Back from there is the Ask's own thread, where, in the card,
+    # the Ask is still where the user stands.
+    page.keyboard.press("a")
+    expect(page.locator("#ship-ask")).to_be_focused()
+    page.keyboard.press("t")
+    expect(card.locator(f'.lf-page-thread[data-thread="{about_task}"]')).to_be_focused()
+    page.keyboard.press("Shift+t")
+    expect(ask_thread).to_be_focused()
+    expect(ask).to_have_attribute("data-lf-ask", "1")
+    expect(line).to_contain_text("Ask actions")
+
+    # The nested Ask's card shows its task's thread, which is about the task.
+    page.keyboard.press("a")
+    expect(page.locator("#ship-ask")).to_be_focused()
+    page.keyboard.press("a")
+    expect(page.locator("#retry-ask")).to_be_focused()
+    expect(card.locator(f'.lf-page-thread[data-thread="{about_task}"]')).to_be_visible()
+    expect(line).to_contain_text("comment on the ask")
+    page.keyboard.press("Escape")
+
+    # With Threads open, the list's thread about the Ask plays the card's part, and a
+    # digit there answers the Ask.
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
+    panel_settled(page, True)
+    page.keyboard.press("t")
+    page.keyboard.press("t")
+    expect(
+        page.locator(f'.lf-thread[data-id="{about_ask}"] > .lf-thread-summary')
+    ).to_be_focused()
+    expect(ask).to_have_attribute("data-lf-ask", "1")
+    page.keyboard.press("1")
+    expect(page.locator("#cache-disk")).to_have_attribute("chosen", "")

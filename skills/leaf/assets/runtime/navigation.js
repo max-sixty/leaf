@@ -3,7 +3,7 @@ import { cancelRender, nextFrame } from "./rendering.js";
 import { clampedRow } from "./keyboard/bindings.js";
 import { inPanel as panelFocusIsInside } from "./thread/panel-elements.js";
 import { openThreads } from "./thread/thread-list.js";
-import { narrowed, threadSearchActive } from "./thread/narrowing.js";
+import { inPageOrder, narrowed, threadSearchActive } from "./thread/narrowing.js";
 import { coveringAuxiliarySurface, pageCommand } from "./keyboard/register.js";
 import { reducedMotion, scrollBehavior } from "./motion.js";
 import { threadsBox } from "./thread/panel-elements.js";
@@ -53,10 +53,11 @@ function pagePlace(standingTargetAt) {
   return at && !inChrome(at) ? at : null;
 }
 
-// From a place on the page at no thread, the walk measures document position against
-// each thread's target, as the Ask walk does (asks/view.js, `askStep`): a target holding
-// the place is where the user already is, so the press steps off it. A general or
-// detached thread has no target, and is reached from the list's ends.
+// From a place on the page at no thread, a walk in the page's order measures document
+// position against each thread's target, as the Ask walk does (asks/view.js,
+// `askStep`): a target holding the place is where the user already is, so the press
+// steps off it. A general or detached thread has no target, and is reached from the
+// list's ends, as every thread is in the panel's Recent order.
 function threadFrom(threads, place, dir, threadTarget) {
   if (!place) return clampedRow(threads, null, dir);
   const side =
@@ -77,7 +78,12 @@ function stepThread(dir, destinations, panelIsOpen) {
   const current = currentThread(threads, threadHere, panelIsOpen);
   const next = current
     ? clampedRow(threads, current, dir)
-    : threadFrom(threads, pagePlace(standingTargetAt), dir, threadTarget);
+    : threadFrom(
+        threads,
+        !panelIsOpen() || inPageOrder() ? pagePlace(standingTargetAt) : null,
+        dir,
+        threadTarget,
+      );
   if (!next) return;
   if (!panelIsOpen()) {
     openPageThread(next.dataset.id, { focus: "thread" });

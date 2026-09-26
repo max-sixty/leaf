@@ -233,19 +233,22 @@ lf-ask:has(> :is(h1, h2, h3, h4, h5, h6):first-child:nth-last-child(2)) {
     body
     > main:has(> lf-workspace):not(:has(> :not(lf-workspace, script, style, template, .lf-ui, [data-lf-gen]))) {
     padding-block: 0;
+    /* The page gives up its block padding to the workspace, which keeps the top of it
+     * inside its own height, so its title stands clear of the banner as a page's does. */
     & > lf-workspace {
-      container-type: size;
-      --lf-held: 1;
-      /* The page gives up its block padding to the workspace, which keeps the top of it
-       * inside its own height, so its title stands clear of the banner as a page's
-       * does. */
       box-sizing: border-box;
       padding-top: var(--sp-4);
-      block-size: calc(100dvh - var(--lf-banner-h) - var(--lf-band-h, 0px));
     }
   }
-  /* A root tab's workspace ends the page and stands under the sticky tab strip:
-   * scrolled to its end, the page puts it between the strip and the bottom chrome. */
+  /* The hold. The page is `main`, or the section of it a page tab shows, and a
+   * workspace that is its only block takes the window's height under everything that
+   * sticks above it: the banner, the bottom chrome, and a page tab strip where there is
+   * one (--lf-root-tab-clear, 0 without). Scrolled to its end, the page stands it
+   * between those covers. */
+  html:root
+    body
+    > main:has(> lf-workspace):not(:has(> :not(lf-workspace, script, style, template, .lf-ui, [data-lf-gen])))
+    > lf-workspace,
   html:root
     body
     > main
@@ -257,16 +260,13 @@ lf-ask:has(> :is(h1, h2, h3, h4, h5, h6):first-child:nth-last-child(2)) {
     block-size: calc(100dvh - var(--lf-banner-h) - var(--lf-band-h, 0px)
       - var(--lf-root-tab-clear, 0px));
   }
+  /* A page tab's workspace ends the page, so the page and the tab set give up the room
+   * they keep after their last block. */
   html:root
     body
     > main:has(> lf-tabs[data-lf-tabs-context="root"] > lf-tab[data-lf-root-reading] > lf-workspace:only-child) {
     padding-bottom: 0;
-  }
-  html:root
-    body
-    > main
-    > lf-tabs[data-lf-tabs-context="root"]:has(> lf-tab[data-lf-root-reading] > lf-workspace:only-child) {
-    margin-block-end: 0;
+    & > lf-tabs[data-lf-tabs-context="root"] { margin-block-end: 0; }
   }
 
   /* Bounded: the root workspace holds the regions, so each held pane's body scrolls in
@@ -1600,24 +1600,11 @@ lf-tabs.lf-rendered > lf-tab { margin-top: 14px; }
      * display:block above outranks the UA's [hidden] rule. */
     lf-tabs.lf-rendered > lf-tab[hidden]:not([hidden="until-found"]) { display: none; }
 
-    /* A root tab set is the page's composition rather than a framed widget inside it.
-     * Its shared authored header remains above a sticky horizontal index. Ordinary
-     * panels retain the reading measure, and the header and index keep that column's
-     * left edge, so a page of tabs has one edge as a page without them does; a sole root
-     * workspace can spend the page room and height declared by the structural layout
-     * above. */
-    body > main:has(> lf-tabs[data-lf-tabs-context="root"]) {
-      box-sizing: border-box;
-      width: 100cqi;
-      max-width: none;
-      margin-inline: 0;
-      left: 0;
-    }
-    body > main:has(> lf-tabs[data-lf-tabs-context="root"]) > :is(header, lf-tabs) {
-      width: min(var(--col), var(--lf-room));
-      max-width: var(--col);
-      margin-inline: auto;
-    }
+    /* A root tab set is navigation over sections of one page rather than a framed
+     * widget inside it: a sticky horizontal index, one panel shown. It lays out nothing
+     * of its own. The strip and the panel are blocks of `main` like any other, so they
+     * take the page's width, column or wide, and whatever stands in `main` beside the set
+     * (a header, a sidebar) stays where it would on a page without tabs. */
     :where(lf-tabs.lf-rendered[data-lf-tabs-context="root"]) {
       margin-block: 0 32px;
       border: 0;
@@ -1654,15 +1641,12 @@ lf-tabs.lf-rendered > lf-tab { margin-top: 14px; }
       background: transparent;
     }
     lf-tabs.lf-rendered[data-lf-tabs-context="root"] > lf-tab:not([hidden]) {
-      box-sizing: border-box;
-      width: min(var(--col), 100%);
-      max-width: var(--col);
-      margin-inline: auto;
       padding: var(--sp-4) 0 0;
     }
-    /* A page tab is the page's column, not a box on it: it declares the frame for its
-     * first line's trim and, like main's column, hands the room back to what it holds,
-     * so a wide exhibit in a page tab breaks out as it would on a page without tabs. */
+    /* A page tab is a section of the page, not a box on it: it declares the frame only
+     * so its first line trims under the strip and, like `main`, hands the room back to
+     * what it holds, so a wide exhibit or a workspace in a page tab grows out as it would
+     * on a page without tabs. */
     lf-tabs.lf-rendered[data-lf-tabs-context="root"] > lf-tab:not([hidden]) > * {
       --lf-room: inherit;
     }
@@ -1672,13 +1656,6 @@ lf-tabs.lf-rendered > lf-tab { margin-top: 14px; }
       min-height: 0;
       overflow: hidden;
       pointer-events: none;
-    }
-    lf-tabs.lf-rendered[data-lf-tabs-context="root"]
-      > lf-tab[data-lf-root-reading]:has(> lf-workspace:only-child) {
-      width: var(--lf-room);
-      max-width: none;
-      margin-left: calc((100% - var(--lf-room)) / 2);
-      padding: 0;
     }
   }
 }

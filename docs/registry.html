@@ -494,19 +494,17 @@
             <h3><code>x-page-navigation</code></h3>
             <div class="reference-copy">
               <p>
-                The element becomes the page's view navigation when it is the final
-                substantive child of main and the only substantive content before it is
-                one native header or nothing.
+                The first such element placed directly in main becomes the page's view
+                navigation, whatever else main holds beside it.
               </p>
               <details class="reference-more">
                 <summary aria-label="Full x-page-navigation contract">
                   Full contract
                 </summary>
                 <p>
-                  <code>version check</code> then treats that composition as the page's
-                  outline instead of advising an aside.sidebar that would take it out of
-                  root placement. Other placements retain the element's embedded
-                  presentation.
+                  <code>version check</code> then treats it as the page's outline and
+                  does not advise an aside.sidebar of contents. Other placements retain
+                  the element's embedded presentation.
                 </p>
               </details>
             </div>

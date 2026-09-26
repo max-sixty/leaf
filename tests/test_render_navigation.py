@@ -1741,27 +1741,32 @@ def test_generated_hints_include_links_revealed_by_a_page_widget(browser, serve)
 
 
 @pytest.mark.parametrize(
-    "embedded",
-    [False, "element", "text"],
-    ids=["page-tabs", "tabbed-section", "following-text"],
+    "placement",
+    ["alone", "among-blocks", "nested"],
 )
 def test_the_gallery_tab_set_uses_the_boundary_of_its_composition(
-    browser, serve, embedded
+    browser, serve, placement
 ):
-    """The same tab vocabulary has page or section scope from its authored placement."""
+    """The same tab vocabulary has page or section scope from where it is placed: the
+    first set directly in main is page navigation whatever stands beside it, and a set
+    inside another block is a tabbed section."""
     specimen = re.search(
         r'<lf-tabs id="bg-tabs">.*?</lf-tabs>', FEATURE_GALLERY.read_text(), re.DOTALL
     )
     assert specimen is not None
     heading = "<header><h1>Project views</h1></header>"
-    after = {
-        False: "",
-        "element": "<p>This conclusion follows the tabbed section.</p>",
-        "text": "This conclusion follows the tabbed section.",
-    }[embedded]
+    body = {
+        "alone": heading + specimen[0],
+        "among-blocks": heading
+        + '<aside class="sidebar"><p>Contents</p></aside>'
+        + specimen[0]
+        + "<p>This conclusion follows the tab set.</p>",
+        "nested": heading + "<section>" + specimen[0] + "</section>",
+    }[placement]
+    embedded = placement == "nested"
     page = open_page(
         browser,
-        live_url(serve(leaf_page("Root tab gallery", heading + specimen[0] + after))),
+        live_url(serve(leaf_page("Root tab gallery", body))),
     )
     tabs = page.locator("#bg-tabs")
     expect(tabs).to_have_css("border-left-width", "1px" if embedded else "0px")
@@ -1781,10 +1786,17 @@ def test_the_gallery_tab_set_uses_the_boundary_of_its_composition(
         page.evaluate("window.__retainedTabs = document.querySelector('#bg-tabs')")
         source = serve.page_dir / "index.html"
         original = source.read_text()
+        # An earlier tab set in main takes over the page's navigation, and this one
+        # becomes a tabbed section without being rebuilt.
         stamp_page(
             serve.page_dir,
-            original.replace("</main>", "<p>Shared closing context.</p></main>"),
-            "Add shared closing context",
+            original.replace(
+                '<lf-tabs id="bg-tabs">',
+                '<lf-tabs id="earlier-tabs"><lf-tab id="earlier-tab" label="Earlier">'
+                "<p>Earlier views.</p></lf-tab></lf-tabs>"
+                '<lf-tabs id="bg-tabs">',
+            ),
+            "Add an earlier tab set",
         )
         wait_for_revision(page, 2)
         expect(tabs).to_have_css("border-left-width", "1px")
@@ -1857,6 +1869,7 @@ def test_an_inline_tab_keeps_its_panel_inside_one_visible_boundary(browser, serv
                 """
 <h1 id="heading">Parallel work</h1>
 <p id="shared">This context belongs to every view.</p>
+<section id="views-section">
 <lf-tabs id="views">
   <lf-tab id="implementation" label="Implementation">
     <section id="implementation-section">
@@ -1871,6 +1884,7 @@ def test_an_inline_tab_keeps_its_panel_inside_one_visible_boundary(browser, serv
     </section>
   </lf-tab>
 </lf-tabs>
+</section>
 <section id="next-section"><h2 id="next-heading">Whole-page conclusion</h2></section>
 """,
             )

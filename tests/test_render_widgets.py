@@ -751,6 +751,52 @@ def test_root_tabs_allocate_the_active_workspace_and_preserve_its_pane_scroll(
     pane_posture(page, queue_pane, "bounded")
 
 
+def test_page_tabs_take_the_page_width_and_its_one_left_edge(browser, serve):
+    """Page tabs are sections of one page: on a wide page the header, the strip and the
+    open panel share main's left edge and the panel takes main's width, and a sidebar
+    stands beside the tabs as on any page."""
+    source = (
+        ROOT_TABS_PAGE.read_text()
+        .replace("<main>", '<main data-width="available">', 1)
+        .replace(
+            "<header>",
+            '<aside class="sidebar" id="page-contents"><p>Contents</p></aside><header>',
+            1,
+        )
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1440, 900)
+    tabs = page.locator("#root-tabs")
+    expect(tabs).to_have_attribute("data-lf-tabs-context", "root")
+    boxes = page.evaluate(
+        """() => {
+          const box = (el) => {
+            const r = el.getBoundingClientRect();
+            return {left: Math.round(r.left), width: Math.round(r.width)};
+          };
+          const main = document.querySelector('main');
+          const style = getComputedStyle(main);
+          const r = main.getBoundingClientRect();
+          return {
+            content: {
+              left: Math.round(r.left + parseFloat(style.paddingLeft)),
+              width: Math.round(r.width - parseFloat(style.paddingLeft)
+                - parseFloat(style.paddingRight)),
+            },
+            title: box(document.querySelector('main > header h1')),
+            strip: box(document.querySelector('#root-tabs > .lf-tabstrip')),
+            panel: box(document.querySelector('#root-tabs > lf-tab:not([hidden])')),
+            sidebar: getComputedStyle(document.querySelector('#page-contents')).float,
+          };
+        }"""
+    )
+    assert boxes["content"]["width"] > 720, boxes
+    assert boxes["panel"] == boxes["content"], boxes
+    assert boxes["strip"]["left"] == boxes["content"]["left"], boxes
+    assert boxes["title"]["left"] == boxes["content"]["left"], boxes
+    assert boxes["sidebar"] == "left", boxes
+
+
 def test_root_tab_targets_remain_global(browser, serve):
     """Ask travel crosses hidden tabs."""
     url = serve(ROOT_TABS_PAGE)

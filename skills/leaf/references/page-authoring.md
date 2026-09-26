@@ -102,8 +102,10 @@ more. Compose the stack from these:
 - **Several views of one artifact** are one `lf-tabs` set: page tabs for
   project-scale views that share one history, Threads panel, Ask inventory, and
   revision sequence, and a tabbed section for local alternatives within the
-  surrounding view. The `lf-tabs` entry says which placement makes which, and how to
-  order and retire views.
+  surrounding view. Page tabs are sections of one page: each panel takes the page's
+  width, so `data-width` on `main` widens every tab, and a sidebar stands beside
+  them as on any page. The `lf-tabs` entry says which placement makes which, and how
+  to order and retire views.
 
 A page grows without changing kind: a report that gains live status gains a grid, and
 its comments and anchors stay put.

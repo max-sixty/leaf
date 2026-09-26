@@ -7014,14 +7014,18 @@ def test_a_wait_on_a_page_never_served_ends_at_once(page_dir, capsys, wait):
     )
 
 
-@pytest.mark.parametrize("stopped", ["during the block", "never"])
+@pytest.mark.parametrize(
+    "stopped", ["during the block", "during the lease wait", "never"]
+)
 def test_a_stop_during_a_restart_keeps_the_service_stopped(
     page_dir, monkeypatch, stopped
 ):
     """`leaf server stop` while `page init` holds a service down to re-vendor it
     finds the service already disabled, and the restart must not enable it
     again after the block: the stop is the later word. Without one, the restart
-    enables the service and starts it as a revival."""
+    enables the service and starts it as a revival. A stop can also land while the
+    restart's own stop is still waiting out the old server's lease, between two of
+    its passes, and a later pass must not write the restart's mark back over it."""
     files_model.write_json(
         page_dir / "service.json",
         {
@@ -7039,6 +7043,24 @@ def test_a_stop_during_a_restart_keeps_the_service_stopped(
         return "http://127.0.0.1:1/", ""
 
     monkeypatch.setattr(hosting_model, "start_server", recorded_start)
+    if stopped == "during the lease wait":
+        # The old server holds its lease through the restart's first pass, and the
+        # plain stop runs in the pause before the next one.
+        take_lease, sleep = hosting_model.take_lease, hosting_model.time.sleep
+        held = iter([True])
+        monkeypatch.setattr(
+            hosting_model,
+            "take_lease",
+            lambda path: None if next(held, False) else take_lease(path),
+        )
+        paused = iter([True])
+
+        def stop_in_the_pause(seconds):
+            if next(paused, False):
+                hosting_model.cmd_stop(page_dir)
+            sleep(seconds)
+
+        monkeypatch.setattr(hosting_model.time, "sleep", stop_in_the_pause)
     with hosting_model.restarting_server(page_dir):
         assert not files_model.read_json(page_dir / "service.json")["enabled"]
         if stopped == "during the block":

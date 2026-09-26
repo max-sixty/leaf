@@ -502,15 +502,20 @@ def cmd_stop(page_dir: Path, restart: str | None = None) -> str:
 
     `restart` marks the disabled record as `restarting_server`'s own. A plain stop
     writes an unmarked one even over a service already down, so a stop made while
-    a restart holds the service down takes the restart's claim to it away."""
+    a restart holds the service down takes the restart's claim to it away. The
+    record is this stop's to write once, on its first pass: a later pass only
+    disables a service something enabled meanwhile, and keeps whatever mark the
+    record then carries, so a restart waiting out the old server's lease does not
+    write its mark back over a plain stop that landed during the wait."""
     require_cross_process_locking()
     stopped = False
+    first = True
     while True:
         with page_locked(page_dir):
             # The server may release its lease immediately after we disable it.
             stopped = stopped or lock_is_held(page_dir / SERVER_LOCK)
             service = read_json(page_dir / SERVICE_FILE)
-            if service:
+            if service and first:
                 disabled = {
                     **{
                         key: value for key, value in service.items() if key != "restart"
@@ -520,6 +525,9 @@ def cmd_stop(page_dir: Path, restart: str | None = None) -> str:
                 }
                 if disabled != service:
                     write_json(page_dir / SERVICE_FILE, disabled)
+            elif service and service["enabled"]:
+                write_json(page_dir / SERVICE_FILE, {**service, "enabled": False})
+            first = False
             lease = take_lease(page_dir / SERVER_LOCK)
             if lease is not None:
                 release_lease(lease)

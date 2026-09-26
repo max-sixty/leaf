@@ -5,8 +5,10 @@ This is a basic, imperfect eval: a starting point that needs work before its num
 support more than "no obvious regression". Each round launches two headless Claude
 Code sessions at the same time, one with the plugin from BASE_REF and one with this
 checkout. Each serves the same page (`examples/triage-board.html`), starts its
-background `leaf wait`, and receives one real comment posted over HTTP. The script
-then reads the page log and the session's stream for:
+background `leaf wait`, and ends its setup turn. Only then does the script post one
+real comment over HTTP, so the comment reaches an idle session the way it does when a
+user reads the page before commenting. The script then reads the page log and the
+session's stream for:
 
 - seconds from the comment to its `pickup` (the user sees Picked up) and to the
   first agent reply;
@@ -18,7 +20,9 @@ then reads the page log and the session's stream for:
 closed, so each session runs with `--input-format stream-json` and stdin held open
 until the turn that handled the comment ends. The comment then arrives through
 Claude Code's own background-task notification, as it does in an interactive
-session.
+session. A comment posted while the setup turn is still running takes another route:
+the wait ends mid-turn, the Stop hook delivers the comment, and the agent handles it
+in that same turn. That route is not measured.
 
 Known limits:
 
@@ -35,7 +39,7 @@ Known limits:
 - Only the `leaf wait` carrier is covered. `verify_site.py local` covers App Server;
   nothing covers the Codex queue.
 
-It needs a logged-in `claude` on PATH. Each session costs about half a dollar. Runs
+It needs a logged-in `claude` on PATH. Each session costs about a dollar. Runs
 are written to `.tmp/eval-claude-delivery/<arm>-<round>/`.
 """
 
@@ -47,7 +51,6 @@ import shutil
 import subprocess
 import tempfile
 import threading
-import time
 import urllib.parse
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
@@ -90,6 +93,19 @@ def post_comment(url: str) -> None:
         headers={"Leaf-Layer": layer},
     )
     opener.open(request).close()
+
+
+def waits_started(record: dict) -> list[str]:
+    """Return the ids of the backgrounded `leaf wait` calls one stream record makes."""
+    content = (record.get("message") or {}).get("content")
+    return [
+        block["id"]
+        for block in (content if isinstance(content, list) else ())
+        if block.get("type") == "tool_use"
+        and block["name"] == "Bash"
+        and "leaf wait" in block["input"].get("command", "")
+        and block["input"].get("run_in_background")
+    ]
 
 
 def run_session(leaf_root: Path, run: Path) -> None:
@@ -150,36 +166,31 @@ def run_session(leaf_root: Path, run: Path) -> None:
     deadline = threading.Timer(TURN_LIMIT, give_up)
     deadline.start()
     try:
-        url = None
-        waits, posted, arrived, results = set(), False, False, 0
+        url, waits, results, posted = None, set(), 0, False
         with (run / "stream.jsonl").open("w") as stream:
             for line in proc.stdout:
                 stream.write(line)
                 record = json.loads(line)
-                if record.get("subtype") == "task_notification":
-                    arrived = arrived or (posted and record["tool_use_id"] in waits)
+                waits.update(waits_started(record))
                 content = (record.get("message") or {}).get("content")
                 for block in content if isinstance(content, list) else ():
-                    if block.get("type") == "tool_use" and block["name"] == "Bash":
-                        command = block["input"].get("command", "")
-                        if "leaf wait" in command and block["input"].get(
-                            "run_in_background"
-                        ):
-                            waits.add(block["id"])
-                    elif block.get("type") == "tool_result" and not url:
-                        if found := URL.search(json.dumps(block.get("content"))):
-                            url = found.group(0)
-                if url and waits and not posted:
-                    posted = True
-                    time.sleep(5)
+                    if (
+                        block.get("type") == "tool_result"
+                        and not url
+                        and (found := URL.search(json.dumps(block.get("content"))))
+                    ):
+                        url = found.group(0)
+                if record.get("type") != "result":
+                    continue
+                results += 1
+                if results == 1 and url and waits:
+                    # The setup turn is over and the session idles on its wait.
                     post_comment(url)
-                if record.get("type") == "result":
-                    results += 1
-                    # The first result ends the setup turn, even when the delivery landed
-                    # before it did; a later one after the delivery ends a turn it woke.
-                    # A trailing wake may follow, hence the grace period.
-                    if results > 1 and arrived:
-                        threading.Timer(20, close_stdin).start()
+                    posted = True
+                elif posted:
+                    # This turn was woken by the comment. A trailing wake may
+                    # follow, hence the grace period.
+                    threading.Timer(20, close_stdin).start()
         proc.wait(timeout=60)
         events = subprocess.run(
             [leaf, "events", page], env=env, check=True, capture_output=True, text=True
@@ -214,20 +225,18 @@ def score(run: Path) -> dict:
             else None
         )
 
-    actions, waits, arrived = [], set(), False
+    actions, waits, results, arrived = [], set(), 0, False
     for line in (run / "stream.jsonl").read_text().splitlines():
         record = json.loads(line)
+        waits.update(waits_started(record))
+        results += record.get("type") == "result"
         if record.get("subtype") == "task_notification":
-            arrived = arrived or record["tool_use_id"] in waits
+            # Only a wait that ends after the setup turn carries the comment.
+            arrived = arrived or (results > 0 and record["tool_use_id"] in waits)
         content = (record.get("message") or {}).get("content")
         for block in content if isinstance(content, list) else ():
-            if block.get("type") != "tool_use":
-                continue
-            command = block["input"].get("command", "")
-            if "leaf wait" in command and block["input"].get("run_in_background"):
-                waits.add(block["id"])
-            if arrived:
-                actions.append(command or block["name"])
+            if arrived and block.get("type") == "tool_use":
+                actions.append(block["input"].get("command") or block["name"])
     ack = next((i for i, a in enumerate(actions) if "leaf wait --ack" in a), None)
     return {
         "timed_out": (run / "timed-out").exists(),

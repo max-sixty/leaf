@@ -68,4 +68,5 @@ until uv run --project "$repo_root" \
   ((SECONDS < deadline)) || exit 1
   sleep 10
 done
-uv run --project "$repo_root" "$repo_root/scripts/benchmark-site.py" "$origin"
+uv run --project "$repo_root" "$repo_root/scripts/verify_site.py" "$origin" \
+  --release "$release" --agent

@@ -70,26 +70,24 @@ rules a new or changed example has to meet.
   exact release again after deployment. That production pass also sends one private
   comment and requires the hosted Codex task to publish a revision and reply. With
   `verify_site.py --agent`, the verifier prints the request acknowledgement, activity
-  transitions, publication, reply, and changed-page presentation timings. The Worker's
+  transitions, publication, reply, and changed-page presentation timings to stderr, and
+  emits the complete journey as one JSON sample on stdout: browser presentation, a
+  comment sent through the real Threads composer, acknowledgement and activity, the
+  first agent reply text visible in the open thread, requested publication and durable
+  reply, then the changed page's presentation and revision follow. The same run is the
+  gate and the benchmark. The Worker's
   `startup_failed` receipt triggers one retry; rate limits and all other
   unsuccessful endings fail the deployment on the first ask. The gate reads the
   receipt's `failure` code, never its wording. `worker/README.md` owns the failure
   contract.
-  `uv run scripts/verify_site.py local` runs the same delivery, App Server, edit,
-  publication,
-  reply, and browser-reload path against the host's Codex login. It bypasses the
-  Cloudflare Worker, container resources, and outbound credential proxy, so
+  `uv run scripts/verify_site.py local` runs the same agent pass, with the same HTTP
+  and browser checks, against the host's Codex login. It only provisions the canonical
+  Python adapter and explicitly starts its turn, bypassing the Cloudflare Worker,
+  container allocation and resources, routing, and the outbound credential proxy, so
   it checks agent behavior without measuring production infrastructure.
-  `benchmark-site.py local|ORIGIN` emits that complete journey as one JSON sample:
-  browser presentation, a comment sent through the real Threads composer,
-  acknowledgement and activity, the first agent reply text visible in the open thread,
-  requested publication and durable reply, then the changed page's presentation and
-  revision follow. Both targets run the same HTTP and browser checks. `local` only
-  provisions the canonical Python adapter and explicitly starts its turn; it does not
-  emulate Cloudflare's Worker, container allocation, or routing.
   `deploy-site-dev.sh` publishes the current checkout to the one standing
   `leaf-website-dev` Cloudflare environment and runs that benchmark against its
-  `workers.dev` origin. The command always selects the `dev` Wrangler environment;
+  `workers.dev` origin with `--agent`. The command always selects the `dev` Wrangler environment;
   production deployment stays in `publish-site.yaml`.
   Hosted-agent diagnostics live in Workers Observability. Query its REST API directly
   with the canonical event id or visible session reference; once the Container starts

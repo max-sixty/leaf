@@ -14,8 +14,7 @@
  * (history.js). `readingBlock` is the block the user is on, for the questions that ask
  * where a walk starts.
  */
-import { banner } from "./banner.js";
-import { clippedContents, landingBand, shownBox } from "./geometry.js";
+import { clippedContents, landingBand, shownBox, shownWindow } from "./geometry.js";
 import {
   blockAt,
   closestAcross,
@@ -62,19 +61,13 @@ export function textBlocks(root = document.querySelector("body > main")) {
 }
 
 export function* blocksOnScreen(region = null, blocks = textBlocks()) {
-  // Read the painted edge directly. The declared height may contain a safe-area
-  // `calc()`, whose serialized value is not a number even though its box is exact.
-  const page = { top: banner.getBoundingClientRect().bottom, bottom: innerHeight };
-  const shown = region ? shownRegionBounds(region) : page;
+  const shown = region ? shownRegionBounds(region) : shownWindow();
   if (!shown) return;
-  // A flowing region is read through the page, whose visible band starts below the
-  // banner: a line hidden under it is not where the user is.
+  // A flowing region is read through the part of the window the page shows: a line
+  // hidden under the banner is not where the user is.
   const bounds =
     region && effectiveScroller(region) === pageScroller
-      ? {
-          top: Math.max(shown.top, page.top),
-          bottom: Math.min(shown.bottom, page.bottom),
-        }
+      ? shownWindow({ within: shown })
       : shown;
   for (const block of blocks) {
     // [hidden] needs an explicit skip: hidden="until-found" resolves to

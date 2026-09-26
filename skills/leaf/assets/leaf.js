@@ -145,7 +145,7 @@ import {
   createGoToSequence,
   goToHintLayer,
 } from "./runtime/keyboard/go-to-sequence.js";
-import { chromeTop } from "./runtime/keyboard/key-badge-placement.js";
+import { bannerFoot } from "./runtime/geometry.js";
 // The page's own keyboard parts join the register as this module evaluates; every other
 // owner contributes its own as it is constructed below.
 import { declareStanding } from "./runtime/keyboard/page.js";
@@ -243,7 +243,7 @@ const targetPaintCaps = {
 const hintChrome = {
   barriers: standingStatusBoxes,
   lineBox: () => shortcutBarEl.getBoundingClientRect(),
-  viewportTop: chromeTop,
+  viewportTop: bannerFoot,
 };
 const anchorPaint = createAnchorPaint({
   targetPaint: targetPaintCaps,
@@ -405,7 +405,6 @@ app = mountApplication({
   updateFab: (...args) => responseSurface.updateFab(...args),
   createMarginProjection,
   margin: {
-    bottomChromeBoxes,
     designModeActive: designMode.active,
     pointerModeActive: () => designMode.active() || drawing.drawModeActive(),
     comparisonBase: version.comparisonBase,
@@ -555,8 +554,6 @@ responseSurface = createResponseSurface({
   reactionContextContains: (...args) => reactions.reactionContextContains(...args),
   reactionTokens,
   setReact: (...args) => reactions.setReact(...args),
-  banner,
-  bottomChromeBoxes,
   closeShortcutShelf: (...args) => closeShortcutShelf(...args),
   closeVersionMenu: version.closeVersionMenu,
   versionMenuIsOpen,

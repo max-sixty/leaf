@@ -64,9 +64,7 @@ export const markdownReady = () => render !== escapedSource;
 
 const WEB_PROTOCOLS = new Set(["http:", "https:", "mailto:"]);
 
-// Whether a destination stays a link once rendered; one that does not renders as its
-// words. The composer's preview asks the same question (`composing/text-field.js`).
-export function safeUrl(href) {
+function safeUrl(href) {
   if (href.startsWith("#")) return true;
   try {
     return WEB_PROTOCOLS.has(new URL(href, location.href).protocol);
@@ -83,6 +81,20 @@ function renderedElement(markup, tag) {
   probe.innerHTML = markup;
   const element = probe.content.firstElementChild;
   return element?.localName === tag ? element : null;
+}
+
+// Whether a link destination, as written in Markdown source, stays a link once rendered;
+// one that does not renders as its words. The renderer judges the href its parser
+// decoded, so the source is read the same way first: pointy brackets dropped, backslash
+// escapes and character references resolved. The composer's preview asks this of every
+// destination it draws (`composing/text-field.js`).
+export function sourceLinks(written) {
+  const unescaped = written
+    .replace(/^<([^]*)>$/, "$1")
+    .replace(/\\([!-/:-@[-`{-~])/g, "$1")
+    .replace(/"/g, "&quot;");
+  const link = renderedElement(`<a href="${unescaped}"></a>`, "a");
+  return Boolean(link) && safeUrl(link.getAttribute("href"));
 }
 
 export function loadMarkdown(onError = null) {

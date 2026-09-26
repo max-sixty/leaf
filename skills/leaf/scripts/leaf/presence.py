@@ -161,7 +161,7 @@ def other_leaves(page_dir: Path) -> list:
 
                             raw, live_stream = presence_with_activity(candidate, events)
                             active = active_descriptor(candidate, events)
-                            browser = project_browser_state(
+                            projected = project_browser_state(
                                 candidate,
                                 events,
                                 None,
@@ -170,6 +170,7 @@ def other_leaves(page_dir: Path) -> list:
                                 observed_at,
                                 live_stream=live_stream,
                             )
+                            browser = projected[0] if projected is not None else None
                             activity = project_activity(
                                 candidate,
                                 events,

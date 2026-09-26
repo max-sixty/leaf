@@ -108,9 +108,15 @@ def wait_for_probe(page, name: str, *args, timeout_ms: int | None = None) -> Non
         ) from error
 
 
-def wait_for_presentation(
-    page, state: dict, replayed_events: int, *, settled: bool = False
-) -> str | None:
+def log_coverage(state: dict) -> int:
+    """Where a page's coverage stamp (`data-lf-applied`) stands once it has projected
+    every record of an `/api/state` reading: one per record in the served coverage,
+    which is the runtime's own count. Every view of one reading lists the same records,
+    so the active view answers for whichever revision the page shows."""
+    return len(state["browser"]["views"][str(state["active"]["revision"])]["coverage"])
+
+
+def wait_for_presentation(page, state: dict, *, settled: bool = False) -> str | None:
     """Wait through the canonical post-upgrade presentation stages.
 
     Return the first stage that times out so callers can explain that boundary in
@@ -124,8 +130,8 @@ def wait_for_presentation(
     from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
     stages = [("dataApplied", (state["data"]["version"], state["taken"]))]
-    if replayed_events:
-        stages.append(("logApplied", (replayed_events,)))
+    if covered := log_coverage(state):
+        stages.append(("logApplied", (covered,)))
     stages.append(("currentPresented", ()))
     if settled:
         stages.append(("pageSettled", ()))

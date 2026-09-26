@@ -1883,7 +1883,7 @@ def test_the_data_wait_follows_a_source_rewritten_under_it(browser, serve):
     )
     page._leaf_probe_timeout_ms = 1_000
 
-    assert render_checks_model.wait_for_presentation(page, held, 0) is None
+    assert render_checks_model.wait_for_presentation(page, held) is None
 
 
 def test_the_data_wait_follows_a_source_back_to_the_version_the_page_shows(
@@ -1911,7 +1911,7 @@ def test_the_data_wait_follows_a_source_back_to_the_version_the_page_shows(
     page.unroute("**/api/state*")
     page._leaf_probe_timeout_ms = 5_000
 
-    assert render_checks_model.wait_for_presentation(page, held, 0) is None
+    assert render_checks_model.wait_for_presentation(page, held) is None
     expect(page.locator("#notes code")).to_have_text("First.\n")
 
 

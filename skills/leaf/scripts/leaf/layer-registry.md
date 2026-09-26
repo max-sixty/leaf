@@ -32,9 +32,12 @@ records three deliberately different identities under `$layer`:
   epoch is stamped. Identical runtime, theme, registry, widget, vendor, icon, and
   guidance bytes have the same fingerprint across repeated vendoring. `producer`
   records the Git commit and dirty bit when the payload came from a checkout or from
-  Claude Code's Git-versioned plugin cache. The page exposes that identity in its
-  low-frequency banner controls; a press copies the full layer diagnostics. A host can
-  ask its running payload for the same source identity with `leaf --version`.
+  Claude Code's Git-versioned plugin cache, and how old that commit is: `committed`,
+  its committer date, where Git can read it, or `installed`, when the plugin cache
+  copied it without `.git`, one update sweep after it landed. The page exposes that
+  identity and its age in its low-frequency banner controls; a press copies the full
+  layer diagnostics. A host can ask its running payload for the same source identity
+  and date with `leaf --version`.
 - `runtime` is the SHA-256 identity of the kernel runtime modules the payload vendored
   from, read from its own `assets/runtime/` rather than recomposed from the page's
   selections. A page's server runs the Leaf that started it against the runtime the

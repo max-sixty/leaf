@@ -22,7 +22,7 @@ policy names. Every lf-* element validates against the effective registry
 (schema, nesting, no self-closing form); every lf-* meta is a known page
 declaration with an allowed value; each lf-suggestion is well formed (at most
 one of each slot, at least one of them, no nesting, `resolves` naming a comment
-in the document's reference namespace); ids are unique, no authored id, class, or
+in the document's reference namespace); ids are unique and hold no whitespace, no authored id, class, or
 attribute sits in the runtime's `lf-` and `data-lf-` namespaces, named today or
 not, and ids needed by anchored unresolved threads, standing user actions, or
 effective standing reports survive from the previous revision. A

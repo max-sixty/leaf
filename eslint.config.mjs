@@ -988,7 +988,7 @@ export default [
           patterns: [
             {
               regex:
-                "^(?!\\.\\./(?:anchor-coordinate|semantic-state)\\.js$|(?:\\.\\./thread/|\\./)(?:identity|workflow)\\.js$|\\./model\\.js$)",
+                "^(?!\\.\\./(?:anchor-coordinate|collapse|semantic-state)\\.js$|(?:\\.\\./thread/|\\./)(?:identity|workflow)\\.js$|\\./model\\.js$)",
               message: "Thread readings depend only on pure record operations.",
             },
           ],

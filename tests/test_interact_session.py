@@ -1050,6 +1050,8 @@ def test_only_one_turn_reply_can_bind_the_app_server_final_message():
 def test_a_completed_stream_answers_its_event_even_when_the_reply_address_differs():
     obligation = {
         "input": "widget-action",
+        "seq": 1,
+        "stage": "picked_up",
         "answer": {
             "kind": "turn",
             "to": "widget-owner-thread",
@@ -1066,10 +1068,21 @@ def test_a_completed_stream_answers_its_event_even_when_the_reply_address_differ
             "responds": "widget-action",
         },
     }
-    assert hooks_model._turn_wrote(obligation, {"claim_turn": "leaf-turn"})
+
+    def blocking(obligation: dict, *, carried: bool) -> list[dict]:
+        state = {
+            "activity": {"obligations": [obligation]},
+            "cursor": 1,
+            "claim_turn": "leaf-turn",
+        }
+        return activity_model.blocking_obligations(state, carried=carried)
+
+    assert blocking(obligation, carried=True) == []
+    # Nothing is left to commit the draft once its carrier is gone.
+    assert blocking(obligation, carried=False) == [obligation]
     # A plain reply is `leaf thread reply`'s to write, whatever a draft says.
     plain = {**obligation, "answer": {**obligation["answer"], "kind": "reply"}}
-    assert not hooks_model._turn_wrote(plain, {"claim_turn": "leaf-turn"})
+    assert blocking(plain, carried=True) == [plain]
 
 
 def test_embedded_codex_delivery_keeps_non_obligation_events_in_the_page_batch(
@@ -11412,6 +11425,38 @@ def test_idle_cannot_close_a_page_over_events_nobody_read(claimed, capsys):
         CliRunner().invoke(cli_model.cli, ["status", str(claimed), "idle"]).exit_code
         == 0
     )
+
+
+def test_idle_and_the_stop_hook_hold_the_agent_to_the_same_moves(claimed, capsys):
+    """A move a carrier queued for a later turn is that turn's debt: the turn that
+    queued it may end over it, and may idle the page over it. Once the later turn
+    opens it, both the Stop hook and `leaf status idle` hold the agent to it."""
+    events_model.append_event(
+        claimed, {"kind": "comment", "author": "user", "text": "one more thing"}
+    )
+    [comment] = events_model.read_events(claimed)
+    batch = {"events": [{"seq": comment["seq"], "id": comment["id"]}]}
+
+    def pickup(phase: str) -> None:
+        with (
+            service_model.PageTransaction(claimed) as page,
+            delivery_model.receive_batch(page, batch, session_id="s1") as delivered,
+        ):
+            delivery_model.record_pickup(page, delivered, phase=phase, session="s1")
+
+    def idle() -> str | None:
+        result = CliRunner().invoke(cli_model.cli, ["status", str(claimed), "idle"])
+        return None if result.exit_code == 0 else result.output
+
+    pickup("queued")
+    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    assert "acknowledged" not in capsys.readouterr().out
+    assert idle() is None
+
+    pickup("opened")
+    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    assert "1 acknowledged user move with no answer" in capsys.readouterr().out
+    assert "1 acknowledged user move with no answer" in idle()
 
 
 def test_idle_cannot_race_past_an_event_arriving_after_its_pending_check(

@@ -1032,7 +1032,7 @@ export function createVersionController({
     let reading;
     try {
       while (mine === diffRequest) {
-        const throughSeq = runtime.view?.basis?.through_seq;
+        const throughSeq = runtime.lastEventSeq;
         if (!Number.isInteger(throughSeq))
           throw new Error("the current reading has no log sequence");
         [doc, reading] = await Promise.all([
@@ -1040,7 +1040,7 @@ export function createVersionController({
           baseReading(baseRevision, throughSeq),
         ]);
         if (mine !== diffRequest) return;
-        if (runtime.view?.basis?.through_seq === throughSeq) break;
+        if (runtime.lastEventSeq === throughSeq) break;
       }
       if (mine !== diffRequest) return;
       await prepareDeclaredInlineMarkdown(doc);

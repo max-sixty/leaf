@@ -63,12 +63,6 @@ export function createStateApplication({
     }
   }
 
-  const stale = (state) =>
-    runtime.state !== null &&
-    (state.taken < runtime.state.taken ||
-      state.browser.basis.through_seq < runtime.lastEventSeq ||
-      state.active.revision < runtime.active.revision);
-
   async function receiveState(state) {
     if (!sameLayer(state.layer.generation)) return;
     if (typeof state.taken !== "number")
@@ -84,7 +78,7 @@ export function createStateApplication({
       throw new TypeError("state active must name a positive revision");
     if (LIVE_ROOT && runtime.currentRevision === null)
       throw new TypeError("the live document has no lf-revision marker");
-    if (stale(state)) {
+    if (applicationState.overtaken(state)) {
       await notifyChangedData();
       return;
     }
@@ -129,7 +123,7 @@ export function createStateApplication({
     );
 
     return runSerialized(async () => {
-      if (stale(state)) {
+      if (applicationState.overtaken(state)) {
         await notifyChangedData();
         return;
       }
@@ -192,7 +186,7 @@ export function createStateApplication({
         // Only the accepted candidate that this full document just presented can
         // establish news. A queued notice formats against the latest such reading,
         // so a later answer does not repeat a superseded failure or edit.
-        presentedNewsReading = semanticNewsReading(state);
+        presentedNewsReading = semanticNewsReading(readApplication());
         const reading = observeSemanticNews(observedSemanticNews, presentedNewsReading);
         observedSemanticNews = reading.observed;
         if (reading.news.length) {

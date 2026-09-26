@@ -4098,8 +4098,8 @@ def test_the_layer_traps_no_margin_in_the_panel_it_draws(browser, serve):
     asymmetry with no principle behind it, and a live hazard on the side the gate saw:
     a margin trapped in leaf's panel would refuse an author's version over markup they
     did not write, cannot edit, and would hear about in the words of a class no page
-    has. examples/AGENTS.md names that failure as the reason a gate reading was moved
-    out once already.
+    has. `render_gate/readings.py` states the rule: a gate reading refuses a version
+    only for a fault its author can fix.
 
     So the gate now takes the document's half and this takes the layer's, off the one
     reading, with the panel open — where a trapped margin is one somebody can see. The

@@ -38,6 +38,7 @@
   // a page that presents within the beat shows nothing.
   function holdEarlyKeys() {
     const held = [];
+    let taken = false;
     let beat = 0;
     const echo = document.createElement("p");
     echo.className = "lf-held-keys";
@@ -71,22 +72,32 @@
         (origin.isContentEditable || origin.matches("input, textarea, select"))
       )
         return;
-      if (event.key === "Escape") {
+      const printed = event.key.length === 1 && event.key !== " ";
+      if (event.key === "Escape" && !taken) {
         if (!held.length) return;
         letGo();
-      } else if (event.key.length !== 1 || event.key === " ") return;
+      } else if (!printed && event.key !== "Escape") return;
       else if (!event.repeat) {
         held.push(event);
-        if (echo.isConnected) show();
-        else beat ||= setTimeout(show, 150);
+        if (!taken) {
+          if (echo.isConnected) show();
+          else beat ||= setTimeout(show, 150);
+        }
       }
       event.preventDefault();
       event.stopImmediatePropagation();
     };
     const pointed = () => letGo();
+    // The page is ready, so the notice comes down, but the hold stands until the keyboard
+    // owner has pressed the last key in it: one pressed meanwhile, Escape included, joins
+    // the same queue rather than running ahead of the keys pressed before it.
     const take = (event) => {
-      event.detail.push(...held);
-      stopHoldingKeys();
+      taken = true;
+      clearTimeout(limit);
+      clearTimeout(beat);
+      echo.remove();
+      event.detail.keys = held;
+      event.detail.release = () => stopHoldingKeys();
     };
     // A page that has not presented by now is not loading but faulted, and a key held
     // this long is one the user has given up on: the hold ends, what it held is

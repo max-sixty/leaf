@@ -37,16 +37,22 @@ export function mountKeyboard({
   // Keys pressed before the page presented were held by the prepaint bootstrap
   // (runtime/bootstrap.js), since the commands they name read state the page did not
   // have yet. The presented page takes them and presses them in order, a frame apart as
-  // a hand would, so each lands on the page the one before it left.
+  // a hand would, so each lands on the page the one before it left. The hold keeps
+  // queueing behind them until the queue is empty, and only then lets keys through.
   document.addEventListener(
     PRESENTATION,
     () => {
-      const taking = new CustomEvent("lf-held-keys", { detail: [] });
+      const taking = new CustomEvent("lf-held-keys", { detail: {} });
       document.dispatchEvent(taking);
-      const held = taking.detail;
+      const { keys, release } = taking.detail;
+      // A hold that ended unpresented has nothing to hand over.
+      if (!keys) return;
       const next = () => {
-        if (!held.length) return;
-        press(held.shift());
+        if (!keys.length) {
+          release();
+          return;
+        }
+        press(keys.shift());
         nextFrame(next);
       };
       nextFrame(next);

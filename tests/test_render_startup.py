@@ -522,6 +522,34 @@ def test_a_key_pressed_before_presentation_runs_once_the_page_presents(
     expect(echo).to_have_count(0)
 
 
+def test_a_key_pressed_while_held_keys_run_waits_its_turn(browser, serve):
+    """Presentation hands the held keys over and presses them a frame apart, so a key
+    arriving between the handover and the first press has to queue behind them: `g`
+    held, then `Shift+T` in that gap, is still `g T`, the trip to Threads."""
+    url = serve(HELD_KEYS_PAGE, events=[HELD_KEYS_THREAD])
+    page = browser.new_page(viewport={"width": 1400, "height": 900})
+    watched(page)
+    # The instant is inside the page: after every presentation listener has run,
+    # the handover included, and before the next frame presses the first held key.
+    page.add_init_script(
+        """document.addEventListener('lf-presentation', () => queueMicrotask(() =>
+          document.body.dispatchEvent(new KeyboardEvent('keydown', {
+            key: 'T', code: 'KeyT', shiftKey: true, bubbles: true,
+            cancelable: true, composed: true}))));"""
+    )
+    held, release = _hold_startup(page, "state")
+    page.goto(url, wait_until="commit")
+    holding(page, held, 1, "the first state read")
+    page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
+    page.keyboard.press("g")
+    expect(page.locator(".lf-held-keys kbd")).to_have_text("g")
+
+    release()
+    expect(page.locator("body")).to_have_attribute(
+        "data-lf-auxiliary-surface", "threads"
+    )
+
+
 @pytest.mark.parametrize("gesture", ["Escape", "pointer"])
 def test_escape_or_a_pointer_press_lets_go_of_held_keys(browser, serve, gesture):
     """A user who changes their mind, or points somewhere else, while the page loads

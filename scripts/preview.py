@@ -49,11 +49,12 @@ re-vendors, through the normal compatibility gate, because vendoring mints a fre
 layer generation and a revision carrying one is a different program, which the
 browser can only follow into a fresh document. So a prose edit here arrives the way
 it arrives for a user, patched into the page they are standing in, with the server
-that page talks to still up. A `--user` restart is a restart rather than a stop, so
-the session's `leaf wait` keeps watching across it. The page log and user decisions
-survive; a refused update stays visible in the
-output and is retried after the next edit. Seeded history is installed once, when
-the page is built, so a change to it is refused until the preview is restarted.
+that page talks to still up. `page init` itself restarts a `--user` page's server
+around the re-vendor, and the session's `leaf wait` watches through the gap as it
+watches any stopped server. The page log and user decisions survive; a refused
+update stays visible in the output and is retried after the next edit. Seeded
+history is installed once, when the page is built, so a change to it is refused
+until the preview is restarted.
 `version stamp` lints the example on the way past. The browser gate a page normally
 passes before its URL goes out is left to the suite: `version check --render` and
 `test_page_fixture_renders` drive the same `render_version` over the same files, so
@@ -381,8 +382,8 @@ class PreviewService:
     service record outlives it. `--user` serves the page's durable service
     instead, claimed and started by the selected checkout's leaf, which this
     process runs. A source update reaches that server the way an agent's edit
-    does, and a re-vendor restarts it rather than stopping it, so the page belongs
-    to this session and the URL a user was handed survives every update, and the
+    does, and a re-vendor is `page init`'s restart of it, so the page belongs to
+    this session and the URL a user was handed survives every update, and the
     session's `leaf wait` goes on watching it through each one.
     Nothing else about a preview differs, so the two are told apart here and
     nowhere else in its lifetime.
@@ -393,7 +394,6 @@ class PreviewService:
         self.user = user
         self.temporary = None
         self.address: dict = {}
-        self.serving = False
 
     def start(self) -> tuple[str, str]:
         """Put the server up for the first time and report its URL and lifetime
@@ -401,52 +401,46 @@ class PreviewService:
         gives the claim back if the start does not commit."""
         from leaf.hosting import claim_and_start
 
-        started = claim_and_start(self.page) if self.user else self._serve_temporary()
-        self.serving = True
-        return started
+        return claim_and_start(self.page) if self.user else self._serve_temporary()
 
     def serve_again(self) -> None:
-        """Put the server back up, or say why not and leave `serving` false.
+        """Put a `--user` service that is down but still wanted back up, or say
+        why not.
 
-        A restart claims nothing: the claim the first start took is still this
-        session's, and taking it again would reopen a turn the Stop hook closed."""
+        A revival: it claims nothing, since the claim the first start took is
+        still this session's and taking it again would reopen a turn the Stop hook
+        closed, and it starts only a service still enabled, so a stop that lands
+        first is kept."""
         from leaf.detached import StartRefused
         from leaf.hosting import start_server
 
-        if not self.user:
-            self._serve_temporary()
-        else:
-            try:
-                start_server(self.page)
-            except StartRefused as error:
-                print(error, file=sys.stderr, flush=True)
-                return
-        self.serving = True
+        try:
+            start_server(self.page, revive=True)
+        except StartRefused as error:
+            print(error, file=sys.stderr, flush=True)
 
     @contextlib.contextmanager
     def replacing(self):
-        """Hold the server down for a re-vendor, and put it back up after.
+        """Hold this preview's own server down for a re-vendor, and put it back up
+        after.
 
-        `page init` refuses a page whose server is up, and a layer edit can change
-        the code the server runs, so a re-vendor is the one update that takes the
-        server down. A `--user` one goes down as a restart (`restarting_server`),
-        which the session's `leaf wait` reads as the page coming back rather than
-        as a service someone stopped. The server comes back whether or not the
-        re-vendor was admitted, since the page the user has is the one that stays
-        up — but not when the preview itself is ending.
+        No server runs across a re-vendor, since the layer it serves is what the
+        re-vendor replaces. `page init` restarts a `--user` page's durable service
+        itself (`restarting_server`), so only a process-owned server, which that
+        command cannot reach, is this preview's to take down. It comes back whether
+        or not the re-vendor was admitted, since the page the user has is the one
+        that stays up, but not when the preview itself is ending.
         """
-        from leaf.hosting import restarting_server
-
-        with restarting_server(self.page) if self.user else contextlib.nullcontext():
-            if not self.user:
-                self._close_temporary()
-            self.serving = False
-            try:
-                yield
-            except Exception:
-                self.serve_again()
-                raise
-            self.serve_again()
+        if self.user:
+            yield
+            return
+        self._close_temporary()
+        try:
+            yield
+        except Exception:
+            self._serve_temporary()
+            raise
+        self._serve_temporary()
 
     def _serve_temporary(self) -> tuple[str, str]:
         from leaf.hosting import TemporaryPageServer
@@ -471,7 +465,6 @@ class PreviewService:
             cmd_stop(self.page)
         else:
             self._close_temporary()
-        self.serving = False
 
     @property
     def running(self) -> bool:
@@ -481,6 +474,27 @@ class PreviewService:
         if not self.user:
             return self.temporary is not None and self.temporary.running
         return running_server(self.page) is not None
+
+    @property
+    def ended(self) -> bool:
+        """Whether the server is down because its owner ended it, which ends the
+        preview: a process-owned one whenever it is down, and a `--user` one when
+        its service was stopped or its claim left this session.
+
+        A `--user` service still enabled but down is not ended. That is a server
+        that died, or one `page init` re-vendored but could not start again (the
+        recorded port was taken), and the next update tries it again."""
+        from leaf.files import read_json
+        from leaf.host import session_harness
+        from leaf.service import PageTransaction
+
+        if not self.user:
+            return not self.running
+        service = read_json(self.page / "service.json")
+        if not service or not service["enabled"]:
+            return True
+        with PageTransaction(self.page) as transaction:
+            return not transaction.owned_by(session_harness())
 
 
 def refresh_preview(
@@ -730,9 +744,7 @@ def serve_preview(
 ) -> None:
     """Build this slot's page, serve it, and follow its inputs until stopped."""
     from leaf.files import read_json
-    from leaf.host import session_harness
     from leaf.layer import layer_inputs
-    from leaf.service import PageTransaction
 
     # What the running preview carries between refreshes: the seeded history it
     # installed, which later edits may not change, and the source last stamped.
@@ -765,23 +777,16 @@ def serve_preview(
         print(f"Watching {source} and {runtime}; feedback stays in {page}", flush=True)
         while True:
             reported = {path for _, path in next(changes)}
-            if service.serving and not service.running:
+            if not service.running and service.ended:
                 return  # the service was stopped, or the owning session ended
-            if not service.serving and user:
-                # A refused restart has no service watching the claim's
-                # lifetime. Lost ownership ends this preview as well.
-                with PageTransaction(page) as transaction:
-                    if not transaction.owned_by(session_harness()):
-                        return
             if not reported:
-                continue  # the idle wake-up that carried the two checks above
+                continue  # the idle wake-up that carried the check above
             # An added input is only in the reading taken after it arrived, and a
             # deleted one only in the reading taken while it was still there.
             current = watch_paths(source, runtime, roots, state["seed"])
             if not reported & (watched.paths | current.paths):
                 continue
             vendored = bool(reported & (watched.layer | current.layer))
-            down = not service.serving
             refreshed = refresh_preview(
                 source, page, launcher, runtime, state, service, vendor=vendored
             )
@@ -800,11 +805,11 @@ def serve_preview(
                 changes.close()
                 changes = watch_changes(rebuilt)
             watched = rebuilt
-            if down and not service.serving:
-                # An earlier update's restart did not commit, and said why. Each
-                # later update is another try, a source edit's included.
+            if service.user and not service.running:
+                # A server that died, or that a re-vendor could not start again,
+                # which said why. Each later update is another try.
                 service.serve_again()
-            if refreshed and service.serving:
+            if refreshed and service.running:
                 print(f"Reloaded {source.stem}", flush=True)
     finally:
         if changes is not None:

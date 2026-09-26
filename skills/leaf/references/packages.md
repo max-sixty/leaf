@@ -1154,9 +1154,9 @@ Escape may return focus. Widgets do not receive draft, submission, or event APIs
 
 ## Seeing it
 
-After the re-vendoring sequence in `serving-pages.md` restores the recorded URL, run
-`leaf version check <page> --render` on the version that uses the replacement
-layer. Note the re-vendor in the next stamped version's changelog.
+After `leaf page init` re-vendors the page (`serving-pages.md`, "Re-vendoring and
+layer epochs"), run `leaf version check <page> --render` on the version that uses
+the replacement layer. Note the re-vendor in the next stamped version's changelog.
 
 The render gate is where a module's mistakes surface — an upgrade that defines no element, a widget of no
 size, a `x-verbatim` the rendered words contradict, a shadow root the declaration doesn't

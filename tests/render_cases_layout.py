@@ -645,7 +645,7 @@ def geometry(page, edge):
 def draw_edge(page, edge, by):
     """Draw the region's edge `by` pixels wider, as a hand on it would.
 
-    Whole pixels, per `select`'s reason (tests/AGENTS.md): a press on a fractional point
+    Whole pixels, per `hold_selection`'s reason: a press on a fractional point
     is a press the browser is free to round somewhere else. In steps, because one jump
     from press to release is a drag with no `pointermove` between its ends, and the move
     is the whole of what this gesture is made of. Wider is away from the side the region

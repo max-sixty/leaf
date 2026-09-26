@@ -418,6 +418,9 @@ def build_pierre(work: Path) -> list[Path]:
     """Pierre and Shiki expose far more languages and themes than Leaf declares,
     so this bundle carries only the grammars the registry names plus the two
     fixed token themes lf-diff maps onto Leaf's syntax roles.
+
+    `vendor-src/pierre/shiki-leaf.mjs` holds exactly one `LEAF_PIERRE_LANGUAGES`
+    sentinel, which this replaces with a dynamic import for each registry language.
     """
     out = package_vendor("diff") / "pierre-diffs.esm.js"
     notices = package_vendor("diff") / "pierre-diffs.LICENSES.txt"

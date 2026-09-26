@@ -2620,6 +2620,22 @@ def test_check_rejects_duplicate_ids(page_dir):
     assert "duplicate ids" in result.output
 
 
+def test_check_rejects_an_id_containing_whitespace(page_dir):
+    """An id generated from a label (`f"layout-{label}"`) can carry a space. The browser
+    still resolves it, so a comment anchors on it and nothing looks wrong until the id
+    has a thread to move; the version has to be refused before it goes out."""
+    (page_dir / "index.html").write_text(
+        PAGE.replace(
+            '<section id="plan">',
+            '<section id="plan"><svg viewBox="0 0 10 10">'
+            '<g id="layout-no class"><rect width="4" height="4"/></g></svg>',
+        )
+    )
+    result = check(page_dir)
+    assert result.exit_code == 1
+    assert "whitespace" in result.output and "'layout-no class'" in result.output
+
+
 def test_unreferenced_ids_and_widget_items_may_leave_the_page(page_dir):
     publish(page_dir)
     without_item = PAGE.replace(

@@ -19,7 +19,7 @@ from .event_log import require_cross_process_locking
 from .files import read_json, write_json
 from .host import session_harness
 from .http import page_app, page_endpoint
-from .layer import payload_provenance
+from .layer import payload_provenance, provenance_label
 from .leases import lock_is_held, page_locked, release_lease, take_lease
 from .registry.storage import layer_metadata
 from .schema import SERVER_LOCK, SERVICE_FILE
@@ -235,13 +235,6 @@ def cmd_serve_temporary(page_dir: Path) -> None:
     server.run()
 
 
-def _provenance_label(provenance: dict) -> str:
-    commit = provenance.get("commit")
-    if not commit:
-        return "unknown source"
-    return commit + ("+dirty" if provenance.get("dirty") else "")
-
-
 def startup_note(page_dir: Path) -> str:
     """Identify the page, vendored bytes, and serving Leaf beside its lifetime."""
     layer = layer_metadata(page_dir)
@@ -259,10 +252,10 @@ def startup_note(page_dir: Path) -> str:
             lifetime_note(page_dir),
             loopback_note(page_dir),
             f"page     {page_dir}",
-            f"layer    {fingerprint} ({_provenance_label(layer.get('producer', {}))})",
+            f"layer    {fingerprint} ({provenance_label(layer.get('producer', {}))})",
             (
                 f"runtime  {runtime.get('path', 'unknown payload')} "
-                f"({_provenance_label(runtime)})"
+                f"({provenance_label(runtime)})"
             ),
         )
         if line

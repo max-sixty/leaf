@@ -1,9 +1,13 @@
-/* One lifetime-bound subscription to a complete browser projection.
+/* The one watcher of a complete browser reading, for chrome and packages alike.
 
-   The application publisher is the one semantic invalidation source. Semantic APIs
-   supply `read`: updates, history, and Asks share this lifetime without copying its
-   cleanup rules. Clock
-   readings made by the callback also refresh when their displayed value changes. */
+   `watchProjection(owner, read)` calls `read` on the microtask after it subscribes,
+   then once per microtask in which the semantic epoch advances, a projection deferral
+   starts or ends, or the page announces `PRESENTATION`: several in one task make one
+   call. It calls nothing while `owner` is disconnected, and resumes at the next such
+   change once the owner is back. A clock reading made inside `read` repaints it when
+   the displayed value changes. The returned function ends the subscription; the caller
+   owns calling it. `watchAsks`, `watchUpdates`, and `watchHistory` are this watcher
+   with a reading of their own, so none of them states these rules again. */
 import { clocked } from "./presence.js";
 import { watchSemantic } from "./semantic-state.js";
 import { watchProjectionDeferral } from "./projection/state.js";

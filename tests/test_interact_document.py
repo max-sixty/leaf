@@ -1460,7 +1460,7 @@ def test_the_collapse_class_is_one_set_on_both_sides():
     rests on their agreement: a character one side collapses and the other keeps
     is a quote captured in the browser that the file's reading can never confirm.
     The next edit to either spelling meets this test, not a detached comment."""
-    js = (schema_model.ASSETS / "runtime" / "passages.js").read_text()
+    js = (schema_model.ASSETS / "runtime" / "collapse.js").read_text()
     found = re.search(r"const COLLAPSE =\n\s*/\[(.*?)\]\+/g;", js)
     assert found, "the browser passage reader lost its COLLAPSE regex"
     js_class = re.compile(f"[{found.group(1)}]")

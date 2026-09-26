@@ -1,9 +1,9 @@
 /* This module owns selection capture and snapping: the anchor a selection makes, and
  * the selection the page hands back to the user. */
+import { COLLAPSE } from "../collapse.js";
 import {
   blockOf,
   closestAcross,
-  COLLAPSE,
   cut,
   DATUM,
   elementOver,

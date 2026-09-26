@@ -594,9 +594,10 @@ Register the command once, not every nearby button. Evidence nested inside an
 option is not an answer, and a shared-margin entry may sit outside the Ask source. When
 controls or availability change, keep the row fields computed and call `paintKeys()`;
 every command projection then updates together. A package that needs the page-wide open
-Ask set calls `watchAsks(owner, callback)`. It invokes `callback(openAsks)`
-immediately, invokes it again after one complete Ask projection replaces another, binds
-the subscription lifetime to `owner`, and returns an explicit cleanup function. Each
+Ask set calls `watchAsks(owner, callback)`. It invokes `callback(openAsks)` on the
+microtask after subscribing and again after each state change, at most once per
+microtask and possibly with an unchanged set; it skips calls while `owner` is
+disconnected, and returns a cleanup function the owner calls on disconnect. Each
 Ask is an immutable `{id, tag, sourceId, sourceTag, thread}` record; resolve a node only
 to present or focus it, never to decide membership or answered state. The set is empty
 until the page's first server reading is admitted, and it changes with each later

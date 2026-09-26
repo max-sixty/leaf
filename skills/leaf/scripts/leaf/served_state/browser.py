@@ -4,7 +4,7 @@ from pathlib import Path
 
 from ..activity import canonical_activity, canonical_stream_reply
 from ..events import UndoReading, build_threads, taken_back
-from ..files import list_revisions
+from ..files import list_revisions, stamped_version
 from ..gesture_words import GestureWords, RevisionReader, revisions_on_disk
 from ..history import history, wants_history
 from ..projection import canonical_updates, page_reading
@@ -162,7 +162,8 @@ def browser_state(
             if revision == active_revision
             else page_reading(document, events, registry_for(revision), revision)
         )
-        document, projection = browser_document(page, threads, data or {"sources": {}})
+        document, reading = browser_document(page, threads, data or {"sources": {}})
+        projection = reading.projection
         classified = {
             **projection.classified,
             **thread_projection.classified,
@@ -199,9 +200,10 @@ def browser_state(
             ),
             "undo": browser_undo_candidates(
                 events,
-                projection,
+                reading,
                 thread_projection,
                 undo_reading=undo_reading,
+                stamp=stamped_version(events, revision),
             ),
             "coverage": coverage,
             "published_at": published_at,

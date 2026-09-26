@@ -786,7 +786,8 @@ def test_page_tabs_take_the_page_width_and_its_one_left_edge(browser, serve):
             title: box(document.querySelector('main > header h1')),
             strip: box(document.querySelector('#root-tabs > .lf-tabstrip')),
             panel: box(document.querySelector('#root-tabs > lf-tab:not([hidden])')),
-            sidebar: getComputedStyle(document.querySelector('#page-contents')).float,
+            sidebar: Math.round(
+              document.querySelector('#page-contents').getBoundingClientRect().right),
           };
         }"""
     )
@@ -794,7 +795,35 @@ def test_page_tabs_take_the_page_width_and_its_one_left_edge(browser, serve):
     assert boxes["panel"] == boxes["content"], boxes
     assert boxes["strip"]["left"] == boxes["content"]["left"], boxes
     assert boxes["title"]["left"] == boxes["content"]["left"], boxes
-    assert boxes["sidebar"] == "left", boxes
+    assert boxes["sidebar"] <= boxes["panel"]["left"], boxes
+
+
+def test_a_page_tab_workspace_holds_the_window_only_where_the_tabs_end_the_page(
+    browser, serve
+):
+    """A workspace alone in a page tab holds the window when the tab set is main's last
+    block. With a block after the set, the page goes on past it: the workspace flows and
+    the page keeps its closing room."""
+    closing = ROOT_TABS_PAGE.read_text().replace(
+        "</lf-tabs>", '</lf-tabs><p id="after-tabs">Shared closing context.</p>', 1
+    )
+    for source, held in ((ROOT_TABS_PAGE, True), (closing, False)):
+        page = open_page(browser, serve(source))
+        resized(page, 1440, 900)
+        page.locator("#root-tabs").get_by_role(
+            "tab", name="Workbench", exact=True
+        ).click()
+        reading = page.evaluate(
+            """() => ({
+              held: getComputedStyle(
+                document.querySelector('lf-tab:not([hidden]) > lf-workspace')
+              ).containerType === 'size',
+              pad: parseFloat(getComputedStyle(document.querySelector('main'))
+                .paddingBottom),
+            })"""
+        )
+        assert reading["held"] is held, reading
+        assert (reading["pad"] == 0) is held, reading
 
 
 def test_root_tab_targets_remain_global(browser, serve):

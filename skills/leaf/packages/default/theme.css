@@ -244,7 +244,8 @@ lf-ask:has(> :is(h1, h2, h3, h4, h5, h6):first-child:nth-last-child(2)) {
    * workspace that is its only block takes the window's height under everything that
    * sticks above it: the banner, the bottom chrome, and a page tab strip where there is
    * one (--lf-root-tab-clear, 0 without). Scrolled to its end, the page stands it
-   * between those covers. */
+   * between those covers. A page tab's workspace holds only where the tab set ends the
+   * page: with blocks after it, the page goes on past the workspace, which flows. */
   html:root
     body
     > main:has(> lf-workspace):not(:has(> :not(lf-workspace, script, style, template, .lf-ui, [data-lf-gen])))
@@ -252,7 +253,7 @@ lf-ask:has(> :is(h1, h2, h3, h4, h5, h6):first-child:nth-last-child(2)) {
   html:root
     body
     > main
-    > lf-tabs[data-lf-tabs-context="root"]
+    > lf-tabs[data-lf-tabs-context="root"]:nth-last-child(1 of :not(script, style, template, .lf-ui, [data-lf-gen]))
     > lf-tab[data-lf-root-reading]
     > lf-workspace:only-child {
     container-type: size;
@@ -264,7 +265,7 @@ lf-ask:has(> :is(h1, h2, h3, h4, h5, h6):first-child:nth-last-child(2)) {
    * they keep after their last block. */
   html:root
     body
-    > main:has(> lf-tabs[data-lf-tabs-context="root"] > lf-tab[data-lf-root-reading] > lf-workspace:only-child) {
+    > main:has(> lf-tabs[data-lf-tabs-context="root"]:nth-last-child(1 of :not(script, style, template, .lf-ui, [data-lf-gen])) > lf-tab[data-lf-root-reading] > lf-workspace:only-child) {
     padding-bottom: 0;
     & > lf-tabs[data-lf-tabs-context="root"] { margin-block-end: 0; }
   }

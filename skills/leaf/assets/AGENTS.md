@@ -575,6 +575,7 @@ and repository lint checks the source.
 | `undeclaredAttrs` | modules do not write undeclared author-namespace state |
 | `retiredSlots` | declared settlement marks and retired-slot visibility agree with the projection |
 | `trappedMargins` | framed boxes show only their declared inset |
+| `splitEdges` | a row at a frame's edge keeps its items lined up under the shared trim |
 | `paperWords` | print keeps every page statement and removes only affordance |
 | `paperVoids` | print gives room to nothing it does not also draw |
 | `replayOverrides` | the log, not conflicting authored markup, determines projected state |

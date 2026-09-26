@@ -149,6 +149,58 @@ export function trappedMargins() {
   return found;
 }
 
+// A box that lays its children out side by side and stands at a frame's edge, where the
+// shared trim took the margin off its edge item but not off the items beside it: the row
+// no longer lines up. The trim follows the edge through whatever stands at it, and a
+// stylesheet cannot ask a box for its display, so a flex or grid box says so itself
+// (`--lf-holds-edge: 1`, theme.css) and this says when one hasn't. Items are in one row
+// when their margin boxes start (or end) on the same line.
+export function splitEdges() {
+  const px = (v) => parseFloat(v) || 0;
+  const found = [];
+  for (const root of openRoots(document))
+    for (const el of root.querySelectorAll("*")) {
+      const s = getComputedStyle(el);
+      if (!s.display.includes("flex") && !s.display.includes("grid")) continue;
+      if (el.closest("[hidden]")) continue;
+      if (s.getPropertyValue("--lf-holds-edge").trim() === "1") continue;
+      const items = [...el.children].filter((child) => {
+        if (child.matches(".lf-ui, [data-lf-gen]")) return false;
+        const c = getComputedStyle(child);
+        return c.display !== "none" && c.position !== "absolute" && c.position !== "fixed";
+      });
+      if (items.length < 2) continue;
+      for (const [edge, token, prop, item, line] of [
+        ["above", "--lf-frame-start", "marginBlockStart", items[0],
+          (b, m) => b.top - m],
+        ["below", "--lf-frame-end", "marginBlockEnd", items[items.length - 1],
+          (b, m) => b.bottom + m],
+      ]) {
+        if (s.getPropertyValue(token).trim() !== "1") continue;
+        const own = px(getComputedStyle(item)[prop]);
+        if (own > 0.5) continue;
+        const at = line(item.getBoundingClientRect(), own);
+        const beside = items
+          .filter((other) => other !== item)
+          .map((other) => {
+            const m = px(getComputedStyle(other)[prop]);
+            return { m, at: line(other.getBoundingClientRect(), m) };
+          })
+          .find(({ m, at: other }) => m > 0.5 && Math.abs(other - at) < 2);
+        if (beside)
+          found.push({
+            tag: el.tagName.toLowerCase(),
+            id: el.id || null,
+            cls: el.classList[0] || null,
+            edge,
+            margin: beside.m,
+            chrome: inChrome(el),
+          });
+      }
+    }
+  return found;
+}
+
 // How long the render gate waits on the server for one of the documents it reads.
 // The same patience playwright gives `wait_for_function` above it, and stated here
 // because it is the number that turns a wedged server into a sentence.

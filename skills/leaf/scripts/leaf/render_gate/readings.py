@@ -235,6 +235,11 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
         if scheme == "light"
         else []
     )
+    split = (
+        [t for t in evaluate_probe(page, "splitEdges") if not t["chrome"]]
+        if scheme == "light"
+        else []
+    )
     # Last, and in one scheme: paper has no color scheme, and the medium has to be
     # put back before anything else reads a box.
     on_paper = []
@@ -380,6 +385,16 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
             f"neighbour it hasn't got, and the box is where that margin stops. "
             f"{remedy}{' (' + ' > '.join(path) + ')' if path else ''}, so the trim "
             f"in theme.css reaches it"
+        )
+
+    for t in {(x["tag"], x["cls"], x["edge"]): x for x in split}.values():
+        box = f"<{t['tag']}" + (f" class={t['cls']!r}" if t["cls"] else "") + ">"
+        which = "first" if t["edge"] == "above" else "last"
+        found.append(
+            f"[{scheme}] {box} (id={t['id']!r}) lays its children out side by side "
+            f"at a frame's edge, so the trim takes its {which} item's margin while "
+            f"the {t['margin']:g}px beside it stays, and the row no longer lines up. "
+            "Declare --lf-holds-edge: 1 on it, so the trim stops there"
         )
 
     found += [f"[{scheme}] {r}" for r in retired]

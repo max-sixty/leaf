@@ -7,9 +7,10 @@
  * remembered per browser tab in the runtime's tabStore:
  * switching is reading, not editing, so it never sends an action and no
  * version carries it — this widget doesn't ride the action channel at all.
- * A tab set that is the main element's sole substantive child, below an optional
- * header, becomes the page composition: its panel id is the URL fragment, history
- * follows those panel entries. A switch, by press, key, Back, or Forward, is not
+ * The first tab set placed directly in main is the page's navigation over sections of
+ * that page, whatever else main holds: its strip sticks under the banner, its panels
+ * take the page's width, its panel id is the URL fragment, and history follows those
+ * panel entries. A switch, by press, key, Back, or Forward, is not
  * fragment travel, because a view is not a destination: the strip stays where it is on
  * screen, and the view opens where this user last read it, or at its start when they
  * never read past it. Links and anchors inside a panel keep native fragment navigation.

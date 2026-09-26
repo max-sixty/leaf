@@ -2376,6 +2376,47 @@ def test_frame_edges_pass_through_whatever_stands_at_them(browser, serve):
     ]
 
 
+def test_a_row_at_a_frame_edge_holds_the_trim_by_declaring_it(browser, serve):
+    """Following the edge into a row trims its first item and not the ones beside it,
+    so the row splits; the gate names the row until it declares --lf-holds-edge, and
+    then the trim stops there and the row lines up again."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Split row",
+                """<div id="frame" style="padding:24px;--lf-block-frame:1">
+  <div id="row" style="display:flex;gap:12px">
+    <p id="left">Left.</p>
+    <p id="right">Right.</p>
+  </div>
+</div>""",
+            )
+        ),
+    )
+
+    def tops():
+        return page.evaluate(
+            """() => ['left', 'right'].map(id =>
+              Math.round(document.getElementById(id).getBoundingClientRect().top))"""
+        )
+
+    left, right = tops()
+    assert left != right
+    assert any(
+        f["id"] == "row" and f["edge"] == "above"
+        for f in render_checks_model.evaluate_probe(page, "splitEdges")
+    )
+    page.locator("#row").evaluate("el => el.style.setProperty('--lf-holds-edge', '1')")
+    left, right = tops()
+    assert left == right
+    assert not [
+        f
+        for f in render_checks_model.evaluate_probe(page, "splitEdges")
+        if f["id"] == "row"
+    ]
+
+
 def test_every_idiom_in_the_catalog_stands_in_a_corpus_source(browser):
     """The sweep above is the corpus's own gate, and an idiom no source holds never
     reaches it: the shape passes every test it has, because it has none. It is the

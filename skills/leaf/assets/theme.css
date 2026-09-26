@@ -502,13 +502,25 @@ html:not([data-lf-live]) { --lf-banner-h: 0px; --lf-band-h: 0px; }
  * way, so following the edge into a drawn box trims nothing the box would keep; a
  * heading's margin inside an undeclared padded box is the trapped margin this exists to
  * remove, and `version check --render` says to declare that box's frame. The tokens do
- * not inherit: each step must itself be an edge child. */
+ * not inherit: each step must itself be an edge child.
+ *
+ * A box that lays its children out side by side (a flex row, a grid) is where following
+ * the edge stops being right: its first item at the frame's edge would lose its margin
+ * and the items beside it keep theirs, so the row no longer lines up. A stylesheet cannot
+ * ask a box for its display, so such a box says so, --lf-holds-edge: 1, and the trim
+ * stops at it; `version check --render` names one that stands at a frame's edge with its
+ * items split (splitEdges). */
 @property --lf-frame-start {
   syntax: "<integer>";
   inherits: false;
   initial-value: 0;
 }
 @property --lf-frame-end {
+  syntax: "<integer>";
+  inherits: false;
+  initial-value: 0;
+}
+@property --lf-holds-edge {
   syntax: "<integer>";
   inherits: false;
   initial-value: 0;
@@ -524,13 +536,13 @@ html:not([data-lf-live]) { --lf-banner-h: 0px; --lf-band-h: 0px; }
   }
   * { --lf-block-frame: 0; }
 }
-@container style(--lf-frame-start: 1) {
+@container style(--lf-frame-start: 1) and (not style(--lf-holds-edge: 1)) {
   :nth-child(1 of :not(.lf-ui, [data-lf-gen])) {
     margin-block-start: 0;
     --lf-frame-start: 1;
   }
 }
-@container style(--lf-frame-end: 1) {
+@container style(--lf-frame-end: 1) and (not style(--lf-holds-edge: 1)) {
   :nth-last-child(1 of :not(.lf-ui, [data-lf-gen])) {
     margin-block-end: 0;
     --lf-frame-end: 1;

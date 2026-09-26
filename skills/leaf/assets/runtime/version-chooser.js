@@ -9,8 +9,6 @@
 import { html, nothing, render, repeat } from "../vendor/browser-runtime.js";
 
 import { dismissBannerControls } from "./banner-shelf.js";
-import { walkRows } from "./keyboard/bindings.js";
-import { listWalkPosition } from "./walk-position.js";
 import { el } from "./widget-elements.js";
 
 const LATEST_FAILED = "Latest edit couldn't be shown";
@@ -115,14 +113,6 @@ class VersionChooserView {
 
   atBoundary(end) {
     return document.activeElement === this.stops().at(end);
-  }
-
-  walk(direction) {
-    return walkRows(this.rows(), direction);
-  }
-
-  walkPosition() {
-    return listWalkPosition(this.rows(), document.activeElement);
   }
 
   #selectedRow() {

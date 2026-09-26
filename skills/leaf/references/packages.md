@@ -1041,8 +1041,10 @@ Return the cleanup function from the element's disconnect path. The callback mus
 state the whole rendering and remain idempotent.
 
 Time readings made synchronously in controller, `watchData`, `watchUpdates`, and
-`watchHistory` callbacks subscribe that paint to Leaf's shared clock. Calls to `ago`
-and `quietSince` refresh the callback only when their result changes. `quietSince(ts)`
+`watchHistory` callbacks subscribe that paint to Leaf's shared clock. Calls to `ago`,
+`shortAgo` and `quietSince` refresh the callback only when their result changes. `ago(ts)`
+says how long ago `ts` was as the page words it everywhere ("2h ago"), and `shortAgo(ts)`
+is the same reading for a tight seat ("2h"). `quietSince(ts)`
 says whether working last heard at `ts` has gone unheard past the server's working
 grace, the same bound the page's own activity reads. For another
 rounded time reading, use `clockValue((now) => reading)`, whose `now` argument is the

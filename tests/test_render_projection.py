@@ -9102,7 +9102,7 @@ def test_command_hub_stopped_age_does_not_cross_an_active_publication(
             "widget": "parser-dedupe",
             "action": "status",
             "detail": {"status": "stalled"},
-            "ts": datetime.now().astimezone().isoformat(),
+            "ts": (datetime.now().astimezone() - timedelta(minutes=90)).isoformat(),
         },
     )
 
@@ -9122,7 +9122,7 @@ def test_command_hub_stopped_age_does_not_cross_an_active_publication(
         "#hub-readings > .lf-stopped-view li",
         has_text="Deduplicate the corpus snapshot",
     )
-    expect(row).to_contain_text("0m")
+    expect(row).to_contain_text("2h")
     expect(row).not_to_contain_text("3h")
 
 

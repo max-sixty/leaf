@@ -1366,7 +1366,7 @@ def published(page_dir):
 def comment(page_dir, *args):
     """Open a thread, with the posted event on stdout for the caller to read."""
     return CliRunner().invoke(
-        cli_model.cli, ["comment", "--json", str(page_dir), *args]
+        cli_model.cli, ["thread", "open", "--json", str(page_dir), *args]
     )
 
 

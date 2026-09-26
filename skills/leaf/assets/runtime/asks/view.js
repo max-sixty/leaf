@@ -25,9 +25,9 @@
    according to whether its question was still open. The two agree wherever the user is
    working the ask, which is every arrival the ask walk makes.
 
-   `standingConversation` (conversation/landing.js) is the exception, and covers all three
-   containers that hold a conversation the user can stand in: the panel's thread, a
-   conversation seated on the page, and each thread inside that seat. It asks for the box
+   `standingThread` (thread/landing.js) is the exception, and covers all three
+   containers that hold a thread the user can stand in: the panel's thread, a
+   thread seated on the page, and each thread inside that seat. It asks for the box
    rather than for the container's class, because a resolved thread is built by the same
    function and wears the same class while having no box to reach, and a collapsed one
    answers the same honest way.
@@ -161,7 +161,7 @@ export function createAskView({
   setPanel,
   trip,
   scrollToElement,
-  refreshConversation,
+  refreshThread,
   focusForNavigation,
   presentedControl,
   projectionTarget,
@@ -180,18 +180,18 @@ export function createAskView({
 
   // A thread Ask is part of the application reading before its frozen markup has a
   // live panel node. Navigation and activation are the two boundaries that need that
-  // node, so materialize the existing conversation projection there rather than
+  // node, so materialize the existing thread projection there rather than
   // narrowing the semantic inventory to what happens to be in the DOM.
   async function materializeAsk(ask, intent = null) {
     let target = askNode(ask);
     let source = sourceNode(ask);
-    if ((!target || !source) && ask.conversation) {
+    if ((!target || !source) && ask.thread) {
       if (!panelIsOpen()) {
         if (intent) {
           if (!intent.handoff(() => setPanel(true))) return {};
         } else setPanel(true);
       }
-      await refreshConversation();
+      await refreshThread();
       target = askNode(ask);
       source = sourceNode(ask);
     }
@@ -375,7 +375,7 @@ export function createAskView({
   // Every semantic notification opens the region's ticket synchronously, before its
   // deferred read. Package subscribers therefore finish their own synchronous updates
   // first, while the application barrier already knows this inherited Ask paint is stale.
-  // The pass runs this reading after the conversation whose markup its rows stand on.
+  // The pass runs this reading after the thread whose markup its rows stand on.
   function syncAsks() {
     return presenter.present();
   }
@@ -459,7 +459,7 @@ export function createAskView({
   //
   // The unanswered asks rather than the user's list, because standing in a question is
   // about where the user is working and not about what they owe. The two part on a widget
-  // whose own seat is mid-conversation with the agent: it leaves the list while its pick
+  // whose own seat holds a thread waiting on the agent: it leaves the list while its pick
   // stays unmade and its controls stay live, and reading the list took the ring off that
   // widget and moved `c` from the seat the user was writing in down to whichever option
   // their focus rested on — a second thread on the child rather than the next line of their
@@ -787,7 +787,7 @@ export function createAskView({
   // the Asks button is standing on it, so measuring from it would send the next press back to
   // the top. The layer is also appended after the page, so once the walk clamped at its edges
   // instead of wrapping, taking any of it for a place put the user behind every ask
-  // there is. From a thread in the conversation panel, `a` and `A` both landed on the last.
+  // there is. From a thread in the thread panel, `a` and `A` both landed on the last.
   //
   // The route runs through the chrome all the same. A widget frozen into a reply is a
   // ask the walk visits, collected beside the document's, and a user working its
@@ -1069,7 +1069,7 @@ export function createAskView({
     if (!mayArrive() || !target) return false;
     if (inChrome(target) && !panelIsOpen()) {
       if (!mayArrive.handoff(() => setPanel(true))) return false;
-      await refreshConversation();
+      await refreshThread();
       if (!mayArrive()) return false;
       target = askNode(next);
       source = sourceNode(next);

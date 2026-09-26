@@ -1,20 +1,20 @@
-/* Conversation presentation across panel, page seats, widget outlets, and margin.
+/* Thread presentation across panel, page seats, widget outlets, and margin.
 
    This owner receives records and narrow view capabilities. It never reads delivery,
    assembles protocol events, or imports state application. It reads the published fold
    for every textual/geometry view. It is an epoch presenter: the publication claims its
    region and the pass paints it, after the projection whose provenance words its
-   passages resolve over. Its presentation ticket commits the conversation surfaces
+   passages resolve over. Its presentation ticket commits the thread surfaces
    together with preparation for frozen widgets newly joined to the panel. A mechanical
    repaint — a draft, a hover, a narrowing — claims the same region through `present`. */
 import { clocked } from "../presence.js";
 import { closestAcross, elementById, inChrome } from "../passages.js";
-import { conversationState, readThreads } from "./state.js";
+import { threadState, readThreads } from "./state.js";
 import {
-  renderConversations,
-  beginConversationSeats,
-  commitConversationSeats,
-  retainConversationSeats,
+  renderSeats,
+  beginThreadSeats,
+  commitThreadSeats,
+  retainThreadSeats,
 } from "./inline.js";
 import {
   RetainedThreadListError,
@@ -42,7 +42,7 @@ function renderHolds(threads) {
   }
 }
 
-export function createConversationPresentation({
+export function createThreadPresentation({
   available = true,
   listView,
   inlineView,
@@ -60,18 +60,18 @@ export function createConversationPresentation({
   let painting = false;
 
   const presenter = applicationPresenter({
-    region: "conversation",
-    order: PRESENTATION_ORDER.conversation,
+    region: "thread",
+    order: PRESENTATION_ORDER.thread,
     // Every phase owes a reading, the ones before the log has been read included: what
     // the panel says while it waits is this region's to draw, and a user who opens it
     // then is asking for exactly that.
-    current: () => (available ? readApplication().effective.conversation : null),
+    current: () => (available ? readApplication().effective.thread : null),
     failSoft: retainedThreadListProof,
     paint: async (value) => {
       painting = true;
       try {
         const phase = readApplication().phase;
-        // The claimed value is the conversation this pass owes. What it draws comes from
+        // The claimed value is the thread this pass owes. What it draws comes from
         // the current semantic root, which may already carry a newer local gesture.
         void (phase === "ready" ? paintCurrent() : setUnavailable(phase));
         // The ticket answers for what stands in the region, not for the reading this
@@ -133,14 +133,14 @@ export function createConversationPresentation({
     const generation = ++surfaceGeneration;
     read.begin();
     const current = () => generation === surfaceGeneration;
-    const batch = beginConversationSeats();
+    const batch = beginThreadSeats();
     let prepared = null;
     let surfaces = null;
     try {
-      const { all } = conversationState();
+      const { all } = threadState();
       const collection = readThreads();
       const threads = phase === "ready" ? all : [];
-      const conversations = collection.threads;
+      const listed = collection.threads;
       renderHolds(threads);
       const painted = anchorPaint.paint({
         threads,
@@ -161,14 +161,14 @@ export function createConversationPresentation({
               listView,
             );
       void prepared.catch(() => {});
-      renderConversations(conversations, inlineView);
+      renderSeats(listed, inlineView);
       // Capture every core message and approval age before yielding to a package.
       // Their shared clock refreshes this whole presentation, including its outlets.
       const [, candidate] = await Promise.all([surfaces.completion, prepared]);
       if (!current()) return;
       renderMargin();
       candidate?.commit();
-      commitConversationSeats(batch);
+      commitThreadSeats(batch);
       pageGeometry.pageShifted();
       finishListRecovery(candidate);
       read.present();
@@ -181,7 +181,7 @@ export function createConversationPresentation({
       // flight. Invalidate its private generation before restoring the whole reading.
       await restoreThreadList();
       if (!current()) return;
-      retainConversationSeats(batch);
+      retainThreadSeats(batch);
       throw error;
     }
   }
@@ -204,7 +204,7 @@ export function createConversationPresentation({
   // it started, which is what keeps its ticket true and gives the tick's own failure a
   // ticket to travel on. The clock has to reach `renderReading` synchronously — `clocked`
   // records which relative-time readings a paint made while that paint runs, and a claim
-  // that returns before the pass would record none and unsubscribe the conversation from
+  // that returns before the pass would record none and unsubscribe the thread from
   // the clock altogether.
   const paintCurrent = clocked(document.body, () =>
     painting ? renderCurrent() : present(),

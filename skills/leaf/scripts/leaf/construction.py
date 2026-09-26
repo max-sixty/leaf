@@ -86,7 +86,7 @@ def constructed_content(
     *,
     editable: bool,
     retired: set,
-    conversation: str | None = None,
+    thread: str | None = None,
 ) -> list:
     """Read structure, effective values, and mutation owners from one snapshot.
 
@@ -110,10 +110,10 @@ def constructed_content(
             if identity:
                 by_id[identity] = node
                 parents[identity] = parent
-            if conversation is not None:
+            if thread is not None:
                 node["edit"] = {
-                    "kind": "conversation",
-                    "conversation": conversation,
+                    "kind": "thread",
+                    "thread": thread,
                 }
             else:
                 node["edit"] = {
@@ -153,10 +153,10 @@ def constructed_content(
                     "operation": "author-in-owner",
                 },
             }
-            if conversation is not None:
+            if thread is not None:
                 child["edit"] = {
-                    "kind": "conversation",
-                    "conversation": conversation,
+                    "kind": "thread",
+                    "thread": thread,
                 }
             owner["content"].append(child)
             by_id[identity] = child
@@ -176,7 +176,7 @@ def constructed_content(
         if record := spec.get("record"):
             reading["construction"] = record
         owner.setdefault("state", []).append(reading)
-        if conversation is None:
+        if thread is None:
             owner["edit"]["override_requires"] = (
                 "restate" if event["kind"] == "action" else "absorb-or-overrule"
             )
@@ -259,7 +259,7 @@ def constructed_content(
             result.append(node)
         return result
 
-    if conversation is None:
+    if thread is None:
         main = next((node for node in by_id.values() if node["tag"] == "main"), None)
 
         # Main need not carry an id; find it in the already parsed tree.

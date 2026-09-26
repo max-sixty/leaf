@@ -879,7 +879,7 @@ above checked each for movement; none has become a page-and-log loop:
   paused tool call. leaf's decisions are the same act on a page instead of in a queue.
 - **In-app annotators** — [InstantCode](https://github.com/nguyenvanduocit/instantCode), [Agentation](https://github.com/benjitaylor/agentation), [pi-annotate](https://github.com/nicobailon/pi-annotate), [Vibe Annotations](https://github.com/RaphaelRegnier/vibe-annotations): click an
   element in your running app, leave a note, and the agent gets the DOM path back. The
-  same gesture as a leaf comment, aimed at software rather than at a document.
+  same gesture as a leaf thread open, aimed at software rather than at a document.
 - **`gh pr review`** — the incumbent, and what most people actually use.
 
 Two lists index this ground and are worth re-reading rather than re-deriving:

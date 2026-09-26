@@ -35,7 +35,7 @@ acknowledges the delivery once Codex's queue accepts it, so do not run `leaf wai
 uncertain queue response, which is the retry `references/event-batches.md` describes.
 
 Answer every obligation with the operation its delivered `answering` clause names,
-`leaf reply` for a plain reply. Your final message stays in the Codex
+`leaf thread reply` for a plain reply. Your final message stays in the Codex
 chat and never reaches the page. Leaf does not observe the task's turns either, so
 the banner shows only the status you declare.
 
@@ -49,7 +49,7 @@ cannot receive later turns.
 
 ## Routes without the adapter
 
-Two routes carry input without the adapter, and both answer with `leaf reply` as
+Two routes carry input without the adapter, and both answer with `leaf thread reply` as
 above.
 
 - This task runs `leaf wait` in unified exec, polls it with `write_stdin`, and

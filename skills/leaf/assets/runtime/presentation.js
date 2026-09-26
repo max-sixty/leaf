@@ -488,10 +488,9 @@ export function dress(root) {
 // panel's (see msgNode).
 //
 // Two more are facts of the element wherever it renders. x-measure says whether the
-// widget fills the frame holding it (surface) or only groups other blocks (group);
-// undeclared, a block made of members groups them, since an element made of other
-// elements is never text, and anything else is text and keeps the reading measure
-// inside a frame wider than the column. x-bound says it holds
+// widget fills the frame holding it (surface), only groups other blocks (group), or
+// keeps the reading measure inside a frame wider than the column (text); undeclared, a
+// block made of members groups them and anything else is text. x-bound says it holds
 // its own height and scrolls inside it; `bounds.js` keeps an `end` bound on its newest
 // entry. A page occurrence overrides x-bound with data-bound, as data-width overrides
 // x-space. x-reading-role is the structural role the theme lays out, so a package's

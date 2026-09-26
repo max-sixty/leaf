@@ -13,7 +13,7 @@ from .files import latest_revision
 from .structure import VOID_TAGS, SourceDocument, parse_revision
 
 # ---------- passages: the text an anchor points at ----------
-# The runtime resolves an anchor against the DOM; `leaf comment` writes one down
+# The runtime resolves an anchor against the DOM; `leaf thread open` writes one down
 # against the file. The two have to read the same page or the anchor lands somewhere it
 # was never made, so this mirrors leaf.js's capture rather than approximating it:
 # the same skip list, the same block-boundary space, the same collapse, the same caps.
@@ -63,7 +63,7 @@ from .structure import VOID_TAGS, SourceDocument, parse_revision
 # spelling the set and the regex both derive from, matching leaf.js's COLLAPSE exactly.
 # JS's \s and Python's str.isspace() disagree at the edges — U+FEFF is whitespace to JS
 # alone, U+0085 and U+001C–001F to Python alone — and a page carrying one of those in
-# prose read differently on the two sides, so a `leaf comment` quote could be written
+# prose read differently on the two sides, so a `leaf thread open` quote could be written
 # against text the browser never produces. The browser is the producer of every captured
 # quote, so its set is the one both sides speak.
 COLLAPSE_CHARS = frozenset(

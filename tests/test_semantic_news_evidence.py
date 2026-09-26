@@ -1,8 +1,8 @@
 """Response identities exposed by the canonical browser activity readings."""
 
 from interact_support import page_state, publish
-from leaf import activity, conversation, event_log, requests
-from leaf.served_state.conversation import _thread_awaits_user
+from leaf import activity, event_log, requests, thread
+from leaf.served_state.thread import _thread_awaits_user
 
 
 def test_live_response_evidence_keeps_its_attempt_without_text():
@@ -45,7 +45,7 @@ def test_terminal_failure_workflow_names_exact_reply_source(page_dir):
         page_dir,
         {"kind": "comment", "id": "user-input", "author": "user", "text": "A"},
     )
-    failure = conversation.cmd_reply(
+    failure = thread.cmd_reply(
         page_dir,
         source["id"],
         "The agent turn ended.",
@@ -93,7 +93,7 @@ def test_user_prompt_names_the_latest_question_content_version(page_dir):
             "text": "Still checking.",
         },
     )
-    [thread] = page_state(page_dir)["browser"]["conversation"]["threads"]
+    [thread] = page_state(page_dir)["browser"]["thread"]["threads"]
     assert thread["user_prompt"] == {"message": first["id"], "version": first["id"]}
 
     second = event_log.append_event(
@@ -117,7 +117,7 @@ def test_user_prompt_names_the_latest_question_content_version(page_dir):
             "text": "Reworded second question?",
         },
     )
-    [thread] = page_state(page_dir)["browser"]["conversation"]["threads"]
+    [thread] = page_state(page_dir)["browser"]["thread"]["threads"]
     assert thread["user_prompt"] == {"message": second["id"], "version": edited["id"]}
 
 

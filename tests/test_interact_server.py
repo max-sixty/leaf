@@ -348,11 +348,11 @@ def test_specimen_allocations_share_no_parent_lock_and_keep_one_log_reading(
         assert [event["text"] for event in state["events"]] == ["Before allocation"]
 
 
-def test_specimens_seed_only_the_declared_conversations_and_reset_by_recreation(
+def test_specimens_seed_only_the_declared_threads_and_reset_by_recreation(
     server, page_dir
 ):
     template = '<template id="practice" data-specimen data-specimen-threads="aabb0011"><h1>Practice</h1><p id="plan">The cutoff lives in the plan.</p><p><lf-suggestion id="revision" resolves="aabb0011"><lf-old>Friday</lf-old><lf-new>Monday</lf-new></lf-suggestion></p></template>'
-    unseeded = '<template id="unseeded" data-specimen data-specimen-threads="aabb0011"><h1>Unseeded</h1><p id="note">Nothing here names the conversation.</p></template>'
+    unseeded = '<template id="unseeded" data-specimen data-specimen-threads="aabb0011"><h1>Unseeded</h1><p id="note">Nothing here names the thread.</p></template>'
     (page_dir / "index.html").write_text(
         PAGE.replace("</main>", template + unseeded + "</main>")
     )
@@ -360,7 +360,7 @@ def test_specimens_seed_only_the_declared_conversations_and_reset_by_recreation(
     # The declaration selects from the standing log rather than requiring it, so a
     # page whose log holds none of it yet — a first version, or a copy made from the
     # source alone — still opens its specimens. What a child may not do is name a
-    # conversation it does not have, and the ordinary child-document check says so
+    # thread it does not have, and the ordinary child-document check says so
     # about the element that names it.
     status, raw = fetch(f"{server}/api/specimens", data=b'{"template":"unseeded"}')
     assert status == 200, raw
@@ -374,8 +374,8 @@ def test_specimens_seed_only_the_declared_conversations_and_reset_by_recreation(
         and "resolves='aabb0011' names no comment" in json.loads(raw)["error"]
     )
     for identity, text in (
-        ("aabb0011", "Selected conversation"),
-        ("aabb0022", "Outside conversation"),
+        ("aabb0011", "Selected thread"),
+        ("aabb0022", "Outside thread"),
     ):
         event_model.append_event(
             page_dir,
@@ -412,7 +412,7 @@ def test_specimens_seed_only_the_declared_conversations_and_reset_by_recreation(
         status, raw = fetch(child + "/api/state")
         assert status == 200, raw
         assert [event["text"] for event in json.loads(raw)["events"]] == [
-            "Selected conversation",
+            "Selected thread",
             "Seeded reply",
         ]
         assert b"data-lf-specimen-passive" in fetch(child + "/")[1]
@@ -1752,6 +1752,7 @@ def test_server_takes_an_approval_only_where_the_version_asked_for_one(
     reply = CliRunner().invoke(
         cli_model.cli,
         [
+            "thread",
             "reply",
             str(page_dir),
             "--to",
@@ -3288,6 +3289,7 @@ def test_server_resolves_actions_from_agent_thread_widgets(server, page_dir):
     reply = CliRunner().invoke(
         cli_model.cli,
         [
+            "thread",
             "reply",
             str(page_dir),
             "--to",
@@ -3460,7 +3462,7 @@ def test_concurrent_posts_never_tear_the_log(server, page_dir):
 
 def test_every_kind_of_user_move_is_named_in_eight_characters(server, page_dir):
     """An id is something the agent reads back and retypes. One user comment
-    shows the agent its id five times over and is answered with `leaf reply --for
+    shows the agent its id five times over and is answered with `leaf thread reply --for
     <id>`, so an id is eight hex characters. No kind is carved out of that: a
     `request` id reaches a host, but its uniqueness is within this page either
     way, so the host pairs it with the page rather than being handed a wider id
@@ -5337,7 +5339,7 @@ def test_state_reads_claims_and_their_log_floor_in_one_transaction(
                 "working",
                 "checking",
                 work={
-                    "subject": {"kind": "conversation", "id": "c1"},
+                    "subject": {"kind": "thread", "id": "c1"},
                     "after": page.events[-1]["seq"],
                 },
             )
@@ -5375,19 +5377,17 @@ def test_a_bare_ipv6_address_is_bracketed_in_the_url():
     )
 
 
-def test_a_conversation_predicate_cannot_follow_replayed_value_state(page_dir):
-    """Conversation seats are installed from authored predicates once. Refuse a
+def test_a_thread_predicate_cannot_follow_replayed_value_state(page_dir):
+    """Thread seats are installed from authored predicates once. Refuse a
     declaration that would make replay and the POST hold gate disagree about one."""
     registry = json.loads((page_dir / "registry.json").read_text())
-    registry["lf-task"]["x-conversation"]["when"] = {"status": ["blocked"]}
+    registry["lf-task"]["x-thread-seat"]["when"] = {"status": ["blocked"]}
     (page_dir / "registry.json").write_text(json.dumps(registry))
 
     result = check(page_dir)
 
     assert result.exit_code == 1
-    assert (
-        "x-conversation predicate attributes are authored and static" in result.output
-    )
+    assert "x-thread-seat predicate attributes are authored and static" in result.output
 
 
 def test_a_hold_comment_can_only_hold_its_declared_exact_section(server, page_dir):
@@ -5435,7 +5435,7 @@ def test_a_hold_comment_can_only_hold_its_declared_exact_section(server, page_di
         }
         status, body = fetch(f"{server}/api/event", data=json.dumps(bad).encode())
         assert status == 400
-        assert "matching x-conversation hold target" in json.loads(body)["error"]
+        assert "matching x-thread-seat hold target" in json.loads(body)["error"]
 
 
 def test_stamp_keeps_its_checked_log_snapshot_until_the_note(monkeypatch, page_dir):
@@ -5505,15 +5505,15 @@ def test_a_thread_whose_opening_message_was_torn_away_still_reads(page_dir):
     `read_events` skips a torn line and keeps reading, so a reply can outlive the
     message it answers — the one way the log tears from inside the product's own
     grammar rather than from someone editing the file. Two readings walk that
-    relation: `thread_roots`, which resolves a reply to the conversation it is in,
-    and `build_threads`, which builds the conversation itself. The first was made to
+    relation: `thread_roots`, which resolves a reply to the thread it is in,
+    and `build_threads`, which builds the thread itself. The first was made to
     degrade and the second went on raising, so a page that had lost one line answered
     `page state` with a KeyError and handed the session picking it up nothing at all —
     the reply included, which was still perfectly readable.
 
     Both now put the surviving reply under the id the lost message was known by, so an
     action naming that id in `resolves` still finds its thread and the two readings
-    cannot disagree about which conversation a message is in."""
+    cannot disagree about which thread a message is in."""
     publish(page_dir)
     event_model.append_event(
         page_dir,
@@ -5555,14 +5555,14 @@ def test_a_thread_whose_opening_message_was_torn_away_still_reads(page_dir):
     assert thread_context_model.thread_roots(events)["r-kept"] == "c-lost"
     threads = event_folds_model.build_threads(events, {})  # nothing published to sit on
     assert list(threads) == ["c-lost"], (
-        f"the two readings put the reply in different conversations: {list(threads)}"
+        f"the two readings put the reply in different threads: {list(threads)}"
     )
     assert [m["id"] for m in threads["c-lost"]["msgs"]] == ["r-kept"]
 
     # The surviving message is still the frozen document that owns its widgets.
     # Reading only the thread shell would miss this harder half of the torn-root case:
     # its question has to remain actionable and every element still names the lost
-    # root as its conversation.
+    # root as its thread.
     open_state = CliRunner().invoke(cli_model.cli, ["page", "state", str(page_dir)])
     assert open_state.exit_code == 0, open_state.output
     open_reading = json.loads(open_state.output)
@@ -5572,13 +5572,11 @@ def test_a_thread_whose_opening_message_was_torn_away_still_reads(page_dir):
             "tag": "lf-ask",
             "source": "orphan-choice",
             "source_tag": "lf-options",
-            "conversation": "c-lost",
+            "thread": "c-lost",
         }
     ]
     orphan_elements = [
-        element
-        for element in open_reading["elements"]
-        if element["conversation"] == "c-lost"
+        element for element in open_reading["elements"] if element["thread"] == "c-lost"
     ]
     assert [element["id"] for element in orphan_elements] == [
         "orphan-decision",
@@ -5596,7 +5594,7 @@ def test_a_thread_whose_opening_message_was_torn_away_still_reads(page_dir):
     state = CliRunner().invoke(cli_model.cli, ["page", "state", str(page_dir)])
     assert state.exit_code == 0, state.output
     closed_reading = json.loads(state.output)
-    [thread] = closed_reading["conversations"]
+    [thread] = closed_reading["threads"]
     assert thread == {
         "id": "c-lost",
         "title": None,
@@ -5609,10 +5607,10 @@ def test_a_thread_whose_opening_message_was_torn_away_still_reads(page_dir):
     assert [
         element["id"]
         for element in closed_reading["elements"]
-        if element["conversation"] == "c-lost"
+        if element["thread"] == "c-lost"
     ] == [element["id"] for element in orphan_elements]
     history = CliRunner().invoke(
-        cli_model.cli, ["events", str(page_dir), "--conversation", "c-lost"]
+        cli_model.cli, ["events", str(page_dir), "--thread", "c-lost"]
     )
     assert history.exit_code == 0, history.output
     records = [json.loads(line) for line in history.output.splitlines()]

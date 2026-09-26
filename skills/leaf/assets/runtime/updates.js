@@ -68,14 +68,14 @@ function updateTarget(target) {
   if (target instanceof Element) {
     if (target.id) return { kind: "widget", id: target.id };
   } else if (
-    ["widget", "conversation"].includes(target?.kind) &&
+    ["widget", "thread"].includes(target?.kind) &&
     typeof target.id === "string" &&
     target.id
   ) {
     return { kind: target.kind, id: target.id };
   }
   throw new TypeError(
-    "update target must be a widget element or {kind: 'widget' | 'conversation', id}",
+    "update target must be a widget element or {kind: 'widget' | 'thread', id}",
   );
 }
 const targetKey = (target) =>

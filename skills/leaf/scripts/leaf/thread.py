@@ -1,4 +1,4 @@
-"""Conversation writes and the host-neutral delivery-bound reply lifecycle."""
+"""Thread writes and the host-neutral delivery-bound reply lifecycle."""
 
 import sys
 from pathlib import Path
@@ -129,7 +129,7 @@ class DeliveryReply:
         *,
         settles: bool = False,
     ) -> bool:
-        """Replace the visible text without appending conversation history."""
+        """Replace the visible text without appending thread history."""
         self.text = text
         try:
             with PageTransaction(Path(self.target["page"])) as page:
@@ -164,7 +164,7 @@ class DeliveryReply:
         """Commit only a completed final, retaining rejected or partial text.
 
         A completed answer retains its delivered response address even when that
-        move was settled during the turn. The reply reopens the conversation.
+        move was settled during the turn. The reply reopens the thread.
 
         The binding is given up on every way out but a commit, which clears it in
         the transaction that appends the reply. That includes the ways out that
@@ -369,8 +369,8 @@ def cmd_reply(
 
     ``for_event`` fences the write to the exact current obligation. Its response
     address may differ from ``to`` when a widget gesture belongs to a frozen
-    conversation. One unambiguous delivered reply supplies both values. ``to``
-    without ``for_event`` posts a new agent message, which the conversation must
+    thread. One unambiguous delivered reply supplies both values. ``to``
+    without ``for_event`` posts a new agent message, which the thread must
     currently owe no reply for; the event then carries no ``responds``.
 
     ``when_settled`` distinguishes completed delivery answers from failure receipts.
@@ -470,7 +470,7 @@ def cmd_reply(
                 if when_settled != "post":
                     sys.exit(
                         f"event {for_event!r} no longer requires a reply to {to!r}; "
-                        "read the current delivery or conversation state"
+                        "read the current delivery or thread state"
                     )
             elif expected["kind"] == "turn" and expected["attempt"] != attempt:
                 sys.exit(
@@ -481,12 +481,12 @@ def cmd_reply(
             standing = thread_obligation(events, responses, root_id)
             if standing is not None and standing["kind"] == "turn":
                 sys.exit(
-                    f"conversation {root_id!r} is answered by this turn's messages; "
+                    f"thread {root_id!r} is answered by this turn's messages; "
                     "finish the reply in your final message"
                 )
             if standing is not None:
                 sys.exit(
-                    f"conversation {root_id!r} currently requires a response; "
+                    f"thread {root_id!r} currently requires a response; "
                     f"answer it with `--for {standing['for']}`"
                 )
         if only_if_unclaimed and any(
@@ -514,7 +514,7 @@ def cmd_reply(
             else None
         )
         if detach and (current_thread is None or current_thread["anchor"] is None):
-            sys.exit(f"conversation {root_id!r} has no current anchor to detach")
+            sys.exit(f"thread {root_id!r} has no current anchor to detach")
         reply_revision = None
         prospective_page = None
         prospective_anchor = None
@@ -649,7 +649,7 @@ def fail_answer(
     `answer` names and hands the next step back to the user, so a failed move is
     never left owed with nobody to answer it:
 
-    - a `reply` answer takes a reply carrying `failure` in its conversation, which
+    - a `reply` answer takes a reply carrying `failure` in its thread, which
       the user resends into; a `turn` answer refuses it until its turn gives the
       reply up and the answer reads as a `reply` again;
     - a `receipt` answer takes a failed receipt carrying `failure`, the request's
@@ -746,16 +746,16 @@ def cmd_edit(page_dir: Path, to: str, text) -> dict:
 
 
 @contract_writer
-def cmd_title(page_dir: Path, conversation: str, text: str) -> dict:
-    """Name a conversation without adding a turn or changing its obligations."""
+def cmd_title(page_dir: Path, thread: str, text: str) -> dict:
+    """Name a thread without adding a turn or changing its obligations."""
     with PageTransaction(page_dir) as page:
         return append_admitted(
             page,
             {
-                "kind": "conversation_title",
+                "kind": "thread_title",
                 "author": "agent",
                 **message_identity(),
-                "conversation": conversation,
+                "thread": thread,
                 "title": text,
             },
         )
@@ -764,7 +764,7 @@ def cmd_title(page_dir: Path, conversation: str, text: str) -> dict:
 @contract_writer
 def cmd_summarize(
     page_dir: Path,
-    conversation: str,
+    thread: str,
     from_message: str,
     through_message: str,
     text,
@@ -781,7 +781,7 @@ def cmd_summarize(
                 "kind": "summary",
                 "author": "agent",
                 **message_identity(),
-                "conversation": conversation,
+                "thread": thread,
                 "from": from_message,
                 "through": through_message,
                 "text": body,

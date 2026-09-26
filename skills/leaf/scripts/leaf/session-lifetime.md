@@ -35,7 +35,7 @@ the receipt itself remains Picked up. The banner and Leaves tray consume this
 same reading and present delivery counts separately.
 
 `workflows` is the shared projection for exact user inputs and proactive subject
-work. Each entry names its `input` event when it has one, its `conversation` or `widget`
+work. Each entry names its `input` event when it has one, its `thread` or `widget`
 `subject`, its strongest proven `stage` (`sent`, `queued`, `picked_up`, `working`,
 `replying`, or the retained terminal `answered` outcome), and any separately proven
 `condition`. A Sent input that remains
@@ -64,7 +64,7 @@ put the thread in Needs you without persisting another workflow record.
 
 A workflow's `stage` and its `answer` are separate readings. The stage reports
 delivery for every move the user has handed over; the answer, which `workflows.py`
-states, is what the agent owes it: a reply, a version for a conversation that asked
+states, is what the agent owes it: a reply, a version for a thread that asked
 for one, a version whose markup records a user's answer to a page Ask, a request's
 receipt, or null. Every owed answer blocks the Stop hook and `leaf status idle` once
 its move is acknowledged, and only owed answers enter activity counts. A widget move
@@ -86,7 +86,7 @@ standing when the move arrives cannot answer it. Turn identity decides whether
 a receipt belongs to the open turn; ending a turn does not settle its input.
 A delivery's completed final answer retains the exact delivered `responds` address,
 even when a resolution, the user's ✓, or authored state settled that move during
-the turn. Its substantive reply reopens the conversation under the ordinary thread
+the turn. Its substantive reply reopens the thread under the ordinary thread
 rule in `events.md`, so the answer returns to Open Threads without making the
 answered move owed again. Failure receipts are omitted once their move is settled.
 
@@ -132,7 +132,7 @@ events at the next prompt, and releases the session's page claims when it exits.
 Registered on Claude Code's `PostToolUse` too, it names a wait that a background
 command started, read off the wait's start mark rather than the command.
 Its unanswered-work guard reads `activity.obligations`, selected from the same
-`workflows` projection the browser reads; it does not reconstruct conversations
+`workflows` projection the browser reads; it does not reconstruct threads
 itself. The App Server adapter presents at most one thread reply in each turn's
 chronological delivery slice, frozen as a `turn` answer; once the turn binds it, its
 workflow's `answer` reads `turn` too. Its completed final-answer item finishes that
@@ -237,7 +237,7 @@ With an App Server the adapter holds two connections instead. One observes: it r
 the task, keeps the subscription that resume opens, and projects the turns Leaf did not
 start — the user's own work in the terminal, and a queued pointer the task picks up by
 itself. It binds a reply only to a delivery frozen for App Server: a queued pointer's
-delivery owes a plain `reply`, which its agent writes with `leaf reply`. The other belongs to one delivery for one turn: it resumes, reads the task's
+delivery owes a plain `reply`, which its agent writes with `leaf thread reply`. The other belongs to one delivery for one turn: it resumes, reads the task's
 status, starts the turn while the task is idle, and follows that turn to its reply on
 the connection it started it on. Two connections may resume one thread and both then
 receive everything it says, so the observer passes over a delivery this process is
@@ -267,7 +267,7 @@ losing the starting connection ends the turn rather than opening a gap to read a
 Reply binding is the hook's contract above and, for the agent,
 `../../references/host-codex-app-server.md`, "Replies". This is another carrier over
 the same delivery, page claim, event log, and activity projection, not another
-conversation store or response policy.
+thread store or response policy.
 
 `server start` spawns the service into a session of its own and hands back the
 URL that process announced and the lifetime it recorded, so a killed carrier costs

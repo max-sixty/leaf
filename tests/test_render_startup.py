@@ -2123,6 +2123,7 @@ def test_a_widget_a_reply_carries_arrives_with_its_module(browser, serve):
     replied = CliRunner().invoke(
         cli_model.cli,
         [
+            "thread",
             "reply",
             str(d),
             "--to",
@@ -3040,7 +3041,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     provisional news on the message while the answer is still owed.
 
     Nothing deletes the line directly. The agent's next reply answers the claim;
-    resolution hides it while the conversation is closed, and reopening reveals it
+    resolution hides it while the thread is closed, and reopening reveals it
     again."""
     page = open_page(browser, serve(LONG_PAGE, comments=2))
     d = serve.page_dir
@@ -3212,7 +3213,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     )
     assert held_thread.evaluate("node => getComputedStyle(node).boxShadow") == "none"
 
-    # Once the answer has settled the input, renewed work is conversation activity
+    # Once the answer has settled the input, renewed work is thread activity
     # in the compact card. It does not invent an unasked message workflow.
     status("working", "re-running it against the rolling deploy", "--on", held)
     expect(held_workflow).to_have_count(0)
@@ -3220,7 +3221,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     expect(held_thread.locator(":scope > .lf-msg-sending")).to_have_count(0)
     expect(workflows).to_have_count(1)
 
-    # A conversation the user has closed asks nothing and shows nothing, for the same
+    # A thread the user has closed asks nothing and shows nothing, for the same
     # reason its reply box is gone.
     events_model.append_event(d, {"kind": "resolve", "author": "user", "parent": held})
     told(page)
@@ -3397,7 +3398,7 @@ def test_a_message_workflow_changes_phase_in_place_and_then_stands_still(
             "status",
             str(d),
             "working",
-            "comparing the replacement against every narrow conversation surface",
+            "comparing the replacement against every narrow thread surface",
             "--on",
             comment["id"],
         ],
@@ -3408,7 +3409,7 @@ def test_a_message_workflow_changes_phase_in_place_and_then_stands_still(
     expect(workflow).to_have_text("Working")
     expect(workflow).to_have_attribute(
         "title",
-        "Working · comparing the replacement against every narrow conversation surface",
+        "Working · comparing the replacement against every narrow thread surface",
     )
     assert workflow.evaluate(
         """node => {
@@ -3455,7 +3456,7 @@ def test_an_exact_workflow_reports_stale_work_beside_a_live_page_claim(
                 "work": [
                     {
                         "id": "trace-check",
-                        "subject": {"kind": "conversation", "id": held},
+                        "subject": {"kind": "thread", "id": held},
                         "event": held,
                         "detail": "reading the reconnect traces",
                         "ts": claim_ts,
@@ -3572,9 +3573,7 @@ def test_an_exact_workflow_reports_stale_work_beside_a_live_page_claim(
     page.locator(".lf-threads-toggle").click()
     panel_settled(page, open=False)
     work_button.click()
-    inline = page.locator(
-        f'.lf-margin-preview .lf-conversation-thread[data-thread="{held}"]'
-    )
+    inline = page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{held}"]')
     expect(inline).to_be_visible()
     expect(inline).not_to_have_attribute("data-lf-agent-workflow", re.compile(".+"))
     assert inline.evaluate("node => getComputedStyle(node).boxShadow") == "none"
@@ -3888,21 +3887,19 @@ customElements.define('lf-test-surface', class extends HTMLElement {
     broken = page.locator("#broken")
     broken_element = broken.element_handle()
     prior_outlets = broken.locator(".test-outlet").element_handles()
-    healthy = page.locator("#healthy .lf-conversation-thread")
-    expect(broken.locator(".lf-conversation-thread")).to_have_count(2)
+    healthy = page.locator("#healthy .lf-page-thread")
+    expect(broken.locator(".lf-page-thread")).to_have_count(2)
     expect(healthy).to_contain_text("Discuss healthy first")
     markers = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
     expect(markers).to_have_count(0)
-    broken.locator(".lf-conversation-thread textarea").first.fill(
-        "Keep this unsent reply."
-    )
+    broken.locator(".lf-page-thread textarea").first.fill("Keep this unsent reply.")
     strip = broken.locator(".lf-react-strip")
     strip.locator(".lf-react-trigger").click()
     expect(strip.locator(".lf-react:visible")).to_have_count(6)
 
     broken.evaluate("(widget, phase) => widget.fail(phase)", failure)
     if failure != "disconnect":
-        expect(broken.locator(".lf-conversation-thread")).to_have_count(0)
+        expect(broken.locator(".lf-page-thread")).to_have_count(0)
     events_model.append_event(
         serve.page_dir,
         {
@@ -3910,14 +3907,14 @@ customElements.define('lf-test-surface', class extends HTMLElement {
             "author": "agent",
             "parent": roots[2],
             "revision": 1,
-            "text": "The healthy conversation still updates.",
+            "text": "The healthy thread still updates.",
         },
     )
     told(page)
-    expect(healthy).to_contain_text("The healthy conversation still updates.")
+    expect(healthy).to_contain_text("The healthy thread still updates.")
     assert (
         broken_element.evaluate(
-            "widget => widget.querySelectorAll('.lf-conversation-thread').length"
+            "widget => widget.querySelectorAll('.lf-page-thread').length"
         )
         == 0
     ), "core views survived in a failed or disconnected widget"
@@ -3956,7 +3953,7 @@ customElements.define('lf-test-surface', class extends HTMLElement {
         page.keyboard.press("Escape")
         broken.locator(".lf-mark-note").first.click()
         fallback = page.locator(
-            f'.lf-margin-preview .lf-conversation-thread[data-thread="{roots[0]}"]'
+            f'.lf-margin-preview .lf-page-thread[data-thread="{roots[0]}"]'
         )
     expect(fallback).to_be_visible()
     expect(fallback).to_contain_text("Discuss broken")
@@ -3979,8 +3976,8 @@ customElements.define('lf-test-surface', class extends HTMLElement {
         )
         told(page)
         expect(healthy).to_contain_text("A later reading retries the repaired adapter.")
-        expect(broken.locator(".lf-conversation-thread")).to_have_count(2)
-        expect(broken.locator(".lf-conversation-thread textarea").first).to_have_value(
+        expect(broken.locator(".lf-page-thread")).to_have_count(2)
+        expect(broken.locator(".lf-page-thread textarea").first).to_have_value(
             "Keep this unsent reply."
         )
         expect(markers).to_have_count(0)
@@ -4384,7 +4381,7 @@ def test_new_data_in_a_stale_event_response_is_still_accepted(browser, serve):
     ).to_have_count(1)
 
 
-def test_conversation_timestamps_age_without_new_state(browser, serve):
+def test_thread_timestamps_age_without_new_state(browser, serve):
     page = open_page(browser, serve(LONG_PAGE, comments=1))
     page.keyboard.press("c")
     timestamp = page.locator(".lf-msg-head time").first

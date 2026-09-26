@@ -1,4 +1,4 @@
-/* Keyed synchronous Lit conversation seats outside the panel. Descriptors contain
+/* Keyed synchronous Lit thread seats outside the panel. Descriptors contain
    values; native first-message and response editors remain explicit capabilities. */
 import { render, repeat } from "../../vendor/browser-runtime.js";
 import { seatRoot } from "./model.js";
@@ -14,7 +14,7 @@ const activeSeats = new Set();
 const EMPTY = Object.freeze({ threads: Object.freeze([]), response: false });
 let activeBatch = null;
 
-class ConversationSeat {
+class ThreadSeat {
   #views = new Map();
   #model = EMPTY;
   #committed = EMPTY;
@@ -104,7 +104,7 @@ class ConversationSeat {
 function seatFor(host, commands, response = () => null, marginControls = null) {
   let seat = seats.get(host);
   if (!seat) {
-    seat = new ConversationSeat(host);
+    seat = new ThreadSeat(host);
     seats.set(host, seat);
     activeSeats.add(seat);
   }
@@ -138,13 +138,13 @@ export function mountFirstMessage(host, editor) {
   seat.commit();
 }
 
-export function renderConversations(threads, commands) {
+export function renderSeats(threads, commands) {
   for (const host of document.querySelectorAll(
-    ".lf-conversation[data-lf-conversation]",
+    ".lf-thread-seat[data-lf-thread-seat]",
   )) {
-    const owner = elementById(host.dataset.lfConversation);
+    const owner = elementById(host.dataset.lfThreadSeat);
     const owned = threads.filter((thread) => seatRoot(thread) === owner.id);
-    const hold = registry[owner.localName]?.["x-conversation"]?.hold;
+    const hold = registry[owner.localName]?.["x-thread-seat"]?.hold;
     const response = !owned.length || hold || loadDraft("say:" + owner.id) !== null;
     seatFor(host, commands, () => host.lfFirstMessage).present(
       seatReading(owned, "page", commands, response),
@@ -156,14 +156,14 @@ export function renderMarginThread(host, thread, commands, marginControls = null
   seatFor(host, commands, () => null, marginControls).present(
     seatReading([thread], "margin", commands, false),
   );
-  return host.querySelector(":scope > .lf-conversation-thread");
+  return host.querySelector(":scope > .lf-page-thread");
 }
 
-export function beginConversationSeats() {
+export function beginThreadSeats() {
   activeBatch = { seats: new Set() };
   return activeBatch;
 }
-export function commitConversationSeats(batch) {
+export function commitThreadSeats(batch) {
   if (activeBatch !== batch) return;
   for (const seat of batch.seats) seat.commit();
   activeBatch = null;
@@ -173,7 +173,7 @@ export function commitConversationSeats(batch) {
       seats.delete(seat.node);
     }
 }
-export function retainConversationSeats(batch) {
+export function retainThreadSeats(batch) {
   if (activeBatch !== batch) return;
   for (const seat of batch.seats) seat.retain();
   activeBatch = null;

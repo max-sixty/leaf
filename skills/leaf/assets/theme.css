@@ -51,7 +51,7 @@
  * is a closed vocabulary wherever it appears, and one layer's tag written into another
  * layer's stylesheet is that plus a leak.
  *
- * Live pages reserve conversation room at the wide layout's existing floors, so the
+ * Live pages reserve thread room at the wide layout's existing floors, so the
  * first comment and the last resolution leave the document column in place. */
 
 /* Ordinary action controls use `.lf-btn`, whose face is in shadow.css so it also
@@ -365,7 +365,7 @@
   --ok-tint: light-dark(#dfeddf, #1d2b1f);
   --ok-wash: color-mix(in srgb, var(--ok-tint) 52%, var(--paper));
   --ok-ink: light-dark(#2f6b40, #97cca3);
-  /* A conversation whose next word is the user's. The green below says the agent has
+  /* A thread whose next word is the user's. The green below says the agent has
      this one, so the user's own turn has to be a hue apart from it, and apart again
      from the violet a comment mark already wears. Blue is where the page's pointing
      already lives; the wash is mixed to the same strength as --ok-wash so the two
@@ -969,13 +969,16 @@ main {
    * column), and the plain HTML elements are named here. A surface is never capped and
    * clears the measure for everything it draws. A box that only groups blocks passes
    * the measure through to what it holds, instead of holding a chart in a section to
-   * the width of a paragraph. Everything else is text. The rules have no specificity,
-   * so any rule that sizes a box outranks them. */
+   * the width of a paragraph. Everything else is text, a widget declaring so
+   * (data-lf-measure="text") included: a group whose members are the cells it draws
+   * keeps the measure as one block, so its frame and their edges stand at one width.
+   * The rules have no specificity, so any rule that sizes a box outranks them. */
   :where([data-lf-measure="surface"], [data-lf-space]:not([data-lf-space="column"]),
       table, pre, figure, img, svg, video, canvas, iframe) {
     --lf-measure: none;
   }
-  :where(:not([data-lf-measure], [data-lf-space]:not([data-lf-space="column"]),
+  :where(:not([data-lf-measure="surface"], [data-lf-measure="group"],
+      [data-lf-space]:not([data-lf-space="column"]),
       table, pre, figure, img, svg, video, canvas, iframe,
       section, div, article, header, footer, aside, nav, details, summary, hgroup,
       search, main)) {
@@ -1513,7 +1516,7 @@ svg.drawing .danger { fill: var(--danger); }
     /* :not([hidden]), because a caller may take the box behind a collapse (a settled
        group takes it with its options) — the display here would outrank the
        attribute's own hiding. */
-    .lf-conversation:not([hidden]) { display: block; }
+    .lf-thread-seat:not([hidden]) { display: block; }
     .lf-say:not([hidden]) { display: flex; }
   }
 }

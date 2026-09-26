@@ -116,8 +116,8 @@
             <p id="loop-lede">
               Leaf serves the agent's page beside an append-only event log, and your
               browser combines the two into the current document, your choices, and
-              every conversation. What you do there goes back to the agent session that
-              owns the page.
+              every thread. What you do there goes back to the agent session that owns
+              the page.
             </p>
 
             <lf-diagram id="arch" parts="node:Agent node:Leaf node:Browser">
@@ -182,7 +182,7 @@ $ leaf wait ./review
     {
       "page": "/home/you/review",
       "through_seq": 3,
-      "conversations": [
+      "threads": [
         {
           "id": "ebe8f367",
           "title": null,
@@ -205,8 +205,8 @@ $ leaf wait ./review
         "h1": "The user already sees the action applied.",
         "h2": "If you need clarification, ask in a thread on the picked option. To override the pick in a later version, mark the element `restated` and say why in the version note.",
         "h3": "It answers the page's Ask, so the page shows it as waiting on you until the markup records it. Name the work it selects or unblocks with `leaf status &lt;page&gt; working \"&lt;the work, in a line&gt;\"` before starting it, then do it, write it in, and stamp a version.",
-        "h4": "This event's conversation has no title yet: name it with `leaf conversation title &lt;page&gt; &lt;conversation-id&gt; --text \"&lt;a few words&gt;\"`, so the thread panel lists its subject rather than its opening words.",
-        "h5": "Answer with `leaf reply &lt;page&gt; --for &lt;event-id&gt;` before any other work, including the work this event asks for: give the answer, or say what you are about to do and where the result will appear. When work follows, name it on the page in the same command, as in `leaf reply &lt;page&gt; --for &lt;event-id&gt; --text \"…\" &amp;&amp; leaf status &lt;page&gt; working \"&lt;the work, in a line&gt;\" --on &lt;address&gt;`, where `&lt;address&gt;` is the event's `answer.to`: the line stands beside the thread and in the banner until your next reply there. Once that work lands, report it with `leaf reply &lt;page&gt; --to &lt;address&gt;`. `leaf reply` checks any saved page edit and makes it live before posting. If a revision removes what the thread is anchored on, move the thread in the reply that reports it with `--section &lt;id&gt;` (narrowed by `--quote` or `--part` if needed), or `--detach` it if its subject has left the page. Add `--awaits` only if your reply's prose asks the user something.",
+        "h4": "This event's thread has no title yet: name it with `leaf thread title &lt;page&gt; &lt;thread-id&gt; --text \"&lt;a few words&gt;\"`, so the thread panel lists its subject rather than its opening words.",
+        "h5": "Answer with `leaf thread reply &lt;page&gt; --for &lt;event-id&gt;` before any other work, including the work this event asks for: give the answer, or say what you are about to do and where the result will appear. When work follows, name it on the page in the same command, as in `leaf thread reply &lt;page&gt; --for &lt;event-id&gt; --text \"…\" &amp;&amp; leaf status &lt;page&gt; working \"&lt;the work, in a line&gt;\" --on &lt;address&gt;`, where `&lt;address&gt;` is the event's `answer.to`: the line stands beside the thread and in the banner until your next reply there. Once that work lands, report it with `leaf thread reply &lt;page&gt; --to &lt;address&gt;`. `leaf thread reply` checks any saved page edit and makes it live before posting. If a revision removes what the thread is anchored on, move the thread in the reply that reports it with `--section &lt;id&gt;` (narrowed by `--quote` or `--part` if needed), or `--detach` it if its subject has left the page. Add `--awaits` only if your reply's prose asks the user something.",
         "h6": "Your reply renders as Markdown, so show code or markup in a fenced block."
       },
       "events": [
@@ -237,7 +237,7 @@ $ leaf wait ./review
             "kind": "widget",
             "id": "shed"
           },
-          "conversations": [],
+          "threads": [],
           "says": {
             "opt-drop": "Drop the oldest Keep accepting, and discard the oldest queued work."
           },
@@ -264,10 +264,10 @@ $ leaf wait ./review
           "ts": "2026-09-22T11:15:42-07:00",
           "seq": 3,
           "subject": {
-            "kind": "conversation",
+            "kind": "thread",
             "id": "ebe8f367"
           },
-          "conversations": [
+          "threads": [
             "ebe8f367"
           ],
           "handling": [
@@ -290,10 +290,10 @@ $ leaf wait ./review
 $ leaf wait --ack 2d5bdcc4
 
 # while that wait runs, answer the comment and name the work it starts
-$ leaf reply ./review --for ebe8f367 --text "I’ll use drop-oldest for the batch importer and keep rejection at the API boundary." &amp;&amp; leaf status ./review working "splitting the shed policy between the API and the importer" --on ebe8f367
+$ leaf thread reply ./review --for ebe8f367 --text "I’ll use drop-oldest for the batch importer and keep rejection at the API boundary." &amp;&amp; leaf status ./review working "splitting the shed policy between the API and the importer" --on ebe8f367
 
 # revise ./review/index.html; a valid save goes live at once
-$ leaf reply ./review --to ebe8f367 --text "Done: the shed section now splits the policy by caller."
+$ leaf thread reply ./review --to ebe8f367 --text "Done: the shed section now splits the policy by caller."
 $ leaf status ./review waiting "Does the API/importer split match what you need?"</code></pre>
             </lf-specimen>
             <p id="loop-shell-read">
@@ -423,8 +423,8 @@ $ leaf status ./review waiting "Does the API/importer split match what you need?
               <pre>
 flowchart LR
   subgraph Sources["Who writes it"]
-    Reply["agent: leaf reply · leaf comment"]
-    Awaits["agent: leaf reply --awaits"]
+    Reply["agent: leaf thread reply · leaf thread open"]
+    Awaits["agent: leaf thread reply --awaits"]
     Stamp["agent: leaf version stamp"]
     Receipt["agent: leaf experimental report · receipt"]
     Status["agent: leaf status"]
@@ -473,22 +473,23 @@ flowchart LR
                 close while your input is unanswered.
               </li>
               <li id="updates-written-reply">
-                <strong><code>leaf reply --for …</code></strong> An answer in your
-                thread, which clears the label beside your comment.
+                <strong><code>leaf thread reply --for …</code></strong> An answer in
+                your thread, which clears the label beside your comment.
               </li>
               <li id="updates-written-followup">
-                <strong><code>leaf reply --to …</code></strong> A later message in a
-                thread already answered, such as the result of work the first reply
+                <strong><code>leaf thread reply --to …</code></strong> A later message
+                in a thread already answered, such as the result of work the first reply
                 promised.
               </li>
               <li id="updates-written-awaits">
-                <strong><code>leaf reply … --awaits</code></strong> A question for you.
-                The thread reads <em>On you</em>, and the question joins the Asks tray.
+                <strong><code>leaf thread reply … --awaits</code></strong> A question
+                for you. The thread reads <em>On you</em>, and the question joins the
+                Asks tray.
               </li>
               <li id="updates-written-comment">
                 <strong
-                  ><code>leaf comment</code>, <code>leaf edit</code>,
-                  <code>leaf resolve</code></strong
+                  ><code>leaf thread open</code>, <code>leaf thread edit</code>,
+                  <code>leaf thread resolve</code></strong
                 >
                 A thread the agent opens on a passage, a message it corrects, marked
                 <em>edited</em>, or a thread it closes (<em>✓ Resolved by Claude</em>).

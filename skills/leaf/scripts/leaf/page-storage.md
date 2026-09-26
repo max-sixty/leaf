@@ -85,7 +85,7 @@ other page files and the external state listed below.
 
 - `status.json` — work declarations and transient delivery handling, observed activity,
   and reply bindings. [session-lifetime.md](session-lifetime.md) owns their writers and
-  lifetimes; `conversation.py` owns response reservations and their release.
+  lifetimes; `thread.py` owns response reservations and their release.
 
 - `waiter.lock` — bare-shell wait lease, present only while held; host sessions instead
   use `<state-home>/sessions/<session>.wait`. See [session-lifetime.md](session-lifetime.md).
@@ -157,18 +157,18 @@ Each node's `edit` identifies its mutation owner. A source edit carries its stab
 id when present and `matches_active`; the target file is inherited from
 `content_source.edit_file`. Source locations apply to that mutable file only when
 it matches the active revision. Generated children name their originating event and
-the widget in which their markup can be authored. `leaf conversation read <page> <id>`
-reads one conversation's current messages and frozen markup under `content`, with
+the widget in which their markup can be authored. `leaf thread read <page> <id>`
+reads one thread's current messages and frozen markup under `content`, with
 bounded history selected by `--after` and `--limit`. Its `content_source` names the
-conversation and vocabulary file; message identities locate the frozen source. Default
-`page state` conversation entries stay compact.
+thread and vocabulary file; message identities locate the frozen source. Default
+`page state` thread entries stay compact.
 
 Widget `inputs` join each binding to its source's current value, contract, source
 id, and revision, or to the `error` a failing value reads as. Each input's `edit`
 names the value file to rewrite. Contracts with a deferred record field expose the
 manifest plus that file and its revision for their payload. The compact
 `elements`, `state`, and lifecycle indexes remain available for machine queries.
-Raw diagnostic history belongs to `leaf events --conversation`, and the page's
+Raw diagnostic history belongs to `leaf events --thread`, and the page's
 `registry.json` owns the vocabulary.
 
 Immutable deliveries live outside page directories at

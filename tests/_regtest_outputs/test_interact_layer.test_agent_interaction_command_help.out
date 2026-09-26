@@ -3,7 +3,7 @@ Usage: leaf wait [OPTIONS] PAGE
 
   Watch every page this session holds \u2014 plus PAGE, claimed first, when given.
 
-  Print one page's complete ordered batch, conversation context, and response
+  Print one page's complete ordered batch, thread context, and response
   requirements as an immutable delivery, whose `acknowledge` says how to confirm
   it. `leaf delivery read <id>` reads that same delivery.
 
@@ -40,24 +40,24 @@ Usage: leaf page state [OPTIONS] PAGE
 
   Fold the log onto the active revision and print the result as one JSON object:
   effective content with source and edit addresses, standing state, reports,
-  open Asks, conversation summaries, versions, presence, and bound data. Content
+  open Asks, thread summaries, versions, presence, and bound data. Content
   follows the same document projection as the browser.
 
 Options:
   --help  Show this message and exit.
 
-## leaf conversation read --help
-Usage: leaf conversation read [OPTIONS] PAGE CONVERSATION_ID
+## leaf thread read --help
+Usage: leaf thread read [OPTIONS] PAGE THREAD_ID
 
-  Print one current conversation and a page of its exact event history.
+  Print one current thread and a page of its exact event history.
 
 Options:
   --after SEQ            [default: 0; x>=0]
   --limit INTEGER RANGE  [default: 50; 1<=x<=100]
   --help                 Show this message and exit.
 
-## leaf conversation summarize --help
-Usage: leaf conversation summarize [OPTIONS] PAGE CONVERSATION_ID
+## leaf thread summarize --help
+Usage: leaf thread summarize [OPTIONS] PAGE THREAD_ID
 
   Replace FROM through THROUGH in the panel with a Markdown summary.
 
@@ -71,13 +71,13 @@ Options:
   --json        print the summary event
   --help        Show this message and exit.
 
-## leaf conversation title --help
-Usage: leaf conversation title [OPTIONS] PAGE CONVERSATION_ID
+## leaf thread title --help
+Usage: leaf thread title [OPTIONS] PAGE THREAD_ID
 
-  Name the conversation for the thread panel; repeat to rename it.
+  Name the thread for the thread panel; repeat to rename it.
 
-  Choose a few descriptive words when first handling a conversation. Keep the
-  title stable unless its subject changes. This adds no message or reply.
+  Choose a few descriptive words when first handling a thread. Keep the title
+  stable unless its subject changes. This adds no message or reply.
 
 Options:
   --text TEXT  short descriptive title (at most 80 characters)  [required]
@@ -94,18 +94,18 @@ Usage: leaf status [OPTIONS] PAGE {working|waiting|idle} [DETAIL]
   invites text comments. Use idle when finished; unacknowledged input and
   unanswered user moves prevent it.
 
-  With working, --on names an open conversation or page widget. The user sees
-  DETAIL beside that subject as well as in the banner. Your next reply ends a
-  thread claim; a version stamp with --completes ends a widget claim. Renew the
-  status as work changes: a claim left after your turn ends, or without updates,
+  With working, --on names an open thread or page widget. The user sees DETAIL
+  beside that subject as well as in the banner. Your next reply ends a thread
+  claim; a version stamp with --completes ends a widget claim. Renew the status
+  as work changes: a claim left after your turn ends, or without updates,
   eventually reads as stalled.
 
 Options:
-  --on SUBJECT  The open conversation or local page widget this work is about.
+  --on SUBJECT  The open thread or local page widget this work is about.
   --help        Show this message and exit.
 
-## leaf comment --help
-Usage: leaf comment [OPTIONS] PAGE
+## leaf thread open --help
+Usage: leaf thread open [OPTIONS] PAGE
 
   Open a thread as the agent (--text or stdin): anchored where --quote or
   --section points at a passage, general where neither does \u2014 a question about
@@ -123,22 +123,21 @@ Options:
   --json         print the comment event instead
   --help         Show this message and exit.
 
-## leaf reply --help
-Usage: leaf reply [OPTIONS] PAGE
+## leaf thread reply --help
+Usage: leaf thread reply [OPTIONS] PAGE
 
   Post a threaded reply as the agent (--text or stdin).
 
   Answer user input with --for EVENT_ID. With exactly one outstanding reply in
   this turn's opened delivery, omit it to select that reply. --to ID without
-  --for posts a new agent message, refused while that conversation owes a reply.
+  --for posts a new agent message, refused while that thread owes a reply.
 
   --quote, --section, and --part move the thread's current anchor; --detach
   removes it when the subject leaves the page. The original anchor stays in the
   log. A reply validates and activates any changed source before posting.
 
 Options:
-  --to ID         conversation message ID; without --for, posts a new message
-                  there
+  --to ID         thread message ID; without --for, posts a new message there
   --for EVENT_ID  delivery event whose current reply obligation this answers
   --quote TEXT    new passage text to move this thread onto
   --section ID    new element ID, or scope for --quote
@@ -151,14 +150,28 @@ Options:
   --json          print the reply event instead
   --help          Show this message and exit.
 
-## leaf resolve --help
-Usage: leaf resolve [OPTIONS] PAGE
+## leaf thread edit --help
+Usage: leaf thread edit [OPTIONS] PAGE
+
+  Replace the visible text of an agent-authored comment or reply.
+
+  The original and every revision remain in the append-only event log. Frozen
+  widget markup is not editable.
+
+Options:
+  --to ID      comment or reply ID to edit  [required]
+  --text TEXT  replacement text (default: stdin)
+  --json       print the edit event instead
+  --help       Show this message and exit.
+
+## leaf thread resolve --help
+Usage: leaf thread resolve [OPTIONS] PAGE
 
   Close a thread as the agent.
 
-  The user ordinarily closes a thread; the Leaf skill's references/conversation-
-  threads.md says when the agent does. Refuses a thread that asked for a version
-  until a stamped version answers it. The panel names who resolved it.
+  The user ordinarily closes a thread; the Leaf skill's references/threads.md
+  says when the agent does. Refuses a thread that asked for a version until a
+  stamped version answers it. The panel names who resolved it.
 
 Options:
   --to ID  a message in the thread to close  [required]

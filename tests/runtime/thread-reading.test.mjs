@@ -8,13 +8,12 @@ import process from "node:process";
 // import that would load them first.
 process.env.TZ = "America/New_York";
 const { moved, readThreadRecords, threadSummary } =
-  await import("/runtime/conversation/model.js");
-const { inRecentOrder, recentGroup } =
-  await import("/runtime/conversation/placement.js");
-const { unreadBoundaries } = await import("/runtime/conversation/summary-ranges.js");
-const { threadAttention } = await import("/runtime/conversation/workflow.js");
+  await import("/runtime/thread/model.js");
+const { inRecentOrder, recentGroup } = await import("/runtime/thread/placement.js");
+const { unreadBoundaries } = await import("/runtime/thread/summary-ranges.js");
+const { threadAttention } = await import("/runtime/thread/workflow.js");
 const { DEFAULT_INTENT, narrowingReading, transition } =
-  await import("/runtime/conversation/narrowing.js");
+  await import("/runtime/thread/narrowing.js");
 
 const NO_DOCUMENT = { descriptors: new Map(), messageBodies: new Map() };
 
@@ -119,7 +118,7 @@ test("attention names the outstanding question rather than the latest message", 
     threadAttention({
       ...thread,
       attention: { kind: "needs_user", reason: "recovery", workflow: "send" },
-      workflows: [{ id: "send", subject: { kind: "conversation" } }],
+      workflows: [{ id: "send", subject: { kind: "thread" } }],
     }).action,
     "resend",
   );

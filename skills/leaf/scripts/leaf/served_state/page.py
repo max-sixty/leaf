@@ -32,7 +32,7 @@ def project_activity(
         return browser.pop("activity")
     # Thread delivery and response ownership do not depend on a page's vendored
     # widget registry. The Stop hook deliberately remains able to protect a
-    # conversation on an older or damaged layer through this same canonical fold;
+    # thread on an older or damaged layer through this same canonical fold;
     # only widget-scoped interaction evidence is unavailable.
     try:
         threads = build_threads(events, active_enclosing(page_dir))

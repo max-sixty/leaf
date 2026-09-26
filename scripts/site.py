@@ -17,6 +17,13 @@ server answers its API requests.
 A dead link is the failure a static host cannot report, so the build resolves every
 local href and src it wrote and refuses a site holding one that names no file.
 
+The build also writes what a crawler reads: `robots.txt`, a `sitemap.xml` of the clean
+routes, and each page's link card. A page's title and description are authored in its
+own source, and the build refuses a page missing either. The rest of the card comes from
+`site_metadata` in `worker/server.py`. Each page's card image is named in the manifest:
+`docs/session-card.png` for a product page and the catalog preview for an example.
+`--serve` needs `npm ci --prefix worker` and a running Docker.
+
 Usage: uv run scripts/site.py [--serve]
        (writes .tmp/site; --serve keeps a local preview open)
 """
@@ -42,7 +49,7 @@ from leaf.host import SESSION_VARIABLES
 from leaf.http import scope_document_routes
 from leaf.live_shell import write_live_shell
 from leaf.media import media_name
-from leaf.schema import MEDIA_DIR
+from leaf.schema import MEDIA_DIR, PAGE_ROUTE_DIRS, VENDORED_FILES
 from leaf.structure import SourceDocument
 from page_fixtures import prepare_page, read_fixture
 
@@ -436,7 +443,12 @@ def publish_live_shells(
     assets = asset_site(out)
     shutil.rmtree(assets, ignore_errors=True)
     assets.mkdir(parents=True)
-    manifest = {"release": release, "pages": {}}
+    # The Worker routes a page's namespace from here rather than a copy of its own.
+    manifest = {
+        "release": release,
+        "routes": {"dirs": list(PAGE_ROUTE_DIRS), "files": list(VENDORED_FILES)},
+        "pages": {},
+    }
     for page_dir, page_root in published_pages(out, include_products=include_products):
         destination = assets / page_root.lstrip("/")
         key = "root" if page_root == "" else page_root.strip("/").replace("/", "--")

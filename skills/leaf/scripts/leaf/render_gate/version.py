@@ -54,7 +54,8 @@ def _render_version_attempt(
     browser, url: str, served_timeout_ms: int | None = None
 ) -> tuple[list, list, bool, list]:
     """Everything wrong with a served version that only a browser can see: a
-    console warning or error, a page error, a request that 404s, a fail-soft error box,
+    console warning or error, a page error, an issue Chrome's DevTools raises, a request
+    that 404s, a fail-soft error box,
     an upgrade module that never defines its declared element, an x-thread-seat whose module
     placed no matching page host, a widget upgraded into a box of no usable size,
     an element showing words with no box for a mark to hang on, so a comment anchored

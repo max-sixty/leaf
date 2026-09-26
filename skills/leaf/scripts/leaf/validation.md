@@ -22,7 +22,7 @@ policy names. Every lf-* element validates against the effective registry
 (schema, nesting, no self-closing form); every lf-* meta is a known page
 declaration with an allowed value; each lf-suggestion is well formed (at most
 one of each slot, at least one of them, no nesting, `resolves` naming a comment
-in the document's reference namespace); ids are unique, no authored id, class, or
+in the document's reference namespace); ids are unique and hold no whitespace, no authored id, class, or
 attribute sits in the runtime's `lf-` and `data-lf-` namespaces, named today or
 not, and ids needed by anchored unresolved threads, standing user actions, or
 effective standing reports survive from the previous revision. A
@@ -37,6 +37,9 @@ element is wider than the readable column (the rule that draws that column claim
 it with `--lf-reading-column: 1`, so the width and the claim come from one block). Near-free
 and deterministic is what makes running it on every save affordable, so keep a new
 check that way; anything needing a browser belongs in the command's browser half.
+The effective registry and each vendored sheet are validated where they differ from
+the active revision's captured copies, which were validated when that revision
+activated, and the theme is parsed for the column only on a page that states a width.
 
 That half has one piece plain `version check` runs too. A page that runs code of its
 own, a module script or a page widget the document places, is served and run once at
@@ -78,12 +81,15 @@ handed over: the exact current source loads in the host's browser (whichever
 executable `LEAF_BROWSER_EXECUTABLE`, `CHROME_PATH`, or `CHROME_BIN` names, else
 Playwright's `channel="chrome"`, else the first browser `PATH` answers with) and the
 render invariants the static lint cannot reach run against it in both color schemes:
-no console or page errors and no fail-soft box; every widget upgraded, painted with
-values that resolve, and given real space; words a user can mark, reach, and
-select, with the registry's verbatim and shadow declarations honored; no sideways
-scroll, clipped control, squeezed table, trapped margin, or misplaced box; a print
-rendering that covers and drops nothing; and standing state that replays without
-conflict and idempotently. `render_gate/readings.py` is the list. Those readings run
+no console or page errors, no issue Chrome's DevTools raises (an unsized lazy
+image, a blocked or mixed-content request, a deprecated API) outside a form control's
+shadow tree, one in an embedded frame placed at that frame, and no fail-soft box;
+every widget upgraded, painted with values that resolve, and given real space;
+words a user can mark, reach, and select, with the registry's verbatim and shadow
+declarations honored; no sideways scroll, clipped control, squeezed table, trapped
+margin, or misplaced box; a print rendering that covers and drops nothing; and
+standing state that replays without conflict and idempotently.
+`render_gate/readings.py` is the list. Those readings run
 at a desktop and a phone viewport; once they are done, the loaded desktop page is
 resized through the widths from 360px to 1200px and the two sideways readings are taken
 again at each: a version holds at every width from the narrowest phone to the desktop,

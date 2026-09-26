@@ -3,14 +3,15 @@ import { cancelRender, nextFrame } from "./rendering.js";
 import { clampedRow } from "./keyboard/bindings.js";
 import { inPanel as panelFocusIsInside } from "./thread/panel-elements.js";
 import { openThreads } from "./thread/thread-list.js";
-import { narrowed, threadSearchActive } from "./thread/narrowing.js";
+import { listedInPageOrder, narrowed, threadSearchActive } from "./thread/narrowing.js";
 import { coveringAuxiliarySurface, pageCommand } from "./keyboard/register.js";
 import { reducedMotion, scrollBehavior } from "./motion.js";
 import { threadsBox } from "./thread/panel-elements.js";
 import { pageScroller } from "./scrolling.js";
-import { landingInsets } from "./geometry.js";
+import { landingBand } from "./geometry.js";
 import { effectiveScroller, readingRegionFor } from "./reading-regions.js";
 import { closestAcross } from "./passages.js";
+import { standingPlace } from "./standing-target.js";
 import { under } from "./shadow.js";
 import { announce } from "./notifications.js";
 import { focusThread } from "./thread/focus.js";
@@ -36,15 +37,41 @@ const threadPosition = (threadHere, panelIsOpen) => {
   });
 };
 
+// From a place on the page at no thread, a walk in the page's order measures document
+// position against each thread's target, as the Ask walk does (asks/view.js,
+// `askStep`): a target holding the place is where the user already is, so the press
+// steps off it. A general or detached thread has no target, and is reached from the
+// list's ends, as every thread is in the panel's Recent order.
+function threadFrom(threads, place, dir, threadTarget) {
+  if (!place) return clampedRow(threads, null, dir);
+  const side =
+    dir > 0 ? Node.DOCUMENT_POSITION_FOLLOWING : Node.DOCUMENT_POSITION_PRECEDING;
+  const reach = threads.filter((thread) => {
+    const target = threadTarget(thread.dataset.id);
+    if (!target) return false;
+    const rel = place.compareDocumentPosition(target);
+    return !(rel & Node.DOCUMENT_POSITION_CONTAINS) && rel & side;
+  });
+  return dir > 0 ? (reach[0] ?? threads.at(-1)) : (reach.at(-1) ?? threads[0]);
+}
+
 // t/T walk open threads. A closed panel walks them in page order, at each thread's
 // inline destination: a declared widget outlet first, then the thread margin entry's card. A
 // thread with no page destination is indexed only by Threads, so that destination opens the panel.
 // Once the panel is open, the walk stays in its list, in whichever order the list shows.
 // Both paths are clamped, not wrapped.
-function stepThread(dir, { openPageThread, scrollToThread, threadHere }, panelIsOpen) {
+function stepThread(dir, destinations, panelIsOpen) {
+  const { openPageThread, scrollToThread, threadHere, threadTarget } = destinations;
   const threads = walkableThreads(panelIsOpen);
   const current = currentThread(threads, threadHere, panelIsOpen);
-  const next = clampedRow(threads, current, dir);
+  const next = current
+    ? clampedRow(threads, current, dir)
+    : threadFrom(
+        threads,
+        !panelIsOpen() || listedInPageOrder() ? standingPlace() : null,
+        dir,
+        threadTarget,
+      );
   if (!next) return;
   if (!panelIsOpen()) {
     openPageThread(next.dataset.id, { focus: "thread" });
@@ -104,13 +131,13 @@ export function placeThreadEdge(thread, edge) {
 // own gesture outranks a key's. Under reduced motion the step is a jump, the answer the
 // rest of the runtime's motion already gives (scrollBehavior()).
 //
-// The page the step measures is the one the user can see. The document's box lends its
-// top edge to the fixed banner, and scroll-padding-top — declared on that scroller, read
-// exactly so by scrollToElement — is where the box already says how much of itself stands
-// covered. The thread list says the same thing about itself: a stuck run heading covers
-// its top, so a reading-page step there is 60% of what is left rather than 60% of the
-// box, which is the answer the user wants — a step that landed them under the heading
-// would be a step onto words they cannot read.
+// The page the step measures is the one the user can see: the scroller's landing band.
+// The document's box lends its top edge to the fixed banner and its bottom edge to the
+// foot band, and its scroll-padding — read exactly so by scrollToElement — is where the
+// box already says how much of itself stands covered. The thread list says the same
+// thing about itself: a stuck run heading covers its top, so a reading-page step there is
+// 60% of what is left rather than 60% of the box, which is the answer the user wants — a
+// step that landed them under the heading would be a step onto words they cannot read.
 const SCROLL_MS = 140;
 let glide = null; // {box, goal, wrote, raf}
 // The glide's claim on the box: it holds only while the box is where the glide last
@@ -137,7 +164,8 @@ const stepScroller = (coveringAuxiliaryScroller) => {
 function stepReading(amount, unit, coveringAuxiliaryScroller) {
   const box = stepScroller(coveringAuxiliaryScroller);
   if (unit === "page") {
-    amount *= box.clientHeight - landingInsets(box).top;
+    const band = landingBand(box);
+    amount *= band.bottom - band.top;
   }
   const from = holding(box) ? glide.goal : box.scrollTop;
   glideTo(box, from + amount);

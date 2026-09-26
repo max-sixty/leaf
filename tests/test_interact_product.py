@@ -878,7 +878,7 @@ def test_widget_ids_are_one_universe_across_page_and_replies(page_dir):
             '<lf-options id="q2" choose><lf-option id="q2"><strong>B</strong></lf-option></lf-options>',
         )
     )
-    assert selfdup.exit_code != 0 and "within itself" in selfdup.output
+    assert selfdup.exit_code != 0 and "duplicate ids" in selfdup.output
     # Text claims no ids however it quotes a tag — only the `markup` field does, and
     # a user's message never carries one (the log is append-only; a false claim
     # would deadlock every future version).

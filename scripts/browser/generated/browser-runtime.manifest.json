@@ -9,6 +9,7 @@
     "scripts/browser/presentation.ts",
     "scripts/browser/snapshot.ts",
     "skills/leaf/assets/runtime/anchor-coordinate.js",
+    "skills/leaf/assets/runtime/collapse.js",
     "skills/leaf/assets/runtime/pending/model.js",
     "skills/leaf/assets/runtime/projection/model.js",
     "skills/leaf/assets/runtime/thread/identity.js",
@@ -154,12 +155,12 @@
   "pageModules": "Browser-ready authored page modules are captured with their revision; they are not contributor-build inputs.",
   "outputs": {
     "skills/leaf/assets/vendor/browser-runtime.js": {
-      "bytes": 29083,
-      "sha256": "b19eb4c98b72b5a5a7830829809c4bcb344301a0b7e82a91a7172530f38d8687"
+      "bytes": 28751,
+      "sha256": "59d95ce08f336c06c26ac315b11472116700142641a8b9d2daa36d6389a2a23c"
     },
     "scripts/browser/generated/browser-runtime.js.map": {
-      "bytes": 177690,
-      "sha256": "435651472a16a5703b33edaf620dc8fe128656faba1614b13c807d29816c9284"
+      "bytes": 178153,
+      "sha256": "a8eaa352f2d6d4bc621b3c9a79d78d4865de39d45545cfe55d70cd7657786cfc"
     },
     "skills/leaf/assets/vendor/lit.js": {
       "bytes": 32020,

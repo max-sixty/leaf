@@ -281,6 +281,16 @@ function copyControl(trigger, success, error) {
   return copy;
 }
 
+// How old a Leaf payload is, so a user who meets a problem can tell whether it
+// predates the fixes since. A payload read from Git carries its commit's date; a host's
+// plugin cache, which drops `.git`, carries the time it copied the commit, one update
+// sweep after it landed (`layer.payload_provenance`).
+const payloadAge = (provenance) => ago(provenance.committed ?? provenance.installed);
+const payloadDateLines = (provenance) =>
+  ["committed", "installed"]
+    .filter((kind) => provenance[kind])
+    .map((kind) => `${kind}: ${provenance[kind]}`);
+
 let previewMarginEntry = null;
 let previewMarginEntryCopy = null;
 let previewDiagnostics = "";
@@ -292,7 +302,8 @@ function renderPreview(state) {
   // mode worth marking; an unclaimed preview delivers nothing and needs no warning.
   const kind = preview.interaction === "user" ? "User" : "Preview";
   const stem = `${kind} · ${preview.checkout}${preview.commit ? `@${preview.commit}` : ""}`;
-  const label = preview.commit && preview.dirty ? `${stem}+` : stem;
+  const age = payloadAge(preview);
+  const label = `${preview.commit && preview.dirty ? `${stem}+` : stem}${age ? ` · ${age}` : ""}`;
   const safeUrl = new URL(location.href);
   safeUrl.searchParams.delete("t");
   previewDiagnostics = [
@@ -302,6 +313,7 @@ function renderPreview(state) {
     `interaction: ${preview.interaction}`,
     ...(preview.commit ? [`commit: ${preview.commit}`] : []),
     ...(preview.dirty !== undefined ? [`dirty: ${preview.dirty}`] : []),
+    ...payloadDateLines(preview),
     `started: ${preview.started}`,
     `layer generation: ${state.layer.generation}`,
     ...(state.layer.fingerprint
@@ -351,12 +363,15 @@ function renderLayerReference(state) {
   const identity = producer.commit
     ? `${producer.commit.slice(0, 8)}${producer.dirty ? "+" : ""}`
     : fullIdentity;
+  const age = payloadAge(producer);
+  const dateLines = payloadDateLines(producer);
   const safeUrl = new URL(location.href);
   safeUrl.searchParams.delete("t");
   layerDiagnostics = [
     "Leaf layer",
     ...(producer.commit ? [`commit: ${producer.commit}`] : []),
     ...(producer.dirty !== undefined ? [`dirty: ${producer.dirty}`] : []),
+    ...dateLines,
     ...(fingerprint ? [`fingerprint: ${fingerprint}`] : []),
     `generation: ${state.layer.generation}`,
     ...(state.active ? [`revision: ${state.active.revision}`] : []),
@@ -378,15 +393,20 @@ function renderLayerReference(state) {
     });
   }
   layerReferenceElementCopy.value = layerDiagnostics;
-  layerReferenceElementCopy.copyLabel = `Leaf ${identity} · copy version`;
+  const named = `Leaf ${identity}${age ? ` · ${age}` : ""}`;
+  layerReferenceElementCopy.copyLabel = `${named} · copy version`;
   layerReferenceElement.replaceChildren(
     "Leaf ",
     el("code", "lf-layer-version", identity),
+    ...(age ? [` · ${age}`] : []),
   );
-  layerReferenceElement.title = producer.dirty
-    ? "+ means this layer includes uncommitted changes · copy diagnostics"
-    : "Copy Leaf layer version and diagnostics";
-  layerReferenceElement.setAttribute("aria-label", `Leaf ${identity} · copy version`);
+  layerReferenceElement.title = [
+    ...dateLines,
+    producer.dirty
+      ? "+ means this layer includes uncommitted changes · copy diagnostics"
+      : "Copy Leaf layer version and diagnostics",
+  ].join("\n");
+  layerReferenceElement.setAttribute("aria-label", `${named} · copy version`);
 }
 // Status sentences for an unreachable server or a state the page cannot apply.
 const OFFLINE_LINE =

@@ -73,15 +73,22 @@ const TYPED_TYPES = new Set([
   "week",
 ]);
 
-// Select options retain typeahead when an open custom list moves focus into an option.
-export function takesLetters(node) {
+// Where a printed key becomes text in the box.
+export function typesText(node) {
   return (
     Boolean(node) &&
     (node.matches(TEXT_BOX) ||
-      node.tagName === "SELECT" ||
-      node.getAttribute("role") === "option" ||
       node.isContentEditable ||
       (node.tagName === "INPUT" && TYPED_TYPES.has(node.type)))
+  );
+}
+
+// Select options retain typeahead when an open custom list moves focus into an option.
+export function takesLetters(node) {
+  return (
+    typesText(node) ||
+    (Boolean(node) &&
+      (node.tagName === "SELECT" || node.getAttribute("role") === "option"))
   );
 }
 

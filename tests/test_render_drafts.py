@@ -3235,8 +3235,9 @@ def test_the_reading_keys_accumulate_and_reverse(browser, serve, down, up):
         60
         if down == "j"
         else page.evaluate(
-            "() => (document.scrollingElement.clientHeight"
-            " - parseFloat(getComputedStyle(document.scrollingElement).scrollPaddingTop)) * 0.6"
+            "() => { const s = getComputedStyle(document.scrollingElement); return ("
+            " document.scrollingElement.clientHeight - parseFloat(s.scrollPaddingTop)"
+            " - parseFloat(s.scrollPaddingBottom)) * 0.6; }"
         )
     )
     assert page.evaluate(
@@ -3350,8 +3351,9 @@ def test_the_reading_page_step_never_paints_behind_where_it_started(browser, ser
         "Emulation.setCPUThrottlingRate", {"rate": 20}
     )
     step = page.evaluate(
-        "() => (document.scrollingElement.clientHeight"
-        " - parseFloat(getComputedStyle(document.scrollingElement).scrollPaddingTop)) * 0.6"
+        "() => { const s = getComputedStyle(document.scrollingElement); return ("
+        " document.scrollingElement.clientHeight - parseFloat(s.scrollPaddingTop)"
+        " - parseFloat(s.scrollPaddingBottom)) * 0.6; }"
     )
     start = round(step * 2)
     page.evaluate("""() => {
@@ -3394,8 +3396,9 @@ def test_the_reading_keys_jump_under_reduced_motion(browser, serve, down, up):
         60
         if down == "j"
         else page.evaluate(
-            "() => (document.scrollingElement.clientHeight"
-            " - parseFloat(getComputedStyle(document.scrollingElement).scrollPaddingTop)) * 0.6"
+            "() => { const s = getComputedStyle(document.scrollingElement); return ("
+            " document.scrollingElement.clientHeight - parseFloat(s.scrollPaddingTop)"
+            " - parseFloat(s.scrollPaddingBottom)) * 0.6; }"
         )
     )
     page.keyboard.press(down)
@@ -3498,8 +3501,9 @@ def test_the_reading_page_keys_follow_the_user_into_the_panel(browser, serve):
     # document's own step is a glide, and the position it is going to is the one place
     # it does not pass through early (the reading-page test says the rest).
     step = page.evaluate(
-        "() => (document.scrollingElement.clientHeight"
-        " - parseFloat(getComputedStyle(document.scrollingElement).scrollPaddingTop)) * 0.6"
+        "() => { const s = getComputedStyle(document.scrollingElement); return ("
+        " document.scrollingElement.clientHeight - parseFloat(s.scrollPaddingTop)"
+        " - parseFloat(s.scrollPaddingBottom)) * 0.6; }"
     )
     page_was, threads_was = offsets()
     page.keyboard.press("d")
@@ -3534,7 +3538,8 @@ def test_the_reading_page_keys_follow_the_user_into_the_panel(browser, serve):
         arg=[page_was, threads_was],
     )
     thread_step = page.locator(".lf-threads").evaluate(
-        "t => (t.clientHeight - parseFloat(getComputedStyle(t).scrollPaddingTop)) * 0.6"
+        "t => { const s = getComputedStyle(t); return (t.clientHeight"
+        " - parseFloat(s.scrollPaddingTop) - parseFloat(s.scrollPaddingBottom)) * 0.6; }"
     )
     page.wait_for_function(
         "w => { const t = document.querySelector('.lf-threads');"

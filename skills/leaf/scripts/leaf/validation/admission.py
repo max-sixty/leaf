@@ -16,9 +16,8 @@ from leaf.thread_context import thread_roots, thread_structure
 from .instances import reference_errors, thread_markup_contract_errors
 from .markup import (
     fragment_style_errors,
+    id_errors,
     media_errors,
-    reserved_ids_error,
-    reserved_marker_errors,
     text_media_errors,
 )
 
@@ -197,14 +196,8 @@ def check_markup(
         )
     if not frag.lf_elements:
         sys.exit("--markup carries no widget; put prose in --text")
-    if frag.duplicate_ids:
-        sys.exit(
-            f"{kind} widget markup reuses an id within itself: {frag.duplicate_ids}"
-        )
-    if frag.reserved_ids:
-        sys.exit(f"{kind} widget markup takes " + reserved_ids_error(frag.reserved_ids))
-    if marker_errors := reserved_marker_errors(frag):
-        sys.exit(f"{kind} widget markup: " + "; ".join(marker_errors))
+    if names := id_errors(frag):
+        sys.exit(f"{kind} widget markup: " + "; ".join(names))
     thread = thread_structure(events)
     revisions = list_revisions(page_dir)
     if page is None:

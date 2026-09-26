@@ -282,8 +282,11 @@ def mark_preview(source: Path, page: Path, runtime: Path, user: bool) -> None:
             "checkout": runtime.name,
             "interaction": "user" if user else "author",
             "started": datetime.now(timezone.utc).isoformat(),
-            **({"commit": producer["commit"]} if "commit" in producer else {}),
-            **({"dirty": producer["dirty"]} if "dirty" in producer else {}),
+            **{
+                key: producer[key]
+                for key in ("commit", "dirty", "committed", "installed")
+                if key in producer
+            },
         },
     )
 

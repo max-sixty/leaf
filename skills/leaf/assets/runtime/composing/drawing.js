@@ -17,9 +17,9 @@
 
 import { clippedContents, documentPoint, shownBox } from "../geometry.js";
 import { clamp, overlaps } from "../rect.js";
+import { COLLAPSE } from "../collapse.js";
 import {
   closestAcross,
-  COLLAPSE,
   cut,
   elementFromPointAcross,
   elementOver,

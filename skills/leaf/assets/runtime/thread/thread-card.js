@@ -24,6 +24,7 @@ import { renderMarkdown } from "../markdown.js";
 import { summaryRanges, unreadBoundaries } from "./summary-ranges.js";
 import { threadAttention } from "./workflow.js";
 import { shownRect } from "../geometry.js";
+import { ago, shortAgo } from "../presence.js";
 
 function quoteReading(thread, anchors, outline) {
   const group = groupFor(thread, outline, anchors.placedAt);
@@ -121,10 +122,12 @@ function navigationSummary(navigation, model) {
   const pendingTitle = model.titlePending;
   const title = model.summary.topic;
   const count = model.summary.count;
+  const latest = model.summary.latest;
   const status = model.resolved ? "Resolved" : model.attention?.label || "";
   const action = model.attention?.action;
   const statusText = [status, action].filter(Boolean).join(" · ");
   const draft = Boolean(loadDraft("reply:" + model.key)?.trim());
+  const hasMeta = draft || status || model.unreadCount;
   return html`<summary
     class="lf-thread-summary"
     title=${pendingTitle ? "Title pending" : title}
@@ -141,7 +144,7 @@ function navigationSummary(navigation, model) {
           : title
       }</span
     >
-    <span class="lf-thread-meta">
+    <span class=${`lf-thread-meta${hasMeta ? "" : " lf-empty"}`}>
       ${draft ? html`<span class="lf-thread-draft">Draft</span>` : nothing}
       ${
         status
@@ -167,11 +170,25 @@ function navigationSummary(navigation, model) {
           : nothing
       }
     </span>
-    <span
-      class="lf-thread-count"
-      aria-label=${`${count} ${count === 1 ? "message" : "messages"}`}
-      >${count}</span
-    >
+    <span class="lf-thread-trailing">
+      <span
+        class="lf-thread-count"
+        aria-label=${`${count} ${count === 1 ? "message" : "messages"}`}
+        >${count}</span
+      >
+      ${
+        latest
+          ? html`<span class="lf-thread-trailing-separator" aria-hidden="true">·</span>
+              <time
+                class="lf-thread-recency"
+                datetime=${latest}
+                title=${`Last message activity ${new Date(latest).toLocaleString()}`}
+                aria-label=${`Last message activity ${ago(latest)}`}
+                >${shortAgo(latest)}</time
+              >`
+          : nothing
+      }
+    </span>
   </summary>`;
 }
 

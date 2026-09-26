@@ -107,8 +107,7 @@ suggestRow.append(suggestCheck, document.createTextNode("Suggest replacement tex
 // composer node keeps the draft's controls and quote description, while this field
 // stays in the response bar and never jumps to a second box.
 const composerInput = fabInput;
-// The mark is a paint, and a paint is nothing to a screen reader (see "Paint; don't wrap"
-// in AGENTS.md). So what the box is anchored to travels as the box's own description,
+// The mark is a paint, and a paint is nothing to a screen reader. So what the box is anchored to travels as the box's own description,
 // announced on focus — which is more than the visible quote ever said, since nothing
 // pointed a user at it.
 composerInput.setAttribute("aria-describedby", composerQuote.id);

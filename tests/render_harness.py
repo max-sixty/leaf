@@ -73,8 +73,8 @@ assert PUBLIC_EXAMPLES and len(PUBLIC_EXAMPLES) + 1 == len(EXAMPLES), (
 CORPUS_SOURCES = (*PUBLIC_EXAMPLES, *regression_sources(), *DEVELOPER_PAGES)
 CORPUS_PAGE = ROOT / "examples" / "corpus.html"
 # The bytes an example names but cannot hold: a lf-shot's pair, content-addressed
-# exactly as `leaf page media` names it in a real page directory. examples/AGENTS.md
-# lists every publisher that has to lay this beside the markup, this one among them.
+# exactly as `leaf page media` names it in a real page directory. Every builder of
+# a page directory lays this beside the markup (examples/AGENTS.md, "Media").
 EXAMPLE_MEDIA = ROOT / "examples" / "media"
 
 PASSAGE_SOURCES = (
@@ -396,6 +396,11 @@ def serve(tmp_path, monkeypatch, initialized_page):
     half of it. A thread and any widget a message carries exist nowhere else, so
     without this every sweep is green over a page the user never gets.
 
+    `seed_log=False` leaves an example's log out while still laying in its media, for a
+    test that appends those events itself. `layer_registry` and `layer_widgets` add a
+    project package, a registry and its widget modules, for a reading the layer makes
+    from declarations, so the test does not depend on which shipped tag declares them.
+
     Each call gets its own directory, reached through `serve.page_dir`. Sharing one
     meant a test that serves two examples in a single body re-initialised over the
     first and appended the second's events to a log already holding the first's,
@@ -587,7 +592,8 @@ class Traffic:
     """One page's trips to the server, as the runtime counts them.
 
     The runtime keeps the ledger (runtime/traffic.js) and paints it on the root
-    element as `data-lf-traffic`; this reads it. `pending` is the outbox's own list of attempts with
+    element as `data-lf-traffic`; this reads it. `sends` counts attempts, so a retry is a
+    second send. `pending` is the outbox's own list of attempts with
     no delivery outcome yet, so a failed request stays pending while the outbox retries
     it, and a definitive refusal or a response naming the accepted attempt clears it.
     That is delivery. Whether the page then applied the returned state is a separate
@@ -772,7 +778,10 @@ def _server_reading(page):
 
 
 def told(page):
-    """Wait until the page has taken in everything the server now holds."""
+    """Wait until the page has taken in everything the server now holds.
+
+    Call it after the test writes a version, event, status, or lease behind a live
+    page, before reading that page."""
     deadline = time.monotonic() + 30
     began = None
     while True:
@@ -1069,8 +1078,8 @@ def watched(page):
     Console warnings/errors and uncaught exceptions are joined by window errors
     without exceptions, installed through the same `install_window_errors` helper
     the render gate uses. Call before navigation so the init script takes effect.
-    Repeated calls return the existing list. `tests/AGENTS.md`, "A page is ready
-    when it says what has finished", owns consumption and cleanup policy."""
+    Repeated calls return the existing list. `tests/AGENTS.md`, "Consume a browser
+    error where it is caused", owns consumption and cleanup policy."""
     assert _BROWSER_PROBLEM_LISTS is not None, (
         "watched pages need the function-scoped browser fixture"
     )
@@ -1576,7 +1585,7 @@ class WatchedBrowser:
     `unwatched` exposes the underlying browser for product gates that deliberately
     open faulty pages and report those faults themselves. Ordinary clean-page
     journeys use the wrapped browser. Fixture policy lives in `tests/AGENTS.md`,
-    "A page is ready when it says what has finished"."""
+    "Consume a browser error where it is caused"."""
 
     def __init__(self, browser):
         self._browser = browser
@@ -1634,8 +1643,8 @@ def margins_laid_out(page):
     window — but only on the runs where the frame had not landed yet, which is why the
     same probe condensed on one run and not the next.
 
-    The pending frame is not a fact to wait a frame for (`tests/AGENTS.md`, "a fixed
-    number of animation frames only guesses"), so the work is run instead of guessed at.
+    The pending frame is not a fact to wait a frame for (`tests/AGENTS.md`, "A wait
+    consumes a fact the system states"), so the work is run instead of guessed at.
     Whether the observer schedules it at all is `test_render_margin.py`'s subject, not
     that of a test reading the layout it produces.
 

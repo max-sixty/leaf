@@ -92,8 +92,8 @@ def browser_thread(
     data: dict | None = None,
 ) -> tuple[dict, FrozenThreadReading]:
     """The threads' browser reading. Whose turn each thread is reaches the browser
-    as the `attention` `served_state.browser` attaches from this reading's Asks and
-    `awaits_user` and the page's workflows."""
+    only as its `attention`, which `served_state.browser` attaches from this
+    reading's Asks and `user_prompt` and the page's workflows."""
     settled = {identity for identity, thread in threads.items() if thread["resolved"]}
     reading = frozen_thread_reading(events, registry)
     requests = request_lifecycles_for(
@@ -144,7 +144,6 @@ def browser_thread(
         rendered_threads.append(
             {
                 **thread,
-                "awaits_user": awaits_user,
                 "user_prompt": user_prompt,
                 "bare_reaction": bare_reaction(thread),
                 "seat": seat_root(thread),

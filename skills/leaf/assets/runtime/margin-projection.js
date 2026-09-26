@@ -44,6 +44,9 @@
    outside the card, its target, and its cluster takes it down (`followStanding`). Escape from inside the
    card lands on its target. With Threads open the list's one expanded thread plays the
    card's part: the same arrival expands the target's thread there (`accompanyThread`).
+   The rest of the runtime reads both directions from here: `threadHere` gives the thread
+   a user standing on the page is at, and the side this owner declares to
+   standing-target.js gives the page target a card, cluster, or panel thread stands for.
 
    Placing the card changes its geometry and nothing inside it. The user's place in
    its transcript is the list's own scroll, held through reflow. A landing, send, or
@@ -137,6 +140,7 @@ import { versionBtn } from "./version-chooser.js";
 import { motion, scrollBehavior } from "./motion.js";
 import { panel } from "./thread/panel-elements.js";
 import { accompaniedThread, accompanyThread } from "./thread/landing.js";
+import { declareSide } from "./standing-target.js";
 import { closestAcross, elementById, inChrome } from "./passages.js";
 import { addressableSays, addressableWord, visualAt } from "./anchor-resolution.js";
 import { paintTrace } from "./target-paint.js";
@@ -2694,6 +2698,21 @@ export function createMarginProjection({
     const threads = previewList.querySelectorAll(".lf-margin-thread .lf-page-thread");
     return threads.length === 1 ? threads[0] : null;
   };
+  // The page element a thread is about, resolved or not: where its anchor is placed, the
+  // element its inventory entry is grouped under. A general or detached thread has none.
+  const threadTarget = (id) => placedAt(id)?.element ?? null;
+  // The page target this owner's chrome shows (standing-target.js): a margin cluster
+  // control's, the card's — its threads and its own controls — and a thread's in the
+  // Threads panel. `threadHere` is the same relation read the other way.
+  declareSide((node) => {
+    const projected = marginTargetAt(node);
+    if (projected) return projected;
+    if (preview.contains(node)) return targetFor(previewEntry);
+    const listed = panel.contains(node)
+      ? closestAcross(node, ".lf-thread[data-id]")
+      : null;
+    return listed ? threadTarget(listed.dataset.id) : null;
+  });
   // A live revision replaces the browser document, so DOM identity cannot carry a
   // user standing in retained margin chrome. Carry the target and margin-entry keys
   // instead; this owner alone can revalidate those keys against the new projection and
@@ -2855,6 +2874,7 @@ export function createMarginProjection({
     unfoldedMarginEntries,
     foldMarginEntryOptions,
     threadHere,
+    threadTarget,
     captureStanding,
     restoreStanding,
     mount,

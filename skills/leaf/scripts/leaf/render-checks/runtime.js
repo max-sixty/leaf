@@ -38,8 +38,19 @@ export function moving() {
 export const pageSettled = () => moving().length === 0;
 export const userViewRestoreCases = () => USER_VIEW_RESTORE_CASES;
 
+const formControl = (node) => node.constructor.formAssociated === true;
+
+// Where a node Chrome raised a DevTools issue about is, and whether the page owns it.
+// A form-associated control's shadow tree is its module's implementation, so an issue
+// there is the control's to fix; what the page put in its light DOM stays the page's.
+export function issueNode(node) {
+  let owned = true;
+  for (let root = node.getRootNode(); root.host; root = root.host.getRootNode())
+    if (formControl(root.host)) owned = false;
+  return { at: at(node), owned };
+}
+
 export function unnamedFormFields() {
-  const formControl = (node) => node.constructor.formAssociated === true;
   // A form-associated custom element owns the field's identity, including its
   // shadow implementation and light-DOM choices in a grouped control.
   const insideControl = (field) => {

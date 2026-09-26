@@ -320,7 +320,7 @@ export function createResponseSurface({
 
   // Reparenting the canonical response bar is presentation, not a composer transition.
   // Preserve the exact typing position across light/shadow DOM moves; Chromium may put
-  // focus on the shadow host while a focused textarea is adopted into its tree.
+  // focus on the shadow host while a focused field is adopted into its tree.
   function moveFab(parent) {
     if (fabBar.parentElement === parent) return;
     const held = captureFabFocus();
@@ -429,7 +429,7 @@ export function createResponseSurface({
       // The reactions palette temporarily owns focus and may itself be re-seated during
       // a responsive layout change. The open composer is the durable proof that this
       // captured passage still belongs to the response transaction; native selection is
-      // no longer available once the textarea took focus.
+      // no longer available once the field took focus.
       if (!composerOpen && !fabHoldsCapturedPassage()) return null;
     }
     const found = anchor ? resolveAnchor(anchor, pageText()) : null;
@@ -934,7 +934,7 @@ export function createResponseSurface({
   // the user who was looking at it.
   //
   // Instant, and before the box is measured. Placing reads the addressable's box, so that has
-  // to be the box the addressable keeps; and opening focuses the textarea, whose
+  // to be the box the addressable keeps; and opening focuses the field, whose
   // scroll-into-view cancels a glide already under way — which is what left the addressable flush against an edge
   // rather than framed, and is not `openComposer`'s to give up, three other presses opening
   // that box against a passage they have not moved.
@@ -1208,7 +1208,7 @@ export function createResponseSurface({
     if (drawModeActive()) return;
     // A mouse pointer is followed by the compatibility mouseup below, which performs the
     // sentence snap before opening the field. Opening from pointerup first would focus the
-    // textarea and collapse the still-unsnapped Selection before mouseup can finish it.
+    // field and collapse the still-unsnapped Selection before mouseup can finish it.
     // Touch/pen and cancellation owe us no compatibility mouse event, so they keep this
     // direct route.
     // Released on the next task either way, which keeps selectionchange in the

@@ -121,7 +121,8 @@ try {
     element.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
   });
   const commentText = `Comment delivered directly through MCP tools: ${randomUUID()}`;
-  await app.locator(".lf-fab-input").fill(commentText);
+  await app.locator(".lf-fab-input").focus();
+  await page.keyboard.insertText(commentText);
   await app.locator(".lf-fab-input").press("ControlOrMeta+Enter");
   const comment = await newEvent(
     (event) => event.kind === "comment" && event.text === commentText,
@@ -132,7 +133,7 @@ try {
   // to receive focus before opening the overview that continuation would close.
   await app
     .locator(
-      `.lf-margin-thread .lf-page-thread[data-thread="${comment.id}"] textarea:focus`,
+      `.lf-margin-thread .lf-page-thread[data-thread="${comment.id}"] leaf-text:focus`,
     )
     .waitFor();
   const threadsToggle = app.getByRole("button", { name: /^Threads/ });

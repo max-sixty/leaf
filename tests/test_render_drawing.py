@@ -25,6 +25,7 @@ from render_harness import (
     rendered,
     sending,
     told,
+    write,
 )
 
 pytestmark = pytest.mark.nightly
@@ -141,7 +142,7 @@ def test_a_drawing_is_sent_and_replayed_as_an_ordinary_comment(browser, serve):
     assert target.get_attribute("chosen") is None
     field = page.locator(".lf-fab-input")
     expect(field).to_be_focused()
-    field.fill("This bend is the part I mean.")
+    write(field, "This bend is the part I mean.")
     with sending(page, "the drawing comment"):
         page.keyboard.press("ControlOrMeta+Enter")
 
@@ -450,7 +451,7 @@ def test_a_drawing_can_begin_on_page_whitespace(browser, serve):
     page.mouse.up()
 
     expect(page.locator(".lf-drawing-pending")).to_have_count(1)
-    expect(page.locator(".lf-general textarea")).to_be_focused()
+    expect(page.locator(".lf-general leaf-text")).to_be_focused()
     expect(page.locator(".lf-general .lf-compose-submit")).to_have_attribute(
         "aria-disabled", "false"
     )
@@ -472,8 +473,8 @@ def test_a_drawing_can_begin_on_page_whitespace(browser, serve):
     expect(page.locator(".lf-drawing-pending path")).to_have_attribute(
         "d", re.compile(r"^M[^M]*M[^M]*$")
     )
-    field = page.locator(".lf-general textarea")
-    expect(field).to_have_value("")
+    field = page.locator(".lf-general leaf-text")
+    expect(field).to_have_js_property("value", "")
     field.focus()
     with sending(page, "the page drawing"):
         page.keyboard.press("ControlOrMeta+Enter")
@@ -510,19 +511,19 @@ def test_a_drawing_can_begin_on_page_whitespace(browser, serve):
 
 def test_a_page_drawing_keeps_pasted_media_already_in_the_general_draft(browser, serve):
     """Adding a page drawing preserves the complete compound draft, including image
-    Markdown projected out of the textarea as a thumbnail."""
+    Markdown projected out of the text field as a thumbnail."""
     page = open_page(browser, serve(TARGETS_PAGE))
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    field = page.locator(".lf-general textarea")
+    field = page.locator(".lf-general leaf-text")
     pixels = (EXAMPLE_MEDIA / "051bee487bfb5d13.png").read_bytes()
     with page.expect_response(lambda response: response.url.endswith("/api/media")):
         field.evaluate(
-            """(textarea, encoded) => {
+            """(box, encoded) => {
               const bytes = Uint8Array.from(atob(encoded), char => char.charCodeAt(0));
               const transfer = new DataTransfer();
               transfer.items.add(new File([bytes], 'drawing.png', {type: 'image/png'}));
-              textarea.dispatchEvent(new ClipboardEvent('paste', {
+              box.dispatchEvent(new ClipboardEvent('paste', {
                 bubbles: true,
                 cancelable: true,
                 clipboardData: transfer,
@@ -549,7 +550,7 @@ def test_a_page_drawing_keeps_pasted_media_already_in_the_general_draft(browser,
     page.mouse.up()
 
     expect(field).to_be_focused()
-    expect(field).to_have_value("")
+    expect(field).to_have_js_property("value", "")
     expect(page.locator(".lf-general .lf-composer-media img")).to_be_visible()
     with sending(page, "the drawing and image comment"):
         page.keyboard.press("ControlOrMeta+Enter")
@@ -637,7 +638,7 @@ def test_page_and_anchored_drawing_drafts_keep_their_own_ink(browser, serve):
     draw_over(page, page.locator("#prose"))
 
     expect(page.locator(".lf-drawing-pending")).to_have_count(2)
-    page.locator(".lf-fab-input").fill("The anchored draft.")
+    write(page.locator(".lf-fab-input"), "The anchored draft.")
     with sending(page, "the anchored drawing beside the page draft"):
         page.keyboard.press("ControlOrMeta+Enter")
     event = events_model.read_events(serve.page_dir)[-1]
@@ -665,7 +666,7 @@ def test_strokes_join_one_drawing_until_it_is_sent_and_escape_leaves(browser, se
     origin = prose.bounding_box()
     expect(pending).to_have_attribute("d", re.compile(r"^M[^M]*M[^M]*$"))
     expect(field).to_be_focused()
-    field.fill("All of these.")
+    write(field, "All of these.")
 
     # Escape puts the box away and keeps its draft; the next stroke joins that draft.
     page.keyboard.press("Escape")
@@ -674,7 +675,7 @@ def test_strokes_join_one_drawing_until_it_is_sent_and_escape_leaves(browser, se
     stroke_over(page, page.locator("#fig"), points=((0.3, 0.3), (0.5, 0.7), (0.7, 0.3)))
     expect(pending).to_have_attribute("d", re.compile(r"^M[^M]*M[^M]*M[^M]*$"))
     expect(field).to_be_focused()
-    expect(field).to_have_value("All of these.")
+    expect(field).to_have_js_property("value", "All of these.")
     with sending(page, "the three-stroke drawing"):
         page.keyboard.press("ControlOrMeta+Enter")
 
@@ -899,7 +900,7 @@ def test_a_draw_press_uses_the_exact_target_under_its_start(browser, serve):
     page.mouse.down()
     page.mouse.move(point[0] + 80, point[1], steps=8)
     page.mouse.up()
-    page.locator(".lf-fab-input").fill("The seam I pointed at.")
+    write(page.locator(".lf-fab-input"), "The seam I pointed at.")
     with sending(page, "the seam drawing"):
         page.keyboard.press("ControlOrMeta+Enter")
 
@@ -924,7 +925,7 @@ def test_an_active_stroke_re_resolves_a_replaced_target(browser, serve):
     page.mouse.up()
 
     expect(page.locator(".lf-drawing-pending")).to_have_count(1)
-    page.locator(".lf-fab-input").fill("The replaced target still owns this.")
+    write(page.locator(".lf-fab-input"), "The replaced target still owns this.")
     with sending(page, "the replacement drawing"):
         page.keyboard.press("ControlOrMeta+Enter")
     (stroke,) = events_model.read_events(serve.page_dir)[-1]["drawing"]["strokes"]
@@ -939,14 +940,14 @@ def test_an_unsent_drawing_survives_reload_before_it_has_words(browser, serve):
 
     draw_over(page, page.locator("#prose"))
     expect(page.locator(".lf-drawing-pending")).to_have_count(1)
-    expect(page.locator(".lf-fab-input")).to_have_value("")
+    expect(page.locator(".lf-fab-input")).to_have_js_property("value", "")
 
     page.reload(wait_until="load")
     page.wait_for_function(BOTH_STAMPS)
 
     expect(page.locator(".lf-drawing-pending")).to_have_count(1)
     expect(page.locator(".lf-fab-input")).to_be_visible()
-    expect(page.locator(".lf-fab-input")).to_have_value("")
+    expect(page.locator(".lf-fab-input")).to_have_js_property("value", "")
     assert events_model.read_events(serve.page_dir)[-1]["kind"] == "note"
 
 
@@ -972,8 +973,8 @@ def test_a_malformed_page_drawing_draft_keeps_its_words_without_the_mark(
     page.wait_for_function(BOTH_STAMPS)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    field = page.locator(".lf-general textarea")
-    expect(field).to_have_value("Keep these words.")
+    field = page.locator(".lf-general leaf-text")
+    expect(field).to_have_js_property("value", "Keep these words.")
     expect(page.locator(".lf-drawing-mark")).to_have_count(0)
     with sending(page, "the text-only recovered draft"):
         page.locator(".lf-general .lf-compose-submit").click()
@@ -1013,7 +1014,7 @@ def test_a_malformed_anchored_drawing_draft_keeps_its_words_without_the_mark(
     page.wait_for_function(BOTH_STAMPS)
     field = page.locator(".lf-fab-input")
     expect(field).to_be_visible()
-    expect(field).to_have_value("Keep these anchored words.")
+    expect(field).to_have_js_property("value", "Keep these anchored words.")
     expect(page.locator(".lf-drawing-mark")).to_have_count(0)
     with sending(page, "the text-only recovered anchored draft"):
         page.keyboard.press("ControlOrMeta+Enter")
@@ -1031,7 +1032,7 @@ def test_a_drawing_can_be_sent_without_words(browser, serve):
 
     draw_over(page, page.locator("#prose"))
     field = page.locator(".lf-fab-input")
-    expect(field).to_have_value("")
+    expect(field).to_have_js_property("value", "")
     expect(field).to_be_focused()
     expect(
         page.locator(".lf-composer .lf-compose-field .lf-compose-submit")

@@ -1,4 +1,4 @@
-import { shownBox, shownParts } from "/runtime/widget-api.js";
+import { shownBox, shownParts, TEXT_BOX } from "/runtime/widget-api.js";
 import { at } from "./locate.js";
 
 // A widget that upgraded into no room to be read in. The floor is two numbers, and
@@ -238,7 +238,7 @@ export function unreachableWords() {
   // The anchor pass's own rule: the nearest element that answers wins.
   const speaks = (el) =>
     Boolean(el.closest(".lf-ui, [data-lf-said]")?.matches("[data-lf-said]"));
-  const FORM = "button, textarea, input, select";
+  const FORM = `button, ${TEXT_BOX}, input, select`;
   // Where a control's own words may sit: the control a widget declared (data-lf-offer,
   // asked instead of the role it wears, because lf-tabs overwrites `offer`'s
   // role="button" with "tab" and a Δ badge in a tab then read as a heading somebody

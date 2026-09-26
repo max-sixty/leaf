@@ -8,6 +8,7 @@ import {
   saveDraft,
   sendDraft,
   notice,
+  TEXT_FIELD,
   watchDraft,
   wireInput,
 } from "/runtime/widget-api.js";
@@ -65,9 +66,8 @@ export class OptionAddition {
 
   #buildForm() {
     this.#form = offer("form", "lf-another");
-    this.#input = offer("textarea");
+    this.#input = offer(TEXT_FIELD);
     this.#input.name = "option";
-    this.#input.rows = 1;
     this.#input.setAttribute("aria-label", ANOTHER);
     this.#add = offer("button", "lf-btn", "Add");
     this.#add.setAttribute("aria-label", "Add and select option");

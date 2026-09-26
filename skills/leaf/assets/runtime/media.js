@@ -2,7 +2,7 @@
 
    The draft and event log keep one representation: ordinary Markdown naming immutable
    page media. A composer projects the generated image blocks as thumbnails beside its
-   textarea, then materializes the same Markdown again when its visible words change or
+   text field, then materializes the same Markdown again when its visible words change or
    Send reads the draft. Sent-message images open one native modal viewer. The document
    declares its public page root because a website module may live under an immutable
    release URL shared with a specimen. All three resolve

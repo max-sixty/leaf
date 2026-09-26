@@ -43,7 +43,9 @@ export { placeKeeper } from "./user-place.js";
 export { inUi, uiInside, upFrom } from "./shadow.js";
 // Putting the user on an element that may be no tab stop of its own, which is what a
 // widget landing them anywhere but a control needs: the lend leaves with the first blur.
-export { focusDestination } from "./focus.js";
+// TEXT_FIELD is the tag of the box a widget offers for the user to write Markdown in;
+// TEXT_BOX matches it and any native textarea.
+export { focusDestination, TEXT_BOX, TEXT_FIELD } from "./focus.js";
 export { openAsks, watchAsks } from "./application.js";
 export { registerVisualParts } from "./visual-parts.js";
 export { threadBox, consumeThreads } from "./application.js";

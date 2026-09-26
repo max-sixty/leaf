@@ -93,8 +93,9 @@ share; the theme's guard answers for CSS.
 
 `leaf.js` is the boot-only entry: every owner is a module that exports its
 capability and imports what it needs, and `leaf.js` imports them and runs the
-boot sequence. `runtime/bootstrap.js` loads before everything else and can show a
-startup failure even if the module graph never loads. Content modules import only
+boot sequence. `runtime/bootstrap.js` loads before everything else, can show a startup
+failure even if the module graph never loads, and holds page keys pressed
+before presentation. Content modules import only
 `runtime/widget-api.js`, the public helper surface; owners never reach back
 through it or the entry module. Owners are constructed with explicit capabilities
 and cross-owner reads happen in their mounts. Pure projection, thread, and
@@ -203,8 +204,11 @@ Startup order is load-bearing:
 
 Authored HTML paints immediately, and the render-blocking theme reserves the
 banner and shortcut band so mounting the runtime moves nothing. Prose, links, and
-scrolling work while widgets upgrade. Durable controls wait for
-`data-lf-presented` (`../references/packages.md`, "A theme change"). An async
+scrolling work while widgets upgrade. Page keys wait, because a command reads
+state the first answer brings: the bootstrap holds printed keys pressed before
+presentation and the keyboard controller replays them in order once the page
+presents, while any other key or a pointer press drops the held run. Durable
+controls wait for `data-lf-presented` (`../references/packages.md`, "A theme change"). An async
 producer joins settlement before `data-lf-upgraded`, or stays off the
 presentation path through `afterPresentation`, which declares the deferred
 arrival so `pageArrived` still answers for it. `presentPage` owns the one

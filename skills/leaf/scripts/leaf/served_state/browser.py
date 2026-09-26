@@ -4,15 +4,13 @@ from pathlib import Path
 
 from ..activity import canonical_activity, canonical_stream_reply
 from ..events import UndoReading, build_threads, taken_back
-from ..files import list_revisions, revision_path
+from ..files import list_revisions
 from ..gesture_words import GestureWords, RevisionReader, revisions_on_disk
 from ..history import history, wants_history
 from ..projection import canonical_updates, page_reading
-from ..registry.contract import RegistryError
-from ..registry.storage import load_registry
 from ..requests import request_outcomes
-from ..revision_artifact import read_artifact
-from ..structure import SourceDocument
+from ..revision_artifact import read_registry
+from ..structure import SourceDocument, parse_revision
 from ..workflows import canonical_workflows
 from .document import browser_document, browser_undo_candidates
 from .thread import browser_thread
@@ -27,7 +25,7 @@ def _apply_thread_attention(
     """Attach the shared attention aggregate, with user Asks taking precedence.
 
     This is the browser's one reading of whose turn a thread is: `needs_user` for
-    an open Ask or a question the agent's latest turn leaves (`awaits_user`), or a
+    an open Ask or a question the agent's latest turn leaves (`user_prompt`), or a
     response the user must recover; `waiting` while a workflow holds the thread with
     the agent, which covers every input `events.unanswered_turns` holds and any work
     claimed on the thread after it was answered; else None."""
@@ -82,7 +80,7 @@ def _apply_thread_attention(
         if thread["resolved"]:
             thread["attention"] = None
             continue
-        if thread["root"]["id"] in user_threads or thread["awaits_user"]:
+        if thread["root"]["id"] in user_threads or thread["user_prompt"]:
             thread["attention"] = {
                 "kind": "needs_user",
                 "reason": "ask",
@@ -299,30 +297,24 @@ def project_browser_state(
     if requested_revision not in revisions:
         raise ValueError(f"unknown view revision r{requested_revision}")
     wanted = {requested_revision, active_revision}
-    documents = {}
-    for revision in sorted(wanted):
-        if documents_override is not None:
-            documents[revision] = documents_override[revision]
-        else:
-            documents[revision] = SourceDocument(
-                revision_path(page_dir, revision).read_text(encoding="utf-8")
-            )
+    documents = {
+        revision: (
+            documents_override[revision]
+            if documents_override is not None
+            else parse_revision(page_dir, revision)
+        )
+        for revision in sorted(wanted)
+    }
     registries = registries_override
     if registries is None and registry_override is None:
         registries = {
-            revision: read_artifact(page_dir, revision).registry for revision in wanted
+            revision: read_registry(page_dir, revision) for revision in wanted
         }
-    if registry_override is not None:
-        registry = registry_override
-    elif registries is not None:
-        registry = registries[active_revision]
-    else:
-        try:
-            registry = load_registry(page_dir)
-        except RegistryError:
-            return None
-    if registry is None:
-        return None
+    registry = (
+        registry_override
+        if registry_override is not None
+        else registries[active_revision]
+    )
     return browser_state(
         documents,
         events,

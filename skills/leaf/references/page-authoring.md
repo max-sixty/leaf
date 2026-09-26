@@ -131,7 +131,9 @@ through in the body and what they keep an eye on — status, counts, the verdict
 follow-ups, the contents — in the side track. The tracks stack where the side track
 would become too narrow, and `version check --render` names the window a template
 stacks below when that is a desktop window: where the regions must stay side by side
-for a reader in it, give the narrow track a larger share.
+for a reader in it, give the narrow track a larger share. A board is the exception:
+its `3fr 1fr` stacks below a 1000px window, where the board's columns are better given
+the page's whole width.
 
 Draw each region the same way, as a `section.panel` with a short heading, and keep a
 `.callout` with a status tone (`warn`, `danger`, `ok`) for the one thing the reader must

@@ -45,8 +45,8 @@ The thread panel is a narrow column over the right of the page, so a paragraph t
 reads fine in chat is a wall there. A reply says what changed or where to look: a sentence or
 two, or one short paragraph or list item per point when there are several. The page
 carries the evidence, and a stamp's changelog carries the full list of changes.
-When a discussion produces a decision or defers work, record the outcome on the page
-and link it from the reply that reports it, with a fragment link such as
+When a discussion produces a decision, a result, or deferred work, record the outcome
+on the page and link it from the reply that reports it, with a fragment link such as
 `[the decision](#decision)`, which opens whatever tab or group hides its target; the
 runtime marks a fragment link the current version cannot follow. When the rationale
 matters to a user using the result, keep the thread anchored to that page section.

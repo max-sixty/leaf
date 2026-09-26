@@ -1445,14 +1445,15 @@ def trial_family(tmp_path):
         declarations[tag].pop("x-example", None)
         declarations[tag].pop("required", None)
     source.write_text(json.dumps(declarations))
-    # The fixture styles every tag as a card; a slot is a slot, the way the shipped
-    # family's lf-old/lf-new draw no box of their own. Left as cards, the slots carry
-    # margins that stand trapped under the holder's frame once a settled sibling is
-    # hidden — a real TRAPPED_MARGINS finding about the fixture, not about the gate.
+    # The fixture styles every tag as a card. These slots draw no box of their own;
+    # clear their paragraph margins so retiring a sibling cannot leave a margin
+    # trapped against the holder's frame. Geometry is not this family's subject.
     theme = tmp_path / ".leaf" / "theme.css"
     theme.write_text(
         theme.read_text() + "\nlf-current, lf-proposed "
-        "{ display: block; margin: 0; padding: 0; border: none; --lf-block-frame: initial; }\n"
+        "{ display: block; margin: 0; padding: 0; border: none; "
+        "--lf-block-frame: initial; }\n"
+        "lf-current p, lf-proposed p { margin-block: 0; }\n"
     )
 
 

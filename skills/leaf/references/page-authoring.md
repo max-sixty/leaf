@@ -131,7 +131,11 @@ stacking its regions, rather than a new grid per row whose splits land somewhere
 each time (`version check --render` advises on those). Put what the reader works
 through in the body and what they keep an eye on — status, counts, the verdict's
 follow-ups, the contents — in the side track. The tracks stack where the side track
-would become too narrow.
+would become too narrow, and `version check --render` names the window a template
+stacks below when that is a desktop window: where the regions must stay side by side
+for a reader in it, give the narrow track a larger share. A board is the exception:
+its `3fr 1fr` stacks below a 1000px window, where the board's columns are better given
+the page's whole width.
 
 Draw each region the same way, as a `section.panel` with a short heading, and keep a
 `.callout` with a status tone (`warn`, `danger`, `ok`) for the one thing the reader must
@@ -153,10 +157,13 @@ height and the page scrolls.
 
 ### Bounds and widths
 
-A log, feed, or long listing bounds its own height with `data-bound="end"`, which
-keeps it on its newest line while the user is at the end and leaves them where
-they scrolled back to otherwise; `data-bound="start"` opens it at the top. Some
-widgets bound themselves by default. Don't make a box scroll vertically with page
+A log, feed, or long listing bounds its own height with `data-bound`, naming the end
+its newest entry is at. Put the entries in the order the reader needs, then bound
+that order. A list that grows downward takes `data-bound="end"`, which opens it on
+its last line, keeps that line in view while the user is at the end, and leaves them
+where they scrolled back to otherwise. A newest-first list takes
+`data-bound="start"`, which opens it at the top, as the page's own activity feed
+does. Some widgets bound themselves by default. Don't make a box scroll vertically with page
 CSS: Leaf keeps no reading position in a scroller it did not make, and `version
 check` advises against one.
 

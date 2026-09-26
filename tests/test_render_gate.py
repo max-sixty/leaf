@@ -47,6 +47,8 @@ from render_cases_layout import (
     SHADOW_HOST_PAGE,
     SIDENOTE_IN_A_WIDGET,
     SPILLING_PAGE,
+    TEMPLATE_PAIR_LAYER,
+    TEMPLATE_PAIR_WIDGETS,
     UNMARKABLE_PAGE,
     WIDE_TABLE_PAGE,
     apply_restore_case,
@@ -234,6 +236,180 @@ def test_a_wide_page_whose_rows_split_anywhere_gets_advice_and_still_passes(
     for grid in ("lp-now", "lp-evidence", "lp-release"):
         assert f"<lf-grid id={grid}> at " in advice, advice
     assert "lp-status" not in advice, advice
+
+
+def test_a_template_that_stacks_in_a_desktop_window_gets_advice_naming_the_window(
+    browser, serve
+):
+    """A queue beside its detail at `1fr 2.4fr` needs 786px side by side, which a wide
+    page gives it only in a window of 854px or more; the gate names that window, and
+    the page stacks exactly there. The recommended `2fr 1fr` stacks below 757px, a
+    window too narrow to be worth saying, and a template nested in its side track has
+    a cell too narrow for it at any width."""
+    source = _wide_page(
+        "stacking templates",
+        f"""
+<h1>Stacking</h1>
+<lf-grid id="queue" columns="1fr 2.4fr">{_panel("items")}{_panel("detail")}</lf-grid>
+<lf-grid id="layout" columns="2fr 1fr">{_panel("body")}<lf-grid id="side" columns="1fr 1fr">{_panel("left")}{_panel("right")}</lf-grid></lf-grid>
+""",
+    )
+    url = serve(source, packages=())
+
+    reading = render_gate_model.render_version(browser, url)
+
+    assert reading.failures == []
+    stacking = sorted(line for line in reading.advice if "one column" in line)
+    assert len(stacking) == 2, reading.advice
+    queue, side = stacking
+    assert side.startswith("<lf-grid id=side> stands in one column at 1200px wide: "), (
+        side
+    )
+    window = int(
+        re.match(
+            r'<lf-grid id=queue> stacks into one column in a window narrower than (\d+)px: its columns="1fr 2.4fr" tracks need 786px side by side',
+            queue,
+        )[1]
+    )
+    page = open_page(browser, url)
+    grid = page.locator("#queue")
+    resized(page, window - 1, 900)
+    expect(grid).to_have_attribute("data-lf-grid-stacked", "")
+    resized(page, window, 900)
+    expect(grid).not_to_have_attribute("data-lf-grid-stacked", "")
+
+
+def test_two_templates_sharing_a_name_each_get_their_own_stacking_advice(
+    browser, serve
+):
+    """Two id-less grids in one widget are both named `<lf-grid> in <lf-test-pair
+    id=pair>`, and each is still read on its own through the sweep: the `1fr 5fr` that
+    stands stacked at 1200px is told so, and the `1fr 2.4fr` beside it gets the window
+    it stacks below. Read by name, the two interleaved at every width and the first
+    one's stacked reading stood for both, so the second got no advice.
+
+    A grid a module writes has no source for the gate to hold its words to, which the
+    gate refuses on its own; those are this page's only failures."""
+    # The authored count grid loads the lf-grid module the pair's grids need, and ends
+    # the page so the pair is no last block reserving an edge.
+    source = _wide_page(
+        "shared names",
+        f"""
+<h1>Shared</h1>
+<lf-test-pair id="pair"></lf-test-pair>
+<lf-grid id="status" columns="2">{_panel("left")}{_panel("right")}</lf-grid>
+""",
+    )
+
+    reading = render_gate_model.render_version(
+        browser,
+        serve(
+            source,
+            packages=(),
+            layer_registry=TEMPLATE_PAIR_LAYER,
+            layer_widgets=TEMPLATE_PAIR_WIDGETS,
+        ),
+    )
+
+    assert reading.failures, reading.failures
+    assert all(
+        "<lf-grid> without pre-upgrade source provenance" in failure
+        for failure in reading.failures
+    ), reading.failures
+    stacking = [line for line in reading.advice if "one column" in line]
+    assert len(stacking) == 2, reading.advice
+    story, queue = stacking
+    assert story.startswith(
+        "<lf-grid> in <lf-test-pair id=pair> stands in one column at 1200px wide: "
+        'its columns="1fr 5fr" tracks need '
+    ), story
+    assert re.match(
+        r"<lf-grid> in <lf-test-pair id=pair> stacks into one column in a window "
+        r'narrower than \d+px: its columns="1fr 2.4fr" tracks need 786px side by side',
+        queue,
+    ), queue
+
+
+# Four drawings in the idiom. The first is drawn wider than the column holds, so the fit
+# takes its 11px labels to under half. The second is fitted by the same fraction, and its
+# 28px labels survive it. The third keeps its natural size, with the theme's 9px step
+# glyph on it. The fourth is fitted like the first, but none of its words is drawn: one
+# label sits in <defs>, and the other's only run is a tspan out of the layout.
+DRAWN_LABELS_PAGE = leaf_page(
+    "drawn labels",
+    """
+<h1>Rollout</h1>
+<figure id="squeezed">
+  <svg class="drawing" viewBox="0 0 1600 120" role="img" aria-label="Rollout stages">
+    <text x="20" y="40">canary</text>
+    <text x="560" y="40">region</text>
+    <text x="1100" y="40">global</text>
+  </svg>
+</figure>
+<figure id="large">
+  <svg class="drawing" viewBox="0 0 1600 120" role="img" aria-label="Rollout headline">
+    <text x="20" y="60" font-size="28">canary</text>
+    <text x="1100" y="60" font-size="28">global</text>
+  </svg>
+</figure>
+<figure id="natural">
+  <svg class="drawing" width="200" viewBox="0 0 200 40" role="img" aria-label="Step one">
+    <circle class="mark" cx="20" cy="20" r="7" />
+    <text class="glyph" x="20" y="20">1</text>
+    <text class="small" x="40" y="24">note</text>
+  </svg>
+</figure>
+<figure id="undrawn">
+  <svg class="drawing" viewBox="0 0 1600 120" role="img" aria-label="Rollout key">
+    <defs><text x="20" y="40">draft</text></defs>
+    <rect class="mark" x="20" y="60" width="200" height="40" />
+    <text x="20" y="40"><tspan display="none">paused</tspan></text>
+  </svg>
+</figure>
+""",
+)
+
+
+def test_a_drawing_fitted_until_its_labels_are_unreadable_gets_advice_and_still_passes(
+    browser, serve
+):
+    """Drawn size decides, and only the fit is advised about: the halved 28px labels
+    read fine, the 9px glyph at its natural size is a size the source chose, and words
+    the drawing never paints have no drawn size at all. The drawing whose 11px labels
+    came out at 5px is named once, with its smallest."""
+    url = serve(DRAWN_LABELS_PAGE, packages=())
+    page = open_page(browser, url)
+    drawn = page.evaluate(
+        """() => Object.fromEntries([...document.querySelectorAll('figure')].map(f => {
+          const labels = [...f.querySelectorAll('text')].map(t => {
+            const m = t.getScreenCTM();
+            const set = parseFloat(getComputedStyle(t).fontSize);
+            return {set, drawn: set * Math.hypot(m.c, m.d)};
+          });
+          return [f.id, labels];
+        }))"""
+    )
+    page.close()
+    # Each control is clear of the advice for its own reason, so each reason is shown
+    # holding: the large labels were shrunk, the natural glyph is under the floor, and
+    # the undrawn labels would be as small as the squeezed ones if they were drawn.
+    for figure in ("squeezed", "undrawn"):
+        assert all(1 <= label["drawn"] < 0.5 * label["set"] for label in drawn[figure])
+    assert all(10 < label["drawn"] < label["set"] for label in drawn["large"]), drawn
+    assert any(
+        label["drawn"] < 10 and abs(label["drawn"] - label["set"]) < 0.01
+        for label in drawn["natural"]
+    ), drawn
+
+    reading = render_gate_model.render_version(browser, url)
+
+    assert reading.failures == []
+    (advice,) = reading.advice
+    assert advice.startswith(
+        "at 1200px wide <svg> in <figure id=squeezed> draws 3 label(s) below 10px, "
+        "the smallest ("
+    ), advice
+    assert "from the 11px it was set at" in advice, advice
 
 
 def test_the_pre_upgrade_proof_reads_the_held_authored_document(browser, serve):

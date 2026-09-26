@@ -496,7 +496,6 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     assert comment["anchor"] == {
         "section": "journey",
         "datum": "follow-release-link",
-        "identity": "follow-release-link",
         "source": "journey-run",
         "source_revision": drafted_revision,
         "identity": "follow-release-link",

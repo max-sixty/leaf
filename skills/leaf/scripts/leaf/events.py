@@ -277,7 +277,9 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
             thread = thread_for.get(e["parent"])
             if thread is None:
                 thread = {
-                    "root": e,
+                    # The first surviving reply supplies presentation details, but
+                    # the missing parent still names the thread everywhere else.
+                    "root": {**e, "id": e["parent"]},
                     "title": None,
                     "anchor": e.get("anchor"),
                     "detached_from": None,

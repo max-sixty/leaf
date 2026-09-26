@@ -29,7 +29,6 @@ from render_cases_interaction import (
     ASKS_PAGE,
 )
 from render_harness import (
-    CARRIED_PAGE,
     LONG_PAGE,
     SHELL_BOX,
     TOKEN,
@@ -1376,12 +1375,6 @@ before it ships.</p>
 </lf-option>
 </lf-options></lf-ask>
 """,
-)
-# A page that says one of its words on screen only. The rule is the page's own, which is
-# the point: the gate asks what the printed page still says, not who took the words away.
-PRINT_LOSS_PAGE = CARRIED_PAGE.replace(
-    "</head>",
-    "<style>@media print { #lede, #c-bearer { display: none } }</style></head>",
 )
 
 

@@ -36,11 +36,6 @@
  * the same behavior without joining a tag list. `main` hands wide room back to its
  * contents explicitly because it is the outer page frame.
  *
- * The column Layout (layouts.css) declares `--lf-reading-column: 1` in the rule that sets
- * its `max-width`, claiming that width as the readable column. The file lint measures every fixed pixel width against that
- * number, so a package or page setting a column of its own claims it in the rule that
- * sets it; a width with no claim beside it is a width and nothing more.
- *
  * Where the fact belongs to the registry rather than to the rule that draws the box,
  * `markDeclared` paints it and the selector reads the paint. The lists that ask whether
  * a suggestion slot or a variant holds block content invert HTML's phrasing content,
@@ -114,10 +109,9 @@
 
    Paper opens what a page puts behind a gesture, for the same reason: a settled group's
    cards, an inactive tab's panel, and a shut `<details>` all print open. A page that
-   means a disclosure to stay shut on paper says so in its own stylesheet. `paperWords`
-   compares the screen and print readings across the whole page. `coveredWords` runs again
-   in print. A wrong offer/said declaration is fixed where the label is created, not by
-   naming its widget in print CSS. */
+   means a disclosure to stay shut on paper says so in its own stylesheet. A wrong
+   offer/said declaration is fixed where the label is created, not by naming its widget
+   in print CSS. */
 
 :root {
   position: static !important;
@@ -966,8 +960,7 @@ pre code { background: none; padding: 0; font-size: 100%; }
    only let what cannot wrap paint out through the block's own border. A rule that
    restates `white-space` for its own box states the paper half beside itself, because
    naming that box here would tie on specificity and lose on source order, and `@media`
-   contributes nothing to break the tie. Nothing caught this: `paperWords` reads
-   `checkVisibility()`, and a clipped line is visible right up to the edge. */
+   contributes nothing to break the tie. */
 @media print {
   pre { white-space: pre-wrap; overflow-wrap: anywhere; }
 }
@@ -994,6 +987,15 @@ blockquote { margin: 18px 0; padding: 2px 18px; border-left: 2px solid var(--rul
 figure { margin: 22px 0; }
 figcaption { font-size: var(--t-6); color: var(--muted); margin-top: 8px; }
 img, svg, video { max-width: 100%; height: auto; }
+/* An image's width and height attributes already hold its box open before it loads,
+ * but Chrome flags a lazy image as unsized unless a stylesheet gives its height or
+ * ratio, and `height: auto` above overrides the attribute. Restating the attributes
+ * as a ratio keeps that DevTools issue to images that really load into no room,
+ * which is what lets the render gate refuse every issue Chrome raises. The ratio
+ * holds after loading too, so attributes that misstate an image's shape draw it at
+ * theirs. A browser without typed attr() drops the line and keeps the attribute
+ * ratio it maps, which yields to the loaded image. */
+img { aspect-ratio: attr(width type(<number>)) / attr(height type(<number>)); }
 /* A table's columns hold what is in them, and the space between two of them is
  * one gutter wide. `width: 100%` bought the opposite: the browser's auto layout
  * spreads leftover width across every column, so a four-column survey on the
@@ -1452,11 +1454,12 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
  * with its scrolled target, so a card in a board scrolled sideways would stand its pin
  * off its corner. A target scrolled out of its scroller withholds its row instead.
  *
- * A cluster stands level with its target's top (`--lf-inset` where it anchors to a box
- * holding the target), pushed down by packing (`--lf-push`). In
+ * A cluster stands level with its target's top (`--lf-inset-top` where it anchors to a
+ * box holding the target), pushed down by packing (`--lf-push`). In
  * the rail it hangs `--rail-hang` off `main`'s edge and unfolds rightward. As a pin it
- * stands inside its target's top-right corner, `--pin-inset` in from the right edge, and
- * unfolds leftward over the block. Every position function falls back to a place off screen: an anchor can be
+ * stands inside its target's top-right corner, `--pin-inset` in from the target's right
+ * edge (`--lf-inset-right` in from the box holding it), and unfolds leftward over the
+ * block. Every position function falls back to a place off screen: an anchor can be
  * invalid (a target inside `content-visibility: hidden` or gone), and
  * `position-visibility` hides a cluster only when its anchor is valid and scrolled out of
  * view. */
@@ -1465,14 +1468,14 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-margin-toolbar, .lf-margin-lane { height: 0; }
 .lf-margin-lane { z-index: 2; }
 .lf-margin-cluster { position: absolute; z-index: 2;
-    top: calc(anchor(top, -9999px) + var(--lf-inset, 0px) + var(--lf-push, 0px));
+    top: calc(anchor(top, -9999px) + var(--lf-inset-top, 0px) + var(--lf-push, 0px));
     position-visibility: anchors-visible;
     display: inline-flex; align-items: center; gap: 4px; white-space: nowrap;
     padding-right: var(--here-ring-room); pointer-events: auto; }
 .lf-margin-cluster[data-lf-place="rail"] {
     left: calc(anchor(--lf-page right, -9999px) + var(--rail-hang) + var(--lf-step, 0px)); }
 .lf-margin-cluster[data-lf-place="pin"] {
-    right: calc(anchor(right, 9999px) + var(--pin-inset)); }
+    right: calc(anchor(right, 9999px) + var(--pin-inset) + var(--lf-inset-right, 0px)); }
 /* With the annotation layer hidden (`o`, annotation-layer.js) every pin goes, whatever it
  * holds, and the rail stays, since it covers nothing. A row the user asked for by name
  * (`data-lf-revealed`) stays while they stand in it. Hidden rather than taken out of

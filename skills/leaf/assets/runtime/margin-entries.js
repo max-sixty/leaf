@@ -37,6 +37,8 @@ export {
 const text = (value) => String(value ?? "").trim();
 // Scopes belong to the browser declaration, not the immutable model record.
 const commandScopes = new WeakMap();
+// The key this module projects an entry's scope onto its control under.
+const MARGIN_ENTRY = Symbol("margin entry");
 function bindScope(record, declared) {
   const scope = commandScopes.get(declared) ?? declared.scope;
   if (scope != null) {
@@ -312,7 +314,7 @@ export function presentMarginEntryHost(
   }
   keeps(control, "aria-label", accessibleLabel ?? record.accessibleLabel);
   syncAgentDescriptionBase(control, record.description || null, record.title || null);
-  projectCommandScope(control, commandScopes.get(record));
+  projectCommandScope(control, MARGIN_ENTRY, commandScopes.get(record));
   return record;
 }
 

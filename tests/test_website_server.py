@@ -62,11 +62,6 @@ _previews_spec = importlib.util.spec_from_file_location(
 )
 example_previews = importlib.util.module_from_spec(_previews_spec)
 _previews_spec.loader.exec_module(example_previews)
-_benchmark_spec = importlib.util.spec_from_file_location(
-    "benchmark_site", ROOT / "scripts" / "benchmark-site.py"
-)
-benchmark_site = importlib.util.module_from_spec(_benchmark_spec)
-_benchmark_spec.loader.exec_module(benchmark_site)
 
 
 @pytest.fixture(autouse=True)
@@ -1060,7 +1055,10 @@ def test_the_local_adapter_owns_its_process_and_disposable_codex_home(
         os.kill(running["pid"], 0)
 
 
-def test_the_benchmark_passes_local_and_remote_targets_explicitly(monkeypatch):
+def test_the_agent_pass_emits_one_json_sample_for_local_and_remote_targets(
+    tmp_path, monkeypatch
+):
+    """The gate's agent pass is also the benchmark: stdout is only its JSON sample."""
     calls = []
     lifecycle = []
 
@@ -1072,22 +1070,38 @@ def test_the_benchmark_passes_local_and_remote_targets_explicitly(monkeypatch):
         finally:
             lifecycle.append("stop")
 
-    def measure(origin, release=None, *, direct_agent=False):
+    @contextmanager
+    def playwright():
+        yield None
+
+    def turn(browser, release, *, origin, direct_agent=False):
         calls.append((origin, release, direct_agent))
         return {"origin": origin, "release": release}
 
-    monkeypatch.setattr(benchmark_site, "local_adapter", local)
-    monkeypatch.setattr(benchmark_site, "measure", measure)
+    # A remote agent pass needs no local build: the origin names its release.
+    monkeypatch.setattr(verify_site, "MANIFEST", tmp_path / "unbuilt" / "site.json")
+    monkeypatch.setattr(verify_site, "local_adapter", local)
+    monkeypatch.setattr(verify_site, "sync_playwright", playwright)
+    monkeypatch.setattr(
+        verify_site,
+        "launch_browser",
+        lambda _: (SimpleNamespace(close=lambda: None), "chrome"),
+    )
+    monkeypatch.setattr(verify_site, "verify_agent_turn", turn)
     runner = CliRunner()
-    local_result = runner.invoke(benchmark_site.main, ["local"])
+    local_result = runner.invoke(verify_site.main, ["local"])
     assert local_result.exit_code == 0, local_result.output
-    assert json.loads(local_result.output) == {
+    assert json.loads(local_result.stdout) == {
+        "browser": "chrome",
         "origin": "http://127.0.0.1:8080",
         "release": "a" * 40,
     }
-    remote_result = runner.invoke(benchmark_site.main, ["https://leaf-dev.example/"])
+    remote_result = runner.invoke(
+        verify_site.main, ["https://leaf-dev.example/", "--agent"]
+    )
     assert remote_result.exit_code == 0, remote_result.output
-    assert json.loads(remote_result.output) == {
+    assert json.loads(remote_result.stdout) == {
+        "browser": "chrome",
         "origin": "https://leaf-dev.example",
         "release": None,
     }
@@ -1096,9 +1110,30 @@ def test_the_benchmark_passes_local_and_remote_targets_explicitly(monkeypatch):
         ("http://127.0.0.1:8080", "a" * 40, True),
         ("https://leaf-dev.example", None, False),
     ]
-    invalid = runner.invoke(benchmark_site.main, ["https://leaf-dev.example/a-page"])
+    invalid = runner.invoke(
+        verify_site.main, ["https://leaf-dev.example/a-page", "--agent"]
+    )
     assert invalid.exit_code == 2
     assert len(calls) == 2
+
+    # Through the local Worker the pass holds the container to the built release.
+    @contextmanager
+    def worker():
+        lifecycle.append("worker")
+        yield "http://127.0.0.1:8787"
+
+    manifest = tmp_path / "site.json"
+    manifest.write_text(json.dumps({"release": "b" * 40}))
+    monkeypatch.setattr(verify_site, "MANIFEST", manifest)
+    monkeypatch.setattr(verify_site, "local_worker", worker)
+    wrangler_result = runner.invoke(verify_site.main, ["wrangler", "--agent"])
+    assert wrangler_result.exit_code == 0, wrangler_result.output
+    assert calls[-1] == ("http://127.0.0.1:8787", "b" * 40, False)
+    stale = runner.invoke(
+        verify_site.main, ["wrangler", "--agent", "--release", "c" * 40]
+    )
+    assert "differs from the built site" in str(stale.exception)
+    assert lifecycle == ["start", "stop", "worker"]
 
 
 def test_the_website_app_server_inherits_the_ready_leaf_cli(tmp_path, monkeypatch):
@@ -4702,7 +4737,7 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
     # milestone" as one whose modules never arrived.
     assert page.init_scripts == [verify_site.VERIFIER_SCRIPT]
     # A green run reports startup and the post-presentation revision follow separately.
-    reported = capsys.readouterr().out
+    reported = capsys.readouterr().err
     assert "presented in 28444 ms" in reported
     assert "followed revision 2 2500 ms after presentation" in reported
     assert "request acknowledged 250 ms" in reported

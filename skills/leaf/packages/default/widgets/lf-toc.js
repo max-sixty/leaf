@@ -405,9 +405,12 @@ customElements.define(
 
     #paint() {
       if (!this.#rows || !this.#scroller || !this.#positions.length) return;
-      const clear = landingInsets(this.#scroller).top;
-      const visibleStart = this.#scroller.scrollTop + clear;
-      const visibleEnd = this.#scroller.scrollTop + this.#scroller.clientHeight;
+      // What the user can read is the scroller's landing band, clear of the banner over
+      // its top and the foot band over its bottom.
+      const clear = landingInsets(this.#scroller);
+      const visibleStart = this.#scroller.scrollTop + clear.top;
+      const visibleEnd =
+        this.#scroller.scrollTop + this.#scroller.clientHeight - clear.bottom;
       const start = this.#mapPosition(visibleStart);
       const end = Math.max(start, this.#mapPosition(visibleEnd));
       this.#rows.style.setProperty("--lf-toc-window-start", `${start}px`);

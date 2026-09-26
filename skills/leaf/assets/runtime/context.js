@@ -1,12 +1,12 @@
 /* Shared mechanical runtime context and read-only views of the semantic root.
    Accepted facts are never installed here independently of application publication. */
 import { readApplication } from "./semantic-state.js";
+import { PAGE_ROOT } from "./storage.js";
 
 // Code may be shared by several documents, including a specimen and its parent.
-// Page operations belong to the document, never to the module's asset URL.
-export const pageUrl = (path) =>
-  new URL(path, document.querySelector('link[rel="canonical"][data-lf-runtime]').href)
-    .href;
+// Page operations belong to the document's declared root, never to the module's asset
+// URL.
+export const pageUrl = (path) => new URL(path, PAGE_ROOT).href;
 
 const offlineMarker = document.querySelector(
   'script[type="application/json"][data-lf-runtime][data-lf-offline]',

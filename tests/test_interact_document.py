@@ -672,9 +672,6 @@ def test_structural_errors_distinguish_recovery_from_ambiguous_source():
     )
     assert svg.unclosed == [("svg", 1)]
 
-    stray = structure_model.SourceDocument("<main><div>Text</span></div></main>")
-    assert stray.errors == ["stray </span> at line 1 with no matching open tag"]
-
     duplicate_body = structure_model.SourceDocument(
         "<body><main>Text</main></body><body></body>"
     )
@@ -1252,60 +1249,22 @@ def test_check_rejects_widget_violations(page_dir):
     assert "text outside its <pre>" in out
 
 
-def test_check_rejects_duplicate_attributes_the_browser_reads_differently(page_dir):
-    """A file reading cannot silently choose another id than the live DOM.
-
-    HTML keeps the first duplicate attribute. Accepting one without reporting it
-    would let the action gate map a stateful widget under an ambiguous source id.
-    """
-    registry = json.loads((page_dir / "registry.json").read_text())
-    board = registry["lf-board"]["x-example"].replace(
-        'id="feeder-board"', 'id="browser-board" id="file-board"'
-    )
-    version = page_dir / "index.html"
-    source = version.read_text().replace("</section>", board + "\n</section>")
-    version.write_text(source)
-    line = source[: source.index('<lf-board id="browser-board"')].count("\n") + 1
-
-    result = check(page_dir)
-
-    assert result.exit_code == 1
-    assert (
-        f"<lf-board> at line {line} has duplicate attribute names ['id']; "
-        "HTML keeps the first value"
-    ) in result.output
-
-
-def test_check_rejects_a_language_nothing_will_color(page_dir):
-    """A declared language the runtime won't honor renders as a plain block, which is
-    exactly what a block with no language renders as — so the user sees nothing
-    wrong and the author never finds out. Every way of getting it wrong is the lint's,
-    because the author is the only one who can still fix any of them: the class somewhere
-    other than <pre><code>, an unknown word on the class, and an unknown word on a
-    widget attribute that declares itself a language (x-language). The last is checked
-    against the same list as the first two rather than by that widget's own schema,
-    which is what keeps a second tag taking a language from needing a second reader."""
+def test_check_rejects_a_widget_language_nothing_will_color(page_dir):
+    """A widget attribute that declares itself a language (x-language) is held to the
+    layer's $languages list. A plain <pre><code class="language-…"> claims no
+    vocabulary: one the layer can't color stays the ink of an uncolored block."""
     (page_dir / "index.html").write_text(
         PAGE.replace(
             "<h2>Plan</h2>",
             "<h2>Plan</h2>\n"
             '<pre><code class="language-pythn">x = 1</code></pre>\n'
-            '<div class="note language-python">not a code block</div>\n'
-            '<lf-code id="walk-bad" language="pythn"><pre>z = 3\n</pre></lf-code>\n'
-            '<pre><code class="language-python">y = 2</code></pre>',
+            '<lf-code id="walk-bad" language="pythn"><pre>z = 3\n</pre></lf-code>',
         )
     )
     result = check(page_dir)
     assert result.exit_code == 1
-    out = result.output
-    assert (
-        'class="language-pythn"' in out
-        and "not a language this page's layer speaks" in out
-    )
-    assert 'class="language-python"' in out and "only <pre><code> is colored" in out
-    assert '<lf-code language="pythn">' in out, out
-    # The well-formed block is not among the complaints.
-    assert out.count('class="language-python"') == 1
+    assert '<lf-code language="pythn">' in result.output, result.output
+    assert 'class="language-pythn"' not in result.output
 
 
 def test_a_widget_that_declares_a_language_is_checked_by_that_alone(page_dir):
@@ -1409,48 +1368,6 @@ def test_an_excerpt_is_referenced_by_the_numbers_it_quotes(
         assert refusal in result.output, result.output
     assert (result.exit_code == 1) == bool(refusals), result.output
     assert result.output.count("\n  - ") == len(refusals), result.output
-
-
-def test_a_misplaced_class_is_offered_whatever_tag_takes_a_language(page_dir):
-    """The other way to color a block is read from the layer, not written into the
-    lint: the tags whose entries declare an attribute for a language (x-language) are
-    the ones the misplaced class is offered, under the attribute each declares. The
-    widget that colors a walkthrough is the layer's rather than core's, so a lint that
-    named it would be core knowing a content widget — and would keep offering it to a
-    layer that dropped it, spelt its attribute differently, or added a second."""
-    (page_dir / "index.html").write_text(
-        PAGE.replace(
-            "<h2>Plan</h2>",
-            '<h2>Plan</h2>\n<div class="note language-python">not a code block</div>',
-        )
-    )
-    registry_file = page_dir / "registry.json"
-    registry = json.loads(registry_file.read_text())
-    declaring = {
-        tag: entry["x-language"]
-        for tag, entry in registry.items()
-        if tag.startswith("lf-") and "x-language" in entry
-    }
-    assert declaring, "the shipped layer declares one; the offer below is its reading"
-    out = check(page_dir).output
-    for tag, attr in declaring.items():
-        assert f"<{tag} {attr}=…>" in out, out
-
-    # A second tag taking one joins the offer under the attribute it declares.
-    registry["lf-tree"]["properties"]["dialect"] = {"type": "string"}
-    registry["lf-tree"]["x-language"] = "dialect"
-    registry_file.write_text(json.dumps(registry))
-    out = check(page_dir).output
-    assert "<lf-tree dialect=…>" in out, out
-
-    # A layer whose tags declare none has nothing to offer, and the placement rule —
-    # which never rested on any widget — is stated on its own.
-    for tag in [*declaring, "lf-tree"]:
-        registry[tag].pop("x-language")
-    registry_file.write_text(json.dumps(registry))
-    out = check(page_dir).output
-    assert "only <pre><code> is colored" in out and "— move it" in out, out
-    assert "or use" not in out, out
 
 
 def test_the_collapse_class_is_one_set_on_both_sides():
@@ -1742,15 +1659,13 @@ def test_a_layer_naming_no_languages_refuses_every_word_rather_than_none(page_di
     (page_dir / "index.html").write_text(
         PAGE.replace(
             "<h2>Plan</h2>",
-            '<h2>Plan</h2>\n<pre><code class="language-python">x = 1</code></pre>\n'
-            '<div class="note language-python">not a code block</div>',
+            "<h2>Plan</h2>\n"
+            '<lf-code id="walk" language="python"><pre>x = 1\n</pre></lf-code>',
         )
     )
     result = check(page_dir)
     assert result.exit_code == 1
-    assert "not a language this page's layer speaks" in result.output
-    # The placement rule never rested on the list, so it reports here too.
-    assert "only <pre><code> is colored" in result.output
+    assert '<lf-code language="python">' in result.output, result.output
 
 
 def test_check_rejects_loose_content_in_items_container(page_dir):

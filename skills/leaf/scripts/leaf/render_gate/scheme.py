@@ -8,13 +8,14 @@ from leaf.render_checks import (
     SERVED_TIMEOUT_MS,
     evaluate_probe,
     install_window_errors,
+    log_coverage,
     pre_upgrade_findings,
     wait_for_presentation,
     wait_for_probe,
     wait_for_theme,
 )
 
-from .readings import _scheme_findings, _SchemeContext
+from .readings import DevtoolsIssues, _scheme_findings, _SchemeContext
 
 
 def served(page, url: str, path: str, timeout_ms: int | None = None):
@@ -229,6 +230,7 @@ def _render_scheme(
         "response",
         lambda r: errors.append(f"{r.status} {r.url}") if r.status >= 400 else None,
     )
+    devtools = DevtoolsIssues(page)
     install_window_errors(page)
     try:
         # Hold the entry in this navigation: this is the only point at which
@@ -338,9 +340,6 @@ def _render_scheme(
             [],
             False,
         )
-    # The caught-up stamp counts reports beside actions, so the readiness wait counts
-    # that same set. Nothing else treats an event's owner as a special case.
-    applied = sum(e["kind"] in ("action", "report") for e in state["events"])
     # Every reading below is of a page at rest, and the upgrade stamp above is
     # one part of that. The first read runs beside upgrade, but its answer may still
     # be pending when the stamp lands; a gate reading there sees the authored board,
@@ -351,7 +350,7 @@ def _render_scheme(
     # both schemes, because every reading below has boxes or words in it. The
     # windows open under load alone, which is how one page passed at a desk and
     # reported words drawn over words under a full suite.
-    failed_stage = wait_for_presentation(page, state, applied, settled=True)
+    failed_stage = wait_for_presentation(page, state, settled=True)
     replayed = _projection_was_applied(failed_stage)
     if failed_stage == "dataApplied":
         unsettled = [
@@ -361,8 +360,9 @@ def _render_scheme(
             )
         ]
     elif failed_stage == "logApplied":
+        replayable = log_coverage(state)
         unsettled = [
-            f"the runtime never finished replaying the log ({applied} action(s))"
+            f"the runtime never finished replaying the log ({replayable} record(s))"
         ]
     elif failed_stage == "currentPresented":
         unsettled = [
@@ -388,6 +388,7 @@ def _render_scheme(
         earlier=earlier,
         replayed=replayed,
         unsettled=unsettled,
+        devtools=devtools,
     )
     found, notices = _scheme_findings(context)
     if then is not None:

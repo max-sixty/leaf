@@ -1,13 +1,15 @@
 """Assemble browser state from requested documents and the standing log."""
 
 from pathlib import Path
+from typing import NamedTuple
 
 from ..activity import canonical_activity, canonical_stream_reply
+from ..document_reading import DocumentReading
 from ..events import UndoReading, build_threads, taken_back
 from ..files import list_revisions, stamped_version
 from ..gesture_words import GestureWords, RevisionReader, revisions_on_disk
 from ..history import history, wants_history
-from ..projection import canonical_updates, page_reading
+from ..projection import FrozenThreadReading, canonical_updates, page_reading
 from ..requests import request_outcomes
 from ..revision_artifact import read_registry
 from ..structure import SourceDocument, parse_revision
@@ -16,11 +18,24 @@ from .document import browser_document, browser_undo_candidates
 from .thread import browser_thread
 
 
+class BrowserReading(NamedTuple):
+    """The semantic readings one browser state serializes.
+
+    A Python reader of the same snapshot selects from these rather than folding the
+    log again: the page's threads, the frozen thread document, and each projected
+    view's document reading, keyed by revision.
+    """
+
+    threads: dict
+    thread: FrozenThreadReading
+    documents: dict[int, DocumentReading]
+
+
 def _apply_thread_attention(
     threads: list[dict],
     asks: dict,
     workflows: list[dict],
-    thread_by_widget: dict[str, str],
+    thread_reading: FrozenThreadReading,
 ) -> None:
     """Attach the shared attention aggregate, with user Asks taking precedence.
 
@@ -66,28 +81,21 @@ def _apply_thread_attention(
 
     by_thread: dict[str, list[dict]] = {}
     for workflow in workflows:
-        subject = workflow["subject"]
-        thread_id = (
-            subject["id"]
-            if subject["kind"] == "thread"
-            else thread_by_widget.get(subject["id"])
-            if subject["kind"] == "widget"
-            else None
-        )
+        thread_id = thread_reading.subject_thread(workflow["subject"])
         if thread_id is not None:
             by_thread.setdefault(thread_id, []).append(workflow)
     for thread in threads:
         if thread["resolved"]:
             thread["attention"] = None
             continue
-        if thread["root"]["id"] in user_threads or thread["user_prompt"]:
+        if thread["id"] in user_threads or thread["user_prompt"]:
             thread["attention"] = {
                 "kind": "needs_user",
                 "reason": "ask",
                 "workflow": None,
             }
             continue
-        candidates = by_thread.get(thread["root"]["id"], [])
+        candidates = by_thread.get(thread["id"], [])
         if recovery := [
             workflow for workflow in candidates if workflow["next_actor"] == "user"
         ]:
@@ -121,7 +129,7 @@ def browser_state(
     registries: dict[int, dict] | None = None,
     data: dict | None = None,
     revisions: RevisionReader | None = None,
-) -> dict:
+) -> tuple[dict, BrowserReading]:
     """The browser's derived reading of one transaction-consistent page snapshot.
 
     Documents and the append-only log remain the authorities. This object is an
@@ -155,6 +163,7 @@ def browser_state(
     thread_projection = thread_reading.projection
 
     views = {}
+    readings = {}
     for revision in sorted(view_revisions):
         document = documents[revision]
         page = (
@@ -163,6 +172,7 @@ def browser_state(
             else page_reading(document, events, registry_for(revision), revision)
         )
         document, reading = browser_document(page, threads, data or {"sources": {}})
+        readings[revision] = reading
         projection = reading.projection
         classified = {
             **projection.classified,
@@ -227,7 +237,7 @@ def browser_state(
         thread["threads"],
         thread["asks"],
         workflows,
-        thread_reading.thread_by_widget,
+        thread_reading,
     )
     served = [(revision, documents[revision]) for revision in view_revisions]
     if wants_history(served, registry_for):
@@ -248,7 +258,7 @@ def browser_state(
         }
     else:
         page_history = {}
-    return {
+    wire = {
         "basis": {"through_seq": through_seq},
         **page_history,
         "views": views,
@@ -263,6 +273,7 @@ def browser_state(
             if event["kind"] == "note"
         },
     }
+    return wire, BrowserReading(threads, thread_reading, readings)
 
 
 def project_browser_state(
@@ -279,7 +290,7 @@ def project_browser_state(
     include_active_view: bool = True,
     live_stream: dict | None = None,
     data: dict | None = None,
-) -> dict | None:
+) -> tuple[dict, BrowserReading] | None:
     """Project only the documents one browser reading can consume.
 
     A normal state needs the revision the tab is showing and the active revision it

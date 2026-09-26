@@ -1,4 +1,4 @@
-"""CSS and readable-column readings of authored HTML.
+"""CSS readings of authored HTML.
 
 Bounded readings of exact CSS text keep state requests from reparsing unchanged
 stylesheets. Their results are read-only; edits select a new cache entry.
@@ -9,27 +9,12 @@ from functools import lru_cache
 
 import tinycss2
 
-from .structure import OVERFLOW_PROPS, SourceDocument
+from .structure import SourceDocument
 
-# ---------- the readable column ----------
-# A rule, a style="" and a width="" are the three places a document states a width.
-# The first two are CSS, so tinycss2 reads them; the third is an attribute, so the
-# markup parser does.
-#
-# Three patterns over the file's text came first, and each answered something adjacent
-# to the question asked: the document read as a stylesheet handed a screenshot's base64
-# to the rule walker, `width` needed a lookbehind to exclude `max-width` because it
-# matched a name instead of reading a property, and the scan for `style=""` never saw
-# one written with the other quote. Hand-rolling the parser is the same mistake a level
-# down, and harder to see, because a hand-rolled parser is right about the grammar it
-# was written against: the brace walk those patterns became knew that a comment's braces
-# are not braces, and still read a `}` inside `content: "}"` as the end of the block,
-# dropping every declaration after it in that rule; still read a rule holding both
-# declarations and a nested rule as declaring nothing of its own; and still told a fixed
-# `900px` from a `calc(100% - 900px)` by asking whether the string ended in `px`, which
-# `900px !important` does not. CSS has no parser in the stdlib, so the dependency is a
-# real cost — one more wheel behind every `version check`, ~6ms to read the theme — and
-# it buys the grammar whole rather than one bug's worth at a time.
+# tinycss2 reads every stylesheet and style="" here. Patterns over the text came first,
+# and each was right only about the grammar it was written against: a brace walk that
+# knew a comment's braces are not braces still read a `}` inside `content: "}"` as the
+# end of the block. The dependency buys the grammar whole.
 
 
 def css_block(css):
@@ -147,178 +132,6 @@ def _rules(nodes, conditional=False):
             # A cascade layer orders rules rather than conditioning them.
             layered = node.lower_at_keyword == "layer"
             yield from _rules(css_block(node.content), conditional or not layered)
-
-
-def _number(text: str):
-    """`text` as a number, or None when it is not one. A width="" attribute states a
-    bare count of pixels, so it has no unit for the CSS parser to read."""
-    try:
-        return float(text)
-    except ValueError:
-        return None
-
-
-def _lone_px(value):
-    """The pixel length a value states outright, or None. A value keeps the whitespace
-    around it, which is a token like any other and not part of what the value says."""
-    tokens = [t for t in value if t.type != "whitespace"]
-    if (
-        len(tokens) == 1
-        and tokens[0].type == "dimension"
-        and tokens[0].lower_unit == "px"
-    ):
-        return tokens[0].value
-    return None
-
-
-def root_tokens(css: str) -> dict:
-    """The pixel lengths a stylesheet states outright as custom properties on the root.
-
-    A width naming one of these states a number as certainly as writing it out, so the
-    readings below resolve it. Only the root, and only unconditionally: a token set on
-    some element or inside a query is that element's or that condition's, and taking it
-    for the page's would be the same reading the column refuses a media query for.
-
-    One level. A token defined as another token is a stylesheet answering a different
-    question than these readings ask, and following it would be a resolver rather than
-    the two facts this needs."""
-    tokens = {}
-    for selector, block, conditional in css_rules(css):
-        if conditional or selector.strip() != ":root":
-            continue
-        for declaration in block:
-            if declaration.type == "declaration" and declaration.name.startswith("--"):
-                px = _lone_px(declaration.value)
-                if px is not None:
-                    tokens[declaration.name] = px
-    return tokens
-
-
-def _px(declaration, tokens: dict | None = None):
-    """The pixel length a declaration states, or None where it states something else: a
-    percentage, a vw, a calc() with a px term inside it. Only a fixed pixel length is a
-    hard overflow, and only a lone length is fixed.
-
-    A lone `var()` naming a root token is one too. The stylesheet stated the number and
-    then named it, and a check that stopped at the name would read the fallback width
-    for a theme that had tidied its own constants into `:root` — which is a check that
-    quietly stops measuring the moment the file it measures gets tidier. The `var()`'s
-    own fallback answers where nothing declared the token, which is what the browser
-    would use."""
-    value = [t for t in declaration.value if t.type != "whitespace"]
-    px = _lone_px(value)
-    if px is not None:
-        return px
-    if len(value) == 1 and value[0].type == "function" and value[0].lower_name == "var":
-        args = [t for t in value[0].arguments if t.type != "whitespace"]
-        if args and args[0].type == "ident" and args[0].value.startswith("--"):
-            named = (tokens or {}).get(args[0].value)
-            if named is not None:
-                return named
-            if len(args) > 2 and args[1] == ",":
-                return _lone_px(args[2:])
-    return None
-
-
-def _px_widths(declarations, props: tuple, tokens: dict | None = None):
-    """(property, pixels) per declaration in `props` pinned to a fixed pixel length."""
-    for declaration in declarations:
-        if declaration.type == "declaration" and declaration.lower_name in props:
-            px = _px(declaration, tokens)
-            if px is not None:
-                yield declaration.lower_name, px
-
-
-# What a page is measured against when no rule claims the column. A default, not a
-# reading: it is the width every other check's number comes from, so a page that says
-# nothing still gets measured rather than silently passing.
-COLUMN_FALLBACK = 780
-
-
-def _declares_column(block) -> bool:
-    """Whether a rule says it draws the readable column, in the block that draws it.
-
-    A stylesheet knows which of its rules is the column, and this asks it. The rule
-    setting the column's max-width sets `--lf-reading-column: 1` beside it, so the cascade wins
-    the two together and the claim cannot drift from the width — the same shape as
-    `--lf-block-frame`, which a box declares where it draws its frame.
-
-    Before this, seven container names stood in for the answer: `main`, `body`,
-    `article`, `.container`, `.wrap`, `.content`, `.page`. A name list is wrong in both
-    directions at once. Too wide, because the column is the baseline every other width
-    on the page is measured against, and any rule that happened to be spelled `.content`
-    moved it — `.content { max-width: 1400px }` doubles the number and takes the
-    overflow check quiet, which reads as a page with nothing wrong in it. Too narrow,
-    because a page whose column is `.prose` was measured against the fallback instead
-    and failed for widths that fit. Neither shows up as an error; both show up as a
-    check that has stopped asking."""
-    return any(
-        declaration.type == "declaration"
-        and declaration.name == "--lf-reading-column"
-        and tinycss2.serialize(declaration.value).strip() == "1"
-        for declaration in block
-    )
-
-
-def _column_width(page_css: str, theme_css: str) -> int:
-    """The readable-column width, from the max-width of the rule claiming the column.
-    A page's own <style> wins over the vendored theme, which wins over the fallback.
-
-    Only what a stylesheet states outright counts: a column is the baseline everything
-    else is measured against, so it has to be certain, and a conditional rule states a
-    column for some condition rather than for the page. Reading them too let a page
-    disable this check with one line of print CSS — `@media print { main { max-width:
-    2000px } }` measured every screen element against 2000px."""
-    for css in (page_css, theme_css):
-        tokens = root_tokens(css)
-        widths = [
-            px
-            for _, block, conditional in css_rules(css)
-            if not conditional and _declares_column(block)
-            for _, px in _px_widths(block, ("max-width",), tokens)
-        ]
-        if widths:
-            return int(max(widths))
-    return COLUMN_FALLBACK
-
-
-def _overwide_elements(
-    parser: SourceDocument, column: int, theme_tokens: dict | None = None
-) -> list:
-    """Everything a version pins wider than the column: its own rules, its inline
-    styles, and the width="" attributes that count as pixels.
-
-    A conditional rule counts here, where it cannot define the column: a pin is a risk
-    rather than a baseline, and it overflows whenever its condition holds.
-
-    A width naming a token resolves against the page's own root first and the layer's
-    behind it, which is the order the cascade reads them in. A page pinning
-    `var(--wide)` is stating the layer's number, and a reading that knew only the page's
-    own tokens would let the vocabulary's own widths through unmeasured."""
-    hits = []
-    tokens = {**(theme_tokens or {}), **root_tokens(parser.css)}
-    for selector, block, _ in css_rules(parser.css):
-        for prop, px in _px_widths(block, OVERFLOW_PROPS, tokens):
-            if px > column:
-                hits.append(
-                    f"rule `{selector}` sets {prop}: {px:g}px (column is {column}px)"
-                )
-    for inline in parser.inline_styles:
-        block = css_block(inline["style"])
-        for prop, px in _px_widths(block, OVERFLOW_PROPS, tokens):
-            if px > column:
-                hits.append(
-                    f"{inline_style_at(inline)} sets {prop}: {px:g}px "
-                    f"(column is {column}px)"
-                )
-    for attr in parser.attr_widths:
-        px = _number(attr["value"])
-        if px is not None and px > column:
-            hits.append(
-                f'<{attr["tag"]} width="{attr["value"]}"> (line {attr["line"]}) '
-                f"exceeds column ({column}px)"
-            )
-    return hits
 
 
 PRESENTATION_PROPERTIES = {

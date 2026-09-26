@@ -132,9 +132,11 @@ export const langForPath = (path) =>
   ];
 
 // The page's own code blocks: <pre><code class="language-python">. The class is the
-// universal one — what every Markdown renderer emits, and what `version check` validates — so a
-// block Claude wrote anywhere else needs no translation to land here. lf-code declares
-// `language` instead, because a custom element's vocabulary is the registry's to state.
+// universal one — what every Markdown renderer emits — so a block Claude wrote anywhere
+// else needs no translation to land here. A language outside $languages stays the
+// colour of its ink, as the same block would in any page that colours nothing: plain
+// HTML claims no vocabulary. lf-code declares `language` instead, because a custom
+// element's vocabulary is the registry's to state, and `version check` holds it there.
 //
 // The spans change no text: a <span> is no text block, so the anchor pass reads exactly
 // the run of characters it read before. That is what lets this run over the document
@@ -152,7 +154,8 @@ export async function highlightBlocks(root) {
     // A block already tokenized for this language keeps its spans: a live revision
     // that rewrote an ancestor's attribute dresses the ancestor again, and the user
     // may be holding a selection in the block beneath it.
-    if (lang && code.dataset.lfSyntax !== lang) blocks.push([code, lang]);
+    if (registry.$languages.names.includes(lang) && code.dataset.lfSyntax !== lang)
+      blocks.push([code, lang]);
   }
   if (!blocks.length) return;
   for (const [code, lang] of blocks) {

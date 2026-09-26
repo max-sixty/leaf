@@ -8563,9 +8563,7 @@ def test_a_roster_row_names_its_target_without_saying_it_twice(browser, serve):
 
     `says: "echo"` is both answers at once — no passage, and the words survive the
     medium that takes the press away. Read on paper because the loss is silent
-    everywhere else: the rows say the same thing on screen either way, and `paperWords`
-    reads no text inside a declared offer, so the gate cannot report a word that only
-    ever stood in one."""
+    everywhere else: the rows say the same thing on screen either way."""
     page = open_page(browser, serve(COMMAND_HUB_EXAMPLE))
     fleet = page.locator("#hub-readings > .lf-fleet-view")
     stopped = page.locator("#hub-readings > .lf-stopped-view")

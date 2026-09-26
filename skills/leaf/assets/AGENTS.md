@@ -261,16 +261,14 @@ changing `leaf.js`, a runtime owner, a widget module, the registry, or the theme
 | Reading | Contract |
 | --- | --- |
 | window-error channel | no runtime, module, resource, or ResizeObserver error reached the page |
-| `unnamedFormFields` | every field or form-associated control has an id or name |
+| `issueNode` | a DevTools issue outside a form control's shadow tree is the page's, placed at its frame if it has one |
 | `upgraded`, `moving` | upgrade completed and geometry settled |
 | `invalidPaints` | every var()-backed SVG paint resolves in each scheme |
 | `tinyBoxes` | every declared widget has a usable box |
 | `unmarkableElements` | every addressable element has a visible part to outline |
 | `misplacedBoxes` | boxes stay in the column or in reachable overflow at every width |
 | `squeezedTables` | a table scrolls sideways only with every column at its longest unbreakable run |
-| `withheldRoom` | a drawing scrolls only when room, net of margin residents, ran short |
 | `strandedMargins` | every margin marker has an element to stand by |
-| `silentCuts` | a box showing less than it holds marks each edge with content beyond it |
 | `clippedControls` | controls are visible and reachable |
 | `unreachableWords`, `coveredWords` | visible words stay in reachable flow and are not silently clipped or claimed by chrome |
 | `unreadSyntax` | highlighting does not alter source words |
@@ -279,14 +277,13 @@ changing `leaf.js`, a runtime owner, a widget module, the registry, or the theme
 | `undeclaredAttrs` | modules write no undeclared author-namespace state |
 | `retiredSlots` | settlement marks agree with the projection |
 | `trappedMargins`, `splitEdges` | framed boxes show only their inset and edge rows line up |
-| `paperWords`, `paperVoids` | print keeps every statement and gives room only to what it draws |
 | `replayOverrides` | the log, not conflicting markup, determines projected state |
 | `relativeReplays` | rendering a complete widget state twice changes nothing |
 | `coveringMargins`, `shrunkLabels` | advice only |
 
 Put a check on the side that can observe the fact: static validation owns schema,
 ids, nesting, passages, event shapes, and file readings; the browser owns computed
-layout, composed trees, module writes, focus, print, and replay idempotence.
+layout, composed trees, module writes, focus, and replay idempotence.
 Readings of widget state use the publisher's own reading; never write a test-only
 interpretation of it.
 

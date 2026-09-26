@@ -10,12 +10,8 @@
    * The breakout reads the room free beside the column from the lengths resolved here,
    * so it is the same arithmetic wherever the column stands. Chrome Leaf fixes in a
    * margin states the room it takes there (`--lf-chrome-l`, `--lf-chrome-r`), which
-   * comes off that side's free room.
-   *
-   * `version check` reads this max-width, beside --lf-reading-column, to find the column
-   * it measures pinned widths against, resolving the token as the cascade does. */
+   * comes off that side's free room. */
   .layout-column {
-    --lf-reading-column: 1;
     max-width: var(--col);
     margin-inline: auto;
     padding-inline: var(--col-pad);

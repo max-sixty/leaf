@@ -52,13 +52,13 @@ def _render_version_attempt(
     browser, url: str, served_timeout_ms: int | None = None
 ) -> tuple[list, list, bool, list]:
     """Everything wrong with a served version that only a browser can see: a
-    console warning or error, a page error, a request that 404s, a fail-soft error box,
+    console warning or error, a page error, an issue Chrome's DevTools raises, a request
+    that 404s, a fail-soft error box,
     an upgrade module that never defines its declared element, an x-thread-seat whose module
     placed no matching page host, a widget upgraded into a box of no usable size,
     an element showing words with no box for a mark to hang on, so a comment anchored
     there would outline nothing and the Ask walk would travel to the top of the page,
     the page scrolling sideways, content set past the column and out into the margin,
-    a drawing scrolling beside an empty margin the page had room in,
     a table that scrolls sideways with a cell in it wrapped,
     words the user can read and can't select, words drawn on top of other words, code
     coloured in an ink the user cannot tell from the code around it — each
@@ -72,14 +72,13 @@ def _render_version_attempt(
     page again (none of the three is CSS), a settled holder whose mark or still-showing
     slot words disagree with the log's decision (read once, on the premise the
     trapped-margin reading shares: the palettes carry no geometry between them), an SVG
-    paint token that does not resolve to valid paint in that scheme, a box drawing one inset
-    and showing another, and, on paper, words the page drops that it says on screen, or
-    draws over each other (print is scheme-blind). Once per version, on the settled
-    desktop page in the light scheme, it reads more: as advice, whether a margin pin stands over
-    text, and whether a
+    paint token that does not resolve to valid paint in that scheme, and a box drawing one
+    inset and showing another. Once per version, on the settled desktop page in the light
+    scheme, it reads more: as advice, whether a margin pin stands over text, and whether a
     drawing's fit to its box shrinks its labels past reading; and then, resizing that
     loaded page through every width from 360px to 1200px, the sideways readings again:
-    a version holds at each of them, not only at the two it renders. Returns the failures and the advice; no failures is a pass.
+    a version holds at each of them, not only at the two it renders. Returns the failures
+    and the advice; no failures is a pass.
 
     One implementation with two callers — `version check --render` on the page an agent
     just wrote, and the render suite on the shipped examples
@@ -145,7 +144,7 @@ def render_version(
 
     Chrome can emit the notice once under load, while a layout feedback loop emits it
     on every rendering. The unit here is the whole color-scheme and viewport gate,
-    including its print and replay probes: a notice is ignored only when a later
+    including its replay probes: a notice is ignored only when a later
     complete attempt is clean. Ordinary failures from both attempts are retained, and
     an incomplete confirmation cannot pardon the notice that prompted it.
     """

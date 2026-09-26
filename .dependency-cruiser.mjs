@@ -55,6 +55,7 @@ const exactClosures = {
     "rendering.js",
     "repaint.js",
     "shadow.js",
+    "storage.js",
   ],
 };
 

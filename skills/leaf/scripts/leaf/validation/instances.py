@@ -361,47 +361,6 @@ def addressable_instance_errors(lf_elements: list, registry: dict) -> list:
     return errors
 
 
-def language_class_errors(blocks: list, registry: dict) -> list:
-    """A `class="language-…"` the runtime won't honor: the class somewhere other than
-    <pre><code>, or a word the layer doesn't speak. Neither is visible to the user — a
-    class in the wrong place and a misspelt language both render as an ordinary
-    uncolored block — so the failure is routed to the one party who can still fix it,
-    which is whoever wrote the word. A widget declaring a language is held to the same
-    list one attribute over (declared_word_errors); this half is the plain HTML block,
-    which belongs to no widget at all.
-
-    The list is indexed rather than tested: a layer naming none colors none, so a word
-    declared to it is still one it can't honor, and the placement rule never depended on
-    the list at all. A check whose two failures are both invisible on the page is the
-    last one that should be able to pass by finding nothing to check against.
-
-    The misplaced block is offered the other way to color one, read from the same
-    declaration the check itself reads: whichever tags say an attribute of theirs names
-    a language (x-language). Naming one here would be this lint knowing a widget, and
-    the offer would go stale the moment a layer dropped it or added a second — so a
-    layer whose tags declare none says only to move the block."""
-    known = registry["$languages"]["names"]
-    colored = " or ".join(
-        f"<{tag} {attr}=…>"
-        for tag, entry in sorted(registry.items())
-        if tag.startswith("lf-") and (attr := entry.get("x-language"))
-    )
-    instead = f", or use {colored} for a walkthrough" if colored else ""
-    errors = []
-    for block in blocks:
-        where = f'class="language-{block["lang"]}" (line {block["line"]})'
-        if (block["tag"], block["parent"]) != ("code", "pre"):
-            errors.append(
-                f"{where}: only <pre><code> is colored, found <{block['tag']}> in "
-                f"<{block['parent'] or 'nothing'}> — move it{instead}"
-            )
-        elif block["lang"] not in known:
-            errors.append(
-                f"{where}: not a language this page's layer speaks — known: {known}"
-            )
-    return errors
-
-
 # A word a widget declares that its layer has to know, as three things: the x- key
 # naming the attribute that carries it, the layer-wide fact listing the words the layer
 # has, and what the layer does with one that is on the list.
@@ -581,7 +540,6 @@ def fragment_errors(parser: SourceDocument, registry: dict) -> list:
         + addressable_instance_errors(parser.lf_elements, registry)
         + ask_surface_errors(parser.lf_elements, registry)
         + request_offer_errors(parser.lf_elements, registry)
-        + language_class_errors(parser.language_blocks, registry)
         + declared_word_errors(parser.lf_elements, registry)
         + line_ref_errors(parser.lf_elements, registry)
     )

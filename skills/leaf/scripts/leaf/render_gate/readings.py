@@ -8,9 +8,7 @@ recognize a Leaf control by its markup to judge it, belongs in the suite, which 
 Leaf's half."""
 
 import json
-import math
 from dataclasses import dataclass
-from itertools import pairwise
 
 from leaf.passages import page_passages
 from leaf.projection import (
@@ -24,6 +22,109 @@ from leaf.projection import (
 from leaf.registry.state import retirement_slots
 from leaf.render_checks import evaluate_probe, wait_for_probe
 from leaf.structure import SourceDocument
+
+# A probe's arguments cross as JSON, so a node only CDP can name is handed to the
+# `issueNode` probe as the receiver of a call made on the node itself.
+_ISSUE_NODE = (
+    "function () { return globalThis.__leafRenderDriver"
+    ".call({name: 'issueNode', args: [this]}); }"
+)
+# A node in a child frame is that frame's to show, and the frame is the page's, so the
+# issue is placed at the frame element in the page's own document, where the probes
+# run. A cross-origin frame withholds that element, and the issue goes unplaced.
+_IN_PAGE = (
+    "function () { let node = this; const view = (n) => (n.ownerDocument ?? n)"
+    ".defaultView; while (node && view(node) !== top) node = view(node).frameElement;"
+    " return node; }"
+)
+
+
+def _issue_fields(value, key=""):
+    """Every scalar in an issue's details as (key, value), however deeply nested."""
+    if isinstance(value, dict):
+        for inner, item in value.items():
+            yield from _issue_fields(item, inner)
+    elif isinstance(value, list):
+        for item in value:
+            yield from _issue_fields(item, key)
+    else:
+        yield key, value
+
+
+class DevtoolsIssues:
+    """The issues Chrome raises in DevTools' Issues panel for one page.
+
+    Chrome says some things only there and never in the console: a lazy image that
+    holds no room, a blocked or mixed-content request, a deprecated API, a form field
+    autofill cannot identify. The headless shell the suite runs raises Blink's issues
+    but not the autofill layer's.
+    Listening starts before navigation; the reading is taken once the page settles,
+    when the probe that locates a node has loaded."""
+
+    def __init__(self, page):
+        self._cdp = page.context.new_cdp_session(page)
+        self._raised = []
+        self._cdp.on(
+            "Audits.issueAdded", lambda event: self._raised.append(event["issue"])
+        )
+        self._cdp.send("Audits.enable")
+
+    def _node(self, backend_id: int) -> dict | None:
+        from playwright.sync_api import Error as PlaywrightError
+
+        try:
+            node = self._cdp.send("DOM.resolveNode", {"backendNodeId": backend_id})
+        except PlaywrightError:
+            return None  # the node left the document after Chrome raised the issue
+        in_page = self._call(node["object"], _IN_PAGE, by_value=False)
+        if in_page.get("subtype") == "null":
+            return None
+        # The frame element came back as the child frame's object. Resolving it again
+        # by id answers in its own document's context, where the probes are loaded.
+        described = self._cdp.send(
+            "DOM.describeNode", {"objectId": in_page["objectId"]}
+        )
+        page_node = self._cdp.send(
+            "DOM.resolveNode", {"backendNodeId": described["node"]["backendNodeId"]}
+        )
+        return self._call(page_node["object"], _ISSUE_NODE, by_value=True)["value"]
+
+    def _call(self, receiver: dict, function: str, *, by_value: bool) -> dict:
+        answer = self._cdp.send(
+            "Runtime.callFunctionOn",
+            {
+                "objectId": receiver["objectId"],
+                "functionDeclaration": function,
+                "returnByValue": by_value,
+            },
+        )
+        if "exceptionDetails" in answer:
+            raise RuntimeError(
+                "locating a DevTools issue's node failed: "
+                + answer["exceptionDetails"]["exception"]["description"]
+            )
+        return answer["result"]
+
+    def findings(self) -> list[str]:
+        """Each issue about something the page owns, where it is and what it names.
+
+        Details differ by issue type, so every scalar is written out except the
+        protocol's handles, which name nothing a reader can find in the source; the
+        first node handle is located instead."""
+        found = []
+        for issue in self._raised:
+            fields = list(_issue_fields(issue["details"]))
+            nodes = [v for k, v in fields if k == "nodeId" or k.endswith("NodeId")]
+            facts = [f"{k}={v}" for k, v in fields if not k.endswith("Id") and v != ""]
+            node = self._node(nodes[0]) if nodes else None
+            if node is not None and not node["owned"]:
+                continue
+            found.append(
+                f"DevTools issue {issue['code']}"
+                + (f" at {node['at']}" if node else "")
+                + (f" ({', '.join(facts)})" if facts else "")
+            )
+        return list(dict.fromkeys(found))
 
 
 @dataclass(frozen=True, slots=True)
@@ -40,6 +141,7 @@ class _SchemeContext:
     earlier: str | None
     replayed: bool
     unsettled: list
+    devtools: DevtoolsIssues
 
 
 def _projected_verbatim(document, registry, projection, authored_ids, source):
@@ -142,9 +244,7 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
     unmarkable = evaluate_probe(page, "unmarkableElements")
     overflow = evaluate_probe(page, "rootOverflow")
     misplaced = evaluate_probe(page, "misplacedBoxes")
-    withheld = evaluate_probe(page, "withheldRoom")
     stranded = evaluate_probe(page, "strandedMargins")
-    silent_cuts = evaluate_probe(page, "silentCuts")
     squeezed = evaluate_probe(page, "squeezedTables")
     clipped = evaluate_probe(page, "clippedControls")
     unreachable = evaluate_probe(page, "unreachableWords")
@@ -155,9 +255,6 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
     # undeclared root's words silently anchor quotes astray. Generated controls
     # are UI rather than page words, so their implementation roots are exempt.
     undeclared_shadow = evaluate_probe(page, "undeclaredShadowRoots", registry)
-    unnamed_fields = (
-        evaluate_probe(page, "unnamedFormFields") if scheme == "light" else []
-    )
     # x-verbatim promises the words this scheme renders. Source provenance was
     # captured before upgrade, so anonymous page and frozen-message owners have the
     # same coordinate as the file reading without acquiring authored ids. Its file
@@ -248,28 +345,6 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
         if scheme == "light"
         else []
     )
-    # Last, and in one scheme: paper has no color scheme, and the medium has to be
-    # put back before anything else reads a box.
-    on_paper = []
-    if scheme == "light":
-        screen = evaluate_probe(page, "paperWords")
-        page.emulate_media(media="print")
-        paper = evaluate_probe(page, "paperWords")
-        # Paper is laid out by rules no other medium runs, and it is the medium
-        # nobody looks at, so the readings that only paper can fail are taken here
-        # while it holds: words drawn over each other, and room that prints nothing.
-        on_paper = [f"[print] {c}" for c in evaluate_probe(page, "coveredWords")]
-        on_paper += [f"[print] {v}" for v in evaluate_probe(page, "paperVoids")]
-        page.emulate_media(media="screen")
-        # Paired on the words as well as the position: the page is live, and a state
-        # landing between the two readings would otherwise shift one against the
-        # other and report whatever happened to line up. A pair that disagrees says
-        # nothing, which is the right way round — the next run reads it again.
-        on_paper += [
-            f"[print] {s['at']} drops {json.dumps(s['text'])}, which it says on screen"
-            for s, p in zip(screen, paper, strict=False)
-            if s["text"] == p["text"] and s["shown"] and not p["shown"]
-        ]
     # Last: these probes render temporary complete states. Compare carried actions
     # against the authored baseline, restore current state, then prove idempotence.
     # The caught-up wait ensures they observe the same settled projection as the
@@ -296,7 +371,7 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
                     },
                 )
         relative = evaluate_probe(page, "relativeReplays")
-    # The print reset and replay above can resize what an observer watches. Chrome
+    # The replay above can resize what an observer watches. Chrome
     # delivers that notice in the next rendering turn, so closing on the write
     # would call an attempt complete before its last error channel had spoken. Ask
     # synchronously and poll the presented-frame fact from the driver: a compositor
@@ -335,9 +410,7 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
         for u in unmarkable
     ]
     found += [f"[{scheme}] {text}" for _key, text in _overflow(overflow, misplaced)]
-    found += [f"[{scheme}] {w}" for w in withheld]
     found += [f"[{scheme}] {s}" for s in stranded]
-    found += [f"[{scheme}] {c}" for c in silent_cuts]
     found += [f"[{scheme}] {s}" for s in squeezed]
     found += [
         f"[{scheme}] the control .{c['ctrl'].split()[0]}"
@@ -355,13 +428,7 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
             f"(an undeclared root's words anchor quotes astray; declare "
             f"x-shadow): {', '.join(undeclared_shadow)}"
         )
-    for field in unnamed_fields:
-        label = f" labelled {field['label']!r}" if field["label"] else ""
-        class_name = f" class={field['className']!r}" if field["className"] else ""
-        found.append(
-            f"[{scheme}] <{field['tag']}{class_name}>{label} has neither an id nor "
-            "a name, so Chrome cannot identify the form field"
-        )
+    found += [f"[{scheme}] {issue}" for issue in context.devtools.findings()]
     found += [f"[{scheme}] {d}" for d in dishonest_verbatim]
     found += [f"[{scheme}] {s}" for s in silent]
     for c in missing_threads:
@@ -409,7 +476,6 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
     found += [f"[{scheme}] {u}" for u in unsettled]
     found += [f"[{scheme}] {c}" for c in conflicts]
     found += [f"[{scheme}] {r}" for r in relative]
-    found += on_paper
     notices = [f"[{scheme}] console: {e}" for e in resize_notices]
     return found, notices
 

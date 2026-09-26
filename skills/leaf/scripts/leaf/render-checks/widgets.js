@@ -107,20 +107,17 @@ export const missingUpgrades = (declarations) =>
         entry["x-upgrade"] && document.querySelector(tag) && !customElements.get(tag),
     )
     .map(([tag]) => tag);
+// visual-parts.js reads each declaration, so a part the gate accepts is one the page
+// can anchor and travel to.
 const visualProviderProblems = (declarations, check) =>
   Object.entries(declarations)
-    .filter(([, entry]) => entry["x-visual"] && typeof entry["x-visual"] === "object")
+    .filter(([, entry]) => entry["x-visual"])
     .flatMap(([tag, entry]) =>
-      [...document.querySelectorAll(tag)].map((el) => {
-        const { parts, prefixes } = entry["x-visual"];
-        const declared = prefixes
-          ? []
-          : (el.getAttribute(parts) ?? "").trim().split(/\s+/).filter(Boolean);
-        const admits = prefixes
-          ? (id) => prefixes.some((p) => id !== p && id.startsWith(p))
-          : undefined;
-        return { tag, id: el.id, problems: check(el, declared, admits) };
-      }),
+      [...document.querySelectorAll(tag)].map((el) => ({
+        tag,
+        id: el.id,
+        problems: check(el, entry["x-visual"]),
+      })),
     )
     .filter((instance) => instance.problems.length);
 export const invalidVisualProviders = (declarations) =>

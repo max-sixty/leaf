@@ -45,6 +45,8 @@ from render_cases_layout import (
     RESIZE_LOOP_EVENT,
     SCROLLED_CONTAINER,
     SHADOW_HOST_PAGE,
+    SHOT_SRC,
+    SHOTS,
     SIDENOTE_IN_A_WIDGET,
     SPILLING_PAGE,
     UNMARKABLE_PAGE,
@@ -741,20 +743,48 @@ def test_an_async_reading_probe_is_refused_instead_of_awaited(browser, serve):
     ), f"an async reading has to name itself, and this came back as {failures}"
 
 
-def test_the_gate_reports_a_form_field_chrome_cannot_identify(browser, serve):
-    source = LONG_PAGE.replace(
+def test_the_gate_reports_a_devtools_issue_the_page_owns(browser, serve):
+    """A lazy image that holds no room is reported only in DevTools' Issues panel.
+
+    The page owns an image it authors in a form-associated control's light DOM, and
+    a frame it embeds, whose issue is placed at the frame. The same image in the
+    control's shadow tree is the control's implementation, so the page is not refused
+    for it."""
+    src = SHOT_SRC["before"]
+    control = f"""<script type="module">
+customElements.define("field-host", class extends HTMLElement {{
+  static formAssociated = true;
+  constructor() {{
+    super();
+    this.attachShadow({{ mode: "open" }}).innerHTML =
+      '<slot></slot><img src="{src}" alt="" loading="lazy">';
+  }}
+}});
+</script></head>"""
+    source = LONG_PAGE.replace("</head>", control).replace(
         '<h1 id="t">Long</h1>',
-        '<h1 id="t">Long</h1><label>Search <input class="unnamed" name=""></label>',
+        f"""<h1 id="t">Long</h1>
+<img id="unsized" src="{src}" alt="A panel" loading="lazy">
+<img id="sized" src="{src}" alt="A panel" loading="lazy" width="600" height="300">
+<field-host id="host"><img id="authored" src="{src}" alt="" loading="lazy"></field-host>
+<iframe id="frame" title="A frame" srcdoc='<img src="{src}" alt="" loading="lazy">'>
+</iframe>""",
     )
 
-    failures = render_gate_model.render_version(browser, serve(source)).failures
+    failures = render_gate_model.render_version(
+        browser, serve(source, media={src: SHOTS["before"]})
+    ).failures
 
-    assert [failure for failure in failures if "Chrome cannot identify" in failure] == [
-        (
-            "[light] <input class='unnamed'> has neither an id nor a name, so Chrome "
-            "cannot identify the form field"
-        )
-    ]
+    # Delivery serves media under the revision, so the issue names that URL.
+    assert sorted(
+        re.sub(r"url=\S*(/media/)", r"url=\1", failure)
+        for failure in failures
+        if "DevTools issue" in failure
+    ) == sorted(
+        f"[{scheme}] DevTools issue LazyLoadImageIssue at {where} (url={src})"
+        for scheme in ("light", "dark")
+        for where in ("<img id=unsized>", "<img id=authored>", "<iframe id=frame>")
+    )
 
 
 def test_a_rendering_turn_is_polled_from_the_driver(browser, serve):
@@ -1712,7 +1742,7 @@ def test_the_data_wait_follows_a_source_rewritten_under_it(browser, serve):
     )
     page._leaf_probe_timeout_ms = 1_000
 
-    assert render_checks_model.wait_for_presentation(page, held, 0) is None
+    assert render_checks_model.wait_for_presentation(page, held) is None
 
 
 def test_the_data_wait_follows_a_source_back_to_the_version_the_page_shows(
@@ -1740,7 +1770,7 @@ def test_the_data_wait_follows_a_source_back_to_the_version_the_page_shows(
     page.unroute("**/api/state*")
     page._leaf_probe_timeout_ms = 5_000
 
-    assert render_checks_model.wait_for_presentation(page, held, 0) is None
+    assert render_checks_model.wait_for_presentation(page, held) is None
     expect(page.locator("#notes code")).to_have_text("First.\n")
 
 
@@ -1786,19 +1816,8 @@ def test_the_render_gate_checks_custom_controls_at_their_form_boundary(browser, 
           document.querySelector('main').append(control, native);
         }"""
     )
-    assert render_checks_model.evaluate_probe(page, "unnamedFormFields") == []
     assert render_checks_model.evaluate_probe(page, "undeclaredShadowRoots", {}) == []
 
-    page.evaluate(
-        """() => {
-          document.querySelector('test-control').removeAttribute('name');
-          document.querySelector('#native-field').removeAttribute('id');
-        }"""
-    )
-    assert {
-        field["tag"]
-        for field in render_checks_model.evaluate_probe(page, "unnamedFormFields")
-    } == {"test-control", "input"}
     page.locator("main > test-control").evaluate(
         "node => node.removeAttribute('data-lf-gen')"
     )

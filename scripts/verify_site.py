@@ -1,16 +1,22 @@
 #!/usr/bin/env python3
 """Verify that leaf.page serves one exact, coherent release in a real browser.
 
-`verify-site-local.sh` runs the release pass against the local Worker and container;
-`.github/workflows/publish-site.yaml` runs it before the first public operation and
-again against the deployed release.
+`wrangler` runs a pass against the built site through the local Worker and its page
+container, printing the Worker's log beside a failure;
+`.github/workflows/publish-site.yaml` runs the release pass there before the first
+public operation and again against the deployed release.
 
 `--agent` instead sends one private comment and requires the hosted Codex task to
-publish a revision and reply, printing the acknowledgement, activity, publication,
-reply, and changed-page presentation timings. A `startup_failed` receipt gets one
-more ask; every other unsuccessful ending, rate limits included, fails on the first.
-The gate reads the receipt's `failure` code, never its wording, and
-`worker/README.md` owns that failure contract.
+publish a revision and reply. A `startup_failed` receipt gets one more ask; every
+other unsuccessful ending, rate limits included, fails on the first. The gate reads
+the receipt's `failure` code, never its wording, and `worker/README.md` owns that
+failure contract. The agent pass is also the benchmark: it prints its progress and
+timings to stderr and emits one JSON sample on stdout, covering browser presentation,
+a comment sent through the real Threads composer, acknowledgement and activity, the
+first reply text visible in the open thread, the requested publication and durable
+reply, and the changed page's presentation and revision follow. Without `--release`
+it takes the release the origin's page state names, so it measures any origin
+without a local build. `deploy-site-dev.sh` runs it against the dev environment.
 
 `local` runs the agent pass through the canonical Python adapter against the host's
 Codex login. It bypasses the Worker, container resources, and outbound credential
@@ -28,9 +34,10 @@ import tempfile
 import time
 import urllib.error
 import urllib.request
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import NamedTuple
+from typing import IO, NamedTuple
 from urllib.parse import urlencode, urljoin, urlsplit
 
 import click
@@ -649,23 +656,27 @@ def elapsed_time(seconds: float) -> str:
 
 def print_agent_profile(profile: AgentProfile) -> None:
     """Print the request and hosted-agent milestones."""
-    print("Hosted agent profile (observed from the first request):")
+    print("Hosted agent profile (observed from the first request):", file=sys.stderr)
     if profile.reference is not None:
-        print(f"  session reference {profile.reference}")
+        print(f"  session reference {profile.reference}", file=sys.stderr)
     for event_id in profile.event_ids:
-        print(f"  event {event_id}")
+        print(f"  event {event_id}", file=sys.stderr)
     for ask in range(1, profile.ask_count + 1):
         suffix = "" if ask == 1 else f" {ask}"
         print(
             f"  request{suffix} acknowledged "
-            f"{elapsed_time(profile.milestones[f'acknowledged {ask}'])}"
+            f"{elapsed_time(profile.milestones[f'acknowledged {ask}'])}",
+            file=sys.stderr,
         )
     for at, kind, detail in profile.activities:
         description = f": {detail}" if detail else ""
-        print(f"  activity {kind}{description} at {elapsed_time(at)}")
+        print(f"  activity {kind}{description} at {elapsed_time(at)}", file=sys.stderr)
     for name in ("published", "response visible", "replied", "answered"):
         if name in profile.milestones:
-            print(f"  {name} at {elapsed_time(profile.milestones[name])}")
+            print(
+                f"  {name} at {elapsed_time(profile.milestones[name])}",
+                file=sys.stderr,
+            )
 
 
 def agent_profile(profile: AgentProfile) -> dict:
@@ -897,7 +908,6 @@ def ask_until_answered(
     heading: str,
     state: dict,
     *,
-    report: bool = True,
     direct_agent: bool = False,
 ) -> AgentAsks:
     """Ask the deployed agent for `heading` until it answers or stops answering.
@@ -957,11 +967,10 @@ def ask_until_answered(
                 revision,
                 profile,
             )
-        if report:
-            print(
-                f"↻ {url} settled its ask with a startup failure; "
-                "sending one new message"
-            )
+        print(
+            f"↻ {url} settled its ask with a startup failure; sending one new message",
+            file=sys.stderr,
+        )
 
 
 def verify_agent_turn(
@@ -970,7 +979,6 @@ def verify_agent_turn(
     *,
     origin: str,
     direct_agent: bool = False,
-    report: bool = True,
 ) -> dict:
     """Require one deployed Codex turn to revise and answer a private page.
 
@@ -1009,7 +1017,6 @@ def verify_agent_turn(
         release,
         heading,
         state,
-        report=report,
         direct_agent=direct_agent,
     )
     turn, asks, revision, profile = asked
@@ -1029,8 +1036,7 @@ def verify_agent_turn(
         profile.milestones["response visible"] = (
             visible_reply_at - profile.visible_reply_started_ms
         ) / 1000
-    if report:
-        print_agent_profile(profile)
+    print_agent_profile(profile)
     # What the turn did comes before how Threads drew it. The panel owes the user a
     # reply only once the container has admitted one, so a turn that stopped without
     # answering is reported as that turn rather than as a page that failed to paint.
@@ -1111,17 +1117,17 @@ def verify_agent_turn(
         f"followed revision {published['revision']} "
         f"{followed_in:.0f} ms after presentation"
     )
-    if report:
-        print(
-            f"✓ hosted agent published revision {published['revision']} "
-            f"and replied: {answer['text']}"
-            + (
-                f"; the reloaded page presented in {presented_at:.0f} ms and {followed}"
-                if presented_at is not None
-                else f"; the reloaded page {followed}"
-            )
-        )
-        print(startup_line("changed page", startup))
+    print(
+        f"✓ hosted agent published revision {published['revision']} "
+        f"and replied: {answer['text']}"
+        + (
+            f"; the reloaded page presented in {presented_at:.0f} ms and {followed}"
+            if presented_at is not None
+            else f"; the reloaded page {followed}"
+        ),
+        file=sys.stderr,
+    )
+    print(startup_line("changed page", startup), file=sys.stderr)
     result = {
         "origin": origin,
         "release": release,
@@ -1145,12 +1151,63 @@ def target_origin(target: str) -> str:
     """Require an HTTP origin; page paths belong to the verification journey."""
     parsed = urlsplit(target)
     if parsed.scheme not in {"http", "https"} or not parsed.netloc:
-        raise click.BadParameter("target must be local or an http(s) origin")
+        raise click.BadParameter("target must be local, wrangler, or an http(s) origin")
     if parsed.path not in {"", "/"} or parsed.query or parsed.fragment:
         raise click.BadParameter(
             "target must be an origin without a path, query, or fragment"
         )
     return target.rstrip("/")
+
+
+def answers(url: str) -> bool:
+    """Whether `url` answers with a success status now."""
+    try:
+        with urllib.request.urlopen(url, timeout=1):
+            return True
+    except (urllib.error.URLError, TimeoutError):
+        return False
+
+
+@contextmanager
+def logged(log: Path) -> Iterator[IO[str]]:
+    """Collect a local server's output in `log`, printing it beside any failure.
+
+    A server's own account is the other half of a failure the browser can only
+    report as a timeout, and a benchmark's stdout holds only its JSON sample.
+    """
+    log.parent.mkdir(parents=True, exist_ok=True)
+    with log.open("w") as output:
+        try:
+            yield output
+        except BaseException:
+            output.flush()
+            sys.stderr.write(log.read_text())
+            raise
+
+
+@contextmanager
+def serving(
+    command: list[str],
+    output: IO[str],
+    ready: Callable[[], bool],
+    patience: float,
+    **popen,
+) -> Iterator[None]:
+    """Run one local server until the block ends, once `ready` says it is serving."""
+    with subprocess.Popen(
+        command, stdout=output, stderr=subprocess.STDOUT, **popen
+    ) as server:
+        try:
+            deadline = time.monotonic() + patience
+            while not ready():
+                check(server.poll() is None, f"{command[0]} exited before serving")
+                check(time.monotonic() < deadline, f"{command[0]} did not serve")
+                time.sleep(0.1)
+            yield
+        finally:
+            if server.poll() is None:
+                server.terminate()
+            server.wait()
 
 
 @contextmanager
@@ -1159,12 +1216,14 @@ def local_adapter():
 
     The host's login is copied into a private temporary home. The adapter uses
     resumable tasks there and owns their App Server; terminating it closes that
-    server before the temporary pages and task history are removed. Build and server
-    output stay in the diagnostic log, so a benchmark's stdout contains only JSON.
+    server before the temporary pages and task history are removed.
     """
     log = ROOT / ".tmp" / "website-agent-local.log"
-    log.parent.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory(prefix="leaf-site-agent.") as temporary:
+    origin = "http://127.0.0.1:8080"
+    with (
+        tempfile.TemporaryDirectory(prefix="leaf-site-agent.") as temporary,
+        logged(log) as output,
+    ):
         root = Path(temporary)
         site = root / "site"
         codex_home = root / "codex-home"
@@ -1176,84 +1235,124 @@ def local_adapter():
         auth = codex_home / "auth.json"
         shutil.copyfile(host_home / "auth.json", auth)
         auth.chmod(0o600)
-        with log.open("w") as output:
-            try:
-                subprocess.run(
-                    [sys.executable, str(ROOT / "scripts" / "site.py")],
-                    cwd=ROOT,
-                    stdout=output,
-                    stderr=subprocess.STDOUT,
-                    check=True,
-                )
-                shutil.copytree(ROOT / ".tmp" / "site", site)
-                release = json.loads((site / "_leaf" / "site.json").read_text())[
-                    "release"
-                ]
-                output.flush()
-                server_log_start = output.tell()
-                with subprocess.Popen(
-                    [sys.executable, str(ROOT / "worker" / "server.py")],
-                    cwd=ROOT,
-                    env={
-                        **os.environ,
-                        "CODEX_HOME": str(codex_home),
-                        "LEAF_SITE_ROOT": str(site),
-                    },
-                    stdout=output,
-                    stderr=subprocess.STDOUT,
-                ) as server:
+        subprocess.run(
+            [sys.executable, str(ROOT / "scripts" / "site.py")],
+            cwd=ROOT,
+            stdout=output,
+            stderr=subprocess.STDOUT,
+            check=True,
+        )
+        shutil.copytree(ROOT / ".tmp" / "site", site)
+        release = json.loads((site / "_leaf" / "site.json").read_text())["release"]
+        output.flush()
+        server_log_start = output.tell()
+
+        def ready() -> bool:
+            # The adapter emits this event only after binding its listener. An
+            # unrelated process answering the port must not satisfy readiness
+            # before our child has started.
+            with log.open() as server_log:
+                server_log.seek(server_log_start)
+                for line in server_log:
+                    if not line.endswith("\n"):
+                        return False
                     try:
-                        origin = "http://127.0.0.1:8080"
-                        deadline = time.monotonic() + 30
-                        while True:
-                            if server.poll() is not None:
-                                raise RuntimeError(
-                                    "the local website adapter exited before becoming ready"
-                                )
-                            # The adapter emits this event only after binding its
-                            # listener. An unrelated process answering the port must
-                            # not satisfy readiness before our child has started.
-                            with log.open() as server_log:
-                                server_log.seek(server_log_start)
-                                ready = False
-                                for line in server_log:
-                                    if not line.endswith("\n"):
-                                        break
-                                    try:
-                                        record = json.loads(line)
-                                    except json.JSONDecodeError:
-                                        # stderr shares this log with the structured
-                                        # events, including startup tracebacks.
-                                        continue
-                                    if (
-                                        isinstance(record, dict)
-                                        and record.get("event")
-                                        == "container_http_ready"
-                                    ):
-                                        ready = True
-                                        break
-                            if ready:
-                                try:
-                                    with urllib.request.urlopen(
-                                        f"{origin}/health", timeout=1
-                                    ):
-                                        break
-                                except (urllib.error.URLError, TimeoutError):
-                                    pass
-                            if time.monotonic() >= deadline:
-                                raise RuntimeError(
-                                    "the local website adapter did not become ready"
-                                )
-                            time.sleep(0.1)
-                        yield origin, release
-                    finally:
-                        if server.poll() is None:
-                            server.terminate()
-                        server.wait()
-            except BaseException:
-                output.flush()
-                sys.stderr.write(log.read_text())
-                raise
+                        record = json.loads(line)
+                    except json.JSONDecodeError:
+                        # stderr shares this log with the structured events,
+                        # including startup tracebacks.
+                        continue
+                    if (
+                        isinstance(record, dict)
+                        and record.get("event") == "container_http_ready"
+                    ):
+                        return answers(f"{origin}/health")
+            return False
+
+        with serving(
+            [sys.executable, str(ROOT / "worker" / "server.py")],
+            output,
+            ready,
+            30,
+            cwd=ROOT,
+            env={
+                **os.environ,
+                "CODEX_HOME": str(codex_home),
+                "LEAF_SITE_ROOT": str(site),
+            },
+        ):
+            yield origin, release
+
+
+@contextmanager
+def local_worker() -> Iterator[str]:
+    """Serve the built site through `wrangler dev`: the Worker and its page container.
+
+    Chrome and Docker share this host, which is only ever true here: a user's
+    container runs on Cloudflare, so nothing in production starts one on the machine
+    drawing the page. Chromium answers a host IP-address change by flushing its
+    socket pools with ERR_NETWORK_CHANGED, loopback included, and starting a
+    container adds a host interface. Prewarm puts that start in the background of
+    the document response, so it lands inside the module loads a pass measures and
+    can abort a page's entry module before it arrives. Without it the only thing that
+    starts a container is the activation read the pass makes and waits on, with no
+    page loading beside it, so the host's interfaces are settled for every load the
+    browser is measured on. Production keeps prewarm, and the pass over the deployed
+    release exercises it there. The patience covers building the container image.
+
+    Wrangler stops each session's container when it exits but leaves that
+    container's `proxy-everything` sidecar running, and no later run reclaims it, so
+    this run removes its own on the way out. Workerd names every container after its
+    Worker, so the run serves under a name of its own and removes only containers
+    carrying it, never those of another `wrangler dev` of this Worker.
+    """
+    origin = "http://127.0.0.1:8787"
+    wrangler = ROOT / "worker" / "node_modules" / ".bin" / "wrangler"
+    name = f"lv{os.getpid()}"
+    try:
+        with (
+            logged(ROOT / ".tmp" / "wrangler-dev.log") as output,
+            serving(
+                [
+                    str(wrangler),
+                    "dev",
+                    "--name",
+                    name,
+                    "--port",
+                    "8787",
+                    "--var",
+                    "AGENT_PREWARM:false",
+                ],
+                output,
+                lambda: answers(f"{origin}/"),
+                180,
+                cwd=ROOT / "worker",
+            ),
+        ):
+            yield origin
+    finally:
+        listed = subprocess.run(
+            ["docker", "ps", "--quiet", "--filter", f"name=^workerd-{name}-"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        if started := listed.stdout.split():
+            subprocess.run(
+                ["docker", "rm", "--force", *started],
+                stdout=subprocess.DEVNULL,
+                check=True,
+            )
+
+
+def built_release(requested: str | None) -> str:
+    """The release `site.py` last built, which a requested release must match."""
+    built = json.loads(MANIFEST.read_text(encoding="utf-8"))["release"]
+    check(
+        requested is None or requested == built,
+        "the requested release differs from the built site",
+    )
+    return built
 
 
 @click.command()
@@ -1265,10 +1364,12 @@ def local_adapter():
     help="Verify one agent edit and reply instead of the release boundary.",
 )
 def main(target: str, release: str | None, agent: bool) -> None:
-    """Verify a deployed release, or run the agent journey against LOCAL or an origin.
+    """Verify a release at TARGET, or run the agent journey there with `--agent`.
 
-    The release and agent passes are separate: rollout verification settles the
-    release before the agent pass allocates its own private user session.
+    TARGET is an origin, `wrangler` for the built site through the local Worker, or
+    `local` for the agent journey through the Python adapter alone. The release and
+    agent passes are separate: rollout verification settles the release before the
+    agent pass allocates its own private user session.
     """
     if target == "local":
         with local_adapter() as (origin, built):
@@ -1278,27 +1379,31 @@ def main(target: str, release: str | None, agent: bool) -> None:
             )
             run_verification(origin, built, agent=True, direct_agent=True)
         return
+    if target == "wrangler":
+        built = built_release(release)
+        with local_worker() as origin:
+            run_verification(origin, built, agent=agent)
+        return
     origin = target_origin(target)
-    built = json.loads(MANIFEST.read_text(encoding="utf-8"))["release"]
-    check(
-        release is None or release == built,
-        "the requested release differs from the built site",
-    )
-    run_verification(origin, release or built, agent=agent)
+    run_verification(origin, release if agent else built_release(release), agent=agent)
 
 
 def run_verification(
-    origin: str, release: str, *, agent: bool, direct_agent: bool = False
+    origin: str, release: str | None, *, agent: bool, direct_agent: bool = False
 ) -> None:
     """Run one browser check against explicit transport and release inputs."""
     with sync_playwright() as playwright:
         browser, browser_name = launch_browser(playwright)
         try:
             if agent:
-                verify_agent_turn(
+                result = verify_agent_turn(
                     browser, release, origin=origin, direct_agent=direct_agent
                 )
-                print(f"✓ {origin} ran one agent turn on release {release}")
+                print(
+                    f"✓ {origin} ran one agent turn on release {result['release']}",
+                    file=sys.stderr,
+                )
+                print(json.dumps({"browser": browser_name, **result}, indent=2))
                 return
             print(
                 "Leaf startup profile (observed, not a pass/fail budget):", flush=True

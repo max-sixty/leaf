@@ -73,8 +73,7 @@ def run_page_code(browser, url: str) -> list[str]:
         page.goto(url)
         wait_for_probe(page, "upgraded")
         state = served(page, url, "/api/state").json()
-        applied = sum(e["kind"] in ("action", "report") for e in state["events"])
-        stage = wait_for_presentation(page, state, applied)
+        stage = wait_for_presentation(page, state)
         if stage is not None:
             return [*reports, f"the runtime never passed its {stage} stage"]
         # A widget that paints from a rendering callback throws there, not in its

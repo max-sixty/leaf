@@ -15,6 +15,8 @@ from pathlib import Path
 import playwright
 import pytest
 import tinycss2
+import tomllib
+import yaml
 from click.testing import CliRunner
 from conftest import LEAF_COMMAND, PagePool
 from interact_support import (
@@ -263,57 +265,47 @@ def test_the_python_instructions_name_every_module_they_own():
     assert not unnamed, f"unnamed in scripts/AGENTS.md: {unnamed}"
 
 
-def test_the_root_instructions_name_every_directory_ci_gates_on_its_own():
-    """A gate `uv run pytest tests` does not reach must be named where sessions read.
+def shell_commands(script):
+    """The simple commands of a hook or step script, split at newlines and `&&`."""
+    return [c.strip() for c in re.split(r"\n|&&", script) if c.strip()]
 
-    `ci.yaml` runs one job per gate, and a step that names a `working-directory`
-    is a gate with its own tools and its own command — the website Worker's
-    TypeScript today. Neither the suite nor pre-commit reaches such a tree, and
-    `wt merge` runs only those two, so a session that lands there on the root
-    instructions alone reddens main. The set comes from the workflow rather than
-    a list here, for the reason the reference routing above states: a list is the
-    second copy, and the job added without the paragraph would stay green.
+
+def test_wt_merge_runs_every_npm_gate_ci_runs():
+    """Each npm gate CI runs, the direct landing path runs in the same directory.
+
+    Neither the suite nor pre-commit reaches the TypeScript under `worker/src/` and
+    `scripts/browser/`, so a `wt merge` that skipped one of their gates would land a
+    red main that a pull request would have caught. A step's `working-directory`
+    becomes `--prefix` in the hook, which runs from the root: npm's bare `test` in
+    `worker/` is `npm test --prefix worker` there. `npm ci` installs rather than gates.
+    The set comes from the workflow rather than a list here: a list is a second copy,
+    and the gate added to CI without the hook would stay green.
     """
-    workflow = (ROOT / ".github" / "workflows" / "ci.yaml").read_text(encoding="utf-8")
-    instructions = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
-    directories = sorted(
-        set(re.findall(r"^\s*working-directory:\s*(\S+)", workflow, re.MULTILINE))
+    workflow = yaml.safe_load(
+        (ROOT / ".github" / "workflows" / "ci.yaml").read_text(encoding="utf-8")
+    )
+    config = tomllib.loads((ROOT / ".config" / "wt.toml").read_text(encoding="utf-8"))
+    hook = {
+        command
+        for block in config["pre-merge"]
+        for script in block.values()
+        for command in shell_commands(script)
+    }
+    gates = sorted(
+        {
+            f"{command} --prefix {step['working-directory']}"
+            if "working-directory" in step
+            else command
+            for job in workflow["jobs"].values()
+            for step in job["steps"]
+            for command in shell_commands(step.get("run", ""))
+            if command.startswith("npm ") and not command.startswith("npm ci")
+        }
     )
 
-    assert directories, "no working-directory read — an empty set names itself"
-    unnamed = [d for d in directories if f"`{d}/`" not in instructions]
-    assert not unnamed, f"unnamed in AGENTS.md: {unnamed}"
-
-
-def test_the_root_instructions_name_every_npm_gate_ci_runs():
-    """A gate with its own tools is named by its command, not only by its tree.
-
-    The reading above finds a gate through `working-directory`, which is how a gate
-    that keeps a tree of its own announces itself. A gate can hold its own tools at
-    the repository root instead: `scripts/browser/`'s TypeScript is typechecked and
-    tested by npm scripts run from the root, so it declares no `working-directory`
-    and that reading passes straight over it — which is how the root map went on
-    calling the worker's TypeScript half the one part of the tree with a gate of its
-    own after a second one had landed. Prettier and eslint take JavaScript and HTML
-    rather than TypeScript, and `wt merge` runs only pre-commit and the suite, so a
-    session that lands on either half with the root instructions alone reddens main.
-    The set comes from the workflow rather than a list here, for the reason the
-    routing above states: a list is the second copy, and the gate added without the
-    paragraph would stay green.
-
-    Read as `npm run`, and required in `AGENTS.md` under that same spelling: a bare
-    script name would pass on any word the instructions already carry — `lint`,
-    `check` and `format` are each in there — so the next gate named one of those
-    would stay green while the paragraph went stale. `npm ci` installs rather than
-    gates, and npm's bare `test` alias is not read under this spelling at all.
-    """
-    workflow = (ROOT / ".github" / "workflows" / "ci.yaml").read_text(encoding="utf-8")
-    instructions = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
-    scripts = sorted(set(re.findall(r"\bnpm run ([\w:-]+)", workflow)))
-
-    assert scripts, "no npm gate read — an empty set names itself"
-    unnamed = [script for script in scripts if f"npm run {script}" not in instructions]
-    assert not unnamed, f"unnamed in AGENTS.md: {unnamed}"
+    assert gates, "no npm gate read — an empty set names itself"
+    ungated = [gate for gate in gates if gate not in hook]
+    assert not ungated, f"not in .config/wt.toml's pre-merge: {ungated}"
 
 
 def test_the_root_instructions_name_every_directory_of_the_projects_own_tree():

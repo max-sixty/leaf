@@ -83,6 +83,27 @@ def test_gallery_thread_rows_name_action_in_existing_status(browser, serve):
     expect(asked.locator(":scope > .lf-thread-summary .lf-thread-status")).to_have_text(
         "On you · answer question"
     )
+    summary = asked.locator(":scope > .lf-thread-summary")
+    recency = summary.locator(".lf-thread-recency")
+    expect(recency).to_have_attribute("datetime", "2026-09-02T00:12:56-07:00")
+    expect(recency).to_have_text(re.compile(r"^(now|\d+[mhd])$"))
+    expect(summary.locator(".lf-thread-count")).to_have_text("3")
+    page.evaluate(
+        "document.documentElement.style.setProperty('--lf-thread-panel-width', '320px')"
+    )
+    narrow = summary.evaluate(
+        """summary => {
+          const topic = summary.querySelector('.lf-thread-topic').getBoundingClientRect();
+          const status = summary.querySelector('.lf-thread-status').getBoundingClientRect();
+          const trailing = summary.querySelector('.lf-thread-trailing').getBoundingClientRect();
+          const row = summary.getBoundingClientRect();
+          return { topicWidth: topic.width, statusBelow: status.top >= topic.bottom,
+                   trailingInside: trailing.right <= row.right };
+        }"""
+    )
+    assert narrow["topicWidth"] > 150
+    assert narrow["statusBelow"]
+    assert narrow["trailingInside"]
     asked.locator(":scope > .lf-thread-summary").focus()
     asked.locator(":scope > .lf-thread-summary").press("Enter")
     expect(asked).to_have_attribute("open", "")
@@ -4810,18 +4831,21 @@ def test_a_thread_on_a_widget_in_a_reply_travels_in_the_panel_that_holds_it(
     page.evaluate("() => { document.scrollingElement.scrollTop = 1200; }")
     page.evaluate("() => { document.querySelector('.lf-threads').scrollTop = 0; }")
 
-    # Where the travel says it is taking the widget: centred in the list, or as near
-    # as the list can come — a widget in the last message is past the middle of what
-    # the box can show, and the end of the scroll range is the whole of the answer
-    # there. The same arithmetic the travel uses, so this asserts where it went and
+    # Where the travel says it is taking the widget: centred in the list's landing band
+    # (the list less its declared scroll-padding), or as near as the list can come — a
+    # widget in the last message is past the middle of what the box can show, and the
+    # end of the scroll range is the whole of the answer there. The same arithmetic the travel uses, so this asserts where it went and
     # not merely that something moved.
     WHERE = """() => {
       const box = document.querySelector('.lf-threads');
       const view = box.getBoundingClientRect();
       const el = document.getElementById('tv-decision').getBoundingClientRect();
-      const clear = parseFloat(getComputedStyle(box).scrollPaddingTop) || 0;
+      const style = getComputedStyle(box);
+      const above = parseFloat(style.scrollPaddingTop) || 0;
+      const below = parseFloat(style.scrollPaddingBottom) || 0;
+      const room = box.clientHeight - above - below;
       return { at: el.top - view.top,
-               want: Math.max((view.height - el.height) / 2, clear),
+               want: box.clientTop + above + Math.max((room - el.height) / 2, 0),
                atEnd: box.scrollTop >= box.scrollHeight - box.clientHeight - 1 };
     }"""
     focus_panel_thread(page.locator('.lf-thread[data-id="tv-on-it"]'))
@@ -5306,6 +5330,7 @@ def test_a_panel_reads_a_log_that_lost_the_message_a_reply_answers(browser, serv
     expect(page.locator(".lf-thread")).to_have_count(1)
     expect(page.locator(".lf-thread")).to_contain_text("the answer that survived it")
     expect(page.locator(".lf-thread")).to_contain_text("the later plain reply")
+    expect(page.locator('.lf-thread[data-id="tv-lost"]')).to_have_count(1)
     expect(page.locator(".lf-needs")).to_have_text("You (1)")
 
 

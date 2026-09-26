@@ -70,6 +70,7 @@ from leaf import leases as leases_model
 from leaf import machine as machine_model
 from leaf import page_view as page_view_model
 from leaf import presence as presence_model
+from leaf import projection as projection_model
 from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
 from leaf import server as server_model
@@ -896,10 +897,12 @@ def test_thread_attention_names_the_workflow_the_thread_waits_on():
             "newer",
         ),
     ]
+    # Only which thread the board widget stands in matters here.
+    frozen = projection_model.FrozenThreadReading(None, {}, {}, {"board": "root"}, None)
     for workflows, expected in cases:
-        threads = [{"root": {"id": "root"}, "resolved": None, "user_prompt": None}]
+        threads = [{"id": "root", "resolved": None, "user_prompt": None}]
         browser_served_model._apply_thread_attention(
-            threads, {"user": []}, workflows, {"board": "root"}
+            threads, {"user": []}, workflows, frozen
         )
         assert threads[0]["attention"] == {
             "kind": "waiting",
@@ -5352,7 +5355,9 @@ def test_thread_summary_is_admitted_as_one_ordered_thread_range(page_dir):
         second["id"],
         third["id"],
     ]
-    assert browser_thread["summaries"][0]["id"] == summary["id"]
+    # The agent reads the summary the user is shown, which messages it leaves in view
+    # included.
+    assert browser_thread["summaries"] == [projected]
 
 
 def test_summary_hint_keeps_the_latest_spoken_exchange_outside_reactions(page_dir):

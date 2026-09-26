@@ -73,10 +73,10 @@ control state, and a segmented group keeps one-pixel shared seams. Avoid rounded
 one-sided borders and reflexive cards, tints, gradients, or soft shadows.
 
 Each Thread's `unread` and `attention` are single readings that every surface
-painting them consumes, so the Threads toggle, panel, margin entry, and Page Map
-change together. Workflow state rides the existing semantic control rather than a
-colored edge: pickup colors its icon green, and working also colors the interior
-and pulses once on arrival, which a repaint never replays. User attention wears
+painting them consumes, so the Threads toggle, filters, panel, margin entry, and
+Page Map change together. Workflow state rides the existing semantic control
+rather than a colored edge: pickup colors its icon green, and working also colors
+the interior and pulses once on arrival, which a repaint never replays. User attention wears
 the same two channels in blue. Reading is bookkeeping and never moves the user.
 
 ### Motion
@@ -218,7 +218,8 @@ reading of whether chrome has caught up.
 Python owns the durable Ask and thread projections, including whether an Ask is
 answered (the registry's `$awaits.answered`); the browser adds no second fold.
 The server ships page and thread Asks as `document.asks` and the thread's
-`asks`, and each thread's `attention`, which the browser adjusts only for its own
+`asks`, and each thread's `attention`, the one reading of whose turn a thread is
+(`needs_user` or `waiting`), which the browser adjusts only for its own
 unresolved sends; a refusal restores the accepted reading. Every state read has
 one `through_seq`, and version comparison asks `/api/view` at the sequence
 already applied. A page widget's projection stops at the current revision; a

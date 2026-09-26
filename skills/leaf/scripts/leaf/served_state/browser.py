@@ -24,7 +24,13 @@ def _apply_thread_attention(
     workflows: list[dict],
     thread_by_widget: dict[str, str],
 ) -> None:
-    """Attach the shared attention aggregate, with user Asks taking precedence."""
+    """Attach the shared attention aggregate, with user Asks taking precedence.
+
+    This is the browser's one reading of whose turn a thread is: `needs_user` for
+    an open Ask or a question the agent's latest turn leaves (`awaits_user`), or a
+    response the user must recover; `waiting` while a workflow holds the thread with
+    the agent, which covers every input `events.unanswered_turns` holds and any work
+    claimed on the thread after it was answered; else None."""
     user_threads = {ask["thread"] for ask in asks["user"]}
     stage_rank = {
         "sent": 0,
@@ -231,7 +237,15 @@ def browser_state(
             revisions
             or (lambda revision: (documents[revision], registry_for(revision))),
         )
-        page_history = {"history": history(events, threads, words)}
+        page_history = {
+            "history": history(
+                events,
+                threads,
+                words,
+                thread_reading.roots,
+                thread_reading.thread_by_widget,
+            )
+        }
     else:
         page_history = {}
     return {

@@ -36,7 +36,7 @@ from .schema import (
 )
 from .served_state.page import full_state
 from .served_state.reading import page_reading
-from .server import running_server, server_restarting
+from .server import running_server
 from .service import (
     PageTransaction,
     claim_page,
@@ -232,7 +232,10 @@ class Watch:
     transition, then rereads under a new transaction; no delivery snapshot
     crosses that unlocked interval.
     `watch_state` is ownership/lifetime; `lost` separately says the server is
-    down with no restart left to make.
+    down with nothing left to bring it back: never served, or dead after a
+    revival that did not hold. A stopped service is not lost: `server stop` is
+    the agent's own move, and `page init` stops a served page to re-vendor it and
+    starts it again, so the wait watches a disabled service without reviving it.
 
     Between passes the watch follows `reading`, the stamps of what a pass reads:
     the machine's claims, which say which pages the session holds, and each page a
@@ -368,13 +371,13 @@ class Watch:
         enabled = bool(service and service["enabled"])
         key, now, revive = str(page_dir), time.time(), False
         # Desired service state owns revival. Status says what the page is doing;
-        # it does not turn a deliberately disabled service back on. A restart
-        # disables the service too, but its holder starts it again, so while one
-        # runs the page is neither lost nor due a revival.
-        if watch_state == "watching" and live and server_restarting(page_dir):
-            self._lost.discard(key)
-        elif watch_state == "watching" and live and not enabled:
+        # it does not turn a disabled service back on, and a disabled one is not
+        # lost either: whoever stopped it may start it again.
+        if watch_state == "watching" and live and service is None:
             self._lost.add(key)
+        elif watch_state == "watching" and live and not enabled:
+            self._lost.discard(key)
+            self._revived.discard(key)
         elif watch_state == "watching" and live and now > self._check_at.get(key, 0):
             self._check_at[key] = now + REVIVAL_CHECK_S
             if running_server(page_dir):

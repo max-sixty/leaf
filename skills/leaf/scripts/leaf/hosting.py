@@ -14,7 +14,7 @@ from urllib.parse import urlsplit
 
 import uvicorn
 
-from .detached import Handshake, start_detached
+from .detached import Handshake, StartRefused, start_detached
 from .event_log import require_cross_process_locking
 from .files import read_json, write_json
 from .host import session_harness
@@ -22,7 +22,7 @@ from .http import page_app, page_endpoint
 from .layer import payload_provenance
 from .leases import lock_is_held, page_locked, release_lease, take_lease
 from .registry.storage import layer_metadata
-from .schema import RESTART_LOCK, SERVER_LOCK, SERVICE_FILE
+from .schema import SERVER_LOCK, SERVICE_FILE
 from .server import (
     host_key,
     lifetime_note,
@@ -32,7 +32,7 @@ from .server import (
     running_server,
     stop_when_service_ends,
 )
-from .service import PageTransaction, starting_claim
+from .service import PageTransaction, claim_is_active, page_claim, starting_claim
 
 TEMPORARY_SERVER_NOTE = "server   temporary (stops with this command)"
 
@@ -494,22 +494,42 @@ def claim_and_start(
         return start_server(page_dir, host, standing)
 
 
-def cmd_stop(page_dir: Path) -> str:
+def cmd_stop(page_dir: Path, restart: str | None = None) -> str:
     """Disable the desired service and wait until its process lease is released.
 
     The barrier is taking the lease under the page lock, without waiting:
     held together, they keep a new start out of the gap between the old server's
     exit and this return. The wait between attempts is outside the transition,
-    since a serving process may need it to withdraw an uncommitted start."""
+    since a serving process may need it to withdraw an uncommitted start.
+
+    `restart` marks the disabled record as `restarting_server`'s own. A plain stop
+    writes an unmarked one even over a service already down, so a stop made while
+    a restart holds the service down takes the restart's claim to it away. The
+    record is this stop's to write once, on its first pass: a later pass only
+    disables a service something enabled meanwhile, and keeps whatever mark the
+    record then carries, so a restart waiting out the old server's lease does not
+    write its mark back over a plain stop that landed during the wait."""
     require_cross_process_locking()
     stopped = False
+    first = True
     while True:
         with page_locked(page_dir):
             # The server may release its lease immediately after we disable it.
             stopped = stopped or lock_is_held(page_dir / SERVER_LOCK)
             service = read_json(page_dir / SERVICE_FILE)
-            if service and service["enabled"]:
+            if service and first:
+                disabled = {
+                    **{
+                        key: value for key, value in service.items() if key != "restart"
+                    },
+                    "enabled": False,
+                    **({"restart": restart} if restart else {}),
+                }
+                if disabled != service:
+                    write_json(page_dir / SERVICE_FILE, disabled)
+            elif service and service["enabled"]:
                 write_json(page_dir / SERVICE_FILE, {**service, "enabled": False})
+            first = False
             lease = take_lease(page_dir / SERVER_LOCK)
             if lease is not None:
                 release_lease(lease)
@@ -520,22 +540,98 @@ def cmd_stop(page_dir: Path) -> str:
 
 @contextlib.contextmanager
 def restarting_server(page_dir: Path):
-    """Hold a page's service down for a transition whose holder starts it again.
+    """Hold a page's service down for the block, and start it again after.
 
+    `page init` re-vendors inside this, since no server runs across a re-vendor:
+    the layer it serves and the code it runs are both what the re-vendor replaces.
     The service goes down through `cmd_stop`, since a disabled service is what keeps
-    a revival and a second start out of the transition and what lets `page init`
-    re-vendor. A watching `leaf wait` would read that alone as a service someone
-    stopped, and end. The restart lease, taken first and held until the holder
-    lets go, says the stop is a restart's: the holder starts the service again
-    inside the block, so a wait reads the gap as the page coming back
-    (`server.server_restarting`). The lease is the holder's process, so a holder
-    killed mid-restart leaves the plain stop behind, which is what it then is.
+    a revival and a second start out of the block. A watching `leaf wait` goes on
+    watching through the gap: a stopped service does not end a wait
+    (`session-lifetime.md`, "Lifetime").
+
+    Only an enabled service comes back, under its recorded lifetime and address; a
+    stopped one stays stopped, and a page never served has nothing to hold down. A
+    session service comes back only for the session holding its claim, and claims
+    nothing to do it: the claim is still that session's, and taking it again would
+    reopen a turn the Stop hook closed. Another live session's service is refused
+    before anything stops, since only that session could start it again. One whose
+    session has ended has no owner to come back for, so it is stopped and stays
+    stopped for the next `server start` to claim.
+
+    The service comes back only after a block that completed. The caller decides
+    whatever can refuse before it enters, while the page is still served; a block
+    that fails anyway, or is interrupted, leaves a page nobody vouches for, and a
+    server started over it could run this Leaf's code against the layer the page
+    kept. So the service stays stopped, and says so.
+
+    Nor does it come back over a stop made during the block. The disabled record
+    this writes carries a mark of its own, which any other stop replaces, and the
+    service is enabled again only while the mark is still there. The start that
+    follows is a revival, "only if still enabled", so a stop after that is kept
+    too. A start the server then refuses leaves the service enabled and down, as
+    a dead server is, for a watching `leaf wait` to revive or report. Nothing but
+    this block reads the mark, so one a killed restart leaves behind is inert: the
+    next start or stop writes a record without it.
     """
-    lease = take_lease(page_dir / RESTART_LOCK)
-    if lease is None:
-        raise RuntimeError(f"another process is restarting the server for {page_dir}")
-    try:
-        cmd_stop(page_dir)
+    service = read_json(page_dir / SERVICE_FILE)
+    if not service or not service["enabled"]:
         yield
-    finally:
-        release_lease(lease)
+        return
+    standing = service["lifetime"] == "standing"
+    comes_back = standing or _restarts_for_this_session(page_dir)
+    mark = secrets.token_hex(8) if comes_back else None
+    cmd_stop(page_dir, restart=mark)
+    if not comes_back:
+        print(
+            f"{page_dir}'s server belonged to a session that has ended, so it stays "
+            f"stopped; `leaf server start {page_dir}` serves it for this one.",
+            file=sys.stderr,
+        )
+        yield
+        return
+    try:
+        yield
+    except BaseException:
+        print(
+            f"{page_dir}'s server stays stopped; `leaf server start {page_dir}` "
+            "serves it again.",
+            file=sys.stderr,
+        )
+        raise
+    with page_locked(page_dir):
+        service = read_json(page_dir / SERVICE_FILE)
+        resumed = bool(service and service.get("restart") == mark)
+        if resumed:
+            del service["restart"]
+            write_json(page_dir / SERVICE_FILE, {**service, "enabled": True})
+    if not resumed:
+        print(
+            f"{page_dir}'s server was stopped while it was re-vendored, so it stays "
+            "stopped.",
+            file=sys.stderr,
+        )
+        return
+    try:
+        start_server(page_dir, standing=standing, revive=True)
+    except StartRefused as error:
+        sys.exit(f"{page_dir}'s server did not start again: {error}")
+
+
+def _restarts_for_this_session(page_dir: Path) -> bool:
+    """Whether this command may restart a session service: its claim is this
+    session's. False when no live session holds it any more; an exit when
+    another one does."""
+    claim = page_claim(page_dir)
+    if not claim_is_active(claim):
+        return False
+    harness = session_harness()
+    if harness is None or (claim["harness"], claim["id"]) != (
+        harness.name,
+        harness.session,
+    ):
+        sys.exit(
+            f"{page_dir} is served for another session, and only that session can "
+            "start its server again; re-vendor it from there, or take the page over "
+            f"first with `leaf server start {page_dir}`"
+        )
+    return True

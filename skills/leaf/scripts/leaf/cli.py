@@ -175,8 +175,9 @@ def init(dir: str, selected: tuple[str, ...], no_packages: bool) -> None:
     Creates PAGE/revisions/, then vendors the widget layer.
     The author writes PAGE/index.html. Re-running preserves the page's explicit packages unless --package or
     --no-packages replaces them, and refuses vocabulary the page log can no longer
-    read. A package may contain any subset of the package layout, including zero,
-    one, or many widgets.
+    read. A served page's server restarts around the re-vendor, at the same URL.
+    A package may contain any subset of the package layout, including zero, one,
+    or many widgets.
     """
     from leaf.vendoring import cmd_init
 

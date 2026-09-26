@@ -40,7 +40,7 @@ from .service import PageTransaction, unacknowledged
 from .structure import SourceDocument, parse_revision
 
 
-def standing_entry(coordinate, e: dict, conversation: str | None = None) -> dict:
+def standing_entry(coordinate, e: dict, thread: str | None = None) -> dict:
     """One standing action, in the shape `page state` reports every one of them.
 
     `revision` is the exact document the action was taken on, which for a widget an agent
@@ -55,7 +55,7 @@ def standing_entry(coordinate, e: dict, conversation: str | None = None) -> dict
         "detail": e["detail"],
         "revision": e["revision"],
         "seq": e["seq"],
-        "conversation": conversation,
+        "thread": thread,
     }
 
 
@@ -66,21 +66,21 @@ def cmd_page_state(page_dir: Path) -> None:
         _write_page_state(page_dir, page.events, activation.error)
 
 
-def cmd_conversation_read(
+def cmd_thread_read(
     page_dir: Path,
-    conversation_id: str,
+    thread_id: str,
     *,
     after: int = 0,
     limit: int = 50,
 ) -> None:
-    """Print one exact current conversation and one bounded history page."""
+    """Print one exact current thread and one bounded history page."""
     with PageTransaction(page_dir) as page:
         activation = activate_source(page_dir)
         _write_page_state(
             page_dir,
             page.events,
             activation.error,
-            conversation_id=conversation_id,
+            thread_id=thread_id,
             after=after,
             limit=limit,
         )
@@ -157,11 +157,11 @@ def _base_state(
         "measurement_lag": [],
         "asks": [],
         # Current semantic facts only. Exact raw history belongs to
-        # `events --conversation`; keeping its sequence list here would make this
-        # default snapshot grow with every conversation turn. A reaction nobody
-        # has replied to opened no conversation: it is paint on the page and
+        # `events --thread`; keeping its sequence list here would make this
+        # default snapshot grow with every thread turn. A reaction nobody
+        # has replied to opened no thread: it is paint on the page and
         # stands under `reactions` below.
-        "conversations": [
+        "threads": [
             {
                 "id": root,
                 "title": thread["title"],
@@ -184,7 +184,7 @@ def _base_state(
                     "anchor": message.get("anchor"),
                     "about": message.get("about"),
                     "parent": message.get("parent"),
-                    "conversation": root,
+                    "thread": root,
                     "revision": message.get("revision"),
                     "seq": message["seq"],
                 },
@@ -215,7 +215,7 @@ def _apply_document_state(
             "tag": record["tag"],
             "id": record["attrs"].get("id"),
             "line": record["line"],
-            "conversation": None,
+            "thread": None,
         }
         for record in parser.lf_elements
     ]
@@ -256,7 +256,7 @@ def _apply_thread_state(state: dict, thread: FrozenThreadReading) -> None:
     # answer to its own question as an answer nobody had given, with `asks` reporting
     # the same question answered.
     #
-    # `conversation` is the one key that separates them, present on every entry so a
+    # `thread` is the one key that separates them, present on every entry so a
     # reader of this can take the two halves the same way, and the elements come along
     # so nothing here names a widget the same object never lists. Both lists are then
     # in one order rather than two sorted halves.
@@ -268,12 +268,12 @@ def _apply_thread_state(state: dict, thread: FrozenThreadReading) -> None:
             "tag": record["tag"],
             "id": widget,
             "line": record["line"],
-            "conversation": thread_of[widget],
+            "thread": thread_of[widget],
         }
         for widget, record in thread_byid.items()
     ]
     state["elements"].sort(
-        key=lambda element: (element["conversation"] or "", element["line"])
+        key=lambda element: (element["thread"] or "", element["line"])
     )
     state["state"] += [
         standing_entry(coordinate, event, thread_of[coordinate[0]])
@@ -289,7 +289,7 @@ def _write_page_state(
     events: list,
     source_error: str | None = None,
     *,
-    conversation_id: str | None = None,
+    thread_id: str | None = None,
     after: int = 0,
     limit: int = 50,
 ) -> None:
@@ -388,64 +388,54 @@ def _write_page_state(
     # The user's side between their moves: which of your messages they have not
     # taken in yet, at their current content version.
     unread = unread_content(events, threads, thread_reading.thread_by_widget)
-    for conversation in state["conversations"]:
-        conversation["unread"] = [
-            item["message"] for item in unread[conversation["id"]]
-        ]
-    if conversation_id is not None:
+    for thread in state["threads"]:
+        thread["unread"] = [item["message"] for item in unread[thread["id"]]]
+    if thread_id is not None:
         selected = next(
-            (
-                conversation
-                for conversation in state["conversations"]
-                if conversation["id"] == conversation_id
-            ),
+            (thread for thread in state["threads"] if thread["id"] == thread_id),
             None,
         )
         if selected is None:
-            raise SystemExit(f"unknown conversation {conversation_id!r}")
-        selected["summaries"] = active_summaries(events, threads)[conversation_id]
+            raise SystemExit(f"unknown thread {thread_id!r}")
+        selected["summaries"] = active_summaries(events, threads)[thread_id]
         elements = [
-            element
-            for element in state["elements"]
-            if element["conversation"] == conversation_id
+            element for element in state["elements"] if element["thread"] == thread_id
         ]
         standing = [
-            reading
-            for reading in state["state"]
-            if reading["conversation"] == conversation_id
+            reading for reading in state["state"] if reading["thread"] == thread_id
         ]
-        asks = [ask for ask in state["asks"] if ask["conversation"] == conversation_id]
+        asks = [ask for ask in state["asks"] if ask["thread"] == thread_id]
         updates = [
             update
             for update in state["updates"]
             if (
-                update["target"] == {"kind": "conversation", "id": conversation_id}
+                update["target"] == {"kind": "thread", "id": thread_id}
                 or (
                     update["target"]["kind"] == "widget"
                     and thread_reading.thread_by_widget.get(update["target"]["id"])
-                    == conversation_id
+                    == thread_id
                 )
             )
         ]
         reactions = [
             reaction
             for reaction in state["reactions"]
-            if reaction["conversation"] == conversation_id
+            if reaction["thread"] == thread_id
         ]
         requests = [
             request
             for request in state["requests"]
             if thread_reading.thread_by_widget.get(request["seat"]["widget"])
-            == conversation_id
+            == thread_id
         ]
         content = []
         content_source = {
-            "kind": "conversation",
-            "conversation": conversation_id,
+            "kind": "thread",
+            "thread": thread_id,
             "vocabulary": str(page_dir / "registry.json"),
         }
         matching = [
-            event for event in threads[conversation_id]["msgs"] if event["seq"] > after
+            event for event in threads[thread_id]["msgs"] if event["seq"] > after
         ]
         shown = matching[:limit]
         history = {
@@ -463,8 +453,8 @@ def _write_page_state(
                     "seq": event["seq"],
                 },
                 "edit": {
-                    "kind": "conversation",
-                    "conversation": conversation_id,
+                    "kind": "thread",
+                    "thread": thread_id,
                 },
                 "content": [],
             }
@@ -475,7 +465,6 @@ def _write_page_state(
                 "session",
                 "parent",
                 "responds",
-                "initiates",
                 "revision",
             ):
                 if key in event:
@@ -501,13 +490,13 @@ def _write_page_state(
                 page_dir,
                 editable=False,
                 retired=set(passages.retired) | set(passages.gone),
-                conversation=conversation_id,
+                thread=thread_id,
             )
         widget_ids = {element["id"] for element in elements}
 
         def belongs(interaction: dict) -> bool:
             target = interaction["subject"]
-            return target == {"kind": "conversation", "id": conversation_id} or (
+            return target == {"kind": "thread", "id": thread_id} or (
                 target["kind"] == "widget" and target["id"] in widget_ids
             )
 
@@ -515,7 +504,7 @@ def _write_page_state(
         obligations = set(state["activity"]["obligations"])
         state = {
             "page": str(page_dir),
-            "conversation": selected,
+            "thread": selected,
             "history": history,
             "content_source": content_source,
             "content": content,

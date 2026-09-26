@@ -22,7 +22,7 @@ def standing_work_claims(status: dict, events: list) -> list:
     """The transient work claims the durable exchange has not ended.
 
     A claim starts after one exact log sequence. Thread work ends at the agent's
-    next reply in that conversation; widget work ends at a later version note
+    next reply in that thread; widget work ends at a later version note
     that explicitly settles its id. The sequence boundary matters in both
     directions: renewing work after an answer creates a new claim, and an old
     answer cannot settle it merely because it names the same subject.
@@ -31,7 +31,7 @@ def standing_work_claims(status: dict, events: list) -> list:
     whole test. Resolution is not one: it only hides a thread claim and an
     unresolve shows it again, so both callers asked for the resolved threads back
     and the question was never really being asked. What this reading wants of a
-    conversation is who has spoken in it since the claim, so it reads the
+    thread is who has spoken in it since the claim, so it reads the
     messages and never the resolution — which is why it names no page.
     """
     threads = build_threads(events, {})
@@ -39,7 +39,7 @@ def standing_work_claims(status: dict, events: list) -> list:
     for claim in status.get("work", []):
         subject = claim["subject"]
         after = claim["after"]
-        if subject["kind"] == "conversation":
+        if subject["kind"] == "thread":
             thread = threads.get(subject["id"])
             if thread is None:
                 continue
@@ -120,7 +120,7 @@ def work_subject(page_dir: Path, events: list, target: str) -> dict:
     # Against the page this command has already read: it loads the vendored
     # registry above and raises where that gate refuses, so folding threads
     # against no page here bought nothing and could answer differently from
-    # `page state` for the same conversation.
+    # `page state` for the same thread.
     threads = build_threads(events, enclosing_of(spk))
     thread = threads.get(target)
 
@@ -135,7 +135,7 @@ def work_subject(page_dir: Path, events: list, target: str) -> dict:
                 f"{target} is a resolved comment thread; reopen it before claiming work"
             )
         work = {
-            "subject": {"kind": "conversation", "id": target},
+            "subject": {"kind": "thread", "id": target},
             "after": events[-1]["seq"] if events else 0,
         }
         if awaits_agent(thread):

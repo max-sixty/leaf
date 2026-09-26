@@ -49,6 +49,42 @@ CUSTOM_WIDGET_PAGE = leaf_page(
 """,
 )
 
+# A widget laying two track templates out in its own light DOM. An authored grid carries
+# an id; these carry none, so both are named by the widget that holds them.
+TEMPLATE_PAIR_LAYER = {
+    "lf-test-pair": {
+        "description": "Two track templates a module lays out.",
+        "type": "object",
+        "properties": {"id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"}},
+        "required": ["id"],
+        "additionalProperties": False,
+        "x-content": "empty",
+        "x-upgrade": True,
+        "x-example": '<lf-test-pair id="pair"></lf-test-pair>',
+    }
+}
+TEMPLATE_PAIR_WIDGETS = {
+    "lf-test-pair.js": """
+import { once } from '/runtime/widget-api.js';
+
+const panel = (name) => `<section class="panel"><h2>${name}</h2><p>Words.</p></section>`;
+
+customElements.define('lf-test-pair', class extends HTMLElement {
+  connectedCallback() {
+    if (!once(this)) return;
+    // Out of the column's measure, where no template stacks in a window wide enough to
+    // be told: the pair takes the wide page's width, as an authored grid there does.
+    this.style.display = 'block';
+    this.style.maxInlineSize = 'none';
+    this.innerHTML =
+      `<lf-grid columns="1fr 5fr">${panel('Note')}${panel('Story')}</lf-grid>` +
+      `<lf-grid columns="1fr 2.4fr">${panel('Items')}${panel('Detail')}</lf-grid>`;
+    for (const grid of this.children) grid.style.maxInlineSize = 'none';
+  }
+});
+"""
+}
+
 RESIZE_LOOP_EVENT = """dispatchEvent(new ErrorEvent('error', {
   message: 'ResizeObserver loop completed with undelivered notifications.'
 }));"""
@@ -704,11 +740,10 @@ PRESS = "[data-lf-offer], [role=tab], [role=button], .lf-btn, .lf-pick, button, 
 
 # The controls a press is aimed *past*: the ones sharing its row, standing on the same
 # line, and on screen at both ends of the gesture. A target margin entry's row is its cluster;
-# contribution and options wrappers do not split the visible row. Other controls use
-# their parent. Held in a JS array rather than looked up afterwards, because identity
-# has to survive a press that adds or removes a sibling; measured with offset*, which
-# is the layout box before any transform, so a card
-# still lifted under the pointer reads as the nothing it is.
+# contribution and options wrappers do not split the visible row. The playground's action
+# group can wrap in a narrow rail, but its controls still share that group. Other controls
+# use their parent. Hold identity across the press, and measure relative to the group:
+# content above may move the whole row without moving a neighbour within it.
 #
 # On screen is the load-bearing half. A control inside a fold the press opens was nowhere
 # the user could aim, and one the press puts away — a suggestion's ✗ Reject, once ✓
@@ -731,14 +766,16 @@ NEIGHBOURHOOD = f"""(el, sel) => {{
     return Math.min(r.bottom, band.bottom) - Math.max(r.top, band.top) > 1;
   }};
   window.__lfOnScreen = {ON_SCREEN};
-  const cluster = el.closest('.lf-margin-cluster, .lf-diff-file');
+  const cluster = el.closest('.lf-margin-cluster, .lf-diff-file, .lf-playground-actions');
+  window.__lfOrigin = cluster || el.parentElement;
   const candidates = cluster ? [...cluster.querySelectorAll(sel)]
       : [...el.parentElement.children]
           .filter((n) => n !== el && !n.contains(el))
           .flatMap((n) => (n.matches(sel) ? [n] : [...n.querySelectorAll(sel)]));
   window.__lfNeighbours = candidates
       .filter((n) => n !== el && !n.contains(el) && !el.contains(n))
-      .filter((n) => window.__lfOnScreen(n) && sameLine(n));
+      .filter((n) => window.__lfOnScreen(n) &&
+          (cluster?.matches('.lf-playground-actions') || sameLine(n)));
   return {{ names: window.__lfNeighbours.map({NAMED}), boxes: window.__lfBoxes() }};
 }}"""
 # The same capture, of the banner rather than of one control's line: every control the
@@ -746,6 +783,7 @@ NEIGHBOURHOOD = f"""(el, sel) => {{
 # changing who they are.
 BANNER_WATCH = f"""(sel) => {{
   window.__lfOnScreen = {ON_SCREEN};
+  window.__lfOrigin = null;
   window.__lfNeighbours = [...document.querySelector(".lf-banner").querySelectorAll(sel)]
       .filter(window.__lfOnScreen);
   return {{ names: window.__lfNeighbours.map({NAMED}), boxes: window.__lfBoxes() }};
@@ -753,8 +791,14 @@ BANNER_WATCH = f"""(sel) => {{
 # One reading, named once, so the rendered-frame wait and the assertion cannot measure
 # differently.
 DEFINE_BOXES = """() => { window.__lfBoxes = () => window.__lfNeighbours.map(
-    (n) => window.__lfOnScreen(n)
-      ? [n.offsetLeft, n.offsetTop, n.offsetWidth, n.offsetHeight] : null); }"""
+    (n) => {
+      if (!window.__lfOnScreen(n)) return null;
+      const box = n.getBoundingClientRect();
+      const origin = window.__lfOrigin?.getBoundingClientRect();
+      return [Math.round(box.left - (origin?.left || 0)),
+              Math.round(box.top - (origin?.top || 0)),
+              n.offsetWidth, n.offsetHeight];
+    }); }"""
 
 
 def unfolded_button(control):

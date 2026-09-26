@@ -973,11 +973,7 @@
     </style>
 <!-- alert-review.html authored styles -->
 <style>
-      /* Each alert is one item in the detail pane: a rule marks where the next begins,
-         and the first starts at the top of the pane. */
-      #ar-alerts > section:first-child > h3 {
-        margin-top: 0;
-      }
+      /* Each alert is one item in the detail pane: a rule marks where the next begins. */
       #ar-alerts > section + section {
         margin-top: var(--sp-4);
         padding-top: var(--sp-4);
@@ -1795,7 +1791,7 @@ catalog.</p>
         </table>
       </section>
 
-      <section id="plan-final">
+      <section id="plan-final" style="--lf-passes-block-edge: 1">
         <lf-ask id="plan-rollout">
           <h2>Include self-hosted runners in this rollout?</h2>
           <p id="plan-rollout-premise">
@@ -2013,7 +2009,7 @@ Run status now appears in the run list. Filtering by status is planned for 3.3.
         </lf-draft>
       </section>
 
-      <section id="rn-ops-section">
+      <section id="rn-ops-section" style="--lf-passes-block-edge: 1">
         <h2>Operations</h2>
         <p id="rn-ops-why">
           Staging migrated 1.1 million rows in 45–75 seconds on a warm cache.
@@ -2075,9 +2071,9 @@ Run the online schema migration before deploying.
         </p>
       </section>
 
-      <section id="ret-steps">
+      <section id="ret-steps" style="--lf-passes-block-edge: 1">
         <h2>Two-week rollout</h2>
-        <ul id="ret-steps-list">
+        <ul id="ret-steps-list" style="--lf-passes-block-edge: 1">
           <li id="ret-steps-shadow">
             Week one: run expiry in report-only mode and publish deletions by team.
           </li>
@@ -2105,7 +2101,7 @@ Run the online schema migration before deploying.
 
       <section id="off-readiness-section">
         <h2>Confirm the follow-up work</h2>
-        <p id="off-conversation-note">
+        <p id="off-thread-note">
           Open the comment beside the stalled task. Two follow-ups are selected; adjust
           them if needed, then press Done.
         </p>
@@ -2216,7 +2212,7 @@ chimney with no cap, 120
         </lf-options>
       </lf-ask>
 
-      <section id="heat-weather">
+      <section id="heat-weather" style="--lf-passes-block-edge: 1">
         <h2>The January draught-proofing may already be helping</h2>
         <p id="heat-weather-note">
           Four weeks after the 12 January work sit below five earlier weeks at similar
@@ -2710,7 +2706,7 @@ minutes since deploy, checkout-v2
             </dl>
             <details id="lp-release-notes">
               <summary>Release notes · 3 changes</summary>
-              <ul>
+              <ul style="--lf-passes-block-edge: 1">
                 <li>Keep partial-refund state through checkout retries.</li>
                 <li>Write refund adjustments to the finance export.</li>
                 <li>Add parity checks before production promotion.</li>
@@ -2743,7 +2739,7 @@ minutes since deploy, checkout-v2
 
             <details id="lp-rollback-procedure">
               <summary>Rollback procedure · 3 steps</summary>
-              <ol class="steps">
+              <ol class="steps" style="--lf-passes-block-edge: 1">
                 <li>Route new checkout sessions to <code>checkout-v1</code>.</li>
                 <li>Drain the candidate after active sessions finish.</li>
                 <li>Verify order counts and finance-export isolation.</li>
@@ -2901,7 +2897,7 @@ minutes since deploy, checkout-v2
           <lf-pane id="ar-detail" label="Selected alert">
             <header><h2>Evidence and decision</h2></header>
             <div id="ar-alerts">
-              <section id="ar-canary">
+              <section id="ar-canary" style="--lf-passes-block-edge: 1">
                 <h3>Canary health check</h3>
                 <dl class="facts">
                   <dt>Rule</dt>
@@ -3341,7 +3337,7 @@ hour, pages
               defects and the current revision corrects each one. Two questions stay
               open, and neither blocks the merge:
             </p>
-            <ol id="pr-follow-ups">
+            <ol id="pr-follow-ups" style="--lf-passes-block-edge: 1">
               <li id="pr-follow-up-latency">
                 <strong>Benchmark selected-row demand.</strong> Off-screen worktrees now
                 load only when selected, and nothing measures how long that takes.
@@ -3356,7 +3352,7 @@ hour, pages
 
           <section class="panel" id="pr-orientation">
             <h2>Review finding</h2>
-            <div id="pr-agent-summary">
+            <div id="pr-agent-summary" style="--lf-passes-block-edge: 1">
               <p>
                 <code>PreparedDiff</code> owns each complete Git diff invocation;
                 <code>TempIndex</code> includes untracked files without changing the
@@ -4097,7 +4093,7 @@ fn insert_head&lt;T, F&gt;(v: &amp;mut [T], compare: &amp;mut F)
                   >
                 </lf-code>
               </section>
-              <section id="src-merge">
+              <section id="src-merge" style="--lf-passes-block-edge: 1">
                 <h3>
                   <a
                     href="https://github.com/rust-lang/rust/blob/1.15.0/src/libcollections/slice.rs#L1387"
@@ -4934,7 +4930,7 @@ stateDiagram-v2
           </table>
         </section>
 
-        <section id="security-review">
+        <section id="security-review" style="--lf-passes-block-edge: 1">
           <h2 id="security-review-heading">Astra review</h2>
           <p id="security-review-status">
             <strong
@@ -4947,7 +4943,7 @@ stateDiagram-v2
             incorporates them. The final pass reviewed the implementation, tests, and
             hosted probe evidence.
           </p>
-          <ol id="security-review-findings">
+          <ol id="security-review-findings" style="--lf-passes-block-edge: 1">
             <li>
               <strong>P1 · Whole-process enforcement.</strong> Codex profiles exclude
               integrations; B2 now uses one outer SRT lifetime for setup and either
@@ -5015,9 +5011,9 @@ stateDiagram-v2
 
       <details id="security-source-disclosure">
         <summary>Primary evidence and source links</summary>
-        <section id="security-sources">
+        <section id="security-sources" style="--lf-passes-block-edge: 1">
           <h2 id="security-sources-heading">Primary evidence</h2>
-          <ul id="security-source-list">
+          <ul id="security-source-list" style="--lf-passes-block-edge: 1">
             <li>
               <a href="https://github.com/max-sixty/tend/pull/1173"
                 >The merged Tend implementation</a
@@ -5107,7 +5103,7 @@ stateDiagram-v2
         goal to inspect its disposable workers and their worktrees, answer beside the
         goal that stopped, and use
         <em>Send &amp; pause</em>
-        when the conversation itself should keep new workers away until you resolve it.
+        when the thread itself should keep new workers away until you resolve it.
       </p>
 
       <lf-grid id="hub-layout" columns="2fr 1fr">
@@ -5406,7 +5402,10 @@ stateDiagram-v2
               <h2>Refresh every failed request</h2>
             </header>
             <div>
-              <section id="comparison-current-behavior">
+              <section
+                id="comparison-current-behavior"
+                style="--lf-passes-block-edge: 1"
+              >
                 <h3>Behavior</h3>
                 <p>
                   Each call that receives an expired-session response starts its own
@@ -5433,7 +5432,10 @@ stateDiagram-v2
                 </dl>
               </section>
 
-              <section id="comparison-current-consequence">
+              <section
+                id="comparison-current-consequence"
+                style="--lf-passes-block-edge: 1"
+              >
                 <h3>Release consequence</h3>
                 <p>
                   No client behavior changes. A busy tab can still send several refresh
@@ -5450,7 +5452,10 @@ stateDiagram-v2
               <h2>Share one refresh per tab</h2>
             </header>
             <div>
-              <section id="comparison-proposed-behavior">
+              <section
+                id="comparison-proposed-behavior"
+                style="--lf-passes-block-edge: 1"
+              >
                 <h3>Behavior</h3>
                 <p>
                   The first expired-session response starts a refresh. Other calls in
@@ -5475,7 +5480,10 @@ stateDiagram-v2
                 </dl>
               </section>
 
-              <section id="comparison-proposed-consequence">
+              <section
+                id="comparison-proposed-consequence"
+                style="--lf-passes-block-edge: 1"
+              >
                 <h3>Release consequence</h3>
                 <p>
                   Concurrent calls reuse one refresh result. If that refresh fails, all
@@ -5484,7 +5492,7 @@ stateDiagram-v2
                 </p>
               </section>
 
-              <section id="comparison-rollout">
+              <section id="comparison-rollout" style="--lf-passes-block-edge: 1">
                 <h3>Recorded rollout</h3>
                 <p>
                   Version 2.8 enables shared refreshes for web clients. The existing
@@ -5526,8 +5534,8 @@ stateDiagram-v2
           <lf-pane id="review-queue" label="Items">
             <header><h2>Queue</h2></header>
             <div>
-              <nav aria-label="Review items">
-                <ul>
+              <nav aria-label="Review items" style="--lf-passes-block-edge: 1">
+                <ul style="--lf-passes-block-edge: 1">
                   <li>
                     <a href="#review-auth"><strong>Authentication retry</strong></a>
                     <p>Ready · customer sign-in · medium risk</p>
@@ -5564,7 +5572,7 @@ stateDiagram-v2
                   </li>
                 </ul>
               </nav>
-              <section id="review-notes">
+              <section id="review-notes" style="--lf-passes-block-edge: 1">
                 <h3>Release notes</h3>
                 <p>
                   Two items change stored data. Four affect behavior at request time.
@@ -5582,7 +5590,7 @@ stateDiagram-v2
           <lf-pane id="review-detail" label="Selected item">
             <header><h2>Details</h2></header>
             <div id="review-items">
-              <section id="review-auth">
+              <section id="review-auth" style="--lf-passes-block-edge: 1">
                 <h3>Authentication retry</h3>
                 <dl>
                   <dt>Status</dt>
@@ -5737,7 +5745,7 @@ expire old keys</code></pre>
                   </lf-options>
                 </lf-ask>
               </section>
-              <section id="review-webhook">
+              <section id="review-webhook" style="--lf-passes-block-edge: 1">
                 <h3>Webhook delivery</h3>
                 <p>
                   Delivery attempts retain the event id across retries. Partners can
@@ -5773,7 +5781,7 @@ expire old keys</code></pre>
 
       <lf-tabs id="root-tabs">
         <lf-tab id="plan-tab" label="Plan">
-          <section id="plan-return">
+          <section id="plan-return" style="--lf-passes-block-edge: 1">
             <h2>Rollout plan</h2>
             <p>
               Move active accounts in three cohorts. Each cohort starts after the prior
@@ -5824,7 +5832,7 @@ expire old keys</code></pre>
             </p>
           </section>
 
-          <section id="plan-rollback">
+          <section id="plan-rollback" style="--lf-passes-block-edge: 1">
             <h2>Rollback</h2>
             <p>
               A failed gate returns reads to the current store and stops later cohorts.
@@ -5839,7 +5847,7 @@ expire old keys</code></pre>
         </lf-tab>
 
         <lf-tab id="evidence-tab" label="Evidence">
-          <section id="evidence-summary">
+          <section id="evidence-summary" style="--lf-passes-block-edge: 1">
             <h2>Rehearsal results</h2>
             <p>
               Three rehearsals copied 48,219 accounts from a production snapshot. Every
@@ -5913,7 +5921,7 @@ expire old keys</code></pre>
             </lf-ask>
           </section>
 
-          <section id="evidence-follow-through">
+          <section id="evidence-follow-through" style="--lf-passes-block-edge: 1">
             <h2>Follow-through</h2>
             <p>
               After settling the observation window, return to the
@@ -6222,13 +6230,13 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
         </lf-draft>
       </section>
 
-      <section id="bg-conversations">
+      <section id="bg-threads">
         <h2>
           <strong>Threads</strong
-          ><span class="bg-feature-detail">: anchored conversations</span>
+          ><span class="bg-feature-detail">: anchored threads</span>
         </h2>
-        <p id="bg-conversations-guide">
-          With Threads closed, a Thread control or marked passage opens the conversation
+        <p id="bg-threads-guide">
+          With Threads closed, a Thread control or marked passage opens the thread
           inline; t moves to the next inline card and T to the previous one. Open
           Threads while one is focused, including with g T, and the same thread stays
           focused in the panel. Under View, filters narrow the list to Open, On you, On
@@ -6269,40 +6277,40 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
           ><span class="bg-feature-detail">: live before and after examples</span>
         </h2>
         <p id="bg-thread-states-guide" data-width="column">
-          These passages have real conversations in this gallery. Open Threads to
-          compare each row's status and compact last-activity time, then open a row to
-          inspect its messages. Drag the panel’s left edge inward to see the status move
-          below the title. The first pair shows a title before and after naming.
+          These passages have real threads in this gallery. Open Threads to compare each
+          row's status and compact last-activity time, then open a row to inspect its
+          messages. Drag the panel’s left edge inward to see the status move below the
+          title. The first pair shows a title before and after naming.
         </p>
         <section id="bg-thread-state-titles">
-          <h3>Conversation title</h3>
+          <h3>Thread title</h3>
           <lf-grid id="bg-thread-title-pair" columns="1fr 1fr">
             <section id="bg-thread-title-before">
               <p class="eyebrow">Before · title pending</p>
               <p id="bg-thread-pending">
                 <strong>A title still pending.</strong> The workshop schedule leaves
                 lunch open. Open Threads to view it. Its title shows three pulsing dots
-                until the agent gives the conversation a short name.
+                until the agent gives the thread a short name.
               </p>
             </section>
             <section id="bg-thread-title-after">
               <p class="eyebrow">After · title assigned</p>
               <p id="bg-thread-text">
-                <strong>An existing conversation.</strong> The sample agenda has room
-                for one more topic. Its speech-bubble control carries a blue interior
-                and a blue glyph, and hovering it shows On you under the label. The
-                image question still needs an answer even though the agent added a later
-                progress update. In Threads, On you still says to answer the question.
-                Open the control and reply: the colour goes as the thread comes back to
-                the agent. The same reading fills the panel’s On you filter and this
+                <strong>An existing thread.</strong> The sample agenda has room for one
+                more topic. Its speech-bubble control carries a blue interior and a blue
+                glyph, and hovering it shows On you under the label. The image question
+                still needs an answer even though the agent added a later progress
+                update. In Threads, On you still says to answer the question. Open the
+                control and reply: the colour goes as the thread comes back to the
+                agent. The same reading fills the panel’s On you filter and this
                 target’s Page Map row.
               </p>
               <p id="bg-thread-media">
-                <strong>Pasted images.</strong> That conversation includes an image
-                supplied by its companion thread log, outside this document. Click the
-                image to inspect it in Leaf’s Image preview. Paste a screenshot into its
-                reply box to see the thumbnail Leaf keeps in the draft without exposing
-                image Markdown.
+                <strong>Pasted images.</strong> That thread includes an image supplied
+                by its companion thread log, outside this document. Click the image to
+                inspect it in Leaf’s Image preview. Paste a screenshot into its reply
+                box to see the thumbnail Leaf keeps in the draft without exposing image
+                Markdown.
               </p>
             </section>
           </lf-grid>
@@ -6310,19 +6318,19 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
         <section id="bg-thread-state-resolved">
           <h3>Resolved</h3>
           <p id="bg-resolved-text">
-            <strong>A resolved conversation.</strong> The room has a projector. Its
-            earlier question is resolved. Open Threads in the banner, select Resolved,
-            and try Reopen to bring its Thread control back to the page.
+            <strong>A resolved thread.</strong> The room has a projector. Its earlier
+            question is resolved. Open Threads in the banner, select Resolved, and try
+            Reopen to bring its Thread control back to the page.
           </p>
         </section>
         <section id="bg-thread-state-summary">
           <h3>Summarized and unread</h3>
           <p id="bg-thread-checkpoint">
-            <strong>A summarized discussion.</strong> The workshop planning conversation
-            keeps its earlier decisions in a summary. Open it in Threads, expand the
-            covered messages, and use the right-hand control to fold them again. The
-            latest exchange stays below the summary. Keyboard focus can reach both
-            disclosure controls.
+            <strong>A summarized discussion.</strong> The workshop planning thread keeps
+            its earlier decisions in a summary. Open it in Threads, expand the covered
+            messages, and use the right-hand control to fold them again. The latest
+            exchange stays below the summary. Keyboard focus can reach both disclosure
+            controls.
           </p>
           <p id="bg-thread-unread">
             <strong>Unread replies.</strong> The seeded agent replies start unread. Open
@@ -6912,11 +6920,10 @@ gallery/
             ><span class="bg-feature-detail">: this page's history, newest first</span>
           </h3>
           <p id="bg-activity-guide">
-            The feed reads this page's own log: the seeded conversations, reactions,
-            user actions, and published versions. The board move near the end was taken
-            back, so its row stays struck through and marked undone. Press a
-            conversation row to open its thread, or a widget row to travel to the
-            widget.
+            The feed reads this page's own log: the seeded threads, reactions, user
+            actions, and published versions. The board move near the end was taken back,
+            so its row stays struck through and marked undone. Press a thread row to
+            open its thread, or a widget row to travel to the widget.
           </p>
           <lf-activity id="bg-activity"></lf-activity>
         </section>
@@ -7252,7 +7259,7 @@ gallery/
                   <p>
                     The candidate changes cache keys, receipts, and settlement jobs.
                   </p>
-                  <ul>
+                  <ul style="--lf-passes-block-edge: 1">
                     <li>Cache migration copies active entries before cutover.</li>
                     <li>Receipts show refunds in the settlement currency.</li>
                     <li>Invalid jobs leave the shared queue for review.</li>
@@ -7329,7 +7336,7 @@ switch --readers checkout-api,orders-api</code></pre>
         <p id="bg-change">The sample walk follows the river to the footbridge.</p>
       </section>
 
-      <section id="bg-delivery">
+      <section id="bg-delivery" style="--lf-passes-block-edge: 1">
         <p class="eyebrow bg-feature-elements">lf-board · lf-column · lf-card</p>
         <h2>
           <strong>Board</strong> and <strong>delivery state</strong
@@ -7381,7 +7388,7 @@ switch --readers checkout-api,orders-api</code></pre>
             locations and edit routes distinguish authored content from user decisions
             and captured data. Change unrelated source wording and inspect again: those
             user choices survive without copying them into HTML. Use
-            <code>--thread ID</code> to inspect a frozen conversation.
+            <code>--thread ID</code> to inspect a frozen thread.
           </p>
         </details>
       </section>
@@ -7410,7 +7417,7 @@ switch --readers checkout-api,orders-api</code></pre>
           <lf-swipe-pile id="swipe-keep" verdict="keep"></lf-swipe-pile>
         </lf-swipe-deck>
       </lf-ask>
-      <section id="swipe-recorded">
+      <section id="swipe-recorded" style="--lf-passes-block-edge: 1">
         <h2>A completed classification remains inspectable</h2>
         <lf-specimen id="swipe-recorded-specimen" label="a recorded swipe result">
           <lf-swipe-deck id="swipe-completed">

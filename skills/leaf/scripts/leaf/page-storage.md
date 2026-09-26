@@ -57,6 +57,25 @@ other page files and the external state listed below.
 
 - `events.jsonl` — append-only event log; an event's seq is its line number (1-based)
 
+- `interactions.jsonl` — diagnostic JSON-lines trace of server requests and browser
+  interactions, including refused requests. It is separate from `events.jsonl` and
+  never enters page state or acknowledgement. `leaf interactions PAGE --follow`
+  reads it. The server appends request method, path without query, status, and
+  duration; `/api/interaction` appends browser batches with a session id, scoped
+  page address, and server receipt time. Specimen activity remains in its parent
+  page's trace. The diagnostic file changes neither page/source reading nor
+  presence cache keys. It is private page data and is never served as an asset.
+  A tab retries failed batches and may resend an in-flight batch on page hide;
+  `(session, sequence)` identifies duplicates. Large browser records arrive as
+  `interaction_part` rows whose `json` fields concatenate in `part` order.
+  A tab retains at most 512 pending browser records: when delivery falls behind,
+  it sheds repeated observations first, then older actions only to admit new
+  actions. New repeated observations yield to pending actions. Sequence gaps show
+  where records were lost; a single record too large to fit is marked
+  `interaction_omitted`. This is a best-effort diagnostic trace, not an audit
+  guarantee: an offline tab closed with unsent data may lose it. The semantic
+  event log remains the durable record of accepted decisions.
+
 - `data.json` — the contract each external-data source id was first set under.
   `data.py` owns storage and updates.
 
@@ -66,7 +85,7 @@ other page files and the external state listed below.
 
 - `status.json` — work declarations and transient delivery handling, observed activity,
   and reply bindings. [session-lifetime.md](session-lifetime.md) owns their writers and
-  lifetimes; `conversation.py` owns response reservations and their release.
+  lifetimes; `thread.py` owns response reservations and their release.
 
 - `waiter.lock` — bare-shell wait lease, present only while held; host sessions instead
   use `<state-home>/sessions/<session>.wait`. See [session-lifetime.md](session-lifetime.md).
@@ -92,6 +111,10 @@ other page files and the external state listed below.
 
 - `server.lock` — process-held server lease. `hosting.py` waits for its release on stop,
   after the server has closed its sockets.
+
+- `restart.lock` — process-held restart lease, taken by `hosting.restarting_server`
+  before its stop and held until the holder has started the service again, so a
+  disabled service under it reads as restarting rather than stopped.
 
 - `<state-home>/claims/` — one atomic claim per resolved page, independent of its page
   directory, and removed by the first scan that finds that directory gone
@@ -134,18 +157,18 @@ Each node's `edit` identifies its mutation owner. A source edit carries its stab
 id when present and `matches_active`; the target file is inherited from
 `content_source.edit_file`. Source locations apply to that mutable file only when
 it matches the active revision. Generated children name their originating event and
-the widget in which their markup can be authored. `leaf conversation read <page> <id>`
-reads one conversation's current messages and frozen markup under `content`, with
+the widget in which their markup can be authored. `leaf thread read <page> <id>`
+reads one thread's current messages and frozen markup under `content`, with
 bounded history selected by `--after` and `--limit`. Its `content_source` names the
-conversation and vocabulary file; message identities locate the frozen source. Default
-`page state` conversation entries stay compact.
+thread and vocabulary file; message identities locate the frozen source. Default
+`page state` thread entries stay compact.
 
 Widget `inputs` join each binding to its source's current value, contract, source
 id, and revision, or to the `error` a failing value reads as. Each input's `edit`
 names the value file to rewrite. Contracts with a deferred record field expose the
 manifest plus that file and its revision for their payload. The compact
 `elements`, `state`, and lifecycle indexes remain available for machine queries.
-Raw diagnostic history belongs to `leaf events --conversation`, and the page's
+Raw diagnostic history belongs to `leaf events --thread`, and the page's
 `registry.json` owns the vocabulary.
 
 Immutable deliveries live outside page directories at

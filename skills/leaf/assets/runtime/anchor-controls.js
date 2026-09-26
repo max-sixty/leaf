@@ -41,7 +41,7 @@ export function createAnchorControls({
   openThread,
   withdrawReaction,
   labelAnchor,
-  invalidateConversation,
+  invalidateThread,
   invalidatePageGeometry,
   messageReferenceRoot,
   draftQuote,
@@ -346,7 +346,7 @@ export function createAnchorControls({
     invalidationQueued = true;
     queueMicrotask(() => {
       invalidationQueued = false;
-      if (mounted) invalidateConversation();
+      if (mounted) invalidateThread();
     });
   }
 

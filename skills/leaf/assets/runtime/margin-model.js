@@ -8,7 +8,7 @@
  * Expanded clusters have six seats including the route to the complete Page Map.
  * Failure, work in flight, and engagement keep completion controls exposed. An
  * explicitly focused contribution uses those seats alone; an open thread keeps its
- * aggregate control inside the budget. Thread membership retains conversation order.
+ * aggregate control inside the budget. Thread membership retains thread order.
  * A contributed representation suppresses the matching generated kind. Workflow
  * receipts use the surviving primary when available, before any control is painted.
  * Expansion and an open thread are explicit mechanical inputs, not application facts.
@@ -131,7 +131,7 @@ const deriveReadingChoices = (items) => {
   if (threadList.length)
     choices.push({
       // One target owns one thread margin entry. Membership changes repaint its badge and
-      // card without replacing the control that owns an open conversation.
+      // card without replacing the control that owns an open thread.
       key: "threadList",
       kind: "comment",
       items: threadList,
@@ -215,7 +215,7 @@ const userAttention = (items) => {
   return first;
 };
 export const awaitingUser = (items) => Boolean(userAttention(items));
-// Agent messages the user has not taken in, across every conversation a reading
+// Agent messages the user has not taken in, across every thread a reading
 // carries: each Thread's canonical `unread`, summed rather than re-derived.
 export const unreadIn = (items) =>
   items.reduce((sum, item) => sum + (item.unread ?? 0), 0);

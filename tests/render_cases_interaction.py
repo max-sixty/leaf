@@ -208,8 +208,8 @@ mornings last winter.</p></section>
 )
 
 
-# The other place a question lives: a widget that seats its own conversation
-# (`x-conversation`), where the answer is words rather than a pick. The durable-draft
+# The other place a question lives: a widget that seats its own thread
+# (`x-thread-seat`), where the answer is words rather than a pick. The durable-draft
 # tests stand on one because a seat is where a single draft has two views at once — the
 # cell in the page and the row in the panel — which is the whole of what those tests
 # compare. `jobs` names the seat, so the `say:jobs` draft key and a comment anchored to
@@ -744,8 +744,8 @@ CHANGE_SHAPES_PAGE = leaf_page(
 )
 # A group that takes a pick and a paragraph beside it, so the diff below has one real
 # change to find while the generated add-option cell remains runtime chrome.
-CONVERSATION_DIFF_PAGE = leaf_page(
-    "conversation-diff",
+THREAD_DIFF_PAGE = leaf_page(
+    "thread-diff",
     """
 <h1 id="cd-h">Bracket order</h1>
 <p id="cd-lede">The south pair is up and drawing traffic.</p>
@@ -1445,14 +1445,15 @@ def trial_family(tmp_path):
         declarations[tag].pop("x-example", None)
         declarations[tag].pop("required", None)
     source.write_text(json.dumps(declarations))
-    # The fixture styles every tag as a card; a slot is a slot, the way the shipped
-    # family's lf-old/lf-new draw no box of their own. Left as cards, the slots carry
-    # margins that stand trapped under the holder's frame once a settled sibling is
-    # hidden — a real TRAPPED_MARGINS finding about the fixture, not about the gate.
+    # The fixture styles every tag as a card. These slots draw no box of their own;
+    # clear their paragraph margins so retiring a sibling cannot leave a margin
+    # trapped against the holder's frame. Geometry is not this family's subject.
     theme = tmp_path / ".leaf" / "theme.css"
     theme.write_text(
         theme.read_text() + "\nlf-current, lf-proposed "
-        "{ display: block; margin: 0; padding: 0; border: none; --lf-block-frame: initial; }\n"
+        "{ display: block; margin: 0; padding: 0; border: none; "
+        "--lf-block-frame: initial; }\n"
+        "lf-current p, lf-proposed p { margin-block: 0; }\n"
     )
 
 
@@ -1532,11 +1533,11 @@ THREAD_ASKS = [
 ]
 
 # A widget the shipped packages no longer have: one the user owes an answer on that
-# also seats a conversation of its own. Those two facts together are what produce the
+# also seats a thread of its own. Those two facts together are what produce the
 # layer's one split between the user's list and the unanswered decisions — a thread
 # standing in the seat while the agent has the next word takes the widget off the list
 # without answering it (`seat_with_agent`, `seatWithAgent`). `lf-options` supplied the
-# pair until 292de9c made the user's cell an add form and dropped `x-conversation`, and
+# pair until 292de9c made the user's cell an add form and dropped `x-thread-seat`, and
 # both halves of the split are still implemented, still described, and reachable by any
 # package that declares both. So the guard is declared here rather than borrowed from
 # whichever shipped entry happens to carry it: the reading under test is the layer's, and
@@ -1569,7 +1570,7 @@ SEATED_ASK_ENTRY = {
         }
     },
     "x-awaits": {"when": {"asks": [True]}, "answered": {"settle": {}}},
-    "x-conversation": {"when": {"asks": [True]}},
+    "x-thread-seat": {"when": {"asks": [True]}},
     "x-example": '<lf-verdict id="verdict-example" asks>Ship it?</lf-verdict>',
 }
 # The press paints before it sends, which is what `lf-options` does with a pick and the
@@ -1577,7 +1578,7 @@ SEATED_ASK_ENTRY = {
 # the answer is already on the page, so a refusal is not a refusal the user can see —
 # the control flips, nothing is logged, and the next poll puts it back saying nothing.
 SEATED_ASK_MODULE = """\
-import { conversationBox, offer, once, widgetController } from "/runtime/widget-api.js";
+import { threadBox, offer, once, widgetController } from "/runtime/widget-api.js";
 
 customElements.define(
   "lf-verdict",
@@ -1599,7 +1600,7 @@ customElements.define(
         });
       };
       this.append(this.press);
-      const seat = conversationBox(this, "Say something about this");
+      const seat = threadBox(this, "Say something about this");
       if (seat) this.append(seat);
       this.#stop ??= this.#controller.subscribe(() => {});
     }

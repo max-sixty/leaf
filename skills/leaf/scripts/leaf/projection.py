@@ -72,7 +72,7 @@ def _report_updates(projection) -> list[dict]:
 
 def _claim_effective(claim: dict, threads: dict, events: list) -> bool:
     target = claim["target"]
-    if target["kind"] == "conversation":
+    if target["kind"] == "thread":
         thread = threads.get(target["id"])
         return bool(
             thread
@@ -358,7 +358,7 @@ class FrozenThreadReading(NamedTuple):
     """The panel's frozen markup and durable state as one document.
 
     No revision window or retraction floor bounds this projection. The markup
-    was frozen into the log, so its actions read the whole conversation window.
+    was frozen into the log, so its actions read the whole thread window.
     """
 
     structure: ThreadStructure
@@ -680,7 +680,7 @@ def page_reading(
 ) -> PageReading:
     """Read one page's markup and log window through one construction.
 
-    Document inspection and the passage readings used by `leaf comment` and
+    Document inspection and the passage readings used by `leaf thread open` and
     `version check` share declarations, floors, and the log window. The parser
     and spoken reading travel with the projection for callers that need its
     authored construction."""

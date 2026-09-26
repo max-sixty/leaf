@@ -51,7 +51,7 @@
  * is a closed vocabulary wherever it appears, and one layer's tag written into another
  * layer's stylesheet is that plus a leak.
  *
- * Live pages reserve conversation room at the wide layout's existing floors, so the
+ * Live pages reserve thread room at the wide layout's existing floors, so the
  * first comment and the last resolution leave the document column in place. */
 
 /* Ordinary action controls use `.lf-btn`, whose face is in shadow.css so it also
@@ -94,8 +94,9 @@
    The shared style query trims the outer margins of the first and last non-generated
    children inside a frame. It ignores `GENERATED` because a positioned pick mark or
    clipped spoken word must not become the visible content edge. A transparent wrapper
-   that lets a grandchild's margin collapse through it declares the frame at the wrapper
-   level only when it is the boundary responsible for that flow.
+   that lets a grandchild's margin collapse through it declares
+   `--lf-passes-block-edge: 1` so the frame's trim reaches that grandchild. A wrapper
+   that draws its own inset instead declares its own frame.
 
    Put a layout grant in a selector strong enough to override the withheld base rule.
    A screen rule that refines a base rule by one class of weight spells that weight
@@ -166,10 +167,10 @@
      focus conventions and reads as ink on ivory rather than as UI. */
   --accent: light-dark(#2f5480, #8fb0d8); --ok: light-dark(#3f7d4e, #7fb98c);
   --warn: light-dark(#b4741a, #d8a95c); --danger: light-dark(#b4402f, #d98b7a);
-  /* A pin stands over the page's own words, so it has to read as something laid on the
-     page rather than as more ink on it: a saturated blue, the way a design tool's
-     comment pin sits on a frame, where the accent above is chosen to read as ink. */
-  --pin-fill: light-dark(#0d7ae6, #1f7ae0);
+  /* A pin is filled with the accent, the ink the page already points with. The dark
+     scheme's accent is a pale tint a white glyph cannot stand on, so there the pin
+     takes a deeper one. */
+  --pin-fill: light-dark(var(--accent), #4d74a8);
   /* The pin's working fill: --ok is chosen for a dot on paper and is too light under a
      white glyph in the dark scheme. */
   --pin-working: light-dark(#2f7d45, #2d8047);
@@ -364,7 +365,7 @@
   --ok-tint: light-dark(#dfeddf, #1d2b1f);
   --ok-wash: color-mix(in srgb, var(--ok-tint) 52%, var(--paper));
   --ok-ink: light-dark(#2f6b40, #97cca3);
-  /* A conversation whose next word is the user's. The green below says the agent has
+  /* A thread whose next word is the user's. The green below says the agent has
      this one, so the user's own turn has to be a hue apart from it, and apart again
      from the violet a comment mark already wears. Blue is where the page's pointing
      already lives; the wash is mixed to the same strength as --ok-wash so the two
@@ -479,9 +480,8 @@ html:not([data-lf-live]) { --lf-banner-h: 0px; --lf-band-h: 0px; }
  * layer's own, so a project's card is outside it and the failure is a silent 13px rather
  * than an error. A box says so itself instead, in the same declaration where it draws the
  * frame, and the trim finds it through a style query. `--lf-block-frame` inherits, so the reset
- * inside is what holds the claim to the box's own children: a grandchild's margin is
- * between blocks, where it belongs, and a nested frame outranks the reset by being a
- * selector rather than `*`.
+ * inside holds the claim to the box's own children; a nested frame outranks the reset
+ * by being a selector rather than `*`.
  *
  * Which child is at the edge is a question about the page's own blocks, and `:first-child`
  * is the DOM's answer to it. The two are the same only where no module has written
@@ -494,33 +494,51 @@ html:not([data-lf-live]) { --lf-banner-h: 0px; --lf-band-h: 0px; }
  * dissolves the specimen's two arrangements into one, its "quoted ·" note being a
  * generated child on a live page and a pseudo-element on a page carrying no script.
  *
- * A first or last child can also hand its own children's margins on rather than
- * reserving room itself: a boxless one, and a bare wrapper, through which a grandchild's
- * margin collapses to the frame's edge unchanged. A section wrapping a detail pane's
- * content opened on its eyebrow's 48px, an empty band above the pane's first words. So
- * the trim follows the edge down: a block the trim reached marks itself as standing at
- * that edge (--lf-edge-start, --lf-edge-end), and its own first or last child is trimmed
- * in turn. A box that draws an inset declares the frame (the render gate holds it to
- * that), and the frame trims what it holds the same way, so following the edge into a
- * drawn box trims nothing the box would keep. `version check --render` still says when a
- * box that draws has not declared (TRAPPED_MARGINS), because a trapped margin renders
- * perfectly and reads as a number somebody chose. */
-@property --lf-edge-start { syntax: "<integer>"; inherits: false; initial-value: 0; }
-@property --lf-edge-end { syntax: "<integer>"; inherits: false; initial-value: 0; }
-@container style(--lf-block-frame: 1) or style(--lf-edge-start: 1) {
-  :nth-child(1 of :not(.lf-ui, [data-lf-gen])) {
-    margin-block-start: 0;
-    --lf-edge-start: 1;
-  }
+ * A transparent wrapper hands its child's margin to the same edge. It declares
+ * --lf-passes-block-edge instead of claiming to draw another frame: that would also
+ * bound wide content, and a padded grandchild would lose its own interior spacing.
+ * Each wrapper on the first or last path passes the token one level further. The
+ * render check follows the same collapsible path to report a missing declaration. */
+/* A transparent block can pass a framed edge through to its own first or last
+ * authored child. These tokens do not inherit: each step must be an edge child,
+ * and its wrapper must explicitly declare that it passes the edge. */
+@property --lf-frame-start {
+  syntax: "<integer>";
+  inherits: false;
+  initial-value: 0;
 }
-@container style(--lf-block-frame: 1) or style(--lf-edge-end: 1) {
-  :nth-last-child(1 of :not(.lf-ui, [data-lf-gen])) {
-    margin-block-end: 0;
-    --lf-edge-end: 1;
-  }
+@property --lf-frame-end {
+  syntax: "<integer>";
+  inherits: false;
+  initial-value: 0;
+}
+@property --lf-passes-block-edge {
+  syntax: "<integer>";
+  inherits: false;
+  initial-value: 0;
 }
 @container style(--lf-block-frame: 1) {
+  :nth-child(1 of :not(.lf-ui, [data-lf-gen])) {
+    margin-block-start: 0;
+    --lf-frame-start: 1;
+  }
+  :nth-last-child(1 of :not(.lf-ui, [data-lf-gen])) {
+    margin-block-end: 0;
+    --lf-frame-end: 1;
+  }
   * { --lf-block-frame: 0; }
+}
+@container style(--lf-frame-start: 1) and style(--lf-passes-block-edge: 1) {
+  :nth-child(1 of :not(.lf-ui, [data-lf-gen])) {
+    margin-block-start: 0;
+    --lf-frame-start: 1;
+  }
+}
+@container style(--lf-frame-end: 1) and style(--lf-passes-block-edge: 1) {
+  :nth-last-child(1 of :not(.lf-ui, [data-lf-gen])) {
+    margin-block-end: 0;
+    --lf-frame-end: 1;
+  }
 }
 
 /* A run with nothing to break on breaks anyway rather than painting outside the box that
@@ -951,13 +969,16 @@ main {
    * column), and the plain HTML elements are named here. A surface is never capped and
    * clears the measure for everything it draws. A box that only groups blocks passes
    * the measure through to what it holds, instead of holding a chart in a section to
-   * the width of a paragraph. Everything else is text. The rules have no specificity,
-   * so any rule that sizes a box outranks them. */
+   * the width of a paragraph. Everything else is text, a widget declaring so
+   * (data-lf-measure="text") included: a group whose members are the cells it draws
+   * keeps the measure as one block, so its frame and their edges stand at one width.
+   * The rules have no specificity, so any rule that sizes a box outranks them. */
   :where([data-lf-measure="surface"], [data-lf-space]:not([data-lf-space="column"]),
       table, pre, figure, img, svg, video, canvas, iframe) {
     --lf-measure: none;
   }
-  :where(:not([data-lf-measure], [data-lf-space]:not([data-lf-space="column"]),
+  :where(:not([data-lf-measure="surface"], [data-lf-measure="group"],
+      [data-lf-space]:not([data-lf-space="column"]),
       table, pre, figure, img, svg, video, canvas, iframe,
       section, div, article, header, footer, aside, nav, details, summary, hgroup,
       search, main)) {
@@ -1495,7 +1516,7 @@ svg.drawing .danger { fill: var(--danger); }
     /* :not([hidden]), because a caller may take the box behind a collapse (a settled
        group takes it with its options) — the display here would outrank the
        attribute's own hiding. */
-    .lf-conversation:not([hidden]) { display: block; }
+    .lf-thread-seat:not([hidden]) { display: block; }
     .lf-say:not([hidden]) { display: flex; }
   }
 }

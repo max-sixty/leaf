@@ -22,7 +22,10 @@
               <h2>Refresh every failed request</h2>
             </header>
             <div>
-              <section id="comparison-current-behavior">
+              <section
+                id="comparison-current-behavior"
+                style="--lf-passes-block-edge: 1"
+              >
                 <h3>Behavior</h3>
                 <p>
                   Each call that receives an expired-session response starts its own
@@ -49,7 +52,10 @@
                 </dl>
               </section>
 
-              <section id="comparison-current-consequence">
+              <section
+                id="comparison-current-consequence"
+                style="--lf-passes-block-edge: 1"
+              >
                 <h3>Release consequence</h3>
                 <p>
                   No client behavior changes. A busy tab can still send several refresh
@@ -66,7 +72,10 @@
               <h2>Share one refresh per tab</h2>
             </header>
             <div>
-              <section id="comparison-proposed-behavior">
+              <section
+                id="comparison-proposed-behavior"
+                style="--lf-passes-block-edge: 1"
+              >
                 <h3>Behavior</h3>
                 <p>
                   The first expired-session response starts a refresh. Other calls in
@@ -91,7 +100,10 @@
                 </dl>
               </section>
 
-              <section id="comparison-proposed-consequence">
+              <section
+                id="comparison-proposed-consequence"
+                style="--lf-passes-block-edge: 1"
+              >
                 <h3>Release consequence</h3>
                 <p>
                   Concurrent calls reuse one refresh result. If that refresh fails, all
@@ -100,7 +112,7 @@
                 </p>
               </section>
 
-              <section id="comparison-rollout">
+              <section id="comparison-rollout" style="--lf-passes-block-edge: 1">
                 <h3>Recorded rollout</h3>
                 <p>
                   Version 2.8 enables shared refreshes for web clients. The existing

@@ -153,7 +153,13 @@ under `$idioms` in the package's
 A rule that draws a box's inset — padding, border, or tinted field — declares
 `--lf-block-frame: 1` in the same rule. The shared layout uses that declaration to trim child
 margins and bound wide content, and the render gate reports a frame that omits it. The
-runtime exposes declared layout facts as `[data-lf-inline]`, `[data-lf-space]`,
+first or last child may be a transparent wrapper whose own child margin reaches the
+frame. Such a wrapper declares `--lf-passes-block-edge: 1`; each transparent wrapper
+along that edge does the same. A wrapper with its own padding, border, or formatting
+context keeps its interior margins and does not pass the edge. The render gate follows
+transparent wrappers and reports an untrimmed frame edge.
+
+The runtime exposes declared layout facts as `[data-lf-inline]`, `[data-lf-space]`,
 `[data-lf-measure]`, `[data-lf-bound]`, and `[data-lf-exhibit]`; shared selectors read
 those attributes instead of naming widget tags. The registry's `$keys` entries for
 `x-space`, `x-measure`, and `x-bound` say what each declaration requests; none of them
@@ -298,10 +304,10 @@ Leaf captures the owner's identity and revision-bound declaration before upgrade
 author change to those facts fails closed. Its methods are `read`, `subscribe`,
 `dispatch`, `request`, `defer`, and `present`.
 
-`read()` returns an immutable `{authored, state, conversation, provenance, actions,
+`read()` returns an immutable `{authored, state, thread, provenance, actions,
 requests, request, delivery}` snapshot. `authored` is the typed baseline decoded from
 validated source markup; `state` is that baseline with admitted and unresolved records
-folded over it; `conversation.heldBy` is the unresolved admitted hold root naming this
+folded over it; `thread.heldBy` is the unresolved admitted hold root naming this
 widget, or `null`. Each `actions` or `requests` entry carries its availability and
 exact history or Undo candidates. Guard every optimistic mutation with its entry's
 availability; `dispatch()` repeats the same check.
@@ -401,7 +407,7 @@ continues from there and no `tabindex` is left on the page behind the user. What
 it is a widget's own Escape step landing them back in the thing it took them out of: the
 patch a file filter belongs to, the exhibit a box was about.
 
-A module that takes the user to a conversation calls `openThread(rootId, {focus})`
+A module that takes the user to a thread calls `openThread(rootId, {focus})`
 with the root comment's id. It opens the thread where the page shows it, inline beside
 its passage or widget, and in Threads when it has no place on the page, the same choice a
 mark and `t` make; `focus: "thread"` lands on the thread and the default `"reply"` lands in
@@ -589,7 +595,7 @@ every command projection then updates together. A package that needs the page-wi
 Ask set calls `watchAsks(owner, callback)`. It invokes `callback(openAsks)`
 immediately, invokes it again after one complete Ask projection replaces another, binds
 the subscription lifetime to `owner`, and returns an explicit cleanup function. Each
-Ask is an immutable `{id, tag, sourceId, sourceTag, conversation}` record; resolve a node only
+Ask is an immutable `{id, tag, sourceId, sourceTag, thread}` record; resolve a node only
 to present or focus it, never to decide membership or answered state. The set is empty
 until the page's first server reading is admitted, and it changes with each later
 reading rather than when a gesture is sent, because only the log says which authored
@@ -698,9 +704,9 @@ document already holds, and version checks enforce the declared tag and
 direct-ownership relation once an author writes the child into the markup.
 
 A verb whose state the agent writes rather than the user declares `"writer": "agent"`
-beside its `detail`, `unit`, and `record`. A worker posts it with `leaf report`, the
-page paints it live, and it stands until a version answers it; the user has no control
-for it. Its record is required and may not be `body`, and it may name the detail field
+beside its `detail`, `unit`, and `record`. A worker posts it with
+`leaf experimental report`, the page paints it live, and it stands until a version
+answers it; the user has no control for it. Its record is required and may not be `body`, and it may name the detail field
 carrying its short human-readable news with `update`. Every verb has exactly one
 writer, so a coordinate never holds a user's action and an agent's report at once.
 Command Hub's `lf-task` `status` is the shipped example, and a widget declaring such a
@@ -1135,7 +1141,7 @@ If a callback throws, Leaf reports a page error, clears that registration's core
 views, and returns its threads to the margin. Other registrations continue, and the
 next ordinary reconciliation retries the consumer. Outlets must remain inside their
 widget after the callback completes; disconnected outlets claim no threads. Core message-rendering
-errors still fail the state application rather than accepting a partial conversation.
+errors still fail the state application rather than accepting a partial thread.
 
 The registration handle's `open(datum, { origin })` accepts one projected element owned
 by the widget. Core captures its full datum coordinate, including external-data source

@@ -7,13 +7,13 @@ from pathlib import Path
 import pytest
 from example_data import patch_manifest
 from interact_support import append_command
-from leaf import conversation as conversation_model
 from leaf import data as data_model
 from leaf import delivery as delivery_model
 from leaf import event_log as events_model
 from leaf import render_checks as render_checks_model
 from leaf import service as service_model
 from leaf import session as session_model
+from leaf import thread as thread_model
 from leaf.render_gate import version as render_gate_model
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -27,7 +27,6 @@ from render_cases_interaction import (
     CHANGE_SHAPES_PAGE,
     CHIP_PAGE,
     COLLAPSED_PAGE,
-    CONVERSATION_DIFF_PAGE,
     HOLD_MOTION,
     MESSAGE_ROOM_PAGE,
     PROPOSED_PAGE,
@@ -40,6 +39,7 @@ from render_cases_interaction import (
     SUGGESTION_IN_CONTEXT_PAGE,
     SUGGESTION_PAGE,
     SWAP_PAGE,
+    THREAD_DIFF_PAGE,
     live_url,
     sent_events,
 )
@@ -296,7 +296,7 @@ PANE_BAND_PAGE = leaf_page(
     <lf-pane id="band-queue" label="Queue"><ul><li>First ticket</li></ul></lf-pane>
     <lf-pane id="band-detail" label="Detail">
       <div id="band-body">
-        <section id="band-ticket">
+        <section id="band-ticket" style="--lf-passes-block-edge: 1">
           <p class="eyebrow" id="band-eyebrow">ESC-1 · sev 1</p>
           <h2>The ticket's title</h2>
           <p>What happened.</p>
@@ -311,7 +311,7 @@ PANE_BAND_PAGE = leaf_page(
 
 
 def test_a_pane_opens_on_its_first_words_through_a_bare_wrapper(browser, serve):
-    """A pane's body trims the margin at its top edge, and a section wrapping its
+    """A pane's body trims the margin at its top edge, and a declared section wrapping its
     content passes its first child's margin to that edge. The eyebrow above a heading
     carries the heading's 48px, which stood as an empty band at the top of the pane;
     the body's own padding is all that stands above the first words."""
@@ -4567,7 +4567,7 @@ body { font-family: system-ui, sans-serif; }
         "<h1>Review the deployment notification</h1>",
         "<h1>Deployment notification revised</h1>",
     )
-    conversation_model.cmd_reply(
+    thread_model.cmd_reply(
         serve.page_dir,
         comment["id"],
         "Added the deployment-run link to the artifact.",
@@ -8211,7 +8211,7 @@ def test_the_asks_tray_names_an_ask_a_message_carries(browser, serve):
     """A decision carried by a reply is a decision, and the tray has to name it in its words.
 
     The page holds none of its own, so the one row here is the question Claude put in
-    the conversation — the AskUserQuestion shape, which reaches a user through the
+    the thread — the AskUserQuestion shape, which reaches a user through the
     panel and through this tray and nowhere else. It is read here exactly as a group
     on the page is read: the decision's own words, its label first, run together and cut at
     the row's cap. `startswith` for that reason — the cut is the tray's business and
@@ -8331,7 +8331,7 @@ def test_a_drag_across_a_question_in_a_reply_is_not_a_passage_of_the_page(
 ):
     """A selection made in the panel is not the page's words, whatever it looks like.
 
-    `leaf comment --section` refuses to anchor on a widget an agent sent, and it is the
+    `leaf thread open --section` refuses to anchor on a widget an agent sent, and it is the
     reading that is supposed to promise less than the browser's. The browser offered
     the 💬 over a question in a reply and wrote an anchor onto that widget's own id into
     an append-only log — naming a section no version holds, so it could never paint and
@@ -8413,12 +8413,10 @@ def test_a_drag_across_a_question_in_a_reply_is_not_a_passage_of_the_page(
     expect(page.locator(".lf-fab-input")).to_be_hidden()
 
 
-def test_a_conversation_seated_in_a_widget_is_not_a_change_to_the_document(
-    browser, serve
-):
+def test_a_thread_seated_in_a_widget_is_not_a_change_to_the_document(browser, serve):
     """What a user and an agent said to each other is not something the page changed.
 
-    A widget declaring x-conversation grows a seat on the page, and the layer fills it
+    A widget declaring x-thread-seat grows a seat on the page, and the layer fills it
     from the log — messages the runtime built, wearing `.lf-ui` and `data-lf-gen`, and
     standing inside the widget out in `<main>`. The version diff walks every block the
     page holds and keys each by `wrote`, which is exactly the reading that leaves
@@ -8427,13 +8425,13 @@ def test_a_conversation_seated_in_a_widget_is_not_a_change_to_the_document(
     They stopped being skipped when `wrote` was bounded at the element handed in: a
     reading can start *inside* generated chrome, and rooted at one of those `<p>`s the
     box above it was no longer over the reading. The base version is parsed unupgraded
-    and holds no conversation at all, so every message became an insertion — the
+    and holds no thread at all, so every message became an insertion — the
     user's own comment and the agent's reply painted as changes to the document, and
     the count in the version note inflated by both.
 
-    The bound is the widget the reading belongs to now, and a conversation seat is
+    The bound is the widget the reading belongs to now, and a thread seat is
     inside its widget, so the box is between the words and their frame either way."""
-    url = serve(CONVERSATION_DIFF_PAGE)
+    url = serve(THREAD_DIFF_PAGE)
     d = serve.page_dir
     events_model.append_event(
         d,
@@ -8460,11 +8458,11 @@ def test_a_conversation_seated_in_a_widget_is_not_a_change_to_the_document(
     resized(page, 1200, 900)
     # The seat is filled before the diff runs, or this asserts over a page that never
     # had the blocks in question.
-    expect(page.locator("#cd-q .lf-conversation-msg")).to_have_count(2)
+    expect(page.locator("#cd-q .lf-page-thread-msg")).to_have_count(2)
 
     stamp_page(
         d,
-        CONVERSATION_DIFF_PAGE.replace(
+        THREAD_DIFF_PAGE.replace(
             '<p id="cd-lede">The south pair is up and drawing traffic.</p>',
             '<p id="cd-lede">The south pair is up and drawing traffic.</p>\n'
             '<p id="cd-new">The north pair waits on brackets.</p>',
@@ -8472,7 +8470,7 @@ def test_a_conversation_seated_in_a_widget_is_not_a_change_to_the_document(
         "two",
     )
     wait_for_revision(page, 2)
-    expect(page.locator("#cd-q .lf-conversation-msg")).to_have_count(2)
+    expect(page.locator("#cd-q .lf-page-thread-msg")).to_have_count(2)
 
     compare_with(page)
     page.wait_for_function(
@@ -8480,19 +8478,17 @@ def test_a_conversation_seated_in_a_widget_is_not_a_change_to_the_document(
     )
     assert page.evaluate(
         "() => [...document.querySelectorAll('.lf-ins-block')].map((e) => e.id)"
-    ) == ["cd-new"], "the diff read the conversation as words the base version lacked"
+    ) == ["cd-new"], "the diff read the thread as words the base version lacked"
 
 
-def test_an_agent_message_edit_updates_the_panel_and_its_inline_conversation(
-    browser, serve
-):
+def test_an_agent_message_edit_updates_the_panel_and_its_inline_thread(browser, serve):
     """The edit is one log arrival and both views fold it onto the original message.
 
     Neither view gains a second message. Their standing message nodes survive the
     arrival, so an edit cannot disturb a user working elsewhere in the same thread;
     only the prose inside changes, and both heads disclose that it changed.
     """
-    url = serve(CONVERSATION_DIFF_PAGE)
+    url = serve(THREAD_DIFF_PAGE)
     d = serve.page_dir
     message = events_model.append_event(
         d,
@@ -8514,12 +8510,11 @@ def test_an_agent_message_edit_updates_the_panel_and_its_inline_conversation(
     )
     page = open_page(browser, url)
     resized(page, 1200, 900)
-    inline = page.locator(f'#cd-q .lf-conversation-msg[data-event="{message["id"]}"]')
+    inline = page.locator(f'#cd-q .lf-page-thread-msg[data-event="{message["id"]}"]')
     inline_thread = page.locator(
-        "#cd-q .lf-conversation-thread:has("
-        f'.lf-conversation-msg[data-event="{message["id"]}"])'
+        f'#cd-q .lf-page-thread:has(.lf-page-thread-msg[data-event="{message["id"]}"])'
     )
-    expect(inline.locator(".lf-conversation-body")).to_have_text(
+    expect(inline.locator(".lf-page-thread-body")).to_have_text(
         "The north bracket fit."
     )
     page.locator(".lf-threads-toggle").click()
@@ -8529,7 +8524,7 @@ def test_an_agent_message_edit_updates_the_panel_and_its_inline_conversation(
     page.evaluate(
         """([message]) => {
           window.__editedInline = document.querySelector(
-            `#cd-q .lf-conversation-msg[data-event="${message}"]`);
+            `#cd-q .lf-page-thread-msg[data-event="${message}"]`);
           window.__editedPanel = document.querySelector(`.lf-msg[data-mid="${message}"]`);
           window.__editedWidget = document.querySelector('#edited-message-choice');
         }""",
@@ -8555,7 +8550,7 @@ def test_an_agent_message_edit_updates_the_panel_and_its_inline_conversation(
     )
     told(page)
 
-    expect(inline.locator(".lf-conversation-body")).to_contain_text(
+    expect(inline.locator(".lf-page-thread-body")).to_contain_text(
         "The north bracket fits."
     )
     expect(panel.locator(".lf-msg-text")).to_contain_text("The north bracket fits.")
@@ -8572,7 +8567,7 @@ def test_an_agent_message_edit_updates_the_panel_and_its_inline_conversation(
     expect(page.locator(f'.lf-msg[data-mid="{revision["id"]}"]')).to_have_count(0)
     assert page.evaluate(
         f"""() => window.__editedInline === document.querySelector(
-          '#cd-q .lf-conversation-msg[data-event="{message["id"]}"]')
+          '#cd-q .lf-page-thread-msg[data-event="{message["id"]}"]')
           && window.__editedPanel === document.querySelector(
             '.lf-msg[data-mid="{message["id"]}"]')
           && window.__editedWidget === document.querySelector('#edited-message-choice')"""
@@ -8653,7 +8648,7 @@ def test_a_thread_on_a_widget_an_agent_sent_names_it_and_stands_apart(browser, s
     groups = page.evaluate(
         "() => [...document.querySelectorAll('.lf-group')].map((g) => g.textContent)"
     )
-    assert "Sent in the conversation" in groups, groups
+    assert "Sent in the thread" in groups, groups
     assert "The page's own layer" not in groups, groups
 
 

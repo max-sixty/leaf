@@ -44,15 +44,15 @@ def read_text_arg(page_dir: Path, text) -> str:
 
 
 def thread_obligation(events: list, responses: dict, message: str) -> dict | None:
-    """What the conversation holding one message still owes, if anything.
+    """What the thread holding one message still owes, if anything.
 
     A thread's response is owed by the thread rather than by the message inside it
     that happens to carry it, so a message with nothing against its own id can still
-    sit in a conversation waiting on one. Every writer that asks "does this message
-    take `--initiates`?" asks this, because two readings of the same question drift:
-    the refusal that named `--initiates` for a message owed nothing sent agents to a
-    writer refusing it on the thread's obligation, which is the dead end a refusal is
-    supposed to end.
+    sit in a thread waiting on one. Every writer that asks "may a new message
+    go to this one with `--to` alone?" asks this, because two readings of the same
+    question drift: a refusal that sent an agent to `--to` for a message owed nothing
+    sent it to a writer refusing it on the thread's obligation, which is the dead end
+    a refusal is supposed to end.
     """
     roots = thread_roots(events)
     root = roots.get(message, message)
@@ -81,9 +81,9 @@ def logged_id(events: list, value: str, responses: dict) -> str | None:
     Where it goes is what the log still owes, which is `current_responses`: a
     user's press is answered through `--for` until it is answered and not after, a
     request through its receipt, and a resolve or an undo is owed nothing at all. A
-    message is the one id whose writer turns on its conversation rather than on
-    itself — `--initiates` is refused while the thread owes a response, whichever of
-    its messages is owed it — so it is read through `thread_obligation`, the same
+    message is the one id whose writer turns on its thread rather than on
+    itself — `--to` without `--for` is refused while the thread owes a response,
+    whichever of its messages is owed it — so it is read through `thread_obligation`, the same
     reading `cmd_reply`'s guard refuses on.
     """
     event = next((event for event in events if event.get("id") == value), None)
@@ -98,10 +98,10 @@ def logged_id(events: list, value: str, responses: dict) -> str | None:
         if owed is None:
             return (
                 f"{held}, and nothing is owed for it — "
-                f"`leaf reply <page> --to {value} --initiates` replies to it"
+                f"`leaf thread reply <page> --to {value}` replies to it"
             )
         return (
-            f"{held}, and its conversation is owed a reply — "
+            f"{held}, and its thread is owed a reply — "
             f"{answer_command(owed)} answers it"
         )
     if owed is None:
@@ -119,7 +119,7 @@ def version_ids(page_dir: Path) -> set:
 def pinned_thread_markup_errors(page_dir: Path, fragment: SourceDocument) -> list[str]:
     """Refuse thread markup an immutable page cannot render.
 
-    Conversation markup has no revision boundary: every open historical document
+    Thread markup has no revision boundary: every open historical document
     receives it.  Admission against only the active registry can therefore freeze a
     newly introduced widget into the log even though an older pinned document has no
     declaration or implementation for it.  Ask every captured registry at the append

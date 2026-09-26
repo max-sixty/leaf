@@ -1,5 +1,21 @@
 # Serving pages
 
+## Inspecting interactions
+
+For a served page, read the private diagnostic stream while reproducing a user or
+test-agent path:
+
+```bash
+leaf interactions <page> --follow
+```
+
+It combines browser gestures and server request outcomes in delivery order. Browser
+rows carry a tab session, event time, and sequence; large values appear as ordered
+`interaction_part` rows whose `json` fields concatenate to the original row.
+The semantic decisions remain in `leaf events <page>`. See [page-storage.md](../scripts/leaf/page-storage.md)
+for the file contract. The public site stores its browser batches in Workers
+Observability; `worker/README.md` describes lookup by session reference.
+
 ## Exported files
 
 When `$ARGUMENTS` asks for `--export`, build the page as a finished record (the
@@ -12,7 +28,7 @@ leaf version export <page> -o <file>
 Hand back the `file://` URL. Do not start a server or wait. The file opens
 offline and runs the page's own runtime against the captured revision and its
 state: widgets, local controls, and page-owned computation work as served. No host
-stands behind it, so conversation and any action or request that needs an agent or
+stands behind it, so thread and any action or request that needs an agent or
 server are unavailable. A page that declares a live specimen needs a server and
 cannot be exported. Write the file where the project keeps user-facing artifacts.
 A live page can be exported without ending its loop.
@@ -107,7 +123,7 @@ leaf page state <page>
 ```
 
 Read `content` for the current document and its construction origins, then the active
-revision, open Asks, current conversation state, and `measurement_lag` for figures
+revision, open Asks, current thread state, and `measurement_lag` for figures
 whose sources have run again. Before editing, follow `authoring-revisions.md`'s "Read
 before editing" section. Then run `leaf wait <page>` to claim it. Starting a server
 when the standing one is already live prints its URL without changing its lifetime.

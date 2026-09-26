@@ -27,7 +27,7 @@ runtime owners; an owner never reaches back through the entry module or public f
 
 The boot module constructs owners with explicit capabilities before mounting them.
 These constructors retain their dependencies; their mounts install listeners and begin
-reads that need the other owners. Pure projection, conversation, and pending models fold
+reads that need the other owners. Pure projection, thread, and pending models fold
 supplied records without importing DOM or application services. Renderers receive the semantic commands they use instead of importing the
 application, delivery, or undo owner. Keep these boundaries transitive: an intermediate
 helper must not restore a forbidden dependency. The public widget facade is the boundary
@@ -47,7 +47,7 @@ relative to `runtime/` unless stated otherwise.
 | --- | --- |
 | Composition and semantic publication | `application.js`, `semantic-state.js`, `context.js` |
 | Delivery, accepted state, and wakeups | `delivery.js`, `state-application.js`, `state-feed.js`, `layer-client.js`, `traffic.js` |
-| State models, selectors, and projection | `projection/`, `conversation/model.js`, `conversation/workflow.js`, `conversation/state.js`, `pending/`, `asks/model.js` |
+| State models, selectors, and projection | `projection/`, `thread/model.js`, `thread/workflow.js`, `thread/state.js`, `pending/`, `asks/model.js` |
 | Widget capture and lifecycle | `document-identity.js`, `widget-descriptors.js`, `widget-controller.js`, `widget-loader.js`, `widget-upgrade.js` |
 | Vocabulary and public helpers | `registry.js`, `widget-api.js`, `widget-elements.js`, `request-elements.js` |
 | External data and authored projections | `data.js`, `projection/data.js`, `projection/authored.js` |
@@ -59,7 +59,7 @@ relative to `runtime/` unless stated otherwise.
 | Focus and navigation | `focus.js`, `navigation.js`, `history.js`, `user-intent.js`, `walk-position.js` |
 | Asks | `asks/view.js`, `asks/view-elements.js`, `asks/model.js` |
 | Comment capture and entry | `composing/`, `drafts.js`, `media.js` |
-| Threads and reply surfaces | `conversation/`, `thread-panel.js` |
+| Threads and reply surfaces | `thread/`, `thread-panel.js` |
 | Margin inventory, controls, and Page Map | `margin-entries.js`, `margin-entry-model.js`, `margin-model.js`, `margin-map-model.js`, `margin-projection.js`, `margin-cluster-view.js`, `page-map-dialog.js` |
 | Margin placement | `margin-layout.js`, `margin-placement.js`, `thread-card-geometry.js` |
 | Passage reading and target identity | `passages.js`, `text-alignment.js`, `anchor-coordinate.js`, `target-references.js`, `resolved-target.js`, `anchor-resolution.js` |
@@ -67,6 +67,7 @@ relative to `runtime/` unless stated otherwise.
 | Banner, approvals, and the row, menu, and gesture control seats | `banner.js`, `banner-status-view.js`, `banner-approval.js`, `banner-shelf.js` |
 | Trays and neighboring pages | `trays.js`, `live-leaves.js`, `live-leaves-list.js` |
 | Activity timing and updates | `presence.js`, `updates.js` |
+| Browser interaction diagnostics | `interaction-log.js` |
 | Notices and announcements | `semantic-news.js`, `notifications.js`, `keyboard/shortcut-bar.js` |
 | Reactions and design review | `reactions.js`, `design.js`, `design-readings.js` |
 | Document presentation and validation | `presentation.js`, `validation.js`, `projection-watch.js` |
@@ -129,7 +130,7 @@ The widget layer loads the vendored
 registry, imports modules declared by `x-upgrade`, renders registry-declared
 words, and has each module's controller reconcile recorded state. The comment layer listens on `GET /api/news`
 for the page's reading, reads `GET /api/state` when that reading moves,
-posts to `POST /api/event`, renders the status and conversation chrome, captures
+posts to `POST /api/event`, renders the status and thread chrome, captures
 anchors, and handles keyboard navigation. Both layers share the same registry,
 passage model, event list, layout readings, and helper surface.
 
@@ -145,16 +146,16 @@ Each mutable fact has one writer:
 | the reading the page has applied | the server's `/api/state` answer | the publisher adopts `reading`; state presentation paints `data-lf-reading` only after every required view succeeds |
 | unresolved browser work | the publisher's one ordered ledger | commands enqueue; accepted state accounts receipts; projection commit proof permits action release |
 | desired semantic state | authored state, log projection, then pending overlay | the application publisher exposes one folded reading, which may precede deferred DOM work |
-| rendered conversation | the server's thread projection, then pending messages | the publisher exposes one effective conversation; conversation presentation adapts it to retained DOM nodes |
-| message workflow and thread attention | the server's exact-input `workflows` and each Thread's aggregated `attention` | the publisher adds local Sending and the attention local sends imply; message metadata, compact rows, and margin entries share `conversation/workflow.js`'s labels |
-| which Asks stand and which the user owes | the server's one `leaf.asks` fold, shipped as the view's `document.asks` and the conversation's `asks` | the publisher concatenates the page and thread readings and publishes them unchanged (Authoritative projection, below) |
+| rendered thread | the server's thread projection, then pending messages | the publisher exposes one effective thread; thread presentation adapts it to retained DOM nodes |
+| message workflow and thread attention | the server's exact-input `workflows` and each Thread's aggregated `attention` | the publisher adds local Sending and the attention local sends imply; message metadata, compact rows, and margin entries share `thread/workflow.js`'s labels |
+| which Asks stand and which the user owes | the server's one `leaf.asks` fold, shipped as the view's `document.asks` and the thread's `asks` | the publisher concatenates the page and thread readings and publishes them unchanged (Authoritative projection, below) |
 | proof of what the DOM currently represents | controller presentation tickets plus projection coordinate commits | each controller completes total rendering and auxiliary updates through `updateComplete`; projection commits gate coverage, provenance, chrome, and pending release |
 | when a document-wide renderer paints | the publication that opened the epoch | each presenter claims its region in the publication and paints on the next pass, in the order `runtime/semantic-state.js` declares (root `AGENTS.md`, Cross-runtime invariants) |
 | anchor paint | thread and composer anchor records | the anchor paint owner |
 | where each thread's passage lands | this version's resolution of its anchor | anchor paint writes a rich placed record with its element, exact datum, and exact/fallback/outdated status |
-| widget-local Thread placement | exact projected-datum placements plus the widget's current layout | the conversation surface coordinator asks each declared adapter for an outlet, then records the threads it claimed before the margin projection reconciles |
+| widget-local Thread placement | exact projected-datum placements plus the widget's current layout | the thread surface coordinator asks each declared adapter for an outlet, then records the threads it claimed before the margin projection reconciles |
 | canonical page activity | the server `activity` fold (root `AGENTS.md`, Cross-runtime invariants) | the banner and Leaves tray paint it; the browser only asks for a fresh server reading at `next_transition_at` |
-| which agent content the user has not read | the server's `read_state` reading, shipped as each Thread's `unread` | the publisher removes the versions this tab is marking read; `conversation/read.js` sends `read` for exposed prose and Mark read, outside the gesture queue |
+| which agent content the user has not read | the server's `read_state` reading, shipped as each Thread's `unread` | the publisher removes the versions this tab is marking read; `thread/read.js` sends `read` for exposed prose and Mark read, outside the gesture queue |
 | meaningful new page information | unread agent content, user Asks, canonical response workflows, request receipts, and page activity in the accepted server reading | `semantic-news.js` compares only readings whose complete document presentation succeeded: unread content is news the first time this tab sees it, and everything else is news only against an earlier reading. `notifications.js` owns the one status-line and live-region queue, and rechecks deferred assertions against the latest successfully presented reading before display |
 | composer visibility | `composerOpen` and `fabAnchor` | `showComposer` and `showFab` |
 | the draft a hidden composer can be brought back to | the stored composer records, narrowed to those whose passage this document still holds | `keptDraft`, read by the `g D` destination and by the notice `showComposer` writes when a box holding words goes down |
@@ -163,8 +164,8 @@ Each mutable fact has one writer:
 | how much of a scroller's top a sticky cover takes | the tallest declared cover's rendered box | `declareCoverRoom` (`geometry.js`) observes the covers and writes the property a `scroll-padding` or `scroll-margin` reads: the thread list's run headings as `--lf-head-room` on the list (`renderThreads`), each `lf-diff` file header on its file, a root `lf-tabs` strip as `--lf-root-tab-clear` on the document |
 | a nested scroller's viewport position through a re-render | one reference node in the scroller's visible band, handed across to whatever the render puts under its identity | `user-place.js`'s place hold, taken by whatever re-renders the scroller: the thread list's `renderThreads` (generated presentation, receipt updates, provisional work, resolution folds) and `holdThroughDisclosure`, the Page Map's `renderSheet`, and the margin card's `buildThreadCard` for the same thread; a package takes it through the widget API. The document's scroller takes none: native anchoring holds it |
 | where the thread holding the focus stands in the list | the band the list declares landable through `scroll-padding` | `threadsBox`'s `focusin`, and its press through `pointerdown`/`pointerup`; `stepThread` for a key press that moves no focus, `landIn` for the box it puts the user in, `placeThreadEdge` for an explicit edge placement, and `showThread` for a deliberate arrival. A press's correction is instant, because the click that follows it in the same gesture writes this same scroll and a write cancels an animation instead of superseding it (`landing.js`, at `land`) |
-| whether the margin card shows, and which target's threads | the user's standing target: focus on the target or inside it, its margin cluster, or the card | `margin-projection.js`'s `followStanding` on focus arrival, the standing scope's `release` (`focus.js`), `pressAway` for a press outside the card, its target, and its cluster, and the explicit opens (`t`, a marker, a mark); with Threads open, `followStanding` expands the target's thread in the list instead (`accompanyThread`, `conversation/landing.js`) |
-| the margin card's place in its transcript | the card list's own scroll, held through a re-render of the same thread by the place hold above | a landing through `revealConversation`, a send revealing its reply, `buildThreadCard` starting another thread at the top, or a new agent turn following the visible tail; placing the card writes none |
+| whether the margin card shows, and which target's threads | the user's standing target: focus on the target or inside it, its margin cluster, or the card | `margin-projection.js`'s `followStanding` on focus arrival, the standing scope's `release` (`focus.js`), `pressAway` for a press outside the card, its target, and its cluster, and the explicit opens (`t`, a marker, a mark); with Threads open, `followStanding` expands the target's thread in the list instead (`accompanyThread`, `thread/landing.js`) |
+| the margin card's place in its transcript | the card list's own scroll, held through a re-render of the same thread by the place hold above | a landing through `scrollThreadIntoView`, a send revealing its reply, `buildThreadCard` starting another thread at the top, or a new agent turn following the visible tail; placing the card writes none |
 | how much of a scroller the user can see, and where a landing may put something | the scroller's shown band less the covers declared through `declareCoverRoom` that stick in it, or less its declared `scroll-padding` | `visibleBand` and `landingBand` in `geometry.js`; `shownRect`'s clip walk applies `visibleBand` at every ancestor, so whether something is on screen has one answer |
 | what a surface standing over the page hides | the surface's own box, for what stacks beneath it and outside it | the surface declares itself once through `declareOccluder` (`geometry.js`); the thread panel does, and `shownRect` takes what it stands over away, so exposure, travel, and badge placement read it alike |
 | which surface a trip clears to show its destination | the selected auxiliary surface, where it covers the page or stands over most of the destination (`hides`, `geometry.js`) | `clearFor` on the auxiliary-surface owner, called from travel's one `trip` entry (`anchor-travel.js`), which then reads past whatever surface still stands |
@@ -268,7 +269,7 @@ event schema refuses it.
 
 ## Authoritative projection
 
-Python owns the durable Ask and conversation projections. The browser publisher adopts
+Python owns the durable Ask and thread projections. The browser publisher adopts
 those readings and combines them with authored state and unresolved gestures;
 `runtime/projection/model.js` folds widget state, and `projection/presentation.js` records
 coverage and provenance. Widget controllers keep desired state separate from proof of
@@ -278,8 +279,8 @@ Whether an Ask is answered is the registry's `$awaits.answered` condition over s
 state, which Python evaluates. Keep that reading on the server rather than adding a
 browser Ask fold.
 
-The server supplies page and conversation Ask collections through each view's
-`document.asks` and the conversation's `asks`. The publisher combines them page first;
+The server supplies page and thread Ask collections through each view's
+`document.asks` and the thread's `asks`. The publisher combines them page first;
 `runtime/asks/model.js` exposes their immutable selections. Each Ask identifies the
 surface to visit and the source that answers it.
 
@@ -291,7 +292,7 @@ one log snapshot without projecting all historical revisions on every read.
 Python supplies each thread's raw `awaits_user` and aggregated `attention`.
 `awaitsUser` reads unresolved `attention`, which includes recovery even when the raw
 flag is false. The browser never ranks workflows into attention again; it adjusts the
-server's reading for unresolved local sends only. The conversation model sets a thread
+server's reading for unresolved local sends only. The thread model sets a thread
 holding an unresolved send to wait on that send, which also retires a failed workflow's
 recovery while keeping its historical message status; the publisher restores a
 standing structural Ask that send cannot answer, and hands a thread the server left
@@ -300,14 +301,14 @@ restores the accepted attention.
 The server's rules for structural and prose obligations live in `../scripts/leaf/events.md`,
 "Threads".
 
-### Version and conversation windows
+### Version and thread windows
 
 A page widget's projection stops at `runtime.currentRevision`; a widget in frozen
 thread markup reads the whole log (root `AGENTS.md`, Cross-runtime invariants).
 
-The server projects threads from the whole log, so a conversation stays current
+The server projects threads from the whole log, so a thread stays current
 on a pinned page even when the document projection remains historical.
-Registry-declared `x-conversation` seats show an exact-section
+Registry-declared `x-thread-seat` seats show an exact-section
 textual view while the owner exists in the current document. A declared
 `x-thread-surface` seats the canonical composer and Thread views inside the widget on
 the terms in `../references/packages.md`, "Widget-local Thread surfaces". Dropping
@@ -470,7 +471,7 @@ Each Thread's `unread` is the one reading of what the user has not read. The
 Threads toggle's dot and label, the panel's **Unread** jump and per-thread counts, the
 **New since you last looked** boundaries, a margin entry's dot and its Page Map row
 all paint it, so they change together. Reading is bookkeeping and never moves the
-user: a mark inside a conversation is drawn in room the content keeps whether or not
+user: a mark inside a thread is drawn in room the content keeps whether or not
 it is unread, so a receipt changes no box the user is looking at. The server counts
 a reply, reaction, widget answer, resolve, or reopen as reading what the thread held
 before it; the page adds exposure: a whole prose body shown in one surface, whatever
@@ -564,12 +565,13 @@ and repository lint checks the source.
 | `withheldRoom` | a drawing scrolls only when the room, net of margin residents at its band, ran short |
 | `strandedMargins` | every margin marker has an element it can stand by |
 | `coveringMargins` | advice only: which margin pins stand over lines of the page's text |
-| `silentCuts` | a box showing less than it holds across fades each edge with content beyond it |
+| `shrunkLabels` | advice only: which drawings scale their painted labels below a legible size at the desktop viewport |
+| `silentCuts` | a box showing less than it holds across paints a mark on each edge with content beyond it |
 | `clippedControls` | actionable controls are visible and reachable |
 | `unreachableWords` | visible page words remain in reachable flow |
 | `coveredWords` | browser words are not silently clipped, hidden, or claimed by chrome |
 | `unreadSyntax` | syntax highlighting does not erase or alter source words |
-| `shownVerbatim` | every preserving owner agrees with its revision- or conversation-scoped projected passage |
+| `shownVerbatim` | every preserving owner agrees with its revision- or thread-scoped projected passage |
 | `silentWords` | `x-says` and `x-paints` promises reach the composed rendered page |
 | `undeclaredAttrs` | modules do not write undeclared author-namespace state |
 | `retiredSlots` | declared settlement marks and retired-slot visibility agree with the projection |

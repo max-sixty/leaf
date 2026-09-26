@@ -51,7 +51,7 @@ export function createDesignMode({
 
   function setDesignMode(on, { spoken = true } = {}) {
     // Design mode reinterprets presses on the page and chrome as interface comments, so
-    // retire the thread card rather than leave a conversation up that no press can work.
+    // retire the thread card rather than leave a thread up that no press can work.
     if (on) closePreview();
     designModeOn = on;
     document.body.toggleAttribute("data-lf-design-mode", on);

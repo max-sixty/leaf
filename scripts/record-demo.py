@@ -357,6 +357,7 @@ def record(
     shot(900)
 
     run_leaf(
+        "thread",
         "reply",
         str(page_dir),
         "--to",

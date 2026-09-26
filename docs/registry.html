@@ -131,7 +131,6 @@
           <a href="#x-awaits"><code>x-awaits</code></a>
           <a href="#x-bound"><code>x-bound</code></a>
           <a href="#x-content"><code>x-content</code></a>
-          <a href="#x-conversation"><code>x-conversation</code></a>
           <a href="#x-data"><code>x-data</code></a>
           <a href="#x-example"><code>x-example</code></a>
           <a href="#x-exhibit"><code>x-exhibit</code></a>
@@ -158,6 +157,7 @@
           <a href="#x-space"><code>x-space</code></a>
           <a href="#x-state"><code>x-state</code></a>
           <a href="#x-text-format"><code>x-text-format</code></a>
+          <a href="#x-thread-seat"><code>x-thread-seat</code></a>
           <a href="#x-thread-surface"><code>x-thread-surface</code></a>
           <a href="#x-tone"><code>x-tone</code></a>
           <a href="#x-upgrade"><code>x-upgrade</code></a>
@@ -218,14 +218,14 @@
                   the answer control but not its own title: every matching local Ask
                   must stand inside an x-ask-surface, whose direct heading owns the
                   question's reading and arrival. A widget that also declares
-                  x-conversation puts a box under its own Ask, and a conversation
-                  standing in that box takes the Ask off the user's list for as long as
-                  it waits on the agent — whoever opened it. That is not an answer: the
-                  widget's state is untouched, so a version still has to record what the
-                  words settled. An ordinary reply or resolve hands the conversation
-                  back. A widget inside a thread presents an Ask like one on the page,
-                  with one bound set by frozen thread markup: the thread's own reply box
-                  is already that seat, so only an action can answer it there.
+                  x-thread-seat puts a box under its own Ask, and a thread standing in
+                  that box takes the Ask off the user's list for as long as it waits on
+                  the agent — whoever opened it. That is not an answer: the widget's
+                  state is untouched, so a version still has to record what the words
+                  settled. An ordinary reply or resolve hands the thread back. A widget
+                  inside a thread presents an Ask like one on the page, with one bound
+                  set by frozen thread markup: the thread's own reply box is already
+                  that seat, so only an action can answer it there.
                   <code>when</code> selects Leaf elements that originate Asks,
                   <code>answered</code> says which standing state answers one, and
                   <code>all</code> names a blanket answer offered by the banner.
@@ -258,37 +258,6 @@
                 thing in HTML that says whitespace is load-bearing without a stylesheet
                 to read), or <code>empty</code>. Required.
               </p>
-            </div>
-          </section>
-          <section class="reference-entry" id="x-conversation">
-            <h3><code>x-conversation</code></h3>
-            <div class="reference-copy">
-              <p>
-                The module places a conversationBox in each matching Leaf element,
-                selected by authored, static <code>when</code> attributes (an attribute
-                written by an x-state value record cannot drive this predicate).
-              </p>
-              <details class="reference-more">
-                <summary aria-label="Full x-conversation contract">
-                  Full contract
-                </summary>
-                <p>
-                  It projects exact-section threads textually from the whole log;
-                  Threads keeps the complete interactive view. Thread markup and quoted
-                  material take no second view. Where the widget also originates a local
-                  x-awaits Ask, the seat is where the user deals with it in words: the
-                  Ask leaves their list while that conversation waits on the agent,
-                  rather than being counted a second time under a box they have already
-                  used. It is not an answer — the widget's own state is untouched, so
-                  its controls still work and the Ask still reads as unanswered. A
-                  <code>hold</code> comment is a seat conversation like any other.
-                  <code>hold</code> labels a stronger send route whose comment carries
-                  <code>holds</code> naming this widget: that route remains available
-                  after ordinary roots, the unresolved held thread is the hold,
-                  resolution releases it, and undoing resolution restores it atomically.
-                  Dropping the widget drops only the inline view.
-                </p>
-              </details>
             </div>
           </section>
           <section class="reference-entry" id="x-data">
@@ -412,16 +381,21 @@
               <details class="reference-more">
                 <summary aria-label="Full x-measure contract">Full contract</summary>
                 <p>
-                  Undeclared, an element made of members (<code>x-content: members</code
-                  >) groups them, since an element made of other elements is never text,
-                  and anything else is text and keeps the reading measure inside a frame
-                  wider than the column. <code>surface</code> (a chart, table, log or
-                  listing) fills the frame; x-space wide or available implies it.
-                  <code>group</code> only holds other blocks (tabs, a comparison, a
-                  grid, a pane), so it passes the measure through to them instead of
-                  holding everything it contains to the width of a paragraph. The
-                  runtime paints the declaration as data-lf-measure; the theme declares
-                  the plain HTML elements the same way.
+                  <code>text</code> keeps the reading measure inside a frame wider than
+                  the column, and is what an undeclared element is unless it is made of
+                  members (<code>x-content: members</code>), which groups them by
+                  default. A members element declares <code>text</code> when its members
+                  are the cells of one block it draws: a choose group's frame, dividers
+                  and marks belong to its options, so the group keeps the measure as a
+                  whole and each option fills it, where grouping left every option at
+                  the measure inside a frame drawn across the whole cell.
+                  <code>surface</code> (a chart, table, log or listing) fills the frame;
+                  x-space wide or available implies it. <code>group</code> only holds
+                  other blocks (tabs, a comparison, a grid, a pane), so it passes the
+                  measure through to them instead of holding everything it contains to
+                  the width of a paragraph. The runtime paints the declaration as
+                  data-lf-measure; the theme declares the plain HTML elements the same
+                  way.
                 </p>
               </details>
             </div>
@@ -635,15 +609,15 @@
                   projected holder contributes one Ask while any displayed row is ready.
                   Pending excludes another request on that seat, failure reopens it, and
                   success completes it. Each request is durable and not undoable because
-                  the host may already have acted. <code>leaf receipt</code> appends
-                  exactly one linked <code>succeeded</code> or
-                  <code>failed</code> outcome, and the widget controller supplies the
-                  server-projected request seat, exact request/receipt attempts, latest
-                  attempt, and ready/pending/completed phase to its package module. A
-                  projected row reads and dispatches through
-                  <code>request(key)</code> on that controller. Leaf transports and
-                  validates the protocol but does not interpret verbs or execute them;
-                  package-owned guidance tells the host what each verb means, and
+                  the host may already have acted.
+                  <code>leaf experimental receipt</code> appends exactly one linked
+                  <code>succeeded</code> or <code>failed</code> outcome, and the widget
+                  controller supplies the server-projected request seat, exact
+                  request/receipt attempts, latest attempt, and ready/pending/completed
+                  phase to its package module. A projected row reads and dispatches
+                  through <code>request(key)</code> on that controller. Leaf transports
+                  and validates the protocol but does not interpret verbs or execute
+                  them; package-owned guidance tells the host what each verb means, and
                   external data carries replaceable evidence produced by it.
                 </p>
               </details>
@@ -768,42 +742,42 @@
                 <p>
                   A verb is the user's unless it declares <code>writer: "agent"</code>:
                   the user writes theirs through the page as <code>action</code> events,
-                  and the agent reports its own through <code>leaf report</code> as
-                  <code>report</code> events, so every coordinate has one writer. A user
-                  verb may declare a created child (<code>creates</code>). An agent verb
-                  requires a record form other than <code>body</code>, since a report
-                  moves declared state and never the page's words, which keeps the
-                  passage reading untouched by it; it may name with
-                  <code>update</code> the required non-empty string detail field that is
-                  the report's short human-readable news, which the canonical update
-                  feed exposes without guessing from a widget, verb, or field name. The
-                  runtime paints a standing report live (data-lf-reported); it is
-                  provisional news, standing only until a version answers it, as $report
-                  says. Each verb is its own state: the owning Leaf element, the unit,
-                  and the verb together name one independently standing fact, the latest
-                  surviving action of that verb there supersedes its predecessors, and
-                  different verbs coexist. The framework composes the last surviving
-                  action per coordinate with typed authored values and gives every
-                  widget its complete state through renderState, keyed by verb, and one
-                  declaration drives the POST and re-vendor contract gates,
-                  <code>version check</code>'s state gate (a version whose markup
-                  actively contradicts the fold without <code>restated</code> is
-                  refused; writing the folded state is honoring; re-emitting the
-                  previous version's state is blessed silence, except for a position
-                  whose container the version changes, which it writes),
-                  construction-linked inspection, the runtime's user- and report-origin
-                  readings, and the version diff's state half. When an action's
-                  admission makes its widget's x-awaits <code>answered</code> condition
-                  hold, admission records meaning.answer on it: the widget's authored
-                  <code>resolves</code> attribute, read from the sending document, names
-                  the comment thread the answer closes, and null answers without closing
-                  one, which is also what a decision whose outcome is the widget's
-                  x-withdrawn-as records: it leaves the page as if nothing had been
-                  proposed. Historical settlement uses the admitted owner-unit-verb
-                  coordinate even after the widget retires. One detail field name is
-                  reserved: <code>outcome</code>, on the one user widget-unit verb that
-                  decides which retirable members leave the page (x-retired-when). The
-                  unit, creates, and record forms are $state's.
+                  and the agent reports its own through
+                  <code>leaf experimental report</code> as <code>report</code> events,
+                  so every coordinate has one writer. A user verb may declare a created
+                  child (<code>creates</code>). An agent verb requires a record form
+                  other than <code>body</code>, since a report moves declared state and
+                  never the page's words, which keeps the passage reading untouched by
+                  it; it may name with <code>update</code> the required non-empty string
+                  detail field that is the report's short human-readable news, which the
+                  canonical update feed exposes without guessing from a widget, verb, or
+                  field name. The runtime paints a standing report live
+                  (data-lf-reported); it is provisional news, standing only until a
+                  version answers it, as $report says. Each verb is its own state: the
+                  owning Leaf element, the unit, and the verb together name one
+                  independently standing fact, the latest surviving action of that verb
+                  there supersedes its predecessors, and different verbs coexist. The
+                  framework composes the last surviving action per coordinate with typed
+                  authored values and gives every widget its complete state through
+                  renderState, keyed by verb, and one declaration drives the POST and
+                  re-vendor contract gates, <code>version check</code>'s state gate (a
+                  version whose markup actively contradicts the fold without
+                  <code>restated</code> is refused; writing the folded state is
+                  honoring; re-emitting the previous version's state is blessed silence,
+                  except for a position whose container the version changes, which it
+                  writes), construction-linked inspection, the runtime's user- and
+                  report-origin readings, and the version diff's state half. When an
+                  action's admission makes its widget's x-awaits
+                  <code>answered</code> condition hold, admission records meaning.answer
+                  on it: the widget's authored <code>resolves</code> attribute, read
+                  from the sending document, names the comment thread the answer closes,
+                  and null answers without closing one, which is also what a decision
+                  whose outcome is the widget's x-withdrawn-as records: it leaves the
+                  page as if nothing had been proposed. Historical settlement uses the
+                  admitted owner-unit-verb coordinate even after the widget retires. One
+                  detail field name is reserved: <code>outcome</code>, on the one user
+                  widget-unit verb that decides which retirable members leave the page
+                  (x-retired-when). The unit, creates, and record forms are $state's.
                 </p>
               </details>
             </div>
@@ -822,6 +796,37 @@
                   and revision readings use the same visible words. A generated child
                   with this declaration interprets the user's line breaks as hard
                   breaks; source HTML line wraps remain ordinary whitespace.
+                </p>
+              </details>
+            </div>
+          </section>
+          <section class="reference-entry" id="x-thread-seat">
+            <h3><code>x-thread-seat</code></h3>
+            <div class="reference-copy">
+              <p>
+                The module places a threadBox in each matching Leaf element, selected by
+                authored, static <code>when</code> attributes (an attribute written by
+                an x-state value record cannot drive this predicate).
+              </p>
+              <details class="reference-more">
+                <summary aria-label="Full x-thread-seat contract">
+                  Full contract
+                </summary>
+                <p>
+                  It projects exact-section threads textually from the whole log;
+                  Threads keeps the complete interactive view. Thread markup and quoted
+                  material take no second view. Where the widget also originates a local
+                  x-awaits Ask, the seat is where the user deals with it in words: the
+                  Ask leaves their list while that thread waits on the agent, rather
+                  than being counted a second time under a box they have already used.
+                  It is not an answer — the widget's own state is untouched, so its
+                  controls still work and the Ask still reads as unanswered. A
+                  <code>hold</code> comment is a seat thread like any other.
+                  <code>hold</code> labels a stronger send route whose comment carries
+                  <code>holds</code> naming this widget: that route remains available
+                  after ordinary roots, the unresolved held thread is the hold,
+                  resolution releases it, and undoing resolution restores it atomically.
+                  Dropping the widget drops only the inline view.
                 </p>
               </details>
             </div>

@@ -12,7 +12,7 @@ has tried; settle that before building it.
 ### User experience
 
 - **Make complete reading journeys feel coherent.** Audit a document, workspace,
-  board or table, and populated conversation in light and dark at wide and narrow
+  board or table, and populated thread in light and dark at wide and narrow
   widths. Fix recurring gaps in type, spacing, framing, controls, and responsive
   behavior. Set one focus-ring weight for every keyboard target.
 - **Keep the Thread hierarchy clear.** Check context, search, filters, agent
@@ -65,6 +65,12 @@ has tried; settle that before building it.
 - **Finish what a phone user still cannot reach.** Give touch users visible passage
   threads, and remove keyboard-only hints, hover-only reasons, clipped diagram content,
   and remaining undersized touch targets.
+- **Take the layout readings across widths.** The render check renders each page at
+  1200px and 540px and sweeps sideways overflow from 360px to 1200px, but it reads a
+  drawing's label size on the settled 1200px page only, and nothing yet reads an Ask
+  below its pane's first screen ([#19](notes/workspace-followups.md#item-19)). The
+  arrangement eval's pages failed at 900px and on a phone in both ways. Take both
+  readings across widths, phones included.
 - **Give the thread panel's touch grip its own space.** Reserve room for the grip
   and collapse inactive reply controls if more thread cards should fit.
 
@@ -137,6 +143,10 @@ Revisit these when their stated trigger becomes real; they are not an active que
 
 ### Product and host ideas
 
+- **Revisit a pin's icons if they read unclearly.** A pin shows the rail's outline
+  icon in white on its fill, at 26px. A filled icon reads more clearly at that size,
+  and needs no second copy — the same SVG with its fill set — but only an icon whose
+  outline is a closed shape fills cleanly. Trigger: a user misreads what a pin holds.
 - **Explore independent jobs.** Work out their identity, observer, continuation
   owner, and outcomes across background commands, delegates, and external waits.
   See the [Thread plan](notes/threads.md#independent-jobs-delegation-and-continuation).
@@ -156,10 +166,10 @@ Revisit these when their stated trigger becomes real; they are not an active que
 - **#22 — MCP workspace hosting:** compare an iframe, a constrained host, and
   browser handoff when an inline-hosting task calls for it. See the
   [research brief](notes/workspace-followups.md#item-22).
-- **Decide whether an exported page carries its conversations.** `leaf version
+- **Decide whether an exported page carries its threads.** `leaf version
   export` writes a file that boots the page's own runtime offline, and that file
   embeds the page's threads in its state reading. The runtime turns the
-  conversation surface off offline (`conversationAvailable: !offlineInteractive`
+  thread surface off offline (`threadAvailable: !offlineInteractive`
   in `leaf.js`), so a reader of the file sees no comments or agent replies.
   Decide whether an export is the page alone or the page with its discussion; the
   likely answer is threads shown read-only, with the composer and sends off.
@@ -177,6 +187,11 @@ Revisit these when their stated trigger becomes real; they are not an active que
 
 ### Implementation candidates
 
+- **Set interaction-trace privacy before sharing pages.** Define who can inspect
+  traces, consent or opt-out, sensitive-field redaction (including passwords,
+  pasted text, and selection), and retention/deletion for page-local files and
+  hosted Workers Logs. Page-local traces currently record raw input for this
+  single-user stage; the public site keeps interaction metadata only.
 - **#6 — Codex supervision:** separate hosted and local turn supervision only
   if hosted delivery becomes a product priority; the App Server protocol is
   already shared.

@@ -52,6 +52,7 @@ from leaf import events as event_folds_model
 from leaf import files as files_model
 from leaf import hosting as hosting_model
 from leaf import http as http_model
+from leaf import interaction_log as interaction_model
 from leaf import leases as leases_model
 from leaf import machine as machine_model
 from leaf import media as media_model
@@ -77,6 +78,138 @@ from leaf.served_state import reading as served_reading
 from leaf.served_state import service as served_service
 from leaf.structure import EXTERNAL_ORIGINS
 from page_fixtures import package_selection_args
+
+
+def test_interaction_trace_records_browser_entries_and_every_request_outcome(
+    server, page_dir
+):
+    payload = {
+        "session": "tab-1",
+        "entries": [
+            {"type": "click", "target": "#approve", "source": "forged"},
+            {"type": "input", "value": "draft"},
+        ],
+    }
+    assert fetch(f"{server}/api/interaction", data=json.dumps(payload).encode()) == (
+        204,
+        b"",
+    )
+    assert (
+        fetch(f"{server}/api/interaction", data=b'{"session":"tab-1","entries":[]}')[0]
+        == 400
+    )
+    assert (
+        fetch(
+            f"{server}/api/interaction", data=json.dumps(payload).encode(), token=None
+        )[0]
+        == 403
+    )
+    assert fetch(f"{server}/missing")[0] == 404
+
+    rows = [json.loads(line) for line in interaction_model.lines(page_dir)]
+    client = [row for row in rows if row["source"] == "client"]
+    assert len(client) == 2
+    assert [(row["session"], row["type"]) for row in client] == [
+        ("tab-1", "click"),
+        ("tab-1", "input"),
+    ]
+    assert client[0]["source"] == "client"
+    assert all(row["received"] for row in client)
+    server_rows = [row for row in rows if row["source"] == "server"]
+    assert {(row["method"], row["path"], row["status"]) for row in server_rows} >= {
+        ("POST", "/api/interaction", 204),
+        ("POST", "/api/interaction", 400),
+        ("POST", "/api/interaction", 403),
+        ("GET", "/missing", 404),
+    }
+    assert all("?" not in row["path"] and row["durationMs"] >= 0 for row in server_rows)
+    assert fetch(f"{server}/interactions.jsonl")[0] == 404
+    result = CliRunner().invoke(cli_model.cli, ["interactions", str(page_dir)])
+    assert result.exit_code == 0, result.output
+    assert result.output.splitlines() == list(interaction_model.lines(page_dir))
+
+
+def test_diagnostic_write_failure_does_not_change_the_http_answer(
+    page_dir, monkeypatch
+):
+    def failed_append(*_args):
+        raise OSError("diagnostic disk unavailable")
+
+    monkeypatch.setattr(http_model, "append_interactions", failed_append)
+    with hosting_model.TemporaryPageServer(page_dir, token=TOKEN) as preview:
+        status, body = fetch(f"{preview.origin}/api/state")
+    assert status == 200
+    assert "events" in json.loads(body)
+
+
+def test_interaction_follow_reads_a_replaced_trace(page_dir):
+    trace = page_dir / interaction_model.INTERACTIONS_FILE
+    trace.write_text('{"old":"longer record"}\n')
+    following = interaction_model.lines(page_dir, follow=True)
+    assert next(following) == '{"old":"longer record"}'
+    replacement = page_dir / "replacement.jsonl"
+    replacement.write_text('{"new":1}\n')
+    os.replace(replacement, trace)
+    assert next(following) == '{"new":1}'
+    following.close()
+
+
+def test_interaction_trace_is_writable_from_a_read_only_page_preview(page_dir):
+    publish(page_dir)
+    active = files_model.active_descriptor(page_dir, event_model.read_events(page_dir))
+    snapshot = page_snapshot_model.capture_page_snapshot(
+        page_dir,
+        structure_model.parse_revision(page_dir, active["revision"]),
+        active,
+    )
+    before = event_model.read_events(page_dir)
+    with hosting_model.TemporaryPageServer(
+        page_dir, token=TOKEN, page_options={"page_snapshot": snapshot}
+    ) as preview:
+        status, body = fetch(
+            f"{preview.origin}/api/interaction",
+            data=b'{"session":"preview","entries":[{"type":"click"}]}',
+        )
+        assert (status, body) == (204, b"")
+        assert fetch(f"{preview.origin}/api/event", data=b"{}")[0] == 403
+    assert event_model.read_events(page_dir) == before
+    assert any(
+        row["source"] == "client" and row["session"] == "preview"
+        for row in map(json.loads, interaction_model.lines(page_dir))
+    )
+
+
+def test_interaction_trace_does_not_change_page_or_presence_readings(page_dir):
+    reading = served_reading.page_reading(page_dir)
+    sources = served_reading.source_readings(page_dir)
+    presence_stamp = presence_model._page_stamp(page_dir)
+
+    for sequence in range(2):
+        interaction_model.append_interactions(
+            page_dir, [{"source": "client", "sequence": sequence}]
+        )
+        assert served_reading.page_reading(page_dir) == reading
+        assert served_reading.source_readings(page_dir) == sources
+        assert presence_model._page_stamp(page_dir) == presence_stamp
+
+    (page_dir / "index.html").write_text(PAGE + "\n<!-- revised -->")
+    assert served_reading.page_reading(page_dir) != reading
+    assert served_reading.source_readings(page_dir)[0] != sources[0]
+    assert presence_model._page_stamp(page_dir) != presence_stamp
+
+
+def test_interaction_trace_does_not_keep_an_unattended_page_active(page_dir):
+    old = time.time() - schema_model.ACTIVITY_GRACE_SECS - 60
+    for entry in page_dir.iterdir():
+        os.utime(entry, (old, old))
+    claimed_at = datetime.fromtimestamp(old).astimezone().isoformat()
+    assert not service_model._touched_recently(page_dir, claimed_at)
+
+    interaction_model.append_interactions(page_dir, [{"source": "server"}])
+    assert not service_model._touched_recently(page_dir, claimed_at)
+
+    os.utime(page_dir / "status.json", None)
+    assert service_model._touched_recently(page_dir, claimed_at)
 
 
 def test_specimens_use_captured_resources_and_independent_event_logs(server, page_dir):
@@ -118,6 +251,10 @@ def test_specimens_use_captured_resources_and_independent_event_logs(server, pag
     status, raw = fetch(child + "/api/state")
     assert status == 200, raw
     assert json.loads(raw)["events"] == []
+    assert fetch(
+        child + "/api/interaction",
+        data=b'{"session":"child-tab","entries":[{"type":"click"}]}',
+    ) == (204, b"")
     status, answer = fetch(
         child + "/api/event",
         layer=generation,
@@ -143,6 +280,12 @@ def test_specimens_use_captured_resources_and_independent_event_logs(server, pag
     assert status == 400, answer
     assert fetch(child + "/api/release", layer=generation, data=b"{}")[0] == 200
     assert fetch(child + "/api/state")[0] == 404
+    assert any(
+        row["source"] == "client"
+        and row["session"] == "child-tab"
+        and row["page"] == child.removeprefix(server)
+        for row in map(json.loads, interaction_model.lines(page_dir))
+    )
 
 
 def test_specimen_allocations_share_no_parent_lock_and_keep_one_log_reading(
@@ -205,11 +348,11 @@ def test_specimen_allocations_share_no_parent_lock_and_keep_one_log_reading(
         assert [event["text"] for event in state["events"]] == ["Before allocation"]
 
 
-def test_specimens_seed_only_the_declared_conversations_and_reset_by_recreation(
+def test_specimens_seed_only_the_declared_threads_and_reset_by_recreation(
     server, page_dir
 ):
     template = '<template id="practice" data-specimen data-specimen-threads="aabb0011"><h1>Practice</h1><p id="plan">The cutoff lives in the plan.</p><p><lf-suggestion id="revision" resolves="aabb0011"><lf-old>Friday</lf-old><lf-new>Monday</lf-new></lf-suggestion></p></template>'
-    unseeded = '<template id="unseeded" data-specimen data-specimen-threads="aabb0011"><h1>Unseeded</h1><p id="note">Nothing here names the conversation.</p></template>'
+    unseeded = '<template id="unseeded" data-specimen data-specimen-threads="aabb0011"><h1>Unseeded</h1><p id="note">Nothing here names the thread.</p></template>'
     (page_dir / "index.html").write_text(
         PAGE.replace("</main>", template + unseeded + "</main>")
     )
@@ -217,7 +360,7 @@ def test_specimens_seed_only_the_declared_conversations_and_reset_by_recreation(
     # The declaration selects from the standing log rather than requiring it, so a
     # page whose log holds none of it yet — a first version, or a copy made from the
     # source alone — still opens its specimens. What a child may not do is name a
-    # conversation it does not have, and the ordinary child-document check says so
+    # thread it does not have, and the ordinary child-document check says so
     # about the element that names it.
     status, raw = fetch(f"{server}/api/specimens", data=b'{"template":"unseeded"}')
     assert status == 200, raw
@@ -231,8 +374,8 @@ def test_specimens_seed_only_the_declared_conversations_and_reset_by_recreation(
         and "resolves='aabb0011' names no comment" in json.loads(raw)["error"]
     )
     for identity, text in (
-        ("aabb0011", "Selected conversation"),
-        ("aabb0022", "Outside conversation"),
+        ("aabb0011", "Selected thread"),
+        ("aabb0022", "Outside thread"),
     ):
         event_model.append_event(
             page_dir,
@@ -269,7 +412,7 @@ def test_specimens_seed_only_the_declared_conversations_and_reset_by_recreation(
         status, raw = fetch(child + "/api/state")
         assert status == 200, raw
         assert [event["text"] for event in json.loads(raw)["events"]] == [
-            "Selected conversation",
+            "Selected thread",
             "Seeded reply",
         ]
         assert b"data-lf-specimen-passive" in fetch(child + "/")[1]
@@ -1374,8 +1517,8 @@ def test_server_round_trip(server, page_dir):
         },
         {"kind": "reply", "parent": "nope", "revision": 2, "text": "hi"},
         {"kind": "resolve", "parent": "nope"},
-        # A report is agent-authored: its one door is `leaf report`, so the
-        # browser door refuses the kind outright rather than minting user
+        # A report is agent-authored: its one door is `leaf experimental report`,
+        # so the browser door refuses the kind outright rather than minting user
         # events that outrank nothing.
         {
             "kind": "report",
@@ -1609,6 +1752,7 @@ def test_server_takes_an_approval_only_where_the_version_asked_for_one(
     reply = CliRunner().invoke(
         cli_model.cli,
         [
+            "thread",
             "reply",
             str(page_dir),
             "--to",
@@ -3145,6 +3289,7 @@ def test_server_resolves_actions_from_agent_thread_widgets(server, page_dir):
     reply = CliRunner().invoke(
         cli_model.cli,
         [
+            "thread",
             "reply",
             str(page_dir),
             "--to",
@@ -3317,7 +3462,7 @@ def test_concurrent_posts_never_tear_the_log(server, page_dir):
 
 def test_every_kind_of_user_move_is_named_in_eight_characters(server, page_dir):
     """An id is something the agent reads back and retypes. One user comment
-    shows the agent its id five times over and is answered with `leaf reply --for
+    shows the agent its id five times over and is answered with `leaf thread reply --for
     <id>`, so an id is eight hex characters. No kind is carved out of that: a
     `request` id reaches a host, but its uniqueness is within this page either
     way, so the host pairs it with the page rather than being handed a wider id
@@ -5194,7 +5339,7 @@ def test_state_reads_claims_and_their_log_floor_in_one_transaction(
                 "working",
                 "checking",
                 work={
-                    "subject": {"kind": "conversation", "id": "c1"},
+                    "subject": {"kind": "thread", "id": "c1"},
                     "after": page.events[-1]["seq"],
                 },
             )
@@ -5232,19 +5377,17 @@ def test_a_bare_ipv6_address_is_bracketed_in_the_url():
     )
 
 
-def test_a_conversation_predicate_cannot_follow_replayed_value_state(page_dir):
-    """Conversation seats are installed from authored predicates once. Refuse a
+def test_a_thread_predicate_cannot_follow_replayed_value_state(page_dir):
+    """Thread seats are installed from authored predicates once. Refuse a
     declaration that would make replay and the POST hold gate disagree about one."""
     registry = json.loads((page_dir / "registry.json").read_text())
-    registry["lf-task"]["x-conversation"]["when"] = {"status": ["blocked"]}
+    registry["lf-task"]["x-thread-seat"]["when"] = {"status": ["blocked"]}
     (page_dir / "registry.json").write_text(json.dumps(registry))
 
     result = check(page_dir)
 
     assert result.exit_code == 1
-    assert (
-        "x-conversation predicate attributes are authored and static" in result.output
-    )
+    assert "x-thread-seat predicate attributes are authored and static" in result.output
 
 
 def test_a_hold_comment_can_only_hold_its_declared_exact_section(server, page_dir):
@@ -5292,7 +5435,7 @@ def test_a_hold_comment_can_only_hold_its_declared_exact_section(server, page_di
         }
         status, body = fetch(f"{server}/api/event", data=json.dumps(bad).encode())
         assert status == 400
-        assert "matching x-conversation hold target" in json.loads(body)["error"]
+        assert "matching x-thread-seat hold target" in json.loads(body)["error"]
 
 
 def test_stamp_keeps_its_checked_log_snapshot_until_the_note(monkeypatch, page_dir):
@@ -5362,15 +5505,15 @@ def test_a_thread_whose_opening_message_was_torn_away_still_reads(page_dir):
     `read_events` skips a torn line and keeps reading, so a reply can outlive the
     message it answers — the one way the log tears from inside the product's own
     grammar rather than from someone editing the file. Two readings walk that
-    relation: `thread_roots`, which resolves a reply to the conversation it is in,
-    and `build_threads`, which builds the conversation itself. The first was made to
+    relation: `thread_roots`, which resolves a reply to the thread it is in,
+    and `build_threads`, which builds the thread itself. The first was made to
     degrade and the second went on raising, so a page that had lost one line answered
     `page state` with a KeyError and handed the session picking it up nothing at all —
     the reply included, which was still perfectly readable.
 
     Both now put the surviving reply under the id the lost message was known by, so an
     action naming that id in `resolves` still finds its thread and the two readings
-    cannot disagree about which conversation a message is in."""
+    cannot disagree about which thread a message is in."""
     publish(page_dir)
     event_model.append_event(
         page_dir,
@@ -5412,14 +5555,14 @@ def test_a_thread_whose_opening_message_was_torn_away_still_reads(page_dir):
     assert thread_context_model.thread_roots(events)["r-kept"] == "c-lost"
     threads = event_folds_model.build_threads(events, {})  # nothing published to sit on
     assert list(threads) == ["c-lost"], (
-        f"the two readings put the reply in different conversations: {list(threads)}"
+        f"the two readings put the reply in different threads: {list(threads)}"
     )
     assert [m["id"] for m in threads["c-lost"]["msgs"]] == ["r-kept"]
 
     # The surviving message is still the frozen document that owns its widgets.
     # Reading only the thread shell would miss this harder half of the torn-root case:
     # its question has to remain actionable and every element still names the lost
-    # root as its conversation.
+    # root as its thread.
     open_state = CliRunner().invoke(cli_model.cli, ["page", "state", str(page_dir)])
     assert open_state.exit_code == 0, open_state.output
     open_reading = json.loads(open_state.output)
@@ -5429,13 +5572,11 @@ def test_a_thread_whose_opening_message_was_torn_away_still_reads(page_dir):
             "tag": "lf-ask",
             "source": "orphan-choice",
             "source_tag": "lf-options",
-            "conversation": "c-lost",
+            "thread": "c-lost",
         }
     ]
     orphan_elements = [
-        element
-        for element in open_reading["elements"]
-        if element["conversation"] == "c-lost"
+        element for element in open_reading["elements"] if element["thread"] == "c-lost"
     ]
     assert [element["id"] for element in orphan_elements] == [
         "orphan-decision",
@@ -5453,7 +5594,7 @@ def test_a_thread_whose_opening_message_was_torn_away_still_reads(page_dir):
     state = CliRunner().invoke(cli_model.cli, ["page", "state", str(page_dir)])
     assert state.exit_code == 0, state.output
     closed_reading = json.loads(state.output)
-    [thread] = closed_reading["conversations"]
+    [thread] = closed_reading["threads"]
     assert thread == {
         "id": "c-lost",
         "title": None,
@@ -5466,10 +5607,10 @@ def test_a_thread_whose_opening_message_was_torn_away_still_reads(page_dir):
     assert [
         element["id"]
         for element in closed_reading["elements"]
-        if element["conversation"] == "c-lost"
+        if element["thread"] == "c-lost"
     ] == [element["id"] for element in orphan_elements]
     history = CliRunner().invoke(
-        cli_model.cli, ["events", str(page_dir), "--conversation", "c-lost"]
+        cli_model.cli, ["events", str(page_dir), "--thread", "c-lost"]
     )
     assert history.exit_code == 0, history.output
     records = [json.loads(line) for line in history.output.splitlines()]

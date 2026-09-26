@@ -518,8 +518,8 @@ screen a token at a time. leaf has no state object. The version's markup states 
 initial condition, the log records every transition, and the standing state is the fold
 over it. Each widget's `renderState` receives the complete result, including the
 initial values restored by undo. CopilotKit streams down to the token, where a leaf page changes
-a version at a time and `leaf report` is what lets a dashboard tick over between
-versions. leaf keeps a decision across a rewrite: a card the user moved is still where
+a version at a time and `leaf experimental report` is what lets a dashboard tick over
+between versions. leaf keeps a decision across a rewrite: a card the user moved is still where
 they moved it after the agent publishes v4, and taking that back costs the author the
 word `restated`. CopilotKit has nothing equivalent because it has nothing to rewrite —
 the components are fixed before the run, and state is the only thing that moves.
@@ -675,8 +675,8 @@ TypeScript — `exposeComponent(Component, {description, name, props, children})
 one. What it has instead is Skillet, a Zod-shaped schema language in which
 `s.streaming.string()` marks a value safe to render half-written, and a streaming JSON
 parser that mounts a component while the model is still writing its props. That is the
-axis leaf is weakest on: a leaf page changes a version at a time, `leaf report` is what
-lets a dashboard tick over between them, and nothing in leaf paints a sentence as it
+axis leaf is weakest on: a leaf page changes a version at a time,
+`leaf experimental report` is what lets a dashboard tick over between them, and nothing in leaf paints a sentence as it
 arrives. It is also the axis leaf's design makes expensive, since a version is published
 whole and a comment anchors into it.
 
@@ -879,7 +879,7 @@ above checked each for movement; none has become a page-and-log loop:
   paused tool call. leaf's decisions are the same act on a page instead of in a queue.
 - **In-app annotators** — [InstantCode](https://github.com/nguyenvanduocit/instantCode), [Agentation](https://github.com/benjitaylor/agentation), [pi-annotate](https://github.com/nicobailon/pi-annotate), [Vibe Annotations](https://github.com/RaphaelRegnier/vibe-annotations): click an
   element in your running app, leave a note, and the agent gets the DOM path back. The
-  same gesture as a leaf comment, aimed at software rather than at a document.
+  same gesture as a leaf thread open, aimed at software rather than at a document.
 - **`gh pr review`** — the incumbent, and what most people actually use.
 
 Two lists index this ground and are worth re-reading rather than re-deriving:

@@ -129,7 +129,11 @@ stacking its regions, rather than a new grid per row whose splits land somewhere
 each time (`version check --render` advises on those). Put what the reader works
 through in the body and what they keep an eye on — status, counts, the verdict's
 follow-ups, the contents — in the side track. The tracks stack where the side track
-would become too narrow.
+would become too narrow, and `version check --render` names the window a template
+stacks below when that is a desktop window: where the regions must stay side by side
+for a reader in it, give the narrow track a larger share. A board is the exception:
+its `3fr 1fr` stacks below a 1000px window, where the board's columns are better given
+the page's whole width.
 
 Draw each region the same way, as a `section.panel` with a short heading, and keep a
 `.callout` with a status tone (`warn`, `danger`, `ok`) for the one thing the reader must
@@ -151,10 +155,13 @@ height and the page scrolls.
 
 ### Bounds and widths
 
-A log, feed, or long listing bounds its own height with `data-bound="end"`, which
-keeps it on its newest line while the user is at the end and leaves them where
-they scrolled back to otherwise; `data-bound="start"` opens it at the top. Some
-widgets bound themselves by default. Don't make a box scroll vertically with page
+A log, feed, or long listing bounds its own height with `data-bound`, naming the end
+its newest entry is at. Put the entries in the order the reader needs, then bound
+that order. A list that grows downward takes `data-bound="end"`, which opens it on
+its last line, keeps that line in view while the user is at the end, and leaves them
+where they scrolled back to otherwise. A newest-first list takes
+`data-bound="start"`, which opens it at the top, as the page's own activity feed
+does. Some widgets bound themselves by default. Don't make a box scroll vertically with page
 CSS: Leaf keeps no reading position in a scroller it did not make, and `version
 check` advises against one.
 
@@ -239,6 +246,8 @@ Write semantic HTML and use the class idioms the registry lists under `$idioms`,
 where each one comes with the markup it is written as. The vendored theme owns
 palette, type, spacing, headings, tables, code, and widget presentation. Use a
 page-local `<style>` only for presentation unique to this page.
+For a page-specific inset or a transparent wrapper at its edge, use the frame
+declarations in `references/packages.md`, "A theme change".
 
 Widget attributes carry scalars; children carry prose; a titled compound member uses a
 leading `<strong>`. A data-bodied widget such as `lf-code` holds escaped
@@ -346,12 +355,12 @@ The child is temporary: use an ordinary Leaf page when its history must outlive
 the specimen. A live specimen needs a server, so a page declaring one cannot be
 exported (`references/serving-pages.md`, "Exported files").
 
-To begin with conversations from the parent, set `data-specimen-threads` on the
+To begin with threads from the parent, set `data-specimen-threads` on the
 template to their space-separated root event ids. The declaration selects from the
 parent's standing log rather than requiring it: a page whose log does not hold one
 of those roots yet — a first version, or a copy made from the source alone — opens
-the specimen without that conversation. Their anchored content must exist in the
-child. Reset copies those conversations again from the parent; subsequent child
+the specimen without that thread. Their anchored content must exist in the
+child. Reset copies those threads again from the parent; subsequent child
 replies remain independent.
 
 A page module can await the element's `ready` promise to receive the child
@@ -401,10 +410,9 @@ claim they could doubt, and drop the journey once the conclusion replaces it.
 
 ## Pre-handover review
 
-Step 3 of the main skill's "Operate" decides which page takes this review, by
-its lifetime: a finished record before its URL first reaches the user, and a
-quick page before the stamp that turns it into one. Every source activation already runs the
-deterministic markup check; this review adds the browser gate and a reading:
+Step 3 of the main skill's "Operate" decides when a page takes this review. Every
+source activation already runs the deterministic markup check; this review adds the
+browser gate and a reading:
 
 ```bash
 leaf version check <page> --render

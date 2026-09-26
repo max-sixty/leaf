@@ -310,6 +310,7 @@ function referencedInvocation(reference) {
       : null;
   return run
     ? {
+        id: reference.id,
         row: reference.row,
         binding: reference.binding ?? undefined,
         run,
@@ -326,13 +327,24 @@ function invocationFor(row, binding, command, recovered = null) {
     : recovered
       ? () => recovered.click()
       : null;
-  return run ? { row, binding, run, native: Boolean(row.native) } : null;
+  return run
+    ? { id: command?.id ?? row.id, row, binding, run, native: Boolean(row.native) }
+    : null;
+}
+
+function announceInvocation(invocation) {
+  document.dispatchEvent(
+    new window.CustomEvent("lf-command-invoked", {
+      detail: { id: invocation.id, binding: invocation.binding },
+    }),
+  );
 }
 
 function invokeCommand(command, beforeCommand) {
   const invocation = invocationFor(command.row, command.binding, command.entry);
   if (!invocation) return false;
   beforeCommand?.(invocation.row);
+  announceInvocation(invocation);
   invocation.run();
   return true;
 }
@@ -424,6 +436,7 @@ export function dispatchKey(ev, { beforeCommand }) {
       if (!matched.native) ev.preventDefault();
       if (ev.repeat && !matched.row.repeat) return true;
       beforeCommand?.(matched.row);
+      announceInvocation(matched);
       matched.run();
       return true;
     }

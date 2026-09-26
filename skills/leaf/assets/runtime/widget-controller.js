@@ -279,7 +279,7 @@ function createWidgetController(owner) {
       // remembered parent prevents the parent's corrective reparenting from looping.
       if (parentChanged && applicationState.read().document.authored.has(descriptor.id))
         refreshAncestorControllers(owner);
-      // A controller can first appear when conversation presentation mounts frozen
+      // A controller can first appear when thread presentation mounts frozen
       // markup after the global projection pass. Re-run coordinate/provenance work now
       // that this owner and its units exist; state application coalesces the request.
       invalidateDom();

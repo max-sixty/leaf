@@ -453,3 +453,71 @@ export function silentWords(declarations) {
   }
   return found;
 }
+
+// Labels a drawing shrank past reading. An inline <svg> states its size in its own units
+// and the theme fits it to its box (`svg.drawing` takes the figure's width), so what the
+// author wrote as an 11px label is drawn at 11px times whatever the box made of the
+// viewBox. Nothing in the source says what that is: the page is correct, the labels are
+// all there, and every other reading passes it — an eval's dashboard went out with its
+// rollout graphic's labels a few pixels high at 900px and on a phone, and the gate said
+// nothing. So the size is asked of the drawing as drawn: the font-size each run of words
+// was set at, times the vertical scale of the transform from its element to the screen,
+// which is the viewBox fit and any transform inside or around it.
+//
+// A label counts when the drawing made it smaller than it was set and smaller than
+// `floor`. Drawn size is what decides, since halving a 28px heading leaves it legible
+// and a fifth off an 11px label does not. The first half is what makes it the drawing's
+// finding: a label set small and drawn at that size is a choice the source states (the
+// theme's own step glyph is 9px, bold on its dot), and a widget that keeps its
+// renderer's natural size — a diagram scrolls rather than shrink, a chart draws at the
+// width it measured — never scales one at all.
+//
+// One entry per drawing, the outermost <svg>, because the fix is the drawing's: its
+// labels, its layout, or the room it is given. Every open root, since a drawing a module
+// makes on a project's page is that page's too; the runtime's own layer is skipped.
+//
+// A run of words counts only where it is painted, which is asked of the element holding
+// it — the <text>, or the <tspan> inside one — since that is what the browser lays out
+// and paints, and a visible <text> can hold runs that are not. The element needs a box
+// and must be visible. Nothing in <defs> or another unrendered subtree has a box, nor
+// does a run under display: none, though the page's own checkVisibility passes one in
+// <defs>; a run laid out under visibility or opacity has a box and paints nothing. The
+// `hidden` attribute is no separate case: on an HTML ancestor it is display: none, and on
+// an SVG element Chrome draws the words anyway.
+export function shrunkLabels(floor) {
+  const chrome = (el) => {
+    for (let node = el; node; node = node.getRootNode().host)
+      if (node.closest(".lf-chrome")) return true;
+    return false;
+  };
+  const drawings = new Map();
+  for (const text of openRoots(document).flatMap((r) => [
+    ...r.querySelectorAll("svg text"),
+  ])) {
+    if (chrome(text)) continue;
+    let svg = text.ownerSVGElement;
+    while (svg.ownerSVGElement) svg = svg.ownerSVGElement;
+    const walk = document.createTreeWalker(text, NodeFilter.SHOW_TEXT);
+    for (let node = walk.nextNode(); node; node = walk.nextNode()) {
+      const words = node.data.trim();
+      const holder = node.parentElement;
+      if (!words || !holder.getClientRects().length) continue;
+      if (!holder.checkVisibility({ visibilityProperty: true, opacityProperty: true }))
+        continue;
+      const ctm = holder.getScreenCTM();
+      const set = parseFloat(getComputedStyle(holder).fontSize);
+      const drawn = set * Math.hypot(ctm.c, ctm.d);
+      if (drawn >= floor || drawn >= set - 0.05) continue;
+      const found = drawings.get(svg) ?? { at: at(svg), labels: 0 };
+      found.labels += 1;
+      if (!(found.drawn <= drawn))
+        Object.assign(found, {
+          drawn: Math.round(drawn * 10) / 10,
+          set: Math.round(set * 10) / 10,
+          words: words.slice(0, 40),
+        });
+      drawings.set(svg, found);
+    }
+  }
+  return [...drawings.values()];
+}

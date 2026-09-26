@@ -234,9 +234,9 @@ button.lf-media-open { cursor: zoom-in; }
   border-radius: var(--r); background: var(--card); color: var(--ink); font: inherit;
   line-height: 17px; cursor: pointer; box-shadow: 0 1px 4px var(--shade); }
 .lf-composer-media-remove:is(:hover, :focus-visible) { border-color: var(--accent); }
-/* Sent media can live in chrome-owned threads or page-owned widget conversations.
+/* Sent media can live in chrome-owned threads or page-owned widget threads.
    Scale the complete image in both surfaces; a tall capture must not become the whole
-   conversation, and nothing is cropped. */
+   thread, and nothing is cropped. */
 .lf-message-media img { display: block;
   max-width: 100%; max-height: min(60vh, 480px); border-radius: var(--r); }
 body.lf-over-mark { cursor: pointer; }
@@ -280,8 +280,8 @@ html:has(body[data-lf-draw-mode]),
 body[data-lf-draw-mode] { cursor: crosshair; touch-action: none; }
 body[data-lf-draw-mode] main,
 body[data-lf-draw-mode] main * { cursor: crosshair !important; }
-body[data-lf-draw-mode] main .lf-conversation,
-body[data-lf-draw-mode] main .lf-conversation * { cursor: auto !important; }
+body[data-lf-draw-mode] main .lf-thread-seat,
+body[data-lf-draw-mode] main .lf-thread-seat * { cursor: auto !important; }
 /* Element feedback is one hollow contour. Unlike a text highlight, an element mark
    is projected above everything the target draws, so any interior paint can obscure
    the target's own words or picture. The target painter keeps this contour above those
@@ -363,8 +363,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   background: var(--del-tint); color: var(--danger-ink); }
 /* The unanswered decision the user is standing in (markHere), worn by the decision rather than
    by whichever of its controls holds the focus — they are standing in the whole thing,
-   however they got there. Unanswered and not open: a widget whose own seat is
-   mid-conversation with the agent has left the user's list while the user is still
+   however they got there. Unanswered and not open: a widget whose own seat
+   holds a thread waiting on the agent has left the user's list while the user is still
    standing in it. Exactly one decision wears it at a time: every shipped widget
    draws one box for it to paint on, and one a page styles boxless hangs it on the
    boxes its contents make (shownParts). While the Asks tray is open, its row mirrors
@@ -925,7 +925,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      property bounds the accident and cannot answer for the deliberate drag; a range
      whose focus has left the document is a question for whatever reads the selection
      into a quote, not for what the layer paints. */
-  :is(.lf-quote, .lf-msg-body, .lf-conversation-body) { user-select: text; -webkit-user-select: text; }
+  :is(.lf-quote, .lf-msg-body, .lf-page-thread-body) { user-select: text; -webkit-user-select: text; }
   /* Search and the View disclosure share one toolbar. A nondefault view keeps its
      criteria and result count visible even while the choices are folded, below them
      when open, so a press never moves the choices beside it. */
@@ -1033,7 +1033,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      a second description of it. What .lf-going adds is the clip the fold needs and
      the outcome said in paint: the box is on its way out and may not also state
      that in metrics the fold is animating. */
-  /* One baseline separates conversations without putting boxes back around them. */
+  /* One baseline separates threads without putting boxes back around them. */
   .lf-thread, .lf-going { --lf-thread-pad: 8px; position: relative;
     border: 1px solid transparent; border-block-end-color: var(--rule);
     padding: var(--lf-thread-pad); margin-bottom: 16px;
@@ -1041,8 +1041,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-pinned + .lf-thread { padding-top: 4px; }
   .lf-threads > .lf-thread:nth-last-child(1 of :not([hidden])) {
     border-block-end-color: transparent; margin-bottom: 0; }
-  /* A single title row remains when the retained conversation is closed. Optional
-     labels occupy only the space they use; counts share the trailing keyline. */
+  /* A single title row remains when the retained thread is closed. Optional
+     labels occupy only the space they use; count and time share the trailing keyline. */
   .lf-thread-compact { --lf-thread-pad: 0px; margin: 0; padding: 0;
     background: transparent; border-radius: 0; }
   .lf-pinned + .lf-thread-compact { padding-top: 0; }
@@ -1157,7 +1157,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   }
   /* The panel half of the mark the pointer is indicating (paintHover). The quote is
      the bounded panel representation of that passage; painting the card made a long
-     conversation one off-screen wash. The fallback keeps a custom theme without the
+     thread one off-screen wash. The fallback keeps a custom theme without the
      middle ramp token legible at its strongest mark wash. */
   .lf-thread.lf-mark-hover > .lf-thread-head > .lf-quote {
     background: var(--mark-hover, var(--mark-strong));
@@ -1234,7 +1234,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-summary-messages > .lf-read-boundary { margin-inline-end: 8px; }
   .lf-read-boundary[data-kind="end"] { color: var(--muted-2); font-weight: 500; }
   /* A speaker belongs to the reading hierarchy; time and delivery are supporting
-     metadata. The same sizes and rhythm dress inline conversation in theme.css. */
+     metadata. The same sizes and rhythm dress inline thread in theme.css. */
   .lf-msg-head { display: flex; gap: 8px; align-items: baseline; font-size: var(--t-6); }
   .lf-msg-head b { font-size: 13px; font-weight: 600; color: var(--ink); }
   .lf-msg time { color: var(--muted-2); }
@@ -1552,7 +1552,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-page-map-toggle { display: none; }
   /* margin-projection.js writes the width thread-card-geometry.js chose and the visible
      boundary's height as the cap; these are the fallbacks for a card no placement has
-     measured yet. The card itself never scrolls: its conversation list does, in every
+     measured yet. The card itself never scrolls: its thread list does, in every
      posture and before the first open, so the list is the preview's one reading
      scroller (reading-regions.js reads posture off that list's overflow). */
   .lf-margin-preview { position: fixed; inset: 0 auto auto 0;
@@ -1581,45 +1581,45 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-margin-preview-step:last-child > .lf-action-icon { inset-inline-end: 4px; }
   .lf-margin-preview-step:not(:disabled):hover { background: var(--chip);
     color: var(--ink); }
-  /* The selected conversation scrolls inside the card. Its first message and
+  /* The selected thread scrolls inside the card. Its first message and
      controls share one sticky metadata row. */
   .lf-margin-preview-list { display: grid; gap: 4px;
     min-height: 0; overflow-y: auto; overscroll-behavior: contain;
     scroll-padding-block: var(--here-ring-room); }
   .lf-margin-thread { min-width: 0; padding-top: 10px; border-top: 1px solid var(--rule); }
   .lf-margin-thread:first-child { padding-top: 0; border-top: 0; }
-  /* The conversation's first message opens directly at the card edge. */
-  .lf-margin-thread .lf-conversation-msg:first-of-type { margin-top: 0; }
+  /* The thread's first message opens directly at the card edge. */
+  .lf-margin-thread .lf-page-thread-msg:first-of-type { margin-top: 0; }
   /* Following messages keep their top margin; the sticky reply owns the final gap
      so its opaque background covers text scrolling beneath it. */
-  .lf-margin-thread .lf-conversation-msg { margin-bottom: 0; }
+  .lf-margin-thread .lf-page-thread-msg { margin-bottom: 0; }
   /* The reply uses the scroll area's width while its text shares the
-     conversation column. */
-  .lf-margin-thread .lf-conversation-thread { padding-inline: 12px; }
-  /* The reply surround shares the conversation's opaque surface, including its focus
+     thread column. */
+  .lf-margin-thread .lf-page-thread { padding-inline: 12px; }
+  /* The reply surround shares the thread's opaque surface, including its focus
      tint, so pinning the reply cannot introduce a separate background band. */
-  :where(.lf-margin-thread) .lf-conversation-thread { background: var(--paper); }
+  :where(.lf-margin-thread) .lf-page-thread { background: var(--paper); }
   /* Pinned to the transcript's foot, the row keeps its controls' ring room as bottom
      padding (the compact ring's room, in this file's header). */
   .lf-margin-thread .lf-say { align-items: stretch; position: sticky; bottom: 0;
     margin-top: 0; margin-inline: calc(-1 * var(--sp-2));
     padding-block: var(--sp-3) var(--here-ring-room);
     background: inherit; }
-  .lf-margin-thread .lf-conversation-thread > .lf-say > .lf-reply-disclosure,
+  .lf-margin-thread .lf-page-thread > .lf-say > .lf-reply-disclosure,
   .lf-margin-thread .lf-say textarea { padding-inline-start: 7px; }
   .lf-margin-thread .lf-say textarea { min-width: 0;
     max-height: min(50vh, var(--lf-thread-editor-room, 50vh)); }
-  .lf-margin-preview .lf-margin-thread-body > .lf-conversation-thread {
+  .lf-margin-preview .lf-margin-thread-body > .lf-page-thread {
     position: static; }
   .lf-margin-preview .lf-thread-root-meta { position: sticky; z-index: 2;
     top: 0; background: var(--paper);
     align-items: center; gap: 4px; min-height: max(28px, var(--aim-floor));
     padding-inline-end: 0; }
-  .lf-margin-preview .lf-thread-root-meta > .lf-conversation-head {
+  .lf-margin-preview .lf-thread-root-meta > .lf-page-thread-head {
     display: flex; flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; }
-  .lf-margin-preview .lf-conversation-head .lf-msg-meta {
+  .lf-margin-preview .lf-page-thread-head .lf-msg-meta {
     flex: 1; overflow: hidden; }
-  .lf-margin-preview .lf-conversation-head .lf-msg-sending {
+  .lf-margin-preview .lf-page-thread-head .lf-msg-sending {
     min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   .lf-page-map-action { width: 100%; min-width: 0;
     display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px;

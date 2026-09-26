@@ -55,7 +55,7 @@ def test_summaries_replace_overlaps_and_edits_do_not_resurrect_them():
             {
                 "kind": "summary",
                 **identity,
-                "conversation": "e1",
+                "thread": "e1",
                 "from": "e1",
                 "through": "e2",
                 "text": "First exchange.",
@@ -63,7 +63,7 @@ def test_summaries_replace_overlaps_and_edits_do_not_resurrect_them():
             {
                 "kind": "summary",
                 **identity,
-                "conversation": "e1",
+                "thread": "e1",
                 "from": "e1",
                 "through": "e3",
                 "text": "Extended exchange.",
@@ -97,7 +97,7 @@ def test_summary_leaves_messages_after_its_range_visible():
             {
                 "kind": "summary",
                 **identity,
-                "conversation": "e1",
+                "thread": "e1",
                 "from": "e1",
                 "through": "e2",
                 "text": "Earlier exchange.",

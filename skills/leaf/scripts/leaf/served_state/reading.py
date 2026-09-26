@@ -4,22 +4,22 @@ import hashlib
 from pathlib import Path
 
 from ..files import STAGED, file_stamp
+from ..interaction_log import INTERACTIONS_FILE
 from ..schema import DATA_DIR, EVENTS_FILE, VIEWED_FILE
 from ..service import claim_path
 
-# The one thing a reading must not be built from. The server writes `viewed.json` for
-# as long as a visible tab holds the page's news stream, so counting it would make the
-# page's own presence change the page's token: a stream asking "has anything changed?"
-# would be told yes, by its own listener.
-UNWATCHED = frozenset({VIEWED_FILE})
+# Diagnostic writes cannot move application state. The server writes `viewed.json`
+# while a visible tab holds the news stream and `interactions.jsonl` for every request
+# it answers; counting either would make a read say it changed itself.
+UNWATCHED = frozenset({VIEWED_FILE, INTERACTIONS_FILE})
 
 
 def page_reading(page_dir: Path) -> str:
     """A short token naming this reading of the page.
 
-    Every direct child of the page directory, rather than the files a state response is
-    known to read. The known-list is unmaintainable in the way that does not fail
-    loudly: leave one out and the page simply stops hearing about that kind of news,
+    Every direct child of the page directory except diagnostics, rather than the files
+    a state response is known to read. The known-list is unmaintainable in the way
+    that does not fail loudly: leave one out and the page simply stops hearing news,
     with nothing red to say so. The authored `page/` tree is also stamped recursively:
     changing a module dependency or stylesheet is a candidate revision even when the
     HTML stays unchanged. So is `data/`, whose value files another process may rewrite

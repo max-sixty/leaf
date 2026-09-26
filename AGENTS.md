@@ -21,10 +21,8 @@ primitive must give the user something that site would not:
   threads, widgets whose state survives a revision, and the event log that
   returns each comment and decision to the agent as a structured event.
 - **Consistency.** One interface across sessions and agents — keybindings,
-  conversations, and how a widget answers a move — so the user learns it
+  threads, and how a widget answers a move — so the user learns it
   once.
-- **Preferences.** A place for the user's own preferences, such as
-  aesthetics and style, stated once and honoured on every page.
 - **Trust.** A page runs under a locked-down content policy, and an action
   records its meaning when taken, so a control does what it says and the
   record shows what the user decided.
@@ -53,13 +51,12 @@ thrown away. The handoff says nothing about them either. Steps for reviving
 stranded state are that same migration written in prose, and they spend the
 user's attention on state nobody needs.
 
-The reader throws it away. The state home is one directory per machine, written
-at once by every worktree, host and session on it, each running the leaf it was
-built from, so a record older than the code reading it is ordinary rather than
-exceptional. A reading drops a record whose fields it does not find, at the one
-place it reads them, and the thing that record described reads as absent. It
-does not migrate the record, and it does not raise: a session is never taken
-down by state it does not own.
+The state home is one directory per machine, written at once by every worktree,
+host and session on it, each running the leaf it was built from, so a record
+older than the code reading it is ordinary rather than exceptional. If a record
+lacks fields this version expects, Leaf ignores it where it is loaded and treats
+the thing it described as absent. It neither migrates the record nor fails the
+session: a session is never taken down by state it does not own.
 
 The suite does not constrain new code either. Agents wrote every test in
 `tests/`, and most are overfit on the implementation they were written against:
@@ -79,34 +76,35 @@ sentence in a reference saying that something relies on the current shape is
 a consumer to update, never a reason to keep the shape or to carve an
 exception around it.
 
-The code is post-vibe-coded: written fast, with weak abstractions, and it
-produces a steady supply of small bugs. Most of them are one missing primitive,
-one boundary drawn in the wrong place, or one rule nothing states, surfacing
-again under a different name. So a problem is evidence about the code that
-produced it rather than a defect to close. Ask what underlying issue it
-betrays, ask the same of that answer, and keep asking until an answer names
-nothing above itself; that last answer is what the change is against, fixed at
-the highest reasonable level.
-
-Do not add another patch on top of the ones already there. A change that
-settles the immediate symptom and leaves the code harder to maintain does not
-go in, and filing the real fix behind it does not redeem it: the patch is what
-the next reader has to undo first. The shapes that recur are a second special
-case beside the first, a caller repeating what its callee should settle, a
-guard restating a rule nothing states, and a flag threaded through a stack to
-reach one call site. Deferring is for an underlying problem the change leaves
-as easy to fix as it found it, and a change that defers names it.
-
-Ask the same question of a change under review. A diff whose fix stops at the
-symptom is incomplete however small it is, and naming what produced the problem
-is the review.
-
-Use this freedom to try coherent new features and learn from them without
-settling every product detail first. Surface architectural problems, but fix
-them separately when the experiment leaves the architecture easy to change.
+Coherent new features can be tried before every product detail is settled, so
+long as any architectural problem they leave remains easy to fix.
 
 Make improvements that follow from the repository. Ask the user only when the
 choice depends on purpose or intent the code cannot supply.
+
+## Fix the underlying issue
+
+Leaf's first implementation was written quickly, with weak abstractions. Many
+small bugs reveal a missing primitive, a misplaced boundary, or a rule the code
+never stated; the same problem can resurface in another package under a
+different name. The current goal is a coherent shared layer: when packages or
+runtimes use the same concept, one owner defines its meaning through a contract
+that can express its different uses.
+
+Every change and every review must assess whether the immediate problem is a
+symptom of an underlying problem. Follow its causes until the next boundary is
+right as designed; the wrong boundary below it is where the fix belongs. If the
+current change cannot make that fix, the author or reviewer names and proposes
+it. A passing test for the reported case establishes only that case. A second
+special case, a caller repeating its callee's rule, a guard restating a rule
+the code never states, or a flag passed through a stack to reach one use
+suggests the shared boundary remains unsettled.
+
+Do not add another patch on top of the ones already there. A change that
+settles the immediate symptom and leaves the code harder to maintain does not
+go in, and filing the real fix behind it does not redeem it: the next change
+has to undo that patch first. Deferring an underlying fix is reasonable only
+when the current change leaves it as easy to make as it was before.
 
 ## Repository map
 
@@ -128,6 +126,7 @@ Claude Code and Codex install the tracked tree whole. Its main parts are:
   vocabulary;
 - `hooks/hooks.json`: the shared host hooks.
 
+`evals/` scores the shipped guidance with cases a headless agent answers.
 `examples/` is the authored-page and render corpus. `tests/` covers the file,
 CLI, browser, and published-site boundaries, and in `tests/runtime/` the folds the
 shipped runtime performs, which Node runs without one. `scripts/` owns developer preview,
@@ -209,7 +208,7 @@ event, so historical readers do not need a surviving widget to recover it.
 Python derives winners, retractions, settlement, asks, threads, and updates in
 one transaction-consistent browser view. JavaScript combines that view with
 authored initial values and unresolved local gestures to derive complete widget
-and conversation state. Every forward gesture whose semantic result the page can draw is on
+and thread state. Every forward gesture whose semantic result the page can draw is on
 screen in the turn that sends it, before the log answers; a disabled control, spinner,
 or other delivery status is not that result. What the page can draw is what its own
 document settles: a widget's state, a thread's turn. Which Asks the document still holds
@@ -219,7 +218,7 @@ second answer to it. Refusal restores the authoritative state.
 Widgets render that state, including unset and undecided values; undo
 does not reconstruct widgets or replay baseline actions into the DOM. Page-widget
 state is bounded by document version; widgets frozen into thread markup use the
-conversation window.
+thread window.
 
 The active document has one immutable application publication. Its publisher alone
 combines authored baselines, the complete admitted server reading, and the ordered
@@ -303,6 +302,8 @@ Before finishing a feature:
   section by name rather than restating it, since each copy drifts on the next
   change. Shipped guidance sets goals for the user's experience and names the
   surface they read on; it leaves format and phrasing to the agent's judgment.
+  Score the change with `evals/` before and after, and add a case for the
+  behavior it targets; `evals/README.md` says how.
 - Update any public docs or generated outputs the feature affects.
 
 `tests/AGENTS.md` owns environment setup, focused runs, nightly selection, and

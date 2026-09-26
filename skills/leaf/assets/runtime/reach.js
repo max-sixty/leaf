@@ -165,7 +165,7 @@ export function reachScrollers(root) {
       // is observed (design.js) and this runs on every panel reconcile.
       if (
         style.position === "static" &&
-        !el.matches("textarea") &&
+        !el.matches("textarea, leaf-text") &&
         !el.hasAttribute(PAGE_PAINT_ATTRIBUTE.holds)
       )
         el.setAttribute(PAGE_PAINT_ATTRIBUTE.holds, "1");
@@ -173,7 +173,7 @@ export function reachScrollers(root) {
       // value its user is writing and already knows continues.
       if (
         /^(auto|scroll)$/.test(style.overflowX) &&
-        !el.matches("textarea") &&
+        !el.matches("textarea, leaf-text") &&
         !sideways.has(el)
       ) {
         sideways.add(el);

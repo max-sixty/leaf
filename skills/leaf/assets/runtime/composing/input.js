@@ -4,6 +4,7 @@ import { readPastedMedia, scopedMediaUrl, writePastedMedia } from "../media.js";
 import { notice } from "../notifications.js";
 import { iconElement } from "../icons.js";
 import { LitElement, html } from "../../vendor/browser-runtime.js";
+import "./text-field.js";
 // One helper wires every durable composition surface: the general box, each per-thread
 // reply, the compact anchored composer, and composition boxes contributed by widgets.
 // `wireInput` gives every such textarea one input contract: persist each edit, keep the

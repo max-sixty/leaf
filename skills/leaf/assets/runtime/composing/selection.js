@@ -41,6 +41,7 @@ import { elementById, inChrome } from "../passages.js";
 import { notice } from "../notifications.js";
 import { validDrawing } from "./drawing-record.js";
 import { beginWalk, listWalkPosition } from "../walk-position.js";
+import { textField } from "./text-field.js";
 
 // The floating field immediately accepts a comment on the target the user named.
 // Its ellipsis unfolds every other response the target offers. The field is the
@@ -51,7 +52,7 @@ import { beginWalk, listWalkPosition } from "../walk-position.js";
 export const fabBar = el("div", "lf-ui lf-fab-bar lf-target-paint");
 fabBar.setAttribute("role", "group");
 fabBar.setAttribute("aria-label", "Respond");
-export const fabInput = document.createElement("textarea");
+export const fabInput = textField();
 fabInput.className = "lf-ui lf-response-control lf-fab-input";
 fabInput.name = "comment";
 fabInput.rows = 1;

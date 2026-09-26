@@ -2240,7 +2240,7 @@ export function createMarginProjection({
     answerThreadPreviewPosition(false);
     resetThreadPreviewPosition();
     if (previewOpen()) {
-      for (const reply of previewList.querySelectorAll("textarea"))
+      for (const reply of previewList.querySelectorAll("textarea, leaf-text"))
         reply.lfCollapseReply?.();
       preview.hidden = true;
     }

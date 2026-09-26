@@ -22,7 +22,9 @@ import { focusDestination, readCaret } from "./focus.js";
 import { readingRegions } from "./reading-regions.js";
 
 const holdsValue = (node) =>
-  node.tagName === "TEXTAREA" || (node.tagName === "INPUT" && node.type !== "file");
+  node.tagName === "TEXTAREA" ||
+  node.localName === "leaf-text" ||
+  (node.tagName === "INPUT" && node.type !== "file");
 const holdsTick = (node) =>
   node.tagName === "INPUT" && (node.type === "checkbox" || node.type === "radio");
 

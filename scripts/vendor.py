@@ -182,6 +182,42 @@ def build_jsdiff(work: Path) -> list[Path]:
     return [out]
 
 
+def build_codemirror(work: Path) -> list[Path]:
+    """CodeMirror 6 is the editor inside every runtime composer (`leaf-text`).
+
+    One bundle holds the editor core and the GFM Markdown language, exporting
+    exactly the names `composing/text-field.js` imports. The runtime owns the
+    live-preview decorations; nothing here styles a document.
+    """
+    out = ASSETS / "vendor/codemirror.esm.js"
+    (work / "entry.mjs").write_text(
+        (
+            f"/*! CodeMirror {version('@codemirror/view')} — MIT"
+            " — https://codemirror.net */\n"
+            "export { EditorView, keymap, placeholder, Decoration, ViewPlugin, WidgetType }"
+            ' from "@codemirror/view";\n'
+            'export { EditorState, Compartment, Annotation } from "@codemirror/state";\n'
+            "export { history, standardKeymap, historyKeymap }"
+            ' from "@codemirror/commands";\n'
+            'export { syntaxTree } from "@codemirror/language";\n'
+            "export { markdown, markdownLanguage, insertNewlineContinueMarkup }"
+            ' from "@codemirror/lang-markdown";\n'
+        ),
+        encoding="utf-8",
+    )
+    esbuild(
+        "entry.mjs",
+        "--bundle",
+        "--format=esm",
+        "--minify",
+        "--legal-comments=inline",
+        f"--outfile={out}",
+        cwd=work,
+    )
+    refuse_if_csp_forbids(out)
+    return [out]
+
+
 def refuse_if_csp_forbids(out: Path) -> None:
     """Delete the bundle and stop, if it carries something the page cannot run.
 
@@ -496,6 +532,7 @@ def build_mcp_app(work: Path) -> list[Path]:
 
 BUILDS: dict[str, Callable[[Path], list[Path]]] = {
     "agentic-mermaid": build_agentic_mermaid,
+    "codemirror": build_codemirror,
     "floating-ui": build_floating_ui,
     "highlight": build_highlight,
     "jsdiff": build_jsdiff,

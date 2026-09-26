@@ -26,7 +26,7 @@ export function createEngagement({
       targetChooserOpen() ||
       Boolean(fabAnchorAt()) ||
       unaccountedGesture() ||
-      (active?.tagName === "TEXTAREA" &&
+      ((active?.tagName === "TEXTAREA" || active?.localName === "leaf-text") &&
         (draftOf(active) !== "" ||
           replyDraft === true ||
           (replyDraft === null && active.hasAttribute("data-lf-offer"))))

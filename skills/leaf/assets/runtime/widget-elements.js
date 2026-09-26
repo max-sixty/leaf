@@ -242,6 +242,7 @@ const PRESS_SELECTORS = [
   "select",
   "summary",
   "textarea",
+  "leaf-text",
   "video[controls]",
   "[role='button']",
   "[role='checkbox']",

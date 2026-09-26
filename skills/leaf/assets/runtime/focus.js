@@ -41,7 +41,8 @@ function lendStop(destination) {
 // on any other throws rather than returning null.
 const CARETED = new Set(["text", "search", "url", "tel", "password"]);
 const holdsCaret = (node) =>
-  node.tagName === "TEXTAREA" || (node.tagName === "INPUT" && CARETED.has(node.type));
+  node.tagName === "TEXTAREA" ||
+  node.localName === "leaf-text" || (node.tagName === "INPUT" && CARETED.has(node.type));
 
 // Where the user is inside an element, or null where the element holds no caret. The
 // reading is a plain triple so that it can be stored and read back in another document.
@@ -70,6 +71,7 @@ export function takesLetters(node) {
   return (
     Boolean(node) &&
     (node.tagName === "TEXTAREA" ||
+      node.localName === "leaf-text" ||
       node.tagName === "SELECT" ||
       node.getAttribute("role") === "option" ||
       node.isContentEditable ||

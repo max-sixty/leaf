@@ -102,6 +102,10 @@ export function rowWalk({ id, noun, plural, rows, steps = STEPS, landed }) {
       routes: [route("Home", home), route("End", end)],
       does: `${capital(home)} / ${end} ${noun.toLowerCase()}`,
       line: `${home} / ${end}`,
+      // Home and End answer as they do in any list, so the shortcut bar spends its
+      // slots on the walk and on what the list offers that no other list does; the
+      // command reference and `aria-keyshortcuts` still name them.
+      lineWhen: false,
       run: (binding) => land((list) => (binding === "Home" ? list[0] : list.at(-1))),
     },
   ];

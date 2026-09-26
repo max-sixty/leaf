@@ -210,8 +210,8 @@ function nameAnchor({ el, name, write }) {
 // The box a row anchors to. An anchor name reaches only its own tree, so a target inside
 // a shadow tree anchors through its host; a shape inside an SVG drawing has no CSS box of
 // its own, so it anchors through the drawing; a `display: contents` target through its
-// first shown part. Wherever it anchors, the row stands at the target's own corner
-// (`cornerOf`), written as insets from the anchor's box.
+// first shown part. Wherever it anchors, the row stands at the top-right corner of the
+// target's own extent (`shownExtent`), written as insets from the anchor's box.
 function anchorElement(target) {
   let el = target;
   for (let root = el.getRootNode(); root instanceof ShadowRoot; root = el.getRootNode())
@@ -343,36 +343,36 @@ function setStyle(row, property, value) {
     row.style.setProperty(property, value);
 }
 
-// The target's own top-right corner, across the parts it shows: where its row stands,
-// whatever box it anchors through, so a comment on one shape of a drawing stands on that
-// shape rather than at the drawing's edge. A target with no shown part has none.
-function cornerOf(target) {
+// The box the target's shown parts cover together: its row stands at this box's
+// top-right corner whatever box it anchors through, so a comment on one shape of a
+// drawing stands on that shape rather than at the drawing's edge. A target with no shown
+// part has none.
+function shownExtent(target) {
   const parts = shownParts(target).map((part) => part.getBoundingClientRect());
   if (!parts.length) return null;
   return {
+    left: Math.min(...parts.map((part) => part.left)),
     top: Math.min(...parts.map((part) => part.top)),
     right: Math.max(...parts.map((part) => part.right)),
+    bottom: Math.max(...parts.map((part) => part.bottom)),
   };
 }
 
 // Whether a row has somewhere to stand: its target renders, its scrollers leave some of
-// its own box in view — the pane that scrolls it, a table or board it has been scrolled
-// sideways out of, or a scroller inside the shadow tree it anchors through, which can
-// take the target away while the host it anchors through still shows — and the point the row
-// stands at is inside that view. That is the target's top line, since a row standing
-// above a pane's top would be clipped by its lane and still take the keyboard, and for a
-// pin the target's right edge too: a card half past a board's edge would stand its pin
-// outside the board, beside nothing and past the page.
-function targetShown(target, anchor, corner, pin, bands) {
+// it in view — the pane that scrolls it, a table or board it has been scrolled sideways
+// out of, or a scroller inside the shadow tree it anchors through, which can take the
+// target away while the host it anchors through still shows — and the corner the row
+// stands at is inside that view. Its top line counts, since a row standing above a
+// pane's top would be clipped by its lane and still take the keyboard, and for a pin its
+// right edge too: a card half past a board's edge would stand its pin outside the board,
+// beside nothing and past the page.
+function targetShown(target, extent, pin, bands) {
   const shown = (part) =>
     part.checkVisibility() && clippedBand(part, part.getBoundingClientRect(), bands);
   if (!shownParts(target).some(shown)) return false;
-  const box = anchor.getBoundingClientRect();
-  const view = clippedBand(target, box, bands);
-  if (!view || corner.top < view.top - 1 || corner.top >= view.bottom) return false;
-  if (!pin) return true;
-  const across = anchor === target ? view : clippedBand(anchor, box, bands);
-  return Boolean(across) && corner.right <= across.right + 1;
+  const view = clippedBand(target, extent, bands);
+  if (!view || extent.top < view.top - 1) return false;
+  return !pin || extent.right <= view.right + 1;
 }
 
 const pushes = new Map();
@@ -412,8 +412,7 @@ function scheduleScrollReading() {
       if (
         targetShown(
           target,
-          anchor,
-          cornerOf(target),
+          shownExtent(target),
           row.dataset.lfPlace === "pin",
           bands,
         ) === row.classList.contains("lf-withheld")
@@ -465,7 +464,7 @@ export function layoutMarginRows() {
     const scroller = scrollerFor(target);
     const rootLane = scroller === pageScroller;
     const box = anchor.getBoundingClientRect();
-    const corner = cornerOf(target);
+    const extent = shownExtent(target);
     const place = rowPosture({
       railStands: stands,
       rootLane,
@@ -474,7 +473,7 @@ export function layoutMarginRows() {
       half: size / 2,
     });
     const shown =
-      !parked.has(row) && targetShown(target, anchor, corner, place === "pin", bands);
+      !parked.has(row) && targetShown(target, extent, place === "pin", bands);
     reads.push({
       row,
       options,
@@ -485,7 +484,7 @@ export function layoutMarginRows() {
       shown,
       place,
       box,
-      corner,
+      extent,
       controls: place === "pin" && shown ? controlsIn(anchor) : [],
     });
   }
@@ -539,12 +538,12 @@ export function layoutMarginRows() {
   // A withheld row is anchored too, so that when its target comes into view it has only
   // to show.
   const px = (length) => (length ? `${length}px` : null);
-  for (const { row, naming, shown, place, box, corner } of reads) {
+  for (const { row, naming, shown, place, box, extent } of reads) {
     mark(row, "lf-withheld", !shown);
     if (!naming) continue;
     setStyle(row, "position-anchor", nameAnchor(naming));
-    setStyle(row, "--lf-inset-top", px(corner && corner.top - box.top));
-    setStyle(row, "--lf-inset-right", px(corner && box.right - corner.right));
+    setStyle(row, "--lf-inset-top", px(extent && extent.top - box.top));
+    setStyle(row, "--lf-inset-right", px(extent && box.right - extent.right));
     if (row.dataset.lfPlace !== place) row.dataset.lfPlace = place;
   }
 
@@ -564,9 +563,9 @@ export function layoutMarginRows() {
         rect: {
           left:
             read.place === "pin"
-              ? read.corner.right - pinInset - box.width
+              ? read.extent.right - pinInset - box.width
               : box.left - step,
-          right: read.place === "pin" ? read.corner.right - pinInset : box.right - step,
+          right: read.place === "pin" ? read.extent.right - pinInset : box.right - step,
           top: box.top - push,
           bottom: box.bottom - push,
         },

@@ -7559,6 +7559,31 @@ def test_a_pin_on_one_shape_of_a_drawing_stands_on_that_shape(browser, serve):
         assert row_box["y"] == pytest.approx(shape["y"], abs=8), (name, row_box, shape)
 
 
+def test_a_pin_on_a_contents_target_stands_at_its_last_part(browser, serve):
+    """A `display: contents` target anchors through its first shown part, but its pin
+    stands at the corner of every part together, and shows while they do."""
+    source = leaf_page(
+        "a contents target",
+        '<h1 id="t">Pair</h1><div style="display: flex; gap: 24px">'
+        '<div id="pair" style="display: contents">'
+        '<p style="flex: 1">The first half.</p><p style="flex: 1">The second half.</p>'
+        "</div></div>",
+    ).replace("<main>", '<main data-width="available">')
+    page = open_page(browser, serve(source, events=[_comment_on("pair")]))
+    resized(page, 1440, 900)
+    margins_laid_out(page)
+    row = page.locator('.lf-margin-cluster[data-lf-margin-for="pair"]')
+    expect(row).to_have_attribute("data-lf-place", "pin")
+    expect(row).to_be_visible()
+    row_box = row.bounding_box()
+    second = page.locator("#pair > p").nth(1).bounding_box()
+    assert second["x"] < row_box["x"], (row_box, second)
+    assert row_box["x"] + row_box["width"] <= second["x"] + second["width"], (
+        row_box,
+        second,
+    )
+
+
 def test_a_page_made_wide_by_its_workspace_claims_no_rail(browser, serve):
     """A page whose only block is a workspace is a wide page without declaring one, so it
     gives up the rail's strip as `<main data-width="available">` does."""

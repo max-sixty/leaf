@@ -55,10 +55,11 @@ def is_reaction(event: dict) -> bool:
 
 def spoken_turns(thread: dict) -> list:
     """The thread's messages with words in them. A reaction is a mark on a
-    message rather than a turn in the thread, so readings of who spoke
-    last — including the hook's unanswered Asks — walk this list rather than
-    `msgs`. The panel's "waiting on you" also reads explicit reply questions and
-    structural thread Asks in the browser after finding the last spoken turn."""
+    message rather than a turn in the thread, so every reading of who spoke
+    last walks this list rather than `msgs`: whose turn a thread is
+    (`unanswered_turns`), and whether the user owes the agent's latest turn an
+    answer (`served_state.thread`), which the browser receives in each thread's
+    `attention`."""
     return [m for m in thread["msgs"] if not is_reaction(m)]
 
 
@@ -188,8 +189,8 @@ def undo_error(
     and only while it still paints: once a turn answers it the withdrawal
     would orphan those words, and the user's move is in the thread that
     turn opened; once its thread is resolved, resolve being its floor, there
-    is nothing left to take back. The browser offers exactly the same
-    (thread.js `reactionStanding`).
+    is nothing left to take back. The browser offers exactly the gestures
+    this reading admits (`served_state.document.browser_undo_candidates`).
 
     `within` is the published page's containment, as every other fold of the
     threads takes it: a thread an action settled, and a version's `restated`
@@ -270,10 +271,9 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
             # `read_events` skips a torn line and keeps reading, and `thread_roots`
             # resolves such a reply to the lost id for the same reason: a user who
             # can see the reply is owed the rest of the page around it. Raising here
-            # instead cost the whole page — `page state` exited on the KeyError, and
-            # the browser's own walk, which mirrors this one, threw where it builds
-            # the panel — so one torn line took down every reading of a log that had
-            # already been read.
+            # instead cost the whole page — `page state` and every browser state read
+            # exited on the KeyError — so one torn line took down every reading of a
+            # log that had already been read.
             thread = thread_for.get(e["parent"])
             if thread is None:
                 thread = {
@@ -398,32 +398,16 @@ def anchored_parts(events: list, within: dict) -> set:
     }
 
 
-def unanswered_agent_turn(thread: dict) -> dict | None:
-    """Newest spoken non-agent turn with no explicitly scoped agent response."""
-    said = spoken_turns(thread)
-    newest = next(
-        (message for message in reversed(said) if message["author"] != "agent"), None
-    )
-    if newest is None or any(
-        reply["author"] == "agent" and reply.get("responds") == newest["id"]
-        for reply in said
-    ):
-        return None
-    return newest
+def unanswered_turns(thread: dict) -> list[dict]:
+    """The spoken non-agent turns the agent still owes an answer, oldest first.
 
-
-def awaits_agent(thread: dict) -> bool:
-    """Whether a thread's next word is the agent's.
-
-    The newest non-agent turn waits until an agent reply explicitly records that exact
-    event in ``responds``. Mere log order is not settlement: an agent answering an older
-    frozen-widget move after newer user input must leave that newer input with the
-    agent. This reading deliberately says nothing about whether the user owes a word:
-    an ordinary agent reply may leave the open thread awaiting nobody, while an agent
-    comment, an explicit prose question, or a structured widget Ask awaits the user.
-    The runtime's `awaitsAgent` is the same server projection, and it has to be: the
-    panel telling the user a seated thread is with the agent while the banner counts
-    the same question as theirs is one fact told two ways.
+    The one rule for whose turn a thread is. The newest is the thread's response
+    address (`unanswered_agent_turn`): an agent reply whose `responds` names it
+    settles every input accumulated through it, and a later input starts a fresh
+    batch. Until then each input stays owed, and answering an older one removes
+    only that input while the newer address stays owed. Mere log order is not
+    settlement: an agent answering an older frozen-widget move after newer user
+    input leaves that newer input with the agent.
 
     Not the agent, rather than the user: `author` is an open string on every message
     contract, and the two the code writes are `user` and `agent`. A line from anywhere
@@ -431,10 +415,47 @@ def awaits_agent(thread: dict) -> bool:
     unanswered word is invisible to everyone, while one answer too many costs a reply.
 
     Turns, not marks: a reaction is a mark on a message rather than a word in the
-    thread, so an `ok` the user puts on the agent's answer does not hand the
-    thread back, and a reaction nobody has replied to is no thread at all. The
-    runtime's `awaitsAgent` reads the same list for the same reason."""
-    return bool(not thread["resolved"] and unanswered_agent_turn(thread))
+    thread, so an `ok` the user puts on the agent's answer does not hand the thread
+    back, and a reaction nobody has replied to is no thread at all. Resolution does
+    not enter here; `awaits_agent` adds it."""
+    turns = spoken_turns(thread)
+    floor = -1
+    newest_before = None
+    for index, message in enumerate(turns):
+        if message["author"] != "agent":
+            newest_before = message
+        elif (
+            newest_before is not None and message.get("responds") == newest_before["id"]
+        ):
+            floor = index
+            newest_before = None
+    standing = turns[floor + 1 :]
+    responses = {
+        message.get("responds") for message in standing if message["author"] == "agent"
+    }
+    return [
+        message
+        for message in standing
+        if message["author"] != "agent" and message["id"] not in responses
+    ]
+
+
+def unanswered_agent_turn(thread: dict) -> dict | None:
+    """The thread's response address: the newest turn the agent owes an answer."""
+    owed = unanswered_turns(thread)
+    return owed[-1] if owed else None
+
+
+def awaits_agent(thread: dict) -> bool:
+    """Whether an open thread's next word is the agent's (`unanswered_turns`).
+
+    This reading says nothing about whether the user owes a word: an ordinary agent
+    reply may leave the open thread awaiting nobody, while an agent comment, an
+    explicit prose question, or a structured widget Ask awaits the user. The browser
+    does not receive it: each browser Thread's `attention` aggregates this turn with
+    the workflows and Asks standing on the thread, so the panel, its filters and the
+    margin read one answer to whose turn it is."""
+    return bool(not thread["resolved"] and unanswered_turns(thread))
 
 
 def seat_root(thread: dict) -> str | None:
@@ -461,9 +482,9 @@ def seats_with_agent(threads: dict) -> set[str]:
     A request whose own thread is with the agent is not one the user has to
     deal with, so an Ask projection reading their list subtracts these. It is not an
     answer — the widget's state is untouched — which is why the reading that asks
-    whether a request is answered passes an empty set instead. The runtime builds the
-    same set from `awaitsAgent` over `seatRoot`, so the banner's count and `page state`
-    cannot disagree about whose turn it is.
+    whether a request is answered passes an empty set instead. The browser receives
+    the Asks this subtraction leaves rather than subtracting again, so the banner's
+    count and `page state` cannot disagree about whose turn it is.
 
     Whose thread it is does not enter into it: the agent may open one in the seat too,
     and once the user has answered there the question is with the agent either way.

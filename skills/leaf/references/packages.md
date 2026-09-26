@@ -187,8 +187,8 @@ machine rather than a remote font.
 `body[data-lf-presented]` means the initial authoritative projection, or the deliberate
 offline fallback, is safe for recorded interaction. Authored content is already visible:
 Leaf disables its arrival transitions and durable widget actions before that stamp.
-A printable key pressed earlier reaches the page's key handlers once, in order, after the
-stamp lands, so a package's keys need no arrival guard either.
+Printed keys pressed earlier are held and reach the page's key handlers only after the
+stamp lands, in order, so a package's keys need no arrival guard either.
 Package styles need no arrival guard. A package opens a dialog or popover only after that
 stamp or in response to a user gesture; Leaf does not defer top-layer UI during startup.
 A widget that keeps part of its own upgrade off the presentation path — a heavy renderer

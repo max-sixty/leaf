@@ -571,6 +571,34 @@ def test_held_keys_after_one_that_opens_a_box_are_typed_into_it(browser, serve):
     expect(page.locator("textarea:focus")).to_have_value("hi x")
 
 
+def test_a_key_that_is_not_printed_ends_the_held_run(browser, serve):
+    """A held run is printed keys. Enter acts where focus stands, which a replay cannot
+    reproduce, so after `c h i` it drops the run rather than waiting behind it: no
+    comment box opens and nothing is sent. `test_held_keys_after_one_that_opens_a_box_
+    are_typed_into_it` is the same run without the Enter."""
+    url = serve(HELD_KEYS_PAGE)
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    watched(page)
+    held, release = _hold_startup(page, "state")
+    page.goto(url, wait_until="commit")
+    holding(page, held, 1, "the first state read")
+    page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
+    for key in ["c", "h", "i"]:
+        page.keyboard.press(key)
+    echo = page.locator(".lf-held-keys")
+    expect(echo.locator("kbd")).to_have_text(["c", "h", "i"])
+    page.keyboard.press("Shift")
+    expect(echo.locator("kbd")).to_have_count(3)
+
+    page.keyboard.press("Enter")
+    expect(echo).to_have_count(0)
+    release()
+    page.wait_for_function(BOTH_STAMPS)
+    # A replay would run a frame after presentation; let the repaint it causes land.
+    rendered(page)
+    expect(page.locator("textarea:focus")).to_have_count(0)
+
+
 @pytest.mark.parametrize("gesture", ["Escape", "pointer"])
 def test_escape_or_a_pointer_press_lets_go_of_held_keys(browser, serve, gesture):
     """A user who changes their mind, or points somewhere else, while the page loads

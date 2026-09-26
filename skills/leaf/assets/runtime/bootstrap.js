@@ -31,12 +31,21 @@
   // A page key pressed before the page presents would otherwise reach a runtime that has
   // not loaded, or one that has not yet read the log: `t` walks the threads the first
   // state answer brings, so until then it walks nothing. The keys wait here instead, in
-  // the order pressed, until the presented page takes them. A printed key pressed on the
-  // page starts the queue, and every printed key after it joins, since a held `c` may
-  // open the box the rest is text for; a modified or unprinted key is the browser's.
-  // Escape lets go of what is held, and so does a pointer press, which puts the user
-  // somewhere the keys were not aimed at. After a beat the held keys are shown, so a
-  // press visibly landed; a page that presents within the beat shows nothing.
+  // the order pressed, until the presented page takes them. What is held is a run of
+  // printed keys: one pressed on the page starts it, and every printed key after it
+  // joins. Any other key ends the run, and so does a pointer press, which puts the user
+  // somewhere the keys were not aimed at: what was held is dropped and the new press
+  // keeps its own meaning. A modified key is the browser's, and a modifier alone is half
+  // a press. After a beat the held keys are shown, so a press visibly landed; a page that
+  // presents within the beat shows nothing.
+  const HALF_PRESSES = new Set([
+    "Shift",
+    "Control",
+    "Alt",
+    "AltGraph",
+    "Meta",
+    "CapsLock",
+  ]);
   function holdEarlyKeys() {
     const held = [];
     let taken = false;
@@ -74,18 +83,22 @@
     };
     const hold = (event) => {
       if (event.isComposing || event.ctrlKey || event.metaKey || event.altKey) return;
+      if (HALF_PRESSES.has(event.key)) return;
       const printed = event.key.length === 1;
-      if (event.key === "Escape" && !taken) {
-        if (!held.length) return;
-        letGo();
-      } else if (held.length || taken) {
-        // The queue is open, so a printed key or Escape follows the keys before it
-        // wherever it was typed: a held `c` may yet open the box the rest is text for.
-        if (!printed && event.key !== "Escape") return;
+      if (held.length || taken) {
+        // The run is open, so a printed key follows the keys before it wherever it was
+        // typed: a held `c` may yet open the box the rest is text for. Any other key
+        // ends the run and keeps its own meaning: Enter, Backspace, Tab or an arrow acts
+        // natively where focus stands, which a replay through the keyboard owner cannot
+        // reproduce.
+        if (!printed) {
+          letGo();
+          return;
+        }
         queue(event);
       } else {
-        // Only a page key starts a queue. One typed into a field is the field's, and
-        // Space on its own scrolls.
+        // Only a printed page key starts a run. One typed into a field is the field's,
+        // and Space on its own scrolls.
         const origin = event.composedPath()[0];
         const typing =
           origin instanceof Element &&
@@ -98,8 +111,8 @@
     };
     const pointed = () => letGo();
     // The page is ready, so the notice comes down, but the hold stands until the keyboard
-    // owner has pressed the last key in it: one pressed meanwhile, Escape included, joins
-    // the same queue rather than running ahead of the keys pressed before it.
+    // owner has pressed the last key in it: a printed key pressed meanwhile joins the
+    // same run rather than running ahead of the keys pressed before it.
     const take = (event) => {
       taken = true;
       clearTimeout(limit);

@@ -423,7 +423,6 @@ EXTENSION_SCHEMA = {
             ]
         },
         "x-space": {"enum": ["wide", "available"]},
-        "x-measure": {"enum": ["text", "surface", "group"]},
         "x-bound": {"enum": ["start", "end"]},
         "x-history": {"const": True},
         "x-withdrawn-as": {"type": "string", "pattern": f"^{HTML_NAME}$"},

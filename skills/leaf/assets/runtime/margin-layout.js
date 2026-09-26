@@ -47,19 +47,19 @@ let layer = null;
 
 const marginColumn = () => document.querySelector("main") || document.body;
 
-// Whether the margin's rail stands, as the stylesheet decided it: theme.css states the
-// posture on `main` where it claims the rail, and this reads that answer rather than
-// deriving one of its own from a width. It resolves a container query, so a read after a
-// write forces layout, and the layout pass reads it once. So the answer is read once per
-// task and reused: nothing a pass writes can change the reading, since the claim comes out
-// of `main`'s room inside the shell while the container answers on the shell itself. The
-// microtask that clears it runs before anything outside the pass can ask.
+// Whether the margin's rail stands: where the room between `main` and the shell's right
+// edge holds a rail, measured, so a centred column in a wide window keeps its markers in
+// the margin and a page laid out to the edge pins them. Nothing claims the room. A page
+// that wants the rail everywhere declares one (`data-rail="right"` on `main`), and the
+// shell gives up the rail's width on its right (theme.css), which this reads as room like
+// any other. Nothing a pass writes moves `main` or the shell, so the answer is read once
+// per task and reused; the microtask that clears it runs before anything outside the pass
+// can ask.
 const readRailPosture = () => {
   const main = document.querySelector("main");
-  return (
-    Boolean(main) &&
-    getComputedStyle(main).getPropertyValue("--lf-rail-posture").trim() === "margin"
-  );
+  if (!main) return false;
+  const rail = parseFloat(getComputedStyle(main).getPropertyValue("--rail")) || 0;
+  return shellRight() - main.getBoundingClientRect().right >= rail;
 };
 let railReading = null;
 const railStands = () => {

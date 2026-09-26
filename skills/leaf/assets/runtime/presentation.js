@@ -115,7 +115,6 @@ export const PAGE_PAINT_ATTRIBUTE = Object.freeze({
   upgraded: "data-lf-upgraded",
   inline: "data-lf-inline",
   space: "data-lf-space",
-  measure: "data-lf-measure",
   readingRole: "data-lf-reading-role",
   bound: "data-lf-bound",
   exhibit: "data-lf-exhibit",
@@ -487,18 +486,14 @@ export function dress(root) {
 // widget of the page's vocabulary renders outside the document, where the room is the
 // panel's (see msgNode).
 //
-// Two more are facts of the element wherever it renders. x-measure says whether the
-// widget fills the frame holding it (surface), only groups other blocks (group), or
-// keeps the reading measure inside a frame wider than the column (text); undeclared, a
-// block made of members groups them and anything else is text. x-bound says it holds
-// its own height and scrolls inside it; `bounds.js` keeps an `end` bound on its newest
+// Two more are facts of the element wherever it renders. x-bound says it holds its
+// own height and scrolls inside it; `bounds.js` keeps an `end` bound on its newest
 // entry. A page occurrence overrides x-bound with data-bound, as data-width overrides
 // x-space. x-reading-role is the structural role the theme lays out, so a package's
-// differently named pane or grid takes the same rules as lf-pane and lf-grid.
+// differently named pane takes the same rules as lf-pane.
 export const MARKED_ANYWHERE = Object.freeze({
   "x-inline": PAGE_PAINT_ATTRIBUTE.inline,
   "x-exhibit": PAGE_PAINT_ATTRIBUTE.exhibit,
-  "x-measure": PAGE_PAINT_ATTRIBUTE.measure,
   "x-bound": PAGE_PAINT_ATTRIBUTE.bound,
   "x-reading-role": PAGE_PAINT_ATTRIBUTE.readingRole,
 });
@@ -517,17 +512,8 @@ function* elementsIn(root, selector) {
 // A declaration an authored occurrence may override, and the attribute it is written as.
 const AUTHORED = Object.freeze({ "x-space": "data-width", "x-bound": "data-bound" });
 
-// What an entry declares for a painted key, with the one default a declaration has:
-// see x-measure above. A declared measure outranks the surface an x-space past the
-// column implies (theme.css), so the members default stays unpainted there: a board
-// is a surface, not a group of its cards.
-const declaration = (entry, key) =>
-  key === "x-measure" &&
-  entry["x-content"] === "members" &&
-  !entry["x-inline"] &&
-  [undefined, "column"].includes(entry["x-space"])
-    ? (entry[key] ?? "group")
-    : entry[key];
+// What an entry declares for a painted key.
+const declaration = (entry, key) => entry[key];
 
 export function markDeclared(root, painted) {
   for (const key of Object.keys(AUTHORED))

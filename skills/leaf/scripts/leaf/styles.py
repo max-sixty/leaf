@@ -45,7 +45,8 @@ def css_rules(css: str) -> tuple:
     holds both declarations and a nested rule states one of its own. `conditional` is
     true for a rule inside an at-rule, which applies only when a condition this check
     never evaluates holds: `@media print`, a viewport query. Nesting alone is not a
-    condition, so a rule nested in a conditional one is conditional and no more."""
+    condition, so a rule nested in a conditional one is conditional and no more, and
+    neither is `@layer`, which orders its rules and always applies them."""
     return tuple(
         _rules(tinycss2.parse_stylesheet(css, skip_comments=True, skip_whitespace=True))
     )
@@ -144,7 +145,9 @@ def _rules(nodes, conditional=False):
             yield tinycss2.serialize(node.prelude).strip(), block, conditional
             yield from _rules(block, conditional)
         elif node.type == "at-rule" and node.content:
-            yield from _rules(css_block(node.content), True)
+            # A cascade layer orders rules rather than conditioning them.
+            layered = node.lower_at_keyword == "layer"
+            yield from _rules(css_block(node.content), conditional or not layered)
 
 
 def _number(text: str):

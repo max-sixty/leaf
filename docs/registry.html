@@ -139,7 +139,6 @@
           <a href="#x-inline"><code>x-inline</code></a>
           <a href="#x-language"><code>x-language</code></a>
           <a href="#x-lines"><code>x-lines</code></a>
-          <a href="#x-measure"><code>x-measure</code></a>
           <a href="#x-measured"><code>x-measured</code></a>
           <a href="#x-name"><code>x-name</code></a>
           <a href="#x-numbering"><code>x-numbering</code></a>
@@ -370,37 +369,6 @@
                   A reference names a line by the number that body's x-numbering gives
                   it, 1-based when it has none; a number inside a gap the numbering
                   leaves is in the body.
-                </p>
-              </details>
-            </div>
-          </section>
-          <section class="reference-entry" id="x-measure">
-            <h3><code>x-measure</code></h3>
-            <div class="reference-copy">
-              <p>How the element uses the width of the frame holding it.</p>
-              <details class="reference-more">
-                <summary aria-label="Full x-measure contract">Full contract</summary>
-                <p>
-                  <code>text</code> keeps the reading measure inside a frame wider than
-                  the column, and is what an undeclared element is unless it is made of
-                  members (<code>x-content: members</code>), which groups them by
-                  default. A members element declares <code>text</code> when its members
-                  are the cells of one block it draws: a choose group's frame, dividers
-                  and marks belong to its options, so the group keeps the measure as a
-                  whole and each option fills it, where grouping left every option at
-                  the measure inside a frame drawn across the whole cell.
-                  <code>surface</code> (a chart, table, log or listing) fills the frame;
-                  x-space wide or available implies it unless the entry declares a
-                  measure, as a workspace declares <code>group</code> for the header and
-                  panes it holds. <code>group</code> holds other blocks (tabs, a
-                  comparison, a grid, a pane), so it passes the measure through to them
-                  instead of holding everything it contains to the width of a paragraph.
-                  A row of a listing whose rows can nest blocks groups too, as a command
-                  tree's goals and workers do: every row then reaches the frame the
-                  listing fills, where a row held to the measure would end its hairline
-                  short of the rows beside it. The runtime paints the declaration as
-                  data-lf-measure; the theme declares the plain HTML elements the same
-                  way.
                 </p>
               </details>
             </div>

@@ -8598,6 +8598,80 @@ def test_command_hub_operations_fit_their_column(browser, serve):
     )
 
 
+WIDE_TREE_PAGE = leaf_page(
+    "A plan on a wide page",
+    """
+<h1>The aviary rebuild</h1>
+<lf-grid id="layout" columns="2fr 1fr">
+<section class="panel" id="body">
+<h2>Plan</h2>
+<p id="body-prose">Every goal below is held by one worker, and the lead coordinates
+the whole garden from the top of the tree.</p>
+<lf-command id="garden" label="A squirrel-proof garden">
+  <lf-agent id="lead" state="working"><strong>lead</strong> Coordinates the whole
+  garden: routes decisions and changes focus wherever the tree needs it.</lf-agent>
+  <lf-task id="goal-feeders" status="active" when="week 2">
+    <strong>Rebuild the feeders</strong> Two of four mounted.
+  </lf-task>
+</lf-command>
+</section>
+<section id="aside"><p>Beside the plan.</p></section>
+</lf-grid>
+<lf-tasks id="work">
+  <lf-task id="t-feeders" status="active">
+    <strong>Rebuild the feeders</strong> Two of four mounted.
+    <lf-agent id="wren" state="working"><strong>wren</strong> Holds the feeder
+    rebuild end to end.</lf-agent>
+    <lf-task id="t-mounts" status="done"><strong>Replace the mounts</strong></lf-task>
+  </lf-task>
+</lf-tasks>
+""",
+    width="available",
+)
+
+
+def test_a_worker_row_on_a_wide_page_reaches_the_frame_its_goals_reach(browser, serve):
+    """A worker is a row of the goal tree it stands in, with a hairline under it like
+    the rows beside it. The goal rows group the measure, so on a page wider than the
+    column they fill their frame. A worker held to the measure instead ended its
+    hairline in mid air at 1440px: 31px short of the panel at the head of a command,
+    and 500px short under a goal of a task tree straight on the page.
+
+    Both trees a worker can stand in are read here. Holding the whole command to the
+    measure would line its rows up too, but by pulling every goal row 109px off the
+    panel's edge, and would leave the task tree as it was."""
+    context = browser.new_context(viewport={"width": 1440, "height": 900})
+    page = open_page(browser, serve(WIDE_TREE_PAGE), context=context)
+    readings = page.evaluate(
+        """() => [['lead', 'goal-feeders'], ['wren', 't-mounts']].map(([id, goal]) => {
+          const worker = document.getElementById(id);
+          const holder = worker.parentElement;
+          const style = getComputedStyle(holder);
+          const inner = holder.getBoundingClientRect().right
+            - parseFloat(style.borderRightWidth) - parseFloat(style.paddingRight);
+          return {
+            id,
+            prose: document.getElementById('body-prose').getBoundingClientRect().width,
+            holder: holder.getBoundingClientRect().width,
+            short: inner - worker.getBoundingClientRect().right,
+            goal: document.getElementById(goal).getBoundingClientRect().right
+              - worker.getBoundingClientRect().right,
+            hairline: parseFloat(getComputedStyle(worker).borderBottomWidth),
+          };
+        })"""
+    )
+    for row in readings:
+        # The premise: the tree stands in a frame wider than the measure, the only
+        # place a row that keeps the measure and one that fills can differ.
+        assert row["holder"] > row["prose"] + 60, row
+        assert row["hairline"] > 0, row
+    short = [row for row in readings if max(abs(row["short"]), abs(row["goal"])) > 0.5]
+    assert not short, (
+        "worker rows stop short of the tree they stand in (`short`) and of the goal "
+        f"row beside them (`goal`): {short}"
+    )
+
+
 def test_command_hub_input_is_trimmed_before_it_enters_the_record(browser, serve):
     """The replica cargo is visible in the real editor before Save. Trimming it
     changes the one payload that enters the log, leaves a receipt naming the input,

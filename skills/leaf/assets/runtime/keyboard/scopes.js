@@ -46,12 +46,17 @@ const unpainted = new Set();
 // first contributor's silence carry rather than the second's answer.
 const either = (a, b) => (a && b ? () => a() || b() : undefined);
 export const elementScopes = new WeakMap();
+// The scopes other owners project onto an element, keyed by the owner, so one control can
+// carry several: a margin entry holds its widget's scope and an Ask's digit route at once.
 const projectedScopes = new WeakMap();
 const commandScopeCapabilities = new WeakSet();
 export const isCommandScope = (capability) =>
   capability != null && commandScopeCapabilities.has(capability);
 export const scopesAt = (element) =>
-  [elementScopes.get(element), projectedScopes.get(element)].filter(Boolean);
+  [
+    elementScopes.get(element),
+    ...(projectedScopes.get(element)?.values() ?? []),
+  ].filter(Boolean);
 // The weak map is the dispatcher's lookup. The reference also has to enumerate every
 // connected contributor, so keep weak references beside it. A live-version replacement
 // can then be collected, while an element temporarily moved out of the document keeps
@@ -227,18 +232,28 @@ export function commandScope(title, rows, options) {
   return capability;
 }
 
-export function projectCommandScope(control, capability = null) {
+// `projector` is whatever the projecting owner keys its projection by; projecting again
+// under the same key replaces that owner's scope and leaves every other owner's standing,
+// and a null capability withdraws it.
+export function projectCommandScope(control, projector, capability = null) {
   if (!(control instanceof Element))
     throw new TypeError("A projected command scope needs an Element");
+  if (projector == null)
+    throw new TypeError("A projected command scope needs its projector's key");
+  const projections = projectedScopes.get(control) ?? new Map();
   if (capability == null) {
-    projectedScopes.delete(control);
-    if (!elementScopes.has(control)) forgetScopedElement(control);
+    projections.delete(projector);
+    if (!projections.size) {
+      projectedScopes.delete(control);
+      if (!elementScopes.has(control)) forgetScopedElement(control);
+    }
     reflectElementShortcuts(control);
     return;
   }
   if (!isCommandScope(capability))
     throw new TypeError("A projected command scope needs a commandScope capability");
-  projectedScopes.set(control, capability.scope);
+  projections.set(projector, capability.scope);
+  projectedScopes.set(control, projections);
   rememberScopedElement(control);
   reflectElementShortcuts(control);
 }
@@ -289,7 +304,10 @@ export const commandScopesWithin = (root) =>
     answer: scope.answer,
   }));
 // Every declaration on one element is painted as one native shortcut attribute. A local
-// and a projected declaration can coexist, so neither may erase the other's bindings.
+// declaration and any number of projected ones can coexist, so none may erase another's
+// bindings. Each scope's live rows are read and refused on their own; the attribute is
+// their union, since two scopes on one control may name one press: an Ask's route names
+// the intrinsic key of the command it routes to, which that command's own scope names.
 function reflectElementShortcuts(element) {
   const available = scopesAt(element).filter((scope) => !scope.when || scope.when());
   for (const scope of available) {
@@ -308,13 +326,15 @@ function reflectElementShortcuts(element) {
     }
     if (scope.el === element) scope.validated = true;
   }
-  const shortcuts = available.length
-    ? ariaShortcuts(
-        available.flatMap((scope) => scope.rows),
-        true,
-        "the element's command scopes",
-      )
-    : "";
+  const shortcuts = [
+    ...new Set(
+      available.flatMap((scope) =>
+        ariaShortcuts(scope.rows, true, scope.title ?? "a scope")
+          .split(" ")
+          .filter(Boolean),
+      ),
+    ),
+  ].join(" ");
   if (shortcuts) {
     if (element.getAttribute("aria-keyshortcuts") !== shortcuts)
       element.setAttribute("aria-keyshortcuts", shortcuts);

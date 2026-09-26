@@ -4810,18 +4810,21 @@ def test_a_thread_on_a_widget_in_a_reply_travels_in_the_panel_that_holds_it(
     page.evaluate("() => { document.scrollingElement.scrollTop = 1200; }")
     page.evaluate("() => { document.querySelector('.lf-threads').scrollTop = 0; }")
 
-    # Where the travel says it is taking the widget: centred in the list, or as near
-    # as the list can come — a widget in the last message is past the middle of what
-    # the box can show, and the end of the scroll range is the whole of the answer
-    # there. The same arithmetic the travel uses, so this asserts where it went and
+    # Where the travel says it is taking the widget: centred in the list's landing band
+    # (the list less its declared scroll-padding), or as near as the list can come — a
+    # widget in the last message is past the middle of what the box can show, and the
+    # end of the scroll range is the whole of the answer there. The same arithmetic the travel uses, so this asserts where it went and
     # not merely that something moved.
     WHERE = """() => {
       const box = document.querySelector('.lf-threads');
       const view = box.getBoundingClientRect();
       const el = document.getElementById('tv-decision').getBoundingClientRect();
-      const clear = parseFloat(getComputedStyle(box).scrollPaddingTop) || 0;
+      const style = getComputedStyle(box);
+      const above = parseFloat(style.scrollPaddingTop) || 0;
+      const below = parseFloat(style.scrollPaddingBottom) || 0;
+      const room = box.clientHeight - above - below;
       return { at: el.top - view.top,
-               want: Math.max((view.height - el.height) / 2, clear),
+               want: box.clientTop + above + Math.max((room - el.height) / 2, 0),
                atEnd: box.scrollTop >= box.scrollHeight - box.clientHeight - 1 };
     }"""
     focus_panel_thread(page.locator('.lf-thread[data-id="tv-on-it"]'))

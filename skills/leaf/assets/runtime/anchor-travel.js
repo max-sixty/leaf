@@ -23,7 +23,6 @@ import {
   clippedContents,
   clipsPast,
   landingBand,
-  landingInsets,
   placeHolder,
   shownBox,
   shownRect,
@@ -180,15 +179,15 @@ export function createAnchorTravel({
   function centreBy(where, block = "center", box = pageScroller) {
     const rect =
       where instanceof Range ? where.getBoundingClientRect() : shownBox(where);
-    const view = shownBox(box);
-    const clear = landingInsets(box).top;
+    const band = landingBand(box);
+    const room = band.bottom - band.top;
     const place =
       where instanceof Range
-        ? (view.height - rect.height) / 2
+        ? (room - rect.height) / 2
         : block === "start"
-          ? clear
-          : Math.max((view.height - rect.height) / 2, clear);
-    return rect.top - view.top - place;
+          ? 0
+          : Math.max((room - rect.height) / 2, 0);
+    return rect.top - band.top - place;
   }
 
   // Reading-region membership also covers fixed chrome, but its viewport position does
@@ -249,14 +248,11 @@ export function createAnchorTravel({
     if (!shown) return false;
     const { holder, destination, seen } = shown;
     const box = scrollingBoxFor(holder);
-    const view = shownBox(box ?? pageScroller);
-    const { top: clearAbove, bottom: clearBelow } = box
-      ? landingInsets(box)
-      : { top: 0, bottom: 0 };
+    const band = box ? landingBand(box) : shownBox(pageScroller);
     const close = (a, b) => Math.abs(a - b) <= 0.5;
     return (
-      destination.top >= view.top + clearAbove - 0.5 &&
-      destination.bottom <= view.bottom - clearBelow + 0.5 &&
+      destination.top >= band.top - 0.5 &&
+      destination.bottom <= band.bottom + 0.5 &&
       close(seen.top, destination.top) &&
       close(seen.right, destination.right) &&
       close(seen.bottom, destination.bottom) &&

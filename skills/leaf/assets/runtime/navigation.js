@@ -8,7 +8,7 @@ import { coveringAuxiliarySurface, pageCommand } from "./keyboard/register.js";
 import { reducedMotion, scrollBehavior } from "./motion.js";
 import { threadsBox } from "./thread/panel-elements.js";
 import { pageScroller } from "./scrolling.js";
-import { landingInsets } from "./geometry.js";
+import { landingBand } from "./geometry.js";
 import { effectiveScroller, readingRegionFor } from "./reading-regions.js";
 import { closestAcross } from "./passages.js";
 import { standingPlace } from "./standing-target.js";
@@ -131,13 +131,13 @@ export function placeThreadEdge(thread, edge) {
 // own gesture outranks a key's. Under reduced motion the step is a jump, the answer the
 // rest of the runtime's motion already gives (scrollBehavior()).
 //
-// The page the step measures is the one the user can see. The document's box lends its
-// top edge to the fixed banner, and scroll-padding-top — declared on that scroller, read
-// exactly so by scrollToElement — is where the box already says how much of itself stands
-// covered. The thread list says the same thing about itself: a stuck run heading covers
-// its top, so a reading-page step there is 60% of what is left rather than 60% of the
-// box, which is the answer the user wants — a step that landed them under the heading
-// would be a step onto words they cannot read.
+// The page the step measures is the one the user can see: the scroller's landing band.
+// The document's box lends its top edge to the fixed banner and its bottom edge to the
+// foot band, and its scroll-padding — read exactly so by scrollToElement — is where the
+// box already says how much of itself stands covered. The thread list says the same
+// thing about itself: a stuck run heading covers its top, so a reading-page step there is
+// 60% of what is left rather than 60% of the box, which is the answer the user wants — a
+// step that landed them under the heading would be a step onto words they cannot read.
 const SCROLL_MS = 140;
 let glide = null; // {box, goal, wrote, raf}
 // The glide's claim on the box: it holds only while the box is where the glide last
@@ -164,7 +164,8 @@ const stepScroller = (coveringAuxiliaryScroller) => {
 function stepReading(amount, unit, coveringAuxiliaryScroller) {
   const box = stepScroller(coveringAuxiliaryScroller);
   if (unit === "page") {
-    amount *= box.clientHeight - landingInsets(box).top;
+    const band = landingBand(box);
+    amount *= band.bottom - band.top;
   }
   const from = holding(box) ? glide.goal : box.scrollTop;
   glideTo(box, from + amount);

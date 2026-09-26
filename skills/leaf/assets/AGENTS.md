@@ -130,7 +130,7 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 | Activity and updates | `presence.js`, `updates.js` |
 | Notices and announcements | `semantic-news.js`, `notifications.js`, `keyboard/shortcut-bar.js` |
 | Reactions and design review | `reactions.js`, `design.js`, `design-readings.js` |
-| Presentation and validation | `presentation.js`, `validation.js`, `projection-watch.js` |
+| Presentation and validation | `presentation.js`, `validation.js`, `projection-watch.js`, `retained-face.js` |
 | Child pages and gallery playback | `specimen.js`, `interaction-gallery*.js` |
 | Shadow trees and styles | `shadow.js`, `shadow-stage.js`, `stylesheets.js` |
 | Utilities | `icons.js`, `markdown.js`, `syntax.js`, `motion.js`, `storage.js`, `interaction-log.js` |

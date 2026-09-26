@@ -37,8 +37,11 @@ file says which script owns what.
 - `deploy-site-dev.sh` deploys the checkout to the standing `leaf-website-dev`
   environment. Production deploys only through `.github/workflows/publish-site.yaml`.
 - `worker/README.md` owns hosted-agent diagnostics and the failure contract.
+- `eval_harness.py` builds the arms and isolated `claude -p` children every Claude
+  Code eval runs; `eval_claude_delivery.py`, `notes/arrangement-eval/harness.py`,
+  and the A/B recipe in `evals/README.md` use it.
 - `eval_claude_delivery.py [BASE_REF]` compares `leaf wait` pickup between a base
-  plugin and this checkout.
+  plugin and HEAD's.
 - `record-demo.sh` regenerates `docs/demo.gif`, the README stills, and
   `docs/session-card.png`.
 

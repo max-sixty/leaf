@@ -4497,6 +4497,48 @@ def test_check_takes_a_rail_only_on_main_and_only_by_name(page_dir):
     assert "belongs on <main>" in result.output
 
 
+def test_a_fresh_server_does_not_revalidate_the_active_revisions_inputs(
+    page_dir, monkeypatch
+):
+    """A revision's vocabulary and vendored sheets were validated when it activated,
+    so a process reading the page anew validates neither while they stand unchanged:
+    together they were most of a cold first read. A changed input is still checked,
+    which the test below holds for the theme."""
+    from leaf.validation import source as source_model
+
+    assert revisioning_model.activate_source(page_dir).error is None
+    # What a newly started server holds: none of this process's readings.
+    registry_storage._registries.clear()
+    registry_storage._read_page_registry_stamped.cache_clear()
+    revisioning_model._held.clear()
+    validated, linted = [], []
+    real_validate = registry_page.validate_registry
+    real_lint = source_model.css_syntax_errors
+    monkeypatch.setattr(
+        registry_page,
+        "validate_registry",
+        lambda registry, source: (
+            validated.append(source) or real_validate(registry, source)
+        ),
+    )
+    monkeypatch.setattr(
+        source_model,
+        "css_syntax_errors",
+        lambda css, where, **kw: linted.append(where) or real_lint(css, where, **kw),
+    )
+
+    assert revisioning_model.activate_source(page_dir).error is None
+    assert validated == []
+    assert linted == ["page <style>"]
+
+    registry_storage._read_page_registry_stamped.cache_clear()
+    revisioning_model._held.clear()
+    shadow = page_dir / "shadow.css"
+    shadow.write_text(shadow.read_text() + "\n.edited { color: teal; }\n")
+    assert revisioning_model.activate_source(page_dir).created
+    assert "shadow.css" in linted
+
+
 def test_activation_rechecks_changed_css_while_the_document_stays_identical(page_dir):
     """Reused CSS readings must follow theme bytes, including tokens and diagnostics."""
     theme = page_dir / "theme.css"
@@ -4525,9 +4567,7 @@ def test_activation_rechecks_changed_css_while_the_document_stays_identical(page
     wider_column = css.replace("700px", "900px").replace("720px", "960px")
     widened = activate(wider_column)
     assert widened.error is None
-    from leaf.validation.source import check_source
-
-    assert check_source(page_dir, []).column == 960
+    assert "960px column" in check(page_dir).output
     assert widened.created
     assert widened.revision == initial.revision + 1
 

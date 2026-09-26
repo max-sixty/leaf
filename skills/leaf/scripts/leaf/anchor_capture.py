@@ -9,13 +9,14 @@ from .structure import SourceDocument
 # so this side cannot come to store a neighbourhood the browser would never have
 # written. The quote itself is stored whole, however long the passage: it is the extent
 # the page marks, and a cap on it was a comment quietly made on less than was quoted
-# (see selectionAnchor, wherever the capture lives).
+# (see `selectionAnchor` in the runtime's composing/capture.js).
 CONTEXT = 24
 
 
 def enclosing_section(owner: list, lo: int, hi: int):
-    """The innermost id enclosing every character of [lo, hi) — the runtime's
-    `closest("[id]")` on the passage's common ancestor."""
+    """The innermost id in this reading that encloses every character of [lo, hi):
+    the file's side of the section `selectionAnchor` takes from the nearest id around
+    the passage's common ancestor."""
     first, last = owner[lo], owner[hi - 1]
     shared = 0
     while shared < min(len(first), len(last)) and first[shared] == last[shared]:

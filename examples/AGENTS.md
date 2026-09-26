@@ -104,7 +104,7 @@ page directory from an example, which `scripts/preview.py`, `publish_examples` i
 `scripts/site.py`, and `serve` in `tests/render_harness.py` call: it walks the
 versions oldest first through the real `version stamp`, lays in the log, data, and
 media, and sets the cursor to the end of the seeded log.
-`test_page_fixtures_pass_check` repeats those steps by hand so that it can lint
+`test_page_fixtures_pass_check` builds through it too, and runs `version check` on
 every version rather than only the current one. Prior versions live under `versions/`
 so top-level `*.html` discovery never reads a version as a page fixture, and the
 authored-content sweeps (above all the one holding two examples to twelve

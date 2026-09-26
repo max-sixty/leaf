@@ -519,8 +519,6 @@ test("one publication keeps per-input workflows and user-first thread attention"
       ],
       anchor: null,
       resolved: null,
-      awaits_agent: true,
-      awaits_user: true,
       bare_reaction: false,
       unread: [],
       seat: null,
@@ -598,8 +596,6 @@ test("local delivery supplies and can override non-Ask thread attention", () => 
       ],
       anchor: null,
       resolved: null,
-      awaits_agent: true,
-      awaits_user: false,
       bare_reaction: false,
       unread: [],
       seat: null,
@@ -699,8 +695,6 @@ test("a version being marked read reads read, outside the gesture ledger", () =>
       msgs: [root],
       anchor: null,
       resolved: null,
-      awaits_agent: false,
-      awaits_user: false,
       bare_reaction: false,
       seat: null,
       summaries: [],
@@ -863,8 +857,6 @@ test("widget selections publish the canonical held thread", () => {
       anchor: null,
       msgs: [root],
       resolved: null,
-      awaits_agent: true,
-      awaits_user: false,
       bare_reaction: false,
       unread: [],
       seat: descriptor.id,
@@ -898,8 +890,6 @@ for (const resolved of [null, { author: "user" }]) {
         anchor: null,
         msgs: [root],
         resolved,
-        awaits_agent: false,
-        awaits_user: true,
         attention: { kind: "needs_user", reason: "ask", workflow: null },
         bare_reaction: false,
         unread: [],
@@ -909,9 +899,9 @@ for (const resolved of [null, { author: "user" }]) {
     app.adopt(accepted);
     const turn = () => {
       const thread = app.read().effective.thread.all[0];
-      return [thread.awaits_agent, thread.attention?.kind ?? null, thread.resolved];
+      return [thread.attention?.kind ?? null, thread.resolved];
     };
-    assert.deepEqual(turn(), [false, "needs_user", resolved]);
+    assert.deepEqual(turn(), ["needs_user", resolved]);
 
     app.enqueue(
       {
@@ -923,9 +913,9 @@ for (const resolved of [null, { author: "user" }]) {
       },
       "now",
     );
-    assert.deepEqual(turn(), [true, "waiting", null]);
+    assert.deepEqual(turn(), ["waiting", null]);
     app.remove(new Set(["answer"]));
-    assert.deepEqual(turn(), [false, "needs_user", resolved]);
+    assert.deepEqual(turn(), ["needs_user", resolved]);
 
     app.enqueue(
       {
@@ -937,9 +927,9 @@ for (const resolved of [null, { author: "user" }]) {
       },
       "now",
     );
-    assert.deepEqual(turn(), [true, "waiting", null]);
+    assert.deepEqual(turn(), ["waiting", null]);
     app.reject("retry");
-    assert.deepEqual(turn(), [false, "needs_user", resolved]);
+    assert.deepEqual(turn(), ["needs_user", resolved]);
   });
 }
 
@@ -965,8 +955,6 @@ test("a pending prose reply does not hide a frozen structural Ask", () => {
       anchor: null,
       msgs: [root],
       resolved: null,
-      awaits_agent: false,
-      awaits_user: true,
       bare_reaction: false,
       unread: [],
       seat: null,
@@ -984,10 +972,9 @@ test("a pending prose reply does not hide a frozen structural Ask", () => {
     },
     "now",
   );
-  // The reply hands the thread to the agent, and the Ask it carries is still the
-  // user's, so the obligation does not turn over and back when the reply lands.
+  // The Ask the thread carries is still the user's, so the obligation does not turn
+  // over and back when the reply lands.
   const thread = app.read().effective.thread.all[0];
-  assert.deepEqual([thread.awaits_agent, thread.awaits_user], [true, true]);
   assert.deepEqual(thread.attention, {
     kind: "needs_user",
     reason: "ask",
@@ -1011,8 +998,6 @@ test("a pending resend replaces accepted recovery until refusal", () => {
       anchor: null,
       msgs: [root],
       resolved: null,
-      awaits_agent: false,
-      awaits_user: false,
       attention: {
         kind: "needs_user",
         reason: "recovery",
@@ -1196,8 +1181,6 @@ test("a reaction root is not a spoken turn awaiting the user", () => {
       anchor: null,
       msgs: [root],
       resolved: null,
-      awaits_agent: false,
-      awaits_user: false,
       bare_reaction: true,
       unread: [],
       seat: null,
@@ -1205,5 +1188,5 @@ test("a reaction root is not a spoken turn awaiting the user", () => {
   ];
 
   app.adopt(accepted);
-  assert.equal(app.read().effective.thread.all[0].awaits_user, false);
+  assert.equal(app.read().effective.thread.all[0].attention, null);
 });

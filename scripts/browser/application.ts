@@ -580,7 +580,6 @@ export function createSemanticApplication({
           ? thread
           : {
               ...thread,
-              awaits_user: true,
               attention: { kind: "needs_user", reason: "ask", workflow: null },
             };
       const retry =

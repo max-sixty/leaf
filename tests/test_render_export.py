@@ -1046,6 +1046,38 @@ def test_a_user_preview_update_keeps_the_sessions_wait_watching(
     assert "still there?" in waited.read_text()
 
 
+def test_a_user_preview_brings_back_a_service_that_is_down_but_wanted(
+    served_preview,
+):
+    """A `--user` service still enabled with no server is the preview's to bring
+    back on its next update, and does not end it: that is a server that died, or
+    one a re-vendor could not start again (its recorded port taken), which is left
+    enabled and down in just this way. Only a stop, or the claim leaving this
+    session, ends the preview."""
+    source, _, directory, process, _, log = served_preview
+    port = server_model.running_server(directory)["port"]
+    killed = subprocess.run(
+        ["pkill", "-KILL", "-f", f"server _serve {directory}"], check=False
+    )
+    assert killed.returncode == 0
+    wait_for(
+        lambda: server_model.running_server(directory),
+        lambda running: running is None,
+        failure="the killed server still held its lease",
+    )
+    assert files_model.read_json(directory / "service.json")["enabled"]
+
+    source.write_text(source.read_text().replace("Rollout", "Back up", 1))
+    wait_for(
+        log.read_text,
+        lambda output: "Reloaded watched" in output,
+        failure="the preview did not bring its server back",
+        timeout=60,
+    )
+    assert process.poll() is None, log.read_text()
+    assert server_model.running_server(directory)["port"] == port
+
+
 # ---------- export: the page as one file ----------
 
 OFFLINE_WIDGET = """\

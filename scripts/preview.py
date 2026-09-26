@@ -403,6 +403,22 @@ class PreviewService:
 
         return claim_and_start(self.page) if self.user else self._serve_temporary()
 
+    def serve_again(self) -> None:
+        """Put a `--user` service that is down but still wanted back up, or say
+        why not.
+
+        A revival: it claims nothing, since the claim the first start took is
+        still this session's and taking it again would reopen a turn the Stop hook
+        closed, and it starts only a service still enabled, so a stop that lands
+        first is kept."""
+        from leaf.detached import StartRefused
+        from leaf.hosting import start_server
+
+        try:
+            start_server(self.page, revive=True)
+        except StartRefused as error:
+            print(error, file=sys.stderr, flush=True)
+
     @contextlib.contextmanager
     def replacing(self):
         """Hold this preview's own server down for a re-vendor, and put it back up
@@ -458,6 +474,27 @@ class PreviewService:
         if not self.user:
             return self.temporary is not None and self.temporary.running
         return running_server(self.page) is not None
+
+    @property
+    def ended(self) -> bool:
+        """Whether the server is down because its owner ended it, which ends the
+        preview: a process-owned one whenever it is down, and a `--user` one when
+        its service was stopped or its claim left this session.
+
+        A `--user` service still enabled but down is not ended. That is a server
+        that died, or one `page init` re-vendored but could not start again (the
+        recorded port was taken), and the next update tries it again."""
+        from leaf.files import read_json
+        from leaf.host import session_harness
+        from leaf.service import PageTransaction
+
+        if not self.user:
+            return not self.running
+        service = read_json(self.page / "service.json")
+        if not service or not service["enabled"]:
+            return True
+        with PageTransaction(self.page) as transaction:
+            return not transaction.owned_by(session_harness())
 
 
 def refresh_preview(
@@ -740,10 +777,8 @@ def serve_preview(
         print(f"Watching {source} and {runtime}; feedback stays in {page}", flush=True)
         while True:
             reported = {path for _, path in next(changes)}
-            if not service.running:
-                # The service was stopped, the owning session ended, or a
-                # re-vendor's restart was refused, which said why.
-                return
+            if not service.running and service.ended:
+                return  # the service was stopped, or the owning session ended
             if not reported:
                 continue  # the idle wake-up that carried the check above
             # An added input is only in the reading taken after it arrived, and a
@@ -770,7 +805,11 @@ def serve_preview(
                 changes.close()
                 changes = watch_changes(rebuilt)
             watched = rebuilt
-            if refreshed:
+            if service.user and not service.running:
+                # A server that died, or that a re-vendor could not start again,
+                # which said why. Each later update is another try.
+                service.serve_again()
+            if refreshed and service.running:
                 print(f"Reloaded {source.stem}", flush=True)
     finally:
         if changes is not None:

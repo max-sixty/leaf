@@ -6895,9 +6895,8 @@ def test_a_wait_watches_a_stopped_server_until_its_page_ends(
     again: the page ends the wait, by going idle or changing hands.
 
     A wait used to read a disabled service as a page it had lost, and end, so
-    every restart had to say it was not a stop. Here a restart whose start is
-    refused leaves the service disabled, which is also what a deliberate
-    `server stop` leaves, and the wait goes on watching it."""
+    every restart, which disables the service as a stop does, had to say it was
+    not a stop."""
     files_model.write_json(
         page_dir / "service.json",
         {
@@ -6910,20 +6909,11 @@ def test_a_wait_watches_a_stopped_server_until_its_page_ends(
     )
     session_model.cmd_status(page_dir, "waiting", "review the page")
 
-    def refused_start(*_args, **_kwargs):
-        raise StartRefused("the port is taken")
-
     def unexpected_start(*_args, **_kwargs):
         pytest.fail("a disabled service was revived")
 
-    monkeypatch.setattr(hosting_model, "start_server", refused_start)
     monkeypatch.setattr(session_model, "start_server", unexpected_start)
-    with (
-        pytest.raises(SystemExit, match="did not start again: the port is taken"),
-        hosting_model.restarting_server(page_dir),
-    ):
-        pass
-    assert not files_model.read_json(page_dir / "service.json")["enabled"]
+    assert hosting_model.cmd_stop(page_dir) == "no server running"
 
     def unexpected_delivery(reading):
         pytest.fail(f"nothing was sent, yet {reading.page_dir} delivered")
@@ -7022,6 +7012,46 @@ def test_a_wait_on_a_page_never_served_ends_at_once(page_dir, capsys, wait):
     assert f"restart it with `leaf server start {page_dir}`" in (
         capsys.readouterr().err
     )
+
+
+@pytest.mark.parametrize("stopped", ["during the block", "never"])
+def test_a_stop_during_a_restart_keeps_the_service_stopped(
+    page_dir, monkeypatch, stopped
+):
+    """`leaf server stop` while `page init` holds a service down to re-vendor it
+    finds the service already disabled, and the restart must not enable it
+    again after the block: the stop is the later word. Without one, the restart
+    enables the service and starts it as a revival."""
+    files_model.write_json(
+        page_dir / "service.json",
+        {
+            "host": "127.0.0.1",
+            "bind": "127.0.0.1",
+            "port": available_loopback_port(),
+            "enabled": True,
+            "lifetime": "standing",
+        },
+    )
+    starts = []
+
+    def recorded_start(page, **kwargs):
+        starts.append(kwargs)
+        return "http://127.0.0.1:1/", ""
+
+    monkeypatch.setattr(hosting_model, "start_server", recorded_start)
+    with hosting_model.restarting_server(page_dir):
+        assert not files_model.read_json(page_dir / "service.json")["enabled"]
+        if stopped == "during the block":
+            hosting_model.cmd_stop(page_dir)
+
+    service = files_model.read_json(page_dir / "service.json")
+    assert "restart" not in service
+    if stopped == "never":
+        assert service["enabled"]
+        assert starts == [{"standing": True, "revive": True}]
+    else:
+        assert not service["enabled"]
+        assert starts == []
 
 
 def test_page_init_restarts_a_served_page_under_the_sessions_wait(

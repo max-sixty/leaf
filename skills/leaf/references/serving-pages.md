@@ -85,7 +85,9 @@ incoming layer against the page first, so a refused re-vendor leaves the running
 server as it was. An admitted one takes the server down, re-vendors, and starts
 the server again at the recorded URL under its recorded lifetime, and a `leaf wait`
 watching the page carries on through the restart. A page whose server was stopped
-stays stopped. Re-vendor a session's page from the session that holds it: init
+stays stopped, and so does one that `leaf server stop` stops during the re-vendor.
+If the server cannot start again, init says why and leaves the service enabled:
+a `leaf wait` tries it once more, as it would a server that died. Re-vendor a session's page from the session that holds it: init
 refuses a page that another live session serves. A page whose session has ended
 stays stopped after init, and `leaf server start` then serves it for this session.
 Initialization preserves the page status and writes a new layer epoch, so an open

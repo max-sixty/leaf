@@ -101,7 +101,9 @@ other page files and the external state listed below.
   hands the file to the page whole. Its presence exempts the page from the handoff's watcher guard.
 
 - `service.json` — desired server address, enabled state, lifetime, and runtime
-  provenance. `hosting.py` owns start/stop and revival;
+  provenance, plus a `restart` mark while `page init` holds a served page down to
+  re-vendor it, which any other stop replaces so the restart leaves that stop
+  alone. `hosting.py` owns start/stop, restart, and revival;
   [session-lifetime.md, “Lifetime”](session-lifetime.md#lifetime) owns the lifetime rule.
   The URL's access key belongs to the machine's state home.
 

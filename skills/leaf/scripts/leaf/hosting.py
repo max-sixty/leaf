@@ -492,13 +492,17 @@ def claim_and_start(
         return start_server(page_dir, host, standing)
 
 
-def cmd_stop(page_dir: Path) -> str:
+def cmd_stop(page_dir: Path, restart: str | None = None) -> str:
     """Disable the desired service and wait until its process lease is released.
 
     The barrier is taking the lease under the page lock, without waiting:
     held together, they keep a new start out of the gap between the old server's
     exit and this return. The wait between attempts is outside the transition,
-    since a serving process may need it to withdraw an uncommitted start."""
+    since a serving process may need it to withdraw an uncommitted start.
+
+    `restart` marks the disabled record as `restarting_server`'s own. A plain stop
+    writes an unmarked one even over a service already down, so a stop made while
+    a restart holds the service down takes the restart's claim to it away."""
     require_cross_process_locking()
     stopped = False
     while True:
@@ -506,8 +510,16 @@ def cmd_stop(page_dir: Path) -> str:
             # The server may release its lease immediately after we disable it.
             stopped = stopped or lock_is_held(page_dir / SERVER_LOCK)
             service = read_json(page_dir / SERVICE_FILE)
-            if service and service["enabled"]:
-                write_json(page_dir / SERVICE_FILE, {**service, "enabled": False})
+            if service:
+                disabled = {
+                    **{
+                        key: value for key, value in service.items() if key != "restart"
+                    },
+                    "enabled": False,
+                    **({"restart": restart} if restart else {}),
+                }
+                if disabled != service:
+                    write_json(page_dir / SERVICE_FILE, disabled)
             lease = take_lease(page_dir / SERVER_LOCK)
             if lease is not None:
                 release_lease(lease)
@@ -541,6 +553,15 @@ def restarting_server(page_dir: Path):
     that fails anyway, or is interrupted, leaves a page nobody vouches for, and a
     server started over it could run this Leaf's code against the layer the page
     kept. So the service stays stopped, and says so.
+
+    Nor does it come back over a stop made during the block. The disabled record
+    this writes carries a mark of its own, which any other stop replaces, and the
+    service is enabled again only while the mark is still there. The start that
+    follows is a revival, "only if still enabled", so a stop after that is kept
+    too. A start the server then refuses leaves the service enabled and down, as
+    a dead server is, for a watching `leaf wait` to revive or report. Nothing but
+    this block reads the mark, so one a killed restart leaves behind is inert: the
+    next start or stop writes a record without it.
     """
     service = read_json(page_dir / SERVICE_FILE)
     if not service or not service["enabled"]:
@@ -548,7 +569,8 @@ def restarting_server(page_dir: Path):
         return
     standing = service["lifetime"] == "standing"
     comes_back = standing or _restarts_for_this_session(page_dir)
-    cmd_stop(page_dir)
+    mark = secrets.token_hex(8) if comes_back else None
+    cmd_stop(page_dir, restart=mark)
     if not comes_back:
         print(
             f"{page_dir}'s server belonged to a session that has ended, so it stays "
@@ -566,8 +588,21 @@ def restarting_server(page_dir: Path):
             file=sys.stderr,
         )
         raise
+    with page_locked(page_dir):
+        service = read_json(page_dir / SERVICE_FILE)
+        resumed = bool(service and service.get("restart") == mark)
+        if resumed:
+            del service["restart"]
+            write_json(page_dir / SERVICE_FILE, {**service, "enabled": True})
+    if not resumed:
+        print(
+            f"{page_dir}'s server was stopped while it was re-vendored, so it stays "
+            "stopped.",
+            file=sys.stderr,
+        )
+        return
     try:
-        start_server(page_dir, standing=standing)
+        start_server(page_dir, standing=standing, revive=True)
     except StartRefused as error:
         sys.exit(f"{page_dir}'s server did not start again: {error}")
 

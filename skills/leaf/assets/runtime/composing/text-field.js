@@ -42,8 +42,8 @@ import {
   markdownLanguage,
   insertNewlineContinueMarkup,
 } from "../../vendor/codemirror.esm.js";
+import { TEXT_FIELD } from "../focus.js";
 
-const TAG = "leaf-text";
 // Marks a transaction the value setter made, which is not the user's edit.
 const programmatic = Annotation.define();
 
@@ -142,7 +142,7 @@ function decorate(view) {
           return;
         }
         if (name === "FencedCode") {
-          for (let at = node.from; at <= node.to; ) {
+          for (let at = node.from; at <= node.to;) {
             const each = state.doc.lineAt(at);
             out.push(line("lf-md-code-block").range(each.from));
             at = each.to + 1;
@@ -154,7 +154,7 @@ function decorate(view) {
           return false;
         }
         if (name === "Blockquote") {
-          for (let at = node.from; at <= node.to; ) {
+          for (let at = node.from; at <= node.to;) {
             const each = state.doc.lineAt(at);
             out.push(line("lf-md-quote").range(each.from));
             at = each.to + 1;
@@ -403,7 +403,6 @@ class LeafText extends HTMLElement {
   }
 }
 
-if (!customElements.get(TAG)) customElements.define(TAG, LeafText);
+if (!customElements.get(TEXT_FIELD)) customElements.define(TEXT_FIELD, LeafText);
 
-export const textField = () => document.createElement(TAG);
-export const isTextField = (node) => node?.localName === TAG;
+export const textField = () => document.createElement(TEXT_FIELD);

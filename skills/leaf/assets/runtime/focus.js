@@ -1,5 +1,13 @@
 /* Putting the user on an element: the focus, and the caret inside it. */
 
+// The runtime's text field (`composing/text-field.js`): every box the runtime builds
+// for the user to write in is one. Code that looks for such a box names it by this, and
+// code asking whether something takes typed paragraphs asks `TEXT_BOX`, since a widget
+// may still stage a native textarea of its own. One spelling of each, so the field's
+// element can change without a lookup somewhere silently finding nothing.
+export const TEXT_FIELD = "leaf-text";
+export const TEXT_BOX = `textarea, ${TEXT_FIELD}`;
+
 // Put the user on an element that may not be a tab stop: focus it, and where it will
 // not take focus, lend it the tab stop a control has for exactly as long as it holds it —
 // the lend leaves with the first blur, so a paragraph the Go-to sequence landed on is a
@@ -41,8 +49,7 @@ function lendStop(destination) {
 // on any other throws rather than returning null.
 const CARETED = new Set(["text", "search", "url", "tel", "password"]);
 const holdsCaret = (node) =>
-  node.tagName === "TEXTAREA" ||
-  node.localName === "leaf-text" || (node.tagName === "INPUT" && CARETED.has(node.type));
+  node.matches(TEXT_BOX) || (node.tagName === "INPUT" && CARETED.has(node.type));
 
 // Where the user is inside an element, or null where the element holds no caret. The
 // reading is a plain triple so that it can be stored and read back in another document.
@@ -70,8 +77,7 @@ const TYPED_TYPES = new Set([
 export function takesLetters(node) {
   return (
     Boolean(node) &&
-    (node.tagName === "TEXTAREA" ||
-      node.localName === "leaf-text" ||
+    (node.matches(TEXT_BOX) ||
       node.tagName === "SELECT" ||
       node.getAttribute("role") === "option" ||
       node.isContentEditable ||

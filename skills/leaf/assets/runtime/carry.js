@@ -18,13 +18,11 @@
  * Modules restore their own stored state, such as tabs and drafts, through their own
  * lifecycles. `version.js` owns when capture and restoration run for each install.
  */
-import { focusDestination, readCaret } from "./focus.js";
+import { TEXT_BOX, focusDestination, readCaret } from "./focus.js";
 import { readingRegions } from "./reading-regions.js";
 
 const holdsValue = (node) =>
-  node.tagName === "TEXTAREA" ||
-  node.localName === "leaf-text" ||
-  (node.tagName === "INPUT" && node.type !== "file");
+  node.matches(TEXT_BOX) || (node.tagName === "INPUT" && node.type !== "file");
 const holdsTick = (node) =>
   node.tagName === "INPUT" && (node.type === "checkbox" || node.type === "radio");
 

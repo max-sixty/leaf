@@ -36,6 +36,7 @@
    caller names that apparatus, which is the container's to press. The answer otherwise
    fails closed: declining one ambiguous container gesture is safer than recording a
    choice while the user operates nested evidence. */
+import { TEXT_FIELD } from "./focus.js";
 import { sizeObserver } from "./rendering.js";
 import { tagsDeclaring } from "./registry.js";
 import { paintKeys } from "./keyboard/scopes.js";
@@ -242,7 +243,7 @@ const PRESS_SELECTORS = [
   "select",
   "summary",
   "textarea",
-  "leaf-text",
+  TEXT_FIELD,
   "video[controls]",
   "[role='button']",
   "[role='checkbox']",

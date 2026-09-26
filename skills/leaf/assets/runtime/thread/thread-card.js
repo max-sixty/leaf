@@ -5,6 +5,7 @@
    those values.
    The owner alone renders its native card root and all generated descendants; a
    failed candidate is restored by presenting its committed descriptor again. */
+import { TEXT_FIELD } from "../focus.js";
 import { html, render, repeat, nothing } from "../../vendor/browser-runtime.js";
 import { turns, threadKey, threadSummary } from "./model.js";
 import { anchorLabel, MessageView, messageReading } from "./messages.js";
@@ -642,7 +643,7 @@ export class ThreadView {
     const disclosure = compact
       ? offer("button", "lf-btn lf-reply-disclosure", "Reply")
       : null;
-    const input = offer("leaf-text");
+    const input = offer(TEXT_FIELD);
     input.name = "reply";
     const send = offer("button", panel ? "lf-btn lf-thread-send" : "lf-btn", "Send");
     if (disclosure) row.append(disclosure);

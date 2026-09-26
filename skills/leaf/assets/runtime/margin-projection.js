@@ -105,7 +105,13 @@ import {
 import { compareMarginContributions } from "./margin-entry-model.js";
 import { mapButton } from "./page-map-dialog.js";
 import { watchProjection } from "./projection-watch.js";
-import { declareRelease, focusDestination, letGo } from "./focus.js";
+import {
+  TEXT_BOX,
+  TEXT_FIELD,
+  declareRelease,
+  focusDestination,
+  letGo,
+} from "./focus.js";
 import { el, keeps, keepsHidden, offer } from "./widget-elements.js";
 import { clampedRow, PRESS } from "./keyboard/bindings.js";
 import { beginWalk, listWalkPosition } from "./walk-position.js";
@@ -161,6 +167,9 @@ import {
 } from "./thread/workflow.js";
 import { renderedParent, under } from "./shadow.js";
 import { retainUserIntent } from "./user-intent.js";
+
+// A margin card's reply box.
+const REPLY_BOX = `.lf-say ${TEXT_FIELD}`;
 
 export function createMarginProjection({
   panelIsOpen,
@@ -638,7 +647,7 @@ export function createMarginProjection({
     const maxListHeight =
       parseFloat(preview.style.getPropertyValue("--lf-thread-max-height")) -
       (preview.offsetHeight - previewList.clientHeight);
-    for (const input of previewList.querySelectorAll(".lf-say textarea")) {
+    for (const input of previewList.querySelectorAll(REPLY_BOX)) {
       const row = input.closest(".lf-say");
       const thread = row.closest(".lf-page-thread");
       const style = getComputedStyle(thread);
@@ -666,7 +675,7 @@ export function createMarginProjection({
   }
   function placeThreadPreview({ dismissDetached = false } = {}) {
     if (!previewOpen() || !previewMarginEntry?.isConnected) return false;
-    const replyEditor = previewList.querySelector(".lf-say textarea");
+    const replyEditor = previewList.querySelector(REPLY_BOX);
     const drafting =
       replyEditor?.checkVisibility() &&
       (replyEditor === document.activeElement || replyEditor.value !== "");
@@ -2079,7 +2088,9 @@ export function createMarginProjection({
       const replacement = [
         ...previewList.querySelectorAll("[data-lf-margin-entry]"),
       ].find((candidate) => candidate.lfMarginItem === focusedItem);
-      const destination = replacement?.matches("button, textarea:not([disabled])")
+      const destination = replacement?.matches(
+        `button, :is(${TEXT_BOX}):not([disabled])`,
+      )
         ? replacement
         : (replacement?.querySelector(".lf-page-thread") ??
           previewList.querySelector(".lf-page-thread") ??
@@ -2240,7 +2251,7 @@ export function createMarginProjection({
     answerThreadPreviewPosition(false);
     resetThreadPreviewPosition();
     if (previewOpen()) {
-      for (const reply of previewList.querySelectorAll("textarea, leaf-text"))
+      for (const reply of previewList.querySelectorAll(TEXT_FIELD))
         reply.lfCollapseReply?.();
       preview.hidden = true;
     }
@@ -2743,13 +2754,13 @@ export function createMarginProjection({
     });
     previewClose.onclick = () => closePreview(true);
     preview.addEventListener("focusin", (event) => {
-      if (!event.target.matches(".lf-say textarea") || rightFootOffset !== null) return;
+      if (!event.target.matches(REPLY_BOX) || rightFootOffset !== null) return;
       if (previewMarginEntry && preview.dataset.lfThreadPlacement === "right")
         rightFootOffset =
           preview.getBoundingClientRect().bottom - threadCardCluster().top;
     });
     preview.addEventListener("focusout", (event) => {
-      if (event.target.matches(".lf-say textarea") && !event.target.value)
+      if (event.target.matches(REPLY_BOX) && !event.target.value)
         scheduleThreadPreviewPosition();
     });
     sizeObserver(() => scheduleThreadPreviewPosition()).observe(preview);

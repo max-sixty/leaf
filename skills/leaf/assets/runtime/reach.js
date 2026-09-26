@@ -1,5 +1,6 @@
 /* Keyboard reachability and continuation paint for scrollable page and shadow content. */
 
+import { TEXT_BOX } from "./focus.js";
 import { sizeObserver } from "./rendering.js";
 import { ANCHOR_NOTE_TAG } from "./anchor-note-view.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
@@ -59,8 +60,7 @@ import { LAYOUT } from "./widget-elements.js";
 // What the platform puts in the tab order without being asked. Exported because the skip
 // link needs the same reading of the banner: "the first thing in there a user can
 // stand on" and "does this box already hold a stop" are the one question.
-export const FOCUSABLE =
-  'a[href], button, input, select, textarea, [tabindex]:not([tabindex="-1"])';
+export const FOCUSABLE = `a[href], button, input, select, ${TEXT_BOX}, [tabindex]:not([tabindex="-1"])`;
 // The declaration picks the candidates and the measurement decides. A rule saying a box
 // may scroll is not the same fact as a box with something out of sight: the theme sets
 // `table { display: block; overflow-x: auto }` on every table there is, so the declaration
@@ -165,7 +165,7 @@ export function reachScrollers(root) {
       // is observed (design.js) and this runs on every panel reconcile.
       if (
         style.position === "static" &&
-        !el.matches("textarea, leaf-text") &&
+        !el.matches(TEXT_BOX) &&
         !el.hasAttribute(PAGE_PAINT_ATTRIBUTE.holds)
       )
         el.setAttribute(PAGE_PAINT_ATTRIBUTE.holds, "1");
@@ -173,7 +173,7 @@ export function reachScrollers(root) {
       // value its user is writing and already knows continues.
       if (
         /^(auto|scroll)$/.test(style.overflowX) &&
-        !el.matches("textarea, leaf-text") &&
+        !el.matches(TEXT_BOX) &&
         !sideways.has(el)
       ) {
         sideways.add(el);

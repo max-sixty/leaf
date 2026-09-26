@@ -1,4 +1,5 @@
 /* User gestures and drafts that a document replacement would discard. */
+import { TEXT_BOX } from "../focus.js";
 import { runtime } from "../context.js";
 import { focused } from "../keyboard/scopes.js";
 import { replyBoxHasDraft } from "../thread/replies.js";
@@ -26,7 +27,7 @@ export function createEngagement({
       targetChooserOpen() ||
       Boolean(fabAnchorAt()) ||
       unaccountedGesture() ||
-      ((active?.tagName === "TEXTAREA" || active?.localName === "leaf-text") &&
+      (active?.matches(TEXT_BOX) &&
         (draftOf(active) !== "" ||
           replyDraft === true ||
           (replyDraft === null && active.hasAttribute("data-lf-offer"))))

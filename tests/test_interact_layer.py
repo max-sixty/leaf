@@ -2741,8 +2741,12 @@ def test_init_preserves_tmp_files_even_when_a_layer_reads_one(tmp_path, monkeypa
             '<lf-toned-note id="lf-example">One</lf-toned-note>',
             "lf- namespace",
         ),
+        (
+            '<lf-toned-note id="note"><p id="two words">One</p></lf-toned-note>',
+            "whitespace",
+        ),
     ],
-    ids=["duplicate", "reserved"],
+    ids=["duplicate", "reserved", "spaced"],
 )
 def test_init_refuses_invalid_ids_in_a_registry_example(
     tmp_path, monkeypatch, example, message

@@ -39,7 +39,6 @@ from leaf.validation.markup import (
     authored_allocation_errors,
     id_errors,
     media_errors,
-    missing_outline,
     page_boundary_errors,
     structure_errors,
     unpointable_blocks,
@@ -238,7 +237,6 @@ def _source_advice(
         ),
         *(f"data source unreadable: {error}" for error in data_errors(stored_data)),
         *unpointable_blocks(parser),
-        *missing_outline(parser, registry or {}),
         *layout_css_advice(
             parser,
             registry or {},

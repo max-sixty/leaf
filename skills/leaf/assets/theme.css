@@ -1701,11 +1701,12 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
  * with its scrolled target, so a card in a board scrolled sideways would stand its pin
  * off its corner. A target scrolled out of its scroller withholds its row instead.
  *
- * A cluster stands level with its target's top (`--lf-inset` where it anchors to a box
- * holding the target), pushed down by packing (`--lf-push`). In
+ * A cluster stands level with its target's top (`--lf-inset-top` where it anchors to a
+ * box holding the target), pushed down by packing (`--lf-push`). In
  * the rail it hangs `--rail-hang` off `main`'s edge and unfolds rightward. As a pin it
- * stands inside its target's top-right corner, `--pin-inset` in from the right edge, and
- * unfolds leftward over the block. Every position function falls back to a place off screen: an anchor can be
+ * stands inside its target's top-right corner, `--pin-inset` in from the target's right
+ * edge (`--lf-inset-right` in from the box holding it), and unfolds leftward over the
+ * block. Every position function falls back to a place off screen: an anchor can be
  * invalid (a target inside `content-visibility: hidden` or gone), and
  * `position-visibility` hides a cluster only when its anchor is valid and scrolled out of
  * view. */
@@ -1714,14 +1715,14 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-margin-toolbar, .lf-margin-lane { height: 0; }
 .lf-margin-lane { z-index: 2; }
 .lf-margin-cluster { position: absolute; z-index: 2;
-    top: calc(anchor(top, -9999px) + var(--lf-inset, 0px) + var(--lf-push, 0px));
+    top: calc(anchor(top, -9999px) + var(--lf-inset-top, 0px) + var(--lf-push, 0px));
     position-visibility: anchors-visible;
     display: inline-flex; align-items: center; gap: 4px; white-space: nowrap;
     padding-right: var(--here-ring-room); pointer-events: auto; }
 .lf-margin-cluster[data-lf-place="rail"] {
     left: calc(anchor(--lf-page right, -9999px) + var(--rail-hang) + var(--lf-step, 0px)); }
 .lf-margin-cluster[data-lf-place="pin"] {
-    right: calc(anchor(right, 9999px) + var(--pin-inset)); }
+    right: calc(anchor(right, 9999px) + var(--pin-inset) + var(--lf-inset-right, 0px)); }
 /* With the annotation layer hidden (`o`, annotation-layer.js) every pin goes, whatever it
  * holds, and the rail stays, since it covers nothing. A row the user asked for by name
  * (`data-lf-revealed`) stays while they stand in it. Hidden rather than taken out of

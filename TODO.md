@@ -92,7 +92,33 @@ has tried; settle that before building it.
   - package region boxes declaring a track template to `lf-grid.js` instead of copying
     `2fr 1fr`'s numbers;
   - the examples and docs that work around the model: the PR walkthrough's hand-made
-    sticky contents, and the docs' hand-built column grids.
+    sticky contents, the docs' five hand-built grids (a card list of links, and a term
+    beside its body, each with its own viewport breakpoint), code-comparison's one-child
+    `2fr 1fr` grid that only holds a block to the body track, and two page-built
+    two-column compares inside page widgets (code-comparison, notification-playground).
+- **Claim a margin by what stands in it.** An `aside.sidebar` reserves 320px for a
+  spine about 24px wide, and one `aside.sidenote` claims the right strip for the whole
+  page. At 1200px the docs' column sits off-centre with about 340px empty on its left,
+  and docs/event-log's `available` diagram is held to 720px and clipped, though it fits
+  at 1000px where the sidebar falls into flow. One sidenote eight screens down the
+  feature gallery raises the sidebar's floor to a 1496px shell. A sidebar outside
+  `main`'s children (security-boundary's, inside `<details>`) falls into flow unreported,
+  and `page-authoring.md` never mentions `aside.sidebar`. This is the first slice of the
+  named areas above.
+- **Stack a track before its content clips.** triage-board follows the board recipe
+  (`3fr 1fr`, stacking below 1000px), but its four columns need 856px, so the board
+  clips its fourth column from about 1300px down to 900px, stacked or not. `lf-grid`
+  stacks by `--lf-grid-min` and cannot know what a cell's content needs; a widget such as
+  lf-board could declare its minimum.
+- **Balance a counted grid's rows.** `columns="4"` wraps 3 + 1 when four don't fit
+  (live-progress at 1000px), and the page-built grids do the same (pr-walkthrough's facts
+  5 + 1, command-hub's operations 2 + 1). The lf-grid entry states this on purpose ("three
+  where they fit, two where they don't"); balanced rows would need `lf-grid.js` to judge
+  counts as it judges templates.
+- **Keep a held workspace's panes, not its header, in the window.** At 1000×800
+  alert-review's header and footer leave its detail pane about 370px, so the first Ask
+  option is cut by the footer; rust-sort's film controls fall under the fold at 1200px
+  and notification-playground's controls shrink to one visible row at 900px.
 - **Test the layout recipes on agents.** Give fresh agents tasks across the recipes in
   `page-authoring.md` ("Composing a page"), then ask them to revise the results: turn
   a report into a report with live status while keeping its comments. The recipes hold
@@ -204,6 +230,12 @@ Revisit these when their stated trigger becomes real; they are not an active que
 
 ### Implementation candidates
 
+- **Hide screen-reader words in an exported page.** `leaf version export` files show
+  `.lf-quiet` words on screen ("highlighted" on lf-code lines, "done" and "active" on
+  lf-task and lf-milestone rows). The rule that clips them is in `runtime/chrome.css`,
+  which `leaf.js` adopts only when the page is not offline, though content widgets use
+  the class. Moving the base rule into the page's own sheet fixes it, but reorders it
+  against page CSS and the suggestion overrides in `theme.css`.
 - **Set interaction-trace privacy before sharing pages.** Define who can inspect
   traces, consent or opt-out, sensitive-field redaction (including passwords,
   pasted text, and selection), and retention/deletion for page-local files and

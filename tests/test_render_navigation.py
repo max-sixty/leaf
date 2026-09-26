@@ -6561,7 +6561,7 @@ def test_numbered_ask_routes_follow_replaced_controls(browser, serve):
     page.keyboard.press("?")
     assert ask_actions_hint("1–2") in shortcut_bar_text(page)
     expect(save).to_have_attribute(
-        "aria-keyshortcuts", "Escape Enter Meta+Enter Control+Enter 1"
+        "aria-keyshortcuts", "Enter Meta+Enter Control+Enter Escape 1"
     )
     page.keyboard.press("?")
     cancel = page.locator(

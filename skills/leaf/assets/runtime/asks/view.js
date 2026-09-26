@@ -98,12 +98,12 @@
    the focus and leaves the page still. A thread ask keeps its centred arrival in the
    panel's own list. */
 
-import { landingInsets, shownBox, shownParts } from "../geometry.js";
+import { landingBand, shownBox, shownParts } from "../geometry.js";
 import { askProgressModel, createAskBannerControls } from "./banner-controls.js";
 import { keyBadgePlacement } from "../keyboard/key-badge-placement.js";
 import {
-  ariaShortcuts,
   bindings,
+  clampedRow,
   contextualRoute,
   decisionControls,
   routedCommand,
@@ -128,11 +128,13 @@ import {
 } from "./model.js";
 import { beginWalk, listWalkPosition, walkPositionLabel } from "../walk-position.js";
 import {
+  commandScope,
   commandScopesWithin,
   commandsWithin,
   documentFocused,
   focused,
   paintKeys,
+  projectCommandScope,
 } from "../keyboard/scopes.js";
 import { addressableSays, addressableWord } from "../anchor-resolution.js";
 import { PAGE_PAINT_ATTRIBUTE } from "../presentation.js";
@@ -550,8 +552,15 @@ export function createAskView({
   // bar's range and their name in the command reference, but wear no chip. A nearer
   // keyboard layer suppresses the row and both projections through the exact reachable
   // bindings, so a digit never stays promised after a sequence, text box, or modal takes it.
+  //
+  // The listener's projection is a command scope projected onto the control
+  // (`projectCommandScope`), beside whatever scopes the control holds already, so the
+  // attribute has one writer that composes them all. Its one row names the digit and the
+  // command's own bindings that still reach it from here, and runs nothing: the Ask's
+  // row above runs the digit, and the owning widget's scope its own keys.
   const wornBindingBadges = new Map();
-  const wornShortcuts = new Map();
+  const ASK_ROUTES = Symbol("Ask action routes");
+  const routedControls = new Set();
   function exposedBindingBadge(bindingBadge, control, visible) {
     const whole = bindingBadge.getBoundingClientRect();
     if (
@@ -590,21 +599,41 @@ export function createAskView({
     if (display) bindingBadge.style.setProperty("display", display, priority);
     else bindingBadge.style.removeProperty("display");
   }
-  function clearActionProjections() {
+  function restoreBindingBadges() {
     for (const [bindingBadge, previous] of wornBindingBadges)
       restoreBindingBadge(bindingBadge, previous);
     wornBindingBadges.clear();
-    for (const [control, { previous, projected }] of wornShortcuts) {
-      if (control.getAttribute("aria-keyshortcuts") !== projected) continue;
-      if (previous === null) control.removeAttribute("aria-keyshortcuts");
-      else control.setAttribute("aria-keyshortcuts", previous);
+  }
+  // Withdraw the routes' scope from every control but the ones still routed.
+  function withdrawRoutes(kept = new Set()) {
+    for (const control of routedControls) {
+      if (kept.has(control)) continue;
+      projectCommandScope(control, ASK_ROUTES, null);
+      routedControls.delete(control);
     }
-    wornShortcuts.clear();
+  }
+  function clearActionProjections() {
+    restoreBindingBadges();
+    withdrawRoutes();
   }
   function paintActionProjections() {
-    clearActionProjections();
+    restoreBindingBadges();
     const available = availableCommandRoutes();
     const routes = reachableActionRoutes(available);
+    for (const route of routes) {
+      const reached = available.get(routedCommand(route).row) ?? new Set();
+      const keys = new Set([
+        ...route.intrinsicBindings.filter((key) => reached.has(key)),
+        route.binding,
+      ]);
+      projectCommandScope(
+        route.control,
+        ASK_ROUTES,
+        commandScope(null, [{ id: "ask.action-route", keys: [...keys] }]),
+      );
+      routedControls.add(route.control);
+    }
+    withdrawRoutes(new Set(routes.map(({ control }) => control)));
     if (!routes.length) {
       askActionLayer.replaceChildren();
       return;
@@ -628,37 +657,7 @@ export function createAskView({
     // widget's own card-versus-row alignment, leaving this face in the page's stack keeps
     // the fixed shortcut bar above it. One face belongs to one action, and every part of
     // it must be visible on top; otherwise the ordinary core chip carries the same route.
-    for (const route of routes) {
-      const { binding, intrinsicBindings, control, bindingBadge } = route;
-      const previousShortcut = control.getAttribute("aria-keyshortcuts");
-      const intrinsicAvailable = available.get(routedCommand(route).row) ?? new Set();
-      const intrinsicShortcuts = new Set(
-        ariaShortcuts([{ keys: intrinsicBindings }], false).split(/\s+/),
-      );
-      const projected = ariaShortcuts(
-        [
-          {
-            keys: [
-              ...intrinsicBindings.filter((key) => intrinsicAvailable.has(key)),
-              binding,
-            ],
-          },
-        ],
-        false,
-      ).split(/\s+/);
-      const projectedShortcut = [
-        ...new Set([
-          ...(previousShortcut ?? "")
-            .split(/\s+/)
-            .filter((key) => key && !intrinsicShortcuts.has(key)),
-          ...projected,
-        ]),
-      ].join(" ");
-      wornShortcuts.set(control, {
-        previous: previousShortcut,
-        projected: projectedShortcut,
-      });
-      control.setAttribute("aria-keyshortcuts", projectedShortcut);
+    for (const { binding, control, bindingBadge } of routes) {
       if (
         covered(control) ||
         !bindingBadge?.isConnected ||
@@ -774,12 +773,8 @@ export function createAskView({
   // what they step off rather than what they step to.
   function askStep(asks, dir) {
     const here = askPosition();
-    if (!here) return dir > 0 ? asks[0] : asks.at(-1);
-    const standing = askAt(asks, here);
-    if (standing) {
-      const index = asks.findIndex((ask) => ask.id === standing.id);
-      return asks[Math.max(0, Math.min(index + dir, asks.length - 1))];
-    }
+    const standing = here && askAt(asks, here);
+    if (!here || standing) return clampedRow(asks, standing, dir);
     const side =
       dir > 0 ? Node.DOCUMENT_POSITION_FOLLOWING : Node.DOCUMENT_POSITION_PRECEDING;
     const reach = asks.filter((ask) => {
@@ -872,10 +867,6 @@ export function createAskView({
     if (record) arriveAt(record);
   }
 
-  // The screen the user can use, and the distance two boxes stand apart in it. The
-  // clearance is the landing band's top inset, which already says how much of the
-  // scroller's top edge the banner stands over.
-  const clearanceOf = (box) => landingInsets(box).top;
   const HEADING = "h1,h2,h3,h4,h5,h6";
 
   // Where the user arrives at a page ask: the region whose start has to be in front
@@ -901,7 +892,11 @@ export function createAskView({
   // rule about how far up is too far.
   function arrivalRegion(ask, box) {
     if (registry[ask.localName]?.["x-ask-surface"]) return ask;
-    const room = shownBox(box).height - clearanceOf(box);
+    // The screen the user can use is the scroller's landing band: clear of the banner
+    // over its top and the foot band over its bottom, so an ask's foot that fits is one
+    // the user can read rather than one under the shortcut bar.
+    const band = landingBand(box);
+    const room = band.bottom - band.top;
     // A region has to be somewhere the user can be taken. An element generating no box
     // measures (0,0) at the document's origin, which is not a degenerate answer but a
     // wrong one naming the top of the page (geometry.js says so at shownBox): a hidden
@@ -980,7 +975,7 @@ export function createAskView({
   function framed(record, region, ask, box, readable) {
     return (
       readable(ask) &&
-      shownBox(region).top >= shownBox(box).top + clearanceOf(box) &&
+      shownBox(region).top >= landingBand(box).top &&
       actionsOf(record).every(({ control }) =>
         readable(presentedActionControl(control)),
       )

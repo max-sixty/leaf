@@ -15,8 +15,9 @@ from .structure import VOID_TAGS, SourceDocument, parse_revision
 # ---------- passages: the text an anchor points at ----------
 # The runtime resolves an anchor against the DOM; `leaf thread open` writes one down
 # against the file. The two have to read the same page or the anchor lands somewhere it
-# was never made, so this mirrors leaf.js's capture rather than approximating it:
-# the same skip list, the same block-boundary space, the same collapse, the same caps.
+# was never made, so this mirrors the runtime's capture (passages.js) rather than
+# approximating it: the same skip list, the same block-boundary space, the same collapse,
+# the same caps.
 #
 # What the file cannot know is what a widget's module will write, and the registry is
 # where that is declared rather than guessed at per widget. Three keywords carry what
@@ -31,7 +32,7 @@ from .structure import VOID_TAGS, SourceDocument, parse_revision
 #               opaque, as a diagram's notation is once its module has drawn a picture.
 #   x-retired-when  the outcome under which this element leaves the page: a decided
 #               suggestion's losing slot. The browser builds its anchor pass's skip
-#               list from this key too (`quotable` in leaf.js), so a reading given
+#               list from this key too (`quotable` in passages.js), so a reading given
 #               the log's outcomes drops here exactly what drops there — and a widget
 #               whose decision leaves nothing showing goes with its slots (settledAway
 #               there, `gone` here). Its values are also the vocabulary's decision
@@ -60,7 +61,7 @@ from .structure import VOID_TAGS, SourceDocument, parse_revision
 # user on either side can reach.
 
 # The collapse class, stated outright: the characters a whitespace run is made of, one
-# spelling the set and the regex both derive from, matching leaf.js's COLLAPSE exactly.
+# spelling the set and the regex both derive from, matching collapse.js's COLLAPSE exactly.
 # JS's \s and Python's str.isspace() disagree at the edges — U+FEFF is whitespace to JS
 # alone, U+0085 and U+001C–001F to Python alone — and a page carrying one of those in
 # prose read differently on the two sides, so a `leaf thread open` quote could be written
@@ -221,7 +222,7 @@ class _PassageParser:
 
     `decided` is the outcome each suggestion stands under (`retirement_outcomes`).
     A decision retires a slot — the registry's `x-retired-when` names which outcome —
-    and the browser's anchor pass reads the same key (`quotable` in leaf.js), so
+    and the browser's anchor pass reads the same key (`quotable` in passages.js), so
     this reading drops it the same way. A decision that leaves its
     widget with nothing — a deletion accepted, an insertion refused — empties the
     wrapper too (`gone`), because an element showing nothing is one nobody can point
@@ -602,10 +603,9 @@ def spoken(document: SourceDocument, registry: dict) -> dict:
     record of what was open — and an element that says nothing is somewhere all the
     same. Keyed on words, an image-only option and a card holding one diagram were
     in no chain at all, so `action_rests_on` dropped them from what an action rests
-    on where the browser's `restsOn` keeps them (a floor stopped replaying on one
-    side only), and `markup_value` read a version that honoured a pick on such an
-    option as showing no pick, which is the state gate refusing the very version
-    that agreed with the user."""
+    on (a floor stopped replaying), and `markup_value` read a version that honoured a
+    pick on such an option as showing no pick, which is the state gate refusing the
+    very version that agreed with the user."""
     p = page_passages(document, registry)
     first, last = {}, {}
     for i, ids in enumerate(p.owner):

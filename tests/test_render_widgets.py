@@ -7606,7 +7606,9 @@ def test_a_widget_digit_shadows_only_the_matching_ask_alias(browser, serve):
 
     inspect = page.get_by_role("button", name="Inspect")
     page.keyboard.press("a")
-    expect(inspect).to_have_attribute("aria-keyshortcuts", "3")
+    # The control's own scope names its keys wherever the user stands; the Ask adds
+    # the digit that reaches it from the Ask.
+    expect(inspect).to_have_attribute("aria-keyshortcuts", "1 3")
     inspect.focus()
     expect(inspect).to_have_attribute("aria-keyshortcuts", "1 3")
     expect(page.locator(".lf-ask-binding-badges > .lf-ask-binding-badge")).to_have_text(
@@ -8077,6 +8079,47 @@ def test_an_ask_that_cannot_name_itself_arrives_on_the_words_that_explain_it(
         "the sentence the change stands in is not on screen above it"
     )
     assert landed["foot"] <= landed["view"], "the change itself ran off the screen"
+
+
+def test_an_arrival_region_fits_above_the_foot_band(browser, serve):
+    """The region an arrival takes in is measured against the landing band.
+
+    The shortcut bar stands over the window's foot, so a region measured against the
+    window below the banner put the heading at the top of the screen and the change it
+    was chosen for under the bar. The window is sized so the heading's region fits below
+    the banner but not above the foot band: the arrival takes a narrower region, and the
+    change stays where the user can read it.
+    """
+    page = open_page(browser, serve(SUGGESTION_IN_CONTEXT_PAGE))
+    resized(page, 900, 500)
+    measure = """() => {
+      const at = (id) => document.getElementById(id).getBoundingClientRect();
+      const style = getComputedStyle(document.scrollingElement);
+      return {
+        span: at('sc-sug').bottom - at('sc-api-heading').top,
+        foot: at('sc-sug').bottom,
+        view: document.scrollingElement.clientHeight,
+        top: parseFloat(style.scrollPaddingTop),
+        bottom: parseFloat(style.scrollPaddingBottom),
+      };
+    }"""
+    before = page.evaluate(measure)
+    assert before["bottom"] > 0, "the fixture has no foot band to land clear of"
+    resized(page, 900, round(before["span"] + before["top"] + before["bottom"] / 2))
+
+    page.keyboard.press("a")
+    expect(page.locator("#sc-sug")).to_be_focused()
+    scroll_settled(page)
+
+    landed = page.evaluate(measure)
+    assert landed["span"] == pytest.approx(before["span"], abs=1), (
+        "the resize reflowed the region, so the window no longer falls between the two "
+        "readings of the room"
+    )
+    assert landed["foot"] <= landed["view"] - landed["bottom"] + 0.5, (
+        f"the arrival put the change's foot at {landed['foot']:.1f}px, under the foot "
+        f"band that starts at {landed['view'] - landed['bottom']:.1f}px"
+    )
 
 
 def test_an_arrival_does_not_reach_back_into_the_ask_before_it(browser, serve):

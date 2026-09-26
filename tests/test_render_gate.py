@@ -236,10 +236,11 @@ def test_a_wide_page_whose_rows_split_anywhere_gets_advice_and_still_passes(
     assert "lp-status" not in advice, advice
 
 
-# Three drawings in the idiom. The first is drawn wider than the column holds, so the fit
+# Four drawings in the idiom. The first is drawn wider than the column holds, so the fit
 # takes its 11px labels to under half. The second is fitted by the same fraction, and its
 # 28px labels survive it. The third keeps its natural size, with the theme's 9px step
-# glyph on it.
+# glyph on it. The fourth is fitted like the first, but none of its words is drawn: one
+# label sits in <defs>, and the other's only run is a tspan out of the layout.
 DRAWN_LABELS_PAGE = leaf_page(
     "drawn labels",
     """
@@ -264,6 +265,13 @@ DRAWN_LABELS_PAGE = leaf_page(
     <text class="small" x="40" y="24">note</text>
   </svg>
 </figure>
+<figure id="undrawn">
+  <svg class="drawing" viewBox="0 0 1600 120" role="img" aria-label="Rollout key">
+    <defs><text x="20" y="40">draft</text></defs>
+    <rect class="mark" x="20" y="60" width="200" height="40" />
+    <text x="20" y="40"><tspan display="none">paused</tspan></text>
+  </svg>
+</figure>
 """,
 )
 
@@ -272,8 +280,9 @@ def test_a_drawing_fitted_until_its_labels_are_unreadable_gets_advice_and_still_
     browser, serve
 ):
     """Drawn size decides, and only the fit is advised about: the halved 28px labels
-    read fine, and the 9px glyph at its natural size is a size the source chose. The
-    drawing whose 11px labels came out at 5px is named once, with its smallest."""
+    read fine, the 9px glyph at its natural size is a size the source chose, and words
+    the drawing never paints have no drawn size at all. The drawing whose 11px labels
+    came out at 5px is named once, with its smallest."""
     url = serve(DRAWN_LABELS_PAGE, packages=())
     page = open_page(browser, url)
     drawn = page.evaluate(
@@ -288,8 +297,10 @@ def test_a_drawing_fitted_until_its_labels_are_unreadable_gets_advice_and_still_
     )
     page.close()
     # Each control is clear of the advice for its own reason, so each reason is shown
-    # holding: the large labels were shrunk, and the natural glyph is under the floor.
-    assert all(1 <= label["drawn"] < 0.5 * label["set"] for label in drawn["squeezed"])
+    # holding: the large labels were shrunk, the natural glyph is under the floor, and
+    # the undrawn labels would be as small as the squeezed ones if they were drawn.
+    for figure in ("squeezed", "undrawn"):
+        assert all(1 <= label["drawn"] < 0.5 * label["set"] for label in drawn[figure])
     assert all(10 < label["drawn"] < label["set"] for label in drawn["large"]), drawn
     assert any(
         label["drawn"] < 10 and abs(label["drawn"] - label["set"]) < 0.01

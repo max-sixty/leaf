@@ -2862,8 +2862,12 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
     resized(page, 1400, 900)
     margins_laid_out(page)
     roomy = page.evaluate(reading)
-    assert roomy["taken"] == 48
+    # At rest the map is its spine: it takes a strip of the margin, not its labels' width.
+    assert 0 < roomy["taken"] < roomy["toc"]["width"], roomy
     assert roomy["float"] == "left" and roomy["position"] == "sticky"
+    assert roomy["sidebar"]["right"] <= roomy["column"]["left"] - 23, (
+        f"the sidebar's box reached into the reading column: {roomy}"
+    )
     assert (
         abs(
             (roomy["column"]["left"] + roomy["column"]["right"]) / 2
@@ -2886,7 +2890,7 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
         "() => Number(getComputedStyle(document.querySelector('lf-toc a')).opacity) === 1"
     )
     expanded = page.evaluate(reading)
-    assert expanded["taken"] == 48
+    assert expanded["taken"] == roomy["taken"]
     assert expanded["toc"]["width"] == 320
     assert expanded["nav"]["width"] == 320
     assert expanded["column"] == roomy["column"]

@@ -3356,40 +3356,37 @@ def test_the_render_gate_tells_a_fixed_margin_resident_from_a_fixed_spill(
     ], f"a fixed box crossing the column escaped the gate: {failures}"
 
 
-def test_a_change_may_be_decided_over_the_note_it_stands_level_with(browser, serve):
+def test_a_change_level_with_a_note_is_decided_on_the_change(browser, serve):
     """Both residents of the right margin stand level with what they belong to — the
-    controls with the change they decide, the note with the block it annotates — so on
-    a page that writes one beside the other, the controls are drawn over the note's
-    first line. The controls stand in Leaf's margin layer over the page, which the gate
-    that reads words drawn on words does not count as the page's, so every page
-    composing the two idioms passes at handover. A page that wants the strip for its
-    notes says `data-rail="none"` and its markers stand as pins instead."""
+    controls with the change they decide, the note with the block it annotates — so the
+    controls of a change beside a note would be drawn over the note's first line. The
+    note holds the rail's strip there, so the controls stand as a pin on the change
+    instead, clear of the note, and the gate has no covered words to read."""
     url = serve(NOTE_BESIDE_A_CHANGE)
     page = open_page(browser, url)
     # A note hangs in the margin only where the room beside the column holds it.
     resized(page, 1600, 900)
     page.locator("#sug-level").scroll_into_view_if_needed()
     geometry = """() => {
-        const note = document.getElementById('level-note').getBoundingClientRect();
+        const note = document.getElementById('level-note');
         const row = document.querySelector("[data-lf-margin-for='sug-level']");
-        const b = row.getBoundingClientRect();
-        return {position: getComputedStyle(row).position,
-                across: Math.min(note.right, b.right) - Math.max(note.left, b.left),
-                down: Math.min(note.bottom, b.bottom) - Math.max(note.top, b.top)};
+        const n = note.getBoundingClientRect(), b = row.getBoundingClientRect();
+        return {float: getComputedStyle(note).float, place: row.dataset.lfPlace,
+                across: Math.min(n.right, b.right) - Math.max(n.left, b.left),
+                down: Math.min(n.bottom, b.bottom) - Math.max(n.top, b.top)};
     }"""
     level = page.evaluate(geometry)
     covered = render_checks_model.evaluate_probe(page, "coveredWords")
     page.close()
 
-    assert level["position"] == "absolute", (
-        f"the row never hung in the margin, so nothing here was tested: {level}"
+    assert level["float"] == "right", (
+        f"the note never hung in the margin, so nothing here was tested: {level}"
     )
-    assert level["across"] > 2 and level["down"] > 2, (
-        f"the controls and the note never met, so this proves nothing: {level}"
+    assert level["place"] == "pin", level
+    assert level["across"] <= 0 or level["down"] <= 0, (
+        f"the change's controls were drawn over the note: {level}"
     )
-    assert not [f for f in covered if "level-note" in f], (
-        f"a change's controls were refused the margin they are decided in: {covered}"
-    )
+    assert not [f for f in covered if "level-note" in f], covered
 
 
 def test_the_covered_words_gate_still_reads_a_control_in_the_flow(browser, serve):

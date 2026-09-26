@@ -793,7 +793,8 @@ def test_an_ask_with_more_than_one_answer_part_keeps_each_parts_height(browser, 
 @pytest.mark.xfail(
     strict=True,
     reason="A held workspace keeps no end room: a pane in a grid cell that passes no "
-    "height on overflows the window-high main, and its end scrolls under the band.",
+    "height on overflows the window-high main, and its end scrolls under the band; "
+    "TODO.md, Layouts, 'Give a held workspace's overflow its end room'",
 )
 def test_a_held_workspace_that_overflows_scrolls_its_end_clear_of_the_band(
     browser, serve

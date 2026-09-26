@@ -111,6 +111,11 @@ below don't block it.
 - **Keep a held workspace's panes, not its header, in the window.** At 1000×800
   alert-review's header and footer leave its detail pane about 370px, so the first Ask
   option is cut by the footer; rust-sort's film controls fall under the fold at 1200px.
+- **Give a held workspace's overflow its end room.** A held workspace is exactly the
+  window's height, and only its body's direct cells pass that height on: a pane inside a
+  section cell flows, overflows `main`, and its end scrolls under the bottom band with no
+  end room after it (`test_a_held_workspace_that_overflows_scrolls_its_end_clear_of_the_band`
+  is xfail on it). The body could scroll as a whole where a cell does not bound itself.
 - **Finish contract 8's margins.** A declared rail (`data-rail`) has no floor, so on a
   phone it leaves a 295px column. The contents map and other sidebars switch into the
   margin at different widths (848px against 1296px), which leaves an empty in-flow

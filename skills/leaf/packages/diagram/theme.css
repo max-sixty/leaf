@@ -36,7 +36,6 @@ lf-diagram[data-lf-space="available"]:not(.lf-rendered) {
  * capacity it requests from core. */
 lf-diagram.lf-rendered { font: inherit; color: inherit; display: flex;
                          justify-content: safe center; overflow-x: auto; }
-lf-diagram[data-lf-space="available"] { --lf-natural-inline-size: 1; }
 lf-diagram.lf-rendered::before,
 lf-diagram.lf-rendered::after { content: ""; flex: 0 1 auto; width: 0;
                                 position: sticky; }

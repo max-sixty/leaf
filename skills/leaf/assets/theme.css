@@ -785,7 +785,6 @@ main {
    * as a list rather than one :is(), so the painted selector keeps the specificity every
    * widget and package rule already overrides it at. */
   [data-lf-space], main [data-width] {
-    --lf-natural-inline-size: 0;
     /* Held to what is free beside the page (main's --lf-free-l and --lf-free-r), and
      * spent evenly each way where both sides are free; otherwise the freer side takes
      * what the other lacks. */

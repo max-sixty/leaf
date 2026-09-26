@@ -163,9 +163,9 @@ out side by side (a flex row, a grid) declares `--lf-holds-edge: 1`, so the trim
 it rather than taking one item's margin and leaving the others'.
 
 The runtime exposes declared layout facts as `[data-lf-inline]`, `[data-lf-space]`,
-`[data-lf-measure]`, `[data-lf-bound]`, and `[data-lf-exhibit]`; shared selectors read
-those attributes instead of naming widget tags. The registry's `$keys` entries for
-`x-space`, `x-measure`, and `x-bound` say what each declaration requests; none of them
+`[data-lf-bound]`, and `[data-lf-exhibit]`; shared selectors read those attributes
+instead of naming widget tags. The registry's `$keys` entries for `x-space` and
+`x-bound` say what each declaration requests; none of them
 chooses the widget's internal layout, which the package arranges inside the allocation.
 How wide the page is, and how its blocks are arranged, is the page's choice, made with a
 Layout class or its own CSS (`page-authoring.md`, "Layouts"); a package's element fills
@@ -174,10 +174,7 @@ override.
 When a bounded widget's scroller should be a box inside it, such as a listing under a
 caption that stays in view, the package theme moves the bound there under
 `[data-lf-bound]` and declares `--lf-bound-box: 1` on that box, which is the one Leaf
-keeps on its newest entry. A package whose available surface preserves a drawing's natural
-inline size sets `--lf-natural-inline-size: 1` on that surface so the render gate can
-distinguish honest source overflow from room withheld by the page; Leaf resets the fact
-on every declared surface, so it applies only to the element that states it. A box a
+keeps on its newest entry. A box a
 package scrolls sideways needs no declaration of its own: the runtime
 measures every scroller on each layout and marks each edge with content beyond it.
 Leaf fades the content at those edges, so a widget that has to scroll says so without

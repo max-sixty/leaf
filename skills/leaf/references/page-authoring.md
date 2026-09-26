@@ -111,14 +111,16 @@ the stack from these:
 A page grows without changing kind: a report that gains live status gains a row of
 tiles, and its comments and anchors stay put.
 
-The banner, the shortcut band at the foot of the window and the margin rail are fixed
-reservations, so the room a page has depends only on the window, and nothing Leaf draws
-moves the page's content ("The rail and the margin", below).
+The banner and the shortcut band at the foot of the window are fixed reservations, so
+the room a page has depends only on the window, and nothing Leaf draws moves the page's
+content: the rail stands in room the page leaves beside its column ("The rail and the
+margin", below).
 
 ### Layouts
 
 A Layout is a class that arranges the box it is on. Put one on `main` to shape the
-page, or on any block to arrange that block's children:
+page, or on any block to arrange that block's children. `layout-column` on a block keeps
+the measure but gives it no room to break out into, since that room is the page's:
 
 | Class | Arranges |
 | --- | --- |
@@ -212,7 +214,9 @@ An individual block or section may request a responsive allocation with
 `data-width="column"`, `data-width="wide"`, or `data-width="available"`. `column`
 uses the standard prose measure, including inside a wider section. `wide` uses the
 shared capped evidence width. `available` uses all room left by the page shell, frames,
-chrome, the rail, and the page's own margin residents. The occurrence overrides a
+chrome, and a margin resident that takes its side, such as a sidebar standing in the
+margin or the contents map's spine; the markers beside it then stand as pins on it, and
+it moves below a note hanging level with it. The occurrence overrides a
 widget's package default, so `data-width="column"` can deliberately keep a normally wide
 widget with the prose.
 Use these names on the semantic block itself, including a native `table`, `lf-code`, or
@@ -230,8 +234,10 @@ Leaf marks each commented or decided element with a marker: a thread, an Ask, a
 suggestion's ✓/✗. Nothing Leaf draws moves the page's content, so plan the page's
 geometry without them:
 
-- A column page keeps a rail, a strip `--rail` wide beside its column, from a shell of
-  863px up; its markers stand in it, 22px past the column.
+- A column page keeps a rail, a strip `--rail` wide beside its column, wherever the
+  room beside the column holds it: from a window of about 960px with a mouse and about
+  1010px with a finger. Its markers stand in it, 22px past the column. A marker level
+  with a note hanging in the margin stands as a pin instead.
 - A wide page fills the window up to its cap and keeps no rail there. Its
   markers stand as pins over the page inside the top-right corner of their blocks, as
   every marker does where the rail does not stand: in a narrower window, and in a pane

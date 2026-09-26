@@ -2961,6 +2961,50 @@ def test_a_walked_thread_leaves_through_what_holds_it(browser, serve):
     assert page.evaluate("() => document.activeElement === document.body")
 
 
+def test_threads_answers_c_in_the_thread_it_expanded_for_a_target(browser, serve):
+    """With Threads open, the list's expanded thread plays the margin card's part.
+
+    Arriving at a commented element by the keyboard expands its thread in the list, and
+    standing there is standing at that thread: its reply box wears `c`, `c` lands in
+    it, and the walk goes on from it.
+    """
+    url = serve(
+        INLINE_PAGE, anchored=[("p", "bold text"), ("p2", "neighbouring block")]
+    )
+    roots = [
+        event["id"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    ]
+    page = open_page(browser, url)
+    page.set_viewport_size({"width": 1600, "height": 900})
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page, True)
+    listed = [
+        page.locator(f'.lf-threads > .lf-thread[data-id="{root}"]') for root in roots
+    ]
+    line = page.locator(".lf-shortcut-bar")
+
+    # The list opens with the first thread expanded, so the second target is the one
+    # whose arrival has to move it.
+    expect(listed[1]).not_to_have_attribute("open", "")
+    page.keyboard.press("Tab")  # keyboard modality, so the focus below is visible
+    page.locator("#p2 .lf-mark-note").focus()
+    expect(listed[1]).to_have_attribute("open", "")
+    reply = listed[1].locator("textarea")
+    expect(reply).to_have_attribute("placeholder", "Reply c")
+    expect(line).to_contain_text("comment on the thread")
+    page.keyboard.press("c")
+    expect(reply).to_be_focused()
+
+    page.keyboard.press("Escape")
+    page.keyboard.press("Escape")
+    page.locator("#p .lf-mark-note").focus()
+    expect(listed[0]).to_have_attribute("open", "")
+    page.keyboard.press("t")
+    expect(listed[1].locator(":scope > .lf-thread-summary")).to_be_focused()
+
+
 def test_threads_panel_keeps_one_visible_thread_open_through_resolution(browser, serve):
     url = serve(PANEL_PAGE)
     roots = [panel_comment(serve.page_dir, f"Thread {i}.") for i in range(3)]

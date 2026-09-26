@@ -224,7 +224,7 @@ const navigation = createNavigation({
   threadDestinations: {
     openPageThread: (...args) => app.margin.openPageThread(...args),
     scrollToThread: (...args) => anchorTravel.scrollToThread(...args),
-    activeInlineThread: () => app.margin.activeInlineThread(),
+    threadHere: () => app.margin.threadHere(),
     inlineThreadView: () => app.margin.inlineThreadView,
   },
 });
@@ -538,7 +538,7 @@ responseSurface = createResponseSurface({
   panelIsOpen,
   landIn: landing.landIn,
   setPanel: (...args) => threadPanelController.setPanel(...args),
-  activeInlineThread: () => app.margin.activeInlineThread(),
+  threadHere: () => app.margin.threadHere(),
   standingElement,
   composerHolds: selectionComposer.composerHolds,
   responseOptionsAreOpen: selectionComposer.responseOptionsAreOpen,
@@ -645,7 +645,7 @@ threadPanelController = createThreadPanelController({
   auxiliarySurfaces,
   elements: { panel, toggleBtn, threadsBox },
   widen: () => widen(app.presentThread),
-  activeInlineThread: app.margin.activeInlineThread,
+  threadHere: app.margin.threadHere,
   showThread: landing.showThread,
   refreshThread: app.refreshThread,
   closeReactionMode: () => reactions.setReact(false),

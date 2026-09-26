@@ -129,7 +129,7 @@ export function createResponseSurface({
   panelIsOpen,
   landIn,
   setPanel,
-  activeInlineThread,
+  threadHere,
   standingElement,
   composerHolds,
   responseOptionsAreOpen,
@@ -1523,7 +1523,7 @@ export function createResponseSurface({
         box: fabInput,
         go: focusFabComment,
       };
-    const inline = activeInlineThread();
+    const inline = threadHere();
     const inlineBox = inline && threadInput(inline);
     const said =
       standingThread() ?? (inlineBox ? { held: inline, box: inlineBox } : null);

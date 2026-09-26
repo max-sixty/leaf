@@ -130,7 +130,7 @@ import { chromeRoot } from "./chrome.js";
 import { versionBtn } from "./version-chooser.js";
 import { motion, scrollBehavior } from "./motion.js";
 import { panel } from "./thread/panel-elements.js";
-import { accompanyThread } from "./thread/landing.js";
+import { accompaniedThread, accompanyThread } from "./thread/landing.js";
 import { closestAcross, elementById, inChrome } from "./passages.js";
 import { addressableSays, addressableWord, visualAt } from "./anchor-resolution.js";
 import { paintTrace } from "./target-paint.js";
@@ -2576,6 +2576,8 @@ export function createMarginProjection({
   // control, and the mark and the marker are its way to the thread.
   const threadIdOf = (entry) =>
     sourceItem(threadReading(entry).items[0]).thread.root.id;
+  const threadIdsOf = (entry) =>
+    threadReading(entry).items.map((item) => sourceItem(item).thread.root.id);
   // A thread seat already shows the thread where it stands on the page; a card
   // beside it would be the same thread twice.
   const seatedOnPage = (id) =>
@@ -2610,10 +2612,11 @@ export function createMarginProjection({
     // Nothing closes, since the list stays whole wherever the user stands.
     if (panelIsOpen()) {
       const entry = host ? host.lfEntry : threadEntryAt(active);
-      if (entry && threadReading(entry) && active.matches(":focus-visible"))
-        accompanyThread(
-          threadReading(entry).items.map((item) => sourceItem(item).thread.root.id),
-        );
+      if (entry && threadReading(entry) && active.matches(":focus-visible")) {
+        accompanyThread(threadIdsOf(entry));
+        // The focus arrival already painted; the expanded thread is now where `c` goes.
+        paintKeys();
+      }
       return;
     }
     if (host) {
@@ -2664,14 +2667,21 @@ export function createMarginProjection({
   const unfoldedMarginEntries = () =>
     expandedOptionsKey ? (hosts.get(expandedOptionsKey) ?? null) : null;
   const foldMarginEntryOptions = () => setOptionsOpen(null, false);
-  // The on-page thread the user is at. The card, its margin entry, and its target are
-  // one place (header), so standing on the entry or the target with the card up is
-  // standing at its thread when the card shows exactly one: `c` answers in its reply
-  // box, `t` walks on from it, and Threads opens at it.
-  const activeInlineThread = () => {
+  // The thread the user is at without standing inside it. The card, its margin entry,
+  // and its target are one place (header), so standing on the entry or the target with
+  // the card up is standing at its thread when the card shows exactly one; with Threads
+  // open, standing on the target is standing at the thread the list expanded for it.
+  // `c` answers in that thread's reply box, `t` walks on from it, and Threads opens at
+  // it. A thread inside the card or on the page is `.lf-page-thread`; one in the list is
+  // `.lf-thread`.
+  const threadHere = () => {
     const active = focused();
+    if (panelIsOpen()) {
+      const entry = active && !panel.contains(active) && threadEntryAt(active);
+      return entry ? accompaniedThread(threadIdsOf(entry)) : null;
+    }
     const direct = active?.closest?.(".lf-page-thread[data-thread]");
-    if (direct && !panelIsOpen()) return direct;
+    if (direct) return direct;
     if (!pinnedKey || previewEntry?.key !== pinnedKey || !previewOpen()) return null;
     const held = preview.contains(active) ? active.closest?.(".lf-page-thread") : null;
     if (held) return held;
@@ -2843,7 +2853,7 @@ export function createMarginProjection({
     marginEntryChoices,
     unfoldedMarginEntries,
     foldMarginEntryOptions,
-    activeInlineThread,
+    threadHere,
     captureStanding,
     restoreStanding,
     mount,

@@ -1302,17 +1302,47 @@ def local_worker() -> Iterator[str]:
     """
     origin = "http://127.0.0.1:8787"
     wrangler = ROOT / "worker" / "node_modules" / ".bin" / "wrangler"
-    with (
-        logged(ROOT / ".tmp" / "wrangler-dev.log") as output,
-        serving(
-            [str(wrangler), "dev", "--port", "8787", "--var", "AGENT_PREWARM:false"],
-            output,
-            lambda: answers(f"{origin}/"),
-            180,
-            cwd=ROOT / "worker",
-        ),
-    ):
-        yield origin
+    before = page_containers()
+    try:
+        with (
+            logged(ROOT / ".tmp" / "wrangler-dev.log") as output,
+            serving(
+                [
+                    str(wrangler),
+                    "dev",
+                    "--port",
+                    "8787",
+                    "--var",
+                    "AGENT_PREWARM:false",
+                ],
+                output,
+                lambda: answers(f"{origin}/"),
+                180,
+                cwd=ROOT / "worker",
+            ),
+        ):
+            yield origin
+    finally:
+        # Wrangler stops each session's container when it exits but leaves that
+        # container's `proxy-everything` sidecar running, and no later run
+        # reclaims it, so the containers this run started are removed here.
+        if started := page_containers() - before:
+            subprocess.run(
+                ["docker", "rm", "--force", *started],
+                stdout=subprocess.DEVNULL,
+                check=True,
+            )
+
+
+def page_containers() -> set[str]:
+    """The ids of the running containers `wrangler dev` started for this Worker."""
+    listed = subprocess.run(
+        ["docker", "ps", "--quiet", "--filter", "name=workerd-leaf-website-"],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return set(listed.stdout.split())
 
 
 def built_release(requested: str | None) -> str:

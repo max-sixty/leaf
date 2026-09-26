@@ -42,6 +42,7 @@ from interact_support import (
     read_page_data,
     record_claim,
     running_http_server,
+    vendored_by_another_leaf,
     wait_for,
 )
 from leaf import cli as cli_model
@@ -4630,6 +4631,36 @@ def test_server_start_names_the_page_layer_and_running_payload(page_dir):
         server = json.loads(state.output)["server"]
         assert server["runtime"]["path"] == str(schema_model.PLUGIN_ROOT)
         assert server["url"] in started.output
+    finally:
+        stopped = runner.invoke(cli_model.cli, ["server", "stop", str(page_dir)])
+        assert stopped.exit_code == 0, stopped.output
+
+
+def test_a_server_refuses_a_page_another_leaf_vendored_until_it_is_re_vendored(
+    page_dir,
+):
+    """A server speaks the contract of the Leaf that started it, and the page speaks
+    the one its last `page init` copied in. Served across the two, the page breaks in
+    the browser on every read, so the start is refused before it claims the page or
+    records a service, and the refusal names the re-vendor that ends it."""
+    runner = CliRunner()
+    foreign = vendored_by_another_leaf(page_dir)
+
+    refused = runner.invoke(cli_model.cli, ["server", "start", str(page_dir)])
+
+    assert refused.exit_code != 0, refused.output
+    assert foreign in refused.output
+    assert f"leaf page init {page_dir}" in refused.output
+    assert not service_model.claim_path(page_dir).exists()
+    assert files_model.read_json(page_dir / "service.json") is None
+    assert not leases_model.lock_is_held(page_dir / "server.lock")
+
+    reinitialized = runner.invoke(cli_model.cli, ["page", "init", str(page_dir)])
+    assert reinitialized.exit_code == 0, reinitialized.output
+    started = runner.invoke(cli_model.cli, ["server", "start", str(page_dir)])
+    try:
+        assert started.exit_code == 0, started.output
+        assert server_model.running_server(page_dir)
     finally:
         stopped = runner.invoke(cli_model.cli, ["server", "stop", str(page_dir)])
         assert stopped.exit_code == 0, stopped.output

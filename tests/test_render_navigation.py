@@ -5992,6 +5992,8 @@ def test_armed_hints_settle_after_resize(browser, serve):
     page.keyboard.press("g")
     page.set_viewport_size({"width": 800, "height": 700})
     page.clock.run_for(100)
+    # Let the settle callback's requested paint run before reading its chips.
+    page.clock.resume()
     expect(page.locator(CHIPS).first).to_be_visible()
 
 

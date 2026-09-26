@@ -6,10 +6,11 @@ page directory, composed on the order and merge grains in
 The page directory itself lives wherever the caller says —
 conventionally ~/.local/state/leaf/pages/<slug>/ — and is self-contained,
 so an approved version can't change under its user; re-running `page init`
-is the explicit re-vendor, on the sequence in `../../references/serving-pages.md`,
-"Re-vendoring and layer epochs". One transition covers start, stop, init,
-contract-bearing CLI writes, and preview reads. Stop retains it through the server's
-release, so no operation can cross the old process's contract.
+is the explicit re-vendor, which restarts a served page's server around it
+(`../../references/serving-pages.md`, "Re-vendoring and layer epochs"). One
+transition covers start, stop, init, contract-bearing CLI writes, and preview reads.
+Stop retains it through the server's release, so no operation can cross the old
+process's contract.
 
 A candidate layer must retain every page action or report whose sender it retains,
 including superseded predecessors that a later undo can expose. It must also retain
@@ -36,15 +37,22 @@ records three deliberately different identities under `$layer`:
   ask its running payload for the same source identity with `leaf --version`.
 - `runtime` is the SHA-256 identity of the kernel runtime modules the payload vendored
   from, read from its own `assets/runtime/` rather than recomposed from the page's
-  selections. It is the half the render gate's probe modules import: the gate serves
-  those probes from the Leaf running the command and the runtime those probes import
-  from the page, so the ephemeral server compares this identity and refuses a page
-  carrying another Leaf's runtime, rather than letting the mismatch arrive in the
-  browser as an export the page's runtime does not have. `fingerprint` cannot answer
+  selections. A page's server runs the Leaf that started it against the runtime the
+  page carries, and the render gate serves its probe modules from the Leaf running the
+  command against the same runtime, so every page server — durable, temporary, and the
+  gate's ephemeral one — compares this identity with its own payload's when it binds
+  the page (`http.page_endpoint`, `layer.foreign_runtime`) and refuses a page carrying
+  another Leaf's runtime, naming `leaf page init`. Served across the two, the page
+  would break in the browser on every read: a renamed field in the state the server
+  sends, or an export the page's runtime does not have. `fingerprint` cannot answer
   that question, because a package selection recorded beside it resolves against the
   project `page init` ran in and cannot be recomposed anywhere else. A page vendored
   before this identity existed records none and is refused the same way; `page init`
-  records it again.
+  records it again. The identity covers `assets/runtime/` alone: a contract change
+  made only in the Python server, the boot `leaf.js`, the theme, or a package's
+  widgets passes it. A checkout whose runtime modules were edited refuses every page
+  vendored before the edit until each is re-vendored; the MCP App's process page
+  server does not compare it.
 
 HTTP responses also identify the serving incarnation in `Leaf-Server`. A served
 page's inline, nonce-authorized bootstrap supervises startup before the module graph

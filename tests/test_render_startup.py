@@ -339,6 +339,9 @@ def test_a_preview_names_its_checkout_and_copies_diagnostics(browser, serve):
         "checkout": "fb77",
         "commit": "26499ea1abcd",
         "dirty": True,
+        "committed": (datetime.now().astimezone() - timedelta(days=3)).isoformat(
+            timespec="seconds"
+        ),
         "interaction": "user",
         "started": "2026-08-31T12:00:00+00:00",
     }
@@ -352,7 +355,7 @@ def test_a_preview_names_its_checkout_and_copies_diagnostics(browser, serve):
         context=context,
     )
     badge = page.locator(".lf-preview")
-    expect(badge).to_have_text("User · fb77@26499ea1abcd+")
+    expect(badge).to_have_text("User · fb77@26499ea1abcd+ · 3d ago")
     expect(badge).to_have_attribute("aria-label", "Copy preview diagnostics")
 
     page.get_by_role("button", name="More page controls", exact=True).click()
@@ -367,6 +370,7 @@ def test_a_preview_names_its_checkout_and_copies_diagnostics(browser, serve):
     assert "interaction: user" in diagnostics
     assert "commit: 26499ea1abcd" in diagnostics
     assert "dirty: true" in diagnostics
+    assert f"committed: {preview['committed']}" in diagnostics
     assert "layer generation:" in diagnostics
     assert "layer fingerprint: sha256:" in diagnostics
     assert "revision: 1" in diagnostics
@@ -388,8 +392,12 @@ def test_a_preview_names_its_checkout_and_copies_diagnostics(browser, serve):
         else "sha256:" + layer["fingerprint"].removeprefix("sha256:")[:12]
     )
     reference = ordinary.locator(".lf-layer-reference")
+    dated = producer.get("committed") or producer.get("installed")
     expect(reference).to_have_text(
-        f"Leaf {identity}{'+' if producer.get('dirty') else ''}"
+        re.compile(
+            rf"^Leaf {re.escape(identity)}{re.escape('+') if producer.get('dirty') else ''}"
+            + (r" · (just now|\d+[mhd] ago)$" if dated else "$")
+        )
     )
     expect(reference.locator("code")).to_have_text(
         f"{identity}{'+' if producer.get('dirty') else ''}"
@@ -402,6 +410,8 @@ def test_a_preview_names_its_checkout_and_copies_diagnostics(browser, serve):
     assert f"fingerprint: {layer['fingerprint']}" in diagnostics
     if producer.get("commit"):
         assert f"commit: {producer['commit']}" in diagnostics
+    if producer.get("committed"):
+        assert f"committed: {producer['committed']}" in diagnostics
 
 
 @pytest.mark.parametrize(

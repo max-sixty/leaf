@@ -9,6 +9,7 @@ import shutil
 import subprocess
 import sys
 import threading
+from datetime import datetime
 from pathlib import Path
 
 import playwright
@@ -581,6 +582,10 @@ def test_the_version_and_root_flags_describe_the_payload_this_leaf_ran_out_of(tm
     scripts = cached / "skills" / "leaf" / "scripts"
     scripts.mkdir(parents=True)
     shutil.copytree(SKILL_ROOT / "scripts" / "leaf", scripts / "leaf")
+    # A host's copy carries no `.git`, so the time it was made is the only date it
+    # has: every file written then, the running module's own included.
+    copied_at = 1_790_000_000
+    os.utime(scripts / "leaf" / "layer.py", (copied_at, copied_at))
     elsewhere = tmp_path / "unrelated-project"
     elsewhere.mkdir()
 
@@ -602,9 +607,19 @@ def test_the_version_and_root_flags_describe_the_payload_this_leaf_ran_out_of(tm
     assert there.returncode == 0, there.stderr
     assert there.stdout.strip() == str(cached.resolve())
 
-    version = asked("--version", PYTHONPATH=str(scripts))
+    version = asked("--version", PYTHONPATH=str(scripts), TZ="UTC")
     assert version.returncode == 0, version.stderr
-    assert version.stdout.strip() == f"leaf {cached_commit}"
+    assert (
+        version.stdout.strip()
+        == f"leaf {cached_commit}, installed 2026-09-21T14:13:20+00:00"
+    )
+
+    checkout = asked("--version")
+    assert checkout.returncode == 0, checkout.stderr
+    assert re.fullmatch(
+        r"leaf [0-9a-f]{12}\+?, committed \d{4}-\d\d-\d\dT\d\d:\d\d:\d\d[+-]\d\d:\d\d",
+        checkout.stdout.strip(),
+    ), checkout.stdout
 
     assert list(elsewhere.iterdir()) == []
 
@@ -875,9 +890,13 @@ def test_an_installed_payload_is_complete_and_launches_outside_the_checkout(tmp_
     installed_registry = json.loads((page / "registry.json").read_text())
     assert "lf-command" in installed_registry
     assert installed_registry["$layer"]["packages"] == list(PAGE_PACKAGES)
+    copied = installed / "skills" / "leaf" / "scripts" / "leaf" / "layer.py"
     assert installed_registry["$layer"]["producer"] == {
         "commit": commit,
         "dirty": False,
+        "installed": datetime.fromtimestamp(copied.stat().st_mtime)
+        .astimezone()
+        .isoformat(timespec="seconds"),
     }
     (page / "index.html").write_text(PAGE)
     publish_result = subprocess.run(
@@ -1675,10 +1694,12 @@ def test_payload_provenance_belongs_to_the_plugin_repo_without_writing_its_index
     index = plugin / ".git" / "index"
     before = index.stat().st_mtime_ns
 
+    committed = git(plugin, "show", "--no-patch", "--format=%cI", "HEAD").stdout.strip()
     clean = layer_model.payload_provenance(include_path=True)
     assert clean == {
         "path": str(plugin),
         "commit": git(plugin, "rev-parse", "--short=12", "HEAD").stdout.strip(),
+        "committed": committed,
         "dirty": False,
     }
 
@@ -1689,6 +1710,7 @@ def test_payload_provenance_belongs_to_the_plugin_repo_without_writing_its_index
     assert provenance == {
         "path": str(plugin),
         "commit": git(plugin, "rev-parse", "--short=12", "HEAD").stdout.strip(),
+        "committed": committed,
         "dirty": True,
     }
     assert index.stat().st_mtime_ns == before
@@ -1697,7 +1719,8 @@ def test_payload_provenance_belongs_to_the_plugin_repo_without_writing_its_index
 def test_payload_provenance_reads_claude_codes_git_versioned_plugin_cache(
     tmp_path, monkeypatch
 ):
-    """Claude's copied payload retains its source SHA in the documented cache path."""
+    """Claude's copied payload retains its source SHA in the documented cache path,
+    and dates itself by when the copy was made, which its running module carries."""
     commit = "4cb17dc60870"
     plugin = tmp_path / ".claude" / "plugins" / "cache" / "leaf" / "leaf" / commit
     plugin.mkdir(parents=True)
@@ -1712,10 +1735,14 @@ def test_payload_provenance_reads_claude_codes_git_versioned_plugin_cache(
         lambda *_args, **_kwargs: pytest.fail("a cached payload should not invoke Git"),
     )
 
+    copied = Path(layer_model.__file__).stat().st_mtime
     assert layer_model.payload_provenance(include_path=True) == {
         "path": str(plugin),
         "commit": commit,
         "dirty": False,
+        "installed": datetime.fromtimestamp(copied)
+        .astimezone()
+        .isoformat(timespec="seconds"),
     }
 
 

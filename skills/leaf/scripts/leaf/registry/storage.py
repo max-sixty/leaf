@@ -2,6 +2,7 @@
 
 import re
 import sys
+from datetime import datetime
 from functools import lru_cache
 from pathlib import Path
 
@@ -140,9 +141,22 @@ def layer_metadata(page_dir: Path) -> dict:
             )
         if dirty is not None and not isinstance(dirty, bool):
             raise RegistryError(f"{path}: $layer.producer.dirty must be true or false")
+        dates = {
+            kind: producer[kind]
+            for kind in ("committed", "installed")
+            if producer.get(kind) is not None
+        }
+        for kind, value in dates.items():
+            try:
+                datetime.fromisoformat(value)
+            except (TypeError, ValueError):
+                raise RegistryError(
+                    f"{path}: $layer.producer.{kind} must be an ISO 8601 date"
+                ) from None
         producer = {
             **({"commit": commit} if commit is not None else {}),
             **({"dirty": dirty} if dirty is not None else {}),
+            **dates,
         }
     return {
         "generation": generation,

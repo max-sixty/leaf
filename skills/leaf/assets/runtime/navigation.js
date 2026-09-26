@@ -3,7 +3,7 @@ import { cancelRender, nextFrame } from "./rendering.js";
 import { clampedRow } from "./keyboard/bindings.js";
 import { inPanel as panelFocusIsInside } from "./thread/panel-elements.js";
 import { openThreads } from "./thread/thread-list.js";
-import { inPageOrder, narrowed, threadSearchActive } from "./thread/narrowing.js";
+import { listedInPageOrder, narrowed, threadSearchActive } from "./thread/narrowing.js";
 import { coveringAuxiliarySurface, pageCommand } from "./keyboard/register.js";
 import { reducedMotion, scrollBehavior } from "./motion.js";
 import { threadsBox } from "./thread/panel-elements.js";
@@ -68,7 +68,7 @@ function stepThread(dir, destinations, panelIsOpen) {
     ? clampedRow(threads, current, dir)
     : threadFrom(
         threads,
-        !panelIsOpen() || inPageOrder() ? standingPlace() : null,
+        !panelIsOpen() || listedInPageOrder() ? standingPlace() : null,
         dir,
         threadTarget,
       );

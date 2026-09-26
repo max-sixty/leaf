@@ -344,13 +344,11 @@ def _take_server_lease(page_dir: Path, handshake: Handshake | None):
     sys.exit(f"another server run is serving {page_dir}; re-run")
 
 
-def _bind_server(page_dir: Path, access: dict, token: str, ports: list, lease):
+def _bind_server(page_dir: Path, access: dict, endpoint, ports: list, lease):
     """Bind the first available port, preserving a recorded address contract."""
     for port in ports:
         try:
-            return LeafHTTPServer(
-                (access["bind"], port), page_endpoint(page_dir, token)
-            )
+            return LeafHTTPServer((access["bind"], port), endpoint)
         except OSError as error:
             if error.errno == errno.EADDRINUSE and "port" not in access:
                 continue
@@ -412,12 +410,15 @@ def cmd_serve(
 
         access = page_access(page_dir, host)
         token = host_key()
+        # Before the lease and the record: a page this Leaf cannot serve refuses
+        # here, leaving the service as it found it.
+        endpoint = page_endpoint(page_dir, token)
         base = 41000 + zlib.crc32(str(page_dir.resolve()).encode()) % 4000
         ports = [access["port"]] if "port" in access else [*range(base, base + 10), 0]
         lease = _take_server_lease(page_dir, handshake)
         if lease is None:
             return
-        httpd = _bind_server(page_dir, access, token, ports, lease)
+        httpd = _bind_server(page_dir, access, endpoint, ports, lease)
         service = _service_record(access, httpd, standing, claimed, runtime)
         write_json(page_dir / SERVICE_FILE, service)
         url = page_url(service["host"], service["port"], token)
@@ -461,8 +462,9 @@ def start_server(
 
     Returns where the page is and what ends it — the URL the child minted and
     the note for the lifetime it recorded. Raises `StartRefused` with the child's
-    reason: a stale bind, a taken port, a flag the running server contradicts, or
-    a claim this session no longer holds.
+    reason: a stale bind, a taken port, a flag the running server contradicts, a
+    claim this session no longer holds, or a page vendored from another Leaf's
+    runtime.
     """
     require_cross_process_locking()
     answer = start_detached(

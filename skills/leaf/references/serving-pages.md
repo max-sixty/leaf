@@ -93,6 +93,14 @@ Initialization preserves the recorded address, lifetime, and page status, and
 writes a new layer epoch so an open tab reloads onto the new layer rather than
 posting into it.
 
+A page is served only by a Leaf whose browser runtime it carries. The server is
+whichever Leaf starts it, and the runtime is whatever the page's last `page init`
+copied in, so after a Leaf update, or an edit to a checkout's runtime, an older page
+no longer matches. `server start`, `server run`, and a revival by `leaf wait` then
+refuse, naming `leaf page init <page>`, and the page stays down until the sequence
+above re-vendors it. A wait whose revival was refused prints that refusal before
+reporting the server not running.
+
 ## Page lifetime
 
 On a page with no recorded lifetime, a normal `server start` from an agent

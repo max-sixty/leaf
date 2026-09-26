@@ -124,6 +124,15 @@ const INLINE = {
 const touches = (state, from, to) =>
   state.selection.ranges.some((range) => range.from <= to && range.to >= from);
 
+// A token's children in source order: its inline or block content, a list's items, and
+// a table's cells, header first.
+const children = (token) => [
+  ...(token.tokens ?? []),
+  ...(token.items ?? []),
+  ...(token.header ?? []).flatMap((cell) => cell.tokens),
+  ...(token.rows ?? []).flat().flatMap((cell) => cell.tokens),
+];
+
 // Where each token the renderer read stands in the draft. A token's `raw` is its exact
 // source, so each is found at or after the one before it. A container that rewrites
 // what it holds (a quote or a list strips its markers) is not found whole; its inner
@@ -133,11 +142,40 @@ function place(source, tokens, from, found) {
   for (const token of tokens) {
     const start = token.raw ? source.indexOf(token.raw, at) : -1;
     if (start >= 0) found.push({ token, from: start, to: start + token.raw.length });
-    for (const inner of [token.tokens, token.items])
-      if (inner) place(source, inner, Math.max(start, at), found);
+    place(source, children(token), Math.max(start, at), found);
     if (start >= 0) at = start + token.raw.length;
   }
   return found;
+}
+
+// Where a link's label closes: the `]` matching its opening `[`, backslash escapes
+// skipped, as CommonMark reads a label.
+function labelEnd(raw) {
+  for (let at = 1, depth = 0; at < raw.length; at++) {
+    if (raw[at] === "\\") at++;
+    else if (raw[at] === "[") depth++;
+    else if (raw[at] === "]" && depth-- === 0) return at;
+  }
+  return -1;
+}
+
+// How much of an inline construct's source opens and closes it, read from the source
+// itself: the renderer's child tokens hold unescaped text, which the source need not
+// contain. Null for a construct the preview does not style.
+function syntaxLengths(token) {
+  const { raw } = token;
+  if (token.type === "codespan") {
+    const run = raw.match(/^`+/)[0].length;
+    return [run, run];
+  }
+  if (token.type === "em") return [1, 1];
+  if (token.type === "strong") return [2, 2];
+  if (token.type === "del") return raw.startsWith("~~") ? [2, 2] : [1, 1];
+  if (token.type !== "link") return null;
+  if (raw.startsWith("<")) return [1, 1];
+  if (!raw.startsWith("[")) return [0, 0];
+  const end = labelEnd(raw);
+  return end < 0 ? null : [1, raw.length - end];
 }
 
 // The draft as the renderer reads it, placed. Empty until the renderer has loaded.
@@ -164,27 +202,21 @@ function decorate(state, placed) {
   };
   for (const { token, from, to } of placed) {
     const syntax = touches(state, from, to) ? dim : hide;
-    // The part of a construct that is its content, the rest being its syntax.
-    const content = () => {
-      const inner = token.tokens?.map((t) => t.raw).join("") ?? token.text;
-      const open = token.raw.indexOf(inner);
-      return open < 0 ? null : [from + open, from + open + inner.length];
-    };
-    if (INLINE[token.type]) {
-      const words = content();
-      if (!words) continue;
-      add(from, to, marked(INLINE[token.type]));
+    const lengths = syntaxLengths(token);
+    if (lengths) {
+      // The construct's words, between its opening and closing syntax.
+      const words = [from + lengths[0], to - lengths[1]];
+      if (words[0] > words[1]) continue;
+      // `[words](url)`, `[words][id]`, `<url>` and a bare address are drawn as links
+      // where the renderer kept them (`linked`); one it refused sends its words alone,
+      // so its syntax steps aside all the same.
+      if (token.type !== "link") add(from, to, marked(INLINE[token.type]));
+      else if (token.linked) add(words[0], words[1], marked("lf-md-link"));
       add(from, words[0], syntax);
       add(words[1], to, syntax);
-    } else if (token.type === "link") {
-      // `[words](url)`, `[words][id]`, `<url>` and a bare address. The renderer has
-      // already said whether it kept the link (`linked`); one it refused sends its words
-      // alone, so its syntax steps aside all the same.
-      const words = content();
-      if (!words) continue;
-      if (token.linked) add(words[0], words[1], marked("lf-md-link"));
-      add(from, words[0], syntax);
-      add(words[1], to, syntax);
+    } else if (token.type === "escape") {
+      // A backslash escape (`\*`) sends the character alone.
+      add(from, from + 1, syntax);
     } else if (token.type === "heading") {
       const end = from + token.raw.trimEnd().length;
       const atx = token.raw.match(/^ {0,3}#{1,6}(?:[ \t]+|$)/);

@@ -151,6 +151,39 @@ def test_browser_interactions_are_recorded_beside_server_requests(browser, serve
     )
 
 
+def test_browser_trace_records_where_touch_events_are_not_exposed(browser, serve):
+    """Firefox on a desktop without a touch screen, and Safari on a Mac, expose no
+    `TouchEvent` interface. Chromium and Playwright's WebKit always do, so the page
+    removes it before any module evaluates. A tap's native events still arrive, and
+    the trace still reads their touch points."""
+    url = serve(leaf_page("Trace desktop", '<h1 id="trace-target">Trace desktop</h1>'))
+    context = browser.new_context(
+        viewport={"width": 1200, "height": 900}, has_touch=True
+    )
+    page = open_page(
+        browser, url, context=context, init_script="delete window.TouchEvent"
+    )
+    with page.expect_response(
+        lambda response: (
+            response.url.endswith("/api/interaction")
+            and response.ok
+            and any(
+                entry["type"] == "click"
+                for entry in response.request.post_data_json["entries"]
+            )
+        )
+    ):
+        page.locator("#trace-target").tap()
+
+    rows = [
+        json.loads(line)
+        for line in (serve.page_dir / "interactions.jsonl").read_text().splitlines()
+    ]
+    assert any(
+        row.get("type") == "touchstart" and len(row["touches"]) == 1 for row in rows
+    )
+
+
 def test_browser_trace_sheds_repeated_gestures_when_delivery_stalls(browser, serve):
     url = serve(leaf_page("Trace backlog", '<h1 id="trace-target">Trace backlog</h1>'))
     page = open_page(browser, url)

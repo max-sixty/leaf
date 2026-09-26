@@ -550,6 +550,22 @@ def test_an_accept_carries_its_thread_resolution():
     assert threads["e1"]["resolved"]["meaning"]["answer"] == "e1"
 
 
+def test_the_answer_that_settles_a_thread_acknowledges_what_it_said():
+    """Deciding the suggestion a thread asked for is a move in that thread even
+    though the widget stands on the page, so the agent's reply before it reads as
+    taken in, as a reply or resolve there would. Taking the answer back withdraws
+    that evidence, and the undo that takes it back is none of its own."""
+    reply = {"kind": "reply", "author": "agent", "parent": "e1", "text": "Try sug-a."}
+
+    def unread(*events):
+        thread = model.threads(model.reading(SETTLED, (ASKED, reply, *events)))["e1"]
+        return [item["message"] for item in thread["unread"]]
+
+    assert unread() == ["e2"]
+    assert unread(PICKED) == []
+    assert unread(PICKED, {"kind": "undo", "undoes": "e3"}) == ["e2"]
+
+
 def test_an_answer_the_user_took_back_leaves_its_thread_open(page_dir):
     """An action names the thread it settles, and it settles it only while the
     user still stands behind it. Withdrawing the answer is one of the three ways

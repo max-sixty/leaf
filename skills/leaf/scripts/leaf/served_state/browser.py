@@ -13,6 +13,7 @@ from ..registry.storage import load_registry
 from ..requests import request_outcomes
 from ..revision_artifact import read_artifact
 from ..structure import SourceDocument
+from ..thread_context import thread_memberships
 from ..workflows import canonical_workflows
 from .document import browser_document, browser_undo_candidates
 from .thread import browser_thread
@@ -24,7 +25,13 @@ def _apply_thread_attention(
     workflows: list[dict],
     thread_by_widget: dict[str, str],
 ) -> None:
-    """Attach the shared attention aggregate, with user Asks taking precedence."""
+    """Attach the shared attention aggregate, with user Asks taking precedence.
+
+    This is the browser's one reading of whose turn a thread is: `needs_user` for
+    an open Ask or a question the agent's latest turn leaves (`awaits_user`), or a
+    response the user must recover; `waiting` while a workflow holds the thread with
+    the agent, which covers every input `events.unanswered_turns` holds and any work
+    claimed on the thread after it was answered; else None."""
     user_threads = {ask["thread"] for ask in asks["user"]}
     stage_rank = {
         "sent": 0,
@@ -146,7 +153,7 @@ def browser_state(
     )
     live_reply = canonical_stream_reply(present, now, (live_stream or {}).get("reply"))
     thread, thread_reading = browser_thread(
-        events, active_registry, threads, live_reply, data
+        events, active_registry, threads, active_within, live_reply, data
     )
     thread_projection = thread_reading.projection
 
@@ -231,7 +238,10 @@ def browser_state(
             revisions
             or (lambda revision: (documents[revision], registry_for(revision))),
         )
-        page_history = {"history": history(events, threads, words)}
+        memberships = thread_memberships(
+            events, thread_reading.roots, thread_reading.thread_by_widget, active_within
+        )
+        page_history = {"history": history(events, threads, words, memberships)}
     else:
         page_history = {}
     return {

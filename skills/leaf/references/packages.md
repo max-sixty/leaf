@@ -1096,8 +1096,8 @@ presentation and on later publications and placement updates. `readThreads()` re
 that collection outside a surface; `threadTurns(thread)` selects a Thread's displayed
 turns and `threadSummary(thread)` its topic, turn count, and `latest`. For whether a
 Thread waits on the user, read unresolved `attention.kind === "needs_user"`, which
-includes recovery after a failed response, rather than the raw `awaits_user` turn
-flag. Each Thread's `key` survives admission of a pending gesture, and its `anchor`
+includes recovery after a failed response; `"waiting"` means it is with the agent.
+Each Thread's `key` survives admission of a pending gesture, and its `anchor`
 names the `section` (the widget's id) and `datum` it rests on. A returned promise
 participates in document presentation. The second argument's `signal` is aborted when
 presentation fails, a newer render supersedes it, or the consumer unregisters;

@@ -38,6 +38,7 @@ from .served_state.page import full_state
 from .server import running_server
 from .service import PageTransaction, unacknowledged
 from .structure import SourceDocument, parse_revision
+from .thread_context import thread_memberships
 
 
 def standing_entry(coordinate, e: dict, thread: str | None = None) -> dict:
@@ -387,7 +388,16 @@ def _write_page_state(
     _apply_thread_state(state, thread_reading)
     # The user's side between their moves: which of your messages they have not
     # taken in yet, at their current content version.
-    unread = unread_content(events, threads, thread_reading.thread_by_widget)
+    unread = unread_content(
+        events,
+        threads,
+        thread_memberships(
+            events,
+            thread_reading.roots,
+            thread_reading.thread_by_widget,
+            enclosing_of(spoken),
+        ),
+    )
     for thread in state["threads"]:
         thread["unread"] = [item["message"] for item in unread[thread["id"]]]
     if thread_id is not None:

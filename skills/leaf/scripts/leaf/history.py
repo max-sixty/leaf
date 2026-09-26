@@ -21,7 +21,6 @@ carries it when the page's markup holds a widget whose entry declares `x-history
 
 from .events import taken_back
 from .gesture_words import GestureWords
-from .thread_context import thread_roots
 
 # The newest rows a reading carries.
 LIMIT = 50
@@ -81,14 +80,19 @@ def _report(event: dict, words: GestureWords) -> dict:
     }
 
 
-def history(events: list, threads: dict, words: GestureWords) -> list[dict]:
-    """The newest `LIMIT` rows, newest first."""
+def history(
+    events: list, threads: dict, words: GestureWords, memberships: dict
+) -> list[dict]:
+    """The newest `LIMIT` rows, newest first.
+
+    `memberships` is `thread_context.thread_memberships` over the same log. A
+    message, edit, resolve or reopen row names the one thread it belongs to; a
+    widget row names its widget, whichever thread the move also answers."""
     by_id = {event["id"]: event for event in events}
-    roots = thread_roots(events)
     withdrawn = taken_back(events)
 
-    def thread_of(message_id: str | None) -> dict | None:
-        root_id = roots.get(message_id)
+    def thread_of(event: dict) -> dict | None:
+        root_id = next(iter(memberships[event["id"]]), None)
         root = by_id.get(root_id)
         if root is None or root["kind"] != "comment":
             return None
@@ -121,20 +125,18 @@ def history(events: list, threads: dict, words: GestureWords) -> list[dict]:
             if event.get("token"):
                 row["token"] = event["token"]
             else:
-                row["thread"] = thread_of(event["id"])
+                row["thread"] = thread_of(event)
                 row["holds"] = event.get("holds")
                 row["drawing"] = bool(event.get("drawing"))
                 row["excerpt"] = event.get("text")
         elif kind == "reply":
-            row["thread"] = thread_of(event["id"])
+            row["thread"] = thread_of(event)
             if event.get("token"):
                 row["token"] = event["token"]
             else:
                 row["excerpt"] = event.get("text")
-        elif kind == "edit":
-            row["thread"] = thread_of(event["message"])
-        elif kind in {"resolve", "unresolve"}:
-            row["thread"] = thread_of(event["parent"])
+        elif kind in {"edit", "resolve", "unresolve"}:
+            row["thread"] = thread_of(event)
         elif kind == "action":
             row["widget"] = event["widget"]
             row["gesture"] = _gesture(event, words)

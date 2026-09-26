@@ -14,11 +14,11 @@ timed run starts.
 
 A child is `claude -p` from a scratch cwd outside any repository, with project-only
 settings, no MCP servers, auto-memory off, and none of the variables that identify an
-agent session running the harness (`environment`). Claude Code loads every `CLAUDE.md` above its cwd, and under `$HOME` that
-includes `~/.claude/CLAUDE.md` as a project file, so a child whose cwd sat in this
-checkout read the user's instructions and this checkout's `CLAUDE.md` whatever arm it
-ran. With auto-memory on it also read the repository's memory, and saved to it.
-`--add-dir` grants reads without loading a directory's `CLAUDE.md`.
+agent session running the harness (`environment`). Claude Code loads project
+instructions above its cwd, so a child whose cwd sat in this checkout read its
+`AGENTS.md` whatever arm it ran. With auto-memory on it also read the repository's
+memory, and saved to it. `--add-dir` grants reads without loading a directory's
+project instructions.
 The child's `TMPDIR` is inside its cwd, because concurrent children otherwise write the
 same `/tmp` names and can read each other's.
 """

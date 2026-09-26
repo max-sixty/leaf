@@ -18,7 +18,14 @@ import { overlapsAcross } from "./rect.js";
 // pin instead: the figure keeps its shape and the comment lands on what it is about. A
 // note hanging in the right margin level with the row holds the rail's strip there, so
 // that row pins too (`noted`).
-export function rowPosture({ railStands, rootLane, blockRight, railInner, half, noted }) {
+export function rowPosture({
+  railStands,
+  rootLane,
+  blockRight,
+  railInner,
+  half,
+  noted,
+}) {
   if (!railStands || !rootLane || noted) return "pin";
   return blockRight - half > railInner ? "pin" : "rail";
 }

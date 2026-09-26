@@ -167,14 +167,26 @@ export function splitEdges() {
       const items = [...el.children].filter((child) => {
         if (child.matches(".lf-ui, [data-lf-gen]")) return false;
         const c = getComputedStyle(child);
-        return c.display !== "none" && c.position !== "absolute" && c.position !== "fixed";
+        return (
+          c.display !== "none" && c.position !== "absolute" && c.position !== "fixed"
+        );
       });
       if (items.length < 2) continue;
       for (const [edge, token, prop, item, line] of [
-        ["above", "--lf-frame-start", "marginBlockStart", items[0],
-          (b, m) => b.top - m],
-        ["below", "--lf-frame-end", "marginBlockEnd", items[items.length - 1],
-          (b, m) => b.bottom + m],
+        [
+          "above",
+          "--lf-frame-start",
+          "marginBlockStart",
+          items[0],
+          (b, m) => b.top - m,
+        ],
+        [
+          "below",
+          "--lf-frame-end",
+          "marginBlockEnd",
+          items[items.length - 1],
+          (b, m) => b.bottom + m,
+        ],
       ]) {
         if (s.getPropertyValue(token).trim() !== "1") continue;
         const own = px(getComputedStyle(item)[prop]);

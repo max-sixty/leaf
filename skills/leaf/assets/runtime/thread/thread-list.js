@@ -159,7 +159,7 @@ function incomingAtLatest(reading, panelIsOpen, namedCard) {
   if (!panelIsOpen()) return null;
   const card = threadsBox.querySelector(":scope > .lf-thread[open]:not([hidden])");
   if (namedCard && namedCard !== card) return null;
-  const prior = threadsBox.committedReading.rows.find(
+  const prior = threadsBox.committed.rows.find(
     (row) => row.kind === "thread" && row.descriptor.id === card?.dataset.id,
   )?.descriptor;
   const next = reading.rows.find(

@@ -1,32 +1,28 @@
 /* The Asks tray's generated list. Its immutable row models contain only the words and
-   identities the view has already derived; this owner keys those rows by Ask id and
-   keeps the native light-DOM buttons stable across presentations. */
-import { LitElement, html, repeat } from "../../vendor/browser-runtime.js";
+   identities the view has already derived; this retained face keys those rows by Ask id
+   and keeps the native light-DOM buttons stable across presentations. */
+import { html, repeat } from "../../vendor/browser-runtime.js";
 import { PRESS } from "../keyboard/bindings.js";
 import { keys } from "../keyboard/scopes.js";
+import { RetainedFace, RowFocus } from "../retained-face.js";
 
 export const ASK_AT = "data-lf-at";
 const TAG = "lf-asks-tray-list";
 
 const EMPTY_MODEL = Object.freeze({ open: false, rows: Object.freeze([]) });
 
-class AskTrayList extends LitElement {
-  static properties = { model: { attribute: false } };
-
+class AskTrayList extends RetainedFace {
   #activate = null;
-  #committed = EMPTY_MODEL;
-  #failure = null;
   #fallback = null;
-  #focusAfterPaint = undefined;
+  #focus = new RowFocus(this, {
+    rows: `button[${ASK_AT}]`,
+    key: ASK_AT,
+    keys: (model) => model.rows.map(({ id }) => id),
+  });
   #wired = new WeakSet();
 
   constructor() {
-    super();
-    this.model = EMPTY_MODEL;
-  }
-
-  createRenderRoot() {
-    return this;
+    super(EMPTY_MODEL);
   }
 
   configure({ activate, fallback }) {
@@ -34,63 +30,19 @@ class AskTrayList extends LitElement {
     this.#fallback = fallback;
   }
 
-  async present(model) {
-    this.#failure = null;
-    this.model = model;
-    await this.updateComplete;
-    if (this.#failure) throw this.#failure;
-    return model;
-  }
-
-  commit() {
-    this.#committed = this.model;
-  }
-
-  async retainCommitted() {
-    this.#failure = null;
-    this.model = this.#committed;
-    await this.updateComplete;
-    if (this.#failure) throw this.#failure;
-    return this.#committed;
-  }
-
-  async scheduleUpdate() {
-    try {
-      await super.scheduleUpdate();
-    } catch (error) {
-      // Lit otherwise reports a rejected internal update in addition to the application
-      // presentation coordinator. Capture it here; present() rejects the one owned
-      // completion and the coordinator reports that failure once before retaining the
-      // last committed keyed list.
-      this.#failure = error;
-    }
-  }
-
   willUpdate(changed) {
     if (!changed.has("model")) return;
+    // A tray opened from its edge lands on the first row once that row exists.
     if (
       this.model.open &&
-      !this.#committed.open &&
-      this.#focusAfterPaint === undefined &&
+      !this.committed.open &&
       document.activeElement === this.parentElement &&
       this.model.rows.length
     ) {
-      this.#focusAfterPaint = this.model.rows[0].id;
+      this.#focus.land(this.model.rows[0].id);
       return;
     }
-    const focused = document.activeElement?.closest?.(`button[${ASK_AT}]`);
-    if (!focused || !this.contains(focused)) return;
-    const nextIds = new Set(this.model.rows.map(({ id }) => id));
-    const heldId = focused.getAttribute(ASK_AT);
-    if (nextIds.has(heldId)) return;
-    const priorIds = this.#committed.rows.map(({ id }) => id);
-    const at = priorIds.indexOf(heldId);
-    const after = priorIds.slice(at + 1).find((id) => nextIds.has(id));
-    const before = priorIds
-      .slice(0, at)
-      .reverse()
-      .find((id) => nextIds.has(id));
-    this.#focusAfterPaint = after ?? before ?? null;
+    this.#focus.hold(this.model, this.committed);
   }
 
   updated() {
@@ -106,15 +58,7 @@ class AskTrayList extends LitElement {
         },
       ]);
     }
-    if (this.#focusAfterPaint === undefined) return;
-    const id = this.#focusAfterPaint;
-    this.#focusAfterPaint = undefined;
-    const destination = id
-      ? [...this.querySelectorAll(`button[${ASK_AT}]`)].find(
-          (row) => row.getAttribute(ASK_AT) === id,
-        )
-      : null;
-    (destination ?? this.#fallback)?.focus();
+    this.#focus.restore(this.#fallback);
   }
 
   #activateRow = (event) => {

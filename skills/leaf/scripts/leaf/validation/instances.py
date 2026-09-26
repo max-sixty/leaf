@@ -116,8 +116,8 @@ def widget_errors(lf_elements: list, registry: dict) -> list:
 
 
 def layout_errors(lf_elements: list, registry: dict) -> list:
-    """Validate the direct grammar of registry-declared structural elements: a workspace
-    or pane is an optional header, exactly one body element, and an optional footer."""
+    """Validate the direct grammar of registry-declared structural elements: a pane is an
+    optional header, exactly one body element, and an optional footer."""
     errors = []
     for rec in lf_elements:
         role = registry.get(rec["tag"], {}).get("x-reading-role")

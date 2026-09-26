@@ -7,29 +7,18 @@
 /* ---------- element-widgets ---------- */
 
 
-/* lf-workspace keeps task regions together while the space allows, and lf-pane is one of
- * them. Both are authored grammar with no generated wrappers: an optional header, one
- * body element, an optional footer. The rows are `auto 1fr auto` in either posture,
- * because a grid row's minimum is its content's: a body that scrolls contributes
- * nothing and the row takes what the header and footer leave, while a body that
- * doesn't holds the row at its full height and the box overflows into the page.
- *
- * Posture is one container query on the workspace's own box. A root workspace (main's
- * only block, or a root tab's) is a size container at the window's height;
- * when that box holds the regions (--lf-workspace-min, below) each pane's body scrolls
- * and its header and footer stay in view. When it doesn't, nothing scrolls inside and
- * the page does, with each grid keeping the columns its width allows. Any other
- * workspace is an inline-size container, which a height query never matches, so it
- * always flows. The switch paints with the page and answers the space the workspace
- * actually has; `reading-regions.js` reads which box scrolls from the result. Copies
- * and paper have no window to hold, so the size container and every bounded rule are
- * the live screen's alone.
+/* lf-pane is one task region: authored grammar with no generated wrappers, an optional
+ * header, one body element, an optional footer. The rows are `auto 1fr auto`, because a
+ * grid row's minimum is its content's: a body that scrolls contributes nothing and the
+ * row takes what the header and footer leave, while a body that doesn't holds the row at
+ * its full height. Whether a body scrolls is the stylesheet's: the workspace Layout
+ * scrolls pane bodies where it holds the window (layouts.css), and `reading-regions.js`
+ * reads which box scrolls from the result.
  *
  * A widget that composes regions out of boxes it generates, such as a playground's
- * controls beside its preview, marks them data-lf-reading-role="pane" and
- * takes these same rules, bounded ones included, so no package keeps a copy of them.
- * The attribute sits inside :where(), so every selector keeps the tag's specificity. */
-lf-workspace,
+ * controls beside its preview, marks them data-lf-reading-role="pane" and takes these
+ * same rules, so no package keeps a copy of them. The attribute sits inside :where(), so
+ * every selector keeps the tag's specificity. */
 :is(lf-pane, :where([data-lf-reading-role="pane"])) {
   display: grid;
   grid-template-rows: auto 1fr auto;
@@ -37,22 +26,15 @@ lf-workspace,
   min-width: 0;
   --lf-block-frame: 1;
 }
-lf-workspace {
-  container: lf-workspace / inline-size;
-}
-:is(lf-workspace, lf-pane, :where([data-lf-reading-role="pane"])) > header {
+:is(lf-pane, :where([data-lf-reading-role="pane"])) > header {
   grid-row: 1; margin: 0;
 }
-:is(lf-workspace, lf-pane, :where([data-lf-reading-role="pane"])) > footer {
+:is(lf-pane, :where([data-lf-reading-role="pane"])) > footer {
   grid-row: 3; margin: 0;
 }
-:is(lf-workspace, lf-pane, :where([data-lf-reading-role="pane"])) > :not(header, footer) {
+:is(lf-pane, :where([data-lf-reading-role="pane"])) > :not(header, footer) {
   grid-row: 2; min-width: 0; margin: 0;
 }
-/* A workspace's header and footer keep their distance from its body themselves, so a
- * workspace without one spends nothing on the row it leaves empty. */
-lf-workspace > header { margin-bottom: var(--sp-3); }
-lf-workspace > footer { margin-top: var(--sp-3); }
 :is(lf-pane, :where([data-lf-reading-role="pane"])) {
   border: 1px solid var(--rule);
   border-radius: var(--r);

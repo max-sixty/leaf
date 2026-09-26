@@ -125,17 +125,6 @@ def main_roots(parser: SourceDocument) -> tuple:
     ]
 
 
-def sole_workspace(roots: list, registry: dict) -> dict | None:
-    """The workspace that is `main`'s only block, if one is."""
-    if (
-        len(roots) == 1
-        and isinstance(roots[0], dict)
-        and registry.get(roots[0]["tag"], {}).get("x-reading-role") == "workspace"
-    ):
-        return roots[0]
-    return None
-
-
 def missing_outline(parser: SourceDocument, registry: dict) -> list:
     """A document with several headings and nothing that lists them. Advice, never a
     gate: the outline widget's own entry states the default — a page with two or
@@ -150,7 +139,8 @@ def missing_outline(parser: SourceDocument, registry: dict) -> list:
     headings says nothing the page has not already said."""
     main, roots = main_roots(parser)
     if main is not None:
-        workspace = sole_workspace(roots, registry) is not None
+        # A workspace page holds the window with its regions in view; it needs no map.
+        workspace = "layout-workspace" in main["attrs"].get("class", "").split()
         # The page's view navigation is a block directly in main that declares it.
         page_navigation = any(
             isinstance(node, dict)

@@ -282,11 +282,19 @@ def _css_references(tokens):
 
     Those are a `url()` in either spelling, a string argument of `image-set()`, and
     the string form of a top-level `@import`. An `@import` nested in a block is
-    ignored, as a browser ignores it: tinycss2 reads one as a bare at-keyword inside
-    the block's content rather than as a rule. The tokens are the parser's own, so a
-    caller that rewrites one and serializes the tree changes that URL and nothing else.
+    ignored in either spelling, as a browser ignores it: tinycss2 reads one as a bare
+    at-keyword inside the block's content rather than as a rule, and everything up to
+    its `;` is skipped. The tokens are the parser's own, so a caller that rewrites one
+    and serializes the tree changes that URL and nothing else.
     """
+    nested_import = False
     for token in tokens:
+        if nested_import:
+            nested_import = not (token.type == "literal" and token.value == ";")
+            continue
+        if token.type == "at-keyword" and token.lower_value == "import":
+            nested_import = True
+            continue
         if token.type == "error":
             raise ArtifactError(f"invalid CSS: {token.message}")
         if token.type == "url":

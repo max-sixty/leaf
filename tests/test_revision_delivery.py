@@ -119,10 +119,10 @@ def test_capture_delivery_and_export_read_one_set_of_stylesheet_urls(tmp_path):
     """Capture decides which files a stylesheet needs, delivery re-addresses them, and
     export embeds them, so all three have to find the same URLs in one sheet: a URL
     only capture finds is a file nobody serves, and one only export finds is a file
-    capture never kept. An `@import` nested in a block is none of them, because a
-    browser ignores it."""
+    capture never kept. An `@import` nested in a block is none of them in either
+    spelling, because a browser ignores it."""
     sheet = """@import "./base.css";
-@supports (display: grid) { @import "./ignored.css"; }
+@supports (display: grid) { @import "./ignored.css"; @import url(./ignored.css); }
 main { background: image-set("./a.png" 1x, url(./b.png) 2x); }
 @font-face { src: url(/page/f.woff2) format("woff2"); }
 """
@@ -143,7 +143,7 @@ main { background: image-set("./a.png" 1x, url(./b.png) 2x); }
 
     delivered = deliver_resource(captured, "/page/style.css", ROOT).decode()
     assert {path for path in expected if f'"{ROOT}{path}"' in delivered} == expected
-    assert '@import "./ignored.css"' in delivered
+    assert '@import "./ignored.css"; @import url(./ignored.css);' in delivered
 
     read = []
 

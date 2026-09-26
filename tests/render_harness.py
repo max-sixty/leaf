@@ -1030,7 +1030,7 @@ there yet, so it is set where a merely slow handover still finishes and a wedged
 one still fails well inside the nightly step's own bound. Waiting longer weakens
 no claim, since the stamps say the same thing whenever they arrive and nothing
 here reads how quickly a page came up — the suite's startup readings are the
-phase profile `scripts/verify-site-local.sh` takes."""
+phase profile `scripts/verify_site.py wrangler` takes."""
 STORED_DRAFT_TEXT = """ctx => {
   try {
     const record = JSON.parse(localStorage.getItem('lf-draft:' + ctx));

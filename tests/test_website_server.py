@@ -1116,6 +1116,25 @@ def test_the_agent_pass_emits_one_json_sample_for_local_and_remote_targets(
     assert invalid.exit_code == 2
     assert len(calls) == 2
 
+    # Through the local Worker the pass holds the container to the built release.
+    @contextmanager
+    def worker():
+        lifecycle.append("worker")
+        yield "http://127.0.0.1:8787"
+
+    manifest = tmp_path / "site.json"
+    manifest.write_text(json.dumps({"release": "b" * 40}))
+    monkeypatch.setattr(verify_site, "MANIFEST", manifest)
+    monkeypatch.setattr(verify_site, "local_worker", worker)
+    wrangler_result = runner.invoke(verify_site.main, ["wrangler", "--agent"])
+    assert wrangler_result.exit_code == 0, wrangler_result.output
+    assert calls[-1] == ("http://127.0.0.1:8787", "b" * 40, False)
+    stale = runner.invoke(
+        verify_site.main, ["wrangler", "--agent", "--release", "c" * 40]
+    )
+    assert "differs from the built site" in str(stale.exception)
+    assert lifecycle == ["start", "stop", "worker"]
+
 
 def test_the_website_app_server_inherits_the_ready_leaf_cli(tmp_path, monkeypatch):
     """A hosted task must not discover or initialize another plugin environment."""

@@ -472,6 +472,9 @@ test("accepted reading order includes non-event activity and data taken in order
   const app = setup();
   const newer = { ...state(3), activity: { phase: "agent", held: true } };
   assert.equal(app.adopt(newer), true);
+  // Transport asks the same question before preparing anything for an answer.
+  assert.equal(app.overtaken(state(2)), true);
+  assert.equal(app.overtaken(state(3)), false);
   assert.equal(app.adopt(state(2)), false);
   assert.equal(app.read().authoritative.reading, "reading-3");
   assert.deepEqual(app.read().effective.activity, newer.activity);
@@ -762,14 +765,8 @@ test("semantic epochs include visible revision facts but not transport metadata"
   ];
   app.adopt(revisionFacts);
   assert.ok(app.read().semanticEpoch > beforeRevisionFacts);
-  assert.equal(
-    app.read().effective.publishedAt,
-    revisionFacts.browser.views[1].published_at,
-  );
-  assert.deepEqual(
-    app.read().effective.updates,
-    revisionFacts.browser.views[1].updates,
-  );
+  const { basis: _basis, ...published } = revisionFacts.browser.views[1];
+  assert.deepEqual(app.read().effective.view, published);
 
   const stable = app.read().semanticEpoch;
   const metadata = structuredClone(revisionFacts);

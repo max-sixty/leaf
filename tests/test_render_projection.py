@@ -7228,6 +7228,37 @@ def test_a_reply_widget_replays_and_withdraws_its_action(browser, serve):
     expect(page.locator("#rp-live lf-option[chosen]")).to_have_count(0)
 
 
+def test_z_takes_back_a_decision_carried_into_a_later_revision(browser, serve):
+    """A decision the next revision keeps standing is still the user's newest gesture
+    there, so `z` takes it back as the widget's own Undo would."""
+    first = leaf_page(
+        "Carried decision",
+        """<h1>Plan</h1>
+<lf-ask id="cz-ask"><h2>Which comes first?</h2>
+  <lf-options id="cz-options" choose>
+    <lf-option id="cz-flag">Flag</lf-option>
+    <lf-option id="cz-backfill">Backfill</lf-option>
+  </lf-options>
+</lf-ask>""",
+    )
+    page = open_page(browser, live_url(serve(first)))
+    page.locator("#cz-flag .lf-pick").click()
+    round_trip(page)
+    expect(page.locator("#cz-flag")).to_have_attribute("chosen", "")
+
+    stamp_page(
+        serve.page_dir,
+        first.replace("<h1>Plan</h1>", "<h1>Plan</h1><p>Context added.</p>"),
+        "add context",
+    )
+    wait_for_revision(page, 2)
+    expect(page.locator("#cz-flag")).to_have_attribute("chosen", "")
+
+    undo(page)
+    assert events_model.read_events(serve.page_dir)[-1]["kind"] == "undo"
+    expect(page.locator("#cz-options lf-option[chosen]")).to_have_count(0)
+
+
 def test_a_thread_question_asks_until_answered(browser, serve):
     """A question in a thread is one of the page's asks — an obligation for the user
         wherever it stands — and `a` reaches it. A single-answer group

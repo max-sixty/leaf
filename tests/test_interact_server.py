@@ -48,6 +48,7 @@ from interact_support import (
 from leaf import cli as cli_model
 from leaf import data as data_model
 from leaf import detached as detached_model
+from leaf import document_reading as document_reading_model
 from leaf import event_log as event_model
 from leaf import events as event_folds_model
 from leaf import files as files_model
@@ -2250,15 +2251,94 @@ def test_undo_candidates_keep_only_standing_user_gestures():
         },
     ]
     empty = projection_model.StateProjection({}, {}, {}, {}, {}, frozenset())
+    document = document_reading_model.DocumentReading(
+        None, empty, {}, None, [], {}, {}, {}
+    )
     undo_reading = event_folds_model.UndoReading(
         events, within={}, absorbed=frozenset()
     )
 
     candidates = served_document.browser_undo_candidates(
-        events, empty, empty, undo_reading=undo_reading
+        events, document, empty, undo_reading=undo_reading, stamp=None
     )
 
     assert [candidate["event"]["id"] for candidate in candidates] == ["rx1", "r2"]
+
+
+def test_each_view_offers_only_the_gestures_it_paints(page_dir):
+    """The view's undo list is final: `z` takes its head and a widget filters it.
+
+    A decision carried into a later revision stays undoable there. One that revision
+    restated, one whose widget it dropped, and an approval of another stamp are
+    offered only by the view that still paints them.
+    """
+    old_page = PAGE.replace("<lf-options>", '<lf-options id="picks">').replace(
+        "</section>",
+        '<lf-ask id="kept-decision"><h3>Kept</h3><lf-options id="kept">'
+        '<lf-option id="kept-one">One</lf-option></lf-options></lf-ask>'
+        '<lf-ask id="gone-decision"><h3>Gone</h3><lf-options id="gone">'
+        '<lf-option id="gone-one">One</lf-option></lf-options></lf-ask></section>',
+    )
+    new_page = re.sub(
+        r'<lf-ask id="gone-decision">.*?</lf-ask>', "", old_page, flags=re.DOTALL
+    )
+    documents = {
+        1: structure_model.SourceDocument(old_page),
+        2: structure_model.SourceDocument(new_page),
+    }
+    (page_dir / "index.html").write_text(old_page)
+    publish(page_dir, 1)
+
+    def choose(widget, option):
+        return event_model.append_event(
+            page_dir,
+            {
+                "kind": "action",
+                "author": "user",
+                "revision": 1,
+                "widget": widget,
+                "action": "choose",
+                "detail": {"options": [option]},
+                "meaning": {"scope": "page", "unit": widget, "depends": [widget]},
+            },
+        )
+
+    kept = choose("kept", "kept-one")
+    gone = choose("gone", "gone-one")
+    restated = choose("picks", "flag-first")
+    approval = event_model.append_event(
+        page_dir, {"kind": "done", "author": "user", "version": 1}
+    )
+    # The fold reads revision 2 from `documents`; it is never written to disk, since
+    # the door refuses to activate a revision that drops a standing decision.
+    event_model.append_event(
+        page_dir,
+        {
+            "kind": "note",
+            "author": "agent",
+            "version": 2,
+            "revision": 2,
+            "text": "Rewrote the plan choice.",
+            "restated": ["picks"],
+        },
+    )
+    events = event_model.read_events(page_dir)
+    views = served_browser.browser_state(
+        documents,
+        events,
+        registry_storage.require_registry(page_dir),
+        2,
+        presence_model.presence(page_dir, events),
+        {},
+        {1, 2},
+        event_model.now_iso(),
+    )["views"]
+
+    def offered(revision):
+        return [item["event"]["id"] for item in views[str(revision)]["undo"]]
+
+    assert offered(1) == [approval["id"], restated["id"], gone["id"], kept["id"]]
+    assert offered(2) == [kept["id"]]
 
 
 def test_a_comparison_view_explains_an_unpublished_page(server, page_dir):

@@ -21,6 +21,7 @@ carries it when the page's markup holds a widget whose entry declares `x-history
 
 from .events import taken_back
 from .gesture_words import GestureWords
+from .thread_context import event_threads
 
 # The newest rows a reading carries.
 LIMIT = 50
@@ -81,18 +82,19 @@ def _report(event: dict, words: GestureWords) -> dict:
 
 
 def history(
-    events: list, threads: dict, words: GestureWords, memberships: dict
+    events: list, threads: dict, words: GestureWords, roots: dict, widgets: dict
 ) -> list[dict]:
     """The newest `LIMIT` rows, newest first.
 
-    `memberships` is `thread_context.thread_memberships` over the same log. A
-    message, edit, resolve or reopen row names the one thread it belongs to; a
-    widget row names its widget, whichever thread the move also answers."""
+    `roots` and `widgets` are `thread_context.thread_roots` and `thread_widgets`
+    over the same log. A message, edit, resolve or reopen row names the thread it
+    was made in (`event_threads`); a widget row names its widget, whichever thread
+    the move also answers."""
     by_id = {event["id"]: event for event in events}
     withdrawn = taken_back(events)
 
     def thread_of(event: dict) -> dict | None:
-        root_id = next(iter(memberships[event["id"]]), None)
+        root_id = next(iter(event_threads(event, roots, widgets)), None)
         root = by_id.get(root_id)
         if root is None or root["kind"] != "comment":
             return None

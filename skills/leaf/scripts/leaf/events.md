@@ -167,12 +167,13 @@ message body, including a failure receipt or authored widget, is unread; an agen
 reaction is not. The original message id names its first content version, and each
 `edit` id names a new one. A version is read once a `read` event names it — the
 browser posts one after presenting and exposing ordinary prose, or when the user
-marks a thread read — or once the user moves in its thread after it, by the thread
-membership delivery uses (`thread_context.thread_memberships`): a reply or reaction,
-a resolve or reopen, an action or request on a widget one of the thread's messages
-carries, or an action that answers the thread. A move the user took back does not
-count, and neither does the `undo` that took it back. A later edit is unread even when
-the prior version was read. A
+marks a thread read — or once the user moves in its thread after it, the thread the
+move names (`thread_context.event_threads`): a reply or reaction, a resolve or reopen,
+an action or request on a widget one of the thread's messages carries, or an action
+whose admitted answer closes the thread. A move that changes a thread without naming
+it, such as a later decision on the suggestion that had answered it or an `undo`,
+does not count, and neither does a move the user took back. A later edit is unread
+even when the prior version was read. A
 summary does not mark read the messages it covers. `read_state.unread_content` is the
 one reading; it is published as each browser Thread's `unread` and each
 thread's `unread` in `page state`. Read records belong to the page log and apply

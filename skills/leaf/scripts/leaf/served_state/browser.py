@@ -13,7 +13,6 @@ from ..registry.storage import load_registry
 from ..requests import request_outcomes
 from ..revision_artifact import read_artifact
 from ..structure import SourceDocument
-from ..thread_context import thread_memberships
 from ..workflows import canonical_workflows
 from .document import browser_document, browser_undo_candidates
 from .thread import browser_thread
@@ -153,7 +152,7 @@ def browser_state(
     )
     live_reply = canonical_stream_reply(present, now, (live_stream or {}).get("reply"))
     thread, thread_reading = browser_thread(
-        events, active_registry, threads, active_within, live_reply, data
+        events, active_registry, threads, live_reply, data
     )
     thread_projection = thread_reading.projection
 
@@ -238,10 +237,15 @@ def browser_state(
             revisions
             or (lambda revision: (documents[revision], registry_for(revision))),
         )
-        memberships = thread_memberships(
-            events, thread_reading.roots, thread_reading.thread_by_widget, active_within
-        )
-        page_history = {"history": history(events, threads, words, memberships)}
+        page_history = {
+            "history": history(
+                events,
+                threads,
+                words,
+                thread_reading.roots,
+                thread_reading.thread_by_widget,
+            )
+        }
     else:
         page_history = {}
     return {

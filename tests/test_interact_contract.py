@@ -553,17 +553,27 @@ def test_an_accept_carries_its_thread_resolution():
 def test_the_answer_that_settles_a_thread_acknowledges_what_it_said():
     """Deciding the suggestion a thread asked for is a move in that thread even
     though the widget stands on the page, so the agent's reply before it reads as
-    taken in, as a reply or resolve there would. Taking the answer back withdraws
-    that evidence, and the undo that takes it back is none of its own."""
+    taken in, as a reply or resolve there would. A move that changes the thread
+    without being made in it shows the user nothing there: neither the undo that
+    takes the answer back nor a later decision that supersedes it reads the
+    agent's words, so what those words say stays unread."""
     reply = {"kind": "reply", "author": "agent", "parent": "e1", "text": "Try sug-a."}
+    edit = {
+        "kind": "edit",
+        "author": "agent",
+        "agent": "Agent",
+        "session": "session-1",
+        "message": "e2",
+    }
 
     def unread(*events):
         thread = model.threads(model.reading(SETTLED, (ASKED, reply, *events)))["e1"]
-        return [item["message"] for item in thread["unread"]]
+        return [item["version"] for item in thread["unread"]]
 
     assert unread() == ["e2"]
     assert unread(PICKED) == []
     assert unread(PICKED, {"kind": "undo", "undoes": "e3"}) == ["e2"]
+    assert unread(PICKED, {**edit, "text": "Try sug-a first."}, TURNED_DOWN) == ["e4"]
 
 
 def test_an_answer_the_user_took_back_leaves_its_thread_open(page_dir):

@@ -479,7 +479,7 @@ def _approval_error(view, event: dict, events: list, registry: dict):
     page = page_reading(document, events, registry, revision)
     threads = build_threads(events, page.within)
     document_state = read_document(page, threads, view.data(registry))
-    thread, _reading = browser_thread(events, registry, threads, page.within)
+    thread, _reading = browser_thread(events, registry, threads)
     unanswered = [
         *document_state.asks["unanswered"],
         *thread["asks"]["unanswered"],

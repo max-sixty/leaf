@@ -48,7 +48,7 @@ from leaf.served_state import page as served_page
 from leaf.service import delivery_reply_attempt
 from leaf.thread import cmd_reply, cmd_resolve
 from playwright.sync_api import expect
-from render_harness import LONG_PAGE, consume_browser_errors, open_page, told
+from render_harness import LONG_PAGE, consume_browser_errors, open_page, told, write
 from websockets.exceptions import ConnectionClosedError
 
 ROOT = Path(__file__).parent.parent
@@ -2840,8 +2840,8 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
     told(page)
     page.locator(".lf-threads-toggle").click()
     page.evaluate("window.__leafVerifier.startVisibleReplyClock")
-    box = page.locator(".lf-general textarea")
-    box.fill("edit the page")
+    box = page.locator(".lf-general leaf-text")
+    write(box, "edit the page")
     box.press("ControlOrMeta+Enter")
     told(page)
     [comment] = [event for event in read_events(page_dir) if event["kind"] == "comment"]
@@ -2859,7 +2859,7 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
     thread = page.locator(f'.lf-thread[data-id="{comment["id"]}"]')
     expect(thread).to_be_hidden()
     if read_elsewhere:
-        box.fill("A separate thread")
+        write(box, "A separate thread")
         box.press("ControlOrMeta+Enter")
         told(page)
         [other] = [
@@ -4039,15 +4039,19 @@ class _FailedFirstTurn:
         self.failure = failure
         self.heading = heading
         self.request = self
+        self.keyboard = self
         self.comments: list[dict] = []
         self.draft = ""
         self.last_response = None
 
     def locator(self, selector: str):
-        assert selector == ".lf-general textarea"
+        assert selector == ".lf-general leaf-text"
         return self
 
-    def fill(self, text: str) -> None:
+    def focus(self) -> None:
+        pass
+
+    def insert_text(self, text: str) -> None:
         self.draft = text
 
     def evaluate(self, script: str) -> float:

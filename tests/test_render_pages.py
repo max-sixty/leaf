@@ -85,6 +85,7 @@ from render_harness import (
     stamp_page,
     told,
     wait_for_revision,
+    write,
 )
 
 pytestmark = pytest.mark.nightly
@@ -115,8 +116,8 @@ def test_sort_film_comment_restores_its_input_and_step(browser, serve):
     composer = page.locator(".lf-composer[data-lf-open]")
     expect(composer).to_be_visible()
     expect(composer.locator("blockquote")).to_contain_text("Random, shuffle 7, step 1")
-    composer.locator("textarea").fill("Why does this run start here?")
-    composer.locator("textarea").press("Enter")
+    write(composer.locator("leaf-text"), "Why does this run start here?")
+    composer.locator("leaf-text").press("Enter")
     expect(page.get_by_role("dialog", name=re.compile("Thread for"))).to_be_visible()
     events = [
         json.loads(line)
@@ -784,7 +785,7 @@ def test_a_written_comment_keeps_its_originating_agent(browser, serve, monkeypat
     expect(thread.locator(".lf-thread-root-meta .lf-msg-head b")).to_have_text("Codex")
     expect(thread.locator(".lf-quote")).to_have_text("“Retries are capped at three”")
 
-    thread.locator("textarea").fill("three is the retry budget, not a guess")
+    write(thread.locator("leaf-text"), "three is the retry budget, not a guess")
     with sending(page, "the reply"):
         thread.get_by_role("button", name="Send", exact=True).click()
     expect(page.locator(".lf-msg.user")).to_have_count(1)
@@ -826,8 +827,8 @@ def test_a_reply_notice_survives_a_failed_state_and_keeps_its_agent(browser, ser
 
     page.locator(".lf-threads-toggle").click()
     page.locator(".lf-thread-summary").first.click()
-    reply_draft = page.locator(".lf-thread textarea")
-    reply_draft.fill("keep this unfinished reply")
+    reply_draft = page.locator(".lf-thread leaf-text")
+    write(reply_draft, "keep this unfinished reply")
     page.locator(".lf-threads-toggle").click()
 
     broken = []
@@ -879,7 +880,7 @@ def test_a_reply_notice_survives_a_failed_state_and_keeps_its_agent(browser, ser
     expect(page.locator(".lf-msg.user .lf-msg-body")).to_have_text(
         "which host answers?"
     )
-    expect(reply_draft).to_have_value("keep this unfinished reply")
+    expect(reply_draft).to_have_js_property("value", "keep this unfinished reply")
 
     version_menu = page.locator(".lf-version-menu")
     banner_control(page, ".lf-version").click()
@@ -914,9 +915,9 @@ def test_a_failed_agent_root_restores_the_focused_first_message_composer(
     )
     page = open_page(browser, live_url(url))
     seat = page.locator("#proposal > .lf-thread-seat")
-    composer = seat.locator(":scope > .lf-say textarea")
+    composer = seat.locator(":scope > .lf-say leaf-text")
     words = "keep this first message" if draft else ""
-    composer.fill(words)
+    write(composer, words)
     composer.evaluate(
         "(input, selection) => input.setSelectionRange(...selection)",
         [3, 12, "backward"] if draft else [0, 0, "none"],
@@ -964,7 +965,7 @@ def test_a_failed_agent_root_restores_the_focused_first_message_composer(
     expect(inline).to_have_count(0)
     expect(composer).to_have_count(1)
     expect(composer).to_be_focused()
-    expect(composer).to_have_value(words)
+    expect(composer).to_have_js_property("value", words)
     assert (
         composer.evaluate(
             "input => [input.selectionStart, input.selectionEnd, input.selectionDirection]"
@@ -978,7 +979,7 @@ def test_a_failed_agent_root_restores_the_focused_first_message_composer(
     expect(inline.locator(".lf-page-thread-body")).to_have_text("candidate root")
     expect(composer).to_have_count(1 if draft else 0)
     if draft:
-        expect(composer).to_have_value(words)
+        expect(composer).to_have_js_property("value", words)
 
 
 def test_a_failed_resolution_restores_a_focused_inline_reply(browser, serve):
@@ -1003,8 +1004,8 @@ def test_a_failed_resolution_restores_a_focused_inline_reply(browser, serve):
     )
     page = open_page(browser, live_url(url))
     thread = page.locator(f'#proposal > .lf-thread-seat > [data-thread="{root["id"]}"]')
-    reply = thread.locator(":scope > .lf-say textarea")
-    reply.fill("keep this inline reply")
+    reply = thread.locator(":scope > .lf-say leaf-text")
+    write(reply, "keep this inline reply")
     reply.evaluate("node => node.setSelectionRange(5, 16, 'backward')")
     expect(reply).to_be_focused()
 
@@ -1032,7 +1033,7 @@ def test_a_failed_resolution_restores_a_focused_inline_reply(browser, serve):
     assert fault.value.text in page.lf_errors
     page.lf_errors.remove(fault.value.text)
 
-    expect(reply).to_have_value("keep this inline reply")
+    expect(reply).to_have_js_property("value", "keep this inline reply")
     expect(reply).to_be_focused()
     assert reply.evaluate(
         "node => [node.selectionStart, node.selectionEnd, node.selectionDirection]"
@@ -1041,7 +1042,7 @@ def test_a_failed_resolution_restores_a_focused_inline_reply(browser, serve):
     page.unroute("**/api/state*")
     nudge(serve.page_dir)
     told(page)
-    expect(thread.locator(":scope > .lf-say textarea")).to_have_count(0)
+    expect(thread.locator(":scope > .lf-say leaf-text")).to_have_count(0)
     expect(thread.get_by_role("button", name="Reopen")).to_be_visible()
 
 
@@ -1061,8 +1062,8 @@ def test_failed_resolve_candidate_restores_focused_reply(browser, serve):
     page = open_page(browser, live_url(url))
     page.locator(".lf-threads-toggle").click()
     page.locator(".lf-thread-summary").first.click()
-    draft = page.locator(".lf-thread textarea")
-    draft.fill("keep this unfinished reply")
+    draft = page.locator(".lf-thread leaf-text")
+    write(draft, "keep this unfinished reply")
     expect(draft).to_be_focused()
     draft.evaluate("node => node.setSelectionRange(5, 12, 'backward')")
 
@@ -1090,10 +1091,10 @@ def test_failed_resolve_candidate_restores_focused_reply(browser, serve):
 
     assert fault.value.text in page.lf_errors
     page.lf_errors.remove(fault.value.text)
-    expect(page.locator(".lf-thread textarea")).to_have_value(
-        "keep this unfinished reply"
+    expect(page.locator(".lf-thread leaf-text")).to_have_js_property(
+        "value", "keep this unfinished reply"
     )
-    expect(page.locator(".lf-thread textarea")).to_be_focused()
+    expect(page.locator(".lf-thread leaf-text")).to_be_focused()
     assert draft.evaluate(
         "node => [node.selectionStart, node.selectionEnd, node.selectionDirection]"
     ) == [5, 12, "backward"]
@@ -1101,7 +1102,7 @@ def test_failed_resolve_candidate_restores_focused_reply(browser, serve):
     page.unroute("**/api/state*")
     nudge(page_dir)
     expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
-    expect(page.locator(".lf-thread textarea")).to_have_count(0)
+    expect(page.locator(".lf-thread leaf-text")).to_have_count(0)
 
 
 def test_a_failed_state_keeps_focus_in_the_open_versions_menu(browser, serve):

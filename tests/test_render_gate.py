@@ -99,6 +99,7 @@ from render_harness import (
     primed,
     resized,
     take_browser_errors,
+    write,
 )
 
 pytestmark = pytest.mark.nightly
@@ -3838,10 +3839,10 @@ def test_dragging_an_edge_preserves_user_state(browser, serve, edge, pointer):
 
     page.locator("main p").first.click(modifiers=["Alt"])
     composer = page.locator(".lf-fab-input")
-    composer.fill("half a comment")
+    write(composer, "half a comment")
     drag()
     expect(composer).to_be_visible()
-    expect(composer).to_have_value("half a comment")
+    expect(composer).to_have_js_property("value", "half a comment")
 
     # An existing partial-word selection can come from native keyboard selection or
     # browser commands. Only a new selection gesture may expand it to a sentence.

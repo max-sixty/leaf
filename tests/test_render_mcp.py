@@ -26,6 +26,7 @@ from render_harness import (
     consume_browser_errors,
     leaf_page,
     open_page,
+    write,
 )
 
 HOST = """<!doctype html>
@@ -238,19 +239,19 @@ def test_process_page_route_runs_the_complete_leaf_interface(
     )
 
     page.locator(".lf-threads-toggle").click()
-    general = page.locator(".lf-general textarea")
+    general = page.locator(".lf-general leaf-text")
     expect(general).to_be_visible()
     with page.expect_response(
         lambda response: response.url.endswith(f"{root}/api/media")
     ):
         general.evaluate(
-            """async (textarea, source) => {
+            """async (box, source) => {
                   const pixels = await (await fetch(source)).arrayBuffer();
                   const transfer = new DataTransfer();
                   transfer.items.add(new File(
                     [pixels], 'mcp-paste.png', {type: 'image/png'}
                   ));
-                  textarea.dispatchEvent(new ClipboardEvent('paste', {
+                  box.dispatchEvent(new ClipboardEvent('paste', {
                     bubbles: true,
                     cancelable: true,
                     clipboardData: transfer,
@@ -258,15 +259,15 @@ def test_process_page_route_runs_the_complete_leaf_interface(
                 }""",
             f"{root}/media/051bee487bfb5d13.png",
         )
-    expect(general).to_have_value("")
+    expect(general).to_have_js_property("value", "")
     draft_image = page.locator(".lf-general .lf-composer-media img")
     expect(draft_image).to_have_attribute("src", f"{root}/media/051bee487bfb5d13.png")
     complete = general.evaluate(
-        """async textarea => {
+        """async box => {
               const entry = document.querySelector('script[type="module"][src$="leaf.js"]');
               const input = await import(new URL('runtime/composing/input.js', entry.src));
               const application = await import(new URL('runtime/application.js', entry.src));
-              return {draft: input.draftOf(textarea), composing: application.midComposition()};
+              return {draft: input.draftOf(box), composing: application.midComposition()};
             }"""
     )
     assert complete == {
@@ -283,10 +284,10 @@ def test_process_page_route_runs_the_complete_leaf_interface(
     ).to_have_attribute("aria-disabled", "true")
     assert (
         general.evaluate(
-            """async textarea => {
+            """async box => {
               const entry = document.querySelector('script[type="module"][src$="leaf.js"]');
               const input = await import(new URL('runtime/composing/input.js', entry.src));
-              return input.draftOf(textarea);
+              return input.draftOf(box);
             }"""
         )
         == ""
@@ -354,7 +355,7 @@ def test_process_page_route_runs_the_complete_leaf_interface(
     )
     expect(page.locator(".lf-fab-input")).to_be_visible()
     page.locator(".lf-fab-input").click()
-    page.locator(".lf-composer textarea").fill("Delivered through the MCP page.")
+    write(page.locator(".lf-composer leaf-text"), "Delivered through the MCP page.")
     with page.expect_response(lambda response: response.url.endswith("/api/event")):
         page.keyboard.press("ControlOrMeta+Enter")
 

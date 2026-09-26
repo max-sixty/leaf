@@ -790,8 +790,9 @@ def ask_for_the_heading(
         f"Change the main heading to ‘{heading}’. Leave everything else unchanged, "
         "publish the revision, and reply with ‘deployment verified’."
     )
-    box = page.locator(".lf-general textarea")
-    box.fill(text)
+    box = page.locator(".lf-general leaf-text")
+    box.focus()
+    page.keyboard.insert_text(text)
     if ask == 1:
         profile.started = time.monotonic()
         profile.visible_reply_started_ms = page.evaluate(

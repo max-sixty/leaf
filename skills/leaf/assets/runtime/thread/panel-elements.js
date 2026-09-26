@@ -8,6 +8,7 @@ import { createThreadListView } from "./thread-list-view.js";
 import { createThreadNarrowingView } from "./narrowing-view.js";
 import { under } from "../shadow.js";
 import { declareOccluder } from "../geometry.js";
+import { textField } from "../composing/text-field.js";
 
 export const panel = el("dialog", "lf-ui lf-thread-panel");
 panel.id = "lf-threads";
@@ -34,7 +35,7 @@ threadsBox.setAttribute("aria-label", "Threads");
 const threadsFrame = el("div", "lf-threads-frame");
 threadsFrame.append(threadsBox);
 const generalRow = el("div", "lf-general");
-export const generalInput = document.createElement("textarea");
+export const generalInput = textField();
 generalInput.name = "comment";
 export const generalSend = el("button", "lf-btn", "Send");
 generalRow.append(generalInput, generalSend);

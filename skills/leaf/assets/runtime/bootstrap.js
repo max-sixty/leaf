@@ -99,11 +99,14 @@
         queue(event);
       } else {
         // Only a printed page key starts a run. One typed into a field is the field's,
-        // and Space on its own scrolls.
+        // and Space on its own scrolls. `leaf-text` is the runtime's text field, named
+        // here rather than read from `TEXT_BOX` (focus.js) because this script runs
+        // before any module; its closed root makes the host the event's origin.
         const origin = event.composedPath()[0];
         const typing =
           origin instanceof Element &&
-          (origin.isContentEditable || origin.matches("input, textarea, select"));
+          (origin.isContentEditable ||
+            origin.matches("input, textarea, leaf-text, select"));
         if (typing || !printed || event.key === " ") return;
         queue(event);
       }

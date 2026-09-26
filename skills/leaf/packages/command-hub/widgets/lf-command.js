@@ -26,6 +26,7 @@ import {
   projectData,
   relabel,
   selectableOffer,
+  TEXT_BOX,
   watchUpdates,
 } from "/runtime/widget-api.js";
 import {
@@ -267,7 +268,7 @@ function configureGoal(goal) {
   });
   goal.addEventListener("click", (event) => {
     if (!directCommandRole(goal, "worker").length) return;
-    if (event.target.closest("button, a, textarea, input, summary, [data-lf-offer]"))
+    if (event.target.closest(`button, a, ${TEXT_BOX}, input, summary, [data-lf-offer]`))
       return;
     if (
       closestCommandRole(event.target, "command") !==

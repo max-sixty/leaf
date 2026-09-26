@@ -117,15 +117,20 @@ def comment_on_target(page, target):
 
 
 def assert_keyboard_focus(page, control):
-    """The focused destination declares a visible treatment and is not covered."""
+    """The focused destination declares a visible treatment and is not covered.
+
+    A text field always shows its focus, as a textarea does. Chrome never gives a host
+    that delegates focus `:focus-visible`, so the field's treatment keys on `:focus`,
+    and that is the state asked of it here."""
     expect(control).to_be_focused()
     focus = control.evaluate(
         """node => {
           const box = node.getBoundingClientRect();
           const hit = document.elementFromPoint(
             box.left + box.width / 2, box.top + box.height / 2);
+          const shown = node.localName === 'leaf-text' ? ':focus' : ':focus-visible';
           return {
-            focusVisible: node.matches(':focus-visible'),
+            focusVisible: node.matches(shown),
             unobscured: Boolean(hit && (hit === node || node.contains(hit))),
             inViewport: box.top >= 0 && box.left >= 0
               && box.bottom <= innerHeight && box.right <= innerWidth,
@@ -421,7 +426,7 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     user.keyboard.type("Restore Back to releases")
     resized(user, 390, 760)
     holds_the_window(user, widget, False)
-    expect(field).to_have_value("Restore Back to releases")
+    expect(field).to_have_js_property("value", "Restore Back to releases")
     assert_keyboard_focus(user, field)
     field.evaluate("node => node.setSelectionRange(8, 12, 'backward')")
     shifted = record | {
@@ -436,7 +441,7 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     data_model.cmd_data_set(review_dir, "journey-run", shifted)
     told(user)
     expect(second.locator(".lf-vr-result")).to_contain_text("without a return route")
-    expect(field).to_have_value("Restore Back to releases")
+    expect(field).to_have_js_property("value", "Restore Back to releases")
     assert_keyboard_focus(user, field)
     assert field.evaluate(
         "node => [node.selectionStart, node.selectionEnd, node.selectionDirection]"
@@ -455,12 +460,12 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     user.keyboard.press("g")
     user.keyboard.press("Shift+d")
     expect(field).to_be_focused()
-    expect(field).to_have_value("Restore Back to releases")
+    expect(field).to_have_js_property("value", "Restore Back to releases")
     assert_keyboard_focus(user, field)
 
     resized(user, 1366, 768)
     holds_the_window(user, widget, True)
-    expect(field).to_have_value("Restore Back to releases")
+    expect(field).to_have_js_property("value", "Restore Back to releases")
     assert_keyboard_focus(user, field)
     user.keyboard.press("Escape")
     expect(field).to_be_hidden()
@@ -476,7 +481,7 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     user.keyboard.press("g")
     user.keyboard.press("Shift+d")
     expect(field).to_be_focused()
-    expect(field).to_have_value("Restore Back to releases")
+    expect(field).to_have_js_property("value", "Restore Back to releases")
     field.press("End")
     user.keyboard.type(" on the candidate detail page.")
     with sending(user, "the navigation correction comment"):

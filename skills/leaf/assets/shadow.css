@@ -156,7 +156,7 @@
    than the type around it. The query gates the rule rather than leaving it to the token,
    because at a zero floor the rule would still pull every field to its surroundings. */
 @media (pointer: coarse) {
-  :is(input, textarea, select) { font-size: max(var(--entry-floor), 1em) !important; }
+  :is(input, textarea, leaf-text, select) { font-size: max(var(--entry-floor), 1em) !important; }
 }
 /* The shared boxes of a registry-declared widget thread. The widget places it.
    The same Thread view may be seated inside an x-thread-surface shadow tree, so this
@@ -203,7 +203,7 @@ leaf-anchor-note { display: contents; }
 .lf-say { display: none; align-items: flex-end;
           gap: var(--sp-2); margin-top: var(--sp-3); }
 .lf-page-thread > .lf-say:not([hidden]) { display: flex; }
-.lf-say textarea { flex: 1; min-width: 0; }
+.lf-say leaf-text { flex: 1; min-width: 0; }
 .lf-page-thread > .lf-say { flex-direction: column; align-items: stretch; }
 .lf-page-thread > .lf-say.lf-reply-collapsed > :not(.lf-reply-disclosure) {
           display: none; }
@@ -254,10 +254,9 @@ leaf-anchor-note { display: contents; }
           border-bottom: 1px solid var(--rule); }
 .lf-page-thread > .lf-page-thread-summary[hidden] { display: none; }
 .lf-page-thread .lf-btn { font: inherit; }
-.lf-page-thread textarea { box-sizing: border-box; padding: 8px 10px;
+.lf-page-thread leaf-text { box-sizing: border-box; padding: 8px 10px;
           border: 1px solid var(--border-2); border-radius: 6px; background: var(--card);
-          color: inherit; font: inherit; resize: none; field-sizing: content;
-          max-height: 50vh; overflow-y: auto; }
+          color: inherit; font: inherit; max-height: 50vh; overflow-y: auto; }
 .lf-page-thread :is(.lf-btn, summary):is(:focus-visible, .lf-focus-visible) {
           outline: var(--here-ring); outline-offset: 1px; --lf-here-ring: thread; }
 /* The reply is a text box and wears the text box's band: the ring replaces the resting
@@ -269,7 +268,7 @@ leaf-anchor-note { display: contents; }
    the text box rule exists to remove. Repeated here on the terms the chrome rule sets,
    so the reply field wears one band wherever the thread is seated, the way .lf-mark-note
    and .lf-chip repeat their own faces through this boundary. */
-.lf-page-thread textarea:is(:focus, .lf-focus) {
+.lf-page-thread leaf-text:is(:focus, .lf-focus) {
           outline: var(--here-ring); outline-offset: 0; border-color: transparent;
           --lf-here-ring: text-box; }
 @media print {
@@ -504,21 +503,18 @@ leaf-anchor-note { display: contents; }
           --lf-here-ring: btn; outline-offset: 2px; }
 .lf-compose-field { --lf-icon-action-hit: max(28px, var(--aim-floor));
           --lf-compose-pad-block: 8px; --lf-compose-pad-inline-start: 10px;
-          --lf-compose-border-width: 1px;
           position: relative; display: grid; grid-template-columns: minmax(0, 1fr);
           flex: 1; min-width: 0; }
-.lf-compose-field > textarea, .lf-compose-placeholder { grid-area: 1 / 1; }
-.lf-compose-field.lf-compose-hinted > textarea::placeholder { color: transparent; }
-.lf-compose-placeholder { display: none; box-sizing: border-box; min-width: 0;
-          width: 100%; height: 100%; contain: size; overflow: hidden;
-          padding-block-start: calc(var(--lf-compose-pad-block) + var(--lf-compose-border-width));
-          padding-inline-start: calc(var(--lf-compose-pad-inline-start) + var(--lf-compose-border-width));
-          margin-inline-start: var(--lf-compose-text-margin-inline-start, 0px);
-          white-space: nowrap; color: var(--muted); font: inherit; pointer-events: none; }
-.lf-compose-field.lf-compose-hinted > textarea:placeholder-shown + .lf-compose-placeholder {
-          display: block; }
+.lf-compose-field > leaf-text { grid-area: 1 / 1; }
+/* One line whatever its key badge's box: the badge paints into the field's padding, so
+   the hint stands where the words will and sizes nothing. A narrow field shortens the
+   label and keeps the key. It is apparatus, so the field's selectable text stops at it. */
+.lf-compose-placeholder { display: flex; align-items: baseline; gap: 0.25em;
+          block-size: 1lh; white-space: nowrap; user-select: none; -webkit-user-select: none; }
+.lf-compose-placeholder > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.lf-compose-placeholder > kbd { flex: none; }
 .lf-compose-placeholder .lf-key-badge { background: transparent; color: var(--muted); }
-.lf-compose-field > textarea:not(.lf-fab-input) { display: block; box-sizing: border-box;
+.lf-compose-field > leaf-text:not(.lf-fab-input) { display: block; box-sizing: border-box;
           width: 100%; min-width: 0; min-height: calc(var(--lf-icon-action-hit) + 12px);
           padding-inline-end: calc(var(--lf-icon-action-hit) + 12px); }
 .lf-icon-action { --lf-icon-action-hit: max(28px, var(--aim-floor));
@@ -575,13 +571,13 @@ leaf-anchor-note { display: contents; }
           min-height: 32px; margin: 0; border: 1px solid var(--border-2);
           border-radius: var(--r); background: var(--card); color: var(--ink-2);
           font: inherit; line-height: 1.3; box-shadow: 0 2px 8px var(--shade); }
-.lf-fab-bar[data-lf-presentation="inline"] textarea.lf-fab-input {
+.lf-fab-bar[data-lf-presentation="inline"] leaf-text.lf-fab-input {
           display: block; width: 100%; min-width: 0; max-width: none; max-height: 50vh;
           padding: var(--lf-compose-pad-block) max(40px, calc(var(--aim-floor) + 12px))
             var(--lf-compose-pad-block) var(--lf-compose-pad-inline-start);
-          resize: none; field-sizing: content; overflow-y: auto; white-space: pre-wrap; }
+          overflow-y: auto; }
 .lf-fab-bar[data-lf-presentation="inline"] .lf-compose-placeholder { line-height: 1.3; }
-.lf-fab-bar[data-lf-presentation="inline"] textarea.lf-fab-input:is(:focus, .lf-focus) {
+.lf-fab-bar[data-lf-presentation="inline"] leaf-text.lf-fab-input:is(:focus, .lf-focus) {
           outline: var(--here-ring); outline-offset: 0; border-color: transparent;
           --lf-here-ring: inline-response; }
 .lf-fab-bar[data-lf-presentation="inline"] .lf-compose-submit {

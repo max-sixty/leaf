@@ -167,7 +167,7 @@ pageScope("text entry", {
       does: "Leave the box, keeping what is typed",
       line: () => backFromBox()?.line ?? "back to list",
       // The thread the box belongs to, or the panel's list where it is the chrome's
-      // own box. A page textarea that is neither leaves the row dead and the page's rung
+      // own box. A page text box that is neither leaves the row dead and the page's rung
       // standing, which is the honest answer: nothing there to go back to.
       when: boxHandsBack,
       run: () => {
@@ -512,7 +512,7 @@ export function declareThreadKeys(landIn, read) {
           resolutionControl(focusedThread())?.matches(
             '.lf-reopen:not(:disabled, [aria-disabled="true"])',
           ),
-        // Find the thread's own compose row rather than the first textarea: a message may
+        // Find the thread's own compose row rather than the first text box: a message may
         // contain a widget with an editor of its own before the reply box in DOM order.
         run: () => {
           const thread = focusedThread();

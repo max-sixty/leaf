@@ -416,7 +416,7 @@ addEventListener("storage", (ev) => {
 });
 
 // One box's view of one draft: sync.load() takes the complete durable value, splits the
-// pasted-media projection that is not exposed in the textarea back out of it, and makes
+// pasted-media projection that is not exposed in the field back out of it, and makes
 // the visible words, the media shelf, and the Send button agree. It leaves a value the
 // box already holds alone, because writing .value on a focused box moves the caret to
 // the end. The box grows to fit either way, sizing being the stylesheet's (wireInput).

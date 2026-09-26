@@ -1,5 +1,6 @@
 /* One diagnostic record of this tab's browser input. The page event log remains the
    authority for decisions; this stream explains the gestures that led to them. */
+import { TEXT_BOX } from "./focus.js";
 
 const canonical = document.querySelector('link[rel="canonical"][data-lf-runtime]');
 const offline = document.querySelector(
@@ -62,10 +63,7 @@ function targetValue(target) {
       return { checked: target.checked, value: target.value };
     return { value: target.value };
   }
-  if (
-    target instanceof window.HTMLTextAreaElement ||
-    target instanceof window.HTMLSelectElement
-  )
+  if (target instanceof Element && target.matches(`${TEXT_BOX}, select`))
     return { value: target.value };
   if (target instanceof Element && target.isContentEditable)
     return { value: target.textContent };
@@ -85,7 +83,7 @@ function describe(event) {
   const control = path.find(
     (node) =>
       node instanceof Element &&
-      node.matches("button, a, summary, input, select, textarea, [role=button]"),
+      node.matches(`button, a, summary, input, select, ${TEXT_BOX}, [role=button]`),
   );
   if (control) {
     entry.control = locator(control);

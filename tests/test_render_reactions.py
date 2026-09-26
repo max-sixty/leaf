@@ -40,6 +40,7 @@ from render_harness import (
     sending,
     shortcut_bar_text,
     told,
+    write,
 )
 
 pytestmark = pytest.mark.nightly
@@ -183,7 +184,6 @@ def test_a_token_press_marks_the_passage_and_its_revealed_remove_takes_it_back(
     expect(bar.locator(".lf-fab-input")).to_have_attribute(
         "placeholder", re.compile(r"^Comment… .*⏎$")
     )
-    expect(bar.locator(".lf-fab-input")).to_have_attribute("autocomplete", "off")
     expect(bar.locator(".lf-fab-input")).to_have_attribute(
         "aria-label", re.compile(r"^Comment")
     )
@@ -798,7 +798,7 @@ def test_comment_response_choices_expand_in_place(browser, serve, opener, width)
     bar = page.locator(".lf-fab-bar")
     field = bar.locator(".lf-fab-input")
     expect(bar).to_be_visible()
-    field.fill("Keep this draft")
+    write(field, "Keep this draft")
     before = bar.bounding_box()
     bar.evaluate(
         """bar => {
@@ -819,7 +819,7 @@ def test_comment_response_choices_expand_in_place(browser, serve, opener, width)
     rendered(page)
     expect(bar).to_be_visible()
     expect(field).to_be_visible()
-    expect(field).to_have_value("Keep this draft")
+    expect(field).to_have_js_property("value", "Keep this draft")
     choices = bar.locator(":scope > .lf-response-options .lf-response-action:visible")
     expect(choices).to_have_count(7)
     expect(bar.locator(":scope > .lf-response-options")).to_have_attribute(
@@ -858,17 +858,17 @@ def test_comment_response_choices_expand_in_place(browser, serve, opener, width)
             choice_box["x"] >= field_box["x"] + field_box["width"]
             or choice_box["y"] >= field_box["y"] + field_box["height"]
         ), (field_box, choice_box)
-    field.fill("Keep this draft, still anchored")
+    write(field, "Keep this draft, still anchored")
     rendered(page)
     assert abs(bar.bounding_box()["x"] - before["x"]) <= 1
     suggest.click()
     expect(field).to_be_focused()
-    expect(field).to_have_value("Keep this draft, still anchored")
+    expect(field).to_have_js_property("value", "Keep this draft, still anchored")
     expect(bar.locator(".lf-fab-suggest")).to_have_attribute("aria-label", "Comment")
     assert suggest.get_attribute("aria-expanded") is None
     bar.locator(".lf-fab-suggest").click()
     expect(field).to_be_focused()
-    expect(field).to_have_value("Keep this draft, still anchored")
+    expect(field).to_have_js_property("value", "Keep this draft, still anchored")
     expect(bar.locator(".lf-fab-suggest")).to_have_attribute("aria-label", "Suggest")
     assert suggest.get_attribute("aria-expanded") is None
     field.click()
@@ -882,7 +882,9 @@ def test_comment_response_choices_expand_in_place(browser, serve, opener, width)
     expect(field).to_be_focused()
     count = len(events_model.read_events(serve.page_dir))
     page.keyboard.type(" 3 lines")
-    expect(field).to_have_value("Keep this draft, still anchored 3 lines")
+    expect(field).to_have_js_property(
+        "value", "Keep this draft, still anchored 3 lines"
+    )
     page.wait_for_timeout(100)
     assert len(events_model.read_events(serve.page_dir)) == count
     if width == 1280:
@@ -890,7 +892,9 @@ def test_comment_response_choices_expand_in_place(browser, serve, opener, width)
         rendered(page)
         expect(bar).to_be_visible()
         expect(bar).to_have_class(re.compile("lf-response-open"))
-        expect(field).to_have_value("Keep this draft, still anchored 3 lines")
+        expect(field).to_have_js_property(
+            "value", "Keep this draft, still anchored 3 lines"
+        )
         narrowed = bar.bounding_box()
         assert narrowed["x"] + narrowed["width"] <= 492, narrowed
         narrowed_target = page.locator("#how-cap").bounding_box()
@@ -908,7 +912,9 @@ def test_comment_response_choices_expand_in_place(browser, serve, opener, width)
         "aria-keyshortcuts", re.compile(r".+")
     )
     expect(field).to_be_focused()
-    expect(field).to_have_value("Keep this draft, still anchored 3 lines")
+    expect(field).to_have_js_property(
+        "value", "Keep this draft, still anchored 3 lines"
+    )
     page.keyboard.press("Escape")
     expect(bar).to_be_hidden()
 
@@ -928,12 +934,12 @@ def test_comment_more_keeps_the_field_when_suggest_is_the_only_secondary_respons
     select_paragraph(page, "#how-cap")
     page.keyboard.press("c")
     field = page.locator(".lf-fab-input")
-    field.fill("Keep this draft")
+    write(field, "Keep this draft")
     page.keyboard.press("Tab")
     bar = page.locator(".lf-fab-bar")
     expect(bar).to_have_class(re.compile("lf-response-open"))
     expect(field).to_be_visible()
-    expect(field).to_have_value("Keep this draft")
+    expect(field).to_have_js_property("value", "Keep this draft")
     expect(bar.get_by_role("button", name="Suggest", exact=True)).to_be_focused()
     expect(bar.locator(".lf-react:visible")).to_have_count(0)
     page.keyboard.press("Escape")
@@ -986,17 +992,17 @@ def test_the_response_field_grows_as_a_rectangle_and_leaves_the_ellipsis_room(
         rest
     )
 
-    field.fill("one\ntwo\nthree\nfour\nfive")
+    write(field, "one\ntwo\nthree\nfour\nfive")
     tall = field.evaluate(FIELD_BOX)
     assert tall["h"] > rest["h"] and tall["w"] == rest["w"], (rest, tall)
     assert tall["over"] < 0, (rest, tall)  # the corner is not over the first line
     assert tall["r"] == rest["r"], (rest, tall)
 
-    field.fill("\n".join(f"line {n}" for n in range(1, 15)))
+    write(field, "\n".join(f"line {n}" for n in range(1, 15)))
     shown = field.evaluate(FIELD_BOX)
     assert shown["h"] > tall["h"] and not shown["scrolls"], (tall, shown)
 
-    field.fill("\n".join(f"line {n}" for n in range(1, 80)))
+    write(field, "\n".join(f"line {n}" for n in range(1, 80)))
     rendered(page)  # placeFab answers the input a frame later
     room = page.evaluate(FLOAT_ROOM)
     bounds = bar.bounding_box()
@@ -1004,9 +1010,10 @@ def test_the_response_field_grows_as_a_rectangle_and_leaves_the_ellipsis_room(
     assert bounds and room["top"] <= bounds["y"], (room, bounds)
     assert bounds["y"] + bounds["height"] <= room["bottom"], (room, bounds)
 
-    field.fill(
+    write(
+        field,
         "This paragraph reads well, but the second sentence assumes the user already "
-        "knows what the earlier decision was. Could we link it, or restate it in a clause?"
+        "knows what the earlier decision was. Could we link it, or restate it in a clause?",
     )
     rendered(page)
     wide = field.evaluate(FIELD_BOX)
@@ -1023,9 +1030,10 @@ def test_the_response_field_grows_as_a_rectangle_and_leaves_the_ellipsis_room(
     select_paragraph(page, "#how-cap")
     expect(field).to_be_visible()
     field.click()
-    field.fill(
+    write(
+        field,
         "This paragraph reads well, but the second sentence assumes the user already "
-        "knows what the earlier decision was."
+        "knows what the earlier decision was.",
     )
     rendered(page)  # placeFab answers the input a frame later
     bounds = bar.bounding_box()
@@ -1075,7 +1083,7 @@ def test_a_response_draft_yields_focus_when_the_panel_leaves_no_usable_room(
 
     enter_passage()
     draft = "Keep this unsent review attached to the capped store."
-    field.fill(draft)
+    write(field, draft)
     bounds = bar.bounding_box()
     panel = page.locator(".lf-thread-panel").bounding_box()
     assert bounds["x"] + bounds["width"] <= panel["x"], (bounds, panel)
@@ -1088,27 +1096,27 @@ def test_a_response_draft_yields_focus_when_the_panel_leaves_no_usable_room(
     expect(search).to_be_focused()
     resized(page, 1000, 900)
     enter_passage()
-    expect(field).to_have_value(draft)
+    expect(field).to_have_js_property("value", draft)
 
     resized(page, covered_width, 900)
     expect(bar).to_be_hidden()
     expect(page.locator(".lf-threads")).to_be_focused()
     page.keyboard.insert_text("Invisible typing must not change the draft.")
-    expect(field).to_have_value(draft)
+    expect(field).to_have_js_property("value", draft)
     assert events_model.read_events(serve.page_dir) == initial_events
 
     # A fresh reading proves the text survived in the draft store, rather than merely
-    # remaining in the hidden textarea. The same passage regains it when room returns.
+    # remaining in the hidden field. The same passage regains it when room returns.
     resized(page, 1000, 900)
     page.reload()
     page.wait_for_function(BOTH_STAMPS)
     expect(field).to_be_visible()
-    expect(field).to_have_value(draft)
+    expect(field).to_have_js_property("value", draft)
     page.keyboard.press("Escape")
     expect(bar).to_be_hidden()
     expect(page.locator(".lf-thread-panel")).to_be_visible()
     enter_passage()
-    expect(field).to_have_value(draft)
+    expect(field).to_have_js_property("value", draft)
     bounds = bar.bounding_box()
     panel = page.locator(".lf-thread-panel").bounding_box()
     assert bounds["x"] + bounds["width"] <= panel["x"], (bounds, panel)
@@ -1118,7 +1126,7 @@ def test_a_response_draft_yields_focus_when_the_panel_leaves_no_usable_room(
     field.press("ControlOrMeta+a")
     field.press("ArrowRight")
     field.press_sequentially(" It is visible again.")
-    expect(field).to_have_value(draft + " It is visible again.")
+    expect(field).to_have_js_property("value", draft + " It is visible again.")
 
 
 def test_a_reaction_on_a_visual_part_names_and_outlines_only_that_part(browser, serve):
@@ -1325,14 +1333,14 @@ graph LR
     page.locator("#figure svg").click(modifiers=["Alt"])
     expect(field).to_be_focused()
     expect(field).to_have_attribute("aria-label", re.compile(r"figure"))
-    field.fill("Carry this explicit draft.")
+    write(field, "Carry this explicit draft.")
     page.evaluate("document.activeElement.blur()")
 
     control = page.get_by_role("button", name="Respond to Start request")
     control.focus()
     page.keyboard.press("Enter")
     expect(field).to_be_focused()
-    expect(field).to_have_value("Carry this explicit draft.")
+    expect(field).to_have_js_property("value", "Carry this explicit draft.")
     expect(start).to_have_class(re.compile(r"\blf-pending\b"))
     expect(page.locator("#flow")).not_to_have_class(re.compile(r"\blf-pending\b"))
     page.keyboard.press("Escape")
@@ -1390,7 +1398,7 @@ def test_a_visual_fallback_yields_to_stable_targets_inside_the_picture(browser, 
     page.locator('[data-lf-datum="document"] pre').click(modifiers=["Alt"])
     expect(field).to_be_focused()
     with sending(page, "the comment on the projected document"):
-        field.fill("Keep the captured source coordinate.")
+        write(field, "Keep the captured source coordinate.")
         page.keyboard.press("ControlOrMeta+Enter")
     assert events_model.read_events(serve.page_dir)[-1]["anchor"] == {
         "section": "source",

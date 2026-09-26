@@ -1,5 +1,6 @@
 /* This module owns page-seated first-message boxes: the thread a widget declares
  * through `x-thread-seat`, built by `threadBox`. */
+import { TEXT_FIELD } from "../focus.js";
 import { loadDraft, saveDraft, sendMessage, watchDraft } from "../drafts.js";
 import { inChrome } from "../passages.js";
 import { matchesWhen, registry } from "../registry.js";
@@ -18,7 +19,7 @@ export const threadBox = (el, hint, { createComment, onDraftChanged, wireInput }
   const box = offer("div", "lf-thread-seat");
   box.dataset.lfThreadSeat = el.id;
   const row = offer("div", "lf-say");
-  const ta = offer("textarea");
+  const ta = offer(TEXT_FIELD);
   ta.name = "comment";
   const send = offer("button", "lf-btn", "Send");
   const hold = declaration.hold ? offer("button", "lf-btn", declaration.hold) : null;

@@ -1460,7 +1460,7 @@ def test_the_collapse_class_is_one_set_on_both_sides():
     rests on their agreement: a character one side collapses and the other keeps
     is a quote captured in the browser that the file's reading can never confirm.
     The next edit to either spelling meets this test, not a detached comment."""
-    js = (schema_model.ASSETS / "runtime" / "passages.js").read_text()
+    js = (schema_model.ASSETS / "runtime" / "collapse.js").read_text()
     found = re.search(r"const COLLAPSE =\n\s*/\[(.*?)\]\+/g;", js)
     assert found, "the browser passage reader lost its COLLAPSE regex"
     js_class = re.compile(f"[{found.group(1)}]")
@@ -1600,20 +1600,35 @@ def test_a_tone_the_layer_cannot_paint_is_refused_where_the_author_can_still_fix
     otherwise looks perfectly well. The user cannot see it — they never knew it
     was meant to be red — so the only party who can still fix it is whoever wrote
     the word, and the lint is where they are told. This is the whole difference
-    between the attribute and a class, which nothing checks."""
+    between the attribute and a class, which nothing checks.
+
+    Every widget taking a tone reads it from the one list: a board column as well as
+    a chip."""
     (page_dir / "index.html").write_text(
         PAGE.replace(
             '<lf-option id="flag-first">',
             '<lf-option id="flag-first"><lf-chip tone="dangre">risk: high</lf-chip>',
+        ).replace(
+            "</section>",
+            '<lf-board id="board"><lf-column id="blocked" label="Blocked"'
+            ' tone="dangre"></lf-column></lf-board></section>',
         )
     )
     result = check(page_dir)
     assert result.exit_code == 1
-    assert "not a tone this page's layer paints" in result.output
-    assert "'ok', 'warn', 'danger'" in result.output.replace('"', "'")
+    output = result.output.replace('"', "'")
+    refused = [
+        line
+        for line in output.splitlines()
+        if "not a tone this page's layer paints" in line
+    ]
+    assert len(refused) == 2
+    assert any("<lf-chip" in line for line in refused)
+    assert any("<lf-column" in line for line in refused)
+    assert "'ok', 'warn', 'danger'" in output
 
     # The list is the layer's, so a layer that adds one accepts it with no widget
-    # touched — which is the point of $tones over an enum on lf-chip.
+    # touched — which is the point of $tones over an enum on each widget.
     registry = json.loads((page_dir / "registry.json").read_text())
     registry["$tones"]["names"].append("dangre")
     (page_dir / "registry.json").write_text(json.dumps(registry))
@@ -2603,6 +2618,22 @@ def test_check_rejects_duplicate_ids(page_dir):
     result = check(page_dir)
     assert result.exit_code == 1
     assert "duplicate ids" in result.output
+
+
+def test_check_rejects_an_id_containing_whitespace(page_dir):
+    """An id generated from a label (`f"layout-{label}"`) can carry a space. The browser
+    still resolves it, so a comment anchors on it and nothing looks wrong until the id
+    has a thread to move; the version has to be refused before it goes out."""
+    (page_dir / "index.html").write_text(
+        PAGE.replace(
+            '<section id="plan">',
+            '<section id="plan"><svg viewBox="0 0 10 10">'
+            '<g id="layout-no class"><rect width="4" height="4"/></g></svg>',
+        )
+    )
+    result = check(page_dir)
+    assert result.exit_code == 1
+    assert "whitespace" in result.output and "'layout-no class'" in result.output
 
 
 def test_unreferenced_ids_and_widget_items_may_leave_the_page(page_dir):
@@ -5356,6 +5387,8 @@ def test_check_advises_a_page_whose_headings_have_nothing_listing_them(page_dir)
         '<lf-tabs id="project-views"><lf-tab id="plan-view" label="Plan">',
     ).replace("</main>", "</lf-tab></lf-tabs></main>")
     assert outline_advice(page_tabs) == []
+    # Page navigation is the first tab set directly in main, whatever stands beside it;
+    # one nested in another block is a tabbed section and lists nothing.
     assert (
         outline_advice(
             page_tabs.replace(
@@ -5363,14 +5396,14 @@ def test_check_advises_a_page_whose_headings_have_nothing_listing_them(page_dir)
                 '<p>Context outside the tabs.</p><lf-tabs id="project-views">',
             )
         )
-        != []
+        == []
     )
     assert (
         outline_advice(
             page_tabs.replace(
                 '<lf-tabs id="project-views">',
-                'Context outside the tabs.<lf-tabs id="project-views">',
-            )
+                '<section><lf-tabs id="project-views">',
+            ).replace("</lf-tabs>", "</lf-tabs></section>")
         )
         != []
     )
@@ -5668,9 +5701,10 @@ def test_a_state_read_never_materializes_a_historical_revision_bundle(
     count times the bundle: seconds per request where the page directory is on a
     network filesystem, with every other reader queued behind the lock.
 
-    The active revision and its predecessor are the two this reading does
-    materialize, and they are the control here — a counter that never saw a bundle
-    would pass the historical assertion on its own.
+    The active revision is the one this reading does materialize, and it is the
+    control here — a counter that never saw a bundle would pass the historical
+    assertion on its own. The predecessor the source is checked against is read like
+    the rest of the history: its document and its registry.
     """
     for edit in range(12):
         (page_dir / "index.html").write_text(
@@ -5707,8 +5741,8 @@ def test_a_state_read_never_materializes_a_historical_revision_bundle(
     assert activated.error is None, activated.error
     assert not activated.created
 
-    *history, predecessor, active = revisions
-    assert min(opens[active], opens[predecessor]) > 100
+    *history, active = revisions
+    assert opens[active] > 100
     # One document and one registry apiece: the only two resources this reading reads.
     assert {revision: opens[revision] for revision in history} == {
         revision: 2 for revision in history

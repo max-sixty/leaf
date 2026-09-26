@@ -1,6 +1,11 @@
 """Browser probe readings for one settled color scheme, the once-per-version width
 sweep, the advice read from the desktop page and from the sweep, and the finding each
-becomes."""
+becomes.
+
+A reading refuses a version only for a fault its author can fix by editing the page.
+A reading about Leaf's own chrome or theme, including one that would have to
+recognize a Leaf control by its markup to judge it, belongs in the suite, which holds
+Leaf's half."""
 
 import json
 import math
@@ -229,12 +234,17 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
     # no page of theirs has, and a widget an agent sent in a reply, frozen in an
     # append-only log and admitted at a door of its own. Either way the version
     # would stay refused with no edit that clears it, which is why the coarse
-    # question — which document is this in — is the right one to ask here. That is the failure examples/AGENTS.md names as the
-    # reason a gate reading was moved out once already. The layer's half is leaf's
+    # question — which document is this in — is the right one to ask here, under the
+    # rule this module's docstring states. The layer's half is leaf's
     # own to hold, and the suite holds it with the panel open, where the styles are
     # the panel's and the margin is one somebody can see.
     trapped = (
         [t for t in evaluate_probe(page, "trappedMargins") if not t["chrome"]]
+        if scheme == "light"
+        else []
+    )
+    split = (
+        [t for t in evaluate_probe(page, "splitEdges") if not t["chrome"]]
         if scheme == "light"
         else []
     )
@@ -370,17 +380,10 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
     for t in {(x["tag"], x["edge"]): x for x in trapped}.values():
         box = f"<{t['tag']}" + (f" class={t['cls']!r}" if t["cls"] else "") + ">"
         path = t.get("through", [])
-        declarations = []
-        if not t["frameDeclared"]:
-            declarations.append("--lf-block-frame: 1 in the rule that draws the frame")
-        if path:
-            declarations.append(
-                "--lf-passes-block-edge: 1 on each transparent wrapper along the edge"
-            )
         remedy = (
-            "Declare " + " and ".join(declarations)
-            if declarations
-            else "Remove the edge margin that overrides the shared trim"
+            "Remove the edge margin that overrides the shared trim"
+            if t["frameDeclared"]
+            else "Declare --lf-block-frame: 1 in the rule that draws the frame"
         )
         found.append(
             f"[{scheme}] {box} draws {t['drawn']:g}px of inset and shows "
@@ -390,6 +393,16 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
             f"neighbour it hasn't got, and the box is where that margin stops. "
             f"{remedy}{' (' + ' > '.join(path) + ')' if path else ''}, so the trim "
             f"in theme.css reaches it"
+        )
+
+    for t in {(x["tag"], x["cls"], x["edge"]): x for x in split}.values():
+        box = f"<{t['tag']}" + (f" class={t['cls']!r}" if t["cls"] else "") + ">"
+        which = "first" if t["edge"] == "above" else "last"
+        found.append(
+            f"[{scheme}] {box} (id={t['id']!r}) lays its children out side by side "
+            f"at a frame's edge, so the trim takes its {which} item's margin while "
+            f"the {t['margin']:g}px beside it stays, and the row no longer lines up. "
+            "Declare --lf-holds-edge: 1 on it, so the trim stops there"
         )
 
     found += [f"[{scheme}] {r}" for r in retired]

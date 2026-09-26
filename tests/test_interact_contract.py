@@ -70,6 +70,7 @@ from leaf import events as event_folds_model
 from leaf import files as files_model
 from leaf import host as host_model
 from leaf import media as media_model
+from leaf import page_view as page_view_model
 from leaf import passages as passages_model
 from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
@@ -548,6 +549,32 @@ def test_an_accept_carries_its_thread_resolution():
     assert threads["e1"]["resolved"]["widget"] == "sug-a"
     assert threads["e2"]["resolved"] is None
     assert threads["e1"]["resolved"]["meaning"]["answer"] == "e1"
+
+
+def test_the_answer_that_settles_a_thread_acknowledges_what_it_said():
+    """Deciding the suggestion a thread asked for is a move in that thread even
+    though the widget stands on the page, so the agent's reply before it reads as
+    taken in, as a reply or resolve there would. A move that changes the thread
+    without being made in it shows the user nothing there: neither the undo that
+    takes the answer back nor a later decision that supersedes it reads the
+    agent's words, so what those words say stays unread."""
+    reply = {"kind": "reply", "author": "agent", "parent": "e1", "text": "Try sug-a."}
+    edit = {
+        "kind": "edit",
+        "author": "agent",
+        "agent": "Agent",
+        "session": "session-1",
+        "message": "e2",
+    }
+
+    def unread(*events):
+        thread = model.threads(model.reading(SETTLED, (ASKED, reply, *events)))["e1"]
+        return [item["version"] for item in thread["unread"]]
+
+    assert unread() == ["e2"]
+    assert unread(PICKED) == []
+    assert unread(PICKED, {"kind": "undo", "undoes": "e3"}) == ["e2"]
+    assert unread(PICKED, {**edit, "text": "Try sug-a first."}, TURNED_DOWN) == ["e4"]
 
 
 def test_an_answer_the_user_took_back_leaves_its_thread_open(page_dir):
@@ -1332,6 +1359,25 @@ def test_report_validation_and_append_cannot_straddle_revendoring(
     assert "x-state" in json.loads((page_dir / "registry.json").read_text())["lf-task"]
 
 
+def test_a_bare_re_vendor_replaces_a_broken_vendored_registry(page_dir):
+    """Re-vendoring is the remedy for a broken vendored layer, so the selection a bare
+    `page init` repeats is read on its own: a malformed entry or a missing layer
+    generation is replaced rather than refused."""
+    path = page_dir / "registry.json"
+    registry = json.loads(path.read_text())
+    selection = registry["$layer"]["packages"]
+    registry["lf-corrupt"] = "broken"
+    del registry["$layer"]["generation"]
+    path.write_text(json.dumps(registry))
+
+    vendoring_model.cmd_init(page_dir)
+
+    revendored = json.loads(path.read_text())
+    assert "lf-corrupt" not in revendored
+    assert revendored["$layer"]["packages"] == selection
+    assert registry_storage.layer_metadata(page_dir)["generation"]
+
+
 def test_a_preview_holds_one_contract_until_it_closes(page_dir, monkeypatch):
     before = registry_storage.layer_generation(page_dir)
     init_waiting = threading.Event()
@@ -1610,6 +1656,23 @@ def test_page_registry_reads_candidate_changes_without_mutating_the_layer(page_d
     assert second.registry["lf-local"] == declaration
     assert first.registry["lf-local"]["description"] != declaration["description"]
     assert "lf-local" not in registry_storage.load_registry(page_dir)
+
+
+def test_a_page_with_no_revision_reads_its_candidate_vocabulary(page_dir):
+    """Before the first revision the document is the candidate, so the command
+    readers and the append door both read the vocabulary it would be captured under:
+    the layer composed with the page's own declarations, not the bare layer."""
+    declaration = element_declaration("lf-local")
+    (page_dir / "page" / "registry.json").write_text(
+        json.dumps({"lf-local": declaration})
+    )
+    assert files_model.list_revisions(page_dir) == []
+
+    for vocabulary in (
+        registry_storage.active_registry(page_dir),
+        page_view_model.PageView(page_dir).registry(None),
+    ):
+        assert vocabulary["lf-local"] == declaration
 
 
 def test_thread_markup_must_render_in_every_pinned_revision(page_dir):

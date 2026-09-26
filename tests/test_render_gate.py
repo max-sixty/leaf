@@ -2482,19 +2482,23 @@ def test_page_fixture_renders(browser, serve, source):
     assert failures == [], "\n".join(failures)
 
 
-def test_frame_edges_pass_only_through_declared_transparent_wrappers(browser, serve):
+def test_frame_edges_pass_through_whatever_stands_at_them(browser, serve):
+    """A frame trims the margin at its edge through every first or last child: a bare
+    section, a boxless one, and a padded grid section alike, with nothing declared on
+    them. A padded box away from any frame's edge keeps its heading's margin inside its
+    inset, and the gate says to declare that box's frame."""
     page = open_page(
         browser,
         serve(
             leaf_page(
                 "Frame edges",
                 """<div id="frame" style="padding:24px;--lf-block-frame:1">
-  <section id="first" style="--lf-passes-block-edge:1">
+  <section id="first">
     <h2 id="opening">Opening</h2>
     <p>First section.</p>
   </section>
   <section id="middle"><h2 id="middle-heading">Middle</h2></section>
-  <section id="last" style="--lf-passes-block-edge:1">
+  <section id="last">
     <p id="closing">Closing.</p>
   </section>
 </div>
@@ -2504,16 +2508,22 @@ def test_frame_edges_pass_only_through_declared_transparent_wrappers(browser, se
   </section>
 </div>
 <div id="contents-frame" style="padding:24px;--lf-block-frame:1">
-  <section style="display:contents;--lf-passes-block-edge:1">
+  <section style="display:contents">
     <h2 id="contents-heading">Boxless section</h2>
   </section>
-</div>""",
+</div>
+<p>Between the frames.</p>
+<div id="padded" style="padding:12px;border:1px solid">
+  <h2 id="padded-heading">Padded, undeclared</h2>
+</div>
+<p>After the padded box.</p>""",
             )
         ),
     )
     margins = page.evaluate(
         """() => Object.fromEntries(
-          ['opening', 'middle-heading', 'closing', 'grid-heading', 'contents-heading'].map(id => {
+          ['opening', 'middle-heading', 'closing', 'grid-heading', 'contents-heading',
+           'padded-heading'].map(id => {
             const s = getComputedStyle(document.getElementById(id));
             return [id, [parseFloat(s.marginBlockStart), parseFloat(s.marginBlockEnd)]];
           }))"""
@@ -2521,27 +2531,66 @@ def test_frame_edges_pass_only_through_declared_transparent_wrappers(browser, se
     assert margins["opening"][0] == 0
     assert margins["middle-heading"][0] > 0
     assert margins["closing"][1] == 0
-    assert margins["grid-heading"][0] > 0
+    assert margins["grid-heading"][0] == 0
     assert margins["contents-heading"][0] == 0
+    assert margins["padded-heading"][0] > 0
+    trapped = render_checks_model.evaluate_probe(page, "trappedMargins")
+    assert not [
+        f for f in trapped if f["id"] in {"frame", "grid-frame", "contents-frame"}
+    ], trapped
+    assert any(
+        f["id"] == "padded" and f["child"] == "h2" and not f["frameDeclared"]
+        for f in trapped
+    ), trapped
+    page.locator("#padded").evaluate(
+        "el => el.style.setProperty('--lf-block-frame', '1')"
+    )
     assert not [
         f
         for f in render_checks_model.evaluate_probe(page, "trappedMargins")
-        if f["id"] == "frame"
+        if f["id"] == "padded"
     ]
-    page.locator("#first").evaluate(
-        "el => el.style.removeProperty('--lf-passes-block-edge')"
+
+
+def test_a_row_at_a_frame_edge_holds_the_trim_by_declaring_it(browser, serve):
+    """Following the edge into a row trims its first item and not the ones beside it,
+    so the row splits; the gate names the row until it declares --lf-holds-edge, and
+    then the trim stops there and the row lines up again."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Split row",
+                """<div id="frame" style="padding:24px;--lf-block-frame:1">
+  <div id="row" style="display:flex;gap:12px">
+    <p id="left">Left.</p>
+    <p id="right">Right.</p>
+  </div>
+</div>""",
+            )
+        ),
     )
+
+    def tops():
+        return page.evaluate(
+            """() => ['left', 'right'].map(id =>
+              Math.round(document.getElementById(id).getBoundingClientRect().top))"""
+        )
+
+    left, right = tops()
+    assert left != right
     assert any(
-        f["id"] == "frame" and f["child"] == "h2" and f["through"] == ["section"]
-        for f in render_checks_model.evaluate_probe(page, "trappedMargins")
+        f["id"] == "row" and f["edge"] == "above"
+        for f in render_checks_model.evaluate_probe(page, "splitEdges")
     )
-    page.locator("#contents-frame > section").evaluate(
-        "el => el.style.removeProperty('--lf-passes-block-edge')"
-    )
-    assert any(
-        f["id"] == "contents-frame" and f["through"] == ["section"]
-        for f in render_checks_model.evaluate_probe(page, "trappedMargins")
-    )
+    page.locator("#row").evaluate("el => el.style.setProperty('--lf-holds-edge', '1')")
+    left, right = tops()
+    assert left == right
+    assert not [
+        f
+        for f in render_checks_model.evaluate_probe(page, "splitEdges")
+        if f["id"] == "row"
+    ]
 
 
 def test_every_idiom_in_the_catalog_stands_in_a_corpus_source(browser):
@@ -4003,8 +4052,8 @@ def test_the_layer_traps_no_margin_in_the_panel_it_draws(browser, serve):
     asymmetry with no principle behind it, and a live hazard on the side the gate saw:
     a margin trapped in leaf's panel would refuse an author's version over markup they
     did not write, cannot edit, and would hear about in the words of a class no page
-    has. examples/AGENTS.md names that failure as the reason a gate reading was moved
-    out once already.
+    has. `render_gate/readings.py` states the rule: a gate reading refuses a version
+    only for a fault its author can fix.
 
     So the gate now takes the document's half and this takes the layer's, off the one
     reading, with the panel open — where a trapped margin is one somebody can see. The

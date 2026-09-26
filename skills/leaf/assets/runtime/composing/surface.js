@@ -101,6 +101,8 @@ import {
 import { repaint } from "../repaint.js";
 import { focusDestination, letGo, readCaret, takesLetters } from "../focus.js";
 import { focused } from "../keyboard/scopes.js";
+import { under } from "../shadow.js";
+import { heldAsk } from "../standing-target.js";
 
 import { pointerAt } from "../pointer.js";
 import { anchorLabel } from "../thread/messages.js";
@@ -129,7 +131,8 @@ export function createResponseSurface({
   panelIsOpen,
   landIn,
   setPanel,
-  activeInlineThread,
+  threadHere,
+  threadTarget,
   standingElement,
   composerHolds,
   responseOptionsAreOpen,
@@ -391,9 +394,10 @@ export function createResponseSurface({
   };
   // Whether a resolution is one this document can still put a box beside, which is not the
   // same question as whether it is on screen. Quoted words that resolve to segments stand
-  // wherever they are; a quote whose words the next version rewrote away does not, with one
-  // exception — replacing source data must not close a draft about its prior revision, so an
-  // outdated finding falls back to its section. Everything else stands on its element.
+  // wherever they are. A source replacement must not close a draft about its prior
+  // revision: an outdated finding falls back to its section, while an identified
+  // subject keeps the draft beside its current datum even if the quoted words changed.
+  // Everything else stands on its element.
   //
   // One rule, because two callers ask it: placement, below, and the route back to a kept
   // draft, which must not offer a passage this version no longer holds.
@@ -401,7 +405,8 @@ export function createResponseSurface({
     if (!found) return false;
     if (anchor.quote) {
       if (targetSegments(found).length) return true;
-      if (found.status !== "outdated") return false;
+      if (found.status !== "outdated" && !(anchor.identity && found.datumElement))
+        return false;
     }
     return Boolean(targetElement(found));
   };
@@ -1523,8 +1528,21 @@ export function createResponseSurface({
         box: fabInput,
         go: focusFabComment,
       };
-    const inline = activeInlineThread();
-    const inlineBox = inline && threadInput(inline);
+    // The thread the user is at continues where it is about what they stand on: they
+    // are in it, or its target lies within the element they stand at — the Ask holding
+    // focus, answered or not, else the element itself — as an Ask's options group does
+    // when the user holds one of its marks. A card showing an enclosing block's thread is
+    // about that block, so an element inside it, such as an Ask in a commented task,
+    // takes a thread of its own, and a selection still starts one on its words.
+    const here = standingElement();
+    const inline = threadHere();
+    const target = inline && threadTarget(inline);
+    const inlineBox =
+      inline &&
+      (!here ||
+        inline.contains(focused()) ||
+        (target && under(target, heldAsk() ?? here))) &&
+      threadInput(inline);
     const said =
       standingThread() ?? (inlineBox ? { held: inline, box: inlineBox } : null);
     if (said)
@@ -1533,7 +1551,6 @@ export function createResponseSurface({
         box: said.box,
         go: () => landIn(said),
       };
-    const here = standingElement();
     if (here)
       return {
         ...commenting(addressableWord(here)),

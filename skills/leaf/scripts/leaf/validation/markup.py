@@ -18,18 +18,6 @@ from leaf.styles import inline_presentation_override_errors
 _message_markdown = MarkdownIt("commonmark")
 
 
-def reserved_ids_error(ids: list) -> str:
-    """The one sentence for an authored id in the runtime's own namespace, shared by the
-    version lint and the thread-markup one — page ids and a reply's are one universe, so
-    what keeps both clear of the runtime's is one rule. leaf.js coins document ids
-    under `lf-` (`lf-composer-quote`) and points ARIA at them, so an authored id there
-    redirects the reference to the page."""
-    return (
-        "ids in the runtime's own lf- namespace (it coins lf-composer-quote there, "
-        f"and points ARIA at them): {ids}"
-    )
-
-
 def reserved_marker_errors(parser) -> list:
     """The same trespass as a reserved id, and reserved the same way one is: the
     runtime writes data-lf-* attributes and lf- classes as its own record and
@@ -45,18 +33,32 @@ def reserved_marker_errors(parser) -> list:
 
 
 def id_errors(parser) -> list:
-    """What a parsed page's own names must not do: repeat, or trespass on the runtime's
-    own namespace — its ids, and its markers. One reader, because the two gates that decision
-    are asking the same thing of the same parser: a version, and a catalog example, which
-    is markup an author writes from. Written twice, the second gate is the one that goes
-    on not asking whatever the first one learns to."""
+    """What a parsed markup's own names must not do: repeat, hold whitespace, or trespass
+    on the runtime's own namespace — its ids, and its markers. One reader, because every
+    gate that decides this is asking the same thing of the same parser: a version, a
+    catalog example, which is markup an author writes from, and a message's widget
+    markup, since page ids and a reply's are one universe. Written twice, the second
+    gate is the one that goes on not asking whatever the first one learns to."""
     errors = []
     if parser.duplicate_ids:
         errors.append(
             f"duplicate ids (anchors need unique targets): {parser.duplicate_ids}"
         )
+    # HTML forbids whitespace in an id, and nothing downstream refuses one: the browser
+    # still finds the element, so a comment anchors on the whole string and the page
+    # reads as working. The id is then a thread's address, and renaming it means moving
+    # the thread first; authoring is the one moment the fix costs nothing.
+    if parser.spaced_ids:
+        errors.append(
+            f"ids containing whitespace, which HTML forbids in an id: {parser.spaced_ids}"
+        )
+    # leaf.js coins document ids under `lf-` (`lf-composer-quote`) and points ARIA at
+    # them, so an authored id there redirects the reference to the page.
     if parser.reserved_ids:
-        errors.append(reserved_ids_error(parser.reserved_ids))
+        errors.append(
+            "ids in the runtime's own lf- namespace (it coins lf-composer-quote there, "
+            f"and points ARIA at them): {parser.reserved_ids}"
+        )
     return errors + reserved_marker_errors(parser)
 
 
@@ -149,15 +151,11 @@ def missing_outline(parser: SourceDocument, registry: dict) -> list:
     main, roots = main_roots(parser)
     if main is not None:
         workspace = sole_workspace(roots, registry) is not None
-        page_navigation = (
-            roots
-            and len(roots) <= 2
-            and isinstance(roots[-1], dict)
-            and registry.get(roots[-1]["tag"], {}).get("x-page-navigation") is True
-            and (
-                len(roots) == 1
-                or (isinstance(roots[0], dict) and roots[0]["tag"] == "header")
-            )
+        # The page's view navigation is a block directly in main that declares it.
+        page_navigation = any(
+            isinstance(node, dict)
+            and registry.get(node["tag"], {}).get("x-page-navigation") is True
+            for node in roots
         )
         if workspace or page_navigation:
             return []

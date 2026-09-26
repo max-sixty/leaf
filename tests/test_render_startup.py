@@ -82,8 +82,10 @@ from render_harness import (
     open_versions,
     panel_settled,
     refuse,
+    rendered,
     round_trip,
     select,
+    sending,
     stamp_page,
     ticked,
     told,
@@ -338,6 +340,9 @@ def test_a_preview_names_its_checkout_and_copies_diagnostics(browser, serve):
         "checkout": "fb77",
         "commit": "26499ea1abcd",
         "dirty": True,
+        "committed": (datetime.now().astimezone() - timedelta(days=3)).isoformat(
+            timespec="seconds"
+        ),
         "interaction": "user",
         "started": "2026-08-31T12:00:00+00:00",
     }
@@ -351,7 +356,7 @@ def test_a_preview_names_its_checkout_and_copies_diagnostics(browser, serve):
         context=context,
     )
     badge = page.locator(".lf-preview")
-    expect(badge).to_have_text("User · fb77@26499ea1abcd+")
+    expect(badge).to_have_text("User · fb77@26499ea1abcd+ · 3d ago")
     expect(badge).to_have_attribute("aria-label", "Copy preview diagnostics")
 
     page.get_by_role("button", name="More page controls", exact=True).click()
@@ -366,6 +371,7 @@ def test_a_preview_names_its_checkout_and_copies_diagnostics(browser, serve):
     assert "interaction: user" in diagnostics
     assert "commit: 26499ea1abcd" in diagnostics
     assert "dirty: true" in diagnostics
+    assert f"committed: {preview['committed']}" in diagnostics
     assert "layer generation:" in diagnostics
     assert "layer fingerprint: sha256:" in diagnostics
     assert "revision: 1" in diagnostics
@@ -387,8 +393,12 @@ def test_a_preview_names_its_checkout_and_copies_diagnostics(browser, serve):
         else "sha256:" + layer["fingerprint"].removeprefix("sha256:")[:12]
     )
     reference = ordinary.locator(".lf-layer-reference")
+    dated = producer.get("committed") or producer.get("installed")
     expect(reference).to_have_text(
-        f"Leaf {identity}{'+' if producer.get('dirty') else ''}"
+        re.compile(
+            rf"^Leaf {re.escape(identity)}{re.escape('+') if producer.get('dirty') else ''}"
+            + (r" · (just now|\d+[mhd] ago)$" if dated else "$")
+        )
     )
     expect(reference.locator("code")).to_have_text(
         f"{identity}{'+' if producer.get('dirty') else ''}"
@@ -401,6 +411,8 @@ def test_a_preview_names_its_checkout_and_copies_diagnostics(browser, serve):
     assert f"fingerprint: {layer['fingerprint']}" in diagnostics
     if producer.get("commit"):
         assert f"commit: {producer['commit']}" in diagnostics
+    if producer.get("committed"):
+        assert f"committed: {producer['committed']}" in diagnostics
 
 
 @pytest.mark.parametrize(
@@ -458,6 +470,199 @@ def test_authored_html_paints_while_runtime_startup_is_held(
         for route in boot:
             route.continue_()
         page.unroute_all(behavior="wait")
+
+
+HELD_KEYS_PAGE = leaf_page(
+    "Held keys",
+    "<h1>Held keys</h1><p id='said'>A sentence the user commented on.</p>",
+)
+HELD_KEYS_THREAD = {
+    "id": "held-thread",
+    "kind": "comment",
+    "author": "user",
+    "revision": 1,
+    "text": "Walk to me.",
+    "anchor": {"section": "said"},
+}
+
+
+def _hold_startup(page, stage):
+    """Hold startup at `stage` — before the runtime loads, or after it loads and
+    before the first state answer — and return the route release."""
+    held, gate = [], {"open": False}
+    pattern = "**/leaf.js" if stage == "module" else "**/api/state*"
+    page.route(
+        pattern,
+        lambda route: route.continue_() if gate["open"] else held.append(route),
+    )
+
+    def release():
+        gate["open"] = True
+        for route in held:
+            route.continue_()
+
+    return held, release
+
+
+@pytest.mark.parametrize("stage", ["module", "state"])
+def test_a_key_pressed_before_presentation_runs_once_the_page_presents(
+    browser, serve, stage
+):
+    """`t` walks threads the first state answer brings, so a press before presentation
+    is held, shown as held, and replayed into the presented page — whether the runtime
+    had not loaded or had loaded and not yet read the log."""
+    url = serve(HELD_KEYS_PAGE, events=[HELD_KEYS_THREAD])
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    watched(page)
+    held, release = _hold_startup(page, stage)
+    page.goto(url, wait_until="commit")
+    holding(page, held, 1, f"the {stage} request")
+    if stage == "state":
+        page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
+    expect(page.locator("#said")).to_be_visible()
+
+    page.keyboard.press("t")
+    echo = page.locator(".lf-held-keys")
+    expect(echo).to_contain_text("Page still loading")
+    expect(echo.locator("kbd")).to_have_text("t")
+    expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
+
+    release()
+    expect(page.locator('[data-thread="held-thread"]').first).to_be_focused()
+    expect(echo).to_have_count(0)
+
+
+def test_a_key_pressed_while_held_keys_run_waits_its_turn(browser, serve):
+    """Presentation hands the held keys over and presses them a frame apart, so a key
+    arriving between the handover and the first press has to queue behind them: `g`
+    held, then `Shift+T` in that gap, is still `g T`, the trip to Threads."""
+    url = serve(HELD_KEYS_PAGE, events=[HELD_KEYS_THREAD])
+    page = browser.new_page(viewport={"width": 1400, "height": 900})
+    watched(page)
+    # The instant is inside the page: after every presentation listener has run,
+    # the handover included, and before the next frame presses the first held key.
+    page.add_init_script(
+        """document.addEventListener('lf-presentation', () => queueMicrotask(() =>
+          document.body.dispatchEvent(new KeyboardEvent('keydown', {
+            key: 'T', code: 'KeyT', shiftKey: true, bubbles: true,
+            cancelable: true, composed: true}))));"""
+    )
+    held, release = _hold_startup(page, "state")
+    page.goto(url, wait_until="commit")
+    holding(page, held, 1, "the first state read")
+    page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
+    page.keyboard.press("g")
+    expect(page.locator(".lf-held-keys kbd")).to_have_text("g")
+
+    release()
+    expect(page.locator("body")).to_have_attribute(
+        "data-lf-auxiliary-surface", "threads"
+    )
+
+
+def test_held_keys_after_one_that_opens_a_box_are_typed_into_it(browser, serve):
+    """`c` opens the page's comment box, so the keys held behind it are the comment:
+    they arrive as its text, Space included, rather than as page commands the box
+    swallows."""
+    url = serve(HELD_KEYS_PAGE)
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    watched(page)
+    held, release = _hold_startup(page, "state")
+    page.goto(url, wait_until="commit")
+    holding(page, held, 1, "the first state read")
+    page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
+    for key in ["c", "h", "i", "Space", "x"]:
+        page.keyboard.press(key)
+    expect(page.locator(".lf-held-keys kbd")).to_have_text(
+        ["c", "h", "i", "Space", "x"]
+    )
+
+    release()
+    expect(page.locator("textarea:focus")).to_have_value("hi x")
+
+
+@pytest.mark.parametrize("ending", ["Enter", "ControlOrMeta+a"])
+def test_a_key_that_is_not_printed_ends_the_held_run(browser, serve, ending):
+    """A held run is printed keys. Enter or a chord acts where focus stands, which a
+    replay cannot reproduce and which must not act ahead of the keys before it, so after
+    `c h i` it drops the run rather than waiting behind it: no comment box opens and
+    nothing is sent. `test_held_keys_after_one_that_opens_a_box_are_typed_into_it` is
+    the same run without the ending key; Shift alone leaves the run standing."""
+    url = serve(HELD_KEYS_PAGE)
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    watched(page)
+    held, release = _hold_startup(page, "state")
+    page.goto(url, wait_until="commit")
+    holding(page, held, 1, "the first state read")
+    page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
+    for key in ["c", "h", "i"]:
+        page.keyboard.press(key)
+    echo = page.locator(".lf-held-keys")
+    expect(echo.locator("kbd")).to_have_text(["c", "h", "i"])
+    page.keyboard.press("Shift")
+    expect(echo.locator("kbd")).to_have_count(3)
+
+    page.keyboard.press(ending)
+    expect(echo).to_have_count(0)
+    release()
+    page.wait_for_function(BOTH_STAMPS)
+    # A replay would run a frame after presentation; let the repaint it causes land.
+    rendered(page)
+    expect(page.locator("textarea:focus")).to_have_count(0)
+
+
+@pytest.mark.parametrize("gesture", ["Escape", "pointer"])
+def test_escape_or_a_pointer_press_lets_go_of_held_keys(browser, serve, gesture):
+    """A user who changes their mind, or points somewhere else, while the page loads
+    does not have their earlier keys run later."""
+    url = serve(HELD_KEYS_PAGE, events=[HELD_KEYS_THREAD])
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    watched(page)
+    held, release = _hold_startup(page, "state")
+    page.goto(url, wait_until="commit")
+    holding(page, held, 1, "the first state read")
+    page.keyboard.press("t")
+    echo = page.locator(".lf-held-keys")
+    expect(echo).to_be_visible()
+
+    if gesture == "Escape":
+        page.keyboard.press("Escape")
+    else:
+        page.mouse.click(600, 450)
+    expect(echo).to_have_count(0)
+
+    release()
+    page.wait_for_function(BOTH_STAMPS)
+    # A replay would run a frame after presentation; let the repaint it causes land.
+    rendered(page)
+    assert page.evaluate("() => !document.activeElement?.closest('[data-thread]')")
+    # The positive control: the same key on the presented page walks to the thread.
+    page.keyboard.press("t")
+    expect(page.locator('[data-thread="held-thread"]').first).to_be_focused()
+
+
+def test_a_page_that_never_presents_lets_its_held_keys_go(browser, serve):
+    """The hold is for a page on its way. One still unpresented ten seconds in has
+    faulted, so what was held is dropped and later presses reach the page as they come
+    rather than waiting on a presentation that is not arriving."""
+    url = serve(HELD_KEYS_PAGE)
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    watched(page)
+    held, _ = _hold_startup(page, "module")
+    page.goto(url, wait_until="commit")
+    holding(page, held, 1, "the runtime module")
+    page.evaluate(
+        "() => { window.heard = [];"
+        " document.addEventListener('keydown', (e) => heard.push(e.key)); }"
+    )
+    page.keyboard.press("t")
+    echo = page.locator(".lf-held-keys")
+    expect(echo).to_be_visible()
+    assert page.evaluate("heard") == [], "the positive control: the press was held"
+
+    expect(echo).to_have_count(0, timeout=15_000)
+    page.keyboard.press("x")
+    assert page.evaluate("heard") == ["x"]
 
 
 RESTORED_PROSE = "".join(
@@ -2413,13 +2618,15 @@ def test_a_first_read_still_out_does_not_decide_when_the_page_arrives(browser, s
     """
     # The wait is read off the page rather than written here, and shortened so the test
     # spends its own time on the behaviour instead of on the bound. It is the first long
-    # timer the page installs; every other one this runtime sets is either shorter than
-    # this floor or installed after presentation.
+    # timer the runtime's modules install; every other one they set is either shorter
+    # than this floor or installed after presentation. The prepaint bootstrap's own
+    # bound on held keys is set while that classic script runs, so it is passed over.
     shorten_the_first_long_wait = """
       window.__leafPresentationWait = null;
       const native = window.setTimeout.bind(window);
       window.setTimeout = (fn, ms, ...rest) => {
-        if (window.__leafPresentationWait === null && ms >= 5000) {
+        const bootstrap = document.currentScript?.hasAttribute('data-lf-runtime');
+        if (window.__leafPresentationWait === null && ms >= 5000 && !bootstrap) {
           window.__leafPresentationWait = ms;
           return native(fn, 200, ...rest);
         }
@@ -3750,6 +3957,154 @@ def test_a_comment_on_external_data_stays_with_the_revision_the_user_saw(
     page.emulate_media(media="print")
     paper = render_checks_model.evaluate_probe(page, "paperWords")
     assert paper == screen, "paper dropped or rewrote projected data"
+
+
+def test_a_comment_on_an_identified_datum_follows_the_subject_across_replacements(
+    browser, serve
+):
+    """The emitter's subject survives even when its rendering key changes."""
+    authored = leaf_page(
+        "keyed data projection",
+        '<h1 id="title">Deployments</h1><lf-feed id="deployments" source="deployments"></lf-feed>',
+    )
+    feed = {
+        "description": "A live deployment feed.",
+        "type": "object",
+        "properties": {
+            "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
+            "source": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+        },
+        "required": ["id", "source"],
+        "additionalProperties": False,
+        "x-content": "empty",
+        "x-data": {"rows": {"contract": "deployment-rows", "source": "source"}},
+        "x-upgrade": True,
+        "x-example": '<lf-feed id="example-feed" source="deployments"></lf-feed>',
+    }
+    contract = {
+        "description": "Deployment records with durable ids.",
+        "schema": {
+            "type": "object",
+            "properties": {
+                "rows": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "id": {"type": "string"},
+                            "label": {"type": "string"},
+                            "updated": {"type": "integer"},
+                        },
+                        "required": ["id", "label", "updated"],
+                        "additionalProperties": False,
+                    },
+                },
+            },
+            "required": ["rows"],
+            "additionalProperties": False,
+        },
+    }
+    module = """
+import {projectData, watchData} from '/runtime/widget-api.js';
+customElements.define('lf-feed', class extends HTMLElement {
+  connectedCallback() {
+    this.stopWatching ??= watchData(this, 'rows', snapshot => {
+      projectData(this, snapshot?.value?.rows ?? [], row => `${row.id}-${row.updated}`, row => {
+        const node = document.createElement('p');
+        node.textContent = `${row.label} ${row.updated}`;
+        return node;
+      }, {snapshot, identify: row => row.id});
+    });
+  }
+  disconnectedCallback() { this.stopWatching?.(); this.stopWatching = null; }
+});
+"""
+    url = serve(
+        authored,
+        layer_registry={
+            "lf-feed": feed,
+            "$data": {"contracts": {"deployment-rows": contract}},
+        },
+        layer_widgets={"lf-feed.js": module},
+    )
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "deployments",
+        {
+            "rows": [
+                {"id": "a", "label": "Alpha", "updated": 1},
+                {"id": "b", "label": "Beta", "updated": 1},
+            ]
+        },
+    )
+    page = open_page(browser, url)
+    page.locator('[data-lf-datum="a-1"]').click(click_count=3)
+    page.locator(".lf-fab-input").click()
+    page.locator(".lf-composer textarea").fill("Check this deployment.")
+    with sending(page, "the keyed record comment"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    comment = next(e for e in sent_events(serve.page_dir) if e["kind"] == "comment")
+    assert comment["anchor"]["datum"] == "a-1"
+    assert comment["anchor"]["source"] == "deployments"
+    assert comment["anchor"]["identity"] == "a"
+    seen = comment["anchor"]["source_revision"]
+
+    page.locator('[data-lf-datum="a-1"]').click(modifiers=["Alt"])
+    page.locator(".lf-fab-bar .lf-response-more").click()
+    reaction = page.locator('.lf-fab-bar .lf-react[data-token="keep"]')
+    expect(reaction).to_be_visible()
+    with sending(page, "the record reaction"):
+        reaction.click()
+    marked = next(e for e in sent_events(serve.page_dir) if e.get("token") == "keep")
+    assert marked["token"] == "keep"
+    assert marked["anchor"]["identity"] == "a"
+    assert "quote" not in marked["anchor"]
+
+    page.locator('[data-lf-datum="a-1"]').click(click_count=3)
+    draft = page.locator(".lf-fab-input")
+    draft.fill("Keep this draft with the row.")
+    expect(draft).to_be_focused()
+
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "deployments",
+        {
+            "rows": [
+                {"id": "b", "label": "Alpha", "updated": 1},
+                {"id": "a", "label": "Alpha", "updated": 2},
+            ]
+        },
+    )
+    current = source_revision(serve.page_dir, "deployments")
+    assert current != seen
+    row = page.locator('[data-lf-datum="a-2"]')
+    expect(row).to_have_attribute("data-lf-source-revision", current)
+    expect(row).to_contain_text("Alpha 2")
+    expect(row).to_have_class(re.compile(r"\blf-mark-el\b"))
+    expect(draft).to_have_value("Keep this draft with the row.")
+    expect(draft).to_be_focused()
+    expect(page.locator('[data-lf-datum="b-1"]')).not_to_have_class(
+        re.compile(r"\blf-mark-el\b")
+    )
+    expect(page.locator(".lf-thread .lf-anchor-status")).to_have_count(0)
+
+    with sending(page, "the kept draft"):
+        draft.press("ControlOrMeta+Enter")
+    drafted = next(
+        e
+        for e in sent_events(serve.page_dir)
+        if e.get("text") == "Keep this draft with the row."
+    )
+    assert drafted["anchor"]["source_revision"] == seen
+    assert drafted["anchor"]["identity"] == "a"
+
+    row.click(modifiers=["Alt"])
+    page.locator(".lf-fab-bar .lf-response-more").click()
+    expect(reaction).to_have_attribute("aria-pressed", "true")
+    with sending(page, "the record reaction withdrawal"):
+        reaction.click()
+    withdrawn = next(e for e in sent_events(serve.page_dir) if e["kind"] == "undo")
+    assert withdrawn["undoes"] == marked["id"]
 
 
 @pytest.mark.parametrize(

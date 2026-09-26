@@ -8,153 +8,102 @@ description: Develops Leaf itself from the current checkout, including its runti
 Resolve the repository root three directories above this `SKILL.md`, then resolve
 `<root>/bin/leaf` to an absolute path. Run that launcher with `--root` and
 continue only when it prints the same repository root. Use the absolute launcher
-throughout; a bare `leaf` command may resolve to the installed plugin instead.
+throughout; a bare `leaf` may resolve to the installed plugin instead.
 
-Read this skill's `references/glossary.md` before naming or revising user-facing elements,
+Read `references/glossary.md` before naming or revising user-facing elements,
 interaction contexts, navigation, chrome, view state, or an identifier governed by
 those concepts. It is Leaf's canonical implementation vocabulary.
 
 ## Read the owning contract
 
-Read the scoped `AGENTS.md` for every implementation area the change reaches and the
-module header for each module changed. For a contract shared across modules or runtimes,
-read the sidecar beside the Python code that owns the boundary;
+For a contract shared across modules or runtimes, read the sidecar beside the
+Python code that owns the boundary;
 `<root>/skills/leaf/scripts/AGENTS.md` lists them under "Protocol references".
-
-This skill is maintainer workflow, not a second home for product specifications. Agents
-using Leaf read `<root>/skills/leaf/SKILL.md`. Package authors read the public contract
-at `<root>/skills/leaf/references/packages.md`.
 
 ## Leave old state out of the handoff
 
 Leaf owes nothing to state an earlier version wrote (`AGENTS.md`, "Stage"). A
-handoff therefore doesn't tell the user that an existing page, log, or claim
-predates the change, needs re-vendoring, or won't show it, and doesn't list
-reviving that state as follow-up work.
+handoff doesn't say that an existing page, log, or claim predates the change or
+needs re-vendoring, and doesn't list reviving it as follow-up work.
 
 ## Explore an open design
 
 When a new interface leaves a material visual or interaction choice unsettled,
-first search the shipped examples and active notes for an exploration of the same
-surface; extend its playground when it owns the same decision. Then follow `Author or
-revise a page` below. Initialize a new page with the
-`playground` package and follow
-`<root>/skills/leaf/packages/playground/guidance/author.md`. Put several coherent
-options in named presets. Build each option far enough that the user can operate it
-in the shared preview. Controls select the option and its parameters; the user
-performs the interaction being judged inside the preview. Use the user's submitted
-configuration or feedback to choose the one implementation the finished change keeps.
+first look in the shipped examples and `notes/` for an exploration of the same
+surface, and extend its playground when it owns the same decision. Otherwise
+initialize a page with the `playground` package and follow
+`<root>/skills/leaf/packages/playground/guidance/author.md`: several coherent
+options as named presets, each built far enough that the user can operate it in
+the shared preview. The user's submitted configuration or feedback chooses the
+one implementation the change keeps.
 
-When the subject already exists, implement each proposed behavior in the code that
-owns that surface and preview its real output and styling. A Leaf interface therefore
-implements candidates in its owning runtime and theme and presents them through a
-shipped example or fixture. When the user asks for sketches without implementation,
-keep the current surface as a baseline and derive each sketch from its actual controls,
-copy, and styling. Embed an operable current surface with a live `lf-specimen`,
-following `skills/leaf/references/page-authoring.md`: it hosts a complete Leaf page
-with independent state, laid out as a block of the containing page. The developer gallery's
-choreographed replays use the same host in passive mode; they demonstrate a sequence
-rather than accept user gestures. Page-local HTML and CSS may frame the comparison
-and build proposed sketches.
+When the subject already exists, implement each candidate in the runtime and
+theme that own the surface and present it through a shipped example or fixture.
+When the user asks for sketches without implementation, keep the current surface
+as the baseline, derive each sketch from its actual controls, copy, and styling,
+and embed the operable current surface with a live `lf-specimen`
+(`skills/leaf/references/page-authoring.md`).
 
 ## Prove and hand off a visible change
 
-Leaf's current product focus is desktop. Use a representative desktop viewport for
-the primary screenshots, preview inspection, and visual review. Capture the viewport
-when fixed chrome should appear in the result. A Playwright screenshot of an element
-taller than the viewport composites fixed overlays into the element's page-space bounds
-and misrepresents their position; crop the viewport image afterward when a smaller region
-is needed.
+Review at a representative desktop viewport (`skills/leaf/assets/AGENTS.md`,
+"Layout and motion"), and capture the viewport when fixed chrome should
+appear. A Playwright screenshot of an element taller than the viewport draws
+fixed overlays in the wrong place; crop a viewport capture instead.
 
 Re-vendor before trusting a browser result after a runtime, theme, registry, or
-widget change. An `/ui-sweep` and a look at a composed page are worth the time;
-a green suite does not judge visual quality.
+widget change. A green suite does not judge visual quality; run `/ui-sweep` or
+look at a composed page.
 
-Reproduce the baseline from a clean checkout of `git merge-base HEAD main`, then
-compare it with the candidate through the workflow below. For every difference a still
-can show, include one sentence and matched before/after screenshots in the final
-handoff, embedded in the reply or presented as one `lf-shot`. A live preview may
-accompany the pair, but does not replace it. For an interaction-only change, keep
-both previews live and hand off the labeled URL pair with the action that reveals
-the difference. Add another state or width only when the first comparison cannot
-show the behavior.
+Compare against a baseline from `git merge-base HEAD main` ("Compare checkout
+versions" below). For every difference a still can show, the handoff carries one
+sentence and matched before/after screenshots, embedded in the reply or as one
+`lf-shot`; a live preview may accompany the pair but does not replace it. For an
+interaction-only change, keep both previews live and hand off the labeled URL
+pair with the action that reveals the difference.
 
-Before presenting a served page or visible runtime change as finished, inspect
-the exact candidate URL. Exercise the same journey in the baseline and candidate,
-matching the URL fragment, viewport, theme, and interaction state, and check both
-browser consoles. Confirm the expected content and review the changed surface at the
-primary viewport. When handing off a live preview, use the exact URL including
-the semantic block's fragment and keep the process alive. A titled section uses the
-section's stable id, so its eyebrow and heading arrive together. Add an id to the
-tight semantic container when it has none.
+Exercise the same journey in baseline and candidate at the same fragment,
+viewport, theme, and interaction state. A live preview handed to the user
+carries the fragment of the semantic block it is about (a titled section's own
+id) and stays running.
 
 ## Preview a shipped example
 
-From the repository root, run `scripts/preview.py <example> --export` for one file
-that opens offline. `scripts/preview.py <example>` serves an interactive
-preview the way a dev server runs: in the foreground, printing its URL and serving
-until it is stopped. Run it as the host runs any long-running command, in Claude
-Code with `run_in_background`, and read the URL from its output; stop it the same
-way, with Ctrl-C or the runner's stop, which ends the server with it. The page lives
-at `.tmp/previews/<example>` for as long as that process does, following source and
-runtime edits at one URL and keeping its feedback across them. Each start builds the
-page fresh from the fixture, discarding what the last run left, and a start into a
-slot another preview is still serving is refused. An unclaimed start answers at a new
-URL; a `--user` start usually comes back at the old one, so a tab left open there
-reads the rebuilt page. Use `--slot <name>`
-for another copy. A refused update appears in the preview's output; fix the input and
-it retries.
+`scripts/preview.py <example> --export` writes one file that opens offline.
+`scripts/preview.py <example>` serves a live page at `.tmp/previews/<example>`
+in the foreground, like a dev server, so run it as a long-running command
+(`run_in_background` in Claude Code). It follows source and runtime edits at one
+URL; each start rebuilds the page from the fixture, and `--slot <name>` runs another copy.
 
-A preview takes no task claim: it serves through the browser suite's process-owned
-server, with the real HTTP and event log, and its presses go nowhere but the page's
-log. That is what every screenshot and browser check needs. Add `--user` for a
-preview whose URL goes to the user, at `.tmp/previews/<example>-user`: the claim
-carries their comments to `leaf wait`. It carries the agent's own gestures just as
-readily, so a preview this session drives under `--user` reports each screenshot
-click as an unanswered user move, and the Stop hook holds the turn open for it. A
-preview of either kind owes no watcher, so the per-turn reminder to start one skips
-it. Do not idle a preview to quiet the loop: `idle` closes the page in the browser
-and changes the banner a visual check may be reading.
-A fresh start discards a `--user` page's claim with the rest of it, and with it any
-move the Stop hook was holding the turn for, so answer the user's feedback before
-restarting their preview, and hand over the URL each start prints. A subagent's
-previews stay claimless, and the session the user talks to starts any `--user`
-preview: a subagent's claim is that session's claim, so that session's Stop hook
-would answer for the preview's moves either way.
-
-Stop a preview when finished with it; its page stays readable until the slot's next
-start. A change to the fixture's seeded history is refused while the preview runs;
-restart it to rebuild from the new history.
+A plain preview takes no task claim, so its presses reach only the page's log;
+use it for screenshots and browser checks. `--user` claims the page at
+`.tmp/previews/<example>-user` so the user's comments reach `leaf wait`, which
+also makes every click this session drives there read as an unanswered user
+move. So drive only claimless previews, start any `--user` preview from the
+session the user talks to, and answer the user's feedback before restarting
+their preview, since a restart discards the claim and the moves it held. Don't
+idle a preview to quiet the loop; `idle` closes the page in the browser.
 
 ### In Codex
 
-1. Start the preview with `--user` as a long-running command, which serves it at
-   `.tmp/previews/<example>-user`. `codex start` claims the page, and the
-   durable service `--user` puts up keeps that URL answering while the preview
-   runs. A restarted preview is a new page, which needs `codex start` again.
-2. Call `mcp__codex_app__open_in_codex` with the destination's fragment URL as a
-   browser target and `placement: "right"`.
-3. Run `<root>/bin/leaf codex start <root>/.tmp/previews/<example>-user` so
-   Leaf comments return to the current task.
+1. Start the preview with `--user` as a long-running command. A restarted
+   preview is a new page and needs step 3 again.
+2. Call `mcp__codex_app__open_in_codex` with the fragment URL as a browser
+   target and `placement: "right"`.
+3. Run `<root>/bin/leaf codex start <root>/.tmp/previews/<example>-user` so Leaf
+   comments return to the current task.
 4. Tell the user to select page text or use Leaf's comment affordance for a Leaf
-   thread. Codex Annotation mode creates visual comments that the user sends with
-   their next chat message. Use the Codex review pane when feedback belongs to a
-   source line.
+   thread. Codex Annotation mode sends visual comments with their next chat
+   message; the review pane is for feedback on a source line.
 
 ## Test the hosted website agent
 
-Run `uv run <root>/scripts/verify_site.py local` for the development loop. It builds
-the current site, starts the canonical website adapter, uses the host's logged-in Codex
-App Server, asks for one heading edit, and verifies the publication, reply, and changed
-page in Chrome. Its profile reports request acknowledgement, agent activity,
-publication, reply, HTML, first contentful paint, JavaScript, state, upgrade, and
-presentation timings. It stops every process and removes the disposable user page
-when it finishes.
-
-This fast loop bypasses the Cloudflare Worker, container allocation and
-resource limits, and outbound credential proxy. When a change touches one of those
-boundaries and `OPENAI_API_KEY` is exported, build the Worker and run the same check
-through Wrangler's local Docker container:
+`uv run <root>/scripts/verify_site.py local` builds the site, starts the website
+adapter against the host's Codex login, asks for one heading edit, and verifies
+the publication, reply, and changed page in Chrome. It bypasses the Cloudflare
+Worker, container limits, and credential proxy. When a change touches those and
+`OPENAI_API_KEY` is exported, run the same check through Wrangler's local
+container:
 
 ```bash
 npm ci --prefix <root>/worker
@@ -162,14 +111,12 @@ npm run build --prefix <root>/worker
 <root>/scripts/verify-site-local.sh --agent
 ```
 
-Local infrastructure is emulated, so neither loop proves edge rollout or production
-latency. The `publish-site` workflow runs `scripts/verify_site.py` against the exact
-deployed release and is the authoritative production reading.
+The `publish-site` workflow's run against the deployed release is the only
+production reading.
 
 ## Compare checkout versions
 
-Create the baseline when the comparison is ready. Use a detached worktree so its
-contents come from the merge-base commit rather than another worktree's state:
+Build the baseline in a detached worktree at the merge base:
 
 ```bash
 candidate_root=$(git rev-parse --show-toplevel)
@@ -180,13 +127,10 @@ baseline_root="$baseline_parent/checkout"
 git worktree add --detach "$baseline_root" "$baseline_commit"
 ```
 
-Use `$baseline_root` as the baseline and `$candidate_root` as the candidate.
-Choose the sources that isolate the change: one shared authored source for a
-runtime change, or each checkout's copy when the authored content changed. Give
-the pair a comparison-specific `<slot>` name; each start discards whatever an
-earlier run left in it. Add `--user` to both when the pair's URLs go to the user,
-or a comment they leave on either page reaches nobody. Each preview holds its shell
-until stopped, so run the two as separate long-running commands:
+Choose sources that isolate the change: one shared source for a runtime change,
+or each checkout's copy when the authored content changed. Run the two previews
+as separate long-running commands, adding `--user` to both when their URLs go to
+the user:
 
 ```bash
 "$candidate_root/scripts/preview.py" --source <baseline-source.html> \
@@ -200,42 +144,43 @@ until stopped, so run the two as separate long-running commands:
   --slot <slot>-candidate
 ```
 
-Each verifies the checkout launcher,
-prepares its independent page, watches that runtime and source, and prints its exact
-URL. After stopping both previews, remove the temporary checkout:
-
-```bash
-git worktree remove "$baseline_root"
-rmdir "$baseline_parent"
-```
-
 ## Author or revise a page
 
 Read `<root>/skills/leaf/SKILL.md` completely and follow its authoring,
-validation, handoff, and conversation-loop routes. Use the checkout launcher's
-absolute path for every command written there as `leaf`, and resolve its
-references from `<root>/skills/leaf/`.
-
-`page init` vendors the checkout's runtime, theme, registry, widgets, and assets
-into the page. For an existing page that must exercise the current checkout,
-read `<root>/skills/leaf/references/serving-pages.md` and re-vendor it with the
-checkout launcher. A served page follows that reference's stop, init, start
-sequence. Fix or report a compatibility refusal without falling back to the
-installed plugin.
-
-A page that explains how a Leaf interface behaves lets the user operate it;
-`references/specimen-explainers.md` covers that pattern.
+validation, handoff, and conversation-loop routes, using the checkout launcher
+for every `leaf` command and resolving its references from `<root>/skills/leaf/`.
+To make an existing page exercise the current checkout, re-vendor it with the
+checkout launcher (`<root>/skills/leaf/references/serving-pages.md`); fix or
+report a compatibility refusal rather than falling back to the installed plugin.
+A page that explains how a Leaf interface behaves lets the user operate it
+(`references/specimen-explainers.md`).
 
 ## Refresh the public catalog stills
 
-When a change adds or removes a worked example, or changes its first viewport, run
-`wt refresh-previews` from the repository root on macOS. Run `wt setup` first in a
-new checkout. If Worktrunk requests approval for the project commands, ask the user
-to run `wt config approvals add`. The refresh command captures every worked example,
-validates the rebuilt site, pushes the complete JPEG set to
-`max-sixty/leaf-assets`, and updates `example-previews.json` and the catalog links in
-this checkout. Run it after the example changes are ready, and rerun it after
-integrating `main` or making later fixes that change a first viewport. Those refreshes
-are part of the authorized change and need no separate authorization. The generator
-checks the required Charter and San Francisco fonts and fails rather than publishing
-images rendered with fallback fonts.
+When a change adds or removes a worked example or changes its first viewport,
+run `wt refresh-previews` from the repository root on macOS once the examples
+are ready, and again after integrating `main` or any later fix that changes a
+first viewport. It pushes the stills to `max-sixty/leaf-assets` and updates
+`example-previews.json`; that push is part of the authorized change. Run
+`wt setup` first in a new checkout; if Worktrunk asks to approve the project
+commands, ask the user to run `wt config approvals add`.
+
+## Land a change
+
+A branch may land with a red gate only when every failure also fails on the
+exact merge-base SHA under the same CI job and selection; until it reproduces
+there, it is the branch's. Use the base SHA's
+GitHub Actions run as the control, not a local container or a green run a few
+commits back. Main holds one nightly slot, so a base commit may carry no nightly
+result; push that SHA as a branch and dispatch `ci` on it. A case can differ
+between Linux and a Mac, or between the full suite under `-n 2` and a run alone.
+
+`wt merge --no-hooks` lands past a red local hook whose failures reproduce on the
+base, and reuses a passing result when a newer `main` dislodges the merge. Finish
+either with `git push origin main:main`, since the skipped hook normally pushes.
+`✗ Can't push to local main branch` is a fast-forward failure.
+
+Installed sessions load host caches, not the checkout. Claude Code picks up a
+push on its marketplace sweep; the post-merge hook refreshes an installed Codex
+plugin, and after a merge that skipped hooks, run
+`codex plugin marketplace upgrade leaf`.

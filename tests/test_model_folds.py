@@ -133,7 +133,7 @@ def test_a_decision_on_any_message_settles_the_thread_it_belongs_to():
     )["e1"]
     assert resolved["resolved"] is not None, "a resolve on the reply left it open"
     assert resolved["resolved"]["parent"] == "e2"
-    assert not resolved["awaits_agent"]
+    assert resolved["attention"] is None
 
 
 def test_a_retraction_outlives_the_version_that_made_it():

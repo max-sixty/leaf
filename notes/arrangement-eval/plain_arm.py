@@ -243,15 +243,11 @@ def patch_registry(skill: Path) -> None:
         " the runtime resolves that choice into data-lf-space and the theme allocates it"
         " without moving the prose axis."
     )
-    sidebar = (
-        "instead of advising an aside.sidebar that would take it out of root placement"
-    )
+    sidebar = "does not advise an aside.sidebar of contents"
     for old in (dropped, sidebar):
         if keys.count(old) != 1:
             sys.exit(f"$keys: moved: {old[:60]!r}")
-    keys = keys.replace(dropped, "").replace(
-        sidebar, "instead of advising a contents list"
-    )
+    keys = keys.replace(dropped, "").replace(sidebar, "does not advise a contents list")
     reg["$keys"] = json.loads(keys)
     path.write_text(json.dumps(reg, indent=2, ensure_ascii=False) + "\n")
 

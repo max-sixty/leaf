@@ -19,7 +19,7 @@
    remains with each surface. For example, a key badge may share type, border, and
    color while a reply box and an option reserve and position it differently.
 
-   Typography follows Data projections. An authored `lf-note` inside `lf-code` takes
+   An authored `lf-note` inside `lf-code` takes
    `--sans` because the module presents it as a review row inside evidence; its words
    remain selectable page prose. `.lf-ui` also reads `--sans`. Form-control normalization
    lives in the `lf-reset` cascade layer so an unlayered semantic type choice can override
@@ -612,7 +612,6 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      UA's for [hidden], so a door with nothing behind it goes on standing there. Said
      here for the same reason the Page Map says it: hidden is a display of its own. */
   .lf-banner-more[hidden] { display: none; }
-  .lf-banner-more[data-lf-news] { border-color: var(--accent); color: var(--accent); }
   /* The open auxiliary surface wears the same accent face, from the state it already
      publishes: setOpenTray and the Threads toggle keep aria-expanded true on exactly
      the one surface standing, so the tint is that fact painted rather than a
@@ -622,13 +621,18 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-btn.lf-auxiliary-toggle[aria-expanded="true"] {
     border-color: transparent; color: var(--accent); background: var(--chip);
     box-shadow: inset 0 -2px var(--accent); }
-  /* Unread is state on the control, so it is painted inside the box the control already
-     reserved — the treatment the news border and the open tint above already use. An
-     inline marker is width instead of paint: the shelf is measured to seat its primary
-     controls on a 320px phone with nothing to spare, so eleven pixels of marker put
-     Threads past the window's edge at every count, whether or not anything was unread. */
-  .lf-threads-toggle { position: relative; }
-  .lf-threads-toggle[data-unread-threads]::after {
+  /* News on a banner control is one mark: an accent dot in the control's corner, for
+     unread threads, for More holding something new, and for Versions while a newer
+     version waits. It is painted inside the box the control already reserved, as the
+     open tint above is. An inline marker is width instead of paint: the shelf is
+     measured to seat its primary controls on a 320px phone with nothing to spare, so
+     eleven pixels of marker put Threads past the window's edge at every count, whether
+     or not anything was unread. Not an accent contour: that is the here ring's colour
+     on the here ring's edge, so a door with news behind it read as the focused control
+     while the user was typing somewhere else. */
+  :is(.lf-threads-toggle, .lf-banner-more, .lf-version) { position: relative; }
+  :is(.lf-threads-toggle[data-unread-threads], .lf-banner-more[data-lf-news],
+      .lf-version[data-lf-news])::after {
     content: ""; position: absolute; inset-block-start: 2px; inset-inline-end: 2px;
     width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
   /* Horizontally anchored to its own press. Every side the rule does not use is said
@@ -688,11 +692,6 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      placement, so the other two are taken back from the popover UA rule, which states
      inset 0 with auto margins. The fixed edge keeps this top-layer popover below the
      fixed banner after the document scrolls, as More does above. */
-  /* A pinned or deferred page keeps the full destination in the Latest control, but
-     that control stands in More. Mark its stable Versions door with the same
-     border-and-ink vocabulary as a menu-news door, without adding words or width. */
-  :is(.lf-banner-actions, .lf-banner-menu) > .lf-version[data-lf-news] {
-    border-color: var(--accent); color: var(--accent); }
   .lf-version-menu { position: fixed; position-anchor: --lf-banner-more;
     right: anchor(right);
     bottom: auto; left: auto; margin: 0; z-index: var(--lf-z-menu);

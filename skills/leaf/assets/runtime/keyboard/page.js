@@ -15,7 +15,8 @@ import { letGo, release, takesLetters } from "../focus.js";
 import { inChrome, pageQueryAll } from "../passages.js";
 import { inUi } from "../shadow.js";
 import { pageSelection } from "../composing/capture.js";
-import { focusedThreadOf, standingThreadOf } from "../thread/focus.js";
+import { heldThread } from "../thread/focus.js";
+import { heldAsk } from "../standing-target.js";
 import { threadsBox } from "../thread/panel-elements.js";
 import { threadSearchActive } from "../thread/narrowing.js";
 import { boxHandsBack } from "../thread/landing.js";
@@ -115,16 +116,17 @@ const holding = () => {
   return Boolean(active) && active !== document.body;
 };
 let standingFloor = () => null;
-export function declareStanding({ askHeld, pageState }) {
+export function declareStanding({ pageState }) {
   standingFloor = () => {
     if (!holding()) return null;
     if (nativeLayers().length) return null;
     if (takesLetters(focused()) && boxHandsBack()) return null;
     if (claimsEsc(focused())) return null;
-    if (focusedThreadOf()) return threadsBox;
+    const thread = heldThread();
+    if (thread?.matches(".lf-thread")) return threadsBox;
     if (inChrome(documentFocused())) return null;
     if (pageSelection() || pageState()) return null;
-    return standingThreadOf() || askHeld() || !inUi(focused()) ? document.body : null;
+    return thread || heldAsk() || !inUi(focused()) ? document.body : null;
   };
   pageScope("standing", {
     title: "Standing on something",
@@ -157,7 +159,7 @@ export function declareStanding({ askHeld, pageState }) {
 // than two spellings of it. It stands down under a native layer too: a popover or a
 // modal is the browser's own mode, its own scope is the way out of it, and the page
 // beneath is not somewhere a press can reach from inside it.
-// AGENTS.md's "The user has to be standing somewhere" holds the rest.
+// keyboard/AGENTS.md's "Escape unwinds the hierarchy, not the history" holds the rest.
 pageRung("page", () => {
   if (nativeLayers().length) return null;
   if (holding())

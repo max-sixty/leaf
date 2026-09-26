@@ -125,7 +125,24 @@ def prepare_page(
     final_status: str | None = "waiting",
     current_note: str = "Draft as authored",
     earlier_note: str = "Earlier draft",
+    each_version: Callable[[Path], None] | None = None,
 ) -> PreparedPage:
+    """Build one page directory from an authored fixture.
+
+    `preview.py`, `site.py`, and the render harness's `serve` all build through
+    here. The current source is written before the data operations, because
+    `leaf data set` validates a source against the page's markup and the current
+    version is the one that has to bind it. Versions are then stamped oldest first,
+    and the seed log goes in after the first stamp and before any later one, so a
+    revised example reads in the order it happened: a version, what the user said
+    about it, then the version that answered. The cursor ends past the seed, since a
+    seed is history: a cursor at zero would hand the next agent session questions
+    the log already answers.
+
+    `each_version` is called with each version's source once it is stamped, and once
+    the seed is in the log after the first, so it reads the page as a builder
+    leaves it at that version.
+    """
     selection = package_selection_args(fixture.packages)
     if initialize:
         run_leaf("page", "init", *selection, str(page))
@@ -150,6 +167,8 @@ def prepare_page(
         )
         if order == 0 and seed_log:
             _seed_log(fixture, page)
+        if each_version is not None:
+            each_version(version)
     if seed_log:
         _acknowledge_seed(fixture, page)
     if final_status is not None:

@@ -153,11 +153,11 @@ under `$idioms` in the package's
 A rule that draws a box's inset — padding, border, or tinted field — declares
 `--lf-block-frame: 1` in the same rule. The shared layout uses that declaration to trim child
 margins and bound wide content, and the render gate reports a frame that omits it. The
-first or last child may be a transparent wrapper whose own child margin reaches the
-frame. Such a wrapper declares `--lf-passes-block-edge: 1`; each transparent wrapper
-along that edge does the same. A wrapper with its own padding, border, or formatting
-context keeps its interior margins and does not pass the edge. The render gate follows
-transparent wrappers and reports an untrimmed frame edge.
+trim follows the frame's edge down through each first or last child, so a wrapper
+between the frame and the margin it trims declares nothing. A box that lays its children
+out side by side (a flex row, a grid) declares `--lf-holds-edge: 1`, so the trim stops at
+it rather than taking one item's margin and leaving the others'; the render gate names
+one that splits a row at a frame's edge.
 
 The runtime exposes declared layout facts as `[data-lf-inline]`, `[data-lf-space]`,
 `[data-lf-measure]`, `[data-lf-bound]`, and `[data-lf-exhibit]`; shared selectors read
@@ -187,6 +187,8 @@ machine rather than a remote font.
 `body[data-lf-presented]` means the initial authoritative projection, or the deliberate
 offline fallback, is safe for recorded interaction. Authored content is already visible:
 Leaf disables its arrival transitions and durable widget actions before that stamp.
+Printed keys pressed earlier are held and reach the page's key handlers only after the
+stamp lands, in order, so a package's keys need no arrival guard either.
 Package styles need no arrival guard. A package opens a dialog or popover only after that
 stamp or in response to a user gesture; Leaf does not defer top-layer UI during startup.
 A widget that keeps part of its own upgrade off the presentation path — a heavy renderer
@@ -592,9 +594,10 @@ Register the command once, not every nearby button. Evidence nested inside an
 option is not an answer, and a shared-margin entry may sit outside the Ask source. When
 controls or availability change, keep the row fields computed and call `paintKeys()`;
 every command projection then updates together. A package that needs the page-wide open
-Ask set calls `watchAsks(owner, callback)`. It invokes `callback(openAsks)`
-immediately, invokes it again after one complete Ask projection replaces another, binds
-the subscription lifetime to `owner`, and returns an explicit cleanup function. Each
+Ask set calls `watchAsks(owner, callback)`. It invokes `callback(openAsks)` on the
+microtask after subscribing and again after each state change, at most once per
+microtask and possibly with an unchanged set; it skips calls while `owner` is
+disconnected, and returns a cleanup function the owner calls on disconnect. Each
 Ask is an immutable `{id, tag, sourceId, sourceTag, thread}` record; resolve a node only
 to present or focus it, never to decide membership or answered state. The set is empty
 until the page's first server reading is admitted, and it changes with each later
@@ -1054,23 +1057,26 @@ path segments are object keys or array indices. A formatted or parsed record may
 name its whole input. This identifies construction inputs, not an inverse edit mapping.
 
 Render the value with `projectData(root, records, keyOf, render, options)`. The root is an
-id-bearing authored seat and owns the projection's children. `keyOf` returns a stable
-non-empty string for the logical datum; `render` receives
+id-bearing authored seat and owns the projection's children. `keyOf` returns a
+non-empty rendering key, unique in that projection; `render` receives
 `(record, priorNode, index)` and returns its element, reusing `priorNode` where that
 preserves a focused control or selection. Leaf marks those words as readable data
-rather than authored prose, reconciles their order, and keeps comments attached by the
-projection/key pair even when a refresh replaces the text nodes. A renderer
+rather than authored prose and reconciles their order by key. A renderer
 that owns a nested layout passes `{nested: true}` and returns its existing descendants;
 Leaf labels those nodes without moving them. Add `labelOf(record, index)` when a thread
-should name a projected datum with a human coordinate; the stable key remains opaque to
+should name a projected datum with a human coordinate; the rendering key remains opaque to
 the runtime. A widget declaring `x-data` passes `{snapshot}` with the delivery from
 `watchData`, including `null` when no current value exists. Leaf stamps the projection
-with that snapshot's source and revision. A comment remains exact only within that
-source revision. Replacing the value leaves the thread in its section and marks it
-outdated. Derived projections
-omit `snapshot` and retain their section/key identity. If a `watchData` callback renders
-asynchronously, it returns that promise so Leaf publishes the source revision as ready
-only after the projection settles. A rejection is reported as that subscriber's page
+with that snapshot's source and revision. Pass `identify(record, index)` when the
+emitter can name the same subject across source replacements. Its non-empty string
+need not equal the rendering key and must be unique within the projection; a comment
+follows that subject and retains the quote from the value the user saw. A reused
+identifier for a new subject needs a new identity. Other projected keys remain exact
+only within the captured revision; replacing that value marks their placement outdated.
+Derived projections omit `snapshot`
+and retain their section/key identity. If a `watchData` callback renders asynchronously,
+it returns that promise so Leaf publishes the source revision as ready only after the
+projection settles. A rejection is reported as that subscriber's page
 error; it does not make later state
 reads repeat the same page-wide failure. A rejection from the callback's first run is
 stronger: Leaf drops that subscription, so the callback is not asked to restate again
@@ -1093,8 +1099,8 @@ presentation and on later publications and placement updates. `readThreads()` re
 that collection outside a surface; `threadTurns(thread)` selects a Thread's displayed
 turns and `threadSummary(thread)` its topic, turn count, and `latest`. For whether a
 Thread waits on the user, read unresolved `attention.kind === "needs_user"`, which
-includes recovery after a failed response, rather than the raw `awaits_user` turn
-flag. Each Thread's `key` survives admission of a pending gesture, and its `anchor`
+includes recovery after a failed response; `"waiting"` means it is with the agent.
+Each Thread's `key` survives admission of a pending gesture, and its `anchor`
 names the `section` (the widget's id) and `datum` it rests on. A returned promise
 participates in document presentation. The second argument's `signal` is aborted when
 presentation fails, a newer render supersedes it, or the consumer unregisters;
@@ -1151,9 +1157,9 @@ Escape may return focus. Widgets do not receive draft, submission, or event APIs
 
 ## Seeing it
 
-After the re-vendoring sequence in `serving-pages.md` restores the recorded URL, run
-`leaf version check <page> --render` on the version that uses the replacement
-layer. Note the re-vendor in the next stamped version's changelog.
+After `leaf page init` re-vendors the page (`serving-pages.md`, "Re-vendoring and
+layer epochs"), run `leaf version check <page> --render` on the version that uses
+the replacement layer. Note the re-vendor in the next stamped version's changelog.
 
 The render gate is where a module's mistakes surface — an upgrade that defines no element, a widget of no
 size, a `x-verbatim` the rendered words contradict, a shadow root the declaration doesn't

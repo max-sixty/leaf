@@ -1616,6 +1616,7 @@ authored page in one document so the browser suite can exercise their combined
 weight and distributed controls. It is a test fixture, not the public examples
 catalog.</p>
 
+<section id="corpus-sources">
 <lf-tabs id="corpus">
 
 <lf-tab id="corpus-review-a-plan" label="Plan review">
@@ -1791,7 +1792,7 @@ catalog.</p>
         </table>
       </section>
 
-      <section id="plan-final" style="--lf-passes-block-edge: 1">
+      <section id="plan-final">
         <lf-ask id="plan-rollout">
           <h2>Include self-hosted runners in this rollout?</h2>
           <p id="plan-rollout-premise">
@@ -2009,7 +2010,7 @@ Run status now appears in the run list. Filtering by status is planned for 3.3.
         </lf-draft>
       </section>
 
-      <section id="rn-ops-section" style="--lf-passes-block-edge: 1">
+      <section id="rn-ops-section">
         <h2>Operations</h2>
         <p id="rn-ops-why">
           Staging migrated 1.1 million rows in 45–75 seconds on a warm cache.
@@ -2071,9 +2072,9 @@ Run the online schema migration before deploying.
         </p>
       </section>
 
-      <section id="ret-steps" style="--lf-passes-block-edge: 1">
+      <section id="ret-steps">
         <h2>Two-week rollout</h2>
-        <ul id="ret-steps-list" style="--lf-passes-block-edge: 1">
+        <ul id="ret-steps-list">
           <li id="ret-steps-shadow">
             Week one: run expiry in report-only mode and publish deletions by team.
           </li>
@@ -2212,7 +2213,7 @@ chimney with no cap, 120
         </lf-options>
       </lf-ask>
 
-      <section id="heat-weather" style="--lf-passes-block-edge: 1">
+      <section id="heat-weather">
         <h2>The January draught-proofing may already be helping</h2>
         <p id="heat-weather-note">
           Four weeks after the 12 January work sit below five earlier weeks at similar
@@ -2706,7 +2707,7 @@ minutes since deploy, checkout-v2
             </dl>
             <details id="lp-release-notes">
               <summary>Release notes · 3 changes</summary>
-              <ul style="--lf-passes-block-edge: 1">
+              <ul>
                 <li>Keep partial-refund state through checkout retries.</li>
                 <li>Write refund adjustments to the finance export.</li>
                 <li>Add parity checks before production promotion.</li>
@@ -2739,7 +2740,7 @@ minutes since deploy, checkout-v2
 
             <details id="lp-rollback-procedure">
               <summary>Rollback procedure · 3 steps</summary>
-              <ol class="steps" style="--lf-passes-block-edge: 1">
+              <ol class="steps">
                 <li>Route new checkout sessions to <code>checkout-v1</code>.</li>
                 <li>Drain the candidate after active sessions finish.</li>
                 <li>Verify order counts and finance-export isolation.</li>
@@ -2897,7 +2898,7 @@ minutes since deploy, checkout-v2
           <lf-pane id="ar-detail" label="Selected alert">
             <header><h2>Evidence and decision</h2></header>
             <div id="ar-alerts">
-              <section id="ar-canary" style="--lf-passes-block-edge: 1">
+              <section id="ar-canary">
                 <h3>Canary health check</h3>
                 <dl class="facts">
                   <dt>Rule</dt>
@@ -3337,7 +3338,7 @@ hour, pages
               defects and the current revision corrects each one. Two questions stay
               open, and neither blocks the merge:
             </p>
-            <ol id="pr-follow-ups" style="--lf-passes-block-edge: 1">
+            <ol id="pr-follow-ups">
               <li id="pr-follow-up-latency">
                 <strong>Benchmark selected-row demand.</strong> Off-screen worktrees now
                 load only when selected, and nothing measures how long that takes.
@@ -3352,7 +3353,7 @@ hour, pages
 
           <section class="panel" id="pr-orientation">
             <h2>Review finding</h2>
-            <div id="pr-agent-summary" style="--lf-passes-block-edge: 1">
+            <div id="pr-agent-summary">
               <p>
                 <code>PreparedDiff</code> owns each complete Git diff invocation;
                 <code>TempIndex</code> includes untracked files without changing the
@@ -4093,7 +4094,7 @@ fn insert_head&lt;T, F&gt;(v: &amp;mut [T], compare: &amp;mut F)
                   >
                 </lf-code>
               </section>
-              <section id="src-merge" style="--lf-passes-block-edge: 1">
+              <section id="src-merge">
                 <h3>
                   <a
                     href="https://github.com/rust-lang/rust/blob/1.15.0/src/libcollections/slice.rs#L1387"
@@ -4930,7 +4931,7 @@ stateDiagram-v2
           </table>
         </section>
 
-        <section id="security-review" style="--lf-passes-block-edge: 1">
+        <section id="security-review">
           <h2 id="security-review-heading">Astra review</h2>
           <p id="security-review-status">
             <strong
@@ -4943,7 +4944,7 @@ stateDiagram-v2
             incorporates them. The final pass reviewed the implementation, tests, and
             hosted probe evidence.
           </p>
-          <ol id="security-review-findings" style="--lf-passes-block-edge: 1">
+          <ol id="security-review-findings">
             <li>
               <strong>P1 · Whole-process enforcement.</strong> Codex profiles exclude
               integrations; B2 now uses one outer SRT lifetime for setup and either
@@ -5011,9 +5012,9 @@ stateDiagram-v2
 
       <details id="security-source-disclosure">
         <summary>Primary evidence and source links</summary>
-        <section id="security-sources" style="--lf-passes-block-edge: 1">
+        <section id="security-sources">
           <h2 id="security-sources-heading">Primary evidence</h2>
-          <ul id="security-source-list" style="--lf-passes-block-edge: 1">
+          <ul id="security-source-list">
             <li>
               <a href="https://github.com/max-sixty/tend/pull/1173"
                 >The merged Tend implementation</a
@@ -5402,10 +5403,7 @@ stateDiagram-v2
               <h2>Refresh every failed request</h2>
             </header>
             <div>
-              <section
-                id="comparison-current-behavior"
-                style="--lf-passes-block-edge: 1"
-              >
+              <section id="comparison-current-behavior">
                 <h3>Behavior</h3>
                 <p>
                   Each call that receives an expired-session response starts its own
@@ -5432,10 +5430,7 @@ stateDiagram-v2
                 </dl>
               </section>
 
-              <section
-                id="comparison-current-consequence"
-                style="--lf-passes-block-edge: 1"
-              >
+              <section id="comparison-current-consequence">
                 <h3>Release consequence</h3>
                 <p>
                   No client behavior changes. A busy tab can still send several refresh
@@ -5452,10 +5447,7 @@ stateDiagram-v2
               <h2>Share one refresh per tab</h2>
             </header>
             <div>
-              <section
-                id="comparison-proposed-behavior"
-                style="--lf-passes-block-edge: 1"
-              >
+              <section id="comparison-proposed-behavior">
                 <h3>Behavior</h3>
                 <p>
                   The first expired-session response starts a refresh. Other calls in
@@ -5480,10 +5472,7 @@ stateDiagram-v2
                 </dl>
               </section>
 
-              <section
-                id="comparison-proposed-consequence"
-                style="--lf-passes-block-edge: 1"
-              >
+              <section id="comparison-proposed-consequence">
                 <h3>Release consequence</h3>
                 <p>
                   Concurrent calls reuse one refresh result. If that refresh fails, all
@@ -5492,7 +5481,7 @@ stateDiagram-v2
                 </p>
               </section>
 
-              <section id="comparison-rollout" style="--lf-passes-block-edge: 1">
+              <section id="comparison-rollout">
                 <h3>Recorded rollout</h3>
                 <p>
                   Version 2.8 enables shared refreshes for web clients. The existing
@@ -5534,8 +5523,8 @@ stateDiagram-v2
           <lf-pane id="review-queue" label="Items">
             <header><h2>Queue</h2></header>
             <div>
-              <nav aria-label="Review items" style="--lf-passes-block-edge: 1">
-                <ul style="--lf-passes-block-edge: 1">
+              <nav aria-label="Review items">
+                <ul>
                   <li>
                     <a href="#review-auth"><strong>Authentication retry</strong></a>
                     <p>Ready · customer sign-in · medium risk</p>
@@ -5572,7 +5561,7 @@ stateDiagram-v2
                   </li>
                 </ul>
               </nav>
-              <section id="review-notes" style="--lf-passes-block-edge: 1">
+              <section id="review-notes">
                 <h3>Release notes</h3>
                 <p>
                   Two items change stored data. Four affect behavior at request time.
@@ -5590,7 +5579,7 @@ stateDiagram-v2
           <lf-pane id="review-detail" label="Selected item">
             <header><h2>Details</h2></header>
             <div id="review-items">
-              <section id="review-auth" style="--lf-passes-block-edge: 1">
+              <section id="review-auth">
                 <h3>Authentication retry</h3>
                 <dl>
                   <dt>Status</dt>
@@ -5745,7 +5734,7 @@ expire old keys</code></pre>
                   </lf-options>
                 </lf-ask>
               </section>
-              <section id="review-webhook" style="--lf-passes-block-edge: 1">
+              <section id="review-webhook">
                 <h3>Webhook delivery</h3>
                 <p>
                   Delivery attempts retain the event id across retries. Partners can
@@ -5781,7 +5770,7 @@ expire old keys</code></pre>
 
       <lf-tabs id="root-tabs">
         <lf-tab id="plan-tab" label="Plan">
-          <section id="plan-return" style="--lf-passes-block-edge: 1">
+          <section id="plan-return">
             <h2>Rollout plan</h2>
             <p>
               Move active accounts in three cohorts. Each cohort starts after the prior
@@ -5832,7 +5821,7 @@ expire old keys</code></pre>
             </p>
           </section>
 
-          <section id="plan-rollback" style="--lf-passes-block-edge: 1">
+          <section id="plan-rollback">
             <h2>Rollback</h2>
             <p>
               A failed gate returns reads to the current store and stops later cohorts.
@@ -5847,7 +5836,7 @@ expire old keys</code></pre>
         </lf-tab>
 
         <lf-tab id="evidence-tab" label="Evidence">
-          <section id="evidence-summary" style="--lf-passes-block-edge: 1">
+          <section id="evidence-summary">
             <h2>Rehearsal results</h2>
             <p>
               Three rehearsals copied 48,219 accounts from a production snapshot. Every
@@ -5921,7 +5910,7 @@ expire old keys</code></pre>
             </lf-ask>
           </section>
 
-          <section id="evidence-follow-through" style="--lf-passes-block-edge: 1">
+          <section id="evidence-follow-through">
             <h2>Follow-through</h2>
             <p>
               After settling the observation window, return to the
@@ -7259,7 +7248,7 @@ gallery/
                   <p>
                     The candidate changes cache keys, receipts, and settlement jobs.
                   </p>
-                  <ul style="--lf-passes-block-edge: 1">
+                  <ul>
                     <li>Cache migration copies active entries before cutover.</li>
                     <li>Receipts show refunds in the settlement currency.</li>
                     <li>Invalid jobs leave the shared queue for review.</li>
@@ -7336,7 +7325,7 @@ switch --readers checkout-api,orders-api</code></pre>
         <p id="bg-change">The sample walk follows the river to the footbridge.</p>
       </section>
 
-      <section id="bg-delivery" style="--lf-passes-block-edge: 1">
+      <section id="bg-delivery">
         <p class="eyebrow bg-feature-elements">lf-board · lf-column · lf-card</p>
         <h2>
           <strong>Board</strong> and <strong>delivery state</strong
@@ -7417,7 +7406,7 @@ switch --readers checkout-api,orders-api</code></pre>
           <lf-swipe-pile id="swipe-keep" verdict="keep"></lf-swipe-pile>
         </lf-swipe-deck>
       </lf-ask>
-      <section id="swipe-recorded" style="--lf-passes-block-edge: 1">
+      <section id="swipe-recorded">
         <h2>A completed classification remains inspectable</h2>
         <lf-specimen id="swipe-recorded-specimen" label="a recorded swipe result">
           <lf-swipe-deck id="swipe-completed">
@@ -7471,6 +7460,7 @@ switch --readers checkout-api,orders-api</code></pre>
 </lf-tab>
 
 </lf-tabs>
+</section>
 </main>
 </body>
 </html>

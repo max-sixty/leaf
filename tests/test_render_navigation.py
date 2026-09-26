@@ -19,6 +19,8 @@ from render_cases_interaction import (
     panel_comment,
 )
 from render_cases_layout import (
+    SHOT_SRC,
+    SHOTS,
     banner_control,
     in_threads_scrollport,
     page_at_rest,
@@ -1741,27 +1743,32 @@ def test_generated_hints_include_links_revealed_by_a_page_widget(browser, serve)
 
 
 @pytest.mark.parametrize(
-    "embedded",
-    [False, "element", "text"],
-    ids=["page-tabs", "tabbed-section", "following-text"],
+    "placement",
+    ["alone", "among-blocks", "nested"],
 )
 def test_the_gallery_tab_set_uses_the_boundary_of_its_composition(
-    browser, serve, embedded
+    browser, serve, placement
 ):
-    """The same tab vocabulary has page or section scope from its authored placement."""
+    """The same tab vocabulary has page or section scope from where it is placed: the
+    first set directly in main is page navigation whatever stands beside it, and a set
+    inside another block is a tabbed section."""
     specimen = re.search(
         r'<lf-tabs id="bg-tabs">.*?</lf-tabs>', FEATURE_GALLERY.read_text(), re.DOTALL
     )
     assert specimen is not None
     heading = "<header><h1>Project views</h1></header>"
-    after = {
-        False: "",
-        "element": "<p>This conclusion follows the tabbed section.</p>",
-        "text": "This conclusion follows the tabbed section.",
-    }[embedded]
+    body = {
+        "alone": heading + specimen[0],
+        "among-blocks": heading
+        + '<aside class="sidebar"><p>Contents</p></aside>'
+        + specimen[0]
+        + "<p>This conclusion follows the tab set.</p>",
+        "nested": heading + "<section>" + specimen[0] + "</section>",
+    }[placement]
+    embedded = placement == "nested"
     page = open_page(
         browser,
-        live_url(serve(leaf_page("Root tab gallery", heading + specimen[0] + after))),
+        live_url(serve(leaf_page("Root tab gallery", body))),
     )
     tabs = page.locator("#bg-tabs")
     expect(tabs).to_have_css("border-left-width", "1px" if embedded else "0px")
@@ -1781,10 +1788,17 @@ def test_the_gallery_tab_set_uses_the_boundary_of_its_composition(
         page.evaluate("window.__retainedTabs = document.querySelector('#bg-tabs')")
         source = serve.page_dir / "index.html"
         original = source.read_text()
+        # An earlier tab set in main takes over the page's navigation, and this one
+        # becomes a tabbed section without being rebuilt.
         stamp_page(
             serve.page_dir,
-            original.replace("</main>", "<p>Shared closing context.</p></main>"),
-            "Add shared closing context",
+            original.replace(
+                '<lf-tabs id="bg-tabs">',
+                '<lf-tabs id="earlier-tabs"><lf-tab id="earlier-tab" label="Earlier">'
+                "<p>Earlier views.</p></lf-tab></lf-tabs>"
+                '<lf-tabs id="bg-tabs">',
+            ),
+            "Add an earlier tab set",
         )
         wait_for_revision(page, 2)
         expect(tabs).to_have_css("border-left-width", "1px")
@@ -1857,6 +1871,7 @@ def test_an_inline_tab_keeps_its_panel_inside_one_visible_boundary(browser, serv
                 """
 <h1 id="heading">Parallel work</h1>
 <p id="shared">This context belongs to every view.</p>
+<section id="views-section">
 <lf-tabs id="views">
   <lf-tab id="implementation" label="Implementation">
     <section id="implementation-section">
@@ -1871,6 +1886,7 @@ def test_an_inline_tab_keeps_its_panel_inside_one_visible_boundary(browser, serv
     </section>
   </lf-tab>
 </lf-tabs>
+</section>
 <section id="next-section"><h2 id="next-heading">Whole-page conclusion</h2></section>
 """,
             )
@@ -2899,6 +2915,14 @@ def test_a_walked_thread_leaves_through_what_holds_it(browser, serve):
     expect(threads[0]).to_be_focused()
     page.keyboard.press("Escape")
     expect(page.locator("#p")).to_be_focused()
+    # The element and the card beside it are one place, so standing there is standing
+    # at its thread: the line names it, and the walk goes on from the thread rather than
+    # back into it.
+    expect(line).to_contain_text("comment on the thread")
+    page.keyboard.press("t")
+    expect(threads[1]).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(page.locator("#p2")).to_be_focused()
     page.keyboard.press("Escape")
     expect(preview).to_be_hidden()
     assert page.evaluate("() => document.activeElement === document.body")
@@ -2944,6 +2968,102 @@ def test_a_walked_thread_leaves_through_what_holds_it(browser, serve):
     page.keyboard.press("Escape")
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
     assert page.evaluate("() => document.activeElement === document.body")
+
+
+# Ways to arrive at, move within, and step back from a thread's margin card. `@mark` is a
+# keyboard arrival on the first passage's mark; `@marker` is a press on its margin marker.
+CARD_ROUTES = {
+    "walk": ["t"],
+    "walk, back to its element": ["t", "Escape"],
+    "walk, let go": ["t", "Escape", "Escape"],
+    "walk on, back to its element": ["t", "t", "Escape"],
+    "walk, Tab within the card": ["t", "Tab"],
+    "walk, go to the page": ["t", "g", "p"],
+    "reply, back out to its element": ["t", "c", "Escape", "Escape"],
+    "arrive at the mark": ["@mark"],
+    "arrive at the mark, step back": ["@mark", "Escape"],
+    "press the marker": ["@marker"],
+}
+
+
+@pytest.mark.parametrize("route", CARD_ROUTES.values(), ids=CARD_ROUTES.keys())
+def test_c_lands_where_its_badge_is_and_in_the_card_on_screen(browser, serve, route):
+    """One box wears `c`, and `c` lands in it; while a card is up, that box is its reply.
+
+    The badge and the press read the same destination, and the card's being up is part
+    of that destination rather than a second reading of where the user stands, so no
+    route may leave a card on screen whose reply `c` does not reach.
+    """
+    page = open_page(
+        browser,
+        serve(INLINE_PAGE, anchored=[("p", "bold text"), ("p2", "neighbouring block")]),
+    )
+    page.set_viewport_size({"width": 1600, "height": 900})
+    for step in route:
+        if step == "@mark":
+            page.keyboard.press(
+                "Tab"
+            )  # keyboard modality, so the focus below is visible
+            page.locator("#p .lf-mark-note").focus()
+        elif step == "@marker":
+            page.locator('.lf-margin-marker[data-lf-kinds="comment"]').first.click()
+        else:
+            page.keyboard.press(step)
+        rendered(page)
+
+    badged = page.locator("textarea[placeholder$=' c']")
+    expect(badged).to_have_count(1)
+    box = badged.element_handle()
+    card = page.locator(".lf-margin-preview")
+    card_up = card.is_visible()
+    assert box.evaluate("box => Boolean(box.closest('.lf-margin-preview'))") == card_up
+    page.keyboard.press("c")
+    rendered(page)
+    assert box.evaluate("box => box === document.activeElement")
+
+
+def test_threads_answers_c_in_the_thread_it_expanded_for_a_target(browser, serve):
+    """With Threads open, the list's expanded thread plays the margin card's part.
+
+    Arriving at a commented element by the keyboard expands its thread in the list, and
+    standing there is standing at that thread: its reply box wears `c`, `c` lands in
+    it, and the walk goes on from it.
+    """
+    url = serve(
+        INLINE_PAGE, anchored=[("p", "bold text"), ("p2", "neighbouring block")]
+    )
+    roots = [
+        event["id"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    ]
+    page = open_page(browser, url)
+    page.set_viewport_size({"width": 1600, "height": 900})
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page, True)
+    listed = [
+        page.locator(f'.lf-threads > .lf-thread[data-id="{root}"]') for root in roots
+    ]
+    line = page.locator(".lf-shortcut-bar")
+
+    # The list opens with the first thread expanded, so the second target is the one
+    # whose arrival has to move it.
+    expect(listed[1]).not_to_have_attribute("open", "")
+    page.keyboard.press("Tab")  # keyboard modality, so the focus below is visible
+    page.locator("#p2 .lf-mark-note").focus()
+    expect(listed[1]).to_have_attribute("open", "")
+    reply = listed[1].locator("textarea")
+    expect(reply).to_have_attribute("placeholder", "Reply c")
+    expect(line).to_contain_text("comment on the thread")
+    page.keyboard.press("c")
+    expect(reply).to_be_focused()
+
+    page.keyboard.press("Escape")
+    page.keyboard.press("Escape")
+    page.locator("#p .lf-mark-note").focus()
+    expect(listed[0]).to_have_attribute("open", "")
+    page.keyboard.press("t")
+    expect(listed[1].locator(":scope > .lf-thread-summary")).to_be_focused()
 
 
 def test_threads_panel_keeps_one_visible_thread_open_through_resolution(browser, serve):
@@ -4506,6 +4626,7 @@ def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
     page.keyboard.press("g")
     shortcut_bar_text(page)
     expect(page.locator("body")).to_have_attribute("data-lf-go-to-active", "")
+    expect(page.locator(CHIPS).first).to_be_visible()
     assert (
         set(
             page.locator(CHIPS).evaluate_all(
@@ -5832,18 +5953,48 @@ def test_inflight_native_paging_hides_hints_until_the_scene_settles(browser, ser
         ),
     )
 
+    # Hold the browser's paging animation and the hint settle timer at the first
+    # rendering frame. Driver-side polling can otherwise begin after the 80 ms
+    # settle window and mistake the settled map for an in-flight one.
+    page.clock.install(time=0)
+    page.clock.pause_at(0)
     page.keyboard.press("PageDown")
     page.keyboard.press("g")
+    page.clock.run_for(20)
+    expect(page.locator("body")).to_have_attribute("data-lf-go-to-active", "")
     expect(page.locator(CHIPS)).to_have_count(0)
+    page.clock.resume()
     expect(page.locator(CHIPS)).to_have_count(1)
     codes = address_codes(page)
     mapped_at = page.evaluate("() => document.scrollingElement.scrollTop")
+    assert mapped_at > 0, "PageDown never moved the document"
     page_at_rest(page)
 
     assert page.evaluate("() => document.scrollingElement.scrollTop") == mapped_at
     assert address_codes(page) == codes
     expect(page.locator(CHIPS)).to_have_count(1)
     page.keyboard.press("Escape")
+
+
+def test_armed_hints_settle_after_resize(browser, serve):
+    """A resize during the arming wait still lets the map appear at rest."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Map at resize",
+                '<h1>Map at resize</h1><p><a id="destination" href="#destination">Go</a></p>',
+            )
+        ),
+    )
+    page.clock.install(time=0)
+    page.clock.pause_at(0)
+    page.keyboard.press("g")
+    page.set_viewport_size({"width": 800, "height": 700})
+    page.clock.run_for(100)
+    # Let the settle callback's requested paint run before reading its chips.
+    page.clock.resume()
+    expect(page.locator(CHIPS).first).to_be_visible()
 
 
 def test_only_controls_and_boxes_with_something_out_of_sight_take_a_tab_stop(
@@ -6460,7 +6611,7 @@ def test_registered_shortcuts_are_exposed_to_assistive_technology(browser, serve
     assert page.locator(".lf-asks").get_attribute("aria-keyshortcuts") is None
     banner_control(page, ".lf-asks").click()
     expect(page.locator(".lf-asks-panel")).to_have_attribute(
-        "aria-keyshortcuts", "ArrowUp ArrowDown"
+        "aria-keyshortcuts", "ArrowUp ArrowDown Home End"
     )
     expect(page.locator(".lf-asks-row").first).to_have_attribute(
         "aria-keyshortcuts", "Enter Space"
@@ -6632,6 +6783,7 @@ def test_generated_hints_branch_after_the_single_letter_alphabet(browser, serve)
     line = page.locator(".lf-shortcut-bar")
 
     page.keyboard.press("g")
+    expect(page.locator(CHIPS).first).to_be_visible()
     codes = address_codes(page)
     assert len(codes) == len(set(codes)) == 23
     assert all(code.isalpha() and code.islower() for code in codes)
@@ -10250,7 +10402,7 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     wait_for_revision(page, 2)
     expect(page.locator('.lf-version-diff[data-lf-version="1"]')).to_have_count(1)
     expect(page.locator(".lf-version-menu")).to_have_attribute(
-        "aria-keyshortcuts", "ArrowUp ArrowDown 1 2 Enter Space v"
+        "aria-keyshortcuts", "ArrowUp ArrowDown Home End 1 2 Enter Space v"
     )
     # Nothing executable changed, so the user keeps this document and the shelf they
     # opened stays open. The next press opens the reference over the current version.
@@ -11276,3 +11428,186 @@ def test_a_user_at_the_top_of_the_document_is_one_press_from_the_chrome(browser,
         f"the skip link's press left the user on {landed['name']}, outside the layer "
         f"it names"
     )
+
+
+ASK_THREAD_PAGE = leaf_page(
+    "an ask and its thread",
+    """<h1>Cache review</h1>
+<p id="lead">The budget note covers latency budgets for the cache.</p>
+<lf-ask id="cache-ask">
+  <h2>Which cache should we keep?</h2>
+  <lf-options id="cache" choose>
+    <lf-option id="cache-disk">Keep the disk cache</lf-option>
+    <lf-option id="cache-memory">Keep the memory cache</lf-option>
+  </lf-options>
+</lf-ask>
+<lf-ask id="ship-ask">
+  <h2>Ship on Friday?</h2>
+  <lf-options id="ship" choose>
+    <lf-option id="ship-friday">Ship Friday</lf-option>
+    <lf-option id="ship-wait">Wait a week</lf-option>
+  </lf-options>
+</lf-ask>
+<lf-tasks id="tasks">
+  <lf-task id="retry" status="review" owner="infra">
+    <strong>Retry budget</strong> The retry budget doubles under load.
+    <lf-ask id="retry-ask">
+      <h3>Raise the retry budget?</h3>
+      <lf-options id="retry-pick" choose>
+        <lf-option id="retry-raise">Raise it</lf-option>
+        <lf-option id="retry-keep">Keep it</lf-option>
+      </lf-options>
+    </lf-ask>
+  </lf-task>
+</lf-tasks>""",
+)
+
+
+def test_an_ask_and_its_thread_are_one_standing_target(browser, serve):
+    """An Ask whose own thread the card shows is one place held from two sides
+    (glossary, Standing target). From the Ask, `c` continues that thread and `t` steps
+    on past it; from its thread, in the card or in the Threads list, the Ask keeps its
+    ring and its digits. A thread about an enclosing block is that block's, so an Ask
+    inside the block still starts a thread of its own. From an element with no thread,
+    `t` measures from its place in the document, as `a` does."""
+    url = serve(ASK_THREAD_PAGE)
+    d = serve.page_dir
+    panel_comment(
+        d, "Budgets are tight.", {"section": "lead", "quote": "latency budgets"}
+    )
+    about_ask = panel_comment(d, "The disk cache costs more.", {"section": "cache-ask"})
+    about_task = panel_comment(
+        d,
+        "Doubling is a lot.",
+        {"section": "retry", "quote": "The retry budget doubles under load."},
+    )
+    page = open_page(browser, url)
+    line = page.locator(".lf-shortcut-bar")
+    card = page.locator(".lf-margin-preview")
+    ask = page.locator("#cache-ask")
+    ask_thread = card.locator(f'.lf-page-thread[data-thread="{about_ask}"]')
+
+    # From the Ask, the card beside it holds its thread, and `c` continues that thread
+    # rather than starting a second one.
+    page.keyboard.press("a")
+    expect(ask).to_be_focused()
+    expect(ask_thread).to_be_visible()
+    expect(line).to_contain_text("comment on the thread")
+    page.keyboard.press("c")
+    expect(ask_thread.locator("textarea")).to_be_focused()
+    page.keyboard.press("Escape")
+    page.keyboard.press("Escape")
+    expect(ask).to_be_focused()
+
+    # From an Ask with no thread, `t` goes to the next thread after it in the document,
+    # which is the task's. Back from there is the Ask's own thread, where, in the card,
+    # the Ask is still where the user stands.
+    page.keyboard.press("a")
+    expect(page.locator("#ship-ask")).to_be_focused()
+    page.keyboard.press("t")
+    expect(card.locator(f'.lf-page-thread[data-thread="{about_task}"]')).to_be_focused()
+    page.keyboard.press("Shift+t")
+    expect(ask_thread).to_be_focused()
+    expect(ask).to_have_attribute("data-lf-ask", "1")
+    expect(line).to_contain_text("Ask actions")
+
+    # The nested Ask's card shows its task's thread, which is about the task.
+    page.keyboard.press("a")
+    expect(page.locator("#ship-ask")).to_be_focused()
+    page.keyboard.press("a")
+    expect(page.locator("#retry-ask")).to_be_focused()
+    expect(card.locator(f'.lf-page-thread[data-thread="{about_task}"]')).to_be_visible()
+    expect(line).to_contain_text("comment on the ask")
+    page.keyboard.press("Escape")
+
+    # With Threads open, the list's thread about the Ask plays the card's part, and a
+    # digit there answers the Ask.
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
+    panel_settled(page, True)
+    page.keyboard.press("t")
+    page.keyboard.press("t")
+    expect(
+        page.locator(f'.lf-thread[data-id="{about_ask}"] > .lf-thread-summary')
+    ).to_be_focused()
+    expect(ask).to_have_attribute("data-lf-ask", "1")
+    page.keyboard.press("1")
+    expect(page.locator("#cache-disk")).to_have_attribute("chosen", "")
+
+
+def test_a_resolved_thread_still_stands_at_its_ask(browser, serve):
+    """Resolving a thread settles the discussion, not what it was about: its row in
+    Threads still stands at the Ask it names, with the Ask's ring and digits."""
+    url = serve(ASK_THREAD_PAGE)
+    d = serve.page_dir
+    about_ask = panel_comment(
+        d, "Ship it once the cache lands.", {"section": "ship-ask"}
+    )
+    events_model.append_event(
+        d, {"kind": "resolve", "author": "user", "parent": about_ask}
+    )
+    page = open_page(browser, url)
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
+    panel_settled(page, True)
+    page.locator(".lf-thread-filter-toggle").click()
+    page.locator('[data-filter-kind="status"][data-filter-value="resolved"]').click()
+    summary = page.locator(f'.lf-thread[data-id="{about_ask}"] > .lf-thread-summary')
+    expect(summary).to_be_visible()
+    summary.focus()
+    expect(summary).to_be_focused()
+    expect(page.locator("#ship-ask")).to_have_attribute("data-lf-ask", "1")
+    page.keyboard.press("2")
+    expect(page.locator("#ship-wait")).to_have_attribute("chosen", "")
+
+
+def test_an_ask_in_a_reply_is_where_the_user_stands_once_answered(browser, serve):
+    """An Ask frozen into a reply sits in a thread about a page Ask. Standing in the
+    reply's Ask is standing there whether or not it is answered: the thread leads to its
+    page Ask only from a node inside no Ask, so a user back on the answered option does
+    not have the page Ask's ring and digits. A control the margin draws for a widget in
+    the reply stands nowhere, since its widget is chrome in no Ask, so `a` from it starts
+    where the reader is rather than behind every Ask on the page."""
+    url = serve(
+        ASK_THREAD_PAGE,
+        media={SHOT_SRC[name]: data for name, data in SHOTS.items()},
+    )
+    d = serve.page_dir
+    about_ask = panel_comment(d, "Which one lasts longer?", {"section": "cache-ask"})
+    events_model.append_event(
+        d,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Claude",
+            "revision": 1,
+            "parent": about_ask,
+            "responds": about_ask,
+            "text": "One question first.",
+            "markup": '<lf-ask id="follow-ask"><h3>Measure it first?</h3>'
+            '<lf-options id="follow" choose>'
+            '<lf-option id="follow-yes">Measure first</lf-option>'
+            '<lf-option id="follow-no">Decide now</lf-option>'
+            "</lf-options></lf-ask>"
+            f'<lf-shot id="follow-shot" alt="the cache before and after" '
+            f'before="{SHOT_SRC["before"]}" after="{SHOT_SRC["after"]}"></lf-shot>',
+        },
+    )
+    page = open_page(browser, url)
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
+    panel_settled(page, True)
+    page.locator(".lf-thread .lf-shot-toggle").focus()
+    page.keyboard.press("a")
+    expect(page.locator("#cache-ask")).to_be_focused()
+    option = page.locator("#follow-yes")
+    option.click()
+    expect(option).to_have_attribute("chosen", "")
+    # Back on the answered option, the user stands in the reply's Ask. Answering moves
+    # focus to the message, which is inside no Ask and so does stand at the page Ask.
+    round_trip(page)
+    option.locator(".lf-pick").focus()
+    expect(page.locator("#cache-ask")).not_to_have_attribute("data-lf-ask", "1")
+    page.keyboard.press("1")
+    round_trip(page)
+    expect(page.locator("#cache-disk")).not_to_have_attribute("chosen", "")

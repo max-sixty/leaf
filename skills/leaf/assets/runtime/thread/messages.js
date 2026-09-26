@@ -354,7 +354,10 @@ function datumLabel(anchor) {
   const datum = pageQueryAll("[data-lf-projection][data-lf-datum]").find(
     (element) =>
       element.dataset.lfProjection === anchor.section &&
-      element.dataset.lfDatum === anchor.datum,
+      (!anchor.source || element.dataset.lfSource === anchor.source) &&
+      (anchor.identity
+        ? element.dataset.lfIdentity === anchor.identity
+        : element.dataset.lfDatum === anchor.datum),
   );
   return datum?.dataset.lfDatumLabel?.trim() ?? "";
 }

@@ -30,6 +30,10 @@ const RELEASE = "a".repeat(64);
 const LAYER = "edge-layer";
 const MANIFEST = {
   release: RELEASE,
+  routes: {
+    dirs: ["api", "runtime", "widgets", "vendor", "media", "revisions", "versions"],
+    files: ["leaf.js", "theme.css", "shadow.css", "registry.json", "icon.svg"],
+  },
   pages: {
     "/": {
       assets: `/_leaf-release/${RELEASE}/root`,

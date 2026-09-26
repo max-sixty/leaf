@@ -373,7 +373,7 @@ export function createHintSession({
       return;
     }
     const extraPlans = extras();
-    if (scrolling && !stood) return draw(extraPlans, []);
+    if (!stood) return draw(extraPlans, []);
     const wasWalking = at >= 0;
     const heard = hinted()[at];
     const emptyBefore = candidates.length === 0;
@@ -406,7 +406,6 @@ export function createHintSession({
   function settled() {
     clearTimeout(settleTimer);
     stood = true;
-    if (!scrolling) return;
     scrolling = false;
     repaint();
   }
@@ -444,6 +443,9 @@ export function createHintSession({
     addEventListener("resize", () => {
       if (!armed) return;
       clearTimeout(settleTimer);
+      // A resize may arrive during the first arming wait. Let the new scene stand
+      // for a settle before drawing its generated hints.
+      if (!stood) settleTimer = setTimeout(settled, SETTLE_MS);
       scrolling = false;
       stale = true;
       repaint();

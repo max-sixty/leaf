@@ -134,9 +134,12 @@ that restarted a dead server says so on stderr. The endings:
 
 - `the leaf ended` or `the leaves ended`: every page left in the watch is idle.
   `nothing to watch`: the session holds none. End the loop.
-- `server is not running`: the line gives the recovery command. After recovery,
-  resume with an unnamed `leaf wait`, which cannot reclaim a page transferred
-  meanwhile.
+- `server is not running`: the page was never served, or its server died and
+  the wait's one restart did not bring it back. The line gives the recovery
+  command. After recovery, resume with an unnamed `leaf wait`, which cannot
+  reclaim a page transferred meanwhile. A server stopped with `leaf server stop`,
+  or held down while `leaf page init` re-vendors the page, is not this ending: the
+  wait goes on watching it.
 - `this session no longer owns`: a successor has the page. Do not name or reclaim
   it. A rearm keeps watching any other live page, and exits with this line once the
   transfers empty that set.

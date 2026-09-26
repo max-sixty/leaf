@@ -44,6 +44,9 @@
    outside the card, its target, and its cluster takes it down (`followStanding`). Escape from inside the
    card lands on its target. With Threads open the list's one expanded thread plays the
    card's part: the same arrival expands the target's thread there (`accompanyThread`).
+   The rest of the runtime reads both directions from here: `threadHere` gives the thread
+   a user standing on the page is at, and the side this owner declares to
+   standing-target.js gives the page target a card, cluster, or panel thread stands for.
 
    Placing the card changes its geometry and nothing inside it. The user's place in
    its transcript is the list's own scroll, held through reflow. A landing, send, or
@@ -130,7 +133,8 @@ import { chromeRoot } from "./chrome.js";
 import { versionBtn } from "./version-chooser.js";
 import { motion, scrollBehavior } from "./motion.js";
 import { panel } from "./thread/panel-elements.js";
-import { accompanyThread } from "./thread/landing.js";
+import { accompaniedThread, accompanyThread } from "./thread/landing.js";
+import { declareSide } from "./standing-target.js";
 import { closestAcross, elementById, inChrome } from "./passages.js";
 import { addressableSays, addressableWord, visualAt } from "./anchor-resolution.js";
 import { paintTrace } from "./target-paint.js";
@@ -2576,6 +2580,8 @@ export function createMarginProjection({
   // control, and the mark and the marker are its way to the thread.
   const threadIdOf = (entry) =>
     sourceItem(threadReading(entry).items[0]).thread.root.id;
+  const threadIdsOf = (entry) =>
+    threadReading(entry).items.map((item) => sourceItem(item).thread.root.id);
   // A thread seat already shows the thread where it stands on the page; a card
   // beside it would be the same thread twice.
   const seatedOnPage = (id) =>
@@ -2611,9 +2617,7 @@ export function createMarginProjection({
     if (panelIsOpen()) {
       const entry = host ? host.lfEntry : threadEntryAt(active);
       if (entry && threadReading(entry) && active.matches(":focus-visible"))
-        accompanyThread(
-          threadReading(entry).items.map((item) => sourceItem(item).thread.root.id),
-        );
+        accompanyThread(threadIdsOf(entry));
       return;
     }
     if (host) {
@@ -2664,18 +2668,40 @@ export function createMarginProjection({
   const unfoldedMarginEntries = () =>
     expandedOptionsKey ? (hosts.get(expandedOptionsKey) ?? null) : null;
   const foldMarginEntryOptions = () => setOptionsOpen(null, false);
-  const activeInlineThread = () => {
+  // The thread the user is at: the one holding focus, else the one the card shows. The
+  // card is up only while the user stands somewhere it belongs (`followStanding`,
+  // `declareRelease`, `pressAway`), so its being up is the answer rather than a second
+  // reading of where they stand beside it. With Threads open the list's thread expanded
+  // for the target the user stands on plays the card's part. `c` answers in that
+  // thread's reply box, `t` walks on from it, and Threads opens at it. A thread inside
+  // the card or on the page is `.lf-page-thread`; one in the list is `.lf-thread`.
+  const threadHere = () => {
     const active = focused();
+    if (panelIsOpen()) {
+      const entry = active && !panel.contains(active) && threadEntryAt(active);
+      return entry ? accompaniedThread(threadIdsOf(entry)) : null;
+    }
     const direct = active?.closest?.(".lf-page-thread[data-thread]");
-    if (direct && !panelIsOpen()) return direct;
+    if (direct) return direct;
     if (!pinnedKey || previewEntry?.key !== pinnedKey || !previewOpen()) return null;
-    const held = preview.contains(active) ? active.closest?.(".lf-page-thread") : null;
-    if (held) return held;
     const threads = previewList.querySelectorAll(".lf-margin-thread .lf-page-thread");
-    const pending = previewFocusPending?.key === previewEntry.key;
-    if (!pending && active !== previewMarginEntry) return null;
     return threads.length === 1 ? threads[0] : null;
   };
+  // The page element a thread is about, resolved or not: where its anchor is placed, the
+  // element its inventory entry is grouped under. A general or detached thread has none.
+  const threadTarget = (id) => placedAt(id)?.element ?? null;
+  // The page target this owner's chrome shows (standing-target.js): a margin cluster
+  // control's, the card's — its threads and its own controls — and a thread's in the
+  // Threads panel. `threadHere` is the same relation read the other way.
+  declareSide((node) => {
+    const projected = marginTargetAt(node);
+    if (projected) return projected;
+    if (preview.contains(node)) return targetFor(previewEntry);
+    const listed = panel.contains(node)
+      ? closestAcross(node, ".lf-thread[data-id]")
+      : null;
+    return listed ? threadTarget(listed.dataset.id) : null;
+  });
   // A live revision replaces the browser document, so DOM identity cannot carry a
   // user standing in retained margin chrome. Carry the target and margin-entry keys
   // instead; this owner alone can revalidate those keys against the new projection and
@@ -2836,7 +2862,8 @@ export function createMarginProjection({
     marginEntryChoices,
     unfoldedMarginEntries,
     foldMarginEntryOptions,
-    activeInlineThread,
+    threadHere,
+    threadTarget,
     captureStanding,
     restoreStanding,
     mount,

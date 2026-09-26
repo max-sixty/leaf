@@ -7228,6 +7228,37 @@ def test_a_reply_widget_replays_and_withdraws_its_action(browser, serve):
     expect(page.locator("#rp-live lf-option[chosen]")).to_have_count(0)
 
 
+def test_z_takes_back_a_decision_carried_into_a_later_revision(browser, serve):
+    """A decision the next revision keeps standing is still the user's newest gesture
+    there, so `z` takes it back as the widget's own Undo would."""
+    first = leaf_page(
+        "Carried decision",
+        """<h1>Plan</h1>
+<lf-ask id="cz-ask"><h2>Which comes first?</h2>
+  <lf-options id="cz-options" choose>
+    <lf-option id="cz-flag">Flag</lf-option>
+    <lf-option id="cz-backfill">Backfill</lf-option>
+  </lf-options>
+</lf-ask>""",
+    )
+    page = open_page(browser, live_url(serve(first)))
+    page.locator("#cz-flag .lf-pick").click()
+    round_trip(page)
+    expect(page.locator("#cz-flag")).to_have_attribute("chosen", "")
+
+    stamp_page(
+        serve.page_dir,
+        first.replace("<h1>Plan</h1>", "<h1>Plan</h1><p>Context added.</p>"),
+        "add context",
+    )
+    wait_for_revision(page, 2)
+    expect(page.locator("#cz-flag")).to_have_attribute("chosen", "")
+
+    undo(page)
+    assert events_model.read_events(serve.page_dir)[-1]["kind"] == "undo"
+    expect(page.locator("#cz-options lf-option[chosen]")).to_have_count(0)
+
+
 def test_a_thread_question_asks_until_answered(browser, serve):
     """A question in a thread is one of the page's asks — an obligation for the user
         wherever it stands — and `a` reaches it. A single-answer group
@@ -7631,6 +7662,59 @@ def test_agent_places_its_live_line_before_command_evidence(browser, serve):
         """worker => [...worker.children].map(child => child.classList.contains('lf-agent-line')
           ? 'line' : child.id).filter(Boolean)"""
     ) == ["line", "proof"]
+
+
+def test_worktree_identity_does_not_follow_the_missing_evidence_placeholder(
+    browser, serve
+):
+    source = leaf_page(
+        "worktree identity",
+        '<lf-roster id="team"><lf-agent id="worker" state="working">'
+        '<strong>Worker</strong><lf-worktree id="proof" source="atlas-worktrees">'
+        "</lf-worktree></lf-agent></lf-roster>",
+    )
+    url = serve(source)
+    record = {
+        "branch": "proof",
+        "base": "main",
+        "head": "abc123",
+        "ahead": 1,
+        "behind": 0,
+        "additions": 3,
+        "deletions": 1,
+        "commits": 1,
+        "tests": "passing",
+        "observedAt": "2026-09-25T10:00:00-07:00",
+    }
+    data_model.cmd_data_set(serve.page_dir, "atlas-worktrees", {"proof": record})
+    page = open_page(browser, url)
+    datum = page.locator('#proof > [data-lf-datum="proof"]')
+    seen = source_revision(serve.page_dir, "atlas-worktrees")
+    anchor = {
+        "section": "proof",
+        "datum": "proof",
+        "source": "atlas-worktrees",
+        "source_revision": seen,
+        "identity": "proof",
+    }
+
+    def status():
+        return page.evaluate(
+            """anchor => window.__lfRuntimeImport('/runtime/anchor-resolution.js')
+              .then(({resolveAnchor}) => resolveAnchor(anchor)?.status)""",
+            anchor,
+        )
+
+    expect(datum).to_have_attribute("data-lf-identity", "proof")
+    assert status() == "exact"
+    data_model.cmd_data_set(serve.page_dir, "atlas-worktrees", {})
+    expect(datum).not_to_have_attribute("data-lf-identity")
+    assert status() == "outdated"
+    data_model.cmd_data_set(
+        serve.page_dir, "atlas-worktrees", {"proof": {**record, "head": "def456"}}
+    )
+    expect(datum).to_have_attribute("data-lf-identity", "proof")
+    assert status() == "exact"
 
 
 def test_worktree_evidence_names_the_arrow_that_stands_on_it(browser, serve):
@@ -8542,6 +8626,80 @@ def test_command_hub_operations_fit_their_column(browser, serve):
         "holder => { const [first, second] = holder.querySelectorAll('lf-operation'); "
         "return first.getBoundingClientRect().top === second.getBoundingClientRect().top "
         "&& first.getBoundingClientRect().right < second.getBoundingClientRect().left; }"
+    )
+
+
+WIDE_TREE_PAGE = leaf_page(
+    "A plan on a wide page",
+    """
+<h1>The aviary rebuild</h1>
+<lf-grid id="layout" columns="2fr 1fr">
+<section class="panel" id="body">
+<h2>Plan</h2>
+<p id="body-prose">Every goal below is held by one worker, and the lead coordinates
+the whole garden from the top of the tree.</p>
+<lf-command id="garden" label="A squirrel-proof garden">
+  <lf-agent id="lead" state="working"><strong>lead</strong> Coordinates the whole
+  garden: routes decisions and changes focus wherever the tree needs it.</lf-agent>
+  <lf-task id="goal-feeders" status="active" when="week 2">
+    <strong>Rebuild the feeders</strong> Two of four mounted.
+  </lf-task>
+</lf-command>
+</section>
+<section id="aside"><p>Beside the plan.</p></section>
+</lf-grid>
+<lf-tasks id="work">
+  <lf-task id="t-feeders" status="active">
+    <strong>Rebuild the feeders</strong> Two of four mounted.
+    <lf-agent id="wren" state="working"><strong>wren</strong> Holds the feeder
+    rebuild end to end.</lf-agent>
+    <lf-task id="t-mounts" status="done"><strong>Replace the mounts</strong></lf-task>
+  </lf-task>
+</lf-tasks>
+""",
+    width="available",
+)
+
+
+def test_a_worker_row_on_a_wide_page_reaches_the_frame_its_goals_reach(browser, serve):
+    """A worker is a row of the goal tree it stands in, with a hairline under it like
+    the rows beside it. The goal rows group the measure, so on a page wider than the
+    column they fill their frame. A worker held to the measure instead ended its
+    hairline in mid air at 1440px: 31px short of the panel at the head of a command,
+    and 500px short under a goal of a task tree straight on the page.
+
+    Both trees a worker can stand in are read here. Holding the whole command to the
+    measure would line its rows up too, but by pulling every goal row 109px off the
+    panel's edge, and would leave the task tree as it was."""
+    context = browser.new_context(viewport={"width": 1440, "height": 900})
+    page = open_page(browser, serve(WIDE_TREE_PAGE), context=context)
+    readings = page.evaluate(
+        """() => [['lead', 'goal-feeders'], ['wren', 't-mounts']].map(([id, goal]) => {
+          const worker = document.getElementById(id);
+          const holder = worker.parentElement;
+          const style = getComputedStyle(holder);
+          const inner = holder.getBoundingClientRect().right
+            - parseFloat(style.borderRightWidth) - parseFloat(style.paddingRight);
+          return {
+            id,
+            prose: document.getElementById('body-prose').getBoundingClientRect().width,
+            holder: holder.getBoundingClientRect().width,
+            short: inner - worker.getBoundingClientRect().right,
+            goal: document.getElementById(goal).getBoundingClientRect().right
+              - worker.getBoundingClientRect().right,
+            hairline: parseFloat(getComputedStyle(worker).borderBottomWidth),
+          };
+        })"""
+    )
+    for row in readings:
+        # The premise: the tree stands in a frame wider than the measure, the only
+        # place a row that keeps the measure and one that fills can differ.
+        assert row["holder"] > row["prose"] + 60, row
+        assert row["hairline"] > 0, row
+    short = [row for row in readings if max(abs(row["short"]), abs(row["goal"])) > 0.5]
+    assert not short, (
+        "worker rows stop short of the tree they stand in (`short`) and of the goal "
+        f"row beside them (`goal`): {short}"
     )
 
 

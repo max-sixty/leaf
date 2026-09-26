@@ -76,6 +76,19 @@ has tried; settle that before building it.
 
 ### Layout
 
+- **Settle the layout's exact structure.** We're still thinking about it. As of #1203,
+  `main` is the only page, page tabs are sections of it, a page and each block declare
+  their width, and a frame's edge trim needs no wrapper declarations. Still open:
+  - describing the page as named areas that Leaf owns (a left margin, the column, a
+    wide band, the full width, a right margin) and that a block spans, with `main`'s
+    width only a shorthand;
+  - dropping `wide` from `main`, where no page uses it;
+  - a workspace that holds the window whenever it ends the page, with its panes
+    passing scrolling on to the page;
+  - package region boxes declaring a track template to `lf-grid.js` instead of copying
+    `2fr 1fr`'s numbers;
+  - the examples and docs that work around the model: the PR walkthrough's hand-made
+    sticky contents, and the docs' hand-built column grids.
 - **Test the layout recipes on agents.** Give fresh agents tasks across the recipes in
   `page-authoring.md` ("Composing a page"), then ask them to revise the results: turn
   a report into a report with live status while keeping its comments. The recipes hold

@@ -7,7 +7,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import NamedTuple
 
-from .activity import unanswered
+from .activity import blocking_obligations, unanswered
 from .delivery import (
     batch_data,
     freeze_delivery,
@@ -17,7 +17,7 @@ from .delivery import (
 )
 from .detached import StartRefused
 from .files import file_stamp, next_reading, read_json
-from .host import Harness, session_harness
+from .host import Harness, claim_harness, session_harness
 from .hosting import start_server
 from .leases import (
     release_lease,
@@ -36,7 +36,7 @@ from .schema import (
 )
 from .served_state.page import full_state
 from .served_state.reading import page_reading
-from .server import running_server, server_restarting
+from .server import running_server
 from .service import (
     PageTransaction,
     claim_page,
@@ -178,9 +178,10 @@ def cmd_idle(page_dir: Path, detail: str, on: str | None) -> None:
     Idling over an event nobody has answered ends the leaf on a user still
     owed one — unread, or read and left. The watcher's whole batch, not the
     user-facing count, so a worker's report cannot be left standing as
-    provisional state forever either. The check and the transition share the
-    log lock, so an event arriving or an acknowledgement advancing the cursor
-    orders against them."""
+    provisional state forever either. The answers it holds the page for are
+    `activity.blocking_obligations`, the ones the Stop hook holds a turn open
+    for. The check and the transition share the log lock, so an event arriving
+    or an acknowledgement advancing the cursor orders against them."""
     # Ahead of the transaction, which reaches `set_status` without a subject:
     # refused here, `idle --on` cannot be reported back as a claim the page
     # never took.
@@ -195,11 +196,13 @@ def cmd_idle(page_dir: Path, detail: str, on: str | None) -> None:
                 f"{pending} update{'s' if pending != 1 else ''} nobody has picked up; "
                 "read them with `leaf wait` before idling"
             )
-        owed = [
-            obligation
-            for obligation in full_state(page_dir, events)["activity"]["obligations"]
-            if obligation["seq"] <= cursor
-        ]
+        state = full_state(page_dir, events)
+        claim = page.active_claim
+        owed = blocking_obligations(
+            state,
+            carried=claim is not None
+            and claim_harness(claim).carrier_live(listening=state["listening"]),
+        )
         if owed:
             sys.exit(
                 f"{unanswered(owed, 'acknowledged')}; answer before idling. "
@@ -232,7 +235,10 @@ class Watch:
     transition, then rereads under a new transaction; no delivery snapshot
     crosses that unlocked interval.
     `watch_state` is ownership/lifetime; `lost` separately says the server is
-    down with no restart left to make.
+    down with nothing left to bring it back: never served, or dead after a
+    revival that did not hold. A stopped service is not lost: `server stop` is
+    the agent's own move, and `page init` stops a served page to re-vendor it and
+    starts it again, so the wait watches a disabled service without reviving it.
 
     Between passes the watch follows `reading`, the stamps of what a pass reads:
     the machine's claims, which say which pages the session holds, and each page a
@@ -290,7 +296,7 @@ class Watch:
 
     def reading(self) -> tuple:
         """The stamps of everything the last pass read: the claims, and its pages."""
-        return (file_stamp(self.claims), *map(_page_stamp, self.watched))
+        return (file_stamp(self.claims), *map(_page_reading_or_none, self.watched))
 
     def mark(self) -> tuple:
         """What the next pass starts from, taken before it reads, so a write that
@@ -368,13 +374,13 @@ class Watch:
         enabled = bool(service and service["enabled"])
         key, now, revive = str(page_dir), time.time(), False
         # Desired service state owns revival. Status says what the page is doing;
-        # it does not turn a deliberately disabled service back on. A restart
-        # disables the service too, but its holder starts it again, so while one
-        # runs the page is neither lost nor due a revival.
-        if watch_state == "watching" and live and server_restarting(page_dir):
-            self._lost.discard(key)
-        elif watch_state == "watching" and live and not enabled:
+        # it does not turn a disabled service back on, and a disabled one is not
+        # lost either: whoever stopped it may start it again.
+        if watch_state == "watching" and live and service is None:
             self._lost.add(key)
+        elif watch_state == "watching" and live and not enabled:
+            self._lost.discard(key)
+            self._revived.discard(key)
         elif watch_state == "watching" and live and now > self._check_at.get(key, 0):
             self._check_at[key] = now + REVIVAL_CHECK_S
             if running_server(page_dir):
@@ -415,7 +421,7 @@ class Watch:
         self.leases.clear()
 
 
-def _page_stamp(page_dir: Path) -> str | None:
+def _page_reading_or_none(page_dir: Path) -> str | None:
     """A page's reading, or None once its directory is gone."""
     try:
         return page_reading(page_dir)

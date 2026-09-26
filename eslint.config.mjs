@@ -824,9 +824,9 @@ export default [
       "skills/leaf/scripts/leaf/render-checks/runtime.js",
     ],
     rules: {
-      // Render checks compare the publisher's historical selections and current
-      // presentation. Those validation readings are deliberately private rather than
-      // part of the package-facing widget controller.
+      // Render checks compare the publisher's historical selections. That validation
+      // reading is deliberately private rather than part of the package-facing widget
+      // controller.
       "no-restricted-imports": [
         "error",
         {

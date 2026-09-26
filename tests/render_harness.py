@@ -50,6 +50,7 @@ from leaf import render_checks as render_checks_model
 from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
 from leaf import structure as structure_model
+from leaf.render_checks import wait_until_ready
 from leaf.render_gate import scheme as render_gate_model
 from model_folds import leaf_page
 from page_fixtures import package_selection_args, prepare_page, read_fixture
@@ -584,10 +585,9 @@ def post_event(page, url, **kwargs):
 # inside the thing under test; that watcher was a second representation of the outbox's
 # lifecycle, and it needed a protocol of its own to keep step — a post a reload killed
 # that no event reported, a waiter woken before the listeners that counted, a body read
-# with no deadline. The runtime already states arrival for this user (`lfUpgraded`,
-# `lfApplied`, `lfPresented`) and current readiness through its coordinator; delivery is
-# one more fact it states rather than one the
-# harness infers, and nothing is injected to obtain it.
+# with no deadline. The runtime already states its readiness for this user
+# (`lfReadiness`); delivery is one more fact it states rather than one the harness
+# infers, and nothing is injected to obtain it.
 class Traffic:
     """One page's trips to the server, as the runtime counts them.
 
@@ -974,21 +974,6 @@ def held_stale(context):
     return stale
 
 
-# Shared readiness for `open_page` and manual navigation. Initial upgrade/replay
-# stamps remain set during later work, so also require the current presentation
-# and declared post-presentation work to settle. See tests/AGENTS.md,
-# "A page is ready when it says what has finished".
-BOTH_STAMPS = """() => {
-  if (
-    document.body.dataset.lfUpgraded !== '1' ||
-    document.body.dataset.lfApplied === undefined ||
-    document.body.dataset.lfPresented !== '1'
-  ) return false;
-  const entry = document.querySelector('script[data-lf-entry]');
-  if (!(entry?.lfCurrentPresentationReady?.() ?? false)) return false;
-  if (!(entry.lfRenderingSettled?.() ?? false)) return false;
-  return entry.lfPageArrived?.() ?? false;
-}"""
 FIRST_PAINT = """() => performance
   .getEntriesByType('paint')
   .some(entry => entry.name === 'first-contentful-paint')"""
@@ -1010,7 +995,7 @@ stamps the page raises over it — on no stated end of its own, so it took
 Playwright's implicit 30s: a deadline on the work a page does rather than on a
 fact another process states, and no more room for all of it than
 `SERVED_TIMEOUT_MS` gives a single probe. The corpus is the heaviest page the
-suite carries it on: a cold handover of it reaches `BOTH_STAMPS` in 16-18s on an
+suite carries it on: a cold handover of it reaches readiness in 16-18s on an
 idle four-core host, and in 19-24s once the nightly's second worker is driving a
 browser beside it. That is 80% of the old budget at the top of the range, and the
 nightly for 95a542a9 spent all of it on
@@ -1020,7 +1005,7 @@ nightly for 95a542a9 spent all of it on
 implicit: a page whose server was replaced under it comes back up through this
 same handover. The harness's remaining unstated navigations — `opened_tab`'s
 `goto`, and the runtime install `wait_for_revision` waits for — keep the implicit
-default, as do the direct `BOTH_STAMPS` waits in the test modules. Those are
+default, as do the direct `wait_until_ready` calls in the test modules. Those are
 re-waits and primings on small fixtures, none of them has failed, and they are a
 change to make on their own terms rather than inside a CI repair.
 
@@ -1128,7 +1113,7 @@ def restarting(page):
     """
     mark = len(page.lf_errors)
     yield
-    page.wait_for_function(BOTH_STAMPS, timeout=HANDOVER_DEADLINE_MS)
+    wait_until_ready(page, timeout_ms=HANDOVER_DEADLINE_MS)
     del page.lf_errors[mark:]
 
 
@@ -1234,7 +1219,7 @@ RECURRING_RESIZE_NOTICE = (
 )
 
 
-def navigate(page, url, *, wait_until="load", ready=BOTH_STAMPS):
+def navigate(page, url, *, wait_until="load", upgraded=True):
     """Navigate through a complete page handover, classifying only the
     ResizeObserver notices raised during that navigation.
 
@@ -1248,7 +1233,13 @@ def navigate(page, url, *, wait_until="load", ready=BOTH_STAMPS):
     def complete_navigation():
         start = len(errors)
         page.goto(url, wait_until=wait_until, timeout=HANDOVER_DEADLINE_MS)
-        page.wait_for_function(ready, timeout=HANDOVER_DEADLINE_MS)
+        if upgraded:
+            wait_until_ready(page, timeout_ms=HANDOVER_DEADLINE_MS)
+        else:
+            page.wait_for_function(
+                "() => document.querySelector('.lf-banner') !== null",
+                timeout=HANDOVER_DEADLINE_MS,
+            )
         # Let the rendering turn that earned the readiness stamp finish. A loop
         # notice is delivered by that turn, rather than by the DOM write alone.
         page.evaluate(ONE_FRAME)
@@ -1369,12 +1360,12 @@ def open_page(
     because the URL a handover carries already has a query holding the page's key: a
     test appending its own `?pin` overwrote that key and got a page that never loaded.
 
-    `upgraded` waits for the page's arrival facts and the coordinator's current
-    presentation reading, with `BOTH_STAMPS` above saying what each answers.
+    `upgraded` waits until the page states it is ready (`wait_until_ready`, whose
+    stages are the runtime's `pageReadiness`).
 
     Navigation waits for `load`, so the stylesheet and media that determine layout have
-    arrived. Network silence is not a readiness fact; the stamps state that the document
-    and its log finished applying, and the coordinator states that their current
+    arrived. Network silence is not a readiness fact; the page's own readiness reading
+    states that the document and its log finished applying and that their current
     presentation work has settled.
 
     `color_scheme` sets the medium before page modules evaluate. A supplied context owns
@@ -1402,11 +1393,7 @@ def open_page(
         page,
         url,
         wait_until=wait_until,
-        ready=(
-            BOTH_STAMPS
-            if upgraded
-            else "() => document.querySelector('.lf-banner') !== null"
-        ),
+        upgraded=upgraded,
     )
     return page
 

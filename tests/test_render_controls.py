@@ -15,6 +15,7 @@ from leaf import files as files_model
 from leaf import leases as leases_model
 from leaf import service as service_model
 from leaf import session as session_model
+from leaf.render_checks import wait_until_ready
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -67,7 +68,6 @@ from render_cases_widgets import (
 )
 from render_harness import (
     BOARD_PAGE,
-    BOTH_STAMPS,
     CORPUS_SOURCES,
     EXAMPLES,
     FEATURE_GALLERY,
@@ -781,7 +781,7 @@ def test_sign_off_waits_for_the_page_while_comments_stay_live(browser, serve):
     expect(page.locator(".lf-thread-panel")).to_have_class(re.compile(r"\bopen\b"))
 
     held.pop(0).continue_()
-    page.wait_for_function(BOTH_STAMPS)
+    wait_until_ready(page)
     expect(button).to_be_enabled()
 
 

@@ -213,11 +213,13 @@ presents, while any other key or a pointer press drops the held run. Durable
 controls wait for `data-lf-presented` (`../references/packages.md`, "A theme change"). An async
 producer joins settlement before `data-lf-upgraded`, or stays off the
 presentation path through `afterPresentation`, which declares the deferred
-arrival so `pageArrived` still answers for it. `presentPage` owns the one
+arrival so `pageReadiness` still answers for it. `presentPage` owns the one
 transition to stateful interaction; its synchronous `PRESENTATION` signal lets
 box-derived apparatus replace provisional geometry before the presented state
-paints. `renderingSettled` in `runtime/rendering.js` is the separate, live
-reading of whether chrome has caught up.
+paints. A reader outside the page waits on `pageReadiness`, through
+`wait_until_ready` in Python, rather than combining these stamps.
+`renderingSettled` in `runtime/rendering.js` is its last stage and also a live
+reading of its own: whether chrome has caught up with input since.
 
 ## Authoritative projection
 

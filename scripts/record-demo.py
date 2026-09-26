@@ -23,7 +23,9 @@ import time
 from pathlib import Path
 
 from leaf.delivery import DELIVERY_FORMAT
+from leaf.render_checks import wait_until_ready
 from leaf.render_gate.browser import launch_browser
+from leaf.render_gate.scheme import served
 from PIL import Image
 from playwright.sync_api import Page, sync_playwright
 
@@ -307,16 +309,11 @@ def record(
         frames.append(image)
         durations.append(duration)
 
-    # All three stamps, which is what "the page is ready" means here and what
-    # `shoot_stills` below already waits for: the document's own stamp says nothing
-    # about the log, so a gesture taken on it alone reads a page replay has not
-    # finished writing (runtime/presentation.js on the three readiness stamps). The
-    # first thing this does is read `#p2`'s words back.
-    page.wait_for_function(
-        "() => document.body.dataset.lfUpgraded === '1'"
-        " && document.body.dataset.lfApplied !== undefined"
-        " && document.body.dataset.lfPresented === '1'"
-    )
+    # The page's own readiness, as every reader outside it waits for: the document's
+    # own stamp says nothing about the log, so a gesture taken on it alone reads a page
+    # replay has not finished writing. The first thing this does is read `#p2`'s words
+    # back.
+    wait_until_ready(page)
     page.wait_for_function(
         "() => document.querySelector('.lf-status-text').textContent.includes('awaits')"
     )
@@ -384,10 +381,8 @@ def record(
     )
     if page.url != live_url:
         raise RuntimeError(f"the live page navigated from {live_url} to {page.url}")
-    page.wait_for_function(
-        "() => document.body.dataset.lfUpgraded === '1'"
-        " && document.querySelectorAll('.lf-thread .lf-msg.agent').length > 0"
-    )
+    wait_until_ready(page)
+    page.wait_for_selector(".lf-thread .lf-msg.agent")
     shot(2300)
 
     page.get_by_role("button", name="Close threads").click()
@@ -467,15 +462,10 @@ def shoot_stills(
         "On-call staffing moved into During, as the board now reads",
     )
     run_leaf("status", str(page_dir), "waiting")
-    # The user's board move has to have landed in each shot, or it shows a page
-    # mid-replay. Counted
-    # once: neither shot posts anything, so the log is the same for both.
-    actions = sum(
-        json.loads(line)["kind"] == "action"
-        for line in (page_dir / "events.jsonl").read_text().splitlines()
-        if line.strip()
-    )
 
+    # The user's board move has to have landed in each shot, or it shows a page
+    # mid-replay, so each page is ready against the server's own reading, whose log
+    # coverage is the count the page stamps as applied.
     for name, size, scheme in STILLS:
         context = browser.new_context(
             viewport={"width": size[0], "height": size[1]},
@@ -484,10 +474,7 @@ def shoot_stills(
         )
         page = context.new_page()
         page.goto(url)
-        page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
-        page.wait_for_function(
-            f"() => Number(document.body.dataset.lfApplied ?? -1) >= {actions}"
-        )
+        wait_until_ready(page, served(page, url, "/api/state").json())
         page.wait_for_function(
             "() => document.querySelector('.lf-status-text')"
             ".textContent.includes('awaits')"

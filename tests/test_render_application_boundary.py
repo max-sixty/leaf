@@ -5,6 +5,7 @@ import re
 from itertools import pairwise
 
 from leaf import event_log as events_model
+from leaf.render_checks import wait_until_ready
 from playwright.sync_api import expect
 from render_cases_interaction import (
     LIVE_READING,
@@ -15,7 +16,6 @@ from render_cases_interaction import (
     live_url,
 )
 from render_harness import (
-    BOTH_STAMPS,
     banner_control,
     consume_browser_errors,
     holding,
@@ -683,18 +683,17 @@ def test_waiting_projection_settles_before_ready_state_reopens_it(browser, serve
                 epoch: application.semanticEpoch,
                 presented: presentation.presentedEpoch,
                 pending: presentation.pending,
+                current: runtime.applicationPresented(),
               };
             }"""
     )
     assert waiting["phase"] == "waiting"
     assert waiting["presented"] == waiting["epoch"]
     assert waiting["pending"] == []
-    assert page.evaluate(
-        "document.querySelector('script[data-lf-entry]').lfCurrentPresentationReady()"
-    )
+    assert waiting["current"] is True
 
     held.pop(0).continue_()
-    page.wait_for_function(BOTH_STAMPS)
+    wait_until_ready(page)
     expect(page.locator("#page-local").get_by_role("button")).to_be_enabled()
     expect(page.locator("#page-local")).to_have_attribute(
         "data-controller-renders", str(controller_renders + 1)

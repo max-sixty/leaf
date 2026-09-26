@@ -7,6 +7,7 @@ import pytest
 from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf import thread as thread_model
+from leaf.render_checks import wait_until_ready
 from playwright.sync_api import expect
 from render_cases_interaction import (
     PANEL_PAGE,
@@ -26,7 +27,6 @@ from render_cases_widgets import (
     PART_DIAGRAM_PAGE,
 )
 from render_harness import (
-    BOTH_STAMPS,
     FEATURE_GALLERY,
     ROOT,
     holding,
@@ -1109,7 +1109,7 @@ def test_a_response_draft_yields_focus_when_the_panel_leaves_no_usable_room(
     # remaining in the hidden field. The same passage regains it when room returns.
     resized(page, 1000, 900)
     page.reload()
-    page.wait_for_function(BOTH_STAMPS)
+    wait_until_ready(page)
     expect(field).to_be_visible()
     expect(field).to_have_js_property("value", draft)
     page.keyboard.press("Escape")

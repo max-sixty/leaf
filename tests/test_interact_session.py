@@ -4263,6 +4263,7 @@ def test_a_running_turn_holds_a_delivery_back_without_asking_the_task(
             [events_model.read_events(page)[-1]],
             True,
             "watching",
+            False,
             None,
             transaction,
         )
@@ -6935,7 +6936,6 @@ def test_a_wait_watches_a_stopped_server_until_its_page_ends(
         watch.release()
     assert passed.outcome is None
     assert [reading.page_dir for reading in passed.live] == [page_dir]
-    assert passed.live[0].revival is None
 
     session_model.cmd_status(page_dir, "idle", "")
     capsys.readouterr()
@@ -6943,13 +6943,13 @@ def test_a_wait_watches_a_stopped_server_until_its_page_ends(
     assert "the leaf ended" in capsys.readouterr().err
 
 
-def test_a_revival_that_fails_is_said_once_and_the_page_stays_watched(
-    page_dir, monkeypatch
+@pytest.mark.parametrize("revival", ["refused", "died again"])
+def test_a_revival_that_does_not_hold_ends_the_wait(
+    page_dir, monkeypatch, capsys, revival
 ):
-    """An enabled service whose process died gets one revival. One that is
-    refused leaves the wait watching and says so once, naming the command that
-    serves the page again; the wait does not try again until it has seen the
-    server running."""
+    """An enabled service whose process died gets one revival. When that does not
+    bring it back, refused or dead again once it did, nothing else will, so the
+    wait ends and wakes the agent with the command that serves the page."""
     files_model.write_json(
         page_dir / "service.json",
         {
@@ -6961,31 +6961,67 @@ def test_a_revival_that_fails_is_said_once_and_the_page_stays_watched(
         },
     )
     session_model.cmd_status(page_dir, "waiting", "review the page")
-    attempts = []
 
     def refused_start(*_args, **_kwargs):
-        attempts.append(1)
         raise StartRefused("the port is taken")
 
-    monkeypatch.setattr(session_model, "start_server", refused_start)
+    def start_that_dies(*_args, **_kwargs):
+        return "http://127.0.0.1:1/", ""
+
+    monkeypatch.setattr(
+        session_model,
+        "start_server",
+        refused_start if revival == "refused" else start_that_dies,
+    )
+
+    def unexpected_delivery(reading):
+        pytest.fail(f"nothing was sent, yet {reading.page_dir} delivered")
+
     watch = session_model.Watch(None, pages=(page_dir,))
     try:
         assert watch.acquire()
-        (first,) = watch.tick()
-        # Past the recheck interval, as the next pass five seconds on would be.
-        watch._check_at.clear()
-        (second,) = watch.tick()
+        passed = session_model.read_watch_pass(watch, page_dir, unexpected_delivery)
+        if revival == "died again":
+            assert passed.outcome is None
+            # Past the recheck interval, as the next pass five seconds on would be.
+            watch._check_at.clear()
+            passed = session_model.read_watch_pass(watch, page_dir, unexpected_delivery)
     finally:
         watch.release()
 
-    assert attempts == [1]
-    assert first.watch_state == "watching" and first.live
-    assert first.revival == (
-        f"{page_dir}: server had died and did not restart (the port is taken); "
-        f"`leaf server start {page_dir}` serves it again"
+    assert passed.outcome == 2
+    assert (
+        f"{page_dir}: server is not running; restart it with "
+        f"`leaf server start {page_dir}`"
+    ) in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("wait", ["named", "session"])
+def test_a_wait_on_a_page_never_served_ends_at_once(page_dir, capsys, wait):
+    """A page with no service record has nothing that will serve it, so a wait
+    on it ends on its first pass with the command that does, whether it was
+    named or claimed earlier and found by the session's wait."""
+    assert not (page_dir / "service.json").exists()
+    session_model.cmd_status(page_dir, "waiting", "review the page")
+    service_model.claim_page(page_dir)
+
+    def unexpected_delivery(reading):
+        pytest.fail(f"nothing was sent, yet {reading.page_dir} delivered")
+
+    named = page_dir if wait == "named" else None
+    watch = session_model.Watch(
+        host_model.session_harness(), pages=(page_dir,) if named else ()
     )
-    assert second.watch_state == "watching" and second.live
-    assert second.revival is None
+    try:
+        assert watch.acquire()
+        passed = session_model.read_watch_pass(watch, named, unexpected_delivery)
+    finally:
+        watch.release()
+
+    assert passed.outcome == 2
+    assert f"restart it with `leaf server start {page_dir}`" in (
+        capsys.readouterr().err
+    )
 
 
 def test_page_init_restarts_a_served_page_under_the_sessions_wait(
@@ -7235,7 +7271,10 @@ def test_a_delayed_revival_cannot_cross_an_explicit_stop(page_dir, monkeypatch):
 
     assert not reviving.is_alive()
     assert errors == []
+    # The stop disabled the service, which the wait goes on watching.
     assert readings[0].watch_state == "watching"
+    assert readings[0].lost is False
+    assert readings[0].restarted is None
     assert files_model.read_json(page_dir / "service.json")["enabled"] is False
     assert not leases_model.lock_is_held(page_dir / "server.lock")
 
@@ -7732,6 +7771,7 @@ def test_codex_receipt_leaves_input_for_the_new_page_owner(page_dir):
             [delivered],
             True,
             "watching",
+            False,
             None,
             page,
         )
@@ -7860,6 +7900,7 @@ def test_a_reinitialized_page_does_not_starve_later_codex_receipts(tmp_path):
                 [delivered],
                 True,
                 "watching",
+                False,
                 None,
                 transaction,
             )
@@ -7926,6 +7967,7 @@ def test_a_receipted_codex_batch_ignores_a_reinitialized_page_cursor(
                 [delivered],
                 True,
                 "watching",
+                False,
                 None,
                 transaction,
             )
@@ -7968,6 +8010,7 @@ def test_one_thread_delivery_starts_and_receipts_its_app_server_turn(
             [events_model.read_events(page)[-1]],
             True,
             "watching",
+            False,
             None,
             transaction,
         )
@@ -8107,6 +8150,7 @@ def test_a_delivery_already_being_carried_holds_back_the_next_one(
             [events_model.read_events(page)[-1]],
             True,
             "watching",
+            False,
             None,
             transaction,
         )
@@ -8146,6 +8190,7 @@ def test_an_uncertain_app_server_start_recovers_by_delivery_identity(
             [events_model.read_events(page)[-1]],
             True,
             "watching",
+            False,
             None,
             transaction,
         )
@@ -8251,6 +8296,7 @@ def test_app_server_deliveries_preserve_order_with_one_plain_reply_each(
             events_model.read_events(page)[-2:],
             True,
             "watching",
+            False,
             None,
             transaction,
         )
@@ -8294,6 +8340,7 @@ def test_app_server_deliveries_preserve_order_with_one_plain_reply_each(
             service_model.unacknowledged(transaction.events, transaction.cursor),
             True,
             "watching",
+            False,
             None,
             transaction,
         )
@@ -8322,6 +8369,7 @@ def test_codex_serializes_later_input_behind_the_offered_delivery(
             [first],
             True,
             "watching",
+            False,
             None,
             transaction,
         )
@@ -8366,6 +8414,7 @@ def test_codex_serializes_later_input_behind_the_offered_delivery(
             service_model.unacknowledged(transaction.events, transaction.cursor),
             True,
             "watching",
+            False,
             None,
             transaction,
         )
@@ -8398,6 +8447,7 @@ def test_codex_restart_finishes_an_accepted_batch_without_queueing_again(
             [delivered],
             True,
             "watching",
+            False,
             None,
             transaction,
         )

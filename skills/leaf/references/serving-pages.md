@@ -97,8 +97,9 @@ On a page with no recorded lifetime, a normal `server start` from an agent
 session chooses a session lifetime. Its process retires when no live session
 claims the page, but desired service remains enabled: a `leaf wait` watching any
 enabled page revives its server under the recorded lifetime and exact URL if the
-process dies. Only `leaf server stop <page>` disables a service, and a `leaf wait`
-goes on watching a stopped page until it is idle.
+process dies, and ends if that revival does not hold. Only `leaf server stop
+<page>` disables a service, and a `leaf wait` goes on watching a stopped page until
+it is idle.
 
 `server start --standing`, or a serve started from the user's own shell, chooses
 a standing lifetime. Its process ignores session claims and remains live between

@@ -290,10 +290,12 @@ before the session server's final recheck keeps that process, and one arriving
 afterward finds the process and lease gone and revives the still-enabled service.
 Neither path changes the page's authored work status. A serve from a bare shell claims
 nothing, and a claim on a standing page comes and goes without changing its service.
-A `leaf wait` watches each live page its session claims whatever its server is
-doing, and ends only when those pages go idle or change hands. It revives an
-enabled service whose process has died, once per death, and says on stderr whether
-the server came back; one that did not stays watched, and a later `server start`
-serves it again. A disabled service it leaves alone and goes on watching, since a
-stop is the agent's own move: `page init` stops and restarts a served page's
-server around a re-vendor, and the wait carries on through the gap.
+A `leaf wait` revives an enabled service whose process has died, once per death,
+and says on stderr that it did. A page nothing will serve is lost: one with no
+`service.json`, never served, or one whose revival was refused or died again. A
+lost page ends a named wait, and a session's wait once no other live page is
+left to carry, with the `leaf server start` command that serves it. A disabled
+service is not lost, since a stop is the agent's own move and may be followed by
+a start: `page init` stops and restarts a served page's server around a
+re-vendor. The wait neither revives nor ends on it, and goes on watching until
+the page goes idle or changes hands.

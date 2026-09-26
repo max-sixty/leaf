@@ -130,12 +130,16 @@ the wait and acknowledgement route.
 
 `leaf wait` ends one of two ways: exit 0 with one JSON envelope on stdout, the next input, or exit 2 with the ending named on
 stderr. Exit 1 from `leaf wait --ack` means the acknowledgement was refused. A wait
-that found a dead server says on stderr whether it restarted it, and keeps
-watching either way; a server that did not come back is served again with
-`leaf server start <page>`. The endings:
+that restarted a dead server says so on stderr. The endings:
 
 - `the leaf ended` or `the leaves ended`: every page left in the watch is idle.
   `nothing to watch`: the session holds none. End the loop.
+- `server is not running`: the page was never served, or its server died and
+  the wait's one restart did not bring it back. The line gives the recovery
+  command. After recovery, resume with an unnamed `leaf wait`, which cannot
+  reclaim a page transferred meanwhile. A server stopped with `leaf server stop`,
+  or held down while `leaf page init` re-vendors the page, is not this ending: the
+  wait goes on watching it.
 - `this session no longer owns`: a successor has the page. Do not name or reclaim
   it. A rearm keeps watching any other live page, and exits with this line once the
   transfers empty that set.

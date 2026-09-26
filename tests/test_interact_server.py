@@ -66,7 +66,6 @@ from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
 from leaf import server as server_model
 from leaf import service as service_model
-from leaf import session as session_model
 from leaf import specimens as specimens_model
 from leaf import structure as structure_model
 from leaf import thread_context as thread_context_model
@@ -3598,9 +3597,10 @@ def test_the_page_reports_its_own_errors_to_the_watcher(server, page_dir):
     delivered = CliRunner().invoke(cli_model.cli, ["wait", str(page_dir)])
     assert delivered.exit_code == 0, delivered.output
     delivery = json.loads(delivered.output)
-    # The page error is an acknowledgeable target: receipt moves the cursor past
-    # it rather than refusing.
-    session_model.receive_delivery(delivery["id"])
+    result = CliRunner().invoke(cli_model.cli, ["wait", "--ack", delivery["id"]])
+    # The page error was an acknowledgeable target, so the cursor moved and the
+    # re-armed wait ended on its own 2; a refused acknowledgement would be 1.
+    assert result.exit_code == 2, result.output
     assert files_model.read_json(page_dir / "cursor.json") == {"seq": error["seq"]}
 
 

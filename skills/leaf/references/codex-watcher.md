@@ -32,8 +32,10 @@ whose "Delivery and acknowledgement" section says how a wait ends. Its job is:
    unified exec. Retain and poll that command's session id: after advancing the
    cursor, it stays active as the next wait. A batch on stdout is the next
    delivery; return to step 3. An ending on stderr is one of those the batch
-   reference lists, and each ends the watcher. Rerun the named wait of step 3
-   only when a batch was lost or truncated before acknowledgement. The watcher does not author, reply, resolve, stamp, change status, or
+   reference lists. Each ends the watcher, except `server is not running`: run
+   the recovery command it gives, then resume with an unnamed wait. Rerun the
+   named wait of step 3 only when a batch was lost or truncated before
+   acknowledgement. The watcher does not author, reply, resolve, stamp, change status, or
    handle an event itself.
 
 Wait for the watcher to claim the page, title it `Leaf watcher — <page name>`, and confirm

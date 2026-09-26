@@ -133,17 +133,40 @@ const children = (token) => [
   ...(token.rows ?? []).flat().flatMap((cell) => cell.tokens),
 ];
 
-// Where each token the renderer read stands in the draft. A token's `raw` is its exact
-// source, so each is found at or after the one before it. A container that rewrites
-// what it holds (a quote or a list strips its markers) is not found whole; its inner
-// tokens are then found one by one.
+// Where a token's `raw` stands in the draft, at or after `at`, as [from, to]. A token
+// read at the top level is its exact source. One a container handed on was rewritten
+// first, in exactly two ways the match walks through: a quote or a list drops each
+// continuation line's markers and indent, and a table cell drops the backslash of an
+// escaped pipe. Null where the draft holds no such run.
+function locate(source, raw, at) {
+  const exact = source.indexOf(raw, at);
+  if (exact >= 0) return [exact, exact + raw.length];
+  for (let start = source.indexOf(raw[0], at); start >= 0;) {
+    let s = start;
+    let r = 0;
+    while (r < raw.length && s < source.length) {
+      if (source[s] === raw[r]) {
+        s++;
+        r++;
+      } else if (raw[r] === "|" && source[s] === "\\" && source[s + 1] === "|") s++;
+      else if (raw[r - 1] === "\n" && /[ \t>]/.test(source[s])) s++;
+      else break;
+    }
+    if (r === raw.length) return [start, s];
+    start = source.indexOf(raw[0], start + 1);
+  }
+  return null;
+}
+
+// Where each token the renderer read stands in the draft, each found at or after the
+// one before it.
 function place(source, tokens, from, found) {
   let at = from;
   for (const token of tokens) {
-    const start = token.raw ? source.indexOf(token.raw, at) : -1;
-    if (start >= 0) found.push({ token, from: start, to: start + token.raw.length });
-    place(source, children(token), Math.max(start, at), found);
-    if (start >= 0) at = start + token.raw.length;
+    const span = token.raw ? locate(source, token.raw, at) : null;
+    if (span) found.push({ token, from: span[0], to: span[1] });
+    place(source, children(token), span ? span[0] : at, found);
+    if (span) at = span[1];
   }
   return found;
 }
@@ -159,11 +182,10 @@ function labelEnd(raw) {
   return -1;
 }
 
-// How much of an inline construct's source opens and closes it, read from the source
-// itself: the renderer's child tokens hold unescaped text, which the source need not
-// contain. Null for a construct the preview does not style.
-function syntaxLengths(token) {
-  const { raw } = token;
+// How much of an inline construct's source `text` opens and closes it, read from the
+// source itself: the renderer's child tokens hold unescaped text, which the source need
+// not contain. Null for a construct the preview does not style.
+function syntaxLengths(token, raw) {
   if (token.type === "codespan") {
     const run = raw.match(/^`+/)[0].length;
     return [run, run];
@@ -202,7 +224,10 @@ function decorate(state, placed) {
   };
   for (const { token, from, to } of placed) {
     const syntax = touches(state, from, to) ? dim : hide;
-    const lengths = syntaxLengths(token);
+    // The construct as it stands in the draft, which a container may have rewritten
+    // before the renderer read it.
+    const text = state.doc.sliceString(from, to);
+    const lengths = syntaxLengths(token, text);
     if (lengths) {
       // The construct's words, between its opening and closing syntax.
       const words = [from + lengths[0], to - lengths[1]];
@@ -218,8 +243,8 @@ function decorate(state, placed) {
       // A backslash escape (`\*`) sends the character alone.
       add(from, from + 1, syntax);
     } else if (token.type === "heading") {
-      const end = from + token.raw.trimEnd().length;
-      const atx = token.raw.match(/^ {0,3}#{1,6}(?:[ \t]+|$)/);
+      const end = from + text.trimEnd().length;
+      const atx = text.match(/^ {0,3}#{1,6}(?:[ \t]+|$)/);
       lines(from, end, (each) => {
         const underline = !atx && each.to >= end;
         if (underline) add(each.from, each.to, dim);
@@ -227,8 +252,8 @@ function decorate(state, placed) {
       });
       if (atx) add(from, from + atx[0].length, syntax);
     } else if (token.type === "code") {
-      const end = from + token.raw.trimEnd().length;
-      const fenced = /^ {0,3}(`{3,}|~{3,})/.test(token.raw);
+      const end = from + text.trimEnd().length;
+      const fenced = /^ {0,3}(`{3,}|~{3,})/.test(text);
       lines(from, end, (each) => {
         out.push(line("lf-md-code-block").range(each.from));
         if (
@@ -238,13 +263,13 @@ function decorate(state, placed) {
           add(each.from, each.to, dim);
       });
     } else if (token.type === "blockquote") {
-      lines(from, from + token.raw.trimEnd().length, (each) => {
+      lines(from, from + text.trimEnd().length, (each) => {
         out.push(line("lf-md-quote").range(each.from));
         const mark = each.text.match(/^ {0,3}> ?/);
         if (mark) add(each.from, each.from + mark[0].length, dim);
       });
     } else if (token.type === "list_item") {
-      const mark = token.raw.match(/^ {0,3}(?:[*+-]|\d{1,9}[.)])/);
+      const mark = text.match(/^ {0,3}(?:[*+-]|\d{1,9}[.)])/);
       if (mark) add(from, from + mark[0].length, dim);
     }
   }

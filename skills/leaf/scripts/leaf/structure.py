@@ -70,7 +70,8 @@ POINTABLE_TAGS = {"section", "article", "aside", "pre", "table", "figure"}
 SECTIONING_TAGS = {"section", "article", "main", "body"}
 # The allocations a page occurrence may state, each attribute with the values it takes:
 # a block's width in the page's flow and whether it bounds its own height, and, on
-# `main` alone, whether the page reserves the rail its margin rows stand in.
+# `main` alone, whether the page claims the rail its margin rows stand in or keeps that
+# margin for its own residents.
 AUTHORED_ALLOCATIONS = {
     "data-width": ("column", "wide", "available"),
     "data-bound": ("start", "end"),

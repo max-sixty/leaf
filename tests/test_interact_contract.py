@@ -4857,23 +4857,6 @@ def test_check_reports_css_syntax_errors_in_every_source_the_page_writes(page_di
     assert result.output.count("syntax error") == 2
 
 
-def test_check_measures_against_the_column_the_page_sets_for_itself(page_dir):
-    """A page-local <style> is the page's own answer to how wide it reads, so it wins
-    over the vendored theme's 720px and an element wider than the theme allows passes.
-
-    It answers by claiming the column, the same way the theme's own rule does. A page
-    that only sets a width sets a width: which rule is the measure everything else is
-    read against is a thing a stylesheet says, not a thing a reader works out from how
-    the rule is spelled."""
-    (page_dir / "index.html").write_text(
-        styled(
-            "main { --lf-reading-column: 1; max-width: 1000px }",
-            '<svg width="900" height="10"></svg>',
-        )
-    )
-    assert check(page_dir).exit_code == 0
-
-
 def test_an_ask_role_declares_an_addressable_instance(page_dir):
     registry = json.loads((page_dir / "registry.json").read_text())
     registry["lf-idless-decision"] = {

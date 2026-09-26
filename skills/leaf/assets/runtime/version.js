@@ -1550,8 +1550,8 @@ export function createVersionController({
       restorePlace(view, null, currentIntent);
       restored.add(pageScroller);
     }
-    // A bounded region can stand in a page that scrolls as well, as a root tab's workspace
-    // does under the tab set's header: the page keeps its own place beside the region's.
+    // A bounded region can stand in a page that scrolls as well, as a visual review's
+    // capture does in a document page: the page keeps its own place beside the region's.
     if (
       !restored.has(pageScroller) &&
       (hasLandmark(view) || rawOffsetFits(view, pageScroller))

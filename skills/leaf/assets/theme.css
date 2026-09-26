@@ -190,8 +190,8 @@
      opening a field on them holds the same floor so the two sizes agree. */
   --entry-floor: 0px;
   /* A margin entry's box: 32px of marker, or the floor where a finger raises it. The
-     rail's claim below reserves the same length, so it is named rather than written
-     into each. */
+     rail below is sized from the same length, so it is named rather than written into
+     each. */
   --margin-entry: max(32px, var(--aim-floor));
   /* How far inside its block's right edge a pin stands. margin-layout.js reads it too,
      to know where a pin will stand before packing it. */
@@ -756,13 +756,14 @@ main {
  * too: a room read short can only fail to widen an exhibit, never narrow one below the
  * measure its own page is set to.
  *
- * The growth stops at main's gutters, and each gutter holds its side's reservation, so an
- * exhibit never reaches the rail. What stands level with an exhibit in the margin is
- * decided by what put it there. A sidenote is the page's own, so the page clears it
- * (`clear`, at aside.sidenote). A margin row is Leaf's, so where an author's own CSS
- * widens a block into the rail, the row stands on it as a pin (margin-placement.js):
- * nothing Leaf draws moves the page's content, and an exhibit keeps the same width however
- * many comments arrive beside it.
+ * The growth stops at main's gutters, less what the page's own residents take in each
+ * margin (`--lf-taken-l`, `--lf-taken-r`, layouts.css). The rail takes nothing, so an
+ * exhibit may grow into the room it would stand in. What stands level with an exhibit in
+ * the margin is decided by what put it there. A sidenote is the page's own, so the exhibit
+ * clears it (`clear`, at aside.sidenote). A margin row is Leaf's, so where a block grows
+ * into the rail, the row stands on it as a pin (margin-placement.js): nothing Leaf draws
+ * moves the page's content, and an exhibit keeps the same width however many comments
+ * arrive beside it.
  *
  * Where one side has less room than the other, the freer side takes what the other
  * lacks instead of losing half the allocation to symmetry. With both sides equally free,
@@ -770,9 +771,9 @@ main {
  *
  * Screen only. Paper has no window to take room from and a printed page is the column's
  * width, so leaving the rule out of print is the whole of what paper needs. On screen,
- * `body` is the size container. Its inline size already excludes any standing Leaf
- * workspace, and `main` subtracts the page's own two margin claims from that one browser
- * reading. */
+ * `body` is the size container. No surface Leaf opens changes its inline size, since each
+ * stands over the page, and `main` subtracts the page's own two margin claims from that
+ * one browser reading. */
 @media screen {
   /* Two attributes carry one fact. `data-lf-space` is what the runtime paints from the
    * registry, and it arrives with the script. `data-width` is the page's own occurrence

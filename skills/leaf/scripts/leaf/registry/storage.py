@@ -6,7 +6,7 @@ from collections.abc import Collection
 from functools import lru_cache
 from pathlib import Path
 
-from leaf.files import file_stamp, latest_revision
+from leaf.files import file_stamp, latest_revision, read_json
 
 from .contract import RegistryError, read_registry_declarations
 from .validation import validate_registry
@@ -120,12 +120,12 @@ def _layer_packages(layer: dict, path: Path) -> list[str]:
 def layer_packages(page_dir: Path) -> list[str]:
     """The package selections this page's vendored layer records.
 
-    Read on its own rather than through `layer_metadata`, whose other fields a
-    re-vendor exists to repair: `page init` reuses the recorded selection when
-    no `--package` is given, so the page it would fix must not refuse it."""
+    Read on its own, rather than through `layer_metadata` or the declarations
+    reader, since a re-vendor exists to repair the rest of the file: `page init`
+    reuses the recorded selection when no `--package` is given, so the page it
+    would fix must not refuse it."""
     path = page_dir / "registry.json"
-    registry = read_registry_declarations(path)
-    return _layer_packages((registry or {}).get("$layer", {}), path)
+    return _layer_packages((read_json(path) or {}).get("$layer", {}), path)
 
 
 def layer_metadata(page_dir: Path) -> dict:

@@ -3518,7 +3518,7 @@ def test_covering_threads_keeps_the_user_and_their_work_inside(browser, serve):
     threads = page.locator(".lf-threads")
 
     def reading_place():
-        """The list has room to keep the focused thread away from either limit.
+        """The list keeps the focused summary in its usable reading band.
 
         Thread rows reflow at the narrower width, so the same thread can have a
         different numeric offset while remaining the user's reading place.
@@ -3529,11 +3529,19 @@ def test_covering_threads_keeps_the_user_and_their_work_inside(browser, serve):
         assert 0 < held["at"] < held["limit"], (
             f"the list holds no reading place clear of its limit: {held}"
         )
-        assert thread.evaluate(
-            "el => { const row = el.getBoundingClientRect(); "
-            "const list = el.closest('.lf-threads').getBoundingClientRect(); "
-            "return row.top < list.bottom && row.bottom > list.top; }"
-        ), "the focused thread left the list's visible reading area"
+        shown = thread.locator(":scope > .lf-thread-summary").evaluate(
+            "el => { const summary = el.getBoundingClientRect(); "
+            "const list = el.closest('.lf-threads'); "
+            "const box = list.getBoundingClientRect(); "
+            "const style = getComputedStyle(list); "
+            "return {top: summary.top, bottom: summary.bottom, "
+            "bandTop: box.top + parseFloat(style.scrollPaddingTop), "
+            "bandBottom: box.bottom - parseFloat(style.scrollPaddingBottom)}; }"
+        )
+        assert (
+            shown["top"] >= shown["bandTop"] - 1
+            and shown["bottom"] <= shown["bandBottom"] + 1
+        ), f"the focused summary left the list's reading band: {shown}"
 
     thread = threads.locator(".lf-thread").nth(5)
     thread.locator(":scope > .lf-thread-summary").focus()

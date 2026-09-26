@@ -55,6 +55,7 @@ from render_harness import (
     open_page,
     pane_posture,
     panel_settled,
+    regions_side_by_side,
     rendered,
     resized,
     round_trip,
@@ -140,8 +141,7 @@ COMMENT_ON_SECOND_SUGGESTION = {
 DUPLICATE_REGION_PAGE = leaf_page(
     "duplicate Page Map subjects",
     """
-<lf-workspace id="duplicate-map-workspace">
-  <lf-grid id="duplicate-map-split" columns="2">
+  <div id="duplicate-map-split">
     <lf-pane id="current-pane" label="Current">
       <div>
         <h2 id="current-deployment">Deployment</h2>
@@ -156,10 +156,10 @@ DUPLICATE_REGION_PAGE = leaf_page(
         <p>The proposed release remains available to users.</p>
       </div>
     </lf-pane>
-  </lf-grid>
-</lf-workspace>
+  </div>
 """,
-    width="available",
+    head=regions_side_by_side("duplicate-map-split"),
+    layout="workspace",
 )
 
 DUPLICATE_REGION_COMMENTS = [
@@ -1062,7 +1062,8 @@ def resized_shell(page, inline_size, height):
 
 
 ACTION_PAGE = SUGGESTION_PAGE.replace(
-    "<main>", '<main><section id="action-section">'
+    '<main class="layout-column">',
+    '<main class="layout-column"><section id="action-section">',
 ).replace(
     "</main>",
     """
@@ -5889,7 +5890,9 @@ def test_a_thread_can_be_answered_in_the_margin_without_opening_threads(
 def test_a_thread_margin_entry_opens_inline_when_the_panel_is_closed(browser, serve):
     """The margin entry's destination follows the open auxiliary surface, not available margin."""
     sidebar_page = ASK_PAGE.replace(
-        "<main>", '<main><aside class="sidebar">Page reference</aside>', 1
+        '<main class="layout-column">',
+        '<main class="layout-column"><aside class="sidebar">Page reference</aside>',
+        1,
     )
     page = open_page(browser, serve(sidebar_page, events=[COMMENT_ON_ASK]))
     resized(page, 1200, 900)
@@ -6468,7 +6471,9 @@ def send_anchored_comment(page, text):
 def test_an_inline_thread_keeps_one_readable_card_across_page_claims(browser, serve):
     """An accepted comment opens readable beside or over either page shape."""
     sidebar_page = ASK_PAGE.replace(
-        "<main>", '<main><aside class="sidebar">Page reference</aside>', 1
+        '<main class="layout-column">',
+        '<main class="layout-column"><aside class="sidebar">Page reference</aside>',
+        1,
     )
     page = open_page(browser, serve(sidebar_page, events=[COMMENT_ON_ASK]))
     resized(page, 1200, 900)
@@ -6682,7 +6687,9 @@ def test_margin_card_anchors_reading_by_top_and_drafting_by_foot(browser, serve)
 def test_open_reply_keeps_its_foot_after_card_moves_to_right_rail(browser, serve):
     """A draft opened below its target gains a foot anchor when the rail widens."""
     sidebar_page = ASK_PAGE.replace(
-        "<main>", '<main><aside class="sidebar">Page reference</aside>', 1
+        '<main class="layout-column">',
+        '<main class="layout-column"><aside class="sidebar">Page reference</aside>',
+        1,
     )
     page = open_page(browser, serve(sidebar_page, events=[COMMENT_ON_ASK]))
     resized(page, 1200, 900)
@@ -7093,7 +7100,9 @@ def test_the_thread_card_survives_trays_and_authored_sidebars(browser, serve):
     page.close()
 
     sidebar_page = ASK_PAGE.replace(
-        "<main>", '<main><aside class="sidebar">Page reference</aside>', 1
+        '<main class="layout-column">',
+        '<main class="layout-column"><aside class="sidebar">Page reference</aside>',
+        1,
     )
     page = open_page(
         browser,
@@ -7290,6 +7299,24 @@ def test_the_complete_page_map_survives_a_crossing_to_the_wide_screen(browser, s
     expect(
         dialog.get_by_role("button", name=re.compile(r"^Open your change: Your change"))
     ).to_be_visible()
+
+
+def test_the_banner_offers_the_map_wherever_the_markers_are_pins(browser, serve):
+    """The Page Map toggle follows the rail the margin measures, not a window width: a
+    920px window leaves a column page too little room beside it for the rail, so its
+    markers are pins and the banner offers the map, as it does on a phone. The control is
+    the same page at 1200px, where the rail stands and the toggle steps aside."""
+    page = open_page(browser, serve(ASK_PAGE, events=[ACTION_ON_ASK, COMMENT_ON_ASK]))
+    rows = page.locator(".lf-margin-projection .lf-margin-cluster")
+    for width, place, offered in ((1200, "rail", False), (920, "pin", True)):
+        resized(page, width, 900)
+        margins_laid_out(page)
+        expect(rows.first).to_have_attribute("data-lf-place", place)
+        toggle = page.locator(".lf-page-map-toggle")
+        if offered:
+            expect(banner_control(page, ".lf-page-map-toggle")).to_be_visible()
+        else:
+            expect(toggle).to_be_hidden()
 
 
 @pytest.mark.parametrize("height", [480, 760])
@@ -7496,10 +7523,10 @@ def _comment_on(section, text="A comment on this.", quote=None):
 @pytest.mark.parametrize(
     ("main", "place"),
     [
-        ("<main>", "rail"),
-        ('<main data-width="available">', "pin"),
-        ('<main data-width="available" data-rail="right">', "rail"),
-        ('<main data-rail="none">', "pin"),
+        ('<main class="layout-column">', "rail"),
+        ('<main class="layout-wide">', "pin"),
+        ('<main class="layout-wide" data-rail="right">', "rail"),
+        ('<main class="layout-column" data-rail="none">', "pin"),
     ],
     ids=["column", "wide", "wide-keeps-the-rail", "column-gives-it-up"],
 )
@@ -7512,7 +7539,7 @@ def test_the_page_form_decides_the_rail_and_main_can_say_otherwise(
     source = leaf_page(
         "rail by form",
         '<h1 id="t">Rail by form</h1><p id="p">A paragraph with a comment on it.</p>',
-    ).replace("<main>", main)
+    ).replace('<main class="layout-column">', main)
     page = open_page(browser, serve(source, events=[_comment_on("p")]))
     resized(page, 1440, 900)
     margins_laid_out(page)
@@ -7525,14 +7552,15 @@ def test_the_page_form_decides_the_rail_and_main_can_say_otherwise(
     assert claimed == (place == "rail")
 
 
-def test_a_page_made_wide_by_its_workspace_claims_no_rail(browser, serve):
-    """A page whose only block is a workspace is a wide page without declaring one, so it
-    gives up the rail's strip as `<main data-width="available">` does."""
+def test_a_workspace_page_claims_no_rail(browser, serve):
+    """The workspace Layout stands in the wide page's frame, so it gives up the rail's
+    strip as `<main class="layout-wide">` does."""
     source = leaf_page(
         "workspace page",
-        '<lf-workspace id="w"><header><h1 id="t">Workspace</h1></header>'
+        '<header><h1 id="t">Workspace</h1></header>'
         '<lf-pane id="pane" label="Queue"><div><p id="p">A paragraph.</p></div>'
-        "</lf-pane></lf-workspace>",
+        "</lf-pane>",
+        layout="workspace",
     )
     page = open_page(browser, serve(source))
     resized(page, 1440, 900)
@@ -7607,8 +7635,7 @@ def test_o_hides_what_is_drawn_over_the_page_and_moves_nothing(browser, serve):
 PANE_PIN_PAGE = leaf_page(
     "a pin in a pane",
     """
-<lf-workspace id="pin-workspace">
-  <lf-grid id="pin-split" columns="2">
+  <div id="pin-split">
     <lf-pane id="pin-pane" label="Findings">
       <div>
         <div style="height: 200px"></div>
@@ -7618,10 +7645,10 @@ PANE_PIN_PAGE = leaf_page(
       </div>
     </lf-pane>
     <lf-pane id="other-pane" label="Notes"><div><p>Notes.</p></div></lf-pane>
-  </lf-grid>
-</lf-workspace>
+  </div>
 """,
-    width="available",
+    head=regions_side_by_side("pin-split"),
+    layout="workspace",
 )
 
 

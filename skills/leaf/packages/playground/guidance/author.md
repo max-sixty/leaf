@@ -10,9 +10,9 @@ The playground draws its own regions: the preview is a stage, and the controls a
 instruction to the agent stand in a rail beside it, on the same `2fr 1fr` tracks as a
 wide page's body and rail, wherever it has 43.5rem; narrower, they stack. A preview that needs
 width, such as two candidates side by side, belongs on a wide page (`<main
-data-width="available">`), where later body content can stand under the stage in an
-`lf-grid columns="2fr 1fr"`. Draw candidates on the stage without a card of their own;
-the stage is their surface.
+class="layout-wide">`), or on a workspace page (`<main class="layout-workspace">`) whose
+body is the playground's Ask, where the stage grows to the window's height. Draw
+candidates on the stage without a card of their own; the stage is their surface.
 
 The preview is the surface the user operates. An A/B comparison keeps both candidates
 mounted in that preview and renders both from one interaction state, so each control

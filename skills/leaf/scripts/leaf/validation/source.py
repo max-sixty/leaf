@@ -21,8 +21,8 @@ from leaf.styles import (
     css_syntax_errors,
     inline_presentation_override_errors,
     inline_style_at,
-    layout_css_advice,
     root_tokens,
+    scroller_css_advice,
 )
 from leaf.thread_context import comment_ids, specimen_events, thread_structure
 from leaf.validation.compatibility import candidate_vocabulary_gaps
@@ -265,10 +265,8 @@ def _source_advice(
         *(f"data source unreadable: {error}" for error in data_errors(stored_data)),
         *unpointable_blocks(parser),
         *missing_outline(parser, registry or {}),
-        *layout_css_advice(
-            parser,
-            registry or {},
-            artifact.page_stylesheets if artifact is not None else {},
+        *scroller_css_advice(
+            parser, artifact.page_stylesheets if artifact is not None else {}
         ),
     ]
 

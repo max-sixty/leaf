@@ -29,7 +29,7 @@
    `display: contents` while its rendered descendants remain usable, and a collapsed
    target has no rendered part to offer. */
 import { cancelRender, nextRender, sizeObserver } from "./rendering.js";
-import { shellRight, shownBand, shownParts } from "./geometry.js";
+import { railStands, shellRight, shownBand, shownParts } from "./geometry.js";
 import { under, upFrom } from "./shadow.js";
 import { scrollerFor } from "./reading-regions.js";
 import { pageScroller } from "./scrolling.js";
@@ -46,29 +46,6 @@ let observedColumn = null;
 let layer = null;
 
 const marginColumn = () => document.querySelector("main") || document.body;
-
-// Whether the margin's rail stands: where the room between `main` and the shell's right
-// edge holds a rail, measured, so a centred column in a wide window keeps its markers in
-// the margin and a page laid out to the edge pins them. Nothing claims the room. A page
-// that wants the rail everywhere declares one (`data-rail="right"` on `main`), and the
-// shell gives up the rail's width on its right (theme.css), which this reads as room like
-// any other. Nothing a pass writes moves `main` or the shell, so the answer is read once
-// per task and reused; the microtask that clears it runs before anything outside the pass
-// can ask.
-const readRailPosture = () => {
-  const main = document.querySelector("main");
-  if (!main) return false;
-  const rail = parseFloat(getComputedStyle(main).getPropertyValue("--rail")) || 0;
-  return shellRight() - main.getBoundingClientRect().right >= rail;
-};
-let railReading = null;
-const railStands = () => {
-  if (railReading === null) {
-    railReading = readRailPosture();
-    queueMicrotask(() => (railReading = null));
-  }
-  return railReading;
-};
 
 const labelRect = (name, left, top, label) => ({
   name,

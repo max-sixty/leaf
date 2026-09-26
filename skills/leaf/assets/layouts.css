@@ -75,7 +75,7 @@
    * the body has a definite height to fill (a style query). Where the window is too
    * small to hold the regions, the workspace flows and the page scrolls. */
   main.layout-workspace { padding-block-start: var(--sp-4); }
-  main.layout-workspace > header { padding-block: 0 var(--sp-3); }
+  main.layout-workspace > header { padding-block: 0 var(--sp-3); --lf-block-frame: 1; }
   @media screen and (min-width: 720px) and (min-height: 480px) {
     main.layout-workspace {
       --lf-held: 1;
@@ -94,11 +94,18 @@
     }
     /* A pane is already a grid of header, body and footer (the default package), whose body
      * row takes what a definite height leaves and its content's height otherwise; here it
-     * may shrink below its content, and scrolls. */
-    main.layout-workspace :is(lf-pane, [data-lf-reading-role="pane"]) {
+     * may shrink below its content, and scrolls. That holds for a pane the workspace
+     * gives a height: the body itself, or a cell of it, and a widget's generated pane,
+     * which its widget sizes (the runtime marks lf-pane with the role too). A pane
+     * written inside another pane's body is that body's content and scrolls with it. */
+    main.layout-workspace > lf-pane,
+    main.layout-workspace > :not(header, footer) > lf-pane,
+    main.layout-workspace [data-lf-reading-role="pane"]:not(lf-pane) {
       min-block-size: 0;
     }
-    main.layout-workspace :is(lf-pane, [data-lf-reading-role="pane"]) > :not(header, footer) {
+    :is(main.layout-workspace > lf-pane,
+      main.layout-workspace > :not(header, footer) > lf-pane,
+      main.layout-workspace [data-lf-reading-role="pane"]:not(lf-pane)) > :not(header, footer) {
       min-block-size: 0;
       overflow: auto;
       overscroll-behavior: contain;

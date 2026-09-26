@@ -1,8 +1,7 @@
 // `syncLayout` derives only floating chrome placement and reservations from current
 // chrome boxes. CSS owns the document shell: `body` is the named `lf-shell` inline-size
-// container, `main` composes its left and right claims, and queries grant or withdraw
-// margin postures. JavaScript may hear the shell's content-box size without deriving a
-// posture or mirroring cramped state. `layoutSizes` schedules `syncLayout` and page
+// container, and queries grant or withdraw margin postures. JavaScript may hear the
+// shell's content-box size without deriving a posture or mirroring cramped state. `layoutSizes` schedules `syncLayout` and page
 // repaint after a width change. No auxiliary surface changes the shell: each stands over
 // the page. A height-only change sends `pageShifted` directly so a content reflow
 // re-places document-attached paint without re-running chrome reservation.
@@ -26,13 +25,11 @@
 // usable page beside them, one rule for both (`standsBeside`, auxiliary-surfaces.js;
 // `--lf-auxiliary-beside`, theme.css); elsewhere the page beside them stays live.
 // Auxiliary modality is a shared inert boundary outside this geometry owner; the
-// reference and Page Map keep native `showModal()`. `--strip-l`, `--strip-r`,
-// `--lf-room`, `--lf-sidebar-posture`, and `--lf-rail-posture` are CSS-owned readings
-// resolved on `main`, which is the named `lf-content-frame` style container a margin
-// resident asks for them. The bottom
-// band is a stated height (`--lf-band-h`, theme.css) rather than a reading, so whatever
-// has to end above it reads that token; `--lf-claim-right` is the project-layer
-// extension claim.
+// reference and Page Map keep native `showModal()`. `--lf-room` and
+// `--lf-sidebar-posture` are CSS-owned readings resolved on `main`, which is the named
+// `lf-content-frame` style container a margin resident asks for them. The bottom band is
+// a stated height (`--lf-band-h`, theme.css) rather than a reading, so whatever has to
+// end above it reads that token.
 
 // Application composition supplies feature-local geometry. This owner cannot open
 // auxiliary surfaces, send commands, or reconcile thread DOM.
@@ -40,6 +37,7 @@ import { sizeObserver } from "./rendering.js";
 import { drawnEdge } from "./drawn-edge.js";
 import { overlaps, overlapsAcross } from "./rect.js";
 import { standsBeside } from "./auxiliary-surfaces.js";
+import { railStands } from "./geometry.js";
 
 // The width the panel stands at for a user who has not moved its edge. 420 since
 // threads carry questions — option rows are the one thread content that can't scroll or
@@ -92,22 +90,22 @@ export function createChromeLayout({
     const panelRoom = (panelLive ? commentsEdge.width() : 0) + "px";
     shortcutBarEl.style.setProperty("--lf-shortcut-bar-right", panelRoom);
     bottomStatusEl.style.setProperty("--lf-shortcut-bar-right", panelRoom);
-    // Over a live page the panel stands over the page's right margin at any window short
-    // of about 1700px, and over the pins at the column's edge at the same widths. The
-    // markers are still drawn, under the panel; what says the user lost them is a margin
-    // row the panel's edge reaches. Where one does, the banner offers the Page Map in
-    // their place, as it does on a compact page (chrome.css).
-    // Where the panel stands, not where its slide has carried it this frame: offsetLeft
-    // ignores the slide's transform.
+    // The banner offers the Page Map wherever the user has no rail to find markers in
+    // (chrome.css): where the rail does not stand, so the markers are pins, small targets
+    // over the content, and where a live panel's edge reaches a margin row. Over a live
+    // page the panel stands over the page's right margin at any window short of about
+    // 1700px, and over the pins at the column's edge at the same widths; the markers are
+    // still drawn, under it. Where the panel stands, not where its slide has carried it
+    // this frame: offsetLeft ignores the slide's transform.
     const panelLeft = panelLive ? panel.offsetLeft : Infinity;
-    const railCovered = [
-      ...document.querySelectorAll(".lf-margin-projection .lf-margin-cluster"),
-    ].some(
-      (row) =>
-        !row.classList.contains("lf-withheld") &&
-        row.getBoundingClientRect().right > panelLeft,
-    );
-    panel.closest(".lf-chrome")?.toggleAttribute("data-lf-rail-covered", railCovered);
+    const railLost =
+      !railStands() ||
+      [...document.querySelectorAll(".lf-margin-projection .lf-margin-cluster")].some(
+        (row) =>
+          !row.classList.contains("lf-withheld") &&
+          row.getBoundingClientRect().right > panelLeft,
+      );
+    panel.closest(".lf-chrome")?.toggleAttribute("data-lf-rail-lost", railLost);
     // The status stands in the bottom band (chrome.css) and moves only to stay live above
     // a covering panel's foot: unlike the inert shortcut guide, notices are live feedback
     // from the foreground action. Everything the page ends above is the band's stated

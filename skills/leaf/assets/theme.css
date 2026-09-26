@@ -36,8 +36,8 @@
  * the same behavior without joining a tag list. `main` hands wide room back to its
  * contents explicitly because it is the outer page frame.
  *
- * `main` declares `--lf-reading-column: 1` in the same rule, claiming that its `max-width` is
- * the readable column. The file lint measures every fixed pixel width against that
+ * The column Layout (layouts.css) declares `--lf-reading-column: 1` in the rule that sets
+ * its `max-width`, claiming that width as the readable column. The file lint measures every fixed pixel width against that
  * number, so a package or page setting a column of its own claims it in the rule that
  * sets it; a width with no claim beside it is a width and nothing more.
  *
@@ -64,9 +64,10 @@
 
    A floor asks about the room its rule governs. One granting a posture out of the room
    left beside a standing surface is a container query on `lf-shell`, inside `@media screen`
-   since paper has no tray and no margin to grant: 1188, 1152 and 1496 for the sidebar,
-   sidenote and paired strips, 863 (887 by finger) for the margin projection's rail, 640
-   for a narrow column's facts.
+   since paper has no tray and no margin to grant: 1296 and 1536 for the sidebar and the
+   sidenote, each the column box plus its width on either side, and 640 for a narrow
+   column's facts. The margin projection's rail is measured instead (`railStands`,
+   geometry.js), since what it asks is the room a page's Layout left beside `main`.
    One answering to the device, such as a phone's vertical rhythm, asks the window, and a
    package's widget asks its own box (references/packages.md).
 
@@ -236,9 +237,8 @@
      labels without making a second prose column. The rule beside aside.sidebar spends
      it; the shell's container query decides when the page can afford it. */
   --sidebar: 264px;
-  /* The widest left-margin allocation any sidebar posture can request. Container
-     queries cannot read this token, so the paired sidebar-and-note floor copies it as
-     1496px = the ordinary 1152px floor plus this 344px maximum. */
+  /* The widest left-margin allocation any sidebar posture can request: the contents
+     map's, whose labels reveal over the page (the default package). */
   --sidebar-max: 344px;
   /* The measure, and the gutter main sets it in. Named because three rules now want
      main's width: the element itself and the strip arithmetic beside aside.sidenote.
@@ -254,7 +254,7 @@
      from the shell and its occupied margins, so a widget stands clear of both. An
      `available` surface is not held to this number. */
   --wide: 1080px;
-  /* The widest a wide page (`<main data-width="available">`) grows.
+  /* The widest a page on one of the wide Layouts (layouts.css) grows.
      Past it a board's columns and a dashboard's tiles stop gaining anything but the
      distance between them. */
   --wide-page-max: 1600px;

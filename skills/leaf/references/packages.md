@@ -87,7 +87,7 @@ Every package has the same partial layout:
 ```text
 package/
 ├── registry.json       element declarations and shared $ declarations
-├── theme.css           rules appended to the cascade
+├── theme.css           rules in the layer's shared cascade layer
 ├── shadow.css          rules that also reach declared shadow trees
 ├── guidance/           Markdown guides named for their audiences
 ├── runtime/            browser modules and replacements by vendored path
@@ -99,9 +99,13 @@ package/
 ```
 
 No individual file is required. The kernel supplies the files every complete layer
-needs. Theme files concatenate, and so do shadow files: a declared `x-shadow` root built
-with `shadowStage` receives every package's `shadow.css` in layer order, and the document
-reads each package's `shadow.css` just ahead of its `theme.css`. Runtime, icon, widget,
+needs. Theme files concatenate into one cascade layer, `lf-base`, so a package's rule
+beats the kernel's by specificity and order as it would unlayered, while the Layouts
+and the page's own stylesheet rank above every package rule whatever its specificity.
+A widget module's adopted sheet joins the same layer. Shadow files concatenate too: a
+declared `x-shadow` root built with `shadowStage` receives every package's `shadow.css`
+in layer order, and the document reads each package's `shadow.css` just ahead of its
+`theme.css`. Runtime, icon, widget,
 and vendor files replace by path. A later package replaces a tag's complete element
 declaration and one member inside a shared `$` declaration. A tag can be added or
 replaced whole, but it has no deletion marker.
@@ -164,10 +168,10 @@ The runtime exposes declared layout facts as `[data-lf-inline]`, `[data-lf-space
 those attributes instead of naming widget tags. The registry's `$keys` entries for
 `x-space`, `x-measure`, and `x-bound` say what each declaration requests; none of them
 chooses the widget's internal layout, which the package arranges inside the allocation.
-A page is a wide page when `body` states `--lf-page-width: wide` or `available`, which
-`main[data-width]` does; a package whose element makes the page it stands in wide sets
-the same property on `body` with a selector on its authored markup, as the default
-package does for a page whose only block is a workspace, and the kernel draws the frame.
+How wide the page is, and how its blocks are arranged, is the page's choice, made with a
+Layout class or its own CSS (`page-authoring.md`, "Layouts"); a package's element fills
+the box it is given, and its `x-space` states the width it prefers, which a page may
+override.
 When a bounded widget's scroller should be a box inside it, such as a listing under a
 caption that stays in view, the package theme moves the bound there under
 `[data-lf-bound]` and declares `--lf-bound-box: 1` on that box, which is the one Leaf
@@ -217,7 +221,7 @@ widget's role on the page:
 
 | Key                  | Shipped example                                                |
 | -------------------- | -------------------------------------------------------------- |
-| `x-reading-role`     | `lf-workspace`, `lf-pane`, `lf-grid`                           |
+| `x-reading-role`     | `lf-pane`                                                      |
 | `x-required-members` | `lf-swipe-deck` in `swipe`                                     |
 | `x-page-navigation`  | `lf-tabs`                                                      |
 | `x-visual`           | `lf-chart` declares `whole`, `lf-diagram` in `diagram` `parts`  |
@@ -326,34 +330,30 @@ optimistic result; delivery later yields the admitted event or null, and a refus
 restores authoritative state. Undo targets only a stable `id` or `attempt` from the
 current entry's candidates. The server remains final admission for every command.
 
-### Reading layouts
+### Reading regions
 
-A structural element declares `x-reading-role` as `workspace`, `pane`, or `grid` and
-keeps `x-content: markup`. A workspace or pane has exactly one direct body element
-between an optional native `header` first and an optional native `footer` last; a grid
-holds its cells as elements. The validator reads roles rather than tag names, and the
-runtime paints each declared role as `data-lf-reading-role`, which the default theme
-lays out, so a package's differently named pane or grid takes the same rules as
-`lf-pane` and `lf-grid`; its module registers the pane's body as described below. The
-page's root workspace is `lf-workspace` itself.
+A pane declares `x-reading-role: pane` and keeps `x-content: markup`: exactly one direct
+body element between an optional native `header` first and an optional native `footer`
+last. The validator reads the role rather than the tag name, and the runtime paints it
+as `data-lf-reading-role`, which the default theme lays out as a pane, so a package's
+differently named pane takes the same rules as `lf-pane`; its module registers the
+pane's body as described below.
 
-The default package's theme owns the layout of those roles, bounded posture included:
-whether a workspace holds the window, and so whether each pane's body scrolls or the
-page does, is one container query there, and nothing in a module measures a minimum or
-chooses a posture. The height reaches a pane only through a chain of boxes that pass it
-on, each declaring `--lf-passes-hold: 1` in its theme rule: grids, panes, an Ask of a
-heading and one answer, and a package's own region compound such as a playground. Each
-also declares `min-height: var(--lf-track-min)`, which is `0px` while it is held and
-`auto` otherwise, so it takes its track's height in a bounded workspace and its
-content's everywhere else. A behavior module that composes regions out of boxes it
-generates, such as a playground's controls beside its preview, takes the same rules by
-marking those boxes `data-lf-reading-role="grid"` or `"pane"`, with the pane grammar of
-one header, one body, and one footer. The attribute is the module's to write and never
-an author's, since `version check` refuses `data-lf-` markup. Keep the package theme to
-placement inside that grammar, such as track sizes and chrome; a package copy of a
-bounded rule is a second posture decision that drifts from the first. Generate boxes
-rather than the `lf-pane` or `lf-grid` elements themselves: those are authored words the
-render gate pairs with the file.
+Whether a pane's body scrolls is the workspace Layout's (`layouts.css`): where the
+window holds the workspace, the Layout gives its body a definite height, each pane in it
+may shrink below its content, and each pane's body scrolls; elsewhere every pane takes its
+content's height. Nothing in a module measures a minimum or chooses a posture. While it
+holds the window, the Layout sets `--lf-held: 1` on `main`, and a widget that should grow
+to fill the height it is given, such as a playground's stage, keys its rules on
+`@container style(--lf-held: 1)`. A behavior module that composes regions out of boxes it
+generates, such as a playground's controls beside its preview, takes the pane rules by
+marking those boxes `data-lf-reading-role="pane"`, with the pane grammar of one header,
+one body, and one footer. The attribute is the module's to write and never an author's,
+since `version check` refuses `data-lf-` markup. Keep the package theme to placement
+inside that grammar, such as track sizes and chrome; a package copy of the held rules is
+a second posture decision that drifts from the Layout's. Generate boxes rather than
+`lf-pane` elements themselves: those are authored words the render gate pairs with the
+file.
 
 `registerReadingRegion({id, host, body})` binds a region's identity to its host and to
 the body that scrolls it whenever the theme makes it scroll. The host makes focus in a

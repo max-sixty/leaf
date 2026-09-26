@@ -120,7 +120,9 @@ below don't block it.
   margin at different widths (848px against 1296px), which leaves an empty in-flow
   sidebar and a gap under the header between them (the docs package carries a
   workaround). Without the default rail, markers pin between 880px and 959px where they
-  used to stand in the rail.
+  used to stand in the rail. The render gate reads the wide page at 1200px, below the
+  1296px and 1536px a sidebar and a sidenote now need, so it never sees either in the
+  margin (`test_the_render_viewport_is_wide_enough_to_have_margins` is xfail on it).
 - **Make the outcome checks the gate.** `version check` still reports "nothing
   overflows the 720px column" on pages with no column, and passed a page that scrolled
   sideways at 520px. It still advises against scrollers page CSS makes, though pane

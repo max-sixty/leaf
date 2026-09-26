@@ -1431,20 +1431,19 @@ def test_message_markdown_reads_a_link_scheme_as_the_attribute_resolves_it(
     expect(media_button).to_be_focused()
 
 
-# A wide page laid on one set of tracks: a long body beside a short rail, the rail being
-# the part of the page a panel standing over the window's right edge would cover.
+# A wide page of a body and its side track: a long body beside a short side track, the
+# side track being the part of the page a panel standing over the window's right edge
+# would cover.
 WIDE_PAGE = leaf_page(
     "wide page",
     """
-<h1 id="t">Wide page</h1>
-<lf-grid id="tracks" columns="2fr 1fr">
-  <lf-grid id="body" columns="1">{paras}</lf-grid>
-  <lf-grid id="side" columns="1">
-    <section class="panel" id="rail"><h2>Rail</h2><p>Counts beside the body.</p></section>
-  </lf-grid>
-</lf-grid>
+<header><h1 id="t">Wide page</h1></header>
+<div id="body">{paras}</div>
+<div id="side">
+  <section class="panel" id="rail"><h2>Rail</h2><p>Counts beside the body.</p></section>
+</div>
 """,
-    width="available",
+    layout="sidebar",
 ).format(
     paras="\n".join(
         f"<p id='p{i}'>Paragraph {i}. " + "Filler. " * 40 + "</p>" for i in range(40)
@@ -1474,7 +1473,7 @@ def test_an_auxiliary_surface_stands_over_the_page_and_moves_none_of_it(
 ):
     """Opening Threads or the Asks tray never moves the page: each stands over its edge of
     the window, so the reading column keeps its place, its width and its wrapping, a
-    wide page's rail stays where its tracks put it, and the document neither grows nor
+    wide page's side track stays where its Layout put it, and the document neither grows nor
     scrolls under it. The page beside the surface stays live rather than going inert
     behind a covering boundary."""
     surface, html = SURFACE_PAGES[case]

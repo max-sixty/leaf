@@ -40,8 +40,8 @@ def _agent_metric_reply(page_dir, root, number, for_event=None):
         root,
         f"Update {number}.",
         (
-            f'<lf-grid id="read-row-{number}"><lf-metric id="read-update-{number}" value="{number}">'
-            "Completed steps</lf-metric></lf-grid>"
+            f'<lf-metric id="read-update-{number}" value="{number}">'
+            "Completed steps</lf-metric>"
         ),
         for_event=for_event,
         when_settled="post",
@@ -169,7 +169,7 @@ def test_unread_agent_root_boundary_precedes_hoisted_header(browser, serve):
         "",
         "",
         "Review this metric.",
-        '<lf-grid id="root-row"><lf-metric id="root-metric" value="1">Completed steps</lf-metric></lf-grid>',
+        '<lf-metric id="root-metric" value="1">Completed steps</lf-metric>',
     )["id"]
     page = open_page(browser, url)
     page.locator(".lf-threads-toggle").click()
@@ -950,8 +950,7 @@ def test_reading_a_thread_moves_nothing_in_it(browser, serve):
         None,
         None,
         "Review this metric.",
-        '<lf-grid id="root-row"><lf-metric id="root-metric" value="1">'
-        "Completed steps</lf-metric></lf-grid>",
+        '<lf-metric id="root-metric" value="1">Completed steps</lf-metric>',
     )["id"]
     second = _agent_metric_reply(serve.page_dir, root, 2)
     accepted, _ = endpoint_model.accept_event(

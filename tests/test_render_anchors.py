@@ -433,11 +433,9 @@ def test_browser_and_file_captures_stop_at_the_same_widget_fences(
         expect(page.locator(".lf-margin-preview")).to_be_hidden()
 
 
-@pytest.mark.parametrize("workspace", [False, True], ids=["ask", "workspace"])
-def test_quotes_cross_preserving_containers_and_remain_attached(
-    browser, serve, workspace
-):
-    """A layout module does not turn visible prose into separate quotation islands."""
+@pytest.mark.parametrize("panes", [False, True], ids=["ask", "panes"])
+def test_quotes_cross_preserving_containers_and_remain_attached(browser, serve, panes):
+    """A pane does not turn visible prose into separate quotation islands."""
     ask = """<lf-ask id="decision">
       <h2 id="question">Which plan should lead?</h2>
       <lf-options id="plans" choose>
@@ -446,13 +444,11 @@ def test_quotes_cross_preserving_containers_and_remain_attached(
       </lf-options>
     </lf-ask>"""
     content = (
-        f"""<lf-workspace id="workspace">
-          <lf-grid id="split" columns="1">
-            <lf-pane id="decision-pane" label="Decision">{ask}</lf-pane>
-            <lf-pane id="evidence-pane" label="Evidence"><p>Supporting evidence.</p></lf-pane>
-          </lf-grid>
-        </lf-workspace>"""
-        if workspace
+        f"""<div id="split">
+          <lf-pane id="decision-pane" label="Decision">{ask}</lf-pane>
+          <lf-pane id="evidence-pane" label="Evidence"><p>Supporting evidence.</p></lf-pane>
+        </div>"""
+        if panes
         else ask
     )
     markup = leaf_page(
@@ -966,6 +962,8 @@ def test_a_drag_released_mid_word_hugs_words_and_sentences(browser, serve):
         span.textContent = 'flagged';
         p2.insertBefore(span, rest); // flush: the page now reads "boundaryflagged"
     }""")
+    # The bar the last drag raised stands over the line this one starts on.
+    page.locator("#t").click()
     select(page, spot("#p2", "flagged", 3), spot("#p2", "them", 1))
     assert captured() == "flagged between them"
 

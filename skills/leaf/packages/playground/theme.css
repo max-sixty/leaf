@@ -1,9 +1,9 @@
 /* A playground is an instrument laid out as a wide page's body beside its rail: the real
  * preview is the stage and owns the larger field, and the controls stand above the
- * instruction they write, with its actions, in a rail beside it. It is a workspace whose
- * relationship is declared, built from the layout layer's grammar: a grid of three panes
- * (data-lf-reading-role, packages/default/theme.css). That grammar decides who scrolls;
- * here the playground only places the panes and draws them.
+ * instruction they write, with its actions, in a rail beside it. Its regions are three
+ * generated panes (data-lf-reading-role="pane", packages/default/theme.css), whose bodies
+ * scroll where a workspace Layout holds the window (layouts.css); here the playground
+ * only places the panes and draws them.
  *
  * Each region is drawn once. The playground itself is no card: the stage is the
  * preview's own well, and each rail pane is a panel as a wide page draws its regions
@@ -11,7 +11,6 @@
  * surface inside the well rather than a card in a well in a card. */
 lf-playground {
   --lf-block-frame: 1;
-  min-height: var(--lf-track-min);
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: var(--sp-4);

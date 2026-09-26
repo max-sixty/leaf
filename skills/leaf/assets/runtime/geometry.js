@@ -35,6 +35,31 @@ import { overlaps, overlapsAcross } from "./rect.js";
 // which is what a margin resident is placed against and what the response surface may not
 // overhang. The auxiliary surfaces stand over the page and take none of it.
 export const shellRight = () => document.body.getBoundingClientRect().right;
+
+// Whether the margin's rail stands: where the room between `main` and the shell's right
+// edge holds a rail, measured, so a centred column in a wide window keeps its markers in
+// the margin and a page laid out to the edge pins them. Nothing claims the room. A page
+// that wants the rail everywhere declares one (`data-rail="right"` on `main`), and the
+// shell gives up the rail's width on its right (theme.css), which this reads as room like
+// any other. The margin pass places rows by it, and the chrome offers the Page Map
+// wherever it is false. Nothing either writes moves `main` or the shell, so the answer
+// is read once per task and reused; the microtask that clears it runs before anything
+// outside the task can ask.
+const readRailPosture = () => {
+  const main = document.querySelector("main");
+  if (!main) return false;
+  const rail = parseFloat(getComputedStyle(main).getPropertyValue("--rail")) || 0;
+  return shellRight() - main.getBoundingClientRect().right >= rail;
+};
+let railReading = null;
+export const railStands = () => {
+  if (railReading === null) {
+    railReading = readRailPosture();
+    queueMicrotask(() => (railReading = null));
+  }
+  return railReading;
+};
+
 // Document-anchored chrome is positioned from the document origin, while the boxes it
 // follows are read in viewport coordinates. Convert once at that boundary.
 export function documentPoint(left, top) {

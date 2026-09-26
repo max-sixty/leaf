@@ -228,10 +228,8 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     review_url = serve(
         leaf_page(
             "authenticated navigation review",
-            '<lf-workspace id="journey-workspace">'
-            '<lf-visual-review id="journey" source="journey-run"></lf-visual-review>'
-            "</lf-workspace>",
-            width="available",
+            '<lf-visual-review id="journey" source="journey-run"></lf-visual-review>',
+            layout="workspace",
         ),
         packages=("visual-review",),
     )

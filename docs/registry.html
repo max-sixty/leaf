@@ -496,26 +496,23 @@
             <h3><code>x-reading-role</code></h3>
             <div class="reference-copy">
               <p>
-                The structural role an element supplies: workspace keeps task regions
-                together between optional header/footer slots around exactly one body
-                element, pane is one labeled reading region with exactly one body
-                element between its optional header and footer, and grid places its
-                direct children as cells in two dimensions.
+                The structural role an element supplies: <code>pane</code>, the one
+                role, is a labeled reading region whose body scrolls on its own while a
+                workspace Layout holds the window.
               </p>
               <details class="reference-more">
                 <summary aria-label="Full x-reading-role contract">
                   Full contract
                 </summary>
                 <p>
-                  Role-derived validation reads this declaration rather than tag names,
-                  and <code>version check</code> advises against page CSS that places an
-                  element declaring a role. Every role keeps markup content so packages
-                  may contribute differently named structural elements without joining a
-                  closed parent-child vocabulary. Every role requires a string
-                  <code>id</code>; a pane also requires a string <code>label</code>,
+                  A pane holds exactly one body element between an optional direct
+                  native <code>header</code> first and <code>footer</code> last.
+                  Role-derived validation reads this declaration rather than tag names.
+                  The role keeps markup content so packages may contribute differently
+                  named panes without joining a closed parent-child vocabulary. A pane
+                  requires a string <code>id</code> and a string <code>label</code>,
                   which names its accessible region while a visible heading belongs in
-                  its authored header. A workspace or pane may hold one direct native
-                  <code>header</code> first and one <code>footer</code> last.
+                  its authored header.
                 </p>
               </details>
             </div>

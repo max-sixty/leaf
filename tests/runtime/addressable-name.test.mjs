@@ -47,7 +47,7 @@ test("an element the contract gives no title has no name", () => {
 test("a leading header holds the title, past an eyebrow above it", () => {
   assert.equal(
     named(
-      '<lf-workspace id="it"><header><h1>Review</h1></header><p>Body.</p></lf-workspace>',
+      '<div id="it"><header><h1>Review</h1></header><p>Body.</p></div>',
     ),
     "Review",
   );

@@ -1659,22 +1659,13 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-page-map-group:first-child { border-top: 0; }
   .lf-page-map-group h3 { margin: 0 8px 4px; font-size: var(--t-5); line-height: 1.35; }
   .lf-page-map-actions { display: grid; gap: 2px; }
-  /* The banner offers the whole Page Map wherever the rail is not drawn, and asks the
-     same floor the rail does, of the same box: theme.css, at the margin projection. There
-     the markers are pins, small targets over the content, and the searchable map is the
-     better route to them. The thread panel takes no room but stands over the margin
-     below about 1700px, and the layout pass marks the root when it does. A browser that
-     cannot anchor draws no markers at all. */
+  /* The banner offers the whole Page Map wherever the user has no rail to find markers
+     in: where the rail does not stand, so the markers are pins, small targets over the
+     content, and where the thread panel stands over a margin row. The layout pass marks
+     the root in both cases (chrome-layout.js), from the same measured reading the margin
+     places its rows by. A browser that cannot anchor draws no markers at all. */
   @media screen {
-    @container lf-shell (width <= 863px) {
-      .lf-page-map-toggle:not([hidden]) { display: inline-flex; }
-    }
-    :scope[data-lf-rail-covered] .lf-page-map-toggle:not([hidden]) { display: inline-flex; }
-  }
-  @media screen and (pointer: coarse) {
-    @container lf-shell (width <= 887px) {
-      .lf-page-map-toggle:not([hidden]) { display: inline-flex; }
-    }
+    :scope[data-lf-rail-lost] .lf-page-map-toggle:not([hidden]) { display: inline-flex; }
   }
   @supports not (anchor-name: --lf-page) {
     .lf-page-map-toggle:not([hidden]) { display: inline-flex; }

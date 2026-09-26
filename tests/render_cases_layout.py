@@ -49,41 +49,6 @@ CUSTOM_WIDGET_PAGE = leaf_page(
 """,
 )
 
-# A widget laying two track templates out in its own light DOM. An authored grid carries
-# an id; these carry none, so both are named by the widget that holds them.
-TEMPLATE_PAIR_LAYER = {
-    "lf-test-pair": {
-        "description": "Two track templates a module lays out.",
-        "type": "object",
-        "properties": {"id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"}},
-        "required": ["id"],
-        "additionalProperties": False,
-        "x-content": "empty",
-        "x-upgrade": True,
-        "x-example": '<lf-test-pair id="pair"></lf-test-pair>',
-    }
-}
-TEMPLATE_PAIR_WIDGETS = {
-    "lf-test-pair.js": """
-import { once } from '/runtime/widget-api.js';
-
-const panel = (name) => `<section class="panel"><h2>${name}</h2><p>Words.</p></section>`;
-
-customElements.define('lf-test-pair', class extends HTMLElement {
-  connectedCallback() {
-    if (!once(this)) return;
-    // Out of the column's measure, where no template stacks in a window wide enough to
-    // be told: the pair takes the wide page's width, as an authored grid there does.
-    this.style.display = 'block';
-    this.style.maxInlineSize = 'none';
-    this.innerHTML =
-      `<lf-grid columns="1fr 5fr">${panel('Note')}${panel('Story')}</lf-grid>` +
-      `<lf-grid columns="1fr 2.4fr">${panel('Items')}${panel('Detail')}</lf-grid>`;
-    for (const grid of this.children) grid.style.maxInlineSize = 'none';
-  }
-});
-"""
-}
 
 RESIZE_LOOP_EVENT = """dispatchEvent(new ErrorEvent('error', {
   message: 'ResizeObserver loop completed with undelivered notifications.'
@@ -1308,9 +1273,9 @@ UNBREAKABLE_PAGE = leaf_page(
     "unbreakable",
     """
 <h1 id="h">Nothing to break on</h1>
-<lf-grid id="numbers">
+<div class="layout-tiles" id="numbers">
   <lf-metric id="m-token" value="a_very_long_unbroken_identifier">Bucket key</lf-metric>
-</lf-grid>
+</div>
 <p id="p-token">The one it fails on is
 gateway_middleware_authentication_token_bucket_refill_strategy.py, every time.</p>
 <lf-tree id="tree"><pre>

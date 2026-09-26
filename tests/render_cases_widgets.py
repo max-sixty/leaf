@@ -946,7 +946,7 @@ graph LR
   </lf-card></lf-column>
   <lf-column id="e2" label="Done"></lf-column>
 </lf-board>
-<lf-grid id="nums">
+<div class="layout-tiles" id="nums">
   <lf-metric id="me1" value="410ms">p95, with the path it measures
     <lf-diagram id="in-metric"><pre>
 graph LR
@@ -954,7 +954,7 @@ graph LR
   B --> C[worker]
 </pre></lf-diagram>
   </lf-metric>
-</lf-grid>
+</div>
 <lf-tasks id="plan">
   <lf-task id="t-outer" status="active"><strong>Rebuild the feeders</strong>
     <lf-task id="t-inner" status="review"><strong>Fit the baffles</strong>
@@ -995,8 +995,8 @@ graph LR
 # wrong is the gate — and the gate could not see through the scroll: `answeredFor`
 # excused anything inside one, which is every card on every board.
 FRAMED_SCROLLER_PAGE = FRAMED_WIDE_PAGE.replace(
-    "<main>",
-    "<main>\n<div id='own-frame' style='border: 1px solid #999; overflow-x: auto'>"
+    '<main class="layout-column">',
+    "<main class=\"layout-column\">\n<div id='own-frame' style='border: 1px solid #999; overflow-x: auto'>"
     "<lf-board id='framed'><lf-column id='f1' label='Todo'>"
     "<lf-card id='fk1'><strong>One</strong></lf-card></lf-column>"
     "<lf-column id='f2' label='Done'></lf-column></lf-board></div>",
@@ -1233,8 +1233,8 @@ SQUEEZED_BOARD_PAGE = leaf_page(
 # has no rule for a project's own furniture and cannot — this is the case the two claims
 # in it are declarations of, seen from the side where nobody has declared anything.
 OWN_MARGIN_FURNITURE = WIDE_AND_NARROW_PAGE.replace(
-    "<main>",
-    "<main>\n<div id='own-rail' style='position: absolute; left: 100%;"
+    '<main class="layout-column">',
+    "<main class=\"layout-column\">\n<div id='own-rail' style='position: absolute; left: 100%;"
     " margin-left: 22px; top: 0; width: 160px; height: 600px'>Mine.</div>",
 )
 # One reply holding both answers to the question the block-content lists ask: chips are

@@ -2700,9 +2700,9 @@ export function createMarginProjection({
   // The page element a node stands for: `threadHere` read the other way. A node on the
   // page stands for itself, so this answers only for chrome that shows one target: a
   // margin cluster control, the card (its threads and its own controls), and a thread in
-  // the Threads panel. The rest of the chrome stands for nothing. Readers climb from the
-  // node itself first, since an Ask frozen into a reply is nearer to a user working it
-  // than the target its thread is about.
+  // the Threads panel. The rest of the chrome stands for nothing. The Ask view reads it
+  // only for a node inside no Ask, since an Ask frozen into a reply is where a user
+  // working it is (asks/view.js, `askAt`).
   function standingTargetAt(node) {
     const projected = marginTargetAt(node);
     if (projected) return projected;

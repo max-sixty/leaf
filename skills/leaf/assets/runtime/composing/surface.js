@@ -132,6 +132,7 @@ export function createResponseSurface({
   setPanel,
   threadHere,
   threadTarget,
+  holdingAsk,
   standingElement,
   composerHolds,
   responseOptionsAreOpen,
@@ -1528,17 +1529,19 @@ export function createResponseSurface({
         go: focusFabComment,
       };
     // The thread the user is at continues where it is about what they stand on: they
-    // are in it, or its target is the element itself or lies inside it, as an Ask's
-    // options group does when the user holds one of its marks. A card showing an
-    // enclosing block's thread is about that block, so an element inside it — an Ask in
-    // a commented task — takes a thread of its own, and a selection still starts one on
-    // its words.
+    // are in it, or its target lies within the element they stand at — the Ask holding
+    // focus, answered or not, else the element itself — as an Ask's options group does
+    // when the user holds one of its marks. A card showing an enclosing block's thread is
+    // about that block, so an element inside it, such as an Ask in a commented task,
+    // takes a thread of its own, and a selection still starts one on its words.
     const here = standingElement();
     const inline = threadHere();
     const target = inline && threadTarget(inline);
     const inlineBox =
       inline &&
-      (!here || inline.contains(focused()) || (target && under(target, here))) &&
+      (!here ||
+        inline.contains(focused()) ||
+        (target && under(target, holdingAsk() ?? here))) &&
       threadInput(inline);
     const said =
       standingThread() ?? (inlineBox ? { held: inline, box: inlineBox } : null);

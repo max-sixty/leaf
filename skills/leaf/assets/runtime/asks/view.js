@@ -441,20 +441,21 @@ export function createAskView({
   // inventory. DOM containment says where focus is; it never decides whether the Ask
   // belongs to that inventory.
   //
-  // The node's own containers answer before the place it stands for: an Ask frozen into
-  // a reply is nearer to a user working it than the page target its thread is about.
+  // A node inside any Ask of the inventory, answered or not, stands in that Ask, and
+  // only a node inside none stands for the place its chrome shows: an Ask frozen into a
+  // reply is where a user working it is, never the page Ask its thread is about.
   function askAt(asks, node) {
     const named = standsAt(node);
     if (named) {
       const record = asks.findLast((ask) => ask.id === named);
       if (record) return record;
     }
-    const holding = (place) =>
-      asks.findLast((ask) => {
+    const within = (list, place) =>
+      list.findLast((ask) => {
         const candidate = askNode(ask);
         return candidate && (candidate === place || under(place, candidate));
       }) ?? null;
-    return holding(node) ?? holding(askPlace(node));
+    return within(allAsks(), node) ? within(asks, node) : within(asks, askPlace(node));
   }
   // The ask the user is standing in: the one holding the focus, or the one a control
   // hoisted into the margin decides. The innermost of them, an ask being able to hold
@@ -497,7 +498,8 @@ export function createAskView({
   // question, which is where letting go lands rather than which Ask is the walk's. The
   // same resolution as above, so a control hoisted into the margin holds the Ask it
   // serves, and an answered Ask keeps its picks a place to stand.
-  const heldAsk = () => Boolean(askAt(allAsks(), documentFocused()));
+  const holdingAsk = () => askNode(askAt(allAsks(), documentFocused()));
+  const heldAsk = () => Boolean(holdingAsk());
 
   // The Ask-local action map. A package contributes exact controls through the same
   // command scopes dispatch and Help already consume. Each action receives a contextual
@@ -1227,6 +1229,7 @@ export function createAskView({
     buildBulkAnswers,
     syncAsks,
     standingIn,
+    holdingAsk,
     heldAsk,
     captureStanding,
     restoreStanding,

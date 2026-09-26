@@ -496,7 +496,7 @@ asks = createAskView({
 const standingElement = createStandingElement({
   isAskControl: (node) => node?.matches?.(ASK_CONTROL),
   standingIn: asks.standingIn,
-  projectionTarget: app.margin.standingTargetAt,
+  projectionTarget: app.margin.marginTargetAt,
 });
 
 panelComposer = createPanelComposer({
@@ -543,6 +543,7 @@ responseSurface = createResponseSurface({
   threadHere: () => app.margin.threadHere(),
   threadTarget: (thread) =>
     app.margin.threadTarget(thread.dataset.thread ?? thread.dataset.id),
+  holdingAsk: () => asks.holdingAsk(),
   standingElement,
   composerHolds: selectionComposer.composerHolds,
   responseOptionsAreOpen: selectionComposer.responseOptionsAreOpen,

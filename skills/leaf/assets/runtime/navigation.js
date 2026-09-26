@@ -43,11 +43,12 @@ const threadPosition = (threadHere, panelIsOpen) => {
 // Once the panel is open, the walk stays in its list, in whichever order the list shows.
 // Both paths are clamped, not wrapped.
 // The page place a walk that is at no thread measures from: the focused page node,
-// the page target focused chrome stands for, or the selection's end.
+// the page target focused chrome stands for, or else the selection's end.
 function pagePlace(standingTargetAt) {
   const held = documentFocused();
-  if (held && held !== document.body)
-    return inChrome(held) ? standingTargetAt(held) : held;
+  const place =
+    held && held !== document.body && (inChrome(held) ? standingTargetAt(held) : held);
+  if (place) return place;
   const node = getSelection()?.focusNode;
   const at = node?.nodeType === 1 ? node : node?.parentElement;
   return at && !inChrome(at) ? at : null;

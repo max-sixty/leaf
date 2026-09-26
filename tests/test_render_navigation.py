@@ -11529,3 +11529,45 @@ def test_an_ask_and_its_thread_are_one_standing_target(browser, serve):
     expect(ask).to_have_attribute("data-lf-ask", "1")
     page.keyboard.press("1")
     expect(page.locator("#cache-disk")).to_have_attribute("chosen", "")
+
+
+def test_an_ask_in_a_reply_is_where_the_user_stands_once_answered(browser, serve):
+    """An Ask frozen into a reply sits in a thread about a page Ask. Standing in the
+    reply's Ask is standing there whether or not it is answered: the thread leads to its
+    page Ask only from a node inside no Ask, so a user back on the answered option does
+    not have the page Ask's ring and digits."""
+    url = serve(ASK_THREAD_PAGE)
+    d = serve.page_dir
+    about_ask = panel_comment(d, "Which one lasts longer?", {"section": "cache-ask"})
+    events_model.append_event(
+        d,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Claude",
+            "revision": 1,
+            "parent": about_ask,
+            "responds": about_ask,
+            "text": "One question first.",
+            "markup": '<lf-ask id="follow-ask"><h3>Measure it first?</h3>'
+            '<lf-options id="follow" choose>'
+            '<lf-option id="follow-yes">Measure first</lf-option>'
+            '<lf-option id="follow-no">Decide now</lf-option>'
+            "</lf-options></lf-ask>",
+        },
+    )
+    page = open_page(browser, url)
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
+    panel_settled(page, True)
+    option = page.locator("#follow-yes")
+    option.click()
+    expect(option).to_have_attribute("chosen", "")
+    # Back on the answered option, the user stands in the reply's Ask. Answering moves
+    # focus to the message, which is inside no Ask and so does stand at the page Ask.
+    round_trip(page)
+    option.locator(".lf-pick").focus()
+    expect(page.locator("#cache-ask")).not_to_have_attribute("data-lf-ask", "1")
+    page.keyboard.press("1")
+    round_trip(page)
+    expect(page.locator("#cache-disk")).not_to_have_attribute("chosen", "")

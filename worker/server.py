@@ -45,7 +45,7 @@ from leaf.http import PageEndpoint, scope_page_urls
 from leaf.leases import release_lease, take_lease, waiter_lease_path
 from leaf.registry.storage import layer_metadata
 from leaf.revisioning import activate_source
-from leaf.schema import SKILL_ROOT, VENDORED_FILES
+from leaf.schema import PAGE_ROUTE_DIRS, SKILL_ROOT, VENDORED_FILES
 from leaf.served_state.page import full_state
 from leaf.served_state.service import PageStateService
 from leaf.server import preview_metadata
@@ -88,7 +88,7 @@ SITE_MANIFEST = "_leaf/site.json"
 SITE_ORIGIN = "https://leaf.page"
 SITE_NAME = "leaf"
 PAGE_RESOURCE = re.compile(
-    r"^/(?:api|guidance|media|revisions|runtime|vendor|versions|widgets)(?:/|$)"
+    rf"^/(?:{'|'.join(PAGE_ROUTE_DIRS)})(?:/|$)"
     rf"|^/(?:{'|'.join(map(re.escape, VENDORED_FILES))})$"
 )
 AGENT_EVENT_ID = re.compile(r"^[A-Za-z0-9_-]{1,128}$")

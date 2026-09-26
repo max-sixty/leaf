@@ -1,27 +1,41 @@
 # For a direct local landing, `wt merge` runs these checks after rebasing, so the tree
-# they check is the one that becomes main.
+# they check is the one that becomes main. They are the gates a pull request's `lint`
+# and `test` jobs run on the code. The website's delivery checks — the site build, the
+# Worker's dry-run deploy, and the Chrome pass over the bundled release — stay with
+# `publish-site`, which runs them before it deploys: together they take minutes and a
+# Docker daemon, and here they would run beside a suite that is sensitive to load.
 #
-# A hook that rewrites (prettier, ruff-format) fails the merge and leaves the rewrite
-# uncommitted in the worktree. Read it, then `wt merge` again — the squash sweeps it in.
+# A hook that rewrites (prettier, ruff-format, the bundle rebuild) fails the merge and
+# leaves the rewrite uncommitted in the worktree. Read it, then `wt merge` again — the
+# squash sweeps it in.
 #
-# Two blocks rather than one table, because a table runs its commands together and the
-# lint rewrites the tree the suite reads.
+# Three blocks rather than one table, because a table runs its commands together: the
+# lint rewrites the tree the suite reads, and the bundle rebuild needs the install the
+# first block makes and replaces bundles the suite copies into pages.
 #
 # `uv run` synchronizes the Python environment on every command, so the suite never meets
 # a stale one. Its node half had no such step: `tests/test_live_shell_artifact.py` runs
 # `worker/bundle-runtime.mjs`, which imports esbuild from an install git does not carry,
 # and a worktree that never ran setup failed the gate on a test its branch never touched.
-# `npm ci` gives the node side the same guarantee for a third of a second against a warm
-# npm cache. It writes only the ignored `node_modules/`, so it runs beside the lint.
+# `npm ci` gives the node side the same guarantee in seconds against a warm npm cache.
+# Each install writes only an ignored `node_modules/`, so they run beside the lint.
 [[pre-merge]]
 checks = "uv run pre-commit run -a"
 node = "npm ci"
+worker-node = "npm ci --prefix worker"
+
+# The bundles build from the installed lock, so a rebuild reproduces the tracked bytes
+# exactly, and any difference is a lock nobody rebuilt from.
+[[pre-merge]]
+bundles = 'uv run scripts/vendor.py > /dev/null && git status --porcelain && test -z "$(git status --porcelain)"'
 
 # Broad discovery keeps the local gate quick. CI runs the nightly-marked tests after
 # main moves.
 [[pre-merge]]
 tests = "uv run pytest tests"
 folds = "npm run test:runtime"
+browser = "npm run check:browser && npm run test:browser"
+worker = "npm run typecheck --prefix worker && npm test --prefix worker"
 
 # A new worktree has no `node_modules`, so an ordinary `uv run pytest tests` fails before
 # anyone reaches a merge. Install in the background rather than blocking the switch; the
@@ -72,8 +86,9 @@ chrome = "uv run --frozen playwright install chrome"
 
 # The root install carries the browser framework's build and the esbuild the Python suite
 # reaches through `worker/bundle-runtime.mjs`; `post-start` repeats it for every worktree
-# after this one, and only the first clone needs it from here. The worker install is an
-# order of magnitude larger and only the website gate reads it.
+# after this one, and only the first clone needs it from here. The worker install is
+# nearly three times larger (about 580M), so `post-start` leaves it to the worktrees that
+# build the website or reach the merge gate, which installs it for itself.
 [[aliases.setup]]
 browser = "npm ci"
 

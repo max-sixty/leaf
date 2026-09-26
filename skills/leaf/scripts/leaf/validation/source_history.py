@@ -13,8 +13,8 @@ from leaf.projection import (
     state_projection,
 )
 from leaf.registry.contract import visual_parts
-from leaf.revision_artifact import RevisionArtifact, read_artifact
-from leaf.structure import SourceDocument
+from leaf.revision_artifact import RevisionArtifact, read_artifact, read_registry
+from leaf.structure import SourceDocument, parse_revision
 from leaf.validation.transitions import report_errors, restatement_errors
 
 # What a revision that dropped a protected id does instead, by each reason the id is
@@ -97,9 +97,8 @@ def revision_reading(
     previous_words = {}
     previous_registry = {}
     if predecessor:
-        previous_html = revision_path(page_dir, predecessor).read_text(encoding="utf-8")
-        previous = SourceDocument(previous_html)
-        previous_registry = read_artifact(page_dir, predecessor).registry
+        previous = parse_revision(page_dir, predecessor)
+        previous_registry = read_registry(page_dir, predecessor)
         previous_words = spoken(previous, previous_registry)
     return RevisionReading(
         active,

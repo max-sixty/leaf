@@ -61,6 +61,9 @@ OPTIONAL_END = {
 # elsewhere lands here unchanged.
 LANGUAGE_CLASS = re.compile(r"(?:^|\s)language-([\w+.#-]+)(?=\s|$)")
 
+# HTML's ASCII whitespace: an id may hold none of it.
+ASCII_WHITESPACE = frozenset("\t\n\f\r ")
+
 # Attribute widths only count as pixels on these elements.
 PIXEL_WIDTH_TAGS = {"img", "svg", "table", "canvas", "iframe", "video", "object"}
 
@@ -830,8 +833,13 @@ class SourceDocument:
 
     @property
     def reserved_ids(self) -> list:
-        """Ids that trespass on the runtime's own namespace (see reserved_ids_error)."""
+        """Ids that trespass on the runtime's own namespace (see id_errors)."""
         return sorted({i for i in self.all_ids if i.startswith("lf-")})
+
+    @property
+    def spaced_ids(self) -> list:
+        """Ids holding ASCII whitespace, which HTML forbids in one (see id_errors)."""
+        return sorted({i for i in self.all_ids if not ASCII_WHITESPACE.isdisjoint(i)})
 
 
 def rel_tokens(attrs: dict) -> frozenset[str]:

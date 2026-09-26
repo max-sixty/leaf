@@ -106,6 +106,7 @@ import {
 } from "./shadow.js";
 import { elementDeclarations, registry } from "./registry.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
+import { COLLAPSE } from "./collapse.js";
 
 const opaquePassageRoots = new WeakSet();
 const opaquePassageParts = new WeakSet();
@@ -543,14 +544,6 @@ export const blockAt = (node) => {
   return island ? upFrom(island) : null;
 };
 export const blockOf = (node) => blockAt(node) ?? upFrom(node);
-// One collapse class, stated outright and spelled to the same set passages.py's
-// COLLAPSE_CHARS enumerates: JS's \s and Python's str.isspace() disagree at the
-// edges — U+FEFF is whitespace to JS alone, U+0085 and U+001C–001F to Python
-// alone — and a page carrying one of those in prose read differently on the two
-// sides, so a `leaf thread open` quote could be written against text this runtime
-// never produces. (trim() removes exactly this class, so it needs no twin.)
-export const COLLAPSE =
-  /[\t\n\v\f\r \u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000\ufeff]+/g;
 const COLLAPSIBLE = new RegExp(`^(?:${COLLAPSE.source})$`, "u");
 
 // The normalized reading and, when requested, one DOM span for each character in it.

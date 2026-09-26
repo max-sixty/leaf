@@ -18,7 +18,7 @@ from .passages import TEXT_BLOCK_TAGS
 from .registry.contract import RegistryError
 from .revision_artifact import Resource, read_artifact
 from .served_state.service import PageStateService
-from .structure import SourceDocument
+from .structure import SourceDocument, parse_revision
 
 APP_MIME = "text/html;profile=mcp-app"
 SNAPSHOT_FORMAT = "leaf.snapshot/v1"
@@ -41,7 +41,6 @@ def app_snapshot(page: str) -> tuple[dict, dict]:
     revision = active["revision"]
     artifact = read_artifact(page_dir, revision)
     source = artifact.html.decode("utf-8")
-    parsed = SourceDocument(source)
 
     def read_resource(path: str) -> Resource:
         resource = artifact.resources[path]
@@ -60,7 +59,7 @@ def app_snapshot(page: str) -> tuple[dict, dict]:
         ).decode(),
         read_resource=read_resource,
     )
-    title = parsed.title.strip() or page_dir.name
+    title = parse_revision(page_dir, revision).title.strip() or page_dir.name
     theme = inline_css_assets(
         artifact.resources["/theme.css"].data.decode("utf-8"),
         read_resource=read_resource,

@@ -1,5 +1,6 @@
 /* Focus readings shared by thread paint and commands. */
-import { focused, documentFocused } from "../keyboard/scopes.js";
+import { focused } from "../keyboard/scopes.js";
+import { closestAcross } from "../passages.js";
 
 // Native disclosure owns the panel thread's focus stop. Inline divs have no summary,
 // so their established root remains the destination.
@@ -23,17 +24,14 @@ export function focusedThreadTarget() {
     : focusedThread();
 }
 
-// The panel thread the user is in, asked by class because that is the anchors module's
-// question: which logged thread's passage to paint. It is not the box's way out, which
-// climbs further and answers for a seat on the page too — the two readings stayed apart
-// rather than one standing in for the other.
-export function focusedThreadOf() {
-  return documentFocused()?.closest?.(".lf-thread");
-}
+// The thread the user is in, wherever it is drawn — the Threads list, the margin card, a
+// seat on the page — with a control inside one standing in it too. Climbing from the
+// inner focus reaches a seat a widget stages in its shadow tree. The box's way out climbs
+// further, to a seat holding no thread yet (landing.js, `heldThreadOrSeat`).
+export const heldThread = () => closestAcross(focused(), ".lf-thread, .lf-page-thread");
 
-// The thread the user is standing in, on either side — a card in the panel, a seat on
-// the page — and a control inside one stands in it too: the standing floor's question,
-// which is where letting go lands rather than which passage to paint.
-export function standingThreadOf() {
-  return documentFocused()?.closest?.(".lf-thread, .lf-page-thread");
+// Its logged id: a list thread carries it as `data-id`, a card or seat as `data-thread`.
+export function heldThreadId() {
+  const thread = heldThread();
+  return thread?.dataset.id ?? thread?.dataset.thread ?? null;
 }

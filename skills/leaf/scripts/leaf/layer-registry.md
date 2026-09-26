@@ -6,10 +6,11 @@ page directory, composed on the order and merge grains in
 The page directory itself lives wherever the caller says —
 conventionally ~/.local/state/leaf/pages/<slug>/ — and is self-contained,
 so an approved version can't change under its user; re-running `page init`
-is the explicit re-vendor, on the sequence in `../../references/serving-pages.md`,
-"Re-vendoring and layer epochs". One transition covers start, stop, init,
-contract-bearing CLI writes, and preview reads. Stop retains it through the server's
-release, so no operation can cross the old process's contract.
+is the explicit re-vendor, which restarts a served page's server around it
+(`../../references/serving-pages.md`, "Re-vendoring and layer epochs"). One
+transition covers start, stop, init, contract-bearing CLI writes, and preview reads.
+Stop retains it through the server's release, so no operation can cross the old
+process's contract.
 
 A candidate layer must retain every page action or report whose sender it retains,
 including superseded predecessors that a later undo can expose. It must also retain
@@ -31,9 +32,12 @@ records three deliberately different identities under `$layer`:
   epoch is stamped. Identical runtime, theme, registry, widget, vendor, icon, and
   guidance bytes have the same fingerprint across repeated vendoring. `producer`
   records the Git commit and dirty bit when the payload came from a checkout or from
-  Claude Code's Git-versioned plugin cache. The page exposes that identity in its
-  low-frequency banner controls; a press copies the full layer diagnostics. A host can
-  ask its running payload for the same source identity with `leaf --version`.
+  Claude Code's Git-versioned plugin cache, and how old that commit is: `committed`,
+  its committer date, where Git can read it, or `installed`, when the plugin cache
+  copied it without `.git`, one update sweep after it landed. The page exposes that
+  identity and its age in its low-frequency banner controls; a press copies the full
+  layer diagnostics. A host can ask its running payload for the same source identity
+  and date with `leaf --version`.
 - `runtime` is the SHA-256 identity of the kernel runtime modules the payload vendored
   from, read from its own `assets/runtime/` rather than recomposed from the page's
   selections. A page's server runs the Leaf that started it against the runtime the

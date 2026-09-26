@@ -19,6 +19,8 @@ from render_cases_interaction import (
     panel_comment,
 )
 from render_cases_layout import (
+    SHOT_SRC,
+    SHOTS,
     banner_control,
     in_threads_scrollport,
     page_at_rest,
@@ -5990,6 +5992,8 @@ def test_armed_hints_settle_after_resize(browser, serve):
     page.keyboard.press("g")
     page.set_viewport_size({"width": 800, "height": 700})
     page.clock.run_for(100)
+    # Let the settle callback's requested paint run before reading its chips.
+    page.clock.resume()
     expect(page.locator(CHIPS).first).to_be_visible()
 
 
@@ -6557,7 +6561,7 @@ def test_numbered_ask_routes_follow_replaced_controls(browser, serve):
     page.keyboard.press("?")
     assert ask_actions_hint("1–2") in shortcut_bar_text(page)
     expect(save).to_have_attribute(
-        "aria-keyshortcuts", "Escape Enter Meta+Enter Control+Enter 1"
+        "aria-keyshortcuts", "Enter Meta+Enter Control+Enter Escape 1"
     )
     page.keyboard.press("?")
     cancel = page.locator(
@@ -6607,7 +6611,7 @@ def test_registered_shortcuts_are_exposed_to_assistive_technology(browser, serve
     assert page.locator(".lf-asks").get_attribute("aria-keyshortcuts") is None
     banner_control(page, ".lf-asks").click()
     expect(page.locator(".lf-asks-panel")).to_have_attribute(
-        "aria-keyshortcuts", "ArrowUp ArrowDown"
+        "aria-keyshortcuts", "ArrowUp ArrowDown Home End"
     )
     expect(page.locator(".lf-asks-row").first).to_have_attribute(
         "aria-keyshortcuts", "Enter Space"
@@ -10398,7 +10402,7 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     wait_for_revision(page, 2)
     expect(page.locator('.lf-version-diff[data-lf-version="1"]')).to_have_count(1)
     expect(page.locator(".lf-version-menu")).to_have_attribute(
-        "aria-keyshortcuts", "ArrowUp ArrowDown 1 2 Enter Space v"
+        "aria-keyshortcuts", "ArrowUp ArrowDown Home End 1 2 Enter Space v"
     )
     # Nothing executable changed, so the user keeps this document and the shelf they
     # opened stays open. The next press opens the reference over the current version.
@@ -11424,3 +11428,186 @@ def test_a_user_at_the_top_of_the_document_is_one_press_from_the_chrome(browser,
         f"the skip link's press left the user on {landed['name']}, outside the layer "
         f"it names"
     )
+
+
+ASK_THREAD_PAGE = leaf_page(
+    "an ask and its thread",
+    """<h1>Cache review</h1>
+<p id="lead">The budget note covers latency budgets for the cache.</p>
+<lf-ask id="cache-ask">
+  <h2>Which cache should we keep?</h2>
+  <lf-options id="cache" choose>
+    <lf-option id="cache-disk">Keep the disk cache</lf-option>
+    <lf-option id="cache-memory">Keep the memory cache</lf-option>
+  </lf-options>
+</lf-ask>
+<lf-ask id="ship-ask">
+  <h2>Ship on Friday?</h2>
+  <lf-options id="ship" choose>
+    <lf-option id="ship-friday">Ship Friday</lf-option>
+    <lf-option id="ship-wait">Wait a week</lf-option>
+  </lf-options>
+</lf-ask>
+<lf-tasks id="tasks">
+  <lf-task id="retry" status="review" owner="infra">
+    <strong>Retry budget</strong> The retry budget doubles under load.
+    <lf-ask id="retry-ask">
+      <h3>Raise the retry budget?</h3>
+      <lf-options id="retry-pick" choose>
+        <lf-option id="retry-raise">Raise it</lf-option>
+        <lf-option id="retry-keep">Keep it</lf-option>
+      </lf-options>
+    </lf-ask>
+  </lf-task>
+</lf-tasks>""",
+)
+
+
+def test_an_ask_and_its_thread_are_one_standing_target(browser, serve):
+    """An Ask whose own thread the card shows is one place held from two sides
+    (glossary, Standing target). From the Ask, `c` continues that thread and `t` steps
+    on past it; from its thread, in the card or in the Threads list, the Ask keeps its
+    ring and its digits. A thread about an enclosing block is that block's, so an Ask
+    inside the block still starts a thread of its own. From an element with no thread,
+    `t` measures from its place in the document, as `a` does."""
+    url = serve(ASK_THREAD_PAGE)
+    d = serve.page_dir
+    panel_comment(
+        d, "Budgets are tight.", {"section": "lead", "quote": "latency budgets"}
+    )
+    about_ask = panel_comment(d, "The disk cache costs more.", {"section": "cache-ask"})
+    about_task = panel_comment(
+        d,
+        "Doubling is a lot.",
+        {"section": "retry", "quote": "The retry budget doubles under load."},
+    )
+    page = open_page(browser, url)
+    line = page.locator(".lf-shortcut-bar")
+    card = page.locator(".lf-margin-preview")
+    ask = page.locator("#cache-ask")
+    ask_thread = card.locator(f'.lf-page-thread[data-thread="{about_ask}"]')
+
+    # From the Ask, the card beside it holds its thread, and `c` continues that thread
+    # rather than starting a second one.
+    page.keyboard.press("a")
+    expect(ask).to_be_focused()
+    expect(ask_thread).to_be_visible()
+    expect(line).to_contain_text("comment on the thread")
+    page.keyboard.press("c")
+    expect(ask_thread.locator("textarea")).to_be_focused()
+    page.keyboard.press("Escape")
+    page.keyboard.press("Escape")
+    expect(ask).to_be_focused()
+
+    # From an Ask with no thread, `t` goes to the next thread after it in the document,
+    # which is the task's. Back from there is the Ask's own thread, where, in the card,
+    # the Ask is still where the user stands.
+    page.keyboard.press("a")
+    expect(page.locator("#ship-ask")).to_be_focused()
+    page.keyboard.press("t")
+    expect(card.locator(f'.lf-page-thread[data-thread="{about_task}"]')).to_be_focused()
+    page.keyboard.press("Shift+t")
+    expect(ask_thread).to_be_focused()
+    expect(ask).to_have_attribute("data-lf-ask", "1")
+    expect(line).to_contain_text("Ask actions")
+
+    # The nested Ask's card shows its task's thread, which is about the task.
+    page.keyboard.press("a")
+    expect(page.locator("#ship-ask")).to_be_focused()
+    page.keyboard.press("a")
+    expect(page.locator("#retry-ask")).to_be_focused()
+    expect(card.locator(f'.lf-page-thread[data-thread="{about_task}"]')).to_be_visible()
+    expect(line).to_contain_text("comment on the ask")
+    page.keyboard.press("Escape")
+
+    # With Threads open, the list's thread about the Ask plays the card's part, and a
+    # digit there answers the Ask.
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
+    panel_settled(page, True)
+    page.keyboard.press("t")
+    page.keyboard.press("t")
+    expect(
+        page.locator(f'.lf-thread[data-id="{about_ask}"] > .lf-thread-summary')
+    ).to_be_focused()
+    expect(ask).to_have_attribute("data-lf-ask", "1")
+    page.keyboard.press("1")
+    expect(page.locator("#cache-disk")).to_have_attribute("chosen", "")
+
+
+def test_a_resolved_thread_still_stands_at_its_ask(browser, serve):
+    """Resolving a thread settles the discussion, not what it was about: its row in
+    Threads still stands at the Ask it names, with the Ask's ring and digits."""
+    url = serve(ASK_THREAD_PAGE)
+    d = serve.page_dir
+    about_ask = panel_comment(
+        d, "Ship it once the cache lands.", {"section": "ship-ask"}
+    )
+    events_model.append_event(
+        d, {"kind": "resolve", "author": "user", "parent": about_ask}
+    )
+    page = open_page(browser, url)
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
+    panel_settled(page, True)
+    page.locator(".lf-thread-filter-toggle").click()
+    page.locator('[data-filter-kind="status"][data-filter-value="resolved"]').click()
+    summary = page.locator(f'.lf-thread[data-id="{about_ask}"] > .lf-thread-summary')
+    expect(summary).to_be_visible()
+    summary.focus()
+    expect(summary).to_be_focused()
+    expect(page.locator("#ship-ask")).to_have_attribute("data-lf-ask", "1")
+    page.keyboard.press("2")
+    expect(page.locator("#ship-wait")).to_have_attribute("chosen", "")
+
+
+def test_an_ask_in_a_reply_is_where_the_user_stands_once_answered(browser, serve):
+    """An Ask frozen into a reply sits in a thread about a page Ask. Standing in the
+    reply's Ask is standing there whether or not it is answered: the thread leads to its
+    page Ask only from a node inside no Ask, so a user back on the answered option does
+    not have the page Ask's ring and digits. A control the margin draws for a widget in
+    the reply stands nowhere, since its widget is chrome in no Ask, so `a` from it starts
+    where the reader is rather than behind every Ask on the page."""
+    url = serve(
+        ASK_THREAD_PAGE,
+        media={SHOT_SRC[name]: data for name, data in SHOTS.items()},
+    )
+    d = serve.page_dir
+    about_ask = panel_comment(d, "Which one lasts longer?", {"section": "cache-ask"})
+    events_model.append_event(
+        d,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Claude",
+            "revision": 1,
+            "parent": about_ask,
+            "responds": about_ask,
+            "text": "One question first.",
+            "markup": '<lf-ask id="follow-ask"><h3>Measure it first?</h3>'
+            '<lf-options id="follow" choose>'
+            '<lf-option id="follow-yes">Measure first</lf-option>'
+            '<lf-option id="follow-no">Decide now</lf-option>'
+            "</lf-options></lf-ask>"
+            f'<lf-shot id="follow-shot" alt="the cache before and after" '
+            f'before="{SHOT_SRC["before"]}" after="{SHOT_SRC["after"]}"></lf-shot>',
+        },
+    )
+    page = open_page(browser, url)
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
+    panel_settled(page, True)
+    page.locator(".lf-thread .lf-shot-toggle").focus()
+    page.keyboard.press("a")
+    expect(page.locator("#cache-ask")).to_be_focused()
+    option = page.locator("#follow-yes")
+    option.click()
+    expect(option).to_have_attribute("chosen", "")
+    # Back on the answered option, the user stands in the reply's Ask. Answering moves
+    # focus to the message, which is inside no Ask and so does stand at the page Ask.
+    round_trip(page)
+    option.locator(".lf-pick").focus()
+    expect(page.locator("#cache-ask")).not_to_have_attribute("data-lf-ask", "1")
+    page.keyboard.press("1")
+    round_trip(page)
+    expect(page.locator("#cache-disk")).not_to_have_attribute("chosen", "")

@@ -7,6 +7,7 @@ import {
   workflowLabel,
 } from "../../skills/leaf/assets/runtime/thread/workflow.js";
 import {
+  awaitsAgent,
   awaitsUser,
   foldThreads,
   readThreadRecords,
@@ -132,8 +133,6 @@ test("a local prose answer clears accepted user attention until refusal", () => 
     msgs: [{ id: "root", author: "agent", text: "Which one?", ts: "now" }],
     anchor: null,
     resolved: null,
-    awaits_agent: false,
-    awaits_user: false,
     attention: { kind: "needs_user", reason: "recovery", workflow: "failed" },
     bare_reaction: false,
     unread: [],
@@ -168,7 +167,9 @@ test("a local prose answer clears accepted user attention until refusal", () => 
     workflow: "pending:retry",
   });
   assert.equal(awaitsUser(record), false);
+  assert.equal(awaitsAgent(record), true);
   assert.equal(awaitsUser({ ...record, attention: thread.attention }), true);
+  assert.equal(awaitsAgent({ ...record, attention: thread.attention }), false);
 });
 
 test("a frozen message widget keeps its exact workflow in the message and thread", () => {
@@ -191,8 +192,6 @@ test("a frozen message widget keeps its exact workflow in the message and thread
     ],
     anchor: null,
     resolved: null,
-    awaits_agent: false,
-    awaits_user: false,
     bare_reaction: false,
     unread: [],
     seat: null,

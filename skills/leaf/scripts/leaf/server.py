@@ -14,7 +14,6 @@ from .machine import state_home
 from .schema import (
     ORPHAN_GRACE_SECS,
     PREVIEW_FILE,
-    RESTART_LOCK,
     SERVER_LOCK,
     SERVICE_FILE,
 )
@@ -32,13 +31,6 @@ def running_server(page_dir: Path):
         **service,
         "url": page_url(service["host"], service["port"], host_key()),
     }
-
-
-def server_restarting(page_dir: Path) -> bool:
-    """Whether the page's service is down for a restart rather than stopped: a live
-    process holds it down and starts it again before letting go
-    (`hosting.restarting_server`)."""
-    return lock_is_held(page_dir / RESTART_LOCK)
 
 
 def preview_metadata(page_dir: Path) -> dict | None:

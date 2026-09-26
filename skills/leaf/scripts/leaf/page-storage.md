@@ -101,7 +101,9 @@ other page files and the external state listed below.
   hands the file to the page whole. Its presence exempts the page from the handoff's watcher guard.
 
 - `service.json` — desired server address, enabled state, lifetime, and runtime
-  provenance. `hosting.py` owns start/stop and revival;
+  provenance, plus a `restart` mark while `page init` holds a served page down to
+  re-vendor it, which any other stop replaces so the restart leaves that stop
+  alone. `hosting.py` owns start/stop, restart, and revival;
   [session-lifetime.md, “Lifetime”](session-lifetime.md#lifetime) owns the lifetime rule.
   The URL's access key belongs to the machine's state home.
 
@@ -111,10 +113,6 @@ other page files and the external state listed below.
 
 - `server.lock` — process-held server lease. `hosting.py` waits for its release on stop,
   after the server has closed its sockets.
-
-- `restart.lock` — process-held restart lease, taken by `hosting.restarting_server`
-  before its stop and held until the holder has started the service again, so a
-  disabled service under it reads as restarting rather than stopped.
 
 - `<state-home>/claims/` — one atomic claim per resolved page, independent of its page
   directory, and removed by the first scan that finds that directory gone

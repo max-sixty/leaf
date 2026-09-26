@@ -502,7 +502,6 @@ STATUS_FILE = "status.json"
 CURSOR_FILE = "cursor.json"
 SERVICE_FILE = "service.json"
 SERVER_LOCK = "server.lock"
-RESTART_LOCK = "restart.lock"
 WAITER_LOCK = "waiter.lock"
 PAGE_STATE_FILES = (
     EVENTS_FILE,
@@ -513,11 +512,18 @@ PAGE_STATE_FILES = (
     VIEWED_FILE,
     SERVICE_FILE,
     SERVER_LOCK,
-    RESTART_LOCK,
     PREVIEW_FILE,
 )
 PAGE_OWNED_FILES = ("index.html", *VENDORED_FILES, *PAGE_STATE_FILES)
 PAGE_OWNED_DIRS = ("revisions", *PACKAGE_DIRS, MEDIA_DIR, DATA_DIR, "page")
+# A revision's and a version's file name, without `.html`.
+REVISION_NAME = r"r(?P<revision>[1-9][0-9]*)-[a-f0-9]{16}"
+VERSION_NAME = r"v(?P<version>[1-9][0-9]*)"
+# The directories of a page's URL namespace beneath its root, beside its vendored
+# files: its API, browser layer and media, and its documents. The website adapter
+# routes exactly these and those files to a page, and so does the Worker in front of
+# it, which reads them from the site manifest `scripts/site.py` writes.
+PAGE_ROUTE_DIRS = ("api", *BROWSER_DIRS, MEDIA_DIR, "revisions", "versions")
 # What the server exposes from a page: the browser layer, media, immutable revisions,
 # and event-backed version addresses. Agent-side guidance stays vendored but is read
 # only through the CLI.
@@ -534,8 +540,8 @@ SERVED_PATH = re.compile(
     + "|".join(
         [re.escape(f) for f in VENDORED_FILES]
         + [f"{d}/{DIR_FILES[d]}" for d in (*BROWSER_DIRS, MEDIA_DIR)]
-        + [r"versions/v[1-9][0-9]*\.html"]
-        + [r"revisions/r[1-9][0-9]*-[a-f0-9]{16}\.html"]
+        + [rf"versions/{VERSION_NAME}\.html"]
+        + [rf"revisions/{REVISION_NAME}\.html"]
     )
     + ")"
 )

@@ -3,6 +3,7 @@
 import time
 from datetime import timedelta
 from pathlib import Path
+from typing import NamedTuple
 
 from ..activity import WORKING_GRACE, canonical_activity, canonical_stream_reply
 from ..data import browser_data_from, read_data
@@ -12,11 +13,24 @@ from ..files import active_descriptor, version_descriptors
 from ..passages import active_enclosing
 from ..presence import presence_with_activity
 from ..registry.contract import RegistryError
-from ..registry.storage import layer_metadata, load_registry
-from ..revision_artifact import read_artifact
+from ..registry.storage import layer_metadata, page_vocabulary
+from ..revision_artifact import read_registry
 from ..structure import SourceDocument
 from ..workflows import canonical_workflows
-from .browser import project_browser_state
+from .browser import BrowserReading, project_browser_state
+
+
+class ServedPage(NamedTuple):
+    """One served state answer and what it was serialized from in the same snapshot:
+    the semantic readings, and the page's stored external data.
+
+    `reading` is None before the page has an active revision, when there is no
+    document to read threads, Asks, or widgets against.
+    """
+
+    state: dict
+    reading: BrowserReading | None
+    data: dict
 
 
 def project_activity(
@@ -54,7 +68,12 @@ def project_activity(
     )
 
 
-def full_state(
+def full_state(page_dir: Path, events: list, **options) -> dict:
+    """The complete state response for one served page; see `read_served_page`."""
+    return read_served_page(page_dir, events, **options).state
+
+
+def read_served_page(
     page_dir: Path,
     events: list,
     layer_identity: dict | None = None,
@@ -73,7 +92,7 @@ def full_state(
     live_stream_override: dict | None = None,
     now_override: str | None = None,
     taken_override: float | None = None,
-) -> dict:
+) -> ServedPage:
     if active_override is not None:
         active = active_override
     else:
@@ -88,17 +107,17 @@ def full_state(
     now = now_override or now_iso()
     if registry_override is not None:
         registry = registry_override
-    elif active is not None:
-        registry = read_artifact(page_dir, active["revision"]).registry
     else:
         try:
-            registry = load_registry(page_dir)
+            registry = page_vocabulary(
+                page_dir, active["revision"] if active is not None else None
+            )
         except RegistryError:
             registry = None
     stored_data = (
         data_override if data_override is not None else read_data(page_dir, registry)
     )
-    browser = project_browser_state(
+    projected = project_browser_state(
         page_dir,
         events,
         view_revision,
@@ -111,6 +130,7 @@ def full_state(
         live_stream=live_stream,
         data=stored_data,
     )
+    browser, reading = projected if projected is not None else (None, None)
     activity = project_activity(
         page_dir,
         events,
@@ -126,7 +146,7 @@ def full_state(
             if registries_override is not None
             else registry_override
             if registry_override is not None
-            else read_artifact(page_dir, selected_revision).registry
+            else read_registry(page_dir, selected_revision)
         )
         identity = selected_registry["$layer"]
     else:
@@ -137,7 +157,7 @@ def full_state(
     workflows = (
         browser.pop("workflows") if browser is not None else activity.pop("workflows")
     )
-    return {
+    state = {
         "layer": identity,
         # The clock every timestamp below was written by. A seat dating one reads
         # `Date.now()`, which is the user's own machine: a laptop an hour out
@@ -179,3 +199,4 @@ def full_state(
         **({"preview": preview} if preview else {}),
         **({"publication": publication} if publication else {}),
     }
+    return ServedPage(state, reading, stored_data)

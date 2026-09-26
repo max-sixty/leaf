@@ -228,44 +228,13 @@ export function mountApplication(dependencies) {
   function dispatchWidget(descriptor, command) {
     const reading = applicationState.selectWidget(descriptor).read();
     if (command.kind === "undo") {
+      // Only an exact candidate this widget's reading offers, by attempt or id.
       const candidate = Object.values(reading.actions)
         .flatMap(({ undo }) => undo)
         .find(
           (event) => event.attempt === command.target || event.id === command.target,
         );
-      if (!candidate) return null;
-      // A receipt proves acceptance, but the action remains in the ledger until its
-      // authoritative projection has presented. Do not let an older durable action
-      // leapfrog that proof: the incomplete reading may still change which commands
-      // the page can honestly offer. The exact action still may withdraw itself,
-      // including before its own forward POST settles, because the ordered ledger owns
-      // both attempts together.
-      const acceptedPresentationPending = readApplication().unresolved.some(
-        (entry) =>
-          entry.event.kind === "action" &&
-          entry.answered &&
-          entry.readEvent &&
-          entry.readEvent.id !== candidate.id &&
-          !entry.presented,
-      );
-      if (acceptedPresentationPending) return null;
-      runtime.undoing = true;
-      paintKeys();
-      const started = startPost({ kind: "undo", undoes: candidate.id });
-      if (!started) {
-        runtime.undoing = false;
-        paintKeys();
-        return null;
-      }
-      return started.answer
-        .then((accepted) => {
-          if (accepted) notice("Took back your last change — sent");
-          return accepted;
-        })
-        .finally(() => {
-          runtime.undoing = false;
-          paintKeys();
-        });
+      return candidate ? projectionCommands.withdraw(candidate) : null;
     }
     const entry =
       command.kind === "action"

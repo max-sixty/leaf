@@ -3,13 +3,12 @@
 import json
 import os
 import re
-import shutil
 from pathlib import Path
 
 import leaf.validation.command as checking_command
 import pytest
 from click.testing import CliRunner
-from example_data import data_operations, example_versions, regression_sources
+from example_data import regression_sources
 from interact_support import (
     COMMAND_SUBJECTS,
     PAGE,
@@ -29,7 +28,6 @@ from interact_support import (
     state_json,
 )
 from leaf import cli as cli_model
-from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf import events as event_folds_model
 from leaf import files as files_model
@@ -43,7 +41,7 @@ from leaf.structure import SourceDocument
 from leaf.thread_context import thread_digest
 from leaf.validation import compatibility as validation_model
 from leaf.validation.instances import reference_errors
-from page_fixtures import media_source, package_selection_args, source_packages
+from page_fixtures import package_selection_args, prepare_page, read_fixture
 
 PUBLIC_EXAMPLES = tuple(
     path for path in sorted((ROOT / "examples").glob("*.html")) if path.stem != "corpus"
@@ -51,6 +49,12 @@ PUBLIC_EXAMPLES = tuple(
 FEATURE_GALLERY = ROOT / "examples" / "developer" / "feature-gallery.html"
 DEVELOPER_PAGES = tuple(sorted((ROOT / "examples" / "developer").glob("*.html")))
 CORPUS_SOURCES = (*PUBLIC_EXAMPLES, *regression_sources(), *DEVELOPER_PAGES)
+
+
+def run_leaf(*args, input_text=None):
+    """One `leaf` command in-process, for `prepare_page`."""
+    result = CliRunner().invoke(cli_model.cli, list(args), input=input_text)
+    assert result.exit_code == 0, f"leaf {' '.join(args)}: {result.output}"
 
 
 def test_valid_source_activates_once_and_a_bad_save_keeps_it_live(page_dir):
@@ -478,47 +482,28 @@ def test_page_fixtures_pass_check(tmp_path, monkeypatch, initialized_page):
     assert FEATURE_GALLERY in DEVELOPER_PAGES
 
     for example in examples:
-        packages = source_packages(example)
-
-        def initialize(target, packages=packages):
-            initialized = CliRunner().invoke(
-                cli_model.cli,
-                ["page", "init", *package_selection_args(packages), str(target)],
-            )
-            assert initialized.exit_code == 0, initialized.output
+        fixture = read_fixture(example)
 
         d = tmp_path / example.stem
-        initialized_page("-".join(["fixture", *packages]), d, initialize)
-        page_files = example.with_suffix(".page")
-        if page_files.is_dir():
-            shutil.copytree(page_files, d / "page", dirs_exist_ok=True)
-        media = media_source(example)
-        if media.is_dir():
-            shutil.copytree(media, d / "media", dirs_exist_ok=True)
-        # The data door validates a source against the page's markup, and the current
-        # version is the one that has to bind it; the loop below then walks every
-        # version, oldest first, exactly as a builder stamps them.
-        (d / "index.html").write_text(example.read_text())
-        for operation in data_operations(example):
-            data_model.cmd_data_set(d, operation["source"], operation["value"])
-        # The example's companion log, where it ships one (examples/AGENTS.md), so
-        # the lint reads the page under the state its own log puts on it.
-        seed = example.with_suffix(".jsonl")
-        if seed.exists():
-            # Preview and the published site append this file verbatim. Do the
-            # same here: normalizing a stale event contract in the fixture would
-            # let the shipped demo fail while its corpus gate stayed green.
-            (d / "events.jsonl").write_bytes(seed.read_bytes())
-        # Every authored version, not only the current one. A prior version is markup
-        # a builder stamps through the same door, so a fault in one stops preview and
-        # the site build — which is a slow way to hear it from this gate.
-        for version in example_versions(example):
-            markup = version.read_text()
-            (d / "index.html").write_text(markup)
-            activated = revisioning_model.activate_source(d)
-            assert activated.error is None, f"{version.name}: {activated.error}"
-            result = check(d)
+
+        def initialize(target, packages=fixture.packages):
+            run_leaf("page", "init", *package_selection_args(packages), str(target))
+
+        def checked(version, page=d):
+            result = check(page)
             assert result.exit_code == 0, f"{version.name}: {result.output}"
+
+        initialized_page("-".join(["fixture", *fixture.packages]), d, initialize)
+        # Every authored version, not only the current one: a fault in a prior
+        # version stops preview and the site build, a slow way to hear it.
+        prepare_page(
+            d,
+            fixture,
+            run_leaf,
+            initialize=False,
+            final_status=None,
+            each_version=checked,
+        )
 
 
 def test_every_widget_in_the_vocabulary_stands_in_a_corpus_source():
@@ -893,7 +878,7 @@ def test_widget_ids_are_one_universe_across_page_and_replies(page_dir):
             '<lf-options id="q2" choose><lf-option id="q2"><strong>B</strong></lf-option></lf-options>',
         )
     )
-    assert selfdup.exit_code != 0 and "within itself" in selfdup.output
+    assert selfdup.exit_code != 0 and "duplicate ids" in selfdup.output
     # Text claims no ids however it quotes a tag — only the `markup` field does, and
     # a user's message never carries one (the log is append-only; a false claim
     # would deadlock every future version).
@@ -1690,8 +1675,6 @@ def test_every_seeded_fragment_passes_the_door_it_never_came_through(
     monkeypatch.chdir(tmp_path)  # keep the project layer out of the overlay
     seeded = [p for p in CORPUS_SOURCES if p.with_suffix(".jsonl").exists()]
     assert seeded, "no example ships a log; this gate is reading nothing"
-    packages = json.loads((ROOT / "examples" / "layer.json").read_text())
-    selection_args = [arg for package in packages for arg in ("--package", package)]
     read = 0
     for example in seeded:
         # Only pages carrying message markup exercise this door. A page whose
@@ -1705,27 +1688,12 @@ def test_every_seeded_fragment_passes_the_door_it_never_came_through(
         if not fragments:
             continue
         d = tmp_path / f"door-{example.stem}"
-        initialized = CliRunner().invoke(
-            cli_model.cli, ["page", "init", *selection_args, str(d)]
-        )
-        assert initialized.exit_code == 0, f"{example.name}: {initialized.output}"
-        (d / "index.html").write_text(example.read_text())
-        shutil.copytree(ROOT / "examples" / "media", d / "media", dirs_exist_ok=True)
-        for operation in data_operations(example):
-            data_model.cmd_data_set(d, operation["source"], operation["value"])
         # Published, because the door is only open on a page a user could be
         # holding — which is the state every one of these seeds is written for.
-        published = CliRunner().invoke(
-            cli_model.cli,
-            [
-                "version",
-                "stamp",
-                str(d),
-                "--text",
-                "the page as it ships",
-            ],
+        # The seed itself stays out: its fragments go through the door below.
+        prepare_page(
+            d, read_fixture(example), run_leaf, seed_log=False, final_status=None
         )
-        assert published.exit_code == 0, f"{example.name}: {published.output}"
         opened = comment(d, "--text", "what a user would ask")
         assert opened.exit_code == 0, opened.output
         root = json.loads(opened.output)["id"]

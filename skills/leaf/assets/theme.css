@@ -679,6 +679,19 @@ body {
     }
   }
 }
+/* The keys the prepaint bootstrap holds until presentation (runtime/bootstrap.js). It
+ * stands where the chrome's bottom status will, and is styled here because it can
+ * appear before the runtime has adopted chrome.css. */
+.lf-held-keys {
+  position: fixed; z-index: var(--lf-z-bottom-status); pointer-events: none;
+  right: calc(18px + var(--lf-safe-right));
+  bottom: calc(var(--lf-safe-bottom) + (var(--lf-band-h) - var(--lf-safe-bottom)) / 2);
+  translate: 0 50%; margin: 0; padding: 5px 10px;
+  max-width: calc(100vw - 36px - var(--lf-safe-left) - var(--lf-safe-right));
+  overflow: hidden; display: flex; gap: 0.4em; align-items: center;
+  color: var(--muted); font: var(--t-6)/var(--lf-ui-lh) var(--sans); white-space: nowrap;
+  border: 1px solid var(--rule); border-radius: var(--r); background: var(--card);
+}
 /* Positioned so `left: var(--lf-shift)` can move the column off the window's centre
  * when something claims room on one side of it.
  *
@@ -1093,6 +1106,15 @@ blockquote { margin: 18px 0; padding: 2px 18px; border-left: 2px solid var(--rul
 figure { margin: 22px 0; }
 figcaption { font-size: var(--t-6); color: var(--muted); margin-top: 8px; }
 img, svg, video { max-width: 100%; height: auto; }
+/* An image's width and height attributes already hold its box open before it loads,
+ * but Chrome flags a lazy image as unsized unless a stylesheet gives its height or
+ * ratio, and `height: auto` above overrides the attribute. Restating the attributes
+ * as a ratio keeps that DevTools issue to images that really load into no room,
+ * which is what lets the render gate refuse every issue Chrome raises. The ratio
+ * holds after loading too, so attributes that misstate an image's shape draw it at
+ * theirs. A browser without typed attr() drops the line and keeps the attribute
+ * ratio it maps, which yields to the loaded image. */
+img { aspect-ratio: attr(width type(<number>)) / attr(height type(<number>)); }
 /* A table's columns hold what is in them, and the space between two of them is
  * one gutter wide. `width: 100%` bought the opposite: the browser's auto layout
  * spreads leftover width across every column, so a four-column survey on the

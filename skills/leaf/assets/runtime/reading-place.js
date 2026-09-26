@@ -15,7 +15,7 @@
  * where a walk starts.
  */
 import { banner } from "./banner.js";
-import { clippedContents, landingInsets, shownBox } from "./geometry.js";
+import { clippedContents, landingBand, shownBox } from "./geometry.js";
 import {
   blockAt,
   closestAcross,
@@ -108,10 +108,10 @@ export const readingBlock = () => blocksOnScreen().next().value?.[0] ?? null;
 // to the section, which doesn't absorb content added above the user inside it.
 export function capturePlace(region = null, blocks = textBlocks()) {
   const box = region ? effectiveScroller(region) : pageScroller;
-  // Places are measured from the top of the box's visible band, below whatever covers
+  // Places are measured from the top of the box's landing band, below whatever covers
   // its top edge (the page's banner), so a region handed from the page to its own body
   // keeps the landmark at the same distance below what the user can see.
-  const boxTop = shownBox(box).top + landingInsets(box).top;
+  const boxTop = landingBand(box).top;
   const landmarkTop = (top, block, blockTop = top) =>
     block?.matches(HEADING) ? top + Math.max(0, -blockTop) : top;
   const view = { y: box.scrollTop, scroller: scrollerIdentity(box) };
@@ -165,7 +165,7 @@ function scrollerIdentity(scroller) {
 export function restorePlace(view, region = null, currentIntent = retainUserIntent()) {
   if (!view) return;
   const box = region ? effectiveScroller(region) : pageScroller;
-  const boxTop = shownBox(box).top + landingInsets(box).top;
+  const boxTop = landingBand(box).top;
   const text = pageText();
   const found = view.quote && resolveAnchor(view, text);
   const segments = targetSegments(found);

@@ -33,6 +33,9 @@
    retains nodes already in their place and schedules the shared anchor pass after
    synchronous projection work.
 
+   This identity contract is experimental and open to change as more producers establish
+   what persists through a replacement.
+
    A selection wholly inside a derived datum captures `{section, datum, quote}`. A datum
    projected from `watchData` also captures `{source, source_revision}`. A datum whose
    emitter supplies an identity follows that subject across value replacements, even if

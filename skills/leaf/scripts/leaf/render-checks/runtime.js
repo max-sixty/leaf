@@ -38,15 +38,20 @@ export function moving() {
 export const pageSettled = () => moving().length === 0;
 export const userViewRestoreCases = () => USER_VIEW_RESTORE_CASES;
 
+const formControl = (node) => node.constructor.formAssociated === true;
+// A form-associated custom element owns what its fields are called and labelled by,
+// including its shadow implementation and light-DOM choices in a grouped control, so
+// a finding about one of them is its module's to fix rather than the page's.
+const insideControl = (node) => {
+  for (let parent = upFrom(node); parent; parent = upFrom(parent))
+    if (formControl(parent)) return true;
+  return false;
+};
+
+// Where a node Chrome raised a DevTools issue about is, and whether the page owns it.
+export const issueNode = (node) => ({ at: at(node), owned: !insideControl(node) });
+
 export function unnamedFormFields() {
-  const formControl = (node) => node.constructor.formAssociated === true;
-  // A form-associated custom element owns the field's identity, including its
-  // shadow implementation and light-DOM choices in a grouped control.
-  const insideControl = (field) => {
-    for (let parent = upFrom(field); parent; parent = upFrom(parent))
-      if (formControl(parent)) return true;
-    return false;
-  };
   return openRoots(document).flatMap((root) =>
     [...root.querySelectorAll("*")]
       .filter((field) => field.matches("input,select,textarea") || formControl(field))

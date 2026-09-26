@@ -14,7 +14,7 @@ from leaf.render_checks import (
     wait_for_theme,
 )
 
-from .readings import _scheme_findings, _SchemeContext
+from .readings import DevtoolsIssues, _scheme_findings, _SchemeContext
 
 
 def served(page, url: str, path: str, timeout_ms: int | None = None):
@@ -229,6 +229,7 @@ def _render_scheme(
         "response",
         lambda r: errors.append(f"{r.status} {r.url}") if r.status >= 400 else None,
     )
+    devtools = DevtoolsIssues(page)
     install_window_errors(page)
     try:
         # Hold the entry in this navigation: this is the only point at which
@@ -389,6 +390,7 @@ def _render_scheme(
         earlier=earlier,
         replayed=replayed,
         unsettled=unsettled,
+        devtools=devtools,
     )
     found, notices = _scheme_findings(context)
     if then is not None:

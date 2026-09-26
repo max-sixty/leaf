@@ -555,6 +555,7 @@ and repository lint checks the source.
 | --- | --- |
 | window-error init channel | no runtime, module, resource, or ResizeObserver error reached the page |
 | `unnamedFormFields` | every native field or form-associated custom control has an id or name; a custom control owns its implementation fields and grouped choices |
+| `issueNode` | a Chrome DevTools issue names a node the page owns, on the same control boundary |
 | `upgraded` and `moving` | upgrade completed and final geometry settled |
 | `invalidPaints` | every var()-backed SVG paint resolves to a valid value in each scheme |
 | `tinyBoxes` | every declared widget has a usable rendered box |

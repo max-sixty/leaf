@@ -20,6 +20,82 @@ from leaf.registry.state import retirement_slots
 from leaf.render_checks import evaluate_probe, wait_for_probe
 from leaf.structure import SourceDocument
 
+# A probe's arguments cross as JSON, so a node only CDP can name is handed to the
+# `issueNode` probe as the receiver of a call made on the node itself.
+_ISSUE_NODE = (
+    "function () { return globalThis.__leafRenderDriver"
+    ".call({name: 'issueNode', args: [this]}); }"
+)
+
+
+def _issue_fields(value, key=""):
+    """Every scalar in an issue's details as (key, value), however deeply nested."""
+    if isinstance(value, dict):
+        for inner, item in value.items():
+            yield from _issue_fields(item, inner)
+    elif isinstance(value, list):
+        for item in value:
+            yield from _issue_fields(item, key)
+    else:
+        yield key, value
+
+
+class DevtoolsIssues:
+    """The issues Chrome raises in DevTools' Issues panel for one page.
+
+    Chrome says some things only there and never in the console: a lazy image that
+    holds no room, a blocked or mixed-content request, a deprecated API. The headless
+    shell the suite runs raises Blink's issues but not the form issues Chrome's
+    autofill layer adds, which is why `unnamedFormFields` reads that one itself.
+    Listening starts before navigation; the reading is taken once the page settles,
+    when the probe that locates a node has loaded."""
+
+    def __init__(self, page):
+        self._cdp = page.context.new_cdp_session(page)
+        self._raised = []
+        self._cdp.on(
+            "Audits.issueAdded", lambda event: self._raised.append(event["issue"])
+        )
+        self._cdp.send("Audits.enable")
+
+    def _node(self, backend_id: int) -> dict | None:
+        from playwright.sync_api import Error as PlaywrightError
+
+        try:
+            node = self._cdp.send("DOM.resolveNode", {"backendNodeId": backend_id})
+        except PlaywrightError:
+            return None  # the node left the document after Chrome raised the issue
+        answer = self._cdp.send(
+            "Runtime.callFunctionOn",
+            {
+                "objectId": node["object"]["objectId"],
+                "functionDeclaration": _ISSUE_NODE,
+                "returnByValue": True,
+            },
+        )
+        return answer["result"]["value"]
+
+    def findings(self) -> list[str]:
+        """Each issue about something the page owns, where it is and what it names.
+
+        Details differ by issue type, so every scalar is written out except the
+        protocol's handles, which name nothing a reader can find in the source; the
+        first node handle is located instead."""
+        found = []
+        for issue in self._raised:
+            fields = list(_issue_fields(issue["details"]))
+            nodes = [v for k, v in fields if k == "nodeId" or k.endswith("NodeId")]
+            facts = [f"{k}={v}" for k, v in fields if not k.endswith("Id") and v != ""]
+            node = self._node(nodes[0]) if nodes else None
+            if node is not None and not node["owned"]:
+                continue
+            found.append(
+                f"DevTools issue {issue['code']}"
+                + (f" at {node['at']}" if node else "")
+                + (f" ({', '.join(facts)})" if facts else "")
+            )
+        return list(dict.fromkeys(found))
+
 
 @dataclass(frozen=True, slots=True)
 class _SchemeContext:
@@ -35,6 +111,7 @@ class _SchemeContext:
     earlier: str | None
     replayed: bool
     unsettled: list
+    devtools: DevtoolsIssues
 
 
 def _projected_verbatim(document, registry, projection, authored_ids, source):
@@ -357,6 +434,7 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
             f"[{scheme}] <{field['tag']}{class_name}>{label} has neither an id nor "
             "a name, so Chrome cannot identify the form field"
         )
+    found += [f"[{scheme}] {issue}" for issue in context.devtools.findings()]
     found += [f"[{scheme}] {d}" for d in dishonest_verbatim]
     found += [f"[{scheme}] {s}" for s in silent]
     for c in missing_threads:

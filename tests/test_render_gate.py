@@ -45,6 +45,8 @@ from render_cases_layout import (
     RESIZE_LOOP_EVENT,
     SCROLLED_CONTAINER,
     SHADOW_HOST_PAGE,
+    SHOT_SRC,
+    SHOTS,
     SIDENOTE_IN_A_WIDGET,
     SPILLING_PAGE,
     TEMPLATE_PAIR_LAYER,
@@ -879,6 +881,46 @@ def test_the_gate_reports_a_form_field_chrome_cannot_identify(browser, serve):
             "[light] <input class='unnamed'> has neither an id nor a name, so Chrome "
             "cannot identify the form field"
         )
+    ]
+
+
+def test_the_gate_reports_a_devtools_issue_the_page_owns(browser, serve):
+    """A lazy image that holds no room is reported only in DevTools' Issues panel.
+
+    The same image inside a form-associated control's shadow tree is that control's
+    to fix, on the boundary `unnamedFormFields` draws, so the page is not refused
+    for it."""
+    src = SHOT_SRC["before"]
+    control = f"""<script type="module">
+customElements.define("field-host", class extends HTMLElement {{
+  static formAssociated = true;
+  constructor() {{
+    super();
+    this.attachShadow({{ mode: "open" }}).innerHTML =
+      '<img src="{src}" alt="" loading="lazy">';
+  }}
+}});
+</script></head>"""
+    source = LONG_PAGE.replace("</head>", control).replace(
+        '<h1 id="t">Long</h1>',
+        f"""<h1 id="t">Long</h1>
+<img id="unsized" src="{src}" alt="A panel" loading="lazy">
+<img id="sized" src="{src}" alt="A panel" loading="lazy" width="600" height="300">
+<field-host id="host"></field-host>""",
+    )
+
+    failures = render_gate_model.render_version(
+        browser, serve(source, media={src: SHOTS["before"]})
+    ).failures
+
+    # Delivery serves media under the revision, so the issue names that URL.
+    assert [
+        re.sub(r"url=\S*(/media/)", r"url=\1", failure)
+        for failure in failures
+        if "DevTools issue" in failure
+    ] == [
+        f"[{scheme}] DevTools issue LazyLoadImageIssue at <img id=unsized> (url={src})"
+        for scheme in ("light", "dark")
     ]
 
 

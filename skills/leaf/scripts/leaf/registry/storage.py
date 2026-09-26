@@ -94,6 +94,30 @@ def _read_page_registry_stamped(
     )
 
 
+def _layer_packages(layer: dict, path: Path) -> list[str]:
+    packages = layer.get("packages", [])
+    if (
+        not isinstance(packages, list)
+        or not all(isinstance(value, str) and value for value in packages)
+        or len(set(packages)) != len(packages)
+    ):
+        raise RegistryError(
+            f"{path}: $layer.packages must be a unique list of non-empty strings"
+        )
+    return packages
+
+
+def layer_packages(page_dir: Path) -> list[str]:
+    """The package selections this page's vendored layer records.
+
+    Read on its own rather than through `layer_metadata`, whose other fields a
+    re-vendor exists to repair: `page init` reuses the recorded selection when
+    no `--package` is given, so the page it would fix must not refuse it."""
+    path = page_dir / "registry.json"
+    registry = read_registry_declarations(path)
+    return _layer_packages((registry or {}).get("$layer", {}), path)
+
+
 def layer_metadata(page_dir: Path) -> dict:
     """The identity recorded by this page's complete vendored layer."""
     path = page_dir / "registry.json"
@@ -104,15 +128,7 @@ def layer_metadata(page_dir: Path) -> dict:
         raise RegistryError(
             f"{path}: vendored registry lacks $layer.generation; run `leaf page init`"
         )
-    packages = layer.get("packages", [])
-    if (
-        not isinstance(packages, list)
-        or not all(isinstance(value, str) and value for value in packages)
-        or len(set(packages)) != len(packages)
-    ):
-        raise RegistryError(
-            f"{path}: $layer.packages must be a unique list of non-empty strings"
-        )
+    packages = _layer_packages(layer, path)
     fingerprint = layer.get("fingerprint")
     if not (
         isinstance(fingerprint, str)

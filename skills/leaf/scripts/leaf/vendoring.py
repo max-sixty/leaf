@@ -37,6 +37,7 @@ from .locations import located, locations_overlap, path_is_within, path_location
 from .projection import page_reading
 from .registry.contract import read_registry_declarations
 from .registry.page import compose_page_registry
+from .registry.storage import layer_packages
 from .schema import (
     CURSOR_FILE,
     EVENTS_FILE,
@@ -151,23 +152,7 @@ def _plan_page(
     if selected is None and fresh:
         selected = ()
     elif selected is None:
-        recorded = (
-            (read_json(page_dir / "registry.json") or {})
-            .get("$layer", {})
-            .get("packages", [])
-        )
-        if (
-            not isinstance(recorded, list)
-            or not all(
-                isinstance(selection, str) and selection for selection in recorded
-            )
-            or len(set(recorded)) != len(recorded)
-        ):
-            sys.exit(
-                f"{page_dir / 'registry.json'}: $layer.packages must be a unique "
-                "list of non-empty package selections"
-            )
-        selected = tuple(recorded)
+        selected = tuple(layer_packages(page_dir))
     inputs = layer_inputs(selected)
     _refuse_package_target(page_dir, inputs)
     roots = checked_layer_inputs(inputs)

@@ -102,8 +102,10 @@ more. Compose the stack from these:
 - **Several views of one artifact** are one `lf-tabs` set: page tabs for
   project-scale views that share one history, Threads panel, Ask inventory, and
   revision sequence, and a tabbed section for local alternatives within the
-  surrounding view. The `lf-tabs` entry says which placement makes which, and how to
-  order and retire views.
+  surrounding view. Page tabs are sections of one page: each panel takes the page's
+  width, so `data-width` on `main` widens every tab, and a sidebar stands beside
+  them as on any page. The `lf-tabs` entry says which placement makes which, and how
+  to order and retire views.
 
 A page grows without changing kind: a report that gains live status gains a grid, and
 its comments and anchors stay put.
@@ -246,8 +248,8 @@ Write semantic HTML and use the class idioms the registry lists under `$idioms`,
 where each one comes with the markup it is written as. The vendored theme owns
 palette, type, spacing, headings, tables, code, and widget presentation. Use a
 page-local `<style>` only for presentation unique to this page.
-For a page-specific inset or a transparent wrapper at its edge, use the frame
-declarations in `references/packages.md`, "A theme change".
+For a page-specific inset, use the frame declaration in `references/packages.md`,
+"A theme change".
 
 Widget attributes carry scalars; children carry prose; a titled compound member uses a
 leading `<strong>`. A data-bodied widget such as `lf-code` holds escaped

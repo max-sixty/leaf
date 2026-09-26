@@ -7,9 +7,10 @@
  * remembered per browser tab in the runtime's tabStore:
  * switching is reading, not editing, so it never sends an action and no
  * version carries it — this widget doesn't ride the action channel at all.
- * A tab set that is the main element's sole substantive child, below an optional
- * header, becomes the page composition: its panel id is the URL fragment, history
- * follows those panel entries. A switch, by press, key, Back, or Forward, is not
+ * The first tab set placed directly in main is the page's navigation over sections of
+ * that page, whatever else main holds: its strip sticks under the banner, its panels
+ * take the page's width, its panel id is the URL fragment, and history follows those
+ * panel entries. A switch, by press, key, Back, or Forward, is not
  * fragment travel, because a view is not a destination: the strip stays where it is on
  * screen, and the view opens where this user last read it, or at its start when they
  * never read past it. Links and anchors inside a panel keep native fragment navigation.
@@ -265,12 +266,12 @@ customElements.define(
 
     #syncRootContext() {
       const wasRoot = this.#root;
+      // The first tab set directly in the page is its navigation, whatever else the page
+      // holds beside it; a later one is a tabbed section like any nested set.
       const main = this.parentElement;
-      const rootContent = main?.matches("body > main") ? substantiveChildren(main) : [];
       this.#root =
-        rootContent.length <= 2 &&
-        rootContent.at(-1) === this &&
-        (rootContent.length === 1 || rootContent[0].tagName === "HEADER");
+        Boolean(main?.matches("body > main")) &&
+        main.querySelector(":scope > lf-tabs") === this;
       this.dataset.lfTabsContext = this.#root ? "root" : "embedded";
       if (!this.#root) {
         this.#historyEvents?.abort();
@@ -296,21 +297,10 @@ customElements.define(
       this.#contextObserver = null;
       const main = this.parentElement;
       if (!main?.matches("body > main")) return;
-      this.#contextObserver = new MutationObserver((records) => {
-        if (
-          records.some(
-            (record) =>
-              (record.type === "childList" && record.target === main) ||
-              (record.type === "characterData" && record.target.parentNode === main),
-          )
-        )
-          this.#syncRootContext();
-      });
-      this.#contextObserver.observe(main, {
-        childList: true,
-        characterData: true,
-        subtree: true,
-      });
+      // Only a tab set arriving or leaving among main's children can change which is
+      // first.
+      this.#contextObserver = new MutationObserver(() => this.#syncRootContext());
+      this.#contextObserver.observe(main, { childList: true });
     }
 
     // A root strip sticks under the banner, over the document it indexes, so it is a

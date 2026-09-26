@@ -221,7 +221,7 @@ minutes since deploy, checkout-v2
             </dl>
             <details id="lp-release-notes">
               <summary>Release notes · 3 changes</summary>
-              <ul style="--lf-passes-block-edge: 1">
+              <ul>
                 <li>Keep partial-refund state through checkout retries.</li>
                 <li>Write refund adjustments to the finance export.</li>
                 <li>Add parity checks before production promotion.</li>
@@ -254,7 +254,7 @@ minutes since deploy, checkout-v2
 
             <details id="lp-rollback-procedure">
               <summary>Rollback procedure · 3 steps</summary>
-              <ol class="steps" style="--lf-passes-block-edge: 1">
+              <ol class="steps">
                 <li>Route new checkout sessions to <code>checkout-v1</code>.</li>
                 <li>Drain the candidate after active sessions finish.</li>
                 <li>Verify order counts and finance-export isolation.</li>

@@ -380,10 +380,10 @@ export function createAskView({
     return presenter.present();
   }
 
-  // The walk over what the page is waiting on the user for. It wraps at both ends,
-  // because asks are a worklist rather than a document to read through: answering one takes
-  // it out of the list, so forward is the direction that has somewhere to go, and a walk
-  // that clamped there would strand them at the end of it.
+  // The walk over what the page is waiting on the user for, clamped at the first and last
+  // open asks as the thread walk is (askStep). Answering an ask takes it out of the list,
+  // so a press from an answered ask steps from its document position and still reaches an
+  // open one.
   //
   // The tab stop this walk lends an ask that holds nothing to work: such an ask has no box
   // in the tab order and the runtime writes it one — which is paint on the author's element,

@@ -5,7 +5,7 @@ live specimens, and message workflows are implemented. Leaf suggests an older
 contiguous range when a discussion grows long; the agent reads it and writes the
 summary. Users can unfold the original messages, and the agent can replace an
 overlapping summary as the discussion grows. Their contracts live in
-[conversation threads](../skills/leaf/references/conversation-threads.md),
+[threads](../skills/leaf/references/threads.md),
 [session lifetime](../skills/leaf/scripts/leaf/session-lifetime.md), and
 [the package Thread API](../skills/leaf/references/packages.md#widget-local-thread-surfaces).
 The [playground](thread-navigation/README.md) retains the design comparisons.
@@ -39,6 +39,16 @@ a long exchange, an oversized message, an unanswered question, queued input duri
 older work, a healthy external wait, interrupted progress, and an unfinished draft.
 Exercise direct gestures and keyboard routes in light/dark themes and wide/narrow
 layouts. Keep these independent slices; retire each plan when its contract lands.
+
+For compact Thread rows, evaluate three separate facts: whose move is owed, what
+delivery or work evidence exists for that move, and which unanswered input or Ask
+establishes it. A later agent update must not replace an unanswered question;
+an old user message must not remain the next move after it is answered. Test prose
+questions, frozen widget Asks, failed responses, locally pending sends, and resolved
+Threads in the same panel. Score the collapsed row by whether a reader can name the
+next actor and kind of action without opening it, then open it to check the exact
+question or control is reachable. A time or latest-message label is only recency
+evidence, not a next move.
 
 ## Later: long-thread reading
 

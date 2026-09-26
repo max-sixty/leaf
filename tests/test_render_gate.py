@@ -47,6 +47,8 @@ from render_cases_layout import (
     SHADOW_HOST_PAGE,
     SIDENOTE_IN_A_WIDGET,
     SPILLING_PAGE,
+    TEMPLATE_PAIR_LAYER,
+    TEMPLATE_PAIR_WIDGETS,
     UNMARKABLE_PAGE,
     WIDE_TABLE_PAGE,
     apply_restore_case,
@@ -234,6 +236,180 @@ def test_a_wide_page_whose_rows_split_anywhere_gets_advice_and_still_passes(
     for grid in ("lp-now", "lp-evidence", "lp-release"):
         assert f"<lf-grid id={grid}> at " in advice, advice
     assert "lp-status" not in advice, advice
+
+
+def test_a_template_that_stacks_in_a_desktop_window_gets_advice_naming_the_window(
+    browser, serve
+):
+    """A queue beside its detail at `1fr 2.4fr` needs 786px side by side, which a wide
+    page gives it only in a window of 854px or more; the gate names that window, and
+    the page stacks exactly there. The recommended `2fr 1fr` stacks below 757px, a
+    window too narrow to be worth saying, and a template nested in its side track has
+    a cell too narrow for it at any width."""
+    source = _wide_page(
+        "stacking templates",
+        f"""
+<h1>Stacking</h1>
+<lf-grid id="queue" columns="1fr 2.4fr">{_panel("items")}{_panel("detail")}</lf-grid>
+<lf-grid id="layout" columns="2fr 1fr">{_panel("body")}<lf-grid id="side" columns="1fr 1fr">{_panel("left")}{_panel("right")}</lf-grid></lf-grid>
+""",
+    )
+    url = serve(source, packages=())
+
+    reading = render_gate_model.render_version(browser, url)
+
+    assert reading.failures == []
+    stacking = sorted(line for line in reading.advice if "one column" in line)
+    assert len(stacking) == 2, reading.advice
+    queue, side = stacking
+    assert side.startswith("<lf-grid id=side> stands in one column at 1200px wide: "), (
+        side
+    )
+    window = int(
+        re.match(
+            r'<lf-grid id=queue> stacks into one column in a window narrower than (\d+)px: its columns="1fr 2.4fr" tracks need 786px side by side',
+            queue,
+        )[1]
+    )
+    page = open_page(browser, url)
+    grid = page.locator("#queue")
+    resized(page, window - 1, 900)
+    expect(grid).to_have_attribute("data-lf-grid-stacked", "")
+    resized(page, window, 900)
+    expect(grid).not_to_have_attribute("data-lf-grid-stacked", "")
+
+
+def test_two_templates_sharing_a_name_each_get_their_own_stacking_advice(
+    browser, serve
+):
+    """Two id-less grids in one widget are both named `<lf-grid> in <lf-test-pair
+    id=pair>`, and each is still read on its own through the sweep: the `1fr 5fr` that
+    stands stacked at 1200px is told so, and the `1fr 2.4fr` beside it gets the window
+    it stacks below. Read by name, the two interleaved at every width and the first
+    one's stacked reading stood for both, so the second got no advice.
+
+    A grid a module writes has no source for the gate to hold its words to, which the
+    gate refuses on its own; those are this page's only failures."""
+    # The authored count grid loads the lf-grid module the pair's grids need, and ends
+    # the page so the pair is no last block reserving an edge.
+    source = _wide_page(
+        "shared names",
+        f"""
+<h1>Shared</h1>
+<lf-test-pair id="pair"></lf-test-pair>
+<lf-grid id="status" columns="2">{_panel("left")}{_panel("right")}</lf-grid>
+""",
+    )
+
+    reading = render_gate_model.render_version(
+        browser,
+        serve(
+            source,
+            packages=(),
+            layer_registry=TEMPLATE_PAIR_LAYER,
+            layer_widgets=TEMPLATE_PAIR_WIDGETS,
+        ),
+    )
+
+    assert reading.failures, reading.failures
+    assert all(
+        "<lf-grid> without pre-upgrade source provenance" in failure
+        for failure in reading.failures
+    ), reading.failures
+    stacking = [line for line in reading.advice if "one column" in line]
+    assert len(stacking) == 2, reading.advice
+    story, queue = stacking
+    assert story.startswith(
+        "<lf-grid> in <lf-test-pair id=pair> stands in one column at 1200px wide: "
+        'its columns="1fr 5fr" tracks need '
+    ), story
+    assert re.match(
+        r"<lf-grid> in <lf-test-pair id=pair> stacks into one column in a window "
+        r'narrower than \d+px: its columns="1fr 2.4fr" tracks need 786px side by side',
+        queue,
+    ), queue
+
+
+# Four drawings in the idiom. The first is drawn wider than the column holds, so the fit
+# takes its 11px labels to under half. The second is fitted by the same fraction, and its
+# 28px labels survive it. The third keeps its natural size, with the theme's 9px step
+# glyph on it. The fourth is fitted like the first, but none of its words is drawn: one
+# label sits in <defs>, and the other's only run is a tspan out of the layout.
+DRAWN_LABELS_PAGE = leaf_page(
+    "drawn labels",
+    """
+<h1>Rollout</h1>
+<figure id="squeezed">
+  <svg class="drawing" viewBox="0 0 1600 120" role="img" aria-label="Rollout stages">
+    <text x="20" y="40">canary</text>
+    <text x="560" y="40">region</text>
+    <text x="1100" y="40">global</text>
+  </svg>
+</figure>
+<figure id="large">
+  <svg class="drawing" viewBox="0 0 1600 120" role="img" aria-label="Rollout headline">
+    <text x="20" y="60" font-size="28">canary</text>
+    <text x="1100" y="60" font-size="28">global</text>
+  </svg>
+</figure>
+<figure id="natural">
+  <svg class="drawing" width="200" viewBox="0 0 200 40" role="img" aria-label="Step one">
+    <circle class="mark" cx="20" cy="20" r="7" />
+    <text class="glyph" x="20" y="20">1</text>
+    <text class="small" x="40" y="24">note</text>
+  </svg>
+</figure>
+<figure id="undrawn">
+  <svg class="drawing" viewBox="0 0 1600 120" role="img" aria-label="Rollout key">
+    <defs><text x="20" y="40">draft</text></defs>
+    <rect class="mark" x="20" y="60" width="200" height="40" />
+    <text x="20" y="40"><tspan display="none">paused</tspan></text>
+  </svg>
+</figure>
+""",
+)
+
+
+def test_a_drawing_fitted_until_its_labels_are_unreadable_gets_advice_and_still_passes(
+    browser, serve
+):
+    """Drawn size decides, and only the fit is advised about: the halved 28px labels
+    read fine, the 9px glyph at its natural size is a size the source chose, and words
+    the drawing never paints have no drawn size at all. The drawing whose 11px labels
+    came out at 5px is named once, with its smallest."""
+    url = serve(DRAWN_LABELS_PAGE, packages=())
+    page = open_page(browser, url)
+    drawn = page.evaluate(
+        """() => Object.fromEntries([...document.querySelectorAll('figure')].map(f => {
+          const labels = [...f.querySelectorAll('text')].map(t => {
+            const m = t.getScreenCTM();
+            const set = parseFloat(getComputedStyle(t).fontSize);
+            return {set, drawn: set * Math.hypot(m.c, m.d)};
+          });
+          return [f.id, labels];
+        }))"""
+    )
+    page.close()
+    # Each control is clear of the advice for its own reason, so each reason is shown
+    # holding: the large labels were shrunk, the natural glyph is under the floor, and
+    # the undrawn labels would be as small as the squeezed ones if they were drawn.
+    for figure in ("squeezed", "undrawn"):
+        assert all(1 <= label["drawn"] < 0.5 * label["set"] for label in drawn[figure])
+    assert all(10 < label["drawn"] < label["set"] for label in drawn["large"]), drawn
+    assert any(
+        label["drawn"] < 10 and abs(label["drawn"] - label["set"]) < 0.01
+        for label in drawn["natural"]
+    ), drawn
+
+    reading = render_gate_model.render_version(browser, url)
+
+    assert reading.failures == []
+    (advice,) = reading.advice
+    assert advice.startswith(
+        "at 1200px wide <svg> in <figure id=squeezed> draws 3 label(s) below 10px, "
+        "the smallest ("
+    ), advice
+    assert "from the 11px it was set at" in advice, advice
 
 
 def test_the_pre_upgrade_proof_reads_the_held_authored_document(browser, serve):
@@ -1217,19 +1393,19 @@ def test_the_render_gate_rejects_an_upgrade_that_defines_no_element(
     )
 
 
-def test_the_render_gate_requires_a_declared_conversations_host(
+def test_the_render_gate_requires_a_declared_threads_host(
     browser, serve, tmp_path, monkeypatch
 ):
-    """A conversation declaration whose module omits its host fails visibly.
+    """A thread declaration whose module omits its host fails visibly.
 
     A project widget supplies the declaration and its matching host. The bug-back then
-    removes only its conversationBox placement; a fresh browser context prevents the
+    removes only its threadBox placement; a fresh browser context prevents the
     clean load's module cache from answering for the changed file."""
     monkeypatch.chdir(tmp_path)
     package = author_test_widget(tmp_path, "lf-callout", upgrade=True)
     registry_path = package / "registry.json"
     registry = json.loads(registry_path.read_text())
-    registry["lf-callout"]["x-conversation"] = {"when": {"id": ["custom-note"]}}
+    registry["lf-callout"]["x-thread-seat"] = {"when": {"id": ["custom-note"]}}
     registry_path.write_text(json.dumps(registry, indent=2))
     module = package / "widgets" / "lf-callout.js"
     source = module.read_text()
@@ -1237,12 +1413,10 @@ def test_the_render_gate_requires_a_declared_conversations_host(
     assert source.count(runtime_import) == 1
     source = source.replace(
         runtime_import,
-        'import { conversationBox, once, widgetController } from "/runtime/widget-api.js";',
+        'import { threadBox, once, widgetController } from "/runtime/widget-api.js";',
     )
     once = "      once(this);\n"
-    placement = (
-        '      if (once(this)) this.append(conversationBox(this, "Question"));\n'
-    )
+    placement = '      if (once(this)) this.append(threadBox(this, "Question"));\n'
     assert source.count(once) == 1
     source = source.replace(
         once,
@@ -1261,8 +1435,8 @@ def test_the_render_gate_requires_a_declared_conversations_host(
         browser, serve(CUSTOM_WIDGET_PAGE, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
     ).failures
     assert (
-        "[light] <lf-callout id='custom-note'> declares x-conversation but rendered 0 "
-        "matching hosts; its module must place exactly one conversationBox"
+        "[light] <lf-callout id='custom-note'> declares x-thread-seat but rendered 0 "
+        "matching hosts; its module must place exactly one threadBox"
     ) in failures
 
 
@@ -1758,7 +1932,7 @@ def test_the_render_gate_checks_custom_controls_at_their_form_boundary(browser, 
     ]
 
 
-def test_the_render_gate_checks_undeclared_shadow_roots_inside_conversation_chrome(
+def test_the_render_gate_checks_undeclared_shadow_roots_inside_thread_chrome(
     browser, serve
 ):
     """A reply panel is runtime UI, while a widget inside its message remains page
@@ -1776,7 +1950,7 @@ def test_the_render_gate_checks_undeclared_shadow_roots_inside_conversation_chro
               }
             });
           const panel = document.createElement('div');
-          panel.className = 'lf-conversation-thread lf-ui';
+          panel.className = 'lf-page-thread lf-ui';
           panel.append(offer('generated-control'), document.createElement('reply-widget'));
           document.querySelector('main').append(panel);
         }"""
@@ -2304,7 +2478,70 @@ def test_page_fixture_renders(browser, serve, source):
     is the shape of failure a static lint cannot see. The invariants live in
     render_gate.version.render_version — the pass `version check --render` runs on
     agent-authored pages — so this sweep also proves the gate a user's page goes through."""
-    assert render_gate_model.render_version(browser, serve(source)).failures == []
+    failures = render_gate_model.render_version(browser, serve(source)).failures
+    assert failures == [], "\n".join(failures)
+
+
+def test_frame_edges_pass_only_through_declared_transparent_wrappers(browser, serve):
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Frame edges",
+                """<div id="frame" style="padding:24px;--lf-block-frame:1">
+  <section id="first" style="--lf-passes-block-edge:1">
+    <h2 id="opening">Opening</h2>
+    <p>First section.</p>
+  </section>
+  <section id="middle"><h2 id="middle-heading">Middle</h2></section>
+  <section id="last" style="--lf-passes-block-edge:1">
+    <p id="closing">Closing.</p>
+  </section>
+</div>
+<div id="grid-frame" style="padding:24px;--lf-block-frame:1">
+  <section style="display:grid;padding:12px">
+    <h2 id="grid-heading">Grid item</h2>
+  </section>
+</div>
+<div id="contents-frame" style="padding:24px;--lf-block-frame:1">
+  <section style="display:contents;--lf-passes-block-edge:1">
+    <h2 id="contents-heading">Boxless section</h2>
+  </section>
+</div>""",
+            )
+        ),
+    )
+    margins = page.evaluate(
+        """() => Object.fromEntries(
+          ['opening', 'middle-heading', 'closing', 'grid-heading', 'contents-heading'].map(id => {
+            const s = getComputedStyle(document.getElementById(id));
+            return [id, [parseFloat(s.marginBlockStart), parseFloat(s.marginBlockEnd)]];
+          }))"""
+    )
+    assert margins["opening"][0] == 0
+    assert margins["middle-heading"][0] > 0
+    assert margins["closing"][1] == 0
+    assert margins["grid-heading"][0] > 0
+    assert margins["contents-heading"][0] == 0
+    assert not [
+        f
+        for f in render_checks_model.evaluate_probe(page, "trappedMargins")
+        if f["id"] == "frame"
+    ]
+    page.locator("#first").evaluate(
+        "el => el.style.removeProperty('--lf-passes-block-edge')"
+    )
+    assert any(
+        f["id"] == "frame" and f["child"] == "h2" and f["through"] == ["section"]
+        for f in render_checks_model.evaluate_probe(page, "trappedMargins")
+    )
+    page.locator("#contents-frame > section").evaluate(
+        "el => el.style.removeProperty('--lf-passes-block-edge')"
+    )
+    assert any(
+        f["id"] == "contents-frame" and f["through"] == ["section"]
+        for f in render_checks_model.evaluate_probe(page, "trappedMargins")
+    )
 
 
 def test_every_idiom_in_the_catalog_stands_in_a_corpus_source(browser):
@@ -3396,7 +3633,7 @@ def test_a_page_hands_its_note_strip_back_when_the_panel_takes_the_room(browser,
 
 @pytest.mark.parametrize("edge", EDGES, ids=EDGE_IDS)
 def test_the_user_draws_an_edge_to_the_width_they_want(browser, serve, edge):
-    """A conversation about a table wants room a conversation about a sentence does not,
+    """A thread about a table wants room a thread about a sentence does not,
     and a tray of long names wants room a tray of short ones does not; only the user
     looking at one knows which this is. So each region's edge is a thing they take hold
     of. The region stands over the page, so the page yields nothing at any width.
@@ -3774,7 +4011,7 @@ def test_the_layer_traps_no_margin_in_the_panel_it_draws(browser, serve):
     control comes first: a rule that traps one inside the panel has to be found, or a
     clean result is only a reading that never arrived. A page is served rather than a
     bare fixture because the panel has to be holding something for its boxes to exist,
-    and a seeded example is the corpus's own conversation. The log has to hold an
+    and a seeded example is the corpus's own thread. The log has to hold an
     anchored comment, not merely exist: the planted rule traps its margin against a
     thread's title, so a page whose log carries only widget events opens the
     panel on nothing and reports the control as missing."""

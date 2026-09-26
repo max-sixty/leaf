@@ -1,31 +1,31 @@
-$ leaf reply /page --text Answer
+$ leaf thread reply /page --text Answer
 exit: 1
-cannot infer a reply: this turn's opened delivery holds 0 reply obligations. Read what the page still owes with `leaf page state <page>`; use --for EVENT_ID to answer one, or --to ID --initiates only if that read shows nothing owed
+cannot infer a reply: this turn's opened delivery holds 0 reply obligations. Read what the page still owes with `leaf page state <page>`; use --for EVENT_ID to answer one, or --to ID to post a new message only if that read shows nothing owed
 
-$ leaf reply /page --text Answer
+$ leaf thread reply /page --text Answer
 exit: 1
-cannot infer a reply: this turn's opened delivery holds 2 reply obligations. Read what the page still owes with `leaf page state <page>`; use --for EVENT_ID to answer one, or --to ID --initiates only if that read shows nothing owed
+cannot infer a reply: this turn's opened delivery holds 2 reply obligations. Read what the page still owes with `leaf page state <page>`; use --for EVENT_ID to answer one, or --to ID to post a new message only if that read shows nothing owed
 
-$ leaf reply /page --to user-1 --text Answer
+$ leaf thread reply /page --to user-1 --text Answer
 exit: 1
-use --for EVENT_ID to answer user input; --to ID --initiates starts a new message when no reply is owed
+thread 'user-1' currently requires a response; answer it with `--for user-1`
 
-$ leaf reply /page --for user-1 --text Answer
+$ leaf thread reply /page --for user-1 --text Answer
 exit: 0
 replied in user-1
 
-$ leaf reply /page --for user-1 --text Answer
+$ leaf thread reply /page --for user-1 --text Answer
 exit: 1
-event 'user-1' takes no reply; user-1 is a comment in this page's log, and nothing is owed for it \u2014 `leaf reply <page> --to user-1 --initiates` replies to it
+event 'user-1' takes no reply; user-1 is a comment in this page's log, and nothing is owed for it \u2014 `leaf thread reply <page> --to user-1` replies to it
 
-$ leaf reply /page --to user-1 --initiates --text Follow-up
+$ leaf thread reply /page --to user-1 --text Follow-up
 exit: 0
 replied in user-1
 
-$ leaf reply /page --for user-3 --text Answer
+$ leaf thread reply /page --for user-3 --text Answer
 exit: 1
-event 'user-3' takes no reply; user-3 is a comment in this page's log, and nothing is owed for it \u2014 `leaf reply <page> --to user-3 --initiates` replies to it
+event 'user-3' takes no reply; user-3 is a comment in this page's log, and nothing is owed for it \u2014 `leaf thread reply <page> --to user-3` replies to it
 
-$ leaf resolve /page --to user-3
+$ leaf thread resolve /page --to user-3
 exit: 0
 resolved user-3

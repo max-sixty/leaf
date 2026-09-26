@@ -2,7 +2,7 @@
 
 The page-local accordion sketch explores spacing: Compact
 (32px rows), Comfortable (40px), and Airy (48px), plus panel and roomy reading widths.
-Author labels sit above messages; the reply field spans the conversation width. One header carries topic, count, and status;
+Author labels sit above messages; the reply field spans the thread width. One header carries topic, count, and status;
 there is no repeated status bar inside. Draft markers, a one-line composer, disclosure
 chevrons, and title/Escape collapse keep the dense layout operable.
 
@@ -14,7 +14,7 @@ The real Leaf Threads panel implements the compact accordion and remains availab
 for feedback independently of the sketch. Counts use a shared column across all rows.
 The real panel's keyboard behavior is defined in
 [Escape unwinds the hierarchy, not the history](../../skills/leaf/assets/runtime/keyboard/AGENTS.md#escape-unwinds-the-hierarchy-not-the-history).
-The page-local sketch uses Escape to collapse its selected mock conversation; its
+The page-local sketch uses Escape to collapse its selected mock thread; its
 keyboard behavior is illustrative rather than the runtime contract.
 
 ```sh

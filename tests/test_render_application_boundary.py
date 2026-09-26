@@ -2,6 +2,7 @@
 
 import json
 import re
+from itertools import pairwise
 
 from leaf import event_log as events_model
 from playwright.sync_api import expect
@@ -75,7 +76,7 @@ customElements.define('lf-thread-reader', class extends HTMLElement {
 """
 
 THREAD_READER_DECLARATION = {
-    "description": "A read-only package conversation view.",
+    "description": "A read-only package thread view.",
     "type": "object",
     "properties": {"id": {"type": "string"}},
     "required": ["id"],
@@ -84,6 +85,191 @@ THREAD_READER_DECLARATION = {
     "x-upgrade": True,
     "x-example": '<lf-thread-reader id="reader-example"></lf-thread-reader>',
 }
+
+
+def test_browser_interactions_are_recorded_beside_server_requests(browser, serve):
+    """A user gesture remains visible even when it changes no semantic page state."""
+    url = serve(
+        leaf_page(
+            "Interaction trace",
+            '<h1>Interaction trace</h1><input id="trace-input" aria-label="Entry">'
+            '<button id="trace-button">Continue</button>',
+        )
+    )
+    page = open_page(browser, url)
+
+    def contains(response, kind):
+        return (
+            response.url.endswith("/api/interaction")
+            and response.ok
+            and any(
+                entry["type"] == kind
+                for entry in response.request.post_data_json["entries"]
+            )
+        )
+
+    with page.expect_response(lambda response: contains(response, "input")):
+        page.locator("#trace-input").fill("hello")
+    with page.expect_response(lambda response: contains(response, "click")):
+        page.locator("#trace-button").click()
+    page.locator("h1").click()
+    with page.expect_response(lambda response: contains(response, "command")):
+        page.keyboard.press("?")
+    with page.expect_response(lambda response: contains(response, "interaction_part")):
+        page.locator("#trace-input").fill("x" * 50_000)
+
+    rows = [
+        json.loads(line)
+        for line in (serve.page_dir / "interactions.jsonl").read_text().splitlines()
+    ]
+    inputs = [row for row in rows if row.get("type") == "input"]
+    clicks = [row for row in rows if row.get("type") == "click"]
+    commands = [row for row in rows if row.get("type") == "command"]
+    parts = [row for row in rows if row.get("type") == "interaction_part"]
+    assert any(
+        row["value"] == "hello"
+        and any("input#trace-input" in part for part in row["target"])
+        for row in inputs
+    )
+    assert any(
+        any("button#trace-button" in part for part in row["target"]) for row in clicks
+    )
+    assert any(row["id"] == "command.reference.open" for row in commands)
+    assert len({row["session"] for row in inputs + clicks + commands}) == 1
+    grouped = [row for row in parts if row["partOf"] == parts[0]["partOf"]]
+    reconstructed = json.loads(
+        "".join(row["json"] for row in sorted(grouped, key=lambda row: row["part"]))
+    )
+    assert reconstructed["type"] in {"beforeinput", "input"}
+    assert "x" * 50_000 in {reconstructed.get("value"), reconstructed.get("data")}
+    assert any(
+        row.get("source") == "server"
+        and row["method"] == "POST"
+        and row["path"] == "/api/interaction"
+        and row["status"] == 204
+        for row in rows
+    )
+
+
+def test_browser_trace_records_where_touch_events_are_not_exposed(browser, serve):
+    """Firefox on a desktop without a touch screen, and Safari on a Mac, expose no
+    `TouchEvent` interface. Chromium and Playwright's WebKit always do, so the page
+    removes it before any module evaluates. A tap's native events still arrive, and
+    the trace still reads their touch points."""
+    url = serve(leaf_page("Trace desktop", '<h1 id="trace-target">Trace desktop</h1>'))
+    context = browser.new_context(
+        viewport={"width": 1200, "height": 900}, has_touch=True
+    )
+    page = open_page(
+        browser, url, context=context, init_script="delete window.TouchEvent"
+    )
+    with page.expect_response(
+        lambda response: (
+            response.url.endswith("/api/interaction")
+            and response.ok
+            and any(
+                entry["type"] == "click"
+                for entry in response.request.post_data_json["entries"]
+            )
+        )
+    ):
+        page.locator("#trace-target").tap()
+
+    rows = [
+        json.loads(line)
+        for line in (serve.page_dir / "interactions.jsonl").read_text().splitlines()
+    ]
+    assert any(
+        row.get("type") == "touchstart" and len(row["touches"]) == 1 for row in rows
+    )
+
+
+def test_browser_trace_sheds_repeated_gestures_when_delivery_stalls(browser, serve):
+    url = serve(leaf_page("Trace backlog", '<h1 id="trace-target">Trace backlog</h1>'))
+    page = open_page(browser, url)
+    page.route("**/api/interaction", lambda route: route.fulfill(status=503))
+    with page.expect_response(
+        lambda response: (
+            response.url.endswith("/api/interaction") and response.status == 503
+        )
+    ):
+        page.locator("#trace-target").click()
+    page.locator("#trace-target").evaluate("""node => {
+      for (let i = 0; i < 1200; i++)
+        node.dispatchEvent(new PointerEvent('pointermove', {
+          bubbles: true, pointerId: 1, clientX: i,
+        }));
+      node.click();
+    }""")
+    page.unroute("**/api/interaction")
+    with page.expect_response(
+        lambda response: (
+            response.url.endswith("/api/interaction")
+            and response.ok
+            and any(
+                entry["type"] == "click"
+                for entry in response.request.post_data_json["entries"]
+            )
+        ),
+        timeout=15_000,
+    ):
+        page.wait_for_timeout(2500)
+
+    rows = [
+        json.loads(line)
+        for line in (serve.page_dir / "interactions.jsonl").read_text().splitlines()
+    ]
+    browser_rows = [row for row in rows if row.get("source") == "client"]
+    assert any(row["type"] == "click" for row in browser_rows)
+    assert sum(row["type"] == "pointermove" for row in browser_rows) < 512
+    sequences = sorted(row["sequence"] for row in browser_rows)
+    assert any(later - earlier > 1 for earlier, later in pairwise(sequences))
+    consume_browser_errors(page, "503")
+
+
+def test_browser_trace_keeps_actions_ahead_of_new_repeated_observations(browser, serve):
+    url = serve(leaf_page("Trace actions", '<h1 id="trace-target">Trace actions</h1>'))
+    page = open_page(browser, url)
+    page.route("**/api/interaction", lambda route: route.fulfill(status=503))
+    with page.expect_response(
+        lambda response: (
+            response.url.endswith("/api/interaction") and response.status == 503
+        )
+    ):
+        page.locator("#trace-target").click()
+    page.wait_for_timeout(100)
+    page.locator("#trace-target").evaluate("""node => {
+      for (let i = 0; i < 600; i++)
+        node.dispatchEvent(new MouseEvent('click', {
+          bubbles: true, clientX: i,
+        }));
+      for (let i = 0; i < 100; i++)
+        node.dispatchEvent(new PointerEvent('pointermove', {
+          bubbles: true, pointerId: 1, clientX: i,
+        }));
+    }""")
+    page.unroute("**/api/interaction")
+    with page.expect_response(
+        lambda response: (
+            response.url.endswith("/api/interaction")
+            and response.ok
+            and any(
+                entry["type"] == "click" and entry["pointer"]["x"] == 599
+                for entry in response.request.post_data_json["entries"]
+            )
+        ),
+        timeout=15_000,
+    ):
+        page.wait_for_timeout(2500)
+
+    rows = [
+        json.loads(line)
+        for line in (serve.page_dir / "interactions.jsonl").read_text().splitlines()
+    ]
+    browser_rows = [row for row in rows if row.get("source") == "client"]
+    assert sum(row["type"] == "click" for row in browser_rows) == 512
+    assert not any(row["type"] == "pointermove" for row in browser_rows)
+    consume_browser_errors(page, "503")
 
 
 def test_packages_and_panel_share_threads_through_gestures_and_authored_content(
@@ -211,7 +397,7 @@ def test_thread_consumers_join_presentation_and_cancel_superseded_work(browser, 
     second = page.locator("#second")
     second.evaluate("node => { node.hold(); node.consumer.update(); }")
     expect(second).to_have_attribute("data-held", "true")
-    assert page.evaluate("threadPresentation().pending.includes('conversation')")
+    assert page.evaluate("threadPresentation().pending.includes('thread')")
     prior_paints = second.evaluate("node => node.paints")
     first.evaluate("node => { node.hold(); node.consumer.update(); }")
     expect(first).to_have_attribute("data-held", "true")
@@ -220,12 +406,12 @@ def test_thread_consumers_join_presentation_and_cancel_superseded_work(browser, 
     expect(second).to_have_attribute("data-finished", "true")
     assert second.evaluate("node => node.paints") == prior_paints
     first.evaluate("node => node.release()")
-    page.wait_for_function("!threadPresentation().pending.includes('conversation')")
+    page.wait_for_function("!threadPresentation().pending.includes('thread')")
     second.evaluate("node => { node.hold(true); node.consumer.update(); }")
     expect(second).to_have_attribute("data-held", "true")
     removed = second.element_handle()
     second.evaluate("node => node.remove()")
-    page.wait_for_function("!threadPresentation().pending.includes('conversation')")
+    page.wait_for_function("!threadPresentation().pending.includes('thread')")
     assert removed.evaluate("node => node.signals.at(-1).aborted")
     removed.evaluate("node => node.release()")
 
@@ -273,7 +459,7 @@ def test_failed_panel_presentation_cancels_its_held_package_render(browser, serv
     expect(reader).to_have_attribute("data-finished", "true")
     assert reader.evaluate("node => node.paints") == paints
     reader.evaluate("node => node.consumer.update()")
-    page.wait_for_function("!threadPresentation().pending.includes('conversation')")
+    page.wait_for_function("!threadPresentation().pending.includes('thread')")
     assert reader.evaluate("node => node.paints") > paints
 
 
@@ -1053,8 +1239,8 @@ def test_widget_controller_owns_presentation_across_values_and_lifetimes(
     ]
 
 
-def test_conversation_presentation_waits_for_its_frozen_widgets_only(browser, serve):
-    """The conversation parent absorbs descendants without joining unrelated page work."""
+def test_thread_presentation_waits_for_its_frozen_widgets_only(browser, serve):
+    """The thread parent absorbs descendants without joining unrelated page work."""
     source = LIVE_V1.replace(
         '<h1 id="live-title">Live first</h1>',
         '<h1 id="live-title">Live first</h1>'
@@ -1117,7 +1303,7 @@ def test_conversation_presentation_waits_for_its_frozen_widgets_only(browser, se
             "author": "agent",
             "revision": 1,
             "parent": "frozen-widget-question",
-            "text": "This widget prepares inside the conversation.",
+            "text": "This widget prepares inside the thread.",
             "markup": '<lf-local id="thread-local" choice="idle"></lf-local>',
         },
     )
@@ -1142,21 +1328,21 @@ def test_conversation_presentation_waits_for_its_frozen_widgets_only(browser, se
         """() => {
           const pending = readLeafPresentation().pending;
           return document.querySelector('#thread-local') &&
-            pending.includes('conversation') &&
+            pending.includes('thread') &&
             pending.includes('widget:thread-local:preparation') &&
             pending.includes('widget:page-local:preparation');
         }""",
         timeout=5000,
     )
     page.evaluate(
-        "conversationReady = false; allReady = false; "
-        "whenLeafRegionsPresented(['conversation'], () => true)"
-        ".then(() => { conversationReady = true; }); "
+        "threadReady = false; allReady = false; "
+        "whenLeafRegionsPresented(['thread'], () => true)"
+        ".then(() => { threadReady = true; }); "
         "whenLeafPresented().then(() => { allReady = true; }); true"
     )
-    assert page.evaluate("conversationReady") is False
+    assert page.evaluate("threadReady") is False
     page.evaluate("threadPreparation.release('thread')")
-    page.wait_for_function("conversationReady", timeout=3000)
+    page.wait_for_function("threadReady", timeout=3000)
     expect(page.locator("body")).to_have_attribute("data-lf-applied", "1")
     expect(page.locator("#thread-local")).to_have_attribute(
         "data-rendered-choice", "chosen"
@@ -1205,7 +1391,7 @@ def test_conversation_presentation_waits_for_its_frozen_widgets_only(browser, se
     )
     page.wait_for_function(
         """() => document.querySelector('#thread-failing') &&
-          readLeafPresentation().pending.includes('conversation') &&
+          readLeafPresentation().pending.includes('thread') &&
           readLeafPresentation().pending.includes(
             'widget:thread-failing:preparation'
           )""",
@@ -1214,12 +1400,12 @@ def test_conversation_presentation_waits_for_its_frozen_widgets_only(browser, se
     expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (2)")
     expect(page.locator(".lf-thread-panel .lf-auxiliary-title")).to_have_text("Threads")
     page.evaluate(
-        "conversationReady = false; "
-        "whenLeafRegionsPresented(['conversation'], () => true)"
-        ".then(() => { conversationReady = true; }); "
+        "threadReady = false; "
+        "whenLeafRegionsPresented(['thread'], () => true)"
+        ".then(() => { threadReady = true; }); "
         "failedThreadPreparation.reject(new Error('frozen descendant failure')); true"
     )
-    page.wait_for_function("conversationReady", timeout=3000)
+    page.wait_for_function("threadReady", timeout=3000)
     expect(page.locator("#thread-failing")).to_have_count(1)
     expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (2)")
     expect(page.locator(".lf-thread-panel .lf-auxiliary-title")).to_have_text("Threads")
@@ -1236,7 +1422,7 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
     widgets = {"lf-local.js": PAGE_WIDGET, "lf-verdict.js": SEATED_ASK_MODULE}
     url = serve(
         leaf_page(
-            "Conversation rollback",
+            "Thread rollback",
             '<h1>Review</h1><lf-verdict id="proposal" asks>Ship it?</lf-verdict>',
         ),
         layer_registry=layer,
@@ -1246,7 +1432,7 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
         serve.page_dir,
         {
             "kind": "comment",
-            "id": "kept-conversation",
+            "id": "kept-thread",
             "author": "user",
             "revision": 1,
             "anchor": {"section": "proposal"},
@@ -1256,9 +1442,7 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
     page = open_page(browser, live_url(url))
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    inline = page.locator(
-        f'#proposal > .lf-conversation > [data-thread="{kept["id"]}"]'
-    )
+    inline = page.locator(f'#proposal > .lf-thread-seat > [data-thread="{kept["id"]}"]')
     editor = inline.locator(":scope > .lf-say textarea")
     editor.fill("draft survives sibling rollback")
     editor.evaluate("node => node.setSelectionRange(6, 14, 'backward')")
@@ -1280,7 +1464,7 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
             `.lf-thread[data-id="${id}"]`
           );
           window.keptInline = document.querySelector(
-            `#proposal > .lf-conversation > [data-thread="${id}"]`
+            `#proposal > .lf-thread-seat > [data-thread="${id}"]`
           );
           window.keptEditor = keptInline.querySelector(':scope > .lf-say textarea');
 
@@ -1289,8 +1473,8 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
           let failures = 2;
           let releaseRetry;
           const retry = new Promise(done => { releaseRetry = done; });
-          window.releaseConversationRetry = releaseRetry;
-          window.conversationRetryReleased = false;
+          window.releaseThreadRetry = releaseRetry;
+          window.threadRetryReleased = false;
           list.present = async model => {
             const candidate = model.rows.some(
               row => row.kind === 'thread' &&
@@ -1303,8 +1487,8 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
               window.completeListFailures = 2 - failures;
               throw new Error('injected complete-list failure');
             }
-            if (!window.conversationRetryReleased) {
-              window.conversationRetryHeld = true;
+            if (!window.threadRetryReleased) {
+              window.threadRetryHeld = true;
               await retry;
             }
             return present(model);
@@ -1339,7 +1523,7 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
     )
     page.wait_for_function(
         """() => window.completeListFailures === 2 &&
-          window.conversationRetryHeld === true""",
+          window.threadRetryHeld === true""",
         timeout=5000,
     )
 
@@ -1352,7 +1536,7 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
         """id => {
           const panel = document.querySelector(`.lf-thread[data-id="${id}"]`);
           const inline = document.querySelector(
-            `#proposal > .lf-conversation > [data-thread="${id}"]`
+            `#proposal > .lf-thread-seat > [data-thread="${id}"]`
           );
           return panel === window.keptPanel && inline === window.keptInline &&
             inline.querySelector(':scope > .lf-say textarea') === window.keptEditor;
@@ -1364,14 +1548,14 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
     assert editor.evaluate(
         "node => [node.selectionStart, node.selectionEnd, node.selectionDirection]"
     ) == [6, 14, "backward"]
-    assert "conversation" in page.evaluate("window.readLeafPresentation().pending")
+    assert "thread" in page.evaluate("window.readLeafPresentation().pending")
 
     # The retry paints the whole candidate again and then reaches the independently
     # held frozen-widget preparation. Only that complete reading may commit.
     page.evaluate(
         """() => {
-          window.conversationRetryReleased = true;
-          window.releaseConversationRetry();
+          window.threadRetryReleased = true;
+          window.releaseThreadRetry();
         }"""
     )
     page.wait_for_function(
@@ -1385,7 +1569,7 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
     page.evaluate("window.threadPreparation.release('prepared')")
     page.wait_for_function("() => window.threadPreparationSettled === true")
     page.wait_for_function(
-        "() => !window.readLeafPresentation().pending.includes('conversation')",
+        "() => !window.readLeafPresentation().pending.includes('thread')",
         timeout=5000,
     )
     expect(page.locator("#thread-held")).to_have_count(1)
@@ -1396,7 +1580,7 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
         """id => {
           const panel = document.querySelector(`.lf-thread[data-id="${id}"]`);
           const inline = document.querySelector(
-            `#proposal > .lf-conversation > [data-thread="${id}"]`
+            `#proposal > .lf-thread-seat > [data-thread="${id}"]`
           );
           return panel === window.keptPanel && inline === window.keptInline &&
             inline.querySelector(':scope > .lf-say textarea') === window.keptEditor;
@@ -1420,8 +1604,8 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
     )
 
 
-def test_conversation_readiness_waits_for_the_keyed_thread_list(browser, serve):
-    """The existing conversation ticket includes Lit ordering without replacing a card."""
+def test_thread_readiness_waits_for_the_keyed_thread_list(browser, serve):
+    """The existing thread ticket includes Lit ordering without replacing a card."""
     url = serve(LIVE_V1)
     events_model.append_event(
         serve.page_dir,
@@ -1472,7 +1656,7 @@ def test_conversation_readiness_waits_for_the_keyed_thread_list(browser, serve):
         }"""
     )
     page.wait_for_function(
-        "readLeafPresentation().pending.includes('conversation')", timeout=3000
+        "readLeafPresentation().pending.includes('thread')", timeout=3000
     )
     pending_card = page.locator('.lf-thread[data-attempt="held-thread-list"]')
     expect(pending_card).to_have_count(0)
@@ -1489,7 +1673,7 @@ def test_conversation_readiness_waits_for_the_keyed_thread_list(browser, serve):
 
     page.evaluate("releaseThreadList()")
     page.wait_for_function(
-        "!readLeafPresentation().pending.includes('conversation')", timeout=3000
+        "!readLeafPresentation().pending.includes('thread')", timeout=3000
     )
     expect(pending_card).to_have_count(1)
     assert page.evaluate(

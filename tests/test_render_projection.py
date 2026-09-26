@@ -805,7 +805,7 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     )
     expect(first.locator("lf-shot img")).to_have_count(2)
     expect(
-        first.locator(f'.lf-conversation-thread[data-thread="{case_thread["id"]}"]')
+        first.locator(f'.lf-page-thread[data-thread="{case_thread["id"]}"]')
     ).to_have_count(1)
     expect(first.get_by_role("link", name="Open base")).to_have_attribute(
         "href", "https://base.example/rev/runs?owner=max"
@@ -2829,27 +2829,25 @@ customElements.define("lf-conditional", class extends HTMLElement {
         expect(page.locator(".lf-asks-row")).to_have_count(count)
 
 
-def test_a_live_revision_reapplies_the_authored_conversation_seat_predicate(
-    browser, serve
-):
+def test_a_live_revision_reapplies_the_authored_thread_seat_predicate(browser, serve):
     """An old seated thread cannot hide an Ask from a revision with no seat."""
     entry = deepcopy(SEATED_ASK_ENTRY)
     entry["properties"]["talk"] = {"type": "boolean"}
-    entry["x-conversation"]["when"] = {"talk": [True]}
+    entry["x-thread-seat"]["when"] = {"talk": [True]}
     entry["x-example"] = (
         '<lf-verdict id="verdict-example" asks talk>Ship it?</lf-verdict>'
     )
     module = SEATED_ASK_MODULE.replace(
-        'const seat = conversationBox(this, "Say something about this");',
+        'const seat = threadBox(this, "Say something about this");',
         'const seat = this.hasAttribute("talk") '
-        '? conversationBox(this, "Say something about this") : null;',
+        '? threadBox(this, "Say something about this") : null;',
     )
     first = leaf_page(
-        "Conditional conversation seat",
+        "Conditional thread seat",
         '<lf-verdict id="question" asks talk>Ship it?</lf-verdict>',
     )
     second = leaf_page(
-        "Conditional conversation seat",
+        "Conditional thread seat",
         '<lf-verdict id="question" asks>Ship it?</lf-verdict>',
     )
     page = open_page(
@@ -2862,7 +2860,7 @@ def test_a_live_revision_reapplies_the_authored_conversation_seat_predicate(
             )
         ),
     )
-    composer = page.locator("#question > .lf-conversation > .lf-say")
+    composer = page.locator("#question > .lf-thread-seat > .lf-say")
     composer.get_by_role("textbox").fill("Please check the premise first.")
     with sending(page, "the seated question"):
         composer.get_by_role("button", name="Send", exact=True).click()
@@ -2880,7 +2878,7 @@ def test_a_live_revision_reapplies_the_authored_conversation_seat_predicate(
         )
 
     assert user_asks() == []
-    stamp_page(serve.page_dir, second, "remove the conversation seat")
+    stamp_page(serve.page_dir, second, "remove the thread seat")
     wait_for_revision(page, 2)
     assert user_asks() == ["question"]
 
@@ -4563,8 +4561,8 @@ def test_the_ask_walk_follows_registry_declarations(browser, serve):
 def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
     browser, serve
 ):
-    """The agent channel, end to end in the browser: a `leaf report` reaches
-    the open page on the next poll and paints as provisional news — the status
+    """The agent channel, end to end in the browser: a `leaf experimental report`
+    reaches the open page on the next poll and paints as provisional news — the status
     attribute moves, the parent's done-fraction recounts, and Page Map identifies a
     Reported update rather than the user's change. Task status remains work
     state and never creates a user request. Then the version that answers the report
@@ -4583,7 +4581,8 @@ def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
     )  # nothing waits on the user
 
     sent = CliRunner().invoke(
-        cli_model.cli, ["report", str(d), "t-parser", "status", "status=review"]
+        cli_model.cli,
+        ["experimental", "report", str(d), "t-parser", "status", "status=review"],
     )
     assert sent.exit_code == 0, sent.output
     told(page)
@@ -4607,7 +4606,8 @@ def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
     # A second report supersedes the first — absolute values fold — and the
     # fraction chip recounts across the tree.
     sent = CliRunner().invoke(
-        cli_model.cli, ["report", str(d), "t-parser", "status", "status=done"]
+        cli_model.cli,
+        ["experimental", "report", str(d), "t-parser", "status", "status=done"],
     )
     assert sent.exit_code == 0, sent.output
     told(page)
@@ -4770,6 +4770,7 @@ def test_a_rosters_row_says_when_the_log_last_heard_from_that_worker(browser, se
         # A state the markup does not already hold, or there is no news to paint: a
         # report saying what the page says is blessed silence, not provisional state.
         [
+            "experimental",
             "report",
             str(d),
             "ag-wren",
@@ -4840,6 +4841,7 @@ def test_claims_and_reports_share_one_canonical_update_feed(
     report = CliRunner().invoke(
         cli_model.cli,
         [
+            "experimental",
             "report",
             str(d),
             "ag-wren",
@@ -4860,7 +4862,7 @@ def test_claims_and_reports_share_one_canonical_update_feed(
                 "working",
                 "checking the user's question",
                 work={
-                    "subject": {"kind": "conversation", "id": thread["id"]},
+                    "subject": {"kind": "thread", "id": thread["id"]},
                     "after": claim_floor,
                 },
             )
@@ -4875,7 +4877,7 @@ def test_claims_and_reports_share_one_canonical_update_feed(
     assert by_source["claim"]["ts"] == by_source["report"]["ts"]
     assert by_source["claim"] == {
         "id": by_source["claim"]["id"],
-        "target": {"kind": "conversation", "id": thread["id"]},
+        "target": {"kind": "thread", "id": thread["id"]},
         "source": "claim",
         "action": "working",
         "detail": {"text": "checking the user's question"},
@@ -4907,7 +4909,7 @@ def test_claims_and_reports_share_one_canonical_update_feed(
             const feed = await window.__lfRuntimeImport('/runtime/widget-api.js');
             return {
                 widget: feed.updateSequence(document.querySelector('#ag-wren')),
-                conversation: feed.updateSequence({kind: 'conversation', id: 'ag-wren'}),
+                thread: feed.updateSequence({kind: 'thread', id: 'ag-wren'}),
                 bare: (() => {
                     try { feed.updateSequence('ag-wren'); }
                     catch (error) { return `${error.name}: ${error.message}`; }
@@ -4916,7 +4918,7 @@ def test_claims_and_reports_share_one_canonical_update_feed(
         }"""
     )
     assert [update["source"] for update in targeted["widget"]] == ["report"]
-    assert [update["source"] for update in targeted["conversation"]] == ["claim"]
+    assert [update["source"] for update in targeted["thread"]] == ["claim"]
     assert targeted["bare"].startswith("TypeError: update target must be")
     expect(page.locator("#ag-wren .lf-doing")).to_have_text("checking the mount prices")
 
@@ -4954,6 +4956,7 @@ def test_report_words_and_widget_state_wait_together_for_a_drag(browser, serve):
     first = CliRunner().invoke(
         cli_model.cli,
         [
+            "experimental",
             "report",
             str(d),
             "ag-wren",
@@ -4978,6 +4981,7 @@ def test_report_words_and_widget_state_wait_together_for_a_drag(browser, serve):
     second = CliRunner().invoke(
         cli_model.cli,
         [
+            "experimental",
             "report",
             str(d),
             "ag-wren",
@@ -5061,7 +5065,15 @@ def test_a_rosters_row_survives_the_polls_that_keep_it_fresh(browser, serve):
     )
     sent = CliRunner().invoke(
         cli_model.cli,
-        ["report", str(d), "ag-finch", "state", "state=idle", "doing=picking up"],
+        [
+            "experimental",
+            "report",
+            str(d),
+            "ag-finch",
+            "state",
+            "state=idle",
+            "doing=picking up",
+        ],
     )
     assert sent.exit_code == 0, sent.output
     told(page)
@@ -5076,6 +5088,7 @@ def test_a_rosters_row_survives_the_polls_that_keep_it_fresh(browser, serve):
     sent = CliRunner().invoke(
         cli_model.cli,
         [
+            "experimental",
             "report",
             str(d),
             "ag-wren",
@@ -5148,7 +5161,8 @@ def test_a_recounted_fraction_holds_the_width_it_had(browser, serve):
     before = fraction.bounding_box()["width"]
 
     sent = CliRunner().invoke(
-        cli_model.cli, ["report", str(d), "t-parser", "status", "status=done"]
+        cli_model.cli,
+        ["experimental", "report", str(d), "t-parser", "status", "status=done"],
     )
     assert sent.exit_code == 0, sent.output
     told(page)
@@ -5434,7 +5448,8 @@ def test_the_render_gate_applies_every_standing_action_a_second_time(browser, se
         ("ab-wren", "state", ["state=blocked", "doing=waiting on the fixture"]),
     ]:
         sent = CliRunner().invoke(
-            cli_model.cli, ["report", str(serve.page_dir), widget, verb, *fields]
+            cli_model.cli,
+            ["experimental", "report", str(serve.page_dir), widget, verb, *fields],
         )
         assert sent.exit_code == 0, sent.output
 
@@ -6216,7 +6231,7 @@ def test_a_pending_suggestion_can_be_discussed_instead_of_decided(browser, serve
     page.keyboard.press("ControlOrMeta+Enter")
 
     inline = page.locator(".lf-margin-thread")
-    expect(inline.locator(".lf-conversation-body")).to_have_text(
+    expect(inline.locator(".lf-page-thread-body")).to_have_text(
         "Half-empty by whose reading?"
     )
     page.locator(".lf-threads-toggle").click()
@@ -7201,7 +7216,7 @@ def test_a_reply_widget_replays_and_withdraws_its_action(browser, serve):
 
     # Chrome belongs to the thread rather than the page version. Its action therefore
     # still stands, and is still the user's newest undoable gesture, after the page
-    # advances around the conversation.
+    # advances around the thread.
     stamp_page(d, REPLY_HOST_PAGE, "v2")
     wait_for_revision(page, 2)
     if not page.locator(".lf-thread-panel").is_visible():
@@ -7244,7 +7259,7 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     page.keyboard.press("Enter")
     expect(reply).to_be_focused()
     expect(page.locator("#tq-one > lf-option[chosen]")).to_have_count(0)
-    # The box hands the user back to the conversation it belongs to, which is the
+    # The box hands the user back to the thread it belongs to, which is the
     # container it is part of rather than the pick they pressed Enter from.
     page.keyboard.press("Escape")
     expect(page.locator(".lf-thread:has(#tq-one) > .lf-thread-summary")).to_be_focused()
@@ -7765,14 +7780,14 @@ def test_worktree_evidence_names_the_arrow_that_stands_on_it(browser, serve):
     expect(frozen).to_have_attribute("aria-expanded", "false")
 
 
-def test_command_goal_can_pause_after_an_ordinary_conversation_started(browser, serve):
+def test_command_goal_can_pause_after_an_ordinary_thread_started(browser, serve):
     """A normal note does not consume the goal's stronger pause door. The user
     can start a later held thread, whose root remains the one atomic hold fact."""
     page = open_page(browser, serve(COMMAND_HUB_EXAMPLE))
     d = serve.page_dir
     goal = page.locator("#goal-parser")
-    conversation = goal.locator(":scope > .lf-conversation")
-    first = conversation.locator(":scope > .lf-say")
+    seat = goal.locator(":scope > .lf-thread-seat")
+    first = seat.locator(":scope > .lf-say")
     first.get_by_role("textbox").fill("Keep parsing; this is only a note.")
     with sending(page, "the note"):
         first.get_by_role("button", name="Send", exact=True).click()
@@ -7792,14 +7807,14 @@ def test_command_goal_can_pause_after_an_ordinary_conversation_started(browser, 
     ]
 
 
-def test_command_goal_conversation_follows_its_declaration_not_talk(
+def test_command_goal_thread_follows_its_declaration_not_talk(
     browser, serve, tmp_path, monkeypatch
 ):
     monkeypatch.chdir(tmp_path)
     registry = json.loads((COMMAND_HUB_PACKAGE / "registry.json").read_text())
     task = registry["lf-task"]
     task["properties"]["consult"] = {"type": "boolean"}
-    task["x-conversation"] = {
+    task["x-thread-seat"] = {
         "when": {"consult": [True]},
         "hold": "pause",
     }
@@ -7811,11 +7826,9 @@ def test_command_goal_conversation_follows_its_declaration_not_talk(
     )
     url = serve(command, layer_registry={"lf-task": task})
     page = open_page(browser, url)
-    conversation = page.locator("#goal > .lf-conversation")
-    expect(
-        conversation.get_by_role("textbox", name="Say something here")
-    ).to_be_visible()
-    expect(conversation.get_by_role("button", name="pause", exact=True)).to_be_visible()
+    seat = page.locator("#goal > .lf-thread-seat")
+    expect(seat.get_by_role("textbox", name="Say something here")).to_be_visible()
+    expect(seat.get_by_role("button", name="pause", exact=True)).to_be_visible()
 
 
 def test_command_hub_request_projects_before_waiting_for_one_linked_host_receipt(
@@ -7888,6 +7901,7 @@ def test_command_hub_request_projects_before_waiting_for_one_linked_host_receipt
     result = CliRunner().invoke(
         cli_model.cli,
         [
+            "experimental",
             "receipt",
             str(serve.page_dir),
             request["id"],
@@ -8027,6 +8041,7 @@ def test_a_page_request_gets_a_fresh_seat_in_a_new_revision(browser, serve):
     result = CliRunner().invoke(
         cli_model.cli,
         [
+            "experimental",
             "receipt",
             str(serve.page_dir),
             request["id"],
@@ -8139,6 +8154,7 @@ def test_a_thread_request_uses_its_frozen_lifecycle_in_the_browser(browser, serv
     result = CliRunner().invoke(
         cli_model.cli,
         [
+            "experimental",
             "receipt",
             str(serve.page_dir),
             request["id"],
@@ -8164,6 +8180,7 @@ def test_a_thread_request_uses_its_frozen_lifecycle_in_the_browser(browser, serv
     result = CliRunner().invoke(
         cli_model.cli,
         [
+            "experimental",
             "receipt",
             str(serve.page_dir),
             request["id"],
@@ -8201,6 +8218,7 @@ def test_a_succeeded_host_request_waits_for_an_authored_plan_revision(browser, s
     result = CliRunner().invoke(
         cli_model.cli,
         [
+            "experimental",
             "receipt",
             str(serve.page_dir),
             request["id"],
@@ -8262,6 +8280,7 @@ def test_a_failed_host_request_reopens_its_commands_without_changing_the_plan(
     result = CliRunner().invoke(
         cli_model.cli,
         [
+            "experimental",
             "receipt",
             str(serve.page_dir),
             request["id"],
@@ -8416,7 +8435,8 @@ def test_command_hub_derives_the_operator_reading_from_its_goal_tree(browser, se
     expect(worktree_head).to_be_focused()
 
     sent = CliRunner().invoke(
-        cli_model.cli, ["report", str(d), "api-errors", "status", "status=done"]
+        cli_model.cli,
+        ["experimental", "report", str(d), "api-errors", "status", "status=done"],
     )
     assert sent.exit_code == 0, sent.output
     told(page)
@@ -8464,6 +8484,7 @@ def test_command_hub_reads_one_publication_before_worker_presentation_commits(
     sent = CliRunner().invoke(
         cli_model.cli,
         [
+            "experimental",
             "report",
             str(serve.page_dir),
             "w-1",
@@ -8552,6 +8573,28 @@ def test_command_hub_goal_metadata_wraps_on_a_phone(browser, serve):
     expect(page.locator("#goal-parser > .lf-task-meta")).to_contain_text(long_when)
     assert page.evaluate(
         "() => document.documentElement.scrollWidth <= document.documentElement.clientWidth"
+    )
+
+
+def test_command_hub_operations_fit_their_column(browser, serve):
+    page = open_page(browser, serve(COMMAND_HUB_EXAMPLE))
+    operations = page.locator("lf-operations").first
+
+    resized(page, 320, 900)
+    assert operations.evaluate(
+        "holder => [...holder.querySelectorAll('lf-operation')].every("
+        "card => card.getBoundingClientRect().right <= "
+        "holder.getBoundingClientRect().right + 1)"
+    )
+    assert page.evaluate(
+        "() => document.documentElement.scrollWidth <= document.documentElement.clientWidth"
+    )
+
+    resized(page, 1280, 900)
+    assert operations.evaluate(
+        "holder => { const [first, second] = holder.querySelectorAll('lf-operation'); "
+        "return first.getBoundingClientRect().top === second.getBoundingClientRect().top "
+        "&& first.getBoundingClientRect().right < second.getBoundingClientRect().left; }"
     )
 
 
@@ -8671,6 +8714,7 @@ def test_command_hub_keeps_projection_focus_when_unrelated_news_arrives(browser,
     sent = CliRunner().invoke(
         cli_model.cli,
         [
+            "experimental",
             "report",
             str(d),
             "w-2",
@@ -8688,6 +8732,7 @@ def test_command_hub_keeps_projection_focus_when_unrelated_news_arrives(browser,
     sent = CliRunner().invoke(
         cli_model.cli,
         [
+            "experimental",
             "report",
             str(d),
             "w-2",
@@ -8729,7 +8774,7 @@ def test_command_hub_repaints_anchors_after_generated_projections_change(
     round_trip(page)
     sent = CliRunner().invoke(
         cli_model.cli,
-        ["report", str(d), "goal-parser", "status", "status=review"],
+        ["experimental", "report", str(d), "goal-parser", "status", "status=review"],
     )
     assert sent.exit_code == 0, sent.output
     told(page)
@@ -8834,10 +8879,10 @@ def test_command_hub_send_and_pause_is_one_thread_fold(browser, serve):
     d = serve.page_dir
     page = open_page(browser, url)
     goal = page.locator("#goal-parser")
-    conversation = goal.locator(":scope > .lf-conversation")
-    conversation.get_by_role("textbox").fill("Finish the current hunk, then park here.")
+    seat = goal.locator(":scope > .lf-thread-seat")
+    seat.get_by_role("textbox").fill("Finish the current hunk, then park here.")
     with sending(page, "the held send"):
-        conversation.get_by_role("button", name="Send & pause", exact=True).click()
+        seat.get_by_role("button", name="Send & pause", exact=True).click()
     expect(goal).to_have_attribute("data-lf-held")
     expect(goal.locator(":scope > .lf-task-meta")).to_contain_text("paused by you")
     paused = page.locator("#atlas-record .lf-activity-row").first
@@ -8870,7 +8915,7 @@ def test_command_hub_send_and_pause_is_one_thread_fold(browser, serve):
     expect(replied.locator(".lf-activity-excerpt")).to_have_text(
         "The hunk is complete; see the run and park."
     )
-    inline_link = conversation.locator('a[href="https://example.com/run"]')
+    inline_link = seat.locator('a[href="https://example.com/run"]')
     expect(inline_link).to_have_attribute("target", "_blank")
     expect(inline_link.locator(":scope > svg.lf-external-mark")).to_be_visible()
 
@@ -9309,6 +9354,7 @@ def test_a_spent_request_and_a_static_badge_say_so_before_the_press(browser, ser
     result = CliRunner().invoke(
         cli_model.cli,
         [
+            "experimental",
             "receipt",
             str(serve.page_dir),
             request["id"],

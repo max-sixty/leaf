@@ -143,15 +143,13 @@ export function createSelectionComposer({
   createComment,
   focusSurface,
   showThread,
-  refreshConversation,
+  refreshThread,
   wireInput,
 }) {
   const closeReactions = () => setReact(false);
   const openInlineThread = (id, options) => {
     const local = focusSurface(id, { focus: "thread" });
-    return (
-      local?.closest(".lf-conversation-thread") ?? marginOpenInlineThread(id, options)
-    );
+    return local?.closest(".lf-page-thread") ?? marginOpenInlineThread(id, options);
   };
 
   // What the open composer's comment is about: "design" for one opened in design mode, so
@@ -391,7 +389,7 @@ export function createSelectionComposer({
     // An explicit Comment gesture focuses the textarea and drops the native selection, so
     // this mark then becomes the durable pointer to the quoted passage. Automatic passage
     // selection leaves both readings standing until the user enters the field.
-    refreshConversation();
+    refreshThread();
     repaint();
   }
 
@@ -500,7 +498,7 @@ export function createSelectionComposer({
       pendingDrawing = validDrawing(drawing) ? drawing : null;
       suggestCheck.checked = Boolean(suggest);
       syncSuggestMode();
-      refreshConversation();
+      refreshThread();
     });
   }
   // Hiding keeps the draft and closing discards it, but the mark goes down with the box
@@ -632,7 +630,7 @@ export function createSelectionComposer({
         // commits its keyed DOM asynchronously. Wait for that presentation before
         // choosing the destination: otherwise an already-open panel can be asked to
         // focus a pending thread before the thread exists.
-        await refreshConversation();
+        await refreshThread();
         // A later draft or selection keeps its focus. The accepted comment still belongs
         // in an open panel, including when revealing it must widen the panel's filter.
         const shouldReveal =

@@ -20,7 +20,7 @@ answered. A session driving its own preview would read every gesture it makes ba
 as user input, so nothing claims a preview unless this flag asks for it.
 
 An example can also ship companion `.jsonl` events and `.data.json` source
-values. The first lets a page arrive mid-conversation; the second supplies the
+values. The first lets a page arrive mid-thread; the second supplies the
 same page-bound external data a real host would replace through `leaf data set`.
 
 A preview is a foreground process, like any dev server: it prints its URL and
@@ -41,15 +41,17 @@ preview that includes any move the claim was still carrying: discarding the page
 releases the claim, so the Stop hook stops holding the turn for moves that no
 longer exist. Until the next start, a stopped preview's page stays readable.
 
-While a preview runs, a source or layer edit stops its server, stamps changed
-source, and restarts at the same URL. `watchfiles` owns the watching: it reports
-which paths changed and groups an editor's save batch, so this script only says
-which paths it follows and what each one means. A layer edit also re-vendors,
-through the normal compatibility gate; a source edit alone does not, because
-vendoring mints a fresh layer generation and a revision carrying one is a different
-program, which the browser can only follow into a fresh document. So a prose edit
-here arrives the way it arrives for a user, patched into the page they are standing
-in. The page log and user decisions survive; a refused update stays visible in the
+While a preview runs, a source edit is stamped into the live page, and a layer edit
+re-vendors it and restarts its server at the same URL. `watchfiles` owns the
+watching: it reports which paths changed and groups an editor's save batch, so this
+script only says which paths it follows and what each one means. Only a layer edit
+re-vendors, through the normal compatibility gate, because vendoring mints a fresh
+layer generation and a revision carrying one is a different program, which the
+browser can only follow into a fresh document. So a prose edit here arrives the way
+it arrives for a user, patched into the page they are standing in, with the server
+that page talks to still up. A `--user` restart is a restart rather than a stop, so
+the session's `leaf wait` keeps watching across it. The page log and user decisions
+survive; a refused update stays visible in the
 output and is retried after the next edit. Seeded history is installed once, when
 the page is built, so a change to it is refused until the preview is restarted.
 `version stamp` lints the example on the way past. The browser gate a page normally
@@ -73,6 +75,7 @@ Usage: preview.py [page] [options]  (default: triage-board)
 """
 
 import argparse
+import contextlib
 import hashlib
 import json
 import os
@@ -371,13 +374,122 @@ def refused(reason) -> bool:
     return False
 
 
+class PreviewService:
+    """However this preview owns a server, for as long as it wants one up.
+
+    A preview holds a process-owned server on a retained address, so no claim or
+    service record outlives it. `--user` serves the page's durable service
+    instead, claimed and started by the selected checkout's leaf, which this
+    process runs. A source update reaches that server the way an agent's edit
+    does, and a re-vendor restarts it rather than stopping it, so the page belongs
+    to this session and the URL a user was handed survives every update, and the
+    session's `leaf wait` goes on watching it through each one.
+    Nothing else about a preview differs, so the two are told apart here and
+    nowhere else in its lifetime.
+    """
+
+    def __init__(self, page: Path, user: bool):
+        self.page = page
+        self.user = user
+        self.temporary = None
+        self.address: dict = {}
+        self.serving = False
+
+    def start(self) -> tuple[str, str]:
+        """Put the server up for the first time and report its URL and lifetime
+        note. A `--user` preview claims the page for this session here, once, and
+        gives the claim back if the start does not commit."""
+        from leaf.hosting import claim_and_start
+
+        started = claim_and_start(self.page) if self.user else self._serve_temporary()
+        self.serving = True
+        return started
+
+    def serve_again(self) -> None:
+        """Put the server back up, or say why not and leave `serving` false.
+
+        A restart claims nothing: the claim the first start took is still this
+        session's, and taking it again would reopen a turn the Stop hook closed."""
+        from leaf.detached import StartRefused
+        from leaf.hosting import start_server
+
+        if not self.user:
+            self._serve_temporary()
+        else:
+            try:
+                start_server(self.page)
+            except StartRefused as error:
+                print(error, file=sys.stderr, flush=True)
+                return
+        self.serving = True
+
+    @contextlib.contextmanager
+    def replacing(self):
+        """Hold the server down for a re-vendor, and put it back up after.
+
+        `page init` refuses a page whose server is up, and a layer edit can change
+        the code the server runs, so a re-vendor is the one update that takes the
+        server down. A `--user` one goes down as a restart (`restarting_server`),
+        which the session's `leaf wait` reads as the page coming back rather than
+        as a service someone stopped. The server comes back whether or not the
+        re-vendor was admitted, since the page the user has is the one that stays
+        up — but not when the preview itself is ending.
+        """
+        from leaf.hosting import restarting_server
+
+        with restarting_server(self.page) if self.user else contextlib.nullcontext():
+            if not self.user:
+                self._close_temporary()
+            self.serving = False
+            try:
+                yield
+            except Exception:
+                self.serve_again()
+                raise
+            self.serve_again()
+
+    def _serve_temporary(self) -> tuple[str, str]:
+        from leaf.hosting import TemporaryPageServer
+
+        self.temporary = TemporaryPageServer(self.page, **self.address).start()
+        self.address = {
+            "token": self.temporary.token,
+            "port": self.temporary.port,
+        }
+        return self.temporary.url, WATCHER_NOTE
+
+    def _close_temporary(self) -> None:
+        if self.temporary is not None:
+            self.temporary.close()
+            self.temporary = None
+
+    def stop(self) -> None:
+        """Take the server down for good, as the preview ends."""
+        from leaf.hosting import cmd_stop
+
+        if self.user:
+            cmd_stop(self.page)
+        else:
+            self._close_temporary()
+        self.serving = False
+
+    @property
+    def running(self) -> bool:
+        """Whether the server is up. A `--user` one also ends with its claim."""
+        from leaf.server import running_server
+
+        if not self.user:
+            return self.temporary is not None and self.temporary.running
+        return running_server(self.page) is not None
+
+
 def refresh_preview(
     source: Path,
     page: Path,
     launcher: Path,
     runtime: Path,
     state: dict,
-    user: bool,
+    service: PreviewService,
     vendor: bool = True,
 ) -> bool:
     """Replace only admitted layer/source changes; never recreate the page log.
@@ -394,6 +506,10 @@ def refresh_preview(
     the one place this is watched by eye, could only ever show the reload path. The
     watcher re-vendors when the layer it watches changed, and copies the source alone
     when that is all that changed.
+
+    Only the re-vendor takes the server down (`PreviewService.replacing`). The rest
+    writes into a live page the way an agent authors one — media, `index.html`, then
+    `version stamp` — so a prose edit arrives in the tab the user is standing in.
     """
     if fixture_seed(source) != state["seed"]:
         return refused(
@@ -420,7 +536,8 @@ def refresh_preview(
             (page / "registry.json").read_text(encoding="utf-8")
         )["$layer"]["packages"]
         if vendor or packages != vendored_packages:
-            leaf(launcher, runtime, "page", "init", *selection_args, str(page))
+            with service.replacing():
+                leaf(launcher, runtime, "page", "init", *selection_args, str(page))
         refresh_media(source, page)
         if source_changed:
             previous = authored.read_bytes()
@@ -439,7 +556,7 @@ def refresh_preview(
                 authored.write_bytes(previous)
                 raise
             state["source_digest"] = incoming_digest
-        mark_preview(source, page, runtime, user)
+        mark_preview(source, page, runtime, service.user)
     except (LeafFailed, ValueError, OSError) as error:
         return refused(error)
     return True
@@ -567,81 +684,6 @@ def watch_changes(watched: Watched):
     return watching()
 
 
-class PreviewService:
-    """However this preview owns a server, for as long as it wants one up.
-
-    A preview holds a process-owned server on a retained address, so no claim or
-    service record outlives it. `--user` serves the page's durable service
-    instead, claimed and started by the selected checkout's leaf, which this
-    process runs, and revived in place after each update, so the page belongs to
-    this session and the URL a user was handed survives every reload and every
-    `leaf wait`.
-    Nothing else about a preview differs, so the two are told apart here and
-    nowhere else in its lifetime.
-    """
-
-    def __init__(self, page: Path, user: bool):
-        self.page = page
-        self.user = user
-        self.temporary = None
-        self.address: dict = {}
-
-    def start(self) -> tuple[str, str]:
-        """Put the server up for the first time and report its URL and lifetime
-        note. A `--user` preview claims the page for this session here, once, and
-        gives the claim back if the start does not commit."""
-        from leaf.hosting import claim_and_start
-
-        if self.user:
-            return claim_and_start(self.page)
-        return self._serve_temporary()
-
-    def restart(self) -> tuple[str, str] | None:
-        """Put the server back up after an update, or None, having said why not.
-
-        A restart claims nothing: the claim the first start took is still this
-        session's, and taking it again would reopen a turn the Stop hook closed."""
-        from leaf.detached import StartRefused
-        from leaf.hosting import start_server
-
-        if not self.user:
-            return self._serve_temporary()
-        try:
-            return start_server(self.page)
-        except StartRefused as error:
-            print(error, file=sys.stderr, flush=True)
-            return None
-
-    def _serve_temporary(self) -> tuple[str, str]:
-        from leaf.hosting import TemporaryPageServer
-
-        self.temporary = TemporaryPageServer(self.page, **self.address).start()
-        self.address = {
-            "token": self.temporary.token,
-            "port": self.temporary.port,
-        }
-        return self.temporary.url, WATCHER_NOTE
-
-    def stop(self) -> None:
-        """Take the server down, keeping whatever a restart has to reuse."""
-        from leaf.hosting import cmd_stop
-
-        if self.user:
-            cmd_stop(self.page)
-        elif self.temporary is not None:
-            self.temporary.close()
-            self.temporary = None
-
-    @property
-    def running(self) -> bool:
-        """Whether the server is up. A `--user` one also ends with its claim."""
-        from leaf.server import running_server
-
-        if not self.user:
-            return self.temporary is not None and self.temporary.running
-        return running_server(self.page) is not None
-
-
 def discard_preview(page: Path) -> None:
     """Remove what an earlier preview left in this slot, claim included.
 
@@ -721,12 +763,11 @@ def serve_preview(
         print(note, file=sys.stderr, flush=True)
         print(url, flush=True)
         print(f"Watching {source} and {runtime}; feedback stays in {page}", flush=True)
-        serving = True
         while True:
             reported = {path for _, path in next(changes)}
-            if serving and not service.running:
+            if service.serving and not service.running:
                 return  # the service was stopped, or the owning session ended
-            if not serving and user:
+            if not service.serving and user:
                 # A refused restart has no service watching the claim's
                 # lifetime. Lost ownership ends this preview as well.
                 with PageTransaction(page) as transaction:
@@ -740,10 +781,11 @@ def serve_preview(
             if not reported & (watched.paths | current.paths):
                 continue
             vendored = bool(reported & (watched.layer | current.layer))
-            service.stop()
-            if refresh_preview(
-                source, page, launcher, runtime, state, user, vendor=vendored
-            ):
+            down = not service.serving
+            refreshed = refresh_preview(
+                source, page, launcher, runtime, state, service, vendor=vendored
+            )
+            if refreshed:
                 roots = layer_inputs(
                     tuple(read_json(page / "registry.json")["$layer"]["packages"])
                 )
@@ -758,8 +800,11 @@ def serve_preview(
                 changes.close()
                 changes = watch_changes(rebuilt)
             watched = rebuilt
-            serving = service.restart() is not None
-            if serving:
+            if down and not service.serving:
+                # An earlier update's restart did not commit, and said why. Each
+                # later update is another try, a source edit's included.
+                service.serve_again()
+            if refreshed and service.serving:
                 print(f"Reloaded {source.stem}", flush=True)
     finally:
         if changes is not None:

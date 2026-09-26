@@ -14,12 +14,12 @@ blocks the agent until that answer is written, and a null answer holds nobody.
 Answers are one of:
 
 - `{"kind": "reply", "to": <message>, "for": <event>}` — a thread input, or a
-  move in an answered Ask in frozen thread markup, answered by `leaf reply --for`;
+  move in an answered Ask in frozen thread markup, answered by `leaf thread reply --for`;
 - `{"kind": "turn", "to", "for", "attempt": <reply attempt>}` — the same reply
   once it is bound to the claimant's App Server turn, which writes it with its own
   opening and final messages. The binding lives in the page's stream status, so
   `activity` routes the answer, and a delivery frozen for App Server routes it
-  ahead of the binding; `leaf reply` refuses every writer but that attempt;
+  ahead of the binding; `leaf thread reply` refuses every writer but that attempt;
 - `{"kind": "markup", "action": <action>}` — a page action that is part of its
   widget's answered Ask and the authored markup does not yet record, answered by
   a stamped version that writes it in;
@@ -43,8 +43,8 @@ composing the answer, and the finishing move carries the receipt. Once the Ask i
 answered, every move on that widget is owed (`asks.part_of_ask`).
 
 A host that gives up on a move writes the failure its answer takes
-(`conversation.fail_answer`), each carrying `failure`: a reply in the
-conversation, a failed receipt, or a failed pickup of a page move. A failed receipt is the
+(`thread.fail_answer`), each carrying `failure`: a reply in the
+thread, a failed receipt, or a failed pickup of a page move. A failed receipt is the
 request's own outcome and settles it; the other two leave the move a workflow
 answered with a failed response, whose next actor is the user, until the user
 moves again or the markup records the move anyway.
@@ -146,7 +146,7 @@ def page_action_unsettled(
 def canonical_workflows(
     claims: list,
     threads: dict,
-    conversation,
+    thread_reading,
     *,
     page: PageReading | None = None,
     events: list | None = None,
@@ -159,7 +159,7 @@ def canonical_workflows(
     and authored state settle the source move, so the workflow disappears instead
     of becoming a second outcome surface; a failed response instead keeps an
     answered workflow whose next actor is the user. Consecutive inputs retain distinct
-    workflows even though the conversation's single response obligation is
+    workflows even though the thread's single response obligation is
     addressed to the newest one.
     """
     if page is not None:
@@ -310,8 +310,8 @@ def canonical_workflows(
         unanswered_inputs, response_address = thread_response_batch(turns)
         if thread["resolved"]:
             continue
-        target = {"kind": "conversation", "id": thread_id}
-        coordinate = ["conversation", thread_id]
+        target = {"kind": "thread", "id": thread_id}
+        coordinate = ["thread", thread_id]
         turns_by_id = {message["id"]: message for message in turns}
         for input_id, response in failed_responses.items():
             source = turns_by_id.get(input_id)
@@ -366,7 +366,7 @@ def canonical_workflows(
         # than answering. The resolution standing over the thread settles the moves
         # made before it, and the answer that resolved it; a move made after it is
         # delivered like any other and keeps its receipt.
-        thread_id = conversation.thread_by_widget.get(source["widget"])
+        thread_id = thread_reading.thread_by_widget.get(source["widget"])
         thread = threads.get(thread_id)
         if not thread or (
             thread["resolved"] and thread["resolved"]["seq"] >= source["seq"]
@@ -389,12 +389,12 @@ def canonical_workflows(
     documents = []
     if page is not None:
         documents.append((page.projection, page.document.by_id, page.spoken, page_move))
-    if conversation is not None:
+    if thread_reading is not None:
         documents.append(
             (
-                conversation.projection,
-                conversation.by_id,
-                conversation.spoken,
+                thread_reading.projection,
+                thread_reading.by_id,
+                thread_reading.spoken,
                 thread_move,
             )
         )

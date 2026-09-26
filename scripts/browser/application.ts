@@ -11,28 +11,28 @@ import {
   foldWidgetStates,
 } from "../../skills/leaf/assets/runtime/projection/model.js";
 import {
-  conversational,
+  discussed,
   foldThreads,
   readThreadRecords,
-} from "../../skills/leaf/assets/runtime/conversation/model.js";
+} from "../../skills/leaf/assets/runtime/thread/model.js";
 import {
-  conversationForAttempt,
-  isConversationEvent,
+  threadForAttempt,
+  isThreadEvent,
   isMessageEvent,
   pendingApprovals,
   pendingProjectionEntries,
   pendingReactions,
   pendingRequests,
   pendingSettlements,
-  pendingMessages as pendingConversationMessages,
+  pendingMessages as pendingThreadMessages,
   unresolvedAttempts,
 } from "../../skills/leaf/assets/runtime/pending/model.js";
-import { PENDING } from "../../skills/leaf/assets/runtime/conversation/identity.js";
+import { PENDING } from "../../skills/leaf/assets/runtime/thread/identity.js";
 
 // The pure model's input types are inferred from its existing implementation. They
 // remain one contract while those folds move to compiled source independently.
 type AuthoredMap = Parameters<typeof foldWidgetStates>[0];
-type Thread = Parameters<typeof conversational>[0];
+type Thread = Parameters<typeof discussed>[0];
 type Event = Thread["root"];
 
 interface ActionSpec {
@@ -63,7 +63,7 @@ interface WireAsk {
   tag: string;
   source: string;
   source_tag: string;
-  conversation: string | null;
+  thread: string | null;
 }
 
 /** One exact agent content version, as a Thread's `unread` names it. */
@@ -82,7 +82,7 @@ interface WireWorkflow {
   id: string;
   revision: number | null;
   input: string | null;
-  subject: { kind: "conversation" | "widget"; id: string };
+  subject: { kind: "thread" | "widget"; id: string };
   coordinate: unknown;
   answer: { kind: "reply" | "markup" | "receipt" } | null;
   stage: "sent" | "queued" | "picked_up" | "working" | "replying" | "answered";
@@ -114,7 +114,7 @@ export interface AskRecord {
   tag: string;
   sourceId: string;
   sourceTag: string;
-  conversation: string | null;
+  thread: string | null;
 }
 
 export interface SemanticDocument {
@@ -174,7 +174,7 @@ export interface AuthoritativeState {
         published_at?: string | null;
       }
     >;
-    conversation: {
+    thread: {
       threads: Thread[];
       projection: WireProjection;
       requests?: { seat: { document?: object; widget: string; unit: string; source_revision?: string; offered?: boolean }; phase: string }[];
@@ -190,13 +190,13 @@ export interface AuthoritativeState {
 
 function normalizedProjection(
   view: AuthoritativeState["browser"]["views"][string] | undefined,
-  conversation: AuthoritativeState["browser"]["conversation"] | undefined,
+  thread: AuthoritativeState["browser"]["thread"] | undefined,
 ) {
   const entries = [];
   const actionIds = [];
   const reportIds = [];
   const desiredIds = [];
-  for (const projection of [view?.document.projection, conversation?.projection]) {
+  for (const projection of [view?.document.projection, thread?.projection]) {
     if (!projection) continue;
     for (const wire of projection.entries ?? []) {
       const e = wire.event;
@@ -230,7 +230,7 @@ const emptyLifecycle = (descriptor: WidgetDescriptor) => ({
 });
 
 // The selected server view already bounds page history to the captured revision and
-// conversation history to its frozen document. Widget ids are unique across both, so
+// thread history to its frozen document. Widget ids are unique across both, so
 // filtering again by the event's authored revision would incorrectly discard carried
 // decisions from an earlier revision.
 const appliesTo = (descriptor: WidgetDescriptor, event: Event) =>
@@ -247,10 +247,10 @@ const askRecord = (ask: WireAsk): AskRecord => ({
   tag: ask.tag,
   sourceId: ask.source,
   sourceTag: ask.source_tag,
-  conversation: ask.conversation,
+  thread: ask.thread,
 });
 
-/* The admitted Ask reading, page asks before conversation asks.
+/* The admitted Ask reading, page asks before thread asks.
  *
  * Which Asks a document holds and which of them the user still owes are folded
  * by `leaf.asks` under the same page transaction as the rest of this state. Nothing here folds those declarations
@@ -258,10 +258,10 @@ const askRecord = (ask: WireAsk): AskRecord => ({
  * adopted — one reading after the widget state the user sees change at once. */
 function normalizedAsks(
   view: AuthoritativeState["browser"]["views"][string] | undefined,
-  conversation: AuthoritativeState["browser"]["conversation"] | undefined,
+  threadView: AuthoritativeState["browser"]["thread"] | undefined,
 ) {
   const page = view?.document.asks;
-  const thread = conversation?.asks;
+  const thread = threadView?.asks;
   const records = (kind: "all" | "user" | "unanswered") => [
     ...(page?.[kind] ?? []).map(askRecord),
     ...(thread?.[kind] ?? []).map(askRecord),
@@ -347,7 +347,7 @@ function widgetReading(
     .map((entry) => entry.event);
   const lifecycles =
     descriptor.document.kind === "thread"
-      ? root.effective.lifecycle.conversation.requests
+      ? root.effective.lifecycle.thread.requests
       : root.effective.lifecycle.page.requests;
   const requestUnits: Record<string, {
     seat: { document?: object; widget: string; unit: string; source_revision?: string; offered?: boolean };
@@ -420,14 +420,14 @@ function widgetReading(
       { event: e, unit, value },
     ]),
   );
-  const holdingThread = root.effective.conversation.all.find(
+  const holdingThread = root.effective.thread.all.find(
     (thread: any) =>
       !thread.resolved && !thread.root.pending && thread.root.holds === descriptor.id,
   );
   return {
     authored: authored ?? {},
     state: current?.state ?? {},
-    conversation: { heldBy: holdingThread?.root.id ?? null },
+    thread: { heldBy: holdingThread?.root.id ?? null },
     provenance,
     actions,
     requests,
@@ -523,7 +523,7 @@ export function createSemanticApplication({
     );
     const admitted = normalizedProjection(
       state?.browser.views[String(document.revision)],
-      state?.browser.conversation,
+      state?.browser.thread,
     );
     const projection = foldProjection({
       ...admitted,
@@ -534,8 +534,8 @@ export function createSemanticApplication({
       page: {
         requests: active?.document.requests ?? [],
       },
-      conversation: {
-        requests: state?.browser.conversation.requests ?? [],
+      thread: {
+        requests: state?.browser.thread.requests ?? [],
       },
       undo: active?.undo ?? [],
     };
@@ -543,10 +543,10 @@ export function createSemanticApplication({
     // Ask the page could hold, but only the log says which of them it still holds and
     // whether they are answered, so before that reading there is no inventory to publish.
     const ready = phase === "ready";
-    const pendingMessages = pendingConversationMessages(unresolved, receipts);
+    const pendingMessages = pendingThreadMessages(unresolved, receipts);
     const folded = ready
       ? foldThreads(
-          state?.browser.conversation.threads ?? [],
+          state?.browser.thread.threads ?? [],
           pendingMessages,
           pendingReactions(unresolved, receipts),
           pendingSettlements(unresolved, receipts),
@@ -554,26 +554,26 @@ export function createSemanticApplication({
       : [];
     const widgets = foldWidgetStates(document.authored, projection);
     const projectedRequests = pendingRequests(unresolved, receipts);
-    const asks = ready ? normalizedAsks(active, state?.browser.conversation) : NO_ASKS;
+    const asks = ready ? normalizedAsks(active, state?.browser.thread) : NO_ASKS;
     // Thread attention is the server's reading, and three local facts adjust it. A
-    // pending send hands the conversation to the agent, which `foldThreads` states. A
+    // pending send hands the thread to the agent, which `foldThreads` states. A
     // structural Ask survives prose sent beside it, so the admitted Ask inventory puts
     // back the independent obligation that still stands in that thread. A refused send
-    // hands a conversation the server left with the agent back to the user, whose
+    // hands a thread the server left with the agent back to the user, whose
     // Retry it is.
-    const owed = new Set(asks.user.map((ask) => ask.conversation));
+    const owed = new Set(asks.user.map((ask) => ask.thread));
     const refused = new Map<string, string>();
     for (const entry of unresolved.filter((entry: any) => entry.rejected)) {
       const message = entry.message;
       const held = document.descriptors.get(entry.event.widget)?.document;
-      const conversation = message
+      const thread = message
         ? message.kind === "reply"
           ? message.parent
           : message.id
         : held?.kind === "thread"
           ? held.thread
           : undefined;
-      if (conversation) refused.set(conversation, `rejected:${entry.event.attempt}`);
+      if (thread) refused.set(thread, `rejected:${entry.event.attempt}`);
     }
     const obligated = folded.map((thread: any) => {
       if (owed.has(thread.root.id))
@@ -608,7 +608,7 @@ export function createSemanticApplication({
         input: message?.id ?? entry.localId,
         subject: message
           ? {
-              kind: "conversation",
+              kind: "thread",
               id: message.kind === "reply" ? message.parent : message.id,
             }
           : { kind: "widget", id: entry.event.widget },
@@ -648,13 +648,13 @@ export function createSemanticApplication({
       hostAvailable,
       projection,
       widgets,
-      conversation: {
+      thread: {
         all: threads,
         collection: {
           phase,
-          threads: threads.filter(conversational),
+          threads: threads.filter(discussed),
           // Admitted approvals are semantic input even when no Thread changes.
-          done: state?.browser.conversation.done ?? [],
+          done: state?.browser.thread.done ?? [],
         },
       },
       asks,
@@ -766,10 +766,10 @@ export function createSemanticApplication({
     // document contract must not reinterpret historical events.
     projectView(
       view: AuthoritativeState["browser"]["views"][string],
-      conversation: AuthoritativeState["browser"]["conversation"],
+      thread: AuthoritativeState["browser"]["thread"],
     ) {
       return foldProjection({
-        ...normalizedProjection(view, conversation),
+        ...normalizedProjection(view, thread),
         pendingEntries: [],
       });
     },
@@ -928,8 +928,8 @@ export function createSemanticApplication({
       if (entry(event.attempt)) return null;
       const before = publisher.read();
       const localId = PENDING + event.attempt;
-      const conversation = isConversationEvent(event)
-        ? { ...conversationForAttempt(event, timestamp), plainText }
+      const thread = isThreadEvent(event)
+        ? { ...threadForAttempt(event, timestamp), plainText }
         : null;
       const undoTarget =
         event.kind === "undo"
@@ -970,8 +970,8 @@ export function createSemanticApplication({
             localId,
             order: localOrder,
             projection,
-            conversation,
-            message: isMessageEvent(event) ? conversation : null,
+            thread,
+            message: isMessageEvent(event) ? thread : null,
             undoTarget: undoTarget?.event.attempt ?? null,
             answered: false,
             rejected: false,

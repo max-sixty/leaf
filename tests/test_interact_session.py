@@ -56,7 +56,6 @@ from leaf import activity as activity_model
 from leaf import cli as cli_model
 from leaf import codex as codex_model
 from leaf import codex_adapter as codex_adapter_model
-from leaf import conversation as conversation_model
 from leaf import delivery as delivery_model
 from leaf import event_contracts as event_contracts_model
 from leaf import event_log as events_model
@@ -75,6 +74,7 @@ from leaf import schema as schema_model
 from leaf import server as server_model
 from leaf import service as service_model
 from leaf import session as session_model
+from leaf import thread as thread_model
 from leaf import thread_context as thread_context_model
 from leaf import vendoring as vendoring_model
 from leaf.registry import contract as registry_contract
@@ -245,7 +245,7 @@ def test_delivery_claim_marks_only_a_current_delivered_move_active(page_dir):
     """The first feedback operation needs no subject reconstruction from the agent.
 
     The delivery supplies the address, while the locked page reading prevents an old
-    delivery from claiming a newer message in the same conversation.
+    delivery from claiming a newer message in the same thread.
     """
     first = events_model.append_event(
         page_dir,
@@ -264,10 +264,10 @@ def test_delivery_claim_marks_only_a_current_delivered_move_active(page_dir):
         ],
     )
     assert claimed.exit_code == 0, claimed.output
-    assert "working on conversation first for event first" in claimed.output
+    assert "working on thread first for event first" in claimed.output
     status = files_model.read_json(page_dir / "status.json")
     assert status["detail"] == "Answering the comment"
-    assert status["handling"]["target"] == {"kind": "conversation", "id": "first"}
+    assert status["handling"]["target"] == {"kind": "thread", "id": "first"}
     assert status["handling"]["event"] == first["id"]
     live = page_state(page_dir)
     assert "handling" not in live["status"]
@@ -417,7 +417,7 @@ def test_terminal_host_failure_keeps_exact_user_recovery_without_stop_obligation
         page_dir,
         {"kind": "comment", "id": "failed-input", "author": "user", "text": "A"},
     )
-    failure = conversation_model.cmd_reply(
+    failure = thread_model.cmd_reply(
         page_dir,
         source["id"],
         "The agent's turn ended without an answer. Send it again to retry.",
@@ -454,7 +454,7 @@ def test_terminal_host_failure_keeps_exact_user_recovery_without_stop_obligation
     # The move is the user's to resend, so the banner counts nothing as saved for
     # the agent to pick up.
     assert set(state["activity"]["counts"].values()) == {0}
-    [thread] = state["browser"]["conversation"]["threads"]
+    [thread] = state["browser"]["thread"]["threads"]
     assert thread["attention"] == {
         "kind": "needs_user",
         "reason": "recovery",
@@ -468,7 +468,7 @@ def test_user_resend_clears_terminal_failure_recovery(page_dir):
         page_dir,
         {"kind": "comment", "id": "failed-first", "author": "user", "text": "A"},
     )
-    failure = conversation_model.cmd_reply(
+    failure = thread_model.cmd_reply(
         page_dir,
         first["id"],
         "The agent's turn ended without an answer. Send it again to retry.",
@@ -491,7 +491,7 @@ def test_user_resend_clears_terminal_failure_recovery(page_dir):
     assert [(item["input"], item["next_actor"]) for item in state["workflows"]] == [
         (resent["id"], "agent")
     ]
-    [thread] = state["browser"]["conversation"]["threads"]
+    [thread] = state["browser"]["thread"]["threads"]
     assert thread["attention"] == {
         "kind": "waiting",
         "reason": "workflow",
@@ -605,12 +605,11 @@ def test_unrelated_agent_update_does_not_clear_a_standing_user_ask(page_dir):
             "id": "ask-update",
             "author": "agent",
             "parent": question["id"],
-            "initiates": True,
             "text": "The checks finished.",
         },
     )
 
-    [thread] = page_state(page_dir)["browser"]["conversation"]["threads"]
+    [thread] = page_state(page_dir)["browser"]["thread"]["threads"]
     assert thread["awaits_user"] is True
     assert thread["attention"] == {
         "kind": "needs_user",
@@ -621,10 +620,8 @@ def test_unrelated_agent_update_does_not_clear_a_standing_user_ask(page_dir):
 
 def test_settling_reaction_closes_an_agent_root_ask(page_dir):
     publish(page_dir)
-    question = conversation_model.cmd_comment(
-        page_dir, "", "", "", "Is forty enough?", None
-    )
-    [before] = page_state(page_dir)["browser"]["conversation"]["threads"]
+    question = thread_model.cmd_comment(page_dir, "", "", "", "Is forty enough?", None)
+    [before] = page_state(page_dir)["browser"]["thread"]["threads"]
     assert before["awaits_user"] is True
 
     events_model.append_event(
@@ -637,7 +634,7 @@ def test_settling_reaction_closes_an_agent_root_ask(page_dir):
         },
     )
 
-    [after] = page_state(page_dir)["browser"]["conversation"]["threads"]
+    [after] = page_state(page_dir)["browser"]["thread"]["threads"]
     assert after["awaits_user"] is False
     assert after["attention"] is None
 
@@ -697,7 +694,7 @@ def test_frozen_widget_workflow_contributes_to_its_thread_attention(page_dir):
     )
     thread = next(
         item
-        for item in state["browser"]["conversation"]["threads"]
+        for item in state["browser"]["thread"]["threads"]
         if item["root"]["id"] == asked["id"]
     )
     assert thread["attention"] == {
@@ -727,7 +724,7 @@ def test_frozen_widget_workflow_contributes_to_its_thread_attention(page_dir):
         {"kind": "failed", "operation": "response"},
     )
     assert state["activity"]["obligations"] == []
-    [thread] = state["browser"]["conversation"]["threads"]
+    [thread] = state["browser"]["thread"]["threads"]
     assert thread["attention"] == {
         "kind": "needs_user",
         "reason": "recovery",
@@ -779,7 +776,7 @@ def test_a_frozen_move_that_answers_no_ask_keeps_a_receipt_and_owes_nothing(
 
     def reading():
         state = page_state(page_dir)
-        [thread] = state["browser"]["conversation"]["threads"]
+        [thread] = state["browser"]["thread"]["threads"]
         return state, thread["attention"]
 
     state, attention = reading()
@@ -823,7 +820,6 @@ def test_a_frozen_move_that_answers_no_ask_keeps_a_receipt_and_owes_nothing(
             "kind": "reply",
             "author": "agent",
             "parent": asked["id"],
-            "initiates": True,
             "text": "Baffle is in progress now.",
         },
     )
@@ -831,8 +827,8 @@ def test_a_frozen_move_that_answers_no_ask_keeps_a_receipt_and_owes_nothing(
     assert state["workflows"] == []
     assert attention is None
 
-    # Resolution closes the conversation without taking in a move made after it.
-    conversation_model.cmd_resolve(page_dir, asked["id"])
+    # Resolution closes the thread without taking in a move made after it.
+    thread_model.cmd_resolve(page_dir, asked["id"])
     later = append_command(
         page_dir,
         {
@@ -871,7 +867,7 @@ def test_thread_attention_names_the_workflow_the_thread_waits_on():
             "next_actor": "agent",
         }
 
-    thread = {"id": "root", "kind": "conversation"}
+    thread = {"id": "root", "kind": "thread"}
     board = {"kind": "widget", "id": "board"}
     owed = {"kind": "reply", "to": "newer", "for": "newer"}
     cases = [
@@ -965,7 +961,7 @@ def test_embedded_codex_delivery_is_durable_and_idempotent(page_dir):
     assert 'operation="delivery read"' in prompt.prompt
     assert "skill=" not in prompt.prompt
     [batch] = prompt.payload["batches"]
-    assert set(batch) == {"page", "through_seq", "conversations", "handling", "events"}
+    assert set(batch) == {"page", "through_seq", "threads", "handling", "events"}
     assert batch["events"][0]["id"] == comment["id"]
     claim = service_model.page_claim(page_dir)
     assert {key: claim[key] for key in ("id", "harness", "pid", "agent")} == {
@@ -996,7 +992,7 @@ def test_embedded_codex_delivery_is_durable_and_idempotent(page_dir):
 
 def test_only_one_turn_reply_can_bind_the_app_server_final_message():
     """A turn binds its messages to the delivery's one `turn` answer. A plain
-    `reply` is `leaf reply`'s even when a turn Leaf observes picks the delivery up,
+    `reply` is `leaf thread reply`'s even when a turn Leaf observes picks the delivery up,
     as it does a pointer queued before Leaf observed the task."""
 
     def payload(*answers):
@@ -1068,7 +1064,7 @@ def test_a_completed_stream_answers_its_event_even_when_the_reply_address_differ
         },
     }
     assert hooks_model._turn_wrote(obligation, {"claim_turn": "leaf-turn"})
-    # A plain reply is `leaf reply`'s to write, whatever a draft says.
+    # A plain reply is `leaf thread reply`'s to write, whatever a draft says.
     plain = {**obligation, "answer": {**obligation["answer"], "kind": "reply"}}
     assert not hooks_model._turn_wrote(plain, {"claim_turn": "leaf-turn"})
 
@@ -1159,7 +1155,7 @@ def test_embedded_codex_delivery_abandons_only_its_mutable_delivery_record(page_
     first_payload = delivery_model.delivery_path(first_path.stem)
 
     codex_model.abandon_codex_delivery("hosted-thread", first["id"])
-    conversation_model.cmd_reply(
+    thread_model.cmd_reply(
         page_dir,
         first["id"],
         "try again later",
@@ -1186,7 +1182,7 @@ def test_embedded_codex_delivery_keeps_settled_input_in_the_complete_page_batch(
         {"kind": "comment", "author": "user", "text": "first"},
     )
     first = events_model.read_events(page_dir)[-1]
-    conversation_model.cmd_reply(
+    thread_model.cmd_reply(
         page_dir,
         first["id"],
         "try again later",
@@ -1466,7 +1462,7 @@ def test_an_active_receipt_says_which_thread_the_agent_is_on(
     status = files_model.read_json(page_dir / "status.json")
     assert (status["state"], status["detail"]) == ("working", "reading the traces")
     work = status["work"][0]
-    assert work["subject"] == {"kind": "conversation", "id": "c1"}
+    assert work["subject"] == {"kind": "thread", "id": "c1"}
     assert work["event"] == "c1"
     assert work["detail"] == "reading the traces" and work["ts"] == status["ts"]
     assert work["after"] == comment_seq
@@ -1479,7 +1475,7 @@ def test_an_active_receipt_says_which_thread_the_agent_is_on(
     assert live["claims"] == [
         {
             "id": work["id"],
-            "target": {"kind": "conversation", "id": "c1"},
+            "target": {"kind": "thread", "id": "c1"},
             "event": "c1",
             "source": "claim",
             "action": "working",
@@ -1495,7 +1491,7 @@ def test_an_active_receipt_says_which_thread_the_agent_is_on(
     claim = next(update for update in folded["updates"] if update["source"] == "claim")
     assert claim == {
         **live["claims"][0],
-        "target": {"kind": "conversation", "id": "c1"},
+        "target": {"kind": "thread", "id": "c1"},
         "disposition": "effective",
     }
 
@@ -1605,7 +1601,7 @@ def test_a_working_claim_can_name_a_widget_until_a_version_completes_it(page_dir
     assert "work" not in live["status"]
     assert live["claims"][0]["revision"] == 1
 
-    # A drawing has no prose or declared conversation in which a local line can
+    # A drawing has no prose or declared thread in which a local line can
     # stand. The declaration, not a widget-name branch, decides that at the door.
     no_seat = _status(page_dir, "working", "checking the graph", "--on", "flow")
     assert no_seat.exit_code == 1
@@ -1792,7 +1788,7 @@ def test_direct_delivery_progress_does_not_become_page_activity(claimed, capsys)
     # The agent reading names each obligation by id; the move itself is listed once.
     [move] = owed(agent_state)
     assert agent_activity["obligations"] == [move["id"]]
-    assert move["subject"] == {"kind": "conversation", "id": comment["id"]}
+    assert move["subject"] == {"kind": "thread", "id": comment["id"]}
     assert "acknowledgments" not in page_state(claimed)["browser"]
     pickup = events_model.read_events(claimed)[-1]
     claim = service_model.page_claim(claimed)
@@ -1868,7 +1864,7 @@ def test_fresh_exact_reply_supersedes_an_older_workflow_condition():
         "id": "input-1",
         "input": "input-1",
         "seq": 1,
-        "coordinate": ["conversation", "input-1"],
+        "coordinate": ["thread", "input-1"],
         "answer": {"kind": "reply", "to": "input-1", "for": "input-1"},
         "stage": "working",
         "ts": (now - timedelta(minutes=20)).isoformat(),
@@ -3112,9 +3108,7 @@ def test_a_delivery_turn_streams_and_commits_its_reply_on_its_own_connection(
     request.addfinalizer(lambda: follower.join(timeout=5))
 
     streamed = wait_for(
-        lambda: page_state(page_dir)["browser"]["conversation"]["threads"][0]["msgs"][
-            -1
-        ],
+        lambda: page_state(page_dir)["browser"]["thread"]["threads"][0]["msgs"][-1],
         lambda message: message["text"] == "Streaming",
         failure="the streamed reply did not reach the page",
         timeout=5,
@@ -3149,7 +3143,7 @@ def test_a_delivery_turn_streams_and_commits_its_reply_on_its_own_connection(
             service_model.delivery_reply_attempt(prepared.payload["id"]),
         )
     ]
-    [thread] = page_state(page_dir)["browser"]["conversation"]["threads"]
+    [thread] = page_state(page_dir)["browser"]["thread"]["threads"]
     assert thread["msgs"][-1]["id"] == replies[0]["id"]
 
 
@@ -3240,7 +3234,7 @@ def test_a_queued_app_server_turn_uses_its_delivery_id_for_the_final_reply(page_
 def test_an_observed_queue_pointer_leaves_its_reply_to_leaf_reply(page_dir):
     """A pointer frozen for the queue names a plain `reply`, and that is what its
     agent is told to write. The observer still opens the turn it lands in, but
-    binds nothing to the turn's messages, so `leaf reply` answers it rather than
+    binds nothing to the turn's messages, so `leaf thread reply` answers it rather than
     refusing it as the turn's."""
     comment = events_model.append_event(
         page_dir,
@@ -3291,10 +3285,10 @@ def test_an_observed_queue_pointer_leaves_its_reply_to_leaf_reply(page_dir):
         "for": comment["id"],
     }
 
-    posted = conversation_model.cmd_reply(
+    posted = thread_model.cmd_reply(
         page_dir,
         None,
-        "Answered with leaf reply",
+        "Answered with leaf thread reply",
         "",
         for_event=comment["id"],
         identity={"session": "codex-thread"},
@@ -3489,7 +3483,7 @@ def test_an_interrupted_stream_reply_finishes_after_the_claim_advances(page_dir)
         "reply_to": comment["id"],
         "responds": comment["id"],
     }
-    conversation_model.reserve_delivery_reply("codex-thread", "delivery-1", target)
+    thread_model.reserve_delivery_reply("codex-thread", "delivery-1", target)
     with service_model.PageTransaction(page_dir) as page:
         page.open_turn("codex-thread", "turn-1")
     stream = codex_model.AppServerReplyStream(
@@ -3549,7 +3543,7 @@ def test_a_delivery_bound_final_is_the_only_plain_reply_writer(page_dir):
         page.open_turn("codex-thread", "turn-2")
 
     with pytest.raises(SystemExit, match="answered by this turn's messages"):
-        conversation_model.cmd_reply(
+        thread_model.cmd_reply(
             page_dir,
             comment["id"],
             "Anchored answer",
@@ -3581,10 +3575,10 @@ def test_a_delivery_reserves_its_final_before_provider_execution(page_dir):
         "responds": comment["id"],
     }
 
-    conversation_model.reserve_delivery_reply("codex-thread", "delivery-1", target)
+    thread_model.reserve_delivery_reply("codex-thread", "delivery-1", target)
 
     with pytest.raises(SystemExit, match="answered by this turn's messages"):
-        conversation_model.cmd_reply(
+        thread_model.cmd_reply(
             page_dir,
             comment["id"],
             "Competing reply",
@@ -3594,7 +3588,7 @@ def test_a_delivery_reserves_its_final_before_provider_execution(page_dir):
         )
 
     with pytest.raises(RuntimeError, match="already bound to another delivery"):
-        conversation_model.reserve_delivery_reply("codex-thread", "delivery-2", target)
+        thread_model.reserve_delivery_reply("codex-thread", "delivery-2", target)
 
 
 def test_a_delivery_bound_final_cannot_append_after_claim_transfer(page_dir):
@@ -3633,9 +3627,7 @@ def test_a_delivery_bound_final_cannot_append_after_claim_transfer(page_dir):
         "reply_to": comment["id"],
         "responds": comment["id"],
     }
-    conversation_model.reserve_delivery_reply(
-        "successor-thread", "delivery-2", successor
-    )
+    thread_model.reserve_delivery_reply("successor-thread", "delivery-2", successor)
     with service_model.PageTransaction(page_dir) as page:
         assert page.status["stream"]["reply_bindings"][comment["id"]] == {
             "session": "successor-thread",
@@ -3923,7 +3915,7 @@ def test_a_busy_codex_task_keeps_its_delivery_for_a_later_turn(page_dir, app_ser
         codex_model.delivery_record_state("codex-thread", prepared.payload["id"])
         == "offering"
     )
-    assert not conversation_model.delivery_reply_reserved(
+    assert not thread_model.delivery_reply_reserved(
         "codex-thread", prepared.payload["id"], target
     )
 
@@ -3956,7 +3948,7 @@ def test_a_refused_turn_gives_up_the_seat_it_reserved(page_dir, app_server):
             _CarriedDeliveries(endpoint), "codex-thread", prepared.payload
         )
 
-    assert not conversation_model.delivery_reply_reserved(
+    assert not thread_model.delivery_reply_reserved(
         "codex-thread", prepared.payload["id"], target
     )
 
@@ -3980,7 +3972,7 @@ def test_an_unacknowledged_turn_keeps_the_seat_it_reserved(page_dir, app_server)
             _CarriedDeliveries(endpoint), "codex-thread", prepared.payload
         )
 
-    assert conversation_model.delivery_reply_reserved(
+    assert thread_model.delivery_reply_reserved(
         "codex-thread", prepared.payload["id"], target
     )
 
@@ -4051,7 +4043,7 @@ def test_a_connection_that_drops_ends_the_turn_it_was_carrying(page_dir):
     prepared = _codex_delivery(page_dir)
     payload = prepared.payload
     target = codex_model.stream_reply_target(payload)
-    conversation_model.reserve_delivery_reply("codex-thread", payload["id"], target)
+    thread_model.reserve_delivery_reply("codex-thread", payload["id"], target)
 
     class Socket:
         def recv(self, timeout=None):
@@ -4073,7 +4065,7 @@ def test_a_connection_that_drops_ends_the_turn_it_was_carrying(page_dir):
     assert (
         codex_model.delivery_record_state("codex-thread", payload["id"]) == "accepted"
     )
-    assert not conversation_model.delivery_reply_reserved(
+    assert not thread_model.delivery_reply_reserved(
         "codex-thread", payload["id"], target
     )
     assert service_model.page_claim(page_dir)["turn_closed"] is not None
@@ -4090,7 +4082,7 @@ def test_a_stopping_adapter_leaves_a_running_turn_to_a_later_carrier(page_dir):
     prepared = _codex_delivery(page_dir)
     payload = prepared.payload
     target = codex_model.stream_reply_target(payload)
-    conversation_model.reserve_delivery_reply("codex-thread", payload["id"], target)
+    thread_model.reserve_delivery_reply("codex-thread", payload["id"], target)
 
     class Socket:
         def recv(self, timeout=None):
@@ -4109,9 +4101,7 @@ def test_a_stopping_adapter_leaves_a_running_turn_to_a_later_carrier(page_dir):
     )
     turn.follow()
 
-    assert conversation_model.delivery_reply_reserved(
-        "codex-thread", payload["id"], target
-    )
+    assert thread_model.delivery_reply_reserved("codex-thread", payload["id"], target)
     reply = files_model.read_json(page_dir / "status.json")["stream"]["reply"]
     assert reply["state"] == "disconnected"
 
@@ -4129,14 +4119,14 @@ def test_a_reply_that_cannot_be_written_still_closes_its_turn(page_dir, monkeypa
     prepared = _codex_delivery(page_dir)
     payload = prepared.payload
     target = codex_model.stream_reply_target(payload)
-    conversation_model.reserve_delivery_reply("codex-thread", payload["id"], target)
+    thread_model.reserve_delivery_reply("codex-thread", payload["id"], target)
     turn = codex_adapter_model.DeliveryTurn(
         _CarriedDeliveries(), "codex-thread", None, "leaf-turn", payload["id"], target
     )
     codex_model.open_stream_turn("codex-thread", "leaf-turn")
     codex_model.set_stream_activity("codex-thread", "leaf-turn", {"kind": "working"})
     turn.open_reply()
-    monkeypatch.setattr(conversation_model.DeliveryReply, "_set_state", _unopenable)
+    monkeypatch.setattr(thread_model.DeliveryReply, "_set_state", _unopenable)
 
     with pytest.raises(OSError, match="could not be opened"):
         turn.commit({"id": "leaf-turn", "status": "completed", "items": []})
@@ -4147,7 +4137,7 @@ def test_a_reply_that_cannot_be_written_still_closes_its_turn(page_dir, monkeypa
     ) is None
     # The seat goes back too: a reply that faulted part-written holds one nothing
     # will ever commit, and every other writer waits behind it.
-    assert not conversation_model.delivery_reply_reserved(
+    assert not thread_model.delivery_reply_reserved(
         "codex-thread", payload["id"], target
     )
 
@@ -4166,7 +4156,7 @@ def test_an_observed_turn_whose_reply_cannot_be_written_still_closes(
     prepared = _codex_delivery(page_dir)
     payload = prepared.payload
     target = codex_model.stream_reply_target(payload)
-    conversation_model.reserve_delivery_reply("codex-thread", payload["id"], target)
+    thread_model.reserve_delivery_reply("codex-thread", payload["id"], target)
     observer = _observer()
     observer._read(
         {
@@ -4191,7 +4181,7 @@ def test_an_observed_turn_whose_reply_cannot_be_written_still_closes(
         }
     )
     assert observer.turns["leaf-turn"].reply_stream is not None
-    monkeypatch.setattr(conversation_model.DeliveryReply, "_set_state", _unopenable)
+    monkeypatch.setattr(thread_model.DeliveryReply, "_set_state", _unopenable)
 
     with pytest.raises(OSError, match="could not be opened"):
         observer._read(
@@ -4206,7 +4196,7 @@ def test_an_observed_turn_whose_reply_cannot_be_written_still_closes(
 
     assert observer.turns == {}
     assert service_model.page_claim(page_dir)["turn_closed"] is not None
-    assert not conversation_model.delivery_reply_reserved(
+    assert not thread_model.delivery_reply_reserved(
         "codex-thread", payload["id"], target
     )
 
@@ -4853,7 +4843,7 @@ def test_active_handling_survives_a_mutable_layer_edit(page_dir, capsys):
         {
             **comment,
             "answer": {"kind": "reply"},
-            "conversation": {"title": None},
+            "thread": {"title": None},
         },
         registry,
     )
@@ -4898,13 +4888,13 @@ def test_codex_delivery_carries_only_the_selected_events_handling(page_dir):
         event["id"] for event in selected
     ]
     registry = registry_storage.active_registry(page_dir)
-    digests = {digest["id"]: digest for digest in batch["conversations"]}
+    digests = {digest["id"]: digest for digest in batch["threads"]}
 
     def case(event):
-        """The event as its clauses read it: with its conversation."""
+        """The event as its clauses read it: with its thread."""
         read = dict(event)
-        if event["conversations"]:
-            read["conversation"] = digests[event["conversations"][0]]
+        if event["threads"]:
+            read["thread"] = digests[event["threads"][0]]
         return read
 
     expected = [
@@ -5073,7 +5063,7 @@ def test_wait_prints_unacknowledged_input_without_receipt_or_pickup(page_dir, ca
 
 
 @pytest.mark.parametrize("title", [None, "Workshop venue"])
-def test_first_delivery_carries_conversation_title_without_repeating_messages(
+def test_first_delivery_carries_thread_title_without_repeating_messages(
     page_dir, title
 ):
     publish(page_dir)
@@ -5091,7 +5081,7 @@ def test_first_delivery_carries_conversation_title_without_repeating_messages(
         named = CliRunner().invoke(
             cli_model.cli,
             [
-                "conversation",
+                "thread",
                 "title",
                 str(page_dir),
                 root["id"],
@@ -5104,7 +5094,7 @@ def test_first_delivery_carries_conversation_title_without_repeating_messages(
     assert waited.exit_code == 0, waited.output
     _, header, shown = delivered(waited.output)
     assert [event["id"] for event in shown] == [root["id"]]
-    assert header["conversations"] == [
+    assert header["threads"] == [
         {
             "id": root["id"],
             "title": title,
@@ -5160,13 +5150,13 @@ def test_wait_repeats_a_stable_transport_neutral_batch_until_ack(page_dir):
     assert grown.exit_code == 0, grown.output
     _, grown_header, grown_events = delivered(grown.output)
     assert grown_header["page"] == header["page"]
-    assert grown_header["conversations"][0] == header["conversations"][0]
-    assert [thread["id"] for thread in grown_header["conversations"]] == ["c1", "c2"]
+    assert grown_header["threads"][0] == header["threads"][0]
+    assert [thread["id"] for thread in grown_header["threads"]] == ["c1", "c2"]
     assert grown_header["through_seq"] == 2
     assert [event["seq"] for event in grown_events] == [1, 2]
 
 
-def test_conversation_read_is_exact_and_paginated(page_dir):
+def test_thread_read_is_exact_and_paginated(page_dir):
     root = events_model.append_event(
         page_dir,
         {"kind": "comment", "id": "selected", "author": "user", "text": "one"},
@@ -5187,12 +5177,12 @@ def test_conversation_read_is_exact_and_paginated(page_dir):
 
     first = CliRunner().invoke(
         cli_model.cli,
-        ["conversation", "read", str(page_dir), root["id"], "--limit", "2"],
+        ["thread", "read", str(page_dir), root["id"], "--limit", "2"],
     )
     assert first.exit_code == 0, first.output
     reading = json.loads(first.output)
-    assert reading["conversation"]["id"] == root["id"]
-    assert "conversations" not in reading
+    assert reading["thread"]["id"] == root["id"]
+    assert "threads" not in reading
     assert "neighbor" not in first.output
     assert [item["message"] for item in reading["content"]] == [
         messages[0]["id"],
@@ -5212,7 +5202,7 @@ def test_conversation_read_is_exact_and_paginated(page_dir):
     second = CliRunner().invoke(
         cli_model.cli,
         [
-            "conversation",
+            "thread",
             "read",
             str(page_dir),
             root["id"],
@@ -5230,7 +5220,7 @@ def test_conversation_read_is_exact_and_paginated(page_dir):
     assert continued["history"]["next_after"] is None
 
 
-def test_conversation_summary_is_admitted_as_one_ordered_thread_range(page_dir):
+def test_thread_summary_is_admitted_as_one_ordered_thread_range(page_dir):
     root = events_model.append_event(
         page_dir,
         {"kind": "comment", "author": "user", "text": "one"},
@@ -5262,7 +5252,7 @@ def test_conversation_summary_is_admitted_as_one_ordered_thread_range(page_dir):
         return CliRunner().invoke(
             cli_model.cli,
             [
-                "conversation",
+                "thread",
                 "summarize",
                 str(page_dir),
                 root["id"],
@@ -5278,14 +5268,11 @@ def test_conversation_summary_is_admitted_as_one_ordered_thread_range(page_dir):
 
     reversed_range = summarize(second["id"], root["id"])
     assert reversed_range.exit_code != 0
-    assert "at least two messages in conversation order" in reversed_range.output
+    assert "at least two messages in thread order" in reversed_range.output
 
     cross_thread = summarize(root["id"], neighbor["id"])
     assert cross_thread.exit_code != 0
-    assert (
-        "endpoints must name spoken turns in the named conversation"
-        in cross_thread.output
-    )
+    assert "endpoints must name spoken turns in the named thread" in cross_thread.output
 
     reaction = events_model.append_event(
         page_dir,
@@ -5299,7 +5286,7 @@ def test_conversation_summary_is_admitted_as_one_ordered_thread_range(page_dir):
     standing_reaction_range = summarize(third["id"], reaction["id"])
     assert standing_reaction_range.exit_code != 0
     assert (
-        "endpoints must name spoken turns in the named conversation"
+        "endpoints must name spoken turns in the named thread"
         in standing_reaction_range.output
     )
 
@@ -5310,8 +5297,7 @@ def test_conversation_summary_is_admitted_as_one_ordered_thread_range(page_dir):
     withdrawn_range = summarize(third["id"], reaction["id"])
     assert withdrawn_range.exit_code != 0
     assert (
-        "endpoints must name spoken turns in the named conversation"
-        in withdrawn_range.output
+        "endpoints must name spoken turns in the named thread" in withdrawn_range.output
     )
 
     described = summarize(second["id"], third["id"], as_json=False)
@@ -5322,10 +5308,10 @@ def test_conversation_summary_is_admitted_as_one_ordered_thread_range(page_dir):
     assert accepted.exit_code == 0, accepted.output
     summary = json.loads(accepted.output)
     assert {
-        key: summary[key] for key in ("kind", "conversation", "from", "through", "text")
+        key: summary[key] for key in ("kind", "thread", "from", "through", "text")
     } == {
         "kind": "summary",
-        "conversation": root["id"],
+        "thread": root["id"],
         "from": root["id"],
         "through": second["id"],
         "text": "The first exchange.",
@@ -5333,17 +5319,17 @@ def test_conversation_summary_is_admitted_as_one_ordered_thread_range(page_dir):
 
     read = CliRunner().invoke(
         cli_model.cli,
-        ["conversation", "read", str(page_dir), root["id"]],
+        ["thread", "read", str(page_dir), root["id"]],
     )
     assert read.exit_code == 0, read.output
-    [projected] = json.loads(read.output)["conversation"]["summaries"]
+    [projected] = json.loads(read.output)["thread"]["summaries"]
     assert projected["id"] == summary["id"]
     assert projected["covers"] == [
         root["id"],
         internal_reaction["id"],
         second["id"],
     ]
-    browser_thread = page_state(page_dir)["browser"]["conversation"]["threads"][0]
+    browser_thread = page_state(page_dir)["browser"]["thread"]["threads"][0]
     assert [message["id"] for message in browser_thread["msgs"]] == [
         root["id"],
         internal_reaction["id"],
@@ -5429,6 +5415,7 @@ def test_reply_is_fenced_to_the_exact_current_obligation(page_dir):
     stale = CliRunner().invoke(
         cli_model.cli,
         [
+            "thread",
             "reply",
             str(page_dir),
             "--to",
@@ -5445,6 +5432,7 @@ def test_reply_is_fenced_to_the_exact_current_obligation(page_dir):
     current = CliRunner().invoke(
         cli_model.cli,
         [
+            "thread",
             "reply",
             str(page_dir),
             "--to",
@@ -5459,7 +5447,7 @@ def test_reply_is_fenced_to_the_exact_current_obligation(page_dir):
     assert events_model.read_events(page_dir)[-1]["responds"] == second["id"]
 
 
-def test_a_widget_reply_does_not_settle_newer_conversation_input(page_dir):
+def test_a_widget_reply_does_not_settle_newer_thread_input(page_dir):
     activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None and activated.revision == 1
     asked = events_model.append_event(
@@ -5498,7 +5486,7 @@ def test_a_widget_reply_does_not_settle_newer_conversation_input(page_dir):
     before = state_json(page_dir)["activity"]["obligations"]
     assert before == [chose["id"], newer["id"]]
 
-    replied = conversation_model.cmd_reply(
+    replied = thread_model.cmd_reply(
         page_dir,
         asked["id"],
         "East noted.",
@@ -5600,7 +5588,7 @@ def test_settling_a_frozen_widget_move_does_not_revive_its_superseded_move(
     )
     assert state_json(page_dir)["activity"]["obligations"] == [answered["id"]]
 
-    conversation_model.cmd_reply(
+    thread_model.cmd_reply(
         page_dir,
         asked["id"],
         "East noted.",
@@ -5611,12 +5599,12 @@ def test_settling_a_frozen_widget_move_does_not_revive_its_superseded_move(
     assert after == []
 
 
-def test_a_delivered_reply_carries_the_conversation_it_lands_in(page_dir, capsys):
+def test_a_delivered_reply_carries_the_thread_it_lands_in(page_dir, capsys):
     """A reply event names the message it answers and nothing else about its
     thread, and the agent's own answers are never delivered at all — they are
     not the user's news. So a follow-up reaches a session that has compacted, or
     one picking the page up, as an id it cannot resolve, and the answer goes out
-    against half a conversation. The envelope carries the rest: the anchor the
+    against half a thread. The envelope carries the rest: the anchor the
     thread hangs on and the messages the lines below it do not repeat."""
     serving(page_dir, 1)
     opened = events_model.append_event(
@@ -5659,7 +5647,7 @@ def test_a_delivered_reply_carries_the_conversation_it_lands_in(page_dir, capsys
         "to": followed["id"],
         "for": followed["id"],
     }
-    [thread] = header["conversations"]
+    [thread] = header["threads"]
     assert thread["id"] == opened["id"]
     assert thread["anchor"] == {"section": "s-1", "quote": "one in about 40"}
     assert thread["resolved"] is None
@@ -5669,7 +5657,7 @@ def test_a_delivered_reply_carries_the_conversation_it_lands_in(page_dir, capsys
     ]
     assert "without naming a date" in thread["messages"][1]["text"]
 
-    # A new conversation carries its metadata without repeating the opening message.
+    # A new thread carries its metadata without repeating the opening message.
     receive_through(page_dir, last_deliverable_seq(page_dir))
     events_model.append_event(
         page_dir,
@@ -5677,30 +5665,28 @@ def test_a_delivered_reply_carries_the_conversation_it_lands_in(page_dir, capsys
     )
     assert session_model.cmd_wait(page_dir) == 0
     _, fresh, _ = delivered(capsys.readouterr().out)
-    [new_thread] = fresh["conversations"]
+    [new_thread] = fresh["threads"]
     assert new_thread["title"] is None
     assert new_thread["messages"] == []
 
     # The user closing a thread from the panel posts a resolve, whose only
-    # pointer at the conversation is the message it names.
+    # pointer at the thread is the message it names.
     receive_through(page_dir, last_deliverable_seq(page_dir))
     events_model.append_event(
         page_dir, {"kind": "resolve", "author": "user", "parent": followed["id"]}
     )
     assert session_model.cmd_wait(page_dir) == 0
     _, closed_batch, _ = delivered(capsys.readouterr().out)
-    [closed] = closed_batch["conversations"]
+    [closed] = closed_batch["threads"]
     assert (closed["id"], closed["resolved"]) == (opened["id"], "user")
 
 
-def test_a_delivered_gesture_on_a_sent_widget_carries_its_conversation(
-    page_dir, capsys
-):
+def test_a_delivered_gesture_on_a_sent_widget_carries_its_thread(page_dir, capsys):
     """An action names a widget, and a widget an agent sent lives in frozen
     thread markup rather than in any version. Neither the id nor the option it
     chose means anything without the message that asked, so the envelope
-    resolves the widget to its conversation and brings the markup along. An undo
-    belongs to the conversation holding the gesture it takes back."""
+    resolves the widget to its thread and brings the markup along. An undo
+    belongs to the thread holding the gesture it takes back."""
     subjects = (
         '<lf-command id="hub"><lf-task id="goal" status="active">'
         "<strong>Goal</strong>" + COMMAND_SUBJECTS + "</lf-task></lf-command>"
@@ -5710,7 +5696,7 @@ def test_a_delivered_gesture_on_a_sent_widget_carries_its_conversation(
     )
     publish(page_dir)
     serving(page_dir, 1)
-    # A second conversation carrying a widget of its own, so resolving the acted
+    # A second thread carrying a widget of its own, so resolving the acted
     # widget to its thread is a result and not the only answer available.
     events_model.append_event(
         page_dir,
@@ -5752,7 +5738,7 @@ def test_a_delivered_gesture_on_a_sent_widget_carries_its_conversation(
     assert session_model.cmd_wait(page_dir) == 0
     _, header, shown = delivered(capsys.readouterr().out)
     assert [e["id"] for e in shown] == [chose["id"]]
-    [thread] = header["conversations"]
+    [thread] = header["threads"]
     assert thread["id"] == asked["id"]
     # The markup, because `m-cap` is a word only the question spells out.
     assert 'id="m-cap"' in thread["messages"][0]["markup"]
@@ -5775,13 +5761,13 @@ def test_a_delivered_gesture_on_a_sent_widget_carries_its_conversation(
     )
     assert session_model.cmd_wait(page_dir) == 0
     _, standing_batch, _ = delivered(capsys.readouterr().out)
-    [standing] = standing_batch["conversations"]
+    [standing] = standing_batch["threads"]
     assert [
         (a["author"], a["widget"], a["action"], a["detail"])
         for a in standing["actions"]
     ] == [("user", "gm", "choose", {"options": ["m-cap"]})]
 
-    # Taken back, and the conversation stops carrying it — the log keeps the
+    # Taken back, and the thread stops carrying it — the log keeps the
     # gesture, and no reading of the log stands on it.
     receive_through(page_dir, last_deliverable_seq(page_dir))
     events_model.append_event(
@@ -5789,7 +5775,7 @@ def test_a_delivered_gesture_on_a_sent_widget_carries_its_conversation(
     )
     assert session_model.cmd_wait(page_dir) == 0
     _, withdrawn_batch, _ = delivered(capsys.readouterr().out)
-    [withdrawn] = withdrawn_batch["conversations"]
+    [withdrawn] = withdrawn_batch["threads"]
     assert withdrawn["id"] == asked["id"]
     assert withdrawn["actions"] == []
 
@@ -5859,7 +5845,7 @@ def test_a_delivered_gesture_says_what_the_user_chose_on_their_version(
 def test_one_action_can_belong_to_its_widget_thread_and_the_thread_it_resolves(
     page_dir, capsys
 ):
-    """A sent widget lives in one conversation and may answer another. The raw
+    """A sent widget lives in one thread and may answer another. The raw
     event is stored once, while exact selection and wait expose both semantic
     memberships without duplicating the event in a delivered batch."""
     (page_dir / "index.html").write_text(PAGE)
@@ -5910,13 +5896,13 @@ def test_one_action_can_belong_to_its_widget_thread_and_the_thread_it_resolves(
     assert session_model.cmd_wait(page_dir) == 0
     _, header, shown = delivered(capsys.readouterr().out)
     assert [event["id"] for event in shown] == [accepted["id"]]
-    assert shown[0]["conversations"] == [origin["id"], target["id"]]
+    assert shown[0]["threads"] == [origin["id"], target["id"]]
     assert shown[0]["answer"] == {
         "kind": "reply",
         "to": origin["id"],
         "for": accepted["id"],
     }
-    assert [thread["id"] for thread in header["conversations"]] == [
+    assert [thread["id"] for thread in header["threads"]] == [
         origin["id"],
         target["id"],
     ]
@@ -5925,14 +5911,14 @@ def test_one_action_can_belong_to_its_widget_thread_and_the_thread_it_resolves(
         (target["id"], [target["id"], accepted["id"]]),
     ):
         selected = CliRunner().invoke(
-            cli_model.cli, ["events", str(page_dir), "--conversation", thread]
+            cli_model.cli, ["events", str(page_dir), "--thread", thread]
         )
         assert selected.exit_code == 0, selected.output
         assert [
             json.loads(line)["id"] for line in selected.output.splitlines()
         ] == expected
 
-    reply = conversation_model.cmd_reply(
+    reply = thread_model.cmd_reply(
         page_dir,
         origin["id"],
         "Applied the accepted wording.",
@@ -5946,7 +5932,7 @@ def test_a_delivered_request_on_a_sent_widget_carries_its_frozen_contract(
     page_dir, capsys
 ):
     """A host request is meaningful only beside the message that declared its
-    package widget. Keep that message even when a long conversation would normally
+    package widget. Keep that message even when a long thread would normally
     elide it from the delivery envelope."""
     subjects = (
         '<lf-command id="hub"><lf-task id="goal" status="active">'
@@ -6002,7 +5988,7 @@ def test_a_delivered_request_on_a_sent_widget_carries_its_frozen_contract(
     _, header, shown = delivered(capsys.readouterr().out)
     assert [event["id"] for event in shown] == [requested["id"]]
     assert shown[0]["answer"] == {"kind": "receipt", "request": requested["id"]}
-    [thread] = header["conversations"]
+    [thread] = header["threads"]
     assert thread["id"] == root["id"]
     carried = next(
         message
@@ -6022,7 +6008,7 @@ def test_a_delivered_request_on_a_sent_widget_carries_its_frozen_contract(
         },
     )
     selected = CliRunner().invoke(
-        cli_model.cli, ["events", str(page_dir), "--conversation", root["id"]]
+        cli_model.cli, ["events", str(page_dir), "--thread", root["id"]]
     )
     assert selected.exit_code == 0, selected.output
     selected_ids = [json.loads(line)["id"] for line in selected.output.splitlines()]
@@ -6037,7 +6023,7 @@ def test_a_delivered_request_on_a_sent_widget_carries_its_frozen_contract(
 
 
 # A page whose suggestion answers c1, which is the one shipped shape where the
-# gesture that settles a conversation is made on a widget standing outside it.
+# gesture that settles a thread is made on a widget standing outside it.
 SETTLING_PAGE = PAGE.replace(
     '<lf-ask id="plan-choice-decision">',
     '<lf-suggestion id="sug-refill" resolves="c1">\n'
@@ -6075,9 +6061,9 @@ def _settling_page(page_dir):
     serving(page_dir, 1)
 
 
-def test_a_page_ask_that_settles_a_thread_carries_its_conversation(page_dir, capsys):
-    """A gesture settles a conversation through its widget's `resolves`, and the
-    widget it is made on need not stand in that conversation — for the one shipped
+def test_a_page_ask_that_settles_a_thread_carries_its_thread(page_dir, capsys):
+    """A gesture settles a thread through its widget's `resolves`, and the
+    widget it is made on need not stand in that thread — for the one shipped
     settling verb, `lf-suggestion`'s decide, it stands on the page and in no
     thread at all. Reading the sending widget alone therefore left the gesture
     that closes a thread as the one gesture arriving with nothing behind it."""
@@ -6100,15 +6086,15 @@ def test_a_page_ask_that_settles_a_thread_carries_its_conversation(page_dir, cap
 
     assert session_model.cmd_wait(page_dir) == 0
     _, header, _ = delivered(capsys.readouterr().out)
-    assert [t["resolved"] for t in state_json(page_dir)["conversations"]] == ["user"]
-    assert [t["id"] for t in header["conversations"]] == ["c1"], json.dumps(header)
-    message = header["conversations"][0]["messages"][0]
+    assert [t["resolved"] for t in state_json(page_dir)["threads"]] == ["user"]
+    assert [t["id"] for t in header["threads"]] == ["c1"], json.dumps(header)
+    message = header["threads"][0]["messages"][0]
     assert "text" not in message
     assert message["drawing"] == SETTLING_DECISION["drawing"]
 
 
 def test_an_undo_of_a_page_ask_carries_the_thread_it_reopens(page_dir, capsys):
-    """Withdrawing that gesture reopens the conversation, so the delivery owes
+    """Withdrawing that gesture reopens the thread, so the delivery owes
     the same reading the accept did."""
     _settling_page(page_dir)
     accepted = append_command(page_dir, dict(SETTLING_ACCEPT))
@@ -6120,15 +6106,15 @@ def test_an_undo_of_a_page_ask_carries_the_thread_it_reopens(page_dir, capsys):
 
     assert session_model.cmd_wait(page_dir) == 0
     _, header, _ = delivered(capsys.readouterr().out)
-    assert [t["resolved"] for t in state_json(page_dir)["conversations"]] == [None]
-    assert [t["id"] for t in header["conversations"]] == ["c1"], json.dumps(header)
+    assert [t["resolved"] for t in state_json(page_dir)["threads"]] == [None]
+    assert [t["id"] for t in header["threads"]] == ["c1"], json.dumps(header)
 
 
 def test_exact_thread_history_and_wait_share_indirect_resolution_events(
     page_dir, capsys
 ):
     """Rejecting an accepted answer, undoing that rejection, and later restating
-    what the answer rested on all change the same conversation without naming it
+    what the answer rested on all change the same thread without naming it
     directly. Exact history and live delivery use one Leaf-owned membership join."""
     _settling_page(page_dir)
     accepted = append_command(page_dir, dict(SETTLING_ACCEPT))
@@ -6148,7 +6134,7 @@ def test_exact_thread_history_and_wait_share_indirect_resolution_events(
     )
     assert session_model.cmd_wait(page_dir) == 0
     _, header, _ = delivered(capsys.readouterr().out)
-    assert [thread["id"] for thread in header["conversations"]] == ["c1"]
+    assert [thread["id"] for thread in header["threads"]] == ["c1"]
 
     rejected_seq = next(
         event["seq"]
@@ -6162,7 +6148,7 @@ def test_exact_thread_history_and_wait_share_indirect_resolution_events(
     )
     assert session_model.cmd_wait(page_dir) == 0
     _, header, _ = delivered(capsys.readouterr().out)
-    assert [thread["id"] for thread in header["conversations"]] == ["c1"]
+    assert [thread["id"] for thread in header["threads"]] == ["c1"]
 
     restated = events_model.append_event(
         page_dir,
@@ -6176,7 +6162,7 @@ def test_exact_thread_history_and_wait_share_indirect_resolution_events(
         },
     )
     selected = CliRunner().invoke(
-        cli_model.cli, ["events", str(page_dir), "--conversation", "c1"]
+        cli_model.cli, ["events", str(page_dir), "--thread", "c1"]
     )
     assert selected.exit_code == 0, selected.output
     assert [json.loads(line)["id"] for line in selected.output.splitlines()] == [
@@ -6186,7 +6172,7 @@ def test_exact_thread_history_and_wait_share_indirect_resolution_events(
         undone["id"],
         restated["id"],
     ]
-    assert state_json(page_dir)["conversations"][0]["resolved"] is None
+    assert state_json(page_dir)["threads"][0]["resolved"] is None
 
 
 # One authored id for the group, so an action can name it. Its options already
@@ -6212,7 +6198,7 @@ def test_a_delivery_and_page_state_agree_on_what_a_floor_took_back(
 
     The floor lands on the option rather than the group. Before a new reply,
     only a rewritten answer reopens the thread; the user's subsequent question
-    resumes either conversation, and delivery agrees with page state."""
+    resumes either thread, and delivery agrees with page state."""
     (page_dir / "index.html").write_text(PICKS_PAGE)
     let_a_pick_settle_a_thread(page_dir, "which")
     serving(page_dir, 1)
@@ -6254,7 +6240,7 @@ def test_a_delivery_and_page_state_agree_on_what_a_floor_took_back(
     # and a seq is the line the log gave it.
     logged_seq = {e["id"]: e["seq"] for e in events_model.read_events(page_dir)}
     receive_through(page_dir, logged_seq[answered["id"]])
-    [before_reply] = state_json(page_dir)["conversations"]
+    [before_reply] = state_json(page_dir)["threads"]
     assert (before_reply["resolved"] is None) is rewritten
     events_model.append_event(
         page_dir,
@@ -6268,17 +6254,17 @@ def test_a_delivery_and_page_state_agree_on_what_a_floor_took_back(
 
     assert session_model.cmd_wait(page_dir) == 0
     _, header, _ = delivered(capsys.readouterr().out)
-    [delivered_conversation] = header["conversations"]
-    assert delivered_conversation["id"] == opened["id"]
-    [standing] = state_json(page_dir)["conversations"]
-    assert delivered_conversation["resolved"] == standing["resolved"]
-    # The new spoken turn resumes either conversation, regardless of its old answer.
-    assert delivered_conversation["resolved"] is None
+    [delivered_thread] = header["threads"]
+    assert delivered_thread["id"] == opened["id"]
+    [standing] = state_json(page_dir)["threads"]
+    assert delivered_thread["resolved"] == standing["resolved"]
+    # The new spoken turn resumes either thread, regardless of its old answer.
+    assert delivered_thread["resolved"] is None
 
 
-def test_the_envelope_stops_growing_with_the_conversation(page_dir, capsys):
+def test_the_envelope_stops_growing_with_the_thread(page_dir, capsys):
     """A delivery reprints the whole thread every time, because the agent it is
-    for may hold none of it. Unbounded, the header grows with the conversation
+    for may hold none of it. Unbounded, the header grows with the thread
     until it alone outgrows the output it prints into — and that is the one
     shape acknowledgement cannot recover from, since the ack rule's remedy for
     truncation is to rerun, and a rerun prints the same oversize header. So the
@@ -6301,7 +6287,7 @@ def test_the_envelope_stops_growing_with_the_conversation(page_dir, capsys):
         page_dir,
         {"kind": "comment", "author": "user", "revision": 1, "text": "y" * 188},
     )
-    initial_thread_state_size = len(json.dumps(state_json(page_dir)["conversations"]))
+    initial_thread_state_size = len(json.dumps(state_json(page_dir)["threads"]))
     parent, headers = root["id"], []
     for turn in range(30):
         agent = events_model.append_event(
@@ -6320,21 +6306,20 @@ def test_the_envelope_stops_growing_with_the_conversation(page_dir, capsys):
         )["id"]
         assert session_model.cmd_wait(page_dir) == 0
         _, batch, _ = delivered(capsys.readouterr().out)
-        headers.append(len(json.dumps(batch["conversations"])))
+        headers.append(len(json.dumps(batch["threads"])))
         receive_through(page_dir, last_deliverable_seq(page_dir))
         capsys.readouterr()
 
     # Flat, not merely slower: twenty further exchanges add only the few
     # characters a longer sequence number spends. Page state likewise keeps the
-    # conversation itself flat; its separate element inventory grows here because
+    # thread itself flat; its separate element inventory grows here because
     # every reply deliberately adds a live widget contract.
     assert headers[-1] - headers[9] < 100, headers
     assert (
-        len(json.dumps(state_json(page_dir)["conversations"]))
-        - initial_thread_state_size
+        len(json.dumps(state_json(page_dir)["threads"])) - initial_thread_state_size
         < 100
     )
-    [thread] = batch["conversations"]
+    [thread] = batch["threads"]
     assert len(thread["messages"]) == thread_context_model.SHOWN
     assert thread["elided"]["messages"] == 52
     # The opening message survives the bound: it holds what the thread is about.
@@ -6344,7 +6329,7 @@ def test_the_envelope_stops_growing_with_the_conversation(page_dir, capsys):
 def test_the_bound_keeps_the_message_a_carried_gesture_needs(page_dir, capsys):
     """A gesture names a widget, and what that widget asked lives only in the
     message that sent it: page markup is a file read away, thread markup is
-    nowhere but the log. So a long conversation whose question sits early would
+    nowhere but the log. So a long thread whose question sits early would
     otherwise deliver `choose m-cap` with nothing saying what `gm` asked or what
     `m-cap` said — the defect this reading exists to fix, surviving the bound."""
     (page_dir / "index.html").write_text(PAGE)
@@ -6397,7 +6382,7 @@ def test_the_bound_keeps_the_message_a_carried_gesture_needs(page_dir, capsys):
 
     assert session_model.cmd_wait(page_dir) == 0
     _, batch, _ = delivered(capsys.readouterr().out)
-    [thread] = batch["conversations"]
+    [thread] = batch["threads"]
     assert thread["elided"]["messages"] > 0, "the bound did not engage"
     assert [a["widget"] for a in thread["actions"]] == ["gm"]
     # The question survives the elision that took its neighbours.
@@ -6944,6 +6929,42 @@ def test_watch_does_not_revive_a_disabled_service(page_dir, monkeypatch, snapsho
             ),
         )
     )
+
+
+def test_watch_waits_out_a_restart_and_loses_a_restart_that_left_it_stopped(
+    page_dir, monkeypatch
+):
+    """A restart disables the service as a stop does, but its holder starts it
+    again, so a wait reads the gap as the page coming back: neither lost nor due a
+    revival. A holder that lets go without starting it leaves a plain stop."""
+    files_model.write_json(
+        page_dir / "service.json",
+        {
+            "host": "127.0.0.1",
+            "bind": "127.0.0.1",
+            "port": available_loopback_port(),
+            "enabled": True,
+            "lifetime": "session",
+        },
+    )
+    session_model.cmd_status(page_dir, "waiting", "review the page")
+
+    def unexpected_start(*_args, **_kwargs):
+        pytest.fail("a restarting service was revived")
+
+    monkeypatch.setattr(session_model, "start_server", unexpected_start)
+    watch = session_model.Watch(None, pages=(page_dir,))
+    try:
+        assert watch.acquire()
+        with hosting_model.restarting_server(page_dir):
+            assert not files_model.read_json(page_dir / "service.json")["enabled"]
+            restarting = next(watch.tick())
+        stopped = next(watch.tick())
+    finally:
+        watch.release()
+
+    assert restarting.live and not restarting.lost
+    assert stopped.lost
 
 
 def test_a_watch_wakes_on_what_its_pass_read_moving(page_dir):
@@ -7610,7 +7631,7 @@ def test_codex_recovers_page_receipts_in_sequence_order(codex_claimed_page):
                 {
                     "page": str(page),
                     "session": "codex-thread",
-                    "conversations": [],
+                    "threads": [],
                     "events": [event],
                     "receipted": False,
                 }
@@ -7749,7 +7770,7 @@ def test_a_receipted_codex_batch_ignores_a_reinitialized_page_cursor(
     assert not codex_adapter_model._has_delivery_work("codex-thread")
 
 
-def test_one_conversation_delivery_starts_and_receipts_its_app_server_turn(
+def test_one_thread_delivery_starts_and_receipts_its_app_server_turn(
     codex_claimed_page, monkeypatch
 ):
     page = codex_claimed_page
@@ -7957,7 +7978,7 @@ def test_an_uncertain_app_server_start_recovers_by_delivery_identity(
         attempted.append(payload)
         # The seat an uncertain start reserved stays reserved, because a turn
         # carrying this delivery may be running.
-        conversation_model.reserve_delivery_reply(
+        thread_model.reserve_delivery_reply(
             session_id, payload["id"], codex_model.stream_reply_target(payload)
         )
         raise codex_model.AppServerDeliveryUncertain("lost acknowledgement")
@@ -7978,7 +7999,7 @@ def test_an_uncertain_app_server_start_recovers_by_delivery_identity(
     [(path, queue)] = codex_records("codex-thread")
     assert queue["state"] == "offering"
     with pytest.raises(SystemExit, match="answered by this turn's messages"):
-        conversation_model.cmd_reply(
+        thread_model.cmd_reply(
             page,
             comment["id"],
             "Competing reply",
@@ -8018,7 +8039,7 @@ def test_an_uncertain_app_server_start_recovers_by_delivery_identity(
     assert recovered["state"] == "accepted"
     assert all(batch["receipted"] for batch in recovered["batches"])
     assert service_model.page_claim(page)["turn_closed"] is not None
-    accepted = conversation_model.cmd_reply(
+    accepted = thread_model.cmd_reply(
         page,
         comment["id"],
         "Recovered outside the failed provider turn",
@@ -8081,9 +8102,7 @@ def test_app_server_deliveries_preserve_order_with_one_plain_reply_each(
     followed[0].begin()
     [payload] = started
     assert [event["id"] for event in payload["batches"][0]["events"]] == ["first"]
-    assert [
-        conversation["id"] for conversation in payload["batches"][0]["conversations"]
-    ] == ["first"]
+    assert [thread["id"] for thread in payload["batches"][0]["threads"]] == ["first"]
     # Frozen for App Server, the comment's reply is the turn's to write.
     assert payload["batches"][0]["events"][0]["answer"]["kind"] == "turn"
 
@@ -8479,8 +8498,7 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
             payload = files_model.read_json(payload_path)
             assert payload["format"] == delivery_model.DELIVERY_FORMAT
             assert all(
-                set(batch)
-                == {"page", "through_seq", "conversations", "handling", "events"}
+                set(batch) == {"page", "through_seq", "threads", "handling", "events"}
                 for batch in payload["batches"]
             )
             queue_history = (
@@ -8512,7 +8530,7 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
         assert codex_adapter_model.adapter_is_live("codex-thread")
 
         for comment in comments:
-            conversation_model.cmd_reply(
+            thread_model.cmd_reply(
                 page,
                 comment["id"],
                 "received",
@@ -9362,7 +9380,7 @@ def test_stop_hook_keeps_codex_inside_the_exact_wait_session(
     # Answered before the page closes: an acknowledged comment with nothing
     # under it holds the turn on its own account, which is the subject of
     # test_an_acknowledged_comment_nobody_answered_holds_the_turn.
-    conversation_model.cmd_reply(
+    thread_model.cmd_reply(
         page,
         events_model.read_events(page)[0]["id"],
         "so it does",
@@ -10211,23 +10229,23 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(claimed, capsys)
     # what was said under it, so the instruction that reaches it has to carry the
     # reading that recovers the exchange.
     assert schema_model.ANSWER_ASK_INSTRUCTION in answer["reason"]
-    assert f"`leaf reply <page> --for {asked['id']}`" in answer["reason"]
+    assert f"`leaf thread reply <page> --for {asked['id']}`" in answer["reason"]
 
     # Bound to the claimant's App Server turn, the same move is answered by that
-    # turn's final message, which is what the reason names instead: `leaf reply`
+    # turn's final message, which is what the reason names instead: `leaf thread reply`
     # refuses a bound event.
     with service_model.PageTransaction(claimed) as page:
         page.bind_delivery_reply(session["id"], asked["id"], "a1")
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
     reason = json.loads(capsys.readouterr().out)["reason"]
     assert f"your turn's final message for {asked['id']}" in reason
-    assert "leaf reply <page>" not in reason
+    assert "leaf thread reply <page>" not in reason
     with service_model.PageTransaction(claimed) as page:
         page.clear_delivery_reply_binding(session["id"], asked["id"], "a1")
 
     # A reply clears it, and the thread stays open behind it: closing one is the
     # user's to do, so an open thread is not an unanswered one.
-    conversation_model.cmd_reply(
+    thread_model.cmd_reply(
         claimed,
         asked["id"],
         "because the fold is absolute",
@@ -10242,7 +10260,7 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(claimed, capsys)
     # so a gate asking whether anyone but them has *ever* spoken is answered
     # "yes" by the reply above and never fires for this thread again — the drop
     # this test is named for, one level down and just as permanent. Reading the
-    # last word costs a thread that wants no answer one `leaf resolve`, which is
+    # last word costs a thread that wants no answer one `leaf thread resolve`, which is
     # a question the agent is holding the context to settle; the other reading
     # costs the user their question, which nobody sees at all.
     follow = events_model.append_event(
@@ -10264,7 +10282,7 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(claimed, capsys)
     receive_through(claimed, last_deliverable_seq(claimed))
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
     assert f"--for {follow['id']}" in json.loads(capsys.readouterr().out)["reason"]
-    conversation_model.cmd_reply(
+    thread_model.cmd_reply(
         claimed,
         follow["id"],
         "C is slower on the hot path",
@@ -10282,7 +10300,7 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(claimed, capsys)
     receive_through(claimed, last_deliverable_seq(claimed))
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
     assert moot["id"] in json.loads(capsys.readouterr().out)["reason"]
-    conversation_model.cmd_resolve(claimed, moot["id"])
+    thread_model.cmd_resolve(claimed, moot["id"])
     capsys.readouterr()  # cmd_resolve prints the event it wrote
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
     assert capsys.readouterr().out == ""
@@ -10304,7 +10322,7 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(claimed, capsys)
     receive_through(claimed, last_deliverable_seq(claimed))
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
     assert f"--for {answered['id']}" in json.loads(capsys.readouterr().out)["reason"]
-    conversation_model.cmd_reply(
+    thread_model.cmd_reply(
         claimed,
         answered["id"],
         "sqlite it is",
@@ -10592,11 +10610,11 @@ def test_the_app_s_shared_codex_is_not_taken_for_one_session_s_lifetime(
     `CodexHarness.lifetime` finds a session by walking for the nearest `codex`
     ancestor. Under the CLI that process is the session and its pid is exact.
     The ChatGPT app runs one `codex ... app-server` for the whole app and every
-    conversation hangs off it, so the same walk handed every session one pid
+    thread hangs off it, so the same walk handed every session one pid
     that outlives them all: a session-managed server checks `pid_alive` and
     never sees it die, and the page stays served until the app quits. Found in
     the wild as 133 unreleased claims naming a single app-server pid, 49 of
-    their servers still up, the oldest 28 hours past its conversation.
+    their servers still up, the oldest 28 hours past its thread.
 
     Both runs go through the real claim door under a real process of that name,
     so what is asserted is the claim leaf writes rather than a reading of the
@@ -10925,14 +10943,24 @@ def test_waiting_written_over_an_unanswered_move_names_it(claimed, snapshot):
     assert early.output.splitlines() == [
         "waiting — pick one",
         (
-            f"1 user move with no answer (`leaf reply <page> --for {comment}`); "
+            f"1 user move with no answer (`leaf thread reply <page> --for {comment}`); "
             "the page reads waiting once each has one"
         ),
     ]
 
     replied = CliRunner().invoke(
         cli_model.cli,
-        ["reply", str(claimed), "--to", comment, "--for", comment, "--text", "ok"],
+        [
+            "thread",
+            "reply",
+            str(claimed),
+            "--to",
+            comment,
+            "--for",
+            comment,
+            "--text",
+            "ok",
+        ],
     )
     assert replied.exit_code == 0, replied.output
     settled = CliRunner().invoke(cli_model.cli, waiting)
@@ -10992,6 +11020,7 @@ def test_idle_cannot_close_a_page_over_events_nobody_read(claimed, capsys):
         .invoke(
             cli_model.cli,
             [
+                "thread",
                 "reply",
                 str(claimed),
                 "--to",
@@ -11733,7 +11762,7 @@ def test_a_reaction_holds_no_turn_as_an_unanswered_ask(claimed, capsys):
     asked = events_model.append_event(
         claimed, {"kind": "comment", "author": "user", "text": "why B?"}
     )
-    answer = conversation_model.cmd_reply(
+    answer = thread_model.cmd_reply(
         claimed,
         asked["id"],
         "because",
@@ -11859,6 +11888,7 @@ def test_agent_sees_the_complete_interaction_recovery(
             result = CliRunner().invoke(
                 cli_model.cli,
                 [
+                    "thread",
                     "reply",
                     str(page),
                     "--for",
@@ -11877,6 +11907,7 @@ def test_agent_sees_the_complete_interaction_recovery(
             result = CliRunner().invoke(
                 cli_model.cli,
                 [
+                    "experimental",
                     "receipt",
                     str(page),
                     sent["id"],
@@ -11973,14 +12004,14 @@ def test_agent_sees_a_real_summary_suggestion(page_dir, capsys, snapshot):
     printed = capsys.readouterr().out
     envelope = json.loads(printed.replace(json.loads(printed)["id"], "<delivery>"))
     [batch] = envelope["batches"]
-    assert batch["conversations"][0]["summary_hint"]
+    assert batch["threads"][0]["summary_hint"]
     # The event carries the ask as well as the digest, so an agent that reads only
     # what is new is still told the thread wants summarizing.
     [event] = batch["events"]
     assert any("summary_hint" in batch["handling"][h] for h in event["handling"])
     snapshot.check(
         yaml_document(
-            "The summary hint from real conversation events and their wait delivery.",
+            "The summary hint from real thread events and their wait delivery.",
             _interaction_prompt_evidence(page_dir, {"delivery": envelope}),
         )
     )
@@ -12023,11 +12054,11 @@ def test_the_stop_remedy_names_the_id_its_writer_takes(claimed, capsys):
     receive_through(claimed, last_deliverable_seq(claimed))
 
     reason = _stop(capsys)
-    [named] = re.findall(r"`leaf reply <page> --for ([^`]+)`", reason)
+    [named] = re.findall(r"`leaf thread reply <page> --for ([^`]+)`", reason)
     assert named == second["id"]
     result = CliRunner().invoke(
         cli_model.cli,
-        ["reply", str(claimed), "--for", named, "--text", "Here, next week."],
+        ["thread", "reply", str(claimed), "--for", named, "--text", "Here, next week."],
     )
     assert result.exit_code == 0, result.output
     assert _stop(capsys) is None

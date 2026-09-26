@@ -1,8 +1,11 @@
 """Browser probe readings for one settled color scheme, the once-per-version width
-sweep and alignment advice, and the finding each becomes."""
+sweep, the advice read from the desktop page and from the sweep, and the finding each
+becomes."""
 
 import json
+import math
 from dataclasses import dataclass
+from itertools import pairwise
 
 from leaf.passages import page_passages
 from leaf.projection import (
@@ -47,10 +50,10 @@ def _projected_verbatim(document, registry, projection, authored_ids, source):
 
 
 def _expected_verbatim(markup, events, registry, here):
-    """Expected preserving-owner readings in the page and frozen conversation.
+    """Expected preserving-owner readings in the page and frozen thread.
 
     Page actions are bounded by the immutable revision being rendered. Frozen message
-    markup has no later authored revision and therefore uses the conversation's whole
+    markup has no later authored revision and therefore uses the thread's whole
     action window. Both use the same passage projection as comment capture.
     """
     document = SourceDocument(markup)
@@ -159,17 +162,15 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
     # Replay is scheme-blind, so one scheme's reading covers both.
     conflicts = []
     silent = []
-    missing_conversations = []
+    missing_threads = []
     undeclared_attrs = []
     retired = []
     if scheme == "light":
-        # x-conversation promises one page view per matching instance. A widget in
-        # thread chrome already has the thread's reply surface and conversationBox
+        # x-thread-seat promises one page view per matching instance. A widget in
+        # thread chrome already has the thread's reply surface and threadBox
         # deliberately returns none there. Everywhere else, ask the merged registry
         # for the instances and the module's own marker for the host it placed.
-        missing_conversations = evaluate_probe(
-            page, "missingConversations", declarations
-        )
+        missing_threads = evaluate_probe(page, "missingThreads", declarations)
         # Behind the caught-up wait above: a report moves a painted attribute and
         # the pass that speaks it runs before the stamp, so a reading taken any
         # earlier asks after a word the page has not been asked to say yet. A page
@@ -353,11 +354,11 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
         )
     found += [f"[{scheme}] {d}" for d in dishonest_verbatim]
     found += [f"[{scheme}] {s}" for s in silent]
-    for c in missing_conversations:
+    for c in missing_threads:
         found.append(
-            f"[{scheme}] <{c['tag']} id={c['id']!r}> declares x-conversation but "
+            f"[{scheme}] <{c['tag']} id={c['id']!r}> declares x-thread-seat but "
             f"rendered {c['hosts']} matching hosts; its module must place exactly "
-            "one conversationBox"
+            "one threadBox"
         )
     for u in {(x["tag"], x["attr"]): x for x in undeclared_attrs}.values():
         found.append(
@@ -368,13 +369,26 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
         )
     for t in {(x["tag"], x["edge"]): x for x in trapped}.values():
         box = f"<{t['tag']}" + (f" class={t['cls']!r}" if t["cls"] else "") + ">"
+        path = t.get("through", [])
+        declarations = []
+        if not t["frameDeclared"]:
+            declarations.append("--lf-block-frame: 1 in the rule that draws the frame")
+        if path:
+            declarations.append(
+                "--lf-passes-block-edge: 1 on each transparent wrapper along the edge"
+            )
+        remedy = (
+            "Declare " + " and ".join(declarations)
+            if declarations
+            else "Remove the edge margin that overrides the shared trim"
+        )
         found.append(
             f"[{scheme}] {box} draws {t['drawn']:g}px of inset and shows "
             f"{t['drawn'] + t['margin']:g}px {t['edge']} what it holds "
             f"(id={t['id']!r}): its {t['edge'] == 'above' and 'first' or 'last'} "
             f"block is a <{t['child']}> reserving {t['margin']:g}px against a "
             f"neighbour it hasn't got, and the box is where that margin stops. "
-            f"Declare --lf-block-frame: 1 in the rule that draws the frame, so the trim "
+            f"{remedy}{' (' + ' > '.join(path) + ')' if path else ''}, so the trim "
             f"in theme.css reaches it"
         )
 
@@ -407,18 +421,17 @@ def _overflow(overflow: int, misplaced: list) -> list[tuple[tuple[str, str], str
 SWEEP_WIDTHS = range(360, 1201, 40)
 
 
-def swept_overflow(page, viewports) -> list[str]:
-    """Sideways overflow the fixed viewports miss, at the narrowest width it starts.
+def sweep(page, viewports) -> list[tuple[int, dict]]:
+    """The loaded page's geometry at every sweep width, widest first.
 
-    Resizes the loaded page rather than rendering it again, and re-reads only the two
-    sideways readings, which are geometry: the rest of the gate reads words, paint and
-    state, which the fixed viewports already see. The fixed widths are swept too, and a
-    fault met at one of them is dropped here, because that viewport's own reading
-    already reports it in both schemes. The sweep runs at the desktop height, so a fault
-    only a phone-height workspace posture shows is the phone viewport's to report."""
+    Resizes the loaded page rather than rendering it again, and reads only geometry:
+    the rest of the gate reads words, paint and state, which the fixed viewports
+    already see. The fixed widths are swept too. The sweep runs at the desktop height,
+    so a fault only a phone-height workspace posture shows is the phone viewport's to
+    report."""
     height = viewports[0]["height"]
     fixed = {viewport["width"] for viewport in viewports}
-    seen = {}
+    readings = []
     # Widest first, in steps, so a layout script settles from the width before rather
     # than from the desktop: a jump from 1200px straight to 360px left an lf-shot laid
     # out for the desktop for a frame under load, and the sweep read that frame.
@@ -429,9 +442,28 @@ def swept_overflow(page, viewports) -> list[str]:
         # observer's write causes, and whatever that chains into) has run and been laid out.
         wait_for_probe(page, "framePresented", evaluate_probe(page, "requestFrame"))
         wait_for_probe(page, "renderingSettled")
-        for key, text in _overflow(
-            evaluate_probe(page, "rootOverflow"), evaluate_probe(page, "misplacedBoxes")
-        ):
+        readings.append(
+            (
+                width,
+                {
+                    "overflow": evaluate_probe(page, "rootOverflow"),
+                    "misplaced": evaluate_probe(page, "misplacedBoxes"),
+                    "grids": evaluate_probe(page, "templateGrids"),
+                },
+            )
+        )
+    return readings
+
+
+def swept_overflow(readings, viewports) -> list[str]:
+    """Sideways overflow the fixed viewports miss, at the narrowest width it starts.
+
+    A fault met at a fixed width is dropped here, because that viewport's own reading
+    already reports it in both schemes."""
+    fixed = {viewport["width"] for viewport in viewports}
+    seen = {}
+    for width, reading in readings:
+        for key, text in _overflow(reading["overflow"], reading["misplaced"]):
             widths, _text = seen.setdefault(key, ([], text))
             widths.append(width)
     found = []
@@ -444,6 +476,76 @@ def swept_overflow(page, viewports) -> list[str]:
     return found
 
 
+# The window below which a template's stacking is no longer worth an author's attention.
+# Every template stacks somewhere between a phone and the desktop, and a page that
+# follows the wide-page guidance (`2fr 1fr` on a wide page stacks below 757px) would
+# otherwise carry this advice by default. Above it the reader is at a desktop window
+# they keep, a laptop's or half a large screen's, where the regions laid side by side
+# arriving one under another is the layout they get, and a held workspace's panes turn
+# into short boxes the page scrolls past. Over the shipped corpus the templates stack
+# below 520–757px, except the triage board's `3fr 1fr`, which stacks below 1000px.
+STACKING_WINDOW = 800
+
+
+def stacking_advice(readings) -> list[str]:
+    """Advice naming each track template that stacks in a desktop window.
+
+    The module's rule gives the grid width its tracks need, exactly. What maps that onto
+    a window is the page's geometry, which is piecewise: a wide page holds at its cap
+    and then loses 0.92px of grid per pixel of window, a column page holds at 720px,
+    and a nested grid gets its track's share of either. So one reading at 1200px cannot
+    say where a grid stacks: taking a pixel of window for a pixel of grid put a
+    `1fr 2.4fr` template at 882px on an available page and 906px on a wide one, where
+    both stack below 854px. The sweep already lays the page out every 40px, so the
+    window is interpolated between the sweep widths either side of the flip, at no
+    layout of its own; that is exact wherever the geometry has no bend inside those
+    40px, and otherwise off by less than them. A template already stacked at
+    the widest reading stacks in every window, and says so."""
+    by_grid = {}
+    for width, reading in readings:
+        for grid in reading["grids"]:
+            by_grid.setdefault(grid["key"], []).append((width, grid))
+    found = []
+    for seen in by_grid.values():
+        widest_width, widest = seen[0]
+        name = widest["at"]
+        tracks = (
+            f'its columns="{widest["columns"]}" tracks need '
+            f"{round(widest['need'])}px side by side"
+        )
+        if widest["stacked"]:
+            found.append(
+                f"{name} stands in one column at {widest_width}px wide: {tracks}, and "
+                f"it has {round(widest['width'])}px. Give the narrowest track a larger "
+                'share, or the grid more room (page-authoring.md, "A wide page")'
+            )
+            continue
+        flip = next(
+            (
+                (high, above, low, below)
+                for (high, above), (low, below) in pairwise(seen)
+                if below["stacked"]
+            ),
+            None,
+        )
+        if flip is None:
+            continue
+        high, above, low, below = flip
+        grown = above["width"] - below["width"]
+        share = (below["need"] - below["width"]) / grown if grown > 0 else 1
+        window = math.ceil(low + min(max(share, 0), 1) * (high - low))
+        if window < STACKING_WINDOW:
+            continue
+        found.append(
+            f"{name} stacks into one column in a window narrower than {window}px: "
+            f"{tracks}, and it has {round(widest['width'])}px at {widest_width}px. "
+            "Where a reader's window is narrower and the regions should stay side by "
+            'side, give the narrowest track a larger share (page-authoring.md, "A wide '
+            'page")'
+        )
+    return found
+
+
 def margin_cover_advice(page) -> list[str]:
     """Advice naming each pin that stands over lines of the page's text."""
     width = page.viewport_size["width"]
@@ -453,6 +555,33 @@ def margin_cover_advice(page) -> list[str]:
         "top-right corner, so give the block padding on its right, or the page a rail "
         "(page-authoring.md, the rail and the margin), where those words matter"
         for pin in evaluate_probe(page, "coveringMargins")
+    ]
+
+
+# The drawn size below which a shrunk label is advised about. The theme's drawing idiom
+# sets its labels at 10–12px in the viewBox's units (theme.css, `svg.drawing`; its 9px
+# step glyph is one bold numeral on a dot), so an idiom drawing shown at its own width
+# stays clear of it, and one shrunk by a fifth does not.
+LEGIBLE_LABEL_PX = 10
+
+
+def shrunk_label_advice(page) -> list[str]:
+    """Advice naming each drawing whose fit to its box draws labels too small to read.
+
+    Read at the desktop viewport, where the other advice is: a narrower window scales a
+    drawing further still, and which of its widths a page answers for is not settled here.
+    Advice rather than a failure because the remedy is a choice of composition — larger
+    labels, fewer of them, a narrower drawing, more room — that only the author can make,
+    and a page that makes none of them still says everything it says."""
+    width = page.viewport_size["width"]
+    return [
+        f"at {width}px wide {d['at']} draws {d['labels']} label(s) below "
+        f"{LEGIBLE_LABEL_PX}px, the smallest ({d['words']!r}) at {d['drawn']:g}px from "
+        f"the {d['set']:g}px it was set at: the drawing is scaled to fit its box and its "
+        "labels with it, so set them larger in the viewBox's units, draw the viewBox "
+        "nearer the width it is shown at, or give it more room "
+        "(authoring-evidence.md, Interactive and visual evidence)"
+        for d in evaluate_probe(page, "shrunkLabels", LEGIBLE_LABEL_PX)
     ]
 
 

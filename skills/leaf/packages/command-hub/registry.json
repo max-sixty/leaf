@@ -226,7 +226,7 @@
     }
   },
   "lf-tasks": {
-    "description": "A hierarchy of work: what a project is made of, who holds each piece, and where each piece stands. Children are lf-task elements, nesting freely — the tree is the plan's own shape, so write the decomposition as it is rather than flattening it. Where lf-milestones is a flat rail of stages on a schedule and lf-board is a set the reviewer re-orders, lf-tasks is structure: a parent's children are what doing it means, and the upgrade counts each parent's subtree into a generated done-fraction chip so the tree reads as progress without a widget of its own. Statuses change through live source revisions, or between saves by a worker's `leaf report` (lf-task's agent-written x-state verb) — the page keeps up with the work — and comments anchor per task, so keep every task's id stable across revisions.",
+    "description": "A hierarchy of work: what a project is made of, who holds each piece, and where each piece stands. Children are lf-task elements, nesting freely — the tree is the plan's own shape, so write the decomposition as it is rather than flattening it. Where lf-milestones is a flat rail of stages on a schedule and lf-board is a set the reviewer re-orders, lf-tasks is structure: a parent's children are what doing it means, and the upgrade counts each parent's subtree into a generated done-fraction chip so the tree reads as progress without a widget of its own. Statuses change through live source revisions, or between saves by a worker's `leaf experimental report` (lf-task's agent-written x-state verb) — the page keeps up with the work — and comments anchor per task, so keep every task's id stable across revisions.",
     "type": "object",
     "properties": {
       "id": {
@@ -294,7 +294,7 @@
     "x-example": "<lf-grid id=\"plan-tracks\" columns=\"2fr 1fr\">\n  <lf-command id=\"garden-command\" label=\"A squirrel-proof garden\" phase=\"week 2 of 4\">\n    <lf-task id=\"goal-feeders\" status=\"active\"><strong>Rebuild the feeders</strong></lf-task>\n  </lf-command>\n  <lf-command-readings for=\"garden-command\"></lf-command-readings>\n</lf-grid>"
   },
   "lf-task": {
-    "description": "One piece of the work. Lead with a <strong> title; prose follows, and child lf-task elements after the prose are its decomposition. `status` colors the marker: planned, active, blocked (stuck — the prose says on what), review (finished by whoever held it and ready to be reviewed), stalled (work produced no durable progress), or done. Status describes the work. User work is a nested Ask whose widget supplies the answer control; the task rolls that Ask through the plan but never originates one. `owner` names who holds the work, `when` is a free-text schedule label, and `tags` adds one chip per entry. A parent with children gets a generated done-fraction chip. The `status` report is provisional agent state (`leaf report <page> <task-id> status status=review`); a stamped version absorbs or overrules it through `overruled` (see $report).",
+    "description": "One piece of the work. Lead with a <strong> title; prose follows, and child lf-task elements after the prose are its decomposition. `status` colors the marker: planned, active, blocked (stuck — the prose says on what), review (finished by whoever held it and ready to be reviewed), stalled (work produced no durable progress), or done. Status describes the work. User work is a nested Ask whose widget supplies the answer control; the task rolls that Ask through the plan but never originates one. `owner` names who holds the work, `when` is a free-text schedule label, and `tags` adds one chip per entry. A parent with children gets a generated done-fraction chip. The `status` report is provisional agent state (`leaf experimental report <page> <task-id> status status=review`); a stamped version absorbs or overrules it through `overruled` (see $report).",
     "type": "object",
     "properties": {
       "id": {
@@ -352,7 +352,7 @@
       "status"
     ],
     "x-upgrade": true,
-    "x-conversation": {
+    "x-thread-seat": {
       "when": {
         "talk": [
           true
@@ -427,7 +427,7 @@
     "x-example": "<lf-command id=\"project-command\">\n  <lf-agent id=\"wren\" state=\"working\">\n    <strong>wren</strong> Owns the feed rebuild.\n    <lf-worktree id=\"tree-wren\" source=\"project-worktrees\"></lf-worktree>\n  </lf-agent>\n</lf-command>"
   },
   "lf-operations": {
-    "description": "A set of consequential host operations offered for one goal and its exact disposable worker and worktree. Put a live set inside lf-ask; each lf-operation child supplies the user-facing argument while this holder sends one typed x-request carrying those three stable ids. The ready holder is one of the user's Asks; an accepted request hands the turn to the host and locks the set while it works. `leaf receipt` links one succeeded or failed outcome. Failure returns the Ask and reopens the controls, while success leaves the completed instruction visible until a later authored revision updates the plan. Use this for effects such as starting a worker, landing a branch, or archiving work. Use lf-options instead for a policy or authored-state decision that Leaf itself can replay.",
+    "description": "A set of consequential host operations offered for one goal and its exact disposable worker and worktree. Put a live set inside lf-ask; each lf-operation child supplies the user-facing argument while this holder sends one typed x-request carrying those three stable ids. The ready holder is one of the user's Asks; an accepted request hands the turn to the host and locks the set while it works. `leaf experimental receipt` links one succeeded or failed outcome. Failure returns the Ask and reopens the controls, while success leaves the completed instruction visible until a later authored revision updates the plan. Use this for effects such as starting a worker, landing a branch, or archiving work. Use lf-options instead for a policy or authored-state decision that Leaf itself can replay.",
     "type": "object",
     "properties": {
       "id": {

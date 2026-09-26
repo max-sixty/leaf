@@ -22,12 +22,12 @@ const noAsks = () => ({
   user: [],
   unanswered: [],
 });
-const wireAsk = (id, tag, source = id, sourceTag = tag, conversation = null) => ({
+const wireAsk = (id, tag, source = id, sourceTag = tag, thread = null) => ({
   id,
   tag,
   source,
   source_tag: sourceTag,
-  conversation,
+  thread,
 });
 const coordinate = ["choice", "choice", "decide"];
 const action = (attempt, outcome = "accept") => ({
@@ -49,7 +49,7 @@ const state = (taken, events = []) => ({
   browser: {
     basis: { through_seq: events.length },
     receipts: events,
-    conversation: { threads: [], projection: empty(), asks: noAsks() },
+    thread: { threads: [], projection: empty(), asks: noAsks() },
     views: {
       1: {
         basis: { revision: 1, through_seq: events.length },
@@ -488,7 +488,7 @@ test("accepted reading order includes non-event activity and data taken in order
 test("one publication keeps per-input workflows and user-first thread attention", () => {
   const app = setup();
   const reading = state(2);
-  reading.browser.conversation.threads = [
+  reading.browser.thread.threads = [
     {
       root: {
         id: "root",
@@ -529,7 +529,7 @@ test("one publication keeps per-input workflows and user-first thread attention"
     {
       id: "first-work",
       input: "root",
-      subject: { kind: "conversation", id: "root" },
+      subject: { kind: "thread", id: "root" },
       stage: "replying",
       activity: [],
       condition: null,
@@ -538,7 +538,7 @@ test("one publication keeps per-input workflows and user-first thread attention"
     {
       id: "second-work",
       input: "newer",
-      subject: { kind: "conversation", id: "root" },
+      subject: { kind: "thread", id: "root" },
       stage: "queued",
       activity: [],
       condition: null,
@@ -546,7 +546,7 @@ test("one publication keeps per-input workflows and user-first thread attention"
     },
   ];
   app.adopt(reading);
-  const thread = app.read().effective.conversation.all[0];
+  const thread = app.read().effective.thread.all[0];
   assert.deepEqual(
     thread.msgs.map((message) => [message.id, message.workflows[0]?.stage]),
     [
@@ -565,7 +565,7 @@ test("one publication keeps per-input workflows and user-first thread attention"
     "2026-09-22T10:02:00-07:00",
   );
   // The user's own send hands the thread to the agent until the log answers it.
-  assert.deepEqual(app.read().effective.conversation.all[0].attention, {
+  assert.deepEqual(app.read().effective.thread.all[0].attention, {
     kind: "waiting",
     reason: "workflow",
     workflow: "pending:local",
@@ -575,7 +575,7 @@ test("one publication keeps per-input workflows and user-first thread attention"
 test("local delivery supplies and can override non-Ask thread attention", () => {
   const app = setup();
   const reading = state(2);
-  reading.browser.conversation.threads = [
+  reading.browser.thread.threads = [
     {
       root: {
         id: "root",
@@ -609,13 +609,13 @@ test("local delivery supplies and can override non-Ask thread attention", () => 
     { kind: "reply", parent: "root", attempt: "local", text: "Second", revision: 1 },
     "2026-09-22T10:01:00-07:00",
   );
-  assert.deepEqual(app.read().effective.conversation.all[0].attention, {
+  assert.deepEqual(app.read().effective.thread.all[0].attention, {
     kind: "waiting",
     reason: "workflow",
     workflow: "pending:local",
   });
   app.reject("local");
-  assert.deepEqual(app.read().effective.conversation.all[0].attention, {
+  assert.deepEqual(app.read().effective.thread.all[0].attention, {
     kind: "needs_user",
     reason: "recovery",
     workflow: "rejected:local",
@@ -629,14 +629,14 @@ test("local delivery supplies and can override non-Ask thread attention", () => 
       seq: 1,
       revision: 1,
       input: "root",
-      subject: { kind: "conversation", id: "root" },
+      subject: { kind: "thread", id: "root" },
       stage: "sent",
       activity: [],
       condition: null,
       next_actor: "agent",
     },
   ];
-  acceptedReading.browser.conversation.threads[0].attention = {
+  acceptedReading.browser.thread.threads[0].attention = {
     kind: "waiting",
     reason: "workflow",
     workflow: "accepted-send",
@@ -646,13 +646,13 @@ test("local delivery supplies and can override non-Ask thread attention", () => 
     { kind: "reply", parent: "root", attempt: "next", text: "Third", revision: 1 },
     "2026-09-22T10:02:00-07:00",
   );
-  assert.deepEqual(acceptedApp.read().effective.conversation.all[0].attention, {
+  assert.deepEqual(acceptedApp.read().effective.thread.all[0].attention, {
     kind: "waiting",
     reason: "workflow",
     workflow: "pending:next",
   });
   acceptedApp.reject("next");
-  assert.deepEqual(acceptedApp.read().effective.conversation.all[0].attention, {
+  assert.deepEqual(acceptedApp.read().effective.thread.all[0].attention, {
     kind: "needs_user",
     reason: "recovery",
     workflow: "rejected:next",
@@ -673,7 +673,7 @@ test("a refused local message publishes one failed workflow before retirement", 
   const failed = app.read().effective.workflows.at(-1);
   assert.deepEqual(failed.condition, { kind: "failed", operation: "delivery" });
   assert.equal(failed.next_actor, "user");
-  assert.equal(app.read().effective.conversation.all.length, 0);
+  assert.equal(app.read().effective.thread.all.length, 0);
   app.remove(new Set(["refused"]));
   assert.equal(app.read().effective.workflows.length, 0);
 });
@@ -690,7 +690,7 @@ test("a version being marked read reads read, outside the gesture ledger", () =>
     seq: 1,
     text: "Answer",
   };
-  reading.browser.conversation.threads = [
+  reading.browser.thread.threads = [
     {
       root,
       msgs: [root],
@@ -706,7 +706,7 @@ test("a version being marked read reads read, outside the gesture ledger", () =>
     },
   ];
   app.adopt(reading);
-  const thread = () => app.read().effective.conversation.all[0];
+  const thread = () => app.read().effective.thread.all[0];
   assert.equal(thread().msgs[0].unread, true);
   assert.deepEqual(thread().unread, [{ message: "agent-root", version: "agent-root" }]);
 
@@ -722,7 +722,7 @@ test("a version being marked read reads read, outside the gesture ledger", () =>
 
   // Marking read names one exact version; an edit's version is not it.
   const edited = structuredClone(reading);
-  edited.browser.conversation.threads[0].unread = [
+  edited.browser.thread.threads[0].unread = [
     { message: "agent-root", version: "edit-2" },
   ];
   app.adopt(edited);
@@ -788,7 +788,7 @@ test("historical view projection uses the publisher's captured document contract
   historical.browser.views[1].document.projection.entries[0].spec = historicalSpec;
   const projection = app.projectView(
     historical.browser.views[1],
-    historical.browser.conversation,
+    historical.browser.thread,
   );
   assert.equal(projection.desired.get(JSON.stringify(coordinate)).e.id, "e1");
   assert.deepEqual(
@@ -823,7 +823,7 @@ test("receipt adoption keeps attempts until presentation proof and preserves dep
   assert.equal(app.entry("undo").event.undoes, "e1");
 });
 
-test("conversation acceptance is semantic before presentation can retire its local handle", () => {
+test("thread acceptance is semantic before presentation can retire its local handle", () => {
   const app = setup();
   const comment = {
     kind: "comment",
@@ -832,23 +832,23 @@ test("conversation acceptance is semantic before presentation can retire its loc
     revision: 1,
   };
   app.enqueue(comment, "now");
-  assert.equal(app.read().effective.conversation.all[0].root.text, "Keep this");
+  assert.equal(app.read().effective.thread.all[0].root.text, "Keep this");
   const accepted = { ...comment, id: "e1", author: "user", ts: "now" };
   const read = state(2);
   read.browser.receipts = [accepted];
-  read.browser.conversation.threads = [
+  read.browser.thread.threads = [
     { root: accepted, msgs: [accepted], resolved: false, unread: [] },
   ];
   app.adopt(read);
   app.accept("comment", accepted);
-  assert.equal(app.read().effective.conversation.all.length, 1);
+  assert.equal(app.read().effective.thread.all.length, 1);
   assert.equal(app.read().unresolved.length, 1);
   app.accountPresented([accepted]);
   assert.equal(app.read().unresolved.length, 0);
-  assert.equal(app.read().effective.conversation.all[0].root.id, "e1");
+  assert.equal(app.read().effective.thread.all[0].root.id, "e1");
 });
 
-test("widget selections publish the canonical held conversation", () => {
+test("widget selections publish the canonical held thread", () => {
   const app = setup();
   const selected = app.selectWidget(descriptor);
   const root = {
@@ -860,7 +860,7 @@ test("widget selections publish the canonical held conversation", () => {
     ts: "now",
   };
   const accepted = state(2);
-  accepted.browser.conversation.threads = [
+  accepted.browser.thread.threads = [
     {
       root,
       anchor: null,
@@ -874,14 +874,14 @@ test("widget selections publish the canonical held conversation", () => {
     },
   ];
   app.adopt(accepted);
-  assert.equal(selected.read().conversation.heldBy, root.id);
+  assert.equal(selected.read().thread.heldBy, root.id);
 
   const released = state(3);
-  released.browser.conversation.threads = [
-    { ...accepted.browser.conversation.threads[0], resolved: { author: "user" } },
+  released.browser.thread.threads = [
+    { ...accepted.browser.thread.threads[0], resolved: { author: "user" } },
   ];
   app.adopt(released);
-  assert.equal(selected.read().conversation.heldBy, null);
+  assert.equal(selected.read().thread.heldBy, null);
 });
 
 for (const resolved of [null, { author: "user" }]) {
@@ -895,7 +895,7 @@ for (const resolved of [null, { author: "user" }]) {
       ts: "now",
     };
     const accepted = state(2);
-    accepted.browser.conversation.threads = [
+    accepted.browser.thread.threads = [
       {
         root,
         anchor: null,
@@ -911,7 +911,7 @@ for (const resolved of [null, { author: "user" }]) {
     ];
     app.adopt(accepted);
     const turn = () => {
-      const thread = app.read().effective.conversation.all[0];
+      const thread = app.read().effective.thread.all[0];
       return [thread.awaits_agent, thread.attention?.kind ?? null, thread.resolved];
     };
     assert.deepEqual(turn(), [false, "needs_user", resolved]);
@@ -957,12 +957,12 @@ test("a pending prose reply does not hide a frozen structural Ask", () => {
   const app = setup();
   const accepted = state(2);
   const frozen = wireAsk("frozen-ask", "lf-ask", "frozen-choice", "lf-choice", root.id);
-  accepted.browser.conversation.asks = {
+  accepted.browser.thread.asks = {
     all: [frozen],
     user: [frozen],
     unanswered: [frozen],
   };
-  accepted.browser.conversation.threads = [
+  accepted.browser.thread.threads = [
     {
       root,
       anchor: null,
@@ -989,7 +989,7 @@ test("a pending prose reply does not hide a frozen structural Ask", () => {
   );
   // The reply hands the thread to the agent, and the Ask it carries is still the
   // user's, so the obligation does not turn over and back when the reply lands.
-  const thread = app.read().effective.conversation.all[0];
+  const thread = app.read().effective.thread.all[0];
   assert.deepEqual([thread.awaits_agent, thread.awaits_user], [true, true]);
   assert.deepEqual(thread.attention, {
     kind: "needs_user",
@@ -1008,7 +1008,7 @@ test("a pending resend replaces accepted recovery until refusal", () => {
     ts: "now",
   };
   const accepted = state(2);
-  accepted.browser.conversation.threads = [
+  accepted.browser.thread.threads = [
     {
       root,
       anchor: null,
@@ -1032,7 +1032,7 @@ test("a pending resend replaces accepted recovery until refusal", () => {
       seq: 1,
       revision: 1,
       input: root.id,
-      subject: { kind: "conversation", id: root.id },
+      subject: { kind: "thread", id: root.id },
       stage: "answered",
       activity: [],
       condition: { kind: "failed", operation: "response" },
@@ -1051,13 +1051,13 @@ test("a pending resend replaces accepted recovery until refusal", () => {
     },
     "now",
   );
-  assert.deepEqual(app.read().effective.conversation.all[0].attention, {
+  assert.deepEqual(app.read().effective.thread.all[0].attention, {
     kind: "waiting",
     reason: "workflow",
     workflow: "pending:retry",
   });
   app.reject("retry");
-  assert.deepEqual(app.read().effective.conversation.all[0].attention, {
+  assert.deepEqual(app.read().effective.thread.all[0].attention, {
     kind: "needs_user",
     reason: "recovery",
     workflow: "failed-response",
@@ -1087,7 +1087,7 @@ test("the publisher carries the server's Ask reading, page asks before thread as
     user: [page],
     unanswered: [page],
   };
-  read.browser.conversation.asks = {
+  read.browser.thread.asks = {
     all: [frozen],
     user: [],
     unanswered: [],
@@ -1099,7 +1099,7 @@ test("the publisher carries the server's Ask reading, page asks before thread as
     tag: "lf-ask",
     sourceId: "choice",
     sourceTag: "lf-choice",
-    conversation: null,
+    thread: null,
   };
   assert.deepEqual(app.read().effective.asks, {
     all: [
@@ -1109,7 +1109,7 @@ test("the publisher carries the server's Ask reading, page asks before thread as
         tag: "lf-ask",
         sourceId: "frozen-choice",
         sourceTag: "lf-choice",
-        conversation: "root-1",
+        thread: "root-1",
       },
     ],
     user: [record],
@@ -1193,7 +1193,7 @@ test("a reaction root is not a spoken turn awaiting the user", () => {
     ts: "now",
   };
   const accepted = state(2);
-  accepted.browser.conversation.threads = [
+  accepted.browser.thread.threads = [
     {
       root,
       anchor: null,
@@ -1208,5 +1208,5 @@ test("a reaction root is not a spoken turn awaiting the user", () => {
   ];
 
   app.adopt(accepted);
-  assert.equal(app.read().effective.conversation.all[0].awaits_user, false);
+  assert.equal(app.read().effective.thread.all[0].awaits_user, false);
 });

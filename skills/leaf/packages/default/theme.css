@@ -86,6 +86,12 @@ lf-grid[columns="6"] { --lf-grid-count: 6; }
  * out a body beside a rail of its own (the playground's split, the swipe deck) stands
  * on these lines by restating `2fr 1fr`'s: 43.5rem and minmax(0, 2fr) minmax(0, 1fr). */
 lf-grid[data-lf-grid-stacked] > * { grid-column: 1 / -1; }
+/* Stacked regions are no longer in view together, so a stacked grid passes no height
+ * on: in a held workspace its cells take their natural height and the page scrolls
+ * them, which is what the workspace promises where the window cannot hold its regions
+ * (the chain of held boxes, below). The window's height split between stacked panes
+ * left each one a sliver. */
+lf-grid[data-lf-grid-stacked] { --lf-passes-hold: 0; min-height: auto; }
 /* Paper stacks every template. The mark is the screen's reading, and nothing reads a
  * grid's width in the print layout: no observer runs for it, and a container query's
  * condition cannot hold a template's own width. A printed page is the column's width,
@@ -285,7 +291,7 @@ lf-ask:has(> :is(h1, h2, h3, h4, h5, h6):first-child:nth-last-child(2)) {
         overscroll-behavior: contain;
         scrollbar-gutter: stable;
       }
-      html:root :is(lf-grid, [data-lf-reading-role="grid"]) {
+      html:root :is(lf-grid, [data-lf-reading-role="grid"]):not([data-lf-grid-stacked]) {
         align-items: stretch;
         grid-auto-rows: minmax(0, 1fr);
       }
@@ -416,6 +422,7 @@ lf-chip {
  * restated so a band of chips and an inline label stand the same height. */
 lf-chip, .lf-chips span {
   display: inline-block; font-size: var(--t-6); line-height: 1.6; padding: 0 8px;
+  box-sizing: border-box; max-width: 100%; overflow-wrap: anywhere;
   border-radius: var(--chip-r); background: var(--chip); color: var(--ink-2); }
 
 /* Titled alternatives carry an argument and keep the document's serif. Compact
@@ -481,7 +488,7 @@ lf-chip, .lf-chips span {
 
    The user's cell is an add form dressed as an option. It creates and selects a real
    generated option through the same absolute `choose` state as the authored options; it
-   is not a conversation seat. What it is for is the answer the menu hasn't got, so it
+   is not a thread seat. What it is for is the answer the menu hasn't got, so it
    takes the cells' fill and their column and states no inset of its own. A cell that
    dresses as apparatus tells the user to skip it.
 
@@ -532,9 +539,9 @@ lf-option > strong { display: block; margin: 0 0 4px; }
  * the author's own markup, quotable and diffable like any other content. The chip is the
  * shared one — inline-block there, which is what leaves each form free to decide where
  * the band sits — and what a chip adds is the band: margins that space and wrap a row of
- * them, and a max-width bounding a long one against the card, since the words are the
- * author's and there is no length the theme can assume. */
-lf-chip { max-width: 100%; margin: 0 6px 2px 0; }
+ * them. The shared chip face bounds and wraps the author's words against the card;
+ * there is no length the theme can assume. */
+lf-chip { margin: 0 6px 2px 0; }
 /* The tint is the author's, per chip. The theme knows the three semantic pairs and
  * nothing about which facet earns one — the pair this replaced tinted `risk` and not
  * `effort`, which was the theme holding an opinion about a word, and the opinion went
@@ -1227,7 +1234,7 @@ lf-options:not(:has(> lf-option > strong)) > lf-option > .lf-key-badge {
 .lf-ref { font-size: var(--t-6); color: var(--muted-2); text-decoration: none;
           white-space: nowrap; }
 .lf-ref:hover { color: var(--accent); text-decoration: underline; }
-/* The conversation's shared rules live with the integrated theme. The group's own
+/* The thread's shared rules live with the integrated theme. The group's own
  * placement of it is stated above, in the choose-group block. */
 /* Paper takes no input, so the group prints as one that was never choosable: the
  * marks offering a pick go with the rest of the UI, and the one on the card that
@@ -1586,10 +1593,6 @@ lf-tabs.lf-rendered > lf-tab { margin-top: 14px; }
     lf-tabs.lf-rendered > lf-tab:not([hidden]) {
       padding: var(--sp-4); --lf-block-frame: 1;
     }
-    /* A section is the usual one-child wrapper for a self-contained view. Let it
-     * pass the panel's edge trim through, so its opening heading and closing paragraph
-     * spend exactly the panel inset rather than adding collapsed block margins to it. */
-    lf-tabs.lf-rendered > lf-tab:not([hidden]) > :only-child { --lf-block-frame: 1; }
     /* until-found keeps the element's own box in flow; zero it so inactive panels
      * leave no stray gap below the active one. */
     lf-tabs.lf-rendered > lf-tab[hidden] { margin: 0; }
@@ -2036,16 +2039,7 @@ lf-activity .lf-activity-empty { margin: 0; color: var(--muted); font: var(--t-5
  * Block rather than the custom-element default inline so its box begins at the
  * question's opening and reaches around the context and control the standing ring says
  * are one Ask. */
-lf-ask { display: block; --lf-ask-at-frame-start: 0; }
-/* An Ask passes its first heading's margin through its boxless boundary. If it is
- * the first authored block in a frame, trim that margin at the frame's edge;
- * elsewhere the heading keeps its ordinary space from the preceding block. */
-@container style(--lf-block-frame: 1) {
-  lf-ask:nth-child(1 of :not(.lf-ui, [data-lf-gen])) { --lf-ask-at-frame-start: 1; }
-}
-@container style(--lf-ask-at-frame-start: 1) {
-  lf-ask > :nth-child(1 of :not(.lf-ui, [data-lf-gen])) { margin-block-start: 0; }
-}
+lf-ask { display: block; --lf-passes-block-edge: 1; }
 
 /* lf-specimen: quoted material — a widget or section the page exhibits rather
  * than speaks (a sample decision, a demo board). It wears the quotation idiom, a
@@ -2190,6 +2184,7 @@ lf-chart, lf-tree, lf-code { display: block; margin: 14px 0;
              color: var(--code-muted); overflow-x: auto; }
 lf-chart.lf-rendered, lf-tree.lf-rendered, lf-code.lf-rendered {
              font: inherit; color: inherit; overflow: visible; }
+lf-code.lf-rendered { --lf-passes-block-edge: 1; }
 /* The authored body, before its module replaces it. Nothing here says white-space: the
    body is a <pre>, which is the whole reason it is one. Everything here undoes the rule
    near the top that dresses a <pre> as evidence the page is showing — a box, a rule, a
@@ -2242,10 +2237,12 @@ lf-chart .lf-chart-swatch { width: 9px; height: 9px; border-radius: 2px;
    tree's own reason for taking it is that its lines are paths, the same words a code block
    holds, set to the same measure beside them. */
 lf-tree.lf-rendered { font-family: var(--mono); font-size: var(--code-size);
-                      line-height: var(--code-line); color: var(--code-ink); }
-lf-tree ul { list-style: none; margin: 0; padding-left: 0; }
+                      line-height: var(--code-line); color: var(--code-ink);
+                      --lf-passes-block-edge: 1; }
+lf-tree ul { list-style: none; margin: 0; padding-left: 0;
+             --lf-passes-block-edge: 1; }
 lf-tree ul ul { padding-left: 18px; border-left: 1px solid var(--rule); margin-left: 5px; }
-lf-tree li { margin: 3px 0; }
+lf-tree li { margin: 3px 0; --lf-passes-block-edge: 1; }
 lf-tree .lf-tree-dir { font-weight: 600; }
 /* nowrap because the module appends name and badges with no whitespace between them and
  * spaces them by margin, so a line is one word to the breaker: told it may break inside
@@ -2442,12 +2439,13 @@ lf-draft { font-size: max(var(--entry-floor), 1em); }
   }
 }
 .lf-draft-history { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--rule);
+                    --lf-block-frame: 1;
                     font-size: var(--t-5); color: var(--ink-2); }
 .lf-draft-history > summary { width: max-content; cursor: pointer; color: var(--muted); }
 .lf-draft-history > summary:hover { color: var(--ink-2); }
 .lf-draft-current { margin: 10px 0; }
 .lf-draft-current > strong { display: block; margin-bottom: 4px; }
-.lf-draft-revisions { margin: 0; padding-left: 20px; }
+.lf-draft-revisions { margin: 0; padding-left: 20px; --lf-passes-block-edge: 1; }
 .lf-draft-revisions > li { margin: 8px 0; padding-left: 3px; }
 .lf-draft-revision-head { display: flex; align-items: center; justify-content: space-between;
                           gap: 8px; margin-bottom: 3px; }

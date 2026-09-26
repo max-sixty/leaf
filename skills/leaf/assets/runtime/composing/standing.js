@@ -32,7 +32,7 @@ import { addressableAt } from "../anchor-resolution.js";
 //
 // `documentFocused()` rather than `focused()`: a control
 // staged in a shadow tree retargets to its host, and the host is the place in the document
-// both the chrome guard and the element walk want. standingConversation below wants the inner
+// both the chrome guard and the element walk want. standingThread below wants the inner
 // reading, and says so.
 export function createStandingElement({ isAskControl, standingIn, projectionTarget }) {
   return function standingElement() {

@@ -449,6 +449,35 @@ export function misalignedSplits() {
   return { unshared: lines - busiest, grids };
 }
 
+// Each track template on the page, at the current width: how wide the grid is, the width
+// its tracks need side by side, and whether it stands stacked. The last two are the
+// module's own answers (`stackWidth`, `data-lf-grid-stacked`) rather than its rule
+// restated. Read at every width the sweep takes the page through, because the width a
+// grid gets is the page's geometry and not a fixed share of the window: a wide page
+// holds at its cap and then loses 0.92px of grid per pixel of window, as its gutters
+// are 4% of the shell, a column page holds at 720px, and a nested track gets its share.
+// A grid with no box at this width (an unopened tab) has nothing to say about it.
+//
+// Each grid is keyed by its place among main's grids in document order, counted before
+// any is left out. The sweep only resizes the page, so a key names the same element at
+// every width, which `at` does not: it is words the author can find, and two grids with
+// no id under one named element share them.
+export function templateGrids() {
+  const main = document.querySelector("main");
+  if (!main) return [];
+  return [...main.querySelectorAll("lf-grid").entries()]
+    .filter(([, grid]) => grid.stackWidth != null && grid.checkVisibility())
+    .map(([key, grid]) => ({
+      key,
+      at: at(grid),
+      columns: grid.getAttribute("columns"),
+      width: grid.getBoundingClientRect().width,
+      need: grid.stackWidth,
+      stacked: grid.hasAttribute("data-lf-grid-stacked"),
+    }))
+    .filter((grid) => grid.width > 0);
+}
+
 // A drawing scrolling beside room that would have shown it whole. Scrolling is the
 // theme's honest degrade when even the room runs short, so every reading above calls
 // such a page well — nothing is clipped without a scrollbar, nothing stands outside any
@@ -525,7 +554,8 @@ export function withheldRoom() {
 // was cut is not.
 //
 // So the marks are what is asked for, not the scrollbar: the layer paints them on every
-// box its own sweep finds cut (reachScrollers and the data-lf-more-* masks in theme.css).
+// box its own sweep finds cut (reachScrollers, and the data-lf-more-* paint in shadow.css
+// or the owning widget's theme).
 // Those marks are the platform-independent half of the answer and the half a copy keeps.
 // A finding here is a scroller the sweep never reached — a tree handed to no caller, a
 // box that started scrolling after the last layout the sweep saw — and the box is named
@@ -546,14 +576,21 @@ export function silentCuts() {
       const short = el.scrollWidth - el.clientWidth;
       if (short <= 1) continue;
       // The mark is a promise about what the user can see, so this asks the promise
-      // and not the attribute. A class can outrank the mask while leaving the mark
+      // and not the attribute. A class can outrank the paint while leaving the mark
       // written, which reads as a clean gate and a page that cuts a drawing at its edge
-      // saying nothing, the state this reading exists for.
-      if (
-        el.hasAttribute("data-lf-more-before") ||
-        el.hasAttribute("data-lf-more-after")
-      ) {
-        if (style.maskImage !== "none" || style.webkitMaskImage !== "none") continue;
+      // saying nothing, the state this reading exists for. The layer's paint is a mask
+      // on the box; a widget that owns its edge pseudo-elements may paint the mark as a
+      // shadow there instead (lf-diagram does), one for each marked edge.
+      const before = el.hasAttribute("data-lf-more-before");
+      const after = el.hasAttribute("data-lf-more-after");
+      if (before || after) {
+        const masked = style.maskImage !== "none" || style.webkitMaskImage !== "none";
+        const shaded = (edge) => getComputedStyle(el, edge).boxShadow !== "none";
+        if (
+          masked ||
+          ((!before || shaded("::before")) && (!after || shaded("::after")))
+        )
+          continue;
         found.push(
           `${at(el)} wears a continuation mark for the ${short}px it is hiding ` +
             `across but draws nothing for it: something outranks the mark's own ` +

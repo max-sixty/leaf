@@ -21,6 +21,7 @@ and requests another reading at its next deadline; it does not run a second fold
 | pickup transition | a `pickup` event in `events.jsonl` | an unobserved carrier records `queued` when Codex accepts a batch; whichever carrier puts the batch into a turn records `opened` with session and turn identity: a direct `leaf wait --ack` confirmation, the prompt hook re-presenting an acknowledged unanswered move, or an App Server turn start | never; each event/phase/session/turn transition is idempotent |
 | page claim: session, display name, harness, carrier, lifetime | `~/.local/state/leaf/claims/<page>` | `server start` from an agent host; released by the hook when the session exits | `released` is set, or the lifetime it rests on is gone: the pid, the background job's directory, or — for a host that multiplexes every session into one process, where there is no pid to name — the page going untouched for ACTIVITY_GRACE_SECS, which a *visible* tab's `viewed.json` writes keep renewing — a backgrounded tab closes the news stream and stops renewing |
 | service lifetime | `service.json` | `server start` at launch: session, or standing | `leaf server stop`; a session server also retires when no live claim holds it |
+| service restart | `restart.lock` | `hosting.restarting_server`, held from its stop until the holder has started the service again: a `--user` preview's re-vendor | process exit |
 | Codex delivery record | `sessions/<session>.deliveries/` in the state home | the detached adapter or an embedded App Server host | an unaccepted record is inactive while the session owns no page; an accepted record moves under `history/` after every batch is receipted; a record, live or archived, goes at the next scan that finds its pages all gone: its own task's reading, its next archiving, or any Codex adapter's retirement, which scans every task's records and removes a directory it empties |
 | Codex adapter log | `sessions/<session>.codex.log` | the detached adapter's own output, begun afresh by each `leaf codex start` | removed when the adapter retires owning no page; a run that ended any other way leaves it for the next start of that task |
 | Leaf delivery | `<state-home>/deliveries/<id>.json` | any carrier freezes the host-neutral envelope before presenting it | once every page it names is gone, removed when the next delivery is frozen; until then every transport resolves the same immutable id |
@@ -34,7 +35,7 @@ the receipt itself remains Picked up. The banner and Leaves tray consume this
 same reading and present delivery counts separately.
 
 `workflows` is the shared projection for exact user inputs and proactive subject
-work. Each entry names its `input` event when it has one, its `conversation` or `widget`
+work. Each entry names its `input` event when it has one, its `thread` or `widget`
 `subject`, its strongest proven `stage` (`sent`, `queued`, `picked_up`, `working`,
 `replying`, or the retained terminal `answered` outcome), and any separately proven
 `condition`. A Sent input that remains
@@ -63,7 +64,7 @@ put the thread in Needs you without persisting another workflow record.
 
 A workflow's `stage` and its `answer` are separate readings. The stage reports
 delivery for every move the user has handed over; the answer, which `workflows.py`
-states, is what the agent owes it: a reply, a version for a conversation that asked
+states, is what the agent owes it: a reply, a version for a thread that asked
 for one, a version whose markup records a user's answer to a page Ask, a request's
 receipt, or null. Every owed answer blocks the Stop hook and `leaf status idle` once
 its move is acknowledged, and only owed answers enter activity counts. A widget move
@@ -85,7 +86,7 @@ standing when the move arrives cannot answer it. Turn identity decides whether
 a receipt belongs to the open turn; ending a turn does not settle its input.
 A delivery's completed final answer retains the exact delivered `responds` address,
 even when a resolution, the user's ✓, or authored state settled that move during
-the turn. Its substantive reply reopens the conversation under the ordinary thread
+the turn. Its substantive reply reopens the thread under the ordinary thread
 rule in `events.md`, so the answer returns to Open Threads without making the
 answered move owed again. Failure receipts are omitted once their move is settled.
 
@@ -131,7 +132,7 @@ events at the next prompt, and releases the session's page claims when it exits.
 Registered on Claude Code's `PostToolUse` too, it names a wait that a background
 command started, read off the wait's start mark rather than the command.
 Its unanswered-work guard reads `activity.obligations`, selected from the same
-`workflows` projection the browser reads; it does not reconstruct conversations
+`workflows` projection the browser reads; it does not reconstruct threads
 itself. The App Server adapter presents at most one thread reply in each turn's
 chronological delivery slice, frozen as a `turn` answer; once the turn binds it, its
 workflow's `answer` reads `turn` too. Its completed final-answer item finishes that
@@ -236,7 +237,7 @@ With an App Server the adapter holds two connections instead. One observes: it r
 the task, keeps the subscription that resume opens, and projects the turns Leaf did not
 start — the user's own work in the terminal, and a queued pointer the task picks up by
 itself. It binds a reply only to a delivery frozen for App Server: a queued pointer's
-delivery owes a plain `reply`, which its agent writes with `leaf reply`. The other belongs to one delivery for one turn: it resumes, reads the task's
+delivery owes a plain `reply`, which its agent writes with `leaf thread reply`. The other belongs to one delivery for one turn: it resumes, reads the task's
 status, starts the turn while the task is idle, and follows that turn to its reply on
 the connection it started it on. Two connections may resume one thread and both then
 receive everything it says, so the observer passes over a delivery this process is
@@ -266,7 +267,7 @@ losing the starting connection ends the turn rather than opening a gap to read a
 Reply binding is the hook's contract above and, for the agent,
 `../../references/host-codex-app-server.md`, "Replies". This is another carrier over
 the same delivery, page claim, event log, and activity projection, not another
-conversation store or response policy.
+thread store or response policy.
 
 `server start` spawns the service into a session of its own and hands back the
 URL that process announced and the lifetime it recorded, so a killed carrier costs
@@ -290,3 +291,6 @@ before the session server's final recheck keeps that process, and one arriving
 afterward finds the process and lease gone and revives the still-enabled service.
 Neither path changes the page's authored work status. A serve from a bare shell claims
 nothing, and a claim on a standing page comes and goes without changing its service.
+A disabled service ends a `leaf wait` that has no other live page to carry, since
+nothing will bring it back, except while a restart lease holds it: its holder starts
+the service again, so the wait neither reports it lost nor revives it meanwhile.

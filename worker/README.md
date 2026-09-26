@@ -17,7 +17,7 @@ release. The Worker answers for the edge instead of passing that container's rep
 the user is unseated, `GET api/state` returns the published projection, and every other
 request waits behind a 503 until the rollout lands. The copied page directories and
 append-only logs remain private to that user and disappear when Cloudflare replaces the
-container; no website-only projection or conversation store exists.
+container; no website-only projection or thread store exists.
 
 The build gives every document, state response, and module graph one release digest.
 Runtime assets live behind release-addressed URLs with immutable cache headers, while
@@ -252,6 +252,27 @@ served straight from `server.py` — the test suite, a local preview — has no 
 of it, so the adapter acknowledges the report itself and keeps no record of it. Startup
 profiles exist only for the deployed release.
 
+The deployed site also accepts `POST api/interaction` at the edge and writes each
+validated browser batch as one `component=leaf-interaction`, `event=client_batch`
+Workers Observability record. The record carries the public session `reference`,
+canonical page `route`, site `release`, tab `session`, and ordered interaction
+metadata: event type, time, sequence, pointer coordinates, structural element
+paths and per-tab node ids, command ids and bindings, and event response kinds and status codes. The edge
+removes element ids and names, labels, typed and pasted text, selected text, URL details,
+and arbitrary client fields before logging. Large client entries retain their original
+event type and part numbers, but not the raw JSON pieces. The page's durable `events.jsonl`
+and local interaction trace retain their own raw content. The edge acknowledges the
+batch without starting a container. A batch has at
+most 100 entries and 128 KiB of JSON, leaving room under Cloudflare's
+[256 KiB log limit](https://developers.cloudflare.com/workers/platform/limits/#log-size)
+for request metadata. To retrieve a session's batches, use the Workers
+Observability REST query above with `lookup_key=reference`, the banner's 12-digit
+reference as `lookup_value`, and `component` set to `leaf-interaction`. Keep the
+incident window narrow enough that `result.statistics.abr_level` is `1`.
+Workers Logs retains records for at most seven days, while page-local `events.jsonl`
+lasts with its page directory. TODO(2026-09-25): Export interaction records to durable
+storage if they need to outlive [Workers Logs retention](https://developers.cloudflare.com/workers/observability/logs/workers-logs/).
+
 Workers Observability is the operational log store. Request-path records carry the
 canonical `eventId`; Worker-side records also carry the public `reference` and `route`.
 The public reference finds every request from one user session, and the event id
@@ -336,12 +357,12 @@ same completed text through the canonical reply writer, even if its subscription
 its turn closes, or the next turn opens first. The App Server adapter presents ordered
 input in delivery slices containing at most one plain reply; a later plain reply remains
 pending for the next turn. Version, markup, and receipt obligations may share that
-turn and remain explicit operations: a stamped version, `leaf resolve`, and
-`leaf receipt`. There is no second
+turn and remain explicit operations: a stamped version, `leaf thread resolve`, and
+`leaf experimental receipt`. There is no second
 website reply endpoint or helper. `leaf` remains the interface for delivery claims and
 reads, resolves, and receipts.
 Once App Server reports a terminal turn, the container closes that exact Leaf turn.
-The bound final-answer message, a page revision closed with `leaf resolve`, or a `leaf
+The bound final-answer message, a page revision closed with `leaf thread resolve`, or a `leaf
 receipt` settles accepted input.
 A turn is followed on the connection it was started on, which App Server subscribes for
 that connection's life; nothing reconnects or resumes. A completion notification is the

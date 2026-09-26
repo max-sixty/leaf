@@ -14,8 +14,8 @@ from ..requests import request_outcomes
 from ..revision_artifact import read_artifact
 from ..structure import SourceDocument
 from ..workflows import canonical_workflows
-from .conversation import browser_conversation
 from .document import browser_document, browser_undo_candidates
+from .thread import browser_thread
 
 
 def _apply_thread_attention(
@@ -25,7 +25,7 @@ def _apply_thread_attention(
     thread_by_widget: dict[str, str],
 ) -> None:
     """Attach the shared attention aggregate, with user Asks taking precedence."""
-    user_threads = {ask["conversation"] for ask in asks["user"]}
+    user_threads = {ask["thread"] for ask in asks["user"]}
     stage_rank = {
         "sent": 0,
         "queued": 1,
@@ -44,7 +44,7 @@ def _apply_thread_attention(
         move is owed or the agent is at work on it. A frozen move that owes nothing
         shows its receipt on its message and leaves the thread nobody's turn."""
         return (
-            workflow["subject"]["kind"] == "conversation"
+            workflow["subject"]["kind"] == "thread"
             or workflow["answer"] is not None
             or at_work(workflow)
         )
@@ -65,7 +65,7 @@ def _apply_thread_attention(
         subject = workflow["subject"]
         thread_id = (
             subject["id"]
-            if subject["kind"] == "conversation"
+            if subject["kind"] == "thread"
             else thread_by_widget.get(subject["id"])
             if subject["kind"] == "widget"
             else None
@@ -145,10 +145,10 @@ def browser_state(
         absorbed=active_page.projection.absorbed,
     )
     live_reply = canonical_stream_reply(present, now, (live_stream or {}).get("reply"))
-    conversation, conversation_reading = browser_conversation(
+    thread, thread_reading = browser_thread(
         events, active_registry, threads, live_reply, data
     )
-    conversation_projection = conversation_reading.projection
+    thread_projection = thread_reading.projection
 
     views = {}
     for revision in sorted(view_revisions):
@@ -161,7 +161,7 @@ def browser_state(
         document, projection = browser_document(page, threads, data or {"sources": {}})
         classified = {
             **projection.classified,
-            **conversation_projection.classified,
+            **thread_projection.classified,
         }
         coverage = []
         for event in events:
@@ -196,7 +196,7 @@ def browser_state(
             "undo": browser_undo_candidates(
                 events,
                 projection,
-                conversation_projection,
+                thread_projection,
                 undo_reading=undo_reading,
             ),
             "coverage": coverage,
@@ -205,7 +205,7 @@ def browser_state(
     workflows = canonical_workflows(
         present["claims"],
         threads,
-        conversation_reading,
+        thread_reading,
         page=active_page,
     )
     activity = canonical_activity(
@@ -218,10 +218,10 @@ def browser_state(
     )
     workflows = activity.pop("workflows")
     _apply_thread_attention(
-        conversation["threads"],
-        conversation["asks"],
+        thread["threads"],
+        thread["asks"],
         workflows,
-        conversation_reading.thread_by_widget,
+        thread_reading.thread_by_widget,
     )
     served = [(revision, documents[revision]) for revision in view_revisions]
     if wants_history(served, registry_for):
@@ -238,7 +238,7 @@ def browser_state(
         "basis": {"through_seq": through_seq},
         **page_history,
         "views": views,
-        "conversation": conversation,
+        "thread": thread,
         "activity": activity,
         "workflows": workflows,
         "request_outcomes": request_outcomes(events),

@@ -358,21 +358,22 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
         </lf-draft>
       </section>
 
-      <section id="bg-conversations">
+      <section id="bg-threads">
         <h2>
           <strong>Threads</strong
-          ><span class="bg-feature-detail">: anchored conversations</span>
+          ><span class="bg-feature-detail">: anchored threads</span>
         </h2>
-        <p id="bg-conversations-guide">
-          With Threads closed, a Thread control or marked passage opens the conversation
+        <p id="bg-threads-guide">
+          With Threads closed, a Thread control or marked passage opens the thread
           inline; t moves to the next inline card and T to the previous one. Open
           Threads while one is focused, including with g T, and the same thread stays
           focused in the panel. Under View, filters narrow the list to Open, On you, On
           agent, or Resolved, and combine Page or Anchored with Content or Layer. Order
           switches the list from the page's order to Recent, which puts the thread
           spoken in last first under its day. Collapsed titles retain their message
-          count and current attention mark. Each thread has a short title chosen by the
-          agent; open one to read the full messages beneath it.
+          count and current status; On you also names the action owed. Each thread has a
+          short title chosen by the agent; open one to read the full messages beneath
+          it.
         </p>
         <p id="bg-thread-notices">
           <strong>New information.</strong> Have the agent add a message after the page
@@ -404,38 +405,39 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
           ><span class="bg-feature-detail">: live before and after examples</span>
         </h2>
         <p id="bg-thread-states-guide" data-width="column">
-          These passages have real conversations in this gallery. Open Threads to
-          compare their title rows, then open a row to inspect its messages. The first
-          pair uses two sample conversations to show the title before and after naming.
+          These passages have real threads in this gallery. Open Threads to compare each
+          row's status, then open a row to inspect its messages. The first pair shows a
+          title before and after naming.
         </p>
         <section id="bg-thread-state-titles">
-          <h3>Conversation title</h3>
+          <h3>Thread title</h3>
           <lf-grid id="bg-thread-title-pair" columns="1fr 1fr">
             <section id="bg-thread-title-before">
               <p class="eyebrow">Before · title pending</p>
               <p id="bg-thread-pending">
                 <strong>A title still pending.</strong> The workshop schedule leaves
                 lunch open. Open Threads to view it. Its title shows three pulsing dots
-                until the agent gives the conversation a short name.
+                until the agent gives the thread a short name.
               </p>
             </section>
             <section id="bg-thread-title-after">
               <p class="eyebrow">After · title assigned</p>
               <p id="bg-thread-text">
-                <strong>An existing conversation.</strong> The sample agenda has room
-                for one more topic. Its speech-bubble control carries a blue interior
-                and a blue glyph, and hovering it shows On you under the label. The
-                image question still needs an answer even though the agent added a later
-                progress update. Open the control and reply: the colour goes as the
-                thread comes back to the agent. The same reading fills the panel’s On
-                you filter and this target’s Page Map row.
+                <strong>An existing thread.</strong> The sample agenda has room for one
+                more topic. Its speech-bubble control carries a blue interior and a blue
+                glyph, and hovering it shows On you under the label. The image question
+                still needs an answer even though the agent added a later progress
+                update. In Threads, On you still says to answer the question. Open the
+                control and reply: the colour goes as the thread comes back to the
+                agent. The same reading fills the panel’s On you filter and this
+                target’s Page Map row.
               </p>
               <p id="bg-thread-media">
-                <strong>Pasted images.</strong> That conversation includes an image
-                supplied by its companion thread log, outside this document. Click the
-                image to inspect it in Leaf’s Image preview. Paste a screenshot into its
-                reply box to see the thumbnail Leaf keeps in the draft without exposing
-                image Markdown.
+                <strong>Pasted images.</strong> That thread includes an image supplied
+                by its companion thread log, outside this document. Click the image to
+                inspect it in Leaf’s Image preview. Paste a screenshot into its reply
+                box to see the thumbnail Leaf keeps in the draft without exposing image
+                Markdown.
               </p>
             </section>
           </lf-grid>
@@ -443,19 +445,19 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
         <section id="bg-thread-state-resolved">
           <h3>Resolved</h3>
           <p id="bg-resolved-text">
-            <strong>A resolved conversation.</strong> The room has a projector. Its
-            earlier question is resolved. Open Threads in the banner, select Resolved,
-            and try Reopen to bring its Thread control back to the page.
+            <strong>A resolved thread.</strong> The room has a projector. Its earlier
+            question is resolved. Open Threads in the banner, select Resolved, and try
+            Reopen to bring its Thread control back to the page.
           </p>
         </section>
         <section id="bg-thread-state-summary">
           <h3>Summarized and unread</h3>
           <p id="bg-thread-checkpoint">
-            <strong>A summarized discussion.</strong> The workshop planning conversation
-            keeps its earlier decisions in a summary. Open it in Threads, expand the
-            covered messages, and use the right-hand control to fold them again. The
-            latest exchange stays below the summary. Keyboard focus can reach both
-            disclosure controls.
+            <strong>A summarized discussion.</strong> The workshop planning thread keeps
+            its earlier decisions in a summary. Open it in Threads, expand the covered
+            messages, and use the right-hand control to fold them again. The latest
+            exchange stays below the summary. Keyboard focus can reach both disclosure
+            controls.
           </p>
           <p id="bg-thread-unread">
             <strong>Unread replies.</strong> The seeded agent replies start unread. Open
@@ -794,10 +796,11 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
           </h3>
           <p id="bg-metrics-guide">
             Metrics show individual values as tiles, and a Chart compares the values
-            across runs. Narrow the window: the metric row and the three-column chart
-            grid rewrap a column at a time, and the template grid under them stacks once
-            it is narrower than 600px. Its log holds its own height and stays on its
-            newest line until you scroll back.
+            across runs. The metric row and the template grid under it keep to the
+            column, and the three charts take the wide width. Narrow the window: the
+            metric row and the chart grid rewrap a column at a time, and the template
+            grid stacks once it is narrower than 696px. Its log holds its own height and
+            stays on its newest line until you scroll back.
           </p>
           <lf-grid id="bg-metrics">
             <lf-metric id="bg-metric-complete" value="12" delta="+3" direction="up-good"
@@ -808,7 +811,7 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
             >
             <lf-metric id="bg-metric-neutral" value="4 min">sample duration</lf-metric>
           </lf-grid>
-          <lf-grid id="bg-charts" columns="3">
+          <lf-grid id="bg-charts" columns="3" data-width="wide">
             <lf-chart id="bg-chart" kind="line" y="checks complete">
               <pre>
 run, baseline, candidate
@@ -1044,11 +1047,10 @@ gallery/
             ><span class="bg-feature-detail">: this page's history, newest first</span>
           </h3>
           <p id="bg-activity-guide">
-            The feed reads this page's own log: the seeded conversations, reactions,
-            user actions, and published versions. The board move near the end was taken
-            back, so its row stays struck through and marked undone. Press a
-            conversation row to open its thread, or a widget row to travel to the
-            widget.
+            The feed reads this page's own log: the seeded threads, reactions, user
+            actions, and published versions. The board move near the end was taken back,
+            so its row stays struck through and marked undone. Press a thread row to
+            open its thread, or a widget row to travel to the widget.
           </p>
           <lf-activity id="bg-activity"></lf-activity>
         </section>
@@ -1384,7 +1386,7 @@ gallery/
                   <p>
                     The candidate changes cache keys, receipts, and settlement jobs.
                   </p>
-                  <ul>
+                  <ul style="--lf-passes-block-edge: 1">
                     <li>Cache migration copies active entries before cutover.</li>
                     <li>Receipts show refunds in the settlement currency.</li>
                     <li>Invalid jobs leave the shared queue for review.</li>
@@ -1461,7 +1463,7 @@ switch --readers checkout-api,orders-api</code></pre>
         <p id="bg-change">The sample walk follows the river to the footbridge.</p>
       </section>
 
-      <section id="bg-delivery">
+      <section id="bg-delivery" style="--lf-passes-block-edge: 1">
         <p class="eyebrow bg-feature-elements">lf-board · lf-column · lf-card</p>
         <h2>
           <strong>Board</strong> and <strong>delivery state</strong
@@ -1513,7 +1515,7 @@ switch --readers checkout-api,orders-api</code></pre>
             locations and edit routes distinguish authored content from user decisions
             and captured data. Change unrelated source wording and inspect again: those
             user choices survive without copying them into HTML. Use
-            <code>--thread ID</code> to inspect a frozen conversation.
+            <code>--thread ID</code> to inspect a frozen thread.
           </p>
         </details>
       </section>

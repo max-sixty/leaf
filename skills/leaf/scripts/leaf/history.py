@@ -12,7 +12,7 @@ What a row names on the page the user is reading now — the section a comment s
 in, the widget a row links to — stays with the page, which holds those places;
 this reading carries their ids and anchors.
 
-Bookkeeping stays out: `read`, `pickup`, `summary`, `conversation_title`, `error`,
+Bookkeeping stays out: `read`, `pickup`, `summary`, `thread_title`, `error`,
 and `undo`, which marks the gesture it took back instead of standing as its own row.
 
 `history` is a served reading only a page that renders it pays for: the state

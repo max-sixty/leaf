@@ -177,22 +177,22 @@ def test_a_section_handed_a_message_id_is_sent_to_the_option_that_takes_one(page
     assert f"no element id {root['id']!r}" in mistaken.output
     assert (
         f"{root['id']} is a comment in this page's log — "
-        f"`leaf reply <page> --for {root['id']}` answers it"
+        f"`leaf thread reply <page> --for {root['id']}` answers it"
     ) in mistaken.output
     assert all(event["kind"] != "reply" for event in events_model.read_events(page_dir))
 
 
 def test_a_section_handed_a_message_owed_nothing_is_sent_to_to(page_dir):
     """A message the log owes nothing is still one `--to` takes. `--to` is the one
-    writer keyed on the kind rather than the obligation, and `--initiates` is refused
-    only while a response is owed, so the agent's own comment — owed nothing — is
+    writer keyed on the kind rather than the obligation, and `--to` without `--for` is
+    refused only while a response is owed, so the agent's own comment — owed nothing — is
     replied to there, and a refusal calling it unroutable would be a dead end."""
     own = json.loads(
         comment(published(page_dir), "--quote", "Ship dark", "--text", "note").output
     )
     mistaken = comment(page_dir, "--section", own["id"], "--text", "more")
     assert mistaken.exit_code != 0
-    route = f"`leaf reply <page> --to {own['id']} --initiates` replies to it"
+    route = f"`leaf thread reply <page> --to {own['id']}` replies to it"
     assert (
         f"{own['id']} is a comment in this page's log, and nothing is owed for it — "
         f"{route}"
@@ -200,7 +200,7 @@ def test_a_section_handed_a_message_owed_nothing_is_sent_to_to(page_dir):
 
     followed = CliRunner().invoke(
         cli_model.cli,
-        ["reply", str(page_dir), "--to", own["id"], "--initiates", "--text", "more"],
+        ["thread", "reply", str(page_dir), "--to", own["id"], "--text", "more"],
     )
     assert followed.exit_code == 0, followed.output
 
@@ -208,10 +208,10 @@ def test_a_section_handed_a_message_owed_nothing_is_sent_to_to(page_dir):
 def test_a_message_whose_thread_owes_a_reply_is_sent_to_for(page_dir):
     """A thread's response is owed by the thread, not by the message carrying it.
 
-    A message with nothing against its own id can sit in a conversation waiting on
-    one, and `--initiates` is refused for the whole thread. A refusal reading the
-    message's own obligation named `--initiates` there, which the writer it named
-    then refused — so both readings are one, and the route is the `--for` that the
+    A message with nothing against its own id can sit in a thread waiting on
+    one, and `--to` without `--for` is refused for the whole thread. A refusal reading
+    the message's own obligation named `--to` there, which the writer it named then
+    refused — so both readings are one, and the route is the `--for` that the
     guard would have demanded.
     """
     own = json.loads(
@@ -225,20 +225,20 @@ def test_a_message_whose_thread_owes_a_reply_is_sent_to_for(page_dir):
     mistaken = comment(page_dir, "--section", own["id"], "--text", "more")
     assert mistaken.exit_code != 0
     assert (
-        f"{own['id']} is a comment in this page's log, and its conversation is owed "
-        f"a reply — `leaf reply <page> --for {asked['id']}` answers it"
+        f"{own['id']} is a comment in this page's log, and its thread is owed "
+        f"a reply — `leaf thread reply <page> --for {asked['id']}` answers it"
     ) in mistaken.output
 
     # The writer the refusal names takes it, and the one it passed over says so too.
-    initiated = CliRunner().invoke(
+    posted = CliRunner().invoke(
         cli_model.cli,
-        ["reply", str(page_dir), "--to", own["id"], "--initiates", "--text", "more"],
+        ["thread", "reply", str(page_dir), "--to", own["id"], "--text", "more"],
     )
-    assert initiated.exit_code != 0
-    assert f"use `--for {asked['id']}` instead of --initiates" in initiated.output
+    assert posted.exit_code != 0
+    assert f"answer it with `--for {asked['id']}`" in posted.output
     answered = CliRunner().invoke(
         cli_model.cli,
-        ["reply", str(page_dir), "--for", asked["id"], "--text", "a week"],
+        ["thread", "reply", str(page_dir), "--for", asked["id"], "--text", "a week"],
     )
     assert answered.exit_code == 0, answered.output
 
@@ -253,7 +253,7 @@ def test_a_section_handed_a_settled_move_is_told_nothing_is_owed(page_dir):
         {"kind": "comment", "author": "user", "text": "how long?"},
     )
     resolved = CliRunner().invoke(
-        cli_model.cli, ["resolve", str(page_dir), "--to", root["id"]]
+        cli_model.cli, ["thread", "resolve", str(page_dir), "--to", root["id"]]
     )
     assert resolved.exit_code == 0, resolved.output
     settled = events_model.read_events(page_dir)[-1]
@@ -285,7 +285,17 @@ def test_a_section_handed_a_delivered_move_names_the_option_for_one(page_dir):
     )
     answered = CliRunner().invoke(
         cli_model.cli,
-        ["reply", str(page_dir), "--for", "c1", "--markup", frozen, "--text", "Which?"],
+        [
+            "thread",
+            "reply",
+            str(page_dir),
+            "--for",
+            "c1",
+            "--markup",
+            frozen,
+            "--text",
+            "Which?",
+        ],
     )
     assert answered.exit_code == 0, answered.output
     append_command(
@@ -305,6 +315,7 @@ def test_a_section_handed_a_delivered_move_names_the_option_for_one(page_dir):
     mistaken = CliRunner().invoke(
         cli_model.cli,
         [
+            "thread",
             "reply",
             str(page_dir),
             "--for",
@@ -318,9 +329,9 @@ def test_a_section_handed_a_delivered_move_names_the_option_for_one(page_dir):
     assert mistaken.exit_code != 0
     assert (
         f"{pressed['id']} is an action in this page's log — "
-        f"`leaf reply <page> --for {pressed['id']}` answers it"
+        f"`leaf thread reply <page> --for {pressed['id']}` answers it"
     ) in mistaken.output
-    assert "`leaf reply <page> --to <id>`" not in mistaken.output
+    assert "`leaf thread reply <page> --to <id>`" not in mistaken.output
 
 
 def test_a_section_scopes_where_a_quote_may_land(page_dir):
@@ -489,11 +500,11 @@ def test_an_agent_reply_can_move_a_thread_to_its_revised_visual(page_dir):
     mistyped = CliRunner().invoke(
         cli_model.cli,
         [
+            "thread",
             "reply",
             str(page_dir),
             "--to",
             root["id"],
-            "--initiates",
             "--section",
             "flowe",
             "--text",
@@ -508,12 +519,12 @@ def test_an_agent_reply_can_move_a_thread_to_its_revised_visual(page_dir):
     moved = CliRunner().invoke(
         cli_model.cli,
         [
+            "thread",
             "reply",
             "--json",
             str(page_dir),
             "--to",
             root["id"],
-            "--initiates",
             "--section",
             "flow",
             "--part",
@@ -532,7 +543,7 @@ def test_an_agent_reply_can_move_a_thread_to_its_revised_visual(page_dir):
     assert original["anchor"]["section"] == "old-wording"
     assert original["anchor"]["quote"] == "The retry starts here."
     assert original["anchor"] != current
-    assert state_json(page_dir)["conversations"] == [
+    assert state_json(page_dir)["threads"] == [
         {
             "id": root["id"],
             "anchor": current,
@@ -551,8 +562,8 @@ def test_an_agent_reply_can_move_a_thread_to_its_revised_visual(page_dir):
 
 
 def test_an_agent_reply_can_remove_a_subject_and_detach_its_open_thread(page_dir):
-    """Removing the thing a conversation concerns is a current-state transition,
-    not permission to attach that conversation to some surviving neighbour. The reply
+    """Removing the thing a thread concerns is a current-state transition,
+    not permission to attach that thread to some surviving neighbour. The reply
     and revision land together, while the opening anchor remains immutable history."""
     v1 = PAGE.replace(
         '<lf-diagram id="flow">',
@@ -576,11 +587,11 @@ def test_an_agent_reply_can_remove_a_subject_and_detach_its_open_thread(page_dir
     refused = CliRunner().invoke(
         cli_model.cli,
         [
+            "thread",
             "reply",
             str(page_dir),
             "--to",
             root["id"],
-            "--initiates",
             "--detach",
             "--text",
             "This must not partly land.",
@@ -598,15 +609,15 @@ def test_an_agent_reply_can_remove_a_subject_and_detach_its_open_thread(page_dir
     detached = CliRunner().invoke(
         cli_model.cli,
         [
+            "thread",
             "reply",
             "--json",
             str(page_dir),
             "--to",
             root["id"],
-            "--initiates",
             "--detach",
             "--text",
-            "I removed the section; this conversation no longer has a page target.",
+            "I removed the section; this thread no longer has a page target.",
         ],
     )
 
@@ -617,7 +628,7 @@ def test_an_agent_reply_can_remove_a_subject_and_detach_its_open_thread(page_dir
     stored_reply = next(event for event in events if event["id"] == reply["id"])
     contract = registry_storage.require_registry(page_dir)["$events"]["kinds"]["reply"]
     assert event_contracts_model.event_record_error(contract, stored_reply) is None
-    assert state_json(page_dir)["conversations"] == [
+    assert state_json(page_dir)["threads"] == [
         {
             "id": root["id"],
             "anchor": None,
@@ -635,11 +646,11 @@ def test_an_agent_reply_can_remove_a_subject_and_detach_its_open_thread(page_dir
     reattached = CliRunner().invoke(
         cli_model.cli,
         [
+            "thread",
             "reply",
             str(page_dir),
             "--to",
             root["id"],
-            "--initiates",
             "--section",
             "flow",
             "--text",
@@ -647,9 +658,9 @@ def test_an_agent_reply_can_remove_a_subject_and_detach_its_open_thread(page_dir
         ],
     )
     assert reattached.exit_code == 0, reattached.output
-    [conversation] = state_json(page_dir)["conversations"]
-    assert conversation["anchor"] == {"section": "flow"}
-    assert conversation["detached_from"] is None
+    [thread] = state_json(page_dir)["threads"]
+    assert thread["anchor"] == {"section": "flow"}
+    assert thread["detached_from"] is None
 
 
 def test_detach_is_a_distinct_reply_target_transition(page_dir):
@@ -660,11 +671,11 @@ def test_detach_is_a_distinct_reply_target_transition(page_dir):
     mixed = CliRunner().invoke(
         cli_model.cli,
         [
+            "thread",
             "reply",
             str(page_dir),
             "--to",
             root["id"],
-            "--initiates",
             "--detach",
             "--section",
             "plan",
@@ -697,11 +708,11 @@ def test_a_withdrawn_reaction_root_can_still_be_moved_but_not_detached(page_dir)
     detached = CliRunner().invoke(
         cli_model.cli,
         [
+            "thread",
             "reply",
             str(page_dir),
             "--to",
             root["id"],
-            "--initiates",
             "--detach",
             "--text",
             "There is no current subject to detach.",
@@ -713,16 +724,16 @@ def test_a_withdrawn_reaction_root_can_still_be_moved_but_not_detached(page_dir)
     moved = CliRunner().invoke(
         cli_model.cli,
         [
+            "thread",
             "reply",
             "--json",
             str(page_dir),
             "--to",
             root["id"],
-            "--initiates",
             "--section",
             "plan",
             "--text",
-            "Move the withdrawn mark's conversation here.",
+            "Move the withdrawn mark's thread here.",
         ],
     )
     assert moved.exit_code == 0, moved.output
@@ -754,6 +765,7 @@ def test_a_reply_refuses_to_change_a_held_command_goal_anchor(page_dir):
     moved = CliRunner().invoke(
         cli_model.cli,
         [
+            "thread",
             "reply",
             str(page_dir),
             "--to",
@@ -773,6 +785,7 @@ def test_a_reply_refuses_to_change_a_held_command_goal_anchor(page_dir):
     detached = CliRunner().invoke(
         cli_model.cli,
         [
+            "thread",
             "reply",
             str(page_dir),
             "--to",
@@ -806,11 +819,11 @@ def test_a_moving_reply_validates_markup_against_the_prospective_revision(page_d
     moved = CliRunner().invoke(
         cli_model.cli,
         [
+            "thread",
             "reply",
             str(page_dir),
             "--to",
             root["id"],
-            "--initiates",
             "--section",
             "answer",
             "--text",
@@ -847,8 +860,8 @@ def drop_node_a(page_dir):
     return check(page_dir)
 
 
-def test_a_version_keeps_the_visual_parts_a_conversation_anchors_on(page_dir):
-    """A declared part is held by the conversations pointing at it, not by having
+def test_a_version_keeps_the_visual_parts_a_thread_anchors_on(page_dir):
+    """A declared part is held by the threads pointing at it, not by having
     once been declared. The picture a diagram draws changes, so a part no thread
     holds is dropped like an element id no thread holds; one a thread still names
     is refused by the same check that protects the id, and by that one alone —
@@ -865,13 +878,13 @@ def test_a_version_keeps_the_visual_parts_a_conversation_anchors_on(page_dir):
     assert root["anchor"] == {"section": "flow", "visual": "node:A"}
     refused = drop_node_a(page_dir)
     assert refused.exit_code != 0
-    assert "visual parts an open conversation anchors on" in refused.output
+    assert "visual parts an open thread anchors on" in refused.output
     assert "flow · node:A" in refused.output
     assert "move, detach, or resolve those threads first" in refused.output
     assert "1 issue(s)" in refused.output
 
 
-def test_a_detached_conversation_releases_the_visual_part_it_left(page_dir):
+def test_a_detached_thread_releases_the_visual_part_it_left(page_dir):
     """`--detach` is the documented move when the subject leaves the page, so the
     edit that removes the subject has to follow it. The opening comment keeps its
     original coordinate in the log; nothing resolves that coordinate any more."""
@@ -889,15 +902,15 @@ def test_a_detached_conversation_releases_the_visual_part_it_left(page_dir):
     detached = CliRunner().invoke(
         cli_model.cli,
         [
+            "thread",
             "reply",
             "--json",
             str(page_dir),
             "--to",
             root["id"],
-            "--initiates",
             "--detach",
             "--text",
-            "Removing this node; the conversation has no page target.",
+            "Removing this node; the thread has no page target.",
         ],
     )
     assert detached.exit_code == 0, detached.output
@@ -912,7 +925,7 @@ def test_a_detached_conversation_releases_the_visual_part_it_left(page_dir):
     assert stored_root["anchor"] == {"section": "flow", "visual": "node:A"}
 
 
-def test_a_moved_conversation_releases_the_visual_part_it_left(page_dir):
+def test_a_moved_thread_releases_the_visual_part_it_left(page_dir):
     """The other half of the same rule: a thread moved onto the whole diagram, or
     onto a part that survives, stops holding the one it came from."""
     root = json.loads(
@@ -929,11 +942,11 @@ def test_a_moved_conversation_releases_the_visual_part_it_left(page_dir):
     moved = CliRunner().invoke(
         cli_model.cli,
         [
+            "thread",
             "reply",
             str(page_dir),
             "--to",
             root["id"],
-            "--initiates",
             "--section",
             "flow",
             "--text",
@@ -946,11 +959,11 @@ def test_a_moved_conversation_releases_the_visual_part_it_left(page_dir):
     assert result.exit_code == 0, result.output
 
 
-def test_a_resolved_conversation_releases_the_visual_part_it_held(page_dir):
+def test_a_resolved_thread_releases_the_visual_part_it_held(page_dir):
     """Closing a thread is the ordinary end of one, and it releases the part on the
     same terms a detach does — the same terms that already release the section id,
     which `version check` lets a resolved thread's page drop as advice. Held past
-    the close, the everyday route out of a conversation would be the one route that
+    the close, the everyday route out of a thread would be the one route that
     pins a node to its diagram for good."""
     root = json.loads(
         comment(
@@ -964,7 +977,7 @@ def test_a_resolved_conversation_releases_the_visual_part_it_held(page_dir):
         ).output
     )
     closed = CliRunner().invoke(
-        cli_model.cli, ["resolve", str(page_dir), "--to", root["id"]]
+        cli_model.cli, ["thread", "resolve", str(page_dir), "--to", root["id"]]
     )
     assert closed.exit_code == 0, closed.output
 
@@ -992,9 +1005,9 @@ def test_a_bare_reaction_holds_no_visual_part(page_dir):
     assert result.exit_code == 0, result.output
 
 
-def test_reopening_a_conversation_does_not_reclaim_a_released_visual_part(page_dir):
+def test_reopening_a_thread_does_not_reclaim_a_released_visual_part(page_dir):
     """A release is final. `unresolve` is a user's own gesture and `resolve` is
-    undoable, so a closed conversation can come back after the author has already
+    undoable, so a closed thread can come back after the author has already
     published the part away on the licence the close granted. The coordinate cannot
     be restored — no revision declares it any more — so re-asserting it would leave
     `version check` refusing every later edit, and the only move out would be a
@@ -1011,7 +1024,7 @@ def test_reopening_a_conversation_does_not_reclaim_a_released_visual_part(page_d
         ).output
     )
     closed = CliRunner().invoke(
-        cli_model.cli, ["resolve", str(page_dir), "--to", root["id"]]
+        cli_model.cli, ["thread", "resolve", str(page_dir), "--to", root["id"]]
     )
     assert closed.exit_code == 0, closed.output
     assert drop_node_a(page_dir).exit_code == 0
@@ -1065,7 +1078,7 @@ def test_a_verbatim_body_is_quotable_where_a_source_body_is_not(page_dir):
 def test_an_edited_draft_reads_as_the_users_words(page_dir):
     """An `edit` is absolute — the log carries the whole new body, and replay writes
     exactly that into the DOM the anchor pass searches — so the reading
-    `leaf comment` captures against holds the user's words in the authored
+    `leaf thread open` captures against holds the user's words in the authored
     body's place: quotable, collapsed like any passage, genuinely adjacent to the
     prose around them (no fence — the screen shows that adjacency too)."""
     drafted(page_dir)
@@ -1112,7 +1125,7 @@ def test_comments_reach_user_generated_choices_without_source_copying(page_dir):
     }
 
     # A later source version still omits the generated option. The open anchored
-    # conversation and the option's words must both remain reachable.
+    # thread and the option's words must both remain reachable.
     (page_dir / "index.html").write_text(
         html.replace("The cutoff lives", "The active cutoff lives")
     )
@@ -1461,7 +1474,7 @@ def test_the_agents_own_comment_is_not_printed_back_to_it(page_dir):
 
 def test_resolve_closes_a_thread_the_way_the_panel_does(page_dir, monkeypatch):
     """The agent's ✓ Resolve: the same event the panel's control posts, named by any
-    message in the thread the way `leaf reply --to` is, and carrying the posting
+    message in the thread the way `leaf thread reply --to` is, and carrying the posting
     session's voice — which is the whole of how a user learns a thread they did not
     close was closed."""
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s-7")
@@ -1481,6 +1494,7 @@ def test_resolve_closes_a_thread_the_way_the_panel_does(page_dir, monkeypatch):
         .invoke(
             cli_model.cli,
             [
+                "thread",
                 "reply",
                 "--json",
                 str(page_dir),
@@ -1496,7 +1510,8 @@ def test_resolve_closes_a_thread_the_way_the_panel_does(page_dir, monkeypatch):
     )
 
     result = CliRunner().invoke(
-        cli_model.cli, ["resolve", "--json", str(page_dir), "--to", answer["id"]]
+        cli_model.cli,
+        ["thread", "resolve", "--json", str(page_dir), "--to", answer["id"]],
     )
     assert result.exit_code == 0, result.output
     event = json.loads(result.output)
@@ -1504,7 +1519,7 @@ def test_resolve_closes_a_thread_the_way_the_panel_does(page_dir, monkeypatch):
     assert event["parent"] == answer["id"]
     assert event["agent"] == "Indexer" and event["session"] == "s-7"
 
-    threads = state_json(page_dir)["conversations"]
+    threads = state_json(page_dir)["threads"]
     assert [t["resolved"] for t in threads] == ["agent"]
 
     transcript = CliRunner().invoke(cli_model.cli, ["transcript", str(page_dir)])
@@ -1513,8 +1528,10 @@ def test_resolve_closes_a_thread_the_way_the_panel_does(page_dir, monkeypatch):
 
 def test_resolve_refuses_a_message_the_log_has_not_got(page_dir):
     """The parent rule is the reply door's, so a thread can't be closed by naming
-    something outside the conversation."""
-    result = CliRunner().invoke(cli_model.cli, ["resolve", str(page_dir), "--to", "c9"])
+    something outside the thread."""
+    result = CliRunner().invoke(
+        cli_model.cli, ["thread", "resolve", str(page_dir), "--to", "c9"]
+    )
     assert result.exit_code != 0
     assert "unknown comment id" in result.output
 
@@ -1539,10 +1556,10 @@ def test_unresolve_reopens_a_thread_in_agent_readings(page_dir):
         page_dir, {"kind": "unresolve", "author": "user", "parent": root["id"]}
     )
 
-    thread = state_json(page_dir)["conversations"][0]
+    thread = state_json(page_dir)["threads"][0]
     assert thread["resolved"] is None
     history = CliRunner().invoke(
-        cli_model.cli, ["events", str(page_dir), "--conversation", root["id"]]
+        cli_model.cli, ["events", str(page_dir), "--thread", root["id"]]
     )
     assert history.exit_code == 0, history.output
     assert [json.loads(line)["id"] for line in history.output.splitlines()] == [
@@ -1581,7 +1598,7 @@ def test_a_closed_thread_stops_asking(page_dir):
             "tag": "lf-ask",
             "source": "gm",
             "source_tag": "lf-options",
-            "conversation": root["id"],
+            "thread": root["id"],
         }
     ]
     events_model.append_event(
@@ -1618,14 +1635,14 @@ def test_thread_asks_share_one_projection_across_open_fragments(page_dir):
             "tag": "lf-ask",
             "source": "group-a",
             "source_tag": "lf-options",
-            "conversation": roots[0]["id"],
+            "thread": roots[0]["id"],
         },
         {
             "id": "group-b-decision",
             "tag": "lf-ask",
             "source": "group-b",
             "source_tag": "lf-options",
-            "conversation": roots[1]["id"],
+            "thread": roots[1]["id"],
         },
     ]
 
@@ -1646,7 +1663,7 @@ def test_thread_asks_share_one_projection_across_open_fragments(page_dir):
             "tag": "lf-ask",
             "source": "group-b",
             "source_tag": "lf-options",
-            "conversation": roots[1]["id"],
+            "thread": roots[1]["id"],
         }
     ]
 
@@ -1742,8 +1759,7 @@ def test_page_state_holds_a_decision_made_on_a_widget_an_agent_sent(page_dir):
     assert out.exit_code == 0, out.output
     state = json.loads(out.stdout)
     assert [
-        (s["widget"], s["action"], s["detail"], s["conversation"])
-        for s in state["state"]
+        (s["widget"], s["action"], s["detail"], s["thread"]) for s in state["state"]
     ] == [("ps-q", "choose", {"options": ["ps-cookie"]}, thread)]
 
 
@@ -1771,6 +1787,7 @@ def test_a_comments_widget_markup_shares_one_id_universe_with_replies(page_dir):
     clash = CliRunner().invoke(
         cli_model.cli,
         [
+            "thread",
             "reply",
             str(page_dir),
             "--to",
@@ -1788,6 +1805,7 @@ def test_a_comments_widget_markup_shares_one_id_universe_with_replies(page_dir):
     plain_clash = CliRunner().invoke(
         cli_model.cli,
         [
+            "thread",
             "reply",
             str(page_dir),
             "--to",

@@ -57,11 +57,15 @@ export function trappedMargins() {
       }
       if (node.nodeType !== 1) continue;
       const s = getComputedStyle(node);
-      if (s.display === "none") continue;
+      if (s.display === "none" || node.hasAttribute("hidden")) continue;
       if (s.position === "absolute" || s.position === "fixed") continue;
       if (s.float !== "none") continue;
       if (s.display === "contents") {
-        out.push(...flow(node));
+        for (const child of flow(node))
+          out.push({
+            ...child,
+            contents: [node.tagName.toLowerCase(), ...(child.contents || [])],
+          });
         continue;
       }
       if (node.matches(".lf-ui, [data-lf-gen]")) {
@@ -72,34 +76,71 @@ export function trappedMargins() {
     }
     return out;
   };
+  // Follow an edge only through boxes whose children's margins can collapse through
+  // them. A formatting context or an inset owns its interior spacing. The shared trim
+  // needs an explicit --lf-passes-block-edge declaration at each box on this path.
+  const edgeMargin = (kid, edge, through = []) => {
+    if (!kid.node) return null;
+    const path = [...through, ...(kid.contents || [])];
+    const side = edge === "above" ? "Top" : "Bottom";
+    const end = edge === "above" ? "Start" : "End";
+    const own = px(kid.s["marginBlock" + end]);
+    let deeper = null;
+    const s = kid.s;
+    if (
+      !holds(s) &&
+      s.containerType === "normal" &&
+      !s.display.startsWith("inline") &&
+      !s.display.includes("flex") &&
+      !s.display.includes("grid") &&
+      !px(s["padding" + side]) &&
+      !px(s["border" + side + "Width"]) &&
+      getComputedStyle(kid.node, edge === "above" ? "::before" : "::after").content ===
+        "none"
+    ) {
+      const kids = flow(kid.node);
+      if (kids.length) {
+        deeper = edgeMargin(edge === "above" ? kids[0] : kids[kids.length - 1], edge, [
+          ...path,
+          kid.node.tagName.toLowerCase(),
+        ]);
+      }
+    }
+    return own >= (deeper?.margin || 0)
+      ? { margin: own, child: kid.node.tagName.toLowerCase(), through: path }
+      : deeper;
+  };
   const found = [];
   for (const root of openRoots(document))
     for (const el of root.querySelectorAll("*")) {
       const s = getComputedStyle(el);
-      if (s.display === "none" || s.display === "contents") continue;
+      if (s.display === "none" || s.display === "contents" || el.closest("[hidden]"))
+        continue;
       // An inline box lays no vertical margin out, so it traps nothing.
       if (s.display.startsWith("inline") && s.display !== "inline-block") continue;
       if (s.display.includes("flex") || s.display.includes("grid")) continue;
       const kids = flow(el);
       if (!kids.length) continue;
-      for (const [edge, side, end, kid, pseudo] of [
-        ["above", "Top", "Start", kids[0], "::before"],
-        ["below", "Bottom", "End", kids[kids.length - 1], "::after"],
+      for (const [edge, side, kid, pseudo] of [
+        ["above", "Top", kids[0], "::before"],
+        ["below", "Bottom", kids[kids.length - 1], "::after"],
       ]) {
         if (!kid.node) continue;
         if (getComputedStyle(el, pseudo).content !== "none") continue;
         const drawn = px(s["padding" + side]) + px(s["border" + side + "Width"]);
         if (!drawn && !holds(s)) continue;
-        const margin = px(kid.s["marginBlock" + end]);
-        if (margin > 0.5)
+        const leak = edgeMargin(kid, edge);
+        if (leak && leak.margin > 0.5)
           found.push({
             tag: el.tagName.toLowerCase(),
             id: el.id || null,
             cls: el.classList[0] || null,
             edge,
             drawn,
-            margin,
-            child: kid.node.tagName.toLowerCase(),
+            margin: leak.margin,
+            child: leak.child,
+            through: leak.through,
+            frameDeclared: s.getPropertyValue("--lf-block-frame").trim() === "1",
             chrome: inChrome(el),
           });
       }

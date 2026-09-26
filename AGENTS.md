@@ -21,10 +21,8 @@ primitive must give the user something that site would not:
   threads, widgets whose state survives a revision, and the event log that
   returns each comment and decision to the agent as a structured event.
 - **Consistency.** One interface across sessions and agents — keybindings,
-  conversations, and how a widget answers a move — so the user learns it
+  threads, and how a widget answers a move — so the user learns it
   once.
-- **Preferences.** A place for the user's own preferences, such as
-  aesthetics and style, stated once and honoured on every page.
 - **Trust.** A page runs under a locked-down content policy, and an action
   records its meaning when taken, so a control does what it says and the
   record shows what the user decided.
@@ -128,6 +126,7 @@ Claude Code and Codex install the tracked tree whole. Its main parts are:
   vocabulary;
 - `hooks/hooks.json`: the shared host hooks.
 
+`evals/` scores the shipped guidance with cases a headless agent answers.
 `examples/` is the authored-page and render corpus. `tests/` covers the file,
 CLI, browser, and published-site boundaries, and in `tests/runtime/` the folds the
 shipped runtime performs, which Node runs without one. `scripts/` owns developer preview,
@@ -209,7 +208,7 @@ event, so historical readers do not need a surviving widget to recover it.
 Python derives winners, retractions, settlement, asks, threads, and updates in
 one transaction-consistent browser view. JavaScript combines that view with
 authored initial values and unresolved local gestures to derive complete widget
-and conversation state. Every forward gesture whose semantic result the page can draw is on
+and thread state. Every forward gesture whose semantic result the page can draw is on
 screen in the turn that sends it, before the log answers; a disabled control, spinner,
 or other delivery status is not that result. What the page can draw is what its own
 document settles: a widget's state, a thread's turn. Which Asks the document still holds
@@ -219,7 +218,7 @@ second answer to it. Refusal restores the authoritative state.
 Widgets render that state, including unset and undecided values; undo
 does not reconstruct widgets or replay baseline actions into the DOM. Page-widget
 state is bounded by document version; widgets frozen into thread markup use the
-conversation window.
+thread window.
 
 The active document has one immutable application publication. Its publisher alone
 combines authored baselines, the complete admitted server reading, and the ordered
@@ -303,6 +302,8 @@ Before finishing a feature:
   section by name rather than restating it, since each copy drifts on the next
   change. Shipped guidance sets goals for the user's experience and names the
   surface they read on; it leaves format and phrasing to the agent's judgment.
+  Score the change with `evals/` before and after, and add a case for the
+  behavior it targets; `evals/README.md` says how.
 - Update any public docs or generated outputs the feature affects.
 
 `tests/AGENTS.md` owns environment setup, focused runs, nightly selection, and
@@ -350,6 +351,8 @@ upgrade, authoritative presentation, and requests and bytes loaded by presentati
 Compare request counts and bytes directly; elapsed time is diagnostic because it
 varies with the machine and network. If a change adds work before presentation,
 state the user-visible benefit and why that work cannot wait until after presentation.
+Bytes outside that profile — a lazily loaded module, a vendored file, the size of the
+install — are not a reason for a change on their own.
 
 Land through a pull request or with `wt merge`, which squash-merges directly to
 `main`. User-directed landing requires the user's authorization; Tend sessions

@@ -179,6 +179,7 @@
       "lf-task"
     ],
     "x-content": "markup",
+    "x-measure": "group",
     "x-refers": {
       "on": {
         "via": "$command.widgets",

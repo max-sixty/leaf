@@ -11,8 +11,7 @@ import { keys } from "./keyboard/scopes.js";
 import { pageRung } from "./keyboard/register.js";
 import { pagePresented } from "./presentation.js";
 import { allAsks } from "./asks/model.js";
-import { walkRows } from "./keyboard/bindings.js";
-import { beginWalk, listWalkPosition } from "./walk-position.js";
+import { rowWalk } from "./walk-position.js";
 import { iconElement } from "./icons.js";
 import { createLiveLeavesList } from "./live-leaves-list.js";
 import { bannerControlDoor, dismissBannerControls } from "./banner-shelf.js";
@@ -192,9 +191,10 @@ export function createTrays({
   registerTray("asks", asksPanel, asksBtn, asksFurniture.close, syncAsks);
   const trayNames = Object.freeze([...trays.keys()]);
 
-  // The Asks tray's own walk, the leaves tray's twin: ArrowUp and ArrowDown are the page's
-  // scroll everywhere else and the tray's here, and Enter is the platform's, a row being a
-  // button — so the scope names what walking does and leaves the press to the button.
+  // The Asks tray's own walk, the same one as the leaves tray's: the arrows, Home and End
+  // are the page's scroll everywhere else and the tray's here, and Enter is the
+  // platform's, a row being a button — so the scope names what walking does and leaves
+  // the press to the button.
   function mountTrays() {
     traysEdge.handle(othersPanel, () => othersBtn);
     traysEdge.handle(asksPanel, () => asksBtn);
@@ -207,29 +207,7 @@ export function createTrays({
     keys(
       asksPanel,
       "In the Asks tray",
-      [
-        {
-          id: "ask.list-walk",
-          keys: ["ArrowUp", "ArrowDown"],
-          routes: [
-            {
-              id: "ask.row-previous",
-              binding: "ArrowUp",
-              does: "Previous ask",
-            },
-            { id: "ask.row-next", binding: "ArrowDown", does: "Next ask" },
-          ],
-          does: "Walk the asks",
-          line: "walk the asks",
-          repeat: true,
-          run: (binding) => {
-            walkRows(askRows(), binding === "ArrowDown" ? 1 : -1);
-            beginWalk("ask-tray", "Ask", () =>
-              listWalkPosition(askRows(), document.activeElement),
-            );
-          },
-        },
-      ],
+      rowWalk({ id: "ask.tray", noun: "Ask", plural: "asks", rows: askRows }),
       () => askRows().length > 0,
     );
   }

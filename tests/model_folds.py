@@ -124,7 +124,7 @@ def reading(
         "executable": f"model-r{active_revision}",
         "activated_at": NOW,
     }
-    return browser_state(
+    state, _reading = browser_state(
         parsed,
         log,
         registry,
@@ -134,6 +134,7 @@ def reading(
         {active_revision},
         NOW,
     )
+    return state
 
 
 def threads(state: dict) -> dict:

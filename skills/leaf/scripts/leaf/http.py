@@ -9,6 +9,7 @@ import html
 import json
 import re
 import secrets
+import sys
 import time
 from collections.abc import Mapping
 from functools import partial
@@ -46,6 +47,7 @@ from .files import (
     write_json,
 )
 from .interaction_log import append_interactions, client_records, now_iso
+from .layer import foreign_runtime
 from .locations import path_is_within
 from .media import MAX_MEDIA_UPLOAD_BYTES, MediaUploadError, store_uploaded_media
 from .registry.storage import layer_metadata, require_registry
@@ -1366,13 +1368,18 @@ def page_endpoint(
     """Bind one page, publication view, and key to the endpoint each request becomes.
 
     The layer identity and the preview reading are read once here rather than per
-    request: they are facts about the vendored page this server was started over. The
-    key has no default: every server over a page directory is reachable by whatever
-    reached the machine, so there is no construction that should quietly go without
-    one."""
+    request: they are facts about the vendored page this server was started over. So
+    is whether this Leaf can serve that page at all: every one-page server, durable
+    or temporary, passes here before it binds, and exits naming the re-vendor when
+    the page's runtime came from another Leaf (`foreign_runtime`).
+    The key has no default: every server over a page directory is reachable by
+    whatever reached the machine, so there is no construction that should quietly go
+    without one."""
     identity = (
         page_snapshot.layer if page_snapshot is not None else layer_metadata(page_dir)
     )
+    if refusal := foreign_runtime(page_dir, identity):
+        sys.exit(refusal)
     return partial(
         endpoint,
         page_dir=page_dir,

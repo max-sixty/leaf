@@ -49,6 +49,7 @@ from interact_support import (
     stamp,
     start_server_command,
     state_json,
+    vendored_by_another_leaf,
     wait_for,
     yaml_document,
 )
@@ -7377,6 +7378,45 @@ def test_wait_restarts_a_server_that_died_under_it(
     # session's server and dies with that session. Here the session is the
     # worker (conftest), which is what keeps a killed run from stranding this.
     assert files_model.read_json(page_dir / "service.json")["lifetime"] == "session"
+
+
+def test_wait_does_not_revive_a_page_another_leaf_vendored(page_dir, capsys):
+    """A server that died under a page another Leaf has since been updated past
+    stays down: the wait's revival is a start like any other, served by the Leaf
+    running the wait. The page reads as lost, and the refusal reaches the agent
+    reading the wait with the re-vendor that brings it back."""
+    files_model.write_json(
+        page_dir / "service.json",
+        {
+            "host": "127.0.0.1",
+            "bind": "127.0.0.1",
+            "port": available_loopback_port(),
+            "enabled": True,
+            "lifetime": "session",
+        },
+    )
+    assert service_model.claim_page(page_dir)
+    session_model.cmd_status(page_dir, "waiting", "review the page")
+    vendored_by_another_leaf(page_dir)
+
+    # One pass first, so a revival that went through fails here rather than
+    # leaving the wait below holding a live page open for input.
+    watch = session_model.Watch(host_model.session_harness(), pages=(page_dir,))
+    try:
+        assert watch.acquire()
+        reading = next(watch.tick())
+    finally:
+        watch.release()
+    assert reading.lost is True
+    assert reading.restarted is None
+    assert server_model.running_server(page_dir) is None
+    refused = capsys.readouterr().err
+    assert f"leaf page init {page_dir}" in refused
+
+    assert session_model.cmd_wait(page_dir) == 2
+    printed = capsys.readouterr().err
+    assert f"leaf page init {page_dir}" in printed
+    assert "server had died; restarted" not in printed
 
 
 def test_wait_revival_cannot_take_a_page_back_after_claim_transfer(

@@ -210,8 +210,8 @@ function nameAnchor({ el, name, write }) {
 // The box a row anchors to. An anchor name reaches only its own tree, so a target inside
 // a shadow tree anchors through its host; a shape inside an SVG drawing has no CSS box of
 // its own, so it anchors through the drawing; a `display: contents` target through its
-// first shown part. Where the anchor is not the target, the row still stands at the
-// target's own top and, as a pin, its own right edge, through `insetFrom`.
+// first shown part. Wherever it anchors, the row stands at the target's own corner
+// (`cornerOf`), written as insets from the anchor's box.
 function anchorElement(target) {
   let el = target;
   for (let root = el.getRootNode(); root instanceof ShadowRoot; root = el.getRootNode())
@@ -343,16 +343,15 @@ function setStyle(row, property, value) {
     row.style.setProperty(property, value);
 }
 
-// How far the target's own corner stands inside the box it anchors through: down from
-// its top, and in from its right, so a comment on one shape of a drawing stands on that
-// shape rather than at the drawing's edge. A target with no shown part has no corner.
-function insetFrom(target, anchor, box) {
-  if (anchor === target) return { top: 0, right: 0 };
+// The target's own top-right corner, across the parts it shows: where its row stands,
+// whatever box it anchors through, so a comment on one shape of a drawing stands on that
+// shape rather than at the drawing's edge. A target with no shown part has none.
+function cornerOf(target) {
   const parts = shownParts(target).map((part) => part.getBoundingClientRect());
-  if (!parts.length) return { top: 0, right: 0 };
+  if (!parts.length) return null;
   return {
-    top: Math.min(...parts.map((part) => part.top)) - box.top,
-    right: box.right - Math.max(...parts.map((part) => part.right)),
+    top: Math.min(...parts.map((part) => part.top)),
+    right: Math.max(...parts.map((part) => part.right)),
   };
 }
 
@@ -364,17 +363,16 @@ function insetFrom(target, anchor, box) {
 // above a pane's top would be clipped by its lane and still take the keyboard, and for a
 // pin the target's right edge too: a card half past a board's edge would stand its pin
 // outside the board, beside nothing and past the page.
-function targetShown(target, anchor, inset, pin, bands) {
+function targetShown(target, anchor, corner, pin, bands) {
   const shown = (part) =>
     part.checkVisibility() && clippedBand(part, part.getBoundingClientRect(), bands);
   if (!shownParts(target).some(shown)) return false;
   const box = anchor.getBoundingClientRect();
   const view = clippedBand(target, box, bands);
-  const line = box.top + inset.top;
-  if (!view || line < view.top - 1 || line >= view.bottom) return false;
+  if (!view || corner.top < view.top - 1 || corner.top >= view.bottom) return false;
   if (!pin) return true;
   const across = anchor === target ? view : clippedBand(anchor, box, bands);
-  return Boolean(across) && box.right - inset.right <= across.right + 1;
+  return Boolean(across) && corner.right <= across.right + 1;
 }
 
 const pushes = new Map();
@@ -411,10 +409,14 @@ function scheduleScrollReading() {
         scheduleMarginLayout();
         return;
       }
-      const inset = insetFrom(target, anchor, anchor.getBoundingClientRect());
       if (
-        targetShown(target, anchor, inset, row.dataset.lfPlace === "pin", bands) ===
-        row.classList.contains("lf-withheld")
+        targetShown(
+          target,
+          anchor,
+          cornerOf(target),
+          row.dataset.lfPlace === "pin",
+          bands,
+        ) === row.classList.contains("lf-withheld")
       ) {
         scheduleMarginLayout();
         return;
@@ -463,7 +465,7 @@ export function layoutMarginRows() {
     const scroller = scrollerFor(target);
     const rootLane = scroller === pageScroller;
     const box = anchor.getBoundingClientRect();
-    const inset = insetFrom(target, anchor, box);
+    const corner = cornerOf(target);
     const place = rowPosture({
       railStands: stands,
       rootLane,
@@ -472,7 +474,7 @@ export function layoutMarginRows() {
       half: size / 2,
     });
     const shown =
-      !parked.has(row) && targetShown(target, anchor, inset, place === "pin", bands);
+      !parked.has(row) && targetShown(target, anchor, corner, place === "pin", bands);
     reads.push({
       row,
       options,
@@ -482,8 +484,8 @@ export function layoutMarginRows() {
       lane: rootLane ? layer.root : null,
       shown,
       place,
-      inset,
-      edge: box.right - inset.right,
+      box,
+      corner,
       controls: place === "pin" && shown ? controlsIn(anchor) : [],
     });
   }
@@ -536,16 +538,13 @@ export function layoutMarginRows() {
 
   // A withheld row is anchored too, so that when its target comes into view it has only
   // to show.
-  for (const { row, naming, shown, place, inset } of reads) {
+  const px = (length) => (length ? `${length}px` : null);
+  for (const { row, naming, shown, place, box, corner } of reads) {
     mark(row, "lf-withheld", !shown);
     if (!naming) continue;
     setStyle(row, "position-anchor", nameAnchor(naming));
-    setStyle(row, "--lf-inset-top", inset.top ? `${inset.top}px` : null);
-    setStyle(
-      row,
-      "--lf-inset-right",
-      place === "pin" && inset.right ? `${inset.right}px` : null,
-    );
+    setStyle(row, "--lf-inset-top", px(corner && corner.top - box.top));
+    setStyle(row, "--lf-inset-right", px(corner && box.right - corner.right));
     if (row.dataset.lfPlace !== place) row.dataset.lfPlace = place;
   }
 
@@ -564,8 +563,10 @@ export function layoutMarginRows() {
         stranded: box.bottom + scrollY < -1000,
         rect: {
           left:
-            read.place === "pin" ? read.edge - pinInset - box.width : box.left - step,
-          right: read.place === "pin" ? read.edge - pinInset : box.right - step,
+            read.place === "pin"
+              ? read.corner.right - pinInset - box.width
+              : box.left - step,
+          right: read.place === "pin" ? read.corner.right - pinInset : box.right - step,
           top: box.top - push,
           bottom: box.bottom - push,
         },

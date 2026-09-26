@@ -102,6 +102,7 @@ import { repaint } from "../repaint.js";
 import { focusDestination, letGo, readCaret, takesLetters } from "../focus.js";
 import { focused } from "../keyboard/scopes.js";
 import { under } from "../shadow.js";
+import { heldAsk } from "../standing-target.js";
 
 import { pointerAt } from "../pointer.js";
 import { anchorLabel } from "../thread/messages.js";
@@ -132,7 +133,6 @@ export function createResponseSurface({
   setPanel,
   threadHere,
   threadTarget,
-  holdingAsk,
   standingElement,
   composerHolds,
   responseOptionsAreOpen,
@@ -1541,7 +1541,7 @@ export function createResponseSurface({
       inline &&
       (!here ||
         inline.contains(focused()) ||
-        (target && under(target, holdingAsk() ?? here))) &&
+        (target && under(target, heldAsk() ?? here))) &&
       threadInput(inline);
     const said =
       standingThread() ?? (inlineBox ? { held: inline, box: inlineBox } : null);

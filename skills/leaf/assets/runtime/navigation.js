@@ -10,8 +10,8 @@ import { threadsBox } from "./thread/panel-elements.js";
 import { pageScroller } from "./scrolling.js";
 import { landingInsets } from "./geometry.js";
 import { effectiveScroller, readingRegionFor } from "./reading-regions.js";
-import { closestAcross, inChrome } from "./passages.js";
-import { documentFocused } from "./keyboard/scopes.js";
+import { closestAcross } from "./passages.js";
+import { standingPlace } from "./standing-target.js";
 import { under } from "./shadow.js";
 import { announce } from "./notifications.js";
 import { focusThread } from "./thread/focus.js";
@@ -37,23 +37,6 @@ const threadPosition = (threadHere, panelIsOpen) => {
   });
 };
 
-// t/T walk open threads. A closed panel walks them in page order, at each thread's
-// inline destination: a declared widget outlet first, then the thread margin entry's card. A
-// thread with no page destination is indexed only by Threads, so that destination opens the panel.
-// Once the panel is open, the walk stays in its list, in whichever order the list shows.
-// Both paths are clamped, not wrapped.
-// The page place a walk that is at no thread measures from: the focused page node,
-// the page target focused chrome stands for, or else the selection's end.
-function pagePlace(standingTargetAt) {
-  const held = documentFocused();
-  const place =
-    held && held !== document.body && (inChrome(held) ? standingTargetAt(held) : held);
-  if (place) return place;
-  const node = getSelection()?.focusNode;
-  const at = node?.nodeType === 1 ? node : node?.parentElement;
-  return at && !inChrome(at) ? at : null;
-}
-
 // From a place on the page at no thread, a walk in the page's order measures document
 // position against each thread's target, as the Ask walk does (asks/view.js,
 // `askStep`): a target holding the place is where the user already is, so the press
@@ -72,16 +55,20 @@ function threadFrom(threads, place, dir, threadTarget) {
   return dir > 0 ? (reach[0] ?? threads.at(-1)) : (reach.at(-1) ?? threads[0]);
 }
 
+// t/T walk open threads. A closed panel walks them in page order, at each thread's
+// inline destination: a declared widget outlet first, then the thread margin entry's card. A
+// thread with no page destination is indexed only by Threads, so that destination opens the panel.
+// Once the panel is open, the walk stays in its list, in whichever order the list shows.
+// Both paths are clamped, not wrapped.
 function stepThread(dir, destinations, panelIsOpen) {
-  const { openPageThread, scrollToThread, threadHere, standingTargetAt, threadTarget } =
-    destinations;
+  const { openPageThread, scrollToThread, threadHere, threadTarget } = destinations;
   const threads = walkableThreads(panelIsOpen);
   const current = currentThread(threads, threadHere, panelIsOpen);
   const next = current
     ? clampedRow(threads, current, dir)
     : threadFrom(
         threads,
-        !panelIsOpen() || inPageOrder() ? pagePlace(standingTargetAt) : null,
+        !panelIsOpen() || inPageOrder() ? standingPlace() : null,
         dir,
         threadTarget,
       );

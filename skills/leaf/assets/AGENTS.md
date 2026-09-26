@@ -56,7 +56,7 @@ relative to `runtime/` unless stated otherwise.
 | Chrome assembly and available room | `chrome.js`, `chrome-layout.js`, `auxiliary-surfaces.js`, `drawn-edge.js` |
 | Reading regions and scrolling | `reading-regions.js`, `reading-place.js`, `bounds.js`, `scrolling.js`, `reach.js`, `user-place.js` |
 | Keyboard commands and their projections | `keyboard/AGENTS.md` |
-| Focus and navigation | `focus.js`, `navigation.js`, `history.js`, `user-intent.js`, `walk-position.js` |
+| Focus and navigation | `focus.js`, `standing-target.js`, `navigation.js`, `history.js`, `user-intent.js`, `walk-position.js` |
 | Asks | `asks/view.js`, `asks/view-elements.js`, `asks/model.js` |
 | Comment capture and entry | `composing/`, `drafts.js`, `media.js` |
 | Threads and reply surfaces | `thread/`, `thread-panel.js` |

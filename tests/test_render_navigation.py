@@ -19,6 +19,8 @@ from render_cases_interaction import (
     panel_comment,
 )
 from render_cases_layout import (
+    SHOT_SRC,
+    SHOTS,
     banner_control,
     in_threads_scrollport,
     page_at_rest,
@@ -11535,8 +11537,13 @@ def test_an_ask_in_a_reply_is_where_the_user_stands_once_answered(browser, serve
     """An Ask frozen into a reply sits in a thread about a page Ask. Standing in the
     reply's Ask is standing there whether or not it is answered: the thread leads to its
     page Ask only from a node inside no Ask, so a user back on the answered option does
-    not have the page Ask's ring and digits."""
-    url = serve(ASK_THREAD_PAGE)
+    not have the page Ask's ring and digits. A control the margin draws for a widget in
+    the reply stands nowhere, since its widget is chrome in no Ask, so `a` from it starts
+    where the reader is rather than behind every Ask on the page."""
+    url = serve(
+        ASK_THREAD_PAGE,
+        media={SHOT_SRC[name]: data for name, data in SHOTS.items()},
+    )
     d = serve.page_dir
     about_ask = panel_comment(d, "Which one lasts longer?", {"section": "cache-ask"})
     events_model.append_event(
@@ -11553,13 +11560,18 @@ def test_an_ask_in_a_reply_is_where_the_user_stands_once_answered(browser, serve
             '<lf-options id="follow" choose>'
             '<lf-option id="follow-yes">Measure first</lf-option>'
             '<lf-option id="follow-no">Decide now</lf-option>'
-            "</lf-options></lf-ask>",
+            "</lf-options></lf-ask>"
+            f'<lf-shot id="follow-shot" alt="the cache before and after" '
+            f'before="{SHOT_SRC["before"]}" after="{SHOT_SRC["after"]}"></lf-shot>',
         },
     )
     page = open_page(browser, url)
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
     panel_settled(page, True)
+    page.locator(".lf-thread .lf-shot-toggle").focus()
+    page.keyboard.press("a")
+    expect(page.locator("#cache-ask")).to_be_focused()
     option = page.locator("#follow-yes")
     option.click()
     expect(option).to_have_attribute("chosen", "")

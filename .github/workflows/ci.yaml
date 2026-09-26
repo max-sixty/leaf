@@ -100,7 +100,7 @@ jobs:
 
       - name: Measure the bundled release in Chrome
         if: github.event_name == 'pull_request'
-        run: scripts/verify-site-local.sh
+        run: uv run scripts/verify_site.py wrangler
 
       - name: Upload pytest results
         if: always()

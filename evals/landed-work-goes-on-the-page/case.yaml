@@ -36,7 +36,7 @@ graders:
   input_match: conversation-loop
 - name: registers-captures
   type: regex
-  pattern: leaf page media\b[^\n]*save-button/(before|after)
+  pattern: leaf page media\b[\s\S]{0,300}?save-button/(before|after)
   flags: i
 - name: judgment
   type: llm

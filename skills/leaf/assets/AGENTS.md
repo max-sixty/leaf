@@ -18,7 +18,7 @@ sequence (Startup and presentation, below). It exports no capability and no owne
 imports it back. The HTTP boundary places the vendored
 `runtime/bootstrap.js` before loadable resources, carrying the delivery's CSP nonce; it can
 show startup failure and hear a replacement server even if the module graph or
-stylesheet never loads. A delivery carrying a site release also uses that bootstrap
+stylesheet never loads, and it holds the page keys pressed before presentation (below). A delivery carrying a site release also uses that bootstrap
 to send one content-free startup profile after presentation, failure, timeout, or
 navigation away; ordinary Leaf servers carry no release and emit no telemetry.
 `runtime/widget-api.js` is the one public
@@ -70,7 +70,7 @@ relative to `runtime/` unless stated otherwise.
 | Browser interaction diagnostics | `interaction-log.js` |
 | Notices and announcements | `semantic-news.js`, `notifications.js`, `keyboard/shortcut-bar.js` |
 | Reactions and design review | `reactions.js`, `design.js`, `design-readings.js` |
-| Document presentation and validation | `presentation.js`, `validation.js`, `projection-watch.js` |
+| Document presentation and validation | `presentation.js`, `validation.js`, `projection-watch.js`, `retained-face.js` |
 | Child pages and gallery playback | `specimen.js`, `interaction-gallery.js`, `interaction-gallery-frame.js` |
 | Shadow trees and styles | `shadow.js`, `shadow-stage.js`, `stylesheets.js` |
 | Rendering utilities | `icons.js`, `markdown.js`, `syntax.js`, `motion.js`, `storage.js` |
@@ -229,7 +229,17 @@ Authored HTML paints immediately on every page. The prepaint bootstrap marks the
 and the shortcut band, so mounting the runtime does not move the document. A restored
 auxiliary surface stands over the page and reserves nothing.
 Prose, ordinary links, scrolling, and layout remain usable while widgets upgrade and the
-first state read is pending.
+first state read is pending. Page keys wait: a command such as `t` reads state the first
+answer brings, so dispatching one earlier acts on an empty page. The bootstrap therefore
+holds a run of printed keys from first parse: an unmodified printed key pressed on the
+page starts the run, every printed key after it joins, and the held keys are shown after a
+beat. At `lf-presentation` the keyboard controller takes the run and works through it in
+order, a frame apart: a key whose turn comes in a text box an earlier key opened is typed
+into it, and any other is pressed through the controller's own handler. A printed key
+pressed meanwhile joins the run until it is empty. Any other key, a Ctrl, Alt or Meta chord
+included, or a pointer press ends the run: what was held is dropped and the new press keeps its native meaning, which no
+replay could reproduce. A startup failure, or a page still unpresented ten seconds in,
+ends the hold and drops what it held.
 Generated interface constructed from authored markup participates in layout while it
 settles, then `data-lf-upgraded` releases it from authored and tab-local state without
 waiting for the first server reading. Durable controls remain unavailable until
@@ -289,15 +299,17 @@ revision and the active revision it may install. Version comparison requests its
 from `/api/view` at the sequence already applied to the DOM, keeping related views on
 one log snapshot without projecting all historical revisions on every read.
 
-Python supplies each thread's raw `awaits_user` and aggregated `attention`.
-`awaitsUser` reads unresolved `attention`, which includes recovery even when the raw
-flag is false. The browser never ranks workflows into attention again; it adjusts the
-server's reading for unresolved local sends only. The thread model sets a thread
-holding an unresolved send to wait on that send, which also retires a failed workflow's
-recovery while keeping its historical message status; the publisher restores a
-standing structural Ask that send cannot answer, and hands a thread the server left
-with the agent back to the user when a send there is refused. Otherwise refusal
-restores the accepted attention.
+Python supplies each thread's aggregated `attention`, the browser's one reading of whose
+turn a thread is.
+`awaitsUser` reads unresolved `needs_user` attention, which includes recovery, and
+`awaitsAgent` unresolved `waiting` attention, which includes work claimed on a thread
+the agent has already answered. The browser never ranks workflows into attention
+again; it adjusts the server's reading for unresolved local sends only. The thread
+model sets a thread holding an unresolved send to wait on that send, which also
+retires a failed workflow's recovery while keeping its historical message status; the
+publisher restores a standing structural Ask that send cannot answer, and hands a
+thread the server left with the agent back to the user when a send there is refused.
+Otherwise refusal restores the accepted attention.
 The server's rules for structural and prose obligations live in `../scripts/leaf/events.md`,
 "Threads".
 
@@ -482,7 +494,7 @@ read**. An edit is a new version and reads as unread again.
 Each Thread's canonical `attention` is its aggregate user obligation or waiting
 workflow. A concrete user Ask outranks concurrent agent work; that work remains the
 secondary status. Local failure or recovery may add user-owned attention beyond the
-server's raw `awaits_user` value. Margin, Page Map, and compact thread rows consume
+server's reading. Margin, Page Map, compact thread rows, and the Threads filters consume
 that same attention instead of deriving another aggregate from member turns or workflow
 stages. User attention wears the same two channels in blue — icon and interior — and
 says "On you" for an Ask or the exact recovery label in its visible and accessible name.

@@ -13,7 +13,7 @@ from .data_contracts import (
     page_data_documents,
     working_data_bindings,
 )
-from .event_log import now_iso
+from .event_log import now_iso, read_events
 from .files import (
     json_bytes,
     latest_revision,
@@ -21,6 +21,7 @@ from .files import (
     replace_files,
     write_json,
 )
+from .hosting import restarting_server
 from .layer import (
     LayerComposition,
     checked_layer_inputs,
@@ -44,7 +45,6 @@ from .schema import (
     PAGE_OWNED_DIRS,
     PAGE_OWNED_FILES,
     SERVER_LOCK,
-    SERVICE_FILE,
     STATUS_FILE,
 )
 from .service import PageTransaction, claim_path
@@ -55,16 +55,29 @@ from .work import widget_work_without_targets
 
 
 def cmd_init(page_dir: Path, selected: tuple[str, ...] | None = None) -> None:
-    # The page lock is the directory itself, so a page that does not exist yet is
-    # made first, owner-only: the directory holds the discussion and service
-    # state whose URL carries the machine key. A directory the caller already
-    # made keeps the mode they chose. The lock then covers the complete vendoring,
-    # and a refused init takes back the empty directory it made.
+    """Create a page, or re-vendor one inside a restart of its service.
+
+    Everything that can refuse a re-vendor is decided first, in a dry run with the
+    page still served, so a refused re-vendor leaves its server untouched: a
+    restart would bring this Leaf's server back over the layer the page keeps.
+    Only then does the service go down (`hosting.restarting_server`) for the init
+    itself, which decides again under the page transaction, since the page may
+    have moved in between: the restart's stop needs the page lock, so neither step
+    can hold it across the gap.
+
+    The page lock is the directory itself, so a page that does not exist yet is
+    made first, owner-only: the directory holds the discussion and service state
+    whose URL carries the machine key. A directory the caller already made keeps
+    the mode they chose, and a refused init takes back the empty directory it made.
+    """
     made = not page_dir.exists()
     if made:
         _refuse_package_target(page_dir, layer_inputs(selected or ()))
         page_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
-    with page_locked(page_dir):
+    if (page_dir / EVENTS_FILE).is_file():
+        with page_locked(page_dir):
+            _plan_page(page_dir, selected, read_events(page_dir))
+    with restarting_server(page_dir), page_locked(page_dir):
         try:
             _init_page(page_dir, selected)
         except BaseException:
@@ -84,18 +97,57 @@ def _refuse_package_target(page_dir: Path, inputs: list[Path]) -> None:
 
 
 def _init_page(page_dir: Path, selected: tuple[str, ...] | None) -> None:
-    service = read_json(page_dir / SERVICE_FILE)
-    server_live = lock_is_held(page_dir / SERVER_LOCK)
-    if server_live or (service and service["enabled"]):
+    # The restart around this took the server down, but the page lock came after
+    # it, and a start can land in between.
+    if lock_is_held(page_dir / SERVER_LOCK):
         sys.exit(
-            f"cannot re-vendor {page_dir} while its service is enabled. "
-            f"Run `leaf server stop {page_dir}` first."
+            f"a server started on {page_dir} while it was being re-vendored; "
+            f"re-run `leaf page init {page_dir}`"
         )
     # Successful init creates the append-only log's stable inode. A directory
     # the caller prepared is still a fresh page until that marker exists: it
     # keeps the caller's chosen mode, takes no PageTransaction yet, and a failed
     # validation leaves it untouched.
-    fresh = not (page_dir / EVENTS_FILE).is_file()
+    if not (page_dir / EVENTS_FILE).is_file():
+        _commit_layer(page_dir, _plan_page(page_dir, selected, None))
+        return
+    # The page lock serializes this operation with other inits; an existing
+    # page also has its ordinary transaction, which gives the vocabulary check
+    # and contract commit one order against every browser append. No path takes
+    # the page transaction and then the page lock, so this order cannot invert.
+    with PageTransaction(page_dir) as page:
+        _commit_layer(page_dir, _plan_page(page_dir, selected, page.events))
+        events = page.events
+    # The re-vendored layer is in place, but the page shows it only once index.html
+    # activates, which runs the same check `version check` does. Say now what would
+    # hold it back, rather than leave the next read to refuse it unseen.
+    check = check_source(page_dir, events, allow_transition=False)
+    if check.errors:
+        print(
+            f"re-vendored {page_dir}, but index.html will not activate until "
+            "`leaf version check` passes:",
+            file=sys.stderr,
+        )
+        for error in check.errors:
+            print(f"  - {error}", file=sys.stderr)
+
+
+class _PagePlan(NamedTuple):
+    """An admitted init, decided before anything is written: whether it starts
+    the page, the stamped layer, and the directories that layer needs."""
+
+    fresh: bool
+    layer: "_VendoredLayer"
+    directories: set[Path]
+
+
+def _plan_page(
+    page_dir: Path, selected: tuple[str, ...] | None, events: list[dict] | None
+) -> _PagePlan:
+    """Resolve, compose, and check the incoming layer against the page, or refuse,
+    writing nothing. `events` is the page's log, or None for a page this init
+    starts."""
+    fresh = events is None
     if selected is None and fresh:
         selected = ()
     elif selected is None:
@@ -117,44 +169,19 @@ def _init_page(page_dir: Path, selected: tuple[str, ...] | None) -> None:
             )
         selected = tuple(recorded)
     inputs = layer_inputs(selected)
-    page_target = page_dir.resolve()
     _refuse_package_target(page_dir, inputs)
-    if fresh:
-        _vendor_page(
-            page_dir,
-            fresh=True,
-            events=[],
-            inputs=inputs,
-            page_target=page_target,
-            selected=selected,
+    roots = checked_layer_inputs(inputs)
+    _refuse_input_destination_overlap(roots, page_dir.resolve())
+    # Resolve and read the complete incoming layer before the first page write.
+    # A bad late package must not leave the registry newer than the theme or its
+    # modules.
+    composition = compose_layer(roots)
+    if not fresh:
+        _validate_page_transition(
+            page_dir, events, _effective_registry(page_dir, composition)
         )
-        return
-    # The page lock serializes this operation with other inits; an existing
-    # page also has its ordinary transaction, which gives the vocabulary check
-    # and contract commit one order against every browser append. No path takes
-    # the page transaction and then the page lock, so this order cannot invert.
-    with PageTransaction(page_dir) as page:
-        _vendor_page(
-            page_dir,
-            fresh=False,
-            events=page.events,
-            inputs=inputs,
-            page_target=page_target,
-            selected=selected,
-        )
-        events = page.events
-    # The re-vendored layer is in place, but the page shows it only once index.html
-    # activates, which runs the same check `version check` does. Say now what would
-    # hold it back, rather than leave the next read to refuse it unseen.
-    check = check_source(page_dir, events, allow_transition=False)
-    if check.errors:
-        print(
-            f"re-vendored {page_dir}, but index.html will not activate until "
-            "`leaf version check` passes:",
-            file=sys.stderr,
-        )
-        for error in check.errors:
-            print(f"  - {error}", file=sys.stderr)
+    layer = _stamp_layer(composition, selected)
+    return _PagePlan(fresh, layer, _checked_destinations(page_dir, layer))
 
 
 class _VendoredLayer(NamedTuple):
@@ -394,13 +421,8 @@ def _checked_destinations(page_dir: Path, layer: _VendoredLayer) -> set[Path]:
     return directories
 
 
-def _commit_layer(
-    page_dir: Path,
-    *,
-    fresh: bool,
-    layer: _VendoredLayer,
-    directories: set[Path],
-) -> None:
+def _commit_layer(page_dir: Path, plan: _PagePlan) -> None:
+    fresh, layer, directories = plan
     if fresh:
         # A page's claim lives outside its directory. Recreating a deleted path
         # creates a new page, so it must not inherit the deleted page's owner.
@@ -458,26 +480,3 @@ def _commit_layer(
         (page_dir / CURSOR_FILE).unlink(missing_ok=True)
         replace_files([(page_dir / EVENTS_FILE, b"", False)])
     print(f"initialized {page_dir}")
-
-
-def _vendor_page(
-    page_dir: Path,
-    *,
-    fresh: bool,
-    events: list[dict],
-    inputs: list[Path],
-    page_target: Path,
-    selected: tuple[str, ...],
-) -> None:
-    roots = checked_layer_inputs(inputs)
-    _refuse_input_destination_overlap(roots, page_target)
-    # Resolve and read the complete incoming layer before the first page write.
-    # A bad late package must not leave the registry newer than the theme or its
-    # modules.
-    composition = compose_layer(roots)
-    _validate_page_transition(
-        page_dir, events, _effective_registry(page_dir, composition)
-    )
-    layer = _stamp_layer(composition, selected)
-    directories = _checked_destinations(page_dir, layer)
-    _commit_layer(page_dir, fresh=fresh, layer=layer, directories=directories)

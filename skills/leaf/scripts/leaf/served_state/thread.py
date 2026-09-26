@@ -91,6 +91,9 @@ def browser_thread(
     live_reply: dict | None = None,
     data: dict | None = None,
 ) -> tuple[dict, FrozenThreadReading]:
+    """The threads' browser reading. Whose turn each thread is reaches the browser
+    only as its `attention`, which `served_state.browser` attaches from this
+    reading's Asks and `user_prompt` and the page's workflows."""
     settled = {identity for identity, thread in threads.items() if thread["resolved"]}
     reading = frozen_thread_reading(events, registry)
     requests = request_lifecycles_for(
@@ -108,7 +111,7 @@ def browser_thread(
         request_phases=request_phases(requests),
     )
     awaiting = asks["awaiting"]
-    unread = unread_content(events, threads, reading.thread_by_widget)
+    unread = unread_content(events, threads, reading.roots, reading.thread_by_widget)
     open_ask_threads = {ask["thread"] for ask in asks["user"]}
     summaries_for = active_summaries(events, threads)
     rendered_threads = []
@@ -121,13 +124,10 @@ def browser_thread(
             reading.structure,
             open_ask_threads,
         )
-        awaits_agent_now = awaits_agent(thread)
         protected = set()
         turns = spoken_turns(thread)
-        if awaits_agent_now:
-            unanswered = unanswered_agent_turn(thread)
-            if unanswered is not None:
-                protected.add(unanswered["id"])
+        if awaits_agent(thread):
+            protected.add(unanswered_agent_turn(thread)["id"])
         if awaits_user and turns:
             protected.add(turns[-1]["id"])
         ask_sources = {
@@ -144,8 +144,6 @@ def browser_thread(
         rendered_threads.append(
             {
                 **thread,
-                "awaits_agent": awaits_agent_now,
-                "awaits_user": awaits_user,
                 "user_prompt": user_prompt,
                 "bare_reaction": bare_reaction(thread),
                 "seat": seat_root(thread),

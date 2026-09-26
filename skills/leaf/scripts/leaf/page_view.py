@@ -21,8 +21,7 @@ from pathlib import Path
 from .data import read_contracts, read_data
 from .files import list_revisions
 from .passages import active_enclosing
-from .registry.storage import load_registry
-from .revision_artifact import read_registry
+from .registry.storage import page_vocabulary
 from .structure import SourceDocument, parse_revision
 
 
@@ -48,11 +47,10 @@ class PageView:
         return parse_revision(self._page_dir, revision)
 
     def registry(self, revision: int | None) -> dict | None:
-        """The vocabulary a revision captured, or the page's own where it has no
-        revision yet. None on a page nothing has vendored a layer into."""
-        if revision is None:
-            return load_registry(self._page_dir)
-        return read_registry(self._page_dir, revision)
+        """The vocabulary a revision captured, or the candidate's where the page has
+        no revision yet (`page_vocabulary`). None on a page nothing has vendored a
+        layer into."""
+        return page_vocabulary(self._page_dir, revision)
 
     @property
     def within(self) -> dict:

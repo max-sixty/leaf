@@ -187,6 +187,8 @@ machine rather than a remote font.
 `body[data-lf-presented]` means the initial authoritative projection, or the deliberate
 offline fallback, is safe for recorded interaction. Authored content is already visible:
 Leaf disables its arrival transitions and durable widget actions before that stamp.
+Printed keys pressed earlier are held and reach the page's key handlers only after the
+stamp lands, in order, so a package's keys need no arrival guard either.
 Package styles need no arrival guard. A package opens a dialog or popover only after that
 stamp or in response to a user gesture; Leaf does not defer top-layer UI during startup.
 A widget that keeps part of its own upgrade off the presentation path — a heavy renderer
@@ -1096,8 +1098,8 @@ presentation and on later publications and placement updates. `readThreads()` re
 that collection outside a surface; `threadTurns(thread)` selects a Thread's displayed
 turns and `threadSummary(thread)` its topic, turn count, and `latest`. For whether a
 Thread waits on the user, read unresolved `attention.kind === "needs_user"`, which
-includes recovery after a failed response, rather than the raw `awaits_user` turn
-flag. Each Thread's `key` survives admission of a pending gesture, and its `anchor`
+includes recovery after a failed response; `"waiting"` means it is with the agent.
+Each Thread's `key` survives admission of a pending gesture, and its `anchor`
 names the `section` (the widget's id) and `datum` it rests on. A returned promise
 participates in document presentation. The second argument's `signal` is aborted when
 presentation fails, a newer render supersedes it, or the consumer unregisters;
@@ -1154,9 +1156,9 @@ Escape may return focus. Widgets do not receive draft, submission, or event APIs
 
 ## Seeing it
 
-After the re-vendoring sequence in `serving-pages.md` restores the recorded URL, run
-`leaf version check <page> --render` on the version that uses the replacement
-layer. Note the re-vendor in the next stamped version's changelog.
+After `leaf page init` re-vendors the page (`serving-pages.md`, "Re-vendoring and
+layer epochs"), run `leaf version check <page> --render` on the version that uses
+the replacement layer. Note the re-vendor in the next stamped version's changelog.
 
 The render gate is where a module's mistakes surface — an upgrade that defines no element, a widget of no
 size, a `x-verbatim` the rendered words contradict, a shadow root the declaration doesn't

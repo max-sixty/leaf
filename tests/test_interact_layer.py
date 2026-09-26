@@ -60,7 +60,6 @@ EXPECTED_PAGE_STATE_FILES = (
     "viewed.json",
     "service.json",
     "server.lock",
-    "restart.lock",
     "preview.json",
 )
 EXPECTED_PAGE_DIRECTORIES = (
@@ -4425,11 +4424,13 @@ def test_the_register_is_the_only_way_a_key_enters_the_runtime():
     the press it eats goes missing — so it is pinned in the source, the way the
     document-level class surface is.
 
-    Two are allowed and both are named here. The dispatcher is the register's own. The aim
+    Three are allowed and each is named here. The dispatcher is the register's own. The aim
     latch is not a binding at all: holding ⌥ arms nothing and answers no press, it paints
-    what a click would take, and its keyup half has no place in a table of presses. A third
-    is how every drift this register replaced began — a `keydown` beside a display list,
-    the two of them free to disagree about which keys the widget answers."""
+    what a click would take, and its keyup half has no place in a table of presses. The
+    prepaint bootstrap's hold answers no press either: it keeps keys pressed before the
+    page presents and hands them to the dispatcher's owner. Another is how every drift this
+    register replaced began — a `keydown` beside a display list, the two of them free to
+    disagree about which keys the widget answers."""
     layer = ROOT / "skills/leaf"
     sources = [
         layer / "assets/leaf.js",
@@ -4443,7 +4444,7 @@ def test_the_register_is_the_only_way_a_key_enters_the_runtime():
         for n, line in enumerate(src.read_text().splitlines(), 1)
         if 'addEventListener("keydown"' in line
     ]
-    assert len(listeners) == 2, (
+    assert len(listeners) == 3, (
         f"the runtime's keydown listeners changed: {listeners}. A key belongs in the "
         "register (keys(el, title, rows)), which is what lets a surface promise it."
     )

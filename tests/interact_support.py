@@ -22,7 +22,7 @@ import threading
 import time
 import urllib.parse
 import urllib.request
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, wait
 from contextlib import contextmanager
 from functools import cache
 from pathlib import Path
@@ -736,24 +736,21 @@ ACCEPT = {
 
 
 def assert_revendor_serializes_writer(page_dir, monkeypatch, kind, write):
-    """Hold one admitted writer at append and prove re-vendor cannot pass it."""
+    """Hold one admitted writer at append and prove re-vendor cannot pass it.
+
+    A re-vendor decides twice: once in a dry run, with the page still served and
+    its log read as it stands, and again under the page transaction before it
+    writes. The dry run may pass the held writer; the decision that writes may not,
+    so the init waits for the append and refuses what it wrote."""
     entering = threading.Event()
     resume = threading.Event()
-    checked_without_writer = threading.Event()
-    finish_vendoring = threading.Event()
     original_append_record = service_model.PageTransaction._append_record
-    original_composed_sheets = layer_model.composed_sheets
 
     def held_append_record(page, event):
         if event.get("kind") == kind:
             entering.set()
             assert resume.wait(timeout=10), "re-vendor never observed the writer"
         return original_append_record(page, event)
-
-    def held_composed_sheets(sources):
-        checked_without_writer.set()
-        assert finish_vendoring.wait(timeout=10), "the writer never resumed"
-        return original_composed_sheets(sources)
 
     def init_result():
         try:
@@ -765,20 +762,18 @@ def assert_revendor_serializes_writer(page_dir, monkeypatch, kind, write):
     monkeypatch.setattr(
         service_model.PageTransaction, "_append_record", held_append_record
     )
-    monkeypatch.setattr(layer_model, "composed_sheets", held_composed_sheets)
     with ThreadPoolExecutor(max_workers=2) as executor:
         writing = executor.submit(write)
         assert entering.wait(timeout=10), f"{kind} never passed old-layer validation"
         vendoring = executor.submit(init_result)
-        passed_check = checked_without_writer.wait(timeout=2)
-        # Release either acquisition order without relying on a scheduler: a
-        # broken re-vendor may already own the page lease at composed_sheets.
-        finish_vendoring.set()
+        # A re-vendor that writes without the page transaction finishes here, with
+        # the writer still held.
+        passed_writer, _ = wait([vendoring], timeout=2)
         resume.set()
         written = writing.result(timeout=10)
         refusal = vendoring.result(timeout=10)
 
-    assert not passed_check, f"re-vendor passed a validated {kind} writer"
+    assert not passed_writer, f"re-vendor passed a validated {kind} writer"
     assert refusal is not None
     return written, refusal
 

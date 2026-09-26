@@ -219,9 +219,8 @@ references from `<root>/skills/leaf/`.
 `page init` vendors the checkout's runtime, theme, registry, widgets, and assets
 into the page. For an existing page that must exercise the current checkout,
 read `<root>/skills/leaf/references/serving-pages.md` and re-vendor it with the
-checkout launcher. A served page follows that reference's stop, init, start
-sequence. Fix or report a compatibility refusal without falling back to the
-installed plugin.
+checkout launcher. Fix or report a compatibility refusal without falling back to
+the installed plugin.
 
 A page that explains how a Leaf interface behaves lets the user operate it;
 `references/specimen-explainers.md` covers that pattern.

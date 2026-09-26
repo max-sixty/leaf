@@ -2124,7 +2124,12 @@ def test_page_packages_are_explicit_and_survive_reinitialization(tmp_path, monke
     )
     assert selected.exit_code == 0, selected.output
     theme = (page / "theme.css").read_text()
-    assert theme.endswith("/* user package */\n/* project package */\n")
+    # Selected packages follow the kernel in order, and the Layouts close the theme.
+    assert (
+        theme.index("/* user package */")
+        < theme.index("/* project package */")
+        < theme.index("@layer lf-layouts")
+    )
     assert (page / "widgets" / "user.js").is_file()
     assert (page / "widgets" / "project.js").is_file()
     assert not (page / "widgets" / "xdg.js").exists()

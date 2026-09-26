@@ -4560,11 +4560,13 @@ def test_check_reads_a_column_the_theme_states_as_a_token():
     fallback = "main { " + column + " max-width: var(--col, 512px) }"
     assert styles_model._column_width("", fallback) == 512
 
-    # The shipped theme is the case that motivated this: it must still read as itself.
-    assert (
-        styles_model._column_width("", (schema_model.ASSETS / "theme.css").read_text())
-        == 720
+    # The shipped theme is the case that motivated this: it must still read as itself. Its
+    # tokens are the kernel theme's and the column is its Layouts'.
+    shipped = "".join(
+        (schema_model.ASSETS / name).read_text()
+        for name in ("theme.css", "layouts.css")
     )
+    assert styles_model._column_width("", shipped) == 720
 
 
 def test_the_column_is_the_rule_that_claims_it_and_not_a_rule_that_looks_like_one():

@@ -1324,13 +1324,14 @@ def test_the_delivered_stylesheets_read_exactly_as_their_files_do(browser, serve
     readings = page.evaluate(
         """async (files) => {
           const rules = (sheet) => [...sheet.cssRules].map((rule) => rule.cssText);
+          const { chromeSheet: chrome, marksSheet: marks, inBaseLayer } =
+            await window.__lfRuntimeImport("/runtime/stylesheets.js");
+          // The runtime adopts each file inside Leaf's cascade layer.
           const fromFile = (text) => {
             const sheet = new CSSStyleSheet();
-            sheet.replaceSync(text);
+            sheet.replaceSync(inBaseLayer(text));
             return rules(sheet);
           };
-          const { chromeSheet: chrome, marksSheet: marks } =
-            await window.__lfRuntimeImport("/runtime/stylesheets.js");
           if (![chrome, marks].every(sheet => document.adoptedStyleSheets.includes(sheet)))
             throw new Error("The document did not adopt its chrome and marks sheets");
           return {

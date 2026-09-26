@@ -1610,6 +1610,9 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
   @container lf-shell (min-width: 848px) {
     html:root main.layout-column:has(> aside.sidebar:nth-child(1 of aside.sidebar) lf-toc) {
       --lf-sidebar-posture: margin;
+      /* The spine is chrome fixed in the left margin, so a breakout stops short of it
+       * (layouts.css, the column's free room). */
+      --lf-chrome-l: var(--sp-4);
     }
   }
   main:has(> aside.sidebar:nth-child(1 of aside.sidebar) lf-toc) {

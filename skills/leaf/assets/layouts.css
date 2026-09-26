@@ -8,7 +8,9 @@
   /* The column: prose at the reading measure, centred in the shell, and one option, a
    * breakout, which `data-width` on a block (or a widget's preferred x-space) asks for.
    * The breakout reads the room free beside the column from the lengths resolved here,
-   * so it is the same arithmetic wherever the column stands.
+   * so it is the same arithmetic wherever the column stands. Chrome Leaf fixes in a
+   * margin states the room it takes there (`--lf-chrome-l`, `--lf-chrome-r`), which
+   * comes off that side's free room.
    *
    * `version check` reads this max-width, beside --lf-reading-column, to find the column
    * it measures pinned widths against, resolving the token as the cascade does. */
@@ -21,8 +23,8 @@
     --lf-beside: calc((100cqi - var(--lf-width)) / 2);
     --lf-shift: 0px;
     --lf-gutter-l: var(--col-pad);
-    --lf-free-l: max(0px, calc(var(--lf-beside) - var(--col-pad)));
-    --lf-free-r: max(0px, calc(var(--lf-beside) - var(--col-pad)));
+    --lf-free-l: max(0px, calc(var(--lf-beside) - var(--col-pad) - var(--lf-chrome-l, 0px)));
+    --lf-free-r: max(0px, calc(var(--lf-beside) - var(--col-pad) - var(--lf-chrome-r, 0px)));
     --lf-room: max(0px, calc(100cqi - 2 * var(--col-pad)));
   }
   /* The page as wide as the window: a gutter that grows with it, a cap at the widest

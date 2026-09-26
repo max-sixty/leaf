@@ -35,9 +35,7 @@ from .layer import (
 from .leases import lock_is_held, page_locked
 from .locations import located, locations_overlap, path_is_within, path_location
 from .projection import page_reading
-from .registry.contract import read_registry_declarations
-from .registry.page import compose_page_registry
-from .registry.storage import layer_packages
+from .registry.storage import compose_candidate, layer_packages, widget_paths
 from .schema import (
     CURSOR_FILE,
     EVENTS_FILE,
@@ -293,22 +291,14 @@ def _validate_page_transition(
 
 
 def _effective_registry(page_dir: Path, composition: LayerComposition) -> dict:
-    """Compose authored declarations over the prospective vendored layer."""
-    source = page_dir / "page" / "registry.json"
-    declarations = read_registry_declarations(source) or {}
-    widget_paths = {
-        *(f"widgets/{name}" for name in composition.directory_files["widgets"]),
-        *(
-            path.relative_to(page_dir).as_posix()
-            for path in (page_dir / "page" / "widgets").glob("lf-*.js")
-            if path.is_file()
-        ),
-    }
-    return compose_page_registry(
+    """The candidate's vocabulary over the incoming layer."""
+    return compose_candidate(
+        page_dir,
         composition.registry,
-        declarations,
-        widget_paths,
-        source=source,
+        [
+            *(f"widgets/{name}" for name in composition.directory_files["widgets"]),
+            *widget_paths(page_dir, "page/widgets"),
+        ],
     ).registry
 
 

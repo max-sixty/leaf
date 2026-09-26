@@ -2,6 +2,7 @@
 
 import re
 import sys
+from collections.abc import Collection
 from functools import lru_cache
 from pathlib import Path
 
@@ -49,22 +50,15 @@ def read_page_registry(page_dir: Path):
     examining the authored candidate, never an already activated revision.
     """
     page_dir = page_dir.absolute()
-    source = page_dir / "page" / "registry.json"
     widgets = tuple(
-        sorted(
-            (
-                path.relative_to(page_dir).as_posix(),
-                file_stamp(path),
-            )
-            for directory in (page_dir / "widgets", page_dir / "page" / "widgets")
-            for path in directory.glob("lf-*.js")
-            if path.is_file()
-        )
+        (path, file_stamp(page_dir / path))
+        for directory in ("widgets", "page/widgets")
+        for path in widget_paths(page_dir, directory)
     )
     return _read_page_registry_stamped(
         page_dir,
         file_stamp(page_dir / "registry.json"),
-        file_stamp(source),
+        file_stamp(page_dir / "page" / "registry.json"),
         widgets,
     )
 
@@ -77,17 +71,35 @@ def _read_page_registry_stamped(
     widgets: tuple[tuple[str, tuple], ...],
 ):
     """Compose one candidate vocabulary until any input file changes."""
-    from .page import compose_page_registry
-
     layer = load_registry(page_dir)
     if layer is None:
         return None
+    return compose_candidate(page_dir, layer, [path for path, _stamp in widgets])
+
+
+def widget_paths(page_dir: Path, directory: str) -> list[str]:
+    """The widget modules under one of a page's directories, page-root-relative."""
+    return sorted(
+        path.relative_to(page_dir).as_posix()
+        for path in (page_dir / directory).glob("lf-*.js")
+        if path.is_file()
+    )
+
+
+def compose_candidate(page_dir: Path, layer: dict, widgets: Collection[str]):
+    """The candidate's vocabulary: the page's own declarations over `layer`.
+
+    `widgets` are the page-root-relative widget files the candidate can load, the
+    layer's `widgets/` and the page's own `page/widgets/`. `read_page_registry`
+    composes the vendored layer; `page init` composes the layer it is about to
+    vendor, to check a re-vendor before writing it."""
+    from .page import compose_page_registry
+
     source = page_dir / "page" / "registry.json"
-    declarations = read_registry_declarations(source) or {}
     return compose_page_registry(
         layer,
-        declarations,
-        [path for path, _stamp in widgets],
+        read_registry_declarations(source) or {},
+        widgets,
         source=source,
     )
 

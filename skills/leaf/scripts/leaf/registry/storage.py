@@ -6,7 +6,7 @@ from datetime import datetime
 from functools import lru_cache
 from pathlib import Path
 
-from leaf.files import file_stamp
+from leaf.files import file_stamp, latest_revision
 
 from .contract import RegistryError, read_registry_declarations
 from .validation import validate_registry
@@ -14,34 +14,32 @@ from .validation import validate_registry
 _registries = {}  # registry.json -> (its stamp, the vocabulary it holds)
 
 
-def read_registry(path: Path):
-    """Read and validate one complete registry vocabulary, once per vendored file.
+def load_registry(page_dir: Path):
+    """The page's complete vendored layer, or None before `page init`.
 
-    `page init` writes a page's registry.json and nothing writes it again, while an
-    action POST asks for the whole vocabulary before it can check a single press —
-    so every press re-linted forty frozen entries, an order of magnitude more work
-    than the contract check it was preparing for."""
+    The layer is `page init`'s own output rather than anything an author writes, so a
+    reader that rejects it wants a re-vendor rather than an edit.
+
+    Validated once per vendored file: `page init` writes a page's registry.json and
+    nothing writes it again, while an action POST asks for the whole vocabulary before
+    it can check a single press — so every press re-linted forty frozen entries, an
+    order of magnitude more work than the contract check it was preparing for."""
+    path = page_dir / "registry.json"
     stamp = file_stamp(path)
     if stamp and (held := _registries.get(path)) and held[0] == stamp:
         return held[1]
-    declarations = read_registry_declarations(path)
-    registry = None if declarations is None else validate_registry(declarations, path)
-    if stamp:
-        _registries[path] = (stamp, registry)
-    return registry
-
-
-def load_registry(page_dir: Path):
-    """The page's complete vendored vocabulary, or None before `page init`.
-
-    The layer is `page init`'s own output rather than anything an author writes, so a
-    reader that rejects it wants a re-vendor rather than an edit."""
     try:
-        return read_registry(page_dir / "registry.json")
+        declarations = read_registry_declarations(path)
+        registry = (
+            None if declarations is None else validate_registry(declarations, path)
+        )
     except RegistryError as error:
         raise RegistryError(
             f"{error}; run `leaf page init {page_dir}` to re-vendor it"
         ) from None
+    if stamp:
+        _registries[path] = (stamp, registry)
+    return registry
 
 
 def read_page_registry(page_dir: Path):
@@ -182,11 +180,20 @@ def require_registry(page_dir: Path) -> dict:
 
 def active_registry(page_dir: Path) -> dict | None:
     """Read semantic commands against the same declarations as the live document."""
-    from leaf.files import latest_revision
-    from leaf.revision_artifact import read_artifact
+    return page_vocabulary(page_dir, latest_revision(page_dir))
 
-    revision = latest_revision(page_dir)
+
+def page_vocabulary(page_dir: Path, revision: int | None) -> dict | None:
+    """The vocabulary one of the page's documents is read in.
+
+    A revision's is the registry its capture froze, which a later re-vendor or page
+    declaration cannot reach. With no revision, the document is the candidate, so its
+    vocabulary is the layer composed with the page's own declarations — the same one
+    the candidate would be captured under. None before `page init`.
+    """
     if revision is not None:
-        return read_artifact(page_dir, revision).registry
+        from leaf.revision_artifact import read_registry
+
+        return read_registry(page_dir, revision)
     candidate = read_page_registry(page_dir)
     return candidate.registry if candidate is not None else None

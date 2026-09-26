@@ -144,7 +144,6 @@
     ],
     "additionalProperties": false,
     "x-content": "empty",
-    "x-outline": true,
     "x-upgrade": true,
     "x-example": "<h1>Migration plan</h1>\n<aside class=\"sidebar\" id=\"plan-sidebar\">\n  <lf-toc id=\"plan-contents\"></lf-toc>\n</aside>\n<section><h2>Prepare</h2><p>Take a snapshot.</p><h3>Check capacity</h3><p>Leave headroom for the copy.</p></section>\n<section><h2>Move</h2><p>Shift one cohort at a time.</p></section>"
   },
@@ -773,7 +772,6 @@
     ],
     "additionalProperties": false,
     "x-content": "members",
-    "x-page-navigation": true,
     "x-upgrade": true,
     "x-example": "<lf-tabs id=\"views\">\n  <lf-tab id=\"tab-implementation\" label=\"Implementation\">\n    <p id=\"rollout-plan\">Wire the first site this week.</p>\n  </lf-tab>\n  <lf-tab id=\"tab-vision\" label=\"Vision\">\n    <p id=\"product-vision\">Keep the original outcome and constraints in reach.</p>\n  </lf-tab>\n</lf-tabs>"
   },

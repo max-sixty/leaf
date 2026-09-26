@@ -2371,16 +2371,30 @@ def test_page_fixture_renders(browser, serve, source):
     widget that upgrades into a 1x1 box, or a heading painted by a pseudo-element,
     is the shape of failure a static lint cannot see. The invariants live in
     render_gate.version.render_version — the pass `version check --render` runs on
-    agent-authored pages — so this sweep also proves the gate a user's page goes through."""
-    failures = render_gate_model.render_version(browser, serve(source)).failures
+    agent-authored pages — so this sweep also proves the gate a user's page goes through.
+
+    It also reads the theme's frame trim, which the gate leaves to the suite: every box
+    a shipped theme or example frames declares its frame, and a row at a frame's edge
+    holds it, so no box shows more inset than it draws."""
+    url = serve(source)
+    failures = render_gate_model.render_version(browser, url).failures
     assert failures == [], "\n".join(failures)
+    page = open_page(browser, url)
+    # The layer's own panel is held open by its own test; shut, its boxes misreport.
+    framing = [
+        finding
+        for probe in ("trappedMargins", "splitEdges")
+        for finding in render_checks_model.evaluate_probe(page, probe)
+        if not finding["chrome"]
+    ]
+    assert framing == [], framing
 
 
 def test_frame_edges_pass_through_whatever_stands_at_them(browser, serve):
     """A frame trims the margin at its edge through every first or last child: a bare
     section, a boxless one, and a padded grid section alike, with nothing declared on
     them. A padded box away from any frame's edge keeps its heading's margin inside its
-    inset, and the gate says to declare that box's frame."""
+    inset, and the reading says to declare that box's frame."""
     page = open_page(
         browser,
         serve(
@@ -2448,7 +2462,7 @@ def test_frame_edges_pass_through_whatever_stands_at_them(browser, serve):
 
 def test_a_row_at_a_frame_edge_holds_the_trim_by_declaring_it(browser, serve):
     """Following the edge into a row trims its first item and not the ones beside it,
-    so the row splits; the gate names the row until it declares --lf-holds-edge, and
+    so the row splits; the reading names the row until it declares --lf-holds-edge, and
     then the trim stops there and the row lines up again."""
     page = open_page(
         browser,
@@ -3951,20 +3965,10 @@ def test_an_authored_project_widget_loads_through_the_real_layer(
 
 
 def test_the_layer_traps_no_margin_in_the_panel_it_draws(browser, serve):
-    """The trapped-margin reading, asked about the layer instead of the page.
+    """The trapped-margin reading, asked about the layer's own panel.
 
-    `TRAPPED_MARGINS` is the one render-gate reading that reaches the runtime's own
-    chrome: it asks computed styles rather than boxes, and a shut panel's descendants
-    carry every style they will carry open, where the box readings beside it see zero
-    and stop. So the gate saw the panel and every other geometry reading did not — an
-    asymmetry with no principle behind it, and a live hazard on the side the gate saw:
-    a margin trapped in leaf's panel would refuse an author's version over markup they
-    did not write, cannot edit, and would hear about in the words of a class no page
-    has. `render_gate/readings.py` states the rule: a gate reading refuses a version
-    only for a fault its author can fix.
-
-    So the gate now takes the document's half and this takes the layer's, off the one
-    reading, with the panel open — where a trapped margin is one somebody can see. The
+    It asks computed styles rather than boxes, so it reaches the runtime's chrome, and
+    it reads the panel open, where a trapped margin is one somebody can see. The
     control comes first: a rule that traps one inside the panel has to be found, or a
     clean result is only a reading that never arrived. A page is served rather than a
     bare fixture because the panel has to be holding something for its boxes to exist,
@@ -4010,13 +4014,6 @@ def test_the_layer_traps_no_margin_in_the_panel_it_draws(browser, serve):
         "a margin trapped inside the panel went unreported, so this reading is not "
         "reaching the layer at all and a clean result below would mean nothing"
     )
-    # And the gate's half of the same reading, which must not have moved: a margin in
-    # leaf's panel is not a finding about the author's page, and reporting it there is
-    # what would refuse their version over markup they cannot edit.
-    assert [t for t in found if not t["chrome"]] == [], (
-        "a margin planted in the layer reached the document's half of this reading, "
-        "which is the half `version check --render` refuses a handover over"
-    )
     page.evaluate("() => document.getElementById('trap').remove()")
 
     trapped = [
@@ -4034,7 +4031,7 @@ def test_the_layer_traps_no_margin_in_the_panel_it_draws(browser, serve):
 def test_a_code_frame_trims_the_note_on_its_last_line(browser, serve):
     """A line note may be the framed pre's last child. Its bottom margin then belongs
     inside the code frame just as it does between lines; leaving the rendered pre
-    unmarked made the page gate report the layer's own six-pixel reservation."""
+    unmarked made the reading report the layer's own six-pixel reservation."""
     page = open_page(browser, serve(CODE_PAGE.replace('at="2"', 'at="4"')))
     trapped = render_checks_model.evaluate_probe(page, "trappedMargins")
     assert not [
@@ -4131,64 +4128,3 @@ def test_the_gate_replays_a_decision_made_on_a_widget_no_version_holds(browser, 
     page.close()
 
     assert render_gate_model.render_version(browser, url).failures == []
-
-
-TRAP_PAIR_PAGE = leaf_page(
-    "trap-pair",
-    """
-<h1 id="tp-h">Session store</h1>
-<section class="tp-inset" id="tp-box">
-  <p id="tp-first">Redis, with a signed-cookie fallback for reads.</p>
-</section>
-""",
-)
-
-
-def test_the_gate_reports_a_trapped_margin_in_the_page_and_not_in_the_layer(
-    browser, serve, tmp_path, monkeypatch
-):
-    """`version check --render` answers for the document it is handed.
-
-    The trapped-margin reading is the only one here that reaches the runtime's own
-    chrome, because it asks computed styles and a shut panel's descendants have every
-    style they will have open. So one project theme could refuse an author's version
-    twice over: once for their own box, which is theirs to fix, and once for leaf's
-    thread list, which is not — markup they did not write, cannot edit, and would be
-    told about in the words of a class no page of theirs has. On an append-only log
-    that is a page that can never publish again.
-
-    One theme states the same trap in both documents here, so the pair differs in
-    nothing but which document it is in. The page's must be reported, or this says
-    only that the gate found nothing — and the author's box is a <section> against
-    the thread list's <div> because findings dedupe per tag and edge, keeping the
-    last: as two divs, the layer's finding displaced the author's and the assertion
-    that the layer's is absent passed on the page's absence instead."""
-    monkeypatch.chdir(tmp_path)
-    (tmp_path / ".leaf").mkdir(exist_ok=True)
-    (tmp_path / ".leaf" / "theme.css").write_text(
-        "/* the author's own box, drawing an inset its first block reserves against */\n"
-        ".tp-inset { padding: 8px }\n"
-        ".tp-inset > p { margin-block: 9px }\n"
-        "/* and the same shape in the layer's thread list. Weighted, because the\n"
-        "   layer scopes its own rules to .lf-chrome and @scope proximity settles a\n"
-        "   tie a project's plain selector would otherwise lose. */\n"
-        ".lf-thread { padding: 8px !important }\n"
-        ".lf-thread > * { margin-block: 9px !important }\n"
-    )
-    # A comment, so the thread list has a thread to draw and the layer's half of the
-    # trap has a box to be trapped in.
-    url = serve(
-        TRAP_PAIR_PAGE,
-        anchored=[("tp-first", "signed-cookie fallback")],
-        packages=(*EXAMPLE_PACKAGES, "./.leaf"),
-    )
-    failures = render_gate_model.render_version(browser, url).failures
-    trapped = [f for f in failures if "of inset and shows" in f]
-    assert any("tp-inset" in f for f in trapped), (
-        "the author's own trapped margin went unreported, so the silence below is "
-        f"the gate finding nothing at all: {failures}"
-    )
-    assert not any("lf-thread" in f for f in trapped), (
-        "the gate refused the author's version over a margin in leaf's own thread "
-        f"list: {[f for f in trapped if 'lf-thread' in f]}"
-    )

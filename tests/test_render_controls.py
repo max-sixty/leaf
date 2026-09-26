@@ -3518,14 +3518,10 @@ def test_covering_threads_keeps_the_user_and_their_work_inside(browser, serve):
     threads = page.locator(".lf-threads")
 
     def reading_place():
-        """The list's offset, stated to be the user's own place rather than its limit.
+        """The list keeps the focused summary in its usable reading band.
 
-        A covering sheet can give the list a different scrollport from the panel over a
-        live page, so the two placements have different scroll limits. An offset sitting
-        on either one is moved by the crossing for the limit's reason rather than the
-        user's, and holding it equal across the crossing would assert nothing. The
-        fixture has to be deep enough that the place stands clear of both, so each
-        crossing reads this on the placement it leaves and on the one it arrives at.
+        Thread rows reflow at the narrower width, so the same thread can have a
+        different numeric offset while remaining the user's reading place.
         """
         held = threads.evaluate(
             "el => ({at: el.scrollTop, limit: el.scrollHeight - el.clientHeight})"
@@ -3533,12 +3529,24 @@ def test_covering_threads_keeps_the_user_and_their_work_inside(browser, serve):
         assert 0 < held["at"] < held["limit"], (
             f"the list holds no reading place clear of its limit: {held}"
         )
-        return held["at"]
+        shown = thread.locator(":scope > .lf-thread-summary").evaluate(
+            "el => { const summary = el.getBoundingClientRect(); "
+            "const list = el.closest('.lf-threads'); "
+            "const box = list.getBoundingClientRect(); "
+            "const style = getComputedStyle(list); "
+            "return {top: summary.top, bottom: summary.bottom, "
+            "bandTop: box.top + parseFloat(style.scrollPaddingTop), "
+            "bandBottom: box.bottom - parseFloat(style.scrollPaddingBottom)}; }"
+        )
+        assert (
+            shown["top"] >= shown["bandTop"] - 1
+            and shown["bottom"] <= shown["bandBottom"] + 1
+        ), f"the focused summary left the list's reading band: {shown}"
 
     thread = threads.locator(".lf-thread").nth(5)
     thread.locator(":scope > .lf-thread-summary").focus()
     thread.evaluate("el => el.scrollIntoView({block: 'start'})")
-    list_at = reading_place()
+    reading_place()
     identity = thread.get_attribute("data-id")
     assert identity, "the fixture established no thread to stand on"
 
@@ -3550,7 +3558,7 @@ def test_covering_threads_keeps_the_user_and_their_work_inside(browser, serve):
         page.locator(f'.lf-thread[data-id="{identity}"] > .lf-thread-summary')
     ).to_be_focused()
     expect(page.locator(".lf-general textarea")).to_have_value(draft)
-    assert reading_place() == pytest.approx(list_at, abs=1)
+    reading_place()
 
     # A complete pass through more stops than this panel holds has to wrap within it.
     focus_stops = page.locator(
@@ -3615,18 +3623,19 @@ def test_covering_threads_keeps_the_user_and_their_work_inside(browser, serve):
     thread = page.locator(f'.lf-thread[data-id="{identity}"]')
     summary = thread.locator(":scope > .lf-thread-summary")
     summary.focus()
-    list_at = reading_place()
+    reading_place()
     resized(page, 1000, 640)
     panel_settled(page)
     assert not page.locator("main").evaluate("el => el.inert")
     expect(summary).to_be_focused()
     expect(page.locator(".lf-thread-panel")).not_to_have_attribute("aria-modal", "true")
     expect(page.locator(".lf-general textarea")).to_have_value(draft)
-    assert reading_place() == pytest.approx(list_at, abs=1)
+    reading_place()
     resized(page, 400, 640)
     panel_settled(page)
     expect(summary).to_be_focused()
     expect(page.locator(".lf-thread-panel")).to_have_attribute("aria-modal", "true")
+    reading_place()
 
     # The card releases to whole-panel selection, and the press after that closes the
     # sheet.
@@ -4461,12 +4470,16 @@ def test_covering_panel_takes_the_page_scroll_with_it(browser, serve):
     panel_settled(page, open=False)
     # Arrived where it was aimed, which is the only thing about this the page states. A
     # text-passage destination reveals nested scrollports without writing the document,
-    # then makes one smooth document glide to centre the painted range. Centring is what
+    # then makes one smooth document glide to centre the painted range in the landable
+    # space between the banner and shortcut bar. Centring is what
     # the runtime aimed for, so the mark reaching the middle is arrival, and a glide that
     # approaches it passes through no earlier position that could be taken for one.
     page.wait_for_function(
         """() => { const m = [...CSS.highlights.get('lf-mark')][0].getClientRects()[0];
-                   return Math.abs(m.top + m.height / 2 - innerHeight / 2) < 1; }"""
+                   const style = getComputedStyle(document.scrollingElement);
+                   const top = parseFloat(style.scrollPaddingTop);
+                   const bottom = innerHeight - parseFloat(style.scrollPaddingBottom);
+                   return Math.abs(m.top + m.height / 2 - (top + bottom) / 2) < 1; }"""
     )
     # Centred, and the glide that centred it over: scrollend names the document's final
     # resting position rather than a sampled frame near it.

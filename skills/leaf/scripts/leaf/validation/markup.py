@@ -7,7 +7,6 @@ from markdown_it import MarkdownIt
 from leaf.schema import MEDIA_DIR
 from leaf.structure import (
     AUTHORED_ALLOCATIONS,
-    HEADING_TAGS,
     PAGE_ALLOCATIONS,
     SECTIONING_TAGS,
     SourceDocument,
@@ -106,68 +105,6 @@ def unpointable_blocks(parser: SourceDocument) -> list:
                 f"lands on the whole of #{under[1]}"
             )
     return lines
-
-
-def main_roots(parser: SourceDocument) -> tuple:
-    """`main` and the authored blocks directly in it: text, and elements other than
-    script, style and template."""
-    main = next((node for node in parser.nodes if node["tag"] == "main"), None)
-    if main is None:
-        return None, []
-    return main, [
-        node
-        for node in main["content"]
-        if (isinstance(node, str) and node.strip())
-        or (
-            isinstance(node, dict)
-            and node["tag"] not in {"script", "style", "template"}
-        )
-    ]
-
-
-def missing_outline(parser: SourceDocument, registry: dict) -> list:
-    """A document with several headings and nothing that lists them. Advice, never a
-    gate: the outline widget's own entry states the default — a page with two or
-    more headings carries one — and this is that default's feedback loop, the way
-    unpointable_blocks is the id rule's.
-
-    The registry says which element is the outline (x-outline), so a layer shipping
-    its own navigation gets its own tag back and a layer shipping none stays quiet
-    instead of naming an element the page could not declare. Two headings is a
-    deliberately low bar. An author who reads the line and still leaves the page
-    bare has answered it: on a page short enough to take in whole, a list of its
-    headings says nothing the page has not already said."""
-    main, roots = main_roots(parser)
-    if main is not None:
-        # A workspace page holds the window with its regions in view; it needs no map.
-        workspace = "layout-workspace" in main["attrs"].get("class", "").split()
-        # The page's view navigation is a block directly in main that declares it.
-        page_navigation = any(
-            isinstance(node, dict)
-            and registry.get(node["tag"], {}).get("x-page-navigation") is True
-            for node in roots
-        )
-        if workspace or page_navigation:
-            return []
-    outline = sorted(
-        # Widgets only — a $ entry is a layer-wide namespace, not a tag a page can
-        # write, and $keys spells its members in the x- keys' own names.
-        tag
-        for tag, entry in registry.items()
-        if tag.startswith("lf-") and entry.get("x-outline")
-    )
-    if not outline or any(record["tag"] in outline for record in parser.lf_elements):
-        return []
-    headings = [node for node in parser.nodes if node["tag"] in HEADING_TAGS]
-    if len(headings) < 2:
-        return []
-    return [
-        (
-            f"{len(headings)} headings and no <{outline[0]}>: one in an "
-            "aside.sidebar near the opening lists them, unless the page is compact "
-            "enough that its outline is already visible at a glance"
-        )
-    ]
 
 
 def structure_errors(parser: SourceDocument) -> list:

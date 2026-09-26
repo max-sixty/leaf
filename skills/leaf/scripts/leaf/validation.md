@@ -84,8 +84,8 @@ image, a blocked or mixed-content request, a deprecated API) outside a form cont
 shadow tree, one in an embedded frame placed at that frame, and no fail-soft box;
 every widget upgraded, painted with values that resolve, and given real space;
 words a user can mark, reach, and select, with the registry's verbatim and shadow
-declarations honored; no sideways scroll, clipped control, squeezed table, trapped
-margin, or misplaced box; and standing state that replays without conflict and idempotently.
+declarations honored; no sideways scroll, clipped control, squeezed table, or
+misplaced box; and standing state that replays without conflict and idempotently.
 `render_gate/readings.py` is the list. Those readings run
 at a desktop and a phone viewport; once they are done, the loaded desktop page is
 resized through the widths from 360px to 1200px and the two sideways readings are taken

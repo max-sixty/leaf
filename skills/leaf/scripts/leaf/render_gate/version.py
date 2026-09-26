@@ -70,11 +70,10 @@ def _render_version_attempt(
     the other), a version that authors widget state the log replays over, a widget whose
     renderState is relative, so a read's replay of the sender's own gesture moves the
     page again (none of the three is CSS), a settled holder whose mark or still-showing
-    slot words disagree with the log's decision (read once, on the premise the
-    trapped-margin reading shares: the palettes carry no geometry between them), an SVG
-    paint token that does not resolve to valid paint in that scheme, and a box drawing one
-    inset and showing another. Once per version, on the settled desktop page in the light
-    scheme, it reads more: as advice, whether a margin pin stands over text, and whether a
+    slot words disagree with the log's decision (read once: the palettes carry no
+    geometry between them), and an SVG paint token that does not resolve to valid paint
+    in that scheme. Once per version, on the settled desktop page in the light scheme, it
+    reads more: as advice, whether a margin pin stands over text, and whether a
     drawing's fit to its box shrinks its labels past reading; and then, resizing that
     loaded page through every width from 360px to 1200px, the sideways readings again:
     a version holds at each of them, not only at the two it renders. Returns the failures

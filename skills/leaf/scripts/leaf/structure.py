@@ -68,10 +68,6 @@ POINTABLE_TAGS = {"section", "article", "aside", "pre", "table", "figure"}
 # Where an aim that found no tighter id has escaped to: naming one of these is
 # naming most of the page.
 SECTIONING_TAGS = {"section", "article", "main", "body"}
-# The headings an outline of the page lists. h1 names the page, so it heads that
-# outline rather than standing in it. The outline widget selects the same set in the
-# browser (its own HEADING_SELECTOR).
-HEADING_TAGS = {"h2", "h3", "h4", "h5", "h6"}
 # The allocations a page occurrence may state, each attribute with the values it takes:
 # a block's width in the page's flow and whether it bounds its own height, and, on
 # `main` alone, whether the page reserves the rail its margin rows stand in.

@@ -443,6 +443,9 @@ export function createHintSession({
     addEventListener("resize", () => {
       if (!armed) return;
       clearTimeout(settleTimer);
+      // A resize may arrive during the first arming wait. Let the new scene stand
+      // for a settle before drawing its generated hints.
+      if (!stood) settleTimer = setTimeout(settled, SETTLE_MS);
       scrolling = false;
       stale = true;
       repaint();

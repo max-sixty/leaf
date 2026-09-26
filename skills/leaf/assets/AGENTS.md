@@ -236,8 +236,8 @@ page starts the run, every printed key after it joins, and the held keys are sho
 beat. At `lf-presentation` the keyboard controller takes the run and works through it in
 order, a frame apart: a key whose turn comes in a text box an earlier key opened is typed
 into it, and any other is pressed through the controller's own handler. A printed key
-pressed meanwhile joins the run until it is empty. Any other key, or a pointer press, ends
-the run: what was held is dropped and the new press keeps its native meaning, which no
+pressed meanwhile joins the run until it is empty. Any other key, a Ctrl, Alt or Meta chord
+included, or a pointer press ends the run: what was held is dropped and the new press keeps its native meaning, which no
 replay could reproduce. A startup failure, or a page still unpresented ten seconds in,
 ends the hold and drops what it held.
 Generated interface constructed from authored markup participates in layout while it

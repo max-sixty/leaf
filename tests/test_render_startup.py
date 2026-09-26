@@ -571,11 +571,13 @@ def test_held_keys_after_one_that_opens_a_box_are_typed_into_it(browser, serve):
     expect(page.locator("textarea:focus")).to_have_value("hi x")
 
 
-def test_a_key_that_is_not_printed_ends_the_held_run(browser, serve):
-    """A held run is printed keys. Enter acts where focus stands, which a replay cannot
-    reproduce, so after `c h i` it drops the run rather than waiting behind it: no
-    comment box opens and nothing is sent. `test_held_keys_after_one_that_opens_a_box_
-    are_typed_into_it` is the same run without the Enter."""
+@pytest.mark.parametrize("ending", ["Enter", "ControlOrMeta+a"])
+def test_a_key_that_is_not_printed_ends_the_held_run(browser, serve, ending):
+    """A held run is printed keys. Enter or a chord acts where focus stands, which a
+    replay cannot reproduce and which must not act ahead of the keys before it, so after
+    `c h i` it drops the run rather than waiting behind it: no comment box opens and
+    nothing is sent. `test_held_keys_after_one_that_opens_a_box_are_typed_into_it` is
+    the same run without the ending key; Shift alone leaves the run standing."""
     url = serve(HELD_KEYS_PAGE)
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     watched(page)
@@ -590,7 +592,7 @@ def test_a_key_that_is_not_printed_ends_the_held_run(browser, serve):
     page.keyboard.press("Shift")
     expect(echo.locator("kbd")).to_have_count(3)
 
-    page.keyboard.press("Enter")
+    page.keyboard.press(ending)
     expect(echo).to_have_count(0)
     release()
     page.wait_for_function(BOTH_STAMPS)

@@ -35,8 +35,8 @@
   // printed keys: one pressed on the page starts it, and every printed key after it
   // joins. Any other key ends the run, and so does a pointer press, which puts the user
   // somewhere the keys were not aimed at: what was held is dropped and the new press
-  // keeps its own meaning. A modified key is the browser's, and a modifier alone is half
-  // a press. After a beat the held keys are shown, so a press visibly landed; a page that
+  // keeps its own meaning. A chord never starts a run, and a modifier alone is half a
+  // press, which neither starts nor ends one. After a beat the held keys are shown, so a press visibly landed; a page that
   // presents within the beat shows nothing.
   const HALF_PRESSES = new Set([
     "Shift",
@@ -82,15 +82,16 @@
       else beat ||= setTimeout(show, 150);
     };
     const hold = (event) => {
-      if (event.isComposing || event.ctrlKey || event.metaKey || event.altKey) return;
-      if (HALF_PRESSES.has(event.key)) return;
-      const printed = event.key.length === 1;
+      if (event.isComposing || HALF_PRESSES.has(event.key)) return;
+      // Shift chooses which character prints; Ctrl, Alt and Meta make a chord instead.
+      const printed =
+        event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey;
       if (held.length || taken) {
         // The run is open, so a printed key follows the keys before it wherever it was
         // typed: a held `c` may yet open the box the rest is text for. Any other key
-        // ends the run and keeps its own meaning: Enter, Backspace, Tab or an arrow acts
-        // natively where focus stands, which a replay through the keyboard owner cannot
-        // reproduce.
+        // ends the run and keeps its own meaning: Enter, Backspace, Tab, an arrow or a
+        // chord acts natively where focus stands, which a replay through the keyboard
+        // owner cannot reproduce, and must not act ahead of keys pressed before it.
         if (!printed) {
           letGo();
           return;

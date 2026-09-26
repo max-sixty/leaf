@@ -2900,17 +2900,10 @@ def test_a_walked_thread_leaves_through_what_holds_it(browser, serve):
     page.keyboard.press("Escape")
     expect(page.locator("#p")).to_be_focused()
     # The element and the card beside it are one place, so standing there is standing
-    # at its thread: the card's reply box wears `c`, and the walk goes on from the
-    # thread rather than back into it.
-    expect(threads[0].locator("textarea")).to_have_attribute("placeholder", "Reply c")
+    # at its thread: the line names it, and the walk goes on from the thread rather than
+    # back into it.
     expect(line).to_contain_text("comment on the thread")
     page.keyboard.press("t")
-    expect(threads[1]).to_be_focused()
-    page.keyboard.press("Escape")
-    expect(page.locator("#p2")).to_be_focused()
-    page.keyboard.press("c")
-    expect(threads[1].locator("textarea")).to_be_focused()
-    page.keyboard.press("Escape")
     expect(threads[1]).to_be_focused()
     page.keyboard.press("Escape")
     expect(page.locator("#p2")).to_be_focused()
@@ -2959,6 +2952,58 @@ def test_a_walked_thread_leaves_through_what_holds_it(browser, serve):
     page.keyboard.press("Escape")
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
     assert page.evaluate("() => document.activeElement === document.body")
+
+
+# Ways to arrive at, move within, and step back from a thread's margin card. `@mark` is a
+# keyboard arrival on the first passage's mark; `@marker` is a press on its margin marker.
+CARD_ROUTES = {
+    "walk": ["t"],
+    "walk, back to its element": ["t", "Escape"],
+    "walk, let go": ["t", "Escape", "Escape"],
+    "walk on, back to its element": ["t", "t", "Escape"],
+    "walk, Tab within the card": ["t", "Tab"],
+    "walk, go to the page": ["t", "g", "p"],
+    "reply, back out to its element": ["t", "c", "Escape", "Escape"],
+    "arrive at the mark": ["@mark"],
+    "arrive at the mark, step back": ["@mark", "Escape"],
+    "press the marker": ["@marker"],
+}
+
+
+@pytest.mark.parametrize("route", CARD_ROUTES.values(), ids=CARD_ROUTES.keys())
+def test_c_lands_where_its_badge_is_and_in_the_card_on_screen(browser, serve, route):
+    """One box wears `c`, and `c` lands in it; while a card is up, that box is its reply.
+
+    The badge and the press read the same destination, and the card's being up is part
+    of that destination rather than a second reading of where the user stands, so no
+    route may leave a card on screen whose reply `c` does not reach.
+    """
+    page = open_page(
+        browser,
+        serve(INLINE_PAGE, anchored=[("p", "bold text"), ("p2", "neighbouring block")]),
+    )
+    page.set_viewport_size({"width": 1600, "height": 900})
+    for step in route:
+        if step == "@mark":
+            page.keyboard.press(
+                "Tab"
+            )  # keyboard modality, so the focus below is visible
+            page.locator("#p .lf-mark-note").focus()
+        elif step == "@marker":
+            page.locator('.lf-margin-marker[data-lf-kinds="comment"]').first.click()
+        else:
+            page.keyboard.press(step)
+        rendered(page)
+
+    badged = page.locator("textarea[placeholder$=' c']")
+    expect(badged).to_have_count(1)
+    box = badged.element_handle()
+    card = page.locator(".lf-margin-preview")
+    card_up = card.is_visible()
+    assert box.evaluate("box => Boolean(box.closest('.lf-margin-preview'))") == card_up
+    page.keyboard.press("c")
+    rendered(page)
+    assert box.evaluate("box => box === document.activeElement")
 
 
 def test_threads_answers_c_in_the_thread_it_expanded_for_a_target(browser, serve):

@@ -2612,11 +2612,8 @@ export function createMarginProjection({
     // Nothing closes, since the list stays whole wherever the user stands.
     if (panelIsOpen()) {
       const entry = host ? host.lfEntry : threadEntryAt(active);
-      if (entry && threadReading(entry) && active.matches(":focus-visible")) {
+      if (entry && threadReading(entry) && active.matches(":focus-visible"))
         accompanyThread(threadIdsOf(entry));
-        // The focus arrival already painted; the expanded thread is now where `c` goes.
-        paintKeys();
-      }
       return;
     }
     if (host) {
@@ -2667,13 +2664,13 @@ export function createMarginProjection({
   const unfoldedMarginEntries = () =>
     expandedOptionsKey ? (hosts.get(expandedOptionsKey) ?? null) : null;
   const foldMarginEntryOptions = () => setOptionsOpen(null, false);
-  // The thread the user is at without standing inside it. The card, its margin entry,
-  // and its target are one place (header), so standing on the entry or the target with
-  // the card up is standing at its thread when the card shows exactly one; with Threads
-  // open, standing on the target is standing at the thread the list expanded for it.
-  // `c` answers in that thread's reply box, `t` walks on from it, and Threads opens at
-  // it. A thread inside the card or on the page is `.lf-page-thread`; one in the list is
-  // `.lf-thread`.
+  // The thread the user is at: the one holding focus, else the one the card shows. The
+  // card is up only while the user stands somewhere it belongs (`followStanding`,
+  // `declareRelease`, `pressAway`), so its being up is the answer rather than a second
+  // reading of where they stand beside it. With Threads open the list's thread expanded
+  // for the target the user stands on plays the card's part. `c` answers in that
+  // thread's reply box, `t` walks on from it, and Threads opens at it. A thread inside
+  // the card or on the page is `.lf-page-thread`; one in the list is `.lf-thread`.
   const threadHere = () => {
     const active = focused();
     if (panelIsOpen()) {
@@ -2683,14 +2680,7 @@ export function createMarginProjection({
     const direct = active?.closest?.(".lf-page-thread[data-thread]");
     if (direct) return direct;
     if (!pinnedKey || previewEntry?.key !== pinnedKey || !previewOpen()) return null;
-    const held = preview.contains(active) ? active.closest?.(".lf-page-thread") : null;
-    if (held) return held;
     const threads = previewList.querySelectorAll(".lf-margin-thread .lf-page-thread");
-    const pending = previewFocusPending?.key === previewEntry.key;
-    const standing =
-      active === previewMarginEntry ||
-      (active && threadEntryAt(active)?.key === previewEntry.key);
-    if (!pending && !standing) return null;
     return threads.length === 1 ? threads[0] : null;
   };
   // A live revision replaces the browser document, so DOM identity cannot carry a

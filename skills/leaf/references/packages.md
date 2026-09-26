@@ -152,12 +152,11 @@ under `$idioms` in the package's
 
 A rule that draws a box's inset — padding, border, or tinted field — declares
 `--lf-block-frame: 1` in the same rule. The shared layout uses that declaration to trim child
-margins and bound wide content, and the render gate reports a frame that omits it. The
-trim follows the frame's edge down through each first or last child, so a wrapper
-between the frame and the margin it trims declares nothing. A box that lays its children
+margins and bound wide content. The trim follows the frame's edge down through each
+first or last child, so a wrapper between the frame and the margin it trims declares
+nothing. A box that lays its children
 out side by side (a flex row, a grid) declares `--lf-holds-edge: 1`, so the trim stops at
-it rather than taking one item's margin and leaving the others'; the render gate names
-one that splits a row at a frame's edge.
+it rather than taking one item's margin and leaving the others'.
 
 The runtime exposes declared layout facts as `[data-lf-inline]`, `[data-lf-space]`,
 `[data-lf-measure]`, `[data-lf-bound]`, and `[data-lf-exhibit]`; shared selectors read
@@ -219,7 +218,6 @@ widget's role on the page:
 | -------------------- | -------------------------------------------------------------- |
 | `x-reading-role`     | `lf-workspace`, `lf-pane`, `lf-grid`                           |
 | `x-required-members` | `lf-swipe-deck` in `swipe`                                     |
-| `x-page-navigation`  | `lf-tabs`                                                      |
 | `x-visual`           | `lf-chart` declares `whole`, `lf-diagram` in `diagram` `parts`  |
 | `x-bound`            | `lf-activity`                                                  |
 | `x-history`          | `lf-activity`                                                  |

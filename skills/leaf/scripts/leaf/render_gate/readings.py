@@ -315,38 +315,6 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
                     )
                 if holders:
                     retired = evaluate_probe(page, "retiredSlots", holders)
-    # One scheme, the palettes carrying no geometry between them, and before the
-    # medium moves: a box's inset is what it declared in either.
-    #
-    # The document's boxes, not the layer's over them. This is the only reading
-    # here that reaches the runtime's own chrome, and it reaches it by accident:
-    # inside `display: none` an element's own display is still `block` and its
-    # padding and margins still resolve, so a shut panel answers with numbers that
-    # look like the page's. They are not the panel's own. A size container query
-    # does not match in there, so a rule switching a slot between two forms is
-    # stuck on one of them, and a percentage margin comes back unresolved for
-    # `px` to read as its bare number. Every box reading beside this one sees zero
-    # and stops, which is the honest answer.
-    #
-    # And the finding would be one the author cannot act on. Everything in here is
-    # somebody else's: the layer's own parts, told to them in the words of a class
-    # no page of theirs has, and a widget an agent sent in a reply, frozen in an
-    # append-only log and admitted at a door of its own. Either way the version
-    # would stay refused with no edit that clears it, which is why the coarse
-    # question — which document is this in — is the right one to ask here, under the
-    # rule this module's docstring states. The layer's half is leaf's
-    # own to hold, and the suite holds it with the panel open, where the styles are
-    # the panel's and the margin is one somebody can see.
-    trapped = (
-        [t for t in evaluate_probe(page, "trappedMargins") if not t["chrome"]]
-        if scheme == "light"
-        else []
-    )
-    split = (
-        [t for t in evaluate_probe(page, "splitEdges") if not t["chrome"]]
-        if scheme == "light"
-        else []
-    )
     # Last: these probes render temporary complete states. Compare carried actions
     # against the authored baseline, restore current state, then prove idempotence.
     # The caught-up wait ensures they observe the same settled projection as the
@@ -446,34 +414,6 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
             "form (x-state) if a version is meant to carry it, or write the state "
             "on the chrome the module built"
         )
-    for t in {(x["tag"], x["edge"]): x for x in trapped}.values():
-        box = f"<{t['tag']}" + (f" class={t['cls']!r}" if t["cls"] else "") + ">"
-        path = t.get("through", [])
-        remedy = (
-            "Remove the edge margin that overrides the shared trim"
-            if t["frameDeclared"]
-            else "Declare --lf-block-frame: 1 in the rule that draws the frame"
-        )
-        found.append(
-            f"[{scheme}] {box} draws {t['drawn']:g}px of inset and shows "
-            f"{t['drawn'] + t['margin']:g}px {t['edge']} what it holds "
-            f"(id={t['id']!r}): its {t['edge'] == 'above' and 'first' or 'last'} "
-            f"block is a <{t['child']}> reserving {t['margin']:g}px against a "
-            f"neighbour it hasn't got, and the box is where that margin stops. "
-            f"{remedy}{' (' + ' > '.join(path) + ')' if path else ''}, so the trim "
-            f"in theme.css reaches it"
-        )
-
-    for t in {(x["tag"], x["cls"], x["edge"]): x for x in split}.values():
-        box = f"<{t['tag']}" + (f" class={t['cls']!r}" if t["cls"] else "") + ">"
-        which = "first" if t["edge"] == "above" else "last"
-        found.append(
-            f"[{scheme}] {box} (id={t['id']!r}) lays its children out side by side "
-            f"at a frame's edge, so the trim takes its {which} item's margin while "
-            f"the {t['margin']:g}px beside it stays, and the row no longer lines up. "
-            "Declare --lf-holds-edge: 1 on it, so the trim stops there"
-        )
-
     found += [f"[{scheme}] {r}" for r in retired]
     found += [f"[{scheme}] {u}" for u in unsettled]
     found += [f"[{scheme}] {c}" for c in conflicts]

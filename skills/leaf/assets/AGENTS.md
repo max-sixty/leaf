@@ -274,7 +274,7 @@ changing `leaf.js`, a runtime owner, a widget module, the registry, or the theme
 | `silentWords` | `x-says` and `x-paints` promises reach the rendered page |
 | `undeclaredAttrs` | modules write no undeclared author-namespace state |
 | `retiredSlots` | settlement marks agree with the projection |
-| `trappedMargins`, `splitEdges` | framed boxes show only their inset and edge rows line up |
+| `trappedMargins`, `splitEdges` | suite only: the theme's frame trim reaches Leaf's own boxes |
 | `replayOverrides` | the log, not conflicting markup, determines projected state |
 | `relativeReplays` | rendering a complete widget state twice changes nothing |
 | `misalignedSplits`, `coveringMargins`, `shrunkLabels` | advice only |

@@ -275,9 +275,10 @@ export function readThreadRecords(
       // A recovered thread can have lost its opening message. Its first
       // surviving reply supplies the root's displayed content while the
       // missing opener remains the thread's stable identity.
-      root:
-        msgs.find((message) => message.id === thread.root.id) ??
-        { ...msgs[0], id: thread.root.id },
+      root: msgs.find((message) => message.id === thread.root.id) ?? {
+        ...msgs[0],
+        id: thread.root.id,
+      },
       msgs,
       unread: Object.freeze(unread),
       anchor: thread.anchor ?? null,

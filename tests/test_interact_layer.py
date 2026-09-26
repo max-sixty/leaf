@@ -618,7 +618,8 @@ def test_the_version_and_root_flags_describe_the_payload_this_leaf_ran_out_of(tm
     checkout = asked("--version")
     assert checkout.returncode == 0, checkout.stderr
     assert re.fullmatch(
-        r"leaf [0-9a-f]{12}\+?, committed \d{4}-\d\d-\d\dT\d\d:\d\d:\d\d[+-]\d\d:\d\d",
+        r"leaf [0-9a-f]{12}\+?, committed "
+        r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:Z|[+-]\d\d:\d\d)",
         checkout.stdout.strip(),
     ), checkout.stdout
 

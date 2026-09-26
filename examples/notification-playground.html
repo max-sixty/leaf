@@ -7,49 +7,6 @@
       content="Stress-test two deployment notification formats against the same live event stream, then send the chosen configuration back to the agent."
     />
     <style>
-      /* The playground's regions: the stage beside the controls and the instruction. */
-      .lf-playground-split {
-        display: grid;
-        gap: var(--sp-4);
-      }
-      .lf-playground-split > * {
-        min-width: 0;
-        margin: 0;
-      }
-      /* The Ask is the workspace's body: its title, then the playground holding the rest
-         of the window. Each region's body scrolls on its own, and the controls give up
-         height before the instruction does. */
-      @media screen and (min-width: 720px) and (min-height: 480px) {
-        #notification-ask {
-          margin-top: var(--sp-4);
-          display: grid;
-          grid-template-rows: auto minmax(0, 1fr);
-        }
-        #notification-playground {
-          min-height: 0;
-          margin-bottom: 0;
-        }
-        .lf-playground-split {
-          min-height: 0;
-        }
-        .lf-playground-split > [data-lf-reading-role="pane"] {
-          min-height: 0;
-        }
-        .lf-playground-split > [data-lf-reading-role="pane"] > :not(header, footer) {
-          min-height: 0;
-          overflow: auto;
-          overscroll-behavior: contain;
-        }
-        @container (min-width: 43.5rem) {
-          .lf-playground-split {
-            grid-template-rows: minmax(12rem, 1fr) auto;
-          }
-          .lf-playground-instruction-region {
-            align-self: stretch;
-          }
-        }
-      }
-
       notification-simulator {
         display: block;
         box-sizing: border-box;

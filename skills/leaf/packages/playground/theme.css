@@ -11,8 +11,6 @@
  * surface inside the well rather than a card in a well in a card. */
 lf-playground {
   --lf-block-frame: 1;
-  /* Passes a held workspace's height to its grid of regions (default theme). */
-  --lf-passes-hold: 1;
   min-height: var(--lf-track-min);
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -56,21 +54,29 @@ lf-playground:has(> .lf-playground-split) {
   }
 }
 
-/* Held in a bounded workspace, the controls give up height and scroll while the
- * instruction and its actions stay whole under them, down to the controls' floor; below
- * it the instruction takes its track rather than its content's height, and its body
- * scrolls instead of running past the workspace. */
+/* Held (a workspace Layout gives it a definite height to fill, `--lf-held`), the
+ * playground and its split take that height, the controls give up height and scroll
+ * while the instruction and its actions stay whole under them, down to the controls'
+ * floor; below it the instruction takes its track rather than its content's height, and
+ * its body scrolls instead of running past the window. */
 @media screen {
-  @container lf-workspace (min-width: 720px) and (min-height: 480px) {
-    @container style(--lf-held: 1) {
-      @container (min-width: 43.5rem) {
-        html:root .lf-playground-split {
-          grid-template-rows: minmax(12rem, 1fr) auto;
-        }
+  @container style(--lf-held: 1) {
+    lf-playground {
+      min-block-size: 0;
+      margin-block: 0;
+    }
 
-        html:root .lf-playground-instruction-region {
-          align-self: stretch;
-        }
+    .lf-playground-split {
+      min-block-size: 0;
+    }
+
+    @container (min-width: 43.5rem) {
+      html:root .lf-playground-split {
+        grid-template-rows: minmax(12rem, 1fr) auto;
+      }
+
+      html:root .lf-playground-instruction-region {
+        align-self: stretch;
       }
     }
   }

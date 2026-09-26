@@ -12,13 +12,18 @@ const carrier = document.querySelector(
 if (!carrier) throw new Error("leaf: the document carries no runtime stylesheets");
 const sheets = JSON.parse(carrier.textContent);
 
+// Leaf's own rules share one cascade layer with the theme (layer.py, CASCADE_LAYERS), so
+// they rank against it by specificity and order as they always have, below the Layouts
+// and the page's own stylesheet.
+export const inBaseLayer = (text) => `@layer lf-base {\n${text}\n}`;
+
 export function constructSheet(text, name) {
   // An empty sheet is a page with no chrome and no marks, and nothing about it looks
   // wrong, so a block that is not the text it claims fails here rather than painting.
   if (typeof text !== "string")
     throw new TypeError(`leaf: the document's ${name} stylesheet is not text`);
   const sheet = new CSSStyleSheet();
-  sheet.replaceSync(text);
+  sheet.replaceSync(inBaseLayer(text));
   return sheet;
 }
 

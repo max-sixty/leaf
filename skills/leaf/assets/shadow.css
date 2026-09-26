@@ -174,8 +174,11 @@
    declared widget tree and the note is written into one. `font: inherit` clears the UA's button face;
    the family is spelled after it for the reason the chip's rule below gives. */
 leaf-anchor-note { display: contents; }
+/* The note stands at the static position after its target's last glyph, so it takes
+   its pixel back from that glyph: a line ending flush with the window's edge would
+   otherwise hang it past the edge and scroll the page sideways. */
 .lf-mark-note { appearance: none; box-sizing: border-box; position: absolute;
-          width: 1px; height: 1px; margin: 0; padding: 0; overflow: hidden;
+          width: 1px; height: 1px; margin: 0 0 0 -1px; padding: 0; overflow: hidden;
           border: 0; background: none; color: inherit;
           font: inherit; font-family: var(--sans);
           user-select: none; -webkit-user-select: none; opacity: 0; }

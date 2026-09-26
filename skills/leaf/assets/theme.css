@@ -693,113 +693,20 @@ body {
   color: var(--muted); font: var(--t-6)/var(--lf-ui-lh) var(--sans); white-space: nowrap;
   border: 1px solid var(--rule); border-radius: var(--r); background: var(--card);
 }
-/* `main` has no layout until the page gives it one: a Layout class (below) or the page's
- * own CSS. What stays here is what Leaf's chrome coordinates with: the frame its first and
- * last blocks trim against, and the name a margin resident asks the page's readings by. */
+/* `main` has no layout until the page gives it one: a Layout class (layouts.css) or the
+ * page's own CSS. What stays here is what Leaf's chrome coordinates with: the frame its
+ * first and last blocks trim against, the name a margin resident asks the page's readings
+ * by, the room above and below its blocks, and, with no Layout, no room to grow into on
+ * either side. */
 main {
   position: relative;
   --lf-block-frame: 1;
   container-name: lf-content-frame;
+  padding-block: 72px 96px;
+  --lf-free-l: 0px;
+  --lf-free-r: 0px;
 }
 
-/* Layouts: starting points a page pulls on by class. They are plain CSS in a layer the
- * page's own stylesheet outranks, so a page adjusts one with ordinary rules or writes
- * its own; nothing reads a Layout back. The page's defaults stand in the same layer, so a
- * Layout overrides them by specificity and the page overrides both: the room above and
- * below its blocks, and, with no Layout, no room to grow into on either side. */
-@layer lf-layouts {
-  main {
-    --lf-free-l: 0px;
-    --lf-free-r: 0px;
-    padding-block: 72px 96px;
-  }
-  /* The column: prose at the reading measure, centred in the shell, and one option, a
-   * breakout, which `data-width` on a block (or a widget's preferred x-space) asks for.
-   * The breakout reads the room free beside the column from the lengths resolved here,
-   * so it is the same arithmetic wherever the column stands.
-   *
-   * `version check` reads this max-width, beside --lf-reading-column, to find the column
-   * it measures pinned widths against, resolving the token as the cascade does. */
-  .layout-column {
-    --lf-reading-column: 1;
-    max-width: var(--col);
-    margin-inline: auto;
-    padding-inline: var(--col-pad);
-    --lf-width: min(var(--col), max(0px, 100cqi - 2 * var(--col-pad)));
-    --lf-beside: calc((100cqi - var(--lf-width)) / 2);
-    --lf-shift: 0px;
-    --lf-gutter-l: var(--col-pad);
-    --lf-free-l: max(0px, calc(var(--lf-beside) - var(--col-pad)));
-    --lf-free-r: max(0px, calc(var(--lf-beside) - var(--col-pad)));
-    --lf-room: max(0px, calc(100cqi - 2 * var(--col-pad)));
-  }
-  /* Body and side track. The side track takes 18rem and the body the rest, and the two
-   * stack where the body could not keep its content's minimum beside the track: a board
-   * declaring the width its columns need wraps the track below it rather than clipping.
-   * A header or footer takes the whole row. On `main` it is also the page's frame. */
-  .layout-sidebar {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: flex-start;
-    gap: var(--sp-4);
-  }
-  .layout-sidebar > :is(header, footer) { flex: 1 0 100%; }
-  .layout-sidebar > :not(header, footer) { flex: 999 1 30rem; }
-  .layout-sidebar > :not(header, footer):last-child { flex: 1 1 18rem; }
-  .layout-sidebar > :not(header, footer) > :first-child { margin-top: 0; }
-  /* Tiles: equal cells, as many to a row as fit at 9rem each. */
-  .layout-tiles {
-    display: grid;
-    gap: var(--sp-4);
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr));
-    align-items: start;
-  }
-  /* A Layout on `main` spans the page: a gutter that grows with the window and a cap at
-   * the widest page, with the title set a size up above panels as wide as the window. */
-  main:is(.layout-sidebar, .layout-tiles, .layout-workspace) {
-    padding-inline: clamp(var(--col-pad), 4cqi, 64px);
-    max-width: var(--wide-page-max);
-    margin-inline: auto;
-    --lf-room: 100%;
-  }
-  /* A token rather than an `h1` rule: typography is unlayered, so it outranks this layer,
-   * and the base heading reads its size from the token. */
-  main:is(.layout-sidebar, .layout-tiles, .layout-workspace) > header {
-    --t-1: clamp(36px, 3.2cqi, 46px);
-  }
-  /* Workspace: the page fills the window below the banner and above the band, its header
-   * and footer take their content's height, and the body between them takes the rest.
-   * Panes inside it scroll their own bodies. Where the window is too small to hold the
-   * regions, the workspace flows and the page scrolls. */
-  @media screen and (min-width: 720px) and (min-height: 480px) {
-    main.layout-workspace {
-      display: flex;
-      flex-direction: column;
-      block-size: var(--lf-view-height);
-      padding-block: 0;
-      box-sizing: border-box;
-    }
-    main.layout-workspace > :is(header, footer) { flex: none; }
-    main.layout-workspace > :not(header, footer) {
-      flex: 1 1 0;
-      min-block-size: 0;
-      grid-auto-rows: minmax(0, 1fr);
-    }
-    main.layout-workspace lf-pane {
-      display: flex;
-      flex-direction: column;
-      min-block-size: 0;
-    }
-    main.layout-workspace lf-pane > :not(header, footer) {
-      flex: 1 1 0;
-      min-block-size: 0;
-      overflow: auto;
-      overscroll-behavior: contain;
-      scrollbar-gutter: stable;
-    }
-  }
-  main.layout-workspace > header { padding-block: var(--sp-4) var(--sp-3); }
-}
 /* The page's width and the free room each side of it are resolved once, on main, and
  * inherited as lengths. Left as expressions, they would be re-resolved wherever a widget
  * reads them, and their 100cqi would then measure the nearest size container rather

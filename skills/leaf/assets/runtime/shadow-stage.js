@@ -15,7 +15,7 @@
    reasoning as renderSaid — a rule each widget has to remember is a rule that gets
    forgotten, and the forgetting is invisible until a page ships without it. */
 import { SHADOW_STARTUP_CSS, shadowRules } from "./shadow.js";
-import { constructSheet, marksSheet } from "./stylesheets.js";
+import { constructSheet, inBaseLayer, marksSheet } from "./stylesheets.js";
 import { watchDisclosures } from "./keyboard/disclosure.js";
 import { watchLayers } from "./keyboard/layer-stack.js";
 import { setChildren } from "./dom-children.js";
@@ -66,7 +66,7 @@ export function shadowStage(host, nodes) {
   watchDisclosures(root);
   watchLayers(root);
   const style = document.createElement("style");
-  style.textContent = SHADOW_STARTUP_CSS + shadowRules;
+  style.textContent = inBaseLayer(SHADOW_STARTUP_CSS + shadowRules);
   // Fragment hydration can add a sheet while the user uses an existing control.
   // Keep retained nodes connected, preserving their focus and widget lifecycle.
   setChildren(root, [style, ...nodes]);

@@ -173,32 +173,54 @@ def composed_dir_files(inputs: list[Path], sub: str) -> dict[str, Path]:
     return winners
 
 
+# The document's cascade tiers, lowest first. Everything Leaf ships shares one layer:
+# the kernel, every package, and the sheets the runtime adopts (runtime/stylesheets.js),
+# so they rank against each other by specificity and order as they always have. The
+# kernel's Layouts sit above it, and the page's own stylesheet, unlayered, above both: a
+# Layout resets what a widget sets on the boxes it arranges, and a page overrides either.
+CASCADE_LAYERS = ("lf-base", "lf-layouts")
+
+
+def _sheet(source: Path) -> str:
+    try:
+        css = source.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        sys.exit(f"{source} must be UTF-8")
+    if errors := css_syntax_errors(css, str(source)):
+        sys.exit(errors[0])
+    return css if css.endswith("\n") else css + "\n"
+
+
 def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
     """The layer's two stylesheets, each in layer precedence order.
 
     A root's shadow.css holds the rules a declared shadow tree has to see as well as
     the document: the stage copies the composed shadow.css into each tree, and the
     document's theme.css reads each root's shadow.css just ahead of its theme.css.
+
+    In the document, every root's sheets are the `lf-base` cascade layer, and the
+    kernel's layouts.css, which names `lf-layouts` itself, comes last. A shadow tree
+    holds no page stylesheet to rank against, so its sheet stays unlayered.
     """
     if not any((root / "theme.css").is_file() for root in inputs):
         sys.exit("the incoming layer has no theme.css")
-    sheets = {"theme.css": [], "shadow.css": []}
+    theme = [f"@layer {', '.join(CASCADE_LAYERS)};\n"]
+    shadow = []
     for root in inputs:
         for name in ("shadow.css", "theme.css"):
             source = root / name
             if not source.is_file():
                 continue
-            try:
-                css = source.read_text(encoding="utf-8")
-            except UnicodeDecodeError:
-                sys.exit(f"{source} must be UTF-8")
-            if errors := css_syntax_errors(css, str(source)):
-                sys.exit(errors[0])
-            css = css if css.endswith("\n") else css + "\n"
-            sheets["theme.css"].append(css)
+            css = _sheet(source)
+            theme.append(f"@layer lf-base {{\n{css}}}\n")
             if name == "shadow.css":
-                sheets["shadow.css"].append(css)
-    return {name: "".join(parts).encode() for name, parts in sheets.items()}
+                shadow.append(css)
+    if (layouts := inputs[0] / "layouts.css").is_file():
+        theme.append(_sheet(layouts))
+    return {
+        "theme.css": "".join(theme).encode(),
+        "shadow.css": "".join(shadow).encode(),
+    }
 
 
 def composed_guidance(inputs: list[Path]) -> dict[str, bytes]:

@@ -210,8 +210,8 @@ function nameAnchor({ el, name, write }) {
 // The box a row anchors to. An anchor name reaches only its own tree, so a target inside
 // a shadow tree anchors through its host; a shape inside an SVG drawing has no CSS box of
 // its own, so it anchors through the drawing; a `display: contents` target through its
-// first shown part. Where the anchor is not the target, the row still stands level with
-// the target's top, through `--lf-inset`.
+// first shown part. Wherever it anchors, the row stands at the top-right corner of the
+// target's own extent (`shownExtent`), written as insets from the anchor's box.
 function anchorElement(target) {
   let el = target;
   for (let root = el.getRootNode(); root instanceof ShadowRoot; root = el.getRootNode())
@@ -310,7 +310,13 @@ export function unregisterMarginRow(row) {
     row.classList.remove("lf-withheld");
     row.removeAttribute("data-lf-place");
     row.removeAttribute("data-lf-parked");
-    for (const property of ["--lf-inset", "--lf-push", "--lf-step", "position-anchor"])
+    for (const property of [
+      "--lf-inset-top",
+      "--lf-inset-right",
+      "--lf-push",
+      "--lf-step",
+      "position-anchor",
+    ])
       row.style.removeProperty(property);
     pushes.delete(row);
     steps.delete(row);
@@ -337,28 +343,36 @@ function setStyle(row, property, value) {
     row.style.setProperty(property, value);
 }
 
-const shownTop = (target) =>
-  Math.min(...shownParts(target).map((part) => part.getBoundingClientRect().top));
+// The box the target's shown parts cover together: its row stands at this box's
+// top-right corner whatever box it anchors through, so a comment on one shape of a
+// drawing stands on that shape rather than at the drawing's edge. A target with no shown
+// part has none.
+function shownExtent(target) {
+  const parts = shownParts(target).map((part) => part.getBoundingClientRect());
+  if (!parts.length) return null;
+  return {
+    left: Math.min(...parts.map((part) => part.left)),
+    top: Math.min(...parts.map((part) => part.top)),
+    right: Math.max(...parts.map((part) => part.right)),
+    bottom: Math.max(...parts.map((part) => part.bottom)),
+  };
+}
 
 // Whether a row has somewhere to stand: its target renders, its scrollers leave some of
-// its own box in view — the pane that scrolls it, a table or board it has been scrolled
-// sideways out of, or a scroller inside the shadow tree it anchors through, which can
-// take the target away while the host it anchors through still shows — and the point the row
-// stands at is inside that view. That is the target's top line, since a row standing
-// above a pane's top would be clipped by its lane and still take the keyboard, and for a
-// pin the anchor's right edge too: a card half past a board's edge would stand its pin
-// outside the board, beside nothing and past the page.
-function targetShown(target, anchor, inset, pin, bands) {
+// it in view — the pane that scrolls it, a table or board it has been scrolled sideways
+// out of, or a scroller inside the shadow tree it anchors through, which can take the
+// target away while the host it anchors through still shows — and the corner the row
+// stands at is inside that view. Its top line counts, since a row standing above a
+// pane's top would be clipped by its lane and still take the keyboard, and for a pin its
+// right edge too: a card half past a board's edge would stand its pin outside the board,
+// beside nothing and past the page.
+function targetShown(target, extent, pin, bands) {
   const shown = (part) =>
     part.checkVisibility() && clippedBand(part, part.getBoundingClientRect(), bands);
   if (!shownParts(target).some(shown)) return false;
-  const box = anchor.getBoundingClientRect();
-  const view = clippedBand(target, box, bands);
-  const line = box.top + inset;
-  if (!view || line < view.top - 1 || line >= view.bottom) return false;
-  if (!pin) return true;
-  const across = anchor === target ? view : clippedBand(anchor, box, bands);
-  return Boolean(across) && box.right <= across.right + 1;
+  const view = clippedBand(target, extent, bands);
+  if (!view || extent.top < view.top - 1) return false;
+  return !pin || extent.right <= view.right + 1;
 }
 
 const pushes = new Map();
@@ -395,11 +409,13 @@ function scheduleScrollReading() {
         scheduleMarginLayout();
         return;
       }
-      const inset =
-        anchor === target ? 0 : shownTop(target) - anchor.getBoundingClientRect().top;
       if (
-        targetShown(target, anchor, inset, row.dataset.lfPlace === "pin", bands) ===
-        row.classList.contains("lf-withheld")
+        targetShown(
+          target,
+          shownExtent(target),
+          row.dataset.lfPlace === "pin",
+          bands,
+        ) === row.classList.contains("lf-withheld")
       ) {
         scheduleMarginLayout();
         return;
@@ -448,7 +464,7 @@ export function layoutMarginRows() {
     const scroller = scrollerFor(target);
     const rootLane = scroller === pageScroller;
     const box = anchor.getBoundingClientRect();
-    const inset = anchor === target ? 0 : shownTop(target) - box.top;
+    const extent = shownExtent(target);
     const place = rowPosture({
       railStands: stands,
       rootLane,
@@ -457,7 +473,7 @@ export function layoutMarginRows() {
       half: size / 2,
     });
     const shown =
-      !parked.has(row) && targetShown(target, anchor, inset, place === "pin", bands);
+      !parked.has(row) && targetShown(target, extent, place === "pin", bands);
     reads.push({
       row,
       options,
@@ -467,8 +483,8 @@ export function layoutMarginRows() {
       lane: rootLane ? layer.root : null,
       shown,
       place,
-      inset,
-      edge: box.right,
+      box,
+      extent,
       controls: place === "pin" && shown ? controlsIn(anchor) : [],
     });
   }
@@ -521,16 +537,18 @@ export function layoutMarginRows() {
 
   // A withheld row is anchored too, so that when its target comes into view it has only
   // to show.
-  for (const { row, naming, shown, place, inset } of reads) {
+  const px = (length) => (length ? `${length}px` : null);
+  for (const { row, naming, shown, place, box, extent } of reads) {
     mark(row, "lf-withheld", !shown);
     if (!naming) continue;
     setStyle(row, "position-anchor", nameAnchor(naming));
-    setStyle(row, "--lf-inset", inset ? `${inset}px` : null);
+    setStyle(row, "--lf-inset-top", px(extent && extent.top - box.top));
+    setStyle(row, "--lf-inset-right", px(extent && box.right - extent.right));
     if (row.dataset.lfPlace !== place) row.dataset.lfPlace = place;
   }
 
   // Packing reads where each row stands with no push, then writes every push together. A
-  // pin stands `--pin-inset` inside its block's right edge, which is read here, so where
+  // pin stands `--pin-inset` inside its target's right edge, which is read here, so where
   // it will stand across is worked out rather than read back.
   const placed = reads
     .filter((read) => read.shown)
@@ -544,8 +562,10 @@ export function layoutMarginRows() {
         stranded: box.bottom + scrollY < -1000,
         rect: {
           left:
-            read.place === "pin" ? read.edge - pinInset - box.width : box.left - step,
-          right: read.place === "pin" ? read.edge - pinInset : box.right - step,
+            read.place === "pin"
+              ? read.extent.right - pinInset - box.width
+              : box.left - step,
+          right: read.place === "pin" ? read.extent.right - pinInset : box.right - step,
           top: box.top - push,
           bottom: box.bottom - push,
         },

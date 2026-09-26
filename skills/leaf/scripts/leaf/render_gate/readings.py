@@ -26,6 +26,14 @@ _ISSUE_NODE = (
     "function () { return globalThis.__leafRenderDriver"
     ".call({name: 'issueNode', args: [this]}); }"
 )
+# A node in a child frame is that frame's to show, and the frame is the page's, so the
+# issue is placed at the frame element in the page's own document, where the probes
+# run. A cross-origin frame withholds that element, and the issue goes unplaced.
+_IN_PAGE = (
+    "function () { let node = this; const view = (n) => (n.ownerDocument ?? n)"
+    ".defaultView; while (node && view(node) !== top) node = view(node).frameElement;"
+    " return node; }"
+)
 
 
 def _issue_fields(value, key=""):
@@ -65,15 +73,34 @@ class DevtoolsIssues:
             node = self._cdp.send("DOM.resolveNode", {"backendNodeId": backend_id})
         except PlaywrightError:
             return None  # the node left the document after Chrome raised the issue
+        in_page = self._call(node["object"], _IN_PAGE, by_value=False)
+        if in_page.get("subtype") == "null":
+            return None
+        # The frame element came back as the child frame's object. Resolving it again
+        # by id answers in its own document's context, where the probes are loaded.
+        described = self._cdp.send(
+            "DOM.describeNode", {"objectId": in_page["objectId"]}
+        )
+        page_node = self._cdp.send(
+            "DOM.resolveNode", {"backendNodeId": described["node"]["backendNodeId"]}
+        )
+        return self._call(page_node["object"], _ISSUE_NODE, by_value=True)["value"]
+
+    def _call(self, receiver: dict, function: str, *, by_value: bool) -> dict:
         answer = self._cdp.send(
             "Runtime.callFunctionOn",
             {
-                "objectId": node["object"]["objectId"],
-                "functionDeclaration": _ISSUE_NODE,
-                "returnByValue": True,
+                "objectId": receiver["objectId"],
+                "functionDeclaration": function,
+                "returnByValue": by_value,
             },
         )
-        return answer["result"]["value"]
+        if "exceptionDetails" in answer:
+            raise RuntimeError(
+                "locating a DevTools issue's node failed: "
+                + answer["exceptionDetails"]["exception"]["description"]
+            )
+        return answer["result"]
 
     def findings(self) -> list[str]:
         """Each issue about something the page owns, where it is and what it names.

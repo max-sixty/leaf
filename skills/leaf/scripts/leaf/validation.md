@@ -80,7 +80,7 @@ Playwright's `channel="chrome"`, else the first browser `PATH` answers with) and
 render invariants the static lint cannot reach run against it in both color schemes:
 no console or page errors, no issue Chrome's DevTools raises (an unsized lazy
 image, a blocked or mixed-content request, a deprecated API) outside a form control's
-own implementation, and no fail-soft box;
+shadow tree, one in an embedded frame placed at that frame, and no fail-soft box;
 every widget upgraded, painted with values that resolve, and given real space;
 words a user can mark, reach, and select, with the registry's verbatim and shadow
 declarations honored; no sideways scroll, clipped control, squeezed table, trapped

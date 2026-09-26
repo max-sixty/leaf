@@ -33,6 +33,10 @@ test("without a rail, or inside a pane that scrolls, every row is a pin", () => 
   assert.equal(posture(700, { rootLane: false }), "pin");
 });
 
+test("a row level with a note hanging in the margin stands on its block as a pin", () => {
+  assert.equal(posture(700, { noted: true }), "pin");
+});
+
 const rect = (left, top, width = 37, height = 32) => ({
   left,
   right: left + width,

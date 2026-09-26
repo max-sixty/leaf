@@ -354,7 +354,7 @@ lf-swipe-pile[verdict="keep"]
 }
 
 /* Wide enough for a rail, the deck is a wide page's body beside its rail on the page's own
- * tracks (2fr 1fr, lf-grid's gap): the queue and its controls in the body, Kept above
+ * tracks (2fr 1fr): the queue and its controls in the body, Kept above
  * Passed in the rail, so both piles stay in view while the reader sorts. The rows are
  * auto: the queue spans the two the rail piles take, so it grows to the rail's height
  * and a taller queue shares its extra height evenly between Kept and Passed. */

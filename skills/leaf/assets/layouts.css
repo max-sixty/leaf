@@ -1,0 +1,121 @@
+/* Layouts: starting points a page pulls on by class. They are plain CSS in the last of
+ * Leaf's cascade layers, above the layer the kernel and every package share (lf-base),
+ * and below the page's own stylesheet, which is unlayered. So a Layout
+ * resets what the base and widgets set on the boxes it arranges, and a page adjusts a
+ * Layout with ordinary rules or writes its own; nothing reads a Layout back. The layer
+ * merge appends this file after every package (layer.py, composed_sheets). */
+@layer lf-layouts {
+  /* The column: prose at the reading measure, centred in the shell, and one option, a
+   * breakout, which `data-width` on a block (or a widget's preferred x-space) asks for.
+   * The breakout reads the room free beside the column from the lengths resolved here,
+   * so it is the same arithmetic wherever the column stands. Whatever stands in a
+   * margin states the room it takes there (`--lf-taken-l`, `--lf-taken-r`), which comes
+   * off that side's free room: the contents map's spine, a sidebar, a project widget's
+   * own resident.
+   *
+   * The free room is the shell's (100cqi), so only a column on `main` has it. A column
+   * Layout on a block inside another Layout keeps the measure and centres in its box,
+   * and a breakout in it stays in that box rather than reaching past the Layout around
+   * it. */
+  .layout-column {
+    max-width: var(--col);
+    margin-inline: auto;
+  }
+  :not(main).layout-column { --lf-free-l: 0px; --lf-free-r: 0px; --lf-room: 100%; }
+  main.layout-column {
+    padding-inline: var(--col-pad);
+    --lf-width: min(var(--col), max(0px, 100cqi - 2 * var(--col-pad)));
+    --lf-beside: calc((100cqi - var(--lf-width)) / 2);
+    --lf-shift: 0px;
+    --lf-gutter-l: var(--col-pad);
+    --lf-free-l: max(0px, calc(var(--lf-beside) - var(--col-pad) - var(--lf-taken-l, 0px)));
+    --lf-free-r: max(0px, calc(var(--lf-beside) - var(--col-pad) - var(--lf-taken-r, 0px)));
+    --lf-room: max(0px, calc(100cqi - 2 * var(--col-pad)));
+  }
+  /* The page as wide as the window: a gutter that grows with it, a cap at the widest
+   * page, and the title a size up, set tighter to hold its line above panels as wide as
+   * the window. It holds one flow on its own, and every other Layout on `main` stands
+   * in it. */
+  main:is(.layout-wide, .layout-sidebar, .layout-tiles, .layout-workspace) {
+    padding-inline: clamp(var(--col-pad), 4cqi, 64px);
+    max-width: var(--wide-page-max);
+    margin-inline: auto;
+    --lf-room: 100%;
+  }
+  main:is(.layout-wide, .layout-sidebar, .layout-tiles, .layout-workspace) h1 {
+    font-size: clamp(36px, 3.2cqi, 46px);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+  }
+  /* Body and side track. The body takes two parts of the room and the track one, from
+   * bases of 30rem and 18rem, and the two stack where they no longer fit beside each
+   * other at those bases or where the body could not keep its content's minimum: a board
+   * declaring the width its columns need wraps the track below it rather than clipping.
+   * A header or footer takes the whole row. The items' own block margins go, since flex
+   * margins don't collapse into the gap. */
+  .layout-sidebar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: var(--sp-4);
+  }
+  .layout-sidebar > :is(header, footer) { flex: 1 0 100%; margin-block: 0; }
+  .layout-sidebar > :not(header, footer) { flex: 2 1 30rem; margin-block: 0; }
+  .layout-sidebar > :nth-last-child(1 of :not(header, footer, script, style, template)) {
+    flex: 1 1 18rem; }
+  .layout-sidebar > :not(header, footer) > :first-child { margin-top: 0; }
+  /* Tiles: equal cells, as many to a row as fit at 9rem each. */
+  .layout-tiles {
+    display: grid;
+    gap: var(--sp-4);
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr));
+    align-items: start;
+  }
+  .layout-tiles > * { margin: 0; }
+  /* Workspace: the page fills the window below the banner and above the band, its header
+   * and footer take their content's height, and the body between them takes the rest,
+   * arranged as the body itself says: a page's grid of panes, a pane, or a widget that
+   * composes its own regions. Each pane's body scrolls on its own, a widget's generated
+   * panes (data-lf-reading-role="pane") included, and `--lf-held` on main tells a widget
+   * the body has a definite height to fill (a style query). Where the window is too
+   * small to hold the regions, the workspace flows and the page scrolls. */
+  main.layout-workspace { padding-block-start: var(--sp-4); }
+  main.layout-workspace > header { padding-block: 0 var(--sp-3); --lf-block-frame: 1; }
+  @media screen and (min-width: 720px) and (min-height: 480px) {
+    main.layout-workspace {
+      --lf-held: 1;
+      display: flex;
+      flex-direction: column;
+      block-size: var(--lf-view-height);
+      padding-block-end: 0;
+      box-sizing: border-box;
+    }
+    main.layout-workspace > :is(header, footer) { flex: none; }
+    main.layout-workspace > :not(header, footer) {
+      flex: 1 1 0;
+      min-block-size: 0;
+      margin-block: 0;
+      grid-auto-rows: minmax(0, 1fr);
+    }
+    /* A pane is already a grid of header, body and footer (the default package), whose body
+     * row takes what a definite height leaves and its content's height otherwise; here it
+     * may shrink below its content, and scrolls. That holds for a pane the workspace
+     * gives a height: the body itself, or a cell of it, and a widget's generated pane,
+     * which its widget sizes (the runtime marks lf-pane with the role too). A pane
+     * written inside another pane's body is that body's content and scrolls with it. */
+    main.layout-workspace > lf-pane,
+    main.layout-workspace > :not(header, footer) > lf-pane,
+    main.layout-workspace [data-lf-reading-role="pane"]:not(lf-pane) {
+      min-block-size: 0;
+    }
+    :is(main.layout-workspace > lf-pane,
+      main.layout-workspace > :not(header, footer) > lf-pane,
+      main.layout-workspace [data-lf-reading-role="pane"]:not(lf-pane)) > :not(header, footer) {
+      min-block-size: 0;
+      overflow: auto;
+      overscroll-behavior: contain;
+      scrollbar-gutter: stable;
+    }
+  }
+}

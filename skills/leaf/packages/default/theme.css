@@ -6,123 +6,19 @@
 
 /* ---------- element-widgets ---------- */
 
-/* lf-grid places blocks in two dimensions, and each direct child is a cell. A cell is a
- * frame (--lf-block-frame): what it holds takes the cell's width rather than the page's
- * room, and its first and last margins trim. It holds text to the reading measure
- * (--lf-measure, in the kernel theme) while a surface fills it.
- *
- * A count is a ceiling, not a demand: each track is at least --lf-grid-min wide and at
- * least the count's share of the row, so `columns="3"` is three columns where they fit,
- * two where they don't, and one on a phone, with no query. A template is the tracks
- * the author wrote, which cannot rewrap, so a narrow grid stacks its cells instead:
- * every cell spans the row. The module paints the template as --lf-grid-template, since
- * a stylesheet cannot read an attribute as a track list. It is a custom property and so
- * inherits; the reset here keeps a grid nested in a cell from taking its parent's, and
- * the painted inline value outranks it on the grid that owns it. Whether a grid stacks
- * is an attribute the module marks on that grid, which a selector can read, so the
- * stacking rule below asks the attribute: a span passed down as a custom property was
- * reset by the very grid it had to reach when a cell was itself a grid, and a nested
- * stack stood in its parent's narrow track instead of taking the row. */
-@property --lf-grid-min {
-  syntax: "<length>";
-  inherits: true;
-  initial-value: 224px;
-}
-:is(lf-grid, :where([data-lf-reading-role="grid"])) {
-  --lf-grid-min: 14rem;
-  --lf-grid-gap: var(--sp-4);
-  --lf-grid-count: 99;
-  --lf-grid-template: initial;
-  /* Stated on the grid and inherited by its cells, so a surface cell's own declaration
-   * of no measure outranks it rather than tying with a rule on the cell. */
-  --lf-measure: var(--col);
-  display: grid;
-  /* The floor is itself held to the grid's width, so a one-column stack in a cell
-   * narrower than --lf-grid-min takes the cell rather than overflowing it. */
-  grid-template-columns: var(--lf-grid-template, repeat(auto-fit,
-    minmax(min(100%, max(var(--lf-grid-min), (100% - (var(--lf-grid-count) - 1)
-    * var(--lf-grid-gap)) / var(--lf-grid-count))), 1fr)));
-  gap: var(--lf-grid-gap);
-  align-items: start;
-  container: lf-grid / inline-size;
-}
-/* An authored grid is a block in the page's flow and takes a block's margin. A box a
- * package marks as a grid sits wherever that package places it, often as an item of
- * its own grid, where a margin does not collapse into the gap and adds to it. */
-lf-grid { margin: 24px 0; }
-lf-grid[columns="1"] { --lf-grid-count: 1; }
-lf-grid[columns="2"] { --lf-grid-count: 2; }
-lf-grid[columns="3"] { --lf-grid-count: 3; }
-lf-grid[columns="4"] { --lf-grid-count: 4; }
-lf-grid[columns="5"] { --lf-grid-count: 5; }
-lf-grid[columns="6"] { --lf-grid-count: 6; }
-:is(lf-grid, :where([data-lf-reading-role="grid"])) > * {
-  min-width: 0;
-  --lf-block-frame: 1;
-}
-/* The gap is the space between cells. A widget's own block margins are for the page's
- * flow and would add to it, so the reset outranks any one-tag widget rule. */
-:is(lf-grid, :where([data-lf-reading-role="grid"])) > :nth-child(n) { margin: 0; }
-/* A surface fills its cell. The kernel sets a table as a block so a wide one scrolls,
- * and a block's rows size to their content: a table of short rows stood in a third of
- * a half-page cell beside a log that filled the other half, and a width on the block
- * widens the scroller, never the rows. A cell is sized for what it holds, so a table
- * standing in one, or in a section that is one, is a table again and takes the cell.
- * Its cells wrap to fit, identifiers included (`code` breaks in a cell); a table whose
- * columns cannot wrap to the cell overflows it rather than scrolling, and belongs in
- * the page's flow instead. */
-:is(lf-grid, :where([data-lf-reading-role="grid"])) > table,
-:is(lf-grid, :where([data-lf-reading-role="grid"])) > * > table {
-  display: table;
-  width: 100%;
-}
-/* A template stacks where its narrowest track would fall below --lf-grid-min, the
- * least a counted grid's column takes: every cell takes the row. One number governs
- * both, so a template keeps its tracks side by side as long as a count would keep its
- * columns. The width that is depends on the template, --lf-grid-min for each narrowest
- * track it is wide plus its gaps (`2fr 1fr` below 43.5rem, `3fr 2fr` below 36.5rem),
- * and the module (lf-grid.js) reads it off the grid's size and marks the grid. The
- * floor is registered as a length so the module reads it in pixels. A widget that lays
- * out a body beside a rail of its own (the playground's split, the swipe deck) stands
- * on these lines by restating `2fr 1fr`'s: 43.5rem and minmax(0, 2fr) minmax(0, 1fr). */
-lf-grid[data-lf-grid-stacked] > * { grid-column: 1 / -1; }
-/* Stacked regions are no longer in view together, so a stacked grid passes no height
- * on: in a held workspace its cells take their natural height and the page scrolls
- * them, which is what the workspace promises where the window cannot hold its regions
- * (the chain of held boxes, below). The window's height split between stacked panes
- * left each one a sliver. */
-lf-grid[data-lf-grid-stacked] { --lf-passes-hold: 0; min-height: auto; }
-/* Paper stacks every template. The mark is the screen's reading, and nothing reads a
- * grid's width in the print layout: no observer runs for it, and a container query's
- * condition cannot hold a template's own width. A printed page is the column's width,
- * which a body beside its rail rarely fits, and on paper the regions read in order. */
-@media print {
-  lf-grid[columns*="fr"] > * { grid-column: 1 / -1; }
-}
 
-/* lf-workspace keeps task regions together while the space allows, and lf-pane is one of
- * them. Both are authored grammar with no generated wrappers: an optional header, one
- * body element, an optional footer. The rows are `auto 1fr auto` in either posture,
- * because a grid row's minimum is its content's: a body that scrolls contributes
- * nothing and the row takes what the header and footer leave, while a body that
- * doesn't holds the row at its full height and the box overflows into the page.
- *
- * Posture is one container query on the workspace's own box. A root workspace (main's
- * only block, or a root tab's) is a size container at the window's height;
- * when that box holds the regions (--lf-workspace-min, below) each pane's body scrolls
- * and its header and footer stay in view. When it doesn't, nothing scrolls inside and
- * the page does, with each grid keeping the columns its width allows. Any other
- * workspace is an inline-size container, which a height query never matches, so it
- * always flows. The switch paints with the page and answers the space the workspace
- * actually has; `reading-regions.js` reads which box scrolls from the result. Copies
- * and paper have no window to hold, so the size container and every bounded rule are
- * the live screen's alone.
+/* lf-pane is one task region: authored grammar with no generated wrappers, an optional
+ * header, one body element, an optional footer. The rows are `auto 1fr auto`, because a
+ * grid row's minimum is its content's: a body that scrolls contributes nothing and the
+ * row takes what the header and footer leave, while a body that doesn't holds the row at
+ * its full height. Whether a body scrolls is the stylesheet's: the workspace Layout
+ * scrolls pane bodies where it holds the window (layouts.css), and `reading-regions.js`
+ * reads which box scrolls from the result.
  *
  * A widget that composes regions out of boxes it generates, such as a playground's
- * controls beside its preview, marks them data-lf-reading-role="grid" or "pane" and
- * takes these same rules, bounded ones included, so no package keeps a copy of them.
- * The attribute sits inside :where(), so every selector keeps the tag's specificity. */
-lf-workspace,
+ * controls beside its preview, marks them data-lf-reading-role="pane" and takes these
+ * same rules, so no package keeps a copy of them. The attribute sits inside :where(), so
+ * every selector keeps the tag's specificity. */
 :is(lf-pane, :where([data-lf-reading-role="pane"])) {
   display: grid;
   grid-template-rows: auto 1fr auto;
@@ -130,22 +26,15 @@ lf-workspace,
   min-width: 0;
   --lf-block-frame: 1;
 }
-lf-workspace {
-  container: lf-workspace / inline-size;
-}
-:is(lf-workspace, lf-pane, :where([data-lf-reading-role="pane"])) > header {
+:is(lf-pane, :where([data-lf-reading-role="pane"])) > header {
   grid-row: 1; margin: 0;
 }
-:is(lf-workspace, lf-pane, :where([data-lf-reading-role="pane"])) > footer {
+:is(lf-pane, :where([data-lf-reading-role="pane"])) > footer {
   grid-row: 3; margin: 0;
 }
-:is(lf-workspace, lf-pane, :where([data-lf-reading-role="pane"])) > :not(header, footer) {
+:is(lf-pane, :where([data-lf-reading-role="pane"])) > :not(header, footer) {
   grid-row: 2; min-width: 0; margin: 0;
 }
-/* A workspace's header and footer keep their distance from its body themselves, so a
- * workspace without one spends nothing on the row it leaves empty. */
-lf-workspace > header { margin-bottom: var(--sp-3); }
-lf-workspace > footer { margin-top: var(--sp-3); }
 :is(lf-pane, :where([data-lf-reading-role="pane"])) {
   border: 1px solid var(--rule);
   border-radius: var(--r);
@@ -177,159 +66,6 @@ lf-workspace > footer { margin-top: var(--sp-3); }
   --lf-block-frame: 1;
 }
 
-/* Whether a box holds the height its parent was given, as a chain from the root
- * workspace down. A box passes the height on only if it says so (--lf-passes-hold): a
- * grid, a pane, an Ask that is a heading and one answer, a compound region such as a
- * playground. The chain stops at anything else, so a pane inside a plain section, a
- * pane body's content, or a workspace nested anywhere flows within what holds it, and
- * no region claims a scroller that never scrolls. Registered so neither value inherits:
- * each box reads its parent's through a style query and states its own. */
-@property --lf-held {
-  syntax: "<integer>";
-  inherits: false;
-  initial-value: 0;
-}
-@property --lf-passes-hold {
-  syntax: "<integer>";
-  inherits: false;
-  initial-value: 0;
-}
-/* A box that passes the height on also takes its track's height rather than its
- * content's while held: it reads its minimum from --lf-track-min, which is auto except
- * on a held box's parts in a bounded workspace (below). A box that does not pass the
- * height on keeps its content's height, so a plain section in a held workspace grows
- * and the footer and the page's end room follow it. */
-@property --lf-track-min {
-  syntax: "<length> | auto";
-  inherits: false;
-  initial-value: auto;
-}
-:is(lf-grid, lf-pane, [data-lf-reading-role="grid"], [data-lf-reading-role="pane"]),
-lf-ask:has(> :is(h1, h2, h3, h4, h5, h6):first-child:nth-last-child(2)) {
-  --lf-passes-hold: 1;
-  min-height: var(--lf-track-min);
-}
-@container style(--lf-held: 1) {
-  * { --lf-held: var(--lf-passes-hold); }
-}
-
-@media screen {
-  /* The root workspace holds the window: it is main's only authored block (what the
-   * runtime puts in main beside it, a margin cluster or generated words, is not), or a
-   * root tab's only block. A page made of one workspace is a wide page, so it states
-   * the kernel's --lf-page-width on body (theme.css, the wide page) unless `main` states
-   * a width of its own, and takes the wide page's width, gutters and title. The rules
-   * on main add only the height, the window's below the banner and above the bottom
-   * chrome, and the chain of held boxes starts at it. A workspace beside other blocks
-   * flows like any block.
-   *
-   * Only the width is stated from body. The rules for main and the workspace hang off
-   * main's own `:has`: nested under body's, every margin row the runtime moves in main
-   * re-matched them, and an unchanged resize recalculated style three times as often. */
-  html:root body:has(> main:not([data-width]) > lf-workspace):not(:has(> main > :not(lf-workspace, script, style, template, .lf-ui, [data-lf-gen]))) {
-    --lf-page-width: available;
-  }
-  html:root
-    body
-    > main:has(> lf-workspace):not(:has(> :not(lf-workspace, script, style, template, .lf-ui, [data-lf-gen]))) {
-    padding-block: 0;
-    /* The page gives up its block padding to the workspace, which keeps the top of it
-     * inside its own height, so its title stands clear of the banner as a page's does. */
-    & > lf-workspace {
-      box-sizing: border-box;
-      padding-top: var(--sp-4);
-    }
-  }
-  /* The hold. The page is `main`, or the section of it a page tab shows, and a
-   * workspace that is its only block takes the window's height under everything that
-   * sticks above it: the banner, the bottom chrome, and a page tab strip where there is
-   * one (--lf-root-tab-clear, 0 without). Scrolled to its end, the page stands it
-   * between those covers. A page tab's workspace holds only where the tab set ends the
-   * page: with blocks after it, the page goes on past the workspace, which flows. */
-  html:root
-    body
-    > main:has(> lf-workspace):not(:has(> :not(lf-workspace, script, style, template, .lf-ui, [data-lf-gen])))
-    > lf-workspace,
-  html:root
-    body
-    > main
-    > lf-tabs[data-lf-tabs-context="root"]:nth-last-child(1 of :not(script, style, template, .lf-ui, [data-lf-gen]))
-    > lf-tab[data-lf-root-reading]
-    > lf-workspace:only-child {
-    container-type: size;
-    --lf-held: 1;
-    block-size: calc(100dvh - var(--lf-banner-h) - var(--lf-band-h, 0px)
-      - var(--lf-root-tab-clear, 0px));
-  }
-  /* A page tab's workspace ends the page, so the page and the tab set give up the room
-   * they keep after their last block. */
-  html:root
-    body
-    > main:has(> lf-tabs[data-lf-tabs-context="root"]:nth-last-child(1 of :not(script, style, template, .lf-ui, [data-lf-gen])) > lf-tab[data-lf-root-reading] > lf-workspace:only-child) {
-    padding-bottom: 0;
-    & > lf-tabs[data-lf-tabs-context="root"] { margin-block-end: 0; }
-  }
-
-  /* Bounded: the root workspace holds the regions, so each held pane's body scrolls in
-   * place under its header and above its footer. One global minimum decides every
-   * workspace. Each rule asks the style query about the parent of its subject, so a
-   * pane's body scrolls when the pane is held, and a grid shares its height when its
-   * parent is. A held box's parts may take their track's height: those that pass the
-   * height on read it from --lf-track-min, and the parts of a pane, grid or Ask take it
-   * outright, so what overflows scrolls in a pane's body instead of lengthening the
-   * page. A workspace's own body keeps its content's height unless it passes the height
-   * on. */
-  @container lf-workspace (min-width: 720px) and (min-height: 480px) {
-    @container style(--lf-held: 1) {
-      html:root * {
-        --lf-track-min: 0px;
-      }
-      html:root :not(lf-workspace) > * {
-        min-height: 0;
-      }
-      html:root :is(lf-pane, [data-lf-reading-role="pane"]) > :not(header, footer) {
-        overflow: auto;
-        overscroll-behavior: contain;
-        scrollbar-gutter: stable;
-      }
-      html:root :is(lf-grid, [data-lf-reading-role="grid"]):not([data-lf-grid-stacked]) {
-        align-items: stretch;
-        grid-auto-rows: minmax(0, 1fr);
-      }
-      html:root
-        lf-ask:has(> :is(h1, h2, h3, h4, h5, h6):first-child:nth-last-child(2)) {
-        display: grid;
-        grid-template-rows: auto minmax(0, 1fr);
-      }
-    }
-  }
-  /* The page's end room. A root workspace's box ends above the bottom chrome, and the
-   * chrome's own room after main fills the rest of the window, so a held root fits it
-   * exactly. Whatever runs past the box — every region when the workspace flows, or a
-   * body that does not pass the height on — is overflow the chrome's room sits inside,
-   * so the room goes after the last box that overflows: a margin does not reach the
-   * page's scroll range and a box does. A flowing workspace ends in an empty row of that
-   * height, outside any frame its last region draws; a held body that does not pass the
-   * height on takes the room as padding, and one that does overflows nothing and takes
-   * none. */
-  @container lf-workspace not ((min-width: 720px) and (min-height: 480px)) {
-    @container style(--lf-held: 1) {
-      html:root lf-workspace::after {
-        content: "";
-        grid-row: 4;
-        block-size: var(--lf-band-h, 0px);
-      }
-    }
-  }
-  @container lf-workspace (min-width: 720px) and (min-height: 480px) {
-    @container style(--lf-held: 1) {
-      html:root lf-workspace > :not(header, footer) {
-        padding-block-end: calc(var(--lf-band-h, 0px)
-          * (1 - var(--lf-passes-hold)));
-      }
-    }
-  }
-}
 
 /* lf-gloss: the prose stays prose, and its underline is the whole visible
  * affordance. The words keep the page's ink while the underline uses the accent —
@@ -1013,7 +749,7 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge { position: absolute; z-
    * carried by the exact row, while pointer focus needs no extra channel at all. */
   [data-lf-ask]:has(
     lf-options[choose]:not(:where([data-lf-exhibit]) *) :is(:focus, .lf-focus)
-  ) { outline: none; }
+  ) { --lf-ask-ring: none; }
   lf-options[choose]:not([settled]):not(:where([data-lf-exhibit]) *)
     > lf-option:has(> .lf-pick:is(:focus-visible, .lf-focus-visible)) {
       outline: var(--here-ring); --lf-here-ring: options-row;
@@ -1361,10 +1097,9 @@ lf-variant { display: block; border: 1px solid var(--rule); border-radius: var(-
              padding: var(--sp-3); background: var(--card); --lf-block-frame: 1; }
 lf-variant > strong { display: block; margin: 0 0 4px; }
 
-/* lf-metric: one headline number as a tile; a row of them is an lf-grid. The value
- * leads, said from the attribute; the delta trails and colors by sign × direction —
+/* lf-metric: one headline number as a tile; a row of them is a `.layout-tiles`. The
+ * value leads, said from the attribute; the delta trails and colors by sign × direction —
  * honest coloring, no JS. */
-lf-grid:not(:has(> :not(lf-metric))) { --lf-grid-min: 9rem; }
 lf-metric { display: block; border: 1px solid var(--rule); border-radius: var(--r);
             padding: 10px 14px; background: var(--card); font-size: var(--t-6);
             text-transform: uppercase; letter-spacing: .05em; color: var(--muted);
@@ -1416,6 +1151,23 @@ lf-metric[direction="up-bad"][delta^="+"] > [data-lf-said="delta"]
  * The grip's column is in the floor for the same reason it is in the card's padding: it
  * is room only where a grip hangs, so paper, copies and quoted boards floor a column at
  * the measure and its insets alone. */
+/* The board's minimum is every column at its floor and the gaps between them. A layout
+ * that respects a widget's minimum, as a flex item's or a grid track's automatic minimum
+ * does, gives the board that much or wraps it onto a row of its own; held to less, the
+ * board scrolls its columns inside itself. The shell caps it, so a phone narrower than
+ * the minimum scrolls the board rather than the page. Screen only: a sheet has no room
+ * beside the column to give, so on paper the board is the column's width. */
+lf-board { --lf-board-columns: 1; }
+@media screen {
+  lf-board { min-inline-size: min(calc(var(--lf-board-columns)
+               * var(--lf-reading-column-floor) + (var(--lf-board-columns) - 1) * var(--sp-2)),
+               calc(100cqi - 2 * var(--col-pad))); }
+}
+lf-board:has(> lf-column:nth-of-type(2)) { --lf-board-columns: 2; }
+lf-board:has(> lf-column:nth-of-type(3)) { --lf-board-columns: 3; }
+lf-board:has(> lf-column:nth-of-type(4)) { --lf-board-columns: 4; }
+lf-board:has(> lf-column:nth-of-type(5)) { --lf-board-columns: 5; }
+lf-board:has(> lf-column:nth-of-type(6)) { --lf-board-columns: 6; }
 lf-board { display: grid; grid-auto-flow: column;
            container: lf-board / inline-size;
            --lf-card-measure: 136px; --lf-reading-column-inset: 8px; --lf-card-inset: 10px;
@@ -1837,8 +1589,17 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
  * posture reaches every box on the page, and only the sidebar's map wants it. */
 @media screen and (hover: hover) and (pointer: fine) {
   /* The contents map owns one stable margin rectangle whether its labels are hidden or
-   * revealed. Its transparent resting surface is therefore the same size as the links
-   * it discloses, and revealing it changes neither page geometry nor hit geometry. */
+   * revealed, so revealing it changes no page geometry. At rest only its spine takes
+   * presses; the rectangle does once the spine is hovered or focused (below). */
+  @container lf-shell (min-width: 848px) {
+    html:root main.layout-column:has(> aside.sidebar:nth-child(1 of aside.sidebar) lf-toc) {
+      --lf-sidebar-posture: margin;
+      /* At rest the map is its spine, chrome fixed in the left margin, so a breakout
+       * stops short of it (layouts.css, the column's free room); its labels reveal over
+       * the page. */
+      --lf-taken-l: calc(2 * var(--sp-4));
+    }
+  }
   main:has(> aside.sidebar:nth-child(1 of aside.sidebar) lf-toc) {
     --lf-sidebar-claim: var(--sidebar-max);
     --lf-sidebar-free-left: calc(var(--lf-beside) + var(--lf-shift)
@@ -1853,7 +1614,7 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
                width: calc(var(--lf-sidebar-claim) - var(--sp-4));
                box-sizing: border-box;
                padding-block: var(--sp-4);
-               pointer-events: auto;
+               pointer-events: none;
                /* Between the banner and the bottom band, as every region is: the band is
                 * attached to the window's foot at one stated height, so the map ends above
                 * it rather than losing its last entry under the keyboard's line. */
@@ -1861,11 +1622,21 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
                margin: 0; }
       lf-toc .lf-toc-nav { width: 100%; height: 100%; border: 0; padding: 0;
                            --lf-toc-label-opacity: 0;
-                           pointer-events: auto;
+                           pointer-events: none;
                            transition: background-color .24s ease-out; }
       lf-toc .lf-toc-heading { display: none; }
       lf-toc .lf-toc-rows { position: relative; display: flex; height: 100%;
                             flex-direction: column; }
+      /* At rest the map takes presses on its spine alone, a strip one step wide, so it
+       * never stands over the page's words beside it (the column claims no margin for
+       * it). Hovering or focusing the spine opens the whole surface its labels reveal
+       * onto, and that surface keeps the pointer while it moves across them. */
+      lf-toc .lf-toc-rows::after { content: ""; position: absolute; z-index: 1;
+                                   top: 0; bottom: 0; left: calc(-1 * var(--sp-2));
+                                   width: var(--sp-4); pointer-events: auto; }
+      lf-toc:is(:hover, :focus-within, [data-lf-outline]),
+      lf-toc:is(:hover, :focus-within, [data-lf-outline]) .lf-toc-nav,
+      body[data-lf-go-to-active] :is(lf-toc, lf-toc .lf-toc-nav) { pointer-events: auto; }
       lf-toc .lf-toc-rows::before { content: ""; position: absolute;
                                     z-index: 0; top: 0; bottom: 0; left: 0; width: 1px;
                                     background: var(--border-2); }
@@ -2017,6 +1788,18 @@ lf-activity .lf-activity-empty { margin: 0; color: var(--muted); font: var(--t-5
  * question's opening and reaches around the context and control the standing ring says
  * are one Ask. */
 lf-ask { display: block; }
+/* An Ask that is a held workspace's body (`--lf-held` on main, layouts.css) and is a
+ * heading and one answer gives the answer what the heading leaves, so a widget composing
+ * its own regions there, such as a playground, fills the window. With context between
+ * the two there is no one box to give the height to, so every part keeps its own. */
+@container style(--lf-held: 1) {
+  main > lf-ask { display: flex; flex-direction: column; }
+  main > lf-ask > :nth-child(2):last-child {
+    flex: 1 1 0;
+    min-block-size: 0;
+    margin-block-end: 0;
+  }
+}
 
 /* lf-specimen: quoted material — a widget or section the page exhibits rather
  * than speaks (a sample decision, a demo board). It wears the quotation idiom, a
@@ -2159,6 +1942,8 @@ lf-chart, lf-tree, lf-code { display: block; margin: 14px 0;
              font-family: var(--mono); font-size: var(--code-size);
              line-height: var(--code-line); font-variant-ligatures: none;
              color: var(--code-muted); overflow-x: auto; }
+/* Code scrolls its own lines, so its longest line never sizes what holds it. */
+lf-code { contain: inline-size; }
 lf-chart.lf-rendered, lf-tree.lf-rendered, lf-code.lf-rendered {
              font: inherit; color: inherit; overflow: visible; }
 /* The authored body, before its module replaces it. Nothing here says white-space: the

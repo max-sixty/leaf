@@ -6,9 +6,22 @@
       name="description"
       content="A release plan, its evidence, and the working queue presented as page-level tabs."
     />
+    <style>
+      /* The cohort queue beside its detail, stacked in a narrow window. */
+      #workbench-regions {
+        display: grid;
+        grid-template-columns: minmax(16rem, 1fr) 2fr;
+        gap: var(--sp-4);
+      }
+      @media (width < 900px) {
+        #workbench-regions {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
   </head>
   <body>
-    <main>
+    <main class="layout-column">
       <header>
         <p class="eyebrow">release 3.4 · candidate two</p>
         <h1>Prepare the account migration</h1>
@@ -179,12 +192,12 @@
         </lf-tab>
 
         <lf-tab id="workbench-tab" label="Workbench">
-          <lf-workspace id="workbench">
+          <section id="workbench">
             <header>
               <p class="eyebrow">migration workbench · eight cohorts</p>
               <h2>Prepare and inspect each cohort</h2>
             </header>
-            <lf-grid id="workbench-regions" columns="1fr 2fr">
+            <div id="workbench-regions">
               <lf-pane id="queue-pane" label="Cohort queue">
                 <header><h3>Cohort queue</h3></header>
                 <div>
@@ -309,8 +322,8 @@ observe --cohort staff</code></pre>
                   <p><a href="#plan-return">Return to the rollout plan</a></p>
                 </footer>
               </lf-pane>
-            </lf-grid>
-          </lf-workspace>
+            </div>
+          </section>
         </lf-tab>
       </lf-tabs>
     </main>

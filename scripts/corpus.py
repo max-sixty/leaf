@@ -76,7 +76,7 @@ HEAD = """\
 <title>Leaf example corpus</title>
 </head>
 <body>
-<main>
+<main class="layout-column">
 <p class="eyebrow">internal page corpus</p>
 <h1>Every Leaf page fixture, composed</h1>
 <p class="lede" id="corpus-lede">This internal stress surface puts every
@@ -165,8 +165,9 @@ def build() -> str:
                     f"id '{i}' is in both {owner[i]} and {source.name}; rename one"
                 )
             owner[i] = source.name
-        # A page's own width (`<main data-width>`) is its document's to declare;
-        # a tab in the corpus is part of the corpus's page, so only the body carries over.
+        # A page's own Layout (the class on its `<main>`) is its document's to declare;
+        # a tab in the corpus is part of the corpus's column page, so only the body
+        # carries over.
         opens = list(MAIN_OPEN.finditer(text))
         if len(opens) != 1 or text.count("</main>") != 1:
             sys.exit(f"{source.name}: expected exactly one <main>…</main>")

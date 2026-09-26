@@ -59,9 +59,10 @@
 
    A floor asks about the room its rule governs. One granting a posture out of the room
    left beside a standing surface is a container query on `lf-shell`, inside `@media screen`
-   since paper has no tray and no margin to grant: 1188, 1152 and 1496 for the sidebar,
-   sidenote and paired strips, 863 (887 by finger) for the margin projection's rail, 640
-   for a narrow column's facts.
+   since paper has no tray and no margin to grant: 1296 and 1536 for the sidebar and the
+   sidenote, each the column box plus its width on either side, and 640 for a narrow
+   column's facts. The margin projection's rail is measured instead (`railStands`,
+   margin-layout.js), since what it asks is the room a page's Layout left beside `main`.
    One answering to the device, such as a phone's vertical rhythm, asks the window, and a
    package's widget asks its own box (references/packages.md).
 
@@ -127,6 +128,12 @@
      workspace is the window less the two, so nothing about the page's size is measured
      off the chrome (chrome.css, at the shortcut bar). */
   --lf-band-h: calc(44px + var(--lf-safe-bottom));
+  /* What a page reads of the chrome, and only where it needs a number: a box that fills
+     the window takes --lf-view-height, and a box that sticks stops at --lf-top, below
+     the banner. Ordinary content never sees either band; the document already keeps
+     clear of both (html[data-lf-live], below). */
+  --lf-view-height: calc(100dvh - var(--lf-banner-h) - var(--lf-band-h));
+  --lf-top: var(--lf-banner-h);
   /* Stacking: one ascending ladder for everything the runtime lifts over the page.
      A number local to a component's own stacking context stays where it is written. */
   --lf-z-page-paint: 8890;        /* paint on a page element */
@@ -224,9 +231,8 @@
      labels without making a second prose column. The rule beside aside.sidebar spends
      it; the shell's container query decides when the page can afford it. */
   --sidebar: 264px;
-  /* The widest left-margin allocation any sidebar posture can request. Container
-     queries cannot read this token, so the paired sidebar-and-note floor copies it as
-     1496px = the ordinary 1152px floor plus this 344px maximum. */
+  /* The widest left-margin allocation any sidebar posture can request: the contents
+     map's, whose labels reveal over the page (the default package). */
   --sidebar-max: 344px;
   /* The measure, and the gutter main sets it in. Named because three rules now want
      main's width: the element itself and the strip arithmetic beside aside.sidenote.
@@ -242,7 +248,7 @@
      from the shell and its occupied margins, so a widget stands clear of both. An
      `available` surface is not held to this number. */
   --wide: 1080px;
-  /* The widest a wide page (`<main data-width="available">`) grows.
+  /* The widest a page on one of the wide Layouts (layouts.css) grows.
      Past it a board's columns and a dashboard's tiles stop gaining anything but the
      distance between them. */
   --wide-page-max: 1600px;
@@ -549,11 +555,6 @@ html:not([data-lf-live]) { --lf-banner-h: 0px; --lf-band-h: 0px; }
  * widgets that scroll instead (lf-board, lf-diff, pre) are untouched; a metric's headline
  * was the one with no width to spare at all, and a twelve-character value ran 287px out
  * of a 138px card and across whatever the grid had put beside it. */
-/* Margin features claim named strips instead of overwriting page padding themselves.
- * The right side has three claims: sidenotes (--claim-note), the margin rail
- * (--claim-rail), and a project layer's own (--lf-claim-right). They share one strip, so
- * main reserves the widest rather than their sum.
- * The left still has one claimant: aside.sidebar writes --strip-l directly. */
 body { position: static !important; box-sizing: border-box !important;
        margin: 0; background: var(--paper); color: var(--ink);
        font: var(--t-4)/1.6 var(--serif); overflow-wrap: break-word;
@@ -685,77 +686,43 @@ body {
   color: var(--muted); font: var(--t-6)/var(--lf-ui-lh) var(--sans); white-space: nowrap;
   border: 1px solid var(--rule); border-radius: var(--r); background: var(--card);
 }
-/* Positioned so `left: var(--lf-shift)` can move the column off the window's centre
- * when something claims room on one side of it.
- *
- * 720px is the text's own width and not the box's: nothing sets border-box here, so
- * the padding stands outside it. Charter sets about 7.35 of them to
- * the pixel at 17px, so a line here runs around ninety characters.
- *
- * That is long by the measure a book is set to, and it is left alone on purpose. What
- * makes a long line hard is the sweep back to find the next one, and both of the things
- * that cost are missing: the leading is 1.6, which is what buys a long measure back, and
- * a page here is prose interleaved with boards, diffs and cards rather than a column of
- * text, so four consecutive full-width lines is a lot. The user who works in these
- * pages was asked and doesn't want them narrower.
- *
- * If that ever changes, the floor is not taste. A code block is this column less its
- * padding, and holding the 80 characters `pre` is written for puts the column at about
- * 640px — so prose set to a book's measure and evidence set to source's cannot both come
- * out of one column, and the way to have both would be two of them rather than a smaller
- * number here. Widgets that want width already scroll (lf-board, lf-diff, pre). */
+/* The general leaf text box, in one rule. It is stated page-side like the rest of the
+   shared vocabulary's faces (chrome.css), so a widget's own box that names the same
+   property wins. The compact response field is excluded because it shares its complete
+   control geometry with the response buttons (chrome.css). The box grows with its
+   words — a textarea through field-sizing, a text field through its own content — so
+   no script measures one: the JS that did had to reset height to auto to re-measure,
+   which made the box briefly too small for its own text on every keystroke — and a
+   box that overflows, however briefly, flashes a scrollbar. Past max-height the
+   scrollbar is real and stays — and the ceiling is the viewport's share, not a count
+   of lines: 200px stopped a long comment at ten lines with the screen mostly empty.
+   Both selectors: the panel's boxes sit inside .lf-ui, a widget's own box wears the
+   class itself. */
+.lf-ui :is(textarea, leaf-text):where(:not(.lf-fab-input)),
+:is(textarea, leaf-text).lf-ui:where(:not(.lf-fab-input)) {
+  padding: var(--lf-compose-pad-block, 8px) var(--lf-compose-pad-inline-start, 10px);
+  border: 1px solid var(--border-2);
+  border-radius: 6px; background: var(--card); color: inherit; resize: none;
+  field-sizing: content; max-height: 50vh; overflow-y: auto; }
+.lf-ui :is(input, textarea)::placeholder,
+:is(input, textarea).lf-ui::placeholder { color: var(--muted); opacity: 1; }
+.lf-ui :is(textarea, leaf-text):where(:not(.lf-fab-input)):is(:focus, .lf-focus),
+:is(textarea, leaf-text).lf-ui:where(:not(.lf-fab-input)):is(:focus, .lf-focus) { outline: var(--here-ring);
+  --lf-here-ring: text-box; outline-offset: 0; border-color: transparent; }
+/* `main` has no layout until the page gives it one: a Layout class (layouts.css) or the
+ * page's own CSS. What stays here is what Leaf's chrome coordinates with: the frame its
+ * first and last blocks trim against, the name a margin resident asks the page's readings
+ * by, the room above and below its blocks, and, with no Layout, no room to grow into on
+ * either side. */
 main {
-  --strip-l: 0px;
-  --strip-r: max(var(--claim-note, 0px), var(--claim-rail, 0px),
-    var(--lf-claim-right, 0px));
-  /* Where the page stands, for a column and a wide page alike. The page is its measure
-   * (--lf-page-measure) with a gutter each side (--lf-page-pad). A resident in a margin
-   * — a sidebar, a note, the rail — claims a strip on its side, and that side's gutter
-   * is the wider of the pad and the strip. A strip keeps the column's pad between it and
-   * the window's edge while the measure still fits beside both strips, and gives that
-   * pad up first when it does not, before the measure narrows (--lf-edge).
-   *
-   * The page centres in what the gutters leave, so a strip moves the page's axis by half
-   * its width and the page reads as one with a margin rather than a centred page with
-   * something beside it (--lf-shift; a lone sidebar states it otherwise, beside
-   * aside.sidebar below). --lf-free-l and --lf-free-r are what is left between the
-   * page's content edge and each gutter, the room a wide exhibit may grow into on that
-   * side. Centred, they are equal, so an exhibit grows evenly about the prose it belongs
-   * to. A wide page fills its room and leaves neither. */
-  --lf-page-pad: var(--col-pad);
-  --lf-page-measure: var(--col);
-  --lf-edge: clamp(0px, calc((100cqi - var(--strip-l) - var(--strip-r)
-    - var(--lf-page-measure)) / 2), var(--col-pad));
-  --lf-gutter-l: max(var(--lf-page-pad), calc(var(--strip-l) + var(--lf-edge)));
-  --lf-gutter-r: max(var(--lf-page-pad), calc(var(--strip-r) + var(--lf-edge)));
-  --lf-room: max(0px, calc(100cqi - var(--lf-gutter-l) - var(--lf-gutter-r)));
-  --lf-width: min(var(--lf-page-measure), var(--lf-room));
-  --lf-beside: calc((100cqi - var(--lf-width)) / 2);
-  --lf-shift: calc((var(--lf-gutter-l) - var(--lf-gutter-r)) / 2);
-  --lf-free-l: calc(var(--lf-beside) + var(--lf-shift) - var(--lf-gutter-l));
-  --lf-free-r: calc(var(--lf-beside) - var(--lf-shift) - var(--lf-gutter-r));
-  width: var(--lf-width);
-  max-width: var(--col);
-  margin: 0 auto;
-  padding: 72px var(--col-pad) 96px;
-  /* A workspace changes the shell's responsive state in one layout pass, and the column
-   * arrives at its new horizontal position in that pass. It used to glide there over
-   * 180ms, which cost more than it bought: an animation on `left` is a scroll-anchoring
-   * suppression trigger on every frame it runs, so the glide was what threw the user
-   * when the panel closed, and a page that jumps sideways and holds its words is the
-   * better trade. */
-  left: var(--lf-shift);
   position: relative;
   --lf-block-frame: 1;
-  /* The page's readings — which strips are claimed, and what room and posture that
-   * leaves — are composed here, so this is the container a widget in the margin asks
-   * for them by name. An unnamed style query answers from the element's parent, and a
-   * parent an author may hide is a parent that leaves and comes back: measured in
-   * Chromium 151, such a box can go on answering with the reading it left with, so a
-   * map that asked its own wrapper for the page's posture never heard the posture
-   * return. Naming the page puts the question to a box that is always there. */
   container-name: lf-content-frame;
+  padding-block: 72px 96px;
+  --lf-free-l: 0px;
+  --lf-free-r: 0px;
 }
+
 /* The page's width and the free room each side of it are resolved once, on main, and
  * inherited as lengths. Left as expressions, they would be re-resolved wherever a widget
  * reads them, and their 100cqi would then measure the nearest size container rather
@@ -765,13 +732,8 @@ main {
 @property --lf-width { syntax: "<length>"; inherits: true; initial-value: 0px; }
 @property --lf-free-l { syntax: "<length>"; inherits: true; initial-value: 99999px; }
 @property --lf-free-r { syntax: "<length>"; inherits: true; initial-value: 99999px; }
-/* How wide the page is: the column, or a wide page (below). Stated on body and read
- * there by name, so it does not inherit. */
-@property --lf-page-width {
-  syntax: "column | wide | available";
-  inherits: false;
-  initial-value: column;
-}
+/* Registered so the runtime reads the rail's width in pixels (margin-layout.js). */
+@property --rail { syntax: "<length>"; inherits: true; initial-value: 0px; }
 /* Content that needs more space than the argument about it. The column above is the measure
  * prose is read at, and a board's columns or a diagram's graph are as wide as what they
  * hold — so a page carrying one was a cramped board, or a page whose every paragraph had
@@ -823,7 +785,6 @@ main {
    * as a list rather than one :is(), so the painted selector keeps the specificity every
    * widget and package rule already overrides it at. */
   [data-lf-space], main [data-width] {
-    --lf-natural-inline-size: 0;
     /* Held to what is free beside the page (main's --lf-free-l and --lf-free-r), and
      * spent evenly each way where both sides are free; otherwise the freer side takes
      * what the other lacks. */
@@ -914,81 +875,12 @@ main {
   }
   main > * { --lf-room: inherit; }
 
-  /* A page whose subject is wider than an argument — a board, a dashboard, a queue
-   * beside its detail — is a wide page: every block, title included, starts at one left
-   * edge, and text keeps the reading measure the column gave it (--lf-measure, the rule
-   * below) rather than being centred on a narrower axis than the exhibits around it. A
-   * column page with a wide exhibit keeps two axes, the prose's and the exhibit's; a
-   * wide page has one. The room is the page's own width, so a wide widget on it fills
-   * the page instead of breaking out.
-   *
-   * Which width the page takes is one reading on body, --lf-page-width, and the frame
-   * below is drawn once for whatever states it. `data-width` on `main` states it here; a
-   * package states it for a page its own element makes wide (the default package, for
-   * a page whose only block is a workspace). Both are selectors on authored markup, so
-   * the frame is in the first paint. The frame's rules ask body (lf-shell) by name, as
-   * a style query answers from an ancestor and never from main itself. */
-  body:has(> main[data-width="wide"]) { --lf-page-width: wide; }
-  body:has(> main[data-width="available"]) { --lf-page-width: available; }
-  @container lf-shell not style(--lf-page-width: column) {
-    /* A wide page is main (above) at a wider measure. Its edge is the page's
-     * edge, so its pad grows with the window rather than staying the column's 24px,
-     * which is a phone's margin; a strip no wider than the pad stands in it.
-     *
-     * The runtime paints a `data-width` occurrence like any block's (data-lf-space),
-     * and the block rule's margins would pin the page to the left edge, so the frame
-     * outranks that rule: html:root. */
-    html:root body > main {
-      --lf-page-pad: clamp(var(--col-pad), 4cqi, 64px);
-      --lf-measure: var(--col);
-      max-width: none;
-      margin-inline: auto;
-      padding-inline: 0;
-    }
-    html:root body > main > * { --lf-room: 100%; }
-    /* A wide page's title stands above boards and tiles as wide as the window rather
-     * than a column of prose, so it is set a size up and heavier: at the column's size
-     * it read as a section heading among the panels. It grows with the window (cqi here
-     * is the shell's width, the window less its strips). */
-    html:root body > main > h1,
-    html:root body > main > * > header > h1 {
-      font-size: clamp(36px, 3.2cqi, 46px);
-      font-weight: 700;
-      letter-spacing: -0.02em;
-      line-height: 1.1;
-    }
-  }
-  @container lf-shell style(--lf-page-width: wide) {
-    html:root body > main { --lf-page-measure: var(--wide); }
-  }
-  @container lf-shell style(--lf-page-width: available) {
-    html:root body > main { --lf-page-measure: var(--wide-page-max); }
-  }
 
-  /* Text keeps the reading measure in every frame; a surface fills its frame. In the
-   * page's own flow the column is the measure already, so this matters in a frame wider
-   * than the column, which states the measure as --lf-measure (a grid cell). It
-   * inherits, so it reaches text however deep in the frame it sits.
-   *
-   * Which boxes are which is declared rather than guessed from the frame: a widget says
-   * so in its registry entry (x-measure, painted data-lf-measure, or an x-space past the
-   * column), and the plain HTML elements are named here. A surface is never capped and
-   * clears the measure for everything it draws. A box that only groups blocks passes
-   * the measure through to what it holds, instead of holding a chart in a section to
-   * the width of a paragraph. Everything else is text, a widget declaring so
-   * (data-lf-measure="text") included: a group whose members are the cells it draws
-   * keeps the measure as one block, so its frame and their edges stand at one width.
-   * The rules have no specificity, so any rule that sizes a box outranks them. */
-  :where([data-lf-measure="surface"], [data-lf-space]:not([data-lf-space="column"]),
-      table, pre, figure, img, svg, video, canvas, iframe) {
-    --lf-measure: none;
-  }
-  :where(:not([data-lf-measure="surface"], [data-lf-measure="group"],
-      [data-lf-space]:not([data-lf-space="column"]),
-      table, pre, figure, img, svg, video, canvas, iframe,
-      section, div, article, header, footer, aside, nav, details, summary, hgroup,
-      search, main)) {
-    max-inline-size: var(--lf-measure);
+  /* Text keeps the reading measure wherever it stands: a paragraph, a list item or a
+   * heading is never set wider than the column, however wide the box around it. This is
+   * typography, not layout, so it holds with or without a Layout; boxes are the page's. */
+  :where(p, li, dt, dd, blockquote, figcaption, h1, h2, h3, h4, h5, h6) {
+    max-inline-size: var(--col);
   }
 
   /* A block that bounds its own height scrolls inside it (x-bound, or data-bound on an
@@ -1053,7 +945,10 @@ code { background: var(--code-bg); border-radius: 4px; padding: 1px 5px;
 pre { background: var(--pre-bg); border: 1px solid var(--code-border); border-radius: var(--r);
       padding: 12px 14px; overflow-x: auto; font-size: var(--code-size);
       line-height: var(--code-line); font-family: var(--mono); color: var(--code-ink);
-      font-variant-ligatures: none; }
+      font-variant-ligatures: none;
+      /* A block that scrolls its own lines never sizes what holds it: without this a
+       * long line is every flex item's and grid track's minimum up the tree. */
+      contain: inline-size; }
 pre code { background: none; padding: 0; font-size: 100%; }
 /* Paper has no scrollbar, so a line past the column is not a scroll away but gone. Code
    wraps on the sheet whatever it does on screen, the trade lf-diff's own sheet already
@@ -1131,7 +1026,8 @@ img { aspect-ratio: attr(width type(<number>)) / attr(height type(<number>)); }
  * a table too wide to wrap, which it loses either way — the same trade pre and
  * lf-board already make, and the reason not to write a print rule undoing this
  * one. */
-table { display: block; overflow-x: auto; border-collapse: collapse;
+/* A table scrolls its own columns, so, like `pre`, its rows never size what holds it. */
+table { display: block; overflow-x: auto; contain: inline-size; border-collapse: collapse;
         font: var(--t-5)/1.5 var(--sans); margin: 18px 0; font-variant-numeric: tabular-nums; }
 /* A cell already supplies the identifier's frame and spacing. */
 :is(th, td) code:not(pre code) { padding: 0; background: none; font-size: var(--t-6); }
@@ -1266,196 +1162,48 @@ section.panel > :last-child { margin-bottom: 0; }
   border-color: color-mix(in srgb, var(--lf-tone-ink) 22%, transparent); }
 .callout:is(.ok, .warn, .danger) > strong:first-child { color: var(--lf-tone-ink); }
 /* A sidebar is page-level supporting material rather than an annotation on one block:
-   local navigation, a compact legend, or stable reference facts. In ordinary flow it is
-   simply an aside where it was authored. On a roomy screen its box moves into the left
-   strip and sticks beneath Leaf's banner, so it remains useful through a long page. The
-   negative left margin and the right gutter sum with its width to zero, leaving the
-   prose's line boxes untouched; the shell's left claim is the room the box uses.
-
-   The claim is page-wide because a sticky box may occupy any height while the user
-   scrolls. It is a strip like any other margin claim, so the page's own arithmetic
-   (main, above) places the column beside it and holds a wide exhibit's left growth to
-   what is free of it. A sidebar alone waits for 1188px of shell: the widest sidebar's
-   344px, a 24px gutter, the column and the rail (95) beside it. A sidebar and a sidenote
-   together wait for 1496px, the note's 1152px floor plus that 344px, the note's strip
-   being wider than the rail; granting both at the note's floor shrank the prose. The
-   paired number is held to those two tokens in test_the_sidebar_and_note_floor_is_their_sum. Paper gets only the base in-flow form,
-   and therefore neither a sticky box nor an empty margin.
-
-   Direct-child margins are trimmed because a sidebar is a placement wrapper, not a
-   second rhythm around what it holds. This keeps an lf-toc's quiet spine and makes the
-   class equally usable around a nav, facts list, or short prose aside. Only the first
-   direct sidebar child of main takes the margin. The catalog asks for one page-level
-   wrapper, but leaving an accidental second one in flow is safer than laying two sticky
-   boxes over each other.
-
-   What the sidebar's contents read is two declarations, and they are two because they
-   answer two different questions. Which box the margin belongs to never changes, so the
-   slot is stated on the sidebar itself, unconditionally. Whether the page is granting
-   that margin changes with every panel and tray, so the posture is stated on main with
-   the other shell readings: an author may hide a narrow sidebar, and a box that leaves
-   the tree cannot be trusted to answer a question whose answer changed while it was
-   gone. A resident asks the page for the posture and its own wrapper for the slot. */
+   contents, a facts list, a short aside. In flow it is a block where it was written. A
+   column's first sidebar stands in the room free beside the column where that room holds
+   it, sticky below the banner, and claims nothing: the column never moves for it, and a
+   wide exhibit keeps the room on its other side. A contents map rests as a spine a few
+   pixels wide and reveals its labels over the page, so it stands out there from a much
+   narrower shell (the default package); anything else needs --sidebar beside the 768px
+   column box, 1296px of shell. Direct-child margins are trimmed because a sidebar is a
+   placement wrapper, not a second rhythm around what it holds. */
 aside.sidebar { display: flow-root; margin: var(--sp-4) 0 30px; }
 aside.sidebar > :first-child { margin-top: 0; }
 aside.sidebar > :last-child { margin-bottom: 0; }
 main > aside.sidebar:nth-child(1 of aside.sidebar) { --lf-sidebar-slot: margin; }
 @media screen {
-  @container lf-shell (min-width: 1188px) {
-  html:root
-    main:has(> aside.sidebar):not(:has(aside.sidenote)) {
-    --strip-l: var(--lf-sidebar-claim, var(--sidebar));
-    --lf-sidebar-posture: margin;
-    /* Wayfinding should not push the prose aside, so a sidebar takes the page's
-       existing gutters first: the page stays on the window's axis while both margins
-       fit beside it, and moves only as far as either strip needs. */
-    --lf-shift: calc(max(0px, var(--lf-gutter-l) - var(--lf-beside))
-      - max(0px, var(--lf-gutter-r) - var(--lf-beside)));
-    /* A sticky box hangs off the column at whatever height the user has scrolled to,
-       so nothing may grow into its side. A sidebar pinned to the window's edge instead
-       states what is free between it and the column (lf-toc's map, in the default
-       package). */
-    --lf-free-l: var(--lf-sidebar-free-left, 0px);
-  }
-  html:root main:not(:has(aside.sidenote))
-    > aside.sidebar:nth-child(1 of aside.sidebar) {
-    float: left; clear: left; position: sticky;
-    top: calc(var(--lf-banner-h, 0px) + var(--sp-4));
-    width: calc(var(--lf-sidebar-claim, var(--sidebar)) - var(--sp-4));
-    max-height: calc(100vh - var(--lf-banner-h, 0px) - 2 * var(--sp-4));
-    overflow-y: auto;
-    margin: 0 var(--sp-4) var(--sp-4)
-      calc(-1 * var(--lf-sidebar-claim, var(--sidebar)));
-  }
-  }
-  @container lf-shell (min-width: 1496px) {
-  html:root
-    main:has(> aside.sidebar):has(aside.sidenote) {
-    --strip-l: var(--lf-sidebar-claim, var(--sidebar));
-    --lf-sidebar-posture: margin;
-    /* As beside a sidebar alone. */
-    --lf-free-l: var(--lf-sidebar-free-left, 0px);
-  }
-  html:root main:has(aside.sidenote)
-    > aside.sidebar:nth-child(1 of aside.sidebar) {
-    float: left; clear: left; position: sticky;
-    top: calc(var(--lf-banner-h, 0px) + var(--sp-4));
-    width: calc(var(--lf-sidebar-claim, var(--sidebar)) - var(--sp-4));
-    max-height: calc(100vh - var(--lf-banner-h, 0px) - 2 * var(--sp-4));
-    overflow-y: auto;
-    margin: 0 var(--sp-4) var(--sp-4)
-      calc(-1 * var(--lf-sidebar-claim, var(--sidebar)));
-  }
+  @container lf-shell (min-width: 1296px) {
+    /* Sticky, it can stand level with any band of the page, so it takes its whole
+     * side: a breakout grows only rightward past it. */
+    html:root main.layout-column:has(> aside.sidebar) {
+      --lf-sidebar-posture: margin; --lf-taken-l: var(--lf-beside); }
+    html:root main.layout-column > aside.sidebar:nth-child(1 of aside.sidebar) {
+      float: left; clear: left; position: sticky;
+      top: calc(var(--lf-top) + var(--sp-4));
+      width: calc(var(--sidebar) - var(--sp-4));
+      max-height: calc(var(--lf-view-height) - 2 * var(--sp-4));
+      overflow-y: auto;
+      margin: 0 var(--sp-4) var(--sp-4) calc(-1 * var(--sidebar));
+    }
   }
 }
-/* What the margin is for is in the catalog beside the class; this is why it is the right
-   margin, what shares it, and what the strip costs.
-
-   The right is where a user's eye leaves the line, which is where marginalia has been
-   set for as long as there has been marginalia, and the left is where the eye returns to
-   start the next one — so a note there sits in the return path of every line of the
-   column beside it. The page reads as one axis rather than two because of it: the column
-   hangs off the strip, the strip is half the distance the column sits off the window's
-   centre, and both are the one number above.
-
-   What else stands out there is the loop's, and it is not asked to move. A suggestion's
-   accept and reject controls hang level with the change they decide, a note hangs level
-   with the block it annotates, and both are pinned by the flow, so neither can step
-   aside for the other: where a page puts them level, the controls are drawn over the
-   note's first line. That is a decision rather than a defect. The alternatives were each
-   worse — a rail stacked past the note puts the press the whole width of a note away
-   from the change it settles, and a note that dodged would be marginalia that moves when
-   a change lands near it — and the overlap costs one line of a note that is read where
-   it stands, against a control that is read where it is reached for. `version check
-   --render` is told, in the one place it can be told: chrome a widget hangs out of the
-   flow may cover the page's words (coveredWords, in render-checks/words.js), which
-   is the exemption the runtime's own floating layer already had, said for whoever owns
-   the float.
-
-   The composer opens out there too and covers a note whole while it stands, which is a
-   box the user summoned and dismisses. The thread panel and the trays stand over the
-   window's edges and take no room from the page, so the note stays where it stands
-   under them.
-
-   The strip is a claim on the shell, so the column centres in what is left rather than
-   hanging the note in whatever the centring happened to leave over, and the same query
-   returns the note to flow only when the page itself no longer has room.
-
-   The breakpoint below is that same width asked of the window; under it the strip would
-   come out of the column's own width. Under it, and on paper, the note is a small
-   indented block where it was written. Paper has no margin to hang one in — 768px is 8
-   inches at 96 to the inch, against 8.5 for Letter and 8.27 for A4 before either takes a
-   page margin — and cannot drop the note either, the words being the page's own, which
-   the render gate holds it to by reading both media. */
+/* A sidenote hangs in the column's right margin where the room free beside the column
+   holds it, 1536px of shell for the note's 384px on each side of the 768px column box,
+   and is a small indented block where it was written otherwise, and on paper. It claims
+   nothing: a wide exhibit level with a note drops below it (`clear`) and then takes the
+   room, and a margin row level with a note stands on it as a pin (margin-layout.js). */
 aside.sidenote { font-size: var(--t-5); line-height: 1.45; color: var(--muted);
                  margin: 12px 0 12px var(--sp-4); }
 @media screen {
-  @container lf-shell (min-width: 1152px) {
-  main:has(aside.sidenote) {
-    --claim-note: var(--note);
-    /* The whole strip is the claim, even where a centred column already leaves enough
-       room to paint the note. The strip is the page's axis as well as the note's measure:
-       reserving it is what makes the arrangement read as a column with a right margin
-       rather than a centred column with something left over beside it.
-
-       An exhibit and a note both want the right margin, and only one of them can have it
-       at a given height. The note hangs a gutter off the column while the strip comes out
-       of the far edge of the page, so a board grown to the strip is drawn over the note it
-       stands level with.
-
-       The collision is a fact about one height, so the answer is stated at that height. A
-       wide widget that would have been drawn over a note drops below it and then takes the
-       whole margin; one no note reaches keeps its place and grows both ways, which is the
-       layout a page with no note at all already has. Refusing the margin page-wide answers
-       the same collision by never having it, and charges every exhibit on the page for a
-       note somewhere above it: measured, one note near the top of a page held a diagram
-       977px below it to the column's own width and clipped 286px of it away, with the
-       margin beside the diagram empty the whole time.
-
-       `clear` says this and the browser already knows how: the note is a float, floats have
-       a flow of their own, and clearing one is how a block declines to share its band. It
-       needs no measurement. Inside the rule with the strip it claims, because they are one
-       condition — a cramped page has handed the strip back and its notes are indented
-       blocks in the flow, so there is no float out there to clear and no margin to take.
-
-       Only the note. The rail claims this side too for margin rows, which are Leaf's
-       rather than the page's, so they give way instead: the module that hangs them steps
-       a row level with an exhibit out past it, into the rail (margin-layout.js).
-
-       Every wide element, including one inside a box that withheld the room from it. A
-       widget with no room has no negative margin and could not have reached the note, so
-       clearing buys it nothing and costs it the drop — 11px, measured, for a diagram in a
-       disclosure level with a note. Asking which elements have room needs the element's
-       own value and a style query answers for its container, so the alternative is a
-       second reading of the room rather than a tighter rule. */
-    & :is([data-lf-space]:not([data-lf-space="column"]),
+  @container lf-shell (min-width: 1536px) {
+    main.layout-column :is([data-lf-space]:not([data-lf-space="column"]),
       [data-width]:not([data-width="column"])) { clear: right; }
-  }
-  /* The pull reaches the page's margin through any box between that doesn't clip, which
-     is a section, a tab panel, a disclosure. Through one that does — a choose group, a
-     board, a table — the note is drawn nowhere at all, and the user is the only party
-     who loses it: checkVisibility() is true of a clipped box, so screen and paper agree.
-     Scoping
-     the float to what it may float out of would answer that and cost the cases that
-     work, a tab panel clipping nothing, so MISPLACED_BOXES carries a reading for it and
-     the version is refused at handover instead.
-
-     No margin-top. The float lands at the foot of the preceding block's bottom margin,
-     so it comes out level with the block it precedes wherever that block's own top
-     margin is the smaller of the two — every text block here, within three pixels — and
-     sits above one that carries more room over it than the block before it left, which
-     is what a heading does. A margin-top matched per neighbour would be this file's own
-     margins restated in a second table free to disagree with the first. Aligning the
-     two first baselines would want about 4px besides, and that is an ascent difference
-     between two faces at two sizes — a fact about Charter that DejaVu answers
-     differently, for a shift nobody can see across a 24px gutter. `clear` is what
-     stacks a second note under the first rather than over it.
-
-     The in-flow form above is the whole fallback. The shell query grants the margin
-     with no runtime state to mirror. */
-  main aside.sidenote {
-    float: right; clear: right; width: calc(var(--note) - var(--sp-4));
-    margin: 0 calc(-1 * var(--note)) 12px 0; }
+    main.layout-column aside.sidenote {
+      float: right; clear: right; width: calc(var(--note) - var(--sp-4));
+      margin: 0 calc(-1 * var(--note)) 12px 0; }
   }
 }
 .facts { display: grid; grid-template-columns: max-content 1fr; align-items: baseline;
@@ -1665,30 +1413,6 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new) {
 [data-lf-retired] { display: none; }
 lf-suggestion[data-lf-state="accept"]:not(:has(lf-new)),
 lf-suggestion[data-lf-state="reject"]:not(:has(lf-old)) { display: none; }
-/* A pending suggestion still has to say it is proposed when generated controls are
- * absent. On screen the ✓/✗ row carries that fact and this word stays clipped for
- * whoever is listening. Paper exposes the word #voice already writes
- * in each slot, so the proposal remains distinguishable from settled content without
- * adding another label or moving it elsewhere.
- *
- * The page the markup describes is the base, and the live page's clipped version goes
- * inside the screen guard. `user-select` is not touched: this is the runtime's reading
- * of the paint rather than authored prose, so copying a published paragraph must not
- * carry the word with it.
- *
- * inline-block, because lf-old is struck and CSS runs a decoration through every
- * in-flow inline descendant — a descendant cannot cancel it, and `text-decoration:
- * none` here is inert. Unclipped as a plain inline, the one word saying the change has
- * *not* been made was itself painted struck in the deletion's red, which is the reading
- * this whole rule exists to prevent. An atomic inline is where the line stops. */
-lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
-  position: static; width: auto; height: auto; overflow: visible; clip-path: none;
-  display: inline-block; margin-right: 5px; }
-@media screen {
-  html:root lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
-    position: absolute; width: 1px; height: 1px; overflow: hidden;
-    clip-path: inset(50%); margin-right: 0; }
-}
 /* The margin projection is a retained projection with one cluster per page target. Its
  * primary margin entry, optional `…`, and the secondary margin entries that ellipsis
  * unfolds share one host. Every cluster lives in the chrome's margin layer and stands by
@@ -1847,6 +1571,14 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-margin-entry.lf-react[aria-pressed="true"] {
   background: var(--chip);
 }
+/* Opening a standing reaction leaves its familiar face in place and reveals the
+   separately named removal action beside it. Its existing contour takes the shared
+   disclosure accent (above), stated beside it so the two meet on their selectors; the
+   mark does not gain a second ring or pretend the reaction itself changed. */
+.lf-react-mark[data-lf-behavior="disclosure"] {
+  border-width: 2px; border-color: var(--border-2); color: var(--ink);
+  box-shadow: 0 1px 0 var(--border-2), 0 3px 6px var(--shade);
+}
 /* Agent workflow colors the carrier's glyph after pickup; working also colors its interior. The
    ordinary contour continues to communicate the entry's behavior. */
 .lf-margin-entry:is(
@@ -1987,48 +1719,14 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
     height: 16px; padding: 0 3px; box-sizing: border-box; border-radius: 999px;
     border: 1px solid var(--paper); background: var(--ink); color: var(--paper);
     font: 600 10px/14px var(--sans); text-align: center; }
-/* A column page keeps a rail and a wide page, whose tracks fill the page, does not: its
- * margin rows stand as pins on their blocks, where a rail at the page's far edge could
- * stand hundreds of pixels from the card a marker is about. Which kind the page is, is
- * the one reading --lf-page-width on body (the wide page, above), so a page made wide
- * by its only block, a workspace, pins as a declared one does. `data-rail` on `main`
- * says otherwise for either: `right` keeps the rail on a wide page, and `none` gives a
- * column page's right margin to its own notes.
- *
- * The rail stands in a shell wide enough to hold it beside the whole column: the column
- * (720), its padding (2 x 24) and the rail (95), so 863, or 887 where a finger raises the
- * entries to the aim floor. The rule that claims it says so on `main` as
- * `--lf-rail-posture`, and that reading is the whole answer: the layout stands rows in the
- * rail by it (margin-layout.js), so nothing derives the posture again from a width. A
- * container query cannot read `--rail`, so the two floors are written out, one per
- * pointer, and a change to the rail's width changes them with it. This asks `lf-shell`
- * because the rail is drawn in the shell. No auxiliary surface takes any of it: each
- * stands over the page. Where the rail does not stand, every row is a pin.
- *
- * A live page claims the strip at load, whether or not anything stands in it yet, so the
- * user never buys the room with a gesture and nothing arriving in the margin, settling
- * there, or leaving it moves the column. The claim's width is `--rail`, a constant of the
- * theme. It is a claim rather than the strip itself because a sidenote may claim the same
- * side; `main` spends the wider claim, not their sum.
- *
- * The claim cannot feed back into the answer. It comes out of `main`'s room inside the
- * shell (--strip-r, at the column), while the shell's own inline size is the window's, so
- * the container answers the same whether a marker stands in the rail or not. */
+/* Margin rows stand where the page leaves room for them, measured beside `main` by the
+ * runtime (margin-layout.js), and as pins where it leaves none. A page that wants them
+ * in one column declares a rail, `data-rail="right"` on `main`: the shell gives up the
+ * rail's width on its right, so the page's own layout sees a narrower window and every
+ * row stands in the strip. A block may still run under it on purpose, and its rows pin. */
 @media screen {
-  @container lf-shell (width > 863px) {
-    html[data-lf-live] main:not([data-rail="none"]) {
-      /* The whole rail, focus-ring room included. */
-      --claim-rail: var(--rail);
-      --lf-rail-posture: margin;
-    }
-  }
-}
-@media screen and (pointer: coarse) {
-  @container lf-shell (width <= 887px) {
-    html[data-lf-live] main:not([data-rail="none"]) {
-      --claim-rail: initial;
-      --lf-rail-posture: initial;
-    }
+  html[data-lf-live] body:has(> main[data-rail="right"]) {
+    padding-inline-end: var(--rail);
   }
 }
 /* How far a rail marker hangs off the column. A finger's larger entries spend the rail's
@@ -2036,15 +1734,6 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 :root { --rail-hang: 22px; }
 @media (pointer: coarse) {
   :root { --rail-hang: 10px; }
-}
-/* A wide page gives up the claim unless `main` asks for the rail. */
-@media screen {
-  @container lf-shell not style(--lf-page-width: column) {
-    html[data-lf-live] main:not([data-rail="right"]) {
-      --claim-rail: initial;
-      --lf-rail-posture: initial;
-    }
-  }
 }
 @media print {
   .lf-margin-projection, .lf-margin-marker.lf-margin-entry { display: none !important; }

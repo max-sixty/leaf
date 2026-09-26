@@ -112,7 +112,7 @@ def authored_examples():
 
 
 def framed_root_examples():
-    """Every example whose whole `main` is one root workspace.
+    """Every example whose `main` is a workspace (`.layout-workspace`).
 
     Derived rather than listed, so a new one is gated without naming it here. The
     reading is `leaf.structure`'s, the one `version check` admits and the browser
@@ -122,13 +122,7 @@ def framed_root_examples():
     for page in authored_examples():
         parsed = SourceDocument(page.read_text(encoding="utf-8"))
         main = next(node for node in parsed.nodes if node["tag"] == "main")
-        children = [
-            child
-            for child in main["content"]
-            if isinstance(child, dict)
-            and child["tag"] not in ("script", "style", "template")
-        ]
-        if len(children) == 1 and children[0]["tag"] == "lf-workspace":
+        if "layout-workspace" in main["attrs"].get("class", "").split():
             framed.append(page.stem)
     assert framed, "the corpus published no framed-root example to check"
     return sorted(framed)
@@ -1123,14 +1117,13 @@ def test_published_workspaces_keep_their_allocation_without_site_note(
     """A published workspace owns main and keeps its bounded reading regions."""
     page = open_page(browser, f"{hosted}/examples/{name}/")
     page.set_viewport_size({"width": 1200, "height": 900})
-    workspace = page.locator("body > main > lf-workspace")
-    expect(workspace.locator(":scope > header > .sitenote")).to_have_count(0)
-    expect(page.locator("body > main > .sitenote")).to_have_count(0)
+    expect(page.locator("body > main.layout-workspace")).to_have_count(1)
+    expect(page.locator("body > main .sitenote")).to_have_count(0)
     page.wait_for_function(
         """() => {
           const page = document.documentElement;
           const regions = document.querySelectorAll(
-            'body > main > lf-workspace :is(lf-pane, [data-lf-reading-role="pane"])');
+            'body > main.layout-workspace :is(lf-pane, [data-lf-reading-role="pane"])');
           const bodies = [...regions].map(region =>
             [...region.children].find(child => !child.matches('header, footer')));
           return page.scrollHeight === page.clientHeight && bodies.length > 0

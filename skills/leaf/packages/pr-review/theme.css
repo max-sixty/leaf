@@ -237,6 +237,7 @@ lf-call-diff {
   --lf-block-frame: 1;
   display: block;
   max-width: 100%;
+  contain: inline-size;
   margin: var(--sp-3) 0;
   overflow: hidden;
   border: 1px solid var(--code-border);

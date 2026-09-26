@@ -361,7 +361,7 @@ EXTENSION_SCHEMA = {
         "x-guidance": GUIDANCE_SCHEMA,
         "x-inline": {"type": "boolean"},
         "x-language": _ATTRIBUTE_NAME,
-        "x-reading-role": {"enum": ["workspace", "pane", "grid"]},
+        "x-reading-role": {"enum": ["pane"]},
         # Attributes holding line references into the nearest data body — the element's
         # own <pre>, or its enclosing data element's (lf-note's `at` names a line of its
         # lf-code) — by the numbers x-numbering gives that body, 1-based without it.
@@ -417,7 +417,6 @@ EXTENSION_SCHEMA = {
             ]
         },
         "x-space": {"enum": ["wide", "available"]},
-        "x-measure": {"enum": ["text", "surface", "group"]},
         "x-bound": {"enum": ["start", "end"]},
         "x-history": {"const": True},
         "x-withdrawn-as": {"type": "string", "pattern": f"^{HTML_NAME}$"},

@@ -21,7 +21,7 @@
     </style>
   </head>
   <body>
-    <main>
+    <main class="layout-column">
       <p class="eyebrow">developer playground</p>
       <h1 id="bg-title">Leaf feature gallery</h1>
       <p class="lede" id="bg-lede">
@@ -364,7 +364,7 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
         </p>
 
         <section id="bg-metrics-and-chart">
-          <p class="eyebrow bg-feature-elements">lf-grid · lf-metric · lf-chart</p>
+          <p class="eyebrow bg-feature-elements">lf-metric · lf-chart</p>
           <h3>
             <strong>Metrics</strong> and <strong>Chart</strong
             ><span class="bg-feature-detail">: values and trends</span>
@@ -372,7 +372,7 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
           <p id="bg-metrics-guide">
             Metrics show individual values. A Chart compares the values across runs.
           </p>
-          <lf-grid id="bg-metrics">
+          <div id="bg-metrics" class="layout-tiles">
             <lf-metric id="bg-metric-complete" value="12" delta="+3" direction="up-good"
               >checks complete</lf-metric
             >
@@ -380,7 +380,7 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
               >open failures</lf-metric
             >
             <lf-metric id="bg-metric-neutral" value="4 min">sample duration</lf-metric>
-          </lf-grid>
+          </div>
           <lf-chart id="bg-chart" kind="line" y="checks complete">
             <pre>
 run, baseline, candidate

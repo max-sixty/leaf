@@ -549,7 +549,9 @@ class SourceDocument:
         source = (
             '<!doctype html><html lang="en"><head>'
             '<meta name="viewport" content="width=device-width, initial-scale=1">'
-            f"<title>{escape(attrs.get('id', 'Specimen'))}</title></head><body><main>"
+            f"<title>{escape(attrs.get('id', 'Specimen'))}</title></head>"
+            # A specimen shows a column page; the template is its content, not its frame.
+            '<body><main class="layout-column">'
             # Preserve authored lines, including multiline tags in nested specimens.
             + "\n" * (location.start_tag.end_line - 1)
             + self._source[content_start:content_end]

@@ -58,12 +58,14 @@ UNCLAIMED = {
 
 
 def leaf_page(
-    title: str, body: str, *, head: str = "", width: str | None = None
+    title: str, body: str, *, head: str = "", layout: str | None = "column"
 ) -> str:
-    """A complete page carrying the presentation boundary every fixture shares. `width`
-    widens the page itself (`<main data-width>`)."""
+    """A complete page carrying the presentation boundary every fixture shares. `layout`
+    names the Layout `main` takes (`wide` is `<main class="layout-wide">`): the column,
+    the Layout most pages take, unless the test says otherwise, and None for a `main`
+    with no Layout at all."""
     extra_head = f"{head}\n" if head else ""
-    main = f'<main data-width="{width}">' if width else "<main>"
+    main = f'<main class="layout-{layout}">' if layout else "<main>"
     return f"""<!doctype html>
 <html lang="en">
 <head>

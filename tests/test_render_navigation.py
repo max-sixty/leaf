@@ -79,6 +79,7 @@ from render_harness import (
     panel_settled,
     post_event,
     refuse,
+    regions_side_by_side,
     rendered,
     resized,
     round_trip,
@@ -113,9 +114,8 @@ def command_reference_rows(page, heading):
 READING_REGIONS_PAGE = leaf_page(
     "reading region navigation",
     """
-<lf-workspace id="reading-workspace">
   <header><h1>Reading workspace</h1></header>
-  <lf-grid id="reading-split" columns="2">
+  <div id="reading-split">
     <lf-pane id="left-reading" label="Left reading">
       <header><button id="left-head">Left header</button></header>
       <div>
@@ -137,10 +137,10 @@ READING_REGIONS_PAGE = leaf_page(
         <p id="right-end"><button id="right-subject">Right subject</button></p>
       </div>
     </lf-pane>
-  </lf-grid>
-</lf-workspace>
+  </div>
 """,
-    width="available",
+    head=regions_side_by_side("reading-split"),
+    layout="workspace",
 )
 
 
@@ -490,15 +490,24 @@ def test_a_pane_comment_stays_in_its_reading_region(browser, serve):
 def test_revision_restoration_yields_to_input_while_a_diagram_loads(
     browser, serve, gesture, install
 ):
-    """Hold the real diagram renderer's delivery while the user uses the new pane."""
+    """Hold the real diagram renderer's delivery while the user uses the new pane.
+
+    The panes stand in a page tab, where no workspace holds them, so the page's own
+    stylesheet gives each a height its body scrolls within."""
     source = (
         READING_REGIONS_PAGE.replace(
             '<button id="left-head">',
             '<label>Draft <input id="reading-draft"></label><button id="left-head">',
         )
         .replace(
-            '<main data-width="available">',
-            '<main data-width="available"><lf-tabs id="reading-tabs">'
+            "</head>",
+            "<style>#reading-split lf-pane { block-size: 420px; }"
+            " #reading-split lf-pane > :not(header, footer)"
+            " { min-block-size: 0; overflow: auto; }</style></head>",
+        )
+        .replace(
+            '<main class="layout-workspace">',
+            '<main class="layout-wide"><lf-tabs id="reading-tabs">'
             '<lf-tab id="first-tab" label="First">',
         )
         .replace(
@@ -976,12 +985,12 @@ def test_a_nested_pane_footer_travels_in_the_outer_region_that_contains_it(
 ):
     source = READING_REGIONS_PAGE.replace(
         '<p id="left-end">Left end</p>',
-        """<lf-workspace id="nested-workspace">
+        """<section>
   <lf-pane id="nested-pane" label="Nested reading">
     <div><p>Nested body context stays in ordinary flow.</p></div>
     <footer><p id="nested-footer">Nested footer destination with enough words to anchor.</p></footer>
   </lf-pane>
-</lf-workspace>
+</section>
 <p id="left-end">Left end</p>""",
     )
     page = open_page(
@@ -991,32 +1000,11 @@ def test_a_nested_pane_footer_travels_in_the_outer_region_that_contains_it(
     outer = page.locator("#left-reading > :not(header, footer)")
     inner = page.locator("#nested-pane > :not(header, footer)")
     sibling = page.locator("#right-reading > :not(header, footer)")
+    pane_posture(page, page.locator("#nested-pane"), "flow")
     assert outer.evaluate("el => el.scrollHeight - el.clientHeight") > 300
     assert inner.evaluate("el => el.scrollTop") == 0
 
-    page.add_style_tag(
-        content="#nested-pane > :not(header, footer) { overflow: visible !important }"
-    )
     page.keyboard.press("t")
-    page.wait_for_timeout(1000)
-    print(
-        "PROBE nested",
-        page.evaluate(
-            "() => { const b = document.querySelector('#nested-pane > :not(header, footer)'); return [b.scrollHeight, b.clientHeight, getComputedStyle(document.querySelector('#nested-workspace')).containerType]; }"
-        ),
-    )
-    print(
-        "PROBE margin",
-        page.evaluate(
-            "() => [...document.querySelectorAll('[data-lf-margin-for]')].map(e => [e.dataset.lfMarginFor, e.className, e.getBoundingClientRect().top])"
-        ),
-    )
-    print(
-        "PROBE",
-        page.evaluate(
-            """() => ({active: document.activeElement.outerHTML.slice(0,120), footer: document.querySelector('#nested-footer').getBoundingClientRect().toJSON(), outer: document.querySelector('#left-reading > :not(header, footer)').scrollTop, outerRect: document.querySelector('#left-reading > :not(header, footer)').getBoundingClientRect().toJSON(), marks: document.querySelectorAll('.lf-mark, lf-mark, mark').length, ov: getComputedStyle(document.querySelector('#nested-pane > :not(header, footer)')).overflowY, scrollY})"""
-        ),
-    )
     expect(page.locator("#nested-footer")).to_be_in_viewport()
     assert outer.evaluate("el => el.scrollTop") > 0
     assert inner.evaluate("el => el.scrollTop") == 0

@@ -55,6 +55,7 @@ from render_harness import (
     open_page,
     pane_posture,
     panel_settled,
+    regions_side_by_side,
     rendered,
     resized,
     round_trip,
@@ -141,8 +142,7 @@ COMMENT_ON_SECOND_SUGGESTION = {
 DUPLICATE_REGION_PAGE = leaf_page(
     "duplicate Page Map subjects",
     """
-<lf-workspace id="duplicate-map-workspace">
-  <lf-grid id="duplicate-map-split" columns="2">
+  <div id="duplicate-map-split">
     <lf-pane id="current-pane" label="Current">
       <div>
         <h2 id="current-deployment">Deployment</h2>
@@ -157,10 +157,10 @@ DUPLICATE_REGION_PAGE = leaf_page(
         <p>The proposed release remains available to users.</p>
       </div>
     </lf-pane>
-  </lf-grid>
-</lf-workspace>
+  </div>
 """,
-    width="available",
+    head=regions_side_by_side("duplicate-map-split"),
+    layout="workspace",
 )
 
 DUPLICATE_REGION_COMMENTS = [
@@ -631,52 +631,54 @@ def test_a_surface_over_the_rail_hands_the_user_the_map(browser, serve):
     assert not page.evaluate(offered), "the tray on the left withdrew the rail"
 
 
-@pytest.mark.parametrize(
-    ("touch", "floor"), [(False, 863), (True, 887)], ids=["mouse", "finger"]
-)
-def test_the_rail_is_claimed_only_in_a_shell_that_can_hold_it(
-    browser, serve, touch, floor
+@pytest.mark.parametrize("touch", [False, True], ids=["mouse", "finger"])
+def test_the_rail_stands_where_the_room_beside_the_column_holds_it(
+    browser, serve, touch
 ):
-    """The floor grants the rail out of the shell, so the shell has to hold what it
-    grants: the column (720), its padding (2 x 24) and the rail. A finger raises the
-    rail from 95 to 119, so each pointer has its own floor, and a container query
-    cannot read the rail to derive it. So this walks the shell down through the flip
-    under each pointer and holds the column whole wherever the rail stands.
-
-    A floor set too low reads here as a column narrower than its measure, which is the
-    bug the floor exists to stop: the markers go flush against whatever took the room.
-    One set too high reads as a sweep whose narrowest rail stands well above the floor."""
+    """The rail claims nothing: its markers stand in it wherever the room between a
+    centred column and the shell's right edge holds it, and as pins on their blocks
+    everywhere else, so the column keeps its measure at every width. A finger's larger
+    entries widen the rail, so each pointer flips at its own width: the column's box
+    (720 and 2 x 24 of padding) and a rail on each side. The sweep walks down through
+    that width and reads where the markers stand."""
     context = browser.new_context(
-        viewport={"width": floor + 40, "height": 900}, has_touch=touch
+        viewport={"width": 1200, "height": 900}, has_touch=touch
     )
-    page = open_page(browser, serve(PANEL_PAGE), context=context)
+    page = open_page(
+        browser, serve(PANEL_PAGE, events=[_comment_on("lede")]), context=context
+    )
     assert page.evaluate("() => matchMedia('(pointer: coarse)').matches") == touch
-    stood = []
-    for width in range(floor + 40, floor - 30, -3):
+    rail = page.evaluate(
+        """() => parseFloat(getComputedStyle(document.querySelector('main'))
+             .getPropertyValue('--rail'))"""
+    )
+    floor = 720 + 2 * 24 + 2 * rail
+    places = set()
+    for width in range(round(floor) + 30, round(floor) - 30, -3):
         resized(page, width, 900)
         margins_laid_out(page)
         reading = page.evaluate(
             """() => {
               const main = document.querySelector('main');
               const style = getComputedStyle(main);
+              const row = document.querySelector('[data-lf-margin-for="lede"]');
               return {
-                posture: style.getPropertyValue('--lf-rail-posture').trim(),
+                place: row.dataset.lfPlace,
                 column: Math.round(parseFloat(style.width)),
-                shell: Math.round(document.body.clientWidth),
+                shell: document.body.clientWidth,
               };
             }"""
         )
-        if reading["posture"] != "margin":
+        assert reading["column"] == 720, reading
+        if abs(reading["shell"] - floor) <= 2:
             continue
-        stood.append(reading)
-        assert reading["column"] >= 720, (
-            f"a {reading['shell']}px shell claimed the rail and left a "
-            f"{reading['column']}px column: the floor granted room the page lacks"
+        expected = "rail" if reading["shell"] > floor else "pin"
+        assert reading["place"] == expected, (
+            f"at a {reading['shell']}px shell, with a {rail:g}px rail needing "
+            f"{floor:g}px, the markers stood as {reading['place']}"
         )
-    assert stood, "no width in this sweep claimed the rail, so nothing here was tested"
-    assert min(r["shell"] for r in stood) <= floor + 3, (
-        "the rail folded above its floor, giving up room the page had"
-    )
+        places.add(reading["place"])
+    assert places == {"rail", "pin"}, "the sweep never crossed the rail's width"
 
 
 def test_an_unchanged_compact_margin_keeps_the_user_at_the_document_end(browser, serve):
@@ -1063,7 +1065,8 @@ def resized_shell(page, inline_size, height):
 
 
 ACTION_PAGE = SUGGESTION_PAGE.replace(
-    "<main>", '<main><section id="action-section">'
+    '<main class="layout-column">',
+    '<main class="layout-column"><section id="action-section">',
 ).replace(
     "</main>",
     """
@@ -4618,17 +4621,19 @@ def test_a_thread_uses_a_free_margin_and_tracks_its_source(browser, serve):
 
 
 def test_a_thread_beside_its_cluster_takes_the_room_to_the_visible_edge(browser, serve):
-    """A rail a few pixels short of the card's measure narrows the card, not its height.
+    """Room beside a cluster a few pixels short of the card's measure narrows the card,
+    not its height.
 
-    The width is the arrangement: the rail beside this cluster grows with half the
-    viewport, and the case only says anything where the room it leaves falls between
-    `--thread-card-min` and `--thread-card`. Wider and the card takes its preferred
-    measure with room to spare, narrower and it is the short-rail case below. The room
-    is asserted before the outcome is, so moving either token reddens the arrangement
-    and names the width to re-pick rather than reading as a layout regression."""
+    The width is the arrangement: this cluster pins on a block that breaks out of the
+    column, so the room right of it grows with half the viewport, and the case only says
+    anything where that room falls between `--thread-card-min` and `--thread-card`.
+    Wider and the card takes its preferred measure with room to spare, narrower and it
+    is the short-rail case below. The room is asserted before the outcome is, so moving
+    either token, or the gallery's arrangement, reddens the arrangement and names the
+    width to re-pick rather than reading as a layout regression."""
     page = open_page(browser, serve(FEATURE_GALLERY))
     page.emulate_media(reduced_motion="reduce")
-    resized(page, 1220, 900)
+    resized(page, 1360, 900)
     page.evaluate("location.hash = 'bg-margin-controls'")
     page.locator("body").focus()
     _walk_gallery_thread(page, "2be2443f0bb6cc49fc86b52f340e6073")
@@ -5896,7 +5901,9 @@ def test_a_thread_can_be_answered_in_the_margin_without_opening_threads(
 def test_a_thread_margin_entry_opens_inline_when_the_panel_is_closed(browser, serve):
     """The margin entry's destination follows the open auxiliary surface, not available margin."""
     sidebar_page = ASK_PAGE.replace(
-        "<main>", '<main><aside class="sidebar">Page reference</aside>', 1
+        '<main class="layout-column">',
+        '<main class="layout-column"><aside class="sidebar">Page reference</aside>',
+        1,
     )
     page = open_page(browser, serve(sidebar_page, events=[COMMENT_ON_ASK]))
     resized(page, 1200, 900)
@@ -6475,7 +6482,9 @@ def send_anchored_comment(page, text):
 def test_an_inline_thread_keeps_one_readable_card_across_page_claims(browser, serve):
     """An accepted comment opens readable beside or over either page shape."""
     sidebar_page = ASK_PAGE.replace(
-        "<main>", '<main><aside class="sidebar">Page reference</aside>', 1
+        '<main class="layout-column">',
+        '<main class="layout-column"><aside class="sidebar">Page reference</aside>',
+        1,
     )
     page = open_page(browser, serve(sidebar_page, events=[COMMENT_ON_ASK]))
     resized(page, 1200, 900)
@@ -6689,7 +6698,9 @@ def test_margin_card_anchors_reading_by_top_and_drafting_by_foot(browser, serve)
 def test_open_reply_keeps_its_foot_after_card_moves_to_right_rail(browser, serve):
     """A draft opened below its target gains a foot anchor when the rail widens."""
     sidebar_page = ASK_PAGE.replace(
-        "<main>", '<main><aside class="sidebar">Page reference</aside>', 1
+        '<main class="layout-column">',
+        '<main class="layout-column"><aside class="sidebar">Page reference</aside>',
+        1,
     )
     page = open_page(browser, serve(sidebar_page, events=[COMMENT_ON_ASK]))
     resized(page, 1200, 900)
@@ -7100,7 +7111,9 @@ def test_the_thread_card_survives_trays_and_authored_sidebars(browser, serve):
     page.close()
 
     sidebar_page = ASK_PAGE.replace(
-        "<main>", '<main><aside class="sidebar">Page reference</aside>', 1
+        '<main class="layout-column">',
+        '<main class="layout-column"><aside class="sidebar">Page reference</aside>',
+        1,
     )
     page = open_page(
         browser,
@@ -7297,6 +7310,53 @@ def test_the_complete_page_map_survives_a_crossing_to_the_wide_screen(browser, s
     expect(
         dialog.get_by_role("button", name=re.compile(r"^Open your change: Your change"))
     ).to_be_visible()
+
+
+def test_a_marker_level_with_a_hanging_note_pins_and_one_below_it_keeps_the_rail(
+    browser, serve
+):
+    """A sidenote hanging in the right margin holds the strip the rail stands in, so the
+    marker of a paragraph level with it stands on the paragraph as a pin rather than
+    over the note. The control is a paragraph far below the note, whose marker keeps
+    the rail."""
+    filler = "".join(f"<p>Filler paragraph {i}.</p>" for i in range(12))
+    source = leaf_page(
+        "a note beside its paragraph",
+        '<h1 id="t">Notes</h1><aside class="sidenote" id="note">A note beside the '
+        "paragraph it glosses, long enough to stand a few lines tall.</aside>"
+        f'<p id="beside">The paragraph the note glosses.</p>{filler}'
+        '<p id="below">A paragraph well below the note.</p>',
+    )
+    page = open_page(
+        browser, serve(source, events=[_comment_on("beside"), _comment_on("below")])
+    )
+    resized(page, 1600, 900)
+    margins_laid_out(page)
+    assert (
+        page.evaluate("() => getComputedStyle(document.getElementById('note')).float")
+        == "right"
+    )
+    for target, place in (("beside", "pin"), ("below", "rail")):
+        row = page.locator(f'.lf-margin-cluster[data-lf-margin-for="{target}"]')
+        expect(row).to_have_attribute("data-lf-place", place)
+
+
+def test_the_banner_offers_the_map_wherever_the_markers_are_pins(browser, serve):
+    """The Page Map toggle follows the rail the margin measures, not a window width: a
+    920px window leaves a column page too little room beside it for the rail, so its
+    markers are pins and the banner offers the map, as it does on a phone. The control is
+    the same page at 1200px, where the rail stands and the toggle steps aside."""
+    page = open_page(browser, serve(ASK_PAGE, events=[ACTION_ON_ASK, COMMENT_ON_ASK]))
+    rows = page.locator(".lf-margin-projection .lf-margin-cluster")
+    for width, place, offered in ((1200, "rail", False), (920, "pin", True)):
+        resized(page, width, 900)
+        margins_laid_out(page)
+        expect(rows.first).to_have_attribute("data-lf-place", place)
+        toggle = page.locator(".lf-page-map-toggle")
+        if offered:
+            expect(banner_control(page, ".lf-page-map-toggle")).to_be_visible()
+        else:
+            expect(toggle).to_be_hidden()
 
 
 @pytest.mark.parametrize("height", [480, 760])
@@ -7503,10 +7563,10 @@ def _comment_on(section, text="A comment on this.", quote=None):
 @pytest.mark.parametrize(
     ("main", "place"),
     [
-        ("<main>", "rail"),
-        ('<main data-width="available">', "pin"),
-        ('<main data-width="available" data-rail="right">', "rail"),
-        ('<main data-rail="none">', "pin"),
+        ('<main class="layout-column">', "rail"),
+        ('<main class="layout-wide">', "pin"),
+        ('<main class="layout-wide" data-rail="right">', "rail"),
+        ('<main class="layout-column" data-rail="none">', "pin"),
     ],
     ids=["column", "wide", "wide-keeps-the-rail", "column-gives-it-up"],
 )
@@ -7514,22 +7574,22 @@ def test_the_page_form_decides_the_rail_and_main_can_say_otherwise(
     browser, serve, main, place
 ):
     """A column page keeps a rail beside its column and a wide page does not: its markers
-    stand as pins on their blocks. `data-rail` on `main` turns either round. Where no rail
-    is kept the page claims no strip for one, so the wide page has the room."""
+    stand as pins on their blocks. `data-rail` on `main` turns either round: `right`
+    gives up the rail's width at the shell's right edge, and `none` keeps the margin for
+    the page's own residents. Only `right` takes room from the page."""
     source = leaf_page(
         "rail by form",
         '<h1 id="t">Rail by form</h1><p id="p">A paragraph with a comment on it.</p>',
-    ).replace("<main>", main)
+    ).replace('<main class="layout-column">', main)
     page = open_page(browser, serve(source, events=[_comment_on("p")]))
     resized(page, 1440, 900)
     margins_laid_out(page)
     row = page.locator('.lf-margin-cluster[data-lf-margin-for="p"]')
     expect(row).to_have_attribute("data-lf-place", place)
-    claimed = page.evaluate(
-        """() => getComputedStyle(document.querySelector('main'))
-             .getPropertyValue('--lf-rail-posture').trim() === 'margin'"""
+    given = page.evaluate(
+        "() => parseFloat(getComputedStyle(document.body).paddingInlineEnd)"
     )
-    assert claimed == (place == "rail")
+    assert (given > 0) == ('data-rail="right"' in main), given
 
 
 def test_a_pin_on_one_shape_of_a_drawing_stands_on_that_shape(browser, serve):
@@ -7546,7 +7606,8 @@ def test_a_pin_on_one_shape_of_a_drawing_stands_on_that_shape(browser, serve):
         '<h1 id="t">Parts</h1><figure id="fig" data-width="wide">'
         '<svg class="drawing" viewBox="0 0 1000 200" role="img">'
         f"<title>Three shapes</title>{shapes}</svg></figure>",
-    ).replace("<main>", '<main data-width="available">')
+        layout="wide",
+    )
     page = open_page(
         browser, serve(source, events=[_comment_on("left"), _comment_on("right")])
     )
@@ -7575,7 +7636,8 @@ def test_a_pin_on_a_contents_target_stands_at_its_last_part(browser, serve):
         '<div id="pair" style="display: contents">'
         '<p style="flex: 1">The first half.</p><p style="flex: 1">The second half.</p>'
         "</div></div>",
-    ).replace("<main>", '<main data-width="available">')
+        layout="wide",
+    )
     page = open_page(browser, serve(source, events=[_comment_on("pair")]))
     resized(page, 1440, 900)
     margins_laid_out(page)
@@ -7591,22 +7653,22 @@ def test_a_pin_on_a_contents_target_stands_at_its_last_part(browser, serve):
     )
 
 
-def test_a_page_made_wide_by_its_workspace_claims_no_rail(browser, serve):
-    """A page whose only block is a workspace is a wide page without declaring one, so it
-    gives up the rail's strip as `<main data-width="available">` does."""
+def test_a_workspace_page_keeps_no_rail(browser, serve):
+    """The workspace Layout stands in the wide page's frame, which leaves no room beside
+    it for a rail, so a comment in a pane stands on its block as a pin, as it does on
+    `<main class="layout-wide">`."""
     source = leaf_page(
         "workspace page",
-        '<lf-workspace id="w"><header><h1 id="t">Workspace</h1></header>'
+        '<header><h1 id="t">Workspace</h1></header>'
         '<lf-pane id="pane" label="Queue"><div><p id="p">A paragraph.</p></div>'
-        "</lf-pane></lf-workspace>",
+        "</lf-pane>",
+        layout="workspace",
     )
-    page = open_page(browser, serve(source))
+    page = open_page(browser, serve(source, events=[_comment_on("p")]))
     resized(page, 1440, 900)
-    posture = page.evaluate(
-        """() => getComputedStyle(document.querySelector('main'))
-             .getPropertyValue('--lf-rail-posture').trim()"""
-    )
-    assert posture != "margin"
+    margins_laid_out(page)
+    row = page.locator('.lf-margin-cluster[data-lf-margin-for="p"]')
+    expect(row).to_have_attribute("data-lf-place", "pin")
 
 
 def test_o_hides_what_is_drawn_over_the_page_and_moves_nothing(browser, serve):
@@ -7673,8 +7735,7 @@ def test_o_hides_what_is_drawn_over_the_page_and_moves_nothing(browser, serve):
 PANE_PIN_PAGE = leaf_page(
     "a pin in a pane",
     """
-<lf-workspace id="pin-workspace">
-  <lf-grid id="pin-split" columns="2">
+  <div id="pin-split">
     <lf-pane id="pin-pane" label="Findings">
       <div>
         <div style="height: 200px"></div>
@@ -7684,10 +7745,10 @@ PANE_PIN_PAGE = leaf_page(
       </div>
     </lf-pane>
     <lf-pane id="other-pane" label="Notes"><div><p>Notes.</p></div></lf-pane>
-  </lf-grid>
-</lf-workspace>
+  </div>
 """,
-    width="available",
+    head=regions_side_by_side("pin-split"),
+    layout="workspace",
 )
 
 

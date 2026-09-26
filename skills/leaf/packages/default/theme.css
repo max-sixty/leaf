@@ -1605,15 +1605,15 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
  * posture reaches every box on the page, and only the sidebar's map wants it. */
 @media screen and (hover: hover) and (pointer: fine) {
   /* The contents map owns one stable margin rectangle whether its labels are hidden or
-   * revealed. Its transparent resting surface is therefore the same size as the links
-   * it discloses, and revealing it changes neither page geometry nor hit geometry. */
+   * revealed, so revealing it changes no page geometry. At rest only its spine takes
+   * presses; the rectangle does once the spine is hovered or focused (below). */
   @container lf-shell (min-width: 848px) {
     html:root main.layout-column:has(> aside.sidebar:nth-child(1 of aside.sidebar) lf-toc) {
       --lf-sidebar-posture: margin;
-      /* The map is chrome fixed in the left margin across its whole claim (its resting
-       * surface is as wide as the labels it reveals), so a breakout stops short of it
-       * (layouts.css, the column's free room). */
-      --lf-chrome-l: var(--lf-sidebar-claim);
+      /* At rest the map is its spine, chrome fixed in the left margin, so a breakout
+       * stops short of it (layouts.css, the column's free room); its labels reveal over
+       * the page. */
+      --lf-chrome-l: calc(2 * var(--sp-4));
     }
   }
   main:has(> aside.sidebar:nth-child(1 of aside.sidebar) lf-toc) {
@@ -1630,7 +1630,7 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
                width: calc(var(--lf-sidebar-claim) - var(--sp-4));
                box-sizing: border-box;
                padding-block: var(--sp-4);
-               pointer-events: auto;
+               pointer-events: none;
                /* Between the banner and the bottom band, as every region is: the band is
                 * attached to the window's foot at one stated height, so the map ends above
                 * it rather than losing its last entry under the keyboard's line. */
@@ -1638,11 +1638,21 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
                margin: 0; }
       lf-toc .lf-toc-nav { width: 100%; height: 100%; border: 0; padding: 0;
                            --lf-toc-label-opacity: 0;
-                           pointer-events: auto;
+                           pointer-events: none;
                            transition: background-color .24s ease-out; }
       lf-toc .lf-toc-heading { display: none; }
       lf-toc .lf-toc-rows { position: relative; display: flex; height: 100%;
                             flex-direction: column; }
+      /* At rest the map takes presses on its spine alone, a strip one step wide, so it
+       * never stands over the page's words beside it (the column claims no margin for
+       * it). Hovering or focusing the spine opens the whole surface its labels reveal
+       * onto, and that surface keeps the pointer while it moves across them. */
+      lf-toc .lf-toc-rows::after { content: ""; position: absolute; z-index: 1;
+                                   top: 0; bottom: 0; left: calc(-1 * var(--sp-2));
+                                   width: var(--sp-4); pointer-events: auto; }
+      lf-toc:is(:hover, :focus-within, [data-lf-outline]),
+      lf-toc:is(:hover, :focus-within, [data-lf-outline]) .lf-toc-nav,
+      body[data-lf-go-to-active] :is(lf-toc, lf-toc .lf-toc-nav) { pointer-events: auto; }
       lf-toc .lf-toc-rows::before { content: ""; position: absolute;
                                     z-index: 0; top: 0; bottom: 0; left: 0; width: 1px;
                                     background: var(--border-2); }

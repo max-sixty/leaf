@@ -4624,6 +4624,7 @@ def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
     page.keyboard.press("g")
     shortcut_bar_text(page)
     expect(page.locator("body")).to_have_attribute("data-lf-go-to-active", "")
+    expect(page.locator(CHIPS).first).to_be_visible()
     assert (
         set(
             page.locator(CHIPS).evaluate_all(
@@ -6759,6 +6760,7 @@ def test_generated_hints_branch_after_the_single_letter_alphabet(browser, serve)
     line = page.locator(".lf-shortcut-bar")
 
     page.keyboard.press("g")
+    expect(page.locator(CHIPS).first).to_be_visible()
     codes = address_codes(page)
     assert len(codes) == len(set(codes)) == 23
     assert all(code.isalpha() and code.islower() for code in codes)

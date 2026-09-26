@@ -986,7 +986,7 @@ export default {
       return new Response("not found", { status: 404 });
     }
     const manifest = await siteManifest(request, env);
-    const releasedAsset = releaseAssetRoute(pathname, manifest.pages);
+    const releasedAsset = releaseAssetRoute(pathname, manifest);
     if (releasedAsset !== null) {
       const assetUrl = new URL(request.url);
       assetUrl.pathname = releasedAsset.pathname;
@@ -1003,7 +1003,7 @@ export default {
         headers,
       });
     }
-    const route = pageRoute(pathname, manifest.pages);
+    const route = pageRoute(pathname, manifest);
     if (route === null) {
       return staticAssetResponse(await env.ASSETS.fetch(request));
     }

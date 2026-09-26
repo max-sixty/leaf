@@ -42,7 +42,7 @@ from leaf.host import SESSION_VARIABLES
 from leaf.http import scope_document_routes
 from leaf.live_shell import write_live_shell
 from leaf.media import media_name
-from leaf.schema import MEDIA_DIR
+from leaf.schema import MEDIA_DIR, PAGE_ROUTE_DIRS, VENDORED_FILES
 from leaf.structure import SourceDocument
 from page_fixtures import prepare_page, read_fixture
 
@@ -436,7 +436,12 @@ def publish_live_shells(
     assets = asset_site(out)
     shutil.rmtree(assets, ignore_errors=True)
     assets.mkdir(parents=True)
-    manifest = {"release": release, "pages": {}}
+    # The Worker routes a page's namespace from here rather than a copy of its own.
+    manifest = {
+        "release": release,
+        "routes": {"dirs": list(PAGE_ROUTE_DIRS), "files": list(VENDORED_FILES)},
+        "pages": {},
+    }
     for page_dir, page_root in published_pages(out, include_products=include_products):
         destination = assets / page_root.lstrip("/")
         key = "root" if page_root == "" else page_root.strip("/").replace("/", "--")

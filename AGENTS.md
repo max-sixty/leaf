@@ -285,23 +285,15 @@ Before finishing a feature:
   after, and add a case for the behavior it targets (`evals/README.md`).
 
 `uv run pytest tests` and `npm run test:runtime` are the everyday gate
-(`tests/AGENTS.md`). Two TypeScript trees and the JavaScript lock have gates the
-suite and pre-commit do not reach. A pull request runs them; a direct `wt merge`
-does not, so run the one a change touches before landing it that way:
-
-```sh
-# scripts/browser/
-npm ci
-npm run check:browser && npm run test:browser
-
-# worker/src/
-npm ci --prefix worker
-npm run typecheck --prefix worker
-npm test --prefix worker
-
-# package.json or package-lock.json: rebuild every bundle and commit the result
-npm ci && npm run build:browser && uv run scripts/vendor.py
-```
+(`tests/AGENTS.md`). Two TypeScript trees, `worker/src/` and `scripts/browser/`, and
+the JavaScript lock every committed bundle is built from have gates the suite and
+pre-commit do not reach. Both landing paths run all of them: a pull request in its
+`test` job, and `wt merge` in the pre-merge blocks of `.config/wt.toml`, which name
+each command. `wt hook pre-merge` runs that local gate without landing, on a committed
+tree, since the bundle check fails on any uncommitted change. The website's delivery
+checks — the site build, the Worker's dry-run deploy, and
+`scripts/verify-site-local.sh` — run on a pull request and in `publish-site` before it
+deploys, not in `wt merge`.
 
 For a change that can alter browser startup, compare base and candidate at the
 boundary it affects: served previews for a runtime change,

@@ -41,7 +41,7 @@ delivered:
   batches:
     - page: <page>
       through_seq: 2
-      conversations: []
+      threads: []
       handling:
         h1: >-
           The user asked you to run an operation the page's package defines; the
@@ -76,7 +76,7 @@ delivered:
           subject:
             kind: widget
             id: commands
-          conversations: []
+          threads: []
           says:
             commands: Restart
           handling: [h1, h2]
@@ -90,12 +90,12 @@ acknowledged at stop:
     Leaf needs attention:
     - <page>: 1 acknowledged user move with no answer (`leaf experimental receipt <page> event-2 succeeded|failed`).
 
-    Each move takes the answer named for it. Read current obligations with `leaf page state <page>` and conversation history with `leaf conversation read <page> <id>`.
+    Each move takes the answer named for it. Read current obligations with `leaf page state <page>` and thread history with `leaf thread read <page> <id>`.
 
 idle before answer:
   exit: 1
   output: |
-    1 acknowledged user move with no answer (`leaf experimental receipt <page> event-2 succeeded|failed`); answer before idling. Each move takes the answer named for it. Read current obligations with `leaf page state <page>` and conversation history with `leaf conversation read <page> <id>`.
+    1 acknowledged user move with no answer (`leaf experimental receipt <page> event-2 succeeded|failed`); answer before idling. Each move takes the answer named for it. Read current obligations with `leaf page state <page>` and thread history with `leaf thread read <page> <id>`.
 
 answer: |
   settled request event-2 as succeeded

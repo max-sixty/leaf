@@ -266,7 +266,7 @@ def test_an_option_mark_keeps_addition_and_clarification_as_separate_routes(
     mark = page.locator("#storage-evict .lf-pick")
     mark.focus()
     expect(mark).to_be_focused()
-    expect(page.locator("#storage-options > .lf-conversation")).to_have_count(0)
+    expect(page.locator("#storage-options > .lf-thread-seat")).to_have_count(0)
 
     # Enter is not navigation from a checkbox. It neither chooses the option nor enters
     # the add field; the field is an ordinary later stop in the Tab order.
@@ -290,7 +290,7 @@ def test_another_option_becomes_a_real_option_without_starting_a_thread(browser,
     """The answer the author missed joins the control as a row of its own.
 
     It is not a comment with a special response contract: the user has supplied an
-    answer, not opened a conversation. The `add` stands on its own coordinate, so a
+    answer, not opened a thread. The `add` stands on its own coordinate, so a
     later ordinary pick and a reload keep the option, and each undo takes back one
     gesture: the later pick, then the option's pick, then the option itself.
     """
@@ -298,7 +298,7 @@ def test_another_option_becomes_a_real_option_without_starting_a_thread(browser,
     page = open_page(browser, url)
     d = serve.page_dir
 
-    expect(page.locator("#jobs > .lf-conversation")).to_have_count(0)
+    expect(page.locator("#jobs > .lf-thread-seat")).to_have_count(0)
     added = page.locator("#jobs > .lf-another")
     assert added.count() == 1, (
         f"the add-option cell was not rendered: {page.lf_errors}; "
@@ -513,7 +513,7 @@ def test_an_arrival_cannot_hide_a_question_draft(browser, serve):
         },
     )
     told(page)
-    expect(page.locator("#jobs > .lf-conversation")).to_have_count(0)
+    expect(page.locator("#jobs > .lf-thread-seat")).to_have_count(0)
     expect(first).to_be_visible()
     expect(first).to_have_value(draft)
 

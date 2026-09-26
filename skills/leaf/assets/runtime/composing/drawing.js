@@ -2,7 +2,7 @@
  *
  * Draw mode claims primary-pointer drags anywhere on the page until the user leaves it.
  * Every drawing belongs to a comment draft. A semantic target under or horizontally
- * alongside a stroke's first point names its anchored draft and remains the conversation
+ * alongside a stroke's first point names its anchored draft and remains the thread
  * coordinate; a stroke with none belongs to the page draft. A stroke joins the drawing its
  * draft already holds, in that drawing's frame, so neither putting the box away nor
  * leaving Draw mode loses ink; once the draft is sent or discarded, the next stroke starts
@@ -302,9 +302,9 @@ export function createDrawingController({
   function begin(event) {
     if (!drawModeOn || !event.isPrimary || event.button !== 0) return;
     const origin = event.composedPath()[0];
-    // Inline conversations remain comment controls even when a shadow host seats them
+    // Inline threads remain comment controls even when a shadow host seats them
     // in the page, so ownership follows the composed origin.
-    if (inChrome(origin) || closestAcross(origin, ".lf-conversation")) return;
+    if (inChrome(origin) || closestAcross(origin, ".lf-thread-seat")) return;
     claimThroughClick = true;
     claimedPointer = event.pointerId;
     claim(event);

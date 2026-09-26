@@ -118,7 +118,7 @@ export function reindexPassageOwners(scope = document, source = ["page", null]) 
 //
 // A tag is asked for once per tab and the same promise answers every later caller, so
 // a version that keeps a tag, a second diff in a second reply, and a poll that sees
-// the same conversation again all cost nothing. A failed import stays rejected:
+// the same thread again all cost nothing. A failed import stays rejected:
 // startup and activation must not present markup whose required module is absent.
 const modules = new Map();
 const registryUrl = () =>

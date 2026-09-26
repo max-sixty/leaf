@@ -3,11 +3,11 @@
 import json
 
 from interact_support import fetch, published, state_json
-from leaf import conversation as conversation_model
 from leaf import event_endpoint as endpoint_model
 from leaf import event_log as event_log_model
 from leaf import files as files_model
 from leaf import service as service_model
+from leaf import thread as thread_model
 
 
 def _post(server, event):
@@ -27,7 +27,7 @@ def _unread(state, root):
     """One thread's unread reading, as the browser receives it."""
     return next(
         thread["unread"]
-        for thread in state["browser"]["conversation"]["threads"]
+        for thread in state["browser"]["thread"]["threads"]
         if thread["root"]["id"] == root
     )
 
@@ -36,7 +36,7 @@ def test_read_acknowledges_only_the_named_content_version_without_agent_work(
     page_dir, server
 ):
     published(page_dir)
-    message = conversation_model.cmd_comment(
+    message = thread_model.cmd_comment(
         page_dir, None, None, None, "First answer.", None
     )
     original = message["id"]
@@ -47,7 +47,7 @@ def test_read_acknowledges_only_the_named_content_version_without_agent_work(
     assert answer["state"]["pending"] == 0
     assert service_model.unacknowledged(event_log_model.read_events(page_dir), 0) == []
 
-    edit = conversation_model.cmd_edit(page_dir, original, "Revised answer.")
+    edit = thread_model.cmd_edit(page_dir, original, "Revised answer.")
     status, answer = _post_read(server, {"message": original, "version": original})
     assert status == 200, answer  # a delayed older acknowledgement remains valid
     assert _unread(answer["state"], original) == [
@@ -64,7 +64,7 @@ def test_what_the_user_does_in_a_thread_acknowledges_what_it_said(page_dir, serv
     thread in as it stood; an edit after the move is unread again, and the agent reads
     the same fact in page state."""
     published(page_dir)
-    root = conversation_model.cmd_comment(
+    root = thread_model.cmd_comment(
         page_dir,
         None,
         None,
@@ -89,17 +89,17 @@ def test_what_the_user_does_in_a_thread_acknowledges_what_it_said(page_dir, serv
     assert status == 200, answer
     assert _unread(answer["state"], root) == []
 
-    reply = conversation_model.cmd_reply(
+    reply = thread_model.cmd_reply(
         page_dir, None, "Mounts first, then.", None, for_event=_last_id(page_dir)
     )["id"]
-    assert state_json(page_dir)["conversations"][0]["unread"] == [reply]
+    assert state_json(page_dir)["threads"][0]["unread"] == [reply]
     status, answer = _post(
         server, {"kind": "reply", "parent": reply, "revision": 1, "text": "Thanks."}
     )
     assert status == 200, answer
     assert _unread(answer["state"], root) == []
 
-    later = conversation_model.cmd_reply(
+    later = thread_model.cmd_reply(
         page_dir, None, "Done.", None, for_event=_last_id(page_dir)
     )["id"]
     status, answer = _post(server, {"kind": "resolve", "parent": root})
@@ -113,19 +113,17 @@ def test_what_the_user_does_in_a_thread_acknowledges_what_it_said(page_dir, serv
     assert status == 200, answer
     assert _unread(answer["state"], root) == []
 
-    edit = conversation_model.cmd_edit(page_dir, later, "Done, and tested.")
-    assert state_json(page_dir)["conversations"][0]["unread"] == [later]
+    edit = thread_model.cmd_edit(page_dir, later, "Done, and tested.")
+    assert state_json(page_dir)["threads"][0]["unread"] == [later]
     status, answer = _post_read(server, {"message": later, "version": edit["id"]})
     assert status == 200, answer
-    assert state_json(page_dir)["conversations"][0]["unread"] == []
+    assert state_json(page_dir)["threads"][0]["unread"] == []
 
 
 def test_read_refuses_unknown_or_wrong_message_versions(page_dir, server):
     published(page_dir)
-    first = conversation_model.cmd_comment(
-        page_dir, None, None, None, "First answer.", None
-    )
-    second = conversation_model.cmd_comment(
+    first = thread_model.cmd_comment(page_dir, None, None, None, "First answer.", None)
+    second = thread_model.cmd_comment(
         page_dir, None, None, None, "Second answer.", None
     )
     for pair in (
@@ -142,7 +140,7 @@ def test_read_refuses_unknown_or_wrong_message_versions(page_dir, server):
 
 def test_read_does_not_nudge_a_closed_agent_turn(page_dir, monkeypatch):
     published(page_dir)
-    message = conversation_model.cmd_comment(
+    message = thread_model.cmd_comment(
         page_dir, None, None, None, "An answer to read.", None
     )
     claim_path = service_model.claim_path(page_dir)

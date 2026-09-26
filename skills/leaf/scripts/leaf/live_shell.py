@@ -4,7 +4,7 @@ Every document selects its captured registry, bootstrap, layer, and authored
 resources. Revision resource trees share the same logical URLs as HTTP delivery,
 including widget aliases resolved through implementation provenance. Mutable
 candidate inputs never participate in publishing. Content-addressed media also
-keeps its page-root address for conversation markup and website metadata.
+keeps its page-root address for thread markup and website metadata.
 """
 
 import json

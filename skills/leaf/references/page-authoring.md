@@ -351,12 +351,12 @@ The child is temporary: use an ordinary Leaf page when its history must outlive
 the specimen. A live specimen needs a server, so a page declaring one cannot be
 exported (`references/serving-pages.md`, "Exported files").
 
-To begin with conversations from the parent, set `data-specimen-threads` on the
+To begin with threads from the parent, set `data-specimen-threads` on the
 template to their space-separated root event ids. The declaration selects from the
 parent's standing log rather than requiring it: a page whose log does not hold one
 of those roots yet — a first version, or a copy made from the source alone — opens
-the specimen without that conversation. Their anchored content must exist in the
-child. Reset copies those conversations again from the parent; subsequent child
+the specimen without that thread. Their anchored content must exist in the
+child. Reset copies those threads again from the parent; subsequent child
 replies remain independent.
 
 A page module can await the element's `ready` promise to receive the child

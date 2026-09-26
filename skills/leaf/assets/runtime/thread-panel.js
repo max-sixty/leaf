@@ -1,15 +1,15 @@
 /* Open, close, and toggle the thread panel. The panel must be shown before
- * synchronous conversation reconciliation: hidden-dialog geometry is zero. Opening
+ * synchronous thread reconciliation: hidden-dialog geometry is zero. Opening
  * preserves the invoker's focus. A close by pointer hands focus to the surviving toggle
- * when focus was inside. Layout receives no surface commands, and refreshConversation is
+ * when focus was inside. Layout receives no surface commands, and refreshThread is
  * supplied by the application so this owner never imports a presenter.
  *
  * This owner declares the panel's Escape ladder. Once the user releases a selected
  * thread to the whole panel, narrowing unwinds before the panel closes. Closing the
  * panel lands the user on the document. Thread selection and release belong to
- * keyboard/page.js; leaving text entry belongs to conversation/landing.js. */
-import { inPanel as panelFocusIsInside } from "./conversation/panel-elements.js";
-import { narrowed, threadSearchActive } from "./conversation/narrowing.js";
+ * keyboard/page.js; leaving text entry belongs to thread/landing.js. */
+import { inPanel as panelFocusIsInside } from "./thread/panel-elements.js";
+import { narrowed, threadSearchActive } from "./thread/narrowing.js";
 import { letGo } from "./focus.js";
 import { pageRung } from "./keyboard/register.js";
 import { currentAuxiliarySurface } from "./auxiliary-surfaces.js";
@@ -24,7 +24,7 @@ export function createThreadPanelController({
   widen,
   activeInlineThread,
   showThread,
-  refreshConversation,
+  refreshThread,
   closeReactionMode,
   closePreview,
   syncGeneral,
@@ -61,13 +61,13 @@ export function createThreadPanelController({
     if (open) {
       // The layer before what goes in it. The panel is a dialog, and a dialog nobody has
       // shown yet is display:none, so anything rendered into it measures zero — and
-      // refreshConversation is where the anchor pass runs for the threads it draws. A mark hangs
+      // refreshThread is where the anchor pass runs for the threads it draws. A mark hangs
       // on the boxes its element shows through (shownParts), so a widget an agent sent in
       // a reply resolved to an element with no box, took no mark, and left the thread
       // still open in the panel pointing at nothing on either side.
       showPanelLayer();
       if (phase === "gesture") slide(panel, "right", "in");
-      refreshConversation();
+      refreshThread();
       syncGeneral(); // a restored draft has to reach the Send button's disabled state
     } else if (panel.open) {
       // Closed at once, with no slide out: the panel is a dialog that the thread list,

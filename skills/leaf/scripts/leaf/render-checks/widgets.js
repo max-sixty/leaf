@@ -140,22 +140,22 @@ export const undeclaredShadowRoots = (registry) => [
       .map((el) => `<${el.localName}>`),
   ),
 ];
-export const missingConversations = (declarations) =>
+export const missingThreads = (declarations) =>
   Object.entries(declarations)
-    .filter(([, entry]) => entry["x-conversation"])
+    .filter(([, entry]) => entry["x-thread-seat"])
     .flatMap(([tag, entry]) =>
       [...document.querySelectorAll(tag)]
         .filter(
           (el) =>
             !inChrome(el) &&
             !quoted(el) &&
-            matchesWhen(el, entry["x-conversation"].when),
+            matchesWhen(el, entry["x-thread-seat"].when),
         )
         .map((el) => ({
           tag,
           id: el.id,
-          hosts: [...el.querySelectorAll(".lf-conversation")].filter(
-            (host) => host.dataset.lfConversation === el.id,
+          hosts: [...el.querySelectorAll(".lf-thread-seat")].filter(
+            (host) => host.dataset.lfThreadSeat === el.id,
           ).length,
         })),
     )
@@ -215,7 +215,7 @@ export function undeclaredAttrs(declarations) {
 // the user can still see and select, and a settled slot can show its words anyway — a
 // later layer's rule outranking the default hide, a module re-showing what it folded —
 // leaving the user selecting words no comment can anchor to, with the refusal
-// arriving later, at `leaf comment`, nowhere near the mistake. So the expected outcome
+// arriving later, at `leaf thread open`, nowhere near the mistake. So the expected outcome
 // comes from the file's reading (`decisions`, folded over this version's log), never
 // from the page, and the page answers only for what it shows.
 //

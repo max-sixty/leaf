@@ -55,7 +55,7 @@ def is_reaction(event: dict) -> bool:
 
 def spoken_turns(thread: dict) -> list:
     """The thread's messages with words in them. A reaction is a mark on a
-    message rather than a turn in the conversation, so readings of who spoke
+    message rather than a turn in the thread, so readings of who spoke
     last — including the hook's unanswered Asks — walk this list rather than
     `msgs`. The panel's "waiting on you" also reads explicit reply questions and
     structural thread Asks in the browser after finding the last spoken turn."""
@@ -73,7 +73,7 @@ class UndoReading:
     The browser exposes every standing gesture in one reading, so checking each
     candidate by folding the event log again turns a linear state read into a
     quadratic one. This index computes the shared facts once: event identity,
-    withdrawals, and the reaction's conversation status. The append door uses the
+    withdrawals, and the reaction's thread status. The append door uses the
     same reading for its authoritative check, while callers that only have one
     candidate can keep using :func:`undo_error`.
 
@@ -99,7 +99,7 @@ class UndoReading:
         if threads is None:
             if within is None:
                 raise TypeError("within is required when threads are not supplied")
-            # Only reactions ask about conversation state. Keeping this fold lazy
+            # Only reactions ask about thread state. Keeping this fold lazy
             # also preserves the boundary's ability to reject a non-reaction
             # gesture without interpreting unrelated, already-validated records.
             threads = (
@@ -189,7 +189,7 @@ def undo_error(
     would orphan those words, and the user's move is in the thread that
     turn opened; once its thread is resolved, resolve being its floor, there
     is nothing left to take back. The browser offers exactly the same
-    (conversation.js `reactionStanding`).
+    (thread.js `reactionStanding`).
 
     `within` is the published page's containment, as every other fold of the
     threads takes it: a thread an action settled, and a version's `restated`
@@ -200,20 +200,20 @@ def undo_error(
 
 
 def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -> dict:
-    """Fold conversations using the admitted answer coordinate.
+    """Fold threads using the admitted answer coordinate.
 
     Answer effects survive retirement of their source widget. An unrelated action
     of another verb cannot supersede one, while an explicit answer with null
     effect replaces a closing answer without itself closing a thread. ``anchor`` is
     the thread's current page location, and ``detached_from`` retains the last real
     anchor only when an explicit null replacement leaves the thread detached.
-    A new spoken reply resumes the conversation; reactions and failure receipts
+    A new spoken reply resumes the thread; reactions and failure receipts
     leave its closure standing. A later resolution closes it again.
     """
     floors = retractions(events)
     if withdrawn is None:
         withdrawn = taken_back(events)
-    # Every action at a coordinate competes, including a non-answer. Conversation
+    # Every action at a coordinate competes, including a non-answer. Thread
     # settlement and visible state therefore read the same winning gesture.
     winners = {}
     for e in events:
@@ -252,8 +252,8 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
             if answered and winners.get(event_coordinate(e)) is e:
                 answered["resolved"] = e
             continue
-        if e["kind"] == "conversation_title":
-            if thread := threads.get(e["conversation"]):
+        if e["kind"] == "thread_title":
+            if thread := threads.get(e["thread"]):
                 thread["title"] = e["title"]
             continue
         if e["kind"] == "edit":
@@ -266,7 +266,7 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
             # have opened, under the id it was known by, which is the id an action
             # names in `resolves` and the one `thread_roots` resolves it to. A person
             # answers it by its own surviving id; the lost one names no message and
-            # `leaf reply` says so.
+            # `leaf thread reply` says so.
             # `read_events` skips a torn line and keeps reading, and `thread_roots`
             # resolves such a reply to the lost id for the same reason: a user who
             # can see the reply is owed the rest of the page around it. Raising here
@@ -297,7 +297,7 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
                 )
                 thread["anchor"] = e["anchor"]
             thread_for[e["id"]] = thread
-        # A resolve names a message rather than opening one, so a conversation the log
+        # A resolve names a message rather than opening one, so a thread the log
         # lost whole — no reply of its own survived either — leaves it nothing to close.
         elif e["kind"] == "resolve" and (thread := thread_for.get(e["parent"])):
             thread["resolved"] = e
@@ -307,7 +307,7 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
 
 
 def active_summaries(events: list, threads: dict) -> dict[str, list[dict]]:
-    """Current presentation summaries for every conversation, by conversation id.
+    """Current presentation summaries for every thread, by thread id.
 
     Summaries replace overlapping summaries whole. An edit after a summary invalidates
     it when it changes any covered message, because the stored prose no longer
@@ -318,8 +318,8 @@ def active_summaries(events: list, threads: dict) -> dict[str, list[dict]]:
     for event in events:
         if event["kind"] == "edit":
             edits[event["message"]] = event["seq"]
-        elif event["kind"] == "summary" and event["conversation"] in threads:
-            written.setdefault(event["conversation"], []).append(event)
+        elif event["kind"] == "summary" and event["thread"] in threads:
+            written.setdefault(event["thread"], []).append(event)
     return {
         thread_id: _thread_summaries(thread, written.get(thread_id, []), edits)
         for thread_id, thread in threads.items()
@@ -356,13 +356,13 @@ def _thread_summaries(thread: dict, summaries: list, edits: dict) -> list[dict]:
 
 
 def current_anchors(events: list, within: dict) -> list:
-    """The anchors live conversations still bind the page with.
+    """The anchors live threads still bind the page with.
 
     A thread's target is its latest anchor, so a thread a reply moved or detached
     binds the page at the new coordinate or at none: the log keeps the opening
     comment's words and the coordinate they were written at, and nothing resolves
     that coordinate against the page again. `detached_from` is the same fact read
-    from the thread's side. A closed conversation lets its target go on the same
+    from the thread's side. A closed thread lets its target go on the same
     terms, and so does a reaction nobody has answered — paint on the page, and no
     thread yet.
 
@@ -379,18 +379,18 @@ def current_anchors(events: list, within: dict) -> list:
 
 
 def anchored_ids(events: list, within: dict) -> set:
-    """Element ids a live conversation still points at — the section half of
+    """Element ids a live thread still points at — the section half of
     `current_anchors`, for the ids an author writes."""
     anchors = current_anchors(events, within)
     return {anchor.get("section") for anchor in anchors} - {None}
 
 
 def anchored_parts(events: list, within: dict) -> set:
-    """(section, visual part) coordinates a live conversation still points at.
+    """(section, visual part) coordinates a live thread still points at.
 
     The visual half of `current_anchors`, for the parts an authored inventory
     declares: a part is addressable markup the way an id is, and a version may
-    retire one the moment no conversation points at it."""
+    retire one the moment no thread points at it."""
     return {
         (anchor["section"], anchor["visual"])
         for anchor in current_anchors(events, within)
@@ -431,17 +431,17 @@ def awaits_agent(thread: dict) -> bool:
     unanswered word is invisible to everyone, while one answer too many costs a reply.
 
     Turns, not marks: a reaction is a mark on a message rather than a word in the
-    conversation, so an `ok` the user puts on the agent's answer does not hand the
-    thread back, and a reaction nobody has replied to is no conversation at all. The
+    thread, so an `ok` the user puts on the agent's answer does not hand the
+    thread back, and a reaction nobody has replied to is no thread at all. The
     runtime's `awaitsAgent` reads the same list for the same reason."""
     return bool(not thread["resolved"] and unanswered_agent_turn(thread))
 
 
 def seat_root(thread: dict) -> str | None:
-    """The widget whose conversation seat this thread's root stands in.
+    """The widget whose thread seat this thread's root stands in.
 
     An element anchor naming that widget and carrying nothing else, which is the
-    runtime's `seatRoot` and the anchor `renderConversations` collects into the seat's
+    runtime's `seatRoot` and the anchor `renderSeats` collects into the seat's
     own view. Narrower than `anchored_ids`, deliberately: a quote anchor points into
     the widget's words rather than standing in the box it offers, and the user can
     see the difference — one is a note on a phrase, the other is the cell.
@@ -456,9 +456,9 @@ def seat_root(thread: dict) -> str | None:
 
 
 def seats_with_agent(threads: dict) -> set[str]:
-    """Widget ids whose own seat holds a conversation now waiting on the agent.
+    """Widget ids whose own seat holds a thread now waiting on the agent.
 
-    A request whose own conversation is with the agent is not one the user has to
+    A request whose own thread is with the agent is not one the user has to
     deal with, so an Ask projection reading their list subtracts these. It is not an
     answer — the widget's state is untouched — which is why the reading that asks
     whether a request is answered passes an empty set instead. The runtime builds the

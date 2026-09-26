@@ -34,13 +34,13 @@ def browser_document(
 def browser_undo_candidates(
     events: list,
     document_projection: StateProjection,
-    conversation_projection: StateProjection,
+    thread_projection: StateProjection,
     *,
     undo_reading: UndoReading,
 ) -> list[dict]:
     classified = {
         **document_projection.classified,
-        **conversation_projection.classified,
+        **thread_projection.classified,
     }
     candidates = []
     withdrawn = undo_reading.withdrawn

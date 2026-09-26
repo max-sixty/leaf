@@ -1,7 +1,7 @@
 /* Anchor and projected-datum travel.
  *
  * Travel owns effects above readonly resolution and paint. It receives the current
- * semantic threads and the synchronous conversation refresh from the application root;
+ * semantic threads and the synchronous thread refresh from the application root;
  * subordinate geometry never imports the presenter. A trip keeps its original user
  * intent through hydration, reveal and presentation. Newer input or another trip
  * cancels its landing without cancelling the data the page is loading. Every trip, to a
@@ -41,7 +41,7 @@ export function createAnchorTravel({
   anchors,
   surfaces,
   currentThreads,
-  refreshConversation,
+  refreshThread,
   announce,
 }) {
   let travelIntent = 0;
@@ -59,7 +59,7 @@ export function createAnchorTravel({
   // next trip pushes again. A journey is not a walk (the glossary's ordered movement
   // among one kind of destination): steps of a thread walk and of an Ask walk, or a
   // press on a margin marker, can all be trips of one journey. The landing is a lookup
-  // rather than a node because the conversation pass repaints marks, and the entry
+  // rather than a node because the thread pass repaints marks, and the entry
   // carries a token for this document's journey because only this load holds the
   // lookup.
   const journeyPrefix = `${performance.timeOrigin}:`;
@@ -327,7 +327,7 @@ export function createAnchorTravel({
       const hydration = anchor.datum && source?.lfRevealDatum?.(anchor.datum);
       if (hydration?.then) await hydration;
       if (!mayArrive() || sectionOf(anchor) !== source) return false;
-      await refreshConversation();
+      await refreshThread();
       if (!mayArrive()) return false;
     }
 
@@ -338,10 +338,10 @@ export function createAnchorTravel({
     await reveal(holder, mayArrive);
     if (!mayArrive()) return false;
     // The marks, the placement and the widget outlet this arrival lands in are all
-    // written by the conversation pass. Wait for it: a claim is synchronous but its
+    // written by the thread pass. Wait for it: a claim is synchronous but its
     // paint is not, so reading the destination in this turn would find the page as the
     // press left it.
-    await refreshConversation();
+    await refreshThread();
     if (!mayArrive()) return false;
     where = threadDestination(id);
     if (!where) return false;

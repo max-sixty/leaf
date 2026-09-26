@@ -22,13 +22,13 @@ def comment_ids(events: list[dict]) -> set[str]:
 def specimen_events(
     document: SourceDocument, events: list[dict], selected: set[str]
 ) -> list[dict]:
-    """Copy the selected conversation closures the log holds into a child's log.
+    """Copy the selected thread closures the log holds into a child's log.
 
     The selection is authored markup naming records the log owns, and the document
-    is what starts a page: one served before any conversation stands in it — a first
+    is what starts a page: one served before any thread stands in it — a first
     version, or a page re-created from its source without the log it shipped beside
     — opens its specimens the same as any other. So a root the log does not hold
-    reads here as absent and the child begins without that conversation, rather than
+    reads here as absent and the child begins without that thread, rather than
     the template's declaration deciding whether the page works at all.
 
     That leaves a mistyped id to the one reader who can tell it from a page that has
@@ -54,7 +54,7 @@ def thread_roots(events: list) -> dict:
     """Message id → the id of the comment that opened its thread.
 
     Two readings of the panel's own document resolve a reply to its root, and they
-    must answer alike: an Ask and a question naming different conversations for one
+    must answer alike: an Ask and a question naming different threads for one
     message is a disagreement no reader could account for. (`build_threads` walks the
     same relation to a different end — the thread object itself, with its resolution —
     so it keeps its own walk, and answers the same way where the log is torn.)
@@ -90,7 +90,7 @@ def thread_structure(events: list) -> ThreadStructure:
 
 
 def thread_widgets(structure: ThreadStructure, roots: dict) -> dict:
-    """Widget id → the conversation whose frozen markup holds it.
+    """Widget id → the thread whose frozen markup holds it.
 
     The relation on its own, apart from `frozen_thread_reading`, which carries it
     alongside the records and words a vocabulary supplies. A caller needing only
@@ -106,23 +106,23 @@ def thread_widgets(structure: ThreadStructure, roots: dict) -> dict:
 
 
 def event_threads(event: dict, roots: dict, widgets: dict) -> list:
-    """The conversations one event belongs to — empty for news about the page.
+    """The threads one event belongs to — empty for news about the page.
 
     Every kind that belongs to a thread names it differently, and none of them
     names it outright: a message through the message it answers, a resolve
     through any message in the thread, an action two ways at once. One reading
     of that relation, so a delivery and a projection cannot put the same event
-    in different conversations.
+    in different threads.
 
-    An action or request on a sent widget belongs to the conversation that supplied
-    its frozen contract. An action also belongs to the conversation it settles,
+    An action or request on a sent widget belongs to the thread that supplied
+    its frozen contract. An action also belongs to the thread it settles,
     which admitted `meaning.answer` names — the same key `build_threads` folds on to close
     one. Those are usually different threads and often only the second exists: the
     shipped settling verb is `lf-suggestion`'s decide, whose widget stands on the
-    page and in no conversation at all. Reading the widget alone left the gesture
+    page and in no thread at all. Reading the widget alone left the gesture
     that closes a thread as the one gesture arriving with nothing behind it.
 
-    A `report` carries a widget too and belongs to no conversation: `cmd_report`
+    A `report` carries a widget too and belongs to no thread: `cmd_report`
     validates its target against the active revision's own elements, so one
     can never name a widget an agent sent."""
     kind = event["kind"]
@@ -130,8 +130,8 @@ def event_threads(event: dict, roots: dict, widgets: dict) -> list:
         named = [roots.get(event["id"])]
     elif kind == "edit":
         named = [roots.get(event["message"])]
-    elif kind in {"summary", "conversation_title"}:
-        named = [event["conversation"]]
+    elif kind in {"summary", "thread_title"}:
+        named = [event["thread"]]
     elif kind in {"resolve", "unresolve"}:
         parent = event["parent"]
         named = [roots.get(parent) or (parent if parent in roots.values() else None)]
@@ -148,9 +148,9 @@ def event_threads(event: dict, roots: dict, widgets: dict) -> list:
 def thread_memberships(
     events: list, roots: dict, widgets: dict, within: dict
 ) -> dict[str, list[str]]:
-    """Event id → every conversation whose history that event changes.
+    """Event id → every thread whose history that event changes.
 
-    Leaf owns the relation because each event kind names its conversation in a
+    Leaf owns the relation because each event kind names its thread in a
     different way. Some name none directly: a later action on one widget
     supersedes its earlier answer, an undo inherits the gesture's membership, and
     a version note can retract what an answer rested on.
@@ -212,14 +212,14 @@ MESSAGE_FIELDS = (
     "edited",
 )
 
-# How much of one conversation a wait digest carries: the message that opened it,
+# How much of one thread a wait digest carries: the message that opened it,
 # because it holds the question the thread is about, and the most recent, being
-# what a new one answers. `leaf events --conversation` selects the exchange whole when
+# what a new one answers. `leaf events --thread` selects the exchange whole when
 # a reader needs the middle.
 #
 # The bound is the point. A delivery reprints the entire thread every time,
 # because the agent it is for may hold none of it — so unbounded, the header
-# grows with the conversation until it alone outgrows the output it prints
+# grows with the thread until it alone outgrows the output it prints
 # into. That is the one shape acknowledgement cannot recover from: the ack rule
 # says to rerun with more capacity, and a rerun prints the same oversize header,
 # so nothing can ever be acked and the wait repeats forever.
@@ -249,14 +249,14 @@ def ends_kept(items: list, pin: frozenset = frozenset()) -> list:
 def thread_digest(
     thread: dict, omit: frozenset = frozenset(), pin: frozenset = frozenset()
 ) -> dict:
-    """One conversation as a reader away from the panel needs it: its current page
+    """One thread as a reader away from the panel needs it: its current page
     location or prior anchor when detached, who closed it, and what was said.
 
     `omit` drops messages by log sequence, which is how a delivery carries the
     exchange its own events land in without printing them twice. `pin` keeps a
     message the bound would otherwise drop. `elided` says how many went, so a
-    reader can tell a short conversation from a shortened one and knows to
-    read the exact records with `leaf events --conversation`."""
+    reader can tell a short thread from a shortened one and knows to
+    read the exact records with `leaf events --thread`."""
     kept = [m for m in thread["msgs"] if m["seq"] not in omit]
     shown = ends_kept(kept, pin)
     return {
@@ -275,20 +275,20 @@ def thread_digest(
 
 
 def batch_threads(events: list, batch: list, within: dict) -> list:
-    """The conversations a delivered batch lands in, with what was said before it.
+    """The threads a delivered batch lands in, with what was said before it.
 
-    Every named conversation carries its current metadata, even when the batch
+    Every named thread carries its current metadata, even when the batch
     contains all of its messages. An event alone does not carry its title.
     A reply names the message it
     answers, an action its widget and whatever it settles, an undo an event.
     Those ids are the session's own memory of the exchange, and a session that
     has compacted, or one picking the page up, no longer holds it — so the news
     arrives with nothing behind it and the reply goes out against half a
-    conversation. The envelope carries the rest, once per thread however many of
+    thread. The envelope carries the rest, once per thread however many of
     its events the batch holds, and leaves out the batch's own messages because
     they follow on the next lines.
 
-    A widget an agent sent is part of the conversation too, so `actions` carries
+    A widget an agent sent is part of the thread too, so `actions` carries
     what the user did to one: without it the question reaches the agent and
     the answer does not, and the reply reopens something already settled.
     `page state` gets none of these, because it folds them into its own `state`

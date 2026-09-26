@@ -25,7 +25,7 @@ export {
   addressableWord,
 } from "./anchor-resolution.js";
 // The name Threads, the margin, and reactions give a comment's anchor.
-export { anchorLabel } from "./conversation/messages.js";
+export { anchorLabel } from "./thread/messages.js";
 // The page's `main`, or the body of the message whose markup a node stands in.
 export { authoredScope } from "./passages.js";
 export { navigateToDatum } from "./application.js";
@@ -46,11 +46,11 @@ export { inUi, uiInside, upFrom } from "./shadow.js";
 export { focusDestination } from "./focus.js";
 export { openAsks, watchAsks } from "./application.js";
 export { registerVisualParts } from "./visual-parts.js";
-export { conversationBox, consumeThreads } from "./application.js";
-export { readThreads } from "./conversation/state.js";
-export { turns as threadTurns, threadSummary } from "./conversation/model.js";
-export { conversationInput } from "./conversation/landing.js";
-export { landInConversation, openThread } from "./application.js";
+export { threadBox, consumeThreads } from "./application.js";
+export { readThreads } from "./thread/state.js";
+export { turns as threadTurns, threadSummary } from "./thread/model.js";
+export { threadInput } from "./thread/landing.js";
+export { landInThread, openThread } from "./application.js";
 export { wireInput } from "./application.js";
 export { DISCLOSE } from "./keyboard/disclosure.js";
 export {

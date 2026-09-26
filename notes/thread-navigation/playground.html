@@ -235,7 +235,7 @@
           title: "Workspace performance",
           state: "Running job",
           messages: [
-            ["You", "Try a workspace with twelve active conversations."],
+            ["You", "Try a workspace with twelve active threads."],
             [
               "Agent",
               "The small-workspace run is complete. I have started the crowded-workspace run; it includes long messages and pending replies.",
@@ -253,7 +253,7 @@
             ["Agent", "The first cohort has finished its observation window."],
             ["You", "Were there any reconnect failures?"],
             ["Agent", "Two, both recovered automatically. Neither lost a draft."],
-            ["You", "Does that include a workspace with a long conversation?"],
+            ["You", "Does that include a workspace with a long thread?"],
             [
               "Agent",
               "Yes. The longest had sixteen messages, including an unfinished reply.",
@@ -277,7 +277,7 @@
             ["You", "Lead with the visible improvement."],
             [
               "Agent",
-              "I am working on an opening that explains how conversations stay manageable as the document grows.",
+              "I am working on an opening that explains how threads stay manageable as the document grows.",
             ],
           ],
         },
@@ -366,8 +366,8 @@
           #messages(index) {
             return [...topics[index].messages, ...(this.#sent[index] ?? [])];
           }
-          #conversation(index) {
-            return `<section class="sketch-thread" id="sketch-conversation-${index}" aria-label="${topics[index].title} conversation">${this.#messages(
+          #thread(index) {
+            return `<section class="sketch-thread" id="sketch-thread-${index}" aria-label="${topics[index].title} thread">${this.#messages(
               index,
             )
               .map(
@@ -382,7 +382,7 @@
             this.innerHTML = `<div class="sketch-stage"><div class="sketch-layout" data-density="${this.#density}" data-width="${this.#width}"><div class="sketch-shelf"><div class="sketch-heading">Threads <span>3 need you · 2 waiting</span></div>${topics
               .map((topic, index) => {
                 const open = index === this.#selected;
-                return `<article class="sketch-row" data-open="${open}"><button class="sketch-spine" type="button" data-thread="${index}" aria-expanded="${open}" ${open ? `aria-controls="sketch-conversation-${index}"` : ""} title="${topic.title}"><svg class="sketch-chevron" viewBox="0 0 12 12" aria-hidden="true"><path d="m4.5 2.5 3.5 3.5-3.5 3.5" fill="none" stroke="currentColor" stroke-width="1.3"/></svg><span class="sketch-title">${topic.title}</span>${!open && this.#drafts[index]?.trim() ? '<span class="sketch-draft">Draft</span>' : ""}<span class="sketch-count" aria-label="${this.#messages(index).length} messages">${this.#messages(index).length}</span><span class="sketch-state" data-attention="${topic.state === "Needs you"}">${topic.state}</span></button>${open ? this.#conversation(index) : ""}</article>`;
+                return `<article class="sketch-row" data-open="${open}"><button class="sketch-spine" type="button" data-thread="${index}" aria-expanded="${open}" ${open ? `aria-controls="sketch-thread-${index}"` : ""} title="${topic.title}"><svg class="sketch-chevron" viewBox="0 0 12 12" aria-hidden="true"><path d="m4.5 2.5 3.5 3.5-3.5 3.5" fill="none" stroke="currentColor" stroke-width="1.3"/></svg><span class="sketch-title">${topic.title}</span>${!open && this.#drafts[index]?.trim() ? '<span class="sketch-draft">Draft</span>' : ""}<span class="sketch-count" aria-label="${this.#messages(index).length} messages">${this.#messages(index).length}</span><span class="sketch-state" data-attention="${topic.state === "Needs you"}">${topic.state}</span></button>${open ? this.#thread(index) : ""}</article>`;
               })
               .join("")}</div></div></div>`;
             const textarea = this.querySelector("textarea");
@@ -565,7 +565,7 @@
                 <td>Messages, thread rows, margin</td>
               </tr>
               <tr>
-                <td>Conversation attention</td>
+                <td>Thread attention</td>
                 <td>Who owes an answer? Is the discussion resolved?</td>
                 <td>Thread filters and rows, Asks</td>
               </tr>
@@ -601,10 +601,10 @@
         <section id="summary-checkpoints">
           <h2>Expandable thread summaries</h2>
           <p>
-            Summaries now read as part of the conversation: no filled background or
-            accent stripe, a quiet sentence-case label, and italic prose aligned with
-            the messages. The italics distinguish the agent's retrospective account from
-            the original exchange. The summary stays visible; Show messages reveals its
+            Summaries now read as part of the thread: no filled background or accent
+            stripe, a quiet sentence-case label, and italic prose aligned with the
+            messages. The italics distinguish the agent's retrospective account from the
+            original exchange. The summary stays visible; Show messages reveals its
             sources. This applies the less prominent disclosure treatment described by
             <a href="https://design-system.service.gov.uk/components/details/"
               >GOV.UK</a
@@ -615,7 +615,7 @@
             >.
           </p>
           <p>
-            When a conversation grows long, Leaf suggests summarization in the context
+            When a thread grows long, Leaf suggests summarization in the context
             delivered to its agent. The agent chooses a contiguous range and writes a
             short summary; the original messages remain available underneath it.
           </p>
@@ -638,9 +638,9 @@
         <section id="summary-comparison">
           <h2>Keep the current exchange in view</h2>
           <p>
-            The same conversation before and after summarization: seven older messages
-            become one checkpoint, leaving the latest question and reply field visible.
-            The originals remain available through Show messages.
+            The same thread before and after summarization: seven older messages become
+            one checkpoint, leaving the latest question and reply field visible. The
+            originals remain available through Show messages.
           </p>
           <lf-shot
             id="summary-before-after"
@@ -652,21 +652,21 @@
         <section id="implementation-status">
           <h2>Try the real Threads panel</h2>
           <p>
-            One conversation expands at a time. The reply field spans the conversation’s
-            width. Author, time, and delivery status share the row above each message.
+            One thread expands at a time. The reply field spans the thread’s width.
+            Author, time, and delivery status share the row above each message.
             Unfinished drafts survive switching threads. Search, filters, and links to
             individual messages reveal their target.
           </p>
           <p>
             Use Enter or Space on a title to expand it; arrow keys and Home/End move
             between titles. Use t / Shift+t to walk threads, c to reply, and
-            Cmd/Ctrl+Enter to send. Click the open title to collapse its conversation;
-            Escape leaves an inner reply or narrowing interaction first, then closes the
+            Cmd/Ctrl+Enter to send. Click the open title to collapse its thread; Escape
+            leaves an inner reply or narrowing interaction first, then closes the
             Threads panel.
           </p>
           <p>
             Sending and Sent share the metadata row so confirmation does not shift the
-            conversation. The local review also checks that collapsed titles retain user
+            thread. The local review also checks that collapsed titles retain user
             obligations and ongoing agent work. The richer activity ontology remains
             separate work.
           </p>
@@ -686,7 +686,7 @@
           ></lf-shot>
         </section>
         <section id="runtime-comparison">
-          <h2>The same eleven conversations</h2>
+          <h2>The same eleven threads</h2>
           <p>
             Opening Threads previously filled the panel with the first two discussions.
             The compact accordion fits all eleven titles in the same viewport, then
@@ -700,7 +700,7 @@
           ></lf-shot>
         </section>
         <section id="spacing-comparison">
-          <h2>One conversation, one inset</h2>
+          <h2>One thread, one inset</h2>
           <p>
             The full-width composer removes the empty gutter. Author and time move above
             the message, giving prose the full reading width. Message spacing separates
@@ -723,10 +723,10 @@
         <section id="design-direction">
           <h2>Keep the structure, remove the repetition</h2>
           <p>
-            The title and message count remain compact. An open conversation uses one
-            shared inset for its quote, messages, and reply field. Author and time form
-            a small header instead of consuming a separate column. A Draft marker
-            preserves unfinished work; the title and Escape collapse an open thread.
+            The title and message count remain compact. An open thread uses one shared
+            inset for its quote, messages, and reply field. Author and time form a small
+            header instead of consuming a separate column. A Draft marker preserves
+            unfinished work; the title and Escape collapse an open thread.
           </p>
           <p>
             <a href="https://carbondesignsystem.com/components/accordion/style/"
@@ -799,7 +799,7 @@
         <section id="performance">
           <h2>Measure the crowded workspace</h2>
           <p id="performance-proposal">
-            Performance checks include a workspace with twelve active conversations.
+            Performance checks include a workspace with twelve active threads.
           </p>
           <p>
             Decisions belong here as they settle; the discussions retain the questions

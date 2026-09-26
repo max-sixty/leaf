@@ -351,7 +351,7 @@ def reference_errors(lf_elements: list, registry: dict, ids: set, by_id: dict) -
 
 
 def addressable_instance_errors(lf_elements: list, registry: dict) -> list:
-    """Conditional Asks and conversation seats need an id when they are live.
+    """Conditional Asks and thread seats need an id when they are live.
 
     Requiring every instance globally would outlaw inert option groups; checking the
     declared predicate here gives the runtime exactly the addressability it consumes.
@@ -359,7 +359,7 @@ def addressable_instance_errors(lf_elements: list, registry: dict) -> list:
     errors = []
     for rec in lf_elements:
         entry = registry.get(rec["tag"], {})
-        for role in ("x-awaits", "x-conversation"):
+        for role in ("x-awaits", "x-thread-seat"):
             declaration = entry.get(role)
             if (
                 declaration is not None

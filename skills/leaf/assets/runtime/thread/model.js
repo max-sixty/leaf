@@ -1,10 +1,10 @@
-/* Pure conversation structure and turn-taking projected by the server.
+/* Pure thread structure and turn-taking projected by the server.
 
    This reads projected threads by `isReaction`, `spoken`, `turns`, and `bareReaction`,
-   the names `events.py` reads them by. The panel lists `conversational` threads only;
+   the names `events.py` reads them by. The panel lists `discussed` threads only;
    a card shows its turns and its root, so a
    thread that grew out of a reaction opens on the mark, whose body
-   conversation/messages.js writes as the glyph and its word. Whose turn a thread is
+   thread/messages.js writes as the glyph and its word. Whose turn a thread is
    (`awaitsUser`, `awaitsAgent`) is read from the complete browser Thread: user
    attention is canonical, while agent work can remain concurrent with it. */
 import { sameAnchor } from "../anchor-coordinate.js";
@@ -18,14 +18,14 @@ export const turns = (thread) =>
     (message) => message.id === thread.root.id || !isReaction(message),
   );
 // The name for a thread that the log's answer does not change: the user's own attempt
-// where their gesture opened the conversation, else the id the log gave it. Anything
+// where their gesture opened the thread, else the id the log gave it. Anything
 // that has to outlive that transition with the user standing in it — a reply draft, a
 // margin row — keys itself by this rather than by the id, which changes when the log
 // answers.
 export const threadKey = (thread) => thread.root.attempt ?? thread.root.id;
 
 export const bareReaction = (thread) => thread.bare_reaction;
-export const conversational = (thread) => !bareReaction(thread);
+export const discussed = (thread) => !bareReaction(thread);
 // Which widget's seat a pending thread stands in, by the rule `seat_root` reads the log
 // by: an element anchor naming that widget and carrying nothing else. Spelled again here
 // because the server has not seen this message yet, and a thread that seated itself
@@ -42,7 +42,7 @@ const pendingSeat = (message) =>
 //
 // The derived facts a pending thread carries are the ones the user just made true: the
 // agent owes the next word, the user owes none, and a thread the user opened with
-// words is a conversation rather than a mark. Its attention waits on the newest send,
+// words is a thread rather than a mark. Its attention waits on the newest send,
 // whose local workflow shares the pending message's id; every other thread keeps the
 // attention the server derived.
 const sending = (message) => ({
@@ -55,7 +55,7 @@ export function foldThreads(threads, messages, reactions, settlements) {
   if (!messages.length && !reactions.length && !settlements.length) return threads;
   // A thread the user opened answers to two names for as long as this tab holds a
   // reply written against the first: the one this page gave it, and the one the log
-  // gave back. Both reach the one conversation, so a reply written into the card a
+  // gave back. Both reach the one thread, so a reply written into the card a
   // send had just drawn stays in it when the answer arrives.
   const byName = new Map();
   const copies = threads.map((thread) => {
@@ -136,7 +136,7 @@ export const awaitsUser = (thread) =>
 export const seatRoot = (thread) => thread.seat;
 
 // When a message last moved: its latest edit, else its own arrival. Every ordering that
-// asks what is newest in a conversation — Recent, the first unread, news — reads this,
+// asks what is newest in a thread — Recent, the first unread, news — reads this,
 // so an agent message edited today is today's in all of them. A message still being
 // sent carries the clock the user's gesture gave it and no log position yet.
 export const moved = (message) => ({
@@ -163,7 +163,7 @@ export const threadSummary = (thread) => ({
 
 const versionKey = ({ message, version }) => `${message}\u0000${version}`;
 
-/* Public conversation values. The publisher calls this after folding local gestures
+/* Public thread values. The publisher calls this after folding local gestures
    and admitted obligations. Authored source stays with its prepared document; only
    captured words, registry identities and current unit state cross this boundary.
 
@@ -267,7 +267,7 @@ export function readThreadRecords(
     );
     const threadWorkflows = workflows.filter(
       (workflow) =>
-        (workflow.subject.kind === "conversation" &&
+        (workflow.subject.kind === "thread" &&
           workflow.subject.id === thread.root.id) ||
         (workflow.subject.kind === "widget" && widgetIds.has(workflow.subject.id)),
     );

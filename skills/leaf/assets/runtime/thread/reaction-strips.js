@@ -1,4 +1,4 @@
-/* Conversation reaction projection and its synchronous Lit owner. The controller
+/* Thread reaction projection and its synchronous Lit owner. The controller
    registers template-owned controls and owns only disclosure, keyboard and focus. */
 import { html, render, repeat } from "../../vendor/browser-runtime.js";
 import { registry } from "../registry.js";

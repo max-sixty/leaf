@@ -32,17 +32,17 @@ import {
 import { projectionDeferred } from "./projection/state.js";
 import { createProjectionCommands } from "./projection/commands.js";
 import { createDataProjection } from "./projection/data.js";
-import { createConversationPresentation } from "./conversation/presentation.js";
-import { createReadTracking } from "./conversation/read.js";
-import { renderMarginThread } from "./conversation/inline.js";
-import { conversationBox as buildConversationBox } from "./conversation/box.js";
-import { messageText } from "./conversation/messages.js";
-import { isConversationEvent } from "./pending/model.js";
+import { createThreadPresentation } from "./thread/presentation.js";
+import { createReadTracking } from "./thread/read.js";
+import { renderMarginThread } from "./thread/inline.js";
+import { threadBox as buildThreadBox } from "./thread/box.js";
+import { messageText } from "./thread/messages.js";
+import { isThreadEvent } from "./pending/model.js";
 import {
   focusSurface,
   consumeThreads as registerConsumer,
   renderSurfaces,
-} from "./conversation/surfaces.js";
+} from "./thread/surfaces.js";
 import { createStateApplication } from "./state-application.js";
 import { beginRead as beginStateRead, createStateFeed } from "./state-feed.js";
 import { createProjectionUpdates } from "./updates.js";
@@ -62,7 +62,7 @@ export function mountApplication(dependencies) {
       applicationState.enqueue(
         event,
         saidNow(),
-        isConversationEvent(event) ? messageText(event) : undefined,
+        isThreadEvent(event) ? messageText(event) : undefined,
       ),
   });
   const hasPending = () => ledger.snapshot().length > 0;
@@ -72,7 +72,7 @@ export function mountApplication(dependencies) {
     targetChooserOpen: dependencies.targetChooserOpen,
     pageComposerDrawing: dependencies.pageComposerDrawing,
   });
-  let conversation;
+  let threadPresenter;
   let stateApplication;
   let queuedInvalidation = false;
 
@@ -80,8 +80,7 @@ export function mountApplication(dependencies) {
 
   const currentReceipts = () => readApplication().authoritative?.browser.receipts ?? [];
   const pendingApprovals = () => readApplication().effective.pendingApprovals;
-  const acceptedApprovals = () =>
-    readApplication().effective.conversation.collection.done;
+  const acceptedApprovals = () => readApplication().effective.thread.collection.done;
   const pendingRequests = () => readApplication().effective.pendingRequests;
   const openAsks = readOpenAsks;
   const unansweredAsks = readUnansweredAsks;
@@ -113,7 +112,7 @@ export function mountApplication(dependencies) {
         ),
       ]),
       whenApplicationRegionsPresented(
-        ["projection:chrome", "conversation", "asks"],
+        ["projection:chrome", "thread", "asks"],
         stillCurrent,
       ),
     ]);
@@ -122,7 +121,7 @@ export function mountApplication(dependencies) {
     const released = releasableEntries().filter((entry) =>
       attempts.has(entry.event.attempt),
     );
-    // Widget updates and the conversation, projection, and Ask owners have now committed
+    // Widget updates and the thread, projection, and Ask owners have now committed
     // this surviving semantic reading. Paint its command surface while the same pending
     // records still stand; removing an accounted record is then a semantic no-op.
     if (released.length) paintKeys();
@@ -170,12 +169,12 @@ export function mountApplication(dependencies) {
   const dataProjection = createDataProjection({ invalidateDom });
 
   let delivery;
-  const presentConversation = () => conversation.present();
-  // A mechanical repaint — a draft, a hover, a narrowing — owes only the conversation.
+  const presentThread = () => threadPresenter.present();
+  // A mechanical repaint — a draft, a hover, a narrowing — owes only the threads.
   // The presentation coordinator has already reported any paint that failed, once, for
   // the region that owns it; this observes the rejection rather than accounting for the
   // same fault a second time.
-  const refreshConversation = () => presentConversation().catch(() => undefined);
+  const refreshThread = () => presentThread().catch(() => undefined);
 
   function startPost(event) {
     const entry = ledger.enqueue(event);
@@ -184,7 +183,7 @@ export function mountApplication(dependencies) {
       return null;
     }
     let presentationError = null;
-    let conversationPresentation = Promise.resolve();
+    let threadPresentation = Promise.resolve();
     try {
       pendingTraffic(readApplication().effective.delivery);
       projection.stageOptimistic(entry);
@@ -197,7 +196,7 @@ export function mountApplication(dependencies) {
       // The presentation coordinator reports a failed paint once, for the region that
       // owns it. Observe the pass here so this gesture's own promise carries no
       // unhandled rejection and no second account of one fault.
-      conversationPresentation = presentDocument().catch(() => undefined);
+      threadPresentation = presentDocument().catch(() => undefined);
     } catch (error) {
       presentationError = error;
     } finally {
@@ -220,7 +219,7 @@ export function mountApplication(dependencies) {
       console.error("leaf: optimistic presentation", presentationError);
     return Object.freeze({
       answer: entry.answer,
-      presentation: conversationPresentation,
+      presentation: threadPresentation,
     });
   }
 
@@ -355,7 +354,7 @@ export function mountApplication(dependencies) {
     reaction: reactionView,
     read,
     showThread: dependencies.showThread,
-    landInConversation: dependencies.landInConversation,
+    landInThread: dependencies.landInThread,
   };
   const cardView = {
     reply: replyView,
@@ -381,9 +380,9 @@ export function mountApplication(dependencies) {
     panelIsOpen: dependencies.panelIsOpen,
     scrollToElement: dependencies.anchorTravel.scrollToElement,
     setThreadCounts: dependencies.setThreadCounts,
-    onListChanged: dependencies.onConversationChanged,
+    onListChanged: dependencies.onThreadChanged,
     refreshAnchorHover: dependencies.anchorPaint.refreshHover,
-    repaintConversation: refreshConversation,
+    repaintThread: refreshThread,
   };
   const surfaceView = {
     ...inlineView,
@@ -404,7 +403,7 @@ export function mountApplication(dependencies) {
     pageMapDialogContains: dependencies.margin.pageMapDialogContains,
     renderPageMapDialog: dependencies.margin.renderPageMapDialog,
     openAsks,
-    revealConversation: dependencies.margin.revealConversation,
+    scrollThreadIntoView: dependencies.margin.scrollThreadIntoView,
     goToAsk: dependencies.margin.goToAsk,
     renderMarginThread: (host, thread, controls) =>
       renderMarginThread(host, thread, inlineView, controls),
@@ -414,8 +413,8 @@ export function mountApplication(dependencies) {
     scrollToThread: dependencies.anchorTravel.scrollToThread,
   });
 
-  conversation = createConversationPresentation({
-    available: dependencies.conversationAvailable ?? true,
+  threadPresenter = createThreadPresentation({
+    available: dependencies.threadAvailable ?? true,
     listView,
     inlineView,
     surfaceView,
@@ -423,7 +422,7 @@ export function mountApplication(dependencies) {
     anchorControls: dependencies.anchorControls,
     drawingPaint: dependencies.drawingPaint,
     pageGeometry: dependencies.pageGeometry,
-    readDraft: dependencies.readConversationDraft,
+    readDraft: dependencies.readThreadDraft,
     activeActionAnchor: dependencies.activeActionAnchor,
     renderMargin: margin.renderMargin,
     renderSurfaces,
@@ -501,8 +500,8 @@ export function mountApplication(dependencies) {
     receiveState,
   });
 
-  const conversationBox = (owner, hint) =>
-    buildConversationBox(owner, hint, {
+  const threadBox = (owner, hint) =>
+    buildThreadBox(owner, hint, {
       createComment,
       onDraftChanged: invalidateDom,
       wireInput: dependencies.wireInput,
@@ -520,17 +519,17 @@ export function mountApplication(dependencies) {
     ...engagement,
     approvalBlockingAsks,
     beginRead: beginStateRead,
-    conversationBox,
+    threadBox,
     createComment,
     createPageComment: createComment,
     createReply,
     dispatchWidget,
     hasPending,
     invalidateDom,
-    landInConversation: dependencies.landInConversation,
+    landInThread: dependencies.landInThread,
     margin,
     read,
-    mountConversation: conversation.mount,
+    mountThread: threadPresenter.mount,
     mountRead: read.mount,
     navigateToDatum: dependencies.anchorTravel.navigateToDatum,
     openAsks,
@@ -542,8 +541,8 @@ export function mountApplication(dependencies) {
     projectData: dataProjection.projectData,
     readAndApply: feed.readAndApply,
     receiveState,
-    refreshConversation,
-    presentConversation,
+    refreshThread,
+    presentThread,
     consumeThreads,
     forgetAuthoredOwners: projection.forgetAuthoredOwners,
     retireProjectionCoverage: projection.retireProjectionCoverage,
@@ -558,17 +557,17 @@ export function mountApplication(dependencies) {
 
 export const approvalBlockingAsks = (...args) => app().approvalBlockingAsks(...args);
 export const beginRead = (...args) => app().beginRead(...args);
-export const conversationBox = (...args) => app().conversationBox(...args);
+export const threadBox = (...args) => app().threadBox(...args);
 export const createComment = (...args) => app().createComment(...args);
 export const createReply = (...args) => app().createReply(...args);
 export const dispatchWidget = (...args) => app().dispatchWidget(...args);
 export const hasPending = (...args) => app().hasPending(...args);
 export const invalidateDom = (...args) => app().invalidateDom(...args);
-export const landInConversation = (...args) => app().landInConversation(...args);
+export const landInThread = (...args) => app().landInThread(...args);
 export const midComposition = (...args) => app().midComposition(...args);
 export const navigateToDatum = (...args) => app().navigateToDatum(...args);
 export const openAsks = (...args) => app().openAsks(...args);
-// The one route to a conversation by its root id: the thread's inline destination while
+// The one route to a thread by its root id: the thread's inline destination while
 // it has one, Threads otherwise, the same choice a mark and t/T make.
 export const openThread = (...args) => app().margin.openPageThread(...args);
 export const unansweredAsks = (...args) => app().unansweredAsks(...args);
@@ -579,7 +578,7 @@ export const post = (...args) => app().post(...args);
 export const projectData = (...args) => app().projectData(...args);
 export const readAndApply = (...args) => app().readAndApply(...args);
 export const receiveState = (...args) => app().receiveState(...args);
-export const refreshConversation = (...args) => app().refreshConversation(...args);
+export const refreshThread = (...args) => app().refreshThread(...args);
 export const consumeThreads = (...args) => app().consumeThreads(...args);
 export const shallowSigs = (...args) => app().shallowSigs(...args);
 export const startFeed = (...args) => app().startFeed(...args);

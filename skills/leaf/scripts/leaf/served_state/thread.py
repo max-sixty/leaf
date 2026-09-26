@@ -1,4 +1,4 @@
-"""Conversation-scoped browser projection."""
+"""Thread-scoped browser projection."""
 
 from ..asks import local_ask_entry, thread_ask_readings
 from ..events import (
@@ -84,7 +84,7 @@ def _answers_live_reply(event: dict, live_reply: dict) -> bool:
     )
 
 
-def browser_conversation(
+def browser_thread(
     events: list,
     registry: dict,
     threads: dict,
@@ -109,7 +109,7 @@ def browser_conversation(
     )
     awaiting = asks["awaiting"]
     unread = unread_content(events, threads, reading.thread_by_widget)
-    open_ask_threads = {ask["conversation"] for ask in asks["user"]}
+    open_ask_threads = {ask["thread"] for ask in asks["user"]}
     summaries_for = active_summaries(events, threads)
     rendered_threads = []
     for thread_id, thread in threads.items():
@@ -131,9 +131,7 @@ def browser_conversation(
         if awaits_user and turns:
             protected.add(turns[-1]["id"])
         ask_sources = {
-            ask["source"]
-            for ask in asks["unanswered"]
-            if ask["conversation"] == thread_id
+            ask["source"] for ask in asks["unanswered"] if ask["thread"] == thread_id
         }
         for message_id, fragment in reading.structure.fragments.items():
             if ask_sources.intersection(fragment.by_id):
@@ -188,7 +186,7 @@ def browser_conversation(
     return (
         {
             "projection": browser_projection(
-                reading.projection, scope="conversation", within={}, floors={}
+                reading.projection, scope="thread", within={}, floors={}
             ),
             "asks": {key: asks[key] for key in ("all", "user", "unanswered")},
             "requests": requests,

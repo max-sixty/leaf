@@ -22,7 +22,7 @@ Items are ranked within each group. IDs are stable references, not a global prio
 
   **Owner / dependencies:** Sol. The Threads placement this item waited on is settled: Threads stands over the document at every width and takes no room from it, and it takes the modal covering boundary ([PR #536](https://github.com/max-sixty/leaf/pull/536)) only where it leaves less than a usable page beside it. Verify the keyboard route against both: the live page beside an open panel, and the modal boundary where it covers.
 
-  **Sources:** [lf-pane.js:29](https://github.com/max-sixty/leaf/blob/cb7915bb924aa78fcbcf83439110794982bb3b86/skills/leaf/packages/default/widgets/lf-pane.js#L29), [test_render_navigation.py:106](https://github.com/max-sixty/leaf/blob/cb7915bb924aa78fcbcf83439110794982bb3b86/tests/test_render_navigation.py#L106), [panel.js:75](https://github.com/max-sixty/leaf/blob/cb7915bb924aa78fcbcf83439110794982bb3b86/skills/leaf/assets/runtime/conversation/panel.js#L75).
+  **Sources:** [lf-pane.js:29](https://github.com/max-sixty/leaf/blob/cb7915bb924aa78fcbcf83439110794982bb3b86/skills/leaf/packages/default/widgets/lf-pane.js#L29), [test_render_navigation.py:106](https://github.com/max-sixty/leaf/blob/cb7915bb924aa78fcbcf83439110794982bb3b86/tests/test_render_navigation.py#L106), [panel.js:75](https://github.com/max-sixty/leaf/blob/cb7915bb924aa78fcbcf83439110794982bb3b86/skills/leaf/assets/runtime/thread/panel.js#L75).
 
 ## Measure the product boundary
 
@@ -34,10 +34,8 @@ Items are ranked within each group. IDs are stable references, not a global prio
 
   **Follow-ups from the first run** (reproduced in the judge's defect lists and checked against the screenshots):
 
-  - `lf-diagram`: a `flowchart LR` wider than its box scrolls sideways with nothing to show it, since macOS hides the scrollbar and no edge marks the cut; all three leaf documents on that layout lost step 5 of their plan. Mark the edge where the drawing continues, leaving the drawing as written, and have the registry example draw a long sequence top-down.
   - Drawn text: the theme scales a drawing to its box, so labels become unreadable at 900px and on a phone. The render check should measure each label's drawn height and flag a drawing whose smallest label is under about 10px; drawn size, not the percentage it shrank by, is what decides legibility.
-  - `lf-options`: on a wide page the radio marks sit inset from the card's right edge and the dividers stop short of it.
-  - Render check: it passed all 72 pages. At its one desktop width, 1200px, flag a figure scrolled sideways out of view and an Ask below its pane's first screen; testing across widths is a TODO.md item beside the mobile ones.
+  - Render check: it passed all 72 pages. On the settled 1200px page, flag a figure scrolled sideways out of view and an Ask below its pane's first screen; taking such readings across widths is a TODO.md item beside the mobile ones.
   - Render check: report the width at which each grid stacks, which no queue author could see.
   - Rail: it comes last on a phone and doesn't stick, and its 14rem floor cramps a table or log at 900px.
 

@@ -131,15 +131,15 @@ def ask_answered(
 def seat_with_agent(
     rec: dict, entry: dict, projection: StateProjection, with_agent: set[str]
 ) -> bool:
-    """Whether this widget's own conversation seat holds a thread now with the agent.
+    """Whether this widget's own thread seat holds a thread now with the agent.
 
-    Declaration-driven at both ends: a widget with no x-conversation offers no
+    Declaration-driven at both ends: a widget with no x-thread-seat offers no
     seat, and one whose attributes miss the predicate has none placed on this
     instance either — so an element anchor written onto some other widget reaches
     nothing here. The seat's placement asks the same question of the same
     declaration, so the cell the user can see and the request this takes off their
     list are one."""
-    declaration = entry.get("x-conversation")
+    declaration = entry.get("x-thread-seat")
     unit = rec["attrs"].get("id")
     return bool(
         declaration
@@ -402,7 +402,7 @@ class _AskReducer:
                 "tag": surface["tag"],
                 "source": source["attrs"].get("id"),
                 "source_tag": source["tag"],
-                "conversation": None,
+                "thread": None,
             }
             for surface, source in pairs
         ]
@@ -438,16 +438,16 @@ def page_ask_readings(
     """Every ask reading of one document, folded over one shared setup.
 
     A document is read for three answers at once: the user's own list, the same
-    question with no conversation seats (whether each Ask is answered at all, which
+    question with no thread seats (whether each Ask is answered at all, which
     a sign-off reads), and the inventory of every active Ask. They differ only in `with_agent` and
     `settled_away`; the declared records, their holders, and their local conditions
     are one computation behind all three.
 
     `with_agent` is what separates the user's list from the rest. Given
-    `seats_with_agent`, an ask whose own conversation seat holds a thread the agent
+    `seats_with_agent`, an ask whose own thread seat holds a thread the agent
     owes an answer to is not one the user has to deal with, whatever its state.
     The same fold with no seats says whether the ask is answered at all: a
-    conversation does not answer a question the widget still holds no state for, and
+    thread does not answer a question the widget still holds no state for, and
     refusing the pick over the user's own remark would refuse them the answer they
     were asked for.
     """
@@ -499,7 +499,7 @@ def thread_ask_readings(
     ask is answered by the same declared state condition as on the page, while a
     request ask follows its frozen-document request lifecycle.
 
-    Frozen thread markup seats no conversation of its own — the thread's reply box
+    Frozen thread markup seats no thread of its own — the thread's reply box
     is already where the user answers — so the user's list and the unanswered
     list are one reading here. `page_ask_readings` is where the seats separate them.
 
@@ -525,7 +525,7 @@ def thread_ask_readings(
     asks = reducer.result(set())
 
     def seated(items: list) -> list:
-        return [{**ask, "conversation": thread_by_id[ask["source"]]} for ask in items]
+        return [{**ask, "thread": thread_by_id[ask["source"]]} for ask in items]
 
     return {
         "all": seated(reducer.inventory(set())),

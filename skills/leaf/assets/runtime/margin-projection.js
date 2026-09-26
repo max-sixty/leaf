@@ -29,7 +29,7 @@
    rather than shrinking. This module supplies the visible boundary — the reading region
    or the viewport under the banner and over the bottom chrome — measures the card, and
    closes it once what it stands by has left that boundary. The card contains the
-   complete inline conversation view; the Threads panel remains the complete index and
+   complete inline thread view; the Threads panel remains the complete index and
    takes over when already open. A right-rail card aligns its top to the cluster while
    reading. While its reply has focus or draft text, its foot stays at the same
    distance from the cluster as the editor grows; the boundary still has the last
@@ -38,7 +38,7 @@
 
    The card is margin chrome, not a native layer: it shows the threads of the target the
    user stands at, from the target, its cluster, or the card itself, so standing on an
-   element and reading its conversation are one place rather than two layers contending
+   element and reading its thread are one place rather than two layers contending
    for focus and presses. Keyboard arrival at a commented element puts the card up
    beside it; standing elsewhere on the page, letting go (`declareRelease`), or pressing
    outside the card, its target, and its cluster takes it down (`followStanding`). Escape from inside the
@@ -129,25 +129,25 @@ import { repaint } from "./repaint.js";
 import { chromeRoot } from "./chrome.js";
 import { versionBtn } from "./version-chooser.js";
 import { motion, scrollBehavior } from "./motion.js";
-import { panel } from "./conversation/panel-elements.js";
-import { accompanyThread } from "./conversation/landing.js";
+import { panel } from "./thread/panel-elements.js";
+import { accompanyThread } from "./thread/landing.js";
 import { closestAcross, elementById, inChrome } from "./passages.js";
 import { addressableSays, addressableWord, visualAt } from "./anchor-resolution.js";
 import { paintTrace } from "./target-paint.js";
 import { updateSequence } from "./updates.js";
-import { threadList } from "./conversation/state.js";
-import { threadKey, turns } from "./conversation/model.js";
+import { threadList } from "./thread/state.js";
+import { threadKey, turns } from "./thread/model.js";
 
 import { projectionOrigins } from "./projection/model.js";
 import { authoredStates } from "./projection/authored.js";
 import { currentProjection } from "./projection/state.js";
 import { notice } from "./notifications.js";
 import { iconElement } from "./icons.js";
-import { claimed, focusSurface } from "./conversation/surfaces.js";
-import { anchorLabel } from "./conversation/messages.js";
+import { claimed, focusSurface } from "./thread/surfaces.js";
+import { anchorLabel } from "./thread/messages.js";
 import { createMarginClusterViews } from "./margin-cluster-view.js";
 
-import { outlineSubjectFor, pageOutline } from "./conversation/placement.js";
+import { outlineSubjectFor, pageOutline } from "./thread/placement.js";
 import { bannerControlDoor } from "./banner-shelf.js";
 import { threadCardGeometry } from "./thread-card-geometry.js";
 import { placeKeeper } from "./user-place.js";
@@ -158,7 +158,7 @@ import {
   strongestWorkflow,
   threadAttention,
   workflowLabel,
-} from "./conversation/workflow.js";
+} from "./thread/workflow.js";
 import { renderedParent, under } from "./shadow.js";
 import { retainUserIntent } from "./user-intent.js";
 
@@ -175,7 +175,7 @@ export function createMarginProjection({
   openPageMap,
   pageMapDialogContains,
   renderPageMapDialog,
-  revealConversation,
+  scrollThreadIntoView,
   renderMarginThread,
   bottomChromeBoxes,
   placedAt,
@@ -295,8 +295,8 @@ export function createMarginProjection({
   );
   previewClose.append(iconElement("cross", "lf-action-icon"));
   previewClose.type = "button";
-  previewClose.setAttribute("aria-label", "Dismiss conversation view");
-  previewClose.title = "Dismiss conversation view (Esc)";
+  previewClose.setAttribute("aria-label", "Dismiss thread view");
+  previewClose.title = "Dismiss thread view (Esc)";
   const previewNav = el("span", "lf-margin-preview-nav");
   const previewPosition = el("span", "lf-margin-preview-position");
   const previewPrevious = offer(
@@ -304,12 +304,12 @@ export function createMarginProjection({
     "lf-btn lf-icon-action lf-margin-preview-step",
   );
   previewPrevious.append(iconElement("previous", "lf-action-icon"));
-  previewPrevious.setAttribute("aria-label", "Previous conversation");
-  previewPrevious.title = "Previous conversation";
+  previewPrevious.setAttribute("aria-label", "Previous thread");
+  previewPrevious.title = "Previous thread";
   const previewNext = offer("button", "lf-btn lf-icon-action lf-margin-preview-step");
   previewNext.append(iconElement("next", "lf-action-icon"));
-  previewNext.setAttribute("aria-label", "Next conversation");
-  previewNext.title = "Next conversation";
+  previewNext.setAttribute("aria-label", "Next thread");
+  previewNext.title = "Next thread";
   previewNav.append(previewPrevious, previewPosition, previewNext);
   const previewList = el("div", "lf-margin-preview-list");
   preview.append(previewList);
@@ -317,7 +317,7 @@ export function createMarginProjection({
   // The card's transcript is re-rendered on every reading of its thread; a message holds
   // the user's place in it under the event id it is rendered with (user-place.js).
   const previewPlace = placeKeeper(previewList, {
-    items: ".lf-conversation-msg[data-event]",
+    items: ".lf-page-thread-msg[data-event]",
     identity: (message) => message.dataset.event,
   });
   let threadTransitionEpoch = 0;
@@ -640,7 +640,7 @@ export function createMarginProjection({
       (preview.offsetHeight - previewList.clientHeight);
     for (const input of previewList.querySelectorAll(".lf-say textarea")) {
       const row = input.closest(".lf-say");
-      const thread = row.closest(".lf-conversation-thread");
+      const thread = row.closest(".lf-page-thread");
       const style = getComputedStyle(thread);
       const furniture = row.offsetHeight - input.offsetHeight;
       const inset = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
@@ -714,7 +714,7 @@ export function createMarginProjection({
       placeThreadPreview({ dismissDetached: dismiss });
     });
   }
-  // A viewport posture change can replace the focused full conversation with its
+  // A viewport posture change can replace the focused full thread with its
   // compact action. Reconcile after resize delivery so the browser can finish its
   // own focus and popover bookkeeping before that node changes shape. Panel and tray
   // changes notify this runtime directly through their owners.
@@ -805,7 +805,7 @@ export function createMarginProjection({
       const unread = thread.unread.length;
       add(groups, target, {
         kind: "comment",
-        // One row for one conversation, across the log answering for it. A thread the
+        // One row for one thread, across the log answering for it. A thread the
         // user just opened is known by its attempt until the log names it, and a row
         // whose identity changed there would be rebuilt — taking with it the reply box
         // the send had just put them in.
@@ -824,14 +824,14 @@ export function createMarginProjection({
             }
           : null,
         unread,
-        // Page Map lists each conversation on its own row, so the word goes on the row
+        // Page Map lists each thread on its own row, so the word goes on the row
         // rather than on an aggregate.
         ...(onUser
           ? { mapContext: attention.label }
           : unread
             ? { mapContext: `${unread} unread` }
             : {}),
-        // Work decorates the conversation control; it never replaces the control's
+        // Work decorates the thread control; it never replaces the control's
         // comment face or its disclosure action.
         workflowReceipt: onUser ? null : attention?.workflow,
         activate: () => showThread(id),
@@ -953,15 +953,12 @@ export function createMarginProjection({
       for (const update of updateSequence()) {
         if (update.source !== "claim" || update.disposition !== "effective") continue;
         if (update.revision > runtime.currentRevision) continue;
-        if (
-          update.target.kind === "conversation" &&
-          representedThreads.has(update.target.id)
-        )
+        if (update.target.kind === "thread" && representedThreads.has(update.target.id))
           continue;
         if (activityAlreadyShown.has(`${update.target.kind}:${update.target.id}`))
           continue;
         const target =
-          update.target.kind === "conversation"
+          update.target.kind === "thread"
             ? placedAt(update.target.id)?.element
             : elementById(update.target.id);
         const quiet =
@@ -1650,7 +1647,7 @@ export function createMarginProjection({
     return primary;
   }
 
-  // A widget frozen into a conversation belongs to that conversation's document,
+  // A widget frozen into a thread belongs to that thread's document,
   // not to the page margin behind it. Keep its contributed controls in the local
   // flow, grouped by the same exact target identity, without registering a page rail
   // claim or a second placement model in the widget module.
@@ -1670,7 +1667,7 @@ export function createMarginProjection({
       grouped.set(target, offers);
     }
 
-    // A dynamic target can move one retained contribution between conversation seats.
+    // A dynamic target can move one retained contribution between thread seats.
     // Retire the old owner before the new one tracks that same native control.
     for (const [target, host] of inlineHosts)
       if (!grouped.has(target)) {
@@ -2031,10 +2028,10 @@ export function createMarginProjection({
     const latest = selected ? turns(sourceItem(selected).thread).at(-1) : null;
     const messageSelector =
       ":scope > .lf-margin-thread > .lf-margin-thread-body > " +
-      ".lf-conversation-thread > .lf-conversation-msg";
+      ".lf-page-thread > .lf-page-thread-msg";
     const replySelector =
       ":scope > .lf-margin-thread > .lf-margin-thread-body > " +
-      ".lf-conversation-thread > .lf-say";
+      ".lf-page-thread > .lf-say";
     const lastShown = [...previewList.querySelectorAll(messageSelector)].at(-1);
     const lastBox = lastShown?.getBoundingClientRect();
     const listBox = previewList.getBoundingClientRect();
@@ -2064,7 +2061,7 @@ export function createMarginProjection({
         )
       : null;
     const title = labelWords(targetHeading || quoted || entry.title);
-    keeps(preview, "aria-label", `Conversation for ${spokenSubject(title)}`);
+    keeps(preview, "aria-label", `Thread for ${spokenSubject(title)}`);
     previewNav.hidden = threadItems.length < 2;
     const selectedIndex = Math.max(0, threadItems.indexOf(selected));
     previewPosition.textContent = `${selectedIndex + 1}/${threadItems.length}`;
@@ -2084,8 +2081,8 @@ export function createMarginProjection({
       ].find((candidate) => candidate.lfMarginItem === focusedItem);
       const destination = replacement?.matches("button, textarea:not([disabled])")
         ? replacement
-        : (replacement?.querySelector(".lf-conversation-thread") ??
-          previewList.querySelector(".lf-conversation-thread") ??
+        : (replacement?.querySelector(".lf-page-thread") ??
+          previewList.querySelector(".lf-page-thread") ??
           previewClose);
       destination.focus({ preventScroll: true });
     }
@@ -2106,10 +2103,10 @@ export function createMarginProjection({
     const next = Math.max(0, Math.min(threadItems.length - 1, current + step));
     if (next === current || !threadItems[next]) return;
     buildThreadCard(previewEntry, threadItems[next].id);
-    const thread = previewList.querySelector(".lf-conversation-thread");
+    const thread = previewList.querySelector(".lf-page-thread");
     if (thread) {
       thread.focus({ preventScroll: true });
-      revealConversation(thread, thread);
+      scrollThreadIntoView(thread, thread);
     }
   }
 
@@ -2211,13 +2208,13 @@ export function createMarginProjection({
     const open = () => {
       pinnedKey = entry.key;
       const positioned = showPreview(entry, button);
-      if (previewList.querySelector(".lf-conversation-thread"))
+      if (previewList.querySelector(".lf-page-thread"))
         deferThreadPreviewFocus(positioned, () => {
           if (previewEntry?.key !== entry.key) return;
-          const thread = previewList.querySelector(".lf-conversation-thread");
+          const thread = previewList.querySelector(".lf-page-thread");
           if (!thread) return;
           thread.focus({ preventScroll: true });
-          revealConversation(thread, thread);
+          scrollThreadIntoView(thread, thread);
         });
     };
     open();
@@ -2262,7 +2259,7 @@ export function createMarginProjection({
     paintKeys();
   }
 
-  // The conversation view, for the owners that open and close it from outside. What
+  // The thread view, for the owners that open and close it from outside. What
   // takes it off again is the Page Map's own Escape step, read off the card standing
   // rather than off whatever put it up. The view's own close control, pressed by
   // pointer, hands focus to the margin entry the view hangs from, since that is where
@@ -2317,14 +2314,14 @@ export function createMarginProjection({
     if (stepsOut())
       return {
         root: preview,
-        does: "Return to the page element this conversation is about",
+        does: "Return to the page element this thread is about",
         says: "back to page",
         out: () => focusDestination(stepsOut()),
       };
     return {
       root: preview,
-      does: "Dismiss the conversation view",
-      says: "dismiss conversation",
+      does: "Dismiss the thread view",
+      says: "dismiss thread",
       // Where it lands turns on whether a level of the user's own stands under it. A
       // cluster they unfolded themselves is that level, and it folds the moment focus
       // leaves the margin, so the close hands them back to the entry the card hangs
@@ -2482,7 +2479,7 @@ export function createMarginProjection({
       (candidate) => candidate.lfMarginItem === itemId,
     );
     item?.scrollIntoView({ behavior: scrollBehavior(), block: "nearest" });
-    const thread = item?.querySelector(".lf-conversation-thread") ?? null;
+    const thread = item?.querySelector(".lf-page-thread") ?? null;
     const positioned = transition
       ? scheduleThreadTransition(transition, entry)
       : initiallyPositioned;
@@ -2490,7 +2487,7 @@ export function createMarginProjection({
       deferThreadPreviewFocus(positioned, () => {
         const current = [...previewList.children]
           .find((candidate) => candidate.lfMarginItem === itemId)
-          ?.querySelector(".lf-conversation-thread");
+          ?.querySelector(".lf-page-thread");
         if (current) onPositioned(current);
       });
     return thread;
@@ -2499,7 +2496,7 @@ export function createMarginProjection({
   // A route that starts on the page stays on the page while that thread has an inline
   // destination. Widget-local surfaces are already rendered, while a margin-projection thread is
   // opened on demand. Threads remains the complete fallback for a detached or otherwise
-  // unaddressable conversation. Callers choose only the landing within the conversation;
+  // unaddressable thread. Callers choose only the landing within the thread;
   // this function owns the surface choice so a mark, its accessibility note, and t/T
   // cannot drift into different policies. The margin card always lands on the thread
   // itself.
@@ -2579,13 +2576,11 @@ export function createMarginProjection({
   // control, and the mark and the marker are its way to the thread.
   const threadIdOf = (entry) =>
     sourceItem(threadReading(entry).items[0]).thread.root.id;
-  // A conversation seat already shows the thread where it stands on the page; a card
+  // A thread seat already shows the thread where it stands on the page; a card
   // beside it would be the same thread twice.
   const seatedOnPage = (id) =>
     [
-      ...document.querySelectorAll(
-        `.lf-conversation-thread[data-thread="${CSS.escape(id)}"]`,
-      ),
+      ...document.querySelectorAll(`.lf-page-thread[data-thread="${CSS.escape(id)}"]`),
     ].some((seat) => !preview.contains(seat) && !panel.contains(seat));
   // The innermost target holding the node whose threads the card would show.
   const threadEntryAt = (node) => {
@@ -2671,19 +2666,15 @@ export function createMarginProjection({
   const foldMarginEntryOptions = () => setOptionsOpen(null, false);
   const activeInlineThread = () => {
     const active = focused();
-    const direct = active?.closest?.(".lf-conversation-thread[data-thread]");
+    const direct = active?.closest?.(".lf-page-thread[data-thread]");
     if (direct && !panelIsOpen()) return direct;
     if (!pinnedKey || previewEntry?.key !== pinnedKey || !previewOpen()) return null;
-    const held = preview.contains(active)
-      ? active.closest?.(".lf-conversation-thread")
-      : null;
+    const held = preview.contains(active) ? active.closest?.(".lf-page-thread") : null;
     if (held) return held;
-    const conversations = previewList.querySelectorAll(
-      ".lf-margin-thread .lf-conversation-thread",
-    );
+    const threads = previewList.querySelectorAll(".lf-margin-thread .lf-page-thread");
     const pending = previewFocusPending?.key === previewEntry.key;
     if (!pending && active !== previewMarginEntry) return null;
-    return conversations.length === 1 ? conversations[0] : null;
+    return threads.length === 1 ? threads[0] : null;
   };
   // A live revision replaces the browser document, so DOM identity cannot carry a
   // user standing in retained margin chrome. Carry the target and margin-entry keys

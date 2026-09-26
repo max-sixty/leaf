@@ -3,7 +3,7 @@
    Widget controllers render total state and own their presentation proof. This adapter
    retains the coordinate commits needed by coverage, provenance, chrome, and pending
    release. It is an epoch presenter and paints first in the pass, because the words it
-   materializes inside authored elements are nodes the conversation then resolves its
+   materializes inside authored elements are nodes the thread then resolves its
    passages over. Its one document-wide drag gate withholds that global projection work
    while the gesture's own controller holds its local reading; the region stays open
    until the gesture ends and a fresh claim supersedes it. */

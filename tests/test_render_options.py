@@ -1051,6 +1051,100 @@ def test_joined_option_cells_share_edges_and_text_column(browser, serve, group):
     )
 
 
+WIDE_PROSE = (
+    "Each alternative was measured against the same traffic and the same failover "
+    "days, so the figures in the cards below compare directly with one another."
+)
+WIDE_ASK_PAGE = leaf_page(
+    "Options on a wide page",
+    f"""
+<h1>Where sessions live</h1>
+<lf-grid id="layout" columns="2fr 1fr">
+<section id="body">
+<lf-ask id="cell-decision"><h2>Where should a session live?</h2>
+<p>{WIDE_PROSE}</p>
+<lf-options id="cell-cards" choose>
+  <lf-option id="cc-redis"><strong>Redis</strong> A store we already run.</lf-option>
+  <lf-option id="cc-pg"><strong>Postgres</strong> One fewer moving part.</lf-option>
+</lf-options></lf-ask>
+<lf-ask id="rows-decision"><h2>Which jobs are worth starting?</h2>
+<p>{WIDE_PROSE}</p>
+<lf-options id="cell-rows" choose multiple>
+  <lf-option id="cr-drill">A revocation drill</lf-option>
+  <lf-option id="cr-rotate">Key rotation for the fallback cookie</lf-option>
+</lf-options></lf-ask>
+</section>
+<section id="aside"><p>Beside the argument.</p></section>
+</lf-grid>
+<lf-ask id="page-decision"><h2>Who owns the migration?</h2>
+<p>{WIDE_PROSE}</p>
+<lf-options id="page-cards" choose>
+  <lf-option id="pc-platform"><strong>Platform</strong> They run the store.</lf-option>
+  <lf-option id="pc-accounts"><strong>Accounts</strong> They own the table.</lf-option>
+</lf-options></lf-ask>
+""",
+    width="available",
+)
+
+
+def test_a_choose_group_on_a_wide_page_draws_its_cells_to_its_own_frame(browser, serve):
+    """A joined group's frame, dividers and marks belong to its options, so on a page
+    wider than the column the group keeps the reading measure as one block and every
+    cell reaches the frame. Declared a group of members instead, it passed the measure
+    through: the frame took the grid cell's or the page's whole width while each option
+    stopped at the measure, so every mark and every hairline between options ended
+    100px and more short of the frame's right edge, over an empty strip.
+
+    In a grid cell and straight on a wide page, and in both forms: the frame is what
+    differs between a grid cell and the page, and a row has the hairline without the
+    trailing mark."""
+    context = browser.new_context(viewport={"width": 1440, "height": 900})
+    page = open_page(browser, serve(WIDE_ASK_PAGE), context=context)
+    readings = page.evaluate(
+        """() => ['cell-cards', 'cell-rows', 'page-cards'].map((id) => {
+          const group = document.getElementById(id);
+          const box = group.getBoundingClientRect();
+          const inner = box.right - parseFloat(getComputedStyle(group).borderRightWidth);
+          const cells = [...group.children].filter((cell) => cell.checkVisibility());
+          const prose = group.closest('lf-ask').querySelector(':scope > p');
+          return {
+            id,
+            frame: box.width,
+            holder: group.parentElement.getBoundingClientRect().width,
+            prose: prose ? prose.getBoundingClientRect().width : null,
+            cells: cells.map((cell) => {
+              const mark = cell.querySelector(':scope > .lf-pick');
+              return {
+                what: cell.id || cell.className || cell.tagName.toLowerCase(),
+                short: inner - cell.getBoundingClientRect().right,
+                divider: parseFloat(getComputedStyle(cell).borderBottomWidth),
+                mark: mark ? inner - mark.getBoundingClientRect().right : null,
+              };
+            }),
+          };
+        })"""
+    )
+    for group in readings:
+        # The premise: the frame the group stands in is wider than the measure, which
+        # is the only place the two readings of a group can differ.
+        assert group["holder"] > group["prose"] + 100, group
+        assert group["frame"] <= group["prose"] + 2, (
+            f"#{group['id']} is {group['frame']}px across beside prose "
+            f"{group['prose']}px: the group should keep the reading measure as one block"
+        )
+        options = [cell for cell in group["cells"] if cell["mark"] is not None]
+        assert len(options) == 2 and len(group["cells"]) > 2, group
+        short = [cell for cell in group["cells"] if abs(cell["short"]) > 0.5]
+        assert not short, f"#{group['id']}'s cells stop short of its frame: {short}"
+        assert all(cell["divider"] > 0 for cell in group["cells"][:-1]), group
+        # A card hangs its mark at the frame's end; a row hangs its at the leading edge
+        # (test_every_row_hangs_its_mark_at_the_same_column), so only its hairline
+        # has the frame's end to reach.
+        if "cards" in group["id"]:
+            far = [cell for cell in options if cell["mark"] > 16]
+            assert not far, f"#{group['id']}'s marks stand in from its frame: {far}"
+
+
 def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
     """A specimen is a mention, not a use. The exhibited widgets render at full
     fidelity — that is the whole point of showing one — but wire nothing that
@@ -1850,7 +1944,7 @@ def test_one_chip_holds_every_short_fact(browser, serve):
 def test_long_chip_labels_stay_inside_a_narrow_column(browser, serve):
     """A long authored identifier must wrap inside each chip's own box, even when
     its containing column is narrower than the identifier's intrinsic width."""
-    label = "getConversationThreadPlacementForViewport"
+    label = "getMarginThreadCardPlacementForTheViewport"
     source = (
         CHIP_PAGE.replace("experimental", label)
         .replace("reversible", label)
@@ -2410,7 +2504,7 @@ def test_the_gutter_runs_beside_the_exhibit_and_no_further(source, browser, serv
     from PIL import Image  # a dev dependency already, for the demo recorder
 
     # Serve each example with its data and history: live specimens can select
-    # authored conversations as part of the exhibit.
+    # authored threads as part of the exhibit.
     page = open_page(browser, serve(source))
     scale = page.evaluate("() => devicePixelRatio")
     # Rendered, not merely present. A specimen inside a tab panel the page is not

@@ -12,7 +12,7 @@ has tried; settle that before building it.
 ### User experience
 
 - **Make complete reading journeys feel coherent.** Audit a document, workspace,
-  board or table, and populated conversation in light and dark at wide and narrow
+  board or table, and populated thread in light and dark at wide and narrow
   widths. Fix recurring gaps in type, spacing, framing, controls, and responsive
   behavior. Set one focus-ring weight for every keyboard target.
 - **Keep the Thread hierarchy clear.** Check context, search, filters, agent
@@ -69,11 +69,12 @@ has tried; settle that before building it.
 - **Finish what a phone user still cannot reach.** Give touch users visible passage
   threads, and remove keyboard-only hints, hover-only reasons, clipped diagram content,
   and remaining undersized touch targets.
-- **Check pages across the widths people read at.** The render check reads one
-  desktop width (1200px) for layout findings. The arrangement eval's pages failed at
-  900px and on a phone in ways that width never shows: a grid that stacked, labels
-  shrunk below legibility, an Ask below its pane's first screen. Test layouts across a
-  range of widths, phones included, once the one-width checks hold.
+- **Take the layout readings across widths.** The render check renders each page at
+  1200px and 540px and sweeps sideways overflow from 360px to 1200px. The readings the
+  arrangement eval asked for, labels drawn below legibility and an Ask below its pane's
+  first screen, read the settled 1200px page only, and that eval's pages failed at
+  900px and on a phone in exactly those ways. Once they hold at 1200px, take them
+  across the sweep, phones included.
 - **Give the thread panel's touch grip its own space.** Reserve room for the grip
   and collapse inactive reply controls if more thread cards should fit.
 
@@ -169,10 +170,10 @@ Revisit these when their stated trigger becomes real; they are not an active que
 - **#22 — MCP workspace hosting:** compare an iframe, a constrained host, and
   browser handoff when an inline-hosting task calls for it. See the
   [research brief](notes/workspace-followups.md#item-22).
-- **Decide whether an exported page carries its conversations.** `leaf version
+- **Decide whether an exported page carries its threads.** `leaf version
   export` writes a file that boots the page's own runtime offline, and that file
   embeds the page's threads in its state reading. The runtime turns the
-  conversation surface off offline (`conversationAvailable: !offlineInteractive`
+  thread surface off offline (`threadAvailable: !offlineInteractive`
   in `leaf.js`), so a reader of the file sees no comments or agent replies.
   Decide whether an export is the page alone or the page with its discussion; the
   likely answer is threads shown read-only, with the composer and sends off.

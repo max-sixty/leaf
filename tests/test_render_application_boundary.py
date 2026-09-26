@@ -151,6 +151,29 @@ def test_browser_interactions_are_recorded_beside_server_requests(browser, serve
     )
 
 
+def test_browser_trace_records_gestures_where_touch_events_are_absent(browser, serve):
+    """Desktop Chrome without touch input defines no TouchEvent; the trace still reads
+    every gesture rather than throwing on it."""
+    url = serve(
+        leaf_page(
+            "Touchless trace",
+            '<h1>Touchless trace</h1><button id="touchless-button">Go</button>',
+        )
+    )
+    page = open_page(browser, url, init_script="delete window.TouchEvent")
+    with page.expect_response(
+        lambda response: (
+            response.url.endswith("/api/interaction")
+            and response.ok
+            and any(
+                entry["type"] == "click"
+                for entry in response.request.post_data_json["entries"]
+            )
+        )
+    ):
+        page.locator("#touchless-button").click()
+
+
 def test_browser_trace_sheds_repeated_gestures_when_delivery_stalls(browser, serve):
     url = serve(leaf_page("Trace backlog", '<h1 id="trace-target">Trace backlog</h1>'))
     page = open_page(browser, url)

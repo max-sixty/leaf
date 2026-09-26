@@ -130,7 +130,8 @@ function describe(event) {
   if (event instanceof window.CompositionEvent) entry.data = event.data;
   if (event instanceof window.ClipboardEvent)
     entry.clipboard = event.clipboardData?.getData("text/plain") ?? "";
-  if (event instanceof window.TouchEvent)
+  // Chrome defines TouchEvent only where touch input is enabled.
+  if (window.TouchEvent && event instanceof window.TouchEvent)
     entry.touches = [...event.changedTouches].map((touch) => ({
       id: touch.identifier,
       x: touch.clientX,

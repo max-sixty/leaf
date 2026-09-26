@@ -46,6 +46,7 @@ from leaf import schema as schema_model
 from leaf import session as session_model
 from leaf import structure as structure_model
 from leaf import vendoring as vendoring_model
+from leaf.registry import contract as registry_contract
 from leaf.registry import reactions as registry_reactions
 from leaf.registry import storage as registry_storage
 from leaf.render_gate import browser as browser_model
@@ -1744,6 +1745,24 @@ def test_payload_provenance_reads_claude_codes_git_versioned_plugin_cache(
         .astimezone()
         .isoformat(timespec="seconds"),
     }
+
+
+def test_a_producer_date_without_an_offset_is_refused(page_dir):
+    """The browser reads a bare local time in each viewer's own zone, so one
+    vendored page would show every viewer a different age."""
+    stamp = page_dir / "registry.json"
+    registry = json.loads(stamp.read_text(encoding="utf-8"))
+
+    def producer_dated(value):
+        registry["$layer"]["producer"] = {"commit": "a74b08365870", "committed": value}
+        interact_files.write_json(stamp, registry)
+        return registry_storage.layer_metadata(page_dir)["producer"]
+
+    assert producer_dated("2026-09-26T09:32:21-07:00")["committed"] == (
+        "2026-09-26T09:32:21-07:00"
+    )
+    with pytest.raises(registry_contract.RegistryError, match="timezone offset"):
+        producer_dated("2026-09-26T09:32:21")
 
 
 def test_fresh_page_state_points_only_to_readable_authorities(tmp_path, monkeypatch):

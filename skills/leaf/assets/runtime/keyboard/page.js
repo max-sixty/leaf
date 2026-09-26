@@ -159,7 +159,7 @@ export function declareStanding({ pageState }) {
 // than two spellings of it. It stands down under a native layer too: a popover or a
 // modal is the browser's own mode, its own scope is the way out of it, and the page
 // beneath is not somewhere a press can reach from inside it.
-// AGENTS.md's "The user has to be standing somewhere" holds the rest.
+// keyboard/AGENTS.md's "Escape unwinds the hierarchy, not the history" holds the rest.
 pageRung("page", () => {
   if (nativeLayers().length) return null;
   if (holding())

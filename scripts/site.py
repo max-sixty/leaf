@@ -17,6 +17,13 @@ server answers its API requests.
 A dead link is the failure a static host cannot report, so the build resolves every
 local href and src it wrote and refuses a site holding one that names no file.
 
+The build also writes what a crawler reads: `robots.txt`, a `sitemap.xml` of the clean
+routes, and each page's link card. A page's title and description are authored in its
+own source, and the build refuses a page missing either. The rest of the card comes from
+`site_metadata` in `worker/server.py`. Each page's card image is named in the manifest:
+`docs/session-card.png` for a product page and the catalog preview for an example.
+`--serve` needs `npm ci --prefix worker` and a running Docker.
+
 Usage: uv run scripts/site.py [--serve]
        (writes .tmp/site; --serve keeps a local preview open)
 """

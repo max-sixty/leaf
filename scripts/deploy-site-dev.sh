@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
 # Deploy and verify the one standing Cloudflare development environment.
+#
+# Publishes the current checkout, working tree included, to `leaf-website-dev`,
+# verifies the release, and benchmarks its workers.dev origin. It always selects the
+# `dev` Wrangler environment; production deploys only through
+# .github/workflows/publish-site.yaml.
 
 set -euo pipefail
 

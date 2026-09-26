@@ -244,7 +244,10 @@ counterpart, more generous again for the work a page does."""
 
 
 def wait_for(read, accepts, *, failure: str, timeout: float = STATED_TIMEOUT):
-    """Return the first accepted reading, or fail with the last one observed."""
+    """Return the first accepted reading, or fail with the last one observed.
+
+    For pure-Python state polls. Keep a local loop where process exit, cancellation,
+    or a deadline shared across several transitions is the contract."""
     deadline = time.monotonic() + timeout
     while True:
         reading = read()

@@ -311,37 +311,16 @@ the Linux authority.
 
 The Python suite reads the adapter under `worker/`: `tests/test_website_server.py`
 loads `worker/server.py` and drives its routes. Pre-commit's ruff hooks take it as they
-take every other Python file. Nothing on either landing path parses the tree's
-TypeScript — `worker/src/` and `scripts/browser/`: pre-commit's whitespace and typos
-hooks take those files, but its prettier and eslint hooks take JavaScript and HTML
-rather than TypeScript. Each half has a gate of its own, and a pull request runs both
-before merge. A direct `wt merge` runs neither: the website gate follows in
-`publish-site` and the browser framework's in main's own `ci`, after main has already
-moved. Run the gate for the half a TypeScript change touches before landing it
-directly:
-
-```sh
-# scripts/browser/
-npm ci
-npm run check:browser && npm run test:browser
-
-# worker/src/
-npm ci --prefix worker
-npm run typecheck --prefix worker
-npm test --prefix worker
-```
-
-The root `package-lock.json` has a gate of its own too. It is what every committed
-browser bundle is built from, so a pull request's `test` job rebuilds them all and
-fails on any byte they differ by; `wt merge` does not. Before landing a change to
-`package.json` or its lock directly, run `npm ci`, `npm run build:browser`, and
-`uv run scripts/vendor.py`, and commit what they change.
-
-`tests/runtime/` is the other thing `uv run pytest tests` does not reach, and the one
-both landing paths run anyway: the shipped runtime's folds, which `npm run test:runtime`
-answers in under a second against the modules under `skills/leaf/assets/runtime/`
-without a browser. `wt merge` runs it beside the suite in its second pre-merge block,
-and a pull request runs it in `test`.
+take every other Python file. Four gates sit outside both the suite and pre-commit: the
+TypeScript in `worker/src/` and in `scripts/browser/`, which prettier and eslint do not
+parse; the committed bundles, which a rebuild from the root `package-lock.json` must
+reproduce byte for byte; and the shipped runtime's folds under `tests/runtime/`, which
+Node runs without a browser. Both landing paths run all four: a pull request in its
+`test` job, and `wt merge` in the pre-merge blocks of `.config/wt.toml`, which name each
+command. `wt hook pre-merge` runs that whole local gate without landing, on a committed
+tree: the bundle check fails on any uncommitted change. The website's delivery checks —
+the site build, the Worker's dry-run deploy, and `scripts/verify-site-local.sh` — run
+on a pull request and in `publish-site` before it deploys, not in `wt merge`.
 
 For a change that can alter browser startup, compare base and candidate at the
 boundary the change affects: locally served previews for browser runtime changes;

@@ -5,7 +5,7 @@
    - the general comment box, including an attached page drawing;
    - each thread reply;
    - the selection composer, including its anchor and mode;
-   - a conversation's first message and replies;
+   - a thread's first message and replies;
    - an `lf-draft` edit.
 
    The store is `localStorage` scoped by page and draft context, because the text must
@@ -67,7 +67,7 @@
    an edit's provenance. */
 
 import { runtime } from "./context.js";
-import { PENDING } from "./conversation/identity.js";
+import { PENDING } from "./thread/identity.js";
 import { PAGE_SCOPE, draftStore } from "./storage.js";
 
 // ---------- draft persistence ----------

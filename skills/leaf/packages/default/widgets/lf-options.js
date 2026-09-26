@@ -33,7 +33,7 @@
  * sends an `add` naming the new option and its words, then selects it through the same
  * `choose` action as every other pick. The option stands on the `add`'s own coordinate,
  * so a later pick leaves it in the group and only undoing the `add` takes it away. It is
- * not a conversation: if the agent needs clarification after carrying the option into
+ * not a thread: if the agent needs clarification after carrying the option into
  * the page, it can open a separate thread anchored to that option.
  *
  * The keyboard walk stops at options. Ask digits choose each authored option, then enter
@@ -101,12 +101,12 @@ import { SettledOptions } from "./lf-options-settled.js";
 import {
   LitElement,
   beginWalk,
-  conversationInput,
+  threadInput,
   focused,
   html,
   inChrome,
   commands,
-  landInConversation,
+  landInThread,
   listWalkPosition,
   offer,
   quoted,
@@ -406,9 +406,9 @@ customElements.define(
     }
 
     // A page question owns the ordinary add form below its options. A question already
-    // inside a conversation has no second form; its surrounding thread owns the reply.
+    // inside a thread has no second form; its surrounding thread owns the reply.
     #reply() {
-      return this.#addition.input ? null : conversationInput(this);
+      return this.#addition.input ? null : threadInput(this);
     }
 
     // The one statement a live channel can't derive: the set is whole. One press,
@@ -506,12 +506,12 @@ customElements.define(
             does: "Reply in this thread",
             line: "reply",
             when: () => Boolean(this.#reply()),
-            // The box hands the user back to the conversation it belongs to, and to
-            // this option where that conversation is nowhere to stand — the route
-            // `landInConversation` records for exactly that case, and the one Escape
+            // The box hands the user back to the thread it belongs to, and to
+            // this option where that thread is nowhere to stand — the route
+            // `landInThread` records for exactly that case, and the one Escape
             // out of a text box reads.
             run: () =>
-              landInConversation(this.#reply(), {
+              landInThread(this.#reply(), {
                 target: mark,
                 line: "back to question",
               }),

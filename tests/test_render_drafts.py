@@ -1009,7 +1009,7 @@ def test_a_held_general_send_preserves_a_newer_exact_draft(browser, serve):
 
 
 def test_a_sent_comment_stands_in_the_panel_before_the_log_answers(browser, serve):
-    """The words move from the box into the conversation in the gesture that sends them.
+    """The words move from the box into the thread in the gesture that sends them.
 
     Held rather than raced: the window is one request's flight, and what these
     assertions describe lasts exactly that long. The marked node is what the release is
@@ -1142,7 +1142,7 @@ def test_a_reply_behind_a_refused_parent_is_withdrawn_rather_than_sent(
 
 
 def test_a_sent_reply_stands_in_its_thread_before_the_log_answers(held_events, serve):
-    """A reply joins the conversation it answers without waiting for the round trip."""
+    """A reply joins the thread it answers without waiting for the round trip."""
     browser, held = held_events
     page = open_page(browser, serve(LONG_PAGE, comments=2))
     page.locator(".lf-threads-toggle").click()
@@ -1227,7 +1227,7 @@ def test_a_refused_comment_takes_its_message_back_and_returns_the_words(
 def test_every_message_send_says_so_to_a_user_listening(held_events, serve, box):
     """A send whose result the user cannot see still reaches them.
 
-    The message standing in the conversation is the whole acknowledgement for a user
+    The message standing in the thread is the whole acknowledgement for a user
     looking at it, which is why no box writes a success notice for it. But neither the
     seat nor the panel's list is a live region, so for a user listening to the page
     that send would pass in silence. `post` says it once, where a gesture is first known
@@ -1237,7 +1237,7 @@ def test_every_message_send_says_so_to_a_user_listening(held_events, serve, box)
     page = open_page(browser, serve(SEATED_QUESTION_PAGE))
     live = page.locator(".lf-live")
     if box == "seat":
-        seat = page.locator("#jobs > .lf-conversation > .lf-say")
+        seat = page.locator("#jobs > .lf-thread-seat > .lf-say")
         field = seat.locator("textarea")
         press = seat.get_by_role("button", name="Send", exact=True)
     else:
@@ -1320,7 +1320,7 @@ def test_a_first_answer_leaves_a_later_sends_words_masked(held_events, serve):
     )
     assert standing is None, "the second send's words were offered back while in flight"
     expect(reply).to_have_value("")
-    expect(page.locator("#jobs .lf-conversation-thread textarea")).to_have_value("")
+    expect(page.locator("#jobs .lf-page-thread textarea")).to_have_value("")
 
     held.pop(0).continue_()
     page.unroute("**/api/event")
@@ -1338,7 +1338,7 @@ def test_a_held_reply_send_leaves_a_later_reply_box_focused(
     """A later draft keeps its focus and remains visible when a reply arrives.
 
     The long sent message tests reflow above a draft in the same card; the distant
-    card tests a user who has moved to another conversation.
+    card tests a user who has moved to another thread.
     """
     browser, held = held_events
     page = open_page(browser, serve(LONG_PAGE, comments=8))
@@ -1407,9 +1407,7 @@ def test_a_held_reply_send_leaves_the_panel_closed(held_events, serve, continue_
     toggle.click()
     expect(page.locator(".lf-thread-panel")).not_to_be_visible()
     expect(toggle).to_be_focused()
-    inline = page.locator(
-        f'#jobs .lf-conversation-thread[data-thread="{root["id"]}"] textarea'
-    )
+    inline = page.locator(f'#jobs .lf-page-thread[data-thread="{root["id"]}"] textarea')
     newer = "Continue this reply beside the question."
     if continue_inline:
         inline.fill(newer)
@@ -1572,7 +1570,7 @@ def test_an_untouched_inline_reply_follows_but_an_emptied_draft_holds(browser, s
 
     sent = events_model.read_events(serve.page_dir)[-1]
     thread = page.locator(
-        f'.lf-margin-thread .lf-conversation-thread[data-thread="{sent["id"]}"]'
+        f'.lf-margin-thread .lf-page-thread[data-thread="{sent["id"]}"]'
     )
     reply = thread.locator("textarea")
     expect(thread).to_be_focused()
@@ -1593,7 +1591,7 @@ def test_an_untouched_inline_reply_follows_but_an_emptied_draft_holds(browser, s
     reply.fill("A thought I changed my mind about.")
     reply.fill("")
     # A thread's reply draft is keyed by the name the log's answer does not change —
-    # the attempt the user's own comment opened it with (conversation/model.js).
+    # the attempt the user's own comment opened it with (thread/model.js).
     assert page.evaluate(STORED_DRAFT_TEXT, f"reply:{sent['attempt']}") == ""
     v3 = v2.replace(
         "A revised short second passage.", "A twice-revised short second passage."
@@ -1820,8 +1818,8 @@ def test_a_stale_question_first_message_cannot_append_across_tabs(
           } catch {}
         }, true);""",
     )
-    first_say = first.locator("#jobs > .lf-conversation > .lf-say")
-    second_say = second.locator("#jobs > .lf-conversation > .lf-say")
+    first_say = first.locator("#jobs > .lf-thread-seat > .lf-say")
+    second_say = second.locator("#jobs > .lf-thread-seat > .lf-say")
     raw = "  Keep one exact first answer.  "
     first_say.locator("textarea").fill(raw)
     expect(second_say.locator("textarea")).to_have_value(raw)
@@ -1870,10 +1868,7 @@ def test_a_question_reply_appends_one_event_across_tabs(browser, serve, one_user
     )
     first = open_page(browser, url, context=one_user)
     second = open_page(browser, url, context=one_user)
-    selector = (
-        f"#jobs > .lf-conversation > .lf-conversation-thread"
-        f'[data-thread="{root["id"]}"]'
-    )
+    selector = f'#jobs > .lf-thread-seat > .lf-page-thread[data-thread="{root["id"]}"]'
     first_thread = first.locator(selector)
     second_thread = second.locator(selector)
     raw = "  The camera, then the mounting work.  "
@@ -1899,9 +1894,7 @@ def test_a_question_reply_appends_one_event_across_tabs(browser, serve, one_user
     assert _traffic(first).sends == _traffic(second).sends == 1
 
 
-def test_a_held_conversation_send_cannot_clear_a_newer_raw_draft(
-    browser, serve, one_user
-):
+def test_a_held_thread_send_cannot_clear_a_newer_raw_draft(browser, serve, one_user):
     """Settlement compares raw words, so an older POST cannot erase a later edit."""
     url = serve(SEATED_QUESTION_PAGE)
     root = events_model.append_event(
@@ -1919,11 +1912,11 @@ def test_a_held_conversation_send_cannot_clear_a_newer_raw_draft(
     first.locator(".lf-threads-toggle").click()
     panel_settled(first)
     inline = first.locator(
-        f'#jobs .lf-conversation-thread[data-thread="{root["id"]}"] textarea'
+        f'#jobs .lf-page-thread[data-thread="{root["id"]}"] textarea'
     )
     panel = first.locator(f'.lf-thread[data-id="{root["id"]}"]')
     second_inline = second.locator(
-        f'#jobs .lf-conversation-thread[data-thread="{root["id"]}"] textarea'
+        f'#jobs .lf-page-thread[data-thread="{root["id"]}"] textarea'
     )
     sent_raw = "  Send this part first.  "
     newer_raw = "  A later thought stays raw.  "
@@ -1964,8 +1957,8 @@ def test_a_failed_concurrent_question_send_keeps_the_accepted_attempt(
     url = serve(SEATED_QUESTION_PAGE)
     first = open_page(browser, url, context=one_user)
     second = open_page(browser, url, context=one_user)
-    first_say = first.locator("#jobs > .lf-conversation > .lf-say")
-    second_say = second.locator("#jobs > .lf-conversation > .lf-say")
+    first_say = first.locator("#jobs > .lf-thread-seat > .lf-say")
+    second_say = second.locator("#jobs > .lf-thread-seat > .lf-say")
     raw = "  Retry this exact answer.  "
     first_say.locator("textarea").fill(raw)
     expect(second_say.locator("textarea")).to_have_value(raw)
@@ -1980,15 +1973,15 @@ def test_a_failed_concurrent_question_send_keeps_the_accepted_attempt(
     refuse(held[0])
     first.unroute("**/api/event")
     round_trip(first)
-    # The words standing in the seat's own conversation are what says the send landed;
+    # The words standing in the seat's own thread are what says the send landed;
     # a notice saying so beside them would be the same acknowledgement twice.
-    expect(first.locator("#jobs > .lf-conversation")).to_contain_text(raw.strip())
+    expect(first.locator("#jobs > .lf-thread-seat")).to_contain_text(raw.strip())
     roots = [
         event for event in sent_events(serve.page_dir) if event["kind"] == "comment"
     ]
     assert [event["text"] for event in roots] == [raw]
     # Asked of the words rather than of the box: a seat that can hold keeps its composer
-    # standing after every root (renderConversations), so an empty one is what says the
+    # standing after every root (renderSeats), so an empty one is what says the
     # tab adopted the durable outcome instead of holding the words for a second send.
     expect(first_say.locator("textarea")).to_have_value("")
     expect(second_say.locator("textarea")).to_have_value("")
@@ -2002,8 +1995,8 @@ def test_a_late_refusal_cannot_restore_an_attempt_another_tab_settled(
     url = serve(SEATED_QUESTION_PAGE)
     first = open_page(browser, url, context=one_user)
     second = open_page(browser, url, context=one_user)
-    first_say = first.locator("#jobs > .lf-conversation > .lf-say")
-    second_say = second.locator("#jobs > .lf-conversation > .lf-say")
+    first_say = first.locator("#jobs > .lf-thread-seat > .lf-say")
+    second_say = second.locator("#jobs > .lf-thread-seat > .lf-say")
     raw = "The shared generation one tab will accept."
     first_say.locator("textarea").fill(raw)
     expect(second_say.locator("textarea")).to_have_value(raw)
@@ -2066,7 +2059,7 @@ def test_a_question_can_send_when_draft_storage_refuses_writes(browser, serve):
           throw new DOMException('blocked', 'SecurityError');
         };""",
     )
-    say = page.locator("#jobs > .lf-conversation > .lf-say")
+    say = page.locator("#jobs > .lf-thread-seat > .lf-say")
     raw = "  Send even though this draft cannot persist.  "
     say.locator("textarea").fill(raw)
     say.get_by_role("button", name="Send", exact=True).click()
@@ -2104,8 +2097,8 @@ def test_a_closed_sender_cannot_append_its_accepted_attempt_twice(
     second_held = held_stale(one_user)
     second = open_page(browser, url, context=second_held)
     raw = "One answer survives its sender closing."
-    first_say = first.locator("#jobs > .lf-conversation > .lf-say")
-    second_say = second.locator("#jobs > .lf-conversation > .lf-say")
+    first_say = first.locator("#jobs > .lf-thread-seat > .lf-say")
+    second_say = second.locator("#jobs > .lf-thread-seat > .lf-say")
     first_say.locator("textarea").fill(raw)
     expect(second_say.locator("textarea")).to_have_value(raw)
     first.evaluate(
@@ -2145,7 +2138,7 @@ def test_an_older_settlement_cannot_erase_a_newer_failed_write(
     url = serve(SEATED_QUESTION_PAGE)
     other = open_page(browser, url, context=one_user)
     old = "The older persisted answer."
-    other_say = other.locator("#jobs > .lf-conversation > .lf-say")
+    other_say = other.locator("#jobs > .lf-thread-seat > .lf-say")
     other_say.locator("textarea").fill(old)
 
     local = open_page(
@@ -2156,7 +2149,7 @@ def test_an_older_settlement_cannot_erase_a_newer_failed_write(
           throw new DOMException('full', 'QuotaExceededError');
         };""",
     )
-    local_say = local.locator("#jobs > .lf-conversation > .lf-say")
+    local_say = local.locator("#jobs > .lf-thread-seat > .lf-say")
     expect(local_say.locator("textarea")).to_have_value(old)
     newer = "The newer local answer whose write failed."
     local_say.locator("textarea").fill("A first nondurable edit on the same branch.")
@@ -2203,8 +2196,8 @@ def test_an_accepted_nondurable_branch_cannot_tombstone_a_newer_shared_generatio
         })();""",
     )
     newer_tab = open_page(browser, url, context=one_user)
-    older_say = older.locator("#jobs > .lf-conversation > .lf-say")
-    newer_say = newer_tab.locator("#jobs > .lf-conversation > .lf-say")
+    older_say = older.locator("#jobs > .lf-thread-seat > .lf-say")
+    newer_say = newer_tab.locator("#jobs > .lf-thread-seat > .lf-say")
     old = "The older nondurable answer already in flight."
     newer = "The newer durable answer survives the older response."
     older_say.locator("textarea").fill(old)
@@ -2220,7 +2213,7 @@ def test_an_accepted_nondurable_branch_cannot_tombstone_a_newer_shared_generatio
     held[0].continue_()
     older.unroute("**/api/event")
     round_trip(older)
-    restored = older.locator("#jobs > .lf-conversation > .lf-say textarea")
+    restored = older.locator("#jobs > .lf-thread-seat > .lf-say textarea")
     expect(restored).to_have_value(newer)
     assert older.evaluate(STORED_DRAFT_TEXT, "say:jobs") == newer
     roots = [
@@ -2255,8 +2248,8 @@ def test_a_nondurable_branch_yields_to_unrelated_live_storage_news(
         })();""",
     )
     shared = open_page(browser, url, context=one_user)
-    local_say = local.locator("#jobs > .lf-conversation > .lf-say")
-    shared_say = shared.locator("#jobs > .lf-conversation > .lf-say")
+    local_say = local.locator("#jobs > .lf-thread-seat > .lf-say")
+    shared_say = shared.locator("#jobs > .lf-thread-seat > .lf-say")
     old = "The local write failed before shared storage changed."
     newer = "The later durable generation owns the user now."
     local_say.locator("textarea").fill(old)
@@ -2282,8 +2275,8 @@ def test_a_delayed_storage_event_cannot_send_a_stale_durable_generation(
         }, true);""",
     )
     current = open_page(browser, url, context=one_user)
-    stale_say = stale.locator("#jobs > .lf-conversation > .lf-say")
-    current_say = current.locator("#jobs > .lf-conversation > .lf-say")
+    stale_say = stale.locator("#jobs > .lf-thread-seat > .lf-say")
+    current_say = current.locator("#jobs > .lf-thread-seat > .lf-say")
     old = "The stale tab's older generation."
     newer = "The newer shared generation."
     stale_say.locator("textarea").fill(old)
@@ -2354,8 +2347,8 @@ def test_poll_settlement_cannot_tombstone_a_newer_durable_generation(
         }, true);""",
     )
     current = open_page(browser, url, context=one_user)
-    stale_say = stale.locator("#jobs > .lf-conversation > .lf-say")
-    current_say = current.locator("#jobs > .lf-conversation > .lf-say")
+    stale_say = stale.locator("#jobs > .lf-thread-seat > .lf-say")
+    current_say = current.locator("#jobs > .lf-thread-seat > .lf-say")
     old = "The accepted generation cached by the stale tab."
     newer = "The newer generation shared before settlement arrived."
     stale_say.locator("textarea").fill(old)
@@ -2400,7 +2393,7 @@ def test_a_read_failure_cannot_make_a_successfully_written_draft_unsendable(
         };""",
     )
     raw = "A live value remains sendable when storage reads fail."
-    say = page.locator("#jobs > .lf-conversation > .lf-say")
+    say = page.locator("#jobs > .lf-thread-seat > .lf-say")
     say.locator("textarea").fill(raw)
     say.get_by_role("button", name="Send", exact=True).click()
     _until(page, lambda t: t.sends == 1, "sent the cached draft")
@@ -2423,7 +2416,7 @@ def test_a_remove_failure_cannot_resurrect_an_accepted_draft(browser, serve, one
         };""",
     )
     raw = "A sent draft must not return."
-    say = first.locator("#jobs > .lf-conversation > .lf-say")
+    say = first.locator("#jobs > .lf-thread-seat > .lf-say")
     say.locator("textarea").fill(raw)
     say.get_by_role("button", name="Send", exact=True).click()
     round_trip(first)
@@ -2432,7 +2425,7 @@ def test_a_remove_failure_cannot_resurrect_an_accepted_draft(browser, serve, one
     again = open_page(browser, url, context=one_user)
     # The composer is still standing — a seat that can hold keeps it — so the claim is
     # about what it opens with: a settled draft is words the next tab must not be handed.
-    expect(again.locator("#jobs > .lf-conversation > .lf-say textarea")).to_have_value(
+    expect(again.locator("#jobs > .lf-thread-seat > .lf-say textarea")).to_have_value(
         ""
     )
     roots = [
@@ -2455,7 +2448,7 @@ def test_an_intentional_later_identical_reply_gets_a_fresh_attempt(browser, serv
         },
     )
     page = open_page(browser, url)
-    thread = page.locator(f'#jobs .lf-conversation-thread[data-thread="{root["id"]}"]')
+    thread = page.locator(f'#jobs .lf-page-thread[data-thread="{root["id"]}"]')
     text = "Still true."
     for _ in range(2):
         thread.locator("textarea").fill(text)
@@ -3004,7 +2997,7 @@ def test_an_acknowledged_decision_still_survives_the_next_version(browser, serve
 
 
 def test_a_comment_written_on_an_edited_draft_lands_on_their_words(browser, serve):
-    """`leaf comment` reads the mapped revision plus the log; the user's tab reads
+    """`leaf thread open` reads the mapped revision plus the log; the user's tab reads
     the DOM replay builds from the same two. An edited draft is where those readings
     used to drift — the file holds words the page stopped showing — so write the anchor
     blind, on the user's own words, and prove the page paints it. The words the edit
@@ -3025,13 +3018,14 @@ def test_a_comment_written_on_an_edited_draft_lands_on_their_words(browser, serv
     )
     refused = CliRunner().invoke(
         cli_model.cli,
-        ["comment", str(d), "--quote", "It is online.", "--text", "x"],
+        ["thread", "open", str(d), "--quote", "It is online.", "--text", "x"],
     )
     assert refused.exit_code != 0 and "rewrote § draft-ops" in refused.output
     written = CliRunner().invoke(
         cli_model.cli,
         [
-            "comment",
+            "thread",
+            "open",
             str(d),
             "--quote",
             "It takes about a minute.",
@@ -3458,7 +3452,7 @@ def test_the_reading_page_keys_follow_the_user_into_the_panel(browser, serve):
     """Which region the keys move is where the user is standing, and covering is only
     one of the two ways they come to be standing in the list. Beside the page — the wide
     window, where the page beside the panel stays live — a user working down a long
-    conversation presses d and the page behind them steps instead, which is the same
+    thread presses d and the page behind them steps instead, which is the same
     nothing the covering case was written to prevent: the region they are reading does
     not move, and the document is somewhere else when they look back at it.
 

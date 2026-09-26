@@ -38,10 +38,6 @@ from leaf.codex import (
     stop_app_server,
     stream_reply_target,
 )
-from leaf.conversation import (
-    fail_answer,
-    release_delivery_reply,
-)
 from leaf.delivery import read_delivery
 from leaf.host import EmbeddedHarness
 from leaf.hosting import LeafHTTPServer
@@ -58,6 +54,10 @@ from leaf.service import (
     close_session_turn,
     page_claim,
     restore_page_claim,
+)
+from leaf.thread import (
+    fail_answer,
+    release_delivery_reply,
 )
 from starlette.responses import Response
 
@@ -294,7 +294,7 @@ def write_failure_receipt(
     or an answer to a page Ask.
 
     Only the move is named. A reply's address is not always the move — a gesture on a
-    widget frozen into thread markup is answered on the conversation holding it — and
+    widget frozen into thread markup is answered on the thread holding it — and
     the writer resolves that from the same reading either way, so naming it here would
     be a second answer to a question the writer already answers. It would also be the
     wrong one on a repeat: the Worker retries the same request, and once the first

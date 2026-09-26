@@ -28,7 +28,7 @@ import { focused, keys } from "../keyboard/scopes.js";
 import { pageScope } from "../keyboard/register.js";
 import { needsYou, threadSearchActive } from "./narrowing.js";
 import { openThreads } from "./thread-list.js";
-import { standingConversation } from "./landing.js";
+import { standingThread } from "./landing.js";
 import { runtime } from "../context.js";
 import { pagePresented } from "../presentation.js";
 
@@ -128,13 +128,13 @@ export function createPanelComposer({
     // they happen to be standing in, so the row stands down and the page's own c answers,
     // on the passage, saying so on the shortcut bar first.
     //
-    // Dead inside a conversation for the same reason read the other way. This scope is
+    // Dead inside a thread for the same reason read the other way. This scope is
     // live wherever focus is in the panel, a card the user has walked to included, and
     // that card's own reply box is a nearer answer to "comment" than the general box is —
     // the one `Enter` reaches from here. A resolved card has no box to be the nearer
-    // answer, and standingConversation reads the box rather than the class, so the press
+    // answer, and standingThread reads the box rather than the class, so the press
     // there is the general box's after all.
-    when: () => !fabAnchorAt() && !standingConversation(),
+    when: () => !fabAnchorAt() && !standingThread(),
     run: () => generalInput.focus({ preventScroll: true }),
   };
 
@@ -165,7 +165,7 @@ export function createPanelComposer({
       {
         id: "thread.waiting.toggle",
         // `w` for the words the control says. It is the phrase the page already uses for
-        // the same question asked of its widgets (a/A), asked here of the conversation —
+        // the same question asked of its widgets (a/A), asked here of the thread —
         // so the user learns one idea and reaches it two ways rather than learning
         // "needs you" beside it.
         //

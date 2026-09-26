@@ -636,7 +636,7 @@ class PageTransaction:
         write_json(self.page_dir / STATUS_FILE, status)
 
     def clear_stream_reply(self, session_id: str, turn_id: str | None = None) -> None:
-        """Remove this task's provisional reply without changing conversation history."""
+        """Remove this task's provisional reply without changing thread history."""
         status = dict(self.status)
         stream = dict(status.get("stream") or {})
         reply = stream.get("reply")

@@ -27,7 +27,7 @@ const thread = (id, msgs, attention = null, userPrompt = null) => ({
     .filter((item) => item.unread !== false)
     .map((item) => ({ message: item.id, version: item.edited?.id ?? item.id })),
 });
-const ask = (id, conversation = null) => ({ id, conversation });
+const ask = (id, thread = null) => ({ id, thread });
 const activity = (kind = "away", extra = {}) => ({
   kind,
   held: true,
@@ -43,7 +43,7 @@ const reading = ({
   pageActivity = activity(),
 } = {}) => ({
   page: { asks: { user: pageAsks } },
-  conversation: {
+  thread: {
     threads,
     asks: { user: threadAsks },
   },
@@ -56,7 +56,7 @@ const responseFailure = (source, kind = "failed") => ({
   condition: { kind, operation: "response" },
   response: source,
   input: "input",
-  subject: { kind: "conversation", id: "t" },
+  subject: { kind: "thread", id: "t" },
   seq: 3,
 });
 
@@ -342,7 +342,7 @@ test("the adapter selects the active server document for page obligations", () =
         1: { document: reading({ pageAsks: [ask("historical")] }).page },
         2: { document: current.page },
       },
-      conversation: current.conversation,
+      thread: current.thread,
       request_outcomes: [],
     },
     workflows: [],

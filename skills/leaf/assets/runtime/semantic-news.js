@@ -1,6 +1,6 @@
 /* Meaningful news from complete, accepted page readings.
 
-   The server owns conversation content, user obligations, request lifecycles,
+   The server owns thread content, user obligations, request lifecycles,
    response conditions, and page activity. This module compares those readings after
    presentation. It remembers which source versions were observed, not a second
    account of what the page currently means.
@@ -11,7 +11,7 @@
    not read is news on the first reading too, since it arrived while they were away.
    Every other kind of news is a change between readings, so the first reading
    establishes it without announcing it. */
-import { moved } from "./conversation/model.js";
+import { moved } from "./thread/model.js";
 
 const identity = (record) => record.attempt ?? record.id;
 
@@ -20,7 +20,7 @@ export function semanticNewsReading(state) {
   if (!page) throw new Error("The active page has no browser reading");
   return {
     page,
-    conversation: state.browser.conversation,
+    thread: state.browser.thread,
     workflows: state.workflows,
     activity: state.activity,
     requestOutcomes: state.browser.request_outcomes,
@@ -29,8 +29,8 @@ export function semanticNewsReading(state) {
 
 // Unread agent content, oldest move first. A failure reply is unread content too, but
 // its news is the failed response's, announced from its workflow.
-function unreadContent(conversation) {
-  return conversation.threads
+function unreadContent(threadView) {
+  return threadView.threads
     .flatMap((thread) =>
       thread.unread.map(({ message: id, version }) => ({
         thread: thread.root.id,
@@ -42,19 +42,19 @@ function unreadContent(conversation) {
     .sort((a, b) => moved(a.message).seq - moved(b.message).seq);
 }
 
-function userObligations(page, conversation) {
+function userObligations(page, threadView) {
   const held = new Map();
   for (const ask of page.asks.user)
     held.set(JSON.stringify(["page", ask.id]), { source: ask.id, thread: null });
   const askedThreads = new Set();
-  for (const ask of conversation.asks.user) {
-    held.set(JSON.stringify(["thread", ask.conversation, ask.id]), {
+  for (const ask of threadView.asks.user) {
+    held.set(JSON.stringify(["thread", ask.thread, ask.id]), {
       source: ask.id,
-      thread: ask.conversation,
+      thread: ask.thread,
     });
-    askedThreads.add(ask.conversation);
+    askedThreads.add(ask.thread);
   }
-  for (const thread of conversation.threads) {
+  for (const thread of threadView.threads) {
     if (
       thread.attention?.kind === "needs_user" &&
       thread.attention.reason === "ask" &&
@@ -87,7 +87,7 @@ function responseFailures(workflows) {
       key,
       kind: workflow.condition.kind,
       input: workflow.input,
-      thread: workflow.subject.kind === "conversation" ? workflow.subject.id : null,
+      thread: workflow.subject.kind === "thread" ? workflow.subject.id : null,
       seq: workflow.seq ?? 0,
     };
     failures.set(key, failure);
@@ -99,8 +99,8 @@ const agentAvailable = (activity) =>
   activity.held && ["listening", "working"].includes(activity.kind);
 
 export function observeSemanticNews(prior, reading) {
-  const content = unreadContent(reading.conversation);
-  const obligations = userObligations(reading.page, reading.conversation);
+  const content = unreadContent(reading.thread);
+  const obligations = userObligations(reading.page, reading.thread);
   const failures = responseFailures(reading.workflows);
   const available = agentAvailable(reading.activity);
   const first = prior === null;
@@ -174,10 +174,8 @@ export function observeSemanticNews(prior, reading) {
 // that the latest successfully presented reading has since superseded. In particular,
 // an answer can replace a failure while the user's own command holds the line.
 export function currentSemanticNews(news, reading, observed) {
-  const versions = new Set(
-    unreadContent(reading.conversation).map(({ version }) => version),
-  );
-  const obligations = userObligations(reading.page, reading.conversation);
+  const versions = new Set(unreadContent(reading.thread).map(({ version }) => version));
+  const obligations = userObligations(reading.page, reading.thread);
   const failures = responseFailures(reading.workflows);
   return news.flatMap((item) => {
     switch (item.kind) {

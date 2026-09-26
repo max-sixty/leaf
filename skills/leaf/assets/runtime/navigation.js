@@ -1,19 +1,19 @@
 /* This module owns user travel. */
 import { cancelRender, nextFrame } from "./rendering.js";
 import { clampedRow } from "./keyboard/bindings.js";
-import { inPanel as panelFocusIsInside } from "./conversation/panel-elements.js";
-import { openThreads } from "./conversation/thread-list.js";
-import { narrowed, threadSearchActive } from "./conversation/narrowing.js";
+import { inPanel as panelFocusIsInside } from "./thread/panel-elements.js";
+import { openThreads } from "./thread/thread-list.js";
+import { narrowed, threadSearchActive } from "./thread/narrowing.js";
 import { coveringAuxiliarySurface, pageCommand } from "./keyboard/register.js";
 import { reducedMotion, scrollBehavior } from "./motion.js";
-import { threadsBox } from "./conversation/panel-elements.js";
+import { threadsBox } from "./thread/panel-elements.js";
 import { pageScroller } from "./scrolling.js";
 import { landingInsets } from "./geometry.js";
 import { effectiveScroller, readingRegionFor } from "./reading-regions.js";
 import { closestAcross } from "./passages.js";
 import { under } from "./shadow.js";
 import { announce } from "./notifications.js";
-import { focusThread } from "./conversation/focus.js";
+import { focusThread } from "./thread/focus.js";
 import { beginWalk, listWalkPosition, walkPositionLabel } from "./walk-position.js";
 
 const walkableThreads = (panelIsOpen) =>
@@ -130,7 +130,7 @@ const holding = (box) =>
 const seenScroller = (coveringAuxiliaryScroller) =>
   coveringAuxiliaryScroller() ?? pageScroller;
 // Reading-page keys follow the region the user is working in. Focus can put them in a
-// panel or anchored conversation beside the page. Inside a covering surface the focused
+// panel or anchored thread beside the page. Inside a covering surface the focused
 // region still wins; its own scrollport may be nested in that surface. The covering
 // scrollport catches focus with no region, such as a blurred stop.
 const stepScroller = (coveringAuxiliaryScroller) => {
@@ -230,7 +230,7 @@ export function createNavigation({
     // than the walk, that Escape takes off. In the panel it moves focus from card to
     // card and the standing scope lets go of whichever one they end on, back to the
     // list. With the panel shut it stands them on a thread a widget seats on the page,
-    // or opens the margin's conversation view for a thread with no seat, and that view
+    // or opens the margin's thread view for a thread with no seat, and that view
     // is what the Page Map's own step dismisses.
     run: (binding) => walkThreads(binding === "t" ? 1 : -1),
   });

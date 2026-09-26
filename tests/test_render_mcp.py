@@ -1087,7 +1087,7 @@ def test_the_snapshot_posts_the_passage_the_version_holds_not_the_one_it_paints(
     the version can find, so the user is told the page never said the words in front of
     them. The app therefore reads the document's own text nodes, posts that and nothing
     else, and the append gate — the one resolver — writes the neighbours and stores the
-    same anchor `leaf comment` would. The full page then paints those exact passages."""
+    same anchor `leaf thread open` would. The full page then paints those exact passages."""
     url = serve(SNAPSHOT_READING_PAGE)
     page_dir = serve.page_dir
     source = revision_path(page_dir, 1).read_text(encoding="utf-8")

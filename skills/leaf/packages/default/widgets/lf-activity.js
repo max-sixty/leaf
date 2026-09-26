@@ -18,7 +18,7 @@
  * the contract names nowhere is named by its own words (`addressableSays`), cut short.
  *
  * The thing is the row's way there: a widget or section is an ordinary fragment link,
- * so the browser owns that travel as it does for lf-toc, and a conversation is a button
+ * so the browser owns that travel as it does for lf-toc, and a thread is a button
  * onto `openThread`, which chooses the thread's inline destination or Threads the same
  * way a mark and t/T do. Links and buttons are the keyboard route: each is a Tab stop
  * and a go-to target.
@@ -88,7 +88,7 @@ const actorOf = (row) =>
 const quoted = (words) => `“${words}”`;
 const named = (words) => quoted(clip(words, NAME));
 
-// The conversation's name as Threads states it: its latest title, else its opening words.
+// The thread's name as Threads states it: its latest title, else its opening words.
 const topicOf = (thread) =>
   !thread
     ? "a thread"

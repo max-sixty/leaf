@@ -51,7 +51,7 @@ def capture_anchor(
     what to do about it — a quote the file doesn't hold, or holds twice, is a question
     with an answer, and asking now beats posting a comment that lands nowhere.
 
-    Two readers meet that refusal: the agent running `leaf comment`, and the person
+    Two readers meet that refusal: the agent running `leaf thread open`, and the person
     selecting text in the MCP snapshot's panel, who has no flags to reach for. So a
     refusal about a quote or a section names what the reading found and a recourse both
     have — quote more of the surrounding text, or name the section. Only a refusal about

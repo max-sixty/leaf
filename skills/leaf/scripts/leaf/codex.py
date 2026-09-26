@@ -35,11 +35,6 @@ from xml.etree import ElementTree
 
 from websockets.sync.client import connect, unix_connect
 
-from .conversation import (
-    DeliveryReply,
-    release_delivery_reply,
-    reserve_delivery_reply,
-)
 from .delivery import (
     DELIVERY_FORMAT,
     DeliveryIdConflict,
@@ -64,6 +59,11 @@ from .service import (
     owned_pages,
     restore_page_claim,
     unacknowledged,
+)
+from .thread import (
+    DeliveryReply,
+    release_delivery_reply,
+    reserve_delivery_reply,
 )
 
 START_TIMEOUT = 20
@@ -1337,9 +1337,9 @@ def stream_reply_target(payload: dict) -> dict | None:
     """The one reply address a delivery's turn writes with its own messages.
 
     It is the delivery's `turn` answer, which only a delivery frozen for App
-    Server holds: a pointer queued for `leaf reply` names a plain reply even when
+    Server holds: a pointer queued for `leaf thread reply` names a plain reply even when
     a turn Leaf observes picks it up. A move's response address is not the move: a
-    widget gesture inside a frozen conversation is answered on the conversation
+    widget gesture inside a frozen thread is answered on the thread
     that holds it. Reading both halves from the delivery keeps every writer — the
     provider's own final answer and a host receipt written when there will be no
     final answer — addressing the same place.

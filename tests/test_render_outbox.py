@@ -80,7 +80,7 @@ def draft_control(page, draft_id="note-cli"):
     return margin_control(page, f"draft:{draft_id}", "edit")
 
 
-def test_a_refused_message_cannot_present_before_its_conversation_reconciles(
+def test_a_refused_message_cannot_present_before_its_thread_reconciles(
     serve, held_events
 ):
     """The rejection publication owes new chrome, even without any widget renderer."""
@@ -100,8 +100,8 @@ def test_a_refused_message_cannot_present_before_its_conversation_reconciles(
     page.evaluate("""async () => {
       const {applicationState, readApplicationPresentation} =
         await window.__lfRuntimeImport('/runtime/semantic-state.js');
-      let previous = applicationState.read().effective.conversation.all.length;
-      applicationState.select(root => root.effective.conversation.all.length)
+      let previous = applicationState.read().effective.thread.all.length;
+      applicationState.select(root => root.effective.thread.all.length)
         .subscribe(count => {
           if (previous > 0 && count === 0) queueMicrotask(() => {
             const {semanticEpoch, presentedEpoch, pending} = readApplicationPresentation();
@@ -117,7 +117,7 @@ def test_a_refused_message_cannot_present_before_its_conversation_reconciles(
     page.wait_for_function("window.rejectionPresentation !== undefined")
     reading = page.evaluate("window.rejectionPresentation")
     assert reading["presentedEpoch"] < reading["semanticEpoch"], reading
-    assert "conversation" in reading["pending"], reading
+    assert "thread" in reading["pending"], reading
     expect(page.locator(".lf-thread")).to_have_count(0)
 
 
@@ -137,7 +137,7 @@ def test_z_takes_back_the_thread_the_user_just_resolved(browser, serve):
     ]
     comment = comments[0]
     # The user has done nothing, so there is nothing to take back — a thread the
-    # agent closed with `leaf resolve` is not theirs to reopen by pressing undo.
+    # agent closed with `leaf thread resolve` is not theirs to reopen by pressing undo.
     events_model.append_event(
         serve.page_dir,
         {"kind": "resolve", "author": "agent", "agent": "A", "parent": comments[1]},
@@ -253,7 +253,7 @@ def test_z_reaches_the_gestures_made_on_the_version_being_read(browser, serve):
     this version's markup arrived showing — and a version written around the
     decision shows the decision. So on v2 the authored placement of a card moved on
     v1 is where the move put it, and a press offered there would paint nothing at
-    all. The conversation is not scoped this way and must not be: a thread outlives
+    all. The thread is not scoped this way and must not be: a thread outlives
     the version it was opened on, which is why resolve carries no version."""
     page = open_page(browser, live_url(serve(BOARD_PAGE)))
     page.locator("#card-baffle .lf-grip").focus()

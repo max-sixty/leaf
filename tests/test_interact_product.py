@@ -29,7 +29,6 @@ from interact_support import (
     state_json,
 )
 from leaf import cli as cli_model
-from leaf import conversation as conversation_model
 from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf import events as event_folds_model
@@ -38,6 +37,7 @@ from leaf import layer as layer_model
 from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
 from leaf import service as service_model
+from leaf import thread as thread_model
 from leaf.registry import storage as registry_storage
 from leaf.structure import SourceDocument
 from leaf.thread_context import thread_digest
@@ -639,7 +639,7 @@ def test_corpus_is_generated_from_the_examples():
         "example data changed — rerun scripts/corpus.py"
     )
     assert corpus.build_events() == corpus.CORPUS_EVENTS.read_text(), (
-        "specimen conversations changed — rerun scripts/corpus.py"
+        "specimen threads changed — rerun scripts/corpus.py"
     )
     committed_page = {
         path.relative_to(corpus.CORPUS_PAGE).as_posix(): path.read_bytes()
@@ -748,6 +748,7 @@ def test_reply_validates_widget_markup(page_dir):
         return CliRunner().invoke(
             cli_model.cli,
             [
+                "thread",
                 "reply",
                 str(page_dir),
                 "--to",
@@ -801,6 +802,7 @@ def test_reply_validates_typed_references_against_the_page(page_dir):
         return CliRunner().invoke(
             cli_model.cli,
             [
+                "thread",
                 "reply",
                 str(page_dir),
                 "--to",
@@ -844,6 +846,7 @@ def test_widget_ids_are_one_universe_across_page_and_replies(page_dir):
         return CliRunner().invoke(
             cli_model.cli,
             [
+                "thread",
                 "reply",
                 str(page_dir),
                 "--to",
@@ -944,6 +947,7 @@ def test_the_runtimes_lf_id_namespace_is_off_limits(page_dir):
     reply = CliRunner().invoke(
         cli_model.cli,
         [
+            "thread",
             "reply",
             str(page_dir),
             "--to",
@@ -970,7 +974,9 @@ def test_the_runtimes_lf_id_namespace_is_off_limits(page_dir):
 
 def test_agent_messages_preserve_a_single_space(page_dir):
     """Only the zero-length string is empty; every typed character reaches the log."""
-    empty = CliRunner().invoke(cli_model.cli, ["comment", str(page_dir), "--text", ""])
+    empty = CliRunner().invoke(
+        cli_model.cli, ["thread", "open", str(page_dir), "--text", ""]
+    )
     assert empty.exit_code != 0
     assert empty.output == "empty text (pass --text or pipe via stdin)\n"
 
@@ -981,6 +987,7 @@ def test_agent_messages_preserve_a_single_space(page_dir):
     replied = CliRunner().invoke(
         cli_model.cli,
         [
+            "thread",
             "reply",
             str(page_dir),
             "--to",
@@ -1016,6 +1023,7 @@ def test_the_wire_ships_a_message_as_logged(page_dir):
     result = CliRunner().invoke(
         cli_model.cli,
         [
+            "thread",
             "reply",
             str(page_dir),
             "--to",
@@ -1055,6 +1063,7 @@ def test_each_agent_session_posts_as_its_own_voice(page_dir, monkeypatch):
         return CliRunner().invoke(
             cli_model.cli,
             [
+                "thread",
                 "reply",
                 str(page_dir),
                 "--to",
@@ -1112,6 +1121,7 @@ def test_an_agent_reply_records_only_a_question_it_leaves_with_the_user(page_dir
     answered = CliRunner().invoke(
         cli_model.cli,
         [
+            "thread",
             "reply",
             str(page_dir),
             "--to",
@@ -1125,6 +1135,7 @@ def test_an_agent_reply_records_only_a_question_it_leaves_with_the_user(page_dir
     asking = CliRunner().invoke(
         cli_model.cli,
         [
+            "thread",
             "reply",
             str(page_dir),
             "--to",
@@ -1137,6 +1148,7 @@ def test_an_agent_reply_records_only_a_question_it_leaves_with_the_user(page_dir
     duplicate = CliRunner().invoke(
         cli_model.cli,
         [
+            "thread",
             "reply",
             str(page_dir),
             "--to",
@@ -1156,6 +1168,7 @@ def test_an_agent_reply_records_only_a_question_it_leaves_with_the_user(page_dir
     aggregate = CliRunner().invoke(
         cli_model.cli,
         [
+            "thread",
             "reply",
             str(page_dir),
             "--to",
@@ -1173,6 +1186,7 @@ def test_an_agent_reply_records_only_a_question_it_leaves_with_the_user(page_dir
     request_duplicate = CliRunner().invoke(
         cli_model.cli,
         [
+            "thread",
             "reply",
             str(page_dir),
             "--to",
@@ -1207,7 +1221,7 @@ def test_an_agent_reply_records_only_a_question_it_leaves_with_the_user(page_dir
 def test_an_agent_edits_its_own_messages_without_rewriting_history(
     page_dir, monkeypatch
 ):
-    """An edit changes what the conversation says, not what the log said before it.
+    """An edit changes what the thread says, not what the log said before it.
 
     Roots and replies are both messages, and the posting session is their authoring
     identity. The raw log therefore keeps each original and the revision as separate
@@ -1236,6 +1250,7 @@ def test_an_agent_edits_its_own_messages_without_rewriting_history(
     answered = CliRunner().invoke(
         cli_model.cli,
         [
+            "thread",
             "reply",
             "--json",
             str(page_dir),
@@ -1258,7 +1273,16 @@ def test_an_agent_edits_its_own_messages_without_rewriting_history(
     ]:
         result = CliRunner().invoke(
             cli_model.cli,
-            ["edit", str(page_dir), "--to", message["id"], "--text", text, "--json"],
+            [
+                "thread",
+                "edit",
+                str(page_dir),
+                "--to",
+                message["id"],
+                "--text",
+                text,
+                "--json",
+            ],
         )
         assert result.exit_code == 0, result.output
         revisions.append(json.loads(result.output))
@@ -1282,7 +1306,7 @@ def test_an_agent_edits_its_own_messages_without_rewriting_history(
     state = json.loads(state_result.output)
     assert all(
         set(thread) == {"id", "title", "anchor", "detached_from", "resolved", "unread"}
-        for thread in state["conversations"]
+        for thread in state["threads"]
     )
     expected = {
         root["id"]: [root["id"], revisions[0]["id"], revisions[1]["id"]],
@@ -1290,7 +1314,7 @@ def test_an_agent_edits_its_own_messages_without_rewriting_history(
     }
     for thread, ids in expected.items():
         selected = CliRunner().invoke(
-            cli_model.cli, ["events", str(page_dir), "--conversation", thread]
+            cli_model.cli, ["events", str(page_dir), "--thread", thread]
         )
         assert selected.exit_code == 0, selected.output
         assert [json.loads(line)["id"] for line in selected.output.splitlines()] == ids
@@ -1310,13 +1334,13 @@ def test_an_agent_edits_its_own_messages_without_rewriting_history(
     monkeypatch.setenv("LEAF_AGENT", "Crawler")
     foreign = CliRunner().invoke(
         cli_model.cli,
-        ["edit", str(page_dir), "--to", root["id"], "--text", "Taken over."],
+        ["thread", "edit", str(page_dir), "--to", root["id"], "--text", "Taken over."],
     )
     assert foreign.exit_code != 0
     assert "belongs to agent session 'worker-1'" in foreign.output
     user_edit = CliRunner().invoke(
         cli_model.cli,
-        ["edit", str(page_dir), "--to", user["id"], "--text", "Changed."],
+        ["thread", "edit", str(page_dir), "--to", user["id"], "--text", "Changed."],
     )
     assert user_edit.exit_code != 0
     assert "is not agent-authored" in user_edit.output
@@ -1334,7 +1358,15 @@ def test_an_agent_edits_its_own_messages_without_rewriting_history(
     monkeypatch.delenv("CLAUDE_CODE_SESSION_ID")
     unidentified = CliRunner().invoke(
         cli_model.cli,
-        ["edit", str(page_dir), "--to", sessionless["id"], "--text", "Changed."],
+        [
+            "thread",
+            "edit",
+            str(page_dir),
+            "--to",
+            sessionless["id"],
+            "--text",
+            "Changed.",
+        ],
     )
     assert unidentified.exit_code != 0
     assert "has no agent session identity" in unidentified.output
@@ -1367,7 +1399,7 @@ def test_edit_uses_the_captured_contract_when_the_candidate_registry_is_invalid(
 
     result = CliRunner().invoke(
         cli_model.cli,
-        ["edit", str(page_dir), "--to", message["id"], "--text", "Revised."],
+        ["thread", "edit", str(page_dir), "--to", message["id"], "--text", "Revised."],
     )
 
     assert result.exit_code == 0, result.output
@@ -1563,6 +1595,7 @@ def test_reply_markup_uses_the_captured_registry_after_candidate_files_disappear
     plain = CliRunner().invoke(
         cli_model.cli,
         [
+            "thread",
             "reply",
             str(page_dir),
             "--to",
@@ -1577,6 +1610,7 @@ def test_reply_markup_uses_the_captured_registry_after_candidate_files_disappear
     with_markup = CliRunner().invoke(
         cli_model.cli,
         [
+            "thread",
             "reply",
             str(page_dir),
             "--to",
@@ -1639,7 +1673,7 @@ def test_every_seeded_fragment_passes_the_door_it_never_came_through(
     """A hand-written seed is the one markup in the product no gate has read.
 
     Markup reaches a page two ways. A version goes through `version check`. An
-    event's `markup` goes through `leaf reply`, which validates it and then freezes
+    event's `markup` goes through `leaf thread reply`, which validates it and then freezes
     it in an append-only log, so that door is the last moment anything about it can
     be fixed. An example's companion log is neither: it is written into the
     repository by hand, and from there `scripts/site.py` publishes it to
@@ -1661,7 +1695,7 @@ def test_every_seeded_fragment_passes_the_door_it_never_came_through(
     read = 0
     for example in seeded:
         # Only pages carrying message markup exercise this door. A page whose
-        # log holds plain conversations is covered by the complete fixture check.
+        # log holds plain threads is covered by the complete fixture check.
         # Use the log writer's separator: splitlines() also splits message U+2028.
         fragments = [
             event["markup"]
@@ -1700,6 +1734,7 @@ def test_every_seeded_fragment_passes_the_door_it_never_came_through(
             posted = CliRunner().invoke(
                 cli_model.cli,
                 [
+                    "thread",
                     "reply",
                     str(d),
                     "--to",
@@ -1722,7 +1757,7 @@ def test_every_seeded_fragment_passes_the_door_it_never_came_through(
 
 def test_page_state_and_the_transcript_read_reactions_as_marks(page_dir):
     """`page state` lists every standing reaction, beside threads that
-    leave a bare one out — paint on the page is not a conversation — and takes a
+    leave a bare one out — paint on the page is not a thread — and takes a
     reaction back in once someone answers it, as the panel does. The transcript
     prints one as the user's mark rather than a turn. Its durable token is enough;
     packages may add an explanation, but the default layer does not prescribe one."""
@@ -1741,7 +1776,7 @@ def test_page_state_and_the_transcript_read_reactions_as_marks(page_dir):
         page_dir,
         {"kind": "comment", "author": "user", "revision": 1, "token": "change"},
     )
-    reply = conversation_model.cmd_reply(
+    reply = thread_model.cmd_reply(
         page_dir,
         answered["id"],
         "Which part?",
@@ -1749,16 +1784,16 @@ def test_page_state_and_the_transcript_read_reactions_as_marks(page_dir):
         for_event=None,
     )
     state = state_json(page_dir)
-    assert [t["id"] for t in state["conversations"]] == [answered["id"]]
+    assert [t["id"] for t in state["threads"]] == [answered["id"]]
     selected = CliRunner().invoke(
-        cli_model.cli, ["events", str(page_dir), "--conversation", answered["id"]]
+        cli_model.cli, ["events", str(page_dir), "--thread", answered["id"]]
     )
     assert selected.exit_code == 0, selected.output
     assert [json.loads(line)["id"] for line in selected.output.splitlines()] == [
         answered["id"],
         reply["id"],
     ]
-    assert [(r["token"], r["conversation"]) for r in state["reactions"]] == [
+    assert [(r["token"], r["thread"]) for r in state["reactions"]] == [
         ("shorten", bare["id"]),
         ("change", answered["id"]),
     ]
@@ -1771,7 +1806,7 @@ def test_page_state_and_the_transcript_read_reactions_as_marks(page_dir):
     assert "- **User** reacted: ❌ change\n" in result.output
 
 
-def test_an_agent_names_and_renames_a_conversation_without_changing_its_speech(
+def test_an_agent_names_and_renames_a_thread_without_changing_its_speech(
     page_dir,
 ):
     publish(page_dir)
@@ -1785,13 +1820,13 @@ def test_an_agent_names_and_renames_a_conversation_without_changing_its_speech(
         },
     )
     runner = CliRunner()
-    assert state_json(page_dir)["conversations"][0]["title"] is None
+    assert state_json(page_dir)["threads"][0]["title"] is None
     titles = []
     for title in ("Workshop venue", "Terrace accessibility"):
         result = runner.invoke(
             cli_model.cli,
             [
-                "conversation",
+                "thread",
                 "title",
                 str(page_dir),
                 root["id"],
@@ -1802,7 +1837,7 @@ def test_an_agent_names_and_renames_a_conversation_without_changing_its_speech(
         )
         assert result.exit_code == 0, result.output
         titles.append(json.loads(result.output))
-        assert state_json(page_dir)["conversations"][0]["title"] == title
+        assert state_json(page_dir)["threads"][0]["title"] == title
         thread = event_folds_model.build_threads(
             events_model.read_events(page_dir), {}
         )[root["id"]]
@@ -1814,7 +1849,7 @@ def test_an_agent_names_and_renames_a_conversation_without_changing_its_speech(
         [
             "events",
             str(page_dir),
-            "--conversation",
+            "--thread",
             root["id"],
         ],
     )
@@ -1823,15 +1858,13 @@ def test_an_agent_names_and_renames_a_conversation_without_changing_its_speech(
         root["id"],
         *(title["id"] for title in titles),
     ]
-    assert [
-        (event["kind"], event["conversation"], event["title"]) for event in titles
-    ] == [
-        ("conversation_title", root["id"], "Workshop venue"),
-        ("conversation_title", root["id"], "Terrace accessibility"),
+    assert [(event["kind"], event["thread"], event["title"]) for event in titles] == [
+        ("thread_title", root["id"], "Workshop venue"),
+        ("thread_title", root["id"], "Terrace accessibility"),
     ]
 
 
-def test_conversation_titles_require_an_existing_thread_and_short_agent_prose(page_dir):
+def test_thread_titles_require_an_existing_thread_and_short_agent_prose(page_dir):
     publish(page_dir)
     root = events_model.append_event(
         page_dir,
@@ -1843,11 +1876,11 @@ def test_conversation_titles_require_an_existing_thread_and_short_agent_prose(pa
         },
     )
     command = {
-        "kind": "conversation_title",
+        "kind": "thread_title",
         "author": "agent",
         "agent": "Codex",
         "session": "title-test",
-        "conversation": root["id"],
+        "thread": root["id"],
         "title": "Meeting venue",
     }
     before = events_model.read_events(page_dir)
@@ -1858,7 +1891,7 @@ def test_conversation_titles_require_an_existing_thread_and_short_agent_prose(pa
         {"title": "Two\nlines"},
         {"title": "Trailing newline\n"},
         {"title": "Two\rlines"},
-        {"conversation": "missing-conversation"},
+        {"thread": "missing-thread"},
         {"author": "user"},
     ):
         with pytest.raises(events_model.EventRefused):

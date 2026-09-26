@@ -459,7 +459,7 @@ const scenarios = {
     reset(demo) {
       demo.frameApi.resetComment(
         demo.figure.dataset.interactionTarget,
-        "Gallery conversation: should the practice exercise come before lunch? " +
+        "Gallery thread: should the practice exercise come before lunch? " +
           "Try replying here; the agenda is fictional.",
       );
     },

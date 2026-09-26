@@ -15,7 +15,7 @@ Every carrier presents an immutable object of the same shape:
     {
       "page": "/absolute/page",
       "through_seq": 12,
-      "conversations": [],
+      "threads": [],
       "handling": {},
       "events": []
     }
@@ -36,14 +36,14 @@ started. Two things differ by carrier, and the envelope states each once:
   the wait, in the way your host runs the next one; on the other carriers Leaf
   confirmed receipt itself and it is `null`.
 - A thread reply's `answer` is `turn` on `app-server`, whose turn writes it with
-  its own messages, and `reply`, for `leaf reply`, everywhere else.
+  its own messages, and `reply`, for `leaf thread reply`, everywhere else.
 
 Process every batch and every event.
 
 Each event retains its stored identity, fields and order, less the browser's
 retry key `attempt`, then adds these delivery readings:
 
-- `subject` is the stable page, conversation, or widget the event changes.
+- `subject` is the stable page, thread, or widget the event changes.
 - `says`, when present, maps each element a widget gesture names to its words: the
   ids in an action's or report's `meaning.depends`, or the widget a request was made
   on. The words are the authored ones in the document the user pressed on, which
@@ -56,7 +56,7 @@ retry key `attempt`, then adds these delivery readings:
   encloses another named one is left out, so a pick says its options and a gesture
   naming only its widget says the whole widget. An undo carries the words of the
   gesture it takes back.
-- `conversations` lists every conversation the event belongs to. Membership is
+- `threads` lists every thread the event belongs to. Membership is
   many-to-many: it provides context and never partitions or duplicates the event.
 - `answer`, when present, freezes the answer the event owed at capture: its
   `kind` (`reply`, `turn`, `markup` or `receipt`) with the address it is written
@@ -64,10 +64,10 @@ retry key `attempt`, then adds these delivery readings:
   event's `answering` clauses say how to write it. Until the answer is written, the
   Stop hook holds the turn open and `leaf status idle` refuses. Re-read current
   state before writing because later evidence may already have settled the
-  requirement. A `reply` or `turn` answer carries both `to`, the conversation
+  requirement. A `reply` or `turn` answer carries both `to`, the thread
   address to write under, and `for`, the exact event whose answer the write must
   still satisfy; a `turn` answer also names the reply `attempt` its turn commits
-  under, and `leaf reply` refuses it. An event without one owes nothing of its own:
+  under, and `leaf thread reply` refuses it. An event without one owes nothing of its own:
   a page action that answers no Ask, a pick before the Done its Ask waits for, or a
   message a newer one in its thread answers through.
 - `handling`, when present, lists clause ids in the batch's `handling` object,
@@ -75,21 +75,21 @@ retry key `attempt`, then adds these delivery readings:
   once; ids belong only to that batch. Follow every named clause for this event:
   together they cover this event's case and the answer it owes.
 
-The batch-level `conversations` carry each conversation's title (null until named),
+The batch-level `threads` carry each thread's title (null until named),
 anchor, closure state, earlier messages, and standing gestures on sent widgets.
-A newly opened conversation still carries its metadata; messages already in the
-batch are omitted from its history. A long conversation includes
+A newly opened thread still carries its metadata; messages already in the
+batch are omitted from its history. A long thread includes
 its opening and most recent messages, with `elided` counting omitted records.
-Use `leaf conversation read <page> <conversation-id>` for an exact, bounded
+Use `leaf thread read <page> <thread-id>` for an exact, bounded
 current reading and paginate with `--after`; use `leaf events <page>
---conversation <conversation-id>` only for raw-log diagnostics. `leaf transcript
+--thread <thread-id>` only for raw-log diagnostics. `leaf transcript
 <page>` is the human-facing Markdown export.
 
 Long-thread context may include `summary_hint`, naming a contiguous message range to
 summarize, and a reply in that thread carries a `handling` clause asking for it.
 Treat it as navigation maintenance alongside the user's request, not a request to
 resolve the thread. Follow
-[conversation threads](conversation-threads.md#summarize-a-long-discussion): read
+[threads](threads.md#summarize-a-long-discussion): read
 the covered originals, write the summary, and keep outcomes in the document.
 
 ## Delivery and acknowledgement

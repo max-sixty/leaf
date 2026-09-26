@@ -130,7 +130,9 @@ function describe(event) {
   if (event instanceof window.CompositionEvent) entry.data = event.data;
   if (event instanceof window.ClipboardEvent)
     entry.clipboard = event.clipboardData?.getData("text/plain") ?? "";
-  if (event instanceof window.TouchEvent)
+  // Desktop Firefox without a touch screen, and Safari on a Mac, expose no
+  // TouchEvent interface, so a touch event is recognized by what it carries.
+  if (event.changedTouches)
     entry.touches = [...event.changedTouches].map((touch) => ({
       id: touch.identifier,
       x: touch.clientX,

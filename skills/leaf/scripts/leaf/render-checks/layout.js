@@ -554,7 +554,8 @@ export function withheldRoom() {
 // was cut is not.
 //
 // So the marks are what is asked for, not the scrollbar: the layer paints them on every
-// box its own sweep finds cut (reachScrollers and the data-lf-more-* masks in theme.css).
+// box its own sweep finds cut (reachScrollers, and the data-lf-more-* paint in shadow.css
+// or the owning widget's theme).
 // Those marks are the platform-independent half of the answer and the half a copy keeps.
 // A finding here is a scroller the sweep never reached — a tree handed to no caller, a
 // box that started scrolling after the last layout the sweep saw — and the box is named
@@ -575,14 +576,21 @@ export function silentCuts() {
       const short = el.scrollWidth - el.clientWidth;
       if (short <= 1) continue;
       // The mark is a promise about what the user can see, so this asks the promise
-      // and not the attribute. A class can outrank the mask while leaving the mark
+      // and not the attribute. A class can outrank the paint while leaving the mark
       // written, which reads as a clean gate and a page that cuts a drawing at its edge
-      // saying nothing, the state this reading exists for.
-      if (
-        el.hasAttribute("data-lf-more-before") ||
-        el.hasAttribute("data-lf-more-after")
-      ) {
-        if (style.maskImage !== "none" || style.webkitMaskImage !== "none") continue;
+      // saying nothing, the state this reading exists for. The layer's paint is a mask
+      // on the box; a widget that owns its edge pseudo-elements may paint the mark as a
+      // shadow there instead (lf-diagram does), one for each marked edge.
+      const before = el.hasAttribute("data-lf-more-before");
+      const after = el.hasAttribute("data-lf-more-after");
+      if (before || after) {
+        const masked = style.maskImage !== "none" || style.webkitMaskImage !== "none";
+        const shaded = (edge) => getComputedStyle(el, edge).boxShadow !== "none";
+        if (
+          masked ||
+          ((!before || shaded("::before")) && (!after || shaded("::after")))
+        )
+          continue;
         found.push(
           `${at(el)} wears a continuation mark for the ${short}px it is hiding ` +
             `across but draws nothing for it: something outranks the mark's own ` +

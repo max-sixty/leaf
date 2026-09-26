@@ -22,7 +22,8 @@ envelope a `leaf wait` printed. A delivery starts at step 5 below; do
 not initialize or hand the page over again. With no subject in `$ARGUMENTS`,
 present the work already under discussion. Leaf's writing guidance supplies
 defaults only; any user-specific guidance on tone, structure, depth, or format
-takes precedence.
+takes precedence. When the user states a preference meant for every page, save it
+in your host's memory, where later sessions will read it; Leaf keeps none.
 
 $ARGUMENTS
 
@@ -75,7 +76,7 @@ directory explicitly; export or copy anything that must outlive the page directo
    exact URL, or with what the host contract hands over instead.
 5. When a delivery arrives, read `references/event-batches.md`, the host
    contract, and, for user messages,
-   `references/conversation-threads.md`, and answer every event as they say.
+   `references/threads.md`, and answer every event as they say.
    Say what you are doing before doing it, as `references/conversation-loop.md`,
    "When to write", orders it.
 6. Stamp checkpoints and end the page as `references/page-checkpoints.md` says.
@@ -176,7 +177,7 @@ so a phase does not depend on discovering a chain of references.
 ### Continue after input
 
 - `references/event-batches.md`: after delivery and before processing its events.
-- `references/conversation-threads.md`: before opening, naming, replying to,
+- `references/threads.md`: before opening, naming, replying to,
   editing, summarizing, or resolving a thread.
 - `references/page-checkpoints.md`: before stamping or ending a page.
 

@@ -86,8 +86,8 @@ import {
 } from "../keyboard/command-reference.js";
 
 import { paintReactionStanding } from "../reaction-standing.js";
-import { generalInput, panel, threadsBox } from "../conversation/panel-elements.js";
-import { conversationInput, standingConversation } from "../conversation/landing.js";
+import { generalInput, panel, threadsBox } from "../thread/panel-elements.js";
+import { threadInput, standingThread } from "../thread/landing.js";
 import { activeCommandLabel } from "../keyboard/dispatch.js";
 import { pageCommand, pageRung, pageScope } from "../keyboard/register.js";
 
@@ -103,10 +103,10 @@ import { focusDestination, letGo, readCaret, takesLetters } from "../focus.js";
 import { focused } from "../keyboard/scopes.js";
 
 import { pointerAt } from "../pointer.js";
-import { anchorLabel } from "../conversation/messages.js";
+import { anchorLabel } from "../thread/messages.js";
 
-import { reactionsAt } from "../conversation/model.js";
-import { allThreads } from "../conversation/state.js";
+import { reactionsAt } from "../thread/model.js";
+import { allThreads } from "../thread/state.js";
 
 import {
   containingReadingRegionFor,
@@ -157,7 +157,7 @@ export function createResponseSurface({
   versionMenuIsOpen,
   openPageThread,
   drawModeActive,
-  refreshConversation,
+  refreshThread,
   responseHome,
 }) {
   const hideReference = () => closeCommandReference(false);
@@ -831,7 +831,7 @@ export function createResponseSurface({
         fab.style.display = "none";
       }
     }
-    if (!sameAnchor(previous, fabAnchor)) refreshConversation();
+    if (!sameAnchor(previous, fabAnchor)) refreshThread();
     repaint(); // the c row names this anchor, so the line is one more rendering of it
     if (!fabAnchor && returnFocus !== "none") {
       if (returnToPanel) threadsBox.focus({ preventScroll: true });
@@ -889,11 +889,11 @@ export function createResponseSurface({
   const fabReturnTo = () => handBackTo(fabAnchor, fabOrigin);
 
   // Where a comment about this item is written: the composer, on the item, which is what a
-  // click through the ⌥ aim already opens. It reached for the widget's own conversation seat
-  // first for a while, on the reasoning that a widget holding a box for its conversation
+  // click through the ⌥ aim already opens. It reached for the widget's own thread seat
+  // first for a while, on the reasoning that a widget holding a box for its thread
   // should not be given a second one. That was the wrong shape. `commentOnTarget` writes
-  // `{section: item.id}`, which is exactly the anchor `renderConversations` collects into
-  // that seat — so the words land in the same conversation by either route, and the seat was
+  // `{section: item.id}`, which is exactly the anchor `renderSeats` collects into
+  // that seat — so the words land in the same thread by either route, and the seat was
   // buying a focus landing at the price of five separate questions: escaping an
   // author-written id into a selector, whether the box can take focus at all (a settled
   // group's seat is inside `hidden="until-found"` and silently swallowed the press), which
@@ -1483,11 +1483,11 @@ export function createResponseSurface({
   }
 
   // ---------- where "comment" goes ----------
-  // The conversation the user is standing in, and the box it is written in. Three
+  // The thread the user is standing in, and the box it is written in. Three
   // containers hold one and the user can stand in any of them: the panel's thread, a
-  // conversation seated on the page (x-conversation), and each thread inside that seat.
+  // thread seated on the page (x-thread-seat), and each thread inside that seat.
   // They are one question — a press meaning "say something about this" belongs to the box
-  // of the conversation the user is already in — so they get one reading rather than a
+  // of the thread the user is already in — so they get one reading rather than a
   // rule for the panel and a different one for the page.
   //
   // One of the three is in the chrome, which is not the exception it looks like: page scope
@@ -1496,7 +1496,7 @@ export function createResponseSurface({
   //
   // One aim and then one climb, rather than four cases. The pointer's aim outranks
   // position, being the more recent thing the user said; below it the answer walks
-  // outward from where they are standing — the nearest conversation's box, then the nearest
+  // outward from where they are standing — the nearest thread's box, then the nearest
   // addressable element, then the page, which is what is left when they are standing
   // nowhere in it. An element anchor answers in its own word (a figure, a card), the way
   // the panel names one. Every destination is a box to write in and says so in the same
@@ -1524,9 +1524,9 @@ export function createResponseSurface({
         go: focusFabComment,
       };
     const inline = activeInlineThread();
-    const inlineBox = inline && conversationInput(inline);
+    const inlineBox = inline && threadInput(inline);
     const said =
-      standingConversation() ?? (inlineBox ? { held: inline, box: inlineBox } : null);
+      standingThread() ?? (inlineBox ? { held: inline, box: inlineBox } : null);
     if (said)
       return {
         ...commenting("thread"),

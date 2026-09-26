@@ -82,6 +82,7 @@ from render_harness import (
     open_versions,
     panel_settled,
     refuse,
+    rendered,
     round_trip,
     select,
     sending,
@@ -459,6 +460,199 @@ def test_authored_html_paints_while_runtime_startup_is_held(
         for route in boot:
             route.continue_()
         page.unroute_all(behavior="wait")
+
+
+HELD_KEYS_PAGE = leaf_page(
+    "Held keys",
+    "<h1>Held keys</h1><p id='said'>A sentence the user commented on.</p>",
+)
+HELD_KEYS_THREAD = {
+    "id": "held-thread",
+    "kind": "comment",
+    "author": "user",
+    "revision": 1,
+    "text": "Walk to me.",
+    "anchor": {"section": "said"},
+}
+
+
+def _hold_startup(page, stage):
+    """Hold startup at `stage` — before the runtime loads, or after it loads and
+    before the first state answer — and return the route release."""
+    held, gate = [], {"open": False}
+    pattern = "**/leaf.js" if stage == "module" else "**/api/state*"
+    page.route(
+        pattern,
+        lambda route: route.continue_() if gate["open"] else held.append(route),
+    )
+
+    def release():
+        gate["open"] = True
+        for route in held:
+            route.continue_()
+
+    return held, release
+
+
+@pytest.mark.parametrize("stage", ["module", "state"])
+def test_a_key_pressed_before_presentation_runs_once_the_page_presents(
+    browser, serve, stage
+):
+    """`t` walks threads the first state answer brings, so a press before presentation
+    is held, shown as held, and replayed into the presented page — whether the runtime
+    had not loaded or had loaded and not yet read the log."""
+    url = serve(HELD_KEYS_PAGE, events=[HELD_KEYS_THREAD])
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    watched(page)
+    held, release = _hold_startup(page, stage)
+    page.goto(url, wait_until="commit")
+    holding(page, held, 1, f"the {stage} request")
+    if stage == "state":
+        page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
+    expect(page.locator("#said")).to_be_visible()
+
+    page.keyboard.press("t")
+    echo = page.locator(".lf-held-keys")
+    expect(echo).to_contain_text("Page still loading")
+    expect(echo.locator("kbd")).to_have_text("t")
+    expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
+
+    release()
+    expect(page.locator('[data-thread="held-thread"]').first).to_be_focused()
+    expect(echo).to_have_count(0)
+
+
+def test_a_key_pressed_while_held_keys_run_waits_its_turn(browser, serve):
+    """Presentation hands the held keys over and presses them a frame apart, so a key
+    arriving between the handover and the first press has to queue behind them: `g`
+    held, then `Shift+T` in that gap, is still `g T`, the trip to Threads."""
+    url = serve(HELD_KEYS_PAGE, events=[HELD_KEYS_THREAD])
+    page = browser.new_page(viewport={"width": 1400, "height": 900})
+    watched(page)
+    # The instant is inside the page: after every presentation listener has run,
+    # the handover included, and before the next frame presses the first held key.
+    page.add_init_script(
+        """document.addEventListener('lf-presentation', () => queueMicrotask(() =>
+          document.body.dispatchEvent(new KeyboardEvent('keydown', {
+            key: 'T', code: 'KeyT', shiftKey: true, bubbles: true,
+            cancelable: true, composed: true}))));"""
+    )
+    held, release = _hold_startup(page, "state")
+    page.goto(url, wait_until="commit")
+    holding(page, held, 1, "the first state read")
+    page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
+    page.keyboard.press("g")
+    expect(page.locator(".lf-held-keys kbd")).to_have_text("g")
+
+    release()
+    expect(page.locator("body")).to_have_attribute(
+        "data-lf-auxiliary-surface", "threads"
+    )
+
+
+def test_held_keys_after_one_that_opens_a_box_are_typed_into_it(browser, serve):
+    """`c` opens the page's comment box, so the keys held behind it are the comment:
+    they arrive as its text, Space included, rather than as page commands the box
+    swallows."""
+    url = serve(HELD_KEYS_PAGE)
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    watched(page)
+    held, release = _hold_startup(page, "state")
+    page.goto(url, wait_until="commit")
+    holding(page, held, 1, "the first state read")
+    page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
+    for key in ["c", "h", "i", "Space", "x"]:
+        page.keyboard.press(key)
+    expect(page.locator(".lf-held-keys kbd")).to_have_text(
+        ["c", "h", "i", "Space", "x"]
+    )
+
+    release()
+    expect(page.locator("textarea:focus")).to_have_value("hi x")
+
+
+@pytest.mark.parametrize("ending", ["Enter", "ControlOrMeta+a"])
+def test_a_key_that_is_not_printed_ends_the_held_run(browser, serve, ending):
+    """A held run is printed keys. Enter or a chord acts where focus stands, which a
+    replay cannot reproduce and which must not act ahead of the keys before it, so after
+    `c h i` it drops the run rather than waiting behind it: no comment box opens and
+    nothing is sent. `test_held_keys_after_one_that_opens_a_box_are_typed_into_it` is
+    the same run without the ending key; Shift alone leaves the run standing."""
+    url = serve(HELD_KEYS_PAGE)
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    watched(page)
+    held, release = _hold_startup(page, "state")
+    page.goto(url, wait_until="commit")
+    holding(page, held, 1, "the first state read")
+    page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
+    for key in ["c", "h", "i"]:
+        page.keyboard.press(key)
+    echo = page.locator(".lf-held-keys")
+    expect(echo.locator("kbd")).to_have_text(["c", "h", "i"])
+    page.keyboard.press("Shift")
+    expect(echo.locator("kbd")).to_have_count(3)
+
+    page.keyboard.press(ending)
+    expect(echo).to_have_count(0)
+    release()
+    page.wait_for_function(BOTH_STAMPS)
+    # A replay would run a frame after presentation; let the repaint it causes land.
+    rendered(page)
+    expect(page.locator("textarea:focus")).to_have_count(0)
+
+
+@pytest.mark.parametrize("gesture", ["Escape", "pointer"])
+def test_escape_or_a_pointer_press_lets_go_of_held_keys(browser, serve, gesture):
+    """A user who changes their mind, or points somewhere else, while the page loads
+    does not have their earlier keys run later."""
+    url = serve(HELD_KEYS_PAGE, events=[HELD_KEYS_THREAD])
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    watched(page)
+    held, release = _hold_startup(page, "state")
+    page.goto(url, wait_until="commit")
+    holding(page, held, 1, "the first state read")
+    page.keyboard.press("t")
+    echo = page.locator(".lf-held-keys")
+    expect(echo).to_be_visible()
+
+    if gesture == "Escape":
+        page.keyboard.press("Escape")
+    else:
+        page.mouse.click(600, 450)
+    expect(echo).to_have_count(0)
+
+    release()
+    page.wait_for_function(BOTH_STAMPS)
+    # A replay would run a frame after presentation; let the repaint it causes land.
+    rendered(page)
+    assert page.evaluate("() => !document.activeElement?.closest('[data-thread]')")
+    # The positive control: the same key on the presented page walks to the thread.
+    page.keyboard.press("t")
+    expect(page.locator('[data-thread="held-thread"]').first).to_be_focused()
+
+
+def test_a_page_that_never_presents_lets_its_held_keys_go(browser, serve):
+    """The hold is for a page on its way. One still unpresented ten seconds in has
+    faulted, so what was held is dropped and later presses reach the page as they come
+    rather than waiting on a presentation that is not arriving."""
+    url = serve(HELD_KEYS_PAGE)
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    watched(page)
+    held, _ = _hold_startup(page, "module")
+    page.goto(url, wait_until="commit")
+    holding(page, held, 1, "the runtime module")
+    page.evaluate(
+        "() => { window.heard = [];"
+        " document.addEventListener('keydown', (e) => heard.push(e.key)); }"
+    )
+    page.keyboard.press("t")
+    echo = page.locator(".lf-held-keys")
+    expect(echo).to_be_visible()
+    assert page.evaluate("heard") == [], "the positive control: the press was held"
+
+    expect(echo).to_have_count(0, timeout=15_000)
+    page.keyboard.press("x")
+    assert page.evaluate("heard") == ["x"]
 
 
 RESTORED_PROSE = "".join(
@@ -2414,13 +2608,15 @@ def test_a_first_read_still_out_does_not_decide_when_the_page_arrives(browser, s
     """
     # The wait is read off the page rather than written here, and shortened so the test
     # spends its own time on the behaviour instead of on the bound. It is the first long
-    # timer the page installs; every other one this runtime sets is either shorter than
-    # this floor or installed after presentation.
+    # timer the runtime's modules install; every other one they set is either shorter
+    # than this floor or installed after presentation. The prepaint bootstrap's own
+    # bound on held keys is set while that classic script runs, so it is passed over.
     shorten_the_first_long_wait = """
       window.__leafPresentationWait = null;
       const native = window.setTimeout.bind(window);
       window.setTimeout = (fn, ms, ...rest) => {
-        if (window.__leafPresentationWait === null && ms >= 5000) {
+        const bootstrap = document.currentScript?.hasAttribute('data-lf-runtime');
+        if (window.__leafPresentationWait === null && ms >= 5000 && !bootstrap) {
           window.__leafPresentationWait = ms;
           return native(fn, 200, ...rest);
         }

@@ -3,9 +3,8 @@ import { clocked } from "./presence.js";
 import { pagePresented } from "./presentation.js";
 import { liveLeavesList, trayIsOpen, othersPanel } from "./trays.js";
 import { keys, paintKeys } from "./keyboard/scopes.js";
-import { walkRows } from "./keyboard/bindings.js";
 import { activityFacts, countUpdates } from "./banner.js";
-import { beginWalk, listWalkPosition } from "./walk-position.js";
+import { rowWalk } from "./walk-position.js";
 
 let others = [];
 let rows = Object.freeze([]);
@@ -28,8 +27,8 @@ const presentationModel = () =>
   });
 export const presentLeaves = () => liveLeavesList.present(presentationModel());
 
-// The tray's own scope. The walk is the tray's rather than the page's, because ArrowUp
-// and ArrowDown anywhere else are the page's own scroll and stay so; Enter is the
+// The tray's own scope. The walk is the tray's rather than the page's, because the
+// arrows, Home and End anywhere else are the page's own scroll and stay so; Enter is the
 // browser's, a row being a link, and the row says so with no `run` to give. The user
 // arrives here by key — `g L` lands focus on the first neighbour — so the scope names
 // what activating does rather than leaving it to the platform's own contract.
@@ -40,25 +39,7 @@ export function declareLeavesKeys() {
   keys(
     othersPanel,
     "In the leaves tray",
-    [
-      {
-        id: "leaf.walk",
-        keys: ["ArrowUp", "ArrowDown"],
-        routes: [
-          { id: "leaf.previous", binding: "ArrowUp", does: "Previous leaf" },
-          { id: "leaf.next", binding: "ArrowDown", does: "Next leaf" },
-        ],
-        does: "Walk the leaves",
-        line: "walk the leaves",
-        repeat: true,
-        run: (binding) => {
-          walkRows(othersLinks(), binding === "ArrowDown" ? 1 : -1);
-          beginWalk("leaf", "Leaf", () =>
-            listWalkPosition(othersLinks(), document.activeElement),
-          );
-        },
-      },
-    ],
+    rowWalk({ id: "leaf", noun: "Leaf", plural: "leaves", rows: othersLinks }),
     () => othersLinks().length > 0,
   );
 }

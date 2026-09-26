@@ -139,24 +139,24 @@ class _OwnedWords:
 
     def __init__(self, owner: tuple[str, str | None, int]):
         self.owner = owner
-        self.text = ""
+        self.chars = []  # appended to, since `str +=` on an attribute copies it whole
         self.block = None
         self.space = False
         self.boundaries = 0
         self.parts = []
 
     def write(self, data: str, block: int) -> None:
-        if self.text and block != self.block:
+        if self.chars and block != self.block:
             self.space = True
         self.block = block
         for ch in data:
             if ch in COLLAPSE_CHARS:
-                self.space = bool(self.text)
+                self.space = bool(self.chars)
                 continue
             if self.space:
-                self.text += " "
+                self.chars.append(" ")
                 self.space = False
-            self.text += ch
+            self.chars.append(ch)
 
     def boundary(self, tag: str, element_id: str | None) -> None:
         self.flush()
@@ -173,9 +173,9 @@ class _OwnedWords:
         self.boundaries += 1
 
     def flush(self) -> None:
-        if words := self.text.strip(" "):
+        if words := "".join(self.chars).strip(" "):
             self.parts.append({"text": words})
-        self.text = ""
+        self.chars = []
         self.block = None
         self.space = False
 
@@ -246,7 +246,9 @@ class _PassageParser:
         self.decided = decided or {}
         self.rewrites = rewrites or {}
         self.additions = additions or {}
-        self.text = ""
+        # The collapsed run, one entry per character: a list, since `str +=` on an
+        # attribute copies the whole string and makes a large page's reading quadratic.
+        self.chars = []
         self.owner = []  # per character: the tuple of enclosing ids
         self.fences = set()  # indices a quote may not span
         self.retired = {}  # id under a retired slot → the suggestion whose decision did it
@@ -278,18 +280,18 @@ class _PassageParser:
         """Text into the collapsed run, one space per whitespace run and none leading."""
         if data.strip():
             self.bearing.update(ids)
-        if self.text and block != self._block:
+        if self.chars and block != self._block:
             self._space = True
         self._block = block
         for ch in data:
             if ch in COLLAPSE_CHARS:
-                self._space = bool(self.text)
+                self._space = bool(self.chars)
                 continue
             if self._space:
-                self.text += " "
+                self.chars.append(" ")
                 self.owner.append(ids)
                 self._space = False
-            self.text += ch
+            self.chars.append(ch)
             self.owner.append(ids)
         for frame in reversed(self.stack):
             if frame["verbatim"]:
@@ -302,7 +304,7 @@ class _PassageParser:
         """Words may stand here that this reading knows nothing about. Recorded as a
         position rather than written into the text, so `text` stays the page's own words
         and no quote can be built out of one."""
-        self.fences.add(len(self.text))
+        self.fences.add(len(self.chars))
 
     def _said(self, frame: dict, values: list) -> None:
         # renderSaid puts each value in its own <span>, so each is its own block wherever
@@ -547,7 +549,7 @@ def page_passages(
         walk(child)
     parser.close()
     return Passages(
-        parser.text,
+        "".join(parser.chars),
         parser.owner,
         parser.fences,
         parser.retired,

@@ -612,7 +612,7 @@ def test_unrelated_agent_update_does_not_clear_a_standing_user_ask(page_dir):
     )
 
     [thread] = page_state(page_dir)["browser"]["thread"]["threads"]
-    assert thread["awaits_user"] is True
+    assert thread["user_prompt"]["message"] == question["id"]
     assert thread["attention"] == {
         "kind": "needs_user",
         "reason": "ask",
@@ -624,7 +624,8 @@ def test_settling_reaction_closes_an_agent_root_ask(page_dir):
     publish(page_dir)
     question = thread_model.cmd_comment(page_dir, "", "", "", "Is forty enough?", None)
     [before] = page_state(page_dir)["browser"]["thread"]["threads"]
-    assert before["awaits_user"] is True
+    assert before["user_prompt"]["message"] == question["id"]
+    assert before["attention"]["kind"] == "needs_user"
 
     events_model.append_event(
         page_dir,
@@ -637,7 +638,7 @@ def test_settling_reaction_closes_an_agent_root_ask(page_dir):
     )
 
     [after] = page_state(page_dir)["browser"]["thread"]["threads"]
-    assert after["awaits_user"] is False
+    assert after["user_prompt"] is None
     assert after["attention"] is None
 
 
@@ -896,7 +897,7 @@ def test_thread_attention_names_the_workflow_the_thread_waits_on():
         ),
     ]
     for workflows, expected in cases:
-        threads = [{"root": {"id": "root"}, "resolved": None, "awaits_user": False}]
+        threads = [{"root": {"id": "root"}, "resolved": None, "user_prompt": None}]
         browser_served_model._apply_thread_attention(
             threads, {"user": []}, workflows, {"board": "root"}
         )

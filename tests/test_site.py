@@ -644,6 +644,23 @@ def test_a_website_example_keeps_its_version_identity_and_history(
     assert pinned["versions"] == versions
 
 
+def test_a_nested_page_keeps_one_draft_across_its_version_addresses(
+    served_example, browser
+):
+    """A published example lives under its own directory, and its live root and each
+    version address are one page to what the tab keeps: a comment typed on one is the
+    draft on the other."""
+    _, url = served_example("log-retention")
+    page = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()  # the box lives in the panel
+    page.locator(".lf-general textarea").fill("Kept across addresses")
+
+    opened(page, f"{url}versions/v1.html")
+    expect(page.locator(".lf-version")).to_have_text("v1")
+    # The open panel is the user's standing arrangement, so it is open here too.
+    expect(page.locator(".lf-general textarea")).to_have_value("Kept across addresses")
+
+
 def test_the_published_notification_example_runs_its_authored_module(
     served_example, browser
 ):

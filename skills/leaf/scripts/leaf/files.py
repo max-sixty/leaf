@@ -14,6 +14,7 @@ from stat import S_ISDIR, S_ISREG
 from typing import TypeVar
 
 from .locations import path_location
+from .schema import REVISION_NAME, VERSION_NAME
 
 # The name an atomic write stages under, beside its target, for the moment before the
 # rename (`replace_files` below). A reader of the directory looks past it: it is not yet
@@ -147,8 +148,8 @@ def next_reading(
         time.sleep(LOOK_S)
 
 
-VERSION_FILE = re.compile(r"v([1-9][0-9]*)\.html")
-REVISION_FILE = re.compile(r"r([1-9][0-9]*)-([a-f0-9]{16})\.html")
+VERSION_FILE = re.compile(rf"{VERSION_NAME}\.html")
+REVISION_FILE = re.compile(rf"{REVISION_NAME}\.html")
 
 
 def version_num(name: str) -> int:
@@ -158,7 +159,7 @@ def version_num(name: str) -> int:
     what you add to make a string comparison come out right, and nothing here
     compares names. `v10.html` precedes `v9.html` in every ordering a string
     has, and follows it in the only one that means anything."""
-    return int(VERSION_FILE.fullmatch(name).group(1))
+    return int(VERSION_FILE.fullmatch(name).group("version"))
 
 
 def version_name(version: int) -> str:
@@ -167,7 +168,7 @@ def version_name(version: int) -> str:
 
 def revision_num(name: str) -> int:
     """The ordered identity carried by an immutable revision file."""
-    return int(REVISION_FILE.fullmatch(name).group(1))
+    return int(REVISION_FILE.fullmatch(name).group("revision"))
 
 
 def list_revisions(page_dir: Path) -> list[int]:

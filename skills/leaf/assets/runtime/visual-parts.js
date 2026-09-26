@@ -53,30 +53,57 @@ export function registerVisualParts(
 
 const hasVisualParts = (source) => registrations.has(source);
 
+/** How one visual's `x-visual` declaration admits the part ids its module registers.
+ *
+ * `declared` is the ids authored in its `parts` attribute, which the registration must
+ * be able to show; `prefixes` declares kinds rather than ids, so it names none. `rank(id)`
+ * is an id's place in the declaration, which orders the visual's targets: its authored
+ * token's index, 0 for any longer id one of the prefixes begins so those keep
+ * registration order, and -1 for an id the declaration does not admit. Null for a
+ * declaration that names no parts (`whole`, or none). Only an admitted id becomes a
+ * durable coordinate; the `registered…` readers below report the whole inventory. */
+export function visualPartAdmission(visual, declaration) {
+  if (!declaration || typeof declaration !== "object") return null;
+  const { prefixes } = declaration;
+  if (prefixes)
+    return {
+      declared: [],
+      rank: (id) => (prefixes.some((p) => id !== p && id.startsWith(p)) ? 0 : -1),
+    };
+  const declared =
+    visual.getAttribute(declaration.parts)?.trim().split(/\s+/).filter(Boolean) ?? [];
+  return { declared, rank: (id) => declared.indexOf(id) };
+}
+
 /** Whether a part absent from the current inventory can still be drawn on request. */
 export const revealsVisualParts = (source) =>
   Boolean(registrations.get(source)?.reveal);
 
 /** Draw the state that holds part `id`, when the source can and does not already. */
-export function revealVisualPart(source, id) {
+export function revealRegisteredVisualPart(source, id) {
   const reveal = registrations.get(source)?.reveal;
-  if (reveal && !visualPart(source, id)) reveal(id);
-  return visualPart(source, id);
+  if (reveal && !registeredVisualPart(source, id)) reveal(id);
+  return registeredVisualPart(source, id);
 }
 
-/** Why one source's registration breaks its declaration: `declared` ids it must
- * register, and `admits`, which every registered id must pass. The current state's
- * inventory is read; a declared part it lacks is a problem only when the visual cannot
- * reveal it, and `unrevealedVisualParts` asks the reveal once nothing else needs the
- * state the page opened in. */
-export function visualPartProblems(source, declared, admits = () => true) {
+/** Why one source's registration breaks its `x-visual` declaration: an authored part
+ * it does not register, and under `prefixes` a registered id no prefix admits. Under
+ * `parts` the module may register more than the author named; the declaration picks
+ * from that inventory. The current state's inventory is read; a declared part it lacks
+ * is a problem only when the visual cannot reveal it, and `unrevealedVisualParts` asks
+ * the reveal once nothing else needs the state the page opened in. */
+export function visualPartProblems(source, declaration) {
+  const admission = visualPartAdmission(source, declaration);
+  if (!admission) return [];
   if (!hasVisualParts(source)) return ["did not call registerVisualParts"];
   try {
-    const ids = visualParts(source).map((part) => part.id);
+    const ids = registeredVisualParts(source).map((part) => part.id);
     const missing = revealsVisualParts(source)
       ? []
-      : [...declared].filter((id) => !ids.includes(id));
-    const outside = ids.filter((id) => !admits(id));
+      : admission.declared.filter((id) => !ids.includes(id));
+    const outside = declaration.prefixes
+      ? ids.filter((id) => admission.rank(id) < 0)
+      : [];
     return [
       ...(missing.length
         ? [`did not register declared parts ${missing.join(", ")}`]
@@ -92,9 +119,10 @@ export function visualPartProblems(source, declared, admits = () => true) {
 
 // Reveal each declared part the current state lacks. This moves the visual off the
 // state it opened in, so a caller asks it last.
-export function unrevealedVisualParts(source, declared) {
+export function unrevealedVisualParts(source, declaration) {
+  const declared = visualPartAdmission(source, declaration)?.declared ?? [];
   try {
-    const missing = [...declared].filter((id) => !revealVisualPart(source, id));
+    const missing = declared.filter((id) => !revealRegisteredVisualPart(source, id));
     return missing.length
       ? [`did not reveal declared parts ${missing.join(", ")}`]
       : [];
@@ -103,7 +131,7 @@ export function unrevealedVisualParts(source, declared) {
   }
 }
 
-export function visualParts(source) {
+export function registeredVisualParts(source) {
   const read = registrations.get(source)?.read;
   if (!read) return [];
   const seenIds = new Set();
@@ -135,19 +163,19 @@ export function visualParts(source) {
   });
 }
 
-export const visualPart = (source, id) =>
-  visualParts(source).find((part) => part.id === id) ?? null;
+export const registeredVisualPart = (source, id) =>
+  registeredVisualParts(source).find((part) => part.id === id) ?? null;
 
-export const visualPartLabel = (source, id) => {
-  const current = visualPart(source, id)?.label;
+export const registeredVisualPartLabel = (source, id) => {
+  const current = registeredVisualPart(source, id)?.label;
   if (current) return current;
   const label = registrations.get(source)?.label?.(id);
   return words(label) || null;
 };
 
-export function visualPartAt(source, target, admits = () => true) {
+export function registeredVisualPartAt(source, target, admits = () => true) {
   const byElement = new Map(
-    visualParts(source)
+    registeredVisualParts(source)
       .filter(admits)
       .map((part) => [part.element, part]),
   );

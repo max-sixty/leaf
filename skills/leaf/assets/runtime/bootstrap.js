@@ -26,6 +26,119 @@
   // load. A fault the page recovers from is worth the name too, so the outcome that
   // eventually wins carries it rather than a separate record standing for it.
   let recordStartupFault = () => {};
+  let stopHoldingKeys = () => {};
+
+  // A page key pressed before the page presents would otherwise reach a runtime that has
+  // not loaded, or one that has not yet read the log: `t` walks the threads the first
+  // state answer brings, so until then it walks nothing. The keys wait here instead, in
+  // the order pressed, until the presented page takes them. What is held is a run of
+  // printed keys: one pressed on the page starts it, and every printed key after it
+  // joins. Any other key ends the run, and so does a pointer press, which puts the user
+  // somewhere the keys were not aimed at: what was held is dropped and the new press
+  // keeps its own meaning. A chord never starts a run, and a modifier alone is half a
+  // press, which neither starts nor ends one. After a beat the held keys are shown, so a press visibly landed; a page that
+  // presents within the beat shows nothing.
+  const HALF_PRESSES = new Set([
+    "Shift",
+    "Control",
+    "Alt",
+    "AltGraph",
+    "Meta",
+    "CapsLock",
+  ]);
+  function holdEarlyKeys() {
+    const held = [];
+    let taken = false;
+    let beat = 0;
+    const echo = document.createElement("p");
+    echo.className = "lf-held-keys";
+    echo.setAttribute("data-lf-runtime", "");
+    echo.setAttribute("role", "status");
+    const show = () => {
+      const keys = held.map(({ key }) => {
+        const badge = document.createElement("kbd");
+        badge.className = "lf-key-badge";
+        badge.textContent = key === " " ? "Space" : key;
+        return badge;
+      });
+      echo.replaceChildren(
+        "Page still loading —",
+        ...keys,
+        keys.length === 1 ? "runs when it's ready" : "run when it's ready",
+      );
+      if (!echo.isConnected) document.body?.append(echo);
+    };
+    const letGo = () => {
+      held.length = 0;
+      clearTimeout(beat);
+      beat = 0;
+      echo.remove();
+    };
+    const queue = (event) => {
+      if (event.repeat) return;
+      held.push(event);
+      if (taken) return;
+      if (echo.isConnected) show();
+      else beat ||= setTimeout(show, 150);
+    };
+    const hold = (event) => {
+      if (event.isComposing || HALF_PRESSES.has(event.key)) return;
+      // Shift chooses which character prints; Ctrl, Alt and Meta make a chord instead.
+      const printed =
+        event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey;
+      if (held.length || taken) {
+        // The run is open, so a printed key follows the keys before it wherever it was
+        // typed: a held `c` may yet open the box the rest is text for. Any other key
+        // ends the run and keeps its own meaning: Enter, Backspace, Tab, an arrow or a
+        // chord acts natively where focus stands, which a replay through the keyboard
+        // owner cannot reproduce, and must not act ahead of keys pressed before it.
+        if (!printed) {
+          letGo();
+          return;
+        }
+        queue(event);
+      } else {
+        // Only a printed page key starts a run. One typed into a field is the field's,
+        // and Space on its own scrolls.
+        const origin = event.composedPath()[0];
+        const typing =
+          origin instanceof Element &&
+          (origin.isContentEditable || origin.matches("input, textarea, select"));
+        if (typing || !printed || event.key === " ") return;
+        queue(event);
+      }
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    };
+    const pointed = () => letGo();
+    // The page is ready, so the notice comes down, but the hold stands until the keyboard
+    // owner has pressed the last key in it: a printed key pressed meanwhile joins the
+    // same run rather than running ahead of the keys pressed before it.
+    const take = (event) => {
+      taken = true;
+      clearTimeout(limit);
+      clearTimeout(beat);
+      echo.remove();
+      event.detail.keys = held;
+      event.detail.release = () => stopHoldingKeys();
+    };
+    // A page that has not presented by now is not loading but faulted, and a key held
+    // this long is one the user has given up on: the hold ends, what it held is
+    // dropped, and keys reach the runtime as they come.
+    const limit = setTimeout(() => stopHoldingKeys(), 10_000);
+    stopHoldingKeys = () => {
+      window.removeEventListener("keydown", hold, true);
+      window.removeEventListener("pointerdown", pointed, true);
+      document.removeEventListener("lf-held-keys", take);
+      clearTimeout(limit);
+      letGo();
+    };
+    window.addEventListener("keydown", hold, true);
+    window.addEventListener("pointerdown", pointed, true);
+    // The keyboard owner takes the held keys once the page presents and runs them through
+    // its own handler (runtime/keyboard/controller.js).
+    document.addEventListener("lf-held-keys", take);
+  }
 
   // A small public-site profile distinguishes server delay, browser paint, and Leaf
   // presentation. It starts here so failed module graphs report too.
@@ -103,6 +216,7 @@
   function recover(reason, awaits = true) {
     root.dataset.lfStartupError = reason;
     recordStartupFault(reason);
+    stopHoldingKeys();
     if (recovering) return;
     recovering = true;
     let started = false;
@@ -207,6 +321,7 @@
   window.addEventListener("lf-startup-failed", (event) =>
     recover(event.detail?.reason || "the page reported it could not start"),
   );
+  holdEarlyKeys();
   try {
     observePublicStartup();
   } catch {

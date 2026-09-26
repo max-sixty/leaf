@@ -197,6 +197,10 @@ def initialized_page(_page_pool):
     test whose subject is initialization, re-vendoring or an overlay still
     crosses the real `page init` boundary by calling this with a shape of its
     own — or by not calling it at all.
+
+    Runtime and vendor files are hard links shared with the shape, so a test never
+    writes through one in place: re-vendoring replaces those files, and the next loan
+    rejects an in-place write by name.
     """
     lent = []
 

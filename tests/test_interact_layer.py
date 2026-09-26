@@ -9,11 +9,14 @@ import shutil
 import subprocess
 import sys
 import threading
+from datetime import datetime
 from pathlib import Path
 
 import playwright
 import pytest
 import tinycss2
+import tomllib
+import yaml
 from click.testing import CliRunner
 from conftest import LEAF_COMMAND, PagePool
 from interact_support import (
@@ -45,6 +48,7 @@ from leaf import schema as schema_model
 from leaf import session as session_model
 from leaf import structure as structure_model
 from leaf import vendoring as vendoring_model
+from leaf.registry import contract as registry_contract
 from leaf.registry import reactions as registry_reactions
 from leaf.registry import storage as registry_storage
 from leaf.render_gate import browser as browser_model
@@ -261,57 +265,47 @@ def test_the_python_instructions_name_every_module_they_own():
     assert not unnamed, f"unnamed in scripts/AGENTS.md: {unnamed}"
 
 
-def test_the_root_instructions_name_every_directory_ci_gates_on_its_own():
-    """A gate `uv run pytest tests` does not reach must be named where sessions read.
+def shell_commands(script):
+    """The simple commands of a hook or step script, split at newlines and `&&`."""
+    return [c.strip() for c in re.split(r"\n|&&", script) if c.strip()]
 
-    `ci.yaml` runs one job per gate, and a step that names a `working-directory`
-    is a gate with its own tools and its own command — the website Worker's
-    TypeScript today. Neither the suite nor pre-commit reaches such a tree, and
-    `wt merge` runs only those two, so a session that lands there on the root
-    instructions alone reddens main. The set comes from the workflow rather than
-    a list here, for the reason the reference routing above states: a list is the
-    second copy, and the job added without the paragraph would stay green.
+
+def test_wt_merge_runs_every_npm_gate_ci_runs():
+    """Each npm gate CI runs, the direct landing path runs in the same directory.
+
+    Neither the suite nor pre-commit reaches the TypeScript under `worker/src/` and
+    `scripts/browser/`, so a `wt merge` that skipped one of their gates would land a
+    red main that a pull request would have caught. A step's `working-directory`
+    becomes `--prefix` in the hook, which runs from the root: npm's bare `test` in
+    `worker/` is `npm test --prefix worker` there. `npm ci` installs rather than gates.
+    The set comes from the workflow rather than a list here: a list is a second copy,
+    and the gate added to CI without the hook would stay green.
     """
-    workflow = (ROOT / ".github" / "workflows" / "ci.yaml").read_text(encoding="utf-8")
-    instructions = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
-    directories = sorted(
-        set(re.findall(r"^\s*working-directory:\s*(\S+)", workflow, re.MULTILINE))
+    workflow = yaml.safe_load(
+        (ROOT / ".github" / "workflows" / "ci.yaml").read_text(encoding="utf-8")
+    )
+    config = tomllib.loads((ROOT / ".config" / "wt.toml").read_text(encoding="utf-8"))
+    hook = {
+        command
+        for block in config["pre-merge"]
+        for script in block.values()
+        for command in shell_commands(script)
+    }
+    gates = sorted(
+        {
+            f"{command} --prefix {step['working-directory']}"
+            if "working-directory" in step
+            else command
+            for job in workflow["jobs"].values()
+            for step in job["steps"]
+            for command in shell_commands(step.get("run", ""))
+            if command.startswith("npm ") and not command.startswith("npm ci")
+        }
     )
 
-    assert directories, "no working-directory read — an empty set names itself"
-    unnamed = [d for d in directories if f"`{d}/`" not in instructions]
-    assert not unnamed, f"unnamed in AGENTS.md: {unnamed}"
-
-
-def test_the_root_instructions_name_every_npm_gate_ci_runs():
-    """A gate with its own tools is named by its command, not only by its tree.
-
-    The reading above finds a gate through `working-directory`, which is how a gate
-    that keeps a tree of its own announces itself. A gate can hold its own tools at
-    the repository root instead: `scripts/browser/`'s TypeScript is typechecked and
-    tested by npm scripts run from the root, so it declares no `working-directory`
-    and that reading passes straight over it — which is how the root map went on
-    calling the worker's TypeScript half the one part of the tree with a gate of its
-    own after a second one had landed. Prettier and eslint take JavaScript and HTML
-    rather than TypeScript, and `wt merge` runs only pre-commit and the suite, so a
-    session that lands on either half with the root instructions alone reddens main.
-    The set comes from the workflow rather than a list here, for the reason the
-    routing above states: a list is the second copy, and the gate added without the
-    paragraph would stay green.
-
-    Read as `npm run`, and required in `AGENTS.md` under that same spelling: a bare
-    script name would pass on any word the instructions already carry — `lint`,
-    `check` and `format` are each in there — so the next gate named one of those
-    would stay green while the paragraph went stale. `npm ci` installs rather than
-    gates, and npm's bare `test` alias is not read under this spelling at all.
-    """
-    workflow = (ROOT / ".github" / "workflows" / "ci.yaml").read_text(encoding="utf-8")
-    instructions = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
-    scripts = sorted(set(re.findall(r"\bnpm run ([\w:-]+)", workflow)))
-
-    assert scripts, "no npm gate read — an empty set names itself"
-    unnamed = [script for script in scripts if f"npm run {script}" not in instructions]
-    assert not unnamed, f"unnamed in AGENTS.md: {unnamed}"
+    assert gates, "no npm gate read — an empty set names itself"
+    ungated = [gate for gate in gates if gate not in hook]
+    assert not ungated, f"not in .config/wt.toml's pre-merge: {ungated}"
 
 
 def test_the_root_instructions_name_every_directory_of_the_projects_own_tree():
@@ -581,6 +575,10 @@ def test_the_version_and_root_flags_describe_the_payload_this_leaf_ran_out_of(tm
     scripts = cached / "skills" / "leaf" / "scripts"
     scripts.mkdir(parents=True)
     shutil.copytree(SKILL_ROOT / "scripts" / "leaf", scripts / "leaf")
+    # A host's copy carries no `.git`, so the time it was made is the only date it
+    # has: every file written then, the running module's own included.
+    copied_at = 1_790_000_000
+    os.utime(scripts / "leaf" / "layer.py", (copied_at, copied_at))
     elsewhere = tmp_path / "unrelated-project"
     elsewhere.mkdir()
 
@@ -602,9 +600,20 @@ def test_the_version_and_root_flags_describe_the_payload_this_leaf_ran_out_of(tm
     assert there.returncode == 0, there.stderr
     assert there.stdout.strip() == str(cached.resolve())
 
-    version = asked("--version", PYTHONPATH=str(scripts))
+    version = asked("--version", PYTHONPATH=str(scripts), TZ="UTC")
     assert version.returncode == 0, version.stderr
-    assert version.stdout.strip() == f"leaf {cached_commit}"
+    assert (
+        version.stdout.strip()
+        == f"leaf {cached_commit}, installed 2026-09-21T14:13:20+00:00"
+    )
+
+    checkout = asked("--version")
+    assert checkout.returncode == 0, checkout.stderr
+    assert re.fullmatch(
+        r"leaf [0-9a-f]{12}\+?, committed "
+        r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:Z|[+-]\d\d:\d\d)",
+        checkout.stdout.strip(),
+    ), checkout.stdout
 
     assert list(elsewhere.iterdir()) == []
 
@@ -875,9 +884,13 @@ def test_an_installed_payload_is_complete_and_launches_outside_the_checkout(tmp_
     installed_registry = json.loads((page / "registry.json").read_text())
     assert "lf-command" in installed_registry
     assert installed_registry["$layer"]["packages"] == list(PAGE_PACKAGES)
+    copied = installed / "skills" / "leaf" / "scripts" / "leaf" / "layer.py"
     assert installed_registry["$layer"]["producer"] == {
         "commit": commit,
         "dirty": False,
+        "installed": datetime.fromtimestamp(copied.stat().st_mtime)
+        .astimezone()
+        .isoformat(timespec="seconds"),
     }
     (page / "index.html").write_text(PAGE)
     publish_result = subprocess.run(
@@ -1675,10 +1688,12 @@ def test_payload_provenance_belongs_to_the_plugin_repo_without_writing_its_index
     index = plugin / ".git" / "index"
     before = index.stat().st_mtime_ns
 
+    committed = git(plugin, "show", "--no-patch", "--format=%cI", "HEAD").stdout.strip()
     clean = layer_model.payload_provenance(include_path=True)
     assert clean == {
         "path": str(plugin),
         "commit": git(plugin, "rev-parse", "--short=12", "HEAD").stdout.strip(),
+        "committed": committed,
         "dirty": False,
     }
 
@@ -1689,6 +1704,7 @@ def test_payload_provenance_belongs_to_the_plugin_repo_without_writing_its_index
     assert provenance == {
         "path": str(plugin),
         "commit": git(plugin, "rev-parse", "--short=12", "HEAD").stdout.strip(),
+        "committed": committed,
         "dirty": True,
     }
     assert index.stat().st_mtime_ns == before
@@ -1697,7 +1713,8 @@ def test_payload_provenance_belongs_to_the_plugin_repo_without_writing_its_index
 def test_payload_provenance_reads_claude_codes_git_versioned_plugin_cache(
     tmp_path, monkeypatch
 ):
-    """Claude's copied payload retains its source SHA in the documented cache path."""
+    """Claude's copied payload retains its source SHA in the documented cache path,
+    and dates itself by when the copy was made, which its running module carries."""
     commit = "4cb17dc60870"
     plugin = tmp_path / ".claude" / "plugins" / "cache" / "leaf" / "leaf" / commit
     plugin.mkdir(parents=True)
@@ -1712,11 +1729,33 @@ def test_payload_provenance_reads_claude_codes_git_versioned_plugin_cache(
         lambda *_args, **_kwargs: pytest.fail("a cached payload should not invoke Git"),
     )
 
+    copied = Path(layer_model.__file__).stat().st_mtime
     assert layer_model.payload_provenance(include_path=True) == {
         "path": str(plugin),
         "commit": commit,
         "dirty": False,
+        "installed": datetime.fromtimestamp(copied)
+        .astimezone()
+        .isoformat(timespec="seconds"),
     }
+
+
+def test_a_producer_date_without_an_offset_is_refused(page_dir):
+    """The browser reads a bare local time in each viewer's own zone, so one
+    vendored page would show every viewer a different age."""
+    stamp = page_dir / "registry.json"
+    registry = json.loads(stamp.read_text(encoding="utf-8"))
+
+    def producer_dated(value):
+        registry["$layer"]["producer"] = {"commit": "a74b08365870", "committed": value}
+        interact_files.write_json(stamp, registry)
+        return registry_storage.layer_metadata(page_dir)["producer"]
+
+    assert producer_dated("2026-09-26T09:32:21-07:00")["committed"] == (
+        "2026-09-26T09:32:21-07:00"
+    )
+    with pytest.raises(registry_contract.RegistryError, match="timezone offset"):
+        producer_dated("2026-09-26T09:32:21")
 
 
 def test_fresh_page_state_points_only_to_readable_authorities(tmp_path, monkeypatch):
@@ -1934,7 +1973,7 @@ def test_the_resources_a_fixture_owns_are_taken_from_that_fixture():
     close where the test ends with it does the same work a step early, and the
     reading it cuts short is its own. The exception is a page that keeps making
     the fault its test is about, where the consume has to follow a close of its own
-    (tests/AGENTS.md, "A page is ready when it says what has finished").
+    (tests/AGENTS.md, "Consume a browser error where it is caused").
     """
     closes_to_stop_a_repeating_fault = {
         "test_a_website_session_reference_survives_a_failed_first_read",
@@ -2741,8 +2780,12 @@ def test_init_preserves_tmp_files_even_when_a_layer_reads_one(tmp_path, monkeypa
             '<lf-toned-note id="lf-example">One</lf-toned-note>',
             "lf- namespace",
         ),
+        (
+            '<lf-toned-note id="note"><p id="two words">One</p></lf-toned-note>',
+            "whitespace",
+        ),
     ],
-    ids=["duplicate", "reserved"],
+    ids=["duplicate", "reserved", "spaced"],
 )
 def test_init_refuses_invalid_ids_in_a_registry_example(
     tmp_path, monkeypatch, example, message
@@ -4424,11 +4467,13 @@ def test_the_register_is_the_only_way_a_key_enters_the_runtime():
     the press it eats goes missing — so it is pinned in the source, the way the
     document-level class surface is.
 
-    Two are allowed and both are named here. The dispatcher is the register's own. The aim
+    Three are allowed and each is named here. The dispatcher is the register's own. The aim
     latch is not a binding at all: holding ⌥ arms nothing and answers no press, it paints
-    what a click would take, and its keyup half has no place in a table of presses. A third
-    is how every drift this register replaced began — a `keydown` beside a display list,
-    the two of them free to disagree about which keys the widget answers."""
+    what a click would take, and its keyup half has no place in a table of presses. The
+    prepaint bootstrap's hold answers no press either: it keeps keys pressed before the
+    page presents and hands them to the dispatcher's owner. Another is how every drift this
+    register replaced began — a `keydown` beside a display list, the two of them free to
+    disagree about which keys the widget answers."""
     layer = ROOT / "skills/leaf"
     sources = [
         layer / "assets/leaf.js",
@@ -4442,7 +4487,7 @@ def test_the_register_is_the_only_way_a_key_enters_the_runtime():
         for n, line in enumerate(src.read_text().splitlines(), 1)
         if 'addEventListener("keydown"' in line
     ]
-    assert len(listeners) == 2, (
+    assert len(listeners) == 3, (
         f"the runtime's keydown listeners changed: {listeners}. A key belongs in the "
         "register (keys(el, title, rows)), which is what lets a surface promise it."
     )

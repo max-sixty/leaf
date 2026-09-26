@@ -79,6 +79,7 @@ export const DEFAULT_INTENT = Object.freeze({
 let intent = DEFAULT_INTENT;
 export const threadSearchActive = () => Boolean(intent.finding);
 export const needsYou = () => intent.waiting === "user";
+export const listedInPageOrder = () => intent.order === "page";
 export const narrowed = () =>
   Boolean(intent.finding) ||
   intent.status !== "open" ||

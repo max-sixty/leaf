@@ -5,6 +5,7 @@ import json
 import re
 import subprocess
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import NamedTuple
 
@@ -326,7 +327,13 @@ def foreign_runtime(page_dir: Path, layer: dict) -> str | None:
 
 
 def payload_provenance(*, include_path: bool = False) -> dict:
-    """Describe the Leaf payload that is running this command, when its source can."""
+    """Describe the Leaf payload that is running this command, when its source can.
+
+    Beside the commit, one of two dates says how old the payload is: `committed`,
+    the commit's committer date, where Git can read it; or `installed`, when a host
+    copied the payload into its plugin cache without `.git`. Both are ISO 8601 with
+    an offset.
+    """
     provenance = {"path": str(PLUGIN_ROOT)} if include_path else {}
     # Claude Code copies a marketplace plugin without its .git directory into a cache
     # whose final component is the resolved plugin version. Leaf leaves its manifest
@@ -341,7 +348,16 @@ def payload_provenance(*, include_path: bool = False) -> dict:
         and parents[3].name == "plugins"
         and re.fullmatch(r"[0-9a-f]{7,40}", PLUGIN_ROOT.name)
     ):
-        provenance.update(commit=PLUGIN_ROOT.name, dirty=False)
+        # The copy stamps every file with the time it was made, and Leaf never
+        # rewrites its own modules. A host copies only the marketplace's newest
+        # commit, one update sweep after it lands, so this dates the commit to
+        # within that sweep; the commit date itself left with `.git`.
+        installed = datetime.fromtimestamp(Path(__file__).stat().st_mtime, UTC)
+        provenance.update(
+            commit=PLUGIN_ROOT.name,
+            dirty=False,
+            installed=installed.astimezone().isoformat(timespec="seconds"),
+        )
         return provenance
 
     git = ["git", "--no-optional-locks", "-C", str(PLUGIN_ROOT)]
@@ -360,6 +376,12 @@ def payload_provenance(*, include_path: bool = False) -> dict:
     if len(lines) != 2 or Path(lines[0]).resolve() != PLUGIN_ROOT.resolve():
         return provenance
     provenance["commit"] = lines[1]
+    provenance["committed"] = subprocess.run(
+        [*git, "show", "--no-patch", "--format=%cI", "HEAD"],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
     try:
         dirty = subprocess.run(
             [
@@ -380,6 +402,21 @@ def payload_provenance(*, include_path: bool = False) -> dict:
     if dirty.returncode == 0:
         provenance["dirty"] = bool(dirty.stdout)
     return provenance
+
+
+def provenance_label(provenance: dict) -> str:
+    """One line naming a payload's commit and date, as `payload_provenance` read it.
+
+    `+` marks uncommitted changes, as the page banner does.
+    """
+    commit = provenance.get("commit")
+    if not commit:
+        return "unknown source"
+    label = commit + ("+" if provenance.get("dirty") else "")
+    for kind in ("committed", "installed"):
+        if kind in provenance:
+            return f"{label}, {kind} {provenance[kind]}"
+    return label
 
 
 def compose_layer(roots: list[Path]) -> LayerComposition:

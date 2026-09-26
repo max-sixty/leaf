@@ -62,9 +62,12 @@ from .revision_delivery import (
 from .revisioning import activate_source
 from .schema import (
     BINARY_TYPES,
+    BROWSER_DIRS,
     CONTENT_TYPES,
     KEY_COOKIE,
+    MEDIA_DIR,
     NO_KEY,
+    REVISION_NAME,
     SERVED_PATH,
     VENDORED_FILES,
     VIEWED_FILE,
@@ -110,11 +113,16 @@ def _query_int(raw, name: str, minimum: int) -> int:
     return value
 
 
-# A rooted path the page's own layer answers: its directories and its vendored files.
-# A page served under a prefix has these rebased onto it wherever a script, a
-# stylesheet or an attribute names one, so the list is the vendoring contract's.
+# A rooted path the page's own layer answers: its API, browser layer, media and
+# authored `page/` tree, and its vendored files. A page served under a prefix has these
+# rebased onto it wherever a script, a stylesheet or an attribute names one. Its
+# documents are left out, since the server writes their addresses itself
+# (`scope_page_urls`). The authored tree is in, though no server routes it at the page
+# root: it is served only beneath a revision's address.
 _ROOTED_PATH = (
-    rb"(?:api|page|runtime|widgets|vendor|media)/|(?:"
+    rb"(?:"
+    + b"|".join(name.encode() for name in ("api", "page", *BROWSER_DIRS, MEDIA_DIR))
+    + rb")/|(?:"
     + b"|".join(re.escape(name.encode()) for name in VENDORED_FILES)
     + rb")"
 )
@@ -994,8 +1002,7 @@ class PageEndpoint:
 
     def _serve_artifact_resource(self) -> Response | None:
         match = re.fullmatch(
-            r"/revisions/(?P<name>r(?P<revision>[1-9][0-9]*)-[a-f0-9]{16})/"
-            r"(?P<resource>.+)",
+            rf"/revisions/(?P<name>{REVISION_NAME})/(?P<resource>.+)",
             self.path,
         )
         if match is None:
@@ -1083,10 +1090,7 @@ class PageEndpoint:
             artifact = self._artifact(mapping[version])
             return self._serve_document(artifact, mapping[version], version)
         if path.startswith("/revisions/"):
-            if (
-                re.fullmatch(r"/revisions/r[1-9][0-9]*-[a-f0-9]{16}\.html", path)
-                is None
-            ):
+            if re.fullmatch(rf"/revisions/{REVISION_NAME}\.html", path) is None:
                 return self._json({"error": "unknown revision resource"}, 404)
             name = Path(path).name
             revision = revision_num(name)

@@ -38,7 +38,7 @@ import { focusDestination, readCaret } from "../focus.js";
 import { pageScope } from "../keyboard/register.js";
 import { TEXT_ENTRY } from "../keyboard/text-entry.js";
 import { threadList } from "./state.js";
-import { focusedThread, focusThread } from "./focus.js";
+import { focusedThread, focusThread, heldThread, heldThreadId } from "./focus.js";
 import { threadSearchActive } from "./narrowing.js";
 
 export { SAY_BOX } from "./selectors.js";
@@ -187,8 +187,6 @@ pageScope("text entry", {
 // Enter replies or reopens only from the card, where no control inside has an Enter of its
 // own to lose. The reopen button tells the two states apart; absent a thread, the reference
 // describes the open state users first meet.
-const heldThread = () =>
-  documentFocused()?.closest(".lf-thread, .lf-page-thread") ?? null;
 const resolutionControl = (thread) =>
   thread?.querySelector(
     ":scope .lf-thread-meta-actions > .lf-resolve, " +
@@ -531,7 +529,7 @@ export function declareThreadKeys(landIn, read) {
         does: "Mark this thread read",
         line: "mark read",
         when: () => {
-          const id = heldThread()?.dataset.id ?? heldThread()?.dataset.thread;
+          const id = heldThreadId();
           return Boolean(
             id &&
             threadList().find(
@@ -540,7 +538,7 @@ export function declareThreadKeys(landIn, read) {
           );
         },
         run: () => {
-          const id = heldThread()?.dataset.id ?? heldThread()?.dataset.thread;
+          const id = heldThreadId();
           if (id) read.markThread(id);
         },
       },

@@ -280,9 +280,7 @@ def _column_width(page_css: str, theme_css: str) -> int:
     return COLUMN_FALLBACK
 
 
-def _overwide_elements(
-    parser: SourceDocument, column: int, theme_tokens: dict | None = None
-) -> list:
+def _overwide_elements(parser: SourceDocument, theme_css: str) -> list:
     """Everything a version pins wider than the column: its own rules, its inline
     styles, and the width="" attributes that count as pixels.
 
@@ -292,30 +290,45 @@ def _overwide_elements(
     A width naming a token resolves against the page's own root first and the layer's
     behind it, which is the order the cascade reads them in. A page pinning
     `var(--wide)` is stating the layer's number, and a reading that knew only the page's
-    own tokens would let the vocabulary's own widths through unmeasured."""
-    hits = []
-    tokens = {**(theme_tokens or {}), **root_tokens(parser.css)}
-    for selector, block, _ in css_rules(parser.css):
-        for prop, px in _px_widths(block, OVERFLOW_PROPS, tokens):
-            if px > column:
-                hits.append(
-                    f"rule `{selector}` sets {prop}: {px:g}px (column is {column}px)"
-                )
-    for inline in parser.inline_styles:
-        block = css_block(inline["style"])
-        for prop, px in _px_widths(block, OVERFLOW_PROPS, tokens):
-            if px > column:
-                hits.append(
-                    f"{inline_style_at(inline)} sets {prop}: {px:g}px "
-                    f"(column is {column}px)"
-                )
-    for attr in parser.attr_widths:
-        px = _number(attr["value"])
-        if px is not None and px > column:
-            hits.append(
-                f'<{attr["tag"]} width="{attr["value"]}"> (line {attr["line"]}) '
-                f"exceeds column ({column}px)"
-            )
+    own tokens would let the vocabulary's own widths through unmeasured.
+
+    The theme is read only for a page that states a width: its column and tokens
+    measure nothing else, and parsing the whole vendored theme is most of what checking
+    a page would otherwise cost."""
+    blocks = [
+        (f"rule `{selector}`", block) for selector, block, _ in css_rules(parser.css)
+    ]
+    blocks.extend(
+        (inline_style_at(inline), css_block(inline["style"]))
+        for inline in parser.inline_styles
+    )
+    widths = [
+        (where, declaration)
+        for where, block in blocks
+        for declaration in block
+        if declaration.type == "declaration"
+        and declaration.lower_name in OVERFLOW_PROPS
+    ]
+    attributes = [
+        (attr, px)
+        for attr in parser.attr_widths
+        if (px := _number(attr["value"])) is not None
+    ]
+    if not widths and not attributes:
+        return []
+    column = _column_width(parser.css, theme_css)
+    tokens = {**root_tokens(theme_css), **root_tokens(parser.css)}
+    hits = [
+        f"{where} sets {declaration.lower_name}: {px:g}px (column is {column}px)"
+        for where, declaration in widths
+        if (px := _px(declaration, tokens)) is not None and px > column
+    ]
+    hits.extend(
+        f'<{attr["tag"]} width="{attr["value"]}"> (line {attr["line"]}) '
+        f"exceeds column ({column}px)"
+        for attr, px in attributes
+        if px > column
+    )
     return hits
 
 

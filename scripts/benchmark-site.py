@@ -1,5 +1,13 @@
 #!/usr/bin/env python3
-"""Measure one Leaf page, comment, requested edit, publication, and reply journey."""
+"""Measure one Leaf page, comment, requested edit, publication, and reply journey.
+
+The sample covers browser presentation, a comment sent through the real Threads
+composer, acknowledgement and activity, the first reply text visible in the open
+thread, the requested publication and durable reply, and the changed page's
+presentation. Both targets run the same HTTP and browser checks. `local` provisions
+the canonical Python adapter and starts its turn explicitly; it does not emulate
+Cloudflare's Worker, container allocation, or routing.
+"""
 
 import json
 

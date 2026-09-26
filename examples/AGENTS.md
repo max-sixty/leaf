@@ -1,246 +1,101 @@
 # The examples
 
 Each top-level authored HTML file is both a complete user page and an integration
-fixture. The website publishes those pages with the same vendored layer.
-`docs/examples.html` curates eight core examples and a specialized section; its active
-cards are the source of truth for catalog membership and generated previews. An
-unlisted page can remain published, as Command Hub and Security Boundary do.
+fixture, and the website publishes it with the same vendored layer. The active cards
+in `docs/examples.html` decide catalog membership and which previews are generated;
+an unlisted page can stay published.
 
-Each page's `<title>` and `<meta name="description">` are distinct from every other
-page's; the site build composes the catalog card from them and refuses a page
+## Catalog pages
+
+Every catalog entry stands as a coherent artifact for a real user task and makes a
+distinct Leaf capability apparent on the first visit. Subject novelty, length, or
+vocabulary coverage alone does not qualify a page. Keep pages focused; a board,
+a short proposal, or a draft is enough. Exhaustive vocabulary coverage belongs to
+the feature gallery and the package pages.
+
+Each page's `<title>` and `<meta name="description">` differ from every other
+page's. The site build composes the catalog card from them and refuses a page
 missing either.
 
-Keep core examples focused and include small pages: a board, a short proposal, or a
-draft can demonstrate Leaf without becoming a product tour. Choose examples for
-user tasks; the core gallery and focused package pages own exhaustive vocabulary
-coverage. Add a
-contents sidebar when the rendered document needs navigation; judge that in the
-browser review.
+A page's connective prose is its own. Gestures repeat across pages; the sentences
+around them do not. The rule lives in `references/authoring-evidence.md`,
+"Interactive and visual evidence", and
+`test_no_example_writes_another_example_s_sentences` refuses a run of more than twelve
+shared words. A shorter borrowed clause is still a review finding.
 
-Every catalog entry must both stand as a coherent artifact for a real user task and
-make a distinct Leaf capability apparent on the first visit. Subject novelty, length,
-or vocabulary coverage alone does not qualify a page for the catalog.
+## Developer pages and regression fixtures
 
-Full-page regression journeys whose story no longer belongs in the showcase live
-under `tests/fixtures/pages/`, with their companion logs and `versions/` beside them.
-They join the generated corpus and page checks but are not website routes. Synthetic
-core feature scenarios have one home: `developer/feature-gallery.html`. Every core Leaf
-feature must be directly exercisable there. Optional package specimens belong on a
-focused package page, reusing a worked example when one already tells that package's
-story. A change that adds or materially changes a core feature adds or updates its
-focused specimen in the core gallery; coverage in a public example does not substitute
-for that developer surface. A focused specimen
-names the real control or gesture, seeds the state it needs, and tells the
-developer what result to inspect. For injected chrome whose state comes from
-outside one document, name that condition and exercise it in the gallery's browser
-test. The developer pages use the same companion version, log, and data conventions as
-an example. The website publishes them as references linked outside the visual examples
-catalog. `corpus.html`, `corpus.data.json` and `corpus.page/` are generated from these
-sources; edit the source page and regenerate the corpus instead of patching an output
-(`test_corpus_is_generated_from_the_examples` holds them to their sources).
-`corpus.page/` carries each element an example owns, a declaration whose module ships
-under the example's `page/widgets/`, so the corpus's markup still names a declared
-element.
+`developer/feature-gallery.html` is the one home of synthetic core feature
+scenarios, and every core Leaf feature is directly exercisable there. A change that
+adds or materially changes a core feature adds or updates its specimen in the
+gallery; coverage in a public example does not substitute. A specimen names the real
+control or gesture, seeds the state it needs, and tells the developer what result to
+inspect. For injected chrome whose state comes from outside the document, name that
+condition and exercise it in the gallery's browser test. An optional package's
+specimens go on a focused package page, reusing a worked example where one already
+tells that package's story.
 
-Current pages and tests use only the current interface. When an interface changes,
-remove obsolete ids, aliases, and assertions instead of preserving both forms. Files
-under `versions/` remain historical inputs only when the page's version story uses them.
+Full-page regression journeys that no longer belong in the showcase live under
+`tests/fixtures/pages/`. They join the corpus and page checks but are not website
+routes. Developer pages and regression fixtures follow the companion conventions
+below.
 
-## Every widget and idiom in the vocabulary stands here
+## The corpus
 
-The nightly run puts each boundary to the smallest corpus that can answer it. Every
-authored source runs the render gate in both palettes. The feature gallery runs Axe at
-desktop and phone widths in both palettes, while focused accessibility tests own chrome
-and specialist surfaces it does not contain. Authored-content sweeps quote four unlike source pages and resolve anchors written from
-the same four. Shared runtime mechanisms use causal representatives instead of
-repeating the same gesture over every page, and each sweep fails when its representative
-contains nothing to inspect. A widget that stands in no source page is one the
-whole-page contracts have never seen, and its own green tests read as coverage.
+`corpus.html`, `corpus.data.json`, `corpus.jsonl`, and `corpus.page/` are generated
+from the sources by `scripts/corpus.py`.
 
-`test_every_widget_in_the_vocabulary_stands_in_a_corpus_source` is the floor. It
-reads the widget list off the registry and the package list off `layer.json`
-(`SHIPPED_PACKAGES`), so the next widget joins the corpus by being declared and a
-widget that moves into a bundled package stays under the floor.
-`test_every_idiom_in_the_catalog_stands_in_a_corpus_source` holds the catalog's
-other half: an idiom is a CSS selector, so the test puts every idiom key to Chrome,
-matched against the authored markup rather than the upgraded page, which also
-keeps each key a working selector.
+Every widget and idiom in the shipped vocabulary stands in some corpus source, and
+the suite refuses one that does not. `examples/layer.json` lists every bundled
+package, used or not, because those floors read it to decide what vocabulary they
+cover. The floors guarantee a widget appears, not which of its shapes do: where an
+attribute or content shape changes what a user sees (an `lf-options` group's form,
+arity, joining, and `label` vary independently), a page shows that shape. `restated`,
+`overruled`, and `resolves` need a seeded log a later version contradicts or depends
+on; add one when a page has a real use for it, not to fill the slot.
 
-The floor guarantees the widget appears; which of its shapes appear is a judgment.
-Where an attribute or a content shape changes what a user sees (an `lf-options`
-group's form, arity, joining, and `label` vary independently), a page here shows
-that shape, because a rule written against one combination governs the rest
-without saying so.
+A shape that stands in the corpus has been rendered, not judged. When a sweep finds
+a defect, ask which gap let it through: an absent shape needs a fixture, and a
+present but unexamined one needs a reading or a `/ui-sweep` pass.
 
-## Standing here is not the same as having been looked at
+Measure runtime cost across the composed surface on `corpus.html`; a small fixture
+can establish a cause but not the cost.
 
-The floor guarantees a shape is rendered. It never guarantees anyone judged what
-was rendered. When a sweep finds something, ask which gap let it through before
-adding a page: a shape absent from the corpus wants a fixture; a shape present but
-unexamined wants a reading (a test over every cell of a joined control, or the
-`/ui-sweep`), and a page that only re-renders a shape nobody judges buys nothing.
-A gate reading that would have to find a control by fingerprint fails correct
-pages to catch leaf's own theme, so that reading belongs in the suite, not
-`render_version`.
+## Companions
 
-Use `corpus.html` when measuring runtime cost across the composed surface. A small
-fixture can establish a cause, but it cannot stand in for the composed surface.
+An example's markup is its current version. Beside it may sit:
 
-## An example is its stamped versions, plus any log and data it ships beside it
+- `<stem>.page/`, copied to the page's `page/` when the example owns declarations,
+  modules, or styles;
+- `versions/<stem>.vN.html`, each earlier version, read in filename order; they sit
+  outside the top level so discovery and the prose sweeps never read one as a page;
+- `<stem>.jsonl`, seeded events: a thread, a user decision, or a widget in a message,
+  which no markup can describe;
+- `<stem>.data.json`, each page-owned source id's current value, or a `$captures`
+  entry naming a sibling file (`format` defaults to `text`; `unified-diff` reads a
+  whole `.patch`).
 
-`examples/layer.json` names the package selections shared by the corpus. Preview,
-lint, and site tooling all read that list, so the pages exercise the same vendored
-layer the website serves. Every bundled package belongs in it, whether or not a
-page uses that package today: the list is what the corpus floors read to decide
-which vocabulary they cover.
+`prepare_page` in `scripts/page_fixtures.py` is the one builder of a page directory
+from an example; its docstring gives the build order.
 
-An example's markup is its current version. A sibling `<stem>.page/` directory is
-copied to the prepared page's `page/` directory when the example owns declarations,
-modules, styles, or other captured resources. A page fixture that was revised ships
-each earlier version in its sibling `versions/` directory as `<stem>.vN.html`.
-`example_versions` in `scripts/example_data.py` is the one reader of that list, in
-filename order. `prepare_page` in `scripts/page_fixtures.py` is the one builder of a
-page directory from an example, which `scripts/preview.py`, `publish_examples` in
-`scripts/site.py`, and `serve` in `tests/render_harness.py` call: it walks the
-versions oldest first through the real `version stamp`, lays in the log, data, and
-media, and sets the cursor to the end of the seeded log.
-`test_page_fixtures_pass_check` builds through it too, and runs `version check` on
-every version rather than only the current one. Prior versions live under `versions/`
-so top-level `*.html` discovery never reads a version as a page fixture, and the
-authored-content sweeps (above all the one holding two examples to twelve
-consecutive shared words) never read a revision against its own earlier draft.
+Capture a seeded anchor with `leaf thread open --quote` against the file. Never
+write `{section, quote, suffix}` by hand: a hand-written anchor detaches silently
+when its sentence changes. Seeded message markup must pass the door `leaf thread
+reply` runs, and the suite posts each fragment through it.
 
-Two orderings hold. The seed goes in after the first stamp and before any later
-one, so a revised example reads the way it happened: the version, what the user
-said about it, then the version that answered them. The current version is written
-into the page before the data operations, because the data door validates a source
-against the page's markup and the current version is the one that has to bind it.
+A widget with a live half, such as an `lf-agent` row saying how long since its
+worker reported, needs both a seed so the corpus sweeps see it and a fixture that
+mints its own timestamps to pin what it says, since a seed's `ts` is a fixed instant.
 
-`log-retention` is the revising example. Its second version rewrites one paragraph
-around a sentence the user quoted, adds a paragraph and a step, and updates the
-title and lede to state the exception. The comparison marks five blocks and both
-threads stay attached; unchanged passages stay unmarked.
-`restated` and `overruled` are reachable and no example uses them; each needs a
-decision or report standing in the seeded log that the next version contradicts.
-Write one when there is a page it makes sense on, not to fill the slot.
+## Media
 
-Event state is the one thing no markup describes, so an example that wants to show
-a thread or a user decision ships its events as `<stem>.jsonl` beside the page.
-A thread-bearing log opens mid-thread; an action-only log replays a page-owned
-decision without inventing a thread. `serve` seeds when handed an example rather than
-markup. The anchor sweep opts out, because it writes its own anchors and compares the
-whole painted mark against exactly those. `ship-review.jsonl` carries a thread. Under
-`tests/fixtures/pages/`, `review-queue.jsonl` carries two page-owned decisions and
-`current-proposed-comparison.jsonl` carries the one choice its next version applies.
-The public examples' seeds reach the published site through the session running in
-the user's own tab, since published pages are served rather than exported.
+`examples/media/` holds the bytes an `lf-shot` or a seeded message names,
+content-addressed as `leaf page media` names them. Every builder of a page directory
+lays them in: `prepare_page`, and any test that builds a page by hand.
 
-External data is the other companion state. An example that binds a widget input
-to a source ships `<stem>.data.json`, mapping each page-owned source id to its
-complete current value. A reserved `$captures` object instead maps a source id to
-`file` and optional `format` or `lines`; the file is a sibling of the
-example. The format defaults to `text`, where `lines` may select an inclusive
-range; a large unified diff stays in its `.patch` source and is captured with
-`"format": "unified-diff"`, which runs the `diff` package's `patch_manifest.py` on the
-whole file and refuses `lines`.
-Builders set captures first and then current values through `leaf data set`, so
-binding, contract validation,
-live preview, browser sweeps, and the static site all exercise the
-real doors. `scripts/corpus.py` composes those companions into
-`corpus.data.json`.
-
-The cursor is set to the end of the seeded log because a seed is history, not
-news: a cursor at zero hands the next agent session a question the same log
-already answers, and the loop guard nags about it each time.
-
-When a seeded event needs an anchor, capture it with `leaf thread open --quote`
-against the file; do not write the `{section, quote, suffix}` out by hand. A
-hand-written anchor is a second capture with nothing holding it to the first, and
-it rots silently: rewrite the sentence and the thread stands detached with no
-error anywhere. `test_a_shipped_log_replays_its_example_state` reads the
-shipped anchor back through the browser and names that failure. The corpus's own
-anchor sweep cannot catch it, because that sweep writes its own anchors.
-
-The corpus carries only the threads its embedded specimens declare in
-`data-specimen-threads`. `scripts/corpus.py` generates their complete histories in
-`corpus.jsonl`; unrelated user decisions stay unset so the corpus can exercise
-them. Markup that depends on another thread (such as `resolves`) needs that
-dependency carried into composed fixtures too.
-
-A widget with a live half (an `lf-agent` row rendering how long since its worker
-was heard from) is invisible to the corpus sweeps until a seed puts a report in
-the log. The seed makes the rendering visible; what the rendering says is pinned
-in fixtures that mint their own timestamps
-(`test_a_rosters_row_says_when_the_log_last_heard_from_that_worker`,
-`test_a_worker_that_has_never_reported_dates_from_its_version`), because a seed's
-`ts` is a fixed instant and the line renders against now. The next widget with a
-live half owes both halves.
-
-A seed is also the only way a widget reaches the corpus in a message, since an
-event's `markup` renders in the panel and nowhere else. `ship-review.jsonl`
-carries the shape: an agent question with a `multiple` group, the user ticking
-two of the three and not yet pressing Done, so the group is both decided and still
-asking. The same log carries a screenshot in a message, which is the one place
-`.lf-media-open` — and the `media` ring on it — stands in the corpus at all; it
-hangs off an existing message rather than a new one, because the panel's thread
-lengths and its waiting-on-you count are both read by fixtures.
-`test_a_shipped_log_replays_its_example_state` opens the panel and asks
-that each widget the log carries is drawn, that a widget the registry says awaits
-an answer has a control to answer with, and that the decided state differs from
-the same page under the same log with the decisions removed.
-
-A hand-written seed is markup no gate reads: `version check` asks it only for
-ids colliding with the version's, and `leaf thread reply` never sees a file written into
-the repository. `test_every_seeded_fragment_passes_the_door_it_never_came_through`
-posts each seeded fragment through that real door rather than through a copied
-list of checks. Render-gate readings assume a widget stands in the document
-unless written otherwise; a widget in a message is inside the panel's `.lf-ui`,
-and a shut panel has no boxes, so a reading that walks text nodes must bound its
-chrome question at the widget (`uiInside`).
-
-## A page's connective prose is its own
-
-The gesture vocabulary repeats, and is meant to: every board takes a drag, every
-group takes a pick. The sentence around the gesture must not repeat, because a
-page that borrows another page's sentence describes its own work in another
-page's words. The rule lives in `references/authoring-evidence.md` under
-"Interactive and visual evidence"; what lives here is the check.
-`test_no_example_writes_another_example_s_sentences` holds the corpus to at most
-twelve consecutive shared words, five clear of the longest real overlap, so a
-single borrowed clause can still pass and remains a judgment for review.
-
-## The media an example names sits beside it
-
-An `lf-shot` needs image bytes a single file cannot hold. `examples/media/`
-carries them, content-addressed exactly as `leaf page media` names them in a page
-directory, and `prepare_page` lays them in, as do the tests that build a page by
-hand. A publisher that forgets fails loudly, because `version check` refuses a
-`/media/` reference the directory cannot answer.
-
-A seeded message names its media the other way: a pasted screenshot lives in the
-message's Markdown, where the parsed reading that harvests attributes cannot see
-it, so a builder that reads only the markup serves the page with a broken image
-and no error until a console sweep reads one. `serve` reads the log's references
-too, and the publishers that copy `examples/media/` whole already covered it.
-`ship-review.jsonl` carries the shape.
-
-A before/after pair is drawn rather than captured, since what it shows is a
-fiction the example needs. Draw both images at one height, because they share one
-grid cell and the shorter would sit in blank space. The frame scales an image to
-its own width, so draw the file at twice the width the shot will get where it
-stands, measured from the layout rather than carried over. The state rail has its
-own band above the image, so the mock can use its whole canvas. Take the palette
-from the pair already here.
-
-The script that draws a mock belongs in scratch, not in `scripts/`. A mock depicts
-a console that does not exist, so nothing can make it false and nothing will re-run
-its generator. `scripts/record-demo.py` stays because the stills it draws depict
-leaf itself, so a change to leaf can make them stale and the generator has to
-stay around to re-run.
-
-## Previewing a page fixture
-
-Run `scripts/preview.py [page]` to create a fresh vendored page, copy its
-companion log, data, and media, and serve it at a local URL. Add `--export` to
-write it as one review file that opens offline. Use `page init` and the
-normal server commands for an authored page outside this corpus.
+Draw a before/after pair rather than capturing it. Draw both images at one height,
+at twice the width the shot gets on the page as measured from the layout, and take
+the palette from the pair already here. A mock's generator belongs in scratch, since
+nothing can make a depicted console false. A generator for images that depict Leaf
+itself, such as `scripts/record-demo.py`, stays in `scripts/` because a change to
+Leaf can make them stale.

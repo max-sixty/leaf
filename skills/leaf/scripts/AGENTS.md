@@ -1,158 +1,98 @@
 # The Python side
 
-This directory owns the CLI, page files, event log, service lifetime, validation,
-projection, rendering, and publishing. It is the project's module root, so
-`leaf/` is the package a host installs. `leaf/cli.py` composes the commands;
-`leaf/__main__.py` is the CLI as `python -m leaf`, the form `bin/leaf` and every
-leaf subprocess run it in, and the `leaf` console script is the same entry for
-the hook guard and a developer's `uv run leaf`. Keep `cli.py` a facade over the
-domain modules.
+This directory is the project's module root, and `leaf/` is the package a host
+installs. `leaf/__main__.py` is the CLI as `python -m leaf`, which `bin/leaf` and
+every leaf subprocess run; the `leaf` console script is the same entry. `leaf/cli.py`
+composes the commands and stays a facade: domain logic, and any branching across the
+owners below, belongs in the owning module.
 
-The main owners are:
+Each module owns one concern, and callers import the owning module directly. Each
+subpackage's initializer is only a marker, never a second API.
 
-- `files` and `revisioning`: atomic page files and immutable revisions;
-- `revision_artifact` and `revision_delivery`: captured revision inputs and their delivery URLs;
+## Owners
+
+- `files`, `revisioning`, `revision_artifact`, `revision_delivery`: atomic page
+  files, immutable revisions, their captured inputs, and delivery URLs;
 - `locations`: filesystem path identity, containment, and overlap;
 - `page`: vendored page guidance;
-- `agent_state`: the agent-facing folded page-state and exact-thread readings;
-- `delivery`: the host-neutral immutable delivery envelope and delivery lookup;
-- `document_reading`: the shared document, projection, and decision reading;
-- `page_snapshot`: the transaction-consistent document, state, data, registry,
-  presence, and change reading served by one browser preview;
-- `construction`: effective document content with source, state, and data origins;
-- `transcript`: raw-event selection and the human-facing Markdown export;
-- `gesture_words`: what the ids a widget gesture names say and are called in the
-  gesture's own document, the one reading deliveries, the transcript, and the
-  history state a gesture through;
-- `history`: the page's newest moves as served rows, for a page holding a widget
-  that declares `x-history`;
 - `event_log`: append-only JSONL storage, locking, and attempt identity;
-- `interaction_log`: page-local diagnostic records of browser gestures and HTTP requests;
-- `event_contracts`: the one append door every writer admits an event through,
-  and the per-kind contracts it runs;
-- `read_state`: agent content versions and the one reading of which the user has
-  not read, from `read` events and the user's later moves in each thread;
-- `page_view`: the page as the door may read it, so admission is a fold over that
-  reading, the standing log, and one event;
-- `event_endpoint`: the browser's transport onto that door — postable kinds,
-  sendable fields, retries, and HTTP answers;
+- `event_contracts`: the one append door every writer admits an event through;
+- `page_view`: the page as that door reads it;
+- `event_endpoint`: the browser's HTTP transport onto the door;
 - `event_meaning`: admitted widget-command meaning and layer compatibility;
-- `events` and `projection`: standing event and durable state folds;
-- `thread_context` and `thread`: thread identity, frozen markup, bounded
-  delivery context, thread writes, and the host-neutral delivery-bound reply
-  lifecycle;
-- `workflows`: unsettled user moves and their strongest delivery or
-  subject-work evidence;
-- `activity`: the canonical page-level fold over workflows, status, claim,
-  turn, and watcher evidence;
+- `interaction_log`: page-local diagnostics of browser gestures and requests;
+- `events`, `projection`, `document_reading`, `construction`: standing event and
+  durable state folds, the shared document and decision reading, and effective
+  content with its origins;
+- `page_snapshot`: the transaction-consistent reading one browser preview serves;
+- `agent_state`, `read_state`, `gesture_words`, `history`, `transcript`: agent-facing
+  page and thread readings, what the user has not read, what a gesture's ids say,
+  newest moves for `x-history`, and the Markdown export;
+- `thread_context`, `thread`: thread identity, frozen markup, delivery context,
+  thread writes, and the reply lifecycle;
+- `workflows`, `activity`: unsettled user moves with their evidence, and the
+  page-level fold over workflows, status, claim, turn, and watcher;
+- `asks`: the one implementation of page and thread Asks, which every surface reads;
+- `requests`: declared request seats, their lifecycle, and terminal receipts;
 - `work`: transient subject claims and widget work seats;
-- `asks`: the declaration-driven page and thread Ask projections, and the one
-  implementation of them — the CLI, the Stop hook, `version check`, the MCP surface,
-  event admission, and the browser all read this fold;
-- `mcp_page`: the capability-scoped canonical page server and private MCP result;
-- `requests`: declared request seats, their canonical lifecycle, and the
-  terminal host receipts that close one;
-- `machine`: this machine — the state home Leaf keeps on it, and the process readings
-  that say whether a recorded pid still runs and what sits above this one;
-- `host`: the agent harness declarations — session identity, lifetime, delivery
-  carrier, hook remedies, and the nudge that reaches a session with nothing watching —
-  and the Claude Code messaging socket behind one of them;
-- `leases`: process-backed page, transition, and waiter leases, `take_lease`, the
-  one non-blocking take every lease holder uses, and `release_lease`, which removes
-  the file as it lets go;
-- `service`: page claims, serialized transactions, and status;
-- `server` and `hosting`: server address and lifetime state, plus durable and
-  process-owned HTTP servers;
-- `detached`: a leaf process started in a session of its own, and the handshake
-  whose acknowledgement commits its start — the page server's and the Codex
-  adapter's;
-- `specimens`: disposable child pages built from captured templates and selected
-  threads, with independent event logs and server-owned lifetimes;
-- `session` and `hooks`: direct wait delivery and host lifecycle;
-- `codex`: the durable delivery records every Codex carrier prepares, accepts, opens,
-  and abandons, and, for the carriers that are App Server clients, the connection, the
-  one fold of a turn's notifications into its activity, reply and ending that every
-  carrier runs, the loop that reads a turn on the connection that started it, and the
-  page writers those readings reach a user through;
-- `codex_adapter`: the detached carrier behind `leaf codex start` — its two
-  transports, the default `codex queue` and an observing App Server client with the
-  turns it starts for that task, page receipts, adapter leases, and the private App
-  Server terminal launcher;
-- `mcp_server` and `mcp_app`: the bundled MCP transport and comments-only
-  snapshot fallback;
-- `presence`: page, claim, and neighboring-leaf presence readings;
-- `served_state/` and `http`: browser-facing projections and change readings,
-  and HTTP transport;
-- `registry/`: registry vocabulary contracts, composition validation, storage,
-  and page-facing readings;
-- `layer`: package discovery and layer composition;
-- `packages`: package authoring commands and filesystem safety gates;
-- `vendoring`: page initialization, layer transitions, and atomic installation;
-- `schema`, `structure`, `styles`, and `validation/`: authored-page gates, the
-  complete source reading, and the `version check` command;
-- `passages` and `anchor_capture`: the file-side text reading and authored
-  anchor construction;
-- `render_checks` and `render_gate/`: browser probes and validation;
-- `exporting`: a stamped version as one file that opens offline;
-- `data` and `data_contracts`: typed snapshot storage, commands, bindings, and
-  registry-contract validation;
-- `media` and `publishing`: page-bound media and public version stamps;
-- `live_shell`: the immutable HTTP files a static host can serve beside Leaf's API.
+- `delivery`, `session`, `hooks`, `host`: the delivery envelope, direct wait
+  delivery, host lifecycle, and harness declarations;
+- `codex`, `codex_adapter`: Codex delivery records and App Server turn folds, and
+  the detached carrier behind `leaf codex start`;
+- `mcp_page`, `mcp_server`, `mcp_app`: the capability-scoped MCP page server, its
+  transport, and the comments-only snapshot fallback;
+- `machine`, `leases`, `service`, `server`, `hosting`, `detached`: the state home
+  and process readings, process-backed leases taken through `take_lease` and
+  `release_lease`, page claims and serialized transactions, server state, HTTP
+  servers, and detached starts;
+- `presence`: page, claim, and neighboring-leaf presence;
+- `specimens`: disposable child pages built from captured templates;
+- `http`: HTTP transport;
+- `layer`, `packages`, `vendoring`: package discovery and composition, package
+  authoring gates, and page init and layer transitions;
+- `schema`, `structure`, `styles`: authored-page gates and the complete source
+  reading;
+- `passages`, `anchor_capture`: the file-side text reading and anchor construction;
+- `render_checks`: browser probes;
+- `exporting`: a stamped version as one offline file;
+- `data`, `data_contracts`: typed snapshot storage, bindings, and contract checks;
+- `media`, `publishing`, `live_shell`: page-bound media, public version stamps, and
+  the static files a host serves beside Leaf's API.
 
-Do not put domain logic into `cli.py` or branch across these owners there.
+Within `registry/`, `contract` owns shared schema helpers, `layer`, `widgets`, and
+`state` own their vocabulary contracts, `validation` composes those gates, `page`
+composes page-owned declarations and provenance, `storage` owns the vendored-file
+cache, and `reactions` owns reaction descriptions.
+
+Within `served_state/`, `wire` serializes one declared fold, `thread` and `document`
+own their scoped readings, `browser` assembles the requested views, `page` composes
+the served response, `reading` names filesystem changes for the news stream, and
+`service` owns the transaction HTTP and MCP share.
+
+Within `render_gate/`, `scheme` owns one browser and color lifecycle, `readings` owns
+the probe readings and their findings, `version` owns retry policy, `page_code` owns
+the run of a page's own code, `preview` owns ephemeral servers, `browser` owns the
+browser launch, and `command` owns the CLI boundary.
+
+Within `validation/`, `markup` owns shared document structure, `instances` owns
+registry-declared instance rules, `admission` owns what an agent's writer hands in,
+`compatibility` owns layer changes against the standing log, `source_history` owns
+predecessor readings, `transitions` compares revisions with standing actions,
+`source` composes those gates, and `command` owns the CLI and render handoff.
 
 ## Protocol references
 
-Read the reference that owns the boundary before changing it:
+The references that own each boundary:
 
 - `leaf/page-storage.md` for page files and atomic state;
 - `leaf/events.md` for event shapes, threads, undo, edits, and reactions;
 - `leaf/layer-registry.md` for composition, vendoring, and layer generations;
 - `leaf/session-lifetime.md` for claims, watchers, and service lifetime;
-- `leaf/validation.md` for static checks, browser checks, parsed source, and file-side
-  passages;
-- `leaf/mcp-app.md` for MCP tools, resource metadata, the process-scoped page server,
-  snapshot fallback, and Codex return carrier.
+- `leaf/validation.md` for where each input is validated, static and browser checks,
+  parsed source, and file-side passages;
+- `leaf/mcp-app.md` for MCP tools, resource metadata, the page server, snapshot
+  fallback, and the Codex return carrier.
 
-`../references/packages.md` owns the public package contract. The browser's
-parallel projection, passage, registry, and render rules live in
-`../assets/AGENTS.md`.
-
-## Boundaries
-
-`leaf/validation.md` says where each input is validated ("Event admission") and
-what stays browser-free ("Static validation"). Use the shared parser or projection for a
-question it already answers instead of reconstructing it from source text,
-events, CSS selectors, or tag names.
-
-The page directory and append-only log are the authorities described in the
-root instructions. A derived reading is not another store.
-
-Within `registry/`, `contract` owns shared schema helpers and layer readings,
-`layer`, `widgets`, and `state` own their complete vocabulary contracts,
-`validation` composes those gates, `page` composes page-owned declarations and
-records declaration and widget provenance, `storage` owns the vendored-file
-cache and page lookup, and `reactions` owns reaction descriptions. Import the
-owner directly; the package initializer is only a marker.
-
-Within `served_state/`, `wire` serializes one declared fold, `thread` and
-`document` own their scoped browser readings, `browser` assembles the requested
-views, `page` composes the complete served response, and `reading` names
-filesystem changes for the news stream. `service` owns the transport-neutral
-transaction that HTTP and MCP share. Import the owner directly; the package
-initializer is only a marker.
-
-Within `render_gate/`, `scheme` owns one browser/color lifecycle, `readings`
-owns the probe readings and the finding each becomes, `version` owns retry
-policy, `page_code` owns the run plain `version check` gives a page's own code,
-`preview` owns ephemeral servers, `browser` owns the browser launch, and `command` owns the
-CLI boundary. Import the owner directly; the package initializer is only a marker.
-
-Within `validation/`, `markup` owns shared document structure rules, `instances`
-owns registry-declared instance rules, `admission` owns what an agent's writer
-hands in (message markup, bodies, and the ids it names), `compatibility` owns
-layer changes against the standing log, `source_history` owns predecessor
-readings and continuity, `transitions` compares authored revisions with standing
-actions and reports, `source` composes those gates into one reading, and
-`command` owns its CLI and render handoff. Import the owner directly; the package
-initializer is only a marker, not a second API to maintain.
+`../references/packages.md` owns the public package contract, and
+`../assets/AGENTS.md` owns the browser's parallel projection, passage, registry, and
+render rules.

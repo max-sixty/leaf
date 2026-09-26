@@ -7,8 +7,6 @@ export const HTTP_SESSION_COOKIE = "leaf-page-local";
 export const ACTIVE_COOKIE_PREFIX = "__Host-leaf-active";
 export const HTTP_ACTIVE_COOKIE_PREFIX = "leaf-active-local";
 
-const PAGE_RESOURCE =
-  /^(?:api|guidance|media|revisions|runtime|vendor|versions|widgets)(?:\/|$)|^(?:icon\.svg|leaf\.js|registry\.json|shadow\.css|theme\.css)$/;
 const SESSION_ID = /^[0-9a-f]{32}$/;
 const RELEASE = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/;
 const PAGE_ROOT = /^(?:\/|\/[a-z0-9-]+(?:\/[a-z0-9-]+)*)$/;
@@ -50,9 +48,17 @@ const sitePageSchema = z
     ),
   );
 
+// A page's URL namespace beneath its root: `schema.PAGE_ROUTE_DIRS` and the vendored
+// files, written into the manifest by `scripts/site.py`.
+const pageRoutesSchema = z.object({
+  dirs: z.array(z.string().check(z.regex(/^[a-z]+$/))),
+  files: z.array(z.string().check(z.regex(/^[a-z0-9-]+\.[a-z]+$/))),
+});
+
 const siteManifestSchema = z
   .object({
     release: z.string().check(z.regex(RELEASE)),
+    routes: pageRoutesSchema,
     pages: z.record(z.string().check(z.regex(PAGE_ROOT)), sitePageSchema),
   })
   .check((context) => {
@@ -84,14 +90,21 @@ export function parseSiteManifest(value: unknown): SiteManifest {
   return result.data;
 }
 
+function pageResource(routes: SiteManifest["routes"], inside: string): boolean {
+  return (
+    routes.files.includes(inside) ||
+    routes.dirs.some((dir) => inside === dir || inside.startsWith(`${dir}/`))
+  );
+}
+
 export function releaseAssetRoute(
   pathname: string,
-  pages: Record<string, SitePage>,
+  { pages, routes }: SiteManifest,
 ): { route: PageRoute; pathname: string } | null {
   for (const [root, page] of Object.entries(pages)) {
     if (!pathname.startsWith(`${page.assets}/`)) continue;
     const inside = pathname.slice(page.assets.length + 1);
-    if (!PAGE_RESOURCE.test(inside) || inside.startsWith("api/")) return null;
+    if (!pageResource(routes, inside) || inside.startsWith("api/")) return null;
     const publicRoot = root === "/" ? "" : root;
     return {
       route: { root, inside, ...page },
@@ -103,7 +116,7 @@ export function releaseAssetRoute(
 
 export function pageRoute(
   pathname: string,
-  pages: Record<string, SitePage>,
+  { pages, routes }: SiteManifest,
 ): PageRoute | null {
   const roots = Object.keys(pages).sort((left, right) => right.length - left.length);
   for (const root of roots) {
@@ -113,7 +126,7 @@ export function pageRoute(
       inside = "";
     } else if (pathname.startsWith(`${publicRoot}/`)) {
       inside = pathname.slice(publicRoot.length + 1);
-      if (!PAGE_RESOURCE.test(inside)) continue;
+      if (!pageResource(routes, inside)) continue;
     } else {
       continue;
     }

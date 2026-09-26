@@ -35,13 +35,19 @@ const pages = {
   "/extending": page("product"),
   "/examples/triage-board": page("example"),
 };
-const route = (pathname: string) => pageRoute(pathname, pages);
+const routes = {
+  dirs: ["api", "runtime", "widgets", "vendor", "media", "revisions", "versions"],
+  files: ["leaf.js", "theme.css", "shadow.css", "registry.json", "icon.svg"],
+};
+const route = (pathname: string) =>
+  pageRoute(pathname, { release: "a".repeat(64), routes, pages });
 
 describe("website page routing", () => {
   it("accepts only manifests whose current state and release paths agree", () => {
     const release = "a".repeat(64);
     const manifest = {
       release,
+      routes,
       pages: { "/": page("product") },
     };
     expect(parseSiteManifest(manifest)).toEqual(manifest);
@@ -110,6 +116,8 @@ describe("website page routing", () => {
       isPageSessionFileRequest(route("/examples/triage-board/shadow.css")),
     ).toBe(false);
     expect(route("/examples.html")).toBeNull();
+    // Only the namespace the manifest names: a page serves no guidance.
+    expect(route("/examples/triage-board/guidance/author.md")).toBeNull();
     expect(route("/examples/missing/")).toBeNull();
     // A crawler reads these two off the asset binding; a page route would hand
     // each user a container session before it had seen a page.

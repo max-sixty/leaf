@@ -15,9 +15,14 @@ import { moved } from "./thread/model.js";
 
 const identity = (record) => record.attempt ?? record.id;
 
-export function semanticNewsReading(state) {
-  const page = state.browser.views[String(state.active.revision)]?.document;
-  if (!page) throw new Error("The active page has no browser reading");
+// News reads the shown revision's view: the one the page just presented, whose Asks
+// the tray and banner count paint. While an activation waits (a gesture defers it, or
+// the document is a pinned version), an Ask the active revision adds is not on this
+// page yet; it becomes news when a revision holding it is presented.
+export function semanticNewsReading(root) {
+  const page = root.effective.view?.document;
+  if (!page) throw new Error("The shown page has no browser reading");
+  const state = root.authoritative;
   return {
     page,
     thread: state.browser.thread,

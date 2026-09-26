@@ -1,12 +1,13 @@
 /* Generated faces for the Asks banner controls. The banner shelf owns the stable native
    buttons and their fixed overflow seats; these light-DOM Lit owners paint one frozen
    Ask presentation reading inside them. */
-import { LitElement, html } from "../../vendor/browser-runtime.js";
+import { html } from "../../vendor/browser-runtime.js";
 import {
   BANNER_CONTROL_RANK,
   registerBannerControl,
   showNews,
 } from "../banner-shelf.js";
+import { RetainedFace } from "../retained-face.js";
 import { el } from "../widget-elements.js";
 
 const FACE_TAG = "lf-ask-banner-face";
@@ -17,48 +18,11 @@ const EMPTY_PROGRESS = Object.freeze({
   title: "Show or hide this page's asks",
 });
 
-class AskBannerFace extends LitElement {
-  static properties = { model: { attribute: false } };
-
-  #committed = null;
-  #failure = null;
+class AskBannerFace extends RetainedFace {
   kind = null;
 
   constructor() {
-    super();
-    this.model = EMPTY_PROGRESS;
-  }
-
-  createRenderRoot() {
-    return this;
-  }
-
-  async present(model) {
-    this.#failure = null;
-    this.model = model;
-    await this.updateComplete;
-    if (this.#failure) throw this.#failure;
-    return model;
-  }
-
-  commit() {
-    this.#committed = this.model;
-  }
-
-  async retainCommitted() {
-    this.#failure = null;
-    if (this.#committed) this.model = this.#committed;
-    await this.updateComplete;
-    if (this.#failure) throw this.#failure;
-    return this.#committed;
-  }
-
-  async scheduleUpdate() {
-    try {
-      await super.scheduleUpdate();
-    } catch (error) {
-      this.#failure = error;
-    }
+    super(EMPTY_PROGRESS);
   }
 
   updated() {

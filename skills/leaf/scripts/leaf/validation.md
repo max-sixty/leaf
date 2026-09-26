@@ -22,7 +22,7 @@ policy names. Every lf-* element validates against the effective registry
 (schema, nesting, no self-closing form); every lf-* meta is a known page
 declaration with an allowed value; each lf-suggestion is well formed (at most
 one of each slot, at least one of them, no nesting, `resolves` naming a comment
-in the document's reference namespace); ids are unique, no authored id, class, or
+in the document's reference namespace); ids are unique and hold no whitespace, no authored id, class, or
 attribute sits in the runtime's `lf-` and `data-lf-` namespaces, named today or
 not, and ids needed by anchored unresolved threads, standing user actions, or
 effective standing reports survive from the previous revision. A
@@ -37,6 +37,9 @@ element is wider than the readable column (the rule that draws that column claim
 it with `--lf-reading-column: 1`, so the width and the claim come from one block). Near-free
 and deterministic is what makes running it on every save affordable, so keep a new
 check that way; anything needing a browser belongs in the command's browser half.
+The effective registry and each vendored sheet are validated where they differ from
+the active revision's captured copies, which were validated when that revision
+activated, and the theme is parsed for the column only on a page that states a width.
 
 That half has one piece plain `version check` runs too. A page that runs code of its
 own, a module script or a page widget the document places, is served and run once at

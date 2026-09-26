@@ -118,14 +118,6 @@ const unavailable = (reading) =>
 const commandTarget = (target) =>
   typeof target === "string" && target ? target : null;
 
-const undoCandidate = (reading, target) => {
-  const wanted = commandTarget(target);
-  if (!wanted) return null;
-  return Object.values(reading.actions)
-    .flatMap(({ undo }) => undo)
-    .find((event) => event.attempt === wanted || event.id === wanted);
-};
-
 function createWidgetController(owner) {
   if (!(owner instanceof Element))
     throw new TypeError("A widget controller needs an Element owner");
@@ -393,7 +385,6 @@ function createWidgetController(owner) {
         );
       if (!descriptorStillMatches(owner, descriptor)) return null;
       const before = read();
-      if (undo && !undoCandidate(before, command.target)) return null;
       if (
         semantic &&
         !(command.kind === "action"

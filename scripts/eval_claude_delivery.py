@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
-"""Compare how promptly a Claude Code agent picks up a Leaf comment, base vs checkout.
+"""Compare how promptly a Claude Code agent picks up a Leaf comment, base vs HEAD.
 
 This is a basic, imperfect eval: a starting point that needs work before its numbers
 support more than "no obvious regression". Each round launches two headless Claude
-Code sessions at the same time, one with the plugin from BASE_REF and one with this
-checkout. Each serves the same page (`examples/triage-board.html`), starts its
-background `leaf wait`, and receives one real comment posted over HTTP. The script
-then reads the page log and the session's stream for:
+Code sessions at the same time, one with the plugin from BASE_REF and one with the
+plugin from HEAD, so commit what you want measured. Each arm and child is built by
+`eval_harness.py`. Each serves the same page (this checkout's
+`examples/triage-board.html`), starts its background `leaf wait`, and receives one
+real comment posted over HTTP. The script then reads the page log and the session's
+stream for:
 
 - seconds from the comment to its `pickup` (the user sees Picked up) and to the
   first agent reply;
@@ -27,8 +29,7 @@ Known limits:
 - The prompt is synthetic and the session is fresh, so the agent reads the skill in
   the same turn it serves the page. A long session with competing context is not
   measured.
-- `--setting-sources project` keeps the user's own CLAUDE.md and plugins out, so the
-  model sees only Leaf's guidance. The model is Claude Code's default.
+- The model is Claude Code's default.
 - Timings include model latency and machine load. Launching both arms together
   controls load only roughly.
 - Scoring matches substrings in shell commands.
@@ -36,12 +37,12 @@ Known limits:
   nothing covers the Codex queue.
 
 It needs a logged-in `claude` on PATH. Each session costs about half a dollar. Runs
-are written to `.tmp/eval-claude-delivery/<arm>-<round>/`.
+are written to `.tmp/eval-claude-delivery/<arm>-<round>/`, with `work-dir` naming the
+child's cwd, which holds the page; `arms.json` records each arm's commit.
 """
 
 import http.cookiejar
 import json
-import os
 import re
 import shutil
 import subprocess
@@ -52,9 +53,11 @@ import urllib.parse
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
+from functools import partial
 from pathlib import Path
 
 import click
+from eval_harness import build_arm, claude_child, run_leaf, scratch
 
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / ".tmp" / "eval-claude-delivery"
@@ -92,42 +95,35 @@ def post_comment(url: str) -> None:
     opener.open(request).close()
 
 
-def run_session(leaf_root: Path, run: Path) -> None:
+def run_session(arm: Path, run: Path) -> None:
     """One Claude Code session: serve, wait, receive the comment, handle it."""
     shutil.rmtree(run, ignore_errors=True)
     run.mkdir(parents=True)
-    page = run / "page"
-    leaf = str(leaf_root / "bin" / "leaf")
-    env = {k: v for k, v in os.environ.items() if not k.startswith("CLAUDE")}
-    env["XDG_STATE_HOME"] = str(run / "state")
-    subprocess.run(
-        [leaf, "page", "init", page], env=env, check=True, capture_output=True
-    )
+    work = scratch()
+    (run / "work-dir").write_text(f"{work}\n")
+    page = work / "page"
+    state = run / "state"
+    leaf = partial(run_leaf, arm, state)
+    leaf("page", "init", str(page), check=True)
     shutil.copy(ROOT / "examples" / "triage-board.html", page / "index.html")
-    subprocess.run(
-        [leaf, "version", "stamp", page, "--text", "Release triage for review."],
-        env=env,
+    leaf(
+        "version",
+        "stamp",
+        str(page),
+        "--text",
+        "Release triage for review.",
         check=True,
-        capture_output=True,
     )
     proc = subprocess.Popen(
-        [
-            "claude",
-            "-p",
+        **claude_child(
+            work,
             "--input-format",
             "stream-json",
-            "--output-format",
-            "stream-json",
-            "--verbose",
-            "--setting-sources",
-            "project",
-            "--permission-mode",
-            "bypassPermissions",
             "--plugin-dir",
-            str(leaf_root),
-        ],
-        cwd=run,
-        env=env,
+            str(arm),
+            dirs=[arm, state],
+            env={"XDG_STATE_HOME": str(state)},
+        ),
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=(run / "stderr.txt").open("w"),
@@ -181,10 +177,7 @@ def run_session(leaf_root: Path, run: Path) -> None:
                     if results > 1 and arrived:
                         threading.Timer(20, close_stdin).start()
         proc.wait(timeout=60)
-        events = subprocess.run(
-            [leaf, "events", page], env=env, check=True, capture_output=True, text=True
-        ).stdout
-        (run / "events.jsonl").write_text(events)
+        (run / "events.jsonl").write_text(leaf("events", str(page), check=True).stdout)
     finally:
         # A failed arm ends as promptly as a stalled one: no timer or child outlives it.
         deadline.cancel()
@@ -192,9 +185,7 @@ def run_session(leaf_root: Path, run: Path) -> None:
             proc.kill()
             proc.wait()
         # The server may already have stopped with its session.
-        subprocess.run(
-            [leaf, "server", "stop", page], env=env, check=False, capture_output=True
-        )
+        leaf("server", "stop", str(page))
 
 
 def score(run: Path) -> dict:
@@ -243,30 +234,20 @@ def score(run: Path) -> dict:
 @click.command()
 @click.argument("base_ref", default="main")
 def main(base_ref: str) -> None:
-    """Run ROUNDS paired sessions: BASE_REF's plugin against this checkout's."""
-    with tempfile.TemporaryDirectory() as scratch:
-        base = Path(scratch) / "base"
-        subprocess.run(
-            ["git", "-C", ROOT, "worktree", "add", "--detach", base, base_ref],
-            check=True,
-            capture_output=True,
-        )
-        try:
-            subprocess.run(
-                [base / "bin" / "leaf", "--root"], check=True, capture_output=True
-            )
-            arms = {"base": base, "checkout": ROOT}
-            for i in range(1, ROUNDS + 1):
-                with ThreadPoolExecutor(len(arms)) as pool:
-                    for future in [
-                        pool.submit(run_session, root, OUT / f"{arm}-{i}")
-                        for arm, root in arms.items()
-                    ]:
-                        future.result()
-        finally:
-            subprocess.run(
-                ["git", "-C", ROOT, "worktree", "remove", "--force", base], check=True
-            )
+    """Run ROUNDS paired sessions: BASE_REF's plugin against HEAD's."""
+    refs = {"base": base_ref, "head": "HEAD"}
+    with tempfile.TemporaryDirectory() as built:
+        arms = {arm: Path(built) / arm for arm in refs}
+        commits = {arm: build_arm(ref, arms[arm]) for arm, ref in refs.items()}
+        OUT.mkdir(parents=True, exist_ok=True)
+        (OUT / "arms.json").write_text(json.dumps(commits, indent=1))
+        for i in range(1, ROUNDS + 1):
+            with ThreadPoolExecutor(len(arms)) as pool:
+                for future in [
+                    pool.submit(run_session, path, OUT / f"{arm}-{i}")
+                    for arm, path in arms.items()
+                ]:
+                    future.result()
     results = {
         f"{arm}-{i}": score(OUT / f"{arm}-{i}")
         for arm in arms

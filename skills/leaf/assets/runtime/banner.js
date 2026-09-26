@@ -110,7 +110,6 @@ const TONE = {
   unattended: "",
   closed: "",
 };
-export const toneFor = (kind) => TONE[kind];
 const WORK_WORDS = {
   thinking: "thinking",
   tool: "using a tool",
@@ -118,7 +117,31 @@ const WORK_WORDS = {
   awaiting_input: "waiting for input",
   replying: "replying",
 };
-export const workWords = (kind) => WORK_WORDS[kind] || "working";
+export const countUpdates = (count) => `${count} update${count === 1 ? "" : "s"}`;
+// What the banner and the leaves tray both read off one page's server-owned `activity`
+// before either words it. Each seat keeps its own sentences; a fact they share changes
+// here once:
+//
+// - `left` and `silentSince` date a silence by whichever fact ended the belief. A
+//   dropped claim is dated by its ending and not by its own last word, because "last
+//   checked in just now" under an amber dot is the line arguing with the dot beside it.
+// - `listening` is whether input is still on its way to the agent (pending or queued),
+//   which turns a listening page's standing request into "listening".
+// - `waiting` phrases the queued and pending updates, in that order.
+export function activityFacts({ activity, turn_closed: turnClosed }) {
+  const { counts } = activity;
+  const waiting = [];
+  if (counts.queued) waiting.push(`${countUpdates(counts.queued)} queued`);
+  if (counts.pending) waiting.push(`${countUpdates(counts.pending)} waiting`);
+  return Object.freeze({
+    tone: TONE[activity.kind],
+    work: WORK_WORDS[activity.observed_kind] || "working",
+    left: Boolean(activity.dropped),
+    silentSince: ago(activity.dropped ? turnClosed : activity.ts),
+    listening: Boolean(counts.pending || counts.queued),
+    waiting: Object.freeze(waiting),
+  });
+}
 // The judgment's third seat. A user keeps a leaf in a tab for days and looks at
 // six of them; the tab strip is the whole of what the browser shows about a page nobody
 // has open, so the state that decides whether to go there belongs in it. Same judgment
@@ -258,6 +281,16 @@ function copyControl(trigger, success, error) {
   return copy;
 }
 
+// How old a Leaf payload is, so a user who meets a problem can tell whether it
+// predates the fixes since. A payload read from Git carries its commit's date; a host's
+// plugin cache, which drops `.git`, carries the time it copied the commit, one update
+// sweep after it landed (`layer.payload_provenance`).
+const payloadAge = (provenance) => ago(provenance.committed ?? provenance.installed);
+const payloadDateLines = (provenance) =>
+  ["committed", "installed"]
+    .filter((kind) => provenance[kind])
+    .map((kind) => `${kind}: ${provenance[kind]}`);
+
 let previewMarginEntry = null;
 let previewMarginEntryCopy = null;
 let previewDiagnostics = "";
@@ -269,7 +302,8 @@ function renderPreview(state) {
   // mode worth marking; an unclaimed preview delivers nothing and needs no warning.
   const kind = preview.interaction === "user" ? "User" : "Preview";
   const stem = `${kind} · ${preview.checkout}${preview.commit ? `@${preview.commit}` : ""}`;
-  const label = preview.commit && preview.dirty ? `${stem}+` : stem;
+  const age = payloadAge(preview);
+  const label = `${preview.commit && preview.dirty ? `${stem}+` : stem}${age ? ` · ${age}` : ""}`;
   const safeUrl = new URL(location.href);
   safeUrl.searchParams.delete("t");
   previewDiagnostics = [
@@ -279,6 +313,7 @@ function renderPreview(state) {
     `interaction: ${preview.interaction}`,
     ...(preview.commit ? [`commit: ${preview.commit}`] : []),
     ...(preview.dirty !== undefined ? [`dirty: ${preview.dirty}`] : []),
+    ...payloadDateLines(preview),
     `started: ${preview.started}`,
     `layer generation: ${state.layer.generation}`,
     ...(state.layer.fingerprint
@@ -328,12 +363,15 @@ function renderLayerReference(state) {
   const identity = producer.commit
     ? `${producer.commit.slice(0, 8)}${producer.dirty ? "+" : ""}`
     : fullIdentity;
+  const age = payloadAge(producer);
+  const dateLines = payloadDateLines(producer);
   const safeUrl = new URL(location.href);
   safeUrl.searchParams.delete("t");
   layerDiagnostics = [
     "Leaf layer",
     ...(producer.commit ? [`commit: ${producer.commit}`] : []),
     ...(producer.dirty !== undefined ? [`dirty: ${producer.dirty}`] : []),
+    ...dateLines,
     ...(fingerprint ? [`fingerprint: ${fingerprint}`] : []),
     `generation: ${state.layer.generation}`,
     ...(state.active ? [`revision: ${state.active.revision}`] : []),
@@ -355,15 +393,20 @@ function renderLayerReference(state) {
     });
   }
   layerReferenceElementCopy.value = layerDiagnostics;
-  layerReferenceElementCopy.copyLabel = `Leaf ${identity} · copy version`;
+  const named = `Leaf ${identity}${age ? ` · ${age}` : ""}`;
+  layerReferenceElementCopy.copyLabel = `${named} · copy version`;
   layerReferenceElement.replaceChildren(
     "Leaf ",
     el("code", "lf-layer-version", identity),
+    ...(age ? [` · ${age}`] : []),
   );
-  layerReferenceElement.title = producer.dirty
-    ? "+ means this layer includes uncommitted changes · copy diagnostics"
-    : "Copy Leaf layer version and diagnostics";
-  layerReferenceElement.setAttribute("aria-label", `Leaf ${identity} · copy version`);
+  layerReferenceElement.title = [
+    ...dateLines,
+    producer.dirty
+      ? "+ means this layer includes uncommitted changes · copy diagnostics"
+      : "Copy Leaf layer version and diagnostics",
+  ].join("\n");
+  layerReferenceElement.setAttribute("aria-label", `${named} · copy version`);
 }
 // Status sentences for an unreachable server or a state the page cannot apply.
 const OFFLINE_LINE =
@@ -389,12 +432,12 @@ function statusWords({
   detail,
   handling,
   kind,
-  pending,
+  listening,
   progressSummary,
   quiet,
   saved,
   total,
-  workKind,
+  work,
 }) {
   const savedSummary = total ? ` · ${total} saved` : "";
   if (kind === "closed") return ["Leaf closed", "Leaf closed"];
@@ -418,7 +461,6 @@ function statusWords({
   // updates its open turn took up, so the row names them rather than standing on a
   // bare "working", and the disclosure says the agent's own words are still to come.
   if (kind === "working") {
-    const work = workWords(workKind);
     const held = handling === 1 ? "your update" : `your ${handling} updates`;
     const said = detail ? " — " + detail : handling ? " — on " + held : "";
     return [
@@ -432,7 +474,7 @@ function statusWords({
   // no pending input supersedes it; a generic attendance label would lose that cue.
   if (kind === "listening") {
     const awaits = `${agent} awaits — ${detail || "select text to comment"}`;
-    return pending
+    return listening
       ? [
           `${agent} listening${progressSummary}`,
           `${agent} is listening${detail ? " — " + detail : ""}.`,
@@ -522,18 +564,15 @@ function renderStatusNow(state) {
     return;
   }
   const { activity } = state;
-  const { kind, quiet, dropped, detail } = activity;
+  const { kind, quiet, detail } = activity;
+  const facts = activityFacts(state);
+  const agent = agentName();
   // What the user's words do meanwhile. The log takes them with nobody on the other
   // end; the only thing attendance changes is when they are read.
   const saved = activity.counts.total
     ? `${activity.counts.total} update${activity.counts.total === 1 ? " is" : "s are"} saved.`
     : "Your comments are saved.";
-  // Dated by whichever fact ended the belief. A dropped claim is dated by the ending
-  // and not by its own last word, because "last checked in just now" under an amber
-  // dot is the line arguing with the dot beside it.
-  const dated = dropped
-    ? `${agentName()} left this when its turn ended ${ago(state.turn_closed)}`
-    : `${agentName()} last checked in ${ago(activity.ts)}`;
+  const checkedIn = `${agent} last checked in ${facts.silentSince}`;
   const age = kind === "working" && activity.ts ? ago(activity.ts) : "";
   const progress = [];
   if (activity.counts.queued) progress.push(`${activity.counts.queued} queued`);
@@ -541,20 +580,20 @@ function renderStatusNow(state) {
   const progressSummary = progress.length ? ` · ${progress.join(" · ")}` : "";
   const [summary, text] = statusWords({
     age,
-    agent: agentName(),
-    dated,
-    shortDate: dropped
-      ? `${agentName()}’s turn ended ${ago(state.turn_closed)}`
-      : `${agentName()} last checked in ${ago(activity.ts)}`,
+    agent,
+    dated: facts.left
+      ? `${agent} left this when its turn ended ${facts.silentSince}`
+      : checkedIn,
+    shortDate: facts.left ? `${agent}’s turn ended ${facts.silentSince}` : checkedIn,
     detail,
     handling: activity.counts.handling,
     kind,
     total: activity.counts.total,
-    pending: activity.counts.pending || activity.counts.queued,
+    listening: facts.listening,
     progressSummary,
     quiet,
     saved,
-    workKind: activity.observed_kind,
+    work: facts.work,
   });
   let explanation = age ? `${text} (${age})` : text;
   // What a transport can watch for itself, when the sentence beside it was written by
@@ -562,23 +601,14 @@ function renderStatusNow(state) {
   // and the disclosure holds the step proving the session is still moving.
   if (activity.observed && activity.observed !== detail)
     explanation += ` · ${activity.observed}`;
-  const waiting = [];
-  if (activity.counts.queued)
-    waiting.push(
-      `${activity.counts.queued} update${activity.counts.queued === 1 ? "" : "s"} queued`,
-    );
-  if (activity.counts.pending)
-    waiting.push(
-      `${activity.counts.pending} update${activity.counts.pending === 1 ? "" : "s"} waiting`,
-    );
-  if (waiting.length && ["working", "listening"].includes(kind))
-    explanation += `${explanation.endsWith(".") ? "" : "."} ${waiting.join(" · ")}.`;
+  if (facts.waiting.length && ["working", "listening"].includes(kind))
+    explanation += `${explanation.endsWith(".") ? "" : "."} ${facts.waiting.join(" · ")}.`;
   const actionableWork = ["awaiting_approval", "awaiting_input"].includes(
     activity.observed_kind,
   )
     ? activity.observed_kind
     : null;
-  presentStatus({ kind, tone: TONE[kind], summary, explanation, actionableWork });
+  presentStatus({ kind, tone: facts.tone, summary, explanation, actionableWork });
 }
 
 export const renderStatus = clocked(document.body, renderStatusNow);

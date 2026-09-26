@@ -1,5 +1,21 @@
 #!/usr/bin/env python3
-"""Verify that leaf.page serves one exact, coherent release in a real browser."""
+"""Verify that leaf.page serves one exact, coherent release in a real browser.
+
+`verify-site-local.sh` runs the release pass against the local Worker and container;
+`.github/workflows/publish-site.yaml` runs it before the first public operation and
+again against the deployed release.
+
+`--agent` instead sends one private comment and requires the hosted Codex task to
+publish a revision and reply, printing the acknowledgement, activity, publication,
+reply, and changed-page presentation timings. A `startup_failed` receipt gets one
+more ask; every other unsuccessful ending, rate limits included, fails on the first.
+The gate reads the receipt's `failure` code, never its wording, and
+`worker/README.md` owns that failure contract.
+
+`local` runs the agent pass through the canonical Python adapter against the host's
+Codex login. It bypasses the Worker, container resources, and outbound credential
+proxy, so it checks agent behavior without measuring production infrastructure.
+"""
 
 from __future__ import annotations
 

@@ -9,6 +9,7 @@ import shutil
 import subprocess
 import sys
 import threading
+from datetime import datetime
 from pathlib import Path
 
 import playwright
@@ -45,6 +46,7 @@ from leaf import schema as schema_model
 from leaf import session as session_model
 from leaf import structure as structure_model
 from leaf import vendoring as vendoring_model
+from leaf.registry import contract as registry_contract
 from leaf.registry import reactions as registry_reactions
 from leaf.registry import storage as registry_storage
 from leaf.render_gate import browser as browser_model
@@ -581,6 +583,10 @@ def test_the_version_and_root_flags_describe_the_payload_this_leaf_ran_out_of(tm
     scripts = cached / "skills" / "leaf" / "scripts"
     scripts.mkdir(parents=True)
     shutil.copytree(SKILL_ROOT / "scripts" / "leaf", scripts / "leaf")
+    # A host's copy carries no `.git`, so the time it was made is the only date it
+    # has: every file written then, the running module's own included.
+    copied_at = 1_790_000_000
+    os.utime(scripts / "leaf" / "layer.py", (copied_at, copied_at))
     elsewhere = tmp_path / "unrelated-project"
     elsewhere.mkdir()
 
@@ -602,9 +608,20 @@ def test_the_version_and_root_flags_describe_the_payload_this_leaf_ran_out_of(tm
     assert there.returncode == 0, there.stderr
     assert there.stdout.strip() == str(cached.resolve())
 
-    version = asked("--version", PYTHONPATH=str(scripts))
+    version = asked("--version", PYTHONPATH=str(scripts), TZ="UTC")
     assert version.returncode == 0, version.stderr
-    assert version.stdout.strip() == f"leaf {cached_commit}"
+    assert (
+        version.stdout.strip()
+        == f"leaf {cached_commit}, installed 2026-09-21T14:13:20+00:00"
+    )
+
+    checkout = asked("--version")
+    assert checkout.returncode == 0, checkout.stderr
+    assert re.fullmatch(
+        r"leaf [0-9a-f]{12}\+?, committed "
+        r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:Z|[+-]\d\d:\d\d)",
+        checkout.stdout.strip(),
+    ), checkout.stdout
 
     assert list(elsewhere.iterdir()) == []
 
@@ -875,9 +892,13 @@ def test_an_installed_payload_is_complete_and_launches_outside_the_checkout(tmp_
     installed_registry = json.loads((page / "registry.json").read_text())
     assert "lf-command" in installed_registry
     assert installed_registry["$layer"]["packages"] == list(PAGE_PACKAGES)
+    copied = installed / "skills" / "leaf" / "scripts" / "leaf" / "layer.py"
     assert installed_registry["$layer"]["producer"] == {
         "commit": commit,
         "dirty": False,
+        "installed": datetime.fromtimestamp(copied.stat().st_mtime)
+        .astimezone()
+        .isoformat(timespec="seconds"),
     }
     (page / "index.html").write_text(PAGE)
     publish_result = subprocess.run(
@@ -1675,10 +1696,12 @@ def test_payload_provenance_belongs_to_the_plugin_repo_without_writing_its_index
     index = plugin / ".git" / "index"
     before = index.stat().st_mtime_ns
 
+    committed = git(plugin, "show", "--no-patch", "--format=%cI", "HEAD").stdout.strip()
     clean = layer_model.payload_provenance(include_path=True)
     assert clean == {
         "path": str(plugin),
         "commit": git(plugin, "rev-parse", "--short=12", "HEAD").stdout.strip(),
+        "committed": committed,
         "dirty": False,
     }
 
@@ -1689,6 +1712,7 @@ def test_payload_provenance_belongs_to_the_plugin_repo_without_writing_its_index
     assert provenance == {
         "path": str(plugin),
         "commit": git(plugin, "rev-parse", "--short=12", "HEAD").stdout.strip(),
+        "committed": committed,
         "dirty": True,
     }
     assert index.stat().st_mtime_ns == before
@@ -1697,7 +1721,8 @@ def test_payload_provenance_belongs_to_the_plugin_repo_without_writing_its_index
 def test_payload_provenance_reads_claude_codes_git_versioned_plugin_cache(
     tmp_path, monkeypatch
 ):
-    """Claude's copied payload retains its source SHA in the documented cache path."""
+    """Claude's copied payload retains its source SHA in the documented cache path,
+    and dates itself by when the copy was made, which its running module carries."""
     commit = "4cb17dc60870"
     plugin = tmp_path / ".claude" / "plugins" / "cache" / "leaf" / "leaf" / commit
     plugin.mkdir(parents=True)
@@ -1712,11 +1737,33 @@ def test_payload_provenance_reads_claude_codes_git_versioned_plugin_cache(
         lambda *_args, **_kwargs: pytest.fail("a cached payload should not invoke Git"),
     )
 
+    copied = Path(layer_model.__file__).stat().st_mtime
     assert layer_model.payload_provenance(include_path=True) == {
         "path": str(plugin),
         "commit": commit,
         "dirty": False,
+        "installed": datetime.fromtimestamp(copied)
+        .astimezone()
+        .isoformat(timespec="seconds"),
     }
+
+
+def test_a_producer_date_without_an_offset_is_refused(page_dir):
+    """The browser reads a bare local time in each viewer's own zone, so one
+    vendored page would show every viewer a different age."""
+    stamp = page_dir / "registry.json"
+    registry = json.loads(stamp.read_text(encoding="utf-8"))
+
+    def producer_dated(value):
+        registry["$layer"]["producer"] = {"commit": "a74b08365870", "committed": value}
+        interact_files.write_json(stamp, registry)
+        return registry_storage.layer_metadata(page_dir)["producer"]
+
+    assert producer_dated("2026-09-26T09:32:21-07:00")["committed"] == (
+        "2026-09-26T09:32:21-07:00"
+    )
+    with pytest.raises(registry_contract.RegistryError, match="timezone offset"):
+        producer_dated("2026-09-26T09:32:21")
 
 
 def test_fresh_page_state_points_only_to_readable_authorities(tmp_path, monkeypatch):
@@ -1934,7 +1981,7 @@ def test_the_resources_a_fixture_owns_are_taken_from_that_fixture():
     close where the test ends with it does the same work a step early, and the
     reading it cuts short is its own. The exception is a page that keeps making
     the fault its test is about, where the consume has to follow a close of its own
-    (tests/AGENTS.md, "A page is ready when it says what has finished").
+    (tests/AGENTS.md, "Consume a browser error where it is caused").
     """
     closes_to_stop_a_repeating_fault = {
         "test_a_website_session_reference_survives_a_failed_first_read",
@@ -2741,8 +2788,12 @@ def test_init_preserves_tmp_files_even_when_a_layer_reads_one(tmp_path, monkeypa
             '<lf-toned-note id="lf-example">One</lf-toned-note>',
             "lf- namespace",
         ),
+        (
+            '<lf-toned-note id="note"><p id="two words">One</p></lf-toned-note>',
+            "whitespace",
+        ),
     ],
-    ids=["duplicate", "reserved"],
+    ids=["duplicate", "reserved", "spaced"],
 )
 def test_init_refuses_invalid_ids_in_a_registry_example(
     tmp_path, monkeypatch, example, message
@@ -4424,11 +4475,13 @@ def test_the_register_is_the_only_way_a_key_enters_the_runtime():
     the press it eats goes missing — so it is pinned in the source, the way the
     document-level class surface is.
 
-    Two are allowed and both are named here. The dispatcher is the register's own. The aim
+    Three are allowed and each is named here. The dispatcher is the register's own. The aim
     latch is not a binding at all: holding ⌥ arms nothing and answers no press, it paints
-    what a click would take, and its keyup half has no place in a table of presses. A third
-    is how every drift this register replaced began — a `keydown` beside a display list,
-    the two of them free to disagree about which keys the widget answers."""
+    what a click would take, and its keyup half has no place in a table of presses. The
+    prepaint bootstrap's hold answers no press either: it keeps keys pressed before the
+    page presents and hands them to the dispatcher's owner. Another is how every drift this
+    register replaced began — a `keydown` beside a display list, the two of them free to
+    disagree about which keys the widget answers."""
     layer = ROOT / "skills/leaf"
     sources = [
         layer / "assets/leaf.js",
@@ -4442,7 +4495,7 @@ def test_the_register_is_the_only_way_a_key_enters_the_runtime():
         for n, line in enumerate(src.read_text().splitlines(), 1)
         if 'addEventListener("keydown"' in line
     ]
-    assert len(listeners) == 2, (
+    assert len(listeners) == 3, (
         f"the runtime's keydown listeners changed: {listeners}. A key belongs in the "
         "register (keys(el, title, rows)), which is what lets a surface promise it."
     )

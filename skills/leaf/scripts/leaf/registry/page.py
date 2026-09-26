@@ -30,8 +30,12 @@ def compose_page_registry(
     widget_paths: Collection[str],
     *,
     source="page/registry.json",
+    validated: dict | None = None,
 ) -> PageRegistry:
     """Validate a page vocabulary and resolve its upgraded widgets.
+
+    ``validated`` is a vocabulary already validated, such as the active revision's:
+    a composition equal to it is not validated again.
 
     ``widget_paths`` contains available page-root-relative file names, including
     ``widgets/<tag>.js`` from the layer and ``page/widgets/<tag>.js`` from the
@@ -43,14 +47,15 @@ def compose_page_registry(
         raise RegistryError(f"{source}: $layer belongs to the selected layer")
     registry = deepcopy(layer_registry)
     merge_layer_declarations(registry, deepcopy(page_declarations))
-    validate_registry(registry, source)
+    if registry != validated:
+        validate_registry(registry, source)
 
-    # Example validation consumes source/instance readers which themselves load
-    # page registries. Import it after those owners have finished initializing.
-    from leaf.validation.compatibility import validate_registry_examples
+        # Example validation consumes source/instance readers which themselves load
+        # page registries. Import it after those owners have finished initializing.
+        from leaf.validation.compatibility import validate_registry_examples
 
-    if page_declarations:
-        validate_registry_examples(registry, source)
+        if page_declarations:
+            validate_registry_examples(registry, source)
     declaration_sources = {}
     widget_sources = {}
     available = set(widget_paths)

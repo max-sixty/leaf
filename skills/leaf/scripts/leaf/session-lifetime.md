@@ -65,8 +65,11 @@ A workflow's `stage` and its `answer` are separate readings. The stage reports
 delivery for every move the user has handed over; the answer, which `workflows.py`
 states, is what the agent owes it: a reply, a version for a thread that asked
 for one, a version whose markup records a user's answer to a page Ask, a request's
-receipt, or null. Every owed answer blocks the Stop hook and `leaf status idle` once
-its move is acknowledged, and only owed answers enter activity counts. A widget move
+receipt, or null. Only owed answers enter activity counts. The Stop hook and
+`leaf status idle` refuse over one set of them, `activity.blocking_obligations`:
+the acknowledged moves nothing else is set to answer. A move still `queued` is
+answered by the later turn that opens it, and a `turn` answer the open turn has
+finished is committed by the claimant's carrier while that carrier is live. A widget move
 that answers no Ask, such as a draft edit or a moved card, owes nothing: its workflow
 reports delivery until its document takes it in — for a page action, until the markup
 records the move or a later version supersedes it; for a move in frozen thread markup,

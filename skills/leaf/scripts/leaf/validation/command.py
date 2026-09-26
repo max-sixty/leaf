@@ -8,8 +8,9 @@ from leaf.event_log import read_events
 from leaf.files import list_revisions
 from leaf.leases import page_locked
 from leaf.revision_artifact import read_artifact
+from leaf.styles import _column_width
 
-from .source import check_source
+from .source import check_source, theme_css
 
 
 def cmd_check(
@@ -37,7 +38,7 @@ def _check(page_dir: Path, render: bool, events_override: list | None) -> int:
     print(
         "✓ index.html: parses, widgets, authored modules, and theme validate, "
         "protected ids and decisions carried over, nothing overflows the "
-        f"{result.column}px column",
+        f"{_column_width(result.document.css, theme_css(page_dir))}px column",
         # Ahead of any browser gate's stderr, which a piped reader gets unbuffered.
         flush=True,
     )

@@ -200,6 +200,19 @@ def test_interaction_trace_does_not_change_page_or_presence_readings(page_dir):
     assert presence_model._page_stamp(page_dir) != presence_stamp
 
 
+def test_a_staged_write_moves_neither_the_page_nor_its_presence_reading(page_dir):
+    """An atomic write stages its bytes beside the target before the rename, and a
+    look between the two sees a file the page never has. Both readings of the page
+    directory look past it, so the write moves each once, at the rename."""
+    reading = served_reading.page_reading(page_dir)
+    presence_stamp = presence_model._page_stamp(page_dir)
+
+    (page_dir / ".0123456789abcdef.tmp").write_text("{}")
+
+    assert served_reading.page_reading(page_dir) == reading
+    assert presence_model._page_stamp(page_dir) == presence_stamp
+
+
 def test_interaction_trace_does_not_keep_an_unattended_page_active(page_dir):
     old = time.time() - schema_model.ACTIVITY_GRACE_SECS - 60
     for entry in page_dir.iterdir():

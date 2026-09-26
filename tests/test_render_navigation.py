@@ -6609,7 +6609,7 @@ def test_registered_shortcuts_are_exposed_to_assistive_technology(browser, serve
     assert page.locator(".lf-asks").get_attribute("aria-keyshortcuts") is None
     banner_control(page, ".lf-asks").click()
     expect(page.locator(".lf-asks-panel")).to_have_attribute(
-        "aria-keyshortcuts", "ArrowUp ArrowDown"
+        "aria-keyshortcuts", "ArrowUp ArrowDown Home End"
     )
     expect(page.locator(".lf-asks-row").first).to_have_attribute(
         "aria-keyshortcuts", "Enter Space"
@@ -10400,7 +10400,7 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     wait_for_revision(page, 2)
     expect(page.locator('.lf-version-diff[data-lf-version="1"]')).to_have_count(1)
     expect(page.locator(".lf-version-menu")).to_have_attribute(
-        "aria-keyshortcuts", "ArrowUp ArrowDown 1 2 Enter Space v"
+        "aria-keyshortcuts", "ArrowUp ArrowDown Home End 1 2 Enter Space v"
     )
     # Nothing executable changed, so the user keeps this document and the shelf they
     # opened stays open. The next press opens the reference over the current version.

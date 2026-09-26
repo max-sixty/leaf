@@ -133,18 +133,16 @@ const children = (token) => [
   ...(token.rows ?? []).flat().flatMap((cell) => cell.tokens),
 ];
 
-// Where a token's `raw` stands in the draft, at or after `at`, as [from, to]. A token
-// read at the top level is its exact source. One a container handed on was rewritten
-// first, in exactly two ways the match walks through: a quote or a list drops each
-// continuation line's markers and indent, and a table cell drops the backslash of an
-// escaped pipe. Null where the draft holds no such run.
-function locate(source, raw, at) {
-  const exact = source.indexOf(raw, at);
-  if (exact >= 0) return [exact, exact + raw.length];
-  for (let start = source.indexOf(raw[0], at); start >= 0;) {
+// Where a token's `raw` stands in the draft, as [from, to]: the earliest run at or
+// after `at` that ends by `limit`. A token read at the top level is its exact source.
+// One a container handed on was rewritten first, in exactly two ways the match walks
+// through: a quote or a list drops each continuation line's markers and indent, and a
+// table cell drops the backslash of an escaped pipe. Null where no such run stands.
+function locate(source, raw, at, limit) {
+  for (let start = source.indexOf(raw[0], at); start >= 0 && start < limit;) {
     let s = start;
     let r = 0;
-    while (r < raw.length && s < source.length) {
+    while (r < raw.length && s < limit) {
       if (source[s] === raw[r]) {
         s++;
         r++;
@@ -159,13 +157,13 @@ function locate(source, raw, at) {
 }
 
 // Where each token the renderer read stands in the draft, each found at or after the
-// one before it.
-function place(source, tokens, from, found) {
+// one before it and inside the span of the token that holds it.
+function place(source, tokens, from, limit, found) {
   let at = from;
   for (const token of tokens) {
-    const span = token.raw ? locate(source, token.raw, at) : null;
+    const span = token.raw ? locate(source, token.raw, at, limit) : null;
     if (span) found.push({ token, from: span[0], to: span[1] });
-    place(source, children(token), span ? span[0] : at, found);
+    place(source, children(token), span ? span[0] : at, span ? span[1] : limit, found);
     if (span) at = span[1];
   }
   return found;
@@ -204,7 +202,7 @@ function syntaxLengths(token, raw) {
 const read = (state) => {
   const source = state.doc.toString();
   const tokens = markdownTokens(source);
-  return tokens ? place(source, tokens, 0, []) : [];
+  return tokens ? place(source, tokens, 0, source.length, []) : [];
 };
 
 function decorate(state, placed) {

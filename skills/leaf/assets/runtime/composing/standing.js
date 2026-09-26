@@ -2,6 +2,8 @@
 import { documentFocused } from "../keyboard/scopes.js";
 import { inChrome } from "../passages.js";
 import { addressableAt } from "../anchor-resolution.js";
+import { placeOf } from "../standing-target.js";
+import { heldThread } from "../thread/focus.js";
 
 // The addressable element the user is standing in, which is what a press means when they
 // have pointed at nothing. The ⌥ aim reaches an element through the pointer and focus used to reach none
@@ -24,23 +26,26 @@ import { addressableAt } from "../anchor-resolution.js";
 //
 // Below that, the innermost addressable element — the aim's own reading.
 //
-// A projected margin control is chrome with an explicit page target, so that target wins
-// before the general chrome fence. The banner, panel, and trays have no such coordinate:
-// they are where a user works on the page rather than where they stand in it, so a press
-// made from one means the page whole. A box that takes letters never arrives here at all:
-// the typing scope claims the letter before the page is asked.
+// Chrome that shows one page target stands at it (standing-target.js), so a remark made
+// from a margin control or the Asks tray is about that target. The rest of the chrome
+// stands nowhere: it is where a user works on the page rather than where they stand in it,
+// so a press made from it means the page whole. A thread drawn in the chrome is the other
+// exception: a remark made in it is about the thread, which `c` answers in its box and `e`
+// on its reply's strip, so the element the thread is about is no answer there. A box that
+// takes letters never arrives here at all: the typing scope claims the letter before the
+// page is asked.
 //
-// `documentFocused()` rather than `focused()`: a control
-// staged in a shadow tree retargets to its host, and the host is the place in the document
-// both the chrome guard and the element walk want. standingThread below wants the inner
-// reading, and says so.
-export function createStandingElement({ isAskControl, standingIn, projectionTarget }) {
+// `documentFocused()` rather than `focused()`: a control staged in a shadow tree
+// retargets to its host, and the host is the place in the document both the chrome guard
+// and the element walk want.
+export function createStandingElement({ isAskControl, standingIn }) {
   return function standingElement() {
     const held = documentFocused();
     if (!held || held === document.body) return null;
-    const projected = projectionTarget(held);
-    if (projected) return projected;
-    if (inChrome(held)) return null;
+    if (inChrome(held) && heldThread()) return null;
+    const place = placeOf(held);
+    if (!place || inChrome(place)) return null;
+    if (place !== held) return addressableAt(place);
     const working = isAskControl(held) ? standingIn() : null;
     return working ?? addressableAt(held);
   };

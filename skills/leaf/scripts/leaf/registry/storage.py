@@ -2,10 +2,11 @@
 
 import re
 import sys
+from collections.abc import Collection
 from functools import lru_cache
 from pathlib import Path
 
-from leaf.files import file_stamp, latest_revision
+from leaf.files import file_stamp, latest_revision, read_json
 
 from .contract import RegistryError, read_registry_declarations
 from .layer import required_layer_declarations, validate_event_contracts
@@ -52,22 +53,15 @@ def read_page_registry(page_dir: Path):
     and declarations have not moved is not validated again.
     """
     page_dir = page_dir.absolute()
-    source = page_dir / "page" / "registry.json"
     widgets = tuple(
-        sorted(
-            (
-                path.relative_to(page_dir).as_posix(),
-                file_stamp(path),
-            )
-            for directory in (page_dir / "widgets", page_dir / "page" / "widgets")
-            for path in directory.glob("lf-*.js")
-            if path.is_file()
-        )
+        (path, file_stamp(page_dir / path))
+        for directory in ("widgets", "page/widgets")
+        for path in widget_paths(page_dir, directory)
     )
     return _read_page_registry_stamped(
         page_dir,
         file_stamp(page_dir / "registry.json"),
-        file_stamp(source),
+        file_stamp(page_dir / "page" / "registry.json"),
         widgets,
         latest_revision(page_dir),
     )
@@ -85,20 +79,54 @@ def _read_page_registry_stamped(
     changes."""
     from leaf.revision_artifact import read_artifact
 
-    from .page import compose_page_registry
-
     layer = load_registry(page_dir)
     if layer is None:
         return None
+    return compose_candidate(
+        page_dir,
+        layer,
+        [path for path, _stamp in widgets],
+        validated=read_artifact(page_dir, active).registry if active else None,
+    )
+
+
+def widget_paths(page_dir: Path, directory: str) -> list[str]:
+    """The widget modules under one of a page's directories, page-root-relative."""
+    return sorted(
+        path.relative_to(page_dir).as_posix()
+        for path in (page_dir / directory).glob("lf-*.js")
+        if path.is_file()
+    )
+
+
+def compose_candidate(
+    page_dir: Path,
+    layer: dict,
+    widgets: Collection[str],
+    *,
+    validated: dict | None = None,
+):
+    """The candidate's vocabulary: the page's own declarations over `layer`.
+
+    `widgets` are the page-root-relative widget files the candidate can load, the
+    layer's `widgets/` and the page's own `page/widgets/`. `read_page_registry`
+    composes the vendored layer; `page init` composes the layer it is about to
+    vendor, to check a re-vendor before writing it. ``validated`` is a vocabulary
+    already validated, which a composition equal to it is not validated against again.
+
+    A page that declares nothing composes the layer alone, so a fault in it is the
+    vendored layer's, which a re-vendor repairs."""
+    from .page import compose_page_registry
+
     source = page_dir / "page" / "registry.json"
     declarations = read_registry_declarations(source) or {}
     try:
         return compose_page_registry(
             layer,
             declarations,
-            [path for path, _stamp in widgets],
+            widgets,
             source=source if declarations else page_dir / "registry.json",
-            validated=read_artifact(page_dir, active).registry if active else None,
+            validated=validated,
         )
     except RegistryError as error:
         if declarations:
@@ -111,6 +139,30 @@ def _revendor(page_dir: Path, error: RegistryError) -> RegistryError:
     return RegistryError(f"{error}; run `leaf page init {page_dir}` to re-vendor it")
 
 
+def _layer_packages(layer: dict, path: Path) -> list[str]:
+    packages = layer.get("packages", [])
+    if (
+        not isinstance(packages, list)
+        or not all(isinstance(value, str) and value for value in packages)
+        or len(set(packages)) != len(packages)
+    ):
+        raise RegistryError(
+            f"{path}: $layer.packages must be a unique list of non-empty strings"
+        )
+    return packages
+
+
+def layer_packages(page_dir: Path) -> list[str]:
+    """The package selections this page's vendored layer records.
+
+    Read on its own, rather than through `layer_metadata` or the declarations
+    reader, since a re-vendor exists to repair the rest of the file: `page init`
+    reuses the recorded selection when no `--package` is given, so the page it
+    would fix must not refuse it."""
+    path = page_dir / "registry.json"
+    return _layer_packages((read_json(path) or {}).get("$layer", {}), path)
+
+
 def layer_metadata(page_dir: Path) -> dict:
     """The identity recorded by this page's complete vendored layer."""
     path = page_dir / "registry.json"
@@ -121,15 +173,7 @@ def layer_metadata(page_dir: Path) -> dict:
         raise RegistryError(
             f"{path}: vendored registry lacks $layer.generation; run `leaf page init`"
         )
-    packages = layer.get("packages", [])
-    if (
-        not isinstance(packages, list)
-        or not all(isinstance(value, str) and value for value in packages)
-        or len(set(packages)) != len(packages)
-    ):
-        raise RegistryError(
-            f"{path}: $layer.packages must be a unique list of non-empty strings"
-        )
+    packages = _layer_packages(layer, path)
     fingerprint = layer.get("fingerprint")
     if not (
         isinstance(fingerprint, str)

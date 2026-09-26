@@ -128,12 +128,14 @@ below don't block it.
   right, too little for the comment bar, so it drops below the passage on every column
   page; there its width depends on what the field held when the room was measured
   (`composing/surface.js`, `setWidth`), so one draft is laid out differently in two tabs.
-- **Make the outcome checks the gate.** `version check` still reports "nothing
-  overflows the 720px column" on pages with no column, and passed a page that scrolled
-  sideways at 520px. It still advises against scrollers page CSS makes, though pane
-  bodies keep their reading position across a revision. Check sideways scroll and
-  leaking minimums (a box whose content, not its declared minimum, sets its holder's
-  floor) across swept widths instead.
+- **Make the outcome checks the gate.** `version check` passed a page that scrolled
+  sideways at 520px. Check sideways scroll and leaking minimums (a box whose content,
+  not its declared minimum, sets its holder's floor) across swept widths. The corpus
+  (`scripts/corpus.py`) sets every example's body in one column page, so its sweeps
+  never read a sidebar, workspace or wide example in its own Layout.
+- **Offer the Page Map with the first paint.** The margin pass marks where markers are
+  pins (`data-lf-pins`), and the banner's Map toggle follows it, so on a phone the
+  toggle appears one pass after the banner rather than with it.
 - **Test the Layouts on agents.** Give fresh agents tasks across the Layouts, then ask
   them to revise the results: turn a report into a report with live status while
   keeping its comments. They hold if revisions happen by ordinary composition. Include

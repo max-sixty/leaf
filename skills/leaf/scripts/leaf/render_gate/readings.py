@@ -506,10 +506,11 @@ def stacking_advice(readings) -> list[str]:
     by_grid = {}
     for width, reading in readings:
         for grid in reading["grids"]:
-            by_grid.setdefault(grid["at"], []).append((width, grid))
+            by_grid.setdefault(grid["key"], []).append((width, grid))
     found = []
-    for name, seen in by_grid.items():
+    for seen in by_grid.values():
         widest_width, widest = seen[0]
+        name = widest["at"]
         tracks = (
             f'its columns="{widest["columns"]}" tracks need '
             f"{round(widest['need'])}px side by side"

@@ -47,6 +47,8 @@ from render_cases_layout import (
     SHADOW_HOST_PAGE,
     SIDENOTE_IN_A_WIDGET,
     SPILLING_PAGE,
+    TEMPLATE_PAIR_LAYER,
+    TEMPLATE_PAIR_WIDGETS,
     UNMARKABLE_PAGE,
     WIDE_TABLE_PAGE,
     apply_restore_case,
@@ -275,7 +277,57 @@ def test_a_template_that_stacks_in_a_desktop_window_gets_advice_naming_the_windo
     expect(grid).to_have_attribute("data-lf-grid-stacked", "")
     resized(page, window, 900)
     expect(grid).not_to_have_attribute("data-lf-grid-stacked", "")
-    page.close()
+
+
+def test_two_templates_sharing_a_name_each_get_their_own_stacking_advice(
+    browser, serve
+):
+    """Two id-less grids in one widget are both named `<lf-grid> in <lf-test-pair
+    id=pair>`, and each is still read on its own through the sweep: the `1fr 5fr` that
+    stands stacked at 1200px is told so, and the `1fr 2.4fr` beside it gets the window
+    it stacks below. Read by name, the two interleaved at every width and the first
+    one's stacked reading stood for both, so the second got no advice.
+
+    A grid a module writes has no source for the gate to hold its words to, which the
+    gate refuses on its own; those are this page's only failures."""
+    # The authored count grid loads the lf-grid module the pair's grids need, and ends
+    # the page so the pair is no last block reserving an edge.
+    source = _wide_page(
+        "shared names",
+        f"""
+<h1>Shared</h1>
+<lf-test-pair id="pair"></lf-test-pair>
+<lf-grid id="status" columns="2">{_panel("left")}{_panel("right")}</lf-grid>
+""",
+    )
+
+    reading = render_gate_model.render_version(
+        browser,
+        serve(
+            source,
+            packages=(),
+            layer_registry=TEMPLATE_PAIR_LAYER,
+            layer_widgets=TEMPLATE_PAIR_WIDGETS,
+        ),
+    )
+
+    assert reading.failures, reading.failures
+    assert all(
+        "<lf-grid> without pre-upgrade source provenance" in failure
+        for failure in reading.failures
+    ), reading.failures
+    stacking = [line for line in reading.advice if "one column" in line]
+    assert len(stacking) == 2, reading.advice
+    story, queue = stacking
+    assert story.startswith(
+        "<lf-grid> in <lf-test-pair id=pair> stands in one column at 1200px wide: "
+        'its columns="1fr 5fr" tracks need '
+    ), story
+    assert re.match(
+        r"<lf-grid> in <lf-test-pair id=pair> stacks into one column in a window "
+        r'narrower than \d+px: its columns="1fr 2.4fr" tracks need 786px side by side',
+        queue,
+    ), queue
 
 
 def test_the_pre_upgrade_proof_reads_the_held_authored_document(browser, serve):

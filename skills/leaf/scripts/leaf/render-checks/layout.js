@@ -457,12 +457,18 @@ export function misalignedSplits() {
 // holds at its cap and then loses 0.92px of grid per pixel of window, as its gutters
 // are 4% of the shell, a column page holds at 720px, and a nested track gets its share.
 // A grid with no box at this width (an unopened tab) has nothing to say about it.
+//
+// Each grid is keyed by its place among main's grids in document order, counted before
+// any is left out. The sweep only resizes the page, so a key names the same element at
+// every width, which `at` does not: it is words the author can find, and two grids with
+// no id under one named element share them.
 export function templateGrids() {
   const main = document.querySelector("main");
   if (!main) return [];
-  return [...main.querySelectorAll("lf-grid")]
-    .filter((grid) => grid.stackWidth != null && grid.checkVisibility())
-    .map((grid) => ({
+  return [...main.querySelectorAll("lf-grid").entries()]
+    .filter(([, grid]) => grid.stackWidth != null && grid.checkVisibility())
+    .map(([key, grid]) => ({
+      key,
       at: at(grid),
       columns: grid.getAttribute("columns"),
       width: grid.getBoundingClientRect().width,

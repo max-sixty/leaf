@@ -1,4 +1,4 @@
-Third-party licenses for pierre-diffs.esm.js
+Third-party licenses for pierre-diffs
 
 ===== @pierre/diffs 1.4.3 (apache-2.0) =====
 Apache License

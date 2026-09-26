@@ -64,16 +64,5 @@ const result = await build({
     js: `/*! Web Awesome ${version} — MIT — licenses: webawesome.LICENSES.txt */`,
   },
 });
-// Record exactly the packages esbuild consumed, including transitive runtime code.
-const packages = new Set(
-  Object.keys(result.metafile.inputs)
-    .map((path) => {
-      const tail = path.split("node_modules/").at(-1);
-      const parts = tail.split("/");
-      return path.includes("node_modules/")
-        ? parts.slice(0, parts[0].startsWith("@") ? 2 : 1).join("/")
-        : null;
-    })
-    .filter(Boolean),
-);
-await writeFile("packages.json", JSON.stringify([...packages].sort()));
+// What reached the bundle, from which `scripts/browser/shipped.mjs` writes its notices.
+await writeFile("meta.json", JSON.stringify(result.metafile));

@@ -15,7 +15,7 @@ Any other Codex task, the desktop app's included, follows `references/host-codex
 New user input reaches you only once the current turn ends, because a delivery
 starts a turn of its own: once the task is idle, Leaf starts one with the complete
 delivery as a structured `leaf_delivery` tool output. A delivery can span pages and
-conversations, presented as one chronological slice per turn. Leaf acknowledges the
+threads, presented as one chronological slice per turn. Leaf acknowledges the
 delivery itself once it enters that turn, so this contract leaves no acknowledgement to
 you: run no acknowledgement command, and no `leaf wait` or `leaf wait --ack` while Leaf
 delivers to this task over App Server.
@@ -27,7 +27,7 @@ your turn's first message and final message write it. Before your first tool cal
 open with a short message to the user: the answer, or what you are about to do. Leaf streams it into the addressed thread at
 once, so the user reads it while you work. Later working messages stay in Codex. Your
 final message completes the reply, and Leaf commits the opening and the final message
-together through the same reply contract as `leaf reply`. Do not run `leaf reply` for
+together through the same reply contract as `leaf thread reply`. Do not run `leaf thread reply` for
 that response, which refuses it. The final message cannot move or detach its
 thread, so the thread keeps its anchor. If the user resolves the thread before the
 turn completes, the reply still posts and reopens it. A later plain reply remains pending for the next slice.
@@ -37,7 +37,7 @@ clauses name.
 
 A `leaf-delivery` pointer queued before Leaf observed the task can still arrive as a
 user message. Read it with `leaf delivery read <id>`: it was frozen for the queue, so
-its reply is a plain `reply` for `leaf reply`, as `references/host-codex.md`
+its reply is a plain `reply` for `leaf thread reply`, as `references/host-codex.md`
 describes.
 
 ## Activity
@@ -109,7 +109,7 @@ For an inline MCP App, follow `references/host-codex.md`, "Experimental inline M
 App": it starts this same adapter. A `leaf wait` this task already runs, or a
 watcher task, carries input without the adapter, as that contract's "Routes without
 the adapter" describes; on those routes there is no App Server turn to bind, so
-answer with `leaf reply`.
+answer with `leaf thread reply`.
 
 If `leaf codex start` refuses to start, do not finish over a live page. Follow its
 diagnostic: an existing foreground `leaf wait` must be stopped before the adapter

@@ -2,7 +2,7 @@
  *
  * This object owns the shared scroll/resize doors and the one response-bar placement
  * frame. Feature state and paint enter as fixed constructor capabilities; no feature
- * imports the conversation presenter to request a refresh.
+ * imports the thread presenter to request a refresh.
  */
 
 import { cancelRender, nextRender } from "./rendering.js";

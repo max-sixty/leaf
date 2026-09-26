@@ -71,13 +71,13 @@ import { targetElement } from "../resolved-target.js";
 import { focusDestination } from "../focus.js";
 import { el, PRESSABLE } from "../widget-elements.js";
 import { allButCommandReference, pageCommand, pageScope } from "./register.js";
-import { focusedThreadTarget } from "../conversation/focus.js";
+import { focusedThreadTarget } from "../thread/focus.js";
 import { letGo } from "../focus.js";
 import { pageParts } from "../passages.js";
 import { fragmentId, addressableSays, resolveAnchor } from "../anchor-resolution.js";
 import { announce, notice } from "../notifications.js";
 import { closestAcross, pageQueryAll } from "../passages.js";
-import { threadsBox } from "../conversation/panel-elements.js";
+import { threadsBox } from "../thread/panel-elements.js";
 import {
   currentTray,
   askRows,

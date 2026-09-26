@@ -1,4 +1,4 @@
-/* The generated child-order owner for page and conversation margin controls.
+/* The generated child-order owner for page and thread margin controls.
  *
  * The margin projection supplies one frozen descriptor model before any DOM is
  * materialized. This synchronous light-DOM Lit owner retains native controls by

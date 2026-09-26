@@ -75,7 +75,7 @@ _server_spec.loader.exec_module(website_server)
 # The theme's paper, light and dark, as the browser reports a background.
 PAPER = {"light": "rgb(250, 249, 245)", "dark": "rgb(25, 24, 21)"}
 PHONE = {"width": 390, "height": 844}
-GALLERY_THREAD_TEXT = "Gallery conversation: I moved the practice exercise before lunch"
+GALLERY_THREAD_TEXT = "Gallery thread: I moved the practice exercise before lunch"
 
 # The module-scoped build and host are one shared setup, so they belong to one
 # xdist work unit rather than being rebuilt independently on every worker.
@@ -1990,7 +1990,7 @@ def test_a_published_example_has_no_agent_claim(served_example, browser):
 
 
 def test_a_shipped_log_opens_its_example_on_its_thread(served_example, browser):
-    """An example that ships a log arrives mid-conversation through the real projection.
+    """An example that ships a log arrives mid-thread through the real projection.
 
     The thread is the one thing no markup describes, so a copy of the markup could never
     carry one however it was written. Leaf reads the complete page directory's log into
@@ -2003,7 +2003,7 @@ def test_a_shipped_log_opens_its_example_on_its_thread(served_example, browser):
     page = open_page(browser, url)
     source = EXAMPLES / "ship-review.html"
     events = _parse_events(source.with_suffix(".jsonl").read_bytes())
-    conversations = [
+    threads = [
         thread
         for thread in build_threads(
             events,
@@ -2011,8 +2011,8 @@ def test_a_shipped_log_opens_its_example_on_its_thread(served_example, browser):
         ).values()
         if not bare_reaction(thread)
     ]
-    opened = sum(not thread["resolved"] for thread in conversations)
-    resolved = len(conversations) - opened
+    opened = sum(not thread["resolved"] for thread in threads)
+    resolved = len(threads) - opened
     assert opened and resolved, "the shipped seed must cover both thread states"
     expect(page.locator(".lf-threads-toggle")).to_have_text(f"Threads ({opened})")
     page.locator(".lf-threads-toggle").click()

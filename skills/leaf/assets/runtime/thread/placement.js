@@ -1,4 +1,4 @@
-/* Placement and grouping for conversation threads: the page's order, which every
+/* Placement and grouping for threads: the page's order, which every
    reading of the threads shares, and the panel's Recent order. */
 import { addressableSays, addressableWord, sectionOf } from "../anchor-resolution.js";
 import { pageParts } from "../passages.js";
@@ -9,7 +9,7 @@ import { hostIn } from "../shadow.js";
 import { threadSummary } from "./model.js";
 // ---------- where the panel puts a thread ----------
 // The list reads in the page's order, not the log's. A page is a document with a
-// beginning and an end, and the user walks the conversation the way they walk the
+// beginning and an end, and the user walks the thread the way they walk the
 // prose it is about: the thread on the lede is the first one, the thread on the punch
 // list is the last, and t/T, the marks out on the page and the panel's own scroll all
 // say the same order. Log order answered a different question — when a
@@ -130,7 +130,7 @@ export function groupFor(t, outline, placedAt) {
   if (inChrome(place))
     return layerPart(place)
       ? { key: "design", label: "Page design" }
-      : { key: "sent", label: "Sent in the conversation" };
+      : { key: "sent", label: "Sent in the thread" };
   const heading = headingFor(place, outline);
   // A page its author wrote no headings into has no runs to name, and a run with no name
   // gets no line: "Above the first heading" over the whole list would be a landmark

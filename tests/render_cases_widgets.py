@@ -11,7 +11,7 @@ from render_harness import (
 )
 
 # ---------- anchors written without a browser ----------
-# `leaf comment` writes an anchor by reading the mapped revision; the runtime
+# `leaf thread open` writes an anchor by reading the mapped revision; the runtime
 # resolves it against the DOM that revision becomes. Nothing static can check that those
 # two readings agree, and every way they can come apart — a widget's upgrade, an
 # attribute rendered as text, the space a block boundary stands for — only exists
@@ -19,7 +19,7 @@ from render_harness import (
 
 
 def written_anchors(page_dir, html, limit=40):
-    """Anchors `leaf comment` would write for windows over a page's own prose. A
+    """Anchors `leaf thread open` would write for windows over a page's own prose. A
     window the page says twice, or one crossing a fence, is refused on purpose —
     skipping those here is that refusal, and what survives is exactly what the command
     promises to place."""

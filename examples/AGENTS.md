@@ -126,7 +126,7 @@ Write one when there is a page it makes sense on, not to fill the slot.
 
 Event state is the one thing no markup describes, so an example that wants to show
 a thread or a user decision ships its events as `<stem>.jsonl` beside the page.
-A thread-bearing log opens mid-conversation; an action-only log replays a page-owned
+A thread-bearing log opens mid-thread; an action-only log replays a page-owned
 decision without inventing a thread. `serve` seeds when handed an example rather than
 markup. The anchor sweep opts out, because it writes its own anchors and compares the
 whole painted mark against exactly those. `ship-review.jsonl` carries a thread. Under
@@ -153,7 +153,7 @@ The cursor is set to the end of the seeded log because a seed is history, not
 news: a cursor at zero hands the next agent session a question the same log
 already answers, and the loop guard nags about it each time.
 
-When a seeded event needs an anchor, capture it with `leaf comment --quote`
+When a seeded event needs an anchor, capture it with `leaf thread open --quote`
 against the file; do not write the `{section, quote, suffix}` out by hand. A
 hand-written anchor is a second capture with nothing holding it to the first, and
 it rots silently: rewrite the sentence and the thread stands detached with no
@@ -161,10 +161,10 @@ error anywhere. `test_a_shipped_log_replays_its_example_state` reads the
 shipped anchor back through the browser and names that failure. The corpus's own
 anchor sweep cannot catch it, because that sweep writes its own anchors.
 
-The corpus carries only the conversations its embedded specimens declare in
+The corpus carries only the threads its embedded specimens declare in
 `data-specimen-threads`. `scripts/corpus.py` generates their complete histories in
 `corpus.jsonl`; unrelated user decisions stay unset so the corpus can exercise
-them. Markup that depends on another conversation (such as `resolves`) needs that
+them. Markup that depends on another thread (such as `resolves`) needs that
 dependency carried into composed fixtures too.
 
 A widget with a live half (an `lf-agent` row rendering how long since its worker
@@ -190,7 +190,7 @@ an answer has a control to answer with, and that the decided state differs from
 the same page under the same log with the decisions removed.
 
 A hand-written seed is markup no gate reads: `version check` asks it only for
-ids colliding with the version's, and `leaf reply` never sees a file written into
+ids colliding with the version's, and `leaf thread reply` never sees a file written into
 the repository. `test_every_seeded_fragment_passes_the_door_it_never_came_through`
 posts each seeded fragment through that real door rather than through a copied
 list of checks. Render-gate readings assume a widget stands in the document

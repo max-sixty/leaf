@@ -120,7 +120,7 @@ def _bind_reply(workflows: list[dict], reply: dict | None) -> None:
 def answer_command(answer: dict) -> str:
     """The one operation that writes an answer, with the id it is addressed to."""
     if answer["kind"] == "reply":
-        return f"`leaf reply <page> --for {answer['for']}`"
+        return f"`leaf thread reply <page> --for {answer['for']}`"
     if answer["kind"] == "turn":
         return f"your turn's final message for {answer['for']}"
     if answer["kind"] == "receipt":

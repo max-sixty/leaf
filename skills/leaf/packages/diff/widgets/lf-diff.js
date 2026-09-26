@@ -907,7 +907,7 @@ customElements.define(
         outlet.dataset.lfThreadDatum = anchor.datum;
         outlet.setAttribute(
           "aria-label",
-          `Conversation on ${row.dataset.lfDatumLabel || (file ? "file" : "diff line")}`,
+          `Thread on ${row.dataset.lfDatumLabel || (file ? "file" : "diff line")}`,
         );
         if (file) {
           entry.node.append(outlet);

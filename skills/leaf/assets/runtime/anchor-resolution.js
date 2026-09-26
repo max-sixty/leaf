@@ -1,7 +1,7 @@
 /* Durable anchor interpretation.
  *
  * This module reads authored markup and resolves semantic coordinates into the current
- * document. It owns no controls, travel, paint, conversation state, or command path.
+ * document. It owns no controls, travel, paint, thread state, or command path.
  * Selection capture and file-side capture produce the same quote/context coordinate;
  * `resolveAnchor` is the only search implementation, so repeated text detaches unless
  * its context identifies one occurrence.

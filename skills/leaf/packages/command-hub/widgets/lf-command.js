@@ -15,7 +15,7 @@
 import {
   PRESS,
   clockValue,
-  conversationBox,
+  threadBox,
   declarationFor,
   addressableWord,
   authoredScope,
@@ -252,10 +252,10 @@ function configureGoal(goal) {
   if (configured.has(goal)) return;
   configured.add(goal);
   goal.dataset.lfCommandGoal = "1";
-  const conversationRole = declarationFor(goal, "x-conversation");
-  if (conversationRole && matchesWhen(goal, conversationRole.when)) {
-    const conversation = conversationBox(goal, "Say something here");
-    if (conversation) goal.append(conversation);
+  const threadRole = declarationFor(goal, "x-thread-seat");
+  if (threadRole && matchesWhen(goal, threadRole.when)) {
+    const thread = threadBox(goal, "Say something here");
+    if (thread) goal.append(thread);
   }
   goal.addEventListener("lf-reveal", (event) => {
     const target = event.detail?.target;

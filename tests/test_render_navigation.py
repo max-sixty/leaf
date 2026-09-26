@@ -461,7 +461,7 @@ def test_a_pane_comment_stays_in_its_reading_region(browser, serve):
     expect(preview).to_be_hidden()
     page.keyboard.press("t")
     expect(preview).to_be_visible()
-    expect(preview.locator(".lf-conversation-thread")).to_be_focused()
+    expect(preview.locator(".lf-page-thread")).to_be_focused()
 
 
 @pytest.mark.parametrize(
@@ -1411,7 +1411,7 @@ def test_the_pr_walkthrough_exercises_an_inline_diff_thread(browser, serve):
         },
     )
     told(page)
-    thread = diff.locator(f'.lf-conversation-thread[data-thread="{root["id"]}"]')
+    thread = diff.locator(f'.lf-page-thread[data-thread="{root["id"]}"]')
     expect(thread).to_contain_text(
         "Keep this review note beside the line that changes it."
     )
@@ -1471,9 +1471,7 @@ def test_the_pr_walkthrough_exercises_an_inline_diff_thread(browser, serve):
     expect(heading).to_be_focused()
     page.keyboard.press("t")
     expect(
-        page.locator(
-            f'.lf-margin-preview .lf-conversation-thread[data-thread="{prose["id"]}"]'
-        )
+        page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{prose["id"]}"]')
     ).to_be_focused()
     page.keyboard.press("t")
     expect(thread).to_be_focused()
@@ -1492,9 +1490,7 @@ def test_a_thread_walk_card_keeps_its_margin_until_its_anchor_leaves(browser, se
     page.keyboard.press("t")
     card = page.locator(".lf-margin-preview")
     expect(
-        card.locator(
-            '.lf-conversation-thread[data-thread="72e031c5bf0d485ba9054628e09869d4"]'
-        )
+        card.locator('.lf-page-thread[data-thread="72e031c5bf0d485ba9054628e09869d4"]')
     ).to_be_focused()
     owner = page.locator(
         '.lf-margin-marker[data-lf-kinds~="comment"]'
@@ -2230,8 +2226,8 @@ def test_a_delayed_thread_reveal_reports_that_new_user_focus_cancelled_it(
     )
     page.evaluate(
         """async () => {
-          const {createConversationLanding} = await window.__lfRuntimeImport(
-            '/runtime/conversation/landing.js');
+          const {createThreadLanding} = await window.__lfRuntimeImport(
+            '/runtime/thread/landing.js');
           const thread = document.querySelector('.lf-threads > .lf-thread');
           thread.hidden = true;
           const source = document.createElement('button');
@@ -2240,7 +2236,7 @@ def test_a_delayed_thread_reveal_reports_that_new_user_focus_cancelled_it(
           document.querySelector('main').append(source);
           let release;
           const held = new Promise(resolve => { release = resolve; });
-          const landing = createConversationLanding({
+          const landing = createThreadLanding({
             setPanel: () => {},
             scrollToThread: () => {},
             revealThread: () => {
@@ -2493,7 +2489,7 @@ def test_composer_marks_the_passage_instead_of_quoting_it(browser, serve):
 def test_the_pointer_over_a_page_mark_lights_its_comment_quote(browser, serve):
     """The page and panel are reciprocal views of a thread. Resting on a card lights
     its passage; resting on that passage must identify the bounded quote naming it too.
-    Filling the card instead turns a long conversation into a viewport-sized wash. The
+    Filling the card instead turns a long thread into a viewport-sized wash. The
     signal follows the pointer from one thread to the next and leaves with it."""
     url = serve(
         INLINE_PAGE,
@@ -2554,7 +2550,7 @@ def test_the_pointer_over_a_page_mark_lights_its_comment_quote(browser, serve):
 
 
 def test_a_page_mark_does_not_wash_a_long_thread_card(browser, serve):
-    """The reciprocal cue stays at the quote when its conversation is taller than the
+    """The reciprocal cue stays at the quote when its thread is taller than the
     list. A short-card case proves selector routing but cannot reproduce the full-panel
     slab that made direct navigation visually ambiguous."""
     url = serve(INLINE_PAGE, anchored=[("p", "bold text")])
@@ -2687,7 +2683,7 @@ def test_a_thread_walk_starts_one_page_trip_and_reveals_its_nested_passage(
           return Math.abs((rect.top + rect.bottom) / 2 - innerHeight / 2) < 2;
         }"""
     )
-    expect(page.locator(".lf-margin-preview .lf-conversation-thread")).to_be_focused()
+    expect(page.locator(".lf-margin-preview .lf-page-thread")).to_be_focused()
 
 
 def test_the_thread_walk_stays_inline_until_threads_is_opened(browser, serve):
@@ -2757,7 +2753,7 @@ def test_the_thread_walk_stays_inline_until_threads_is_opened(browser, serve):
     expect(page.locator(".lf-notice")).to_be_visible()
     page.keyboard.press("t")
     first = page.locator(
-        f'.lf-margin-preview .lf-conversation-thread[data-thread="{roots[0]}"]'
+        f'.lf-margin-preview .lf-page-thread[data-thread="{roots[0]}"]'
     )
     expect(first).to_be_focused()
     # The walk position takes the notice's place at one instant. Both are chrome, which
@@ -2786,12 +2782,12 @@ def test_the_thread_walk_stays_inline_until_threads_is_opened(browser, serve):
     expect(position).to_have_text("Thread 1 of 2")
     page.keyboard.press("t")
     second = page.locator(
-        f'.lf-margin-preview .lf-conversation-thread[data-thread="{roots[1]}"]'
+        f'.lf-margin-preview .lf-page-thread[data-thread="{roots[1]}"]'
     )
     expect(second).to_be_focused()
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
     expect(position).to_have_text("Thread 2 of 2")
-    expect(second.locator(".lf-conversation-msg").first).to_be_visible()
+    expect(second.locator(".lf-page-thread-msg").first).to_be_visible()
     preview_room = page.evaluate(
         """() => ({
           previewTop: document.querySelector('.lf-margin-preview').getBoundingClientRect().top,
@@ -2839,9 +2835,9 @@ def test_the_thread_walk_stays_inline_until_threads_is_opened(browser, serve):
 
 
 def test_a_walked_thread_leaves_through_what_holds_it(browser, serve):
-    """Escape removes the user's current layer of conversation or disclosure.
+    """Escape removes the user's current layer of thread or disclosure.
 
-    From the page, `t` opens the margin's conversation view to reach the thread. However
+    From the page, `t` opens the margin's thread view to reach the thread. However
     many threads the walk then visits, Escape leaves the thread for the element it is
     about, with the view still beside it, and then lets go of both. It never hands back
     the heading the walk left, since Escape unwinds the hierarchy rather than the
@@ -2872,9 +2868,7 @@ def test_a_walked_thread_leaves_through_what_holds_it(browser, serve):
     preview = page.locator(".lf-margin-preview")
     # The view holds one thread at a time, so the walk's landings are told apart by id.
     threads = [
-        page.locator(
-            f'.lf-margin-preview .lf-conversation-thread[data-thread="{root}"]'
-        )
+        page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{root}"]')
         for root in roots
     ]
     line = page.locator(".lf-shortcut-bar")
@@ -3002,9 +2996,7 @@ def test_go_to_threads_selects_the_panel_from_a_page_thread(browser, serve, widt
         if from_thread:
             page.keyboard.press("t")
             page.keyboard.press("t")
-            expect(
-                page.locator(".lf-margin-preview .lf-conversation-thread")
-            ).to_be_focused()
+            expect(page.locator(".lf-margin-preview .lf-page-thread")).to_be_focused()
         page.keyboard.press("g")
         page.keyboard.press("Shift+t")
         expect(panel).to_be_visible()
@@ -3084,9 +3076,9 @@ def test_a_panel_thread_releases_to_the_same_floor_as_go_to_threads(browser, ser
 def test_a_layer_is_left_the_same_way_however_it_was_reached(browser, serve):
     """Escape reads what stands in front of the user, not how they got there.
 
-    The panel and the margin's conversation view each have one way out, and a click, a
+    The panel and the margin's thread view each have one way out, and a click, a
     keyboard activation of the same control and a walk that arrived from somewhere else
-    all take it. Where that way out ends is what holds the conversation — the whole
+    all take it. Where that way out ends is what holds the thread — the whole
     panel, or the element a card's thread is about — and then the page: the toggle, the
     margin marker and the page mark are Leaf's own controls rather than places the user
     was reading, so none of them is a landing, and a user who reached one by Tab or by
@@ -3109,9 +3101,7 @@ def test_a_layer_is_left_the_same_way_however_it_was_reached(browser, serve):
     toggle = page.locator(".lf-threads-toggle")
     marker = page.locator('[data-lf-margin-for="p"] > .lf-margin-marker')
     threads = [
-        page.locator(
-            f'.lf-margin-preview .lf-conversation-thread[data-thread="{root}"]'
-        )
+        page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{root}"]')
         for root in roots
     ]
 
@@ -3343,7 +3333,7 @@ def test_an_ask_walk_leaves_the_panel_it_reached_through(browser, serve):
 def test_inner_state_is_left_before_the_surface_around_it(browser, serve):
     """Narrowing and page standing unwind before their surrounding surfaces.
 
-    A conversation or Ask inside Threads returns to the whole panel first.
+    A thread or Ask inside Threads returns to the whole panel first.
     """
     url = serve(INLINE_PAGE, anchored=[("p", "bold text")])
     panel_comment(
@@ -3457,7 +3447,7 @@ def test_an_inline_thread_wears_the_ring_only_while_the_keyboard_stands_on_it(
         browser,
         serve(INLINE_PAGE, anchored=[("p", "bold text")]),
     )
-    thread = page.locator(".lf-margin-preview .lf-conversation-thread")
+    thread = page.locator(".lf-margin-preview .lf-page-thread")
     note = page.locator("#p .lf-mark-note")
     paint = """el => { const s = getComputedStyle(el); return {
       outline: s.outlineStyle, offset: s.outlineOffset, background: s.backgroundColor,
@@ -3501,7 +3491,7 @@ def test_an_inline_thread_wears_the_ring_only_while_the_keyboard_stands_on_it(
     assert writing == pointer
     # One ring and no accented border: the reply wears the text box's band, which
     # replaces the resting border rather than standing off it. `theme.css` states
-    # that inside `.lf-conversation-thread` so a thread seated in a widget's shadow
+    # that inside `.lf-page-thread` so a thread seated in a widget's shadow
     # tree wears the same band, and the chrome text-box rule states it for the
     # document; both say the same thing, so this reading is the same either way.
     assert reply_ring == {
@@ -3524,7 +3514,7 @@ def test_forced_colors_keep_inline_thread_focus_visible(browser, serve):
         url,
         context=context,
     )
-    thread = page.locator(f'#jobs .lf-conversation-thread[data-thread="{root}"]')
+    thread = page.locator(f'#jobs .lf-page-thread[data-thread="{root}"]')
 
     reply = thread.locator("textarea")
     reply.click()
@@ -3552,8 +3542,8 @@ def test_inline_thread_surface_has_room_without_focus_reflow(browser, serve):
         serve.page_dir, "Which job should come first?", {"section": "jobs"}
     )
     page = open_page(browser, url)
-    thread = page.locator(f'#jobs .lf-conversation-thread[data-thread="{root}"]')
-    expect(page.locator("#jobs .lf-conversation-thread")).to_have_count(2)
+    thread = page.locator(f'#jobs .lf-page-thread[data-thread="{root}"]')
+    expect(page.locator("#jobs .lf-page-thread")).to_have_count(2)
 
     resting = thread.evaluate(
         "el => ({width: el.getBoundingClientRect().width, height: el.getBoundingClientRect().height})"
@@ -3609,7 +3599,7 @@ def test_inline_thread_surface_has_room_without_focus_reflow(browser, serve):
           const head = headNode.getBoundingClientRect();
           const author = headNode.querySelector('b').getBoundingClientRect();
           const bodyNode = el.querySelector(
-            ':scope .lf-conversation-msg > .lf-conversation-body'
+            ':scope .lf-page-thread-msg > .lf-page-thread-body'
           );
           const body = bodyNode.getBoundingClientRect();
           return {actionsTop: actions.top, actionsBottom: actions.bottom,
@@ -3656,7 +3646,7 @@ def test_inline_thread_surface_has_room_without_focus_reflow(browser, serve):
 def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
     browser, serve, reply_paragraphs
 ):
-    """Pointer and keyboard arrival open one compact conversation card. Enter or c
+    """Pointer and keyboard arrival open one compact thread card. Enter or c
     reveals its reply, and Escape returns through each layer. The Page Map fallback
     remains live at the same time: declaration order cannot move it ahead of the causal
     frame. The page mark follows both focus modes."""
@@ -3688,10 +3678,10 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
     first_id = threads.first.get_attribute("data-id")
     second_id = threads.nth(1).get_attribute("data-id")
     thread = page.locator(
-        f'.lf-margin-preview .lf-conversation-thread[data-thread="{first_id}"]'
+        f'.lf-margin-preview .lf-page-thread[data-thread="{first_id}"]'
     )
     second = page.locator(
-        f'.lf-margin-preview .lf-conversation-thread[data-thread="{second_id}"]'
+        f'.lf-margin-preview .lf-page-thread[data-thread="{second_id}"]'
     )
     reply = thread.locator("textarea")
 
@@ -3900,9 +3890,7 @@ def test_the_page_marks_the_comment_the_user_is_standing_in(browser, serve):
     wait_standing(page, "", ["fig"])
     page.keyboard.press("t")
     expect(
-        page.locator(
-            f'.lf-margin-preview .lf-conversation-thread[data-thread="{roots[2]}"]'
-        )
+        page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{roots[2]}"]')
     ).to_be_focused()
     wait_standing(page, "", ["fig"])
     page.keyboard.press("Shift+t")
@@ -3911,7 +3899,7 @@ def test_the_page_marks_the_comment_the_user_is_standing_in(browser, serve):
     wait_standing(page, "bold text")
     page.keyboard.press("Shift+t")
     first = page.locator(
-        f'.lf-margin-preview .lf-conversation-thread[data-thread="{roots[0]}"]'
+        f'.lf-margin-preview .lf-page-thread[data-thread="{roots[0]}"]'
     )
     expect(first).to_be_focused()
     wait_standing(page, "bold text")
@@ -4221,12 +4209,8 @@ def test_a_commented_block_says_so_to_a_screen_user(browser, serve):
         window.__lfAnchorNoteHost = document.querySelector('#p1 > leaf-anchor-note');
         window.__lfAnchorNoteButton = window.__lfAnchorNoteHost.querySelector('button');
     }""")
-    inline1 = page.locator(
-        f'.lf-margin-preview .lf-conversation-thread[data-thread="{c1}"]'
-    )
-    inline2 = page.locator(
-        f'.lf-margin-preview .lf-conversation-thread[data-thread="{c2}"]'
-    )
+    inline1 = page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{c1}"]')
+    inline2 = page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{c2}"]')
     assert note.evaluate("el => getComputedStyle(el).opacity") == "0"
     expect(note).to_have_role("button")
     note.click()
@@ -5256,7 +5240,7 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
     # opens the same thread preview as its marker.
     go_to_address(page, "Margin entry", "p1")
     expect(page.locator(".lf-margin-preview")).to_be_visible()
-    expect(page.locator(".lf-margin-thread .lf-conversation-thread")).to_be_focused()
+    expect(page.locator(".lf-margin-thread .lf-page-thread")).to_be_focused()
     expect(page.locator(".lf-margin-thread textarea").first).to_be_hidden()
     page.keyboard.press("Escape")  # onto the element the thread is about
     expect(page.locator("#p1")).to_be_focused()
@@ -6531,7 +6515,7 @@ def test_a_widget_that_renames_its_role_keeps_the_press_offer_gave_it(browser, s
     place for it: read off the role it stopped seeing tabs, so Enter did nothing and Space
     threw the user down the page from a control that looked like it had answered; read
     off the tabindex it claimed every focus target `offer` builds and led with a press over
-    a conversation thread that answers nothing. Declared where the strip is, the press
+    a thread that answers nothing. Declared where the strip is, the press
     cannot be lost to a rename or promised where nothing runs it, and the word on the line
     is the strip's own — it names the tab rather than the control.
 
@@ -7294,7 +7278,7 @@ def test_the_key_line_says_what_a_press_will_do(browser, serve):
 
     # t opens the inline thread, whose way out is the element it is about.
     # Every rung earns a press here because Esc is the only keyboard collapse.
-    card_thread = page.locator(".lf-margin-preview .lf-conversation-thread")
+    card_thread = page.locator(".lf-margin-preview .lf-page-thread")
     page.keyboard.press("t")
     expect(card_thread).to_be_focused()
     expect(line).to_contain_text("back to page")
@@ -7305,7 +7289,7 @@ def test_the_key_line_says_what_a_press_will_do(browser, serve):
     page.keyboard.press("?")
     expect(help_el).to_be_visible()
     way_out = help_el.locator('tr[data-lf-command="margin.back"]')
-    expect(way_out).to_contain_text("page element this conversation is about")
+    expect(way_out).to_contain_text("page element this thread is about")
     page.keyboard.press("Escape")
     page.keyboard.press("Escape")
     expect(help_el).to_be_hidden()
@@ -9884,7 +9868,7 @@ def test_focus_paint_releases_every_text_box_crossed_before_a_frame(browser, ser
     assert replies.nth(1).get_attribute("aria-label") == "Reply"
 
     replies.nth(1).evaluate(
-        "box => { const thread = box.closest('.lf-thread, .lf-conversation-thread'); "
+        "box => { const thread = box.closest('.lf-thread, .lf-page-thread'); "
         "(thread.querySelector(':scope > .lf-thread-summary') ?? thread).focus(); }"
     )
     shortcut_bar_text(page)
@@ -10520,8 +10504,8 @@ def test_c_comments_on_what_the_user_is_standing_in(browser, serve):
     link speaks for the paragraph holding it, no id of its own being what an anchor needs.
 
     One box either way: `commentOnTarget` writes `{section: item.id}`, which is the anchor a
-    widget's own conversation seat collects, so a remark made here lands in that seat's
-    conversation rather than beside it. Reaching for the seat directly instead was five
+    widget's own thread seat collects, so a remark made here lands in that seat's
+    thread rather than beside it. Reaching for the seat directly instead was five
     questions — escaping an author's id, whether the box can take focus, which box when
     the seat holds several, what design mode files, where the user already stood — for
     a focus landing.
@@ -10559,7 +10543,7 @@ def test_c_comments_on_what_the_user_is_standing_in(browser, serve):
     expect(page.locator(".lf-composer")).to_contain_text("ask")
     drop()
 
-    # A settled group: not a decision at all, and the conversation seat it still holds is
+    # A settled group: not a decision at all, and the thread seat it still holds is
     # inside `hidden="until-found"`, so a press that reached into the seat focused a box
     # that cannot take focus and did nothing at all. Named by its own words rather than by
     # "options", which the composer standing open from the phase above already says — an
@@ -10622,7 +10606,7 @@ def test_c_comments_on_what_the_user_is_standing_in(browser, serve):
 
 def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
     """Where the user is standing and what the user still owes are two facts, and a
-    widget mid-conversation with the agent is where they part. Its seat holds the words
+    widget whose seat holds a thread waiting on the agent is where they part. Its seat holds the words
     the user just wrote, its answer is unmade and its controls are live, and it has left
     the banner and the tray because the next word there is the agent's — but the user
     is standing in it all the same, and it is still the question they are working.
@@ -10630,7 +10614,7 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
     Read off the user's list, both the ring and `c` went with the count: the moment the
     remark was sent the ring left from under the user, and `c` fell through from the
     question to whichever item their focus happened to rest in. That is a different
-    conversation, not a shorter way into the same one — a remark on the widget is filed
+    thread, not a shorter way into the same one — a remark on the widget is filed
     where a remark on the question the widget stands as is not — so the next line of a
     remark landed somewhere the first line was not. The agent's reply moved both back.
     Nothing the user did moved either, which is the whole of the complaint; the reply
@@ -10642,7 +10626,7 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
     not about reopening what a pick has closed.
 
     The seat and the ask are the project widget SEATED_ASK_ENTRY declares, for the reason
-    test_a_seat_conversation_leaves_the_pick_it_is_about_live gives: the split is between
+    test_a_seat_thread_leaves_the_pick_it_is_about_live gives: the split is between
     two declarations, and since 292de9c no shipped entry carries both."""
     url = serve(
         leaf_page(
@@ -10714,7 +10698,7 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
     # above: blurring and coming back would re-derive it and repeat the phase instead of
     # measuring that it stayed through the news.
     #
-    # The source is the user's again once the conversation in its answer control has
+    # The source is the user's again once the thread in its answer control has
     # been answered.
     for root in [
         e["id"] for e in events_model.read_events(d) if e.get("kind") == "comment"
@@ -10752,9 +10736,9 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
 
 
 def test_c_in_a_thread_reaches_that_threads_own_box(browser, serve):
-    """The panel's open list is the one part of the chrome that holds a conversation of
+    """The panel's open list is the one part of the chrome that holds a thread of
     its own, so a press meaning "say something about this" belongs to that box rather
-    than to the page the panel stands over. `conversationBox` states the same rule from
+    than to the page the panel stands over. `threadBox` states the same rule from
     the other side when it declines to seat a widget standing inside a thread, and the
     asks and the `a`/`A` walk include the ones an agent sent — without this the same
     question answered one way on the page and another in the panel.
@@ -10764,7 +10748,7 @@ def test_c_in_a_thread_reaches_that_threads_own_box(browser, serve):
     under the Resolved state, where it keeps a tab stop and a Reopen button. Reading
     the class alone put the user in a thread whose reply box is not there, and the press
     died on the null with the panel's own `c` never reached. Whether there is a box is what
-    tells them apart — `standingConversation` asks for one rather than for the class — so
+    tells them apart — `standingThread` asks for one rather than for the class — so
     the resolved thread falls through to the general box, which is the honest answer for a
     thread with no box of its own to offer."""
     url = serve(PANEL_PAGE)
@@ -10796,7 +10780,7 @@ def test_c_in_a_thread_reaches_that_threads_own_box(browser, serve):
 
     # And Esc gives that press back: the thread, then the panel. In the panel the old
     # class-only reading and the new climb agree, so this is the consistency half rather
-    # than the gate — test_c_in_a_seated_conversation_reaches_the_thread_it_is_in is what
+    # than the gate — test_c_in_a_seated_thread_reaches_the_thread_it_is_in is what
     # actually goes red if the climb regresses, the page being where they diverge.
     expect(line).to_contain_text("back to thread")
     page.keyboard.press("Escape")
@@ -10820,9 +10804,9 @@ def test_c_in_a_thread_reaches_that_threads_own_box(browser, serve):
     expect(page.locator(".lf-general textarea")).to_be_focused()
 
 
-def test_c_in_a_seated_conversation_reaches_the_thread_it_is_in(browser, serve):
-    """The page side of the same question. A widget that seats its own conversation
-    (`x-conversation`) holds one thread per exchange, each with its own box, and the
+def test_c_in_a_seated_thread_reaches_the_thread_it_is_in(browser, serve):
+    """The page side of the same question. A widget that seats its own thread
+    (`x-thread-seat`) holds one thread per exchange, each with its own box, and the
     user can stand in any of them — so "say something about this" means the box of the
     thread they are in, exactly as it does in the panel. One reading answers both, because
     a rule for the panel and a different one for the page is two answers to one question:
@@ -10833,7 +10817,7 @@ def test_c_in_a_seated_conversation_reaches_the_thread_it_is_in(browser, serve):
     so the pair is what makes the assertion mean anything. The first phase is the control
     — a decision beside the seat, where standing on the widget opens the composer on that
     widget, so a green below is the standing being read and not every press landing in a
-    conversation.
+    thread.
 
     The agent has answered both remarks, so each thread here is a whole exchange. Nothing
     in this test turns on that: the press reads where the user is standing rather than
@@ -10882,7 +10866,7 @@ def test_c_in_a_seated_conversation_reaches_the_thread_it_is_in(browser, serve):
 
     page = open_page(browser, url)
     line = page.locator(".lf-shortcut-bar")
-    threads = page.locator(".lf-conversation-thread")
+    threads = page.locator(".lf-page-thread")
     expect(threads).to_have_count(2)
 
     # The control: standing on a widget that seats nothing, so the press has no thread
@@ -10895,7 +10879,7 @@ def test_c_in_a_seated_conversation_reaches_the_thread_it_is_in(browser, serve):
     page.evaluate("() => document.activeElement?.blur()")
 
     # Standing in the second thread, the press means that thread's box.
-    second = page.locator(f'.lf-conversation-thread[data-thread="{said[1]}"]')
+    second = page.locator(f'.lf-page-thread[data-thread="{said[1]}"]')
     second.focus()
     expect(line).to_contain_text("comment on the thread")
     page.keyboard.press("c")

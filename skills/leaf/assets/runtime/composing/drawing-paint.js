@@ -1,6 +1,6 @@
 /* Passive replay of user drawings.
  *
- * Gesture capture supplies the active and draft drawings. Conversation presentation
+ * Gesture capture supplies the active and draft drawings. Thread presentation
  * supplies threads and readonly anchor placement. This module owns only SVG paint,
  * retained node identity, resize observation, and its scheduled geometry refresh.
  */

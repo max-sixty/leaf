@@ -229,7 +229,7 @@ def build_data() -> dict:
 
 
 def build_events() -> str:
-    """Carry the conversations embedded specimens explicitly depend on.
+    """Carry the threads embedded specimens explicitly depend on.
 
     The corpus otherwise starts undecided; composing every example's history would
     settle unrelated controls before the corpus can exercise them.
@@ -255,7 +255,7 @@ def build_events() -> str:
         # holds, because a served page may legitimately hold none of it yet.
         if unknown := selected - comment_ids(events):
             sys.exit(
-                f"{source.name} declares specimen conversations its log does not "
+                f"{source.name} declares specimen threads its log does not "
                 f"hold: {', '.join(sorted(unknown))}"
             )
         for event in specimen_events(document, events, selected):

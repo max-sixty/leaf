@@ -6,7 +6,7 @@ references. When an existing name disagrees with this glossary, change the name;
 not add an alias.
 
 This reference does not define the protocol between the page and its agent. Events,
-comments, conversations, replies, Asks, requests, receipts, activity, and their
+comments, threads, replies, Asks, requests, receipts, activity, and their
 lifecycles are owned by their protocol references.
 
 ## How to use the vocabulary
@@ -161,8 +161,8 @@ spine instead.
 | **Walk** | Ordered semantic movement among same-kind destinations |
 | **Trip** | One travel to a destination, a thread's passage, an Ask, or a datum: it clears the auxiliary surface hiding the destination, then stays when the user already has it or departs, leaving a history entry |
 | **Journey** | Consecutive trips each leaving from the last one's landing, which share one history entry so Back returns to where the first began; it may mix threads and Asks, and is not a walk |
-| **Standing** | Holding a destination or a control inside it: a conversation on the page or in the panel, an Ask, or authored page content. A panel thread's title and conversation are one destination. Chrome controls, margin markers, mark notes, and contents-outline links are apparatus rather than destinations |
-| **Standing target** | The addressable element a user stands at, from whichever side they hold it: the element or anything inside it, its margin cluster, or the thread card showing its conversations. The element is a conversation's parent, so the card shows while the user stands at its target and goes when they stand elsewhere on the page or let go. With Threads open, the list's expanded thread plays the card's part |
+| **Standing** | Holding a destination or a control inside it: a thread on the page or in the panel, an Ask, or authored page content. A panel thread's title and its messages are one destination. Chrome controls, margin markers, mark notes, and contents-outline links are apparatus rather than destinations |
+| **Standing target** | The addressable element a user stands at, from whichever side they hold it: the element or anything inside it, its margin cluster, or the thread card showing its threads. The element is a thread's parent, so the card shows while the user stands at its target and goes when they stand elsewhere on the page or let go. With Threads open, the list's expanded thread plays the card's part |
 | **Floor** | The place in a layer where the user stands on nothing: the page's body, the whole thread panel |
 | **Unwind** | What Escape takes off, read from what stands in front of the user rather than from how they reached it: the innermost step of the ladder `skills/leaf/assets/runtime/keyboard/AGENTS.md` states, with containment before kind, each landing them at the parent of what it closed |
 | **Landing** | Where a step leaves the user: a box at its container, a standing at its floor, a surface at the document, which is the block they are reading, focused and then blurred |

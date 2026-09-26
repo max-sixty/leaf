@@ -66,9 +66,6 @@ from .codex import (
     stream_reply_target,
     write_record,
 )
-from .conversation import (
-    delivery_reply_reserved,
-)
 from .delivery import ReceiptRefused, receive_batch, record_pickup
 from .detached import Handshake, start_detached
 from .event_log import flocked, read_cursor
@@ -89,6 +86,9 @@ from .service import (
     starting_claim,
 )
 from .session import Watch, read_watch_pass
+from .thread import (
+    delivery_reply_reserved,
+)
 
 QUEUE_TIMEOUT = 20
 APP_SERVER_ENV = "LEAF_CODEX_APP_SERVER"
@@ -140,7 +140,7 @@ class TaskObserver:
     turn is, and each notification goes to the fold of the turn it names. A fold
     binds a reply only for an App Server delivery whose follower is gone, because
     no follower of Leaf's ever will write it. A queued pointer's reply is not the
-    turn's to write: that delivery names a plain reply for `leaf reply`, so its
+    turn's to write: that delivery names a plain reply for `leaf thread reply`, so its
     turn is watched and opened on its pages but binds nothing.
 
     What is this carrier's own is the subscription. One connection outlives the

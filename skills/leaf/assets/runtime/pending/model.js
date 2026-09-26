@@ -2,14 +2,14 @@
 
    An entry stands here from the gesture until the log's receipt for its attempt has
    been accounted; `accounted` is that set of attempts. */
-import { PENDING } from "../conversation/identity.js";
+import { PENDING } from "../thread/identity.js";
 
-export const isConversationEvent = (event) =>
+export const isThreadEvent = (event) =>
   event.kind === "comment" || event.kind === "reply";
 
-export const isMessageEvent = (event) => isConversationEvent(event) && !event.token;
+export const isMessageEvent = (event) => isThreadEvent(event) && !event.token;
 
-export const conversationForAttempt = (event, timestamp) => ({
+export const threadForAttempt = (event, timestamp) => ({
   ...event,
   id: `${PENDING}${event.attempt}`,
   author: "user",
@@ -44,8 +44,8 @@ const pendingEvents = (entries, receipts, kinds) =>
 
 export const pendingReactions = (entries, receipts) =>
   unaccounted(entries, receipts)
-    .filter((entry) => entry.conversation?.token)
-    .map((entry) => entry.conversation);
+    .filter((entry) => entry.thread?.token)
+    .map((entry) => entry.thread);
 
 export const pendingSettlements = (entries, receipts) =>
   unaccounted(entries, receipts)

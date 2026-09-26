@@ -1850,7 +1850,7 @@ def test_one_chip_holds_every_short_fact(browser, serve):
 def test_long_chip_labels_stay_inside_a_narrow_column(browser, serve):
     """A long authored identifier must wrap inside each chip's own box, even when
     its containing column is narrower than the identifier's intrinsic width."""
-    label = "getConversationThreadPlacementForViewport"
+    label = "getMarginThreadCardPlacementForTheViewport"
     source = (
         CHIP_PAGE.replace("experimental", label)
         .replace("reversible", label)
@@ -2410,7 +2410,7 @@ def test_the_gutter_runs_beside_the_exhibit_and_no_further(source, browser, serv
     from PIL import Image  # a dev dependency already, for the demo recorder
 
     # Serve each example with its data and history: live specimens can select
-    # authored conversations as part of the exhibit.
+    # authored threads as part of the exhibit.
     page = open_page(browser, serve(source))
     scale = page.evaluate("() => devicePixelRatio")
     # Rendered, not merely present. A specimen inside a tab panel the page is not

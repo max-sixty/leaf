@@ -352,7 +352,7 @@
       "status"
     ],
     "x-upgrade": true,
-    "x-conversation": {
+    "x-thread-seat": {
       "when": {
         "talk": [
           true

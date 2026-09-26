@@ -21,13 +21,13 @@ from leaf.thread_context import (
 )
 
 
-def cmd_events(page_dir: Path, after: int, conversation: str | None = None) -> None:
+def cmd_events(page_dir: Path, after: int, thread: str | None = None) -> None:
     events = read_events(page_dir)
-    if conversation is not None:
+    if thread is not None:
         within = active_enclosing(page_dir)
         threads = build_threads(events, within)
-        if conversation not in threads:
-            sys.exit(f"unknown conversation id {conversation!r}")
+        if thread not in threads:
+            sys.exit(f"unknown thread id {thread!r}")
         roots = thread_roots(events)
         structure = thread_structure(events)
         memberships = thread_memberships(
@@ -36,7 +36,7 @@ def cmd_events(page_dir: Path, after: int, conversation: str | None = None) -> N
             thread_widgets(structure, roots),
             within,
         )
-        events = [event for event in events if conversation in memberships[event["id"]]]
+        events = [event for event in events if thread in memberships[event["id"]]]
     for event in events:
         if event["seq"] > after:
             print(jsonl_line(event))

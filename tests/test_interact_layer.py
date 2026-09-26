@@ -85,6 +85,7 @@ def test_cli_help_groups_commands_with_complete_summaries(regtest):
         "page": ["page", "--help"],
         "version": ["version", "--help"],
         "server": ["server", "--help"],
+        "thread": ["thread", "--help"],
     }
     outputs = []
 
@@ -131,13 +132,14 @@ def test_agent_interaction_command_help(regtest):
         "delivery claim",
         "delivery read",
         "page state",
-        "conversation read",
-        "conversation summarize",
-        "conversation title",
+        "thread read",
+        "thread summarize",
+        "thread title",
         "status",
-        "comment",
-        "reply",
-        "resolve",
+        "thread open",
+        "thread reply",
+        "thread edit",
+        "thread resolve",
         "experimental",
         "experimental receipt",
         "version check",
@@ -171,7 +173,7 @@ def test_reply_command_guides_selection_and_followup(claimed, server, regtest):
             text = text.replace(event_id, f"user-{number}")
         outputs.append(text)
 
-    record(["reply", str(page), "--text", "Answer"], 1)
+    record(["thread", "reply", str(page), "--text", "Answer"], 1)
     for text in ("Why this plan?", "What will it cost?"):
         code, response = fetch(
             f"{server}/api/event",
@@ -183,11 +185,11 @@ def test_reply_command_guides_selection_and_followup(claimed, server, regtest):
     assert delivery.exit_code == 0, delivery.output
     assert len(json.loads(delivery.output)["batches"][0]["events"]) == 2
     session_model.receive_delivery(json.loads(delivery.output)["id"])
-    record(["reply", str(page), "--text", "Answer"], 1)
-    record(["reply", str(page), "--to", ids[0], "--text", "Answer"], 1)
-    record(["reply", str(page), "--for", ids[0], "--text", "Answer"], 0)
-    record(["reply", str(page), "--for", ids[0], "--text", "Answer"], 1)
-    record(["reply", str(page), "--to", ids[0], "--text", "Follow-up"], 0)
+    record(["thread", "reply", str(page), "--text", "Answer"], 1)
+    record(["thread", "reply", str(page), "--to", ids[0], "--text", "Answer"], 1)
+    record(["thread", "reply", str(page), "--for", ids[0], "--text", "Answer"], 0)
+    record(["thread", "reply", str(page), "--for", ids[0], "--text", "Answer"], 1)
+    record(["thread", "reply", str(page), "--to", ids[0], "--text", "Follow-up"], 0)
     # A page reaction can close without an answer: it never owed a reply.
     code, response = fetch(
         f"{server}/api/event",
@@ -195,8 +197,8 @@ def test_reply_command_guides_selection_and_followup(claimed, server, regtest):
     )
     assert code == 200, response
     ids.append(events_model.read_events(page)[-1]["id"])
-    record(["reply", str(page), "--for", ids[-1], "--text", "Answer"], 1)
-    record(["resolve", str(page), "--to", ids[-1]], 0)
+    record(["thread", "reply", str(page), "--for", ids[-1], "--text", "Answer"], 1)
+    record(["thread", "resolve", str(page), "--to", ids[-1]], 0)
     regtest.write("\n".join(outputs).encode("ascii", "backslashreplace").decode())
 
 
@@ -418,25 +420,26 @@ def test_a_command_that_succeeds_says_what_it_did(tmp_path, monkeypatch):
     assert bare.output == "waiting\n"
 
     opened = runner.invoke(
-        cli_model.cli, ["comment", "--json", str(page_dir), "--text", "which store?"]
+        cli_model.cli,
+        ["thread", "open", "--json", str(page_dir), "--text", "which store?"],
     )
     assert opened.exit_code == 0, opened.output
     root = json.loads(opened.output)["id"]
 
     # The thread a bare `comment` names is the one every later command addresses.
     named = runner.invoke(
-        cli_model.cli, ["comment", str(page_dir), "--text", "and the cache?"]
+        cli_model.cli, ["thread", "open", str(page_dir), "--text", "and the cache?"]
     )
     assert named.exit_code == 0, named.output
     cached = events_model.read_events(page_dir)[-1]["id"]
     assert named.output == (
         f"opened thread {cached}\n"
-        f'name it: leaf conversation title {page_dir} {cached} --text "<a few words>"\n'
+        f'name it: leaf thread title {page_dir} {cached} --text "<a few words>"\n'
     )
 
     replied = runner.invoke(
         cli_model.cli,
-        ["reply", str(page_dir), "--to", root, "--text", "sqlite"],
+        ["thread", "reply", str(page_dir), "--to", root, "--text", "sqlite"],
     )
     assert replied.exit_code == 0, replied.output
     assert replied.output == f"replied in {root}\n"
@@ -445,6 +448,7 @@ def test_a_command_that_succeeds_says_what_it_did(tmp_path, monkeypatch):
     followed = runner.invoke(
         cli_model.cli,
         [
+            "thread",
             "reply",
             "--json",
             str(page_dir),
@@ -458,6 +462,7 @@ def test_a_command_that_succeeds_says_what_it_did(tmp_path, monkeypatch):
     under = runner.invoke(
         cli_model.cli,
         [
+            "thread",
             "reply",
             str(page_dir),
             "--to",
@@ -477,7 +482,9 @@ def test_a_command_that_succeeds_says_what_it_did(tmp_path, monkeypatch):
     assert working.output == f"working on {root} — reading the traces\n"
 
     # Resolve takes any message in the thread and names the thread it closed.
-    closed = runner.invoke(cli_model.cli, ["resolve", str(page_dir), "--to", cached])
+    closed = runner.invoke(
+        cli_model.cli, ["thread", "resolve", str(page_dir), "--to", cached]
+    )
     assert closed.exit_code == 0, closed.output
     assert closed.output == f"resolved {cached}\n"
 
@@ -512,7 +519,7 @@ def test_init_help_names_the_source_revision_and_version_layout():
     "args",
     [
         ["version", "check", "page", "--render"],
-        ["reply", "page", "--to", "c1", "--for", "c1", "--text", "export"],
+        ["thread", "reply", "page", "--to", "c1", "--for", "c1", "--text", "export"],
     ],
 )
 def test_shim_dispatches_every_command_through_one_uv_run(tmp_path, monkeypatch, args):
@@ -642,7 +649,7 @@ def test_claude_and_codex_load_the_same_plugin_payload():
         "skills/leaf/references/authoring-revisions.md",
         "skills/leaf/references/codex-watcher.md",
         "skills/leaf/references/conversation-loop.md",
-        "skills/leaf/references/conversation-threads.md",
+        "skills/leaf/references/threads.md",
         "skills/leaf/references/event-batches.md",
         "skills/leaf/references/host-claude-code.md",
         "skills/leaf/references/host-codex.md",

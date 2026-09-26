@@ -1,4 +1,4 @@
-/* Landing the user in a conversation: which node a reveal shows, and where focus
+/* Landing the user in a thread: which node a reveal shows, and where focus
    goes.
 
    `showThread` reveals a directly requested thread or message. It clears a narrowing
@@ -17,13 +17,13 @@
    thread while an open one stays selected. An accepted anchored comment continues
    in the open Threads panel, widening a filter that would hide it.
 
-   `backFromBox` and `standingConversation` climb the same conversation relation, so
+   `backFromBox` and `standingThread` climb the same thread relation, so
    “comment on the thread” going in and “back to thread” coming out name one element. It
    answers for every arrival — a keyboard command, a Tab, a pointer — because a box's way
-   out is the conversation it belongs to whichever of them put the user in it, and the
+   out is the thread it belongs to whichever of them put the user in it, and the
    panel's own general box hands back to the Threads list. A page-owned first-message seat
    has no standing place of its own; a widget control that explicitly enters its box
-   supplies the caller-owned return target through `landInConversation`. */
+   supplies the caller-owned return target through `landInThread`. */
 import { landingBand, shownBox } from "../geometry.js";
 import { documentFocused, focused } from "../keyboard/scopes.js";
 import { takesLetters } from "../focus.js";
@@ -42,9 +42,9 @@ import { focusedThread, focusThread } from "./focus.js";
 import { threadSearchActive } from "./narrowing.js";
 
 export { SAY_BOX } from "./selectors.js";
-const conversationReturns = new WeakMap();
+const threadReturns = new WeakMap();
 
-// Keep a whole conversation in view when it fits. A long thread reveals its reply
+// Keep a whole thread in view when it fits. A long thread reveals its reply
 // area, including Send and Resolve; an oversized editor reveals only its control.
 // scrollIntoView(nearest) on a card spanning both edges otherwise moves nothing.
 const landingTarget = (held, control) => {
@@ -60,7 +60,7 @@ const landingTarget = (held, control) => {
     : control;
 };
 
-export function revealConversation(
+export function scrollThreadIntoView(
   held,
   control,
   behavior = scrollBehavior(),
@@ -72,7 +72,7 @@ export function revealConversation(
   });
 }
 
-const conversationInputOf = (held) => {
+const threadInputOf = (held) => {
   const box = held?.querySelector(SAY_BOX);
   return box && (shownBox(box).height || box.lfRevealReply) ? box : null;
 };
@@ -107,40 +107,40 @@ const threadLandingStart = (held, target, threadsBox) => {
   return candidates[0]?.node ?? target;
 };
 
-export function conversationInput(node) {
+export function threadInput(node) {
   const held = node && closestAcross(node, SAYS_IN);
-  return conversationInputOf(held);
+  return threadInputOf(held);
 }
 
-const heldConversation = () => focused() && closestAcross(focused(), SAYS_IN);
-export const standingConversation = () => {
-  const held = heldConversation();
-  const box = conversationInputOf(held);
+const heldThreadOrSeat = () => focused() && closestAcross(focused(), SAYS_IN);
+export const standingThread = () => {
+  const held = heldThreadOrSeat();
+  const box = threadInputOf(held);
   return box ? { held, box } : null;
 };
-const backFromConversation = (box) => conversationReturns.get(box) ?? null;
+const backFromThread = (box) => threadReturns.get(box) ?? null;
 
 // Where a box hands the user back, however they reached it. This once asked only for
-// `.lf-thread` and the panel, so the two boxes outside the chrome — a conversation seated
+// `.lf-thread` and the panel, so the two boxes outside the chrome — a thread seated
 // on the page, and each thread on that seat — had no relation to return through. The climb
-// is `heldConversation`'s, the same relation contextual `c` uses when it names a thread.
+// is `heldThreadOrSeat`'s, the same relation contextual `c` uses when it names a thread.
 //
 // A seat holding no thread yet has no standing place of its own. A widget control that
 // explicitly sends the user into that box can supply its own return through
-// `landInConversation`; a visit reached by Tab still falls through to the page's "let go".
+// `landInThread`; a visit reached by Tab still falls through to the page's "let go".
 // Otherwise the question is "can the user be put here", rather than a list of which two
 // containers happen to be focusable — which is also why a seat that `reachScrollers` makes
 // focusable, having grown a scrollbar and no focusable child, becomes a rung without anyone
 // editing this: the question is the same one, and the answer moved.
 function backFromBox() {
-  const held = heldConversation();
-  if (held?.matches(".lf-thread, .lf-conversation-thread"))
+  const held = heldThreadOrSeat();
+  if (held?.matches(".lf-thread, .lf-page-thread"))
     return { target: held, line: "back to thread" };
-  const route = backFromConversation(focused());
+  const route = backFromThread(focused());
   return route?.target?.isConnected ? route : null;
 }
 // Whether the box the user is typing in has somewhere to hand them back: the
-// conversation it belongs to, or the panel's list where it is the chrome's own box. The
+// thread it belongs to, or the panel's list where it is the chrome's own box. The
 // page's standing scope asks the same question, since a box with nowhere to go back to
 // is a control the user is standing on, theirs to let go of.
 export const boxHandsBack = () =>
@@ -166,7 +166,7 @@ pageScope("text entry", {
       keys: ["Escape"],
       does: "Leave the box, keeping what is typed",
       line: () => backFromBox()?.line ?? "back to list",
-      // The conversation the box belongs to, or the panel's list where it is the chrome's
+      // The thread the box belongs to, or the panel's list where it is the chrome's
       // own box. A page textarea that is neither leaves the row dead and the page's rung
       // standing, which is the honest answer: nothing there to go back to.
       when: boxHandsBack,
@@ -174,8 +174,7 @@ pageScope("text entry", {
         const back = backFromBox();
         document.activeElement.blur();
         const target = back?.target ?? threadsBox;
-        if (target.matches?.(".lf-thread, .lf-conversation-thread"))
-          focusThread(target);
+        if (target.matches?.(".lf-thread, .lf-page-thread")) focusThread(target);
         else target.focus();
       },
     },
@@ -189,13 +188,13 @@ pageScope("text entry", {
 // own to lose. The reopen button tells the two states apart; absent a thread, the reference
 // describes the open state users first meet.
 const heldThread = () =>
-  documentFocused()?.closest(".lf-thread, .lf-conversation-thread") ?? null;
+  documentFocused()?.closest(".lf-thread, .lf-page-thread") ?? null;
 const resolutionControl = (thread) =>
   thread?.querySelector(
     ":scope .lf-thread-meta-actions > .lf-resolve, " +
       ":scope .lf-thread-meta-actions > .lf-reopen, " +
       ":scope > .lf-thread-actions > .lf-reopen, " +
-      ":scope > .lf-conversation-resolved .lf-reopen",
+      ":scope > .lf-page-thread-resolved .lf-reopen",
   ) ?? null;
 
 function prepareLanding({ held = null, box, route = null }) {
@@ -206,13 +205,13 @@ function prepareLanding({ held = null, box, route = null }) {
       !route.line.trim())
   )
     throw new TypeError(
-      "landInConversation return route needs an element target and a non-empty line",
+      "landInThread return route needs an element target and a non-empty line",
     );
   held ??= box && closestAcross(box, SAYS_IN);
   if (!held) return false;
   if (route && !held.hasAttribute("tabindex")) {
-    conversationReturns.set(box, route);
-    box.addEventListener("blur", () => conversationReturns.delete(box), {
+    threadReturns.set(box, route);
+    box.addEventListener("blur", () => threadReturns.delete(box), {
       once: true,
     });
   }
@@ -226,10 +225,10 @@ const retainLanding = (source, available, fallback = null) => {
 export const retainPanelLanding = (source, panelIsOpen) =>
   retainLanding(source, panelIsOpen, threadsBox);
 
-// A candidate can remove the user's direct conversation box before a later renderer
-// refuses that state. Restore the same logical conversation and caret after its prior
+// A candidate can remove the user's direct thread box before a later renderer
+// refuses that state. Restore the same logical thread and caret after its prior
 // view is reconciled, unless a newer user gesture has taken over.
-export function retainConversationFocus(panelIsOpen) {
+export function retainThreadFocus(panelIsOpen) {
   const input = focused();
   const held = input && closestAcross(input, SAYS_IN);
   if (!held || held.querySelector(SAY_BOX) !== input) return () => {};
@@ -243,17 +242,15 @@ export function retainConversationFocus(panelIsOpen) {
         .querySelector(`.lf-thread[data-id="${CSS.escape(id)}"]`)
         ?.querySelector(SAY_BOX);
     mayLand = retainPanelLanding(held, panelIsOpen);
-  } else if (held.matches(".lf-conversation-thread")) {
+  } else if (held.matches(".lf-page-thread")) {
     const host = held.parentElement;
     const id = held.dataset.thread;
     restoredInput = () =>
       host
-        .querySelector(
-          `:scope > .lf-conversation-thread[data-thread="${CSS.escape(id)}"]`,
-        )
+        .querySelector(`:scope > .lf-page-thread[data-thread="${CSS.escape(id)}"]`)
         ?.querySelector(SAY_BOX);
     mayLand = retainLanding(held, () => host.isConnected);
-  } else if (held.matches(".lf-conversation")) {
+  } else if (held.matches(".lf-thread-seat")) {
     restoredInput = () => held.querySelector(SAY_BOX);
     mayLand = retainLanding(held, () => held.isConnected);
   } else return () => {};
@@ -315,7 +312,7 @@ let pressedPointer = null;
 const standing = () => focused()?.closest?.(".lf-thread");
 const land = (thread, behavior) => {
   if (thread && threadsBox.contains(thread))
-    revealConversation(thread, focused(), behavior);
+    scrollThreadIntoView(thread, focused(), behavior);
 };
 // The primary pointer owns the provisional landing until that same gesture ends. A
 // cancellation means the browser took it for something else — commonly a touch scroll —
@@ -413,7 +410,7 @@ async function showThreadNow(id, focus, revealThread) {
       focus === "thread"
         ? thread
         : node === thread
-          ? (conversationInputOf(thread) ?? thread)
+          ? (threadInputOf(thread) ?? thread)
           : node;
     if (destination === thread) focusThread(thread, { preventScroll: true });
     else destination.focus({ preventScroll: true });
@@ -457,24 +454,24 @@ export function accompanyThread(ids) {
   });
 }
 
-export function createConversationLanding({ setPanel, scrollToThread, revealThread }) {
+export function createThreadLanding({ setPanel, scrollToThread, revealThread }) {
   const landIn = (destination) => {
     const prepared = prepareLanding(destination);
     if (!prepared) return false;
     const { held, box } = prepared;
     box.lfRevealReply?.();
     box.focus({ preventScroll: true });
-    revealConversation(held, box);
-    // The page half follows the conversation the user is in, and keeps the surface
+    scrollThreadIntoView(held, box);
+    // The page half follows the thread the user is in, and keeps the surface
     // holding it rather than clearing it for the passage.
     if (held.dataset.id) scrollToThread(held.dataset.id, { keep: true });
     return true;
   };
-  const landInConversation = (box, route = null) => landIn({ box, route });
+  const landInThread = (box, route = null) => landIn({ box, route });
   const showThread = (id, { focus = "reply" } = {}) => {
     setPanel(true);
     const ready = showThreadNow(id, focus, revealThread);
-    // Pointer and keyboard routes deliberately discard this ticket. The conversation
+    // Pointer and keyboard routes deliberately discard this ticket. The thread
     // coordinator reports its one failure; the landing result keeps that rejection out
     // of both discarded event-handler promises and callers that continue a delivery.
     return ready.then(
@@ -482,7 +479,7 @@ export function createConversationLanding({ setPanel, scrollToThread, revealThre
       () => false,
     );
   };
-  return { landIn, landInConversation, showThread };
+  return { landIn, landInThread, showThread };
 }
 
 /** Declare a thread's own keys against the landing the page is using.
@@ -510,7 +507,7 @@ export function declareThreadKeys(landIn, read) {
             ? "reopen"
             : "reply",
         when: () =>
-          Boolean(conversationInput(focusedThread())) ||
+          Boolean(threadInput(focusedThread())) ||
           resolutionControl(focusedThread())?.matches(
             '.lf-reopen:not(:disabled, [aria-disabled="true"])',
           ),
@@ -522,7 +519,7 @@ export function declareThreadKeys(landIn, read) {
             ? resolutionControl(thread)
             : null;
           if (reopen) reopen.click();
-          else landIn({ held: thread, box: conversationInput(thread) });
+          else landIn({ held: thread, box: threadInput(thread) });
         },
       },
       {

@@ -1167,7 +1167,7 @@ OFFLINE_REGISTRY = {
 def test_interactive_export_with_an_ask_reaches_application_presentation(
     browser, serve, tmp_path
 ):
-    """Offline mode omits conversation chrome without leaving its ticket pending."""
+    """Offline mode omits thread chrome without leaving its ticket pending."""
     serve(ROOT / "examples" / "notification-playground.html")
     interactive = tmp_path / "interactive-with-ask.html"
     result = CliRunner().invoke(
@@ -1735,7 +1735,7 @@ def test_inline_threads_keep_their_words_without_live_controls_in_print(
             serve.page_dir,
             {"kind": "resolve", "author": "user", "parent": root["id"]},
         )
-    selector = f'lf-diff .lf-conversation-thread[data-thread="{root["id"]}"]'
+    selector = f'lf-diff .lf-page-thread[data-thread="{root["id"]}"]'
     live = open_page(browser, url)
     thread = live.locator(selector)
     expect(thread).to_have_count(1)
@@ -1758,7 +1758,7 @@ def test_inline_threads_keep_their_words_without_live_controls_in_print(
             workflow_face
         )
     live.emulate_media(media="print")
-    expect(thread.locator(".lf-conversation-body")).to_be_visible()
+    expect(thread.locator(".lf-page-thread-body")).to_be_visible()
     assert (
         thread.locator(
             "button:visible, textarea:visible, .lf-msg-sending:visible"

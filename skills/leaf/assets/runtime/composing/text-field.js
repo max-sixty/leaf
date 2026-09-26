@@ -7,7 +7,10 @@
  * asterisks, brackets, hashes) is hidden unless the selection touches the construct, so
  * the user sees their words rendered and can still reach every character they typed.
  * Nothing is converted: the value is always the source the user typed, which is what
- * the agent reads and what `marked` renders once the message is sent.
+ * the agent reads. The constructs come from the renderer that sends the message
+ * (`markdownTokens`), never from a second grammar, so the preview and the message agree
+ * on what is a link, a heading or code. CodeMirror's own Markdown grammar serves only
+ * editing: Shift+Enter continuing a list.
  *
  * Focus is the field's own, as a textarea's is. `focus()` puts the user in the words
  * with the caret where it stood, `blur()` takes them out, and a press anywhere in the
@@ -57,12 +60,11 @@ import {
   history,
   standardKeymap,
   historyKeymap,
-  syntaxTree,
   markdownLanguage,
   insertNewlineContinueMarkup,
 } from "../../vendor/codemirror.esm.js";
 import { TEXT_FIELD } from "../focus.js";
-import { loadMarkdown, markdownReady, rendersLink } from "../markdown.js";
+import { loadMarkdown, markdownReady, markdownTokens } from "../markdown.js";
 
 const sheet = new CSSStyleSheet();
 sheet.replaceSync(`
@@ -104,149 +106,115 @@ const fieldTheme = EditorView.theme({
   ".cm-line": { padding: "0" },
 });
 
-// The inline constructs whose syntax hides away from the selection, and the class
-// their content wears. A mark child is hidden; everything else in the node is styled.
-const INLINE = {
-  InlineCode: { cls: "lf-md-code", marks: ["CodeMark"] },
-  Emphasis: { cls: "lf-md-em", marks: ["EmphasisMark"] },
-  StrongEmphasis: { cls: "lf-md-strong", marks: ["EmphasisMark"] },
-  Strikethrough: { cls: "lf-md-strike", marks: ["StrikethroughMark"] },
-};
 const hide = Decoration.replace({});
 const dim = Decoration.mark({ class: "lf-md-mark" });
 const marked = (cls) => Decoration.mark({ class: cls });
 const line = (cls) => Decoration.line({ class: cls });
+
+// The inline constructs the preview styles, by the renderer's token type.
+const INLINE = {
+  codespan: "lf-md-code",
+  em: "lf-md-em",
+  strong: "lf-md-strong",
+  del: "lf-md-strike",
+};
 
 // Whether the selection touches [from, to], ends included: the caret standing just
 // after a closing backtick still reveals it, so the user can delete what they see.
 const touches = (state, from, to) =>
   state.selection.ranges.some((range) => range.from <= to && range.to >= from);
 
-// A reference label's matching key, as CommonMark folds it.
-const labelKey = (label) =>
-  label
-    .replace(/^\[|\]$/g, "")
-    .trim()
-    .replace(/\s+/g, " ")
-    .toLowerCase();
-
-// The draft's link reference definitions, as source, first one per label winning, so
-// `[words][id]` and `[id]` go to the renderer with the definition they name.
-function definitions(state) {
-  const found = new Map();
-  syntaxTree(state).iterate({
-    enter: (node) => {
-      if (node.name !== "LinkReference") return;
-      const label = node.node.getChild("LinkLabel");
-      if (label) {
-        const key = labelKey(state.doc.sliceString(label.from, label.to));
-        if (!found.has(key)) found.set(key, state.doc.sliceString(node.from, node.to));
-      }
-      return false;
-    },
-  });
+// Where each token the renderer read stands in the draft. A token's `raw` is its exact
+// source, so each is found at or after the one before it. A container that rewrites
+// what it holds (a quote or a list strips its markers) is not found whole; its inner
+// tokens are then found one by one.
+function place(source, tokens, from, found) {
+  let at = from;
+  for (const token of tokens) {
+    const start = token.raw ? source.indexOf(token.raw, at) : -1;
+    if (start >= 0) found.push({ token, from: start, to: start + token.raw.length });
+    for (const inner of [token.tokens, token.items])
+      if (inner) place(source, inner, Math.max(start, at), found);
+    if (start >= 0) at = start + token.raw.length;
+  }
   return found;
 }
 
-function decorate(view) {
-  const { state } = view;
+// The draft as the renderer reads it, placed. Empty until the renderer has loaded.
+const read = (state) => {
+  const source = state.doc.toString();
+  const tokens = markdownTokens(source);
+  return tokens ? place(source, tokens, 0, []) : [];
+};
+
+function decorate(state, placed) {
   const out = [];
-  const add = (from, to, deco) => from < to && out.push(deco.range(from, to));
-  const slice = (node) => state.doc.sliceString(node.from, node.to);
-  let defined = null;
-  // A link as the renderer will read it: its own source, with the definition its label
-  // (or, for `[id]` and `[id][]`, its words) names. Null where it names no destination,
-  // which leaves its brackets as text once sent.
-  const linkSource = (link, marks) => {
-    if (link.getChild("URL")) return slice(link);
-    defined ??= definitions(state);
-    const label = link.getChild("LinkLabel");
-    const key =
-      label && slice(label) !== "[]"
-        ? slice(label)
-        : state.doc.sliceString(marks[0].to, marks[1].from);
-    const definition = defined.get(labelKey(key));
-    return definition === undefined ? null : `${slice(link)}\n\n${definition}`;
+  const add = (from, to, deco) => {
+    if (from >= to) return;
+    // A hidden range may not hold a line break; such syntax stays drawn.
+    if (deco === hide && state.doc.sliceString(from, to).includes("\n")) deco = dim;
+    out.push(deco.range(from, to));
   };
-  const links = (source) => rendersLink(source) === true;
-  for (const { from, to } of view.visibleRanges) {
-    syntaxTree(state).iterate({
-      from,
-      to,
-      enter: (node) => {
-        const name = node.name;
-        const active = touches(state, node.from, node.to);
-        const inline = INLINE[name];
-        if (inline) {
-          add(node.from, node.to, marked(inline.cls));
-          for (const mark of node.node.getChildren(inline.marks[0]))
-            add(mark.from, mark.to, active ? dim : hide);
-          return;
-        }
-        // A link is drawn as one exactly where the sent message has one: the renderer
-        // decides, so a destination it drops (`javascript:`) leaves plain words here too.
-        // An image's or a definition's destination is no link.
-        if (name === "Image" || name === "LinkReference") return false;
-        if (name === "URL") {
-          // A bare address, which the renderer makes a link.
-          if (links(slice(node))) add(node.from, node.to, marked("lf-md-link"));
-          return;
-        }
-        if (name === "Link" || name === "Autolink") {
-          // `[words](url)`, `[words][id]` and `<url>`: the words, or the address, are the
-          // link; the brackets, destination and label are syntax, shown only while the
-          // selection is in the link. Brackets that resolve to no destination (`[1]`,
-          // `array[0]`) are no link once sent, so none here. A destination on the next
-          // line keeps its syntax drawn: a hidden range may not hold a line break.
-          const marks = node.node.getChildren("LinkMark");
-          if (marks.length < 2) return false;
-          const source =
-            name === "Autolink" ? slice(node) : linkSource(node.node, marks);
-          if (source === null) return false;
-          if (name === "Autolink") {
-            if (links(source)) add(marks[0].to, marks[1].from, marked("lf-md-link"));
-            add(marks[0].from, marks[0].to, active ? dim : hide);
-            add(marks[1].from, marks[1].to, active ? dim : hide);
-            return false;
-          }
-          if (links(source)) add(marks[0].to, marks[1].from, marked("lf-md-link"));
-          const oneLine =
-            state.doc.lineAt(marks[1].from).number === state.doc.lineAt(node.to).number;
-          const syntax = active || !oneLine ? dim : hide;
-          add(marks[0].from, marks[0].to, syntax);
-          add(marks[1].from, node.to, syntax);
-          return false;
-        }
-        if (/^ATXHeading\d$/.test(name)) {
-          out.push(line("lf-md-heading").range(state.doc.lineAt(node.from).from));
-          const mark = node.node.getChild("HeaderMark");
-          // The hash and the space after it.
-          if (mark) add(mark.from, Math.min(mark.to + 1, node.to), active ? dim : hide);
-          return;
-        }
-        if (name === "FencedCode") {
-          for (let at = node.from; at <= node.to;) {
-            const each = state.doc.lineAt(at);
-            out.push(line("lf-md-code-block").range(each.from));
-            at = each.to + 1;
-          }
-          for (const mark of node.node.getChildren("CodeMark"))
-            add(mark.from, mark.to, dim);
-          const info = node.node.getChild("CodeInfo");
-          if (info) add(info.from, info.to, dim);
-          return false;
-        }
-        if (name === "Blockquote") {
-          for (let at = node.from; at <= node.to;) {
-            const each = state.doc.lineAt(at);
-            out.push(line("lf-md-quote").range(each.from));
-            at = each.to + 1;
-          }
-          return;
-        }
-        if (name === "QuoteMark" || name === "ListMark") add(node.from, node.to, dim);
-      },
-    });
+  const lines = (from, to, each) => {
+    for (let at = from; at < to;) {
+      const current = state.doc.lineAt(at);
+      each(current);
+      at = current.to + 1;
+    }
+  };
+  for (const { token, from, to } of placed) {
+    const syntax = touches(state, from, to) ? dim : hide;
+    // The part of a construct that is its content, the rest being its syntax.
+    const content = () => {
+      const inner = token.tokens?.map((t) => t.raw).join("") ?? token.text;
+      const open = token.raw.indexOf(inner);
+      return open < 0 ? null : [from + open, from + open + inner.length];
+    };
+    if (INLINE[token.type]) {
+      const words = content();
+      if (!words) continue;
+      add(from, to, marked(INLINE[token.type]));
+      add(from, words[0], syntax);
+      add(words[1], to, syntax);
+    } else if (token.type === "link") {
+      // `[words](url)`, `[words][id]`, `<url>` and a bare address. The renderer has
+      // already said whether it kept the link (`linked`); one it refused sends its words
+      // alone, so its syntax steps aside all the same.
+      const words = content();
+      if (!words) continue;
+      if (token.linked) add(words[0], words[1], marked("lf-md-link"));
+      add(from, words[0], syntax);
+      add(words[1], to, syntax);
+    } else if (token.type === "heading") {
+      const end = from + token.raw.trimEnd().length;
+      const atx = token.raw.match(/^ {0,3}#{1,6}(?:[ \t]+|$)/);
+      lines(from, end, (each) => {
+        const underline = !atx && each.to >= end;
+        if (underline) add(each.from, each.to, dim);
+        else out.push(line("lf-md-heading").range(each.from));
+      });
+      if (atx) add(from, from + atx[0].length, syntax);
+    } else if (token.type === "code") {
+      const end = from + token.raw.trimEnd().length;
+      const fenced = /^ {0,3}(`{3,}|~{3,})/.test(token.raw);
+      lines(from, end, (each) => {
+        out.push(line("lf-md-code-block").range(each.from));
+        if (
+          fenced &&
+          (each.from === from || /^ {0,3}(`{3,}|~{3,})\s*$/.test(each.text))
+        )
+          add(each.from, each.to, dim);
+      });
+    } else if (token.type === "blockquote") {
+      lines(from, from + token.raw.trimEnd().length, (each) => {
+        out.push(line("lf-md-quote").range(each.from));
+        const mark = each.text.match(/^ {0,3}> ?/);
+        if (mark) add(each.from, each.from + mark[0].length, dim);
+      });
+    } else if (token.type === "list_item") {
+      const mark = token.raw.match(/^ {0,3}(?:[*+-]|\d{1,9}[.)])/);
+      if (mark) add(from, from + mark[0].length, dim);
+    }
   }
   return Decoration.set(out, true);
 }
@@ -261,34 +229,33 @@ const pastesPicture = EditorView.domEventHandlers({
     ),
 });
 
-// Links are the renderer's to judge, and it loads lazily: until it has, none is drawn,
-// and its arrival redraws every open field.
+// The draft is read by the renderer that will send it, so the preview styles exactly what
+// the message will: the same constructs, the same links. The reading is taken again when
+// the words change and the styling when the selection moves. The renderer loads lazily;
+// until it has, the words stand plain, and its arrival draws every open field.
 const livePreview = ViewPlugin.fromClass(
   class {
     constructor(view) {
-      this.decorations = decorate(view);
+      this.live = true;
+      this.placed = read(view.state);
+      this.decorations = decorate(view.state, this.placed);
       this.judged = markdownReady();
       if (!this.judged)
         loadMarkdown().then(
           () => this.live && view.dispatch({}),
           () => {},
         );
-      this.live = true;
     }
     destroy() {
       this.live = false;
     }
     update(update) {
-      if (
-        this.judged !== markdownReady() ||
-        update.docChanged ||
-        update.selectionSet ||
-        update.viewportChanged ||
-        syntaxTree(update.state) !== syntaxTree(update.startState)
-      ) {
-        this.judged = markdownReady();
-        this.decorations = decorate(update.view);
-      }
+      const judged = markdownReady();
+      if (update.docChanged || judged !== this.judged) {
+        this.judged = judged;
+        this.placed = read(update.state);
+      } else if (!update.selectionSet) return;
+      this.decorations = decorate(update.state, this.placed);
     }
   },
   { decorations: (plugin) => plugin.decorations },

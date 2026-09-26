@@ -200,7 +200,7 @@ def build_codemirror(work: Path) -> list[Path]:
             'export { EditorState, Compartment } from "@codemirror/state";\n'
             "export { history, standardKeymap, historyKeymap }"
             ' from "@codemirror/commands";\n'
-            'export { syntaxTree, LanguageSupport } from "@codemirror/language";\n'
+            'export { LanguageSupport } from "@codemirror/language";\n'
             "export { markdownLanguage, insertNewlineContinueMarkup }"
             ' from "@codemirror/lang-markdown";\n'
         ),

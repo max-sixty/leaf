@@ -5,8 +5,10 @@
    a card shows its turns and its root, so a
    thread that grew out of a reaction opens on the mark, whose body
    thread/messages.js writes as the glyph and its word. Whose turn a thread is
-   (`awaitsUser`, `awaitsAgent`) is read from the complete browser Thread: user
-   attention is canonical, while agent work can remain concurrent with it. */
+   (`awaitsUser`, `awaitsAgent`) is read from the complete browser Thread's
+   `attention` and nothing else, so a filter and the card it lists agree: a user
+   obligation outranks concurrent agent work, which stays the card's secondary
+   status. */
 import { sameAnchor } from "../anchor-coordinate.js";
 import { PENDING } from "./identity.js";
 
@@ -40,10 +42,10 @@ const pendingSeat = (message) =>
 // state. They leave again when the server accepts or refuses them, so this is a reading
 // of the same outbox and log the server projects rather than a second store beside it.
 //
-// The derived facts a pending thread carries are the ones the user just made true: the
-// agent owes the next word, the user owes none, and a thread the user opened with
-// words is a thread rather than a mark. Its attention waits on the newest send,
-// whose local workflow shares the pending message's id; every other thread keeps the
+// The derived facts a pending thread carries are the ones the user just made true: a
+// thread the user opened with words is a thread rather than a mark, and its attention
+// waits on the newest send, whose local workflow shares the pending message's id, so
+// the agent owes the next word and the user none. Every other thread keeps the
 // attention the server derived.
 const sending = (message) => ({
   kind: "waiting",
@@ -76,8 +78,6 @@ export function foldThreads(threads, messages, reactions, settlements) {
       anchor: root.anchor ?? null,
       msgs: [root],
       resolved: null,
-      awaits_agent: !reaction,
-      awaits_user: false,
       bare_reaction: reaction,
       seat: pendingSeat(root),
       unread: [],
@@ -92,15 +92,12 @@ export function foldThreads(threads, messages, reactions, settlements) {
     thread.msgs.push(reply);
     if (!isReaction(reply)) {
       thread.resolved = null;
-      thread.awaits_agent = true;
-      thread.awaits_user = false;
       thread.attention = sending(reply);
     }
   }
   for (const thread of opened) {
     const said = spoken(thread);
     thread.bare_reaction = isReaction(thread.root) && !said.length;
-    thread.awaits_agent = Boolean(said.length);
     thread.attention = said.length ? sending(said.at(-1)) : null;
   }
   for (const settlement of settlements) {
@@ -130,7 +127,8 @@ export const reactionsAt = (threads, anchor) =>
     )
     .map((thread) => thread.root);
 
-export const awaitsAgent = (thread) => thread.awaits_agent;
+export const awaitsAgent = (thread) =>
+  !thread.resolved && thread.attention?.kind === "waiting";
 export const awaitsUser = (thread) =>
   !thread.resolved && thread.attention?.kind === "needs_user";
 export const seatRoot = (thread) => thread.seat;
@@ -281,8 +279,6 @@ export function readThreadRecords(
       detached_from: thread.detached_from ?? null,
       resolved: thread.resolved ?? null,
       settling: thread.settling ?? null,
-      awaits_agent: thread.awaits_agent,
-      awaits_user: thread.awaits_user,
       user_prompt: thread.user_prompt ?? null,
       attention: thread.attention ?? null,
       workflows: threadWorkflows,

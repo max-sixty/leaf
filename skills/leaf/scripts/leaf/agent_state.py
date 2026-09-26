@@ -3,41 +3,23 @@
 import json
 from pathlib import Path
 
-from .asks import thread_ask_readings
 from .construction import constructed_content
-from .data import data_errors, read_data
+from .data import data_errors
 from .data_contracts import measurement_lag_entries, page_data_binding_inventory
-from .document_reading import DocumentReading, read_document
-from .events import (
-    active_summaries,
-    bare_reaction,
-    build_threads,
-    document_identity,
-    is_reaction,
-)
-from .files import (
-    active_descriptor,
-    revision_path,
-    version_descriptors,
-)
-from .passages import enclosing_of, page_passages
-from .projection import (
-    FrozenThreadReading,
-    canonical_updates,
-    frozen_thread_reading,
-    page_reading,
-    retirement_outcomes,
-)
-from .read_state import unread_content
+from .document_reading import DocumentReading
+from .events import bare_reaction, is_reaction
+from .files import revision_path
+from .passages import page_passages
+from .projection import FrozenThreadReading, retirement_outcomes
 from .registry.reactions import described
 from .registry.storage import layer_metadata, require_registry
-from .requests import request_lifecycles, request_lifecycles_for, request_phases
+from .requests import request_lifecycles
 from .revisioning import activate_source
 from .schema import DATA_DIR, DATA_FILE
-from .served_state.page import full_state
+from .served_state.page import read_served_page
 from .server import running_server
 from .service import PageTransaction, unacknowledged
-from .structure import SourceDocument, parse_revision
+from .structure import SourceDocument
 
 
 def standing_entry(coordinate, e: dict, thread: str | None = None) -> dict:
@@ -84,31 +66,6 @@ def cmd_thread_read(
             after=after,
             limit=limit,
         )
-
-
-def _active_revision(page_dir: Path, events: list) -> tuple[int | None, dict | None]:
-    # Every markup-derived reading is of the latest valid revision, because that
-    # is the page the live root shows and the user acts on.
-    active = active_descriptor(page_dir, events)
-    if active is None:
-        return None, None
-    revision = active["revision"]
-    active["file"] = revision_path(page_dir, revision).relative_to(page_dir).as_posix()
-    return revision, active
-
-
-def _read_active_document(
-    page_dir: Path,
-    events: list,
-    registry: dict,
-    revision: int | None,
-    data: dict | None = None,
-) -> DocumentReading | None:
-    if revision is None:
-        return None
-    page = page_reading(parse_revision(page_dir, revision), events, registry, revision)
-    threads = build_threads(events, page.within)
-    return read_document(page, threads, data)
 
 
 def _base_state(
@@ -201,9 +158,6 @@ def _base_state(
 def _apply_document_state(
     state: dict,
     document: DocumentReading,
-    events: list,
-    revision: int,
-    threads: dict,
     stored_data: dict,
     registry: dict,
 ) -> None:
@@ -227,7 +181,7 @@ def _apply_document_state(
     page_dir = Path(state["page"])
     state["content_source"] = {
         "file": str(page_dir / state["active"]["file"]),
-        "revision": revision,
+        "revision": state["active"]["revision"],
         "edit_file": str(page_dir / "index.html"),
         "matches_active": state["source"]["live"],
         "vocabulary": str(page_dir / "registry.json"),
@@ -302,22 +256,24 @@ def _write_page_state(
     measurements whose live source has run again (`measurement_lag_entries`), the
     open Asks on the page and in threads (the banner's own count), each comment
     thread's current state and the agent messages in it the user has not read,
-    and presence beside what answers for it. Computed on demand from the log,
-    revision, registry, and source store — no derived reading is stored, so there
-    is no second copy of the truth to reconcile.
+    and presence beside what answers for it. It is a selection from the reading
+    /api/state serves (`read_served_page`), computed on demand from the log,
+    revision, registry, and source store — no derived reading is stored, and none is
+    folded a second time here, so there is no second copy of the truth to reconcile.
 
     Every markup-derived reading is of the latest valid revision, because that
     is the page the live root shows and the user acts on. An invalid source save
     appears under `source.error` while that revision remains active."""
     registry = require_registry(page_dir)
-    versions = version_descriptors(page_dir, events)
-    revision, active = _active_revision(page_dir, events)
-    served = full_state(page_dir, events)
+    served, reading, stored_data = read_served_page(page_dir, events)
+    active = served["active"]
+    if active is not None:
+        active["file"] = (
+            revision_path(page_dir, active["revision"]).relative_to(page_dir).as_posix()
+        )
     activity = served["activity"]
-    claims = served["claims"]
-    # Agent state and browser state are two views of one snapshot. Select the
-    # presence portion from the already-projected server reading instead of
-    # gathering mutable claim and lease evidence a second time.
+    # Select presence from the served reading instead of gathering mutable claim and
+    # lease evidence a second time.
     presence_reading = {
         key: served[key]
         for key in (
@@ -334,23 +290,17 @@ def _write_page_state(
             "session_cwd",
         )
     }
-    stored_data = read_data(page_dir, registry)
-    document = _read_active_document(page_dir, events, registry, revision, stored_data)
-    spoken = document.spoken if document is not None else {}
-    threads = build_threads(events, enclosing_of(spoken))
-    thread_reading = frozen_thread_reading(events, registry)
-    requests = request_lifecycles(events)
     state = _base_state(
         page_dir,
         events,
         source_error,
-        versions,
+        served["versions"],
         active,
         presence_reading,
-        threads,
+        reading.threads if reading is not None else {},
         stored_data,
         registry,
-        requests,
+        request_lifecycles(events),
     )
     state["activity"] = {
         **activity,
@@ -360,36 +310,25 @@ def _write_page_state(
     # stage, subject and `answer` — the operation that settles it — are canonical,
     # while `response` carries provisional response progress.
     state["workflows"] = served["workflows"]
-    if document is not None:
+    # Before a first revision there is no document, so no thread, Ask, widget, or
+    # claim subject either: every reading below keeps its empty default.
+    if reading is not None:
+        browser = served["browser"]
         _apply_document_state(
-            state, document, events, revision, threads, stored_data, registry
+            state, reading.documents[active["revision"]], stored_data, registry
         )
-    thread_requests = request_lifecycles_for(
-        events,
-        thread_reading.elements,
-        registry,
-        document_identity("thread"),
-        stored_data,
-    )
-    state["asks"] += thread_ask_readings(
-        events,
-        registry,
-        {root for root, thread in threads.items() if thread["resolved"]},
-        request_phases=request_phases(thread_requests),
-        reading=thread_reading,
-    )["user"]
-    state["updates"] = canonical_updates(
-        document.projection if document is not None else None,
-        claims,
-        threads,
-        events,
-    )
-    _apply_thread_state(state, thread_reading)
-    # The user's side between their moves: which of your messages they have not
-    # taken in yet, at their current content version.
-    unread = unread_content(events, threads, thread_reading.thread_by_widget)
-    for thread in state["threads"]:
-        thread["unread"] = [item["message"] for item in unread[thread["id"]]]
+        state["asks"] += browser["thread"]["asks"]["user"]
+        state["updates"] = browser["views"][str(active["revision"])]["updates"]
+        _apply_thread_state(state, reading.thread)
+        served_threads = {
+            thread["id"]: thread for thread in browser["thread"]["threads"]
+        }
+        # The user's side between their moves: which of your messages they have not
+        # taken in yet, at their current content version.
+        for thread in state["threads"]:
+            thread["unread"] = [
+                item["message"] for item in served_threads[thread["id"]]["unread"]
+            ]
     if thread_id is not None:
         selected = next(
             (thread for thread in state["threads"] if thread["id"] == thread_id),
@@ -397,7 +336,10 @@ def _write_page_state(
         )
         if selected is None:
             raise SystemExit(f"unknown thread {thread_id!r}")
-        selected["summaries"] = active_summaries(events, threads)[thread_id]
+        # A thread is listed only where the page has a document, so the readings
+        # stand here.
+        thread_reading = reading.thread
+        selected["summaries"] = served_threads[thread_id]["summaries"]
         elements = [
             element for element in state["elements"] if element["thread"] == thread_id
         ]
@@ -408,14 +350,7 @@ def _write_page_state(
         updates = [
             update
             for update in state["updates"]
-            if (
-                update["target"] == {"kind": "thread", "id": thread_id}
-                or (
-                    update["target"]["kind"] == "widget"
-                    and thread_reading.thread_by_widget.get(update["target"]["id"])
-                    == thread_id
-                )
-            )
+            if thread_reading.subject_thread(update["target"]) == thread_id
         ]
         reactions = [
             reaction
@@ -435,7 +370,9 @@ def _write_page_state(
             "vocabulary": str(page_dir / "registry.json"),
         }
         matching = [
-            event for event in threads[thread_id]["msgs"] if event["seq"] > after
+            event
+            for event in reading.threads[thread_id]["msgs"]
+            if event["seq"] > after
         ]
         shown = matching[:limit]
         history = {
@@ -492,15 +429,11 @@ def _write_page_state(
                 retired=set(passages.retired) | set(passages.gone),
                 thread=thread_id,
             )
-        widget_ids = {element["id"] for element in elements}
-
-        def belongs(interaction: dict) -> bool:
-            target = interaction["subject"]
-            return target == {"kind": "thread", "id": thread_id} or (
-                target["kind"] == "widget" and target["id"] in widget_ids
-            )
-
-        workflows = [workflow for workflow in state["workflows"] if belongs(workflow)]
+        workflows = [
+            workflow
+            for workflow in state["workflows"]
+            if thread_reading.subject_thread(workflow["subject"]) == thread_id
+        ]
         obligations = set(state["activity"]["obligations"])
         state = {
             "page": str(page_dir),

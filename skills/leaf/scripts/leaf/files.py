@@ -7,13 +7,14 @@ import re
 import secrets
 import sys
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Collection
 from datetime import datetime, timezone
 from pathlib import Path
 from stat import S_ISDIR, S_ISREG
 from typing import TypeVar
 
 from .locations import path_location
+from .schema import REVISION_NAME, VERSION_NAME
 
 # The name an atomic write stages under, beside its target, for the moment before the
 # rename (`replace_files` below). A reader of the directory looks past it: it is not yet
@@ -100,6 +101,19 @@ def _contents(path: Path, mode: int) -> bytes | None:
     return hashlib.blake2b(held, digest_size=16).digest()
 
 
+def entry_stamps(directory: Path, ignored: Collection[str]) -> list[tuple[str, object]]:
+    """Each direct child of a directory by name and stamp, in name order.
+
+    Leaves out the names in `ignored`, which each caller chooses by what its reading
+    depends on, and every file an atomic write is still staging (`STAGED`), which no
+    reader depends on."""
+    return sorted(
+        (entry.name, file_stamp(entry))
+        for entry in directory.iterdir()
+        if entry.name not in ignored and not STAGED.fullmatch(entry.name)
+    )
+
+
 # How often a reader waiting on a page looks for news: the browser's news stream,
 # `leaf events --follow`, and `leaf wait`. The look is a re-stat rather than an
 # in-process signal because an append does not have to come from the reader's process —
@@ -134,8 +148,8 @@ def next_reading(
         time.sleep(LOOK_S)
 
 
-VERSION_FILE = re.compile(r"v([1-9][0-9]*)\.html")
-REVISION_FILE = re.compile(r"r([1-9][0-9]*)-([a-f0-9]{16})\.html")
+VERSION_FILE = re.compile(rf"{VERSION_NAME}\.html")
+REVISION_FILE = re.compile(rf"{REVISION_NAME}\.html")
 
 
 def version_num(name: str) -> int:
@@ -145,7 +159,7 @@ def version_num(name: str) -> int:
     what you add to make a string comparison come out right, and nothing here
     compares names. `v10.html` precedes `v9.html` in every ordering a string
     has, and follows it in the only one that means anything."""
-    return int(VERSION_FILE.fullmatch(name).group(1))
+    return int(VERSION_FILE.fullmatch(name).group("version"))
 
 
 def version_name(version: int) -> str:
@@ -154,7 +168,7 @@ def version_name(version: int) -> str:
 
 def revision_num(name: str) -> int:
     """The ordered identity carried by an immutable revision file."""
-    return int(REVISION_FILE.fullmatch(name).group(1))
+    return int(REVISION_FILE.fullmatch(name).group("revision"))
 
 
 def list_revisions(page_dir: Path) -> list[int]:

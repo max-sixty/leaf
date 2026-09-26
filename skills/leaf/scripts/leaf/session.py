@@ -7,7 +7,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import NamedTuple
 
-from .activity import unanswered
+from .activity import blocking_obligations, unanswered
 from .delivery import (
     batch_data,
     freeze_delivery,
@@ -17,7 +17,7 @@ from .delivery import (
 )
 from .detached import StartRefused
 from .files import file_stamp, next_reading, read_json
-from .host import Harness, session_harness
+from .host import Harness, claim_harness, session_harness
 from .hosting import start_server
 from .leases import (
     release_lease,
@@ -178,9 +178,10 @@ def cmd_idle(page_dir: Path, detail: str, on: str | None) -> None:
     Idling over an event nobody has answered ends the leaf on a user still
     owed one — unread, or read and left. The watcher's whole batch, not the
     user-facing count, so a worker's report cannot be left standing as
-    provisional state forever either. The check and the transition share the
-    log lock, so an event arriving or an acknowledgement advancing the cursor
-    orders against them."""
+    provisional state forever either. The answers it holds the page for are
+    `activity.blocking_obligations`, the ones the Stop hook holds a turn open
+    for. The check and the transition share the log lock, so an event arriving
+    or an acknowledgement advancing the cursor orders against them."""
     # Ahead of the transaction, which reaches `set_status` without a subject:
     # refused here, `idle --on` cannot be reported back as a claim the page
     # never took.
@@ -195,11 +196,13 @@ def cmd_idle(page_dir: Path, detail: str, on: str | None) -> None:
                 f"{pending} update{'s' if pending != 1 else ''} nobody has picked up; "
                 "read them with `leaf wait` before idling"
             )
-        owed = [
-            obligation
-            for obligation in full_state(page_dir, events)["activity"]["obligations"]
-            if obligation["seq"] <= cursor
-        ]
+        state = full_state(page_dir, events)
+        claim = page.active_claim
+        owed = blocking_obligations(
+            state,
+            carried=claim is not None
+            and claim_harness(claim).carrier_live(listening=state["listening"]),
+        )
         if owed:
             sys.exit(
                 f"{unanswered(owed, 'acknowledged')}; answer before idling. "
@@ -293,7 +296,7 @@ class Watch:
 
     def reading(self) -> tuple:
         """The stamps of everything the last pass read: the claims, and its pages."""
-        return (file_stamp(self.claims), *map(_page_stamp, self.watched))
+        return (file_stamp(self.claims), *map(_page_reading_or_none, self.watched))
 
     def mark(self) -> tuple:
         """What the next pass starts from, taken before it reads, so a write that
@@ -418,7 +421,7 @@ class Watch:
         self.leases.clear()
 
 
-def _page_stamp(page_dir: Path) -> str | None:
+def _page_reading_or_none(page_dir: Path) -> str | None:
     """A page's reading, or None once its directory is gone."""
     try:
         return page_reading(page_dir)

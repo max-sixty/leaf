@@ -6,8 +6,9 @@
    same choice in the DOM while cards retain their message and editor nodes. This
    mechanical state never publishes a new application epoch. Narrowing keeps the
    selected card when visible and otherwise selects the first visible card. */
-import { LitElement, html, repeat } from "../../vendor/browser-runtime.js";
+import { html, repeat } from "../../vendor/browser-runtime.js";
 import { focused } from "../keyboard/scopes.js";
+import { RetainedFace } from "../retained-face.js";
 import { ThreadView } from "./thread-card.js";
 import { layoutChanged } from "../widget-elements.js";
 import { foldOut, finishFold, isFolding } from "./folding.js";
@@ -15,14 +16,9 @@ import { foldOut, finishFold, isFolding } from "./folding.js";
 const TAG = "leaf-thread-list";
 const EMPTY_MODEL = Object.freeze({ rows: Object.freeze([]), pageSeats: new Map() });
 
-class ThreadListView extends LitElement {
-  static properties = {
-    model: { attribute: false },
-  };
+class ThreadListView extends RetainedFace {
   #commands = null;
   #views = new Map();
-  #committedModel = EMPTY_MODEL;
-  #failure = null;
   #focusListAfterPaint = false;
   #generation = 0;
   #rows = [];
@@ -84,37 +80,26 @@ class ThreadListView extends LitElement {
   }
 
   constructor() {
-    super();
-    this.model = EMPTY_MODEL;
-  }
-  get committedReading() {
-    return this.#committedModel;
-  }
-  createRenderRoot() {
-    return this;
+    super(EMPTY_MODEL);
   }
   configure(commands, initialModel) {
     if (this.#commands) return;
     this.#commands = commands;
-    this.#committedModel = initialModel;
     this.model = initialModel;
+    super.commit();
   }
 
+  // Forward gestures paint their complete generated result in their sending turn.
   async present(model) {
     const generation = ++this.#generation;
-    this.#failure = null;
     this.#rollbackFocus ??= this.contains(focused()) ? focused() : null;
-    this.model = model;
-    // Forward gestures paint their complete generated result in their sending turn.
-    this.performUpdate();
-    await this.updateComplete;
-    if (this.#failure) throw this.#failure;
+    await this.paint(model, { now: true });
     return generation === this.#generation && this.model === model;
   }
 
   commit(model) {
     if (this.model !== model) return false;
-    this.#committedModel = model;
+    super.commit();
     const wanted = new Set(
       model.rows.filter((row) => row.kind === "thread").map((row) => row.key),
     );
@@ -133,27 +118,15 @@ class ThreadListView extends LitElement {
     if (this.model !== candidate) return false;
     const generation = ++this.#generation;
     this.#retaining = true;
-    this.#failure = null;
-    this.model = this.#committedModel;
     try {
-      this.performUpdate();
-      await this.updateComplete;
-      if (this.#failure) throw this.#failure;
+      await this.paint(this.committed, { now: true });
       if (generation !== this.#generation) return false;
       if (this.#rollbackFocus?.isConnected)
         this.#rollbackFocus.focus({ preventScroll: true });
       this.#rollbackFocus = null;
-      return this.#committedModel;
+      return this.committed;
     } finally {
       this.#retaining = false;
-    }
-  }
-
-  async scheduleUpdate() {
-    try {
-      await super.scheduleUpdate();
-    } catch (error) {
-      this.#failure = error;
     }
   }
 

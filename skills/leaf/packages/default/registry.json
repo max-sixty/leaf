@@ -729,11 +729,7 @@
         "type": "string"
       },
       "tone": {
-        "enum": [
-          "ok",
-          "warn",
-          "danger"
-        ]
+        "type": "string"
       }
     },
     "required": [
@@ -745,6 +741,7 @@
       "lf-board"
     ],
     "x-content": "members",
+    "x-tone": "tone",
     "x-upgrade": false,
     "x-says": {
       "label": "before"

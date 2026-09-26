@@ -52,7 +52,7 @@ from .locations import path_is_within
 from .media import MAX_MEDIA_UPLOAD_BYTES, MediaUploadError, store_uploaded_media
 from .registry.storage import layer_metadata, require_registry
 from .render_checks import PROBE_SOURCES
-from .revision_artifact import Resource, RevisionArtifact, read_artifact
+from .revision_artifact import Resource, RevisionArtifact, read_artifact, read_registry
 from .revision_delivery import (
     deliver_document,
     deliver_resource,
@@ -62,9 +62,12 @@ from .revision_delivery import (
 from .revisioning import activate_source
 from .schema import (
     BINARY_TYPES,
+    BROWSER_DIRS,
     CONTENT_TYPES,
     KEY_COOKIE,
+    MEDIA_DIR,
     NO_KEY,
+    REVISION_NAME,
     SERVED_PATH,
     VENDORED_FILES,
     VIEWED_FILE,
@@ -110,11 +113,16 @@ def _query_int(raw, name: str, minimum: int) -> int:
     return value
 
 
-# A rooted path the page's own layer answers: its directories and its vendored files.
-# A page served under a prefix has these rebased onto it wherever a script, a
-# stylesheet or an attribute names one, so the list is the vendoring contract's.
+# A rooted path the page's own layer answers: its API, browser layer, media and
+# authored `page/` tree, and its vendored files. A page served under a prefix has these
+# rebased onto it wherever a script, a stylesheet or an attribute names one. Its
+# documents are left out, since the server writes their addresses itself
+# (`scope_page_urls`). The authored tree is in, though no server routes it at the page
+# root: it is served only beneath a revision's address.
 _ROOTED_PATH = (
-    rb"(?:api|page|runtime|widgets|vendor|media)/|(?:"
+    rb"(?:"
+    + b"|".join(name.encode() for name in ("api", "page", *BROWSER_DIRS, MEDIA_DIR))
+    + rb")/|(?:"
     + b"|".join(re.escape(name.encode()) for name in VENDORED_FILES)
     + rb")"
 )
@@ -619,7 +627,7 @@ class PageEndpoint:
             )
             if view_revision not in revisions:
                 raise ValueError(f"unknown view revision r{view_revision}")
-            registry = self._artifact(view_revision).registry
+            registry = self._registry(view_revision)
         elif self.page_snapshot is not None:
             registry = self.page_snapshot.registry
         else:
@@ -952,6 +960,12 @@ class PageEndpoint:
             return self.page_snapshot.artifacts[revision]
         return read_artifact(self.page_dir, revision)
 
+    def _registry(self, revision: int) -> dict:
+        """One revision's captured vocabulary, without materializing its bundle."""
+        if self.page_snapshot is not None:
+            return self.page_snapshot.artifacts[revision].registry
+        return read_registry(self.page_dir, revision)
+
     def _artifact_root(self, revision: int) -> str:
         name = self._revision_name(revision).removesuffix(".html")
         return self.page_root.rstrip("/") + f"/revisions/{name}"
@@ -988,8 +1002,7 @@ class PageEndpoint:
 
     def _serve_artifact_resource(self) -> Response | None:
         match = re.fullmatch(
-            r"/revisions/(?P<name>r(?P<revision>[1-9][0-9]*)-[a-f0-9]{16})/"
-            r"(?P<resource>.+)",
+            rf"/revisions/(?P<name>{REVISION_NAME})/(?P<resource>.+)",
             self.path,
         )
         if match is None:
@@ -1077,10 +1090,7 @@ class PageEndpoint:
             artifact = self._artifact(mapping[version])
             return self._serve_document(artifact, mapping[version], version)
         if path.startswith("/revisions/"):
-            if (
-                re.fullmatch(r"/revisions/r[1-9][0-9]*-[a-f0-9]{16}\.html", path)
-                is None
-            ):
+            if re.fullmatch(rf"/revisions/{REVISION_NAME}\.html", path) is None:
                 return self._json({"error": "unknown revision resource"}, 404)
             name = Path(path).name
             revision = revision_num(name)
@@ -1115,7 +1125,7 @@ class PageEndpoint:
             )
             if revision is None:
                 return None
-            registry = self._artifact(revision).registry
+            registry = self._registry(revision)
             self.response_layer = registry["$layer"]["generation"]
             return self._json(registry)
         file = self.page_dir / path.lstrip("/")
@@ -1172,9 +1182,7 @@ class PageEndpoint:
                     raise ValueError("view revision is required")
                 sequence = self.requested_view_sequence()
                 browser = self.page_browser_view(revision, sequence)
-                self.response_layer = self._artifact(revision).registry["$layer"][
-                    "generation"
-                ]
+                self.response_layer = self._registry(revision)["$layer"]["generation"]
             except ValueError as error:
                 return self._json({"error": str(error)}, 400)
             return self._json({"browser": browser})
@@ -1238,9 +1246,7 @@ class PageEndpoint:
         if view_revision is not None and view_revision not in revisions:
             return self._refuse(f"unknown view revision r{view_revision}")
         if view_revision is not None:
-            current_layer = self._artifact(view_revision).registry["$layer"][
-                "generation"
-            ]
+            current_layer = self._registry(view_revision)["$layer"]["generation"]
         else:
             active_revision = (
                 self.page_snapshot.active["revision"]
@@ -1248,7 +1254,7 @@ class PageEndpoint:
                 else latest_revision(self.page_dir)
             )
             current_layer = (
-                self._artifact(active_revision).registry["$layer"]["generation"]
+                self._registry(active_revision)["$layer"]["generation"]
                 if active_revision is not None
                 else self.layer
             )

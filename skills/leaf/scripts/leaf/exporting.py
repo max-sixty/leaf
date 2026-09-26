@@ -15,13 +15,11 @@ from html import escape
 from pathlib import Path
 from urllib.parse import urldefrag, urljoin, urlsplit
 
-import tinycss2
 import turbohtml
 
 from leaf.event_log import read_events
 from leaf.files import (
     published_versions,
-    revision_path,
     version_name,
     version_revisions,
 )
@@ -35,6 +33,7 @@ from leaf.revision_artifact import (
     captured_imports,
     read_artifact,
     resolve_dependency,
+    rewrite_css,
     rewrite_module,
 )
 from leaf.revision_delivery import delivery_prelude, delivery_sheets, json_script
@@ -44,6 +43,7 @@ from leaf.structure import (
     UTF8_BOM,
     SourceDocument,
     external_reference,
+    parse_revision,
     rel_tokens,
     rewrite_resource_attribute,
 )
@@ -102,46 +102,19 @@ class _AssetInliner:
             resource = Resource(css.encode("utf-8"), "text/css")
         return _data_url(resource) + (f"#{fragment}" if fragment else "")
 
-    def css(self, css: str, base: str, ancestors: tuple[str, ...] = ()) -> str:
-        def rewrite(tokens):
-            import_url = False
-            for token in tokens:
-                if token.type in {"whitespace", "comment"}:
-                    continue
-                if token.type == "at-keyword" and token.lower_value == "import":
-                    import_url = True
-                    continue
-                if import_url and token.type == "string":
-                    value = self.url(token.value, base, ancestors)
-                    if value != token.value:
-                        token.value = value
-                        token.representation = f'"{value}"'
-                elif token.type == "url":
-                    value = self.url(token.value, base, ancestors)
-                    if value != token.value:
-                        token.value = value
-                        token.representation = f'url("{value}")'
-                elif token.type == "function" and token.lower_name == "url":
-                    args = [
-                        arg
-                        for arg in token.arguments
-                        if arg.type not in {"whitespace", "comment"}
-                    ]
-                    if len(args) == 1 and args[0].type == "string":
-                        value = self.url(args[0].value, base, ancestors)
-                        if value != args[0].value:
-                            token.arguments = tinycss2.parse_component_value_list(
-                                f'"{value}"'
-                            )
-                else:
-                    for name in ("content", "arguments"):
-                        if (children := getattr(token, name, None)) is not None:
-                            rewrite(children)
-                import_url = False
-
-        tokens = tinycss2.parse_component_value_list(css)
-        rewrite(tokens)
-        return tinycss2.serialize(tokens)
+    def css(
+        self,
+        css: str,
+        base: str,
+        ancestors: tuple[str, ...] = (),
+        *,
+        declarations: bool = False,
+    ) -> str:
+        return rewrite_css(
+            css,
+            lambda reference: self.url(reference, base, ancestors),
+            declarations=declarations,
+        )
 
 
 def inline_css_assets(
@@ -238,7 +211,7 @@ def inline_assets(
                 edits.append((start, end, assets.css(html[start:end], document_url)))
             for name, value in attrs.items():
                 if name == "style":
-                    replacement = assets.css(value, document_url)
+                    replacement = assets.css(value, document_url, declarations=True)
                 else:
                     replacement = rewrite_resource_attribute(
                         element.tag,
@@ -462,9 +435,7 @@ def cmd_export(page_dir: Path, out: Path, version) -> int:
         )
     name = version_name(version)
     revision = version_revisions(events)[version]
-    document = SourceDocument(
-        revision_path(page_dir, revision).read_text(encoding="utf-8")
-    )
+    document = parse_revision(page_dir, revision)
     artifact = read_artifact(page_dir, revision)
     active = {"revision": revision, "version": version, "url": f"/versions/{name}"}
     snapshot = capture_page_snapshot(page_dir, document, active, artifact=artifact)

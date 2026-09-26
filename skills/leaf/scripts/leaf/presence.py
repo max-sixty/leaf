@@ -10,6 +10,7 @@ from .activity import transition_due
 from .event_log import now_iso, read_cursor, read_events
 from .files import (
     active_descriptor,
+    entry_stamps,
     file_stamp,
     latest_revision,
     read_json,
@@ -41,14 +42,11 @@ _presence_cache_lock = threading.RLock()
 
 
 def _page_stamp(page_dir: Path, claim: dict | None = None) -> tuple:
-    """The mutable files whose changes can alter a page presence reading."""
-    entries = tuple(
-        sorted(
-            (entry.name, file_stamp(entry))
-            for entry in page_dir.iterdir()
-            if entry.name != INTERACTIONS_FILE
-        )
-    )
+    """The mutable files whose changes can alter a page presence reading.
+
+    `viewed.json` counts here, where the page's own reading leaves it out: whether a
+    tab is looking is part of what presence reports."""
+    entries = tuple(entry_stamps(page_dir, {INTERACTIONS_FILE}))
     claim_stamp = file_stamp(claim_path(page_dir))
     if claim and claim.get("id"):
         # A host wait lease is outside the page, and its lock state has no file
@@ -163,7 +161,7 @@ def other_leaves(page_dir: Path) -> list:
 
                             raw, live_stream = presence_with_activity(candidate, events)
                             active = active_descriptor(candidate, events)
-                            browser = project_browser_state(
+                            projected = project_browser_state(
                                 candidate,
                                 events,
                                 None,
@@ -172,6 +170,7 @@ def other_leaves(page_dir: Path) -> list:
                                 observed_at,
                                 live_stream=live_stream,
                             )
+                            browser = projected[0] if projected is not None else None
                             activity = project_activity(
                                 candidate,
                                 events,

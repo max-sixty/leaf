@@ -1,7 +1,7 @@
 """Document-scoped browser projection and undo readings."""
 
-from ..document_reading import read_document
-from ..events import UndoReading
+from ..document_reading import DocumentReading, read_document
+from ..events import UndoReading, action_retracted
 from ..projection import PageReading, StateProjection
 from .wire import browser_projection
 
@@ -10,7 +10,7 @@ def browser_document(
     page: PageReading,
     threads: dict,
     data: dict,
-) -> tuple[dict, StateProjection]:
+) -> tuple[dict, DocumentReading]:
     document = read_document(page, threads, data)
     return (
         {
@@ -27,21 +27,29 @@ def browser_document(
             # from these lists rather than folding the declarations a second time.
             "asks": document.asks,
         },
-        document.projection,
+        document,
     )
 
 
 def browser_undo_candidates(
     events: list,
-    document_projection: StateProjection,
+    document: DocumentReading,
     thread_projection: StateProjection,
     *,
     undo_reading: UndoReading,
+    stamp: int | None,
 ) -> list[dict]:
-    classified = {
-        **document_projection.classified,
-        **thread_projection.classified,
-    }
+    """The user's gestures this document can take back, newest first.
+
+    This is the one undo list: `z` takes its first entry and a widget's Undo offers
+    the entries naming that widget, so the browser applies no rule of its own. Beyond
+    what the append door refuses (`UndoReading`), an entry must paint something on
+    this document. An approval stands only on the stamp it approved. An action stands
+    where its widget and verb are in this document's projection or the frozen thread
+    markup's, and a page action no longer stands once a later revision restated what
+    it rests on. A decision carried from an earlier revision is otherwise as
+    undoable as one made on this one; where this revision's markup places its unit,
+    the door refuses it (`absorbed`)."""
     candidates = []
     withdrawn = undo_reading.withdrawn
     for event in reversed(events):
@@ -53,9 +61,18 @@ def browser_undo_candidates(
             continue
         if undo_reading.error({"undoes": event["id"]}):
             continue
+        if event["kind"] == "done" and event["version"] != stamp:
+            continue
         item = {"event": event}
-        if event["kind"] == "action" and event["id"] in classified:
-            coordinate, _entry = classified[event["id"]]
+        if event["kind"] == "action":
+            if event["id"] in document.projection.classified:
+                if action_retracted(event, document.floors, document.within):
+                    continue
+                coordinate, _entry = document.projection.classified[event["id"]]
+            elif event["id"] in thread_projection.classified:
+                coordinate, _entry = thread_projection.classified[event["id"]]
+            else:
+                continue
             item["coordinate"] = list(coordinate)
         candidates.append(item)
     return candidates

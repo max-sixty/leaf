@@ -1,12 +1,12 @@
 /* Shared mechanical runtime context and read-only views of the semantic root.
    Accepted facts are never installed here independently of application publication. */
 import { readApplication } from "./semantic-state.js";
+import { PAGE_ROOT } from "./storage.js";
 
 // Code may be shared by several documents, including a specimen and its parent.
-// Page operations belong to the document, never to the module's asset URL.
-export const pageUrl = (path) =>
-  new URL(path, document.querySelector('link[rel="canonical"][data-lf-runtime]').href)
-    .href;
+// Page operations belong to the document's declared root, never to the module's asset
+// URL.
+export const pageUrl = (path) => new URL(path, PAGE_ROOT).href;
 
 const offlineMarker = document.querySelector(
   'script[type="application/json"][data-lf-runtime][data-lf-offline]',
@@ -81,7 +81,7 @@ export const runtime = {
     return readApplication().authoritative?.events ?? [];
   },
   get lastEventSeq() {
-    return readApplication().authoritative?.browser.basis.through_seq ?? -1;
+    return readApplication().authoritative?.browser.basis.through_seq ?? null;
   },
   // A chrome placement is moving a box the user may be standing in, so the focus it
   // takes off and hands straight back is the layer's own, not the user going
@@ -107,8 +107,9 @@ export const runtime = {
   get workflows() {
     return readApplication().effective.workflows;
   },
+  // The shown revision's server view, less its basis, as the publisher resolved it.
   get view() {
-    return runtime.browser?.views[String(runtime.currentRevision)] ?? null;
+    return readApplication().effective.view;
   },
 };
 

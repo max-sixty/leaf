@@ -214,13 +214,7 @@ export function createProjectionPresentation({ onDeferredReady }) {
     renderQuiet(document.body, originTargets);
     document.body.setAttribute(
       PAGE_PAINT_ATTRIBUTE.applied,
-      String(
-        projectionCoverage(
-          projection,
-          snapshot.authoritative?.browser.views[String(snapshot.document.revision)]
-            ?.coverage,
-        ),
-      ),
+      String(projectionCoverage(projection, snapshot.effective.view?.coverage)),
     );
     return projection;
   }

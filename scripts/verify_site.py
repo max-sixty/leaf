@@ -1,5 +1,26 @@
 #!/usr/bin/env python3
-"""Verify that leaf.page serves one exact, coherent release in a real browser."""
+"""Verify that leaf.page serves one exact, coherent release in a real browser.
+
+`verify-site-local.sh` runs the release pass against the local Worker and container;
+`.github/workflows/publish-site.yaml` runs it before the first public operation and
+again against the deployed release.
+
+`--agent` instead sends one private comment and requires the hosted Codex task to
+publish a revision and reply. A `startup_failed` receipt gets one more ask; every
+other unsuccessful ending, rate limits included, fails on the first. The gate reads
+the receipt's `failure` code, never its wording, and `worker/README.md` owns that
+failure contract. The agent pass is also the benchmark: it prints its progress and
+timings to stderr and emits one JSON sample on stdout, covering browser presentation,
+a comment sent through the real Threads composer, acknowledgement and activity, the
+first reply text visible in the open thread, the requested publication and durable
+reply, and the changed page's presentation and revision follow. Without `--release`
+it takes the release the origin's page state names, so it measures any origin
+without a local build. `deploy-site-dev.sh` runs it against the dev environment.
+
+`local` runs the agent pass through the canonical Python adapter against the host's
+Codex login. It bypasses the Worker, container resources, and outbound credential
+proxy, so it checks agent behavior without measuring production infrastructure.
+"""
 
 from __future__ import annotations
 
@@ -1251,11 +1272,7 @@ def main(target: str, release: str | None, agent: bool) -> None:
     """Verify a deployed release, or run the agent journey against LOCAL or an origin.
 
     The release and agent passes are separate: rollout verification settles the
-    release before the agent pass allocates its own private user session. The agent
-    pass prints its progress and profile to stderr and one JSON sample of the whole
-    journey to stdout, so the same run is both the gate and the benchmark. Without
-    `--release`, the agent pass takes the release the origin's page state names, so it
-    can measure any origin without a local build.
+    release before the agent pass allocates its own private user session.
     """
     if target == "local":
         with local_adapter() as (origin, built):

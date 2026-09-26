@@ -1,30 +1,49 @@
 """Assemble browser state from requested documents and the standing log."""
 
 from pathlib import Path
+from typing import NamedTuple
 
 from ..activity import canonical_activity, canonical_stream_reply
+from ..document_reading import DocumentReading
 from ..events import UndoReading, build_threads, taken_back
-from ..files import list_revisions, revision_path
+from ..files import list_revisions, stamped_version
 from ..gesture_words import GestureWords, RevisionReader, revisions_on_disk
 from ..history import history, wants_history
-from ..projection import canonical_updates, page_reading
-from ..registry.contract import RegistryError
-from ..registry.storage import load_registry
+from ..projection import FrozenThreadReading, canonical_updates, page_reading
 from ..requests import request_outcomes
-from ..revision_artifact import read_artifact
-from ..structure import SourceDocument
+from ..revision_artifact import read_registry
+from ..structure import SourceDocument, parse_revision
 from ..workflows import canonical_workflows
 from .document import browser_document, browser_undo_candidates
 from .thread import browser_thread
+
+
+class BrowserReading(NamedTuple):
+    """The semantic readings one browser state serializes.
+
+    A Python reader of the same snapshot selects from these rather than folding the
+    log again: the page's threads, the frozen thread document, and each projected
+    view's document reading, keyed by revision.
+    """
+
+    threads: dict
+    thread: FrozenThreadReading
+    documents: dict[int, DocumentReading]
 
 
 def _apply_thread_attention(
     threads: list[dict],
     asks: dict,
     workflows: list[dict],
-    thread_by_widget: dict[str, str],
+    thread_reading: FrozenThreadReading,
 ) -> None:
-    """Attach the shared attention aggregate, with user Asks taking precedence."""
+    """Attach the shared attention aggregate, with user Asks taking precedence.
+
+    This is the browser's one reading of whose turn a thread is: `needs_user` for
+    an open Ask or a question the agent's latest turn leaves (`user_prompt`), or a
+    response the user must recover; `waiting` while a workflow holds the thread with
+    the agent, which covers every input `events.unanswered_turns` holds and any work
+    claimed on the thread after it was answered; else None."""
     user_threads = {ask["thread"] for ask in asks["user"]}
     stage_rank = {
         "sent": 0,
@@ -62,28 +81,21 @@ def _apply_thread_attention(
 
     by_thread: dict[str, list[dict]] = {}
     for workflow in workflows:
-        subject = workflow["subject"]
-        thread_id = (
-            subject["id"]
-            if subject["kind"] == "thread"
-            else thread_by_widget.get(subject["id"])
-            if subject["kind"] == "widget"
-            else None
-        )
+        thread_id = thread_reading.subject_thread(workflow["subject"])
         if thread_id is not None:
             by_thread.setdefault(thread_id, []).append(workflow)
     for thread in threads:
         if thread["resolved"]:
             thread["attention"] = None
             continue
-        if thread["root"]["id"] in user_threads or thread["awaits_user"]:
+        if thread["id"] in user_threads or thread["user_prompt"]:
             thread["attention"] = {
                 "kind": "needs_user",
                 "reason": "ask",
                 "workflow": None,
             }
             continue
-        candidates = by_thread.get(thread["root"]["id"], [])
+        candidates = by_thread.get(thread["id"], [])
         if recovery := [
             workflow for workflow in candidates if workflow["next_actor"] == "user"
         ]:
@@ -117,7 +129,7 @@ def browser_state(
     registries: dict[int, dict] | None = None,
     data: dict | None = None,
     revisions: RevisionReader | None = None,
-) -> dict:
+) -> tuple[dict, BrowserReading]:
     """The browser's derived reading of one transaction-consistent page snapshot.
 
     Documents and the append-only log remain the authorities. This object is an
@@ -151,6 +163,7 @@ def browser_state(
     thread_projection = thread_reading.projection
 
     views = {}
+    readings = {}
     for revision in sorted(view_revisions):
         document = documents[revision]
         page = (
@@ -158,7 +171,9 @@ def browser_state(
             if revision == active_revision
             else page_reading(document, events, registry_for(revision), revision)
         )
-        document, projection = browser_document(page, threads, data or {"sources": {}})
+        document, reading = browser_document(page, threads, data or {"sources": {}})
+        readings[revision] = reading
+        projection = reading.projection
         classified = {
             **projection.classified,
             **thread_projection.classified,
@@ -195,9 +210,10 @@ def browser_state(
             ),
             "undo": browser_undo_candidates(
                 events,
-                projection,
+                reading,
                 thread_projection,
                 undo_reading=undo_reading,
+                stamp=stamped_version(events, revision),
             ),
             "coverage": coverage,
             "published_at": published_at,
@@ -221,7 +237,7 @@ def browser_state(
         thread["threads"],
         thread["asks"],
         workflows,
-        thread_reading.thread_by_widget,
+        thread_reading,
     )
     served = [(revision, documents[revision]) for revision in view_revisions]
     if wants_history(served, registry_for):
@@ -231,10 +247,18 @@ def browser_state(
             revisions
             or (lambda revision: (documents[revision], registry_for(revision))),
         )
-        page_history = {"history": history(events, threads, words)}
+        page_history = {
+            "history": history(
+                events,
+                threads,
+                words,
+                thread_reading.roots,
+                thread_reading.thread_by_widget,
+            )
+        }
     else:
         page_history = {}
-    return {
+    wire = {
         "basis": {"through_seq": through_seq},
         **page_history,
         "views": views,
@@ -249,6 +273,7 @@ def browser_state(
             if event["kind"] == "note"
         },
     }
+    return wire, BrowserReading(threads, thread_reading, readings)
 
 
 def project_browser_state(
@@ -265,7 +290,7 @@ def project_browser_state(
     include_active_view: bool = True,
     live_stream: dict | None = None,
     data: dict | None = None,
-) -> dict | None:
+) -> tuple[dict, BrowserReading] | None:
     """Project only the documents one browser reading can consume.
 
     A normal state needs the revision the tab is showing and the active revision it
@@ -285,30 +310,24 @@ def project_browser_state(
     if requested_revision not in revisions:
         raise ValueError(f"unknown view revision r{requested_revision}")
     wanted = {requested_revision, active_revision}
-    documents = {}
-    for revision in sorted(wanted):
-        if documents_override is not None:
-            documents[revision] = documents_override[revision]
-        else:
-            documents[revision] = SourceDocument(
-                revision_path(page_dir, revision).read_text(encoding="utf-8")
-            )
+    documents = {
+        revision: (
+            documents_override[revision]
+            if documents_override is not None
+            else parse_revision(page_dir, revision)
+        )
+        for revision in sorted(wanted)
+    }
     registries = registries_override
     if registries is None and registry_override is None:
         registries = {
-            revision: read_artifact(page_dir, revision).registry for revision in wanted
+            revision: read_registry(page_dir, revision) for revision in wanted
         }
-    if registry_override is not None:
-        registry = registry_override
-    elif registries is not None:
-        registry = registries[active_revision]
-    else:
-        try:
-            registry = load_registry(page_dir)
-        except RegistryError:
-            return None
-    if registry is None:
-        return None
+    registry = (
+        registry_override
+        if registry_override is not None
+        else registries[active_revision]
+    )
     return browser_state(
         documents,
         events,

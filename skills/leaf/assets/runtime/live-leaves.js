@@ -1,11 +1,10 @@
 /* This module derives the machine's immutable Leaves presentation and owns its walk. */
-import { ago, clocked } from "./presence.js";
+import { clocked } from "./presence.js";
 import { pagePresented } from "./presentation.js";
 import { liveLeavesList, trayIsOpen, othersPanel } from "./trays.js";
 import { keys, paintKeys } from "./keyboard/scopes.js";
-import { walkRows } from "./keyboard/bindings.js";
-import { toneFor, workWords } from "./banner.js";
-import { beginWalk, listWalkPosition } from "./walk-position.js";
+import { activityFacts, countUpdates } from "./banner.js";
+import { rowWalk } from "./walk-position.js";
 
 let others = [];
 let rows = Object.freeze([]);
@@ -28,8 +27,8 @@ const presentationModel = () =>
   });
 export const presentLeaves = () => liveLeavesList.present(presentationModel());
 
-// The tray's own scope. The walk is the tray's rather than the page's, because ArrowUp
-// and ArrowDown anywhere else are the page's own scroll and stay so; Enter is the
+// The tray's own scope. The walk is the tray's rather than the page's, because the
+// arrows, Home and End anywhere else are the page's own scroll and stay so; Enter is the
 // browser's, a row being a link, and the row says so with no `run` to give. The user
 // arrives here by key — `g L` lands focus on the first neighbour — so the scope names
 // what activating does rather than leaving it to the platform's own contract.
@@ -40,25 +39,7 @@ export function declareLeavesKeys() {
   keys(
     othersPanel,
     "In the leaves tray",
-    [
-      {
-        id: "leaf.walk",
-        keys: ["ArrowUp", "ArrowDown"],
-        routes: [
-          { id: "leaf.previous", binding: "ArrowUp", does: "Previous leaf" },
-          { id: "leaf.next", binding: "ArrowDown", does: "Next leaf" },
-        ],
-        does: "Walk the leaves",
-        line: "walk the leaves",
-        repeat: true,
-        run: (binding) => {
-          walkRows(othersLinks(), binding === "ArrowDown" ? 1 : -1);
-          beginWalk("leaf", "Leaf", () =>
-            listWalkPosition(othersLinks(), document.activeElement),
-          );
-        },
-      },
-    ],
+    rowWalk({ id: "leaf", noun: "Leaf", plural: "leaves", rows: othersLinks }),
     () => othersLinks().length > 0,
   );
 }
@@ -67,15 +48,8 @@ export function declareLeavesKeys() {
 // same judgment the banner's sentences come from — the judgment is shared, the
 // wording is the seat's.
 function rowPresence(entry) {
-  const {
-    kind,
-    quiet,
-    dropped,
-    detail,
-    observed_kind: observedKind,
-    ts,
-    counts,
-  } = entry.activity;
+  const { kind, quiet, detail } = entry.activity;
+  const facts = activityFacts(entry);
   // The same join for both kinds that have words of their own. The user opens this
   // panel to find which page needs them, so a bare `Awaits` beside a neighbour's
   // `Working — recording the demo` said least about the one row they are here to act
@@ -83,13 +57,13 @@ function rowPresence(entry) {
   // first is the whole question the panel was opened to answer.
   const stated = (word) => word + (detail ? " — " + detail : "");
   // The banner's two silences, dated the same way and worded for a row.
-  const silence = dropped ? `Left (${ago(entry.turn_closed)})` : `Quiet (${ago(ts)})`;
-  const work = workWords(observedKind).replace(/^./, (letter) => letter.toUpperCase());
+  const silence = `${facts.left ? "Left" : "Quiet"} (${facts.silentSince})`;
+  const work = facts.work.replace(/^./, (letter) => letter.toUpperCase());
   const primary =
     kind === "working"
       ? stated(work)
       : kind === "listening"
-        ? counts.pending || counts.queued
+        ? facts.listening
           ? stated("Listening")
           : stated("Awaits")
         : kind === "stalled"
@@ -103,13 +77,10 @@ function rowPresence(entry) {
               : kind === "unattended"
                 ? "Unattended"
                 : "Closed";
-  const waiting = [];
-  if (counts.queued)
-    waiting.push(`${counts.queued} update${counts.queued === 1 ? "" : "s"} queued`);
-  if (counts.pending)
-    waiting.push(`${counts.pending} update${counts.pending === 1 ? "" : "s"} waiting`);
-  const line = waiting.length ? `${primary} · ${waiting.join(" · ")}` : primary;
-  return { tone: toneFor(kind), line };
+  const line = facts.waiting.length
+    ? `${primary} · ${facts.waiting.join(" · ")}`
+    : primary;
+  return { tone: facts.tone, line };
 }
 
 // The whole of what the tray knows about one page, for its hover. Everything drawn
@@ -124,13 +95,13 @@ function rowPresence(entry) {
 // this question — a user pointing at the words that ran out of room — with the one
 // part of the account they can already read.
 const activityAccount = ({ counts }) => {
-  const noun = (count) => `${count} update${count === 1 ? "" : "s"}`;
   const parts = [];
-  if (counts.active) parts.push(`${noun(counts.active)} active`);
-  if (counts.handling) parts.push(`${noun(counts.handling)} being handled`);
-  if (counts.queued) parts.push(`${noun(counts.queued)} queued`);
-  if (counts.picked_up) parts.push(`${noun(counts.picked_up)} picked up; turn ended`);
-  if (counts.pending) parts.push(`${noun(counts.pending)} waiting`);
+  if (counts.active) parts.push(`${countUpdates(counts.active)} active`);
+  if (counts.handling) parts.push(`${countUpdates(counts.handling)} being handled`);
+  if (counts.queued) parts.push(`${countUpdates(counts.queued)} queued`);
+  if (counts.picked_up)
+    parts.push(`${countUpdates(counts.picked_up)} picked up; turn ended`);
+  if (counts.pending) parts.push(`${countUpdates(counts.pending)} waiting`);
   return parts.length ? parts.join("; ") : null;
 };
 

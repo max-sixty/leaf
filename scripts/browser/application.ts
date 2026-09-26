@@ -188,8 +188,12 @@ export interface AuthoritativeState {
   agent?: string;
 }
 
+type ServerView = AuthoritativeState["browser"]["views"][string];
+/** A server view with its basis, the transport identity, left off. */
+type PageView = Omit<ServerView, "basis">;
+
 function normalizedProjection(
-  view: AuthoritativeState["browser"]["views"][string] | undefined,
+  view: PageView | null | undefined,
   thread: AuthoritativeState["browser"]["thread"] | undefined,
 ) {
   const entries = [];
@@ -257,7 +261,7 @@ const askRecord = (ask: WireAsk): AskRecord => ({
  * again, so an answer reaches these lists when the state its POST returns is
  * adopted — one reading after the widget state the user sees change at once. */
 function normalizedAsks(
-  view: AuthoritativeState["browser"]["views"][string] | undefined,
+  view: PageView | null,
   threadView: AuthoritativeState["browser"]["thread"] | undefined,
 ) {
   const page = view?.document.asks;
@@ -300,7 +304,7 @@ function widgetReading(
     appliesTo(descriptor, e),
   );
   const pending = root.unresolved.filter((entry) => appliesTo(descriptor, entry.event));
-  const durableUndo = root.effective.lifecycle.undo
+  const durableUndo = (root.effective.view?.undo ?? [])
     .map((candidate: { event: Event }) => candidate.event)
     .filter(
       (event: Event) =>
@@ -347,8 +351,8 @@ function widgetReading(
     .map((entry) => entry.event);
   const lifecycles =
     descriptor.document.kind === "thread"
-      ? root.effective.lifecycle.thread.requests
-      : root.effective.lifecycle.page.requests;
+      ? root.effective.threadRequests
+      : root.effective.view?.document.requests;
   const requestUnits: Record<string, {
     seat: { document?: object; widget: string; unit: string; source_revision?: string; offered?: boolean };
     phase: string;
@@ -521,24 +525,19 @@ export function createSemanticApplication({
           }
         : entry,
     );
-    const admitted = normalizedProjection(
-      state?.browser.views[String(document.revision)],
-      state?.browser.thread,
-    );
+    // The shown revision's server view, resolved here once for every reader of this
+    // document's page state. Its basis is transport identity, which the adoption
+    // boundary has already matched to the log reading; left in, a read that only moved
+    // the log's sequence would publish a new semantic epoch.
+    const served = state?.browser.views[String(document.revision)];
+    const view: PageView | null = served
+      ? (({ basis: _basis, ...rest }) => rest)(served)
+      : null;
+    const admitted = normalizedProjection(view, state?.browser.thread);
     const projection = foldProjection({
       ...admitted,
       pendingEntries: pendingProjectionEntries(pending, receipts),
     });
-    const active = state?.browser.views[String(document.revision)];
-    const lifecycle = {
-      page: {
-        requests: active?.document.requests ?? [],
-      },
-      thread: {
-        requests: state?.browser.thread.requests ?? [],
-      },
-      undo: active?.undo ?? [],
-    };
     // Threads and Asks both wait for an admitted reading. Authored markup names every
     // Ask the page could hold, but only the log says which of them it still holds and
     // whether they are answered, so before that reading there is no inventory to publish.
@@ -554,7 +553,7 @@ export function createSemanticApplication({
       : [];
     const widgets = foldWidgetStates(document.authored, projection);
     const projectedRequests = pendingRequests(unresolved, receipts);
-    const asks = ready ? normalizedAsks(active, state?.browser.thread) : NO_ASKS;
+    const asks = ready ? normalizedAsks(view, state?.browser.thread) : NO_ASKS;
     // Thread attention is the server's reading, and three local facts adjust it. A
     // pending send hands the thread to the agent, which `foldThreads` states. A
     // structural Ask survives prose sent beside it, so the admitted Ask inventory puts
@@ -581,7 +580,6 @@ export function createSemanticApplication({
           ? thread
           : {
               ...thread,
-              awaits_user: true,
               attention: { kind: "needs_user", reason: "ask", workflow: null },
             };
       const retry =
@@ -658,19 +656,15 @@ export function createSemanticApplication({
         },
       },
       asks,
-      // These are semantic inputs to package rendering, not transport metadata.
-      // A worker row with no report dates its claim from the active revision, while
-      // report-backed rows render the accepted update sequence. Keep both inside the
-      // publication signature so their public watchers cannot miss a state read whose
-      // projection and widget state happen to be unchanged.
-      updates: active?.updates ?? [],
-      publishedAt: active?.published_at ?? null,
+      // Inside the publication signature, so a read that changes only the view's
+      // updates, publication time, requests, or undo list still reaches its watchers.
+      view,
+      threadRequests: state?.browser.thread.requests ?? [],
       pendingApprovals: pendingApprovals(unresolved, receipts),
       pendingRequests: projectedRequests,
       delivery: unresolvedAttempts(unresolved),
       workflows,
       activity: state?.activity ?? null,
-      lifecycle,
     };
   }
 
@@ -716,21 +710,25 @@ export function createSemanticApplication({
     }
   }
 
-  // An answer this document can take on with `revision` showing: not overtaken by one
-  // already adopted, and holding a view of the revision that would be current.
+  // An answer taken, read through, or activated before the one already adopted.
+  const overtaken = (state: AuthoritativeState) => {
+    const prior = publisher.read().authoritative;
+    return Boolean(
+      prior &&
+      (state.taken < prior.taken ||
+        state.browser.basis.through_seq < prior.browser.basis.through_seq ||
+        state.active.revision < prior.active.revision),
+    );
+  };
+
+  // An answer this document can take on with `revision` showing: not overtaken, and
+  // holding a view of the revision that would be current.
   const adoptable = (
     state: AuthoritativeState,
     candidate: SemanticDocument | number | null,
   ) => {
     const prior = publisher.read();
-    if (
-      prior.authoritative &&
-      (state.taken < prior.authoritative.taken ||
-        state.browser.basis.through_seq <
-          prior.authoritative.browser.basis.through_seq ||
-        state.active.revision < prior.authoritative.active.revision)
-    )
-      return false;
+    if (overtaken(state)) return false;
     const revision =
       typeof candidate === "number"
         ? candidate
@@ -869,6 +867,9 @@ export function createSemanticApplication({
     ) {
       return adoptable(state, document);
     },
+    // Whether an answer is older than the one adopted, whichever revision it would
+    // show. Transport drops such an answer before preparing anything for it.
+    overtaken,
     // `revision` is the revision a live activation has just installed into this
     // document, and adopting the answer that named it is where its revision and stamp
     // become current.
@@ -879,13 +880,6 @@ export function createSemanticApplication({
     adopt(state: AuthoritativeState, document: SemanticDocument | null = null) {
       const prior = publisher.read();
       if (!adoptable(state, document)) return false;
-      const shown = document?.revision ?? prior.document.revision;
-      const basis = state.browser.views[String(shown)]!.basis;
-      if (
-        basis.revision !== shown ||
-        basis.through_seq !== state.browser.basis.through_seq
-      )
-        throw new TypeError("state browser has no matching revision view");
       const authoritative = structuredClone(state);
       const unresolved = prior.unresolved.map((item) => {
         const receipt = authoritative.browser.receipts.find(

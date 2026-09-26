@@ -4,7 +4,7 @@ outlives."""
 
 import json
 
-from .activity import unanswered
+from .activity import acknowledged_obligations, blocking_obligations, unanswered
 from .delivery import record_pickup
 from .event_log import read_events
 from .files import next_reading, read_json
@@ -26,23 +26,6 @@ from .service import (
 )
 
 
-def _turn_wrote(obligation: dict, state: dict) -> bool:
-    """Whether the turn this Stop is closing finished the reply it owes this move.
-
-    A `turn` answer is written by the claimant's own turn, and the carrier commits
-    it once the turn ends, which is after this hook runs. So the move is answered
-    here when the turn's final message is complete, with text, in the reply draft
-    bound to it."""
-    draft = obligation.get("response") or {}
-    return bool(
-        obligation["answer"]["kind"] == "turn"
-        and draft.get("state") == "active"
-        and draft.get("settles")
-        and draft.get("has_text")
-        and draft.get("turn") == state["claim_turn"]
-    )
-
-
 def unattended_pages(
     session_id: str, *, prompt_open: bool = False
 ) -> list[tuple[str, str | None]]:
@@ -55,8 +38,8 @@ def unattended_pages(
 
     Two invariants hold between turns. A page is watched or idle, so anything
     else has quietly stopped listening. And every comment delivered into this
-    turn has an answer under it. A comment a carrier has queued belongs to its
-    later turn even though queue acceptance has advanced the page cursor."""
+    turn has an answer under it, where `activity.blocking_obligations` says which
+    moves this turn owes."""
     reasons = []
     for page_dir in owned_pages(session_id):
         page_reasons = []
@@ -81,22 +64,7 @@ def unattended_pages(
         # Asked of every page, watched or not, and ahead of the watch question
         # below: a watcher cannot deliver a comment the cursor has already
         # passed, so a live wait is no answer to this one.
-        acknowledged = [
-            obligation
-            for obligation in state["activity"]["obligations"]
-            if obligation["seq"] <= state["cursor"]
-        ]
-        # Queue acceptance belongs to the originating turn, so it is not debt
-        # there. The later UserPromptSubmit still opens it below; from that
-        # point its ordinary unanswered debt is enforced again.
-        # A finished turn answer counts only while the carrier that would commit
-        # it is alive; otherwise nothing will.
-        stale = [
-            obligation
-            for obligation in acknowledged
-            if obligation["stage"] != "queued"
-            and not (carried and _turn_wrote(obligation, state))
-        ]
+        stale = blocking_obligations(state, carried=carried)
         if stale:
             page_reasons.append(
                 (
@@ -149,6 +117,9 @@ def unattended_pages(
             with PageTransaction(page_dir) as page:
                 claim = page.active_claim
                 if claim and claim["id"] == session_id:
+                    # A prompt opens every acknowledged move for its turn, the
+                    # queued ones included: from here they block like the rest.
+                    acknowledged = acknowledged_obligations(state)
                     if prompt_open and acknowledged:
                         by_id = {event["id"]: event for event in page.events}
                         record_pickup(

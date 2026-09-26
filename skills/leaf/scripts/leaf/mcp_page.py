@@ -12,15 +12,15 @@ from mcp.server.mcpserver.exceptions import ToolError
 from mcp.types import CallToolResult, TextContent
 from starlette.responses import Response
 
-from .files import latest_revision, revision_path
+from .files import latest_revision
 from .hosting import LeafHTTPServer
 from .http import PageEndpoint
 from .registry.contract import RegistryError
-from .revision_artifact import read_artifact
+from .revision_artifact import read_registry
 from .schema import EVENTS_FILE, MCP_APP
 from .served_state.service import PageStateService
 from .server import preview_metadata, running_server
-from .structure import SourceDocument
+from .structure import parse_revision
 
 PAGE_RESOURCE_URI = "ui://leaf/page/v1.html"
 PAGE_APP_RESOURCE = MCP_APP / "page-app.html"
@@ -73,7 +73,7 @@ class RoutedPageEndpoint(PageEndpoint):
         revision = latest_revision(self.page_dir)
         if revision is None:
             return self._not_found()
-        self.layer_identity = read_artifact(self.page_dir, revision).registry["$layer"]
+        self.layer_identity = read_registry(self.page_dir, revision)["$layer"]
         self.preview = session.preview
         self.page_root = f"/p/{session.capability}"
         self.path = f"/{parts[3]}" if len(parts) == 4 and parts[3] else "/"
@@ -193,8 +193,7 @@ def page_state(page: str | Path, pages: ProcessPageServer) -> tuple[dict, dict]:
         detail = state["source_error"] or "the page registry cannot be projected"
         raise unpresentable_layer_error(page_dir, detail)
     server = running_server(page_dir) or {}
-    source = revision_path(page_dir, active["revision"]).read_text(encoding="utf-8")
-    title = SourceDocument(source).title.strip() or page_dir.name
+    title = parse_revision(page_dir, active["revision"]).title.strip() or page_dir.name
     summary = {
         "format": PAGE_FORMAT,
         "mode": "page",

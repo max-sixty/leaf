@@ -35,8 +35,7 @@ from .layer import (
 from .leases import lock_is_held, page_locked
 from .locations import located, locations_overlap, path_is_within, path_location
 from .projection import page_reading
-from .registry.contract import read_registry_declarations
-from .registry.page import compose_page_registry
+from .registry.storage import compose_candidate, layer_packages, widget_paths
 from .schema import (
     CURSOR_FILE,
     EVENTS_FILE,
@@ -151,23 +150,7 @@ def _plan_page(
     if selected is None and fresh:
         selected = ()
     elif selected is None:
-        recorded = (
-            (read_json(page_dir / "registry.json") or {})
-            .get("$layer", {})
-            .get("packages", [])
-        )
-        if (
-            not isinstance(recorded, list)
-            or not all(
-                isinstance(selection, str) and selection for selection in recorded
-            )
-            or len(set(recorded)) != len(recorded)
-        ):
-            sys.exit(
-                f"{page_dir / 'registry.json'}: $layer.packages must be a unique "
-                "list of non-empty package selections"
-            )
-        selected = tuple(recorded)
+        selected = tuple(layer_packages(page_dir))
     inputs = layer_inputs(selected)
     _refuse_package_target(page_dir, inputs)
     roots = checked_layer_inputs(inputs)
@@ -308,22 +291,14 @@ def _validate_page_transition(
 
 
 def _effective_registry(page_dir: Path, composition: LayerComposition) -> dict:
-    """Compose authored declarations over the prospective vendored layer."""
-    source = page_dir / "page" / "registry.json"
-    declarations = read_registry_declarations(source) or {}
-    widget_paths = {
-        *(f"widgets/{name}" for name in composition.directory_files["widgets"]),
-        *(
-            path.relative_to(page_dir).as_posix()
-            for path in (page_dir / "page" / "widgets").glob("lf-*.js")
-            if path.is_file()
-        ),
-    }
-    return compose_page_registry(
+    """The candidate's vocabulary over the incoming layer."""
+    return compose_candidate(
+        page_dir,
         composition.registry,
-        declarations,
-        widget_paths,
-        source=source,
+        [
+            *(f"widgets/{name}" for name in composition.directory_files["widgets"]),
+            *widget_paths(page_dir, "page/widgets"),
+        ],
     ).registry
 
 

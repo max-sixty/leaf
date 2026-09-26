@@ -141,6 +141,50 @@ def unanswered(obligations: list[dict], of: str = "") -> str:
     )
 
 
+def _turn_wrote(obligation: dict, state: dict) -> bool:
+    """Whether the claimant's open turn finished the reply it owes this move.
+
+    A `turn` answer is written by the claimant's own turn, and the carrier commits
+    it once the turn ends, after the agent's last command. So the move is answered
+    now when the turn's final message is complete, with text, in the reply draft
+    bound to it."""
+    draft = obligation.get("response") or {}
+    return bool(
+        obligation["answer"]["kind"] == "turn"
+        and draft.get("state") == "active"
+        and draft.get("settles")
+        and draft.get("has_text")
+        and draft.get("turn") == state["claim_turn"]
+    )
+
+
+def acknowledged_obligations(state: dict) -> list[dict]:
+    """The owed answers whose moves the page cursor has passed, which nothing will
+    deliver again."""
+    return [
+        obligation
+        for obligation in state["activity"]["obligations"]
+        if obligation["seq"] <= state["cursor"]
+    ]
+
+
+def blocking_obligations(state: dict, *, carried: bool) -> list[dict]:
+    """The owed answers that keep the agent from ending its turn or idling the page.
+
+    The Stop hook and `leaf status idle` both refuse over exactly these: the
+    acknowledged moves nothing else is set to answer. A move a carrier queued is
+    answered by the later turn the queue opens, where the prompt hook records it
+    `opened` and it blocks from then on. A turn answer the open turn has
+    finished is committed by the claimant's carrier once the turn ends, so it is
+    answered while that carrier (`carried`) is live."""
+    return [
+        obligation
+        for obligation in acknowledged_obligations(state)
+        if obligation["stage"] != "queued"
+        and not (carried and _turn_wrote(obligation, state))
+    ]
+
+
 def transition_due(activity: dict, now_iso: str) -> bool:
     """Whether a projected activity reading has reached its refresh boundary."""
     due = _moment(activity.get("next_transition_at"))

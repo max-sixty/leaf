@@ -15,8 +15,9 @@ from .structure import VOID_TAGS, SourceDocument, parse_revision
 # ---------- passages: the text an anchor points at ----------
 # The runtime resolves an anchor against the DOM; `leaf thread open` writes one down
 # against the file. The two have to read the same page or the anchor lands somewhere it
-# was never made, so this mirrors leaf.js's capture rather than approximating it:
-# the same skip list, the same block-boundary space, the same collapse, the same caps.
+# was never made, so this mirrors the runtime's capture (passages.js) rather than
+# approximating it: the same skip list, the same block-boundary space, the same collapse,
+# the same caps.
 #
 # What the file cannot know is what a widget's module will write, and the registry is
 # where that is declared rather than guessed at per widget. Three keywords carry what
@@ -31,7 +32,7 @@ from .structure import VOID_TAGS, SourceDocument, parse_revision
 #               opaque, as a diagram's notation is once its module has drawn a picture.
 #   x-retired-when  the outcome under which this element leaves the page: a decided
 #               suggestion's losing slot. The browser builds its anchor pass's skip
-#               list from this key too (`quotable` in leaf.js), so a reading given
+#               list from this key too (`quotable` in passages.js), so a reading given
 #               the log's outcomes drops here exactly what drops there — and a widget
 #               whose decision leaves nothing showing goes with its slots (settledAway
 #               there, `gone` here). Its values are also the vocabulary's decision
@@ -60,7 +61,7 @@ from .structure import VOID_TAGS, SourceDocument, parse_revision
 # user on either side can reach.
 
 # The collapse class, stated outright: the characters a whitespace run is made of, one
-# spelling the set and the regex both derive from, matching leaf.js's COLLAPSE exactly.
+# spelling the set and the regex both derive from, matching collapse.js's COLLAPSE exactly.
 # JS's \s and Python's str.isspace() disagree at the edges — U+FEFF is whitespace to JS
 # alone, U+0085 and U+001C–001F to Python alone — and a page carrying one of those in
 # prose read differently on the two sides, so a `leaf thread open` quote could be written
@@ -139,24 +140,24 @@ class _OwnedWords:
 
     def __init__(self, owner: tuple[str, str | None, int]):
         self.owner = owner
-        self.text = ""
+        self.chars = []  # appended to, since `str +=` on an attribute copies it whole
         self.block = None
         self.space = False
         self.boundaries = 0
         self.parts = []
 
     def write(self, data: str, block: int) -> None:
-        if self.text and block != self.block:
+        if self.chars and block != self.block:
             self.space = True
         self.block = block
         for ch in data:
             if ch in COLLAPSE_CHARS:
-                self.space = bool(self.text)
+                self.space = bool(self.chars)
                 continue
             if self.space:
-                self.text += " "
+                self.chars.append(" ")
                 self.space = False
-            self.text += ch
+            self.chars.append(ch)
 
     def boundary(self, tag: str, element_id: str | None) -> None:
         self.flush()
@@ -173,9 +174,9 @@ class _OwnedWords:
         self.boundaries += 1
 
     def flush(self) -> None:
-        if words := self.text.strip(" "):
+        if words := "".join(self.chars).strip(" "):
             self.parts.append({"text": words})
-        self.text = ""
+        self.chars = []
         self.block = None
         self.space = False
 
@@ -221,7 +222,7 @@ class _PassageParser:
 
     `decided` is the outcome each suggestion stands under (`retirement_outcomes`).
     A decision retires a slot — the registry's `x-retired-when` names which outcome —
-    and the browser's anchor pass reads the same key (`quotable` in leaf.js), so
+    and the browser's anchor pass reads the same key (`quotable` in passages.js), so
     this reading drops it the same way. A decision that leaves its
     widget with nothing — a deletion accepted, an insertion refused — empties the
     wrapper too (`gone`), because an element showing nothing is one nobody can point
@@ -246,7 +247,9 @@ class _PassageParser:
         self.decided = decided or {}
         self.rewrites = rewrites or {}
         self.additions = additions or {}
-        self.text = ""
+        # The collapsed run, one entry per character: a list, since `str +=` on an
+        # attribute copies the whole string and makes a large page's reading quadratic.
+        self.chars = []
         self.owner = []  # per character: the tuple of enclosing ids
         self.fences = set()  # indices a quote may not span
         self.retired = {}  # id under a retired slot → the suggestion whose decision did it
@@ -278,18 +281,18 @@ class _PassageParser:
         """Text into the collapsed run, one space per whitespace run and none leading."""
         if data.strip():
             self.bearing.update(ids)
-        if self.text and block != self._block:
+        if self.chars and block != self._block:
             self._space = True
         self._block = block
         for ch in data:
             if ch in COLLAPSE_CHARS:
-                self._space = bool(self.text)
+                self._space = bool(self.chars)
                 continue
             if self._space:
-                self.text += " "
+                self.chars.append(" ")
                 self.owner.append(ids)
                 self._space = False
-            self.text += ch
+            self.chars.append(ch)
             self.owner.append(ids)
         for frame in reversed(self.stack):
             if frame["verbatim"]:
@@ -302,7 +305,7 @@ class _PassageParser:
         """Words may stand here that this reading knows nothing about. Recorded as a
         position rather than written into the text, so `text` stays the page's own words
         and no quote can be built out of one."""
-        self.fences.add(len(self.text))
+        self.fences.add(len(self.chars))
 
     def _said(self, frame: dict, values: list) -> None:
         # renderSaid puts each value in its own <span>, so each is its own block wherever
@@ -547,7 +550,7 @@ def page_passages(
         walk(child)
     parser.close()
     return Passages(
-        parser.text,
+        "".join(parser.chars),
         parser.owner,
         parser.fences,
         parser.retired,
@@ -600,10 +603,9 @@ def spoken(document: SourceDocument, registry: dict) -> dict:
     record of what was open — and an element that says nothing is somewhere all the
     same. Keyed on words, an image-only option and a card holding one diagram were
     in no chain at all, so `action_rests_on` dropped them from what an action rests
-    on where the browser's `restsOn` keeps them (a floor stopped replaying on one
-    side only), and `markup_value` read a version that honoured a pick on such an
-    option as showing no pick, which is the state gate refusing the very version
-    that agreed with the user."""
+    on (a floor stopped replaying), and `markup_value` read a version that honoured a
+    pick on such an option as showing no pick, which is the state gate refusing the
+    very version that agreed with the user."""
     p = page_passages(document, registry)
     first, last = {}, {}
     for i, ids in enumerate(p.owner):

@@ -379,6 +379,16 @@ class FrozenThreadReading(NamedTuple):
             for record in fragment.lf_elements
         ]
 
+    def subject_thread(self, subject: dict) -> str | None:
+        """The thread a workflow or update subject stands in: a thread subject is
+        its own, a widget frozen into a message is its thread's, and a page widget
+        stands in none."""
+        if subject["kind"] == "thread":
+            return subject["id"]
+        if subject["kind"] == "widget":
+            return self.thread_by_widget.get(subject["id"])
+        return None
+
 
 def state_projection(
     events: list,

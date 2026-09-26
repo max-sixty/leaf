@@ -1,5 +1,11 @@
 #!/usr/bin/env bash
 # Verify the built public site through the local Worker and its page container.
+#
+# Prints the document, widget-upgrade, and presentation milestones with the requests
+# and bytes loaded by presentation, requires the browser's startup profile to reach
+# the Worker, and checks that activating one page leaves a neighboring page on the
+# edge. A failed check prints the Worker's log beside the browser's account of the
+# page that stopped it.
 
 set -euo pipefail
 

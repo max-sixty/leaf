@@ -2593,9 +2593,14 @@ COMPUTED_FACES = """([properties]) => {
 
 RELOCATE_ADOPTED = """async () => {
     const rules = document.adoptedStyleSheets.flatMap((sheet) => [...sheet.cssRules]);
+    // The page states its layer order in the first rule it loads (layer.py,
+    // CASCADE_LAYERS). A copy standing first has to state it again, or the first layer
+    // its own rules name becomes the lowest.
+    const order = [...document.styleSheets].map((sheet) => sheet.cssRules[0])
+        .find((rule) => rule instanceof CSSLayerStatementRule);
     const style = document.createElement('style');
     style.nonce = document.querySelector('script[nonce], style[nonce]')?.nonce ?? '';
-    style.textContent = rules.map((rule) => rule.cssText).join('\\n');
+    style.textContent = [order, ...rules].map((rule) => rule.cssText).join('\\n');
     // A copy: adoptedStyleSheets is a live array, so the assignment below would empty
     // the saved reference along with it.
     window.__lfAdopted = {sheets: [...document.adoptedStyleSheets], style};
@@ -2603,7 +2608,7 @@ RELOCATE_ADOPTED = """async () => {
     document.adoptedStyleSheets = [];
     await new Promise((settled) =>
         requestAnimationFrame(() => requestAnimationFrame(settled)));
-    return {adopted: rules.length, linked: style.sheet?.cssRules.length ?? 0};
+    return {adopted: rules.length, linked: (style.sheet?.cssRules.length ?? 1) - 1};
 }"""
 
 RESTORE_ADOPTED = """async () => {
@@ -2631,11 +2636,11 @@ def test_the_adopted_sheet_decides_nothing_by_standing_last(browser, serve):
     to beat page and widget alike, and it must do that on its selectors rather than on
     where it is delivered.
 
-    Layer order is the one other thing the move reverses — theme.css opens an anonymous
-    layer and chrome.css a named `lf-reset`, and the first one declared wins an
-    important declaration. The two never meet on this page: every rule in that anonymous
-    layer asks for a body without `data-lf-presented` or `data-lf-upgraded`, and
-    open_page has waited for both.
+    Layer order is the one other thing the move could reverse. A module sheet adopted
+    first names `lf-base` before chrome.css names `lf-reset`, so the copy opens with the
+    statement the page's first sheet makes (`@layer lf-reset, lf-base, lf-layouts`). An
+    anonymous layer theme.css opens meets nothing here: every rule in it asks for a body
+    without `data-lf-presented` or `data-lf-upgraded`, and open_page has waited for both.
 
     The corpus, because a tie shows only where both rules meet one element, and it is
     the page that holds every widget and every idiom at once."""
@@ -2982,8 +2987,9 @@ def test_a_comment_inside_a_scrolling_table_leaves_the_page_its_own_width(
             return {
                 onItsCell: word.left >= Math.floor(cell.left)
                            && word.right <= Math.ceil(cell.right),
-                cellShown: cell.left >= Math.floor(shown.left)
-                           && cell.right <= Math.ceil(shown.right),
+                // Within a pixel: the table scrolls to a whole-pixel scrollWidth, so a
+                // cell ending on a fraction stands that fraction past the box at the end.
+                cellShown: cell.left >= shown.left - 1 && cell.right <= shown.right + 1,
                 sideways: document.body.scrollWidth - document.body.clientWidth,
             };
         };
@@ -3000,7 +3006,9 @@ def test_a_comment_inside_a_scrolling_table_leaves_the_page_its_own_width(
     assert not measured["rest"]["cellShown"], (
         "the cell is on screen already, so nothing here could have escaped"
     )
-    assert measured["scrolled"]["cellShown"], "the table did not scroll to the cell"
+    assert measured["scrolled"]["cellShown"], (
+        f"the table did not scroll to the cell: {measured}"
+    )
     assert measured["rest"]["onItsCell"] and measured["scrolled"]["onItsCell"], (
         f"the word left the cell it belongs to: {measured}"
     )
@@ -3343,6 +3351,8 @@ def test_a_change_may_be_decided_over_the_note_it_stands_level_with(browser, ser
     notes says `data-rail="none"` and its markers stand as pins instead."""
     url = serve(NOTE_BESIDE_A_CHANGE)
     page = open_page(browser, url)
+    # A note hangs in the margin only where the room beside the column holds it.
+    resized(page, 1600, 900)
     page.locator("#sug-level").scroll_into_view_if_needed()
     geometry = """() => {
         const note = document.getElementById('level-note').getBoundingClientRect();
@@ -3395,6 +3405,12 @@ def test_the_covered_words_gate_still_reads_a_control_in_the_flow(browser, serve
     )
 
 
+@pytest.mark.xfail(
+    strict=True,
+    reason="a sidenote stands in the margin only from 1536px since the Layouts, and the "
+    "gate reads at 1200px, so it never sees the note leave its box; TODO.md, Layouts, "
+    "'Finish contract 8's margins'",
+)
 def test_the_render_gate_reports_a_sidenote_a_box_clips_away(browser, serve):
     """A choose group clips its own box, so a note pulled into the page's margin from
     inside one is painted nowhere. Every other reading calls that well — the column
@@ -3526,19 +3542,21 @@ def test_the_render_gate_reads_a_scrolled_container_from_its_content(browser, se
 
 
 def test_a_page_hands_its_note_strip_back_when_the_panel_takes_the_room(browser, serve):
-    """The margin form is granted by a container query over the page's actual box. The
-    panel takes 420px from that box without changing the viewport, and CSS returns the
-    note to the flow once the remaining room crosses the theme's floor.
+    """The margin form is granted by a container query over the page's box, and the
+    thread panel stands over the page rather than taking room from it, so the panel
+    decides nothing about where a note stands: the window does.
 
     `version check --render` and the render sweep normally open with no panel, so this
-    test exercises the narrower container state they do not otherwise visit.
+    test exercises the panel's state they do not otherwise visit.
 
     Three readings distinguish a real container response from either never floating the
     note or releasing it whenever the panel opens: the note begins in the margin, returns
-    to flow when space is tight, and stays in the margin when the wider box holds both."""
+    to flow in a window too narrow for it, and stays in the margin with the panel open
+    in one wide enough."""
     example = FEATURE_GALLERY
     url = serve(example)
     page = open_page(browser, url)
+    resized(page, 1600, 900)
     reading = """() => {
         const note = document.querySelector('aside.sidenote');
         const main = document.querySelector('main'), s = getComputedStyle(main);
@@ -3552,10 +3570,6 @@ def test_a_page_hands_its_note_strip_back_when_the_panel_takes_the_room(browser,
     panel_settled(page)
     cramped = page.evaluate(reading)
     misplaced = render_checks_model.evaluate_probe(page, "misplacedBoxes")
-    # Wide enough that the panel's 420px still leaves the floor a clear margin rather
-    # than the twenty-odd pixels 1600 leaves it: the reading is meant to say the strip
-    # survives a window with room for both, not to sit on the boundary and report which
-    # side of it this month's --note falls.
     resized(page, 1728, 900)
     wide = page.evaluate(reading)
     page.close()

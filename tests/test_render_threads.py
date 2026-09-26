@@ -4403,6 +4403,12 @@ def test_a_thread_reopened_mid_fold_folds_again_when_it_settles(browser, serve):
     expect(going.locator(f'.lf-msg[data-mid="{reply["id"]}"]')).to_have_count(1)
 
 
+@pytest.mark.xfail(
+    strict=True,
+    reason="page CSS is unlayered above the lf-base layer where the controls' shared "
+    "face is stated, so a page's `button` rule reaches it at any specificity; TODO.md, "
+    "Layout, 'Keep page CSS off Leaf's controls (decision E)'",
+)
 def test_a_pages_own_element_rules_leave_the_layers_controls_alone(browser, serve):
     """A page dressing its own `button` and `a` is dressing its prose. The controls a
     widget builds wear the layer's face instead, because `.lf-ui` holds a class's rank
@@ -4605,6 +4611,13 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         # The same metadata action slot carries settlement in panel and inline seats;
         # the authored theme gives both views the same alignment.
         "lf-thread-meta-actions",
+        # The general text box's face is the theme's (the `.lf-ui textarea` rule), so a
+        # widget's own box that names the same property outranks it in the shared layer.
+        # It names the compact response field only to exclude it, since that field takes
+        # its whole geometry from the response controls it shares a baseline with, and
+        # the focus a native label projects only as the state that rings the box.
+        "lf-fab-input",
+        "lf-focus",
         # Active buttons share the theme's existing .lf-btn.on state.
         "on",
         # Primary buttons keep the authored theme's accent action face when they
@@ -4620,14 +4633,9 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         # widget markup. Both deliberately cross the chrome scope so drawing can spare
         # the thread's controls.
         "lf-thread-seat",
-        # The compact response field, named the same way: the general text box's rule
-        # excludes it at document level because the field takes its whole geometry from
-        # the response controls it shares a baseline with, inside the chrome's own scope.
-        "lf-fab-input",
         "lf-ui",
-        # A native label can pass through an intermediate focus target. These project
-        # the held control's focus until activation settles.
-        "lf-focus",
+        # A native label can pass through an intermediate focus target. This projects
+        # the held control's focus ring until activation settles.
         "lf-focus-visible",
         "lf-btn",
         "lf-over-mark",

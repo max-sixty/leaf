@@ -29,7 +29,7 @@
    `display: contents` while its rendered descendants remain usable, and a collapsed
    target has no rendered part to offer. */
 import { cancelRender, nextRender, sizeObserver } from "./rendering.js";
-import { railStands, shellRight, shownBand, shownParts } from "./geometry.js";
+import { shellRight, shownBand, shownParts } from "./geometry.js";
 import { under, upFrom } from "./shadow.js";
 import { scrollerFor } from "./reading-regions.js";
 import { pageScroller } from "./scrolling.js";
@@ -46,6 +46,18 @@ let observedColumn = null;
 let layer = null;
 
 const marginColumn = () => document.querySelector("main") || document.body;
+
+// Whether the margin's rail stands: where the room between `main` and the shell's right
+// edge holds a rail, measured, so a centred column in a wide window keeps its markers in
+// the margin and a page laid out to the edge pins them. Nothing claims the room. A page
+// declares otherwise on `main`: `data-rail="right"` makes the shell give up the rail's
+// width on its right (theme.css), which this reads as room like any other, and
+// `data-rail="none"` keeps its margin for its own residents, so its markers are pins.
+function railStands(main, mainRect, shell) {
+  if (main.getAttribute("data-rail") === "none") return false;
+  const rail = parseFloat(getComputedStyle(main).getPropertyValue("--rail")) || 0;
+  return shell - mainRect.right >= rail;
+}
 
 const labelRect = (name, left, top, label) => ({
   name,
@@ -409,7 +421,10 @@ export function layoutMarginRows() {
   const page = anchorReading(main, PAGE_ANCHOR);
   const columnRect = main.getBoundingClientRect();
   const shell = shellRight();
-  const stands = railStands();
+  const stands = railStands(main, columnRect, shell);
+  // Said once, for the chrome: where the markers are pins, the banner offers the Page
+  // Map in their place (chrome.css).
+  layer.root.toggleAttribute("data-lf-pins", !stands);
   const rootStyle = getComputedStyle(document.documentElement);
   const hang = parseFloat(rootStyle.getPropertyValue("--rail-hang")) || 0;
   const pinInset = parseFloat(rootStyle.getPropertyValue("--pin-inset")) || 0;

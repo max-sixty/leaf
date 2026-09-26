@@ -630,52 +630,54 @@ def test_a_surface_over_the_rail_hands_the_user_the_map(browser, serve):
     assert not page.evaluate(offered), "the tray on the left withdrew the rail"
 
 
-@pytest.mark.parametrize(
-    ("touch", "floor"), [(False, 863), (True, 887)], ids=["mouse", "finger"]
-)
-def test_the_rail_is_claimed_only_in_a_shell_that_can_hold_it(
-    browser, serve, touch, floor
+@pytest.mark.parametrize("touch", [False, True], ids=["mouse", "finger"])
+def test_the_rail_stands_where_the_room_beside_the_column_holds_it(
+    browser, serve, touch
 ):
-    """The floor grants the rail out of the shell, so the shell has to hold what it
-    grants: the column (720), its padding (2 x 24) and the rail. A finger raises the
-    rail from 95 to 119, so each pointer has its own floor, and a container query
-    cannot read the rail to derive it. So this walks the shell down through the flip
-    under each pointer and holds the column whole wherever the rail stands.
-
-    A floor set too low reads here as a column narrower than its measure, which is the
-    bug the floor exists to stop: the markers go flush against whatever took the room.
-    One set too high reads as a sweep whose narrowest rail stands well above the floor."""
+    """The rail claims nothing: its markers stand in it wherever the room between a
+    centred column and the shell's right edge holds it, and as pins on their blocks
+    everywhere else, so the column keeps its measure at every width. A finger's larger
+    entries widen the rail, so each pointer flips at its own width: the column's box
+    (720 and 2 x 24 of padding) and a rail on each side. The sweep walks down through
+    that width and reads where the markers stand."""
     context = browser.new_context(
-        viewport={"width": floor + 40, "height": 900}, has_touch=touch
+        viewport={"width": 1200, "height": 900}, has_touch=touch
     )
-    page = open_page(browser, serve(PANEL_PAGE), context=context)
+    page = open_page(
+        browser, serve(PANEL_PAGE, events=[_comment_on("lede")]), context=context
+    )
     assert page.evaluate("() => matchMedia('(pointer: coarse)').matches") == touch
-    stood = []
-    for width in range(floor + 40, floor - 30, -3):
+    rail = page.evaluate(
+        """() => parseFloat(getComputedStyle(document.querySelector('main'))
+             .getPropertyValue('--rail'))"""
+    )
+    floor = 720 + 2 * 24 + 2 * rail
+    places = set()
+    for width in range(round(floor) + 30, round(floor) - 30, -3):
         resized(page, width, 900)
         margins_laid_out(page)
         reading = page.evaluate(
             """() => {
               const main = document.querySelector('main');
               const style = getComputedStyle(main);
+              const row = document.querySelector('[data-lf-margin-for="lede"]');
               return {
-                posture: style.getPropertyValue('--lf-rail-posture').trim(),
+                place: row.dataset.lfPlace,
                 column: Math.round(parseFloat(style.width)),
-                shell: Math.round(document.body.clientWidth),
+                shell: document.body.clientWidth,
               };
             }"""
         )
-        if reading["posture"] != "margin":
+        assert reading["column"] == 720, reading
+        if abs(reading["shell"] - floor) <= 2:
             continue
-        stood.append(reading)
-        assert reading["column"] >= 720, (
-            f"a {reading['shell']}px shell claimed the rail and left a "
-            f"{reading['column']}px column: the floor granted room the page lacks"
+        expected = "rail" if reading["shell"] > floor else "pin"
+        assert reading["place"] == expected, (
+            f"at a {reading['shell']}px shell, with a {rail:g}px rail needing "
+            f"{floor:g}px, the markers stood as {reading['place']}"
         )
-    assert stood, "no width in this sweep claimed the rail, so nothing here was tested"
-    assert min(r["shell"] for r in stood) <= floor + 3, (
-        "the rail folded above its floor, giving up room the page had"
-    )
+        places.add(reading["place"])
+    assert places == {"rail", "pin"}, "the sweep never crossed the rail's width"
 
 
 def test_an_unchanged_compact_margin_keeps_the_user_at_the_document_end(browser, serve):
@@ -4618,17 +4620,19 @@ def test_a_thread_uses_a_free_margin_and_tracks_its_source(browser, serve):
 
 
 def test_a_thread_beside_its_cluster_takes_the_room_to_the_visible_edge(browser, serve):
-    """A rail a few pixels short of the card's measure narrows the card, not its height.
+    """Room beside a cluster a few pixels short of the card's measure narrows the card,
+    not its height.
 
-    The width is the arrangement: the rail beside this cluster grows with half the
-    viewport, and the case only says anything where the room it leaves falls between
-    `--thread-card-min` and `--thread-card`. Wider and the card takes its preferred
-    measure with room to spare, narrower and it is the short-rail case below. The room
-    is asserted before the outcome is, so moving either token reddens the arrangement
-    and names the width to re-pick rather than reading as a layout regression."""
+    The width is the arrangement: this cluster pins on a block that breaks out of the
+    column, so the room right of it grows with half the viewport, and the case only says
+    anything where that room falls between `--thread-card-min` and `--thread-card`.
+    Wider and the card takes its preferred measure with room to spare, narrower and it
+    is the short-rail case below. The room is asserted before the outcome is, so moving
+    either token, or the gallery's arrangement, reddens the arrangement and names the
+    width to re-pick rather than reading as a layout regression."""
     page = open_page(browser, serve(FEATURE_GALLERY))
     page.emulate_media(reduced_motion="reduce")
-    resized(page, 1220, 900)
+    resized(page, 1360, 900)
     page.evaluate("location.hash = 'bg-margin-controls'")
     page.locator("body").focus()
     _walk_gallery_thread(page, "2be2443f0bb6cc49fc86b52f340e6073")
@@ -7534,8 +7538,9 @@ def test_the_page_form_decides_the_rail_and_main_can_say_otherwise(
     browser, serve, main, place
 ):
     """A column page keeps a rail beside its column and a wide page does not: its markers
-    stand as pins on their blocks. `data-rail` on `main` turns either round. Where no rail
-    is kept the page claims no strip for one, so the wide page has the room."""
+    stand as pins on their blocks. `data-rail` on `main` turns either round: `right`
+    gives up the rail's width at the shell's right edge, and `none` keeps the margin for
+    the page's own residents. Only `right` takes room from the page."""
     source = leaf_page(
         "rail by form",
         '<h1 id="t">Rail by form</h1><p id="p">A paragraph with a comment on it.</p>',
@@ -7545,11 +7550,10 @@ def test_the_page_form_decides_the_rail_and_main_can_say_otherwise(
     margins_laid_out(page)
     row = page.locator('.lf-margin-cluster[data-lf-margin-for="p"]')
     expect(row).to_have_attribute("data-lf-place", place)
-    claimed = page.evaluate(
-        """() => getComputedStyle(document.querySelector('main'))
-             .getPropertyValue('--lf-rail-posture').trim() === 'margin'"""
+    given = page.evaluate(
+        "() => parseFloat(getComputedStyle(document.body).paddingInlineEnd)"
     )
-    assert claimed == (place == "rail")
+    assert (given > 0) == ('data-rail="right"' in main), given
 
 
 def test_a_pin_on_one_shape_of_a_drawing_stands_on_that_shape(browser, serve):
@@ -7613,9 +7617,10 @@ def test_a_pin_on_a_contents_target_stands_at_its_last_part(browser, serve):
     )
 
 
-def test_a_workspace_page_claims_no_rail(browser, serve):
-    """The workspace Layout stands in the wide page's frame, so it gives up the rail's
-    strip as `<main class="layout-wide">` does."""
+def test_a_workspace_page_keeps_no_rail(browser, serve):
+    """The workspace Layout stands in the wide page's frame, which leaves no room beside
+    it for a rail, so a comment in a pane stands on its block as a pin, as it does on
+    `<main class="layout-wide">`."""
     source = leaf_page(
         "workspace page",
         '<header><h1 id="t">Workspace</h1></header>'
@@ -7623,13 +7628,11 @@ def test_a_workspace_page_claims_no_rail(browser, serve):
         "</lf-pane>",
         layout="workspace",
     )
-    page = open_page(browser, serve(source))
+    page = open_page(browser, serve(source, events=[_comment_on("p")]))
     resized(page, 1440, 900)
-    posture = page.evaluate(
-        """() => getComputedStyle(document.querySelector('main'))
-             .getPropertyValue('--lf-rail-posture').trim()"""
-    )
-    assert posture != "margin"
+    margins_laid_out(page)
+    row = page.locator('.lf-margin-cluster[data-lf-margin-for="p"]')
+    expect(row).to_have_attribute("data-lf-place", "pin")
 
 
 def test_o_hides_what_is_drawn_over_the_page_and_moves_nothing(browser, serve):

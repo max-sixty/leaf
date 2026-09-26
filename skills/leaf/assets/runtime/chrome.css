@@ -143,6 +143,33 @@
    correctly. */
 .lf-skip { opacity: 0; pointer-events: none; }
 .lf-quiet { clip-path: inset(50%); white-space: nowrap; }
+/* A pending suggestion still has to say it is proposed when generated controls are
+ * absent. On screen the ✓/✗ row carries that fact and this word stays clipped for
+ * whoever is listening. Paper exposes the word #voice already writes
+ * in each slot, so the proposal remains distinguishable from settled content without
+ * adding another label or moving it elsewhere.
+ *
+ * The page the markup describes is the base, and the live page's clipped version goes
+ * inside the screen guard. `user-select` is not touched: this is the runtime's reading
+ * of the paint rather than authored prose, so copying a published paragraph must not
+ * carry the word with it.
+ *
+ * inline-block, because lf-old is struck and CSS runs a decoration through every
+ * in-flow inline descendant — a descendant cannot cancel it, and `text-decoration:
+ * none` here is inert. Unclipped as a plain inline, the one word saying the change has
+ * *not* been made was itself painted struck in the deletion's red, which is the reading
+ * this whole rule exists to prevent. An atomic inline is where the line stops.
+ *
+ * Here beside `.lf-quiet` rather than in the theme, because the two must meet in one
+ * cascade layer: the chrome's unlayered rule would beat any theme rule in lf-base. */
+lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
+  position: static; width: auto; height: auto; overflow: visible; clip-path: none;
+  display: inline-block; margin-right: 5px; }
+@media screen {
+  html:root lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
+    position: absolute; width: 1px; height: 1px; overflow: hidden;
+    clip-path: inset(50%); margin-right: 0; }
+}
 /* The skip link (leaf.js says why it stands where it does). It rests transparent, the
    way the comment note above does and for the same reason, and on focus takes the face
    the two controls below take, in the same place — a user who has just pressed Tab
@@ -279,14 +306,6 @@ body[data-lf-draw-mode] main .lf-thread-seat * { cursor: auto !important; }
 /* The glyphs of the reactions standing on a target — a margin entry per reaction,
    revealing a separately named removal action. */
 .lf-react-mark { text-align: center; }
-/* Opening a standing reaction leaves its familiar face in place and reveals the
-   separately named removal action beside it. Its existing contour takes the shared
-   disclosure accent; the mark does not gain a second ring or pretend the reaction
-   itself changed. */
-.lf-react-mark[data-lf-behavior="disclosure"] {
-  border-width: 2px; border-color: var(--border-2); color: var(--ink);
-  box-shadow: 0 1px 0 var(--border-2), 0 3px 6px var(--shade);
-}
 /* The draft's own passage uses the accent contour. An open composer is on screen
    whenever this is, and an already-posted element keeps the posted colour instead, so
    the two states never contend on one element. */
@@ -350,8 +369,12 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
    the same fact — for a decision the tray lists, which is one the user still owes. It is an outline like every other mark the
    runtime paints on the page's own elements: it moves nothing on arriving, and it
    keeps its place for nothing, being the element's own paint rather than a box in
-   the chrome that would have to chase it down every scroll, reflow and drag. */
-[data-lf-ask] { outline: var(--here-ring); --lf-here-ring: ask; outline-offset: var(--here-ring-gap); }
+   the chrome that would have to chase it down every scroll, reflow and drag. A widget
+   that carries the location itself while the user works inside it stands the band down
+   by declaring `--lf-ask-ring: none` on the decision: its theme is in a cascade layer
+   this sheet outranks whatever the selector, and a declaration still reaches it. */
+[data-lf-ask] { outline: var(--lf-ask-ring, var(--here-ring)); --lf-here-ring: ask;
+                outline-offset: var(--here-ring-gap); }
 /* Paper takes no input, so what a widget injects to be worked goes: the control,
    and the box that holds controls. What stays is a control whose label is words the
    page keeps — one it speaks (data-lf-said: a pick mark reading "chosen" is the only
@@ -1578,8 +1601,10 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      thread column. */
   .lf-margin-thread .lf-page-thread { padding-inline: 12px; }
   /* The reply surround shares the thread's opaque surface, including its focus
-     tint, so pinning the reply cannot introduce a separate background band. */
-  :where(.lf-margin-thread) .lf-page-thread { background: var(--paper); }
+     tint, so pinning the reply cannot introduce a separate background band. The surface
+     is a default the thread's own states paint over (shadow.css), so it stands in their
+     layer, where their selectors outrank it. */
+  @layer lf-base { :where(.lf-margin-thread) .lf-page-thread { background: var(--paper); } }
   /* Pinned to the transcript's foot, the row keeps its controls' ring room as bottom
      padding (the compact ring's room, in this file's header). */
   .lf-margin-thread .lf-say { align-items: stretch; position: sticky; bottom: 0;
@@ -1673,12 +1698,13 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-page-map-group h3 { margin: 0 8px 4px; font-size: var(--t-5); line-height: 1.35; }
   .lf-page-map-actions { display: grid; gap: 2px; }
   /* The banner offers the whole Page Map wherever the user has no rail to find markers
-     in: where the rail does not stand, so the markers are pins, small targets over the
-     content, and where the thread panel stands over a margin row. The layout pass marks
-     the root in both cases (chrome-layout.js), from the same measured reading the margin
-     places its rows by. A browser that cannot anchor draws no markers at all. */
+     in: where the margin pass stood them as pins, small targets over the content
+     (margin-layout.js), and where the thread panel stands over a margin row
+     (chrome-layout.js). A browser that cannot anchor draws no markers at all. */
   @media screen {
-    :scope[data-lf-rail-lost] .lf-page-map-toggle:not([hidden]) { display: inline-flex; }
+    :scope:is([data-lf-rail-covered],
+        :has(> .lf-margin-projection > .lf-margin-toolbar[data-lf-pins]))
+      .lf-page-map-toggle:not([hidden]) { display: inline-flex; }
   }
   @supports not (anchor-name: --lf-page) {
     .lf-page-map-toggle:not([hidden]) { display: inline-flex; }

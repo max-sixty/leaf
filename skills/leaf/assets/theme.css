@@ -62,7 +62,7 @@
    since paper has no tray and no margin to grant: 1296 and 1536 for the sidebar and the
    sidenote, each the column box plus its width on either side, and 640 for a narrow
    column's facts. The margin projection's rail is measured instead (`railStands`,
-   geometry.js), since what it asks is the room a page's Layout left beside `main`.
+   margin-layout.js), since what it asks is the room a page's Layout left beside `main`.
    One answering to the device, such as a phone's vertical rhythm, asks the window, and a
    package's widget asks its own box (references/packages.md).
 
@@ -1178,7 +1178,10 @@ aside.sidebar > :last-child { margin-bottom: 0; }
 main > aside.sidebar:nth-child(1 of aside.sidebar) { --lf-sidebar-slot: margin; }
 @media screen {
   @container lf-shell (min-width: 1296px) {
-    html:root main.layout-column:has(> aside.sidebar) { --lf-sidebar-posture: margin; }
+    /* Sticky, it can stand level with any band of the page, so it takes its whole
+     * side: a breakout grows only rightward past it. */
+    html:root main.layout-column:has(> aside.sidebar) {
+      --lf-sidebar-posture: margin; --lf-taken-l: var(--lf-beside); }
     html:root main.layout-column > aside.sidebar:nth-child(1 of aside.sidebar) {
       float: left; clear: left; position: sticky;
       top: calc(var(--lf-top) + var(--sp-4));
@@ -1412,30 +1415,6 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new) {
 [data-lf-retired] { display: none; }
 lf-suggestion[data-lf-state="accept"]:not(:has(lf-new)),
 lf-suggestion[data-lf-state="reject"]:not(:has(lf-old)) { display: none; }
-/* A pending suggestion still has to say it is proposed when generated controls are
- * absent. On screen the ✓/✗ row carries that fact and this word stays clipped for
- * whoever is listening. Paper exposes the word #voice already writes
- * in each slot, so the proposal remains distinguishable from settled content without
- * adding another label or moving it elsewhere.
- *
- * The page the markup describes is the base, and the live page's clipped version goes
- * inside the screen guard. `user-select` is not touched: this is the runtime's reading
- * of the paint rather than authored prose, so copying a published paragraph must not
- * carry the word with it.
- *
- * inline-block, because lf-old is struck and CSS runs a decoration through every
- * in-flow inline descendant — a descendant cannot cancel it, and `text-decoration:
- * none` here is inert. Unclipped as a plain inline, the one word saying the change has
- * *not* been made was itself painted struck in the deletion's red, which is the reading
- * this whole rule exists to prevent. An atomic inline is where the line stops. */
-lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
-  position: static; width: auto; height: auto; overflow: visible; clip-path: none;
-  display: inline-block; margin-right: 5px; }
-@media screen {
-  html:root lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
-    position: absolute; width: 1px; height: 1px; overflow: hidden;
-    clip-path: inset(50%); margin-right: 0; }
-}
 /* The margin projection is a retained projection with one cluster per page target. Its
  * primary margin entry, optional `…`, and the secondary margin entries that ellipsis
  * unfolds share one host. Every cluster lives in the chrome's margin layer and stands by
@@ -1593,6 +1572,14 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-margin-entry[aria-disabled="true"] { cursor: default; }
 .lf-margin-entry.lf-react[aria-pressed="true"] {
   background: var(--chip);
+}
+/* Opening a standing reaction leaves its familiar face in place and reveals the
+   separately named removal action beside it. Its existing contour takes the shared
+   disclosure accent (above), stated beside it so the two meet on their selectors; the
+   mark does not gain a second ring or pretend the reaction itself changed. */
+.lf-react-mark[data-lf-behavior="disclosure"] {
+  border-width: 2px; border-color: var(--border-2); color: var(--ink);
+  box-shadow: 0 1px 0 var(--border-2), 0 3px 6px var(--shade);
 }
 /* Agent workflow colors the carrier's glyph after pickup; working also colors its interior. The
    ordinary contour continues to communicate the entry's behavior. */

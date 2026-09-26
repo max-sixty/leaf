@@ -749,7 +749,7 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge { position: absolute; z-
    * carried by the exact row, while pointer focus needs no extra channel at all. */
   [data-lf-ask]:has(
     lf-options[choose]:not(:where([data-lf-exhibit]) *) :is(:focus, .lf-focus)
-  ) { outline: none; }
+  ) { --lf-ask-ring: none; }
   lf-options[choose]:not([settled]):not(:where([data-lf-exhibit]) *)
     > lf-option:has(> .lf-pick:is(:focus-visible, .lf-focus-visible)) {
       outline: var(--here-ring); --lf-here-ring: options-row;
@@ -1156,11 +1156,14 @@ lf-metric[direction="up-bad"][delta^="+"] > [data-lf-said="delta"]
  * that respects a widget's minimum, as a flex item's or a grid track's automatic minimum
  * does, gives the board that much or wraps it onto a row of its own; held to less, the
  * board scrolls its columns inside itself. The shell caps it, so a phone narrower than
- * the minimum scrolls the board rather than the page. */
-lf-board { --lf-board-columns: 1;
-           min-inline-size: min(calc(var(--lf-board-columns) * var(--lf-reading-column-floor)
-             + (var(--lf-board-columns) - 1) * var(--sp-2)),
-             calc(100cqi - 2 * var(--col-pad))); }
+ * the minimum scrolls the board rather than the page. Screen only: a sheet has no room
+ * beside the column to give, so on paper the board is the column's width. */
+lf-board { --lf-board-columns: 1; }
+@media screen {
+  lf-board { min-inline-size: min(calc(var(--lf-board-columns)
+               * var(--lf-reading-column-floor) + (var(--lf-board-columns) - 1) * var(--sp-2)),
+               calc(100cqi - 2 * var(--col-pad))); }
+}
 lf-board:has(> lf-column:nth-of-type(2)) { --lf-board-columns: 2; }
 lf-board:has(> lf-column:nth-of-type(3)) { --lf-board-columns: 3; }
 lf-board:has(> lf-column:nth-of-type(4)) { --lf-board-columns: 4; }
@@ -1595,7 +1598,7 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
       /* At rest the map is its spine, chrome fixed in the left margin, so a breakout
        * stops short of it (layouts.css, the column's free room); its labels reveal over
        * the page. */
-      --lf-chrome-l: calc(2 * var(--sp-4));
+      --lf-taken-l: calc(2 * var(--sp-4));
     }
   }
   main:has(> aside.sidebar:nth-child(1 of aside.sidebar) lf-toc) {

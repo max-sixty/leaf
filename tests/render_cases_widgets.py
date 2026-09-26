@@ -1003,28 +1003,27 @@ FRAMED_SCROLLER_PAGE = FRAMED_WIDE_PAGE.replace(
 )
 
 
-# How far the exhibit stands outside the page's own box, and the rail it was supposed to
-# leave — both edges, since a room read too wide spends itself on whichever side is free.
-# One reading for the live page and for a copy of it, the fault being the same fault. The
-# room the page states comes with it, so a test waiting for the box to be read again has
-# the reading it is waiting to see changed.
+# How far the exhibit stands into the room a margin resident states it takes
+# (`--lf-taken-l`, `--lf-taken-r`, layouts.css), on both edges, since a room read too
+# wide spends itself on whichever side is free. The room the page states comes with it,
+# so a test waiting for the box to be read again has the reading it is waiting to see
+# changed.
 RAIL_FIT = """() => {
-    const b = document.body;
-    const box = b.getBoundingClientRect();
+    const box = document.body.getBoundingClientRect();
     const main = document.querySelector('main');
     const length = (name) => {
       const probe = document.createElement('i');
-      probe.style.cssText = `position:fixed;visibility:hidden;height:0;padding:0;border:0;width:var(${name})`;
+      probe.style.cssText = `position:fixed;visibility:hidden;height:0;padding:0;border:0;width:var(${name}, 0px)`;
       main.append(probe);
       const width = probe.getBoundingClientRect().width;
       probe.remove();
       return width;
     };
-    const left = length('--strip-l'), right = length('--strip-r');
+    const left = length('--lf-taken-l'), right = length('--lf-taken-r');
     const r = document.getElementById('plan').getBoundingClientRect();
-    return { rail: `${right}px`, widget: r.width, room: length('--lf-room'),
-             past: Math.max(r.right - (box.right - right), box.left + left - r.left),
-             content: box.width - left - right };
+    return { taken: `${right}px`, widget: r.width, room: length('--lf-room'),
+             right: r.right,
+             past: Math.max(r.right - (box.right - right), box.left + left - r.left) };
 }"""
 # The room the document leaves at each end for a bar standing over it. Both are boxes in
 # the flow, so the reading is the flow's own: what stands above the page's first block and
@@ -1057,10 +1056,11 @@ LATE_MARGIN_PAGE = leaf_page(
 """,
 )
 
-# A project widget that claims a strip of the page margin, and can only say how wide once
-# it has heard what its controls will say — so the claim rides an answer rather than the
-# upgrade that asked for it. The request is answered by the test, which is what puts the
-# claim after the handover on every machine rather than on a fast one.
+# A project widget that stands in the page's right margin and states the room it takes
+# there, and can only say how wide once it has heard what its controls will say — so the
+# statement rides an answer rather than the upgrade that asked for it. The request is
+# answered by the test, which is what puts it after the handover on every machine rather
+# than on a fast one.
 LATE_MARGIN_WIDGET = """\
 import { once } from "/runtime/widget-api.js";
 
@@ -1070,7 +1070,7 @@ customElements.define(
     connectedCallback() {
       if (!once(this)) return;
       fetch("/margin-width").then(() =>
-        document.body.style.setProperty("--lf-claim-right", "160px"),
+        document.body.style.setProperty("--lf-taken-r", "160px"),
       );
     }
   },
@@ -1276,10 +1276,10 @@ it reaches this part of the page.</p>
 """,
 )
 
-# Wide enough for an exhibit to grow after the note's 384px strip, but narrow enough
-# that room, not the 1080px shared cap, binds in both live and copied media. With no
-# surplus over prose, a board never asks to share the note's margin.
-NOTE_BAND = 1400
+# Wide enough for a note to hang in the margin, which it does where the room beside the
+# column holds its 384px (1536px of shell), with an exhibit growing past prose into
+# that same margin.
+NOTE_BAND = 1600
 
 
 def _painted_line(page):

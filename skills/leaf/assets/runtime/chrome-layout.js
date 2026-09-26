@@ -37,7 +37,6 @@ import { sizeObserver } from "./rendering.js";
 import { drawnEdge } from "./drawn-edge.js";
 import { overlaps, overlapsAcross } from "./rect.js";
 import { standsBeside } from "./auxiliary-surfaces.js";
-import { railStands } from "./geometry.js";
 
 // The width the panel stands at for a user who has not moved its edge. 420 since
 // threads carry questions — option rows are the one thread content that can't scroll or
@@ -90,22 +89,22 @@ export function createChromeLayout({
     const panelRoom = (panelLive ? commentsEdge.width() : 0) + "px";
     shortcutBarEl.style.setProperty("--lf-shortcut-bar-right", panelRoom);
     bottomStatusEl.style.setProperty("--lf-shortcut-bar-right", panelRoom);
-    // The banner offers the Page Map wherever the user has no rail to find markers in
-    // (chrome.css): where the rail does not stand, so the markers are pins, small targets
-    // over the content, and where a live panel's edge reaches a margin row. Over a live
-    // page the panel stands over the page's right margin at any window short of about
-    // 1700px, and over the pins at the column's edge at the same widths; the markers are
-    // still drawn, under it. Where the panel stands, not where its slide has carried it
-    // this frame: offsetLeft ignores the slide's transform.
+    // Over a live page the panel stands over the page's right margin at any window short
+    // of about 1700px, and over the pins at the column's edge at the same widths. The
+    // markers are still drawn, under the panel; what says the user lost them is a margin
+    // row the panel's edge reaches. Where one does, the banner offers the Page Map in
+    // their place, as it does where the markers are pins (chrome.css).
+    // Where the panel stands, not where its slide has carried it this frame: offsetLeft
+    // ignores the slide's transform.
     const panelLeft = panelLive ? panel.offsetLeft : Infinity;
-    const railLost =
-      !railStands() ||
-      [...document.querySelectorAll(".lf-margin-projection .lf-margin-cluster")].some(
-        (row) =>
-          !row.classList.contains("lf-withheld") &&
-          row.getBoundingClientRect().right > panelLeft,
-      );
-    panel.closest(".lf-chrome")?.toggleAttribute("data-lf-rail-lost", railLost);
+    const railCovered = [
+      ...document.querySelectorAll(".lf-margin-projection .lf-margin-cluster"),
+    ].some(
+      (row) =>
+        !row.classList.contains("lf-withheld") &&
+        row.getBoundingClientRect().right > panelLeft,
+    );
+    panel.closest(".lf-chrome")?.toggleAttribute("data-lf-rail-covered", railCovered);
     // The status stands in the bottom band (chrome.css) and moves only to stay live above
     // a covering panel's foot: unlike the inert shortcut guide, notices are live feedback
     // from the foreground action. Everything the page ends above is the band's stated

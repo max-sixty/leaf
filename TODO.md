@@ -119,6 +119,10 @@ below don't block it.
   used to stand in the rail. The render gate reads the wide page at 1200px, below the
   1296px and 1536px a sidebar and a sidenote now need, so it never sees either in the
   margin (`test_the_render_viewport_is_wide_enough_to_have_margins` is xfail on it).
+  With nothing claiming the rail's room, a centred column at 1200px leaves 216px on its
+  right, too little for the comment bar, so it drops below the passage on every column
+  page; there its width depends on what the field held when the room was measured
+  (`composing/surface.js`, `setWidth`), so one draft is laid out differently in two tabs.
 - **Make the outcome checks the gate.** `version check` still reports "nothing
   overflows the 720px column" on pages with no column, and passed a page that scrolled
   sideways at 520px. It still advises against scrollers page CSS makes, though pane

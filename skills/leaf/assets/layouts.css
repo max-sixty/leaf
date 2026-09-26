@@ -8,9 +8,10 @@
   /* The column: prose at the reading measure, centred in the shell, and one option, a
    * breakout, which `data-width` on a block (or a widget's preferred x-space) asks for.
    * The breakout reads the room free beside the column from the lengths resolved here,
-   * so it is the same arithmetic wherever the column stands. Chrome Leaf fixes in a
-   * margin states the room it takes there (`--lf-chrome-l`, `--lf-chrome-r`), which
-   * comes off that side's free room. */
+   * so it is the same arithmetic wherever the column stands. Whatever stands in a
+   * margin states the room it takes there (`--lf-taken-l`, `--lf-taken-r`), which comes
+   * off that side's free room: the contents map's spine, a sidebar, a project widget's
+   * own resident. */
   .layout-column {
     max-width: var(--col);
     margin-inline: auto;
@@ -19,8 +20,8 @@
     --lf-beside: calc((100cqi - var(--lf-width)) / 2);
     --lf-shift: 0px;
     --lf-gutter-l: var(--col-pad);
-    --lf-free-l: max(0px, calc(var(--lf-beside) - var(--col-pad) - var(--lf-chrome-l, 0px)));
-    --lf-free-r: max(0px, calc(var(--lf-beside) - var(--col-pad) - var(--lf-chrome-r, 0px)));
+    --lf-free-l: max(0px, calc(var(--lf-beside) - var(--col-pad) - var(--lf-taken-l, 0px)));
+    --lf-free-r: max(0px, calc(var(--lf-beside) - var(--col-pad) - var(--lf-taken-r, 0px)));
     --lf-room: max(0px, calc(100cqi - 2 * var(--col-pad)));
   }
   /* The page as wide as the window: a gutter that grows with it, a cap at the widest

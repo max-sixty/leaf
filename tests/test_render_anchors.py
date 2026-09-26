@@ -625,8 +625,8 @@ def test_the_comment_button_stands_on_no_control(browser, serve):
     than the floating response UI, handles it."""
     page = open_page(browser, serve(SUGGESTION_PAGE))
     # Wide enough that the suggestion's row stands in the rail, beside the column the
-    # comment bar opens over.
-    resized(page, 930, 900)
+    # comment bar opens over: the room beside a column holds the rail from about 960px.
+    resized(page, 1000, 900)
     box = page.locator("#replace").bounding_box()
     select(
         page,

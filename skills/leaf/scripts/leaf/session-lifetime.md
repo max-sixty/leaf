@@ -289,7 +289,10 @@ Whether a session's end reaches a server is decided at launch and written in
 records the page's claim under the state home's claims directory; a successor arriving
 before the session server's final recheck keeps that process, and one arriving
 afterward finds the process and lease gone and revives the still-enabled service.
-Neither path changes the page's authored work status. A serve from a bare shell claims
+A revival is a start by the Leaf running the wait, so it is refused as any start is
+for a page vendored from another Leaf's runtime (`layer.foreign_runtime`): the wait
+prints the refusal and reads the page as lost, and the service stays enabled until
+`server stop`. Neither path changes the page's authored work status. A serve from a bare shell claims
 nothing, and a claim on a standing page comes and goes without changing its service.
 A disabled service ends a `leaf wait` that has no other live page to carry, since
 nothing will bring it back, except while a restart lease holds it: its holder starts

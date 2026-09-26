@@ -71,10 +71,12 @@ sheet.replaceSync(`
      against. Both layers share one grid cell, inside the host's padding. */
   .lf-field { display: grid; }
   .lf-field > * { grid-area: 1 / 1; min-width: 0; }
-  /* The placeholder never sizes the box, as a textarea's does not: the words do. */
-  .lf-field-placeholder { pointer-events: none; white-space: pre-wrap;
-    contain: size; overflow: hidden;
-    overflow-wrap: anywhere; color: var(--muted); }
+  /* The placeholder is one line that never widens the box — a response bar sizes to the
+     words — and shortens with an ellipsis where the box is narrow, so it reads the same
+     height whether it shows the plain words or a keyed hint. */
+  .lf-field-placeholder { pointer-events: none; white-space: nowrap;
+    contain: inline-size; overflow-x: clip; text-overflow: ellipsis;
+    color: var(--muted); }
   :host(:not(:state(placeholder-shown))) .lf-field-placeholder { visibility: hidden; }
   .lf-md-mark { color: var(--muted); }
   .lf-md-code { font-family: var(--mono); font-size: 0.9em;
@@ -354,7 +356,7 @@ class LeafText extends HTMLElement {
     if (!this.#view) return super.focus(options);
     const view = this.#view;
     view.focus();
-    if (!view.hasFocus) return;
+    if (this.#root.activeElement !== view.contentDOM) return;
     const { anchor, head } = view.state.selection.main;
     const from = view.domAtPos(anchor);
     const to = view.domAtPos(head);

@@ -60,7 +60,6 @@ EXPECTED_PAGE_STATE_FILES = (
     "viewed.json",
     "service.json",
     "server.lock",
-    "restart.lock",
     "preview.json",
 )
 EXPECTED_PAGE_DIRECTORIES = (

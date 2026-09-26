@@ -282,10 +282,11 @@ def payload_runtime_fingerprint() -> str:
 
     The kernel is the payload's own directory, so this reads the same from any working
     directory and on any machine, and a page's selected packages cannot move it. That
-    is what the browser gates need: they serve probe modules out of the Leaf running
-    the command and the runtime those modules import out of the page, and a page's
-    recorded layer fingerprint cannot be recomposed away from the project its packages
-    were resolved in. `page init` records this reading under `$layer.runtime`.
+    is what a page's server and the browser gates need: each runs out of the Leaf
+    running the command against the runtime out of the page, and a page's recorded
+    layer fingerprint cannot be recomposed away from the project its packages were
+    resolved in. `page init` records this reading under `$layer.runtime`, and
+    `foreign_runtime` compares the two.
     """
     runtime = ASSETS / "runtime"
     return files_identity(
@@ -294,6 +295,33 @@ def payload_runtime_fingerprint() -> str:
             for path in runtime.rglob("*")
             if path.is_file()
         }
+    )
+
+
+def foreign_runtime(page_dir: Path, layer: dict) -> str | None:
+    """Why this Leaf cannot serve a page, given its recorded `$layer`: the page's
+    runtime came from another Leaf. None when the page carries this Leaf's own.
+
+    Whatever serves a page runs the Leaf that started it, while the page's browser
+    runtime is whatever its last `page init` copied in, and the two speak one
+    contract: the state a server sends and the probe modules the render gate serves
+    beside the page's runtime. Served by another Leaf, the page breaks in the
+    browser on every read, in a way that reads as a defect in the page. Every page
+    server, the gate's included, refuses on this one reading (`http.page_endpoint`).
+
+    It compares only the runtime's modules (`payload_runtime_fingerprint`), so a
+    contract change made on the Python side alone passes it. A page vendored before
+    the identity was recorded names none, and is refused too.
+    """
+    vendored = layer.get("runtime")
+    running = payload_runtime_fingerprint()
+    if vendored == running:
+        return None
+    return (
+        f"{page_dir} was vendored from another Leaf's runtime: its layer names "
+        f"{vendored or 'no runtime identity'}, and this Leaf ({PLUGIN_ROOT}) ships "
+        f"{running}. Leaf serves and checks a page only against the runtime it "
+        f"ships, so re-vendor it with `leaf page init {page_dir}`."
     )
 
 

@@ -116,12 +116,10 @@ The runtime keeps no event-to-DOM write history for this check.
 The render gate serves its probe modules from the Leaf running the command and the
 runtime those modules import from the page, so the ephemeral server it opens refuses
 a page whose recorded `$layer.runtime` is not the identity this payload's kernel
-runtime carries. The kernel is read for that comparison rather than the whole layer,
-because it is the half the probe modules import and the only half a payload can
-identify anywhere: `$layer.packages` was resolved against the project `page init` ran
-in. Without that reading the mismatch arrives as a missing export in the probe module,
-which reads as a defect in the page. The vendored layer is the page's to keep, so
-the gate does not re-vendor on its behalf.
+runtime carries — the refusal every page server makes (`layer-registry.md`, `runtime`).
+Without it the mismatch arrives as a missing export in the probe module, which reads
+as a defect in the page. The vendored layer is the page's to keep, so the gate does
+not re-vendor on its behalf.
 
 ## Passages
 

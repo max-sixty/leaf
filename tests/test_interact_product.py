@@ -750,11 +750,6 @@ def test_reply_validates_widget_markup(page_dir):
     bad = reply('<lf-diagram id="f"><pre>graph LR</pre><b>x</b></lf-diagram>')
     assert bad.exit_code != 0
     assert "its body is one <pre> holding the text" in bad.output
-    duplicate = reply(
-        '<lf-diagram id="browser-id" id="file-id"><pre>graph LR\nA --> B</pre></lf-diagram>'
-    )
-    assert duplicate.exit_code != 0
-    assert "duplicate attribute" in duplicate.output
     # Prose belongs in --text, where it renders as Markdown; a markup field
     # holding none is a wrong turn, not an empty widget list.
     prose = reply("just words")

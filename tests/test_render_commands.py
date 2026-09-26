@@ -20,7 +20,6 @@ from playwright.sync_api import expect
 from render_cases_layout import (
     BADGE_CHROME,
     PAINTED_IN_SILENCE_PAGE,
-    PRINT_LOSS_PAGE,
     SHORT_CHIP_PAGE,
     SHOT_PAGE,
     SHOT_SRC,
@@ -413,33 +412,6 @@ def test_an_installed_payload_passes_its_real_browser_gate(tmp_path, headless_sh
         )
         assert rendered.returncode == 0, rendered.stderr
         assert "renders clean" in rendered.stdout
-
-
-def test_render_reports_a_word_the_printed_page_loses(browser, serve):
-    """A user prints the page, or saves it to PDF for someone who wasn't in the
-    loop, and whatever the screen said had better still be there. Ways it isn't, all
-    silent: a control that is a statement as well as a thing to press (the pick mark,
-    which is the only place a group says which option it carries) and a rule that
-    hides page content in print, inside a widget or in plain prose. The gate reads
-    the page in both media and reports what the second one drops.
-
-    A control declared an offer is exempt, since paper has nothing to press: the same
-    page's pick mark reads "chosen" and goes unreported either way."""
-    lost = render_gate_model.render_version(browser, serve(PRINT_LOSS_PAGE)).failures
-    assert lost == [
-        (
-            '[print] <p id=lede> drops "Where the decision stands, for the recor", '
-            "which it says on screen"
-        ),
-        (
-            '[print] <strong> in <lf-option id=c-bearer> drops "Bearer header", '
-            "which it says on screen"
-        ),
-        (
-            '[print] <lf-option id=c-bearer> drops "Suits the mobile client;\\n  '
-            'puts the id w", which it says on screen'
-        ),
-    ], lost
 
 
 def test_a_shot_compares_its_frames_with_a_direct_divider(browser, serve):

@@ -32,14 +32,12 @@ has moved, detached, or closed. That release is final — a revision the part ha
 left cannot be asked for it back, so reopening the closed thread restores
 the thread and not its target. An agent reply may detach a thread in the same
 transition that removes its subject. A declared retirement protects its holder and slots until its
-outcome licenses their removal. Other dropped ids are reported as advice. These carry-over rules judge a candidate. A source whose captured artifact is the active revision's had its transition judged when it activated, and the append door has judged every event since against the revision it names, so neither activation nor `version check` re-judges it against the longer log. No fixed-pixel-width
-element is wider than the readable column (the rule that draws that column claims
-it with `--lf-reading-column: 1`, so the width and the claim come from one block). Near-free
+outcome licenses their removal. Other dropped ids are reported as advice. These carry-over rules judge a candidate. A source whose captured artifact is the active revision's had its transition judged when it activated, and the append door has judged every event since against the revision it names, so neither activation nor `version check` re-judges it against the longer log. Near-free
 and deterministic is what makes running it on every save affordable, so keep a new
 check that way; anything needing a browser belongs in the command's browser half.
-The effective registry and each vendored sheet are validated where they differ from
-the active revision's captured copies, which were validated when that revision
-activated, and the theme is parsed for the column only on a page that states a width.
+The effective registry is validated where it differs from the active revision's
+captured copy, which was validated when that revision activated; vendored sheets are
+validated when `page init` composes them, not on each check.
 
 That half has one piece plain `version check` runs too. A page that runs code of its
 own, a module script or a page widget the document places, is served and run once at
@@ -87,8 +85,7 @@ shadow tree, one in an embedded frame placed at that frame, and no fail-soft box
 every widget upgraded, painted with values that resolve, and given real space;
 words a user can mark, reach, and select, with the registry's verbatim and shadow
 declarations honored; no sideways scroll, clipped control, squeezed table, trapped
-margin, or misplaced box; a print rendering that covers and drops nothing; and
-standing state that replays without conflict and idempotently.
+margin, or misplaced box; and standing state that replays without conflict and idempotently.
 `render_gate/readings.py` is the list. Those readings run
 at a desktop and a phone viewport; once they are done, the loaded desktop page is
 resized through the widths from 360px to 1200px and the two sideways readings are taken
@@ -169,5 +166,4 @@ SourceDocument also retains exact source spans. tinycss2 reads the CSS a <style>
 holds; layout advice also reads the stylesheets the page links from `page/`, as the
 revision's capture resolves them (`RevisionArtifact.page_stylesheets`). A new question about a page becomes a field on one of those readings rather
 than a pattern over the file's text, because a pattern answers something adjacent to
-the question asked — `leaf.styles._overwide_elements` carries the evidence of that
-cost.
+the question asked.

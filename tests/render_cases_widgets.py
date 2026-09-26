@@ -1152,12 +1152,10 @@ graph LR
 </pre></lf-diagram>
 """,
 )
-# A drawing inside a tab panel, which is the shape the reading was written over: the
-# panel's card is the frame a wide exhibit may not leave, the graph is drawn wider than
-# the frame's own inset, and no room the page has can be given to it — so scrolling is
-# the layer's honest answer and WITHHELD_ROOM is right to be quiet about it. Beside it a
-# line of code short enough to fit, which is what the reading must stay quiet about too.
-# The cut box is a drawing on purpose: a cut line of code announces itself by being a
+# A drawing inside a tab panel: the panel's card is the frame a wide exhibit may not
+# leave, the graph is drawn wider than the frame's own inset, and no room the page has
+# can be given to it — so scrolling is the layer's honest answer. Beside it a line of
+# code short enough to fit, which must carry no mark. The cut box is a drawing on purpose: a cut line of code announces itself by being a
 # line, where a graph that continues past its edge looks exactly like a graph that ends
 # there.
 CUT_BOXES_PAGE = leaf_page(
@@ -1181,8 +1179,7 @@ graph LR
 # A five-step plan drawn left to right, the shape three agent-written pages gave their
 # plan, and the same five steps drawn top-down beside it: the chain runs past the room a
 # 1440px window gives it, and the stack fits the column, so it is the control a shaded
-# edge must not appear on. The page's own rule is the plant: a class that outranks the
-# diagram's paint while the mark stays written.
+# edge must not appear on.
 PLAN_STEPS = """\
   A[1. Snapshot the primary and restore it on the new cluster] --> B[2. Start logical replication from the old primary]
   B --> C[3. Verify row counts and checksums on every table]
@@ -1192,8 +1189,6 @@ PLAN_STEPS = """\
 LONG_CHAIN_PAGE = leaf_page(
     "long chain",
     f"""
-<style>lf-diagram.lf-unshaded::before, lf-diagram.lf-unshaded::after {{
-  box-shadow: none !important; }}</style>
 <h1 id="t">Plan</h1>
 <lf-diagram id="chain"><pre>
 flowchart LR

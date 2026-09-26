@@ -125,7 +125,11 @@ WORKSPACE_PAGE = leaf_page(
     "workspace reading regions",
     """
 <lf-workspace id="review-workspace">
-  <header><h1>Review queue</h1></header>
+  <header>
+    <h1>Review queue</h1>
+    <p>Work through the queue on the left one item at a time, reading each item's
+    evidence and decision on the right before settling it and moving to the next.</p>
+  </header>
   <lf-grid id="review-regions" columns="2">
     <lf-pane id="queue" label="Items">
       <div>
@@ -153,11 +157,14 @@ def test_a_root_workspace_bounds_independent_regions_and_flows_when_it_cannot_fi
 ):
     """A page whose only block is a workspace is a wide page with no width declared on
     main: the workspace stands where it stands on a page that declares one, title
-    included, and takes the window's height below the banner."""
+    included, its lede at the reading measure, and takes the window's height below the
+    banner."""
     frame = """() => {
       const box = document.getElementById('review-workspace').getBoundingClientRect();
       const title = document.querySelector('#review-workspace h1');
-      return [box.left, box.width, getComputedStyle(title).fontSize];
+      const lede = document.querySelector('#review-workspace > header > p');
+      return [box.left, box.width, getComputedStyle(title).fontSize,
+              lede.getBoundingClientRect().width];
     }"""
     declared = open_page(
         browser,
@@ -177,6 +184,12 @@ def test_a_root_workspace_bounds_independent_regions_and_flows_when_it_cannot_fi
     holds_the_window(page, workspace, True)
     assert page.evaluate(frame) == wide
     assert wide[1] > 1080, wide
+    column = page.evaluate(
+        "() => parseFloat(getComputedStyle(document.body).getPropertyValue('--col'))"
+    )
+    # The workspace takes the page's width and groups what it holds, so its lede keeps
+    # the measure every wide page's text does rather than running the workspace's width.
+    assert wide[3] == column, (wide, column)
     assert page.evaluate("() => document.scrollingElement.scrollTop") == 0
     readings = page.evaluate(
         """() => {

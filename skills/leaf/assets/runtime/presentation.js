@@ -518,9 +518,14 @@ function* elementsIn(root, selector) {
 const AUTHORED = Object.freeze({ "x-space": "data-width", "x-bound": "data-bound" });
 
 // What an entry declares for a painted key, with the one default a declaration has:
-// see x-measure above.
+// see x-measure above. A declared measure outranks the surface an x-space past the
+// column implies (theme.css), so the members default stays unpainted there: a board
+// is a surface, not a group of its cards.
 const declaration = (entry, key) =>
-  key === "x-measure" && entry["x-content"] === "members" && !entry["x-inline"]
+  key === "x-measure" &&
+  entry["x-content"] === "members" &&
+  !entry["x-inline"] &&
+  [undefined, "column"].includes(entry["x-space"])
     ? (entry[key] ?? "group")
     : entry[key];
 

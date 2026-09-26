@@ -390,12 +390,13 @@
                   whole and each option fills it, where grouping left every option at
                   the measure inside a frame drawn across the whole cell.
                   <code>surface</code> (a chart, table, log or listing) fills the frame;
-                  x-space wide or available implies it. <code>group</code> only holds
-                  other blocks (tabs, a comparison, a grid, a pane), so it passes the
-                  measure through to them instead of holding everything it contains to
-                  the width of a paragraph. The runtime paints the declaration as
-                  data-lf-measure; the theme declares the plain HTML elements the same
-                  way.
+                  x-space wide or available implies it unless the entry declares a
+                  measure, as a workspace declares <code>group</code> for the header and
+                  panes it holds. <code>group</code> only holds other blocks (tabs, a
+                  comparison, a grid, a pane), so it passes the measure through to them
+                  instead of holding everything it contains to the width of a paragraph.
+                  The runtime paints the declaration as data-lf-measure; the theme
+                  declares the plain HTML elements the same way.
                 </p>
               </details>
             </div>

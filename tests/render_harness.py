@@ -335,7 +335,7 @@ REPLY_HOST_PAGE = leaf_page(
 
 # Claude answering with a question to put and, beside it, the framing that question
 # replaced — quoted, so the reply asks one thing rather than two. The words ride
-# `text` and the widgets ride `markup`, as `leaf reply` writes them.
+# `text` and the widgets ride `markup`, as `leaf thread reply` writes them.
 SPECIMEN_TEXT = (
     "Two shapes for the same question — first the one I'd ship, then, for the "
     "record, the framing it replaces:"

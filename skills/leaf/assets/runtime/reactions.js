@@ -7,7 +7,7 @@
    contribution owns all six margin entries; standing readings and unrelated actions remain
    in Page Map and return when the mode closes. Those temporary margin entries unfold the
    cluster where it stands, in the rail or as a pin, and claim no permanent rail width. A thread-local `e` opens
-   the conversation-owned row on the latest agent message. `REACT` claims the keyboard
+   the thread-owned row on the latest agent message. `REACT` claims the keyboard
    only for those margin and message lists; the composer's response scope owns its
    local list. Arrow keys wrap through the visible margin entries in the active list.
    Tab and Shift-Tab follow that same order. The Page Map dialog remains part of the
@@ -22,14 +22,14 @@
    choices therefore name the same complete set. The choices do not widen the rail or
    open a separate palette below the target. The compact response bar's More controller
    owns its state, focus return, and geometry independently.
-   Conversation reactions remain in their conversation-owned strip. The event still
+   Thread reactions remain in their thread-owned strip. The event still
    carries its durable authored anchor, while
    the temporary addressable resolves selected text to the first rendered block, matching the
    target where replay later seats its standing reaction.
 
    Token rendering and per-press submission helpers are passive exports. Boot
    constructs the reaction controller with auxiliary-surface, composer, and travel
-   capabilities; conversation views register their template-owned trigger and palette.
+   capabilities; thread views register their template-owned trigger and palette.
    mount installs the mode teardown listeners after composition. */
 
 import { nextRender } from "./rendering.js";
@@ -54,9 +54,9 @@ import { repaint } from "./repaint.js";
 import { allButCommandReference, pageCommand, pageScope } from "./keyboard/register.js";
 import { PRESS } from "./keyboard/bindings.js";
 import { beginWalk, listWalkPosition } from "./walk-position.js";
-import { anchorLabel } from "./conversation/messages.js";
-import { reactionsAt } from "./conversation/model.js";
-import { allThreads } from "./conversation/state.js";
+import { anchorLabel } from "./thread/messages.js";
+import { reactionsAt } from "./thread/model.js";
+import { allThreads } from "./thread/state.js";
 import { watchProjection } from "./projection-watch.js";
 
 // Standing tokens wear their emoji wherever they stand, and `aria-pressed` is the whole
@@ -104,7 +104,7 @@ export function createReactionController({
   showFab,
   showFabOptions,
   updateFab,
-  standingConversation,
+  standingThread,
   standingElement,
 }) {
   const surfaces = new WeakMap();
@@ -206,7 +206,7 @@ export function createReactionController({
   const pickerFor = (surface) => surfaces.get(surface);
 
   function reactionTarget() {
-    const said = standingConversation();
+    const said = standingThread();
     const strip = said && latestAgentStrip(said.held);
     if (strip) return { kind: "surface", surface: strip };
     if (fabAnchorAt()) return { kind: "anchor" };

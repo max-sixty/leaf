@@ -1,7 +1,7 @@
 """Host-neutral capture and reading of immutable Leaf deliveries.
 
 A delivery is transport-independent input: one or more complete page batches,
-each preserving the page's monotonic event order. Conversation membership is
+each preserving the page's monotonic event order. Thread membership is
 context, not a partition key, and response requirements are a snapshot of the
 standing projection at capture. Response commands validate the current page
 again when they write, so this snapshot never becomes settlement authority.
@@ -17,7 +17,7 @@ than per event. `acknowledge` says who confirms receipt: the reader of a `leaf
 wait`, in the way its harness runs that command, or nobody, where the carrier
 confirmed it itself. And a carrier whose turn speaks for the delivery, App Server,
 turns the one thread reply the delivery owes into a `turn` answer, which that
-turn's own messages write; every other carrier leaves it a `reply` for `leaf
+turn's own messages write; every other carrier leaves it a `reply` for `leaf thread
 reply`. Each event's `answer` is that same address, so its `answering` clauses
 follow from the answer rather than from the carrier.
 """
@@ -66,7 +66,7 @@ DELIVERY_ID = re.compile(r"[0-9a-f]{8}")
 _BATCH_FIELDS = (
     "page",
     "through_seq",
-    "conversations",
+    "threads",
     "handling",
     "events",
 )
@@ -147,16 +147,16 @@ def _registry(page_dir: Path):
         return None
 
 
-def _subject(event: dict, conversations: list[str], by_id: dict[str, dict]) -> dict:
+def _subject(event: dict, threads: list[str], by_id: dict[str, dict]) -> dict:
     """Name what one event changes without using prose as an identifier."""
     if event["kind"] in {"action", "request", "report"}:
         return {"kind": "widget", "id": event["widget"]}
     if event["kind"] == "undo":
         original = by_id.get(event["undoes"])
         if original is not None:
-            return _subject(original, conversations, by_id)
-    if conversations:
-        return {"kind": "conversation", "id": conversations[0]}
+            return _subject(original, threads, by_id)
+    if threads:
+        return {"kind": "thread", "id": threads[0]}
     return {"kind": "page"}
 
 
@@ -184,11 +184,11 @@ def batch_data(page_dir: Path, transaction, batch: list[dict]) -> dict:
     within = active_enclosing(page_dir)
     roots = thread_roots(events)
     structure = thread_structure(events)
-    widget_conversations = thread_widgets(structure, roots)
+    widget_threads = thread_widgets(structure, roots)
     memberships = thread_memberships(
         events,
         roots,
-        widget_conversations,
+        widget_threads,
         within,
     )
     responses = current_responses(page_dir, events)
@@ -197,11 +197,11 @@ def batch_data(page_dir: Path, transaction, batch: list[dict]) -> dict:
 
     captured = []
     for event in batch:
-        conversations = memberships.get(event["id"], [])
+        threads = memberships.get(event["id"], [])
         entry = {
             **described(event, registry),
-            "subject": _subject(event, conversations, by_id),
-            "conversations": conversations,
+            "subject": _subject(event, threads, by_id),
+            "threads": threads,
         }
         # The browser's retry key: the log keeps it to recognise a resent post, and
         # the agent has no use for it.
@@ -216,7 +216,7 @@ def batch_data(page_dir: Path, transaction, batch: list[dict]) -> dict:
     return {
         "page": str(page_dir),
         "through_seq": max(event["seq"] for event in batch),
-        "conversations": batch_threads(events, batch, within),
+        "threads": batch_threads(events, batch, within),
         "events": captured,
     }
 
@@ -226,7 +226,7 @@ def carried_answer(answer: dict, carrier: str, delivery_id: str) -> dict:
 
     A plain reply delivered into a turn of its own is that turn's to write, with
     its opening and final messages, under the reply attempt the delivery names; the
-    same reply reaching an agent any other way stays `leaf reply`'s. Every other
+    same reply reaching an agent any other way stays `leaf thread reply`'s. Every other
     answer is the same on every carrier."""
     if answer["kind"] == "reply" and carrier == TURN_CARRIER:
         return {
@@ -251,7 +251,7 @@ def handled(batch: dict, carrier: str, delivery_id: str) -> dict:
     # event and reads the thread's digest, so the event says only what applies to
     # its own thread: a reader skimming a batch for what is new reads its events and
     # can skip the digest.
-    digests = {thread["id"]: thread for thread in batch["conversations"]}
+    digests = {thread["id"]: thread for thread in batch["threads"]}
     clause_ids: dict[str, str] = {}
     events = []
     for event in batch["events"]:
@@ -265,12 +265,10 @@ def handled(batch: dict, carrier: str, delivery_id: str) -> dict:
             if "answer" in event
             else {}
         )
-        digest = next(
-            (digests[c] for c in event["conversations"] if c in digests), None
-        )
+        digest = next((digests[c] for c in event["threads"] if c in digests), None)
         read = {**entry, **owed}
         if digest is not None:
-            read["conversation"] = digest
+            read["thread"] = digest
         clauses = event_clauses(read, registry)
         refs = [
             clause_ids.setdefault(clause["text"], f"h{len(clause_ids) + 1}")

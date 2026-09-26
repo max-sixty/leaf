@@ -8,7 +8,7 @@ from leaf import data as data_model
 from leaf import event_log as events_model
 from playwright.sync_api import expect
 from render_cases_interaction import (
-    CONVERSATION_DIFF_PAGE,
+    THREAD_DIFF_PAGE,
     live_url,
 )
 from render_cases_navigation import (
@@ -824,10 +824,10 @@ def test_draw_mode_keeps_the_separate_design_mode_binding(browser, serve):
     expect(page.locator("body")).not_to_have_attribute("data-lf-design-mode", "")
 
 
-def test_draw_mode_leaves_inline_conversation_controls_usable(browser, serve):
+def test_draw_mode_leaves_inline_thread_controls_usable(browser, serve):
     """A page-widget shadow root retargets document pointer events to its host. The
-    inline conversation it contains remains Leaf chrome, not a drawable widget control."""
-    url = serve(CONVERSATION_DIFF_PAGE)
+    inline thread it contains remains Leaf chrome, not a drawable widget control."""
+    url = serve(THREAD_DIFF_PAGE)
     events_model.append_event(
         serve.page_dir,
         {
@@ -1043,17 +1043,17 @@ def test_a_drawing_can_be_sent_without_words(browser, serve):
     assert event["kind"] == "comment"
     assert "text" not in event
     assert event["drawing"]["format"] == "leaf-drawing/2"
-    thread = page.get_by_role("dialog", name=re.compile("Conversation for"))
+    thread = page.get_by_role("dialog", name=re.compile("Thread for"))
     expect(thread).to_be_visible()
     expect(page.locator(".lf-drawing-preview")).to_have_count(0)
     expect(thread.locator(".lf-drawing-reference")).to_have_text("Drawing comment")
     expect(page.locator("#prose")).not_to_have_class(re.compile(r"\blf-mark-el\b"))
 
 
-def test_an_inline_conversation_keeps_drawing_context_on_the_page(browser, serve):
-    """A widget-owned conversation leaves the drawing over its page target instead of
-    showing the detached stroke again inside the conversation."""
-    url = serve(CONVERSATION_DIFF_PAGE)
+def test_an_inline_thread_keeps_drawing_context_on_the_page(browser, serve):
+    """A widget-owned thread leaves the drawing over its page target instead of
+    showing the detached stroke again inside the thread."""
+    url = serve(THREAD_DIFF_PAGE)
     drawing = {
         "format": "leaf-drawing/2",
         "strokes": [[[-20, 74], [50, 10], [120, 74]]],
@@ -1071,7 +1071,7 @@ def test_an_inline_conversation_keeps_drawing_context_on_the_page(browser, serve
 
     page = open_page(browser, live_url(url))
     expect(
-        page.locator("#cd-q .lf-conversation-body .lf-drawing-preview")
+        page.locator("#cd-q .lf-page-thread-body .lf-drawing-preview")
     ).to_have_count(0)
     expect(page.locator("#cd-q .lf-drawing-reference")).to_have_text("Drawing comment")
     expect(page.locator(".lf-drawing-posted")).to_have_count(1)

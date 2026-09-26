@@ -35,7 +35,6 @@ from interact_support import (
 from leaf import codex as leaf_codex
 from leaf.cli import cli
 from leaf.codex import AppServerRequestRejected, accept_codex_delivery, delivery_records
-from leaf.conversation import cmd_reply, cmd_resolve
 from leaf.delivery import current_responses
 from leaf.event_log import append_event, read_events
 from leaf.files import revision_path
@@ -48,6 +47,7 @@ from leaf.revisioning import activate_source
 from leaf.schema import ASSETS, VENDORED_FILES
 from leaf.served_state import page as served_page
 from leaf.service import delivery_reply_attempt
+from leaf.thread import cmd_reply, cmd_resolve
 from playwright.sync_api import expect
 from render_harness import LONG_PAGE, consume_browser_errors, open_page, told
 from websockets.exceptions import ConnectionClosedError
@@ -1803,7 +1803,7 @@ def test_a_failed_turn_hands_every_kind_of_owed_move_back(
     coming for it. A request's failed receipt is its lifecycle's own outcome and
     reopens its seat. A pick keeps standing on the page, and the workflow says it was
     not answered until the user answers again. A message is told in its own
-    conversation.
+    thread.
     """
     move = owed_move(page_dir)
     assert current_responses(page_dir, read_events(page_dir))[move["id"]]["kind"] == (
@@ -1996,13 +1996,13 @@ def test_a_turn_whose_stream_drops_is_stopped_and_its_move_receipted(
     assert activity["obligations"] == []
 
 
-def test_a_host_failure_receipt_answers_a_gesture_on_its_conversation(page_dir):
+def test_a_host_failure_receipt_answers_a_gesture_on_its_thread(page_dir):
     """The Worker's last-resort receipt reaches a widget gesture too, twice over.
 
     `/_leaf/agent/fail` is what the Worker calls when it is rate limited or its
     dispatch throws, with whatever event `/api/event` accepted — which can be a
     gesture on a widget frozen into thread markup. That is answered on the
-    conversation holding it, so addressing the receipt at the gesture refuses the
+    thread holding it, so addressing the receipt at the gesture refuses the
     one write whose whole job is to leave the user something.
 
     The Worker repeats that request, so the second call has to answer with the first
@@ -2080,12 +2080,10 @@ def test_a_fault_record_keeps_the_end_of_an_oversized_message():
     assert reported == {"detail": bounded["detail"]}
 
 
-def test_an_unanswered_widget_gesture_is_receipted_on_its_conversation(
-    page_dir, monkeypatch
-):
+def test_an_unanswered_widget_gesture_is_receipted_on_its_thread(page_dir, monkeypatch):
     """A receipt is addressed where the gesture is answered, not at the gesture.
 
-    A widget frozen into thread markup is answered on the conversation holding it,
+    A widget frozen into thread markup is answered on the thread holding it,
     so the address a reply is written to and the move it settles are two different
     events. Writing the receipt at the gesture refuses instead of settling it. The
     turn below starts, takes the gesture, and then loses its stream, which is the
@@ -2862,7 +2860,7 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
     thread = page.locator(f'.lf-thread[data-id="{comment["id"]}"]')
     expect(thread).to_be_hidden()
     if read_elsewhere:
-        box.fill("A separate conversation")
+        box.fill("A separate thread")
         box.press("ControlOrMeta+Enter")
         told(page)
         [other] = [

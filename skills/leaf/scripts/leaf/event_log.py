@@ -191,7 +191,7 @@ def _append_event_unlocked(f, event: dict, events: list[dict]) -> tuple[dict, bo
         # under the lease that serializes appends — so uniqueness is proven by
         # the write rather than assumed from width, and the id stays short
         # enough for an agent to read off a projection and retype into `leaf
-        # reply --for`. Nothing may treat one as a global identifier: a host
+        # thread reply --for`. Nothing may treat one as a global identifier: a host
         # keying an external operation on a `request` pairs the id with the page
         # (`references/packages.md`).
         while True:

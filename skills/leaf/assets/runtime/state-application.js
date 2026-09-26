@@ -21,11 +21,7 @@ import { observeServerNow, observeWorkingGrace } from "./presence.js";
 import { settleAcceptedDrafts } from "./drafts.js";
 import { notice } from "./notifications.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
-import {
-  loadMarked,
-  prepareAuthoredMessage,
-  messageText,
-} from "./conversation/messages.js";
+import { loadMarked, prepareAuthoredMessage, messageText } from "./thread/messages.js";
 import { commitWidgetDescriptors } from "./widget-descriptors.js";
 import {
   combineSemanticNews,
@@ -95,7 +91,7 @@ export function createStateApplication({
 
     const frozenDocuments = [];
     const threadRoots = new Map(
-      state.browser.conversation.threads.flatMap((thread) =>
+      state.browser.thread.threads.flatMap((thread) =>
         thread.msgs.map((message) => [message.id, thread.root.id]),
       ),
     );
@@ -116,7 +112,7 @@ export function createStateApplication({
     }
     const [activation] = await Promise.all(preparations);
     const bodies = new Map(
-      state.browser.conversation.threads.flatMap((thread) =>
+      state.browser.thread.threads.flatMap((thread) =>
         thread.msgs.map((message) => {
           const authored = message.markup
             ? prepareAuthoredMessage(message, thread.root.id).body

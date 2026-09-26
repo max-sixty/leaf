@@ -35,7 +35,7 @@
 // extension claim.
 
 // Application composition supplies feature-local geometry. This owner cannot open
-// auxiliary surfaces, send commands, or reconcile conversation DOM.
+// auxiliary surfaces, send commands, or reconcile thread DOM.
 import { sizeObserver } from "./rendering.js";
 import { drawnEdge } from "./drawn-edge.js";
 import { overlaps, overlapsAcross } from "./rect.js";
@@ -44,7 +44,7 @@ import { standsBeside } from "./auxiliary-surfaces.js";
 // The width the panel stands at for a user who has not moved its edge. 420 since
 // threads carry questions — option rows are the one thread content that can't scroll or
 // scale its width away, and 360 crowded them. A default rather than the width, because
-// what a conversation needs is a fact about the conversation: a thread quoting a table
+// what a thread needs is a fact about the thread: a thread quoting a table
 // wants room the same thread quoting a sentence does not, and only the user looking at
 // it knows which this is. So the edge is a thing they take hold of (`drawnEdge`), and
 // this is where it stands until they do. theme.css spells the same default for the
@@ -208,7 +208,7 @@ export function createChromeLayout({
 
   // The thread panel's edge, on the right, and the tray panel's, on the left. Each keeps
   // the user's choice in their own store rather than the tab's, because where a user
-  // keeps their conversations, and how much of the page they will give a tray, is the
+  // keeps their threads, and how much of the page they will give a tray, is the
   // chrome they arrange and expect to find arranged wherever they are reading (see
   // `userStore`). Live activation keeps the edges themselves; document travel and reload
   // restore the same choices, so no revision or visit asks the user to draw them again.

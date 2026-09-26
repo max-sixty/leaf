@@ -5,19 +5,19 @@ import {
   strongestWorkflow,
   threadAttention,
   workflowLabel,
-} from "../../skills/leaf/assets/runtime/conversation/workflow.js";
+} from "../../skills/leaf/assets/runtime/thread/workflow.js";
 import {
   awaitsUser,
   foldThreads,
   readThreadRecords,
-} from "../../skills/leaf/assets/runtime/conversation/model.js";
+} from "../../skills/leaf/assets/runtime/thread/model.js";
 
 const workflow = (id, stage, extra = {}) => ({
   id,
   seq: 1,
   revision: 1,
   input: id,
-  subject: { kind: "conversation", id: "root" },
+  subject: { kind: "thread", id: "root" },
   stage,
   activity: [],
   condition: null,

@@ -302,7 +302,7 @@ def guidance(dir: str, audience: str | None) -> None:
 def state(dir: str) -> None:
     """Fold the log onto the active revision and print the result as one JSON
     object: effective content with source and edit addresses, standing state,
-    reports, open Asks, conversation summaries, versions, presence, and bound data.
+    reports, open Asks, thread summaries, versions, presence, and bound data.
     Content follows the same document projection as the browser."""
     from leaf.agent_state import cmd_page_state
 
@@ -348,14 +348,14 @@ def delivery_read(delivery_id: str) -> None:
     cmd_delivery_read(delivery_id)
 
 
-@cli.group(short_help="Read, name, or summarize a Leaf conversation.")
-def conversation() -> None:
-    """Read and maintain conversations without selecting delivery work."""
+@cli.group(short_help="Open, answer, name, summarize, or read a thread.")
+def thread() -> None:
+    """Open and answer threads as the agent, and read or maintain them."""
 
 
-@conversation.command("read", short_help="Read one bounded conversation history.")
+@thread.command("read", short_help="Read one bounded thread history.")
 @click.argument("dir", metavar="PAGE")
-@click.argument("conversation_id", metavar="CONVERSATION_ID")
+@click.argument("thread_id", metavar="THREAD_ID")
 @click.option(
     "--after",
     type=click.IntRange(min=0),
@@ -369,57 +369,55 @@ def conversation() -> None:
     default=50,
     show_default=True,
 )
-def conversation_read(
+def thread_read(
     dir: str,
-    conversation_id: str,
+    thread_id: str,
     after: int,
     limit: int,
 ) -> None:
-    """Print one current conversation and a page of its exact event history."""
-    from leaf.agent_state import cmd_conversation_read
+    """Print one current thread and a page of its exact event history."""
+    from leaf.agent_state import cmd_thread_read
 
-    cmd_conversation_read(
+    cmd_thread_read(
         resolve_dir(dir),
-        conversation_id,
+        thread_id,
         after=after,
         limit=limit,
     )
 
 
-@conversation.command("title", short_help="Set or update a short conversation title.")
+@thread.command("title", short_help="Set or update a short thread title.")
 @click.argument("dir", metavar="PAGE")
-@click.argument("conversation_id", metavar="CONVERSATION_ID")
+@click.argument("thread_id", metavar="THREAD_ID")
 @click.option(
     "--text", required=True, help="short descriptive title (at most 80 characters)"
 )
 @click.option("--json", "as_json", is_flag=True, help="print the title event")
-def conversation_title(
-    dir: str, conversation_id: str, text: str, as_json: bool
-) -> None:
-    """Name the conversation for the thread panel; repeat to rename it.
+def thread_title(dir: str, thread_id: str, text: str, as_json: bool) -> None:
+    """Name the thread for the thread panel; repeat to rename it.
 
-    Choose a few descriptive words when first handling a conversation. Keep the
+    Choose a few descriptive words when first handling a thread. Keep the
     title stable unless its subject changes. This adds no message or reply.
     """
-    from leaf.conversation import cmd_title
+    from leaf.thread import cmd_title
 
-    accepted = cmd_title(resolve_dir(dir), conversation_id, text)
+    accepted = cmd_title(resolve_dir(dir), thread_id, text)
     if as_json:
         click.echo(json.dumps(accepted, ensure_ascii=False))
         return
-    click.echo(f"named conversation {conversation_id}: {accepted['title']}")
+    click.echo(f"named thread {thread_id}: {accepted['title']}")
 
 
-@conversation.command("summarize", short_help="Summarize a contiguous message range.")
+@thread.command("summarize", short_help="Summarize a contiguous message range.")
 @click.argument("dir", metavar="PAGE")
-@click.argument("conversation_id", metavar="CONVERSATION_ID")
+@click.argument("thread_id", metavar="THREAD_ID")
 @click.option("--from", "from_message", required=True, metavar="ID")
 @click.option("--through", "through_message", required=True, metavar="ID")
 @click.option("--text", help="summary Markdown (default: stdin)")
 @click.option("--json", "as_json", is_flag=True, help="print the summary event")
-def conversation_summarize(
+def thread_summarize(
     dir: str,
-    conversation_id: str,
+    thread_id: str,
     from_message: str,
     through_message: str,
     text: str | None,
@@ -430,10 +428,10 @@ def conversation_summarize(
     The original messages remain in the append-only transcript and can always be
     revealed. A later overlapping summary replaces this one.
     """
-    from leaf.conversation import cmd_summarize
+    from leaf.thread import cmd_summarize
 
     accepted = cmd_summarize(
-        resolve_dir(dir), conversation_id, from_message, through_message, text
+        resolve_dir(dir), thread_id, from_message, through_message, text
     )
     if as_json:
         print(json.dumps(accepted, ensure_ascii=False))
@@ -684,7 +682,7 @@ def _status_line(state: str, detail: str, on: str | None) -> str:
     "--on",
     "on",
     metavar="SUBJECT",
-    help="The open conversation or local page widget this work is about.",
+    help="The open thread or local page widget this work is about.",
 )
 def status(dir: str, state: str, detail: str, on: str | None) -> None:
     """Set the agent's banner state.
@@ -694,7 +692,7 @@ def status(dir: str, state: str, detail: str, on: str | None) -> None:
     DETAIL invites text comments. Use idle when finished; unacknowledged input
     and unanswered user moves prevent it.
 
-    With working, --on names an open conversation or page widget. The user sees
+    With working, --on names an open thread or page widget. The user sees
     DETAIL beside that subject as well as in the banner.
     Your next reply ends a thread claim; a version stamp with --completes ends
     a widget claim. Renew the status as work changes: a claim left after your
@@ -742,7 +740,9 @@ def wait(dir: str | None, ack: str | None) -> None:
     sys.exit(outcome)
 
 
-@cli.command(short_help="Open an agent thread — on a passage, or on the page whole.")
+@thread.command(
+    "open", short_help="Open an agent thread — on a passage, or on the page whole."
+)
 @click.argument("dir", metavar="PAGE")
 @click.option("--quote", help="passage text from the active revision")
 @click.option("--section", metavar="ID", help="element ID to anchor or scope --quote")
@@ -750,7 +750,7 @@ def wait(dir: str | None, ack: str | None) -> None:
 @click.option("--text", help="comment text (default: stdin)")
 @click.option("--markup", help="widget markup to render after the text, validated here")
 @click.option("--json", "as_json", is_flag=True, help="print the comment event instead")
-def comment(
+def thread_open(
     dir: str,
     quote: str,
     section: str,
@@ -766,7 +766,7 @@ def comment(
     The user answers it in the browser. Refuses a quote the active revision does
     not hold, or holds more than once.
     """
-    from leaf.conversation import cmd_comment
+    from leaf.thread import cmd_comment
 
     accepted = cmd_comment(resolve_dir(dir), quote, section, part, text, markup)
     if as_json:
@@ -774,17 +774,16 @@ def comment(
         return
     click.echo(f"opened thread {accepted['id']}")
     click.echo(
-        f"name it: leaf conversation title {dir} {accepted['id']} "
-        '--text "<a few words>"'
+        f'name it: leaf thread title {dir} {accepted["id"]} --text "<a few words>"'
     )
 
 
-@cli.command(short_help="Reply to a thread as the agent.")
+@thread.command("reply", short_help="Reply to a thread as the agent.")
 @click.argument("dir", metavar="PAGE")
 @click.option(
     "--to",
     metavar="ID",
-    help="conversation message ID; without --for, posts a new message there",
+    help="thread message ID; without --for, posts a new message there",
 )
 @click.option(
     "--for",
@@ -806,7 +805,7 @@ def comment(
     "--awaits", is_flag=True, help="the reply's prose asks the user a question"
 )
 @click.option("--json", "as_json", is_flag=True, help="print the reply event instead")
-def reply(
+def thread_reply(
     dir: str,
     to: str,
     for_event: str | None,
@@ -823,14 +822,14 @@ def reply(
 
     Answer user input with --for EVENT_ID. With exactly one outstanding reply
     in this turn's opened delivery, omit it to select that reply. --to ID
-    without --for posts a new agent message, refused while that conversation
+    without --for posts a new agent message, refused while that thread
     owes a reply.
 
     --quote, --section, and --part move the thread's current anchor; --detach
     removes it when the subject leaves the page. The original anchor stays in
     the log. A reply validates and activates any changed source before posting.
     """
-    from leaf.conversation import cmd_reply, thread_of
+    from leaf.thread import cmd_reply, thread_of
 
     page_dir = resolve_dir(dir)
     accepted = cmd_reply(
@@ -852,18 +851,18 @@ def reply(
     click.echo(f"replied in {thread_of(page_dir, accepted['id'])}")
 
 
-@cli.command(short_help="Edit one of this agent session's messages.")
+@thread.command("edit", short_help="Edit one of this agent session's messages.")
 @click.argument("dir", metavar="PAGE")
 @click.option("--to", required=True, metavar="ID", help="comment or reply ID to edit")
 @click.option("--text", help="replacement text (default: stdin)")
 @click.option("--json", "as_json", is_flag=True, help="print the edit event instead")
-def edit(dir: str, to: str, text: str, as_json: bool) -> None:
+def thread_edit(dir: str, to: str, text: str, as_json: bool) -> None:
     """Replace the visible text of an agent-authored comment or reply.
 
     The original and every revision remain in the append-only event log. Frozen
     widget markup is not editable.
     """
-    from leaf.conversation import cmd_edit, thread_of
+    from leaf.thread import cmd_edit, thread_of
 
     page_dir = resolve_dir(dir)
     accepted = cmd_edit(page_dir, to, text)
@@ -873,21 +872,21 @@ def edit(dir: str, to: str, text: str, as_json: bool) -> None:
     click.echo(f"edited {to} in {thread_of(page_dir, to)}")
 
 
-@cli.command(short_help="Close a thread as the agent.")
+@thread.command("resolve", short_help="Close a thread as the agent.")
 @click.argument("dir", metavar="PAGE")
 @click.option(
     "--to", required=True, metavar="ID", help="a message in the thread to close"
 )
 @click.option("--json", "as_json", is_flag=True, help="print the resolve event instead")
-def resolve(dir: str, to: str, as_json: bool) -> None:
+def thread_resolve(dir: str, to: str, as_json: bool) -> None:
     """Close a thread as the agent.
 
     The user ordinarily closes a thread; the Leaf skill's
-    references/conversation-threads.md says when the agent does. Refuses a thread
+    references/threads.md says when the agent does. Refuses a thread
     that asked for a version until a stamped version answers it. The panel names
     who resolved it.
     """
-    from leaf.conversation import cmd_resolve, thread_of
+    from leaf.thread import cmd_resolve, thread_of
 
     page_dir = resolve_dir(dir)
     accepted = cmd_resolve(page_dir, to)
@@ -928,7 +927,7 @@ def report(
     task. The page paints the report live as provisional news; it stands until a
     version absorbs or overrules it, and the page's watcher wakes to fold it in.
     """
-    from leaf.conversation import cmd_report
+    from leaf.thread import cmd_report
 
     accepted = cmd_report(resolve_dir(dir), widget, verb, fields)
     if as_json:
@@ -968,31 +967,31 @@ def receipt(dir: str, request: str, status: str, text: str, as_json: bool) -> No
     help="print events after this sequence",
 )
 @click.option(
-    "--conversation",
-    metavar="CONVERSATION",
-    help="print only events belonging to this exact conversation id",
+    "--thread",
+    metavar="THREAD",
+    help="print only events belonging to this exact thread id",
 )
 @click.option(
     "--follow",
     is_flag=True,
     help="keep printing each event as it is appended, until stopped",
 )
-def events(dir: str, after: int, conversation: str | None, follow: bool) -> None:
+def events(dir: str, after: int, thread: str | None, follow: bool) -> None:
     """Print the event log as JSON lines.
 
     Each line is one stored event record; `seq` is its position, and `--after`
-    resumes from the last one a reader saw. CONVERSATION is an exact identity
+    resumes from the last one a reader saw. THREAD is an exact identity
     lookup, not a general event filter. This is read-only and does not
     acknowledge user events.
     """
     from leaf.transcript import cmd_events, cmd_follow_events
 
-    if follow and conversation is not None:
-        raise click.UsageError("--follow and --conversation cannot be used together")
+    if follow and thread is not None:
+        raise click.UsageError("--follow and --thread cannot be used together")
     if follow:
         cmd_follow_events(resolve_dir(dir), after)
         return
-    cmd_events(resolve_dir(dir), after, conversation)
+    cmd_events(resolve_dir(dir), after, thread)
 
 
 @cli.command(short_help="Print browser and server interactions as JSON lines.")

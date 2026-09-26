@@ -289,7 +289,7 @@ export function focusSurface(id, { focus = "reply" } = {}) {
   for (const registration of registrations.values()) {
     const root = registration.owner.shadowRoot ?? registration.owner;
     const thread = root.querySelector(
-      `.lf-conversation-thread[data-thread="${CSS.escape(id)}"]`,
+      `.lf-page-thread[data-thread="${CSS.escape(id)}"]`,
     );
     if (!thread) continue;
     const summary = thread.querySelector(":scope > summary");

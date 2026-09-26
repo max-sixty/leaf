@@ -27,11 +27,11 @@ ANSWER_KINDS = ("reply", "turn", "markup", "receipt")
 # The answer kinds that post a message in a thread.
 THREAD_ANSWER_KINDS = frozenset({"reply", "turn"})
 ANSWER_ASK_INSTRUCTION = (
-    "Each move takes the answer named for it. Read current obligations with `leaf page state <page>` and conversation history with "
-    "`leaf conversation read <page> <id>`."
+    "Each move takes the answer named for it. Read current obligations with `leaf page state <page>` and thread history with "
+    "`leaf thread read <page> <id>`."
 )
 WAIT_BATCH_OUTPUT_INSTRUCTION = (
-    "Print one page's complete ordered batch, conversation context, and response "
+    "Print one page's complete ordered batch, thread context, and response "
     "requirements as an immutable delivery, whose `acknowledge` says how to confirm "
     "it. `leaf delivery read <id>` reads that same delivery."
 )
@@ -96,7 +96,7 @@ _RECORD_VALUE = {
 
 
 # A `when` predicate selects instances by attribute values (or by a flag's being
-# present or absent). One condition shape serves Asks and conversations because they
+# present or absent). One condition shape serves Asks and threads because they
 # ask the same question of the same authored attributes.
 AWAITING_CONDITION = {
     "type": "object",
@@ -343,7 +343,7 @@ EXTENSION_SCHEMA = {
     "properties": {
         "x-ask-surface": {"const": True},
         "x-awaits": AWAITS_SCHEMA,
-        "x-conversation": {
+        "x-thread-seat": {
             "type": "object",
             "properties": {
                 "when": AWAITING_CONDITION,

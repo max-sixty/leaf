@@ -62,7 +62,6 @@ from interact_support import (
 )
 from leaf import cli as cli_model
 from leaf import codex as codex_model
-from leaf import conversation as conversation_model
 from leaf import data as data_model
 from leaf import delivery as delivery_model
 from leaf import event_contracts as event_contracts_model
@@ -78,6 +77,7 @@ from leaf import service as service_model
 from leaf import session as session_model
 from leaf import structure as structure_model
 from leaf import styles as styles_model
+from leaf import thread as thread_model
 from leaf import vendoring as vendoring_model
 from leaf.registry import contract as registry_contract
 from leaf.registry import layer as registry_layer
@@ -95,7 +95,7 @@ def test_new_words_reopen_a_thread_without_settling_a_newer_user_turn(page_dir):
         page_dir,
         {"kind": "comment", "id": "question", "author": "user", "text": "Why?"},
     )
-    conversation_model.cmd_resolve(page_dir, "question")
+    thread_model.cmd_resolve(page_dir, "question")
     for message in (
         {"author": "user", "token": "keep"},
         {
@@ -113,7 +113,7 @@ def test_new_words_reopen_a_thread_without_settling_a_newer_user_turn(page_dir):
         )
         assert threads["question"]["resolved"] is not None
 
-    answer = conversation_model.cmd_reply(
+    answer = thread_model.cmd_reply(
         page_dir,
         "question",
         "Here is the completed answer.",
@@ -130,7 +130,7 @@ def test_new_words_reopen_a_thread_without_settling_a_newer_user_turn(page_dir):
         == {}
     )
 
-    conversation_model.cmd_resolve(page_dir, answer["id"])
+    thread_model.cmd_resolve(page_dir, answer["id"])
     events_model.append_event(
         page_dir,
         {
@@ -143,7 +143,7 @@ def test_new_words_reopen_a_thread_without_settling_a_newer_user_turn(page_dir):
     )
     threads = event_folds_model.build_threads(events_model.read_events(page_dir), {})
     assert threads["question"]["resolved"] is None
-    conversation_model.cmd_reply(
+    thread_model.cmd_reply(
         page_dir,
         "question",
         "Additional detail on the original question.",
@@ -154,7 +154,7 @@ def test_new_words_reopen_a_thread_without_settling_a_newer_user_turn(page_dir):
     assert delivery_model.current_responses(
         page_dir, events_model.read_events(page_dir)
     ) == {"correction": {"kind": "reply", "to": "correction", "for": "correction"}}
-    closed = conversation_model.cmd_resolve(page_dir, "question")
+    closed = thread_model.cmd_resolve(page_dir, "question")
     threads = event_folds_model.build_threads(events_model.read_events(page_dir), {})
     assert threads["question"]["resolved"]["id"] == closed["id"]
 
@@ -162,9 +162,9 @@ def test_new_words_reopen_a_thread_without_settling_a_newer_user_turn(page_dir):
 def test_late_answer_to_a_frozen_widget_reopens_without_repeating_its_obligation(
     server, page_dir
 ):
-    """Reopening restores the conversation while its completed choice stays answered."""
+    """Reopening restores the thread while its completed choice stays answered."""
     publish(page_dir)
-    question = conversation_model.cmd_comment(
+    question = thread_model.cmd_comment(
         page_dir,
         None,
         None,
@@ -191,8 +191,8 @@ def test_late_answer_to_a_frozen_widget_reopens_without_repeating_its_obligation
     assert choice["id"] in delivery_model.current_responses(
         page_dir, events_model.read_events(page_dir)
     )
-    conversation_model.cmd_resolve(page_dir, question["id"])
-    answer = conversation_model.cmd_reply(
+    thread_model.cmd_resolve(page_dir, question["id"])
+    answer = thread_model.cmd_reply(
         page_dir,
         question["id"],
         "I applied your choice.",
@@ -602,7 +602,7 @@ def test_an_answer_the_user_took_back_leaves_its_thread_open(page_dir):
 def test_server_takes_back_only_a_standing_gesture_of_the_users_own(server, page_dir):
     """`undoes` is checked completely where it enters, so nothing downstream asks a
     second time whether it points at something real. What an undo may name is one
-    unwithdrawn gesture of the user's own: an agent's `leaf resolve` is not
+    unwithdrawn gesture of the user's own: an agent's `leaf thread resolve` is not
     theirs to take back, a comment is speech rather than state, an undo is not
     itself undoable (that would be a redo), and one gesture cannot be taken back
     twice."""
@@ -769,7 +769,7 @@ def test_an_accept_after_a_reject_settles_the_thread():
 
 
 def test_a_resolve_between_two_decisions_outlives_the_second():
-    """A resolve is a person saying the conversation is done, and the log cannot
+    """A resolve is a person saying the thread is done, and the log cannot
     take that back the way it takes back a decision. The one-way latch got this
     right by never clearing anything; what it pins is the obvious wrong fix for the
     latch — a reject that clears whatever its widget resolved — which would wipe a
@@ -855,7 +855,7 @@ def test_init_refuses_to_retire_a_frozen_thread_host_request_verb(page_dir):
         page_dir,
         {"kind": "comment", "id": "c1", "author": "user", "text": "Restart?"},
     )
-    conversation_model.cmd_reply(
+    thread_model.cmd_reply(
         page_dir,
         "c1",
         "Use this operation.",
@@ -1303,9 +1303,7 @@ def test_report_validation_and_append_cannot_straddle_revendoring(
 
     def report():
         try:
-            conversation_model.cmd_report(
-                page_dir, "t-parser", "status", ("status=done",)
-            )
+            thread_model.cmd_report(page_dir, "t-parser", "status", ("status=done",))
             outcomes.append("reported")
         except BaseException as error:  # noqa: BLE001 - carried to the assertion
             errors.append(error)
@@ -1419,7 +1417,7 @@ def test_revendoring_cannot_pass_a_worker_report_still_entering_the_log(
         page_dir,
         monkeypatch,
         "report",
-        lambda: conversation_model.cmd_report(
+        lambda: thread_model.cmd_report(
             page_dir, "t-parser", "status", ("status=review",)
         ),
     )
@@ -1446,7 +1444,7 @@ def test_revendoring_cannot_pass_thread_markup_still_entering_the_log(
         page_dir,
         monkeypatch,
         "reply",
-        lambda: conversation_model.cmd_reply(
+        lambda: thread_model.cmd_reply(
             page_dir, "c1", "Pick one:", markup, for_event="c1"
         ),
     )
@@ -1470,7 +1468,7 @@ def test_revendoring_cannot_turn_logged_thread_markup_into_a_settlement(
         '<lf-option id="thread-a">A</lf-option>'
         "</lf-options></lf-ask>"
     )
-    conversation_model.cmd_reply(page_dir, "c1", "Pick one:", markup, for_event="c1")
+    thread_model.cmd_reply(page_dir, "c1", "Pick one:", markup, for_event="c1")
 
     registry = json.loads((page_dir / "registry.json").read_text())
     options = registry["lf-options"]
@@ -1615,7 +1613,7 @@ def test_page_registry_reads_candidate_changes_without_mutating_the_layer(page_d
 
 
 def test_thread_markup_must_render_in_every_pinned_revision(page_dir):
-    """A current conversation remains usable in every immutable document showing it."""
+    """A current thread remains usable in every immutable document showing it."""
     publish(page_dir)
     authored = page_dir / "page"
     (authored / "registry.json").write_text(
@@ -1632,7 +1630,8 @@ def test_thread_markup_must_render_in_every_pinned_revision(page_dir):
     posted = CliRunner().invoke(
         cli_model.cli,
         [
-            "comment",
+            "thread",
+            "open",
             str(page_dir),
             "--text",
             "A later widget",
@@ -1887,7 +1886,7 @@ def test_candidate_vocabulary_preserves_commands_in_frozen_thread_markup(page_di
         page_dir,
         {"kind": "comment", "id": "c1", "author": "user", "text": "Choose."},
     )
-    conversation_model.cmd_reply(
+    thread_model.cmd_reply(
         page_dir,
         "c1",
         "Use this control.",
@@ -2335,7 +2334,7 @@ SUGGESTION_HOLDING_A_NAMESAKE = PAGE.replace(
 
 
 def test_a_thread_answer_reads_the_same_wherever_it_is_folded(page_dir):
-    """`resolves` names a conversation, and thread ids and page ids are separate
+    """`resolves` names a thread, and thread ids and page ids are separate
     namespaces that can spell the same string. Read like any other detail value it
     would rest the accept on whichever element shared the name — here a paragraph
     the suggestion itself proposes — and the version that rewrote that paragraph
@@ -2473,7 +2472,7 @@ def test_boolean_attribute_subschemas_validate_without_crashing(
     [
         ("x-awaits", []),
         ("x-awaits", {"when": {"choose": True}}),
-        ("x-conversation", False),
+        ("x-thread-seat", False),
         ("x-required-members", []),
         ("x-content", "words"),
         ("x-owners", []),
@@ -3130,7 +3129,7 @@ def test_registry_cross_entry_checks_wait_for_every_entry_to_validate(page_dir):
     ("tag", "key", "fallback"),
     [
         ("lf-options", "x-state", None),
-        ("lf-note", "x-conversation", {"when": {"id": ["note"]}}),
+        ("lf-note", "x-thread-seat", {"when": {"id": ["note"]}}),
         ("lf-diff", "x-thread-surface", True),
     ],
 )
@@ -3302,7 +3301,7 @@ def test_the_registry_door_refuses_a_withdrawal_that_retires_nothing(trial_page)
         ),
         (
             "lf-options",
-            "x-conversation",
+            "x-thread-seat",
             {"when": {"pick": [True]}},
             "names undeclared attribute `pick`",
         ),
@@ -3326,7 +3325,7 @@ def test_the_registry_door_refuses_a_withdrawal_that_retires_nothing(trial_page)
         ),
         (
             "lf-options",
-            "x-conversation",
+            "x-thread-seat",
             {"when": {"id": ["NOT-VALID"]}},
             "its own schema does not admit",
         ),
@@ -3700,14 +3699,14 @@ How this text reaches the agent, by example
 3. Earlier, the agent started `leaf wait` in the background and went idle. The
    agent does nothing in this step: `leaf wait`, a leaf process, notices the new
    line and builds a delivery for it. The comment is owed a reply, which the
-   delivery records as its `answer` (step 4): a `reply` for `leaf reply` here,
+   delivery records as its `answer` (step 4): a `reply` for `leaf thread reply` here,
    where the Codex App Server route would record a `turn`, which the turn's own
    messages write. For the instructions, `leaf wait` reads the clauses under
    `$events.handling.comment` in the page's copy of registry.json, then those
    under `$events.answering.reply`, the answer it owes. Each clause has a `text`
    and may have a `when`, a JSON Schema that must hold for the clause to apply.
    It is tested against the log line together with its `answer` and its
-   `conversation`'s entry in the delivery's `conversations` (step 4). There are
+   `thread`'s entry in the delivery's `threads` (step 4). There are
    @COUNT@; here they all are, with whether the comment satisfies each `when`:
 
 @CLAUSES@
@@ -3726,7 +3725,7 @@ How this text reaches the agent, by example
 
 5. The agent follows `acknowledge`: it starts `leaf wait --ack <delivery-id>` to
    confirm receipt and wait for the next one. It follows `handling`: it replies in
-   the thread with `leaf reply` and edits the page if warranted.
+   the thread with `leaf thread reply` and edits the page if warranted.
 
 What this file records
 ----------------------
@@ -3737,7 +3736,7 @@ Each top-level key below names a case and holds:
 
   event:  the input: a log line's `kind`, the kind of answer its delivery
           says it owes (`answer`), and the fields some `when` reads, its
-          `conversation`'s among them, and nothing else. A field no `when`
+          `thread`'s among them, and nothing else. A field no `when`
           names, such as a comment's `anchor` or `text`, cannot change what
           the agent is told, so it is left out; the test checks both halves of
           that.
@@ -3750,7 +3749,7 @@ Each top-level key below names a case and holds:
 
 The walkthrough's comment is the first case. No `when` reads any field of its
 log line from step 2 except `kind`, so the case is that line cut down to `kind`,
-the reply it owes and its new conversation's missing title, and it gets the
+the reply it owes and its new thread's missing title, and it gets the
 clauses marked "applies" in step 3. It is recorded as:
 
 @RECORDED@
@@ -3795,8 +3794,8 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
     def owes(kind):
         return {"answer": {"kind": kind}}
 
-    untitled = {"conversation": {"title": None}}
-    titled = {"conversation": {"title": "Tuesday backfill"}}
+    untitled = {"thread": {"title": None}}
+    titled = {"thread": {"title": "Tuesday backfill"}}
     cases = {
         "comment": {"kind": "comment", **untitled, **owes("reply")},
         "comment over App Server": {"kind": "comment", **untitled, **owes("turn")},
@@ -3827,7 +3826,7 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
         },
         "reply in a long thread": {
             "kind": "reply",
-            "conversation": {
+            "thread": {
                 "title": "Tuesday backfill",
                 "summary_hint": {"from": "m1", "through": "m8"},
             },
@@ -3922,12 +3921,12 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
         *page_events["handling"]["comment"],
         *page_events["answering"][delivered["answer"]["kind"]],
     ]
-    [conversation] = batch["conversations"]
+    [thread] = batch["threads"]
     applying = registry_contract.event_clauses(
         {
             **record,
             "answer": delivered["answer"],
-            "conversation": conversation,
+            "thread": thread,
         },
         registry_storage.load_registry(page_dir),
     )
@@ -4019,13 +4018,13 @@ A carrier is the route that takes new user input to the agent's task:
                      output to the agent as the command's result, which wakes
                      it. The agent acknowledges the delivery itself, with
                      `leaf wait --ack <delivery-id>`, and answers with
-                     `leaf reply`. Claude Code uses this carrier, and so does a
+                     `leaf thread reply`. Claude Code uses this carrier, and so does a
                      Codex task running without Leaf's adapter.
   Codex queue        Leaf's adapter freezes the delivery and runs `codex queue`
                      with a pointer to it as the task's next user message. The
                      agent reads the delivery with `leaf delivery read <id>`,
                      which prints it as indented JSON, and answers with
-                     `leaf reply`. The adapter acknowledges the delivery once
+                     `leaf thread reply`. The adapter acknowledges the delivery once
                      Codex's queue accepts it.
   Codex App Server   Leaf starts a turn with `turn/start`, carrying the
                      delivery as a `leaf_delivery` tool output, and binds the
@@ -4037,7 +4036,7 @@ A carrier is the route that takes new user input to the agent's task:
 Each carrier freezes a delivery of its own. The envelope's shape is the same on
 all three, and it names its `carrier`. Two things differ, each stated once:
 `acknowledge` says how the agent confirms the delivery, or is null where the
-carrier confirmed it; and the comment's `answer` is a `reply`, for `leaf reply`,
+carrier confirmed it; and the comment's `answer` is a `reply`, for `leaf thread reply`,
 except on App Server, where it is a `turn` the turn's own messages write. The
 `handling` follows from the answer, so each agent is told only its own route.
 The agent's standing instructions (its host contract, and on leaf.page the
@@ -4799,7 +4798,7 @@ def test_specimen_data_bindings_use_copied_data_but_not_parent_history(page_dir)
 @pytest.mark.parametrize("seeded", [False, True])
 @pytest.mark.parametrize("available", [False, True])
 @pytest.mark.parametrize("nested", [False, True])
-def test_specimen_references_see_only_selected_conversations(
+def test_specimen_references_see_only_selected_threads(
     page_dir, seeded, available, nested
 ):
     if available:
@@ -4828,7 +4827,7 @@ def test_specimen_references_see_only_selected_conversations(
         assert "names no comment in this document" in result.output
 
 
-def test_specimen_checks_available_history_beside_forward_conversation_references(
+def test_specimen_checks_available_history_beside_forward_thread_references(
     page_dir,
 ):
     events_model.append_event(
@@ -5094,14 +5093,14 @@ def test_init_refuses_to_drop_the_contract_of_a_held_comment(page_dir):
     )
     registry_path = package / "registry.json"
     registry = json.loads(registry_path.read_text())
-    del registry["lf-task"]["x-conversation"]["hold"]
+    del registry["lf-task"]["x-thread-seat"]["hold"]
     registry_path.write_text(json.dumps(registry))
 
     result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
 
     assert result.exit_code != 0
     assert "no longer speaks" in result.output
-    assert "x-conversation hold target" in result.output
+    assert "x-thread-seat hold target" in result.output
 
 
 def test_shared_package_declarations_compose_by_member():
@@ -5163,6 +5162,7 @@ def test_the_reply_door_refuses_a_picture_the_page_directory_has_not_got(page_di
     posted = CliRunner().invoke(
         cli_model.cli,
         [
+            "thread",
             "reply",
             str(page_dir),
             "--to",
@@ -5200,7 +5200,13 @@ def test_the_text_door_refuses_a_picture_the_page_directory_has_not_got(page_dir
     missing = "/media/deadbeefdeadbeef.png"
     posted = CliRunner().invoke(
         cli_model.cli,
-        ["comment", str(page_dir), "--text", f"the panel now:\n\n![shot]({missing})"],
+        [
+            "thread",
+            "open",
+            str(page_dir),
+            "--text",
+            f"the panel now:\n\n![shot]({missing})",
+        ],
     )
     assert posted.exit_code == 1, (
         f"the comment door froze a picture the page has not got into the log:\n"
@@ -5211,7 +5217,13 @@ def test_the_text_door_refuses_a_picture_the_page_directory_has_not_got(page_dir
 
     mention = CliRunner().invoke(
         cli_model.cli,
-        ["comment", str(page_dir), "--text", f"write it as `{missing}` in the message"],
+        [
+            "thread",
+            "open",
+            str(page_dir),
+            "--text",
+            f"write it as `{missing}` in the message",
+        ],
     )
     assert mention.exit_code == 0, (
         f"a path named in a sentence is the author's words, the reading the markup "
@@ -5221,7 +5233,8 @@ def test_the_text_door_refuses_a_picture_the_page_directory_has_not_got(page_dir
     quoted = CliRunner().invoke(
         cli_model.cli,
         [
-            "comment",
+            "thread",
+            "open",
             str(page_dir),
             "--text",
             f"Here is the source:\n\n```md\n![shot]({missing})\n```\n\n[unused]: {missing}",
@@ -5234,7 +5247,7 @@ def test_the_text_door_refuses_a_picture_the_page_directory_has_not_got(page_dir
 
     linked = CliRunner().invoke(
         cli_model.cli,
-        ["comment", str(page_dir), "--text", f'[the panel](<{missing}> "shot")'],
+        ["thread", "open", str(page_dir), "--text", f'[the panel](<{missing}> "shot")'],
     )
     assert linked.exit_code == 1, (
         f"a link destination points at the same file an image does, angle brackets "
@@ -5243,7 +5256,13 @@ def test_the_text_door_refuses_a_picture_the_page_directory_has_not_got(page_dir
 
     referenced = CliRunner().invoke(
         cli_model.cli,
-        ["comment", str(page_dir), "--text", f"![shot][ref]\n\n[ref]: {missing}"],
+        [
+            "thread",
+            "open",
+            str(page_dir),
+            "--text",
+            f"![shot][ref]\n\n[ref]: {missing}",
+        ],
     )
     assert referenced.exit_code == 1, (
         f"a reference definition is where a reference-style image keeps its "
@@ -5253,7 +5272,13 @@ def test_the_text_door_refuses_a_picture_the_page_directory_has_not_got(page_dir
 
     unnamed = CliRunner().invoke(
         cli_model.cli,
-        ["comment", str(page_dir), "--text", "look:\n\n![shot](/media/screenshot.png)"],
+        [
+            "thread",
+            "open",
+            str(page_dir),
+            "--text",
+            "look:\n\n![shot](/media/screenshot.png)",
+        ],
     )
     assert unnamed.exit_code == 1, (
         f"the directory holds digest-named files and nothing else, so a destination "
@@ -5265,7 +5290,13 @@ def test_the_text_door_refuses_a_picture_the_page_directory_has_not_got(page_dir
     (page_dir / "media" / "deadbeefdeadbeef.png").write_bytes(b"\x89PNG\r\n\x1a\n")
     answered = CliRunner().invoke(
         cli_model.cli,
-        ["comment", str(page_dir), "--text", f"the panel now:\n\n![shot]({missing})"],
+        [
+            "thread",
+            "open",
+            str(page_dir),
+            "--text",
+            f"the panel now:\n\n![shot]({missing})",
+        ],
     )
     assert answered.exit_code == 0, (
         f"a reference the directory answers is the whole point of the door:\n"
@@ -5280,7 +5311,7 @@ def test_the_door_admits_a_reaction_only_as_a_token_the_layer_declares(
     the two and never both, a word the merged vocabulary declares, and no
     suggestion, hold, or markup riding beside it. What the door lets through it
     also lets the user take back — while it is still a mark. An answer under it
-    makes it a conversation, and a message with words in it was never a mark."""
+    makes it a thread, and a message with words in it was never a mark."""
     publish(page_dir)
     root = json.loads(
         fetch(
@@ -5362,9 +5393,9 @@ def test_the_door_admits_a_reaction_only_as_a_token_the_layer_declares(
     answer = json.loads(body)
     assert answer["final"] is True, body
     assert "already been taken back" in answer["error"], body
-    # Answered, the page reaction is a conversation, and the withdrawal would orphan
+    # Answered, the page reaction is a thread, and the withdrawal would orphan
     # the answer; the user's move is in the thread it opened.
-    conversation_model.cmd_reply(
+    thread_model.cmd_reply(
         page_dir,
         reaction["id"],
         "Which part is long?",

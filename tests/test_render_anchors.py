@@ -1300,12 +1300,12 @@ def test_code_is_colored_without_a_word_moving(browser, serve):
     """Colouring is spans, and the anchor pass is what spans break: the revision holds
     one run of characters where the DOM now holds a dozen nodes. A <span> is no text block,
     so both readings collapse to the same string — which is what lets the runtime color a
-    block the file knows nothing about, and what keeps `leaf comment` able to quote
+    block the file knows nothing about, and what keeps `leaf thread open` able to quote
     into one.
 
     One pass serves both shapes a page has for code, lf-code's `language` and a plain
     <pre><code class="language-*">, and neither guesses: a lf-code with no `language` stays
-    the color of its own ink. The quote below is written the way `leaf comment`
+    the color of its own ink. The quote below is written the way `leaf thread open`
     writes one — against the file — and spans a token boundary on its way back."""
     url = serve(CODE_PAGE)
     page = open_page(browser, url)
@@ -2268,23 +2268,23 @@ def test_two_comments_on_one_element_both_stay_anchored(browser, serve):
     assert len(set(look["borders"])) == 1 and look["borders"][0] != "0px", look
 
 
-FOCUSED_CONVERSATION = "document.activeElement?.closest('.lf-conversation-thread')"
+FOCUSED_THREAD = "document.activeElement?.closest('.lf-page-thread')"
 
 
-def conversation_a_press_opened(page):
-    """The conversation a press on a mark landed in, or None if none ever took focus.
+def thread_a_press_opened(page):
+    """The thread a press on a mark landed in, or None if none ever took focus.
 
     The preview card the press opens places itself and only then hands over focus, from
     the placement promise `deferThreadPreviewFocus` waits on — so the thread arrives a
     frame after the press rather than inside it. This states that ordering rather than
     reading across it. The wait's own timeout is short, and it answers None so a caller
-    still reports which conversation opened instead of raising over the reading.
+    still reports which thread opened instead of raising over the reading.
     """
     try:
-        page.wait_for_function(f"() => {FOCUSED_CONVERSATION} != null", timeout=5000)
+        page.wait_for_function(f"() => {FOCUSED_THREAD} != null", timeout=5000)
     except PlaywrightTimeout:
         return None
-    return page.evaluate(f"() => {FOCUSED_CONVERSATION}.innerText")
+    return page.evaluate(f"() => {FOCUSED_THREAD}.innerText")
 
 
 def test_a_press_on_a_mark_opens_the_thread_the_hover_promised(browser, serve):
@@ -2295,7 +2295,7 @@ def test_a_press_on_a_mark_opens_the_thread_the_hover_promised(browser, serve):
     event, so those arrive rounded to a whole pixel, while markAt measures against
     getClientRects, whose edges are floats. Within a pixel of a mark's edge the two
     answer different threads: a quote lights up under the hand and the press on it opens
-    the neighbour's conversation, which is the same disagreement the aim carried and this
+    the neighbour's thread, which is the same disagreement the aim carried and this
     is the surface it was left on.
 
     The seam fixture puts the pointer where the true point and its rounded twin are over
@@ -2330,7 +2330,7 @@ def test_a_press_on_a_mark_opens_the_thread_the_hover_promised(browser, serve):
     expect(promised).to_contain_text(f"About {seam['at']}.")
 
     page.mouse.click(seam["x"], seam["y"])
-    opened = conversation_a_press_opened(page)
+    opened = thread_a_press_opened(page)
     assert opened and f"About {seam['at']}." in opened, (
         f"the hover promised the thread on {seam['at']}, and the press at the same point "
         f"opened: {opened}"
@@ -2482,7 +2482,7 @@ def test_taking_words_inside_a_mark_keeps_them_and_a_press_still_opens_the_threa
     assert took["selected"].strip(), (
         "the gesture took no words, so this says nothing about what the door did with them"
     )
-    assert not took["inPanel"], "the gesture sent the user into the conversation"
+    assert not took["inPanel"], "the gesture sent the user into the thread"
     assert pending_text(page) == took["selected"].strip(), (
         f"the 💬 is about {pending_text(page)!r} rather than the words that were taken"
     )
@@ -2494,7 +2494,7 @@ def test_taking_words_inside_a_mark_keeps_them_and_a_press_still_opens_the_threa
 
 def test_pressing_the_current_element_mark_keeps_its_contour(browser, serve):
     """A pointer press briefly moves focus from an open thread to the page before its
-    click lands back in the conversation. The mark must not look deselected in that gap.
+    click lands back in the thread. The mark must not look deselected in that gap.
 
     A reaction shares this target with the comment because that was the visible failure:
     losing the current-thread paint exposed the passive reaction contour underneath.
@@ -2541,8 +2541,8 @@ def test_pressing_the_current_element_mark_keeps_its_contour(browser, serve):
     page.mouse.move(*point)
     page.mouse.click(*point)
     # The compact preview card reveals its reply box on request, so what a press lands on
-    # is the conversation itself; the paint under test is the same either way.
-    assert conversation_a_press_opened(page) is not None, "the press opened no thread"
+    # is the thread itself; the paint under test is the same either way.
+    assert thread_a_press_opened(page) is not None, "the press opened no thread"
     selected = mark.evaluate(look)
 
     page.mouse.move(*point)
@@ -2604,7 +2604,7 @@ def test_a_tap_on_a_quote_opens_its_thread(browser, serve):
     )
 
     page.touchscreen.tap(seam["x"], seam["y"])
-    opened = conversation_a_press_opened(page)
+    opened = thread_a_press_opened(page)
     assert opened and f"About {seam['at']}." in opened, (
         f"a tap on the quote for {seam['at']} opened: {opened}"
     )
@@ -2696,7 +2696,7 @@ def test_an_ambiguous_revised_passage_detaches_until_the_agent_moves_it(browser,
         page.locator(".lf-composer button.lf-compose-submit").click()
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
     expect(page.locator(".lf-margin-preview")).to_be_visible()
-    expect(page.locator(".lf-margin-preview .lf-conversation-thread")).to_be_focused()
+    expect(page.locator(".lf-margin-preview .lf-page-thread")).to_be_focused()
     expect(page.locator(".lf-margin-preview textarea")).not_to_be_focused()
 
     d = serve.page_dir
@@ -2715,6 +2715,7 @@ def test_an_ambiguous_revised_passage_detaches_until_the_agent_moves_it(browser,
     moved = CliRunner().invoke(
         cli_model.cli,
         [
+            "thread",
             "reply",
             "--json",
             str(d),
@@ -2751,7 +2752,7 @@ def test_an_ambiguous_revised_passage_detaches_until_the_agent_moves_it(browser,
     assert stored_root["anchor"] != stored_reply["anchor"]
 
 
-def test_a_removed_subject_keeps_its_conversation_open_and_detached(browser, serve):
+def test_a_removed_subject_keeps_its_thread_open_and_detached(browser, serve):
     """The author explicitly detaches a thread whose subject leaves the page. Its
     historical quote remains readable in Threads, but it has no page mark, margin row,
     or destination that could conflate it with surviving content."""
@@ -2789,6 +2790,7 @@ def test_a_removed_subject_keeps_its_conversation_open_and_detached(browser, ser
     detached = CliRunner().invoke(
         cli_model.cli,
         [
+            "thread",
             "reply",
             str(d),
             "--to",
@@ -2797,7 +2799,7 @@ def test_a_removed_subject_keeps_its_conversation_open_and_detached(browser, ser
             root["id"],
             "--detach",
             "--text",
-            "I removed the section; this conversation no longer has a page target.",
+            "I removed the section; this thread no longer has a page target.",
         ],
     )
     assert detached.exit_code == 0, detached.output
@@ -3970,7 +3972,7 @@ def test_thread_travel_keeps_its_passage_above_the_bottom_reading_clearance(
     clear = place_bottom(-4)
     assert clear["clear"] > 0
     page.keyboard.press("t")
-    expect(page.locator(".lf-conversation-thread")).to_be_focused()
+    expect(page.locator(".lf-page-thread")).to_be_focused()
     assert page.evaluate("() => document.scrollingElement.scrollTop") == pytest.approx(
         clear["scroll"], abs=1
     )
@@ -4000,8 +4002,8 @@ def test_a_press_on_a_passage_opens_its_thread_where_it_stands(browser, serve):
     # 10px into the band keeps the line's middle, where the press lands, off the bar.
     covered = place_bottom(10)
     page.mouse.click(*mark_point(page, "lf-mark"))
-    expect(page.locator(".lf-conversation-thread")).to_be_focused()
-    # A trip waits on the conversation refresh before it decides to move, and that same
+    expect(page.locator(".lf-page-thread")).to_be_focused()
+    # A trip waits on the thread refresh before it decides to move, and that same
     # refresh is what writes this card's placement (`scrollToThread`, anchor-travel.js).
     # So the card standing where the pass put it is the edge a travel would have been
     # asked for behind; read the page's own position from there rather than from a hold
@@ -4024,7 +4026,7 @@ def test_a_pinned_row_opens_its_card_clear_of_the_passage(browser, serve):
     )
     place_bottom(-560)
     page.mouse.click(*mark_point(page, "lf-mark"))
-    expect(page.locator(".lf-conversation-thread")).to_be_focused()
+    expect(page.locator(".lf-page-thread")).to_be_focused()
     boxes = page.evaluate(
         """() => {
           const card = document.querySelector('.lf-margin-preview').getBoundingClientRect();
@@ -4649,11 +4651,11 @@ def test_a_manifest_diff_can_comment_on_one_unloaded_file(browser, serve):
             "source_revision": revision,
         }
     ]
-    expect(outlet.locator(".lf-conversation-thread")).to_contain_text(
+    expect(outlet.locator(".lf-page-thread")).to_contain_text(
         "Review this file as a whole."
     )
-    expect(outlet.locator(".lf-conversation-thread")).to_be_focused()
-    expect(outlet.locator(".lf-conversation-thread textarea")).not_to_be_focused()
+    expect(outlet.locator(".lf-page-thread")).to_be_focused()
+    expect(outlet.locator(".lf-page-thread textarea")).not_to_be_focused()
     expect(details).not_to_have_attribute("open", "")
     expect(page.locator("lf-diff [data-line-type]")).to_have_count(0)
     page.locator(".lf-threads-toggle").click()
@@ -4799,7 +4801,7 @@ def test_a_data_bound_diff_aims_and_selects_one_source_line(browser, serve):
         page.keyboard.press("ControlOrMeta+Enter")
     inline = page.locator("lf-diff .lf-diff-thread-outlet")
     expect(inline).to_have_count(1)
-    expect(inline.locator(".lf-conversation-thread")).to_contain_text(
+    expect(inline.locator(".lf-page-thread")).to_contain_text(
         "Review the whole added line."
     )
     alignment = inline.evaluate(
@@ -4990,7 +4992,7 @@ def test_back_returns_from_a_thread_a_widget_surface_holds(browser, serve, arriv
 
     page.keyboard.press("t")
     expect(
-        page.locator(f'lf-diff .lf-conversation-thread[data-thread="{root}"]')
+        page.locator(f'lf-diff .lf-page-thread[data-thread="{root}"]')
     ).to_be_focused()
     scroll_settled(page)
     assert page.evaluate("document.scrollingElement.scrollTop") < reading - 1000
@@ -5042,9 +5044,7 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     )
     page = open_page(browser, url, color_scheme=scheme)
     resized(page, 1920, 900)
-    thread = page.locator(
-        f'lf-diff .lf-conversation-thread[data-thread="{root["id"]}"]'
-    )
+    thread = page.locator(f'lf-diff .lf-page-thread[data-thread="{root["id"]}"]')
     panel_thread = page.locator(f'.lf-thread[data-id="{root["id"]}"]')
     expect(thread).to_have_count(1)
     expect(thread).to_have_attribute("open", "")
@@ -5244,15 +5244,15 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     told(page)
     for view, message_attr in ((thread, "data-event"), (panel_thread, "data-mid")):
         active = view.locator(
-            f'.lf-conversation-msg[{message_attr}="{question["id"]}"] '
+            f'.lf-page-thread-msg[{message_attr}="{question["id"]}"] '
             if message_attr == "data-event"
             else f'.lf-msg[{message_attr}="{question["id"]}"] '
-        ).locator(":scope > :is(.lf-conversation-head, .lf-msg-head) .lf-msg-sending")
+        ).locator(":scope > :is(.lf-page-thread-head, .lf-msg-head) .lf-msg-sending")
         sent = view.locator(
-            f'.lf-conversation-msg[{message_attr}="{followup["id"]}"] '
+            f'.lf-page-thread-msg[{message_attr}="{followup["id"]}"] '
             if message_attr == "data-event"
             else f'.lf-msg[{message_attr}="{followup["id"]}"] '
-        ).locator(":scope > :is(.lf-conversation-head, .lf-msg-head) .lf-msg-sending")
+        ).locator(":scope > :is(.lf-page-thread-head, .lf-msg-head) .lf-msg-sending")
         expect(active).to_have_text("Working")
         expect(active).to_have_attribute(
             "title", "Working · checking the inline placement"
@@ -5264,7 +5264,7 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
         assert view.evaluate("node => getComputedStyle(node).boxShadow") == "none"
 
     strip = thread.locator(
-        f'.lf-conversation-msg[data-event="{reply["id"]}"] .lf-react-strip'
+        f'.lf-page-thread-msg[data-event="{reply["id"]}"] .lf-react-strip'
     )
     trigger = strip.locator(".lf-react-trigger")
     assert trigger.evaluate("b => getComputedStyle(b).opacity") == "0"
@@ -5305,14 +5305,14 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
 
     # Resolve is the thread's own control, and the keyboard reaches it the way it
     # reaches any other: #347 withdrew the page-level `x`, so the route is the PRESS
-    # row the control declares for itself (runtime/conversation/folding.js).
+    # row the control declares for itself (runtime/thread/folding.js).
     resolve = thread.get_by_role("button", name="Resolve thread", exact=True)
     resolve.focus()
     expect(resolve).to_be_focused()
     with sending(page, "the inline keyboard resolution"):
         page.keyboard.press("Enter")
     expect(thread).not_to_have_attribute("open", "")
-    summary = thread.locator(".lf-conversation-summary")
+    summary = thread.locator(".lf-page-thread-summary")
     expect(summary).to_have_text("Resolved · 4 messages")
     summary_box = summary.evaluate(
         """element => {
@@ -5326,7 +5326,7 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     )
     assert summary_box["position"] == "static"
     assert summary_box["paddingLeft"] == summary_box["paddingRight"]
-    expect(thread.locator(".lf-conversation-msg").first).to_be_hidden()
+    expect(thread.locator(".lf-page-thread-msg").first).to_be_hidden()
     page.get_by_role("button", name=re.compile("^Threads")).click()
     panel_settled(page, True)
     # The status narrowing is a group of toggles, so the standing member wears its own
@@ -5337,12 +5337,12 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     page.locator(".lf-thread:not([hidden]) .lf-quote").click()
     expect(summary).to_be_focused()
     summary.click()
-    expect(thread.locator(".lf-conversation-msg").first).to_be_visible()
+    expect(thread.locator(".lf-page-thread-msg").first).to_be_visible()
 
     with sending(page, "the inline reopening"):
         thread.get_by_role("button", name="Reopen", exact=True).click()
     expect(thread).to_have_attribute("open", "")
-    expect(thread.locator(".lf-conversation-summary")).to_be_hidden()
+    expect(thread.locator(".lf-page-thread-summary")).to_be_hidden()
     expect(thread.locator("textarea")).to_be_visible()
     thread.locator("textarea").fill("Confirmed from the inline thread.")
     with sending(page, "the inline reply"):

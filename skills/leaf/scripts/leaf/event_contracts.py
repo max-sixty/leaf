@@ -46,7 +46,7 @@ from leaf.requests import (
     request_contract_error,
 )
 from leaf.schema import MESSAGE_KINDS, WIDGET_KINDS
-from leaf.served_state.conversation import browser_conversation
+from leaf.served_state.thread import browser_thread
 from leaf.structure import review_mode
 
 # The envelope the append lease itself assigns. Admission validates the complete
@@ -249,19 +249,17 @@ def held_comment_error(event: dict, page_by_id: dict, registry: dict):
     if not target:
         return None
     rec = page_by_id.get(target)
-    conversation = (
-        (registry.get(rec["tag"]) or {}).get("x-conversation") if rec else None
-    )
+    thread = (registry.get(rec["tag"]) or {}).get("x-thread-seat") if rec else None
     if (
         rec is None
-        or not conversation
-        or not conversation.get("hold")
-        or not asking(rec["attrs"], conversation.get("when"))
+        or not thread
+        or not thread.get("hold")
+        or not asking(rec["attrs"], thread.get("when"))
         or event.get("anchor") != {"section": target}
     ):
         return (
             "comment holds must name its exact-section anchor on a matching "
-            "x-conversation hold target"
+            "x-thread-seat hold target"
         )
     return None
 
@@ -361,7 +359,7 @@ def action_contract_error(view, event: dict, readings: AdmissionReadings):
         current = parser.by_id[event["widget"]]
     else:
         # Thread markup is frozen in the log: it has no version retraction floor
-        # and its actions read the whole conversation window.
+        # and its actions read the whole thread window.
         projection, byid, spk = thread_projection, thread_by_id, thread.spoken
         current = byid[event["widget"]]
 
@@ -481,10 +479,10 @@ def _approval_error(view, event: dict, events: list, registry: dict):
     page = page_reading(document, events, registry, revision)
     threads = build_threads(events, page.within)
     document_state = read_document(page, threads, view.data(registry))
-    conversation, _reading = browser_conversation(events, registry, threads)
+    thread, _reading = browser_thread(events, registry, threads)
     unanswered = [
         *document_state.asks["unanswered"],
-        *conversation["asks"]["unanswered"],
+        *thread["asks"]["unanswered"],
     ]
     if unanswered:
         identities = ", ".join(ask["id"] for ask in unanswered)
@@ -539,7 +537,7 @@ def _anchored_comment_error(
     whitespace this reading collapses away. Reading it back off the file would
     refuse both. A transport that resolves nothing (the MCP surface, which renders
     the authored source with no runtime behind it) asks for the capture here
-    instead; `leaf comment` has already made it against the same reading.
+    instead; `leaf thread open` has already made it against the same reading.
     """
     if event["kind"] != "comment":
         return None
@@ -595,23 +593,23 @@ def _parent_error(event: dict, events: list) -> str | None:
     return None
 
 
-def _conversation_presentation_error(view, event: dict, events: list) -> str | None:
-    if event["kind"] not in {"summary", "conversation_title"}:
+def _thread_presentation_error(view, event: dict, events: list) -> str | None:
+    if event["kind"] not in {"summary", "thread_title"}:
         return None
     threads = build_threads(events, view.within, withdrawn=taken_back(events))
-    thread = threads.get(event["conversation"])
+    thread = threads.get(event["thread"])
     if thread is None:
-        return f"unknown conversation {event['conversation']!r}"
-    if event["kind"] == "conversation_title":
+        return f"unknown thread {event['thread']!r}"
+    if event["kind"] == "thread_title":
         return None
     messages = [message["id"] for message in spoken_turns(thread)]
     try:
         start = messages.index(event["from"])
         end = messages.index(event["through"])
     except ValueError:
-        return "summary endpoints must name spoken turns in the named conversation"
+        return "summary endpoints must name spoken turns in the named thread"
     if start >= end:
-        return "summary must cover at least two messages in conversation order"
+        return "summary must cover at least two messages in thread order"
     return None
 
 
@@ -652,7 +650,7 @@ def admission_error(
         or _reaction_error(event, registry)
         or _anchored_comment_error(view, event, events, registry, capture_anchors)
         or _parent_error(event, events)
-        or _conversation_presentation_error(view, event, events)
+        or _thread_presentation_error(view, event, events)
         or read_contract_error(event, events)
         or _withdrawal_error(view, event, events, readings)
     )

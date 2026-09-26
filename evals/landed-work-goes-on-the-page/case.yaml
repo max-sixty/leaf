@@ -30,10 +30,10 @@ graders:
   type: tool_used
   tool: Skill
   input_match: leaf
-- name: reads-conversation-guidance
+- name: reads-conversation-loop
   type: tool_used
   tool: Read
-  input_match: conversation-
+  input_match: conversation-loop
 - name: registers-captures
   type: regex
   pattern: leaf page media\b[^\n]*save-button/(before|after)
@@ -44,8 +44,8 @@ graders:
     Read the commands. Pass only if both hold. First, before any thread message about
     the finished work, the page itself is revised to show the result: the captures are
     registered with `leaf page media` and displayed in the page's HTML (an `lf-shot`
-    pair or images), and the section no longer reads as an open proposal. Second, the
-    thread message (`leaf reply ... --to 5e1a9c02` or equivalent) says briefly what
-    changed and links the page section that shows it with a fragment link such as
-    `(#ask-save-button)`. Fail if the capture paths or the full report appear only in
+    pair or images), and the section no longer reads as an open proposal. Second,
+    the thread message (`leaf thread reply ... --to 5e1a9c02` or equivalent) says
+    briefly what changed and links the page section that shows it with a fragment link
+    such as `(#ask-save-button)`. Fail if the capture paths or the full report appear only in
     the thread message, or if the page is not revised.

@@ -4,9 +4,9 @@ Stop:
   decision: block
   reason: |-
     Leaf needs attention:
-    - <first-page>: 1 acknowledged user move with no answer (`leaf reply <page> --for c1`).
+    - <first-page>: 1 acknowledged user move with no answer (`leaf thread reply <page> --for c1`).
     - <first-page>: no watcher. Start `leaf wait` in the background for all this session's pages, or run `leaf status <page> idle` if this page is done.
-    - <second-page>: 1 acknowledged user move with no answer (`leaf reply <page> --for c2`).
+    - <second-page>: 1 acknowledged user move with no answer (`leaf thread reply <page> --for c2`).
     - <second-page>: no watcher. Start `leaf wait` in the background for all this session's pages, or run `leaf status <page> idle` if this page is done.
 
-    Each move takes the answer named for it. Read current obligations with `leaf page state <page>` and conversation history with `leaf conversation read <page> <id>`.
+    Each move takes the answer named for it. Read current obligations with `leaf page state <page>` and thread history with `leaf thread read <page> <id>`.

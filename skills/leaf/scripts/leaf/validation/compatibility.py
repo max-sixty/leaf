@@ -104,14 +104,14 @@ def candidate_vocabulary_gaps(
         That is the only question this function owns: a gap is vocabulary the
         selection takes away. Which parts a section declares is the candidate
         author's to change, and `continuity_errors` is the reading that refuses a
-        drop a live conversation still needs — against the predecessor, naming the
+        drop a live thread still needs — against the predecessor, naming the
         moves that release it. Read against the candidate instead, a part a
-        conversation let go of and the author then dropped came back as vocabulary
+        thread let go of and the author then dropped came back as vocabulary
         the layer no longer speaks, which is not what happened: re-vendoring
         refused, and a user reopening the closed thread re-acquired a coordinate
         no revision could restore.
 
-        A `leaf reply` transition checks itself by putting an unstamped
+        A `leaf thread reply` transition checks itself by putting an unstamped
         prospective anchor in front of this reading, and that one was written on
         the candidate: it has no revision of its own to be read against.
         """

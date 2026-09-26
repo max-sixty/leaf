@@ -6,11 +6,11 @@ import threading
 import time
 
 import pytest
-from leaf import conversation as conversation_model
 from leaf import data as data_model
 from leaf import event_endpoint as endpoint_model
 from leaf import event_log as events_model
 from leaf import http as http_model
+from leaf import thread as thread_model
 from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE, panel_comment
 from render_cases_widgets import LONG_LINE_DIFF_PAGE, MULTI_HUNK_PATCH
@@ -35,7 +35,7 @@ def _read_events(page_dir):
 
 
 def _agent_metric_reply(page_dir, root, number, for_event=None):
-    return conversation_model.cmd_reply(
+    return thread_model.cmd_reply(
         page_dir,
         root,
         f"Update {number}.",
@@ -72,8 +72,8 @@ def test_new_since_last_looked_bounds_each_unread_run_and_summary_originals(
         dict,
     )
     assert accepted == 200
-    conversation_model.cmd_edit(serve.page_dir, first, "Revised update 1.")
-    conversation_model.cmd_summarize(
+    thread_model.cmd_edit(serve.page_dir, first, "Revised update 1.")
+    thread_model.cmd_summarize(
         serve.page_dir, root, first, middle, "The first two updates in brief."
     )
     page = open_page(browser, url)
@@ -137,7 +137,7 @@ def test_first_unread_reveals_divider_inside_resolved_summary(browser, serve):
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "Is this metric settled?", author="user")
     answer = _agent_metric_reply(serve.page_dir, root, 4, for_event=root)
-    conversation_model.cmd_summarize(
+    thread_model.cmd_summarize(
         serve.page_dir, root, root, answer, "The earlier metric discussion."
     )
     events_model.append_event(
@@ -163,7 +163,7 @@ def test_first_unread_reveals_divider_inside_resolved_summary(browser, serve):
 
 def test_unread_agent_root_boundary_precedes_hoisted_header(browser, serve):
     url = serve(PANEL_PAGE)
-    root = conversation_model.cmd_comment(
+    root = thread_model.cmd_comment(
         serve.page_dir,
         "",
         "",
@@ -295,7 +295,7 @@ def test_opening_threads_acknowledges_the_first_visible_answer(
 
 def test_authored_reply_requires_explicit_read_even_when_open(browser, serve):
     url = serve(PANEL_PAGE)
-    root = conversation_model.cmd_comment(
+    root = thread_model.cmd_comment(
         serve.page_dir,
         None,
         None,
@@ -401,7 +401,7 @@ def test_first_unread_reveals_a_resolved_thread_and_covered_original(browser, se
             "text": "The later answer.",
         },
     )
-    conversation_model.cmd_summarize(
+    thread_model.cmd_summarize(
         serve.page_dir, root, root, first, "Earlier exchange in one line."
     )
     events_model.append_event(
@@ -430,7 +430,7 @@ def test_first_unread_reveals_a_resolved_thread_and_covered_original(browser, se
 def test_edit_reopens_only_its_new_content_version(browser, serve):
     url = serve(PANEL_PAGE)
     user = panel_comment(serve.page_dir, "The earlier user thread.")
-    original = conversation_model.cmd_comment(
+    original = thread_model.cmd_comment(
         serve.page_dir, None, None, None, "Original answer.", None
     )
     root = original["id"]
@@ -442,7 +442,7 @@ def test_edit_reopens_only_its_new_content_version(browser, serve):
     page.locator(f'.lf-thread[data-id="{user}"] > .lf-thread-summary').click()
     page.locator('.lf-thread-panel [aria-label="Close threads"]').click()
 
-    edit = conversation_model.cmd_edit(serve.page_dir, root, "Revised answer.")
+    edit = thread_model.cmd_edit(serve.page_dir, root, "Revised answer.")
     told(page)
     expect(page.locator(".lf-first-unread")).to_have_text("Unread 1")
     page.locator(".lf-threads-toggle").click()
@@ -536,7 +536,7 @@ def test_a_wide_code_reply_is_acknowledged_once_shown(browser, serve):
 
 def test_explicit_mark_read_reports_refusal_as_read_action(browser, serve):
     url = serve(PANEL_PAGE)
-    root = conversation_model.cmd_comment(
+    root = thread_model.cmd_comment(
         serve.page_dir,
         None,
         None,
@@ -592,7 +592,7 @@ def test_visible_message_waits_for_whole_document_presentation(browser, serve):
       };
       window.__releaseReadPresentation = () => release();
     }""")
-    reply = conversation_model.cmd_reply(
+    reply = thread_model.cmd_reply(
         serve.page_dir,
         root,
         "The result is ready.",
@@ -622,7 +622,7 @@ def test_visible_message_waits_for_whole_document_presentation(browser, serve):
 
 def test_keyboard_first_unread_and_mark_read_retain_draft_and_focus(browser, serve):
     url = serve(PANEL_PAGE)
-    root = conversation_model.cmd_comment(
+    root = thread_model.cmd_comment(
         serve.page_dir,
         None,
         None,
@@ -789,7 +789,7 @@ def test_shadow_package_thread_registers_its_real_message_body(browser, serve):
         for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "comment"
     )
-    reply = conversation_model.cmd_reply(
+    reply = thread_model.cmd_reply(
         serve.page_dir,
         root,
         "The route-line answer is ready.",
@@ -798,7 +798,7 @@ def test_shadow_package_thread_registers_its_real_message_body(browser, serve):
     )
     told(page)
     body = page.locator(
-        f'lf-diff .lf-diff-thread-outlet .lf-conversation-msg[data-event="{reply["id"]}"] .lf-conversation-body'
+        f'lf-diff .lf-diff-thread-outlet .lf-page-thread-msg[data-event="{reply["id"]}"] .lf-page-thread-body'
     )
     expect(body).to_be_visible()
     assert body.evaluate("element => element.getRootNode() instanceof ShadowRoot")
@@ -864,7 +864,7 @@ def test_a_page_seat_the_open_panel_stands_over_is_not_read(
     page.keyboard.type("nothing matches this")
     expect(page.locator(".lf-threads > .lf-thread:not([hidden])")).to_have_count(0)
     find.blur()
-    reply = conversation_model.cmd_reply(
+    reply = thread_model.cmd_reply(
         serve.page_dir,
         root,
         "The route-line answer is ready.",
@@ -873,8 +873,8 @@ def test_a_page_seat_the_open_panel_stands_over_is_not_read(
     )
     told(page)
     body = page.locator(
-        f'lf-diff .lf-diff-thread-outlet .lf-conversation-msg[data-event="{reply["id"]}"]'
-        " .lf-conversation-body"
+        f'lf-diff .lf-diff-thread-outlet .lf-page-thread-msg[data-event="{reply["id"]}"]'
+        " .lf-page-thread-body"
     )
     expect(body).to_be_visible()
     body.scroll_into_view_if_needed()
@@ -944,7 +944,7 @@ def test_reading_a_thread_moves_nothing_in_it(browser, serve):
     labels and Mark read control away without moving anything the user is looking
     at. Only a row that loses a label or control may close up sideways."""
     url = serve(PANEL_PAGE)
-    root = conversation_model.cmd_comment(
+    root = thread_model.cmd_comment(
         serve.page_dir,
         None,
         None,

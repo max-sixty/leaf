@@ -1,4 +1,4 @@
-# The summary hint from real conversation events and their wait delivery.
+# The summary hint from real thread events and their wait delivery.
 
 delivery:
   format: leaf-delivery-v3
@@ -15,7 +15,7 @@ delivery:
   batches:
     - page: <page>
       through_seq: 14
-      conversations:
+      threads:
         - id: event-2
           title: null
           anchor: null
@@ -72,37 +72,37 @@ delivery:
           actions: []
       handling:
         h1: >-
-          The user answered in a thread; the batch's `conversations` carries the
-          thread's context, and `leaf conversation read <page> <conversation-id>`
-          reads its history in pages.
+          The user answered in a thread; the batch's `threads` carries the thread's
+          context, and `leaf thread read <page> <thread-id>` reads its history in
+          pages.
         h2: >-
-          This event's conversation has no title yet: name it with `leaf conversation
-          title <page> <conversation-id> --text "<a few words>"`, so the thread
-          panel lists its subject rather than its opening words.
+          This event's thread has no title yet: name it with `leaf thread title
+          <page> <thread-id> --text "<a few words>"`, so the thread panel lists
+          its subject rather than its opening words.
         h3: >-
-          This event's thread has grown long, and its entry in the batch's `conversations`
+          This event's thread has grown long, and its entry in the batch's `threads`
           carries a `summary_hint`. Once you have replied, read the messages from
-          its `from` through its `through` and summarize them with `leaf conversation
-          summarize <page> <conversation-id> --from <from> --through <through>`,
-          as the Leaf skill's `references/conversation-threads.md`, "Summarize a
-          long discussion", says.
+          its `from` through its `through` and summarize them with `leaf thread
+          summarize <page> <thread-id> --from <from> --through <through>`, as the
+          Leaf skill's `references/threads.md`, "Summarize a long discussion", says.
         h4: >-
-          Answer with `leaf reply <page> --for <event-id>` before any other work,
-          including the work this event asks for: give the answer, or say what you
-          are about to do and where the result will appear. When work follows, name
-          it on the page in the same command, as in `leaf reply <page> --for <event-id>
-          --text "…" && leaf status <page> working "<the work, in a line>" --on
-          <address>`, where `<address>` is the event's `answer.to`: the line stands
-          beside the thread and in the banner until your next reply there. Once
-          that work lands, put its result on the page, with whatever shows it (captures,
-          a figure, the numbers), then report it with `leaf reply <page> --to <address>`:
-          what changed, in a sentence or two, linking the section that shows it.
-          The page carries the work, and the thread only the conversation about
-          it. `leaf reply` checks any saved page edit and makes it live before posting.
-          If a revision removes what the thread is anchored on, move the thread
-          in the reply that reports it with `--section <id>` (narrowed by `--quote`
-          or `--part` if needed), or `--detach` it if its subject has left the page.
-          Add `--awaits` only if your reply's prose asks the user something.
+          Answer with `leaf thread reply <page> --for <event-id>` before any other
+          work, including the work this event asks for: give the answer, or say
+          what you are about to do and where the result will appear. When work follows,
+          name it on the page in the same command, as in `leaf thread reply <page>
+          --for <event-id> --text "…" && leaf status <page> working "<the work,
+          in a line>" --on <address>`, where `<address>` is the event's `answer.to`:
+          the line stands beside the thread and in the banner until your next reply
+          there. Once that work lands, put its result on the page, with whatever
+          shows it (captures, a figure, the numbers), then report it with `leaf
+          thread reply <page> --to <address>`: what changed, in a sentence or two,
+          linking the section that shows it. The page carries the work, and the
+          thread only the conversation about it. `leaf thread reply` checks any
+          saved page edit and makes it live before posting. If a revision removes
+          what the thread is anchored on, move the thread in the reply that reports
+          it with `--section <id>` (narrowed by `--quote` or `--part` if needed),
+          or `--detach` it if its subject has left the page. Add `--awaits` only
+          if your reply's prose asks the user something.
         h5: >-
           Your reply renders as Markdown, so show code or markup in a fenced block.
       events:
@@ -115,9 +115,9 @@ delivery:
           ts: <time>
           seq: 14
           subject:
-            kind: conversation
+            kind: thread
             id: event-2
-          conversations: [event-2]
+          threads: [event-2]
           handling: [h1, h2, h3, h4, h5]
           answer:
             kind: reply

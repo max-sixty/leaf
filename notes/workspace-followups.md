@@ -34,9 +34,7 @@ Items are ranked within each group. IDs are stable references, not a global prio
 
   **Follow-ups from the first run** (reproduced in the judge's defect lists and checked against the screenshots):
 
-  - Drawn text: the theme scales a drawing to its box, so labels become unreadable at 900px and on a phone. The render check should measure each label's drawn height and flag a drawing whose smallest label is under about 10px; drawn size, not the percentage it shrank by, is what decides legibility.
   - Render check: it passed all 72 pages. On the settled 1200px page, flag a figure scrolled sideways out of view and an Ask below its pane's first screen; taking such readings across widths is a TODO.md item beside the mobile ones.
-  - Render check: report the width at which each grid stacks, which no queue author could see.
   - Rail: it comes last on a phone and doesn't stick, and its 14rem floor cramps a table or log at 900px.
 
   **Next task:** Give comparable agents document-review, configuration and queue/detail tasks with the same content and acceptance criteria. Compare usable output, time/tokens, custom CSS and repair iterations; then require a comment and revision on each result. Counterbalance task order.

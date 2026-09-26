@@ -8,6 +8,8 @@ from .readings import (
     alignment_advice,
     margin_cover_advice,
     shrunk_label_advice,
+    stacking_advice,
+    sweep,
     swept_overflow,
 )
 from .scheme import _render_scheme
@@ -79,8 +81,9 @@ def _render_version_attempt(
     stand on shared vertical lines, whether a margin pin stands over text, and whether a
     drawing's fit to its box shrinks its labels past reading; and then, resizing that
     loaded page through every width from 360px to 1200px, the sideways readings again:
-    a version holds at each of them, not only at the two it renders. Returns the
-    failures and the advice; no failures is a pass.
+    a version holds at each of them, not only at the two it renders. The same sweep says
+    in what window each track template stacks, which is advice where that window is a
+    desktop one. Returns the failures and the advice; no failures is a pass.
 
     One implementation with two callers — `version check --render` on the page an agent
     just wrote, and the render suite on the shipped examples
@@ -105,7 +108,9 @@ def _render_version_attempt(
         advice.extend(alignment_advice(page))
         advice.extend(margin_cover_advice(page))
         advice.extend(shrunk_label_advice(page))
-        swept.extend(swept_overflow(page, RENDER_VIEWPORTS))
+        widths = sweep(page, RENDER_VIEWPORTS)
+        swept.extend(swept_overflow(widths, RENDER_VIEWPORTS))
+        advice.extend(stacking_advice(widths))
 
     try:
         for viewport in RENDER_VIEWPORTS:

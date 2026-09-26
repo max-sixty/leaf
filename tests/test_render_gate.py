@@ -47,6 +47,8 @@ from render_cases_layout import (
     SHADOW_HOST_PAGE,
     SIDENOTE_IN_A_WIDGET,
     SPILLING_PAGE,
+    TEMPLATE_PAIR_LAYER,
+    TEMPLATE_PAIR_WIDGETS,
     UNMARKABLE_PAGE,
     WIDE_TABLE_PAGE,
     apply_restore_case,
@@ -234,6 +236,98 @@ def test_a_wide_page_whose_rows_split_anywhere_gets_advice_and_still_passes(
     for grid in ("lp-now", "lp-evidence", "lp-release"):
         assert f"<lf-grid id={grid}> at " in advice, advice
     assert "lp-status" not in advice, advice
+
+
+def test_a_template_that_stacks_in_a_desktop_window_gets_advice_naming_the_window(
+    browser, serve
+):
+    """A queue beside its detail at `1fr 2.4fr` needs 786px side by side, which a wide
+    page gives it only in a window of 854px or more; the gate names that window, and
+    the page stacks exactly there. The recommended `2fr 1fr` stacks below 757px, a
+    window too narrow to be worth saying, and a template nested in its side track has
+    a cell too narrow for it at any width."""
+    source = _wide_page(
+        "stacking templates",
+        f"""
+<h1>Stacking</h1>
+<lf-grid id="queue" columns="1fr 2.4fr">{_panel("items")}{_panel("detail")}</lf-grid>
+<lf-grid id="layout" columns="2fr 1fr">{_panel("body")}<lf-grid id="side" columns="1fr 1fr">{_panel("left")}{_panel("right")}</lf-grid></lf-grid>
+""",
+    )
+    url = serve(source, packages=())
+
+    reading = render_gate_model.render_version(browser, url)
+
+    assert reading.failures == []
+    stacking = sorted(line for line in reading.advice if "one column" in line)
+    assert len(stacking) == 2, reading.advice
+    queue, side = stacking
+    assert side.startswith("<lf-grid id=side> stands in one column at 1200px wide: "), (
+        side
+    )
+    window = int(
+        re.match(
+            r'<lf-grid id=queue> stacks into one column in a window narrower than (\d+)px: its columns="1fr 2.4fr" tracks need 786px side by side',
+            queue,
+        )[1]
+    )
+    page = open_page(browser, url)
+    grid = page.locator("#queue")
+    resized(page, window - 1, 900)
+    expect(grid).to_have_attribute("data-lf-grid-stacked", "")
+    resized(page, window, 900)
+    expect(grid).not_to_have_attribute("data-lf-grid-stacked", "")
+
+
+def test_two_templates_sharing_a_name_each_get_their_own_stacking_advice(
+    browser, serve
+):
+    """Two id-less grids in one widget are both named `<lf-grid> in <lf-test-pair
+    id=pair>`, and each is still read on its own through the sweep: the `1fr 5fr` that
+    stands stacked at 1200px is told so, and the `1fr 2.4fr` beside it gets the window
+    it stacks below. Read by name, the two interleaved at every width and the first
+    one's stacked reading stood for both, so the second got no advice.
+
+    A grid a module writes has no source for the gate to hold its words to, which the
+    gate refuses on its own; those are this page's only failures."""
+    # The authored count grid loads the lf-grid module the pair's grids need, and ends
+    # the page so the pair is no last block reserving an edge.
+    source = _wide_page(
+        "shared names",
+        f"""
+<h1>Shared</h1>
+<lf-test-pair id="pair"></lf-test-pair>
+<lf-grid id="status" columns="2">{_panel("left")}{_panel("right")}</lf-grid>
+""",
+    )
+
+    reading = render_gate_model.render_version(
+        browser,
+        serve(
+            source,
+            packages=(),
+            layer_registry=TEMPLATE_PAIR_LAYER,
+            layer_widgets=TEMPLATE_PAIR_WIDGETS,
+        ),
+    )
+
+    assert reading.failures, reading.failures
+    assert all(
+        "<lf-grid> without pre-upgrade source provenance" in failure
+        for failure in reading.failures
+    ), reading.failures
+    stacking = [line for line in reading.advice if "one column" in line]
+    assert len(stacking) == 2, reading.advice
+    story, queue = stacking
+    assert story.startswith(
+        "<lf-grid> in <lf-test-pair id=pair> stands in one column at 1200px wide: "
+        'its columns="1fr 5fr" tracks need '
+    ), story
+    assert re.match(
+        r"<lf-grid> in <lf-test-pair id=pair> stacks into one column in a window "
+        r'narrower than \d+px: its columns="1fr 2.4fr" tracks need 786px side by side',
+        queue,
+    ), queue
 
 
 # Four drawings in the idiom. The first is drawn wider than the column holds, so the fit

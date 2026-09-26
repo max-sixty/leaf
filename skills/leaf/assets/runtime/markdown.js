@@ -83,18 +83,14 @@ function renderedElement(markup, tag) {
   return element?.localName === tag ? element : null;
 }
 
-// Whether a link destination, as written in Markdown source, stays a link once rendered;
-// one that does not renders as its words. The renderer judges the href its parser
-// decoded, so the source is read the same way first: pointy brackets dropped, backslash
-// escapes and character references resolved. The composer's preview asks this of every
-// destination it draws (`composing/text-field.js`).
-export function sourceLinks(written) {
-  const unescaped = written
-    .replace(/^<([^]*)>$/, "$1")
-    .replace(/\\([!-/:-@[-`{-~])/g, "$1")
-    .replace(/"/g, "&quot;");
-  const link = renderedElement(`<a href="${unescaped}"></a>`, "a");
-  return Boolean(link) && safeUrl(link.getAttribute("href"));
+// Whether Markdown source renders a link. The renderer answers, so a destination it
+// decodes, normalizes or refuses reads the same wherever the question is asked. Null
+// until the parser has loaded (`loadMarkdown`). The composer's preview asks it of each
+// link it draws (`composing/text-field.js`).
+export function rendersLink(source) {
+  if (!markdownReady()) return null;
+  probe.innerHTML = render(source);
+  return probe.content.querySelector("a") !== null;
 }
 
 export function loadMarkdown(onError = null) {

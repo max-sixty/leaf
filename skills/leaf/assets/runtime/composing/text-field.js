@@ -62,7 +62,7 @@ import {
   insertNewlineContinueMarkup,
 } from "../../vendor/codemirror.esm.js";
 import { TEXT_FIELD } from "../focus.js";
-import { sourceLinks } from "../markdown.js";
+import { loadMarkdown, markdownReady, rendersLink } from "../markdown.js";
 
 const sheet = new CSSStyleSheet();
 sheet.replaceSync(`
@@ -130,18 +130,17 @@ const labelKey = (label) =>
     .replace(/\s+/g, " ")
     .toLowerCase();
 
-// The draft's link reference definitions, first one per label winning, so `[words][id]`
-// and `[id]` resolve to the destination the renderer will.
+// The draft's link reference definitions, as source, first one per label winning, so
+// `[words][id]` and `[id]` go to the renderer with the definition they name.
 function definitions(state) {
   const found = new Map();
   syntaxTree(state).iterate({
     enter: (node) => {
       if (node.name !== "LinkReference") return;
       const label = node.node.getChild("LinkLabel");
-      const url = node.node.getChild("URL");
-      if (label && url) {
+      if (label) {
         const key = labelKey(state.doc.sliceString(label.from, label.to));
-        if (!found.has(key)) found.set(key, state.doc.sliceString(url.from, url.to));
+        if (!found.has(key)) found.set(key, state.doc.sliceString(node.from, node.to));
       }
       return false;
     },
@@ -155,19 +154,21 @@ function decorate(view) {
   const add = (from, to, deco) => from < to && out.push(deco.range(from, to));
   const slice = (node) => state.doc.sliceString(node.from, node.to);
   let defined = null;
-  // Where a link node points: its own destination, or the definition its label (or,
-  // for `[id]` and `[id][]`, its words) names. Null where the renderer finds none.
-  const destination = (link, marks) => {
-    const url = link.getChild("URL");
-    if (url) return slice(url);
+  // A link as the renderer will read it: its own source, with the definition its label
+  // (or, for `[id]` and `[id][]`, its words) names. Null where it names no destination,
+  // which leaves its brackets as text once sent.
+  const linkSource = (link, marks) => {
+    if (link.getChild("URL")) return slice(link);
     defined ??= definitions(state);
     const label = link.getChild("LinkLabel");
     const key =
       label && slice(label) !== "[]"
         ? slice(label)
         : state.doc.sliceString(marks[0].to, marks[1].from);
-    return defined.get(labelKey(key)) ?? null;
+    const definition = defined.get(labelKey(key));
+    return definition === undefined ? null : `${slice(link)}\n\n${definition}`;
   };
+  const links = (source) => rendersLink(source) === true;
   for (const { from, to } of view.visibleRanges) {
     syntaxTree(state).iterate({
       from,
@@ -182,13 +183,13 @@ function decorate(view) {
             add(mark.from, mark.to, active ? dim : hide);
           return;
         }
-        // A link is drawn as one exactly where the sent message has one: the renderer's
-        // own URL policy decides, so a destination it drops (`javascript:`) leaves plain
-        // words here too. An image's or a definition's destination is no link.
+        // A link is drawn as one exactly where the sent message has one: the renderer
+        // decides, so a destination it drops (`javascript:`) leaves plain words here too.
+        // An image's or a definition's destination is no link.
         if (name === "Image" || name === "LinkReference") return false;
         if (name === "URL") {
           // A bare address, which the renderer makes a link.
-          if (sourceLinks(slice(node))) add(node.from, node.to, marked("lf-md-link"));
+          if (links(slice(node))) add(node.from, node.to, marked("lf-md-link"));
           return;
         }
         if (name === "Link" || name === "Autolink") {
@@ -199,17 +200,16 @@ function decorate(view) {
           // line keeps its syntax drawn: a hidden range may not hold a line break.
           const marks = node.node.getChildren("LinkMark");
           if (marks.length < 2) return false;
-          const target = destination(node.node, marks);
-          if (target === null) return false;
+          const source =
+            name === "Autolink" ? slice(node) : linkSource(node.node, marks);
+          if (source === null) return false;
           if (name === "Autolink") {
-            if (sourceLinks(target))
-              add(marks[0].to, marks[1].from, marked("lf-md-link"));
+            if (links(source)) add(marks[0].to, marks[1].from, marked("lf-md-link"));
             add(marks[0].from, marks[0].to, active ? dim : hide);
             add(marks[1].from, marks[1].to, active ? dim : hide);
             return false;
           }
-          if (sourceLinks(target))
-            add(marks[0].to, marks[1].from, marked("lf-md-link"));
+          if (links(source)) add(marks[0].to, marks[1].from, marked("lf-md-link"));
           const oneLine =
             state.doc.lineAt(marks[1].from).number === state.doc.lineAt(node.to).number;
           const syntax = active || !oneLine ? dim : hide;
@@ -261,19 +261,34 @@ const pastesPicture = EditorView.domEventHandlers({
     ),
 });
 
+// Links are the renderer's to judge, and it loads lazily: until it has, none is drawn,
+// and its arrival redraws every open field.
 const livePreview = ViewPlugin.fromClass(
   class {
     constructor(view) {
       this.decorations = decorate(view);
+      this.judged = markdownReady();
+      if (!this.judged)
+        loadMarkdown().then(
+          () => this.live && view.dispatch({}),
+          () => {},
+        );
+      this.live = true;
+    }
+    destroy() {
+      this.live = false;
     }
     update(update) {
       if (
+        this.judged !== markdownReady() ||
         update.docChanged ||
         update.selectionSet ||
         update.viewportChanged ||
         syntaxTree(update.state) !== syntaxTree(update.startState)
-      )
+      ) {
+        this.judged = markdownReady();
         this.decorations = decorate(update.view);
+      }
     }
   },
   { decorations: (plugin) => plugin.decorations },

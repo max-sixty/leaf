@@ -329,7 +329,8 @@ def record(
     # Mod+Enter shortcut. The Comment button the bar used to show is now one Tab away, and
     # the composer around the field draws nothing of its own.
     field = page.locator(".lf-fab-input")
-    field.fill("Can the backfill stay online?")
+    field.focus()
+    page.keyboard.insert_text("Can the backfill stay online?")
     page.wait_for_function(
         """() => document.querySelector('.lf-composer').style.display === 'contents'
             && (CSS.highlights.get('lf-pending')?.size ?? 0) > 0

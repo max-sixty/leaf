@@ -1347,8 +1347,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     max-width: min(80ch, var(--lf-response-room, 100vw));
     max-height: var(--lf-float-h, 60vh);
     padding-inline: var(--lf-compose-pad-inline-start) calc(max(28px, var(--aim-floor)) + 12px);
-    resize: none;
-    field-sizing: content; overflow-y: auto; }
+    overflow-y: auto; }
   .lf-fab-bar .lf-compose-field {
     --lf-compose-pad-block: calc((var(--lf-response-height) - 1lh - 2px) / 2);
     --lf-compose-pad-inline-start: 12px;

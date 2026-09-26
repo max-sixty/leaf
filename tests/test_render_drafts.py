@@ -67,6 +67,7 @@ from render_harness import (
     ticked,
     told,
     wait_for_revision,
+    write,
 )
 
 pytestmark = pytest.mark.nightly
@@ -144,9 +145,9 @@ def test_a_single_space_is_message_content_in_every_composer(browser, serve, box
 
     if box == "reply":
         surface.locator(".lf-thread-summary").click()
-    field = surface.locator("textarea")
+    field = surface.locator("leaf-text")
     send = surface.locator(".lf-compose-submit")
-    field.fill(" ")
+    write(field, " ")
     expect(send).to_have_attribute("aria-disabled", "false")
     face = glyph_action_face(send)
     assert face["press"] == "rgba(0, 0, 0, 0)", face
@@ -205,7 +206,7 @@ def test_page_round_trip(browser, serve):
     page.keyboard.press("c")
     expect(page.locator(".lf-fab-input")).to_be_focused()
     page.wait_for_selector(".lf-composer", state="visible")
-    page.locator(".lf-composer textarea").fill("Is 0041 idempotent?")
+    write(page.locator(".lf-composer leaf-text"), "Is 0041 idempotent?")
     page.keyboard.press("ControlOrMeta+Enter")
     page.wait_for_selector(".lf-margin-thread")
     # The anchor pass painted the passage — a range in the highlight registry, not an
@@ -859,8 +860,10 @@ def test_one_shared_added_option_has_one_action_payload_across_tabs(
     # is born here, so this selection is the state the generation records.
     first.locator("#job-mounts").evaluate("el => el.setAttribute('chosen', '')")
     text = "Use a heated camera sleeve"
-    first.locator("#jobs > .lf-another textarea").fill(text)
-    expect(second.locator("#jobs > .lf-another textarea")).to_have_value(text)
+    write(first.locator("#jobs > .lf-another leaf-text"), text)
+    expect(second.locator("#jobs > .lf-another leaf-text")).to_have_js_property(
+        "value", text
+    )
 
     held = []
     first.route("**/api/event", lambda route: held.append(route))
@@ -913,8 +916,8 @@ def test_a_comment_being_typed_reaches_the_pages_other_tabs(browser, serve, one_
         panel_settled(page)
 
     typed = "The page is missing the migration step."
-    first.locator(".lf-general textarea").fill(typed)
-    expect(second.locator(".lf-general textarea")).to_have_value(typed)
+    write(first.locator(".lf-general leaf-text"), typed)
+    expect(second.locator(".lf-general leaf-text")).to_have_js_property("value", typed)
     expect(second.locator(".lf-general button")).to_have_attribute(
         "aria-disabled", "false"
     )
@@ -923,28 +926,32 @@ def test_a_comment_being_typed_reaches_the_pages_other_tabs(browser, serve, one_
     # leaves the caret where the user put it: writing .value on a focused box sends
     # the caret to the end of it, and a user typing into the middle of a sentence
     # would watch every keystroke jump there.
-    first.locator(".lf-general textarea").click()
+    first.locator(".lf-general leaf-text").click()
     first.keyboard.press("Home")
     first.keyboard.type("Late: ")
-    expect(second.locator(".lf-general textarea")).to_have_value("Late: " + typed)
+    expect(second.locator(".lf-general leaf-text")).to_have_js_property(
+        "value", "Late: " + typed
+    )
     assert (
-        first.locator(".lf-general textarea").evaluate("ta => ta.selectionStart") == 6
+        first.locator(".lf-general leaf-text").evaluate("ta => ta.selectionStart") == 6
     ), "the caret moved in the tab that did the typing"
     typed = "Late: " + typed
 
     reply = "Typed into the reply box of the other tab."
     second.locator(".lf-thread-summary").first.click()
-    second.locator(".lf-thread textarea").first.fill(reply)
-    expect(first.locator(".lf-thread textarea").first).to_have_value(reply)
+    write(second.locator(".lf-thread leaf-text").first, reply)
+    expect(first.locator(".lf-thread leaf-text").first).to_have_js_property(
+        "value", reply
+    )
     second.locator(".lf-thread").first.get_by_role(
         "button", name="Send", exact=True
     ).click()
     round_trip(second)
-    expect(first.locator(".lf-thread textarea").first).to_have_value("")
+    expect(first.locator(".lf-thread leaf-text").first).to_have_js_property("value", "")
 
     first.locator(".lf-general button").click()
     round_trip(first)
-    expect(second.locator(".lf-general textarea")).to_have_value("")
+    expect(second.locator(".lf-general leaf-text")).to_have_js_property("value", "")
     expect(second.locator(".lf-general button")).to_have_attribute(
         "aria-disabled", "true"
     )
@@ -961,8 +968,8 @@ def test_a_general_comment_appends_one_event_across_tabs(browser, serve, one_use
         page.locator(".lf-threads-toggle").click()
         panel_settled(page)
     raw = "One general comment, however many tabs show its draft."
-    first.locator(".lf-general textarea").fill(raw)
-    expect(second.locator(".lf-general textarea")).to_have_value(raw)
+    write(first.locator(".lf-general leaf-text"), raw)
+    expect(second.locator(".lf-general leaf-text")).to_have_js_property("value", raw)
 
     held = []
     first.route("**/api/event", lambda route: held.append(route))
@@ -987,20 +994,20 @@ def test_a_held_general_send_preserves_a_newer_exact_draft(browser, serve):
     page = open_page(browser, serve(LONG_PAGE))
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    box = page.locator(".lf-general textarea")
+    box = page.locator(".lf-general leaf-text")
     old = "The general comment already in flight."
     newer = "  The newer general thought keeps its spaces.  "
-    box.fill(old)
+    write(box, old)
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     page.locator(".lf-general button").click()
     holding(page, held, 1, "the older general send")
-    box.fill(newer)
+    write(box, newer)
 
     held[0].continue_()
     page.unroute("**/api/event")
     round_trip(page)
-    expect(box).to_have_value(newer)
+    expect(box).to_have_js_property("value", newer)
     assert page.evaluate(STORED_DRAFT_TEXT, "general") == newer
     roots = [
         event for event in sent_events(serve.page_dir) if event["kind"] == "comment"
@@ -1021,9 +1028,9 @@ def test_a_sent_comment_stands_in_the_panel_before_the_log_answers(browser, serv
     page = open_page(browser, serve(LONG_PAGE))
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    box = page.locator(".lf-general textarea")
+    box = page.locator(".lf-general leaf-text")
     words = "The comment the user can already see."
-    box.fill(words)
+    write(box, words)
     before = page.locator(".lf-threads > .lf-thread").count()
     held = []
     page.route("**/api/event", lambda route: held.append(route))
@@ -1040,7 +1047,7 @@ def test_a_sent_comment_stands_in_the_panel_before_the_log_answers(browser, serv
         "node => node.parentElement.matches('.lf-msg-meta') "
         "&& node.previousElementSibling.matches('time')"
     )
-    expect(box).to_have_value("")
+    expect(box).to_have_js_property("value", "")
     assert not [
         event for event in sent_events(serve.page_dir) if event.get("text") == words
     ]
@@ -1093,7 +1100,7 @@ def test_a_refused_selection_comment_leaves_the_words_on_their_passage(
 
     # Their passage still holds their draft, so opening it again finds the words.
     compose(page, "#p3")
-    expect(page.locator(".lf-composer textarea")).to_have_value(words)
+    expect(page.locator(".lf-composer leaf-text")).to_have_js_property("value", words)
     assert not [
         event for event in sent_events(serve.page_dir) if event.get("text") == words
     ]
@@ -1110,14 +1117,14 @@ def test_a_reply_behind_a_refused_parent_is_withdrawn_rather_than_sent(
     page = open_page(browser, serve(LONG_PAGE))
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    page.locator(".lf-general textarea").fill("The parent the server will refuse.")
+    write(page.locator(".lf-general leaf-text"), "The parent the server will refuse.")
     page.locator(".lf-general button").click()
     holding(page, held, 1, "the parent send")
 
     card = page.locator('.lf-thread[data-id^="pending:"]')
     expect(card).to_have_count(1)
     words = "A reply behind a parent that never lands."
-    card.locator("textarea").first.fill(words)
+    write(card.locator("leaf-text").first, words)
     card.get_by_role("button", name="Send", exact=True).click()
 
     attempt = held[0].request.post_data_json["attempt"]
@@ -1151,7 +1158,7 @@ def test_a_sent_reply_stands_in_its_thread_before_the_log_answers(held_events, s
     thread = page.locator(f'.lf-thread[data-id="{thread_id}"]')
     words = "The reply the user can already see."
     thread.locator(".lf-thread-summary").click()
-    thread.locator("textarea").fill(words)
+    write(thread.locator("leaf-text"), words)
     before = thread.locator(".lf-msg").count()
 
     thread.get_by_role("button", name="Send", exact=True).click()
@@ -1166,7 +1173,7 @@ def test_a_sent_reply_stands_in_its_thread_before_the_log_answers(held_events, s
         "node => node.parentElement.matches('.lf-msg-meta') "
         "&& node.previousElementSibling.matches('time')"
     )
-    expect(thread.locator("textarea")).to_have_value("")
+    expect(thread.locator("leaf-text")).to_have_js_property("value", "")
 
     held.pop(0).continue_()
     page.unroute("**/api/event")
@@ -1187,9 +1194,9 @@ def test_a_refused_comment_takes_its_message_back_and_returns_the_words(
     page = open_page(browser, serve(LONG_PAGE))
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    box = page.locator(".lf-general textarea")
+    box = page.locator(".lf-general leaf-text")
     words = "The comment the server will refuse."
-    box.fill(words)
+    write(box, words)
     before = page.locator(".lf-threads > .lf-thread").count()
     page.locator(".lf-general button").click()
     holding(page, held, 1, "the general send")
@@ -1214,7 +1221,7 @@ def test_a_refused_comment_takes_its_message_back_and_returns_the_words(
     expect(page.locator('.lf-thread[data-id^="pending:"]')).to_have_count(0)
     expect(page.locator(".lf-threads > .lf-thread")).to_have_count(before)
     expect(page.locator(".lf-threads")).to_be_focused()
-    expect(box).to_have_value(words)
+    expect(box).to_have_js_property("value", words)
     expect(page.locator(".lf-notice")).to_contain_text("Couldn't send")
     assert page.evaluate(STORED_DRAFT_TEXT, "general") == words
     assert not [
@@ -1238,16 +1245,16 @@ def test_every_message_send_says_so_to_a_user_listening(held_events, serve, box)
     live = page.locator(".lf-live")
     if box == "seat":
         seat = page.locator("#jobs > .lf-thread-seat > .lf-say")
-        field = seat.locator("textarea")
+        field = seat.locator("leaf-text")
         press = seat.get_by_role("button", name="Send", exact=True)
     else:
         page.locator(".lf-threads-toggle").click()
         panel_settled(page)
-        field = page.locator(".lf-general textarea")
+        field = page.locator(".lf-general leaf-text")
         press = page.locator(".lf-general").get_by_role(
             "button", name="Send", exact=True
         )
-    field.fill("A remark whose arrival nothing else will say.")
+    write(field, "A remark whose arrival nothing else will say.")
     press.click()
     # Held: the gesture is the only thing that can have written the region, and the
     # words are said before the log has answered rather than because it did.
@@ -1287,19 +1294,19 @@ def test_a_first_answer_leaves_a_later_sends_words_masked(held_events, serve):
     panel_settled(page)
     thread = page.locator(".lf-threads > .lf-thread")
     thread.locator(".lf-thread-summary").click()
-    reply = thread.locator("textarea")
+    reply = thread.locator("leaf-text")
     send = thread.get_by_role("button", name="Send", exact=True)
 
     first = "The reply already on its way."
-    reply.fill(first)
+    write(reply, first)
     send.click()
     holding(page, held, 1, "the first reply send")
-    expect(reply).to_have_value("")
+    expect(reply).to_have_js_property("value", "")
 
     second = "The reply the user is watching."
-    reply.fill(second)
+    write(reply, second)
     send.click()
-    expect(reply).to_have_value("")
+    expect(reply).to_have_js_property("value", "")
     # Both stand, in the order they were written. A card gains messages by insertion,
     # and a receipt acknowledging an earlier one sits between them.
     expect(thread.locator(".lf-msg").last).to_contain_text(second)
@@ -1319,8 +1326,10 @@ def test_a_first_answer_leaves_a_later_sends_words_masked(held_events, serve):
         f"reply:{root['id']}",
     )
     assert standing is None, "the second send's words were offered back while in flight"
-    expect(reply).to_have_value("")
-    expect(page.locator("#jobs .lf-page-thread textarea")).to_have_value("")
+    expect(reply).to_have_js_property("value", "")
+    expect(page.locator("#jobs .lf-page-thread leaf-text")).to_have_js_property(
+        "value", ""
+    )
 
     held.pop(0).continue_()
     page.unroute("**/api/event")
@@ -1348,10 +1357,10 @@ def test_a_held_reply_send_leaves_a_later_reply_box_focused(
     threads = page.locator(".lf-threads > .lf-thread")
     first_id = threads.nth(0).get_attribute("data-id")
     later_id = first_id if same_thread else threads.last.get_attribute("data-id")
-    first = page.locator(f'.lf-thread[data-id="{first_id}"] textarea')
-    later = page.locator(f'.lf-thread[data-id="{later_id}"] textarea')
+    first = page.locator(f'.lf-thread[data-id="{first_id}"] leaf-text')
+    later = page.locator(f'.lf-thread[data-id="{later_id}"] leaf-text')
     page.locator(f'.lf-thread[data-id="{first_id}"] .lf-thread-summary').click()
-    first.fill("\n\n".join(["The first reply is in flight."] * 15))
+    write(first, "\n\n".join(["The first reply is in flight."] * 15))
 
     page.locator(f'.lf-thread[data-id="{first_id}"]').get_by_role(
         "button", name="Send", exact=True
@@ -1362,9 +1371,9 @@ def test_a_held_reply_send_leaves_a_later_reply_box_focused(
         page.locator(f'.lf-thread[data-id="{later_id}"] .lf-thread-summary').click()
     later.click()
     newer = "The later reply keeps the user here.\n" * (14 if same_thread else 1)
-    later.fill(newer)
+    write(later, newer)
     expect(later).to_be_focused()
-    in_threads_scrollport(page, f'.lf-thread[data-id="{later_id}"] textarea')
+    in_threads_scrollport(page, f'.lf-thread[data-id="{later_id}"] leaf-text')
 
     held.pop(0).continue_()
     page.unroute("**/api/event")
@@ -1373,8 +1382,8 @@ def test_a_held_reply_send_leaves_a_later_reply_box_focused(
         page.locator(f'.lf-thread[data-id="{first_id}"] .lf-msg').last
     ).to_contain_text("The first reply is in flight.")
     expect(later).to_be_focused()
-    expect(later).to_have_value(newer)
-    in_threads_scrollport(page, f'.lf-thread[data-id="{later_id}"] textarea')
+    expect(later).to_have_js_property("value", newer)
+    in_threads_scrollport(page, f'.lf-thread[data-id="{later_id}"] leaf-text')
 
 
 @pytest.mark.parametrize("continue_inline", [False, True])
@@ -1399,31 +1408,33 @@ def test_a_held_reply_send_leaves_the_panel_closed(held_events, serve, continue_
     panel_settled(page)
     thread = page.locator(".lf-threads > .lf-thread")
     thread.locator(".lf-thread-summary").click()
-    reply = thread.locator("textarea")
-    reply.fill("Send this while I return to reading.")
+    reply = thread.locator("leaf-text")
+    write(reply, "Send this while I return to reading.")
     thread.get_by_role("button", name="Send", exact=True).click()
     holding(page, held, 1, "the reply send")
 
     toggle.click()
     expect(page.locator(".lf-thread-panel")).not_to_be_visible()
     expect(toggle).to_be_focused()
-    inline = page.locator(f'#jobs .lf-page-thread[data-thread="{root["id"]}"] textarea')
+    inline = page.locator(
+        f'#jobs .lf-page-thread[data-thread="{root["id"]}"] leaf-text'
+    )
     newer = "Continue this reply beside the question."
     if continue_inline:
-        inline.fill(newer)
+        write(inline, newer)
         inline.evaluate("box => box.setSelectionRange(9, 9)")
-        expect(reply).to_have_value(newer)
+        expect(reply).to_have_js_property("value", newer)
     held.pop(0).continue_()
     page.unroute("**/api/event")
     round_trip(page)
-    expect(reply).to_have_value(newer if continue_inline else "")
+    expect(reply).to_have_js_property("value", newer if continue_inline else "")
     expect(thread.locator(".lf-msg").last).to_contain_text(
         "Send this while I return to reading."
     )
     expect(page.locator(".lf-thread-panel")).not_to_be_visible()
     if continue_inline:
         expect(inline).to_be_focused()
-        expect(inline).to_have_value(newer)
+        expect(inline).to_have_js_property("value", newer)
         assert inline.evaluate("box => box.selectionStart") == 9
     else:
         expect(toggle).to_be_focused()
@@ -1440,8 +1451,8 @@ def test_a_held_reply_send_preserves_a_later_scroll(held_events, serve):
     first = threads.first
     later = threads.last
     first.locator(".lf-thread-summary").click()
-    reply = first.locator("textarea")
-    reply.fill("A reply whose delivery is slow.")
+    reply = first.locator("leaf-text")
+    write(reply, "A reply whose delivery is slow.")
     page.keyboard.press("ControlOrMeta+Enter")
     holding(page, held, 1, "the reply send")
 
@@ -1458,7 +1469,7 @@ def test_a_held_reply_send_preserves_a_later_scroll(held_events, serve):
     held.pop(0).continue_()
     page.unroute("**/api/event")
     round_trip(page)
-    expect(reply).to_have_value("")
+    expect(reply).to_have_js_property("value", "")
     expect(first.locator(".lf-msg").last).to_contain_text(
         "A reply whose delivery is slow."
     )
@@ -1476,7 +1487,7 @@ def test_a_held_comment_send_leaves_a_later_reply_box_focused(browser, serve):
     select_words(page, "#p3")
     expect(page.locator(".lf-fab-input")).to_be_visible()
     page.locator(".lf-fab-input").click()
-    page.locator(".lf-composer textarea").fill("The earlier comment in flight.")
+    write(page.locator(".lf-composer leaf-text"), "The earlier comment in flight.")
 
     held = []
     page.route("**/api/event", lambda route: held.append(route))
@@ -1490,9 +1501,9 @@ def test_a_held_comment_send_leaves_a_later_reply_box_focused(browser, serve):
     later_id = page.locator(
         '.lf-threads > .lf-thread:not([data-id^="pending:"])'
     ).first.get_attribute("data-id")
-    later = page.locator(f'.lf-thread[data-id="{later_id}"] textarea')
+    later = page.locator(f'.lf-thread[data-id="{later_id}"] leaf-text')
     page.locator(f'.lf-thread[data-id="{later_id}"] .lf-thread-summary').click()
-    later.fill("The later reply keeps the user here.")
+    write(later, "The later reply keeps the user here.")
     later.evaluate("ta => ta.setSelectionRange(9, 9)")
     expect(later).to_be_focused()
 
@@ -1501,7 +1512,7 @@ def test_a_held_comment_send_leaves_a_later_reply_box_focused(browser, serve):
     round_trip(page)
     expect(page.locator(".lf-threads > .lf-thread")).to_have_count(3)
     expect(later).to_be_focused()
-    expect(later).to_have_value("The later reply keeps the user here.")
+    expect(later).to_have_js_property("value", "The later reply keeps the user here.")
     assert later.evaluate("ta => ta.selectionStart") == 9
 
 
@@ -1519,8 +1530,9 @@ def test_a_comment_hidden_by_narrowing_is_revealed_in_the_open_panel(
     select_words(page, "#p1")
     expect(page.locator(".lf-fab-input")).to_be_visible()
     page.locator(".lf-fab-input").click()
-    page.locator(".lf-composer textarea").fill(
-        "This comment starts outside the filter."
+    write(
+        page.locator(".lf-composer leaf-text"),
+        "This comment starts outside the filter.",
     )
     held = []
     page.route("**/api/event", lambda route: held.append(route))
@@ -1561,7 +1573,7 @@ def test_an_untouched_inline_reply_follows_but_an_emptied_draft_holds(browser, s
     select_words(page, "#p1")
     expect(page.locator(".lf-fab-input")).to_be_visible()
     page.locator(".lf-fab-input").click()
-    page.locator(".lf-composer textarea").fill("Follow this discussion.")
+    write(page.locator(".lf-composer leaf-text"), "Follow this discussion.")
     # The comment's own send in the wire before the log names it. Without that the read
     # below answers with the note the page opened on, and the reply this test is about is
     # looked for under an id no thread wears.
@@ -1572,7 +1584,7 @@ def test_an_untouched_inline_reply_follows_but_an_emptied_draft_holds(browser, s
     thread = page.locator(
         f'.lf-margin-thread .lf-page-thread[data-thread="{sent["id"]}"]'
     )
-    reply = thread.locator("textarea")
+    reply = thread.locator("leaf-text")
     expect(thread).to_be_focused()
     thread.get_by_role("button", name="Reply").click()
     expect(reply).to_be_focused()
@@ -1588,8 +1600,8 @@ def test_an_untouched_inline_reply_follows_but_an_emptied_draft_holds(browser, s
     # The untouched reply remains disposable UI rather than becoming a draft merely
     # because the authored page advanced around it.
     expect(reply).to_be_visible()
-    reply.fill("A thought I changed my mind about.")
-    reply.fill("")
+    write(reply, "A thought I changed my mind about.")
+    write(reply, "")
     # A thread's reply draft is keyed by the name the log's answer does not change —
     # the attempt the user's own comment opened it with (thread/model.js).
     assert page.evaluate(STORED_DRAFT_TEXT, f"reply:{sent['attempt']}") == ""
@@ -1600,7 +1612,7 @@ def test_an_untouched_inline_reply_follows_but_an_emptied_draft_holds(browser, s
     told(page)
     expect_banner_control_offered(page.locator(".lf-latest-chip"))
     expect(page.locator(".lf-version")).to_contain_text("v2")
-    expect(reply).to_have_value("")
+    expect(reply).to_have_js_property("value", "")
     expect(reply).to_be_focused()
 
 
@@ -1620,7 +1632,7 @@ def test_a_held_comment_send_leaves_the_passage_picked_out_behind_it(
     select_words(page, "#p1")
     expect(page.locator(".lf-fab-input")).to_be_visible()
     page.locator(".lf-fab-input").click()
-    page.locator(".lf-composer textarea").fill("The first remark.")
+    write(page.locator(".lf-composer leaf-text"), "The first remark.")
 
     page.keyboard.press("ControlOrMeta+Enter")
     holding(page, held, 1, "the comment send")
@@ -1628,7 +1640,7 @@ def test_a_held_comment_send_leaves_the_passage_picked_out_behind_it(
     # The user picks out their next passage while the first send is still in the wire.
     select_words(page, "#p2")
     expect(page.locator(".lf-fab-input")).to_be_visible()
-    expect(page.locator(".lf-fab-input")).to_have_value("")
+    expect(page.locator(".lf-fab-input")).to_have_js_property("value", "")
     expect(page.locator(".lf-fab-input")).not_to_be_focused()
 
     held.pop(0).continue_()
@@ -1710,10 +1722,10 @@ def test_an_unsent_comment_stays_with_its_passage_when_another_is_selected(
     select_words(page, "#p1")
     expect(field).to_be_visible()
     expect(field).not_to_be_focused()
-    field.fill(original)
+    write(field, original)
 
     select_words(page, "#p2")
-    expect(field).to_have_value("")
+    expect(field).to_have_js_property("value", "")
     expect(field).not_to_be_focused()
     assert (
         page.evaluate(
@@ -1724,7 +1736,7 @@ def test_an_unsent_comment_stays_with_its_passage_when_another_is_selected(
     )
 
     select_words(page, "#p1")
-    expect(field).to_have_value(original)
+    expect(field).to_have_js_property("value", original)
     expect(field).not_to_be_focused()
 
 
@@ -1741,8 +1753,10 @@ def test_failed_settlement_keeps_the_base_for_a_chained_nondurable_edit(
     predecessor = "The durable predecessor that this local branch replaces."
     first = "The first nondurable comment on that branch."
     second = "The chained nondurable comment keeps the same base."
-    shared.locator(".lf-general textarea").fill(predecessor)
-    expect(local.locator(".lf-general textarea")).to_have_value(predecessor)
+    write(shared.locator(".lf-general leaf-text"), predecessor)
+    expect(local.locator(".lf-general leaf-text")).to_have_js_property(
+        "value", predecessor
+    )
     local.evaluate(
         """([first, second]) => {
           const set = Storage.prototype.setItem;
@@ -1768,11 +1782,11 @@ def test_failed_settlement_keeps_the_base_for_a_chained_nondurable_edit(
         [first, second],
     )
 
-    local.locator(".lf-general textarea").fill(first)
+    write(local.locator(".lf-general leaf-text"), first)
     local.locator(".lf-general button").click()
     round_trip(local)
-    expect(local.locator(".lf-general textarea")).to_have_value("")
-    local.locator(".lf-general textarea").fill(second)
+    expect(local.locator(".lf-general leaf-text")).to_have_js_property("value", "")
+    write(local.locator(".lf-general leaf-text"), second)
     expect(local.locator(".lf-general button")).to_have_attribute(
         "aria-disabled", "false"
     )
@@ -1799,7 +1813,7 @@ def test_a_stale_question_first_message_cannot_append_across_tabs(
 ):
     """A stale visible generation refreshes the shared tombstone before POST.
 
-    The second tab's storage repaint is then deliberately suppressed. Its textarea
+    The second tab's storage repaint is then deliberately suppressed. Its text box
     remains stale after the first send stored its tombstone, so a second real press
     proves that readable absence is settlement rather than permission to trust the
     old in-memory value.
@@ -1821,8 +1835,8 @@ def test_a_stale_question_first_message_cannot_append_across_tabs(
     first_say = first.locator("#jobs > .lf-thread-seat > .lf-say")
     second_say = second.locator("#jobs > .lf-thread-seat > .lf-say")
     raw = "  Keep one exact first answer.  "
-    first_say.locator("textarea").fill(raw)
-    expect(second_say.locator("textarea")).to_have_value(raw)
+    write(first_say.locator("leaf-text"), raw)
+    expect(second_say.locator("leaf-text")).to_have_js_property("value", raw)
     # The init-script capture listener beats the runtime's listener for settlement,
     # leaving the old value on screen after the other tab stores its tombstone.
     cut = CutOff().hold(second)
@@ -1836,12 +1850,12 @@ def test_a_stale_question_first_message_cannot_append_across_tabs(
     first.unroute("**/api/event")
     round_trip(first)
     first.wait_for_function(STORED_DRAFT_SETTLED, arg="say:jobs")
-    expect(second_say.locator("textarea")).to_have_value(raw)
+    expect(second_say.locator("leaf-text")).to_have_js_property("value", raw)
     assert second.evaluate(STORED_DRAFT_SETTLED, "say:jobs")
     second_send = second_say.get_by_role("button", name="Send", exact=True)
     expect(second_send).to_have_attribute("aria-disabled", "false")
     second_send.click()
-    expect(second_say.locator("textarea")).to_have_value("")
+    expect(second_say.locator("leaf-text")).to_have_js_property("value", "")
     cut.restore()
 
     roots = [
@@ -1872,8 +1886,8 @@ def test_a_question_reply_appends_one_event_across_tabs(browser, serve, one_user
     first_thread = first.locator(selector)
     second_thread = second.locator(selector)
     raw = "  The camera, then the mounting work.  "
-    first_thread.locator("textarea").fill(raw)
-    expect(second_thread.locator("textarea")).to_have_value(raw)
+    write(first_thread.locator("leaf-text"), raw)
+    expect(second_thread.locator("leaf-text")).to_have_js_property("value", raw)
 
     held = []
     first.route("**/api/event", lambda route: held.append(route))
@@ -1912,33 +1926,33 @@ def test_a_held_thread_send_cannot_clear_a_newer_raw_draft(browser, serve, one_u
     first.locator(".lf-threads-toggle").click()
     panel_settled(first)
     inline = first.locator(
-        f'#jobs .lf-page-thread[data-thread="{root["id"]}"] textarea'
+        f'#jobs .lf-page-thread[data-thread="{root["id"]}"] leaf-text'
     )
     panel = first.locator(f'.lf-thread[data-id="{root["id"]}"]')
     second_inline = second.locator(
-        f'#jobs .lf-page-thread[data-thread="{root["id"]}"] textarea'
+        f'#jobs .lf-page-thread[data-thread="{root["id"]}"] leaf-text'
     )
     sent_raw = "  Send this part first.  "
     newer_raw = "  A later thought stays raw.  "
-    inline.fill(sent_raw)
-    expect(panel.locator("textarea")).to_have_value(sent_raw)
-    expect(second_inline).to_have_value(sent_raw)
+    write(inline, sent_raw)
+    expect(panel.locator("leaf-text")).to_have_js_property("value", sent_raw)
+    expect(second_inline).to_have_js_property("value", sent_raw)
 
     held = []
     first.route("**/api/event", lambda route: held.append(route))
     panel.locator(".lf-thread-summary").click()
     panel.get_by_role("button", name="Send", exact=True).click()
     holding(first, held, 1, "the older reply")
-    second_inline.fill(newer_raw)
-    expect(inline).to_have_value(newer_raw)
-    expect(panel.locator("textarea")).to_have_value(newer_raw)
+    write(second_inline, newer_raw)
+    expect(inline).to_have_js_property("value", newer_raw)
+    expect(panel.locator("leaf-text")).to_have_js_property("value", newer_raw)
 
     held[0].continue_()
     first.unroute("**/api/event")
     round_trip(first)
-    expect(inline).to_have_value(newer_raw)
-    expect(panel.locator("textarea")).to_have_value(newer_raw)
-    expect(second_inline).to_have_value(newer_raw)
+    expect(inline).to_have_js_property("value", newer_raw)
+    expect(panel.locator("leaf-text")).to_have_js_property("value", newer_raw)
+    expect(second_inline).to_have_js_property("value", newer_raw)
     # This root was appended by the agent, so it carries no attempt and its reply draft
     # keys by the id, which for such a thread never changes either.
     assert first.evaluate(STORED_DRAFT_TEXT, f"reply:{root['id']}") == newer_raw
@@ -1960,8 +1974,8 @@ def test_a_failed_concurrent_question_send_keeps_the_accepted_attempt(
     first_say = first.locator("#jobs > .lf-thread-seat > .lf-say")
     second_say = second.locator("#jobs > .lf-thread-seat > .lf-say")
     raw = "  Retry this exact answer.  "
-    first_say.locator("textarea").fill(raw)
-    expect(second_say.locator("textarea")).to_have_value(raw)
+    write(first_say.locator("leaf-text"), raw)
+    expect(second_say.locator("leaf-text")).to_have_js_property("value", raw)
 
     held = []
     first.route("**/api/event", lambda route: held.append(route))
@@ -1983,8 +1997,8 @@ def test_a_failed_concurrent_question_send_keeps_the_accepted_attempt(
     # Asked of the words rather than of the box: a seat that can hold keeps its composer
     # standing after every root (renderSeats), so an empty one is what says the
     # tab adopted the durable outcome instead of holding the words for a second send.
-    expect(first_say.locator("textarea")).to_have_value("")
-    expect(second_say.locator("textarea")).to_have_value("")
+    expect(first_say.locator("leaf-text")).to_have_js_property("value", "")
+    expect(second_say.locator("leaf-text")).to_have_js_property("value", "")
 
 
 @pytest.mark.parametrize("newer", [None, "A newer thought must survive."])
@@ -1998,8 +2012,8 @@ def test_a_late_refusal_cannot_restore_an_attempt_another_tab_settled(
     first_say = first.locator("#jobs > .lf-thread-seat > .lf-say")
     second_say = second.locator("#jobs > .lf-thread-seat > .lf-say")
     raw = "The shared generation one tab will accept."
-    first_say.locator("textarea").fill(raw)
-    expect(second_say.locator("textarea")).to_have_value(raw)
+    write(first_say.locator("leaf-text"), raw)
+    expect(second_say.locator("leaf-text")).to_have_js_property("value", raw)
 
     held_event = []
     held_state = []
@@ -2012,11 +2026,11 @@ def test_a_late_refusal_cannot_restore_an_attempt_another_tab_settled(
 
         second_say.get_by_role("button", name="Send", exact=True).click()
         round_trip(second)
-        expect(first_say.locator("textarea")).to_have_value("")
+        expect(first_say.locator("leaf-text")).to_have_js_property("value", "")
         first.wait_for_function(STORED_DRAFT_SETTLED, arg="say:jobs")
         holding(first, held_state, 1, "the accepted attempt's state read")
         if newer is not None:
-            first_say.locator("textarea").fill(newer)
+            write(first_say.locator("leaf-text"), newer)
 
         with first.expect_response(
             lambda response: "/api/event" in response.url
@@ -2038,12 +2052,12 @@ def test_a_late_refusal_cannot_restore_an_attempt_another_tab_settled(
             "Failed to load resource: the server responded with a status of 400 "
             "(Bad Request)"
         )
-        expect(first_say.locator("textarea")).to_have_value(newer or "")
+        expect(first_say.locator("leaf-text")).to_have_js_property("value", newer or "")
 
         held_state.pop(0).continue_()
         first.unroute("**/api/state*")
         round_trip(first)
-        expect(first_say.locator("textarea")).to_have_value(newer or "")
+        expect(first_say.locator("leaf-text")).to_have_js_property("value", newer or "")
     finally:
         for route in held_event + held_state:
             refuse(route)
@@ -2051,7 +2065,7 @@ def test_a_late_refusal_cannot_restore_an_attempt_another_tab_settled(
 
 
 def test_a_question_can_send_when_draft_storage_refuses_writes(browser, serve):
-    """Persistence failure costs recovery, not the live textarea's Send action."""
+    """Persistence failure costs recovery, not the live box's Send action."""
     page = open_page(
         browser,
         serve(SEATED_QUESTION_PAGE),
@@ -2061,7 +2075,7 @@ def test_a_question_can_send_when_draft_storage_refuses_writes(browser, serve):
     )
     say = page.locator("#jobs > .lf-thread-seat > .lf-say")
     raw = "  Send even though this draft cannot persist.  "
-    say.locator("textarea").fill(raw)
+    write(say.locator("leaf-text"), raw)
     say.get_by_role("button", name="Send", exact=True).click()
     _until(page, lambda t: t.sends == 1, "sent the live unpersisted answer")
     round_trip(page)
@@ -2099,8 +2113,8 @@ def test_a_closed_sender_cannot_append_its_accepted_attempt_twice(
     raw = "One answer survives its sender closing."
     first_say = first.locator("#jobs > .lf-thread-seat > .lf-say")
     second_say = second.locator("#jobs > .lf-thread-seat > .lf-say")
-    first_say.locator("textarea").fill(raw)
-    expect(second_say.locator("textarea")).to_have_value(raw)
+    write(first_say.locator("leaf-text"), raw)
+    expect(second_say.locator("leaf-text")).to_have_js_property("value", raw)
     first.evaluate(
         """() => {
           const actualFetch = window.fetch.bind(window);
@@ -2139,7 +2153,7 @@ def test_an_older_settlement_cannot_erase_a_newer_failed_write(
     other = open_page(browser, url, context=one_user)
     old = "The older persisted answer."
     other_say = other.locator("#jobs > .lf-thread-seat > .lf-say")
-    other_say.locator("textarea").fill(old)
+    write(other_say.locator("leaf-text"), old)
 
     local = open_page(
         browser,
@@ -2150,16 +2164,16 @@ def test_an_older_settlement_cannot_erase_a_newer_failed_write(
         };""",
     )
     local_say = local.locator("#jobs > .lf-thread-seat > .lf-say")
-    expect(local_say.locator("textarea")).to_have_value(old)
+    expect(local_say.locator("leaf-text")).to_have_js_property("value", old)
     newer = "The newer local answer whose write failed."
-    local_say.locator("textarea").fill("A first nondurable edit on the same branch.")
-    local_say.locator("textarea").fill(newer)
-    expect(other_say.locator("textarea")).to_have_value(old)
+    write(local_say.locator("leaf-text"), "A first nondurable edit on the same branch.")
+    write(local_say.locator("leaf-text"), newer)
+    expect(other_say.locator("leaf-text")).to_have_js_property("value", old)
 
     other_say.get_by_role("button", name="Send", exact=True).click()
     round_trip(other)
     other.wait_for_function(STORED_DRAFT_SETTLED, arg="say:jobs")
-    expect(local_say.locator("textarea")).to_have_value(newer)
+    expect(local_say.locator("leaf-text")).to_have_js_property("value", newer)
 
     local_say.get_by_role("button", name="Send", exact=True).click()
     _until(local, lambda t: t.sends == 1, "sent the nondurable newer answer")
@@ -2200,21 +2214,21 @@ def test_an_accepted_nondurable_branch_cannot_tombstone_a_newer_shared_generatio
     newer_say = newer_tab.locator("#jobs > .lf-thread-seat > .lf-say")
     old = "The older nondurable answer already in flight."
     newer = "The newer durable answer survives the older response."
-    older_say.locator("textarea").fill(old)
+    write(older_say.locator("leaf-text"), old)
 
     held = []
     older.route("**/api/event", lambda route: held.append(route))
     older_say.get_by_role("button", name="Send", exact=True).click()
     holding(older, held, 1, "the nondurable send")
-    newer_say.locator("textarea").fill(newer)
+    write(newer_say.locator("leaf-text"), newer)
     assert newer_tab.evaluate(STORED_DRAFT_TEXT, "say:jobs") == newer
     newer_tab.close()
 
     held[0].continue_()
     older.unroute("**/api/event")
     round_trip(older)
-    restored = older.locator("#jobs > .lf-thread-seat > .lf-say textarea")
-    expect(restored).to_have_value(newer)
+    restored = older.locator("#jobs > .lf-thread-seat > .lf-say leaf-text")
+    expect(restored).to_have_js_property("value", newer)
     assert older.evaluate(STORED_DRAFT_TEXT, "say:jobs") == newer
     roots = [
         event for event in sent_events(serve.page_dir) if event["kind"] == "comment"
@@ -2252,12 +2266,12 @@ def test_a_nondurable_branch_yields_to_unrelated_live_storage_news(
     shared_say = shared.locator("#jobs > .lf-thread-seat > .lf-say")
     old = "The local write failed before shared storage changed."
     newer = "The later durable generation owns the user now."
-    local_say.locator("textarea").fill(old)
-    shared_say.locator("textarea").fill(newer)
+    write(local_say.locator("leaf-text"), old)
+    write(shared_say.locator("leaf-text"), newer)
     local.wait_for_function("() => window.lfDraftNews > 0")
 
-    expect(local_say.locator("textarea")).to_have_value(newer)
-    expect(shared_say.locator("textarea")).to_have_value(newer)
+    expect(local_say.locator("leaf-text")).to_have_js_property("value", newer)
+    expect(shared_say.locator("leaf-text")).to_have_js_property("value", newer)
     assert local.evaluate(STORED_DRAFT_TEXT, "say:jobs") == newer
 
 
@@ -2279,16 +2293,16 @@ def test_a_delayed_storage_event_cannot_send_a_stale_durable_generation(
     current_say = current.locator("#jobs > .lf-thread-seat > .lf-say")
     old = "The stale tab's older generation."
     newer = "The newer shared generation."
-    stale_say.locator("textarea").fill(old)
-    expect(current_say.locator("textarea")).to_have_value(old)
-    current_say.locator("textarea").fill(newer)
-    expect(stale_say.locator("textarea")).to_have_value(old)
+    write(stale_say.locator("leaf-text"), old)
+    expect(current_say.locator("leaf-text")).to_have_js_property("value", old)
+    write(current_say.locator("leaf-text"), newer)
+    expect(stale_say.locator("leaf-text")).to_have_js_property("value", old)
     assert stale.evaluate(STORED_DRAFT_TEXT, "say:jobs") == newer
 
     stale_say.get_by_role("button", name="Send", exact=True).click()
     assert _traffic(stale).sends == 0
-    expect(stale_say.locator("textarea")).to_have_value(newer)
-    expect(current_say.locator("textarea")).to_have_value(newer)
+    expect(stale_say.locator("leaf-text")).to_have_js_property("value", newer)
+    expect(current_say.locator("leaf-text")).to_have_js_property("value", newer)
     assert [
         event for event in sent_events(serve.page_dir) if event["kind"] == "comment"
     ] == []
@@ -2351,13 +2365,13 @@ def test_poll_settlement_cannot_tombstone_a_newer_durable_generation(
     current_say = current.locator("#jobs > .lf-thread-seat > .lf-say")
     old = "The accepted generation cached by the stale tab."
     newer = "The newer generation shared before settlement arrived."
-    stale_say.locator("textarea").fill(old)
-    expect(current_say.locator("textarea")).to_have_value(old)
+    write(stale_say.locator("leaf-text"), old)
+    expect(current_say.locator("leaf-text")).to_have_js_property("value", old)
     old_attempt = stale.evaluate(
         "() => JSON.parse(localStorage.getItem('lf-draft:say:jobs')).attempt"
     )
-    current_say.locator("textarea").fill(newer)
-    expect(stale_say.locator("textarea")).to_have_value(old)
+    write(current_say.locator("leaf-text"), newer)
+    expect(stale_say.locator("leaf-text")).to_have_js_property("value", old)
 
     events_model.append_event(
         serve.page_dir,
@@ -2377,8 +2391,8 @@ def test_poll_settlement_cannot_tombstone_a_newer_durable_generation(
     stale_held.restore()
     told(stale)
     assert current.evaluate(STORED_DRAFT_TEXT, "say:jobs") == newer
-    expect(stale_say.locator("textarea")).to_have_value(newer)
-    expect(current_say.locator("textarea")).to_have_value(newer)
+    expect(stale_say.locator("leaf-text")).to_have_js_property("value", newer)
+    expect(current_say.locator("leaf-text")).to_have_js_property("value", newer)
 
 
 def test_a_read_failure_cannot_make_a_successfully_written_draft_unsendable(
@@ -2394,7 +2408,7 @@ def test_a_read_failure_cannot_make_a_successfully_written_draft_unsendable(
     )
     raw = "A live value remains sendable when storage reads fail."
     say = page.locator("#jobs > .lf-thread-seat > .lf-say")
-    say.locator("textarea").fill(raw)
+    write(say.locator("leaf-text"), raw)
     say.get_by_role("button", name="Send", exact=True).click()
     _until(page, lambda t: t.sends == 1, "sent the cached draft")
     round_trip(page)
@@ -2417,7 +2431,7 @@ def test_a_remove_failure_cannot_resurrect_an_accepted_draft(browser, serve, one
     )
     raw = "A sent draft must not return."
     say = first.locator("#jobs > .lf-thread-seat > .lf-say")
-    say.locator("textarea").fill(raw)
+    write(say.locator("leaf-text"), raw)
     say.get_by_role("button", name="Send", exact=True).click()
     round_trip(first)
     first.wait_for_function(STORED_DRAFT_SETTLED, arg="say:jobs")
@@ -2425,9 +2439,9 @@ def test_a_remove_failure_cannot_resurrect_an_accepted_draft(browser, serve, one
     again = open_page(browser, url, context=one_user)
     # The composer is still standing — a seat that can hold keeps it — so the claim is
     # about what it opens with: a settled draft is words the next tab must not be handed.
-    expect(again.locator("#jobs > .lf-thread-seat > .lf-say textarea")).to_have_value(
-        ""
-    )
+    expect(
+        again.locator("#jobs > .lf-thread-seat > .lf-say leaf-text")
+    ).to_have_js_property("value", "")
     roots = [
         event for event in sent_events(serve.page_dir) if event["kind"] == "comment"
     ]
@@ -2451,10 +2465,10 @@ def test_an_intentional_later_identical_reply_gets_a_fresh_attempt(browser, serv
     thread = page.locator(f'#jobs .lf-page-thread[data-thread="{root["id"]}"]')
     text = "Still true."
     for _ in range(2):
-        thread.locator("textarea").fill(text)
+        write(thread.locator("leaf-text"), text)
         thread.get_by_role("button", name="Send", exact=True).click()
         round_trip(page)
-        expect(thread.locator("textarea")).to_have_value("")
+        expect(thread.locator("leaf-text")).to_have_js_property("value", "")
 
     replies = [
         event for event in sent_events(serve.page_dir) if event["kind"] == "reply"
@@ -2472,11 +2486,11 @@ def test_an_unsent_draft_outlives_the_tab_it_was_typed_in(browser, serve, one_us
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     typed = "Half a thought, and then the tab went."
-    page.locator(".lf-general textarea").fill(typed)
+    write(page.locator(".lf-general leaf-text"), typed)
     page.close()
 
     again = open_page(browser, url, context=one_user)
-    expect(again.locator(".lf-general textarea")).to_have_value(typed)
+    expect(again.locator(".lf-general leaf-text")).to_have_js_property("value", typed)
 
 
 def test_a_draft_the_chrome_stands_down_says_so_and_keeps_an_address(browser, serve):
@@ -2514,16 +2528,16 @@ def test_a_draft_the_chrome_stands_down_says_so_and_keeps_an_address(browser, se
     page.keyboard.press("Shift+d")
     expect(page.locator(".lf-composer")).to_be_visible()
     expect(page.locator(".lf-fab-input")).to_be_focused()
-    expect(page.locator(".lf-fab-input")).to_have_value(kept)
+    expect(page.locator(".lf-fab-input")).to_have_js_property("value", kept)
     assert pending_text(page), "the box came back on nothing"
 
 
 def test_a_pasted_image_is_a_whole_draft_and_leaves_with_the_send_that_took_it(
     browser, serve
 ):
-    """An image and no words is a draft, and the textarea is the one place it does not
+    """An image and no words is a draft, and the text box is the one place it does not
     show: the box keeps the Markdown and the shelf shows the thumbnail. So a reading
-    that asks the textarea whether anything is in here answers "empty" about a box the
+    that asks the text box whether anything is in here answers "empty" about a box the
     user can see holds a picture, and the two directions fail in opposite ways — the
     kept notice never appears for a picture put away, and it appears for a picture that
     has just been sent, over a box with nothing left in it.
@@ -2536,11 +2550,11 @@ def test_a_pasted_image_is_a_whole_draft_and_leaves_with_the_send_that_took_it(
     pixels = (EXAMPLE_MEDIA / "051bee487bfb5d13.png").read_bytes()
     with page.expect_response(lambda response: response.url.endswith("/api/media")):
         page.locator(".lf-fab-input").evaluate(
-            """(textarea, encoded) => {
+            """(box, encoded) => {
               const bytes = Uint8Array.from(atob(encoded), char => char.charCodeAt(0));
               const transfer = new DataTransfer();
               transfer.items.add(new File([bytes], 'pasted.png', {type: 'image/png'}));
-              textarea.dispatchEvent(new ClipboardEvent('paste', {
+              box.dispatchEvent(new ClipboardEvent('paste', {
                 bubbles: true,
                 cancelable: true,
                 clipboardData: transfer,
@@ -2561,7 +2575,7 @@ def test_a_pasted_image_is_a_whole_draft_and_leaves_with_the_send_that_took_it(
     assert "your draft" in shortcut_bar_text(page)
     page.keyboard.press("Shift+d")
     expect(page.locator(".lf-composer")).to_be_visible()
-    expect(page.locator(".lf-fab-input")).to_have_value("")
+    expect(page.locator(".lf-fab-input")).to_have_js_property("value", "")
     expect(shelf.locator("img")).to_be_visible()
 
     # Sent: the box is empty because the send emptied it, and says nothing about drafts.
@@ -2607,12 +2621,12 @@ def test_a_held_selection_comment_preserves_a_newer_exact_draft(held_events, ser
     expect(page.locator("[data-attempt]").first).to_contain_text(old)
 
     compose(page, "#p3", newer)
-    box = page.locator(".lf-composer textarea")
+    box = page.locator(".lf-composer leaf-text")
     held.pop(0).continue_()
     page.unroute("**/api/event")
     round_trip(page)
     expect(page.locator(".lf-composer")).to_be_visible()
-    expect(box).to_have_value(newer)
+    expect(box).to_have_js_property("value", newer)
     comments = [
         event for event in sent_events(serve.page_dir) if event["kind"] == "comment"
     ]
@@ -2633,12 +2647,12 @@ def test_two_passages_hold_two_composer_drafts(browser, serve, one_user):
     late = "And this one repeats it."
     compose(first, "#p3", early)
     compose(second, "#p9", late)
-    expect(first.locator(".lf-composer textarea")).to_have_value(early)
-    expect(second.locator(".lf-composer textarea")).to_have_value(late)
+    expect(first.locator(".lf-composer leaf-text")).to_have_js_property("value", early)
+    expect(second.locator(".lf-composer leaf-text")).to_have_js_property("value", late)
 
     # A tab arriving now: one composer, on the passage touched last.
     third = open_page(browser, url, context=one_user)
-    expect(third.locator(".lf-composer textarea")).to_have_value(late)
+    expect(third.locator(".lf-composer leaf-text")).to_have_js_property("value", late)
 
 
 def test_an_explicit_target_does_not_overwrite_its_existing_draft(
@@ -2658,18 +2672,18 @@ def test_an_explicit_target_does_not_overwrite_its_existing_draft(
     source = "This paragraph buries the point."
     destination = "This later paragraph already has its own note."
     choose_comment_target(first, "#p3")
-    first.locator(".lf-fab-input").fill(source)
+    write(first.locator(".lf-fab-input"), source)
     choose_comment_target(second, "#p9")
-    second.locator(".lf-fab-input").fill(destination)
+    write(second.locator(".lf-fab-input"), destination)
 
     first.keyboard.press("Escape")
     expect(first.locator(".lf-composer")).to_be_hidden()
     choose_comment_target(first, "#p9")
-    expect(first.locator(".lf-fab-input")).to_have_value(destination)
+    expect(first.locator(".lf-fab-input")).to_have_js_property("value", destination)
 
     first.keyboard.press("Escape")
     choose_comment_target(first, "#p3")
-    expect(first.locator(".lf-fab-input")).to_have_value(source)
+    expect(first.locator(".lf-fab-input")).to_have_js_property("value", source)
 
 
 def test_an_explicit_target_carries_into_an_emptied_draft(browser, serve):
@@ -2678,16 +2692,16 @@ def test_an_explicit_target_carries_into_an_emptied_draft(browser, serve):
     field = page.locator(".lf-fab-input")
 
     choose_comment_target(page, "#p9")
-    field.fill("Words the user removes.")
-    field.fill("")
+    write(field, "Words the user removes.")
+    write(field, "")
     page.keyboard.press("Escape")
 
     source = "Words to carry to the later paragraph."
     choose_comment_target(page, "#p3")
-    field.fill(source)
+    write(field, source)
     page.keyboard.press("Escape")
     choose_comment_target(page, "#p9")
-    expect(field).to_have_value(source)
+    expect(field).to_have_js_property("value", source)
 
 
 def test_a_composer_on_one_passage_is_one_box_in_every_tab(browser, serve, one_user):
@@ -2705,30 +2719,32 @@ def test_a_composer_on_one_passage_is_one_box_in_every_tab(browser, serve, one_u
 
     height = "ta => Math.round(ta.getBoundingClientRect().height)"
     compose(first, "#p3")
-    compact_height = first.locator(".lf-composer textarea").evaluate(height)
+    compact_height = first.locator(".lf-composer leaf-text").evaluate(height)
     opened = "This paragraph buries the point."
-    first.locator(".lf-composer textarea").fill(opened)
+    write(first.locator(".lf-composer leaf-text"), opened)
     compose(second, "#p3")
-    expect(second.locator(".lf-composer textarea")).to_have_value(opened)
+    expect(second.locator(".lf-composer leaf-text")).to_have_js_property(
+        "value", opened
+    )
 
     grown = opened + "\n\n" + "And the one after it says the same thing again. " * 4
-    first.locator(".lf-composer textarea").fill(grown)
-    expect(second.locator(".lf-composer textarea")).to_have_value(grown)
-    assert first.locator(".lf-composer textarea").evaluate(height) > compact_height
-    assert second.locator(".lf-composer textarea").evaluate(height) == first.locator(
-        ".lf-composer textarea"
+    write(first.locator(".lf-composer leaf-text"), grown)
+    expect(second.locator(".lf-composer leaf-text")).to_have_js_property("value", grown)
+    assert first.locator(".lf-composer leaf-text").evaluate(height) > compact_height
+    assert second.locator(".lf-composer leaf-text").evaluate(height) == first.locator(
+        ".lf-composer leaf-text"
     ).evaluate(height), (
         "a box grown from another tab's keystrokes must be laid out like a typed one"
     )
 
     # Emptying is an edit and not a settlement: the box stays up, holding nothing.
-    first.locator(".lf-composer textarea").fill("")
-    expect(second.locator(".lf-composer textarea")).to_have_value("")
+    write(first.locator(".lf-composer leaf-text"), "")
+    expect(second.locator(".lf-composer leaf-text")).to_have_js_property("value", "")
     expect(second.locator(".lf-composer")).to_be_visible()
-    assert second.locator(".lf-composer textarea").evaluate(height) == compact_height
+    assert second.locator(".lf-composer leaf-text").evaluate(height) == compact_height
 
     sent = "The point is buried, and the paragraph after it repeats it."
-    first.locator(".lf-composer textarea").fill(sent)
+    write(first.locator(".lf-composer leaf-text"), sent)
     first.keyboard.press("ControlOrMeta+Enter")
     round_trip(first)
     expect(second.locator(".lf-composer")).to_be_hidden()

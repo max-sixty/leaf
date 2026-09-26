@@ -256,8 +256,7 @@ leaf-anchor-note { display: contents; }
 .lf-page-thread .lf-btn { font: inherit; }
 .lf-page-thread leaf-text { box-sizing: border-box; padding: 8px 10px;
           border: 1px solid var(--border-2); border-radius: 6px; background: var(--card);
-          color: inherit; font: inherit; resize: none; field-sizing: content;
-          max-height: 50vh; overflow-y: auto; }
+          color: inherit; font: inherit; max-height: 50vh; overflow-y: auto; }
 .lf-page-thread :is(.lf-btn, summary):is(:focus-visible, .lf-focus-visible) {
           outline: var(--here-ring); outline-offset: 1px; --lf-here-ring: thread; }
 /* The reply is a text box and wears the text box's band: the ring replaces the resting
@@ -581,7 +580,7 @@ leaf-anchor-note { display: contents; }
           display: block; width: 100%; min-width: 0; max-width: none; max-height: 50vh;
           padding: var(--lf-compose-pad-block) max(40px, calc(var(--aim-floor) + 12px))
             var(--lf-compose-pad-block) var(--lf-compose-pad-inline-start);
-          resize: none; field-sizing: content; overflow-y: auto; white-space: pre-wrap; }
+          overflow-y: auto; }
 .lf-fab-bar[data-lf-presentation="inline"] .lf-compose-placeholder { line-height: 1.3; }
 .lf-fab-bar[data-lf-presentation="inline"] leaf-text.lf-fab-input:is(:focus, .lf-focus) {
           outline: var(--here-ring); outline-offset: 0; border-color: transparent;

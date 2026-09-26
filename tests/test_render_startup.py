@@ -91,6 +91,7 @@ from render_harness import (
     undo,
     wait_for_revision,
     watched,
+    write,
 )
 
 pytestmark = pytest.mark.nightly
@@ -1285,7 +1286,7 @@ def test_a_current_auxiliary_choice_replaces_a_persisted_tray_during_replay(
     expect(comments).to_be_enabled()
     comments.click()
     expect(body).not_to_have_attribute("data-lf-auxiliary-surface", "asks")
-    expect(page.locator(".lf-general textarea")).to_be_editable()
+    expect(page.locator(".lf-general leaf-text")).to_be_editable()
 
     held.pop(0).continue_()
     page.wait_for_function(BOTH_STAMPS)
@@ -1892,7 +1893,7 @@ def test_startup_continues_while_the_registry_fetch_is_held(browser, serve):
     expect(page.locator(".lf-thread-panel")).to_be_visible()
     expect(page.locator(".lf-empty")).to_have_text("Loading current threads…")
     expect(page.locator(".lf-thread")).to_have_count(0)
-    page.locator(".lf-general textarea").fill("General comment during startup")
+    write(page.locator(".lf-general leaf-text"), "General comment during startup")
     page.locator(".lf-general").get_by_role("button", name="Send").click()
     expect(page.locator(".lf-thread")).to_have_count(0)
     assert page.evaluate("() => CSS.highlights.get('lf-mark')?.size ?? 0") == 0
@@ -1916,7 +1917,7 @@ def test_startup_continues_while_the_registry_fetch_is_held(browser, serve):
     )
     expect(page.locator(".lf-fab-input")).to_be_visible()
     page.locator(".lf-fab-input").click()
-    page.locator(".lf-composer textarea").fill("Still anchored?")
+    write(page.locator(".lf-composer leaf-text"), "Still anchored?")
     page.keyboard.press("ControlOrMeta+Enter")
 
     expect(page.locator(".lf-thread")).to_have_count(3)
@@ -2004,7 +2005,7 @@ def test_floating_ui_loads_only_when_a_user_opens_a_response(browser, serve):
 
 def test_comment_focus_waits_for_the_lazy_placement_module(browser, serve):
     """Comment entered from an already-selected passage keeps its focus request while
-    the positioning dependency loads, rather than focusing a still-hidden textarea."""
+    the positioning dependency loads, rather than focusing a still-hidden text box."""
     page = open_page(browser, serve(LONG_PAGE))
     held = []
     page.route("**/vendor/floating-ui.esm.js", lambda route: held.append(route))
@@ -2194,7 +2195,7 @@ def test_a_state_waiting_for_markdown_cannot_overwrite_a_newer_one(browser, serv
 
     marked = []
     page.route("**/vendor/marked.esm.js", lambda route: marked.append(route))
-    page.locator(".lf-general textarea").fill("Newest **snapshot**")
+    write(page.locator(".lf-general leaf-text"), "Newest **snapshot**")
     with page.expect_request("**/vendor/marked.esm.js"):
         page.locator(".lf-general button").click()
     holding(page, marked, 1, "the Markdown module")
@@ -3703,7 +3704,7 @@ def test_a_comment_on_external_data_stays_with_the_revision_the_user_saw(
     api.click(click_count=3)
     expect(page.locator(".lf-fab-input")).to_be_visible()
     page.locator(".lf-fab-input").click()
-    page.locator(".lf-composer textarea").fill("Which readiness check is this?")
+    write(page.locator(".lf-composer leaf-text"), "Which readiness check is this?")
     page.keyboard.press("ControlOrMeta+Enter")
     round_trip(page)
 
@@ -3834,7 +3835,7 @@ customElements.define('lf-feed', class extends HTMLElement {
     page = open_page(browser, url)
     page.locator('[data-lf-datum="a-1"]').click(click_count=3)
     page.locator(".lf-fab-input").click()
-    page.locator(".lf-composer textarea").fill("Check this deployment.")
+    write(page.locator(".lf-composer leaf-text"), "Check this deployment.")
     with sending(page, "the keyed record comment"):
         page.keyboard.press("ControlOrMeta+Enter")
     comment = next(e for e in sent_events(serve.page_dir) if e["kind"] == "comment")
@@ -3856,7 +3857,7 @@ customElements.define('lf-feed', class extends HTMLElement {
 
     page.locator('[data-lf-datum="a-1"]').click(click_count=3)
     draft = page.locator(".lf-fab-input")
-    draft.fill("Keep this draft with the row.")
+    write(draft, "Keep this draft with the row.")
     expect(draft).to_be_focused()
 
     data_model.cmd_data_set(
@@ -3875,7 +3876,7 @@ customElements.define('lf-feed', class extends HTMLElement {
     expect(row).to_have_attribute("data-lf-source-revision", current)
     expect(row).to_contain_text("Alpha 2")
     expect(row).to_have_class(re.compile(r"\blf-mark-el\b"))
-    expect(draft).to_have_value("Keep this draft with the row.")
+    expect(draft).to_have_js_property("value", "Keep this draft with the row.")
     expect(draft).to_be_focused()
     expect(page.locator('[data-lf-datum="b-1"]')).not_to_have_class(
         re.compile(r"\blf-mark-el\b")
@@ -4041,7 +4042,7 @@ customElements.define('lf-test-surface', class extends HTMLElement {
     expect(healthy).to_contain_text("Discuss healthy first")
     markers = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
     expect(markers).to_have_count(0)
-    broken.locator(".lf-page-thread textarea").first.fill("Keep this unsent reply.")
+    write(broken.locator(".lf-page-thread leaf-text").first, "Keep this unsent reply.")
     strip = broken.locator(".lf-react-strip")
     strip.locator(".lf-react-trigger").click()
     expect(strip.locator(".lf-react:visible")).to_have_count(6)
@@ -4078,7 +4079,7 @@ customElements.define('lf-test-surface', class extends HTMLElement {
     # completion edge before checking that the digit produced no stale send.
     page.keyboard.press("1")
     page.keyboard.press("c")
-    expect(page.locator(".lf-general textarea")).to_be_focused()
+    expect(page.locator(".lf-general leaf-text")).to_be_focused()
     round_trip(page)
     assert not [event for event in sent_events(serve.page_dir) if event.get("token")]
     page.keyboard.press("Escape")  # out of the box, onto the list
@@ -4106,7 +4107,9 @@ customElements.define('lf-test-surface', class extends HTMLElement {
         )
     expect(fallback).to_be_visible()
     expect(fallback).to_contain_text("Discuss broken")
-    expect(fallback.locator("textarea")).to_have_value("Keep this unsent reply.")
+    expect(fallback.locator("leaf-text")).to_have_js_property(
+        "value", "Keep this unsent reply."
+    )
     if failure not in {"unregister", "end-unregister", "disconnect", "target-removed"}:
         page.keyboard.press("Escape")
         broken.evaluate("""widget => {
@@ -4126,8 +4129,8 @@ customElements.define('lf-test-surface', class extends HTMLElement {
         told(page)
         expect(healthy).to_contain_text("A later reading retries the repaired adapter.")
         expect(broken.locator(".lf-page-thread")).to_have_count(2)
-        expect(broken.locator(".lf-page-thread textarea").first).to_have_value(
-            "Keep this unsent reply."
+        expect(broken.locator(".lf-page-thread leaf-text").first).to_have_js_property(
+            "value", "Keep this unsent reply."
         )
         expect(markers).to_have_count(0)
     if failure not in {
@@ -4219,7 +4222,7 @@ customElements.define('lf-derived', class extends HTMLElement {
 
     page.locator('[data-lf-datum="api"]').click(click_count=3)
     page.locator(".lf-fab-input").click()
-    page.locator(".lf-composer textarea").fill("Which readiness check is this?")
+    write(page.locator(".lf-composer leaf-text"), "Which readiness check is this?")
     page.keyboard.press("ControlOrMeta+Enter")
     round_trip(page)
     comment = next(e for e in sent_events(serve.page_dir) if e["kind"] == "comment")
@@ -4329,7 +4332,7 @@ def test_a_captured_source_stays_pointable_and_pinned(browser, serve):
     expect(page.locator("#lf-composer-quote")).to_have_text("“Original instructions.”")
     expect(page.locator(".lf-fab-input")).not_to_be_focused()
     assert composer_quote(page)["text"].strip("“”") == "Original instructions."
-    page.locator(".lf-composer textarea").fill("Keep this exact source.")
+    write(page.locator(".lf-composer leaf-text"), "Keep this exact source.")
     page.keyboard.press("ControlOrMeta+Enter")
     round_trip(page)
     comment = next(e for e in sent_events(serve.page_dir) if e["kind"] == "comment")

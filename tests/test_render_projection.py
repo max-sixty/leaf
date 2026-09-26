@@ -124,6 +124,7 @@ from render_harness import (
     told,
     undo,
     wait_for_revision,
+    write,
 )
 
 pytestmark = pytest.mark.nightly
@@ -635,7 +636,7 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     page.evaluate("() => getSelection().removeAllRanges()")
     lines.nth(2).click(modifiers=["Alt"])
     expect(page.locator(".lf-fab-input")).to_be_focused()
-    page.locator(".lf-composer textarea").fill("Review this added call.")
+    write(page.locator(".lf-composer leaf-text"), "Review this added call.")
     page.keyboard.press("ControlOrMeta+Enter")
     round_trip(page)
     expect(page.locator(".lf-thread .lf-quote").first).to_have_text(
@@ -1521,7 +1522,7 @@ def test_a_source_replacement_preserves_the_focused_draft_and_its_original_ancho
     quote = page.locator("#lf-composer-quote")
     expect(quote).to_contain_text("Original source words.")
     draft = page.locator(".lf-fab-input")
-    draft.fill("Keep this comment about the original source.")
+    write(draft, "Keep this comment about the original source.")
     expect(draft).to_be_focused()
     assert (
         page.evaluate(
@@ -1535,7 +1536,9 @@ def test_a_source_replacement_preserves_the_focused_draft_and_its_original_ancho
     told(page)
     expect(page.locator("#source code")).to_have_text("Replacement source words.")
     expect(draft).to_be_focused()
-    expect(draft).to_have_value("Keep this comment about the original source.")
+    expect(draft).to_have_js_property(
+        "value", "Keep this comment about the original source."
+    )
     expect(quote).to_contain_text(
         "“Original source words.”" if quote_anchor else "§ text-document"
     )
@@ -1892,7 +1895,9 @@ def test_the_live_page_adopts_a_revision_and_stamps_it_without_replacing_main(
         "stamping the displayed revision replaced its main"
     )
 
-    page.locator(".lf-general textarea").fill("This comment belongs to the live draft.")
+    write(
+        page.locator(".lf-general leaf-text"), "This comment belongs to the live draft."
+    )
     with sending(page, "the comment on the live draft"):
         page.locator(".lf-general button").click()
     assert events_model.read_events(serve.page_dir)[-1]["revision"] == 2
@@ -1922,7 +1927,7 @@ def test_a_stamped_live_draft_and_its_unstamped_view_keep_distinct_menu_rows(
     # ownership").
     page.locator("#live-reading").click(click_count=3)
     page.locator(".lf-fab-input").click()
-    page.locator(".lf-composer textarea").fill("Keep reading this revision.")
+    write(page.locator(".lf-composer leaf-text"), "Keep reading this revision.")
     (serve.page_dir / "index.html").write_text(LIVE_V3)
     told(page)
     # The fourth row is the one the third revision brings, so wait on the news that
@@ -2861,7 +2866,7 @@ def test_a_live_revision_reapplies_the_authored_thread_seat_predicate(browser, s
         ),
     )
     composer = page.locator("#question > .lf-thread-seat > .lf-say")
-    composer.get_by_role("textbox").fill("Please check the premise first.")
+    write(composer.get_by_role("textbox"), "Please check the premise first.")
     with sending(page, "the seated question"):
         composer.get_by_role("button", name="Send", exact=True).click()
 
@@ -3409,27 +3414,29 @@ def test_the_live_page_defers_for_typing_then_adopts_without_a_press(browser, se
     """Unsent words hold an arriving version, but clearing them releases it.
 
     The chip is news during the hold, not a required confirmation: after the user
-    leaves the textarea, the ordinary poll activates the already-published version.
+    leaves the text box, the ordinary poll activates the already-published version.
     """
     version_url = serve(LIVE_V1)
     page = open_page(browser, live_url(version_url))
     page.locator(".lf-threads-toggle").click()
-    general = page.locator(".lf-general textarea")
-    general.fill("Do not replace the page under these words.")
+    general = page.locator(".lf-general leaf-text")
+    write(general, "Do not replace the page under these words.")
 
     (serve.page_dir / "index.html").write_text(LIVE_V2)
     told(page)
     expect(page).to_have_title("Live first")
     expect_banner_control_offered(page.locator(".lf-latest-chip"))
 
-    # Leaving the textarea releases the hold. The live address and durable panel
+    # Leaving the text box releases the hold. The live address and durable panel
     # draft survive the arriving document without a confirmation press.
     general.press("Tab")
     expect(general).not_to_be_focused()
     told(page)
     expect(page).to_have_title("Live second")
     assert "/versions/" not in page.url
-    expect(general).to_have_value("Do not replace the page under these words.")
+    expect(general).to_have_js_property(
+        "value", "Do not replace the page under these words."
+    )
     approval = page.locator(".lf-signoff")
     expect(approval).to_have_count(1)
     page.evaluate(
@@ -3444,7 +3451,7 @@ def test_the_live_page_defers_for_typing_then_adopts_without_a_press(browser, se
     told(page)
     expect(page).to_have_title("Live second")
 
-    general.fill("")
+    write(general, "")
     page.locator("#live-reading").click()
     told(page)
     expect(page).to_have_title("Live third")
@@ -3908,8 +3915,8 @@ def test_an_old_document_state_request_cannot_update_the_new_revision(browser, s
     version_url = serve(LIVE_V1)
     page = open_page(browser, live_url(version_url))
     page.locator(".lf-threads-toggle").click()
-    general = page.locator(".lf-general textarea")
-    general.fill("Do not replace the page under these words.")
+    general = page.locator(".lf-general leaf-text")
+    write(general, "Do not replace the page under these words.")
 
     # Let the page learn that the second revision exists before holding a read. The
     # standing draft keeps the first revision shown and leaves the direct activation
@@ -3976,7 +3983,7 @@ def test_an_old_document_state_request_cannot_update_the_new_revision(browser, s
         ] == [], "the page reported a stale answer as a fault"
 
         # Nothing about the drop cost the page the version it was holding.
-        general.fill("")
+        write(general, "")
         page.locator("#live-reading").click()
         told(page)
         expect(page).to_have_title("Live third")
@@ -4343,7 +4350,7 @@ def test_the_ring_says_where_the_user_is_standing(browser, serve):
 
     # A pointer landing inside an open decision is standing in it, though no walk brought
     # them there: the ring renders the focus rather than remembering a press.
-    page.locator("#live-question .lf-another textarea").click()
+    page.locator("#live-question .lf-another leaf-text").click()
     expect(question).to_have_attribute("data-lf-ask", "1")
 
     # Answering takes it off with the focus still inside: the ring is for the question
@@ -6227,7 +6234,7 @@ def test_a_pending_suggestion_can_be_discussed_instead_of_decided(browser, serve
     page.wait_for_selector(".lf-composer", state="visible")
     quoted = composer_quote(page)["text"]
     assert quoted.strip("“”") == "Refill a feeder when its camera shows it half-empty."
-    page.locator(".lf-composer textarea").fill("Half-empty by whose reading?")
+    write(page.locator(".lf-composer leaf-text"), "Half-empty by whose reading?")
     page.keyboard.press("ControlOrMeta+Enter")
 
     inline = page.locator(".lf-margin-thread")
@@ -7255,7 +7262,7 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     page.keyboard.press("Tab")
     expect(page.locator("#tq-one .lf-pick").first).to_be_focused()
     expect(page.locator(".lf-thread .lf-say")).to_have_count(0)
-    reply = page.locator(".lf-thread:has(#tq-one) > .lf-compose textarea")
+    reply = page.locator(".lf-thread:has(#tq-one) > .lf-compose leaf-text")
     page.keyboard.press("Enter")
     expect(reply).to_be_focused()
     expect(page.locator("#tq-one > lf-option[chosen]")).to_have_count(0)
@@ -7379,7 +7386,7 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     expect(page.locator(".lf-threads")).to_be_focused()
     page.keyboard.press("t")
     page.keyboard.press("c")
-    expect(page.locator(".lf-thread textarea").first).to_be_focused()
+    expect(page.locator(".lf-thread leaf-text").first).to_be_focused()
     sent = [
         e for e in events_model.read_events(serve.page_dir) if e["kind"] == "action"
     ]
@@ -7788,12 +7795,12 @@ def test_command_goal_can_pause_after_an_ordinary_thread_started(browser, serve)
     goal = page.locator("#goal-parser")
     seat = goal.locator(":scope > .lf-thread-seat")
     first = seat.locator(":scope > .lf-say")
-    first.get_by_role("textbox").fill("Keep parsing; this is only a note.")
+    write(first.get_by_role("textbox"), "Keep parsing; this is only a note.")
     with sending(page, "the note"):
         first.get_by_role("button", name="Send", exact=True).click()
 
     expect(first).to_be_visible()
-    first.get_by_role("textbox").fill("Finish the hunk, then park.")
+    write(first.get_by_role("textbox"), "Finish the hunk, then park.")
     with sending(page, "the held send"):
         first.get_by_role("button", name="Send & pause", exact=True).click()
 
@@ -8769,7 +8776,7 @@ def test_command_hub_repaints_anchors_after_generated_projections_change(
         }"""
     )
     page.locator(".lf-fab-input").click()
-    page.locator(".lf-composer textarea").fill("Keep this branch evidence visible.")
+    write(page.locator(".lf-composer leaf-text"), "Keep this branch evidence visible.")
     page.keyboard.press("ControlOrMeta+Enter")
     round_trip(page)
     sent = CliRunner().invoke(
@@ -8880,7 +8887,7 @@ def test_command_hub_send_and_pause_is_one_thread_fold(browser, serve):
     page = open_page(browser, url)
     goal = page.locator("#goal-parser")
     seat = goal.locator(":scope > .lf-thread-seat")
-    seat.get_by_role("textbox").fill("Finish the current hunk, then park here.")
+    write(seat.get_by_role("textbox"), "Finish the current hunk, then park here.")
     with sending(page, "the held send"):
         seat.get_by_role("button", name="Send & pause", exact=True).click()
     expect(goal).to_have_attribute("data-lf-held")

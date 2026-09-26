@@ -187,20 +187,21 @@ def build_codemirror(work: Path) -> list[Path]:
 
     One bundle holds the editor core and the GFM Markdown language, exporting
     exactly the names `composing/text-field.js` imports. The runtime owns the
-    live-preview decorations; nothing here styles a document.
+    live-preview decorations; nothing here styles a document. The language comes
+    without `markdown()`, whose HTML-block support would carry the HTML, CSS and
+    JavaScript grammars into the bundle for syntax a comment never highlights.
     """
     out = ASSETS / "vendor/codemirror.esm.js"
     (work / "entry.mjs").write_text(
         (
             f"/*! CodeMirror {version('@codemirror/view')} — MIT"
             " — https://codemirror.net */\n"
-            "export { EditorView, keymap, placeholder, Decoration, ViewPlugin, WidgetType }"
-            ' from "@codemirror/view";\n'
-            'export { EditorState, Compartment, Annotation } from "@codemirror/state";\n'
+            'export { EditorView, keymap, Decoration, ViewPlugin } from "@codemirror/view";\n'
+            'export { EditorState, Compartment } from "@codemirror/state";\n'
             "export { history, standardKeymap, historyKeymap }"
             ' from "@codemirror/commands";\n'
-            'export { syntaxTree } from "@codemirror/language";\n'
-            "export { markdown, markdownLanguage, insertNewlineContinueMarkup }"
+            'export { syntaxTree, LanguageSupport } from "@codemirror/language";\n'
+            "export { markdownLanguage, insertNewlineContinueMarkup }"
             ' from "@codemirror/lang-markdown";\n'
         ),
         encoding="utf-8",

@@ -3,7 +3,6 @@
    Registrations are the domain's durable extension points. Each public registration is
    supplied the application invalidation that owns its next semantic render; the module
    stores no application service or generic event channel. */
-import { TEXT_FIELD } from "../focus.js";
 import { reportPageError } from "../layer-client.js";
 import { datumAimTarget, resolveAnchor } from "../anchor-resolution.js";
 import { sameAnchor } from "../anchor-coordinate.js";
@@ -12,6 +11,7 @@ import { registry } from "../registry.js";
 import { renderThreadSurface, clearThreadSurface } from "./inline.js";
 import { readThreads } from "./state.js";
 import { focusThread } from "./focus.js";
+import { SAY_BOX } from "./selectors.js";
 import { under } from "../shadow.js";
 
 const registrations = new Map();
@@ -297,7 +297,7 @@ export function focusSurface(id, { focus = "reply" } = {}) {
     const target =
       (focus === "thread" ? thread : null) ??
       (summary && !thread.hasAttribute("open") ? summary : null) ??
-      thread.querySelector(TEXT_FIELD) ??
+      thread.querySelector(SAY_BOX) ??
       summary ??
       thread;
     if (target === thread) focusThread(thread, { preventScroll: true });

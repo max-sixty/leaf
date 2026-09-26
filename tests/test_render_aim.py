@@ -77,6 +77,7 @@ from render_harness import (
     sending,
     stamp_page,
     told,
+    write,
 )
 
 pytestmark = pytest.mark.nightly
@@ -130,7 +131,7 @@ def open_compact_comment(page, text=None):
         return field
     else:
         page.keyboard.type(text)
-        expect(field).to_have_value(text)
+        expect(field).to_have_js_property("value", text)
         expect(field).to_be_focused()
         expect(bar).to_be_visible()
         expect(composer).to_have_css("display", "contents")
@@ -199,7 +200,7 @@ def test_a_compact_comment_carries_its_box_into_the_inline_thread(browser, serve
         }"""
     )
     assert compact["height"] == 32
-    field.fill("Carry this comment into its thread.")
+    write(field, "Carry this comment into its thread.")
     source = field.bounding_box()
     # Keep a margin render pending across the accepted comment and its next frame.
     # Rendering rebuilds entry records, so the scheduled carry must recognize the same
@@ -224,7 +225,7 @@ def test_a_compact_comment_carries_its_box_into_the_inline_thread(browser, serve
     preview = page.locator(".lf-margin-preview")
     expect(preview).to_be_visible()
     thread = preview.locator(".lf-page-thread")
-    reply = preview.locator("textarea")
+    reply = preview.locator("leaf-text")
     expect(thread).to_be_focused()
     full = reply.evaluate(
         "node => ({ family: getComputedStyle(node).fontFamily, "
@@ -411,7 +412,7 @@ def test_a_growing_text_comment_keeps_its_passage_clear_without_changing_sides(
             || field.bottom <= target.top || field.top >= target.bottom;
         }"""
     assert page.evaluate(clear)
-    field.fill("test\n")
+    write(field, "test\n")
     actions = page.evaluate(
         """() => {
           const center = selector => {
@@ -429,8 +430,8 @@ def test_a_growing_text_comment_keeps_its_passage_clear_without_changing_sides(
         f"Line {n}: every word of this longer comment needs to remain readable."
         for n in range(20)
     )
-    field.fill(content)
-    expect(field).to_have_value(content)
+    write(field, content)
+    expect(field).to_have_js_property("value", content)
     expanded = field.bounding_box()
     assert page.locator(".lf-fab-bar").get_attribute("data-lf-placement") == placement
     assert page.evaluate(clear), (
@@ -462,9 +463,9 @@ def test_a_growing_text_comment_keeps_its_passage_clear_without_changing_sides(
     page.mouse.move(8, 450)
     page.mouse.wheel(0, 300)
     page.wait_for_function("() => scrollY >= 300")
-    expect(field).to_have_value(content)
-    field.fill("Brief")
-    expect(field).to_have_value("Brief")
+    expect(field).to_have_js_property("value", content)
+    write(field, "Brief")
+    expect(field).to_have_js_property("value", "Brief")
     assert field.bounding_box()["height"] == compact["height"]
 
 
@@ -508,11 +509,12 @@ def test_a_text_comment_chooses_above_when_the_page_has_more_room_there(browser,
     expect(bar).to_have_attribute("data-lf-placement", "top-end")
     before_scroll = page.evaluate("scrollY")
 
-    field.fill(
+    write(
+        field,
         "\n".join(
             f"Line {line}: the whole comment remains above its passage."
             for line in range(40)
-        )
+        ),
     )
     rendered(page)
     expect(bar).to_have_attribute("data-lf-placement", "top-end")
@@ -594,7 +596,7 @@ def test_a_comment_on_a_scrolled_away_paragraph_keeps_the_column_clear(browser, 
     field = page.locator(".lf-fab-input")
     expect(field).to_be_visible()
     field.click()
-    field.fill("A short note.\nSecond line.\nThird line.")
+    write(field, "A short note.\nSecond line.\nThird line.")
     beside = page.locator(".lf-fab-bar").bounding_box()["x"]
 
     page.mouse.move(8, 450)
@@ -646,7 +648,7 @@ def test_a_growing_comment_is_independent_of_page_controls(browser, serve):
     compact_scroll = page.evaluate("scrollY")
     placement = bar.get_attribute("data-lf-placement")
     compact_height = field.bounding_box()["height"]
-    field.fill("easato" * 30)
+    write(field, "easato" * 30)
     page.wait_for_function(
         """height => {
           const field = document.querySelector('.lf-fab-input');
@@ -703,7 +705,7 @@ def test_a_growing_comment_is_independent_of_page_controls(browser, serve):
           dispatchEvent(new Event('resize'));
         }"""
     )
-    field.fill("A bounded draft remains reachable. " * 200)
+    write(field, "A bounded draft remains reachable. " * 200)
     page.wait_for_function(
         """() => {
           const field = document.querySelector('.lf-fab-input');
@@ -729,7 +731,7 @@ def test_a_growing_comment_is_independent_of_page_controls(browser, serve):
         "node => [node.scrollTop, node.scrollHeight - node.clientHeight]"
     )
     assert after[0] == min(scrolled, after[1])  # only the final room may clamp it
-    field.fill("Short again")
+    write(field, "Short again")
     rendered(page)
     returned = bar.bounding_box()
     returned_scroll = page.evaluate("scrollY")
@@ -768,7 +770,7 @@ def test_side_comment_keeps_its_submit_steady_as_the_field_grows(
     submit = bar.locator(".lf-compose-submit")
     resting_submit = submit.bounding_box()
 
-    field.fill("First line\nSecond line\nThird line")
+    write(field, "First line\nSecond line\nThird line")
     rendered(page)
     grown = bar.bounding_box()
     grown_submit = submit.bounding_box()
@@ -782,22 +784,22 @@ def test_side_comment_keeps_its_submit_steady_as_the_field_grows(
         grown_submit,
     )
 
-    field.fill("Short again")
+    write(field, "Short again")
     rendered(page)
     shortened = bar.bounding_box()
     assert shortened["y"] + shortened["height"] == pytest.approx(
         resting["y"] + resting["height"], abs=1
     ), (resting, shortened)
 
-    field.fill("First line\nSecond line\nThird line")
+    write(field, "First line\nSecond line\nThird line")
     page.reload()
     rendered(page)
     page.locator("#passage").click(modifiers=["Alt"])
     field = open_compact_comment(page)
-    expect(field).to_have_value("First line\nSecond line\nThird line")
+    expect(field).to_have_js_property("value", "First line\nSecond line\nThird line")
     rendered(page)
     restored = bar.bounding_box()
-    field.fill("Short again")
+    write(field, "Short again")
     rendered(page)
     shortened = bar.bounding_box()
     assert shortened["y"] + shortened["height"] == pytest.approx(
@@ -834,8 +836,9 @@ def test_a_comment_near_the_bottom_grows_up_before_it_scrolls(browser, serve):
     compact_target = target.bounding_box()
     placement = bar.get_attribute("data-lf-placement")
     assert compact["y"] > 200, compact
-    field.fill(
-        "\n".join(f"Line {n}: the whole draft remains reachable." for n in range(50))
+    write(
+        field,
+        "\n".join(f"Line {n}: the whole draft remains reachable." for n in range(50)),
     )
     page.wait_for_function(
         """() => {
@@ -851,7 +854,7 @@ def test_a_comment_near_the_bottom_grows_up_before_it_scrolls(browser, serve):
     assert abs(box["x"] - compact["x"]) <= 1, (compact, box)
     assert bar.get_attribute("data-lf-placement") == placement
     assert field.evaluate("node => node.scrollHeight > node.clientHeight")
-    field.fill("Short again")
+    write(field, "Short again")
     rendered(page)
     returned = bar.bounding_box()
     returned_target = target.bounding_box()
@@ -885,7 +888,7 @@ def test_a_comment_uses_the_viewport_when_its_target_fills_the_vertical_lane(
     bar = page.locator(".lf-fab-bar")
     assert bar.get_attribute("data-lf-placement") in {"top-end", "bottom-end"}
 
-    field.fill("\n".join(f"Line {n}: keep the draft visible." for n in range(3)))
+    write(field, "\n".join(f"Line {n}: keep the draft visible." for n in range(3)))
     page.wait_for_function(
         """() => {
           const field = document.querySelector('.lf-fab-input');
@@ -893,7 +896,7 @@ def test_a_comment_uses_the_viewport_when_its_target_fills_the_vertical_lane(
         }"""
     )
 
-    field.fill("\n".join(f"Line {n}: keep the draft reachable." for n in range(40)))
+    write(field, "\n".join(f"Line {n}: keep the draft reachable." for n in range(40)))
     page.wait_for_function(
         """() => {
           const field = document.querySelector('.lf-fab-input');
@@ -937,8 +940,9 @@ def test_a_long_comment_stays_in_view_when_its_target_fills_the_viewport(
     target = page.locator("#tall")
     target.click(modifiers=["Alt"], position={"x": 20, "y": 90})
     field = open_compact_comment(page)
-    field.fill(
-        "\n".join(f"Line {n}: the whole draft remains reachable." for n in range(50))
+    write(
+        field,
+        "\n".join(f"Line {n}: the whole draft remains reachable." for n in range(50)),
     )
     rendered(page)
     bounds = target.bounding_box()
@@ -963,7 +967,7 @@ def test_a_comment_rechooses_after_target_width_reflow(browser, serve):
     target.scroll_into_view_if_needed()
     target.click(modifiers=["Alt"], position={"x": 20, "y": 10})
     field = open_compact_comment(page)
-    field.fill("Keep this comment connected while its paragraph changes width.")
+    write(field, "Keep this comment connected while its paragraph changes width.")
     rendered(page)
     bar = page.locator(".lf-fab-bar")
     expect(bar).to_have_attribute("aria-label", re.compile(r"^Respond to paragraph"))
@@ -978,8 +982,8 @@ def test_a_comment_rechooses_after_target_width_reflow(browser, serve):
         target_after,
         after,
     )
-    expect(field).to_have_value(
-        "Keep this comment connected while its paragraph changes width."
+    expect(field).to_have_js_property(
+        "value", "Keep this comment connected while its paragraph changes width."
     )
 
 
@@ -993,7 +997,7 @@ def test_a_side_comment_rechooses_its_rail_after_horizontal_target_motion(
     target.scroll_into_view_if_needed()
     target.click(modifiers=["Alt"])
     field = open_compact_comment(page)
-    field.fill("Keep this comment connected when its paragraph moves.")
+    write(field, "Keep this comment connected when its paragraph moves.")
     bar = page.locator(".lf-fab-bar")
     expect(bar).to_have_attribute("data-lf-placement", "right-start")
 
@@ -1005,7 +1009,9 @@ def test_a_side_comment_rechooses_its_rail_after_horizontal_target_motion(
         target_after,
         after,
     )
-    expect(field).to_have_value("Keep this comment connected when its paragraph moves.")
+    expect(field).to_have_js_property(
+        "value", "Keep this comment connected when its paragraph moves."
+    )
 
 
 def test_an_above_comment_rechooses_after_vertical_target_motion(browser, serve):
@@ -1019,7 +1025,7 @@ def test_an_above_comment_rechooses_after_vertical_target_motion(browser, serve)
     target.scroll_into_view_if_needed()
     target.click(modifiers=["Alt"], position={"x": 20, "y": 10})
     field = open_compact_comment(page)
-    field.fill("Keep this comment connected when its paragraph moves vertically.")
+    write(field, "Keep this comment connected when its paragraph moves vertically.")
     bar = page.locator(".lf-fab-bar")
     expect(bar).to_have_attribute("aria-label", re.compile(r"^Respond to paragraph"))
     expect(bar).to_have_attribute("data-lf-placement", "top-end")
@@ -1037,8 +1043,8 @@ def test_an_above_comment_rechooses_after_vertical_target_motion(browser, serve)
         target_after,
         after,
     )
-    expect(field).to_have_value(
-        "Keep this comment connected when its paragraph moves vertically."
+    expect(field).to_have_js_property(
+        "value", "Keep this comment connected when its paragraph moves vertically."
     )
 
 
@@ -1566,7 +1572,7 @@ def test_the_aim_still_promises_while_a_composer_is_open(browser, serve):
     page.keyboard.up("Alt")
     composer = page.locator(".lf-composer")
     open_compact_comment(page)
-    composer.locator("textarea").fill("carried words")
+    write(composer.locator("leaf-text"), "carried words")
 
     card = page.locator("#card-notes")
     card.hover()
@@ -1580,8 +1586,8 @@ def test_the_aim_still_promises_while_a_composer_is_open(browser, serve):
     page.keyboard.up("Alt")
     # The second explicit comment gesture moves the open draft onto the card.
     expect(page.locator(".lf-fab-bar")).to_be_visible()
-    expect(composer.locator("textarea")).to_be_focused()
-    expect(composer.locator("textarea")).to_have_value("carried words")
+    expect(composer.locator("leaf-text")).to_be_focused()
+    expect(composer.locator("leaf-text")).to_have_js_property("value", "carried words")
     assert [page.evaluate(AIMED), page.evaluate(DRAFT_MARK)] == [
         None,
         "card-notes",
@@ -1671,10 +1677,10 @@ def test_design_mode_comments_on_what_a_press_lands_on_and_nothing_else(browser,
         == before
     )
     assert not page.evaluate(FOCUS_IN_PAGE)
-    composer_input = page.locator(".lf-composer textarea")
+    composer_input = page.locator(".lf-composer leaf-text")
     composer_input.click()
     expect(composer_input).to_be_focused()
-    composer_input.fill("the ring reads too heavy")
+    write(composer_input, "the ring reads too heavy")
     with sending(page, "the design comment"):
         page.keyboard.press("ControlOrMeta+Enter")
     events = events_model.read_events(serve.page_dir)
@@ -1860,7 +1866,7 @@ def test_design_mode_reaches_the_chrome_and_names_the_control(browser, serve):
     expect(page.locator(".lf-composer")).to_be_visible()
     expect(page.locator("#lf-composer-quote")).to_have_text(f"design · {said} · banner")
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
-    page.locator(".lf-composer textarea").fill("reads dim against the wash")
+    write(page.locator(".lf-composer leaf-text"), "reads dim against the wash")
     with sending(page, "the comment on the chrome"):
         page.keyboard.press("ControlOrMeta+Enter")
     posted = [
@@ -2665,7 +2671,7 @@ def test_a_declared_flowchart_node_keeps_its_comment_across_renderings(browser, 
     start.click(modifiers=["Alt"])
     expect(start).to_have_class(re.compile(r"\blf-mark-el\b.*\blf-pending\b"))
     expect(diagram).not_to_have_class(re.compile(r"\blf-mark-el\b"))
-    page.locator(".lf-composer textarea").fill("name the retry path here")
+    write(page.locator(".lf-composer leaf-text"), "name the retry path here")
     with sending(page, "the comment on the node"):
         page.keyboard.press("ControlOrMeta+Enter")
 
@@ -2708,8 +2714,9 @@ def test_design_mode_treats_a_renderer_node_as_part_of_its_widget(browser, serve
     expect(page.locator("#lf-composer-quote")).to_have_text(
         "design · lf-diagram · flow"
     )
-    page.locator(".lf-composer textarea").fill(
-        "the diagram needs a stronger affordance"
+    write(
+        page.locator(".lf-composer leaf-text"),
+        "the diagram needs a stronger affordance",
     )
     with sending(page, "the comment on the diagram"):
         page.keyboard.press("ControlOrMeta+Enter")
@@ -2769,7 +2776,7 @@ def test_a_declared_box_takes_its_comment_on_every_type_that_carries_an_id(
     state = page.locator('#life g[data-id="Queued"]')
     aim(state)
     expect(page.locator("#lf-composer-quote")).to_have_text("§ diagram · Queued")
-    page.locator(".lf-composer textarea").fill("how long does it sit here")
+    write(page.locator(".lf-composer leaf-text"), "how long does it sit here")
     page.keyboard.press("ControlOrMeta+Enter")
     round_trip(page)
     # The trip ends when the page has heard back what it sent, which is before it has
@@ -2809,7 +2816,7 @@ def test_a_declared_box_takes_its_comment_on_every_type_that_carries_an_id(
     page.keyboard.press("Escape")
 
     aim(entity)
-    page.locator(".lf-composer textarea").fill("one runner or many")
+    write(page.locator(".lf-composer leaf-text"), "one runner or many")
     page.keyboard.press("ControlOrMeta+Enter")
     round_trip(page)
     # The same gap as above, read from the other side. The trip ends on what the page has

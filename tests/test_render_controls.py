@@ -96,6 +96,7 @@ from render_harness import (
     take_browser_errors,
     told,
     undo,
+    write,
 )
 
 pytestmark = pytest.mark.nightly
@@ -222,12 +223,14 @@ def test_live_specimens_keep_real_gestures_and_drafts_inside_the_child(browser, 
     )
 
     child.locator(".lf-threads-toggle").click()
-    draft = child.locator(".lf-general textarea")
-    draft.fill("Keep this draft while I resize the page.")
+    draft = child.locator(".lf-general leaf-text")
+    write(draft, "Keep this draft while I resize the page.")
     width_before = child.evaluate("innerWidth")
     page.set_viewport_size({"width": 720, "height": 900})
     child.wait_for_function("before => innerWidth < before", arg=width_before)
-    expect(draft).to_have_value("Keep this draft while I resize the page.")
+    expect(draft).to_have_js_property(
+        "value", "Keep this draft while I resize the page."
+    )
     expect(draft).to_be_focused()
     assert child.url == child_url
     with sending(child, "the specimen comment"):
@@ -243,7 +246,7 @@ def test_live_specimens_keep_real_gestures_and_drafts_inside_the_child(browser, 
     assert page.request.get(other.url + "api/state").json()["events"] == []
     assert events_model.read_events(serve.page_dir) == parent_before
 
-    draft.fill("Discard this unsent practice draft on reset.")
+    write(draft, "Discard this unsent practice draft on reset.")
     page.evaluate("""() => {
         localStorage.setItem('parent-draft', 'retain');
         sessionStorage.setItem('parent-tab', 'retain');
@@ -254,7 +257,7 @@ def test_live_specimens_keep_real_gestures_and_drafts_inside_the_child(browser, 
         old_scope,
     )
     other.locator(".lf-threads-toggle").click()
-    other.locator(".lf-general textarea").fill("Keep the other specimen's draft.")
+    write(other.locator(".lf-general leaf-text"), "Keep the other specimen's draft.")
     other_scope = other.evaluate("location.pathname")
     reset.click()
     expect(reset).to_be_enabled()
@@ -264,7 +267,9 @@ def test_live_specimens_keep_real_gestures_and_drafts_inside_the_child(browser, 
         "aria-checked", "false"
     )
     expect(reset_child.locator(".lf-thread")).to_have_count(0)
-    expect(reset_child.locator(".lf-general textarea")).to_have_value("")
+    expect(reset_child.locator(".lf-general leaf-text")).to_have_js_property(
+        "value", ""
+    )
     assert page.request.get(child_url + "api/state").status == 404
     assert events_model.read_events(serve.page_dir) == parent_before
     assert page.evaluate(
@@ -279,8 +284,8 @@ def test_live_specimens_keep_real_gestures_and_drafts_inside_the_child(browser, 
         Object.keys(localStorage).some(key => key.startsWith(scope))""",
         other_scope,
     )
-    expect(other.locator(".lf-general textarea")).to_have_value(
-        "Keep the other specimen's draft."
+    expect(other.locator(".lf-general leaf-text")).to_have_js_property(
+        "value", "Keep the other specimen's draft."
     )
 
 
@@ -2352,7 +2357,7 @@ def test_forced_colors_restore_a_real_outline_to_shadow_focused_fields(browser, 
     )
     page = open_page(browser, serve(LONG_PAGE), context=context)
     page.locator(".lf-threads-toggle").click()
-    box = page.locator(".lf-general textarea")
+    box = page.locator(".lf-general leaf-text")
     box.focus()
     expect(box).to_be_focused()
     focus = box.evaluate(
@@ -3507,7 +3512,7 @@ def test_covering_threads_keeps_the_user_and_their_work_inside(browser, serve):
     expect(page.locator(".lf-thread-panel")).not_to_have_attribute("aria-modal", "true")
 
     draft = "Keep this draft through both auxiliary placements."
-    page.locator(".lf-general textarea").fill(draft)
+    write(page.locator(".lf-general leaf-text"), draft)
     threads = page.locator(".lf-threads")
 
     def reading_place():
@@ -3542,13 +3547,13 @@ def test_covering_threads_keeps_the_user_and_their_work_inside(browser, serve):
     expect(
         page.locator(f'.lf-thread[data-id="{identity}"] > .lf-thread-summary')
     ).to_be_focused()
-    expect(page.locator(".lf-general textarea")).to_have_value(draft)
+    expect(page.locator(".lf-general leaf-text")).to_have_js_property("value", draft)
     assert reading_place() == pytest.approx(list_at, abs=1)
 
     # A complete pass through more stops than this panel holds has to wrap within it.
     focus_stops = page.locator(
         ".lf-thread-panel button:visible, .lf-thread-panel input:visible, "
-        ".lf-thread-panel textarea:visible, .lf-thread-panel [tabindex='0']:visible, "
+        ".lf-thread-panel leaf-text:visible, .lf-thread-panel [tabindex='0']:visible, "
         ".lf-thread-panel .lf-thread-summary:visible"
     )
     assert focus_stops.count() > 8, (
@@ -3614,7 +3619,7 @@ def test_covering_threads_keeps_the_user_and_their_work_inside(browser, serve):
     assert not page.locator("main").evaluate("el => el.inert")
     expect(summary).to_be_focused()
     expect(page.locator(".lf-thread-panel")).not_to_have_attribute("aria-modal", "true")
-    expect(page.locator(".lf-general textarea")).to_have_value(draft)
+    expect(page.locator(".lf-general leaf-text")).to_have_js_property("value", draft)
     assert reading_place() == pytest.approx(list_at, abs=1)
     resized(page, 400, 640)
     panel_settled(page)
@@ -4267,7 +4272,7 @@ def test_the_chrome_a_key_opens_has_no_serious_violations(
     expect(page.locator(".lf-threads")).to_be_focused()
     sweep("standing on the comment list")
     page.keyboard.press("c")
-    expect(page.locator(".lf-general textarea")).to_be_focused()
+    expect(page.locator(".lf-general leaf-text")).to_be_focused()
     sweep("standing in the general box")
     page.keyboard.press("Escape")
     page.keyboard.press("Escape")
@@ -4498,9 +4503,9 @@ def test_a_covering_sheet_cannot_move_the_background_shortcut_bar(browser, serve
     )
     page = open_page(browser, serve(ADDRESSED_PAGE, comments=6), context=context)
     page.locator(".lf-threads-toggle").click()
-    field = page.locator(".lf-general textarea")
+    field = page.locator(".lf-general leaf-text")
     field.click()
-    field.fill("One line")
+    write(field, "One line")
     rendered(page)
 
     def boxes():
@@ -4536,7 +4541,7 @@ def test_a_covering_sheet_cannot_move_the_background_shortcut_bar(browser, serve
         one_line
     )
 
-    field.fill("One line\nSecond line\nThird line")
+    write(field, "One line\nSecond line\nThird line")
     rendered(page)
     multiline = boxes()
     assert multiline["foot"]["height"] > one_line["foot"]["height"], (
@@ -5248,7 +5253,7 @@ RING_CASES = (
                 (".lf-others", "btn"),
                 (".lf-edge:visible", "edge"),
                 (".lf-find-box input", "text-entry"),
-                (".lf-thread-panel textarea", "text-box"),
+                (".lf-thread-panel leaf-text", "text-box"),
                 (".lf-shortcut-more", "key-more"),
             ),
             "feature-gallery": (
@@ -5282,7 +5287,7 @@ RING_CASES = (
     (
         "an inline response",
         (),
-        {"pr-walkthrough": (("textarea.lf-fab-input", "inline-response"),)},
+        {"pr-walkthrough": (("leaf-text.lf-fab-input", "inline-response"),)},
     ),
     ("the thread list", ("g", "Shift+t"), {"corpus": ((None, "thread-list"),)}),
     (
@@ -5888,9 +5893,12 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
                         f"{selector} {where} is not in sequential keyboard navigation"
                     )
                     expect(target).to_be_focused()
-                    assert target.evaluate("node => node.matches(':focus-visible')"), (
-                        f"{selector} {where} did not inherit keyboard-visible focus"
-                    )
+                    # A text field's focus is always visible, as a textarea's is, but
+                    # Chrome gives `:focus-visible` to the node inside a delegating
+                    # host and never to the host; its rings read `:focus`.
+                    assert target.evaluate(
+                        "node => node.matches(':focus-visible, leaf-text:focus')"
+                    ), f"{selector} {where} did not inherit keyboard-visible focus"
                     page_at_rest(page)
                     if (lost := page.evaluate(SEEN_STOP)) is not None:
                         unseen.add(f"{where}: {lost}")

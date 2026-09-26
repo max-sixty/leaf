@@ -55,8 +55,6 @@ fabBar.setAttribute("aria-label", "Respond");
 export const fabInput = textField();
 fabInput.className = "lf-ui lf-response-control lf-fab-input";
 fabInput.name = "comment";
-fabInput.rows = 1;
-fabInput.autocomplete = "off";
 fabInput.placeholder = "Comment…";
 fabInput.setAttribute("aria-label", "Comment");
 export const fab = responseAction(el("button", "lf-ui lf-fab"), {

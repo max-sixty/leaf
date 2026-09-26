@@ -86,6 +86,7 @@ from render_harness import (
     ticked,
     told,
     wait_for_revision,
+    write,
 )
 
 pytestmark = pytest.mark.nightly
@@ -252,12 +253,12 @@ def test_a_block_leaving_the_viewport_keeps_its_focused_comment(browser, serve):
     label = field.get_attribute("aria-label")
     assert label and label.startswith("Comment on “4 of 5 checks passing")
     draft = "Why does the remaining check need a decision?"
-    field.fill(draft)
+    write(field, draft)
     resized(page, 420, 850)
     expect(field).to_be_focused()
-    expect(field).to_have_value(draft)
+    expect(field).to_have_js_property("value", draft)
 
-    # Native End on macOS scrolls the page even from its textarea. A smooth scroll can
+    # Native End on macOS scrolls the page even from a text box. A smooth scroll can
     # cross this narrow band in one frame or several; put that actual geometry on screen
     # directly so the test cannot miss the point where the region no longer fits a field.
     page.locator("#lp-status").evaluate(
@@ -271,7 +272,7 @@ def test_a_block_leaving_the_viewport_keeps_its_focused_comment(browser, serve):
     expect(field).to_be_focused()
     expect(field).to_have_attribute("aria-label", label)
     page.keyboard.type(" What must Finance decide?")
-    expect(field).to_have_value(draft + " What must Finance decide?")
+    expect(field).to_have_js_property("value", draft + " What must Finance decide?")
 
 
 def test_a_widgets_attribute_takes_a_comment_like_any_other_passage(browser, serve):
@@ -308,7 +309,7 @@ def test_a_widgets_attribute_takes_a_comment_like_any_other_passage(browser, ser
     )
     quoted = composer_quote(page)["text"]
     assert quoted.strip("“”") == "In flight"
-    page.locator(".lf-composer textarea").fill("this column's name is wrong")
+    write(page.locator(".lf-composer leaf-text"), "this column's name is wrong")
     with sending(page, "the comment on the card's column name"):
         page.keyboard.press("ControlOrMeta+Enter")
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
@@ -407,7 +408,7 @@ def test_browser_and_file_captures_stop_at_the_same_widget_fences(
         # never answered fails here naming the passage left standing.
         expect(page.locator("#lf-composer-quote")).to_have_text(f"“{quote}”")
         page.locator(".lf-fab-input").click()
-        page.locator(".lf-composer textarea").fill(f"fence {index}")
+        write(page.locator(".lf-composer leaf-text"), f"fence {index}")
         # The panel renders the card from state, which can carry the append before
         # this page's own post comes back. Behind the card alone the log read below
         # answers with the comment before this one, or with nothing at all. The
@@ -481,7 +482,7 @@ def test_quotes_cross_preserving_containers_and_remain_attached(
     page.dispatch_event("body", "mouseup")
     expect(page.locator("#lf-composer-quote")).to_have_text(f"“{quote}”")
     page.locator(".lf-fab-input").click()
-    page.locator(".lf-composer textarea").fill("Keep the question with its context.")
+    write(page.locator(".lf-composer leaf-text"), "Keep the question with its context.")
     with sending(page, "the comment across preserving containers"):
         page.keyboard.press("ControlOrMeta+Enter")
     expect(page.locator(".lf-thread")).to_have_count(1)
@@ -564,7 +565,7 @@ def test_a_widgets_label_takes_a_comment_inside_the_control_it_labels(browser, s
     page.locator(".lf-fab-input").click()
     expect(page.locator(".lf-composer")).to_be_visible()
     assert composer_quote(page)["text"].strip("“”") == "Heated bird bath"
-    page.locator(".lf-composer textarea").fill("call it the bath, not the bird bath")
+    write(page.locator(".lf-composer leaf-text"), "call it the bath, not the bird bath")
     with sending(page, "the comment on the tab's name"):
         page.keyboard.press("ControlOrMeta+Enter")
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
@@ -1175,7 +1176,7 @@ def test_the_captured_quote_is_prose_a_file_can_hold(browser, serve):
     # The composer prints the quote inside quotation marks; what it captured is what
     # lies within them, and that is what the file has to come back holding.
     captured = composer_quote(page)["text"].strip("\u201c\u201d")
-    page.locator(".lf-composer textarea").fill("a comment on the capped passage")
+    write(page.locator(".lf-composer leaf-text"), "a comment on the capped passage")
     page.keyboard.press("ControlOrMeta+Enter")
     settled = page.locator('.lf-thread:not([data-id^="pending:"])')
     page.wait_for_function("""() => document.querySelectorAll(
@@ -2460,7 +2461,7 @@ def test_taking_words_inside_a_mark_keeps_them_and_a_press_still_opens_the_threa
 
     A click ends a gesture that took words as surely as it ends a press, and the mark's
     door read every one of them as a press. With Threads open the thread it opened landed
-    the user in the panel's reply box, and focusing a textarea collapses the document's
+    the user in the panel's reply box, and focusing a text box collapses the document's
     selection — so the words went, the 💬 with them, and marked passages became the one
     part of a page a user could not quote. The panel is why it shows here and not on a
     closed one, where the same travel focuses a card and leaves the selection standing;
@@ -2488,7 +2489,7 @@ def test_taking_words_inside_a_mark_keeps_them_and_a_press_still_opens_the_threa
     )
 
     page.mouse.click(*mark_point(page, "lf-mark"))
-    expect(page.locator(".lf-threads .lf-thread textarea")).to_be_focused()
+    expect(page.locator(".lf-threads .lf-thread leaf-text")).to_be_focused()
     expect(page.locator(".lf-threads .lf-thread")).to_contain_text("About the retry.")
 
 
@@ -2691,13 +2692,13 @@ def test_an_ambiguous_revised_passage_detaches_until_the_agent_moves_it(browser,
     fab = page.locator(".lf-fab-input")
     expect(fab).to_be_visible()
     fab.focus()
-    page.locator(".lf-composer textarea").fill("is this idempotent?")
+    write(page.locator(".lf-composer leaf-text"), "is this idempotent?")
     with sending(page, "the comment on the ambiguous passage"):
         page.locator(".lf-composer button.lf-compose-submit").click()
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
     expect(page.locator(".lf-margin-preview")).to_be_visible()
     expect(page.locator(".lf-margin-preview .lf-page-thread")).to_be_focused()
-    expect(page.locator(".lf-margin-preview textarea")).not_to_be_focused()
+    expect(page.locator(".lf-margin-preview leaf-text")).not_to_be_focused()
 
     d = serve.page_dir
     stamp_page(d, DRIFT_V2, "revised")
@@ -2770,7 +2771,7 @@ def test_a_removed_subject_keeps_its_thread_open_and_detached(browser, serve):
     }""")
     expect(page.locator(".lf-fab-input")).to_be_visible()
     page.locator(".lf-fab-input").focus()
-    page.locator(".lf-composer textarea").fill("why is this section here?")
+    write(page.locator(".lf-composer leaf-text"), "why is this section here?")
     with sending(page, "the comment on the section that leaves"):
         page.locator(".lf-composer button.lf-compose-submit").click()
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
@@ -3009,7 +3010,7 @@ def test_a_passage_longer_than_the_pattern_is_anchored_whole(browser, serve):
     )
 
     # And the anchor that posts says the same thing, since the mark is drawn from it.
-    page.locator(".lf-composer textarea").fill("The whole of it.")
+    write(page.locator(".lf-composer leaf-text"), "The whole of it.")
     with sending(page, "the comment on the dragged passage"):
         page.keyboard.press("ControlOrMeta+Enter")
     expect(page.locator(".lf-thread")).to_have_count(1)
@@ -3050,7 +3051,7 @@ def test_a_selection_of_the_whole_page_still_finds_its_passage(browser, serve):
     )
     assert painted > 12000, f"the mark under the composer covers {painted} characters"
 
-    page.locator(".lf-composer textarea").fill("All of it.")
+    write(page.locator(".lf-composer leaf-text"), "All of it.")
     with sending(page, "the comment on the whole page"):
         page.keyboard.press("ControlOrMeta+Enter")
     expect(page.locator(".lf-thread")).to_have_count(1)
@@ -3086,7 +3087,7 @@ def test_one_neighbour_is_not_enough_to_identify_a_revised_comment(browser, serv
             if (fab.style.display !== 'block') return 'no button';
             await new Promise(r => setTimeout(r, 40));
             fab.focus();
-            const box = document.querySelector('.lf-composer textarea');
+            const box = document.querySelector('.lf-composer leaf-text');
             box.value = 'does this hold?';
             box.dispatchEvent(new Event('input', {bubbles: true}));
             document.querySelector('.lf-composer button.lf-compose-submit').click();
@@ -4636,7 +4637,7 @@ def test_a_manifest_diff_can_comment_on_one_unloaded_file(browser, serve):
     expect(outlet).to_have_count(1)
     expect(outlet.locator(".lf-fab-input")).to_be_focused()
     expect(page.locator("#lf-composer-quote")).to_contain_text("§ app.py · file")
-    page.locator(".lf-fab-input").fill("Review this file as a whole.")
+    write(page.locator(".lf-fab-input"), "Review this file as a whole.")
     with sending(page, "the comment on the unloaded file"):
         page.keyboard.press("ControlOrMeta+Enter")
 
@@ -4655,7 +4656,7 @@ def test_a_manifest_diff_can_comment_on_one_unloaded_file(browser, serve):
         "Review this file as a whole."
     )
     expect(outlet.locator(".lf-page-thread")).to_be_focused()
-    expect(outlet.locator(".lf-page-thread textarea")).not_to_be_focused()
+    expect(outlet.locator(".lf-page-thread leaf-text")).not_to_be_focused()
     expect(details).not_to_have_attribute("open", "")
     expect(page.locator("lf-diff [data-line-type]")).to_have_count(0)
     page.locator(".lf-threads-toggle").click()
@@ -4778,7 +4779,7 @@ def test_a_data_bound_diff_aims_and_selects_one_source_line(browser, serve):
     page.emulate_media(media="screen")
     expect(composer_outlet.locator(".lf-fab-bar")).to_be_visible()
     input_.focus()
-    input_.fill("Review the whole added line.")
+    write(input_, "Review the whole added line.")
     input_.evaluate("input => input.setSelectionRange(7, 16)")
     page.evaluate("() => document.querySelector('#patch').threadSurface.update()")
     expect(input_).to_be_focused()
@@ -4788,13 +4789,15 @@ def test_a_data_bound_diff_aims_and_selects_one_source_line(browser, serve):
     ]
     details.evaluate("element => { element.open = false; }")
     expect(composer_outlet).to_have_count(0)
-    expect(page.locator(".lf-fab-input")).to_have_value("Review the whole added line.")
+    expect(page.locator(".lf-fab-input")).to_have_js_property(
+        "value", "Review the whole added line."
+    )
     expect(page.locator(".lf-notice")).to_have_text("Draft kept — g D returns to it")
     details.evaluate("element => { element.open = true; }")
     page.keyboard.press("g")
     page.keyboard.press("Shift+d")
-    expect(composer_outlet.locator(".lf-fab-input")).to_have_value(
-        "Review the whole added line."
+    expect(composer_outlet.locator(".lf-fab-input")).to_have_js_property(
+        "value", "Review the whole added line."
     )
     expect(composer_outlet.locator(".lf-fab-input")).to_be_focused()
     with sending(page, "the comment returned to from the draft"):
@@ -4845,7 +4848,7 @@ def test_a_data_bound_diff_aims_and_selects_one_source_line(browser, serve):
     expect(added).to_have_class(re.compile(r"\blf-mark-here\b"))
     expect(deleted).not_to_have_class(re.compile(r"\blf-mark-here\b"))
     expect(inline).to_have_count(1)
-    expect(inline.locator("textarea")).to_be_focused()
+    expect(inline.locator("leaf-text")).to_be_focused()
     expect(page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')).to_have_count(0)
     page.get_by_role("button", name="Close threads").click()
     panel_settled(page, False)
@@ -4891,7 +4894,7 @@ def test_a_data_bound_diff_aims_and_selects_one_source_line(browser, serve):
     expect(page.locator(".lf-fab-bar")).to_be_visible()
     expect(page.locator("#lf-composer-quote")).to_contain_text("“request.token.id”")
     expect(page.locator(".lf-fab-input")).not_to_be_focused()
-    page.locator(".lf-fab-input").fill("Review this expression.")
+    write(page.locator(".lf-fab-input"), "Review this expression.")
     with sending(page, "the comment on the selected expression"):
         page.keyboard.press("ControlOrMeta+Enter")
     expect(page.locator(".lf-thread .lf-quote").nth(1)).to_have_text(
@@ -5048,7 +5051,7 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     panel_thread = page.locator(f'.lf-thread[data-id="{root["id"]}"]')
     expect(thread).to_have_count(1)
     expect(thread).to_have_attribute("open", "")
-    expect(thread.locator("textarea")).to_be_visible()
+    expect(thread.locator("leaf-text")).to_be_visible()
     # The root message's own workflow line, which each surface holds beside its head.
     inline_status = thread.locator(":scope > .lf-thread-root-meta .lf-msg-sending")
     panel_status = panel_thread.locator(":scope > .lf-thread-root-meta .lf-msg-sending")
@@ -5082,7 +5085,7 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
         """thread => {
           const style = getComputedStyle(thread);
           const outlet = getComputedStyle(thread.parentElement);
-          const reply = getComputedStyle(thread.querySelector('textarea'));
+          const reply = getComputedStyle(thread.querySelector('leaf-text'));
           return {
             card: style.backgroundColor,
             cardBorder: style.borderTopColor,
@@ -5141,7 +5144,7 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     page.get_by_role("button", name=re.compile("^Threads")).click()
     panel_settled(page, True)
     panel_thread.locator(".lf-thread-summary").click()
-    expect(panel_thread.locator("textarea")).to_be_visible()
+    expect(panel_thread.locator("leaf-text")).to_be_visible()
     inline_send = thread.get_by_role("button", name="Send", exact=True)
     panel_send = panel_thread.get_by_role("button", name="Send", exact=True)
     button_face = """button => {
@@ -5167,8 +5170,10 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
         send.hover()
         assert send.evaluate(button_face) == quiet
     page.mouse.move(0, 0)
-    thread.locator("textarea").fill("One draft in both views.")
-    expect(panel_thread.locator("textarea")).to_have_value("One draft in both views.")
+    write(thread.locator("leaf-text"), "One draft in both views.")
+    expect(panel_thread.locator("leaf-text")).to_have_js_property(
+        "value", "One draft in both views."
+    )
     expect(inline_send).to_be_enabled()
     expect(panel_send).to_be_enabled()
     ready = inline_send.evaluate(button_face)
@@ -5192,8 +5197,8 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
       style: s.outlineStyle, width: s.outlineWidth, offset: s.outlineOffset,
       border: s.borderColor, name: s.getPropertyValue('--lf-here-ring').trim(),
     }; }"""
-    band = thread.locator("textarea").evaluate(ring, False)
-    assert band == panel_thread.locator("textarea").evaluate(ring, True)
+    band = thread.locator("leaf-text").evaluate(ring, False)
+    assert band == panel_thread.locator("leaf-text").evaluate(ring, True)
     assert band == {
         "style": "solid",
         "width": "2px",
@@ -5202,7 +5207,7 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
         "name": "text-box",
     }
 
-    panel_thread.locator("textarea").fill("")
+    write(panel_thread.locator("leaf-text"), "")
     expect(inline_send).to_be_disabled()
     page.get_by_role("button", name=re.compile("^Threads")).click()
     panel_settled(page, False)
@@ -5301,7 +5306,7 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     assert "versions" in shortcut_bar_text(page)
     page.keyboard.press("Escape")
     file.evaluate("details => { details.open = true; }")
-    expect(thread.locator("textarea")).to_be_visible()
+    expect(thread.locator("leaf-text")).to_be_visible()
 
     # Resolve is the thread's own control, and the keyboard reaches it the way it
     # reaches any other: #347 withdrew the page-level `x`, so the route is the PRESS
@@ -5343,8 +5348,8 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
         thread.get_by_role("button", name="Reopen", exact=True).click()
     expect(thread).to_have_attribute("open", "")
     expect(thread.locator(".lf-page-thread-summary")).to_be_hidden()
-    expect(thread.locator("textarea")).to_be_visible()
-    thread.locator("textarea").fill("Confirmed from the inline thread.")
+    expect(thread.locator("leaf-text")).to_be_visible()
+    write(thread.locator("leaf-text"), "Confirmed from the inline thread.")
     with sending(page, "the inline reply"):
         thread.get_by_role("button", name="Send", exact=True).click()
     sent = events_model.read_events(serve.page_dir)[-1]
@@ -5547,7 +5552,7 @@ def test_a_deferred_diff_loads_only_opened_files_and_hydrates_comment_travel(
     second = page.locator('lf-diff [data-lf-datum=\'["second.py","new",1]\']')
     expect(second).to_be_in_viewport()
     expect(page.locator("lf-diff .lf-diff-thread-outlet")).to_have_count(1)
-    reply = page.locator("lf-diff .lf-diff-thread-outlet textarea")
+    reply = page.locator("lf-diff .lf-diff-thread-outlet leaf-text")
     if superseded:
         expect(search).to_be_focused()
         quote.click()

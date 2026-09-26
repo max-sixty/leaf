@@ -68,6 +68,7 @@ from render_harness import (
     take_browser_errors,
     told,
     undo,
+    write,
 )
 
 pytestmark = pytest.mark.nightly
@@ -774,7 +775,7 @@ def test_inline_settlement_retains_focus_when_its_controls_are_replaced(browser,
         ),
     )
     first = page.locator("#proposal > .lf-thread-seat > .lf-say")
-    first.locator("textarea").fill("Please combine the jobs.")
+    write(first.locator("leaf-text"), "Please combine the jobs.")
     with sending(page, "the root comment"):
         first.get_by_role("button", name="Send", exact=True).click()
     root = next(
@@ -783,7 +784,7 @@ def test_inline_settlement_retains_focus_when_its_controls_are_replaced(browser,
         if event["kind"] == "comment"
     )
     thread = page.locator(f'.lf-page-thread[data-thread="{root["id"]}"]')
-    destination = thread.locator("textarea")
+    destination = thread.locator("leaf-text")
     expect(destination).to_have_count(1)
     thread.get_by_role("button", name="Resolve thread", exact=True).focus()
     page.keyboard.press("Enter")
@@ -879,7 +880,9 @@ def test_resolve_acknowledges_the_press_and_recovers_a_refusal(
         page.keyboard.press("Enter")
     expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (0)")
     if view == "panel":
-        page.locator(".lf-general textarea").fill("My next thought can keep its focus.")
+        write(
+            page.locator(".lf-general leaf-text"), "My next thought can keep its focus."
+        )
     held.pop().continue_()
     page.unroute("**/api/event")
     round_trip(page)
@@ -895,7 +898,7 @@ def test_resolve_acknowledges_the_press_and_recovers_a_refusal(
         )
         expect(page.locator("#bracket")).to_be_focused()
     else:
-        expect(page.locator(".lf-general textarea")).to_be_focused()
+        expect(page.locator(".lf-general leaf-text")).to_be_focused()
 
 
 def test_resolving_one_of_two_threads_leaves_the_user_in_the_card(browser, serve):
@@ -1042,14 +1045,14 @@ def test_panel_settlement_moves_focus_with_optimistic_state_and_restores_a_refus
     round_trip(page)
     expect(first_card.locator(":scope > .lf-thread-summary")).to_be_focused()
     page.keyboard.press("c")
-    expect(first_card.locator(":scope > .lf-compose textarea")).to_be_focused()
+    expect(first_card.locator(":scope > .lf-compose leaf-text")).to_be_focused()
     page.keyboard.press("Escape")
 
     page.keyboard.press("r")
     holding(page, held, 1, "the accepted resolve")
     expect(second_card.locator(":scope > .lf-thread-summary")).to_be_focused()
     page.keyboard.press("c")
-    second_reply = second_card.locator(":scope > .lf-compose textarea")
+    second_reply = second_card.locator(":scope > .lf-compose leaf-text")
     expect(second_reply).to_be_focused()
     held.pop().continue_()
     round_trip(page)
@@ -1062,9 +1065,9 @@ def test_panel_settlement_moves_focus_with_optimistic_state_and_restores_a_refus
     expect(first_card.locator(":scope > .lf-thread-summary")).to_be_focused()
     page.keyboard.press("r")
     holding(page, held, 1, "the refused reopen")
-    pending_reply = first_card.locator(":scope > .lf-compose textarea")
+    pending_reply = first_card.locator(":scope > .lf-compose leaf-text")
     expect(pending_reply).to_be_focused()
-    pending_reply.fill("Keep this draft through the refusal.")
+    write(pending_reply, "Keep this draft through the refusal.")
     expect(page.locator('[data-filter-value="open"]')).to_have_attribute(
         "aria-pressed", "true"
     )
@@ -1083,9 +1086,9 @@ def test_panel_settlement_moves_focus_with_optimistic_state_and_restores_a_refus
     focus_panel_thread(first_card)
     page.keyboard.press("r")
     holding(page, held, 1, "the accepted reopen")
-    reply = first_card.locator(":scope > .lf-compose textarea")
+    reply = first_card.locator(":scope > .lf-compose leaf-text")
     expect(reply).to_be_focused()
-    expect(reply).to_have_value("Keep this draft through the refusal.")
+    expect(reply).to_have_js_property("value", "Keep this draft through the refusal.")
     held.pop().continue_()
     round_trip(page)
     expect(reply).to_be_focused()
@@ -1234,8 +1237,8 @@ def test_settlement_controls_share_one_request_across_page_and_panel(
                 "button", name="Resolve thread", exact=True, include_hidden=True
             )
         ).to_be_enabled()
-    expect(inline.locator("textarea")).to_be_visible()
-    expect(inline.locator("textarea")).to_be_focused()
+    expect(inline.locator("leaf-text")).to_be_visible()
+    expect(inline.locator("leaf-text")).to_be_focused()
 
 
 def test_a_poll_accounted_settlement_repaints_before_its_post_response(
@@ -1300,7 +1303,7 @@ def test_a_sent_comment_is_revealed_in_the_panel(browser, serve):
     On a list long enough to scroll, the old rebuild appended the comment below the
     fold and put the scroll back where it was — the user's own words landed out of
     sight, silently. Focus follows the input route: a button press stays on the
-    button, while the send key stays in the textarea."""
+    button, while the send key stays in the text box."""
     page = open_page(browser, serve(LONG_PAGE, comments=30))
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
@@ -1309,8 +1312,8 @@ def test_a_sent_comment_is_revealed_in_the_panel(browser, serve):
         "        return t.scrollTop === 0 && t.scrollHeight > t.clientHeight; }"
     ), "this list starts revealed or doesn't scroll, so it proves nothing"
 
-    box = page.locator(".lf-general textarea")
-    box.fill("Where did my words go?")
+    box = page.locator(".lf-general leaf-text")
+    write(box, "Where did my words go?")
     send = page.locator(".lf-general button")
     with sending(page, "the first comment"):
         send.click()
@@ -1321,9 +1324,9 @@ def test_a_sent_comment_is_revealed_in_the_panel(browser, serve):
         "the new thread was in view without scrolling, so the reveal proved nothing"
     )
     expect(send).to_be_focused()
-    expect(box).to_have_value("")
+    expect(box).to_have_js_property("value", "")
 
-    box.fill("And the second thought lands the same way.")
+    write(box, "And the second thought lands the same way.")
     with sending(page, "the second comment"):
         page.keyboard.press("ControlOrMeta+Enter")  # the other route, same destination
     second = events_model.read_events(serve.page_dir)[-1]
@@ -1334,7 +1337,7 @@ def test_a_sent_comment_is_revealed_in_the_panel(browser, serve):
 def test_a_pasted_image_survives_the_reply_draft_and_renders_from_the_message(
     browser, serve
 ):
-    """Every thread textarea shares one paste path, exercised through a reply.
+    """Every thread text box shares one paste path, exercised through a reply.
 
     The binary body becomes page media before its Markdown reference enters the normal
     draft generation. Reload and Send then prove the existing durable-text path owns the
@@ -1352,16 +1355,16 @@ def test_a_pasted_image_survives_the_reply_draft_and_renders_from_the_message(
     panel_settled(page)
     thread = page.locator(f'.lf-thread[data-id="{root}"]')
     thread.locator(".lf-thread-summary").click()
-    reply = thread.locator("textarea")
+    reply = thread.locator("leaf-text")
     pixels = (EXAMPLE_MEDIA / "051bee487bfb5d13.png").read_bytes()
 
     with page.expect_response(lambda response: response.url.endswith("/api/media")):
         reply.evaluate(
-            """(textarea, encoded) => {
+            """(box, encoded) => {
               const bytes = Uint8Array.from(atob(encoded), char => char.charCodeAt(0));
               const transfer = new DataTransfer();
               transfer.items.add(new File([bytes], 'rendering.png', {type: 'image/png'}));
-              textarea.dispatchEvent(new ClipboardEvent('paste', {
+              box.dispatchEvent(new ClipboardEvent('paste', {
                 bubbles: true,
                 cancelable: true,
                 clipboardData: transfer,
@@ -1371,7 +1374,7 @@ def test_a_pasted_image_survives_the_reply_draft_and_renders_from_the_message(
         )
 
     image_markdown = "![Pasted image](/media/051bee487bfb5d13.png)"
-    expect(reply).to_have_value("")
+    expect(reply).to_have_js_property("value", "")
     draft_image = thread.locator(".lf-composer-media img")
     expect(draft_image).to_be_visible()
     expect(draft_image).to_have_attribute("src", "/media/051bee487bfb5d13.png")
@@ -1386,16 +1389,16 @@ def test_a_pasted_image_survives_the_reply_draft_and_renders_from_the_message(
     panel_settled(page)
     thread = page.locator(f'.lf-thread[data-id="{root}"]')
     thread.locator(".lf-thread-summary").click()
-    reply = thread.locator("textarea")
-    expect(reply).to_have_value("")
+    reply = thread.locator("leaf-text")
+    expect(reply).to_have_js_property("value", "")
     expect(thread.locator(".lf-composer-media img")).to_be_visible()
-    # Mirroring compares the complete draft rather than the textarea projection. A
+    # Mirroring compares the complete draft rather than the text box's projection. A
     # local keystroke must therefore keep the caret where the user put it even while
     # hidden image Markdown rides beside the visible words.
-    reply.fill("Fault here")
-    reply.evaluate("textarea => textarea.setSelectionRange(6, 6)")
+    write(reply, "Fault here")
+    reply.evaluate("box => box.setSelectionRange(6, 6)")
     reply.press_sequentially("is ")
-    expect(reply).to_have_value("Fault is here")
+    expect(reply).to_have_js_property("value", "Fault is here")
 
     with sending(page, "the reply containing the pasted image"):
         thread.get_by_role("button", name="Send", exact=True).click()
@@ -1439,7 +1442,7 @@ def test_a_pasted_image_survives_the_reply_draft_and_renders_from_the_message(
 
 
 def test_an_image_only_composer_names_and_lays_out_the_draft_it_keeps(browser, serve):
-    """The compact composer reads the complete draft hidden behind its textarea.
+    """The compact composer reads the complete draft hidden behind its text box.
 
     Several images make its shelf overflow, proving the anchored box gets the same
     horizontal thumbnail projection as the larger thread text boxes.
@@ -1453,7 +1456,7 @@ def test_an_image_only_composer_names_and_lays_out_the_draft_it_keeps(browser, s
 
     with page.expect_response(lambda response: response.url.endswith("/api/media")):
         field.evaluate(
-            """(textarea, encoded) => {
+            """(box, encoded) => {
               const bytes = Uint8Array.from(atob(encoded), char => char.charCodeAt(0));
               const transfer = new DataTransfer();
               for (let index = 0; index < 4; index += 1) {
@@ -1461,7 +1464,7 @@ def test_an_image_only_composer_names_and_lays_out_the_draft_it_keeps(browser, s
                   [bytes], `rendering-${index}.png`, {type: 'image/png'}
                 ));
               }
-              textarea.dispatchEvent(new ClipboardEvent('paste', {
+              box.dispatchEvent(new ClipboardEvent('paste', {
                 bubbles: true,
                 cancelable: true,
                 clipboardData: transfer,
@@ -1470,7 +1473,7 @@ def test_an_image_only_composer_names_and_lays_out_the_draft_it_keeps(browser, s
             base64.b64encode(pixels).decode(),
         )
 
-    expect(field).to_have_value("")
+    expect(field).to_have_js_property("value", "")
     shelf = page.locator(".lf-fab-bar .lf-composer-media")
     expect(shelf.locator("img")).to_have_count(4)
     expect(page.locator(".lf-shortcut-bar")).to_contain_text("close — draft kept")
@@ -1483,8 +1486,8 @@ def test_an_image_only_composer_names_and_lays_out_the_draft_it_keeps(browser, s
     )
     assert layout == {"display": "flex", "overflowX": "auto", "scrolls": True}
     field.evaluate(
-        """textarea => textarea.addEventListener('input', () => {
-          const shelf = textarea.parentElement.previousElementSibling;
+        """box => box.addEventListener('input', () => {
+          const shelf = box.parentElement.previousElementSibling;
           window.__lfShelfAtInput = {
             hidden: shelf.hidden,
             images: shelf.querySelectorAll(':scope > .lf-composer-media-item').length,
@@ -1861,7 +1864,7 @@ def test_an_arrival_interrupts_nothing_the_user_holds(browser, serve):
     panel_settled(page)
     page.locator(".lf-thread-summary").first.click()
     ta = page.locator(".lf-threads > .lf-thread:not([hidden])").first.locator(
-        "textarea"
+        "leaf-text"
     )
     ta.click()
     ta.type("half a thought")
@@ -1889,7 +1892,7 @@ def test_an_arrival_interrupts_nothing_the_user_holds(browser, serve):
     expect(page.locator(f'.lf-msg[data-mid="{reply["id"]}"]')).to_have_count(1)
     assert page.evaluate("""() => {
         const ta = document.activeElement;
-        return ta.tagName === 'TEXTAREA'
+        return ta.localName === 'leaf-text'
             && ta === window.__heldEditor
             && ta.closest('.lf-thread') === window.__probe
             && window.__probe === document.querySelector('.lf-threads > .lf-thread')
@@ -1967,7 +1970,7 @@ def test_resolving_an_early_thread_keeps_the_rest_in_place(browser, serve):
         for e in events_model.read_events(serve.page_dir)
         if e["kind"] == "comment"
     ]
-    expect(page.locator(f'.lf-thread[data-id="{c2}"] textarea')).to_have_attribute(
+    expect(page.locator(f'.lf-thread[data-id="{c2}"] leaf-text')).to_have_attribute(
         "placeholder", "Reply"
     )
     page.evaluate(
@@ -1987,10 +1990,10 @@ def test_resolving_an_early_thread_keeps_the_rest_in_place(browser, serve):
     expect(
         page.locator(f'.lf-threads > .lf-thread[data-id="{c1}"][hidden]')
     ).to_have_count(1)
-    expect(page.locator(f'.lf-thread[data-id="{c1}"] textarea')).to_have_count(0)
+    expect(page.locator(f'.lf-thread[data-id="{c1}"] leaf-text')).to_have_count(0)
     expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (2)")
     # The survivor stays the same node.
-    expect(page.locator(f'.lf-thread[data-id="{c2}"] textarea')).to_have_attribute(
+    expect(page.locator(f'.lf-thread[data-id="{c2}"] leaf-text')).to_have_attribute(
         "placeholder", "Reply c"
     )
     assert page.evaluate(
@@ -2003,7 +2006,7 @@ def test_resolving_an_early_thread_keeps_the_rest_in_place(browser, serve):
     # its new place is the same element and passes any identity probe, but reinsertion
     # drops the caret typing in it.
     page.locator(f'.lf-thread[data-id="{c3}"] .lf-thread-summary').click()
-    ta3 = page.locator(f'.lf-thread[data-id="{c3}"] textarea')
+    ta3 = page.locator(f'.lf-thread[data-id="{c3}"] leaf-text')
     ta3.click()
     ta3.type("held mid-sentence")
     page.evaluate("() => document.activeElement.setSelectionRange(4, 4)")
@@ -2083,7 +2086,7 @@ def test_a_failed_thread_list_update_retries_one_coherent_reading(browser, serve
             `:scope > .lf-msg[data-mid="${id}"]`
           );
           window.committedEditor = committedThread.querySelector(
-            ':scope > .lf-compose textarea'
+            ':scope > .lf-compose leaf-text'
           );
           window.committedResolve = committedThread.querySelector(
             ':scope .lf-thread-meta-actions > .lf-resolve'
@@ -2109,7 +2112,7 @@ def test_a_failed_thread_list_update_retries_one_coherent_reading(browser, serve
     expect(recovered).to_have_count(1)
     expect(recovered).to_be_visible()
     expect(recovered).to_have_attribute("data-resolved", "false")
-    expect(recovered.locator("textarea")).to_have_count(1)
+    expect(recovered.locator("leaf-text")).to_have_count(1)
     expect(recovered.locator(".lf-reopen")).to_have_count(0)
     retained = page.evaluate(
         """id => {
@@ -2117,7 +2120,7 @@ def test_a_failed_thread_list_update_retries_one_coherent_reading(browser, serve
           return {
             thread: thread === window.committedThread,
             message: thread.querySelector(`:scope > .lf-msg[data-mid="${id}"]`) === window.committedMessage,
-            editor: thread.querySelector(':scope > .lf-compose textarea') === window.committedEditor,
+            editor: thread.querySelector(':scope > .lf-compose leaf-text') === window.committedEditor,
             resolve: thread.querySelector(':scope .lf-thread-meta-actions > .lf-resolve') === window.committedResolve,
           };
         }""",
@@ -2136,7 +2139,7 @@ def test_a_failed_thread_list_update_retries_one_coherent_reading(browser, serve
     )
     expect(recovered).to_be_hidden()
     expect(recovered).to_have_attribute("data-resolved", "true")
-    expect(recovered.locator("textarea")).to_have_count(0)
+    expect(recovered.locator("leaf-text")).to_have_count(0)
     expect(recovered.locator(".lf-reopen")).to_have_count(1)
     assert page.evaluate(
         'id => document.querySelector(`.lf-thread[data-id="${id}"]`) '
@@ -2531,7 +2534,7 @@ def test_the_panel_reads_the_thread_in_the_pages_own_order(browser, serve):
     expect(whole_label).not_to_have_class(re.compile(r"\bdetached\b"))
     expect(whole_label).not_to_have_attribute("role", "button")
 
-    expect(page.locator(f'.lf-thread[data-id="{lede}"] textarea')).to_have_attribute(
+    expect(page.locator(f'.lf-thread[data-id="{lede}"] leaf-text')).to_have_attribute(
         "placeholder", "Reply"
     )
     page.locator("body").click()
@@ -3047,7 +3050,7 @@ def test_the_panel_can_show_only_what_is_waiting_on_the_user(browser, serve):
     # it. Escape backs out onto the list and it is live again. Both directions, because
     # a key that were live in the box would type nothing and read as a dead keyboard.
     page.keyboard.press("c")
-    expect(page.locator(".lf-general textarea")).to_be_focused()
+    expect(page.locator(".lf-general leaf-text")).to_be_focused()
     expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("waiting on you")
     page.keyboard.press("Escape")
     expect(page.locator(".lf-threads")).to_be_focused()
@@ -3090,7 +3093,7 @@ def test_the_panel_can_show_only_what_is_waiting_on_the_user(browser, serve):
     # Answering the agent's comment takes it out of the user's list and hands the
     # next word to the agent.
     page.locator(f'.lf-thread[data-id="{theirs}"] .lf-thread-summary').click()
-    reply = page.locator(f'.lf-thread[data-id="{theirs}"] textarea')
+    reply = page.locator(f'.lf-thread[data-id="{theirs}"] leaf-text')
     reply.click()
     reply.type("Forty is plenty.")
     page.locator(f'.lf-thread[data-id="{theirs}"] .lf-thread-send').click()
@@ -3418,8 +3421,8 @@ def test_an_agent_reply_says_when_the_user_owes_an_answer(browser, serve):
     ).to_have_count(0)
 
     focus_panel_thread(page.locator(f'.lf-thread[data-id="{asked}"]'))
-    reply = page.locator(f'.lf-thread[data-id="{asked}"] textarea')
-    reply.fill("SQLite should own it.")
+    reply = page.locator(f'.lf-thread[data-id="{asked}"] leaf-text')
+    write(reply, "SQLite should own it.")
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     with page.expect_request("**/api/event"):
@@ -3518,8 +3521,8 @@ def test_a_host_failure_receipt_does_not_read_as_an_answer(browser, serve):
     page.locator('[data-filter-value="open"]').click()
     card = page.locator(f'.lf-thread[data-id="{unanswered["id"]}"]')
     card.locator(":scope > .lf-thread-summary").click()
-    draft = card.locator("textarea")
-    draft.fill("Try the south pair again.")
+    draft = card.locator("leaf-text")
+    write(draft, "Try the south pair again.")
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     with page.expect_request("**/api/event"):
@@ -3532,7 +3535,7 @@ def test_a_host_failure_receipt_does_not_read_as_an_answer(browser, serve):
     expect(status).to_have_text("Not answered · resend")
     expect(recovery).to_have_text("You (1)")
     expect(recovery).to_be_enabled()
-    expect(draft).to_have_value("Try the south pair again.")
+    expect(draft).to_have_js_property("value", "Try the south pair again.")
     page.unroute("**/api/event")
 
     # The failed answer remains distinct from the muted clock without a chip face.
@@ -3616,8 +3619,8 @@ def test_a_resolved_thread_can_be_reopened(browser, serve):
 
     reopened = page.locator(f'.lf-threads > .lf-thread[data-id="{comment}"]')
     expect(reopened).to_be_in_viewport()
-    expect(reopened.locator("textarea")).to_be_focused()
-    expect(reopened.locator("textarea")).to_have_count(1)
+    expect(reopened.locator("leaf-text")).to_be_focused()
+    expect(reopened.locator("leaf-text")).to_have_count(1)
     expect(reopened.locator(".lf-resolve")).to_have_count(1)
     expect(page.locator('[data-filter-value="open"]')).to_have_attribute(
         "aria-pressed", "true"
@@ -3659,7 +3662,7 @@ def test_a_thread_completion_keeps_the_users_later_destination(
         page.locator('[data-filter-value="resolved"]').click()
     focus_panel_thread(thread)
     if kind == "reply":
-        thread.locator("textarea").fill("A reply whose delivery is held.")
+        write(thread.locator("leaf-text"), "A reply whose delivery is held.")
 
     thread.get_by_role(
         "button",
@@ -3672,7 +3675,7 @@ def test_a_thread_completion_keeps_the_users_later_destination(
     ).click()
     holding(page, held, 1, "the thread operation")
 
-    later = page.locator(f'.lf-thread[data-id="{roots["bg-crowded"]}"] textarea')
+    later = page.locator(f'.lf-thread[data-id="{roots["bg-crowded"]}"] leaf-text')
     changes = page.locator("#bg-history summary")
     if kind == "unresolve" and destination in {"other-thread", "other-focus"}:
         # Reopen has already selected Open while its delivery is held.
@@ -3689,7 +3692,7 @@ def test_a_thread_completion_keeps_the_users_later_destination(
         changes.click()
     elif destination == "other-thread":
         later.click()
-        later.fill("The user is working here now.")
+        write(later, "The user is working here now.")
     elif destination == "other-focus":
         # Accessibility and app focus travel need not emit a pointer or key gesture.
         later.focus()
@@ -3715,13 +3718,14 @@ def test_a_thread_completion_keeps_the_users_later_destination(
         expect(page.locator("#bg-history details")).to_have_attribute("open", "")
     elif destination in {"other-thread", "other-focus"}:
         expect(later).to_be_focused()
-        expect(later).to_have_value(
-            "The user is working here now." if destination == "other-thread" else ""
+        expect(later).to_have_js_property(
+            "value",
+            "The user is working here now." if destination == "other-thread" else "",
         )
     elif kind == "reply":
         expect(thread.get_by_role("button", name="Send", exact=True)).to_be_focused()
     elif kind == "unresolve":
-        expect(thread.locator("textarea")).to_be_focused()
+        expect(thread.locator("leaf-text")).to_be_focused()
     else:
         expect(
             page.locator(
@@ -3838,10 +3842,10 @@ def test_a_resolved_thread_gives_its_room_back_as_motion(browser, serve):
     )
     expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (2)")
     expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
-    expect(page.locator(f'[data-id="{c1}"] textarea')).to_have_attribute(
+    expect(page.locator(f'[data-id="{c1}"] leaf-text')).to_have_attribute(
         "placeholder", "Reply"
     )
-    expect(page.locator(f'.lf-thread[data-id="{c2}"] textarea')).to_have_attribute(
+    expect(page.locator(f'.lf-thread[data-id="{c2}"] leaf-text')).to_have_attribute(
         "placeholder", "Reply c"
     )
 
@@ -4142,8 +4146,8 @@ def test_an_external_resolution_leaves_the_user_on_the_thread_list(browser, serv
         if event["kind"] == "comment"
     )
     focus_panel_thread(page.locator(f'.lf-thread[data-id="{root["id"]}"]'))
-    reply = page.locator(f'.lf-thread[data-id="{root["id"]}"] textarea')
-    reply.fill("This draft survives the other actor settling its thread.")
+    reply = page.locator(f'.lf-thread[data-id="{root["id"]}"] leaf-text')
+    write(reply, "This draft survives the other actor settling its thread.")
     reply.evaluate("ta => ta.setSelectionRange(8, 8)")
     expect(reply).to_be_focused()
 
@@ -4158,8 +4162,8 @@ def test_an_external_resolution_leaves_the_user_on_the_thread_list(browser, serv
         "the thread left without exercising the animated inert path"
     )
     expect(page.locator(".lf-threads")).to_be_focused()
-    expect(going.locator("textarea")).to_have_value(
-        "This draft survives the other actor settling its thread."
+    expect(going.locator("leaf-text")).to_have_js_property(
+        "value", "This draft survives the other actor settling its thread."
     )
 
     page.evaluate("() => window.__lfHeld.forEach((motion) => motion.finish())")
@@ -5528,7 +5532,7 @@ def test_forced_colors_keep_current_thread_regions_distinct(browser, serve):
     assert current.evaluate("el => getComputedStyle(el).borderColor") != peer.evaluate(
         "el => getComputedStyle(el).borderColor"
     )
-    reply = current.locator("textarea")
+    reply = current.locator("leaf-text")
     reply.click()
     expect(reply).to_be_focused()
     assert current.evaluate("el => getComputedStyle(el).borderColor") != peer.evaluate(
@@ -5881,7 +5885,7 @@ def test_a_comment_the_pointer_lands_on_comes_out_from_under_the_run_heading(
         f"the setup put the card back only {under['covered']}px under, which its "
         f"{under['edge']}px edge shows through"
     )
-    reply = page.locator(".lf-threads > .lf-thread textarea").first
+    reply = page.locator(".lf-threads > .lf-thread leaf-text").first
     reply_box = reply.bounding_box()
     page.mouse.click(
         reply_box["x"] + reply_box["width"] / 2,
@@ -6384,7 +6388,7 @@ def test_the_line_offers_the_list_its_own_keys_rather_than_the_way_deeper_in(
     expect(advertised).to_be_visible()
     expect(advertised).to_have_text("c")
     page.keyboard.press("c")
-    expect(page.locator(".lf-general textarea")).to_be_focused()
+    expect(page.locator(".lf-general leaf-text")).to_be_focused()
 
 
 def test_a_narrowing_hides_a_thread_without_taking_its_question_off_the_page(
@@ -6448,8 +6452,8 @@ def test_a_narrowing_that_hides_the_card_the_user_stands_in_lands_them_on_the_li
     expect(page.locator(".lf-needs")).to_have_attribute("aria-pressed", "true")
     card = page.locator(f'.lf-thread[data-id="{theirs}"]')
     card.locator(".lf-thread-summary").click()
-    card.locator("textarea").click()
-    expect(card.locator("textarea")).to_be_focused()
+    card.locator("leaf-text").click()
+    expect(card.locator("leaf-text")).to_be_focused()
     # A remote reaction answers the question, so the narrowing no longer shows the card.
     events_model.append_event(
         d, {"kind": "reply", "author": "user", "parent": theirs, "token": "keep"}
@@ -6478,8 +6482,8 @@ def test_a_growing_panel_reply_keeps_the_previous_turn_visible(browser, serve):
     panel_settled(page)
     card = page.locator(f'.lf-thread[data-id="{root}"]')
     card.locator(".lf-thread-summary").click()
-    reply = card.locator("textarea")
-    reply.fill("A reply that grows.\n" * 30)
+    reply = card.locator("leaf-text")
+    write(reply, "A reply that grows.\n" * 30)
     latest = card.locator(".lf-msg.agent").last
     visible = latest.evaluate(
         """message => {
@@ -6489,7 +6493,7 @@ def test_a_growing_panel_reply_keeps_the_previous_turn_visible(browser, serve):
           return {
             tail: message.getBoundingClientRect().bottom,
             top: band.top + parseFloat(style.scrollPaddingTop),
-            editor: list.querySelector('.lf-thread[open] textarea').getBoundingClientRect().top,
+            editor: list.querySelector('.lf-thread[open] leaf-text').getBoundingClientRect().top,
           };
         }"""
     )
@@ -6601,7 +6605,7 @@ def test_accordion_keyboard_travel_keeps_drafts_and_respects_narrowing(browser, 
     page.keyboard.press("c")
     editor = card.get_by_role("textbox", name="Reply", exact=True)
     expect(editor).to_be_focused()
-    editor.fill("Keep this unfinished answer.")
+    write(editor, "Keep this unfinished answer.")
     page.keyboard.press("Home")
     expect(editor).to_be_focused()
     page.keyboard.press("Escape")
@@ -6611,7 +6615,7 @@ def test_accordion_keyboard_travel_keeps_drafts_and_respects_narrowing(browser, 
     expect(card).not_to_have_attribute("open", "")
     page.keyboard.press("Shift+t")
     expect(editor).to_be_visible()
-    expect(editor).to_have_value("Keep this unfinished answer.")
+    expect(editor).to_have_js_property("value", "Keep this unfinished answer.")
     search = page.get_by_role("searchbox", name="Find in threads")
     search.fill("merge next")
     expect(other).to_be_visible()
@@ -6624,10 +6628,10 @@ def test_accordion_keyboard_travel_keeps_drafts_and_respects_narrowing(browser, 
     expect(other.locator(":scope > .lf-thread-summary")).to_be_focused()
     search.fill("")
     header.click()
-    expect(editor).to_have_value("Keep this unfinished answer.")
+    expect(editor).to_have_js_property("value", "Keep this unfinished answer.")
     page.keyboard.press("Escape")
     expect(page.locator(".lf-threads")).to_be_focused()
-    expect(editor).to_have_value("Keep this unfinished answer.")
+    expect(editor).to_have_js_property("value", "Keep this unfinished answer.")
     page.keyboard.press("Escape")
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
     page.locator(".lf-threads-toggle").click()
@@ -6671,8 +6675,8 @@ def test_agent_titles_update_without_losing_the_users_draft(browser, serve):
     )
     page.emulate_media(reduced_motion="no-preference")
     focus_panel_thread(thread)
-    editor = thread.locator("textarea")
-    editor.fill("Keep this unfinished reply")
+    editor = thread.locator("leaf-text")
+    write(editor, "Keep this unfinished reply")
     for title in ("Workshop venue", "Terrace accessibility"):
         result = CliRunner().invoke(
             cli_model.cli,
@@ -6689,7 +6693,7 @@ def test_agent_titles_update_without_losing_the_users_draft(browser, serve):
         told(page)
         expect(thread.locator(".lf-thread-topic")).to_have_text(title)
         expect(topic).not_to_have_attribute("data-lf-pending-title", "")
-        expect(editor).to_have_value("Keep this unfinished reply")
+        expect(editor).to_have_js_property("value", "Keep this unfinished reply")
         expect(thread.get_by_text(opening, exact=True)).to_be_visible()
     find = page.get_by_role("searchbox", name="Find in threads")
     find.fill("Terrace accessibility")

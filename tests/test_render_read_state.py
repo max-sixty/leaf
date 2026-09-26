@@ -25,6 +25,7 @@ from render_harness import (
     sending,
     take_browser_errors,
     told,
+    write,
 )
 
 
@@ -113,8 +114,8 @@ def test_new_since_last_looked_bounds_each_unread_run_and_summary_originals(
         + checkpoint.locator(".lf-summary-expand").bounding_box()["height"]
     )
 
-    draft = card.locator("textarea").first
-    draft.fill("Compare the revised update.")
+    draft = card.locator("leaf-text").first
+    write(draft, "Compare the revised update.")
     last_message = card.locator(f'.lf-msg[data-mid="{last}"]')
     last_message.focus()
     list_scroll = page.locator(".lf-threads")
@@ -125,7 +126,7 @@ def test_new_since_last_looked_bounds_each_unread_run_and_summary_originals(
     page.keyboard.press("m")
     expect(card.locator(".lf-read-boundary")).to_have_count(0)
     expect(checkpoint.locator(".lf-summary-unread")).to_have_count(0)
-    expect(draft).to_have_value("Compare the revised update.")
+    expect(draft).to_have_js_property("value", "Compare the revised update.")
     expect(last_message).to_be_focused()
     assert last_message.is_visible()
     assert list_scroll.evaluate(
@@ -644,14 +645,14 @@ def test_keyboard_first_unread_and_mark_read_retain_draft_and_focus(browser, ser
     expect(card.locator(f'.lf-msg[data-mid="{root}"]')).to_be_focused()
     expect(card.locator(".lf-thread-unread")).to_have_text("1 unread")
 
-    draft = card.locator("textarea").first
-    draft.fill("I need to compare these choices.")
+    draft = card.locator("leaf-text").first
+    write(draft, "I need to compare these choices.")
     draft.evaluate("element => { window.__readDraft = element; }")
     draft.blur()
     card.locator(":scope > .lf-thread-summary").focus()
     page.keyboard.press("m")
     expect(page.locator(".lf-first-unread")).to_be_hidden()
-    expect(draft).to_have_value("I need to compare these choices.")
+    expect(draft).to_have_js_property("value", "I need to compare these choices.")
     assert draft.evaluate("element => element === window.__readDraft")
     expect(card.locator(":scope > .lf-thread-summary")).to_be_focused()
     assert _read_events(serve.page_dir)[-1]["messages"] == [
@@ -781,7 +782,7 @@ def test_shadow_package_thread_registers_its_real_message_body(browser, serve):
       document.dispatchEvent(new MouseEvent('mouseup', {bubbles:true}));
     }""")
     expect(page.locator(".lf-fab-bar")).to_be_visible()
-    page.locator(".lf-composer textarea").fill("Can this route stay?")
+    write(page.locator(".lf-composer leaf-text"), "Can this route stay?")
     with sending(page, "diff comment"):
         page.keyboard.press("ControlOrMeta+Enter")
     root = next(
@@ -847,7 +848,7 @@ def test_a_page_seat_the_open_panel_stands_over_is_not_read(
       document.dispatchEvent(new MouseEvent('mouseup', {bubbles:true}));
     }""")
     expect(page.locator(".lf-fab-bar")).to_be_visible()
-    page.locator(".lf-composer textarea").fill("Can this route stay?")
+    write(page.locator(".lf-composer leaf-text"), "Can this route stay?")
     with sending(page, "diff comment"):
         page.keyboard.press("ControlOrMeta+Enter")
     root = next(

@@ -1761,7 +1761,7 @@ def test_inline_threads_keep_their_words_without_live_controls_in_print(
     expect(thread.locator(".lf-page-thread-body")).to_be_visible()
     assert (
         thread.locator(
-            "button:visible, textarea:visible, .lf-msg-sending:visible"
+            "button:visible, leaf-text:visible, .lf-msg-sending:visible"
         ).count()
         == 0
     )

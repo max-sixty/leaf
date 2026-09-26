@@ -21,39 +21,43 @@
  * focus, the scope climb and every `focused() === box` comparison land on the host,
  * never on CodeMirror's content node. Outside, the host answers the textarea members the
  * runtime uses — `value`, the selection triple, `setSelectionRange`, `placeholder`,
- * `readOnly`, `name` — and fires `input` for a user edit only, as a textarea does; a
- * write to `value` fires nothing and puts the caret at the end.
+ * `readOnly`, `name` — and fires `input` for a user edit only, as a textarea does. A
+ * write to `value` fires nothing, puts the caret at the end, and starts a new undo
+ * history, so undo never walks back into a draft the runtime swapped out. A pasted
+ * picture is the box owner's: the field leaves that paste to the host's listeners.
+ *
+ * The editor lives while the element is in a document. A field removed and not put
+ * back in the same task keeps its state and destroys its view, which releases the
+ * listeners CodeMirror holds on the window and document; reconnecting builds another.
  *
  * The host is also the control accessibility tooling addresses, since nothing outside a
- * closed root sees into it: it takes `role="textbox"` and `aria-multiline` unless the
- * page gave it its own, and it carries the name, description and busy state the page
- * writes on it. The content node inside is where focus and assistive technology land,
- * so it wears the same `aria-label` and the placeholder as `aria-placeholder`.
+ * closed root sees into it: it takes `role="textbox"`, `aria-multiline` and a tab stop
+ * unless the page gave it its own, and it carries the name, description and busy state
+ * the page writes on it. The content node inside is where focus and assistive
+ * technology land, so it wears the same `aria-label`, the placeholder as
+ * `aria-placeholder`, and the host's description through `ariaDescribedByElements`,
+ * the one reference that reaches from inside a shadow root to the page around it.
  *
  * Enter, Mod+Enter and Escape are not bound here. Leaf's key dispatcher owns them on the
  * document, and cancels the press it acts on; Shift+Enter inserts a line and continues
  * a list or quote.
  */
 import {
-  Annotation,
   EditorView,
   EditorState,
   Compartment,
   Decoration,
+  LanguageSupport,
   ViewPlugin,
   keymap,
   history,
   standardKeymap,
   historyKeymap,
   syntaxTree,
-  markdown,
   markdownLanguage,
   insertNewlineContinueMarkup,
 } from "../../vendor/codemirror.esm.js";
 import { TEXT_FIELD } from "../focus.js";
-
-// Marks a transaction the value setter made, which is not the user's edit.
-const programmatic = Annotation.define();
 
 const sheet = new CSSStyleSheet();
 sheet.replaceSync(`
@@ -129,17 +133,18 @@ function decorate(view) {
         }
         if (name === "Link") {
           // `[words](url)`: the words are the link; the brackets and destination are
-          // syntax, shown only while the selection is in the link.
+          // syntax, shown only while the selection is in the link. Brackets with no
+          // destination (`[1]`, `array[0]`) are no link once sent, so none here. A
+          // destination on the next line keeps its syntax drawn: a hidden range may not
+          // hold a line break.
           const marks = node.node.getChildren("LinkMark");
-          if (marks.length < 2) return;
+          if (marks.length < 2 || !node.node.getChild("URL")) return;
           add(marks[0].to, marks[1].from, marked("lf-md-link"));
-          if (active) {
-            add(marks[0].from, marks[0].to, dim);
-            add(marks[1].from, node.to, dim);
-          } else {
-            add(marks[0].from, marks[0].to, hide);
-            add(marks[1].from, node.to, hide);
-          }
+          const oneLine =
+            state.doc.lineAt(marks[1].from).number === state.doc.lineAt(node.to).number;
+          const syntax = active || !oneLine ? dim : hide;
+          add(marks[0].from, marks[0].to, syntax);
+          add(marks[1].from, node.to, syntax);
           return false;
         }
         if (/^ATXHeading\d$/.test(name)) {
@@ -176,6 +181,16 @@ function decorate(view) {
   return Decoration.set(out, true);
 }
 
+// A paste carrying a picture is left to the box's owner, which uploads it and keeps the
+// words as they were (`wireInput`); the editor would otherwise insert the clipboard's
+// text, or delete the selection for a clipboard with none, before the owner hears it.
+const pastesPicture = EditorView.domEventHandlers({
+  paste: (event) =>
+    [...(event.clipboardData?.items ?? [])].some(
+      (item) => item.kind === "file" && item.type.startsWith("image/"),
+    ),
+});
+
 const livePreview = ViewPlugin.fromClass(
   class {
     constructor(view) {
@@ -209,7 +224,7 @@ class LeafText extends HTMLElement {
   #frame = document.createElement("div");
   #readOnly = false;
 
-  static observedAttributes = ["aria-label", "placeholder"];
+  static observedAttributes = ["aria-label", "aria-describedby", "placeholder"];
 
   constructor() {
     super();
@@ -219,7 +234,20 @@ class LeafText extends HTMLElement {
     this.#placeholderLayer.setAttribute("aria-hidden", "true");
     this.#frame.append(this.#placeholderLayer);
     this.#root.append(this.#frame);
-    this.#model = EditorState.create({
+    this.#model = this.#create("");
+    this.addEventListener("mousedown", (event) => this.#pressPadding(event));
+    // The content node's own input events would reach the host too, retargeted, and
+    // announce every edit twice. The host's is the one the page hears.
+    for (const type of ["input", "beforeinput"])
+      this.#root.addEventListener(type, (event) => event.stopPropagation());
+  }
+
+  // A fresh state holding `text`, caret at its end, under the field's current
+  // configuration. A new state is also a new undo history.
+  #create(text) {
+    return EditorState.create({
+      doc: text,
+      selection: { anchor: text.length },
       extensions: [
         history(),
         keymap.of([
@@ -233,11 +261,12 @@ class LeafText extends HTMLElement {
           ),
           ...historyKeymap,
         ]),
-        markdown({ base: markdownLanguage }),
+        new LanguageSupport(markdownLanguage),
         livePreview,
+        pastesPicture,
         fieldTheme,
         EditorView.lineWrapping,
-        this.#editable.of(EditorState.readOnly.of(false)),
+        this.#editable.of(EditorState.readOnly.of(this.#readOnly)),
         this.#attributes.of(EditorView.contentAttributes.of(this.#contentAttributes())),
       ],
     });
@@ -245,6 +274,7 @@ class LeafText extends HTMLElement {
 
   attributeChangedCallback(name) {
     if (name === "placeholder") this.#placeholderLayer.textContent = this.placeholder;
+    if (name === "aria-describedby") return this.#describe();
     this.#apply({
       effects: this.#attributes.reconfigure(
         EditorView.contentAttributes.of(this.#contentAttributes()),
@@ -257,21 +287,20 @@ class LeafText extends HTMLElement {
     if (!this.hasAttribute("role")) this.setAttribute("role", "textbox");
     if (!this.hasAttribute("aria-multiline"))
       this.setAttribute("aria-multiline", "true");
-    this.#internals = this.attachInternals();
+    // A tab stop, as a textarea is: delegation already stops Tab in the words, and a
+    // host reading -1 is one every stop-counting walk would miss.
+    if (!this.hasAttribute("tabindex")) this.tabIndex = 0;
+    this.#internals ??= this.attachInternals();
     this.#root.adoptedStyleSheets = [sheet];
     this.#view = new EditorView({
       root: this.#root,
       parent: this.#frame,
       state: this.#model,
+      // Every transaction is the user's: the value setter replaces the state instead.
       dispatchTransactions: (transactions, view) => {
         view.update(transactions);
         this.#paintEmpty();
-        // A user edit is an input; a write through `value` is not, as with a textarea.
-        if (
-          transactions.some(
-            (tr) => tr.docChanged && tr.annotation(programmatic) !== true,
-          )
-        )
+        if (transactions.some((tr) => tr.docChanged))
           this.dispatchEvent(new Event("input", { bubbles: true }));
       },
     });
@@ -280,12 +309,29 @@ class LeafText extends HTMLElement {
     // the field's scroller never scrolls; left focusable it is the node the root
     // delegates focus to, which holds no caret.
     this.#view.scrollDOM.removeAttribute("tabindex");
-    this.addEventListener("mousedown", (event) => this.#pressPadding(event));
-    // The content node's own input events would reach the host too, retargeted, and
-    // announce every edit twice. The host's is the one the page hears.
-    for (const type of ["input", "beforeinput"])
-      this.#root.addEventListener(type, (event) => event.stopPropagation());
+    this.#describe();
     this.#paintEmpty();
+  }
+
+  // A move between parents reconnects within the task and keeps its editor.
+  disconnectedCallback() {
+    queueMicrotask(() => {
+      if (this.isConnected || !this.#view) return;
+      this.#model = this.#view.state;
+      this.#view.destroy();
+      this.#view = null;
+    });
+  }
+
+  #describe() {
+    const content = this.#view?.contentDOM;
+    if (!content || !("ariaDescribedByElements" in content)) return;
+    const root = this.getRootNode();
+    content.ariaDescribedByElements = (this.getAttribute("aria-describedby") ?? "")
+      .split(/\s+/)
+      .filter(Boolean)
+      .map((id) => root.getElementById(id))
+      .filter(Boolean);
   }
 
   // A focus through the element puts the caret back where it stood, as a textarea's
@@ -297,6 +343,7 @@ class LeafText extends HTMLElement {
     if (!this.#view) return super.focus(options);
     const view = this.#view;
     view.focus();
+    if (!view.hasFocus) return;
     const { anchor, head } = view.state.selection.main;
     const from = view.domAtPos(anchor);
     const to = view.domAtPos(head);
@@ -360,11 +407,13 @@ class LeafText extends HTMLElement {
   set value(text) {
     text = String(text ?? "").replace(/\r\n?/g, "\n");
     if (text === this.value) return;
-    this.#apply({
-      changes: { from: 0, to: this.#state.doc.length, insert: text },
-      selection: { anchor: text.length },
-      annotations: programmatic.of(true),
-    });
+    const state = this.#create(text);
+    if (!this.#view) {
+      this.#model = state;
+      return;
+    }
+    this.#view.setState(state);
+    this.#paintEmpty();
   }
 
   get selectionStart() {
@@ -377,10 +426,12 @@ class LeafText extends HTMLElement {
     const { main } = this.#state.selection;
     return main.empty ? "none" : main.head < main.anchor ? "backward" : "forward";
   }
+  // A textarea's clamping: each end within the words, and a start past the end moved to
+  // the end.
   setSelectionRange(start, end, direction = "none") {
     const length = this.#state.doc.length;
-    const from = Math.min(start, length);
-    const to = Math.min(Math.max(end, from), length);
+    const to = Math.min(Math.max(Number(end) || 0, 0), length);
+    const from = Math.min(Math.max(Number(start) || 0, 0), to);
     this.#apply({
       selection:
         direction === "backward"

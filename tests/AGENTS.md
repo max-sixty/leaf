@@ -184,8 +184,10 @@ reading of the band a box shows, naming overflow, paint containment, and
 rather than copying it.
 
 Focus evidence starts in keyboard modality: press `Tab`, focus the exact
-sequential stop, and require `:focus-visible`. `element.focus()` alone is not
-sufficient. Reset sequential navigation with `document.body.focus()` when an
+sequential stop, and require `:focus-visible`. The runtime's text field
+(`leaf-text`) is the exception: Chrome gives `:focus-visible` to the node inside a
+host that delegates focus and never to the host, so its evidence is `:focus`, which is
+what its rings read. `element.focus()` alone is not sufficient. Reset sequential navigation with `document.body.focus()` when an
 opening key sequence needs a fresh starting point; `blur()` retains the old one.
 
 A ring can belong to the stop, an ancestor, or a semantic carrier linked to the

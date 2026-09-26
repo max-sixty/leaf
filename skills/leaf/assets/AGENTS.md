@@ -142,9 +142,12 @@ lint refuses the browser's own.
 Stylesheets apply in layers. `theme.css` holds page tokens, element styles,
 idioms, and CSS-only widgets, and each package theme follows it; shared shadow
 rules compose into `/shadow.css`, whose shared `.lf-ui` face comes before
-component rules. `runtime/chrome.css` is adopted after page and package sheets and
-wins by its selectors. `runtime/marks.css` is adopted by the document and shadow
-stages. A `:has()` whose rightmost compound carries no class, id, attribute, or
+component rules. In the document all of these, and each widget module's adopted
+sheet, share the `lf-base` cascade layer; `layouts.css` is `lf-layouts` above it,
+and the page's own CSS is unlayered above both (`layer.py`, `CASCADE_LAYERS`).
+`runtime/chrome.css` and `runtime/marks.css` stay unlayered: their paint lies over
+the page, so they are adopted after page and package sheets and win by their
+selectors. `runtime/marks.css` is adopted by the document and shadow stages. A `:has()` whose rightmost compound carries no class, id, attribute, or
 type restyles every element on ordinary runtime writes
 (`test_no_has_rule_restyles_the_whole_document`); key a repeated type by a class
 its owner writes.

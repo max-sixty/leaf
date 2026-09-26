@@ -173,12 +173,15 @@ def composed_dir_files(inputs: list[Path], sub: str) -> dict[str, Path]:
     return winners
 
 
-# The document's cascade tiers, lowest first. Everything Leaf ships shares one layer:
-# the kernel, every package, and the sheets the runtime adopts (runtime/stylesheets.js),
-# so they rank against each other by specificity and order as they always have. The
-# kernel's Layouts sit above it, and the page's own stylesheet, unlayered, above both: a
-# Layout resets what a widget sets on the boxes it arranges, and a page overrides either.
-CASCADE_LAYERS = ("lf-base", "lf-layouts")
+# The document's cascade tiers, lowest first. The chrome's form-control clearing
+# (`lf-reset`, runtime/chrome.css) stays below everything that chooses a face. The
+# kernel, every package, and each widget module's adopted sheet (runtime/stylesheets.js)
+# share one layer, so they rank against each other by specificity and order as they
+# always have. The kernel's Layouts sit above it, and the page's own stylesheet,
+# unlayered, above both: a Layout resets what a widget sets on the boxes it arranges,
+# and a page overrides either. The chrome and marks sheets stay unlayered, since their
+# paint must beat page and widget alike (chrome.css).
+CASCADE_LAYERS = ("lf-reset", "lf-base", "lf-layouts")
 
 
 def _sheet(source: Path) -> str:
@@ -199,8 +202,9 @@ def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
     document's theme.css reads each root's shadow.css just ahead of its theme.css.
 
     In the document, every root's sheets are the `lf-base` cascade layer, and the
-    kernel's layouts.css, which names `lf-layouts` itself, comes last. A shadow tree
-    holds no page stylesheet to rank against, so its sheet stays unlayered.
+    kernel's layouts.css, which names `lf-layouts` itself, comes last. A shadow tree's
+    sheet stays unlayered: a renderer that brings its own layered CSS into the tree
+    (the diff's) keeps ranking below it.
     """
     if not any((root / "theme.css").is_file() for root in inputs):
         sys.exit("the incoming layer has no theme.css")

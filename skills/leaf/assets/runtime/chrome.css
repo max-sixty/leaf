@@ -188,27 +188,6 @@
 [aria-busy="true"] :is(button, [role="button"]) {
   cursor: progress;
 }
-/* The general leaf text box, in one rule. The compact response field is excluded
-   because it shares its complete control geometry with the response buttons below.
-   field-sizing does the growing, so no script
-   measures a textarea: the JS that did had to reset height to auto to re-measure,
-   which made the box briefly too small for its own text on every keystroke — and a
-   box that overflows, however briefly, flashes a scrollbar. Past max-height the
-   scrollbar is real and stays — and the ceiling is the viewport's share, not a count
-   of lines: 200px stopped a long comment at ten lines with the screen mostly empty.
-   Both selectors: the panel's boxes sit inside .lf-ui, a widget's own box wears the
-   class itself. */
-.lf-ui textarea:where(:not(.lf-fab-input)),
-textarea.lf-ui:where(:not(.lf-fab-input)) {
-  padding: var(--lf-compose-pad-block, 8px) var(--lf-compose-pad-inline-start, 10px);
-  border: 1px solid var(--border-2);
-  border-radius: 6px; background: var(--card); color: inherit; resize: none;
-  field-sizing: content; max-height: 50vh; overflow-y: auto; }
-.lf-ui :is(input, textarea)::placeholder,
-:is(input, textarea).lf-ui::placeholder { color: var(--muted); opacity: 1; }
-.lf-ui textarea:where(:not(.lf-fab-input)):is(:focus, .lf-focus),
-textarea.lf-ui:where(:not(.lf-fab-input)):is(:focus, .lf-focus) { outline: var(--here-ring);
-  --lf-here-ring: text-box; outline-offset: 0; border-color: transparent; }
 /* Pasted media stays in the draft's Markdown, but the writing surface shows the thing
    rather than its transport. The strip takes its own row beside every textarea shape;
    the compact response bar overrides that row below. */

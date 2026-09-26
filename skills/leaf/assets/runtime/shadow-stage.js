@@ -48,7 +48,7 @@ function liveStages() {
 export function registerWidgetStyles(name, text) {
   const existing = widgetSheets.get(name);
   if (existing) return existing;
-  const sheet = constructSheet(text, name);
+  const sheet = constructSheet(inBaseLayer(text), name);
   widgetSheets.set(name, sheet);
   document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
   for (const root of liveStages())
@@ -66,7 +66,7 @@ export function shadowStage(host, nodes) {
   watchDisclosures(root);
   watchLayers(root);
   const style = document.createElement("style");
-  style.textContent = inBaseLayer(SHADOW_STARTUP_CSS + shadowRules);
+  style.textContent = SHADOW_STARTUP_CSS + shadowRules;
   // Fragment hydration can add a sheet while the user uses an existing control.
   // Keep retained nodes connected, preserving their focus and widget lifecycle.
   setChildren(root, [style, ...nodes]);

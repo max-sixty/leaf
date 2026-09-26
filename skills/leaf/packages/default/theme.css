@@ -1610,9 +1610,10 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
   @container lf-shell (min-width: 848px) {
     html:root main.layout-column:has(> aside.sidebar:nth-child(1 of aside.sidebar) lf-toc) {
       --lf-sidebar-posture: margin;
-      /* The spine is chrome fixed in the left margin, so a breakout stops short of it
+      /* The map is chrome fixed in the left margin across its whole claim (its resting
+       * surface is as wide as the labels it reveals), so a breakout stops short of it
        * (layouts.css, the column's free room). */
-      --lf-chrome-l: var(--sp-4);
+      --lf-chrome-l: var(--lf-sidebar-claim);
     }
   }
   main:has(> aside.sidebar:nth-child(1 of aside.sidebar) lf-toc) {
@@ -1793,6 +1794,13 @@ lf-activity .lf-activity-empty { margin: 0; color: var(--muted); font: var(--t-5
  * question's opening and reaches around the context and control the standing ring says
  * are one Ask. */
 lf-ask { display: block; }
+/* An Ask that is a held workspace's body (`--lf-held` on main, layouts.css) gives its last
+ * block what its heading and prose leave, so a widget composing its own regions there,
+ * such as a playground, fills the window. */
+@container style(--lf-held: 1) {
+  main > lf-ask { display: flex; flex-direction: column; }
+  main > lf-ask > :last-child { flex: 1 1 0; min-block-size: 0; margin-block-end: 0; }
+}
 
 /* lf-specimen: quoted material — a widget or section the page exhibits rather
  * than speaks (a sample decision, a demo board). It wears the quotation idiom, a

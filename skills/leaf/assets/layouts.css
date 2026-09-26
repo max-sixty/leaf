@@ -28,15 +28,20 @@
     --lf-room: max(0px, calc(100cqi - 2 * var(--col-pad)));
   }
   /* The page as wide as the window: a gutter that grows with it, a cap at the widest
-   * page, and the title a size up. It holds one flow on its own, and every other Layout
-   * on `main` stands in it. The title is a token rather than an `h1` rule, so the base
-   * heading keeps its other properties and reads its size from here. */
+   * page, and the title a size up, set tighter to hold its line above panels as wide as
+   * the window. It holds one flow on its own, and every other Layout on `main` stands
+   * in it. */
   main:is(.layout-wide, .layout-sidebar, .layout-tiles, .layout-workspace) {
     padding-inline: clamp(var(--col-pad), 4cqi, 64px);
     max-width: var(--wide-page-max);
     margin-inline: auto;
     --lf-room: 100%;
-    --t-1: clamp(36px, 3.2cqi, 46px);
+  }
+  main:is(.layout-wide, .layout-sidebar, .layout-tiles, .layout-workspace) h1 {
+    font-size: clamp(36px, 3.2cqi, 46px);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1.1;
   }
   /* Body and side track. The body takes two parts of the room and the track one, from
    * bases of 30rem and 18rem, and the two stack where they no longer fit beside each
@@ -63,16 +68,13 @@
   }
   .layout-tiles > * { margin: 0; }
   /* Workspace: the page fills the window below the banner and above the band, its header
-   * and footer take their content's height, and the body between them takes the rest.
-   * Inside the body, its last block takes what the blocks above it leave, so a body of
-   * panes, or of an Ask's heading over a widget that composes its own regions, holds the
-   * window the same way. Each pane's body scrolls on its own, a widget's generated panes
-   * (data-lf-reading-role="pane") included, and `--lf-held` tells a widget it has a
-   * definite height to fill (a style query). Where the window is too small to hold the
-   * regions, the workspace flows and the page scrolls. */
-  main.layout-workspace {
-    padding-block: var(--sp-4) 0;
-  }
+   * and footer take their content's height, and the body between them takes the rest,
+   * arranged as the body itself says: a page's grid of panes, a pane, or a widget that
+   * composes its own regions. Each pane's body scrolls on its own, a widget's generated
+   * panes (data-lf-reading-role="pane") included, and `--lf-held` on main tells a widget
+   * the body has a definite height to fill (a style query). Where the window is too
+   * small to hold the regions, the workspace flows and the page scrolls. */
+  main.layout-workspace { padding-block-start: var(--sp-4); }
   main.layout-workspace > header { padding-block: 0 var(--sp-3); }
   @media screen and (min-width: 720px) and (min-height: 480px) {
     main.layout-workspace {
@@ -80,6 +82,7 @@
       display: flex;
       flex-direction: column;
       block-size: var(--lf-view-height);
+      padding-block-end: 0;
       box-sizing: border-box;
     }
     main.layout-workspace > :is(header, footer) { flex: none; }
@@ -87,14 +90,7 @@
       flex: 1 1 0;
       min-block-size: 0;
       margin-block: 0;
-      display: flex;
-      flex-direction: column;
       grid-auto-rows: minmax(0, 1fr);
-    }
-    main.layout-workspace > :not(header, footer) > :last-child {
-      flex: 1 1 0;
-      min-block-size: 0;
-      margin-block-end: 0;
     }
     /* A pane is already a grid of header, body and footer (the default package), whose body
      * row takes what a definite height leaves and its content's height otherwise; here it

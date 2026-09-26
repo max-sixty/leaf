@@ -229,14 +229,14 @@
     </script>
   </head>
   <body>
-    <main data-width="available">
+    <main class="layout-column">
       <p class="eyebrow">controlled A/B playground</p>
       <h1>Compare built code readers</h1>
       <p class="lede">
         Both candidates are the shipped <code>lf-code</code> widget. One width gesture
         reaches both; candidate settings stay explicit and copyable.
       </p>
-      <lf-ask id="code-comparison-ask">
+      <lf-ask id="code-comparison-ask" data-width="available">
         <h2>Which built code-reader treatment should the agent keep?</h2>
         <lf-playground id="code-comparison-playground" submit-label="Apply treatment">
           <lf-playground-control
@@ -322,30 +322,25 @@ export function releaseLabels(releases) {
           </lf-playground-output>
         </lf-playground>
       </lf-ask>
-      <lf-grid id="code-targeting-layout" columns="2fr 1fr">
-        <lf-ask id="code-targeting-ask">
-          <h2>Which exact reader element should change?</h2>
-          <p>
-            Targeting keeps element identity separate from the comparison's visual
-            labels and settings.
-          </p>
-          <lf-targeting
-            id="code-comparison-targeting"
-            submit-label="Propose exact edit"
-          >
-            <lf-target-preview id="code-target-preview">
-              <section id="target-reader-artifact" class="code-candidate">
-                <h3 class="reader-treatment-title">Built reader treatment</h3>
-                <lf-code id="target-built-code" language="javascript" hi="2">
-                  <pre>
+      <lf-ask id="code-targeting-ask">
+        <h2>Which exact reader element should change?</h2>
+        <p>
+          Targeting keeps element identity separate from the comparison's visual labels
+          and settings.
+        </p>
+        <lf-targeting id="code-comparison-targeting" submit-label="Propose exact edit">
+          <lf-target-preview id="code-target-preview">
+            <section id="target-reader-artifact" class="code-candidate">
+              <h3 class="reader-treatment-title">Built reader treatment</h3>
+              <lf-code id="target-built-code" language="javascript" hi="2">
+                <pre>
 export const summarize = checks =>
   `${checks.passed} passed · ${checks.pending} pending · ${checks.failed} failed`;</pre>
-                </lf-code>
-              </section>
-            </lf-target-preview>
-          </lf-targeting>
-        </lf-ask>
-      </lf-grid>
+              </lf-code>
+            </section>
+          </lf-target-preview>
+        </lf-targeting>
+      </lf-ask>
     </main>
   </body>
 </html>

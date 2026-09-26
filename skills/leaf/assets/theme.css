@@ -749,11 +749,10 @@ main {
     margin-inline: auto;
     --lf-room: 100%;
   }
-  main:is(.layout-sidebar, .layout-tiles, .layout-workspace) > header h1 {
-    font-size: clamp(36px, 3.2cqi, 46px);
-    font-weight: 700;
-    letter-spacing: -0.02em;
-    line-height: 1.1;
+  /* A token rather than an `h1` rule: typography is unlayered, so it outranks this layer,
+   * and the base heading reads its size from the token. */
+  main:is(.layout-sidebar, .layout-tiles, .layout-workspace) > header {
+    --t-1: clamp(36px, 3.2cqi, 46px);
   }
   /* Workspace: the page fills the window below the banner and above the band, its header
    * and footer take their content's height, and the body between them takes the rest.
@@ -1011,7 +1010,10 @@ code { background: var(--code-bg); border-radius: 4px; padding: 1px 5px;
 pre { background: var(--pre-bg); border: 1px solid var(--code-border); border-radius: var(--r);
       padding: 12px 14px; overflow-x: auto; font-size: var(--code-size);
       line-height: var(--code-line); font-family: var(--mono); color: var(--code-ink);
-      font-variant-ligatures: none; }
+      font-variant-ligatures: none;
+      /* A block that scrolls its own lines never sizes what holds it: without this a
+       * long line is every flex item's and grid track's minimum up the tree. */
+      contain: inline-size; }
 pre code { background: none; padding: 0; font-size: 100%; }
 /* Paper has no scrollbar, so a line past the column is not a scroll away but gone. Code
    wraps on the sheet whatever it does on screen, the trade lf-diff's own sheet already
@@ -1081,7 +1083,8 @@ img, svg, video { max-width: 100%; height: auto; }
  * a table too wide to wrap, which it loses either way — the same trade pre and
  * lf-board already make, and the reason not to write a print rule undoing this
  * one. */
-table { display: block; overflow-x: auto; border-collapse: collapse;
+/* A table scrolls its own columns, so, like `pre`, its rows never size what holds it. */
+table { display: block; overflow-x: auto; contain: inline-size; border-collapse: collapse;
         font: var(--t-5)/1.5 var(--sans); margin: 18px 0; font-variant-numeric: tabular-nums; }
 /* A cell already supplies the identifier's frame and spacing. */
 :is(th, td) code:not(pre code) { padding: 0; background: none; font-size: var(--t-6); }

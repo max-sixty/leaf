@@ -7,6 +7,15 @@
       content="Build, order, and test structured release filters, then send the resulting query as one complete task."
     />
     <style>
+      /* The playground takes the page's width, under a title set a size up; title and lede
+       * keep its left edge. */
+      main {
+        max-width: var(--wide-page-max);
+        margin-inline: auto;
+        padding-inline: clamp(var(--col-pad), 4cqi, 64px);
+        --t-1: clamp(36px, 3.2cqi, 46px);
+      }
+
       release-query-explorer {
         display: grid;
         gap: var(--sp-3);
@@ -339,7 +348,7 @@
     </script>
   </head>
   <body>
-    <main data-width="available">
+    <main>
       <p class="eyebrow">structured data explorer</p>
       <h1>Shape a release query</h1>
       <p class="lede">

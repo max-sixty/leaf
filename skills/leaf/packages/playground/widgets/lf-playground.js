@@ -564,7 +564,6 @@ customElements.define(
 
       const split = document.createElement("div");
       split.className = "lf-playground-split";
-      split.dataset.lfReadingRole = "grid";
       split.append(
         pane("preview", "Preview", null, previewBody),
         pane("controls", "Controls", presetBar, panel),

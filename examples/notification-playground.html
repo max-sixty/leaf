@@ -7,6 +7,49 @@
       content="Stress-test two deployment notification formats against the same live event stream, then send the chosen configuration back to the agent."
     />
     <style>
+      /* The playground's regions: the stage beside the controls and the instruction. */
+      .lf-playground-split {
+        display: grid;
+        gap: var(--sp-4);
+      }
+      .lf-playground-split > * {
+        min-width: 0;
+        margin: 0;
+      }
+      /* The Ask is the workspace's body: its title, then the playground holding the rest
+         of the window. Each region's body scrolls on its own, and the controls give up
+         height before the instruction does. */
+      @media screen and (min-width: 720px) and (min-height: 480px) {
+        #notification-ask {
+          margin-top: var(--sp-4);
+          display: grid;
+          grid-template-rows: auto minmax(0, 1fr);
+        }
+        #notification-playground {
+          min-height: 0;
+          margin-bottom: 0;
+        }
+        .lf-playground-split {
+          min-height: 0;
+        }
+        .lf-playground-split > [data-lf-reading-role="pane"] {
+          min-height: 0;
+        }
+        .lf-playground-split > [data-lf-reading-role="pane"] > :not(header, footer) {
+          min-height: 0;
+          overflow: auto;
+          overscroll-behavior: contain;
+        }
+        @container (min-width: 43.5rem) {
+          .lf-playground-split {
+            grid-template-rows: minmax(12rem, 1fr) auto;
+          }
+          .lf-playground-instruction-region {
+            align-self: stretch;
+          }
+        }
+      }
+
       notification-simulator {
         display: block;
         box-sizing: border-box;
@@ -354,148 +397,125 @@
     </script>
   </head>
   <body>
-    <main>
-      <lf-workspace id="notification-workspace">
-        <lf-ask id="notification-ask">
-          <h1>Stress-test the deployment notification</h1>
-          <lf-playground
-            id="notification-playground"
-            submit-label="Create notification"
+    <main class="layout-workspace" id="notification-workspace">
+      <lf-ask id="notification-ask">
+        <h1>Stress-test the deployment notification</h1>
+        <lf-playground id="notification-playground" submit-label="Create notification">
+          <lf-playground-control
+            name="events"
+            label="Concurrent release events"
+            kind="range"
+            value="2"
+            min="1"
+            max="4"
+            step="1"
+          ></lf-playground-control>
+          <lf-playground-control
+            name="radius"
+            label="Corner radius"
+            kind="range"
+            value="10"
+            min="0"
+            max="24"
+            step="1"
+            unit="px"
+          ></lf-playground-control>
+          <lf-playground-control
+            name="compact"
+            label="Compact spacing"
+            kind="toggle"
+            value="false"
+          ></lf-playground-control>
+          <lf-playground-control
+            name="format"
+            label="Format"
+            kind="choice"
+            value="banner"
           >
-            <lf-playground-control
-              name="events"
-              label="Concurrent release events"
-              kind="range"
-              value="2"
-              min="1"
-              max="4"
-              step="1"
-            ></lf-playground-control>
-            <lf-playground-control
-              name="radius"
-              label="Corner radius"
-              kind="range"
-              value="10"
-              min="0"
-              max="24"
-              step="1"
-              unit="px"
-            ></lf-playground-control>
-            <lf-playground-control
-              name="compact"
-              label="Compact spacing"
-              kind="toggle"
-              value="false"
-            ></lf-playground-control>
-            <lf-playground-control
-              name="format"
-              label="Format"
-              kind="choice"
-              value="banner"
-            >
-              <lf-playground-choice
-                value="banner"
-                label="Banner"
-              ></lf-playground-choice>
-              <lf-playground-choice
-                value="status strip"
-                label="Status strip"
-              ></lf-playground-choice>
-            </lf-playground-control>
-            <lf-playground-control name="tone" label="Tone" kind="choice" value="calm">
-              <lf-playground-choice value="calm" label="Calm"></lf-playground-choice>
-              <lf-playground-choice
-                value="urgent"
-                label="Urgent"
-              ></lf-playground-choice>
-            </lf-playground-control>
-            <lf-playground-control
-              name="show-owner"
-              label="Show service owner"
-              kind="toggle"
-              value="true"
-            ></lf-playground-control>
-            <lf-playground-control
-              name="accent"
-              label="Accent"
-              kind="color"
-              value="#4f766f"
-            ></lf-playground-control>
-            <lf-playground-control
-              name="title"
-              label="Notification title"
-              kind="text"
-              value="Checkout deployed"
-              placeholder="Notification heading"
-            ></lf-playground-control>
+            <lf-playground-choice value="banner" label="Banner"></lf-playground-choice>
+            <lf-playground-choice
+              value="status strip"
+              label="Status strip"
+            ></lf-playground-choice>
+          </lf-playground-control>
+          <lf-playground-control name="tone" label="Tone" kind="choice" value="calm">
+            <lf-playground-choice value="calm" label="Calm"></lf-playground-choice>
+            <lf-playground-choice value="urgent" label="Urgent"></lf-playground-choice>
+          </lf-playground-control>
+          <lf-playground-control
+            name="show-owner"
+            label="Show service owner"
+            kind="toggle"
+            value="true"
+          ></lf-playground-control>
+          <lf-playground-control
+            name="accent"
+            label="Accent"
+            kind="color"
+            value="#4f766f"
+          ></lf-playground-control>
+          <lf-playground-control
+            name="title"
+            label="Notification title"
+            kind="text"
+            value="Checkout deployed"
+            placeholder="Notification heading"
+          ></lf-playground-control>
 
-            <lf-playground-preset label="Routine release">
-              <lf-playground-setting for="events" value="2"></lf-playground-setting>
-              <lf-playground-setting for="tone" value="calm"></lf-playground-setting>
-              <lf-playground-setting
-                for="compact"
-                value="false"
-              ></lf-playground-setting>
-              <lf-playground-setting
-                for="format"
-                value="banner"
-              ></lf-playground-setting>
-              <lf-playground-setting
-                for="accent"
-                value="#4f766f"
-              ></lf-playground-setting>
-            </lf-playground-preset>
-            <lf-playground-preset label="Needs attention">
-              <lf-playground-setting for="events" value="4"></lf-playground-setting>
-              <lf-playground-setting for="tone" value="urgent"></lf-playground-setting>
-              <lf-playground-setting for="compact" value="true"></lf-playground-setting>
-              <lf-playground-setting
-                for="format"
-                value="status strip"
-              ></lf-playground-setting>
-              <lf-playground-setting
-                for="accent"
-                value="#b6533c"
-              ></lf-playground-setting>
-            </lf-playground-preset>
+          <lf-playground-preset label="Routine release">
+            <lf-playground-setting for="events" value="2"></lf-playground-setting>
+            <lf-playground-setting for="tone" value="calm"></lf-playground-setting>
+            <lf-playground-setting for="compact" value="false"></lf-playground-setting>
+            <lf-playground-setting for="format" value="banner"></lf-playground-setting>
+            <lf-playground-setting for="accent" value="#4f766f"></lf-playground-setting>
+          </lf-playground-preset>
+          <lf-playground-preset label="Needs attention">
+            <lf-playground-setting for="events" value="4"></lf-playground-setting>
+            <lf-playground-setting for="tone" value="urgent"></lf-playground-setting>
+            <lf-playground-setting for="compact" value="true"></lf-playground-setting>
+            <lf-playground-setting
+              for="format"
+              value="status strip"
+            ></lf-playground-setting>
+            <lf-playground-setting for="accent" value="#b6533c"></lf-playground-setting>
+          </lf-playground-preset>
 
-            <lf-playground-preview id="notification-preview">
-              <p>
-                Drag event pressure from a routine release to a burst. Both formats
-                receive the same updates, so their scan cost stays comparable. The
-                Format control selects the requested output while leaving both
-                candidates visible for comparison.
-              </p>
-              <notification-simulator
-                id="notification-simulator"
-              ></notification-simulator>
-              <section id="notification-artifact" hidden>
-                <lf-text-document
-                  id="notification-artifact-source"
-                  source="notification-artifact"
-                  language="html"
-                ></lf-text-document>
-              </section>
-            </lf-playground-preview>
+          <lf-playground-preview id="notification-preview">
+            <p>
+              Drag event pressure from a routine release to a burst. Both formats
+              receive the same updates, so their scan cost stays comparable. The Format
+              control selects the requested output while leaving both candidates visible
+              for comparison.
+            </p>
+            <notification-simulator
+              id="notification-simulator"
+            ></notification-simulator>
+            <section id="notification-artifact" hidden>
+              <lf-text-document
+                id="notification-artifact-source"
+                source="notification-artifact"
+                language="html"
+              ></lf-text-document>
+            </section>
+          </lf-playground-preview>
 
-            <lf-playground-output id="notification-instruction">
-              Build the
-              <lf-playground-value for="format"></lf-playground-value> deployment
-              notification as <code>deployment-notification.html</code>. Use
-              <lf-playground-value for="tone"></lf-playground-value> styling,
-              <lf-playground-value for="radius"></lf-playground-value> corners,
-              <lf-playground-value for="accent"></lf-playground-value> accents, compact
-              spacing set to <lf-playground-value for="compact"></lf-playground-value>,
-              owner visibility set to
-              <lf-playground-value for="show-owner"></lf-playground-value>, and title it
-              <lf-playground-value for="title"></lf-playground-value>. Exercise
-              <lf-playground-value for="events"></lf-playground-value> concurrent
-              release events in its browser test, then show me the generated source here
-              for review.
-            </lf-playground-output>
-          </lf-playground>
-        </lf-ask>
-      </lf-workspace>
+          <lf-playground-output id="notification-instruction">
+            Build the
+            <lf-playground-value for="format"></lf-playground-value> deployment
+            notification as <code>deployment-notification.html</code>. Use
+            <lf-playground-value for="tone"></lf-playground-value> styling,
+            <lf-playground-value for="radius"></lf-playground-value> corners,
+            <lf-playground-value for="accent"></lf-playground-value> accents, compact
+            spacing set to <lf-playground-value for="compact"></lf-playground-value>,
+            owner visibility set to
+            <lf-playground-value for="show-owner"></lf-playground-value>, and title it
+            <lf-playground-value for="title"></lf-playground-value>. Exercise
+            <lf-playground-value for="events"></lf-playground-value> concurrent release
+            events in its browser test, then show me the generated source here for
+            review.
+          </lf-playground-output>
+        </lf-playground>
+      </lf-ask>
     </main>
   </body>
 </html>

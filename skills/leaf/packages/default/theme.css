@@ -26,7 +26,7 @@
  * the live screen's alone.
  *
  * A widget that composes regions out of boxes it generates, such as a playground's
- * controls beside its preview, marks them data-lf-reading-role="grid" or "pane" and
+ * controls beside its preview, marks them data-lf-reading-role="pane" and
  * takes these same rules, bounded ones included, so no package keeps a copy of them.
  * The attribute sits inside :where(), so every selector keeps the tag's specificity. */
 lf-workspace,
@@ -1932,6 +1932,8 @@ lf-chart, lf-tree, lf-code { display: block; margin: 14px 0;
              font-family: var(--mono); font-size: var(--code-size);
              line-height: var(--code-line); font-variant-ligatures: none;
              color: var(--code-muted); overflow-x: auto; }
+/* Code scrolls its own lines, so its longest line never sizes what holds it. */
+lf-code { contain: inline-size; }
 lf-chart.lf-rendered, lf-tree.lf-rendered, lf-code.lf-rendered {
              font: inherit; color: inherit; overflow: visible; }
 /* The authored body, before its module replaces it. Nothing here says white-space: the

@@ -182,6 +182,7 @@ customElements.define(
         (next, prior) => renderDatum(this, next, prior),
         {
           snapshot,
+          identify: present ? ({ id }) => id : null,
           originOf: () =>
             snapshot
               ? { ...snapshot.origin, ...(present ? { path: [this.id] } : {}) }

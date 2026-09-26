@@ -191,7 +191,7 @@ customElements.define(
             next.missing
               ? renderMissing(prior)
               : renderCard(next, prior, descriptionChanged),
-          { snapshot },
+          { snapshot, identify: record ? ({ key }) => key : null },
         );
         return descriptionChanged.value;
       });

@@ -60,7 +60,7 @@ customElements.define(
             });
           return item;
         },
-        { snapshot },
+        { snapshot, identify: (row) => row.id },
       );
       for (const [key, stop] of this.seats) {
         if (snapshot.value.rows.some((row) => row.id === key)) continue;

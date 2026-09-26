@@ -12,8 +12,8 @@ from ..files import active_descriptor, version_descriptors
 from ..passages import active_enclosing
 from ..presence import presence_with_activity
 from ..registry.contract import RegistryError
-from ..registry.storage import layer_metadata, load_registry
-from ..revision_artifact import read_artifact
+from ..registry.storage import layer_metadata, page_vocabulary
+from ..revision_artifact import read_registry
 from ..structure import SourceDocument
 from ..workflows import canonical_workflows
 from .browser import project_browser_state
@@ -88,11 +88,11 @@ def full_state(
     now = now_override or now_iso()
     if registry_override is not None:
         registry = registry_override
-    elif active is not None:
-        registry = read_artifact(page_dir, active["revision"]).registry
     else:
         try:
-            registry = load_registry(page_dir)
+            registry = page_vocabulary(
+                page_dir, active["revision"] if active is not None else None
+            )
         except RegistryError:
             registry = None
     stored_data = (
@@ -126,7 +126,7 @@ def full_state(
             if registries_override is not None
             else registry_override
             if registry_override is not None
-            else read_artifact(page_dir, selected_revision).registry
+            else read_registry(page_dir, selected_revision)
         )
         identity = selected_registry["$layer"]
     else:

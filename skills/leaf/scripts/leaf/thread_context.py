@@ -158,6 +158,8 @@ def thread_memberships(
     This is the shared join for exact event selection and wait delivery. Current
     resolution still comes from `build_threads`; membership says which raw
     records explain that fold rather than becoming another state projection.
+    Read state and the history feed read the direct relation, `event_threads`:
+    a move the user made in a thread, rather than every thread it changed.
     """
     memberships: dict[str, list[str]] = {}
     settled_by_coordinate: dict[tuple, list[str]] = {}

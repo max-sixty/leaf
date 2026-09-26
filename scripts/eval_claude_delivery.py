@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compare how promptly a Claude Code agent picks up a Leaf comment, base vs HEAD.
+"""Compare how a Claude Code agent handles a Leaf comment, base vs HEAD.
 
 This is a basic, imperfect eval: a starting point that needs work before its numbers
 support more than "no obvious regression". Each round launches one headless Claude
@@ -19,13 +19,32 @@ posts real comments over HTTP, at the moments a case names:
 
 For each comment it reads the page log and the session's stream for:
 
-- seconds from the comment to its `pickup` (the user sees Picked up) and to the
-  first agent reply;
+- `woken`: seconds from the post to the delivery reaching the agent;
+- seconds from the comment to its `pickup` (the user sees Picked up), to the first
+  agent reply, which settles the comment's workflow, and to the last reply in its
+  thread before the turn ends (`done`);
+- `turn`: seconds from the post to the end of the turn that handled it, with the
+  time from the delivery to that end split into time inside tool calls and the rest
+  (`model`: model latency, hooks, and harness), and the slowest single call;
 - `ack`: seconds from the delivery reaching the agent to that pickup, which is the
   agent's own share of the pickup time;
 - `extra`: anything the agent ran between the delivery and `leaf wait --ack` other
   than reading the delivery, which should be nothing;
 - any acknowledgement command the agent invented rather than `leaf wait --ack`.
+
+It also samples what the page tells the user, as an open tab reads it: from the
+served URL onward it reads `/api/state` every SAMPLE_EVERY seconds and saves each
+change of the banner (`activity.kind` and its sentence) and of each workflow's
+stage, or condition, to `states.jsonl`. For each comment, from its post to LINGER
+seconds after its turn ends, it reports the values the comment's workflow and the
+banner took and when; how long after the delivery the page first showed Picked up
+and the agent's work claim, beside the budgets `notes/user-feedback-responsiveness.md`
+sets (1 s and 2 s); and two disagreements with the stream:
+
+- `quiet`: seconds between the delivery and the agent's last reply in that turn
+  during which the banner did not say `working`, though the agent was;
+- `late`: seconds after the turn ended during which the banner still said
+  `working`.
 
 `claude -p` terminates a background shell once the final result is out and stdin has
 closed, so each session runs with `--input-format stream-json` and stdin held open
@@ -44,6 +63,10 @@ Known limits:
 - Timings include model latency and machine load. Launching every session together
   controls load only roughly. The page log stamps whole seconds.
 - Scoring matches substrings in shell commands.
+- Sampling reads what the page serves, not what a browser draws: a tab derives its
+  labels from these values in `runtime/thread/workflow.js`. Each change is placed
+  within SAMPLE_EVERY seconds, and each read counts as the page being viewed, as an
+  open tab's does.
 - Only the `leaf wait` carrier is covered. `verify_site.py local` covers App Server;
   nothing covers the Codex queue.
 
@@ -61,6 +84,7 @@ import tempfile
 import threading
 import urllib.parse
 import urllib.request
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from functools import partial
@@ -73,6 +97,8 @@ ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / ".tmp" / "eval-claude-delivery"
 ROUNDS = 2
 TURN_LIMIT = 600
+SAMPLE_EVERY = 0.25
+LINGER = 10
 PROMPT = (
     "I wrote a Leaf page at ./page. Serve it so I can review it in my browser, "
     "and handle the comments I leave on it."
@@ -101,28 +127,81 @@ def now() -> str:
     return datetime.now().astimezone().isoformat()
 
 
-def post_comment(url: str, n: int) -> None:
-    """Post comment `n` the way the page does: keyed, on the served layer and revision."""
-    parts = urllib.parse.urlsplit(url)
-    origin = f"{parts.scheme}://{parts.netloc}"
-    token = urllib.parse.parse_qs(parts.query)["t"][0]
-    opener = urllib.request.build_opener(
-        urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar())
-    )
-    with opener.open(f"{origin}/api/state?t={token}") as response:
-        state = json.loads(response.read())
-    comment = {
-        "kind": "comment",
-        "revision": state["active"]["revision"],
-        "attempt": attempt(n),
-        **COMMENTS[n - 1],
-    }
-    request = urllib.request.Request(
-        f"{origin}/api/event?t={token}",
-        data=json.dumps(comment).encode(),
-        headers={"Leaf-Layer": state["layer"]["generation"]},
-    )
-    opener.open(request).close()
+def moment(record: dict) -> float:
+    return datetime.fromisoformat(record["received_at"]).timestamp()
+
+
+class PageClient:
+    """The served page's API, reached the way a tab reaches it: token and cookies."""
+
+    def __init__(self, url: str) -> None:
+        parts = urllib.parse.urlsplit(url)
+        self.origin = f"{parts.scheme}://{parts.netloc}"
+        self.token = urllib.parse.parse_qs(parts.query)["t"][0]
+        self.opener = urllib.request.build_opener(
+            urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar())
+        )
+
+    def state(self) -> dict:
+        with self.opener.open(f"{self.origin}/api/state?t={self.token}") as response:
+            return json.loads(response.read())
+
+    def post_comment(self, n: int) -> None:
+        """Post comment `n` as the page does: keyed, on the served layer and revision."""
+        state = self.state()
+        comment = {
+            "kind": "comment",
+            "revision": state["active"]["revision"],
+            "attempt": attempt(n),
+            **COMMENTS[n - 1],
+        }
+        request = urllib.request.Request(
+            f"{self.origin}/api/event?t={self.token}",
+            data=json.dumps(comment).encode(),
+            headers={"Leaf-Layer": state["layer"]["generation"]},
+        )
+        self.opener.open(request).close()
+
+
+def sample_page(url: str, path: Path, stop: threading.Event) -> None:
+    """Save each change in what the page tells the user until `stop` is set."""
+    page, last = PageClient(url), None
+    with path.open("w") as out:
+        while not stop.wait(SAMPLE_EVERY):
+            try:
+                state = page.state()
+            except OSError:
+                # The server stops with its session, which may be before `stop`.
+                shown = {"banner": "unreachable", "detail": "", "stages": {}}
+            else:
+                shown = {
+                    "banner": state["activity"]["kind"],
+                    "detail": state["activity"]["detail"],
+                    "stages": {
+                        w["input"]: w["condition"]["kind"]
+                        if w["condition"]
+                        else w["stage"]
+                        for w in state["workflows"]
+                    },
+                }
+            if shown != last:
+                out.write(json.dumps({**shown, "received_at": now()}) + "\n")
+                out.flush()
+                last = shown
+
+
+def spans(
+    samples: list[dict], read: Callable[[dict], object], start: float, end: float
+) -> list[tuple[object, float, float]]:
+    """The values `read` took over [start, end], as (value, from, to) in seconds after
+    `start`; None before the first sample."""
+    before = [s for s in samples if moment(s) <= start]
+    runs = [[read(before[-1]) if before else None, start, end]]
+    for sample in samples:
+        if start < moment(sample) < end and read(sample) != runs[-1][0]:
+            runs[-1][2] = moment(sample)
+            runs.append([read(sample), moment(sample), end])
+    return [(value, begun - start, ended - start) for value, begun, ended in runs]
 
 
 def waits_started(record: dict) -> list[str]:
@@ -138,15 +217,53 @@ def waits_started(record: dict) -> list[str]:
     ]
 
 
-def commands(record: dict) -> list[str]:
-    """Return what each tool call in one stream record runs, or the tool and its file."""
+def tool_calls(record: dict) -> list[tuple[str, str]]:
+    """Return each tool call in one stream record: its id, and what it runs, or the
+    tool and its file."""
     content = (record.get("message") or {}).get("content")
     return [
-        block["input"].get("command")
-        or " ".join(filter(None, [block["name"], block["input"].get("file_path")]))
+        (
+            block["id"],
+            block["input"].get("command")
+            or " ".join(filter(None, [block["name"], block["input"].get("file_path")])),
+        )
         for block in (content if isinstance(content, list) else ())
         if block.get("type") == "tool_use"
     ]
+
+
+def commands(record: dict) -> list[str]:
+    return [ran for _, ran in tool_calls(record)]
+
+
+def calls_within(
+    stream: list[dict], start: float, end: float
+) -> list[tuple[float, float, str]]:
+    """Each tool call's part of [start, end], as (from, to, what it ran)."""
+    opened, calls = {}, []
+    for record in stream:
+        for call, ran in tool_calls(record):
+            opened[call] = (moment(record), ran)
+        content = (record.get("message") or {}).get("content")
+        for block in content if isinstance(content, list) else ():
+            if block.get("type") == "tool_result" and block["tool_use_id"] in opened:
+                begun, ran = opened.pop(block["tool_use_id"])
+                if begun < end and moment(record) > start:
+                    calls.append((max(begun, start), min(moment(record), end), ran))
+    return calls
+
+
+def tool_time(
+    calls: list[tuple[float, float, str]], start: float
+) -> tuple[float, tuple[float, str] | None]:
+    """Seconds spent inside `calls`, overlapping calls counted once, and the slowest
+    call as (seconds, what it ran)."""
+    inside, reach = 0.0, start
+    for begun, ended, _ in sorted(calls):
+        inside += max(0.0, ended - max(begun, reach))
+        reach = max(reach, ended)
+    slowest = max(calls, key=lambda c: c[1] - c[0], default=None)
+    return inside, slowest and (slowest[1] - slowest[0], slowest[2])
 
 
 def stop_blocked(record: dict) -> bool:
@@ -210,6 +327,8 @@ def run_session(arm: Path, case: str, run: Path) -> None:
     # still ends: the kill closes stdout and the loop below finishes.
     deadline = threading.Timer(TURN_LIMIT, give_up)
     deadline.start()
+    # The sampler runs in a pool so that its failure raises here, not in a thread.
+    sampled, sampling, sampler = threading.Event(), ThreadPoolExecutor(1), None
     try:
         url, waits, due, posted, acks = None, set(), list(CASES[case]), 0, 0
         with (run / "stream.jsonl").open("w") as stream:
@@ -217,7 +336,7 @@ def run_session(arm: Path, case: str, run: Path) -> None:
             def post() -> None:
                 nonlocal posted
                 posted += 1
-                post_comment(url, posted)
+                PageClient(url).post_comment(posted)
                 marker = {"type": "eval_comment", "n": posted, "received_at": now()}
                 stream.write(json.dumps(marker) + "\n")
                 due.pop(0)
@@ -235,6 +354,9 @@ def run_session(arm: Path, case: str, run: Path) -> None:
                         found := URL.search(json.dumps(block.get("content")))
                     ):
                         url = found.group(0)
+                        sampler = sampling.submit(
+                            sample_page, url, run / "states.jsonl", sampled
+                        )
                     if due[:1] == ["running"] and url and block["tool_use_id"] in waits:
                         # The wait is running and the setup turn is not over.
                         post()
@@ -248,10 +370,15 @@ def run_session(arm: Path, case: str, run: Path) -> None:
                     # hence the grace period.
                     threading.Timer(20, close_stdin).start()
         proc.wait(timeout=60)
+        if sampler:
+            sampled.set()
+            sampler.result()
         (run / "events.jsonl").write_text(leaf("events", str(page), check=True).stdout)
     finally:
         # A failed arm ends as promptly as a stalled one: no timer or child outlives it.
         deadline.cancel()
+        sampled.set()
+        sampling.shutdown()
         if proc.poll() is None:
             proc.kill()
             proc.wait()
@@ -267,6 +394,13 @@ def score(run: Path) -> list[dict]:
     stream = [
         json.loads(line) for line in (run / "stream.jsonl").read_text().splitlines()
     ]
+    sampled = run / "states.jsonl"
+    samples = (
+        [json.loads(line) for line in sampled.read_text().splitlines()]
+        if sampled.exists()
+        else []
+    )
+    markers = [r for r in stream if r["type"] == "eval_comment"]
     waits = {wait for r in stream for wait in waits_started(r)}
     outputs = {
         r["output_file"]
@@ -274,7 +408,7 @@ def score(run: Path) -> list[dict]:
         if r.get("subtype") == "task_notification" and r["tool_use_id"] in waits
     }
     readings = []
-    for marker in (r for r in stream if r["type"] == "eval_comment"):
+    for i, marker in enumerate(markers):
         comment = next(e for e in events if e.get("attempt") == attempt(marker["n"]))
         posted_at = datetime.fromisoformat(comment["ts"])
         pickup = next(
@@ -287,14 +421,11 @@ def score(run: Path) -> list[dict]:
             ),
             None,
         )
-        reply = next(
-            (
-                datetime.fromisoformat(e["ts"])
-                for e in events
-                if e["kind"] == "reply" and e.get("parent") == comment["id"]
-            ),
-            None,
-        )
+        replies = [
+            datetime.fromisoformat(e["ts"])
+            for e in events
+            if e["kind"] == "reply" and e.get("parent") == comment["id"]
+        ]
         # What followed the post up to the ack: what carried the comment in, and
         # what the agent ran once it had.
         notified, blocked, before_ack = None, None, []
@@ -318,6 +449,20 @@ def score(run: Path) -> list[dict]:
             elif notified or blocked:
                 before_ack += ran
         delivery = blocked or notified
+        # The turn that handled the comment ends at the first result after it came in.
+        ended = delivery and next(
+            (
+                moment(r)
+                for r in stream[stream.index(delivery) :]
+                if r["type"] == "result"
+            ),
+            None,
+        )
+        # The page log stamps whole seconds, so no reply of a later turn falls at or
+        # before this one's end.
+        done = max(
+            (r for r in replies if ended and r.timestamp() <= ended), default=None
+        )
         readings.append(
             {
                 "comment": marker["n"],
@@ -327,7 +472,9 @@ def score(run: Path) -> list[dict]:
                 if notified
                 else None,
                 "pickup_s": pickup and round((pickup - posted_at).total_seconds()),
-                "reply_s": reply and round((reply - posted_at).total_seconds()),
+                "woken_s": delivery and round(moment(delivery) - moment(marker), 1),
+                "reply_s": replies and round((replies[0] - posted_at).total_seconds()),
+                "done_s": done and round((done - posted_at).total_seconds()),
                 "ack_s": pickup
                 and delivery
                 and round(
@@ -341,6 +488,24 @@ def score(run: Path) -> list[dict]:
                 ]
                 if delivery
                 else None,
+                **(
+                    turn_reading(
+                        stream,
+                        samples,
+                        comment["id"],
+                        moment(marker),
+                        moment(delivery),
+                        ended,
+                        min(
+                            [
+                                ended + LINGER,
+                                *(moment(m) for m in markers[i + 1 : i + 2]),
+                            ]
+                        ),
+                    )
+                    if ended
+                    else {}
+                ),
             }
         )
     ran = [c for r in stream for c in commands(r)]
@@ -354,6 +519,117 @@ def score(run: Path) -> list[dict]:
         }
         for reading in readings
     ] or [{"comment": None, "timed_out": (run / "timed-out").exists()}]
+
+
+def turn_reading(
+    stream: list[dict],
+    samples: list[dict],
+    comment: str,
+    posted: float,
+    woken: float,
+    ended: float,
+    until: float,
+) -> dict:
+    """One comment's turn from the stream beside what the page showed meanwhile."""
+    calls = calls_within(stream, woken, ended)
+    inside, slowest = tool_time(calls, woken)
+    # The agent works on the comment until its last reply; what follows in the turn
+    # is its handoff, which the banner rightly reads as listening.
+    answered = max((to for _, to, ran in calls if "thread reply" in ran), default=ended)
+
+    def banner(sample: dict) -> str:
+        return sample["banner"]
+
+    def first(read: Callable[[dict], object], wanted: Callable[[object], bool]):
+        """Seconds from the delivery until `read` first shows a wanted value."""
+        return next(
+            (
+                round(begun, 1)
+                for value, begun, _ in spans(samples, read, woken, until)
+                if wanted(value)
+            ),
+            None,
+        )
+
+    after = spans(samples, banner, ended, until)
+    return {
+        "shown_pickup_s": first(
+            lambda s: s["stages"].get(comment), lambda v: v in {"picked_up", "working"}
+        ),
+        # The agent's work claim is what gives the banner a sentence.
+        "shown_claim_s": first(
+            lambda s: (s["banner"], bool(s["detail"])), lambda v: v == ("working", True)
+        ),
+        "turn_s": round(ended - posted, 1),
+        "model_s": round(ended - woken - inside, 1),
+        "tools_s": round(inside, 1),
+        "slowest": slowest
+        and [round(slowest[0], 1), re.sub(r"(?<![\w$])/[^\s;&|]*/", "", slowest[1])],
+        "stages": [
+            [value, round(begun, 1)]
+            for value, begun, _ in spans(
+                samples, lambda s: s["stages"].get(comment), posted, until
+            )
+        ],
+        "banner": [
+            [value, round(begun, 1)]
+            for value, begun, _ in spans(samples, banner, posted, until)
+        ],
+        "quiet_s": round(
+            sum(
+                ended - begun
+                for value, begun, ended in spans(samples, banner, woken, answered)
+                if value != "working"
+            ),
+            1,
+        ),
+        "late_s": round(after[0][2] - after[0][1], 1)
+        if after[0][0] == "working"
+        else 0,
+    }
+
+
+def shown(runs: list[list]) -> str:
+    return " ".join(f"{value or '-'}@{begun:g}" for value, begun in runs)
+
+
+def report(results: dict) -> None:
+    """Print one block per comment."""
+    for name, readings in results.items():
+        for r in readings:
+            if r["comment"] is None:
+                print(
+                    f"{name:18}    {'TIMED OUT' if r['timed_out'] else 'posted nothing'}"
+                )
+                continue
+            print(
+                f"{name:18} #{r['comment']} {'TIMED OUT  ' if r['timed_out'] else ''}"
+                f"woken {r['woken_s']}s  pickup {r['pickup_s']}s  "
+                f"reply {r['reply_s']}s  done {r['done_s']}s  turn {r.get('turn_s')}s"
+            )
+            indent = " " * 22
+            if "turn_s" in r:
+                seconds, ran = r["slowest"] or (None, "")
+                print(
+                    f"{indent}model {r['model_s']}s  tools {r['tools_s']}s  "
+                    f"slowest {seconds}s {ran[:70]!r}"
+                )
+            print(
+                f"{indent}ack {r['ack_s']}s after {r['route'] or 'no delivery'}  "
+                f"extra {r['extra_before_ack'] or 'none'}  "
+                f"invented {r['invented_ack'] or 'none'}"
+            )
+            if "turn_s" in r:
+                print(
+                    f"{indent}after delivery: Picked up shown "
+                    f"+{r['shown_pickup_s']}s (goal 1s)  claim shown "
+                    f"+{r['shown_claim_s']}s (goal 2s)"
+                )
+                print(
+                    f"{indent}workflow {shown(r['stages'])}  "
+                    f"banner {shown(r['banner'])}  "
+                    f"quiet {r['quiet_s']}s  late {r['late_s']}s"
+                )
 
 
 @click.command()
@@ -382,20 +658,7 @@ def main(base_ref: str) -> None:
         for arm, case, i in sorted(runs)
     }
     (OUT / "results.json").write_text(json.dumps(results, indent=1))
-    for name, readings in results.items():
-        for r in readings:
-            if r["comment"] is None:
-                print(
-                    f"{name:18}    {'TIMED OUT' if r['timed_out'] else 'posted nothing'}"
-                )
-                continue
-            print(
-                f"{name:18} #{r['comment']} {'TIMED OUT  ' if r['timed_out'] else ''}"
-                f"pickup {r['pickup_s']}s  reply {r['reply_s']}s  "
-                f"ack {r['ack_s']}s after {r['route'] or 'no delivery'}  "
-                f"extra {r['extra_before_ack'] or 'none'}  "
-                f"invented {r['invented_ack'] or 'none'}"
-            )
+    report(results)
     print(f"details: {OUT}/results.json")
 
 

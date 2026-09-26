@@ -5974,6 +5974,25 @@ def test_inflight_native_paging_hides_hints_until_the_scene_settles(browser, ser
     page.keyboard.press("Escape")
 
 
+def test_armed_hints_settle_after_resize(browser, serve):
+    """A resize during the arming wait still lets the map appear at rest."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Map at resize",
+                '<h1>Map at resize</h1><p><a id="destination" href="#destination">Go</a></p>',
+            )
+        ),
+    )
+    page.clock.install(time=0)
+    page.clock.pause_at(0)
+    page.keyboard.press("g")
+    page.set_viewport_size({"width": 800, "height": 700})
+    page.clock.run_for(100)
+    expect(page.locator(CHIPS).first).to_be_visible()
+
+
 def test_only_controls_and_boxes_with_something_out_of_sight_take_a_tab_stop(
     browser, serve
 ):

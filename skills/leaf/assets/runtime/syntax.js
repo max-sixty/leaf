@@ -154,10 +154,7 @@ export async function highlightBlocks(root) {
     // A block already tokenized for this language keeps its spans: a live revision
     // that rewrote an ancestor's attribute dresses the ancestor again, and the user
     // may be holding a selection in the block beneath it.
-    if (
-      registry.$languages.names.includes(lang) &&
-      code.dataset.lfSyntax !== lang
-    )
+    if (registry.$languages.names.includes(lang) && code.dataset.lfSyntax !== lang)
       blocks.push([code, lang]);
   }
   if (!blocks.length) return;

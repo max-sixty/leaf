@@ -181,7 +181,7 @@ commands, ask the user to run `wt config approvals add`.
 
 ## Land a change
 
-Landing needs the user's authorization. A branch may land with a red gate only
+A branch may land with a red gate only
 when every failure also fails on the exact merge-base SHA under the same CI job
 and selection; until it reproduces there, it is the branch's. Use the base SHA's
 GitHub Actions run as the control, not a local container or a green run a few

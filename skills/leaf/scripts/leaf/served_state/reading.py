@@ -3,7 +3,7 @@
 import hashlib
 from pathlib import Path
 
-from ..files import STAGED, file_stamp
+from ..files import STAGED, entry_stamps, file_stamp
 from ..interaction_log import INTERACTIONS_FILE
 from ..schema import DATA_DIR, EVENTS_FILE, VIEWED_FILE
 from ..service import claim_path
@@ -68,11 +68,7 @@ def source_readings(page_dir: Path) -> tuple[str, str]:
 
 
 def _page_stamps(page_dir: Path) -> list[tuple[str, object]]:
-    stamps = sorted(
-        (entry.name, file_stamp(entry))
-        for entry in page_dir.iterdir()
-        if entry.name not in UNWATCHED and not STAGED.fullmatch(entry.name)
-    )
+    stamps = entry_stamps(page_dir, UNWATCHED)
     stamps.extend(
         (entry.relative_to(page_dir).as_posix(), file_stamp(entry))
         for tree in ("page", DATA_DIR)

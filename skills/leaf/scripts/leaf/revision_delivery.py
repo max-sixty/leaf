@@ -2,7 +2,7 @@
 
 Capture validates the graph; delivery only changes how its resources are addressed.
 HTML source spans preserve prose and unrelated attributes, JavaScript rewriting names
-only parsed imports, and CSS rewriting names only imports and url() values. The same
+only parsed imports, and CSS rewriting names only the URLs `rewrite_css` reads. The same
 document therefore works at the live, stamped-version, and immutable-revision URLs.
 """
 
@@ -11,11 +11,9 @@ import json
 from collections.abc import Callable, Mapping
 from urllib.parse import quote, urlsplit
 
-import tinycss2
 import turbohtml
-from tinycss2.serializer import serialize_string_value
 
-from .revision_artifact import Resource, resolve_dependency, rewrite_module
+from .revision_artifact import Resource, resolve_dependency, rewrite_css, rewrite_module
 from .structure import (
     DELIVERY_ENCODING_META,
     SourceDocument,
@@ -37,46 +35,11 @@ def _resource_url(value: str, logical_path: str, asset_root: str) -> str:
 
 
 def _stylesheet(source: str, logical_path: str, asset_root: str, *, block=False) -> str:
-    parse = tinycss2.parse_declaration_list if block else tinycss2.parse_stylesheet
-    tokens = parse(source)
-    changed = False
-
-    def replace(token):
-        nonlocal changed
-        value = _resource_url(token.value, logical_path, asset_root)
-        if value == token.value:
-            return
-        changed = True
-        token.value = value
-        quoted = '"' + serialize_string_value(value) + '"'
-        token.representation = f"url({quoted})" if token.type == "url" else quoted
-
-    def walk(items):
-        for token in items:
-            if token.type == "url":
-                replace(token)
-            elif token.type == "function" and token.lower_name == "url":
-                [value] = [
-                    item
-                    for item in token.arguments
-                    if item.type not in {"whitespace", "comment"}
-                ]
-                replace(value)
-            elif token.type == "at-rule" and token.lower_at_keyword == "import":
-                first = next(
-                    item
-                    for item in token.prelude
-                    if item.type not in {"whitespace", "comment"}
-                )
-                if first.type == "string":
-                    replace(first)
-            for name in ("prelude", "content", "arguments", "value"):
-                nested = getattr(token, name, None)
-                if isinstance(nested, list):
-                    walk(nested)
-
-    walk(tokens)
-    return tinycss2.serialize(tokens) if changed else source
+    return rewrite_css(
+        source,
+        lambda url: _resource_url(url, logical_path, asset_root),
+        declarations=block,
+    )
 
 
 def deliver_resource(resource: Resource, logical_path: str, asset_root: str) -> bytes:

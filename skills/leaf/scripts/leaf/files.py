@@ -7,7 +7,7 @@ import re
 import secrets
 import sys
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Collection
 from datetime import datetime, timezone
 from pathlib import Path
 from stat import S_ISDIR, S_ISREG
@@ -98,6 +98,19 @@ def _contents(path: Path, mode: int) -> bytes | None:
     else:
         return None
     return hashlib.blake2b(held, digest_size=16).digest()
+
+
+def entry_stamps(directory: Path, ignored: Collection[str]) -> list[tuple[str, object]]:
+    """Each direct child of a directory by name and stamp, in name order.
+
+    Leaves out the names in `ignored`, which each caller chooses by what its reading
+    depends on, and every file an atomic write is still staging (`STAGED`), which no
+    reader depends on."""
+    return sorted(
+        (entry.name, file_stamp(entry))
+        for entry in directory.iterdir()
+        if entry.name not in ignored and not STAGED.fullmatch(entry.name)
+    )
 
 
 # How often a reader waiting on a page looks for news: the browser's news stream,

@@ -127,14 +127,16 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     const field = document.createElement("div");
     field.className = "lf-compose-field";
     ta.before(field);
+    // The placeholder with its send key drawn as a key: the field shows it in place of
+    // the plain placeholder while it is slotted, which is while there is a key to show.
     const visibleHint = document.createElement("span");
     visibleHint.className = "lf-compose-placeholder";
-    visibleHint.setAttribute("aria-hidden", "true");
     const hintLabel = document.createElement("span");
     const hintKey = document.createElement("kbd");
     hintKey.className = "lf-key-badge";
     visibleHint.append(hintLabel, hintKey);
-    field.append(ta, visibleHint, sendBtn);
+    ta.append(visibleHint);
+    field.append(ta, sendBtn);
     // These two are the press's whole face, and the theme keys the glyph's colour on the
     // pair, so a box cannot be handed a send button dressed as something else. `primary`
     // is a different face: it dresses the press's own box, which is the hit target and
@@ -200,7 +202,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
         hintLabel.textContent = `${word} `;
         hintKey.textContent = suffix;
       }
-      field.classList.toggle("lf-compose-hinted", Boolean(suffix));
+      visibleHint.slot = suffix ? "placeholder" : "";
       const ariaLabel = name();
       if (ariaLabel && ta.getAttribute("aria-label") !== ariaLabel)
         ta.setAttribute("aria-label", ariaLabel);

@@ -4509,10 +4509,9 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         "lf-version-diff",
         "lf-version-row",
         "lf-compose-field",
-        # The hint standing over an empty field belongs to that same field: shadow.css
-        # grids the two onto one cell and the authored theme sizes the option
-        # composer's copy, while the scoped rule only sets its line height in the
-        # response bar.
+        # The hint an empty field shows is slotted into that field: shadow.css keeps
+        # it on one line and the authored theme sizes the option composer's copy,
+        # while the scoped rule only sets its line height in the response bar.
         "lf-compose-placeholder",
         "lf-compose-submit",
         # Reply disclosure is shared by inline threads in authored content and the

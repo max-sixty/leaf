@@ -503,19 +503,10 @@ leaf-anchor-note { display: contents; }
           --lf-here-ring: btn; outline-offset: 2px; }
 .lf-compose-field { --lf-icon-action-hit: max(28px, var(--aim-floor));
           --lf-compose-pad-block: 8px; --lf-compose-pad-inline-start: 10px;
-          --lf-compose-border-width: 1px;
           position: relative; display: grid; grid-template-columns: minmax(0, 1fr);
           flex: 1; min-width: 0; }
-.lf-compose-field > leaf-text, .lf-compose-placeholder { grid-area: 1 / 1; }
-.lf-compose-field.lf-compose-hinted > leaf-text { --lf-placeholder-color: transparent; }
-.lf-compose-placeholder { display: none; box-sizing: border-box; min-width: 0;
-          width: 100%; height: 100%; contain: size; overflow: hidden;
-          padding-block-start: calc(var(--lf-compose-pad-block) + var(--lf-compose-border-width));
-          padding-inline-start: calc(var(--lf-compose-pad-inline-start) + var(--lf-compose-border-width));
-          margin-inline-start: var(--lf-compose-text-margin-inline-start, 0px);
-          white-space: nowrap; color: var(--muted); font: inherit; pointer-events: none; }
-.lf-compose-field.lf-compose-hinted > leaf-text:state(placeholder-shown) + .lf-compose-placeholder {
-          display: block; }
+.lf-compose-field > leaf-text { grid-area: 1 / 1; }
+.lf-compose-placeholder { white-space: nowrap; }
 .lf-compose-placeholder .lf-key-badge { background: transparent; color: var(--muted); }
 .lf-compose-field > leaf-text:not(.lf-fab-input) { display: block; box-sizing: border-box;
           width: 100%; min-width: 0; min-height: calc(var(--lf-icon-action-hit) + 12px);

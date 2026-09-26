@@ -26,6 +26,10 @@
  * history, so undo never walks back into a draft the runtime swapped out. A pasted
  * picture is the box owner's: the field leaves that paste to the host's listeners.
  *
+ * The placeholder is a layer under the words, shown while the field is empty. It reads
+ * the `placeholder` attribute, and a child in slot `placeholder` stands in its place when
+ * a box wants more than one run of text there, such as a label and the key that sends.
+ *
  * The editor lives while the element is in a document. A field removed and not put
  * back in the same task keeps its state and destroys its view, which releases the
  * listeners CodeMirror holds on the window and document; reconnecting builds another.
@@ -67,8 +71,10 @@ sheet.replaceSync(`
      against. Both layers share one grid cell, inside the host's padding. */
   .lf-field { display: grid; }
   .lf-field > * { grid-area: 1 / 1; min-width: 0; }
+  /* The placeholder never sizes the box, as a textarea's does not: the words do. */
   .lf-field-placeholder { pointer-events: none; white-space: pre-wrap;
-    overflow-wrap: anywhere; color: var(--lf-placeholder-color, var(--muted)); }
+    contain: size; overflow: hidden;
+    overflow-wrap: anywhere; color: var(--muted); }
   :host(:not(:state(placeholder-shown))) .lf-field-placeholder { visibility: hidden; }
   .lf-md-mark { color: var(--muted); }
   .lf-md-code { font-family: var(--mono); font-size: 0.9em;
@@ -221,6 +227,7 @@ class LeafText extends HTMLElement {
   #editable = new Compartment();
   #attributes = new Compartment();
   #placeholderLayer = document.createElement("div");
+  #placeholderText = document.createTextNode("");
   #frame = document.createElement("div");
   #readOnly = false;
 
@@ -232,6 +239,10 @@ class LeafText extends HTMLElement {
     this.#frame.className = "lf-field";
     this.#placeholderLayer.className = "lf-field-placeholder";
     this.#placeholderLayer.setAttribute("aria-hidden", "true");
+    const hint = document.createElement("slot");
+    hint.name = "placeholder";
+    hint.append(this.#placeholderText);
+    this.#placeholderLayer.append(hint);
     this.#frame.append(this.#placeholderLayer);
     this.#root.append(this.#frame);
     this.#model = this.#create("");
@@ -273,7 +284,7 @@ class LeafText extends HTMLElement {
   }
 
   attributeChangedCallback(name) {
-    if (name === "placeholder") this.#placeholderLayer.textContent = this.placeholder;
+    if (name === "placeholder") this.#placeholderText.data = this.placeholder;
     if (name === "aria-describedby") return this.#describe();
     this.#apply({
       effects: this.#attributes.reconfigure(

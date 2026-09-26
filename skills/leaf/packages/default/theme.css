@@ -1052,7 +1052,6 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge { position: absolute; z-
   .lf-another > .lf-compose-field {
                      --lf-icon-action-hit: var(--lf-option-action-size);
                      --lf-compose-pad-block: 0px; --lf-compose-pad-inline-start: 0px;
-                     --lf-compose-border-width: 0px;
                      position: static; }
   .lf-another leaf-text { flex: 1; min-width: 0; min-height: 0; padding: 0;
                      margin-inline-start: var(--lf-compose-text-margin-inline-start, 0px);

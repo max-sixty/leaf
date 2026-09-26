@@ -103,6 +103,7 @@ from render_harness import (
     told,
     undo,
     wait_for_revision,
+    write,
 )
 
 pytestmark = pytest.mark.nightly
@@ -1671,8 +1672,9 @@ def test_pr_walkthrough_moves_from_semantic_call_to_exact_patch_comment(browser,
 
     line.click(modifiers=["Alt"])
     expect(page.locator(".lf-fab-input")).to_be_focused()
-    page.locator(".lf-composer textarea").fill(
-        "Does this preserve sparse-checkout behavior?"
+    write(
+        page.locator(".lf-composer leaf-text"),
+        "Does this preserve sparse-checkout behavior?",
     )
     page.keyboard.press("ControlOrMeta+Enter")
     round_trip(page)
@@ -4593,8 +4595,9 @@ body { font-family: system-ui, sans-serif; }
     page.keyboard.press("c")
     expect(page.locator(".lf-fab-input")).to_be_visible()
     page.locator(".lf-fab-input").click()
-    page.locator(".lf-composer textarea").fill(
-        "Add a link to the deployment run without changing this receipt copy."
+    write(
+        page.locator(".lf-composer leaf-text"),
+        "Add a link to the deployment run without changing this receipt copy.",
     )
     page.keyboard.press("ControlOrMeta+Enter")
     round_trip(page)
@@ -6246,10 +6249,10 @@ def test_composer_grows_with_its_text_without_script(browser, serve):
     small for its own text flashes a scrollbar."""
     page = open_page(browser, serve(LONG_PAGE))
     page.locator(".lf-threads-toggle").click()
-    box = page.locator(".lf-general textarea")
+    box = page.locator(".lf-general leaf-text")
 
     page.evaluate("""() => {
-        const ta = document.querySelector('.lf-general textarea');
+        const ta = document.querySelector('.lf-general leaf-text');
         window.__styled = 0;
         new MutationObserver(() => window.__styled++)
             .observe(ta, { attributes: true, attributeFilter: ['style'] });
@@ -6262,9 +6265,9 @@ def test_composer_grows_with_its_text_without_script(browser, serve):
     empty = state()
     box.type("A comment long enough to wrap onto a second line and then a third.")
     grown = state()
-    box.fill("x " * 900)  # far past the ceiling
+    write(box, "x " * 900)  # far past the ceiling
     capped = state()
-    box.fill("short again")
+    write(box, "short again")
     shrunk = state()
 
     assert grown["h"] > empty["h"], "the box must grow with its content"
@@ -7831,7 +7834,7 @@ def test_ask_action_binding_badges_use_the_available_card_action_seats(browser, 
         assert ask_point["x"] == pytest.approx(focused_point["x"], abs=0.5)
         assert ask_point["y"] == pytest.approx(focused_point["y"], abs=0.5)
 
-    addition.get_by_role("textbox", name="Another option").fill("A fourth option")
+    write(addition.get_by_role("textbox", name="Another option"), "A fourth option")
     page.keyboard.press("Tab")
     binding_badge = addition.locator("> .lf-key-badge[data-lf-ask-binding-badge]")
     expect(binding_badge).to_be_visible()
@@ -10264,10 +10267,11 @@ def test_a_diff_row_fills_to_the_end_of_its_line_and_to_the_end_of_a_narrow_box(
         _SELECT_IN_ROW, "new route"
     )
     expect(page.locator(".lf-fab-bar")).to_be_visible()
-    page.locator(".lf-composer textarea").fill(
+    write(
+        page.locator(".lf-composer leaf-text"),
         "A remark of the ordinary length a reviewer writes, long enough that the line it "
         "would make unwrapped runs well past the longest line in this file, which is the "
-        "whole of what the column is supposed to be measuring."
+        "whole of what the column is supposed to be measuring.",
     )
     with sending(page, "the comment on the short file's line"):
         page.keyboard.press("ControlOrMeta+Enter")
@@ -10546,7 +10550,9 @@ def test_a_comment_on_a_wrapped_diff_line_names_the_line_an_unwrapped_one_names(
     assert flat["text"] == _DIFF_TAIL, flat
     assert flat["cut"], f"the words selected are inside the box already: {flat}"
     expect(page.locator(".lf-fab-bar")).to_be_visible()
-    page.locator(".lf-composer textarea").fill("Unwrapped, this line runs off the box.")
+    write(
+        page.locator(".lf-composer leaf-text"), "Unwrapped, this line runs off the box."
+    )
     with sending(page, "the comment on the unwrapped line"):
         page.keyboard.press("ControlOrMeta+Enter")
 
@@ -10557,7 +10563,9 @@ def test_a_comment_on_a_wrapped_diff_line_names_the_line_an_unwrapped_one_names(
         f"the line did not wrap, so both anchors describe one geometry: {folded}"
     )
     expect(page.locator(".lf-fab-bar")).to_be_visible()
-    page.locator(".lf-composer textarea").fill("Wrapped, the same words are on screen.")
+    write(
+        page.locator(".lf-composer leaf-text"), "Wrapped, the same words are on screen."
+    )
     with sending(page, "the comment on the wrapped line"):
         page.keyboard.press("ControlOrMeta+Enter")
 

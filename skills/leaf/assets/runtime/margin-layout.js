@@ -28,6 +28,7 @@
    Visibility reads `shownParts`, not the target's raw client rect: a project may set
    `display: contents` while its rendered descendants remain usable, and a collapsed
    target has no rendered part to offer. */
+import { TEXT_BOX } from "./focus.js";
 import { cancelRender, nextRender, sizeObserver } from "./rendering.js";
 import { shellRight, shownBand, shownParts } from "./geometry.js";
 import { under, upFrom } from "./shadow.js";
@@ -269,8 +270,7 @@ function reach(anchor, box, main, reaches) {
 // The page's own controls in a pin's block, which the pin may not stand on: a pin at a
 // card's top-right would otherwise take the presses meant for the card's grip. Anything
 // the keyboard can reach is a control, so a package need declare nothing.
-const CONTROLS =
-  'button, a[href], input, select, textarea, summary, [contenteditable], [tabindex]:not([tabindex="-1"])';
+const CONTROLS = `button, a[href], input, select, ${TEXT_BOX}, summary, [contenteditable], [tabindex]:not([tabindex="-1"])`;
 function controlsIn(anchor) {
   return [...anchor.querySelectorAll(CONTROLS)]
     .filter((control) => control.checkVisibility())

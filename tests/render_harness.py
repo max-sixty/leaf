@@ -1828,6 +1828,23 @@ def select(page, start, end, steps=8):
     page.mouse.up()
 
 
+def write(box, text):
+    """Replace a text box's words the way typing them would, as `fill` does.
+
+    `fill` refuses the runtime's text field: the node it would type into sits in the
+    field's closed shadow root. This puts the user in the box through its own `focus()`,
+    selects what it holds, and inserts the words as one input, which the field hears as
+    the user's edit and announces with `input`. A native textarea takes it the same way.
+    Read the words back with `to_have_js_property("value", ...)`."""
+    expect(box).to_be_visible()
+    box.focus()
+    box.evaluate("box => box.select()")
+    if text:
+        box.page.keyboard.insert_text(text)
+    elif box.evaluate("box => box.value"):
+        box.page.keyboard.press("Delete")
+
+
 def compare_with(page, version=None):
     """Mark what changed since a version, the way the page offers it.
 

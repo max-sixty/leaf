@@ -80,7 +80,9 @@ against the click tree, an `x-` key against the guide, a table against its regis
 Leave wording with no machine side to review.
 
 Focus evidence starts in keyboard modality: press `Tab` to the exact stop and require
-`:focus-visible`; `element.focus()` alone is not that evidence.
+`:focus-visible`, or `:focus` on the runtime's text field (`leaf-text`), a host that
+delegates focus and so never matches `:focus-visible` in Chrome; `element.focus()` alone
+is not that evidence.
 `document.body.focus()` resets the sequential starting point; `blur()` keeps it. Read
 a ring's actual paint through `RINGS_DRAWN` and `ring_faults`, because an ancestor or
 linked carrier may draw it.

@@ -1,4 +1,4 @@
-import { pageScroller, shownBand, uiInside } from "/runtime/widget-api.js";
+import { pageScroller, shownBand, TEXT_BOX, uiInside } from "/runtime/widget-api.js";
 import { at as element } from "./locate.js";
 import { openRoots } from "./open-roots.js";
 
@@ -493,7 +493,7 @@ export function templateGrids() {
 // setting cells `pre-wrap`; `flex-wrap: nowrap` beside it, because a milestone's chips
 // stacked seven deep in a 114px cell with no text wrapping at all; `!important` on the
 // descendants too, because a widget's own rule beats an inherited value — a draft's
-// body is `pre-wrap` by the default package's sheet; and not on a textarea, whose
+// body is `pre-wrap` by the default package's sheet; and not on a text box, whose
 // value wraps inside a box the table never sized. The gate reads its own page, so the
 // probe changes nothing a user sees, and later readings measured the same before
 // and after it.
@@ -613,7 +613,7 @@ export function squeezedTables() {
   const probe = document.createElement("style");
   probe.textContent =
     "th:not([colspan]), td:not([colspan])," +
-    " th:not([colspan]) *:not(textarea), td:not([colspan]) *:not(textarea)" +
+    ` th:not([colspan]) *:not(${TEXT_BOX}), td:not([colspan]) *:not(${TEXT_BOX})` +
     " { text-wrap: nowrap !important; flex-wrap: nowrap !important }";
   document.head.append(probe);
   for (const columns of read.values())

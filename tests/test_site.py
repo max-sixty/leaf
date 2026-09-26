@@ -55,6 +55,7 @@ from render_harness import (
     select,
     sending,
     take_browser_errors,
+    write,
 )
 
 ROOT = Path(__file__).parent.parent
@@ -653,12 +654,14 @@ def test_a_nested_page_keeps_one_draft_across_its_version_addresses(
     _, url = served_example("log-retention")
     page = open_page(browser, url)
     page.locator(".lf-threads-toggle").click()  # the box lives in the panel
-    page.locator(".lf-general textarea").fill("Kept across addresses")
+    write(page.locator(".lf-general leaf-text"), "Kept across addresses")
 
     opened(page, f"{url}versions/v1.html")
     expect(page.locator(".lf-version")).to_have_text("v1")
     # The open panel is the user's standing arrangement, so it is open here too.
-    expect(page.locator(".lf-general textarea")).to_have_value("Kept across addresses")
+    expect(page.locator(".lf-general leaf-text")).to_have_js_property(
+        "value", "Kept across addresses"
+    )
 
 
 def test_the_published_notification_example_runs_its_authored_module(
@@ -1622,8 +1625,10 @@ def test_interaction_gallery_contains_page_chrome(serve, browser):
     expect(comment_input).to_have_attribute(
         "aria-keyshortcuts", "Enter Meta+Enter Control+Enter"
     )
-    expect(comment_input).to_have_value(
-        re.compile(r"should the practice exercise come before lunch\?")
+    expect(comment_input).to_have_js_property(
+        "value",
+        "Gallery thread: should the practice exercise come before lunch? "
+        "Try replying here; the agenda is fictional.",
     )
     toggle.click()
     expect(status).to_have_text("Complete", timeout=10_000)
@@ -2095,7 +2100,7 @@ def test_a_comment_persists_without_inventing_an_agent_reply(served_example, bro
     # Selection offers the compact field without entering it, so the browser's
     # own selection is still there for a native copy.
     expect(page.locator(".lf-fab-input")).to_be_visible()
-    page.locator(".lf-composer textarea").fill("Can the migration fix ship first?")
+    write(page.locator(".lf-composer leaf-text"), "Can the migration fix ship first?")
     with sending(page, "the anchored comment"):
         page.keyboard.press("ControlOrMeta+Enter")
 
@@ -2174,7 +2179,7 @@ def test_what_a_user_leaves_on_one_page_stays_on_it(served_example, browser):
     _, url = served_example("heat-loss")
     page = open_page(browser, url)
     page.locator(".lf-threads-toggle").click()  # the box lives in the panel
-    page.locator(".lf-general textarea").fill("Where does this go?")
+    write(page.locator(".lf-general leaf-text"), "Where does this go?")
     page.locator(".lf-general .lf-compose-submit").click()
     # One, and typed: this example ships no log, so the count is the comment
     # just written and nothing else.

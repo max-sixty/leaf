@@ -2687,17 +2687,9 @@ export function createMarginProjection({
     const threads = previewList.querySelectorAll(".lf-margin-thread .lf-page-thread");
     return threads.length === 1 ? threads[0] : null;
   };
-  // The page element a thread is about: the target its inventory entry stands by. A
-  // general or detached thread has none.
-  function threadTarget(id) {
-    const itemId = marginThreadItem(threadList().find((t) => t.root.id === id));
-    const entry =
-      itemId &&
-      pageInventory.find((candidate) =>
-        candidate.items.some((item) => item.id === itemId),
-      );
-    return entry ? targetFor(entry) : null;
-  }
+  // The page element a thread is about, resolved or not: where its anchor is placed, the
+  // element its inventory entry is grouped under. A general or detached thread has none.
+  const threadTarget = (id) => placedAt(id)?.element ?? null;
   // The page target this owner's chrome shows (standing-target.js): a margin cluster
   // control's, the card's — its threads and its own controls — and a thread's in the
   // Threads panel. `threadHere` is the same relation read the other way.

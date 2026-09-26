@@ -11535,6 +11535,32 @@ def test_an_ask_and_its_thread_are_one_standing_target(browser, serve):
     expect(page.locator("#cache-disk")).to_have_attribute("chosen", "")
 
 
+def test_a_resolved_thread_still_stands_at_its_ask(browser, serve):
+    """Resolving a thread settles the discussion, not what it was about: its row in
+    Threads still stands at the Ask it names, with the Ask's ring and digits."""
+    url = serve(ASK_THREAD_PAGE)
+    d = serve.page_dir
+    about_ask = panel_comment(
+        d, "Ship it once the cache lands.", {"section": "ship-ask"}
+    )
+    events_model.append_event(
+        d, {"kind": "resolve", "author": "user", "parent": about_ask}
+    )
+    page = open_page(browser, url)
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
+    panel_settled(page, True)
+    page.locator(".lf-thread-filter-toggle").click()
+    page.locator('[data-filter-kind="status"][data-filter-value="resolved"]').click()
+    summary = page.locator(f'.lf-thread[data-id="{about_ask}"] > .lf-thread-summary')
+    expect(summary).to_be_visible()
+    summary.focus()
+    expect(summary).to_be_focused()
+    expect(page.locator("#ship-ask")).to_have_attribute("data-lf-ask", "1")
+    page.keyboard.press("2")
+    expect(page.locator("#ship-wait")).to_have_attribute("chosen", "")
+
+
 def test_an_ask_in_a_reply_is_where_the_user_stands_once_answered(browser, serve):
     """An Ask frozen into a reply sits in a thread about a page Ask. Standing in the
     reply's Ask is standing there whether or not it is answered: the thread leads to its

@@ -1,11 +1,3 @@
-# /// script
-# requires-python = ">=3.12"
-# dependencies = [
-#   "click",
-#   # The project's own pin, so the script drives the Chromium build installed for it.
-#   "playwright==1.63.0",
-# ]
-# ///
 """The arrangement eval: build the arms, author pages, score, shoot, review, summarize.
 
     uv run notes/arrangement-eval/harness.py <command> ...
@@ -21,26 +13,19 @@ Everything lives under `.tmp/arrangement-eval/`, and commands take names:
   scorer's and the camera's.
 - `runs/<batch>/scores.json`, `reviews/` and `reviews-flip/`: one per batch.
 
-Arms. Both are the payload at one git ref (`bin`, `skills`, the uv project) and nothing
-else: no `.git`, examples, docs, notes or README, so an author cannot read its way to
-the other arm's vocabulary through history or the worked corpus. `plain_arm.build`
-takes the arrangement vocabulary out of `plain`, and `arms` renders its smoke page,
-which uses the plain guide's width hook, so a theme that stops honouring the hook fails
-the build rather than every plain run. Each launcher runs once so uv builds its
-environment before a timed run, and `skills/` is made read-only, so no author writes
-into a payload another run reads.
+Arms. Both are `scripts/eval_harness.py`'s payload at one git ref, so neither carries
+the history or the worked corpus that would show an author the other arm's vocabulary.
+`plain_arm.build` takes the arrangement vocabulary out of `plain`, and `arms` renders
+its smoke page, which uses the plain guide's width hook, so a theme that stops
+honouring the hook fails the build rather than every plain run. `skills/` is made
+read-only, so no author writes into a payload another run reads.
 
-Runs. A child is `claude -p` from a fresh scratch cwd outside any repository, with
-project-only settings, no MCP servers and auto-memory off, so neither the user's
-`CLAUDE.md`, their memory, nor the installed Leaf plugin loads, and nothing it saves
-reaches them. (Without the memory switch, children whose cwd sat in this checkout saved
-the standing preference to the repository's memory and later runs read it.) Its `TMPDIR`
-is inside that cwd, because concurrent runs otherwise write the same `/tmp` names (an
-export, a screenshot) and can read each other's. An author reads the arm's `SKILL.md` by
-path, as a host that loaded the skill would hand it over, runs the arm's launcher as
-`$LEAF`, and keeps its pages and claims under the run's own state home. Phase 2 resumes
-the phase-1 session with the standing preference. A round starts every subject × arm
-pair at once, so load on the machine lands on both arms alike.
+Runs. A child is `eval_harness.claude_child`, isolated from the user's `CLAUDE.md`,
+their memory and the installed Leaf plugin as that module describes. An author reads the
+arm's `SKILL.md` by path, as a host that loaded the skill would hand it over, runs the
+arm's launcher as `$LEAF`, and keeps its pages and claims under the run's own state
+home. Phase 2 resumes the phase-1 session with the standing preference. A round starts
+every subject × arm pair at once, so load on the machine lands on both arms alike.
 
 Scoring, per run and phase: turns, output tokens, cost and minutes; `version check`
 runs, those with `--render`, those whose output carries a ✗, and page writes; the
@@ -63,11 +48,11 @@ calls a tie, is a split.
 
 import hashlib
 import json
-import os
 import re
 import shutil
 import statistics
 import subprocess
+import sys
 import tempfile
 from collections import Counter, defaultdict
 from concurrent.futures import ThreadPoolExecutor
@@ -80,13 +65,13 @@ import plain_arm
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
+sys.path.insert(0, str(ROOT / "scripts"))
+from eval_harness import build_arm, claude_child, run_leaf, scratch
+
 DATA = ROOT / ".tmp/arrangement-eval"
 SUBJECTS = ("document", "dashboard", "queue")
 ARMS = ("leaf", "plain")
 PHASES = (1, 2)
-# What an arm carries of the repository: the installed plugin's launcher, skills and uv
-# project.
-PAYLOAD = ("bin", "skills", "pyproject.toml", "uv.lock")
 MODEL = "claude-opus-5-5"
 REVIEWERS = 6
 # Each width's viewport, and how the reviewer is told of it.
@@ -116,49 +101,26 @@ VOCAB = {
 # Children
 
 
-def leaf(payload: Path, state: Path, *args: str, check: bool = False, timeout=None):
-    """Run an arm's launcher under a state home of its own."""
-    proc = subprocess.run(
-        [str(payload / "bin/leaf"), *args],
-        capture_output=True,
-        text=True,
-        check=False,
-        timeout=timeout,
-        env={**os.environ, "XDG_STATE_HOME": str(state)},
-    )
-    if check and proc.returncode:
-        raise click.ClickException(
-            f"leaf {' '.join(args)} exited {proc.returncode}:\n{proc.stdout}{proc.stderr}"
-        )
-    return proc
-
-
 def claude(
     prompt: str, cwd: Path, out: Path, err: Path, *, tools, dirs, env=None, resume=None
 ):
-    """Run one isolated `claude -p` child from `cwd`; return its stream-json events.
+    """Run one `claude_child` from `cwd`; return its stream-json events.
 
-    `out` receives the trace and `err` the child's stderr. `dirs` are the directories it
-    may read beyond `cwd`, and `env` adds to the harness's environment."""
-    (cwd / "tmp").mkdir(exist_ok=True)
-    env = {
-        **os.environ,
-        "CLAUDE_CODE_DISABLE_AUTO_MEMORY": "1",
-        "TMPDIR": str(cwd / "tmp"),
-        **(env or {}),
-    }
-    cmd = [
-        "claude", "-p", prompt, "--model", MODEL, "--setting-sources", "project",
-        "--strict-mcp-config", "--permission-mode", "bypassPermissions", "--tools", tools,
-        *(arg for d in dirs for arg in ("--add-dir", str(d))),
-        "--output-format", "stream-json", "--verbose",
+    `out` receives the trace and `err` the child's stderr."""
+    child = claude_child(
+        cwd,
+        prompt,
+        "--model",
+        MODEL,
+        "--tools",
+        tools,
         *(("--resume", resume) if resume else ()),
-    ]  # fmt: skip
+        dirs=dirs,
+        env=env,
+    )
     with out.open("w") as stdout, err.open("w") as stderr:
         subprocess.run(
-            cmd,
-            cwd=cwd,
-            env=env,
+            **child,
             stdin=subprocess.DEVNULL,
             stdout=stdout,
             stderr=stderr,
@@ -212,7 +174,7 @@ class Run:
         return self.dir / "state"
 
     def leaf(self, *args: str, **kwargs):
-        return leaf(self.payload, self.state, *args, **kwargs)
+        return run_leaf(self.payload, self.state, *args, **kwargs)
 
     def page(self, phase: int) -> Path | None:
         """The page directory as it stood after `phase`, or None if there is none."""
@@ -279,37 +241,20 @@ def arms(ref: str, name: str):
     """Build arms-NAME from git REF: the leaf payload and the plain one."""
     out = arms_dir(name)
     for arm in ARMS:
-        if (out / arm).exists():
-            subprocess.run(["chmod", "-R", "u+w", out / arm], check=True)
-            shutil.rmtree(out / arm)
-        (out / arm).mkdir(parents=True)
-        archive = subprocess.run(
-            ["git", "-C", ROOT, "archive", ref, *PAYLOAD],
-            capture_output=True,
-            check=True,
-        ).stdout
-        subprocess.run(["tar", "-x", "-C", out / arm], input=archive, check=True)
+        sha = build_arm(ref, out / arm)
     smoke = plain_arm.build(out / "plain")
-    sha = subprocess.run(
-        ["git", "-C", ROOT, "rev-parse", ref],
-        capture_output=True,
-        text=True,
-        check=True,
-    )
-    (out / "REF").write_text(sha.stdout)
-    with tempfile.TemporaryDirectory() as scratch:
-        state, page = Path(scratch) / "state", Path(scratch) / "page"
-        for arm in ARMS:
-            leaf(out / arm, state, "--root", check=True)
-        leaf(out / "plain", state, "page", "init", str(page), check=True)
+    (out / "REF").write_text(f"{sha}\n")
+    with tempfile.TemporaryDirectory() as smoke_dir:
+        state, page = Path(smoke_dir) / "state", Path(smoke_dir) / "page"
+        run_leaf(out / "plain", state, "page", "init", str(page), check=True)
         (page / "index.html").write_text(smoke)
-        leaf(
+        run_leaf(
             out / "plain", state, "version", "check", str(page), "--render", check=True
         )
     subprocess.run(
         ["chmod", "-R", "a-w", out / "leaf/skills", out / "plain/skills"], check=True
     )
-    click.echo(f"{out}: {sha.stdout.strip()}, plain smoke page passes")
+    click.echo(f"{out}: {sha}, plain smoke page passes")
 
 
 # Authoring
@@ -348,7 +293,7 @@ def author(arms: str, run: Run) -> None:
     shutil.rmtree(run.dir, ignore_errors=True)
     run.state.mkdir(parents=True)
     (run.dir / "arms").write_text(f"{arms}\n")
-    work = Path(tempfile.mkdtemp())
+    work = scratch()
     (run.dir / "work-dir").write_text(f"{work}\n")
     page = run.dir / "page"
     payload = run.payload

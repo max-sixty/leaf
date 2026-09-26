@@ -95,10 +95,15 @@ rules a new or changed example has to meet.
   with the canonical event id or visible session reference; once the Container starts
   a Codex turn, its `turnId` also finds the model-request timings. Analytics Engine is
   aggregate product telemetry, not a log index.
+- `eval_harness.py` builds the arms and children every Claude Code eval runs: an
+  arm is the plugin payload at one git ref, and a child is a headless `claude -p`
+  isolated from the user's instructions, memory and plugins. `REF DEST` builds one
+  arm; `eval_claude_delivery.py`, `notes/arrangement-eval/harness.py` and the A/B
+  recipe in `evals/README.md` use it.
 - `eval_claude_delivery.py [BASE_REF]` is a basic, imperfect paired eval of the
   `leaf wait` carrier. It runs headless Claude Code sessions with BASE_REF's plugin
-  and this checkout's at the same time, and compares how promptly each acknowledges
-  and replies to one real comment. Its docstring lists what it does not yet measure.
+  and HEAD's at the same time, and compares how promptly each acknowledges and
+  replies to one real comment. Its docstring lists what it does not yet measure.
 - `record-demo.sh` regenerates `docs/demo.gif`; `record-demo.py` draws it and the three
   photographs of the same staged scene beside it — the README's light and dark
   session stills, and `session-card.png` at the 1.91:1 an unfurler draws a card at.

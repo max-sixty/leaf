@@ -2223,22 +2223,11 @@ def test_a_contents_map_and_right_rail_leave_the_middle_room(browser, serve):
     assert at["sideways"] == 0
 
 
-def test_a_drawing_scrolls_only_for_room_the_page_truly_lacks(browser, serve):
-    """Scrolling is the theme's honest degrade when even the room runs short, so every
-    other reading calls a page well whose drawing scrolls beside an empty margin —
-    nothing is clipped without a scrollbar and nothing stands outside any box. That is
-    the shape both margin claims' faults arrived in, and WITHHELD_ROOM is the reading
-    that refuses it: a drawing that scrolls, inside room that would have held it, with
-    nothing standing in the margin at its own band.
-
-    The clean half proves the page this gate is for passes it: a change to decide above,
-    a drawing the room holds below, and the gate finds nothing. The capped half is what
-    makes that worth believing — the same page with the drawing's box held under its own
-    graph fires the reading, so a clean answer is the layout's and not the probe going
-    blind. A fixed box wholly in the margin then makes that apparent room unavailable
-    and clears the finding. The guards pin each premise: the graph is wider than the
-    column and narrower than the room, and the resident crosses the drawing's band
-    without crossing the column."""
+def test_a_drawing_the_room_can_hold_is_shown_whole(browser, serve):
+    """Scrolling is the theme's honest degrade when even the room runs short, and only
+    then: a drawing wider than the column and narrower than the room beside it, with
+    nothing standing in the margin at its band, is shown whole. The guard pins the
+    premise: the graph is wider than the column and narrower than the room."""
     url = serve(DRAWN_PAST_A_RAIL_PAGE)
     page = open_page(browser, url)
     # The shell owns --lf-room in CSS, so its computed value is the unresolved
@@ -2259,76 +2248,22 @@ def test_a_drawing_scrolls_only_for_room_the_page_truly_lacks(browser, serve):
     }""")
     assert fit["column"] < fit["drawn"] <= fit["room"], (
         f"the premise is gone — the graph must need growing and fit the room, or "
-        f"neither half of this test asks the question: drawn {fit['drawn']:.0f}px, "
+        f"this test asks nothing: drawn {fit['drawn']:.0f}px, "
         f"column {fit['column']:.0f}px, room {fit['room']:.0f}px"
     )
     assert fit["shows"] >= fit["drawn"] - 1, (
         f"the page had {fit['room']:.0f}px of room and no note or row beside the "
         f"drawing, and still shows {fit['shows']:.0f}px of its {fit['drawn']:.0f}px"
     )
-    assert render_checks_model.evaluate_probe(page, "withheldRoom") == []
-    page.close()
-
-    capped = DRAWN_PAST_A_RAIL_PAGE.replace(
-        '<h1 id="t">Flow</h1>',
-        '<style>#flow { max-width: 640px }</style>\n<h1 id="t">Flow</h1>',
-    )
-    failures = render_gate_model.render_version(browser, serve(capped)).failures
-    assert [f for f in failures if "<lf-diagram id=flow> scrolls" in f], (
-        f"a drawing held under its own graph beside an empty margin must be named at "
-        f"handover, and the gate said: {failures or 'nothing'}"
-    )
-
-    occupied = capped.replace("margin-block: 600px", "margin-block: 0").replace(
-        "<style>#flow { max-width: 640px }</style>",
-        "<style>#flow { max-width: 640px } "
-        "#fixed-margin { position: fixed; inset: 0 auto 0 0; width: 40px }</style>"
-        '<div id="fixed-margin">A fixed page tool.</div>',
-    )
-    page = open_page(browser, serve(occupied))
-    premise = page.evaluate("""() => {
-        const flow = document.getElementById('flow');
-        const f = flow.getBoundingClientRect();
-        const resident = document.getElementById('fixed-margin').getBoundingClientRect();
-        const main = document.querySelector('main');
-        const style = getComputedStyle(main), box = main.getBoundingClientRect();
-        const probe = document.createElement('i');
-        probe.style.cssText = 'position:fixed;visibility:hidden;height:0;padding:0;'
-          + 'border:0;width:var(--lf-room)';
-        flow.append(probe);
-        const room = probe.getBoundingClientRect().width;
-        probe.remove();
-        return {scrolls: flow.scrollWidth - flow.clientWidth,
-                hasRoom: flow.scrollWidth <= room + 1,
-                clear: resident.right <= box.left + parseFloat(style.paddingLeft) + 1,
-                overlap: Math.min(f.bottom, resident.bottom) -
-                         Math.max(f.top, resident.top)};
-    }""")
-    assert premise["scrolls"] > 1 and premise["hasRoom"], premise
-    assert premise["clear"] and premise["overlap"] > 1, premise
-    assert render_checks_model.evaluate_probe(page, "withheldRoom") == []
 
 
-def test_a_box_that_shows_less_than_it_holds_says_so_and_the_gate_asks(browser, serve):
-    """Where the reading above stops. WITHHELD_ROOM asks whether the room was there to
-    give, and a drawing that genuinely could not fit is a page the layer is content with
-    — scrolling being the honest degrade. What it is not content with is a user who
-    cannot tell: measured, a twelve-node flowchart in a tab panel showed seven of them at
-    1200, 1440 and 1920, cut 356px of its 1026, and every reading in the gate called that
-    page well, because the platform's own scrollbar is the whole of the sign and it draws
-    none at rest.
-
-    So the sweep that already asks whether something is out of sight spends the answer
-    on the eye as well as on the keyboard. The box marks each edge with content beyond
-    it, which a drawing paints as a shadow over that edge. The line of code that fits is
-    the control: a mark on a box holding nothing back would be a promise of more with
-    nothing behind it, and this reading would never have noticed.
-
-    The plant is the failure that is actually reachable — content grown inside a box
-    whose own border box never changes, so the sweep's per-candidate resize observation
-    never fires and nothing re-asks. That is the same miss that costs such a box its
-    keyboard stop, and the reading names the box rather than the rule, there being one
-    rule and many callers who owe it a sweep."""
+def test_a_box_that_shows_less_than_it_holds_says_so(browser, serve):
+    """A drawing that genuinely could not fit scrolls, and on a platform drawing overlay
+    scrollbars the scrollbar is no sign at rest: measured, a twelve-node flowchart in a
+    tab panel showed seven of them at 1200, 1440 and 1920 with nothing saying so. So the
+    box marks each edge with content beyond it, which a drawing paints as a shadow over
+    that edge. The line of code that fits is the control: a mark on a box holding
+    nothing back would be a promise of more with nothing behind it."""
     url = serve(CUT_BOXES_PAGE)
     page = open_page(browser, url)
     marks = page.evaluate("""() => {
@@ -2371,29 +2306,6 @@ def test_a_box_that_shows_less_than_it_holds_says_so_and_the_gate_asks(browser, 
     flow.evaluate("el => { el.scrollLeft = -(el.scrollWidth - el.clientWidth); }")
     expect(flow).to_have_attribute("data-lf-more-before", "")
     expect(flow).not_to_have_attribute("data-lf-more-after", "")
-    assert render_checks_model.evaluate_probe(page, "silentCuts") == []
-
-    # One line grown past its box, on its own text node: the box keeps its width and its
-    # single line's height, so no observation of it fires and no sweep runs.
-    page.evaluate("""() => {
-        const pre = document.getElementById('short');
-        pre.firstChild.data += ' ' + 'kept-in-one-run'.repeat(40);
-    }""")
-    grown = page.evaluate("""() => {
-        const el = document.getElementById('short');
-        return { short: el.scrollWidth - el.clientWidth,
-                 before: el.hasAttribute('data-lf-more-before'),
-                 after: el.hasAttribute('data-lf-more-after') };
-    }""")
-    assert grown["short"] > 1 and not grown["before"] and not grown["after"], grown
-    found = render_checks_model.evaluate_probe(page, "silentCuts")
-    assert [f for f in found if "<pre id=short>" in f], (
-        f"a box hiding {grown['short']}px with no mark on it went unreported: "
-        f"{found or 'nothing'}"
-    )
-    page.close()
-
-    assert render_gate_model.render_version(browser, url).failures == []
 
 
 def test_a_drawing_cut_at_its_edge_shades_each_edge_it_continues_past(browser, serve):
@@ -2408,8 +2320,7 @@ def test_a_drawing_cut_at_its_edge_shades_each_edge_it_continues_past(browser, s
     shadow must stand at the scrollport's edge, not the drawing's end, so the end edge is
     shaded at rest, both in the middle, the start edge alone at the end. The drawing
     keeps the size it was drawn at throughout, and the same five steps drawn top-down fit
-    the column and shade nothing. A class outranking the paint while the mark stays
-    written is what the gate's reading exists to name."""
+    the column and shade nothing."""
     page = open_page(browser, serve(LONG_CHAIN_PAGE))
     resized(page, 1440, 900)
     rendered(page)
@@ -2457,14 +2368,6 @@ def test_a_drawing_cut_at_its_edge_shades_each_edge_it_continues_past(browser, s
     expect(chain).not_to_have_attribute("data-lf-more-after", "")
     rendered(page)
     assert shaded("chain") == {"start": True, "end": False}
-
-    assert render_checks_model.evaluate_probe(page, "silentCuts") == []
-    chain.evaluate("el => el.classList.add('lf-unshaded')")
-    assert shaded("chain") == {"start": False, "end": False}
-    found = render_checks_model.evaluate_probe(page, "silentCuts")
-    assert [
-        f for f in found if "<lf-diagram id=chain>" in f and "draws nothing" in f
-    ], f"a mark written with its paint outranked went unreported: {found or 'nothing'}"
 
 
 def test_the_render_gate_names_a_wide_widget_drawn_over_the_pages_own_margin(

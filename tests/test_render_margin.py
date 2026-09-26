@@ -7528,6 +7528,65 @@ def test_the_page_form_decides_the_rail_and_main_can_say_otherwise(
     assert claimed == (place == "rail")
 
 
+def test_a_pin_on_one_shape_of_a_drawing_stands_on_that_shape(browser, serve):
+    """A shape inside an SVG drawing has no CSS box, so its row anchors through the
+    drawing; as a pin it still stands inside the shape's own top-right corner, not at the
+    drawing's edge beside another shape."""
+    shapes = "".join(
+        f'<g id="{name}"><text x="{x}" y="20">{name}</text>'
+        f'<rect x="{x}" y="30" width="240" height="160"/></g>'
+        for name, x in [("left", 20), ("middle", 380), ("right", 740)]
+    )
+    source = leaf_page(
+        "a drawing's parts",
+        '<h1 id="t">Parts</h1><figure id="fig" data-width="wide">'
+        '<svg class="drawing" viewBox="0 0 1000 200" role="img">'
+        f"<title>Three shapes</title>{shapes}</svg></figure>",
+    ).replace("<main>", '<main data-width="available">')
+    page = open_page(
+        browser, serve(source, events=[_comment_on("left"), _comment_on("right")])
+    )
+    resized(page, 1440, 900)
+    margins_laid_out(page)
+    for name in ("left", "right"):
+        row = page.locator(f'.lf-margin-cluster[data-lf-margin-for="{name}"]')
+        expect(row).to_have_attribute("data-lf-place", "pin")
+        row_box = row.bounding_box()
+        shape = page.locator(f"#{name}").bounding_box()
+        assert shape["x"] < row_box["x"], (name, row_box, shape)
+        assert row_box["x"] + row_box["width"] <= shape["x"] + shape["width"], (
+            name,
+            row_box,
+            shape,
+        )
+        assert row_box["y"] == pytest.approx(shape["y"], abs=8), (name, row_box, shape)
+
+
+def test_a_pin_on_a_contents_target_stands_at_its_last_part(browser, serve):
+    """A `display: contents` target anchors through its first shown part, but its pin
+    stands at the corner of every part together, and shows while they do."""
+    source = leaf_page(
+        "a contents target",
+        '<h1 id="t">Pair</h1><div style="display: flex; gap: 24px">'
+        '<div id="pair" style="display: contents">'
+        '<p style="flex: 1">The first half.</p><p style="flex: 1">The second half.</p>'
+        "</div></div>",
+    ).replace("<main>", '<main data-width="available">')
+    page = open_page(browser, serve(source, events=[_comment_on("pair")]))
+    resized(page, 1440, 900)
+    margins_laid_out(page)
+    row = page.locator('.lf-margin-cluster[data-lf-margin-for="pair"]')
+    expect(row).to_have_attribute("data-lf-place", "pin")
+    expect(row).to_be_visible()
+    row_box = row.bounding_box()
+    second = page.locator("#pair > p").nth(1).bounding_box()
+    assert second["x"] < row_box["x"], (row_box, second)
+    assert row_box["x"] + row_box["width"] <= second["x"] + second["width"], (
+        row_box,
+        second,
+    )
+
+
 def test_a_page_made_wide_by_its_workspace_claims_no_rail(browser, serve):
     """A page whose only block is a workspace is a wide page without declaring one, so it
     gives up the rail's strip as `<main data-width="available">` does."""

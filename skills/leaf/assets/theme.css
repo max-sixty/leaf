@@ -36,11 +36,6 @@
  * the same behavior without joining a tag list. `main` hands wide room back to its
  * contents explicitly because it is the outer page frame.
  *
- * `main` declares `--lf-reading-column: 1` in the same rule, claiming that its `max-width` is
- * the readable column. The file lint measures every fixed pixel width against that
- * number, so a package or page setting a column of its own claims it in the rule that
- * sets it; a width with no claim beside it is a width and nothing more.
- *
  * Where the fact belongs to the registry rather than to the rule that draws the box,
  * `markDeclared` paints it and the selector reads the paint. The lists that ask whether
  * a suggestion slot or a variant holds block content invert HTML's phrasing content,
@@ -113,10 +108,9 @@
 
    Paper opens what a page puts behind a gesture, for the same reason: a settled group's
    cards, an inactive tab's panel, and a shut `<details>` all print open. A page that
-   means a disclosure to stay shut on paper says so in its own stylesheet. `paperWords`
-   compares the screen and print readings across the whole page. `coveredWords` runs again
-   in print. A wrong offer/said declaration is fixed where the label is created, not by
-   naming its widget in print CSS. */
+   means a disclosure to stay shut on paper says so in its own stylesheet. A wrong
+   offer/said declaration is fixed where the label is created, not by naming its widget
+   in print CSS. */
 
 :root {
   position: static !important;
@@ -695,15 +689,8 @@ body {
 /* Positioned so `left: var(--lf-shift)` can move the column off the window's centre
  * when something claims room on one side of it.
  *
- * 720px is stated as a number and not as a token, because `version check` reads
- * this very declaration to find the column it measures every pinned width
- * against (_column_width). A var() there is a value the parser can't resolve, so
- * the gate would quietly fall back to its 780px default and start passing pages
- * that overflow by 60px. The column is one number, and this is where it is said.
- *
- * It is the text's own width and not the box's: nothing sets border-box here, so the
- * padding stands outside the 720px rather than inside it, and `version check` reading
- * this number is reading the column the words get. Charter sets about 7.35 of them to
+ * 720px is the text's own width and not the box's: nothing sets border-box here, so
+ * the padding stands outside it. Charter sets about 7.35 of them to
  * the pixel at 17px, so a line here runs around ninety characters.
  *
  * That is long by the measure a book is set to, and it is left alone on purpose. What
@@ -761,7 +748,6 @@ main {
   left: var(--lf-shift);
   position: relative;
   --lf-block-frame: 1;
-  --lf-reading-column: 1;
   /* The page's readings — which strips are claimed, and what room and posture that
    * leaves — are composed here, so this is the container a widget in the margin asks
    * for them by name. An unnamed style query answers from the element's parent, and a
@@ -1078,8 +1064,7 @@ pre code { background: none; padding: 0; font-size: 100%; }
    only let what cannot wrap paint out through the block's own border. A rule that
    restates `white-space` for its own box states the paper half beside itself, because
    naming that box here would tie on specificity and lose on source order, and `@media`
-   contributes nothing to break the tie. Nothing caught this: `paperWords` reads
-   `checkVisibility()`, and a clipped line is visible right up to the edge. */
+   contributes nothing to break the tie. */
 @media print {
   pre { white-space: pre-wrap; overflow-wrap: anywhere; }
 }
@@ -1723,11 +1708,12 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
  * with its scrolled target, so a card in a board scrolled sideways would stand its pin
  * off its corner. A target scrolled out of its scroller withholds its row instead.
  *
- * A cluster stands level with its target's top (`--lf-inset` where it anchors to a box
- * holding the target), pushed down by packing (`--lf-push`). In
+ * A cluster stands level with its target's top (`--lf-inset-top` where it anchors to a
+ * box holding the target), pushed down by packing (`--lf-push`). In
  * the rail it hangs `--rail-hang` off `main`'s edge and unfolds rightward. As a pin it
- * stands inside its target's top-right corner, `--pin-inset` in from the right edge, and
- * unfolds leftward over the block. Every position function falls back to a place off screen: an anchor can be
+ * stands inside its target's top-right corner, `--pin-inset` in from the target's right
+ * edge (`--lf-inset-right` in from the box holding it), and unfolds leftward over the
+ * block. Every position function falls back to a place off screen: an anchor can be
  * invalid (a target inside `content-visibility: hidden` or gone), and
  * `position-visibility` hides a cluster only when its anchor is valid and scrolled out of
  * view. */
@@ -1736,14 +1722,14 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-margin-toolbar, .lf-margin-lane { height: 0; }
 .lf-margin-lane { z-index: 2; }
 .lf-margin-cluster { position: absolute; z-index: 2;
-    top: calc(anchor(top, -9999px) + var(--lf-inset, 0px) + var(--lf-push, 0px));
+    top: calc(anchor(top, -9999px) + var(--lf-inset-top, 0px) + var(--lf-push, 0px));
     position-visibility: anchors-visible;
     display: inline-flex; align-items: center; gap: 4px; white-space: nowrap;
     padding-right: var(--here-ring-room); pointer-events: auto; }
 .lf-margin-cluster[data-lf-place="rail"] {
     left: calc(anchor(--lf-page right, -9999px) + var(--rail-hang) + var(--lf-step, 0px)); }
 .lf-margin-cluster[data-lf-place="pin"] {
-    right: calc(anchor(right, 9999px) + var(--pin-inset)); }
+    right: calc(anchor(right, 9999px) + var(--pin-inset) + var(--lf-inset-right, 0px)); }
 /* With the annotation layer hidden (`o`, annotation-layer.js) every pin goes, whatever it
  * holds, and the rail stays, since it covers nothing. A row the user asked for by name
  * (`data-lf-revealed`) stays while they stand in it. Hidden rather than taken out of

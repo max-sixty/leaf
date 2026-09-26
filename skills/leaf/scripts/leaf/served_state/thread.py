@@ -144,6 +144,9 @@ def browser_thread(
         rendered_threads.append(
             {
                 **thread,
+                # The thread's own id, which is its root's except where the log lost
+                # the root and a surviving reply opened the thread under the lost id.
+                "id": thread_id,
                 "user_prompt": user_prompt,
                 "bare_reaction": bare_reaction(thread),
                 "seat": seat_root(thread),

@@ -198,7 +198,8 @@ geometry without them:
   mouse and 44px under a finger, so a block whose first line runs to its right edge
   loses the end of that line under a pin. It never stands on a control of the block,
   such as a card's grip, and goes below one instead.
-- A marker on a figure grown past the rail stands on the figure as a pin.
+- A marker on a figure grown past the rail stands on the figure as a pin, at the
+  corner of the part it names when it names one.
 - The user hides every pin and passage mark with `o` to see what lies under them; the
   rail stays, since it covers nothing.
 

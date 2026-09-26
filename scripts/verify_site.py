@@ -6,11 +6,16 @@
 again against the deployed release.
 
 `--agent` instead sends one private comment and requires the hosted Codex task to
-publish a revision and reply, printing the acknowledgement, activity, publication,
-reply, and changed-page presentation timings. A `startup_failed` receipt gets one
-more ask; every other unsuccessful ending, rate limits included, fails on the first.
-The gate reads the receipt's `failure` code, never its wording, and
-`worker/README.md` owns that failure contract.
+publish a revision and reply. A `startup_failed` receipt gets one more ask; every
+other unsuccessful ending, rate limits included, fails on the first. The gate reads
+the receipt's `failure` code, never its wording, and `worker/README.md` owns that
+failure contract. The agent pass is also the benchmark: it prints its progress and
+timings to stderr and emits one JSON sample on stdout, covering browser presentation,
+a comment sent through the real Threads composer, acknowledgement and activity, the
+first reply text visible in the open thread, the requested publication and durable
+reply, and the changed page's presentation and revision follow. Without `--release`
+it takes the release the origin's page state names, so it measures any origin
+without a local build. `deploy-site-dev.sh` runs it against the dev environment.
 
 `local` runs the agent pass through the canonical Python adapter against the host's
 Codex login. It bypasses the Worker, container resources, and outbound credential
@@ -649,23 +654,27 @@ def elapsed_time(seconds: float) -> str:
 
 def print_agent_profile(profile: AgentProfile) -> None:
     """Print the request and hosted-agent milestones."""
-    print("Hosted agent profile (observed from the first request):")
+    print("Hosted agent profile (observed from the first request):", file=sys.stderr)
     if profile.reference is not None:
-        print(f"  session reference {profile.reference}")
+        print(f"  session reference {profile.reference}", file=sys.stderr)
     for event_id in profile.event_ids:
-        print(f"  event {event_id}")
+        print(f"  event {event_id}", file=sys.stderr)
     for ask in range(1, profile.ask_count + 1):
         suffix = "" if ask == 1 else f" {ask}"
         print(
             f"  request{suffix} acknowledged "
-            f"{elapsed_time(profile.milestones[f'acknowledged {ask}'])}"
+            f"{elapsed_time(profile.milestones[f'acknowledged {ask}'])}",
+            file=sys.stderr,
         )
     for at, kind, detail in profile.activities:
         description = f": {detail}" if detail else ""
-        print(f"  activity {kind}{description} at {elapsed_time(at)}")
+        print(f"  activity {kind}{description} at {elapsed_time(at)}", file=sys.stderr)
     for name in ("published", "response visible", "replied", "answered"):
         if name in profile.milestones:
-            print(f"  {name} at {elapsed_time(profile.milestones[name])}")
+            print(
+                f"  {name} at {elapsed_time(profile.milestones[name])}",
+                file=sys.stderr,
+            )
 
 
 def agent_profile(profile: AgentProfile) -> dict:
@@ -898,7 +907,6 @@ def ask_until_answered(
     heading: str,
     state: dict,
     *,
-    report: bool = True,
     direct_agent: bool = False,
 ) -> AgentAsks:
     """Ask the deployed agent for `heading` until it answers or stops answering.
@@ -958,11 +966,10 @@ def ask_until_answered(
                 revision,
                 profile,
             )
-        if report:
-            print(
-                f"↻ {url} settled its ask with a startup failure; "
-                "sending one new message"
-            )
+        print(
+            f"↻ {url} settled its ask with a startup failure; sending one new message",
+            file=sys.stderr,
+        )
 
 
 def verify_agent_turn(
@@ -971,7 +978,6 @@ def verify_agent_turn(
     *,
     origin: str,
     direct_agent: bool = False,
-    report: bool = True,
 ) -> dict:
     """Require one deployed Codex turn to revise and answer a private page.
 
@@ -1010,7 +1016,6 @@ def verify_agent_turn(
         release,
         heading,
         state,
-        report=report,
         direct_agent=direct_agent,
     )
     turn, asks, revision, profile = asked
@@ -1030,8 +1035,7 @@ def verify_agent_turn(
         profile.milestones["response visible"] = (
             visible_reply_at - profile.visible_reply_started_ms
         ) / 1000
-    if report:
-        print_agent_profile(profile)
+    print_agent_profile(profile)
     # What the turn did comes before how Threads drew it. The panel owes the user a
     # reply only once the container has admitted one, so a turn that stopped without
     # answering is reported as that turn rather than as a page that failed to paint.
@@ -1112,17 +1116,17 @@ def verify_agent_turn(
         f"followed revision {published['revision']} "
         f"{followed_in:.0f} ms after presentation"
     )
-    if report:
-        print(
-            f"✓ hosted agent published revision {published['revision']} "
-            f"and replied: {answer['text']}"
-            + (
-                f"; the reloaded page presented in {presented_at:.0f} ms and {followed}"
-                if presented_at is not None
-                else f"; the reloaded page {followed}"
-            )
-        )
-        print(startup_line("changed page", startup))
+    print(
+        f"✓ hosted agent published revision {published['revision']} "
+        f"and replied: {answer['text']}"
+        + (
+            f"; the reloaded page presented in {presented_at:.0f} ms and {followed}"
+            if presented_at is not None
+            else f"; the reloaded page {followed}"
+        ),
+        file=sys.stderr,
+    )
+    print(startup_line("changed page", startup), file=sys.stderr)
     result = {
         "origin": origin,
         "release": release,
@@ -1280,26 +1284,32 @@ def main(target: str, release: str | None, agent: bool) -> None:
             run_verification(origin, built, agent=True, direct_agent=True)
         return
     origin = target_origin(target)
-    built = json.loads(MANIFEST.read_text(encoding="utf-8"))["release"]
-    check(
-        release is None or release == built,
-        "the requested release differs from the built site",
-    )
-    run_verification(origin, release or built, agent=agent)
+    if not agent:
+        built = json.loads(MANIFEST.read_text(encoding="utf-8"))["release"]
+        check(
+            release is None or release == built,
+            "the requested release differs from the built site",
+        )
+        release = built
+    run_verification(origin, release, agent=agent)
 
 
 def run_verification(
-    origin: str, release: str, *, agent: bool, direct_agent: bool = False
+    origin: str, release: str | None, *, agent: bool, direct_agent: bool = False
 ) -> None:
     """Run one browser check against explicit transport and release inputs."""
     with sync_playwright() as playwright:
         browser, browser_name = launch_browser(playwright)
         try:
             if agent:
-                verify_agent_turn(
+                result = verify_agent_turn(
                     browser, release, origin=origin, direct_agent=direct_agent
                 )
-                print(f"✓ {origin} ran one agent turn on release {release}")
+                print(
+                    f"✓ {origin} ran one agent turn on release {result['release']}",
+                    file=sys.stderr,
+                )
+                print(json.dumps({"browser": browser_name, **result}, indent=2))
                 return
             print(
                 "Leaf startup profile (observed, not a pass/fail budget):", flush=True

@@ -1297,6 +1297,27 @@ def test_a_click_on_a_mark_decides_once(browser, serve):
     wait_for_revision(page, 2)
 
 
+def test_a_plain_block_in_a_language_the_layer_cannot_color_stays_plain(browser, serve):
+    """A plain <pre><code class="language-…"> claims no vocabulary: what every Markdown
+    renderer emits carries whatever word its author wrote. One outside $languages stays
+    the ink of an uncolored block, as it would on any page that colors nothing, with no
+    console error to fail the page over it. The known word beside it is the control."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "plain blocks",
+                '<h1 id="t">Blocks</h1>\n'
+                '<pre id="known"><code class="language-python">x = 1</code></pre>\n'
+                '<pre id="unknown"><code class="language-pythn">y = 2</code></pre>',
+            )
+        ),
+    )
+    expect(page.locator("#known [data-lf-syn]").first).to_be_attached()
+    assert page.locator("#unknown [data-lf-syn]").count() == 0
+    assert page.locator("#unknown code").text_content() == "y = 2"
+
+
 def test_code_is_colored_without_a_word_moving(browser, serve):
     """Colouring is spans, and the anchor pass is what spans break: the revision holds
     one run of characters where the DOM now holds a dozen nodes. A <span> is no text block,

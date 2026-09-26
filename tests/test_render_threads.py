@@ -5333,6 +5333,7 @@ def test_a_panel_reads_a_log_that_lost_the_message_a_reply_answers(browser, serv
     expect(page.locator(".lf-thread")).to_have_count(1)
     expect(page.locator(".lf-thread")).to_contain_text("the answer that survived it")
     expect(page.locator(".lf-thread")).to_contain_text("the later plain reply")
+    expect(page.locator('.lf-thread[data-id="tv-lost"]')).to_have_count(1)
     expect(page.locator(".lf-needs")).to_have_text("You (1)")
 
 

@@ -869,22 +869,6 @@ def test_an_async_reading_probe_is_refused_instead_of_awaited(browser, serve):
     ), f"an async reading has to name itself, and this came back as {failures}"
 
 
-def test_the_gate_reports_a_form_field_chrome_cannot_identify(browser, serve):
-    source = LONG_PAGE.replace(
-        '<h1 id="t">Long</h1>',
-        '<h1 id="t">Long</h1><label>Search <input class="unnamed" name=""></label>',
-    )
-
-    failures = render_gate_model.render_version(browser, serve(source)).failures
-
-    assert [failure for failure in failures if "Chrome cannot identify" in failure] == [
-        (
-            "[light] <input class='unnamed'> has neither an id nor a name, so Chrome "
-            "cannot identify the form field"
-        )
-    ]
-
-
 def test_the_gate_reports_a_devtools_issue_the_page_owns(browser, serve):
     """A lazy image that holds no room is reported only in DevTools' Issues panel.
 
@@ -1884,7 +1868,7 @@ def test_the_data_wait_follows_a_source_rewritten_under_it(browser, serve):
     )
     page._leaf_probe_timeout_ms = 1_000
 
-    assert render_checks_model.wait_for_presentation(page, held, 0) is None
+    assert render_checks_model.wait_for_presentation(page, held) is None
 
 
 def test_the_data_wait_follows_a_source_back_to_the_version_the_page_shows(
@@ -1912,7 +1896,7 @@ def test_the_data_wait_follows_a_source_back_to_the_version_the_page_shows(
     page.unroute("**/api/state*")
     page._leaf_probe_timeout_ms = 5_000
 
-    assert render_checks_model.wait_for_presentation(page, held, 0) is None
+    assert render_checks_model.wait_for_presentation(page, held) is None
     expect(page.locator("#notes code")).to_have_text("First.\n")
 
 
@@ -1958,19 +1942,8 @@ def test_the_render_gate_checks_custom_controls_at_their_form_boundary(browser, 
           document.querySelector('main').append(control, native);
         }"""
     )
-    assert render_checks_model.evaluate_probe(page, "unnamedFormFields") == []
     assert render_checks_model.evaluate_probe(page, "undeclaredShadowRoots", {}) == []
 
-    page.evaluate(
-        """() => {
-          document.querySelector('test-control').removeAttribute('name');
-          document.querySelector('#native-field').removeAttribute('id');
-        }"""
-    )
-    assert {
-        field["tag"]
-        for field in render_checks_model.evaluate_probe(page, "unnamedFormFields")
-    } == {"test-control", "input"}
     page.locator("main > test-control").evaluate(
         "node => node.removeAttribute('data-lf-gen')"
     )

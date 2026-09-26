@@ -56,16 +56,8 @@ OPTIONAL_END = {
     "head",
     "body",
 }
-# How a plain code block names its language, matching leaf.js's own pattern. The
-# class is the universal one every Markdown renderer emits, so a block Claude wrote
-# elsewhere lands here unchanged.
-LANGUAGE_CLASS = re.compile(r"(?:^|\s)language-([\w+.#-]+)(?=\s|$)")
-
 # HTML's ASCII whitespace: an id may hold none of it.
 ASCII_WHITESPACE = frozenset("\t\n\f\r ")
-
-# Attribute widths only count as pixels on these elements.
-PIXEL_WIDTH_TAGS = {"img", "svg", "table", "canvas", "iframe", "video", "object"}
 
 # Blocks a user predictably points at whole rather than quoting: a run of code,
 # a table, a figure, an aside set off from the prose — and the sections
@@ -80,9 +72,6 @@ SECTIONING_TAGS = {"section", "article", "main", "body"}
 # outline rather than standing in it. The outline widget selects the same set in the
 # browser (its own HEADING_SELECTOR).
 HEADING_TAGS = {"h2", "h3", "h4", "h5", "h6"}
-# The properties that overflow a column when pinned in pixels. max-width defines the
-# column instead, so it is read there and never counted here.
-OVERFLOW_PROPS = ("width", "min-width")
 # The allocations a page occurrence may state, each attribute with the values it takes:
 # a block's width in the page's flow and whether it bounds its own height, and, on
 # `main` alone, whether the page reserves the rail its margin rows stand in.
@@ -208,7 +197,7 @@ class SourceDocument:
     TurboHTML owns HTML recovery and source locations. This class retains Leaf's
     authoring-specific indexes and its stricter errors for ambiguous source constructs:
     element ids and their enclosing widget, external assets and metadata, each lf-*
-    element's attributes and direct contents, title and width declarations, and the
+    element's attributes and direct contents, title and styles, and the
     exact authored construction. It does not maintain a second element stack or
     tree-building grammar, and it keeps foreign SVG as exact source rather than
     reconstructing it.
@@ -259,12 +248,8 @@ class SourceDocument:
         # screenshot that nothing displays.
         self.media_refs = set()
         self.page_resource_refs = set()
-        # What the version says about width, each where a document says it: CSS is what
-        # a <style> block holds, and a fixed width is what a rule, style="", or width=""
-        # states. The column check reads these three and nothing else.
-        self.css = ""
+        self.css = ""  # what the page's <style> blocks hold
         self.inline_styles = []  # {tag, line, style} per style="" declaration list
-        self.attr_widths = []  # {tag, line, value} per width="" counted as pixels
         # {tag, line, attr, value} per authored allocation: a data-width or data-bound.
         self.authored_allocations = []
         self.title = ""  # what <title> says, for the transcript's heading
@@ -276,9 +261,6 @@ class SourceDocument:
         # a slot a decision retires and which widget holds it is the registry's word,
         # read by whoever has one, so this parse need not know a widget by name.
         self.within = {}
-        # {tag, parent, lang, line} per element claiming a language — the coloring the
-        # runtime honors on a plain <pre><code>.
-        self.language_blocks = []
         # {tag, line, under} per id-less pointable block, where under is the nearest
         # ancestor carrying an id. This is where a user's aim would otherwise land.
         self.bare_blocks = []
@@ -355,17 +337,11 @@ class SourceDocument:
             for token in tokens
             if token.type is turbohtml.TokenType.START_TAG
         }
-        recognized_ends = set()
         for element in self.tree.descendants:
             if not isinstance(element, turbohtml.Element):
                 continue
             location = element.source_location
-            if location is None:
-                continue
-            if location.end_tag is not None:
-                recognized_ends.add(
-                    (location.end_tag.start_line, location.end_tag.start_col)
-                )
+            if location is None or location.end_tag is not None:
                 continue
             start_source = self._span_source(location.start_tag).rstrip()
             if (
@@ -374,48 +350,8 @@ class SourceDocument:
             ):
                 self.unclosed.append((element.tag, element.source_line))
 
-        for token in tokens:
-            if (
-                token.type is turbohtml.TokenType.END_TAG
-                and token.tag not in VOID_TAGS | OPTIONAL_END
-                and (token.line, token.col) not in recognized_ends
-            ):
-                self.errors.append(
-                    f"stray </{token.tag}> at line {token.line} with no matching open tag"
-                )
-
-        duplicates = {}
-        start_tokens = list(starts.values())
         for error in self.tree.errors:
-            if error.code == "duplicate-attribute":
-                error_index = self._source_index(error.line, error.col)
-                token = next(
-                    (
-                        token
-                        for token in reversed(start_tokens)
-                        if (start := self._source_index(token.line, token.col))
-                        <= error_index
-                        < start + len(token.source)
-                    ),
-                    None,
-                )
-                if token is None:
-                    self.errors.append(
-                        f"duplicate attribute at line {error.line}; "
-                        "HTML keeps the first value"
-                    )
-                    continue
-                start = self._source_index(token.line, token.col)
-                match = re.search(
-                    r"([^\t\n\f\r />=]+)\s*$", token.source[: error_index - start]
-                )
-                duplicate = duplicates.setdefault(
-                    (token.line, token.col),
-                    {"tag": token.tag, "line": token.line, "names": set()},
-                )
-                if match:
-                    duplicate["names"].add(match.group(1).lower())
-            elif error.code == "non-void-html-element-start-tag-with-trailing-solidus":
+            if error.code == "non-void-html-element-start-tag-with-trailing-solidus":
                 token = starts.get((error.line, error.col))
                 tag = token.tag if token is not None else "element"
                 self.errors.append(
@@ -423,13 +359,6 @@ class SourceDocument:
                     f"slash and the element would swallow what follows — write "
                     f"<{tag} …></{tag}>"
                 )
-        for duplicate in duplicates.values():
-            names = sorted(duplicate["names"])
-            detail = f" names {names}" if names else ""
-            self.errors.append(
-                f"<{duplicate['tag']}> at line {duplicate['line']} has duplicate "
-                f"attribute{detail}; HTML keeps the first value"
-            )
 
     def _record_element(
         self,
@@ -517,8 +446,6 @@ class SourceDocument:
             self.inline_styles.append(
                 {"tag": tag, "line": line, "style": attrs["style"]}
             )
-        if tag in PIXEL_WIDTH_TAGS and attrs.get("width"):
-            self.attr_widths.append({"tag": tag, "line": line, "value": attrs["width"]})
         for attr in AUTHORED_ALLOCATIONS:
             if attr in attrs:
                 self.authored_allocations.append(
@@ -732,16 +659,6 @@ class SourceDocument:
             self.nodes.append(node)
             child_output = node["content"]
 
-            language = LANGUAGE_CLASS.search(attrs.get("class") or "")
-            if language:
-                self.language_blocks.append(
-                    {
-                        "tag": element.tag,
-                        "parent": parent_tag,
-                        "lang": language.group(1),
-                        "line": line,
-                    }
-                )
             if element.tag in POINTABLE_TAGS and not attrs.get("id"):
                 under = next(
                     (

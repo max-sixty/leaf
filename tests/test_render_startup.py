@@ -3954,11 +3954,6 @@ def test_a_comment_on_external_data_stays_with_the_revision_the_user_saw(
         re.compile(r"\bdetached\b")
     )
 
-    screen = render_checks_model.evaluate_probe(page, "paperWords")
-    page.emulate_media(media="print")
-    paper = render_checks_model.evaluate_probe(page, "paperWords")
-    assert paper == screen, "paper dropped or rewrote projected data"
-
 
 def test_a_comment_on_an_identified_datum_follows_the_subject_across_replacements(
     browser, serve

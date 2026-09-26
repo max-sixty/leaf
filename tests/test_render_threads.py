@@ -83,6 +83,27 @@ def test_gallery_thread_rows_name_action_in_existing_status(browser, serve):
     expect(asked.locator(":scope > .lf-thread-summary .lf-thread-status")).to_have_text(
         "On you · answer question"
     )
+    summary = asked.locator(":scope > .lf-thread-summary")
+    recency = summary.locator(".lf-thread-recency")
+    expect(recency).to_have_attribute("datetime", "2026-09-02T00:12:56-07:00")
+    expect(recency).to_have_text(re.compile(r"^(now|\d+[mhd])$"))
+    expect(summary.locator(".lf-thread-count")).to_have_text("3")
+    page.evaluate(
+        "document.documentElement.style.setProperty('--lf-thread-panel-width', '320px')"
+    )
+    narrow = summary.evaluate(
+        """summary => {
+          const topic = summary.querySelector('.lf-thread-topic').getBoundingClientRect();
+          const status = summary.querySelector('.lf-thread-status').getBoundingClientRect();
+          const trailing = summary.querySelector('.lf-thread-trailing').getBoundingClientRect();
+          const row = summary.getBoundingClientRect();
+          return { topicWidth: topic.width, statusBelow: status.top >= topic.bottom,
+                   trailingInside: trailing.right <= row.right };
+        }"""
+    )
+    assert narrow["topicWidth"] > 150
+    assert narrow["statusBelow"]
+    assert narrow["trailingInside"]
     asked.locator(":scope > .lf-thread-summary").focus()
     asked.locator(":scope > .lf-thread-summary").press("Enter")
     expect(asked).to_have_attribute("open", "")

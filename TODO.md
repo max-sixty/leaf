@@ -21,10 +21,6 @@ has tried; settle that before building it.
   message with a lightweight model request that excludes the full agent context.
   Measure the request's input tokens and latency; keep the subdued pulsing ellipsis
   until the title arrives.
-- **Show each Thread's last move in the list.** A collapsed row gives the count and
-  attention but not who spoke last or when, so a user cannot tell a stale Thread
-  from a live one without opening it. The Thread model already computes when each
-  Thread last moved, edits included, and Recent orders by it; no row shows it.
 - **Keep a long Thread's standing visible.** Let the agent maintain one line at the
   head of a Thread saying what is decided and what remains open, so a user
   returning to a long discussion knows where it stands before reading it. Decide

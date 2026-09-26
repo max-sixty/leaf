@@ -2899,6 +2899,21 @@ def test_a_walked_thread_leaves_through_what_holds_it(browser, serve):
     expect(threads[0]).to_be_focused()
     page.keyboard.press("Escape")
     expect(page.locator("#p")).to_be_focused()
+    # The element and the card beside it are one place, so standing there is standing
+    # at its thread: the card's reply box wears `c`, and the walk goes on from the
+    # thread rather than back into it.
+    expect(threads[0].locator("textarea")).to_have_attribute("placeholder", "Reply c")
+    expect(line).to_contain_text("comment on the thread")
+    page.keyboard.press("t")
+    expect(threads[1]).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(page.locator("#p2")).to_be_focused()
+    page.keyboard.press("c")
+    expect(threads[1].locator("textarea")).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(threads[1]).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(page.locator("#p2")).to_be_focused()
     page.keyboard.press("Escape")
     expect(preview).to_be_hidden()
     assert page.evaluate("() => document.activeElement === document.body")

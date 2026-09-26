@@ -434,7 +434,7 @@ def admitting_registry(view, event: dict, events: list) -> dict:
     reads the recorded side from that same capture. A sign-off names its version
     instead, and admits under the revision that version stamped. An event naming
     neither takes the newest, which is the document any writer of one is looking
-    at, and a page with no revision yet has only the layer it carries.
+    at, and a page with no revision yet has the candidate's vocabulary.
 
     Read through `PageView.registry`, which opens the one captured file rather
     than materializing the whole bundle: this runs on every append."""

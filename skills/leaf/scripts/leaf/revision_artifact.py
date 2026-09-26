@@ -30,6 +30,7 @@ from urllib.parse import unquote, urlsplit
 import tinycss2
 import tree_sitter_javascript
 import turbohtml
+from tinycss2.serializer import serialize_string_value
 from tree_sitter import Language, Parser
 
 from leaf.files import file_stamp, fsync_parents, list_revisions, revision_path
@@ -268,58 +269,91 @@ def _javascript_imports(
         pending.extend(reversed(node.named_children))
 
 
-def _css_urls(tokens):
-    """Read URLs from CSS syntax, including @import's string form."""
+def _css_meaningful(tokens) -> list:
+    return [item for item in tokens if item.type not in {"whitespace", "comment"}]
+
+
+def _is_stylesheet_url(url: str) -> bool:
+    return external_reference(url) or Path(urlsplit(url).path).suffix == ".css"
+
+
+def _css_references(tokens):
+    """Yield each token in parsed CSS whose value is a URL the stylesheet loads.
+
+    Those are a `url()` in either spelling, a string argument of `image-set()`, and
+    the string form of a top-level `@import`. An `@import` nested in a block is
+    ignored, as a browser ignores it: tinycss2 reads one as a bare at-keyword inside
+    the block's content rather than as a rule. The tokens are the parser's own, so a
+    caller that rewrites one and serializes the tree changes that URL and nothing else.
+    """
     for token in tokens:
         if token.type == "error":
             raise ArtifactError(f"invalid CSS: {token.message}")
         if token.type == "url":
-            yield token.value
+            yield token
         elif token.type == "function" and token.lower_name == "url":
-            values = [
-                item
-                for item in token.arguments
-                if item.type not in {"whitespace", "comment"}
-            ]
+            values = _css_meaningful(token.arguments)
             if len(values) != 1 or values[0].type != "string":
                 raise ArtifactError("CSS url() requires one literal URL")
-            yield values[0].value
+            yield values[0]
+        elif token.type == "function" and token.lower_name in {
+            "image-set",
+            "-webkit-image-set",
+        }:
+            yield from (item for item in token.arguments if item.type == "string")
         elif token.type == "at-rule" and token.lower_at_keyword == "import":
-            values = [
-                item
-                for item in token.prelude
-                if item.type not in {"whitespace", "comment"}
-            ]
+            values = _css_meaningful(token.prelude)
             if values and values[0].type == "string":
-                if (
-                    not external_reference(values[0].value)
-                    and Path(urlsplit(values[0].value).path).suffix != ".css"
-                ):
+                if not _is_stylesheet_url(values[0].value):
                     raise ArtifactError(
                         "CSS @import requires a stylesheet with CSS MIME type"
                     )
-                yield values[0].value
+                yield values[0]
             else:
-                imported = list(_css_urls(token.prelude))
-                if not imported or (
-                    not external_reference(imported[0])
-                    and Path(urlsplit(imported[0]).path).suffix != ".css"
-                ):
+                imported = list(_css_references(token.prelude))
+                if not imported or not _is_stylesheet_url(imported[0].value):
                     raise ArtifactError(
                         "CSS @import requires a stylesheet with CSS MIME type"
                     )
         for attribute in ("prelude", "content", "arguments", "value"):
             nested = getattr(token, attribute, None)
             if isinstance(nested, list):
-                yield from _css_urls(nested)
+                yield from _css_references(nested)
+
+
+def _parse_css(source: str, declarations: bool):
+    """A stylesheet, or with `declarations` the body of a `style` attribute."""
+    if declarations:
+        return tinycss2.parse_declaration_list(source)
+    return tinycss2.parse_stylesheet(source)
 
 
 @lru_cache(maxsize=512)
 def _css_dependencies(source: str, declarations: bool = False) -> tuple[str, ...]:
-    parse = (
-        tinycss2.parse_declaration_list if declarations else tinycss2.parse_stylesheet
+    return tuple(
+        token.value for token in _css_references(_parse_css(source, declarations))
     )
-    return tuple(_css_urls(parse(source)))
+
+
+def rewrite_css(source: str, address, *, declarations: bool = False) -> str:
+    """Re-address every URL `source` loads through `address`, the rest byte-for-byte.
+
+    `address` takes a URL as written and returns the one to write in its place.
+    Delivery and export re-address through this, and capture collects its
+    dependencies from the same `_css_references`, so all three agree on which URLs a
+    sheet has.
+    """
+    tokens = _parse_css(source, declarations)
+    changed = False
+    for token in list(_css_references(tokens)):
+        value = address(token.value)
+        if value == token.value:
+            continue
+        changed = True
+        quoted = '"' + serialize_string_value(value) + '"'
+        token.representation = f"url({quoted})" if token.type == "url" else quoted
+        token.value = value
+    return tinycss2.serialize(tokens) if changed else source
 
 
 def _path_stamp(path: Path) -> tuple:

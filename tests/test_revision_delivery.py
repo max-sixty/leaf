@@ -6,7 +6,7 @@ from urllib.parse import urljoin, urlsplit
 import pytest
 import tinycss2
 from interact_support import PAGE
-from leaf.exporting import inline_assets
+from leaf.exporting import inline_assets, inline_css_assets
 from leaf.revision_artifact import ArtifactError, Resource, capture_artifact
 from leaf.revision_delivery import deliver_document, deliver_resource, json_script
 from leaf.structure import SourceDocument
@@ -113,6 +113,46 @@ def test_stylesheets_rebase_nested_imports_urls_and_preserve_inert_values():
     assert not any(
         token.type == "error" for token in tinycss2.parse_stylesheet(delivered)
     )
+
+
+def test_capture_delivery_and_export_read_one_set_of_stylesheet_urls(tmp_path):
+    """Capture decides which files a stylesheet needs, delivery re-addresses them, and
+    export embeds them, so all three have to find the same URLs in one sheet: a URL
+    only capture finds is a file nobody serves, and one only export finds is a file
+    capture never kept. An `@import` nested in a block is none of them, because a
+    browser ignores it."""
+    sheet = """@import "./base.css";
+@supports (display: grid) { @import "./ignored.css"; }
+main { background: image-set("./a.png" 1x, url(./b.png) 2x); }
+@font-face { src: url(/page/f.woff2) format("woff2"); }
+"""
+    authored = tmp_path / "page"
+    authored.mkdir()
+    (authored / "style.css").write_text(sheet)
+    for name in ("base.css", "ignored.css", "a.png", "b.png", "f.woff2"):
+        (authored / name).write_text("")
+    source = PAGE.replace(
+        "</head>", '<link rel="stylesheet" href="page/style.css"></head>'
+    )
+    expected = {"/page/base.css", "/page/a.png", "/page/b.png", "/page/f.woff2"}
+
+    artifact = capture_artifact(tmp_path, SourceDocument(source), {})
+    captured = artifact.resources["/page/style.css"]
+    assert set(captured.dependencies) == expected
+    assert "/page/ignored.css" not in artifact.resources
+
+    delivered = deliver_resource(captured, "/page/style.css", ROOT).decode()
+    assert {path for path in expected if f'"{ROOT}{path}"' in delivered} == expected
+    assert '@import "./ignored.css"' in delivered
+
+    read = []
+
+    def reader(url):
+        read.append(url)
+        return artifact.resources[url]
+
+    inline_css_assets(sheet, read_resource=reader, document_url="/page/style.css")
+    assert set(read) == expected
 
 
 def test_page_widget_alias_uses_its_captured_path_for_import_resolution():

@@ -1600,20 +1600,35 @@ def test_a_tone_the_layer_cannot_paint_is_refused_where_the_author_can_still_fix
     otherwise looks perfectly well. The user cannot see it — they never knew it
     was meant to be red — so the only party who can still fix it is whoever wrote
     the word, and the lint is where they are told. This is the whole difference
-    between the attribute and a class, which nothing checks."""
+    between the attribute and a class, which nothing checks.
+
+    Every widget taking a tone reads it from the one list: a board column as well as
+    a chip."""
     (page_dir / "index.html").write_text(
         PAGE.replace(
             '<lf-option id="flag-first">',
             '<lf-option id="flag-first"><lf-chip tone="dangre">risk: high</lf-chip>',
+        ).replace(
+            "</section>",
+            '<lf-board id="board"><lf-column id="blocked" label="Blocked"'
+            ' tone="dangre"></lf-column></lf-board></section>',
         )
     )
     result = check(page_dir)
     assert result.exit_code == 1
-    assert "not a tone this page's layer paints" in result.output
-    assert "'ok', 'warn', 'danger'" in result.output.replace('"', "'")
+    output = result.output.replace('"', "'")
+    refused = [
+        line
+        for line in output.splitlines()
+        if "not a tone this page's layer paints" in line
+    ]
+    assert len(refused) == 2
+    assert any("<lf-chip" in line for line in refused)
+    assert any("<lf-column" in line for line in refused)
+    assert "'ok', 'warn', 'danger'" in output
 
     # The list is the layer's, so a layer that adds one accepts it with no widget
-    # touched — which is the point of $tones over an enum on lf-chip.
+    # touched — which is the point of $tones over an enum on each widget.
     registry = json.loads((page_dir / "registry.json").read_text())
     registry["$tones"]["names"].append("dangre")
     (page_dir / "registry.json").write_text(json.dumps(registry))
@@ -5670,9 +5685,10 @@ def test_a_state_read_never_materializes_a_historical_revision_bundle(
     count times the bundle: seconds per request where the page directory is on a
     network filesystem, with every other reader queued behind the lock.
 
-    The active revision and its predecessor are the two this reading does
-    materialize, and they are the control here — a counter that never saw a bundle
-    would pass the historical assertion on its own.
+    The active revision is the one this reading does materialize, and it is the
+    control here — a counter that never saw a bundle would pass the historical
+    assertion on its own. The predecessor the source is checked against is read like
+    the rest of the history: its document and its registry.
     """
     for edit in range(12):
         (page_dir / "index.html").write_text(
@@ -5709,8 +5725,8 @@ def test_a_state_read_never_materializes_a_historical_revision_bundle(
     assert activated.error is None, activated.error
     assert not activated.created
 
-    *history, predecessor, active = revisions
-    assert min(opens[active], opens[predecessor]) > 100
+    *history, active = revisions
+    assert opens[active] > 100
     # One document and one registry apiece: the only two resources this reading reads.
     assert {revision: opens[revision] for revision in history} == {
         revision: 2 for revision in history

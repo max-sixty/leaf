@@ -52,7 +52,7 @@ from .locations import path_is_within
 from .media import MAX_MEDIA_UPLOAD_BYTES, MediaUploadError, store_uploaded_media
 from .registry.storage import layer_metadata, require_registry
 from .render_checks import PROBE_SOURCES
-from .revision_artifact import Resource, RevisionArtifact, read_artifact
+from .revision_artifact import Resource, RevisionArtifact, read_artifact, read_registry
 from .revision_delivery import (
     deliver_document,
     deliver_resource,
@@ -619,7 +619,7 @@ class PageEndpoint:
             )
             if view_revision not in revisions:
                 raise ValueError(f"unknown view revision r{view_revision}")
-            registry = self._artifact(view_revision).registry
+            registry = self._registry(view_revision)
         elif self.page_snapshot is not None:
             registry = self.page_snapshot.registry
         else:
@@ -952,6 +952,12 @@ class PageEndpoint:
             return self.page_snapshot.artifacts[revision]
         return read_artifact(self.page_dir, revision)
 
+    def _registry(self, revision: int) -> dict:
+        """One revision's captured vocabulary, without materializing its bundle."""
+        if self.page_snapshot is not None:
+            return self.page_snapshot.artifacts[revision].registry
+        return read_registry(self.page_dir, revision)
+
     def _artifact_root(self, revision: int) -> str:
         name = self._revision_name(revision).removesuffix(".html")
         return self.page_root.rstrip("/") + f"/revisions/{name}"
@@ -1115,7 +1121,7 @@ class PageEndpoint:
             )
             if revision is None:
                 return None
-            registry = self._artifact(revision).registry
+            registry = self._registry(revision)
             self.response_layer = registry["$layer"]["generation"]
             return self._json(registry)
         file = self.page_dir / path.lstrip("/")
@@ -1172,9 +1178,7 @@ class PageEndpoint:
                     raise ValueError("view revision is required")
                 sequence = self.requested_view_sequence()
                 browser = self.page_browser_view(revision, sequence)
-                self.response_layer = self._artifact(revision).registry["$layer"][
-                    "generation"
-                ]
+                self.response_layer = self._registry(revision)["$layer"]["generation"]
             except ValueError as error:
                 return self._json({"error": str(error)}, 400)
             return self._json({"browser": browser})
@@ -1238,9 +1242,7 @@ class PageEndpoint:
         if view_revision is not None and view_revision not in revisions:
             return self._refuse(f"unknown view revision r{view_revision}")
         if view_revision is not None:
-            current_layer = self._artifact(view_revision).registry["$layer"][
-                "generation"
-            ]
+            current_layer = self._registry(view_revision)["$layer"]["generation"]
         else:
             active_revision = (
                 self.page_snapshot.active["revision"]
@@ -1248,7 +1250,7 @@ class PageEndpoint:
                 else latest_revision(self.page_dir)
             )
             current_layer = (
-                self._artifact(active_revision).registry["$layer"]["generation"]
+                self._registry(active_revision)["$layer"]["generation"]
                 if active_revision is not None
                 else self.layer
             )

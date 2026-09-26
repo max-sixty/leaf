@@ -70,6 +70,7 @@ from leaf import events as event_folds_model
 from leaf import files as files_model
 from leaf import host as host_model
 from leaf import media as media_model
+from leaf import page_view as page_view_model
 from leaf import passages as passages_model
 from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
@@ -1610,6 +1611,23 @@ def test_page_registry_reads_candidate_changes_without_mutating_the_layer(page_d
     assert second.registry["lf-local"] == declaration
     assert first.registry["lf-local"]["description"] != declaration["description"]
     assert "lf-local" not in registry_storage.load_registry(page_dir)
+
+
+def test_a_page_with_no_revision_reads_its_candidate_vocabulary(page_dir):
+    """Before the first revision the document is the candidate, so the command
+    readers and the append door both read the vocabulary it would be captured under:
+    the layer composed with the page's own declarations, not the bare layer."""
+    declaration = element_declaration("lf-local")
+    (page_dir / "page" / "registry.json").write_text(
+        json.dumps({"lf-local": declaration})
+    )
+    assert files_model.list_revisions(page_dir) == []
+
+    for vocabulary in (
+        registry_storage.active_registry(page_dir),
+        page_view_model.PageView(page_dir).registry(None),
+    ):
+        assert vocabulary["lf-local"] == declaration
 
 
 def test_thread_markup_must_render_in_every_pinned_revision(page_dir):

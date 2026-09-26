@@ -300,7 +300,11 @@ def score(run: Path) -> list[dict]:
         notified, blocked, before_ack = None, None, []
         for record in stream[stream.index(marker) + 1 :]:
             ran = commands(record)
-            if any("leaf wait --ack" in c for c in ran):
+            ack = next((i for i, c in enumerate(ran) if "leaf wait --ack" in c), None)
+            if ack is not None:
+                if notified or blocked:
+                    # A call made before the ack in the same record still counts.
+                    before_ack += ran[:ack]
                 break
             if (
                 record.get("subtype") == "task_notification"

@@ -1299,10 +1299,16 @@ def local_worker() -> Iterator[str]:
     page loading beside it, so the host's interfaces are settled for every load the
     browser is measured on. Production keeps prewarm, and the pass over the deployed
     release exercises it there. The patience covers building the container image.
+
+    Wrangler stops each session's container when it exits but leaves that
+    container's `proxy-everything` sidecar running, and no later run reclaims it, so
+    this run removes its own on the way out. Workerd names every container after its
+    Worker, so the run serves under a name of its own and removes only containers
+    carrying it, never those of another `wrangler dev` of this Worker.
     """
     origin = "http://127.0.0.1:8787"
     wrangler = ROOT / "worker" / "node_modules" / ".bin" / "wrangler"
-    before = page_containers()
+    name = f"lv{os.getpid()}"
     try:
         with (
             logged(ROOT / ".tmp" / "wrangler-dev.log") as output,
@@ -1310,6 +1316,8 @@ def local_worker() -> Iterator[str]:
                 [
                     str(wrangler),
                     "dev",
+                    "--name",
+                    name,
                     "--port",
                     "8787",
                     "--var",
@@ -1323,26 +1331,18 @@ def local_worker() -> Iterator[str]:
         ):
             yield origin
     finally:
-        # Wrangler stops each session's container when it exits but leaves that
-        # container's `proxy-everything` sidecar running, and no later run
-        # reclaims it, so the containers this run started are removed here.
-        if started := page_containers() - before:
+        listed = subprocess.run(
+            ["docker", "ps", "--quiet", "--filter", f"name=^workerd-{name}-"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        if started := listed.stdout.split():
             subprocess.run(
                 ["docker", "rm", "--force", *started],
                 stdout=subprocess.DEVNULL,
                 check=True,
             )
-
-
-def page_containers() -> set[str]:
-    """The ids of the running containers `wrangler dev` started for this Worker."""
-    listed = subprocess.run(
-        ["docker", "ps", "--quiet", "--filter", "name=workerd-leaf-website-"],
-        capture_output=True,
-        text=True,
-        check=True,
-    )
-    return set(listed.stdout.split())
 
 
 def built_release(requested: str | None) -> str:

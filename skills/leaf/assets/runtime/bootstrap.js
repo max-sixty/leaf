@@ -26,6 +26,85 @@
   // load. A fault the page recovers from is worth the name too, so the outcome that
   // eventually wins carries it rather than a separate record standing for it.
   let recordStartupFault = () => {};
+  let stopHoldingKeys = () => {};
+
+  // A page key pressed before the page presents would otherwise reach a runtime that has
+  // not loaded, or one that has not yet read the log: `t` walks the threads the first
+  // state answer brings, so until then it walks nothing. The keys wait here instead, in
+  // the order pressed, until the presented page takes them. A key typed into a field is
+  // the field's, and a modified or unprinted key is the browser's. Escape lets go of
+  // what is held, and so does a pointer press, which puts the user somewhere the keys
+  // were not aimed at. After a beat the held keys are shown, so a press visibly landed;
+  // a page that presents within the beat shows nothing.
+  function holdEarlyKeys() {
+    const held = [];
+    let beat = 0;
+    const echo = document.createElement("p");
+    echo.className = "lf-held-keys";
+    echo.setAttribute("data-lf-runtime", "");
+    echo.setAttribute("role", "status");
+    const show = () => {
+      const keys = held.map(({ key }) => {
+        const badge = document.createElement("kbd");
+        badge.className = "lf-key-badge";
+        badge.textContent = key;
+        return badge;
+      });
+      echo.replaceChildren(
+        "Page still loading —",
+        ...keys,
+        keys.length === 1 ? "runs when it's ready" : "run when it's ready",
+      );
+      if (!echo.isConnected) document.body?.append(echo);
+    };
+    const letGo = () => {
+      held.length = 0;
+      clearTimeout(beat);
+      beat = 0;
+      echo.remove();
+    };
+    const hold = (event) => {
+      if (event.isComposing || event.ctrlKey || event.metaKey || event.altKey) return;
+      const origin = event.composedPath()[0];
+      if (
+        origin instanceof Element &&
+        (origin.isContentEditable || origin.matches("input, textarea, select"))
+      )
+        return;
+      if (event.key === "Escape") {
+        if (!held.length) return;
+        letGo();
+      } else if (event.key.length !== 1 || event.key === " ") return;
+      else if (!event.repeat) {
+        held.push(event);
+        if (echo.isConnected) show();
+        else beat ||= setTimeout(show, 150);
+      }
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    };
+    const pointed = () => letGo();
+    const take = (event) => {
+      event.detail.push(...held);
+      stopHoldingKeys();
+    };
+    // A page that has not presented by now is not loading but faulted, and a key held
+    // this long is one the user has given up on: the hold ends, what it held is
+    // dropped, and keys reach the runtime as they come.
+    const limit = setTimeout(() => stopHoldingKeys(), 10_000);
+    stopHoldingKeys = () => {
+      window.removeEventListener("keydown", hold, true);
+      window.removeEventListener("pointerdown", pointed, true);
+      document.removeEventListener("lf-held-keys", take);
+      clearTimeout(limit);
+      letGo();
+    };
+    window.addEventListener("keydown", hold, true);
+    window.addEventListener("pointerdown", pointed, true);
+    // The keyboard owner takes the held keys once the page presents and runs them through
+    // its own handler (runtime/keyboard/controller.js).
+    document.addEventListener("lf-held-keys", take);
+  }
 
   // A small public-site profile distinguishes server delay, browser paint, and Leaf
   // presentation. It starts here so failed module graphs report too.
@@ -103,6 +182,7 @@
   function recover(reason, awaits = true) {
     root.dataset.lfStartupError = reason;
     recordStartupFault(reason);
+    stopHoldingKeys();
     if (recovering) return;
     recovering = true;
     let started = false;
@@ -207,6 +287,7 @@
   window.addEventListener("lf-startup-failed", (event) =>
     recover(event.detail?.reason || "the page reported it could not start"),
   );
+  holdEarlyKeys();
   try {
     observePublicStartup();
   } catch {

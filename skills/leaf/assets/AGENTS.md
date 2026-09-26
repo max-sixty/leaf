@@ -18,7 +18,7 @@ sequence (Startup and presentation, below). It exports no capability and no owne
 imports it back. The HTTP boundary places the vendored
 `runtime/bootstrap.js` before loadable resources, carrying the delivery's CSP nonce; it can
 show startup failure and hear a replacement server even if the module graph or
-stylesheet never loads. A delivery carrying a site release also uses that bootstrap
+stylesheet never loads, and it holds the page keys pressed before presentation (below). A delivery carrying a site release also uses that bootstrap
 to send one content-free startup profile after presentation, failure, timeout, or
 navigation away; ordinary Leaf servers carry no release and emit no telemetry.
 `runtime/widget-api.js` is the one public
@@ -229,7 +229,13 @@ Authored HTML paints immediately on every page. The prepaint bootstrap marks the
 and the shortcut band, so mounting the runtime does not move the document. A restored
 auxiliary surface stands over the page and reserves nothing.
 Prose, ordinary links, scrolling, and layout remain usable while widgets upgrade and the
-first state read is pending.
+first state read is pending. Page keys wait: a command such as `t` reads state the first
+answer brings, so dispatching one earlier acts on an empty page. The bootstrap therefore
+holds each unmodified printable key pressed outside a text field from first parse and
+shows the held keys after a beat; at `lf-presentation` the keyboard controller takes them
+and presses them through its own handler in order, a frame apart. Escape or a pointer
+press drops them. A startup failure, or a page still unpresented ten seconds in, ends the
+hold and drops what it held.
 Generated interface constructed from authored markup participates in layout while it
 settles, then `data-lf-upgraded` releases it from authored and tab-local state without
 waiting for the first server reading. Durable controls remain unavailable until

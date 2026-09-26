@@ -8,9 +8,6 @@
     />
     <link rel="icon" href="/icon.svg" type="image/svg+xml" />
     <style>
-      #how > lf-tab > section {
-        --lf-passes-block-edge: 1;
-      }
       /* The Layout tab's drawings are the theme's svg.drawing idiom. A figure of several
          panels sets them side by side and stacks them on a narrow window, so no panel's
          words shrink past reading. */
@@ -1260,6 +1257,12 @@ flowchart LR
             <p id="one-kind-grows">
               A page grows without changing kind: a report that gains live status gains
               a grid, and its comments and anchors stay where they were.
+            </p>
+            <p id="one-kind-tabs">
+              Page tabs don't make another kind. They are navigation over sections of
+              one page: the strip sticks under the banner, one panel shows at a time,
+              and each panel takes the page's width like any other block, so
+              <code>data-width</code> on <code>main</code> widens every tab.
             </p>
           </section>
 

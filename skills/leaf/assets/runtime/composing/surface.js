@@ -129,8 +129,8 @@ export function createResponseSurface({
   panelIsOpen,
   landIn,
   setPanel,
-  activeInlineThread,
-  shownThreadAt,
+  threadHere,
+  threadTarget,
   standingElement,
   composerHolds,
   responseOptionsAreOpen,
@@ -1526,8 +1526,17 @@ export function createResponseSurface({
         box: fabInput,
         go: focusFabComment,
       };
-    const inline = activeInlineThread();
-    const inlineBox = inline && threadInput(inline);
+    // The thread the user is at continues where it is about exactly what they stand on:
+    // they are in it, or it is the thread of the element itself. A card showing an
+    // enclosing block's thread is about that block, so an element inside it — an Ask in
+    // a commented task — takes a thread of its own, and a selection still starts one on
+    // its words.
+    const here = standingElement();
+    const inline = threadHere();
+    const inlineBox =
+      inline &&
+      (!here || inline.contains(focused()) || threadTarget(inline) === here) &&
+      threadInput(inline);
     const said =
       standingThread() ?? (inlineBox ? { held: inline, box: inlineBox } : null);
     if (said)
@@ -1535,20 +1544,6 @@ export function createResponseSurface({
         ...commenting("thread"),
         box: said.box,
         go: () => landIn(said),
-      };
-    // Standing at an element whose thread the card or the Threads list is showing, the
-    // press continues that thread: the conversation about the element is already in
-    // front of the user. Only a thread about this very element counts. A card showing an
-    // enclosing block's thread is about that block, so an Ask inside it takes a thread of
-    // its own, and a selection still starts one on its words.
-    const here = standingElement();
-    const shown = here && shownThreadAt(here);
-    const shownBox = shown?.target === here && threadInput(shown.thread);
-    if (shownBox)
-      return {
-        ...commenting("thread"),
-        box: shownBox,
-        go: () => landIn({ held: shown.thread, box: shownBox }),
       };
     if (here)
       return {

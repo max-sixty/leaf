@@ -224,11 +224,10 @@ const navigation = createNavigation({
   threadDestinations: {
     openPageThread: (...args) => app.margin.openPageThread(...args),
     scrollToThread: (...args) => anchorTravel.scrollToThread(...args),
-    activeInlineThread: () => app.margin.activeInlineThread(),
-    inlineThreadView: () => app.margin.inlineThreadView,
-    shownThreadAt: (...args) => app.margin.shownThreadAt(...args),
+    threadHere: () => app.margin.threadHere(),
     standingTargetAt: (...args) => app.margin.standingTargetAt(...args),
     threadTarget: (...args) => app.margin.threadTarget(...args),
+    inlineThreadView: () => app.margin.inlineThreadView,
   },
 });
 
@@ -541,8 +540,9 @@ responseSurface = createResponseSurface({
   panelIsOpen,
   landIn: landing.landIn,
   setPanel: (...args) => threadPanelController.setPanel(...args),
-  activeInlineThread: () => app.margin.activeInlineThread(),
-  shownThreadAt: (...args) => app.margin.shownThreadAt(...args),
+  threadHere: () => app.margin.threadHere(),
+  threadTarget: (thread) =>
+    app.margin.threadTarget(thread.dataset.thread ?? thread.dataset.id),
   standingElement,
   composerHolds: selectionComposer.composerHolds,
   responseOptionsAreOpen: selectionComposer.responseOptionsAreOpen,
@@ -649,7 +649,7 @@ threadPanelController = createThreadPanelController({
   auxiliarySurfaces,
   elements: { panel, toggleBtn, threadsBox },
   widen: () => widen(app.presentThread),
-  activeInlineThread: app.margin.activeInlineThread,
+  threadHere: app.margin.threadHere,
   showThread: landing.showThread,
   refreshThread: app.refreshThread,
   closeReactionMode: () => reactions.setReact(false),

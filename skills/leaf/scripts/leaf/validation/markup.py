@@ -149,15 +149,11 @@ def missing_outline(parser: SourceDocument, registry: dict) -> list:
     main, roots = main_roots(parser)
     if main is not None:
         workspace = sole_workspace(roots, registry) is not None
-        page_navigation = (
-            roots
-            and len(roots) <= 2
-            and isinstance(roots[-1], dict)
-            and registry.get(roots[-1]["tag"], {}).get("x-page-navigation") is True
-            and (
-                len(roots) == 1
-                or (isinstance(roots[0], dict) and roots[0]["tag"] == "header")
-            )
+        # The page's view navigation is a block directly in main that declares it.
+        page_navigation = any(
+            isinstance(node, dict)
+            and registry.get(node["tag"], {}).get("x-page-navigation") is True
+            for node in roots
         )
         if workspace or page_navigation:
             return []

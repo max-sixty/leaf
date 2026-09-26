@@ -5356,6 +5356,8 @@ def test_check_advises_a_page_whose_headings_have_nothing_listing_them(page_dir)
         '<lf-tabs id="project-views"><lf-tab id="plan-view" label="Plan">',
     ).replace("</main>", "</lf-tab></lf-tabs></main>")
     assert outline_advice(page_tabs) == []
+    # Page navigation is the first tab set directly in main, whatever stands beside it;
+    # one nested in another block is a tabbed section and lists nothing.
     assert (
         outline_advice(
             page_tabs.replace(
@@ -5363,14 +5365,14 @@ def test_check_advises_a_page_whose_headings_have_nothing_listing_them(page_dir)
                 '<p>Context outside the tabs.</p><lf-tabs id="project-views">',
             )
         )
-        != []
+        == []
     )
     assert (
         outline_advice(
             page_tabs.replace(
                 '<lf-tabs id="project-views">',
-                'Context outside the tabs.<lf-tabs id="project-views">',
-            )
+                '<section><lf-tabs id="project-views">',
+            ).replace("</lf-tabs>", "</lf-tabs></section>")
         )
         != []
     )

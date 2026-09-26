@@ -113,6 +113,7 @@ import {
   TEXT_FIELD,
   declareRelease,
   focusDestination,
+  handBack,
   letGo,
 } from "./focus.js";
 import { el, keeps, keepsHidden, offer } from "./widget-elements.js";
@@ -1167,8 +1168,7 @@ export function createMarginProjection({
     try {
       renderMargin.refresh();
       if (returnFocus && previousKey) {
-        const more = moreMarginEntries.get(previousKey);
-        if (more?.isConnected && !more.hidden) more.focus({ preventScroll: true });
+        handBack(moreMarginEntries.get(previousKey));
       } else if (focusOption && nextKey) {
         const choices = clusterMarginEntries(hosts.get(nextKey)?.options);
         const fallback = clusterMarginEntries(hosts.get(nextKey));
@@ -1264,25 +1264,18 @@ export function createMarginProjection({
     return true;
   }
 
-  function focusMapControl(entry = null) {
-    const marker = entry ? rows.get(entry.key) : null;
-    if (marker?.isConnected && marker.checkVisibility()) {
-      marker.focus({ preventScroll: true });
-      return;
-    }
-    // The Map is a shelf control, so at a width that folds it the button itself is
-    // behind a shut door and cannot take focus. Ask the shelf for the way in.
-    const door = bannerControlDoor(mapButton);
-    if (door) {
-      door.focus({ preventScroll: true });
-      return;
-    }
+  // Where the Map hands the user back, for `handBack`: the entry's own marker, then the
+  // way into the Map, then a row in view, then the version control. The Map is a shelf
+  // control, so at a width that folds it the button itself is behind a shut door and
+  // cannot take focus; the shelf is asked for the way in.
+  function mapControlPlaces(entry = null) {
     const visible = visibleRows();
-    const last =
-      visible.find((row) => row.tabIndex === 0) ??
-      visible[0] ??
-      bannerControlDoor(versionBtn);
-    last?.focus({ preventScroll: true });
+    return [
+      entry ? rows.get(entry.key) : null,
+      bannerControlDoor(mapButton),
+      visible.find((row) => row.tabIndex === 0) ?? visible[0],
+      bannerControlDoor(versionBtn),
+    ];
   }
 
   // The rail holds one tab stop: the way in from the page, not the reading position,
@@ -2266,11 +2259,9 @@ export function createMarginProjection({
       syncReadingRelation(row, primaryReading(row.lfEntry));
     for (const reading of readingMarginEntries.values())
       syncReadingRelation(reading, reading.lfChoice);
-    if (returnFocus) {
-      if (button?.isConnected && button.checkVisibility())
-        button.focus({ preventScroll: true });
-      else if (button?.lfEntry) focusMapControl(button.lfEntry);
-    } else if (heldInside) letGo();
+    if (returnFocus)
+      handBack(button, ...(button?.lfEntry ? mapControlPlaces(button.lfEntry) : []));
+    else if (heldInside) letGo();
     paintKeys();
   }
 
@@ -2414,7 +2405,7 @@ export function createMarginProjection({
     closePreview();
     leavePageMap();
     const landsOnTarget = focusMap && !entryHasMarginHost(entry);
-    if (focusMap && !landsOnTarget) focusMapControl(entry);
+    if (focusMap && !landsOnTarget) handBack(...mapControlPlaces(entry));
     sourceItem(item).activate();
     // A Page Map-only location has no margin entry to receive the handoff. Reveal its
     // target first, then lend that authored element a programmatic tab stop so keyboard
@@ -2851,7 +2842,7 @@ export function createMarginProjection({
     activateMapItem: activate,
     faceForMap: (item) => KINDS[item.kind],
     targetFor,
-    focusMapControl,
+    mapControlPlaces,
     renderMargin,
     threadTransitionOrigin,
     scheduleThreadPreviewPosition,

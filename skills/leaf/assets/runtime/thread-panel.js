@@ -10,7 +10,7 @@
  * keyboard/page.js; leaving text entry belongs to thread/landing.js. */
 import { inPanel as panelFocusIsInside } from "./thread/panel-elements.js";
 import { narrowed, threadSearchActive } from "./thread/narrowing.js";
-import { letGo } from "./focus.js";
+import { handBack, letGo } from "./focus.js";
 import { pageRung } from "./keyboard/register.js";
 import { currentAuxiliarySurface } from "./auxiliary-surfaces.js";
 import { slide } from "./motion.js";
@@ -54,8 +54,7 @@ export function createThreadPanelController({
     // Closing while focus is inside would drop it on body, the user's place lost
     // silently; it lands on the one control that reopens what just closed, which is where
     // the pointer already is. The Escape step below lands the user on the page instead.
-    if (!open && panel.contains(document.activeElement))
-      toggleBtn.focus({ preventScroll: true });
+    if (!open && panel.contains(document.activeElement)) handBack(toggleBtn);
     panel.classList.toggle("open", open);
     toggleBtn.setAttribute("aria-expanded", String(open));
     if (open) {

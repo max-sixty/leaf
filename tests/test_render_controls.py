@@ -6322,3 +6322,98 @@ def test_every_control_the_layer_offers_is_a_box_the_user_can_hit(
         f"{'coarse' if touch else 'fine'} pointer asks for:\n  "
         + "\n  ".join(sorted(set(small)))
     )
+
+
+DISCLOSURE_TABLE_PAGE = leaf_page(
+    "disclosure in a wide table",
+    '<h1 id="t">Sessions</h1>\n<table id="sessions"><tbody><tr>'
+    '<td><details id="more"><summary>More</summary><p>Detail.</p></details></td>'
+    + "".join(f"<td>value_number_{i}</td>" for i in range(12))
+    + "</tr></tbody></table>",
+)
+
+
+def test_a_disclosure_is_a_scrolling_box_s_own_stop(browser, serve):
+    """A box holding a control of its own is reached through that control, and a
+    disclosure's `summary` is one: Tab stands on it, and moving along the box from
+    there scrolls it. Counted as nothing, it gave the table a second stop of the
+    sweep's in front of the one it already had."""
+    page = open_page(browser, serve(DISCLOSURE_TABLE_PAGE))
+    resized(page, 420, 900)
+    table = page.locator("#sessions")
+    assert table.evaluate("t => t.scrollWidth > t.clientWidth"), (
+        "this table fits, so it proves nothing"
+    )
+    expect(table).not_to_have_attribute("tabindex", "0")
+    assert page.locator("#more > summary").evaluate("s => s.tabIndex") == 0
+
+
+# One step of `handBack`, run as a layer closes with the user inside it: `layer` holds
+# the button they stand on, and hiding it drops their focus. `shut` is a hidden button
+# and `open` a shown one, both at the end of `main`.
+HAND_BACK = """async (step) => {
+  const {handBack} = await window.__lfRuntimeImport('/runtime/focus.js');
+  const frame = () => new Promise((done) => requestAnimationFrame(() => done()));
+  const main = document.querySelector('main');
+  const made = (tag, id, parent = main) => {
+    document.getElementById(id)?.remove();
+    const node = document.createElement(tag);
+    node.id = id;
+    node.textContent = id;
+    parent.prepend(node);
+    return node;
+  };
+  const open = made('button', 'open'), shut = made('button', 'shut');
+  const layer = made('div', 'layer');
+  shut.hidden = true;
+  made('button', 'inside', layer).focus();
+  layer.hidden = true;
+  if (step === 'first that lands') handBack(shut, open);
+  if (step === 'nothing to land on') handBack(document.createElement('button'));
+  if (step === 'body') handBack(document.body);
+  if (step === 'shown by the next frame') {
+    handBack(shut);
+    shut.hidden = false;
+  }
+  if (step === 'user moved on') {
+    handBack(shut);
+    open.focus();
+    shut.hidden = false;
+  }
+  await frame();
+  await frame();
+  const at = document.activeElement;
+  return at.id || at.localName;
+}"""
+
+
+def test_a_closing_layer_hands_the_user_back_to_the_first_place_that_takes_them(
+    browser, serve
+):
+    """Every closer names where the user goes back to, most particular first, and
+    `handBack` lands them on the first that takes focus. A place still in the document
+    gets the next frame, for a close whose own paint still hides it, unless the user
+    moved first. With nowhere to go the user is let go on the block they are reading,
+    so their next Tab carries on from it: not from the closed layer, which is where the
+    browser left them, and not from the top of the document, which is where focusing
+    the body would. The body is nowhere, for an opener read while nothing held focus."""
+    page = open_page(browser, serve(LONG_PAGE))
+    landed = {
+        step: page.evaluate(HAND_BACK, step)
+        for step in [
+            "first that lands",
+            "shown by the next frame",
+            "user moved on",
+        ]
+    }
+    assert landed == {
+        "first that lands": "open",
+        "shown by the next frame": "shut",
+        "user moved on": "open",
+    }
+    for step in ["nothing to land on", "body"]:
+        assert page.evaluate(HAND_BACK, step) == "body"
+        page.keyboard.press("Tab")
+        assert page.evaluate(
+            "() => !document.activeElement.matches('#open, #shut, .lf-skip')"
+        ), f"{step}: the next Tab did not carry on from the block being read"

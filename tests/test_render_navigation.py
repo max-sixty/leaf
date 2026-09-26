@@ -5950,12 +5950,21 @@ def test_inflight_native_paging_hides_hints_until_the_scene_settles(browser, ser
         ),
     )
 
+    # Hold the browser's paging animation and the hint settle timer at the first
+    # rendering frame. Driver-side polling can otherwise begin after the 80 ms
+    # settle window and mistake the settled map for an in-flight one.
+    page.clock.install(time=0)
+    page.clock.pause_at(0)
     page.keyboard.press("PageDown")
     page.keyboard.press("g")
+    page.clock.run_for(20)
+    expect(page.locator("body")).to_have_attribute("data-lf-go-to-active", "")
     expect(page.locator(CHIPS)).to_have_count(0)
+    page.clock.resume()
     expect(page.locator(CHIPS)).to_have_count(1)
     codes = address_codes(page)
     mapped_at = page.evaluate("() => document.scrollingElement.scrollTop")
+    assert mapped_at > 0, "PageDown never moved the document"
     page_at_rest(page)
 
     assert page.evaluate("() => document.scrollingElement.scrollTop") == mapped_at

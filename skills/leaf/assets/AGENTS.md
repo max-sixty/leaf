@@ -634,9 +634,7 @@ iterating. What a module decides on its own — a value folded from values, a tr
 question answered from the tree — is tested in `tests/runtime/*.test.mjs`, which imports
 it into a document object model rather than a browser and answers in under a second
 (`npm run test:runtime`); `tests/AGENTS.md` owns which readings may go there.
-A module that reads another owner as it evaluates parses and lints clean and
-fails only in the browser, as `Cannot access X before initialization` at boot; the
-rule and its remedies are under Runtime ownership above. Before handing over a runtime or theme
+Before handing over a runtime or theme
 change, run the relevant full browser file or `leaf version check --render` on
 the affected example. `node --check` cannot validate browser bindings, computed
 layout, or reconciliation; the layer tests parse every vendored stylesheet.

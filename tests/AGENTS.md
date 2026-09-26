@@ -513,9 +513,8 @@ an assertion before the work under test completes.
   then read once. Plant that paint to prove the assertion can fail; reverting
   the change may remove the path that paints it.
 
-`test_numbered_addresses_show_progress_on_complete_routes_without_moving` and
-`test_the_captured_quote_is_prose_a_file_can_hold` exercise unchanged surfaces
-and optimistic admission respectively. Repeat a bug-back when a probabilistic
+`test_the_captured_quote_is_prose_a_file_can_hold` exercises optimistic
+admission. Repeat a bug-back when a probabilistic
 wait could otherwise appear causal.
 
 Read the event log only after `round_trip`, and read the event a gesture just

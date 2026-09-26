@@ -33,13 +33,9 @@ is false. Omit bounded edge cases, exhaustive same-pattern cleanup, minor
 simplification, and prose or test polish unless they expose one of those
 problems.
 
-A diff that resolves its reported symptom without reaching what produced it is
-an architectural seam, not polish. Ask what underlying issue the problem
-betrays and keep asking until the answer names nothing above itself, then read
-the diff against that answer: where it works around the answer rather than
-fixing it, name the underlying problem and withhold approval. A narrow change
-is approvable when it leaves that problem as easy to fix as it found it and
-says what it is — not when the real fix is merely filed behind it.
+A diff that settles its symptom without reaching the underlying issue is an
+architectural seam, not polish: name the issue, and withhold approval unless the
+change meets the deferral condition in **Fix the underlying issue**.
 
 ## Cloudflare logs
 

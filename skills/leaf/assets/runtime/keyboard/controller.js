@@ -5,7 +5,7 @@ import { dispatchKey } from "./dispatch.js";
 import { MODIFIER_KEYS } from "./bindings.js";
 import { beforeShortcutCommand } from "./shortcut-bar.js";
 import { claimsEsc, focused } from "./scopes.js";
-import { takesLetters } from "../focus.js";
+import { takesLetters, typesText } from "../focus.js";
 import { runtime } from "../context.js";
 import { repaint } from "../repaint.js";
 import { nextFrame } from "../rendering.js";
@@ -52,7 +52,12 @@ export function mountKeyboard({
           release();
           return;
         }
-        press(keys.shift());
+        const key = keys.shift();
+        // The hold prevented each key's own insertion, so one whose turn comes in a box
+        // an earlier key opened is typed into it here, as the browser would have.
+        if (key.key.length === 1 && typesText(focused()))
+          document.execCommand("insertText", false, key.key);
+        else press(key);
         nextFrame(next);
       };
       nextFrame(next);

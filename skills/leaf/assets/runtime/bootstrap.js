@@ -31,11 +31,12 @@
   // A page key pressed before the page presents would otherwise reach a runtime that has
   // not loaded, or one that has not yet read the log: `t` walks the threads the first
   // state answer brings, so until then it walks nothing. The keys wait here instead, in
-  // the order pressed, until the presented page takes them. A key typed into a field is
-  // the field's, and a modified or unprinted key is the browser's. Escape lets go of
-  // what is held, and so does a pointer press, which puts the user somewhere the keys
-  // were not aimed at. After a beat the held keys are shown, so a press visibly landed;
-  // a page that presents within the beat shows nothing.
+  // the order pressed, until the presented page takes them. A printed key pressed on the
+  // page starts the queue, and every printed key after it joins, since a held `c` may
+  // open the box the rest is text for; a modified or unprinted key is the browser's.
+  // Escape lets go of what is held, and so does a pointer press, which puts the user
+  // somewhere the keys were not aimed at. After a beat the held keys are shown, so a
+  // press visibly landed; a page that presents within the beat shows nothing.
   function holdEarlyKeys() {
     const held = [];
     let taken = false;
@@ -48,7 +49,7 @@
       const keys = held.map(({ key }) => {
         const badge = document.createElement("kbd");
         badge.className = "lf-key-badge";
-        badge.textContent = key;
+        badge.textContent = key === " " ? "Space" : key;
         return badge;
       });
       echo.replaceChildren(
@@ -64,25 +65,33 @@
       beat = 0;
       echo.remove();
     };
+    const queue = (event) => {
+      if (event.repeat) return;
+      held.push(event);
+      if (taken) return;
+      if (echo.isConnected) show();
+      else beat ||= setTimeout(show, 150);
+    };
     const hold = (event) => {
       if (event.isComposing || event.ctrlKey || event.metaKey || event.altKey) return;
-      const origin = event.composedPath()[0];
-      if (
-        origin instanceof Element &&
-        (origin.isContentEditable || origin.matches("input, textarea, select"))
-      )
-        return;
-      const printed = event.key.length === 1 && event.key !== " ";
+      const printed = event.key.length === 1;
       if (event.key === "Escape" && !taken) {
         if (!held.length) return;
         letGo();
-      } else if (!printed && event.key !== "Escape") return;
-      else if (!event.repeat) {
-        held.push(event);
-        if (!taken) {
-          if (echo.isConnected) show();
-          else beat ||= setTimeout(show, 150);
-        }
+      } else if (held.length || taken) {
+        // The queue is open, so a printed key or Escape follows the keys before it
+        // wherever it was typed: a held `c` may yet open the box the rest is text for.
+        if (!printed && event.key !== "Escape") return;
+        queue(event);
+      } else {
+        // Only a page key starts a queue. One typed into a field is the field's, and
+        // Space on its own scrolls.
+        const origin = event.composedPath()[0];
+        const typing =
+          origin instanceof Element &&
+          (origin.isContentEditable || origin.matches("input, textarea, select"));
+        if (typing || !printed || event.key === " ") return;
+        queue(event);
       }
       event.preventDefault();
       event.stopImmediatePropagation();

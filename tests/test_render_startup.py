@@ -550,6 +550,27 @@ def test_a_key_pressed_while_held_keys_run_waits_its_turn(browser, serve):
     )
 
 
+def test_held_keys_after_one_that_opens_a_box_are_typed_into_it(browser, serve):
+    """`c` opens the page's comment box, so the keys held behind it are the comment:
+    they arrive as its text, Space included, rather than as page commands the box
+    swallows."""
+    url = serve(HELD_KEYS_PAGE)
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    watched(page)
+    held, release = _hold_startup(page, "state")
+    page.goto(url, wait_until="commit")
+    holding(page, held, 1, "the first state read")
+    page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
+    for key in ["c", "h", "i", "Space", "x"]:
+        page.keyboard.press(key)
+    expect(page.locator(".lf-held-keys kbd")).to_have_text(
+        ["c", "h", "i", "Space", "x"]
+    )
+
+    release()
+    expect(page.locator("textarea:focus")).to_have_value("hi x")
+
+
 @pytest.mark.parametrize("gesture", ["Escape", "pointer"])
 def test_escape_or_a_pointer_press_lets_go_of_held_keys(browser, serve, gesture):
     """A user who changes their mind, or points somewhere else, while the page loads

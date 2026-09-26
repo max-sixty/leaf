@@ -231,12 +231,14 @@ auxiliary surface stands over the page and reserves nothing.
 Prose, ordinary links, scrolling, and layout remain usable while widgets upgrade and the
 first state read is pending. Page keys wait: a command such as `t` reads state the first
 answer brings, so dispatching one earlier acts on an empty page. The bootstrap therefore
-holds each unmodified printable key pressed outside a text field from first parse and
-shows the held keys after a beat; at `lf-presentation` the keyboard controller takes them
-and presses them through its own handler in order, a frame apart, and a key pressed
-meanwhile joins the same queue until it is empty. A pointer press drops them, and so does
-Escape before the handover. A startup failure, or a page still unpresented ten seconds in, ends the
-hold and drops what it held.
+holds keys from first parse: an unmodified printed key pressed on the page starts the
+queue, every printed key after it joins, and the held keys are shown after a beat. At
+`lf-presentation` the keyboard controller takes the queue and works through it in order,
+a frame apart: a key whose turn comes in a text box an earlier key opened is typed into
+it, and any other is pressed through the controller's own handler. A key pressed meanwhile
+joins the same queue until it is empty. A pointer press drops what is held, and so does
+Escape before the handover. A startup failure, or a page still unpresented ten seconds
+in, ends the hold and drops what it held.
 Generated interface constructed from authored markup participates in layout while it
 settles, then `data-lf-upgraded` releases it from authored and tab-local state without
 waiting for the first server reading. Durable controls remain unavailable until

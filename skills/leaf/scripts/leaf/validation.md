@@ -81,12 +81,15 @@ handed over: the exact current source loads in the host's browser (whichever
 executable `LEAF_BROWSER_EXECUTABLE`, `CHROME_PATH`, or `CHROME_BIN` names, else
 Playwright's `channel="chrome"`, else the first browser `PATH` answers with) and the
 render invariants the static lint cannot reach run against it in both color schemes:
-no console or page errors and no fail-soft box; every widget upgraded, painted with
-values that resolve, and given real space; words a user can mark, reach, and
-select, with the registry's verbatim and shadow declarations honored; no sideways
-scroll, clipped control, squeezed table, trapped margin, or misplaced box; a print
-rendering that covers and drops nothing; and standing state that replays without
-conflict and idempotently. `render_gate/readings.py` is the list. Those readings run
+no console or page errors, no issue Chrome's DevTools raises (an unsized lazy
+image, a blocked or mixed-content request, a deprecated API) outside a form control's
+shadow tree, one in an embedded frame placed at that frame, and no fail-soft box;
+every widget upgraded, painted with values that resolve, and given real space;
+words a user can mark, reach, and select, with the registry's verbatim and shadow
+declarations honored; no sideways scroll, clipped control, squeezed table, trapped
+margin, or misplaced box; a print rendering that covers and drops nothing; and
+standing state that replays without conflict and idempotently.
+`render_gate/readings.py` is the list. Those readings run
 at a desktop and a phone viewport; once they are done, the loaded desktop page is
 resized through the widths from 360px to 1200px and the two sideways readings are taken
 again at each: a version holds at every width from the narrowest phone to the desktop,

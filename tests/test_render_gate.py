@@ -45,6 +45,8 @@ from render_cases_layout import (
     RESIZE_LOOP_EVENT,
     SCROLLED_CONTAINER,
     SHADOW_HOST_PAGE,
+    SHOT_SRC,
+    SHOTS,
     SIDENOTE_IN_A_WIDGET,
     SPILLING_PAGE,
     TEMPLATE_PAIR_LAYER,
@@ -880,6 +882,50 @@ def test_the_gate_reports_a_form_field_chrome_cannot_identify(browser, serve):
             "cannot identify the form field"
         )
     ]
+
+
+def test_the_gate_reports_a_devtools_issue_the_page_owns(browser, serve):
+    """A lazy image that holds no room is reported only in DevTools' Issues panel.
+
+    The page owns an image it authors in a form-associated control's light DOM, and
+    a frame it embeds, whose issue is placed at the frame. The same image in the
+    control's shadow tree is the control's implementation, so the page is not refused
+    for it."""
+    src = SHOT_SRC["before"]
+    control = f"""<script type="module">
+customElements.define("field-host", class extends HTMLElement {{
+  static formAssociated = true;
+  constructor() {{
+    super();
+    this.attachShadow({{ mode: "open" }}).innerHTML =
+      '<slot></slot><img src="{src}" alt="" loading="lazy">';
+  }}
+}});
+</script></head>"""
+    source = LONG_PAGE.replace("</head>", control).replace(
+        '<h1 id="t">Long</h1>',
+        f"""<h1 id="t">Long</h1>
+<img id="unsized" src="{src}" alt="A panel" loading="lazy">
+<img id="sized" src="{src}" alt="A panel" loading="lazy" width="600" height="300">
+<field-host id="host"><img id="authored" src="{src}" alt="" loading="lazy"></field-host>
+<iframe id="frame" title="A frame" srcdoc='<img src="{src}" alt="" loading="lazy">'>
+</iframe>""",
+    )
+
+    failures = render_gate_model.render_version(
+        browser, serve(source, media={src: SHOTS["before"]})
+    ).failures
+
+    # Delivery serves media under the revision, so the issue names that URL.
+    assert sorted(
+        re.sub(r"url=\S*(/media/)", r"url=\1", failure)
+        for failure in failures
+        if "DevTools issue" in failure
+    ) == sorted(
+        f"[{scheme}] DevTools issue LazyLoadImageIssue at {where} (url={src})"
+        for scheme in ("light", "dark")
+        for where in ("<img id=unsized>", "<img id=authored>", "<iframe id=frame>")
+    )
 
 
 def test_a_rendering_turn_is_polled_from_the_driver(browser, serve):

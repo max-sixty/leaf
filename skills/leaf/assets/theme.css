@@ -1106,6 +1106,15 @@ blockquote { margin: 18px 0; padding: 2px 18px; border-left: 2px solid var(--rul
 figure { margin: 22px 0; }
 figcaption { font-size: var(--t-6); color: var(--muted); margin-top: 8px; }
 img, svg, video { max-width: 100%; height: auto; }
+/* An image's width and height attributes already hold its box open before it loads,
+ * but Chrome flags a lazy image as unsized unless a stylesheet gives its height or
+ * ratio, and `height: auto` above overrides the attribute. Restating the attributes
+ * as a ratio keeps that DevTools issue to images that really load into no room,
+ * which is what lets the render gate refuse every issue Chrome raises. The ratio
+ * holds after loading too, so attributes that misstate an image's shape draw it at
+ * theirs. A browser without typed attr() drops the line and keeps the attribute
+ * ratio it maps, which yields to the loaded image. */
+img { aspect-ratio: attr(width type(<number>)) / attr(height type(<number>)); }
 /* A table's columns hold what is in them, and the space between two of them is
  * one gutter wide. `width: 100%` bought the opposite: the browser's auto layout
  * spreads leftover width across every column, so a four-column survey on the

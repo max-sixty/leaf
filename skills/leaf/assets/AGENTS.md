@@ -260,6 +260,7 @@ changing `leaf.js`, a runtime owner, a widget module, the registry, or the theme
 | --- | --- |
 | window-error channel | no runtime, module, resource, or ResizeObserver error reached the page |
 | `unnamedFormFields` | every field or form-associated control has an id or name |
+| `issueNode` | a DevTools issue outside a form control's shadow tree is the page's, placed at its frame if it has one |
 | `upgraded`, `moving` | upgrade completed and geometry settled |
 | `invalidPaints` | every var()-backed SVG paint resolves in each scheme |
 | `tinyBoxes` | every declared widget has a usable box |

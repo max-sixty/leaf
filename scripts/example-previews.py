@@ -35,6 +35,7 @@ from playwright.sync_api import Page, sync_playwright
 ROOT = Path(__file__).resolve().parent.parent
 DOCS = ROOT / "docs"
 VIEWPORT = {"width": 1120, "height": 700}
+# docs/index.html and docs/examples.html reserve this 8:5 box before a preview loads.
 OUTPUT_SIZE = (896, 560)
 REQUIRED_FONTS = {
     ".lf-status-text": ".SF NS",

@@ -84,6 +84,7 @@ from render_harness import (
     refuse,
     round_trip,
     select,
+    sending,
     stamp_page,
     ticked,
     told,
@@ -3750,6 +3751,154 @@ def test_a_comment_on_external_data_stays_with_the_revision_the_user_saw(
     page.emulate_media(media="print")
     paper = render_checks_model.evaluate_probe(page, "paperWords")
     assert paper == screen, "paper dropped or rewrote projected data"
+
+
+def test_a_comment_on_an_identified_datum_follows_the_subject_across_replacements(
+    browser, serve
+):
+    """The emitter's subject survives even when its rendering key changes."""
+    authored = leaf_page(
+        "keyed data projection",
+        '<h1 id="title">Deployments</h1><lf-feed id="deployments" source="deployments"></lf-feed>',
+    )
+    feed = {
+        "description": "A live deployment feed.",
+        "type": "object",
+        "properties": {
+            "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
+            "source": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+        },
+        "required": ["id", "source"],
+        "additionalProperties": False,
+        "x-content": "empty",
+        "x-data": {"rows": {"contract": "deployment-rows", "source": "source"}},
+        "x-upgrade": True,
+        "x-example": '<lf-feed id="example-feed" source="deployments"></lf-feed>',
+    }
+    contract = {
+        "description": "Deployment records with durable ids.",
+        "schema": {
+            "type": "object",
+            "properties": {
+                "rows": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "id": {"type": "string"},
+                            "label": {"type": "string"},
+                            "updated": {"type": "integer"},
+                        },
+                        "required": ["id", "label", "updated"],
+                        "additionalProperties": False,
+                    },
+                },
+            },
+            "required": ["rows"],
+            "additionalProperties": False,
+        },
+    }
+    module = """
+import {projectData, watchData} from '/runtime/widget-api.js';
+customElements.define('lf-feed', class extends HTMLElement {
+  connectedCallback() {
+    this.stopWatching ??= watchData(this, 'rows', snapshot => {
+      projectData(this, snapshot?.value?.rows ?? [], row => `${row.id}-${row.updated}`, row => {
+        const node = document.createElement('p');
+        node.textContent = `${row.label} ${row.updated}`;
+        return node;
+      }, {snapshot, identify: row => row.id});
+    });
+  }
+  disconnectedCallback() { this.stopWatching?.(); this.stopWatching = null; }
+});
+"""
+    url = serve(
+        authored,
+        layer_registry={
+            "lf-feed": feed,
+            "$data": {"contracts": {"deployment-rows": contract}},
+        },
+        layer_widgets={"lf-feed.js": module},
+    )
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "deployments",
+        {
+            "rows": [
+                {"id": "a", "label": "Alpha", "updated": 1},
+                {"id": "b", "label": "Beta", "updated": 1},
+            ]
+        },
+    )
+    page = open_page(browser, url)
+    page.locator('[data-lf-datum="a-1"]').click(click_count=3)
+    page.locator(".lf-fab-input").click()
+    page.locator(".lf-composer textarea").fill("Check this deployment.")
+    with sending(page, "the keyed record comment"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    comment = next(e for e in sent_events(serve.page_dir) if e["kind"] == "comment")
+    assert comment["anchor"]["datum"] == "a-1"
+    assert comment["anchor"]["source"] == "deployments"
+    assert comment["anchor"]["identity"] == "a"
+    seen = comment["anchor"]["source_revision"]
+
+    page.locator('[data-lf-datum="a-1"]').click(modifiers=["Alt"])
+    page.locator(".lf-fab-bar .lf-response-more").click()
+    reaction = page.locator('.lf-fab-bar .lf-react[data-token="keep"]')
+    expect(reaction).to_be_visible()
+    with sending(page, "the record reaction"):
+        reaction.click()
+    marked = next(e for e in sent_events(serve.page_dir) if e.get("token") == "keep")
+    assert marked["token"] == "keep"
+    assert marked["anchor"]["identity"] == "a"
+    assert "quote" not in marked["anchor"]
+
+    page.locator('[data-lf-datum="a-1"]').click(click_count=3)
+    draft = page.locator(".lf-fab-input")
+    draft.fill("Keep this draft with the row.")
+    expect(draft).to_be_focused()
+
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "deployments",
+        {
+            "rows": [
+                {"id": "b", "label": "Alpha", "updated": 1},
+                {"id": "a", "label": "Alpha", "updated": 2},
+            ]
+        },
+    )
+    current = source_revision(serve.page_dir, "deployments")
+    assert current != seen
+    row = page.locator('[data-lf-datum="a-2"]')
+    expect(row).to_have_attribute("data-lf-source-revision", current)
+    expect(row).to_contain_text("Alpha 2")
+    expect(row).to_have_class(re.compile(r"\blf-mark-el\b"))
+    expect(draft).to_have_value("Keep this draft with the row.")
+    expect(draft).to_be_focused()
+    expect(page.locator('[data-lf-datum="b-1"]')).not_to_have_class(
+        re.compile(r"\blf-mark-el\b")
+    )
+    expect(page.locator(".lf-thread .lf-anchor-status")).to_have_count(0)
+
+    with sending(page, "the kept draft"):
+        draft.press("ControlOrMeta+Enter")
+    drafted = next(
+        e
+        for e in sent_events(serve.page_dir)
+        if e.get("text") == "Keep this draft with the row."
+    )
+    assert drafted["anchor"]["source_revision"] == seen
+    assert drafted["anchor"]["identity"] == "a"
+
+    row.click(modifiers=["Alt"])
+    page.locator(".lf-fab-bar .lf-response-more").click()
+    expect(reaction).to_have_attribute("aria-pressed", "true")
+    with sending(page, "the record reaction withdrawal"):
+        reaction.click()
+    withdrawn = next(e for e in sent_events(serve.page_dir) if e["kind"] == "undo")
+    assert withdrawn["undoes"] == marked["id"]
 
 
 @pytest.mark.parametrize(

@@ -472,6 +472,7 @@
                 "datum": {"type": "string", "minLength": 1},
                 "source": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
                 "source_revision": {"type": "string", "pattern": "^[0-9a-f]{16}$"},
+                "identity": {"type": "string", "minLength": 1},
                 "visual": {"type": "string", "minLength": 1},
                 "prefix": {"type": "string"},
                 "suffix": {"type": "string"},
@@ -486,6 +487,7 @@
                 "datum": ["section"],
                 "source": ["datum", "source_revision"],
                 "source_revision": ["datum", "source"],
+                "identity": ["datum"],
                 "part": ["section"],
                 "visual": ["section"]
               },
@@ -581,6 +583,7 @@
                 "datum": {"type": "string", "minLength": 1},
                 "source": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
                 "source_revision": {"type": "string", "pattern": "^[0-9a-f]{16}$"},
+                "identity": {"type": "string", "minLength": 1},
                 "visual": {"type": "string", "minLength": 1},
                 "prefix": {"type": "string"},
                 "suffix": {"type": "string"},
@@ -595,6 +598,7 @@
                 "datum": ["section"],
                 "source": ["datum", "source_revision"],
                 "source_revision": ["datum", "source"],
+                "identity": ["datum"],
                 "part": ["section"],
                 "visual": ["section"]
               },

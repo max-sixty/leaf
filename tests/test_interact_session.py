@@ -9056,13 +9056,15 @@ raise SystemExit(codex_adapter_model.run_adapter(os.environ["CODEX_PATH"]))
                 lambda claim: claim and claim["id"] == "codex-thread",
                 failure="the second start did not claim before the exit lock",
             )
+            # The starter's process is short lived. Keep the claim active before
+            # the adapter can take the exit lock and recheck its watched pages.
+            claim = service_model.page_claim(second)
+            files_model.write_json(
+                service_model.claim_path(second), {**claim, "pid": os.getpid()}
+            )
 
         out, err = starter.communicate(timeout=60)
         assert starter.returncode == 0, f"{out}{err}"
-        claim = service_model.page_claim(second)
-        files_model.write_json(
-            service_model.claim_path(second), {**claim, "pid": os.getpid()}
-        )
         wait_for(
             lambda: (
                 codex_adapter_model.adapter_is_live("codex-thread"),

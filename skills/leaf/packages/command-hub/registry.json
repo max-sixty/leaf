@@ -5,7 +5,7 @@
       "lf-worktree": {
         "description": "Current worktree evidence keyed by the id of its authored lf-worktree seat.",
         "guidance": {
-          "coordinator": "After worktree evidence changes, replace the complete page-bound source snapshot rather than republishing it as prose or appending an event:\n\n```bash\nleaf data set \"$PAGE\" <source-id> --file worktrees.json\n```\n\nRead `data_bindings` from `leaf page state \"$PAGE\"` to find source ids using the `lf-worktree` contract and their consuming widget ids. `worktrees.json` is an object keyed by authored worktree widget id. Each value carries `branch`, `base`, `head`, non-negative `ahead`, `behind`, `additions`, `deletions`, and `commits`, a `tests` value of `passing`, `failing`, `running`, or `not-run`, an RFC 3339 `observedAt` timestamp with a timezone, and optional `files` and `diff` strings. Keep a key stable for the same worktree. Gather these facts with host tools; Leaf validates, transports, and presents them but does not run git or inspect worker directories."
+          "coordinator": "After worktree evidence changes, replace the complete page-bound source snapshot rather than republishing it as prose or appending an event:\n\n```bash\nleaf data set \"$PAGE\" <source-id> --file worktrees.json\n```\n\nRead `data_bindings` from `leaf page state \"$PAGE\"` to find source ids using the `lf-worktree` contract and their consuming widget ids. `worktrees.json` is an object keyed by authored worktree widget id. Each value carries `branch`, `base`, `head`, non-negative `ahead`, `behind`, `additions`, `deletions`, and `commits`, a `tests` value of `passing`, `failing`, `running`, or `not-run`, an RFC 3339 `observedAt` timestamp with a timezone, and optional `files` and `diff` strings. Keep a key stable for the same worktree, and give a different worktree a new authored lf-worktree id; a reused id would attach old comments to the wrong worktree. Gather these facts with host tools; Leaf validates, transports, and presents them but does not run git or inspect worker directories."
         },
         "schema": {
           "type": "object",
@@ -420,7 +420,7 @@
       }
     },
     "x-guidance": {
-      "author": "Keep one empty, stable worktree address beside each worker whose evidence the host can inspect:\n\n```html\n<lf-worktree id=\"tree-wren\" source=\"project-worktrees\"></lf-worktree>\n```\n\nThe page chooses the source id. Reuse one id for widgets that read the same snapshot, or use different ids when a page has independent worktree feeds."
+      "author": "Keep one empty, stable worktree address beside each worker whose evidence the host can inspect:\n\n```html\n<lf-worktree id=\"tree-wren\" source=\"project-worktrees\"></lf-worktree>\n```\n\nThe page chooses the source id. Reuse one source id for widgets that read the same snapshot, or use different source ids when a page has independent worktree feeds. Give a replacement worktree a new element id."
     },
     "x-upgrade": true,
     "x-space": "wide",

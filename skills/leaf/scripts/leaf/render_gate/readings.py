@@ -47,10 +47,10 @@ def _projected_verbatim(document, registry, projection, authored_ids, source):
 
 
 def _expected_verbatim(markup, events, registry, here):
-    """Expected preserving-owner readings in the page and frozen conversation.
+    """Expected preserving-owner readings in the page and frozen thread.
 
     Page actions are bounded by the immutable revision being rendered. Frozen message
-    markup has no later authored revision and therefore uses the conversation's whole
+    markup has no later authored revision and therefore uses the thread's whole
     action window. Both use the same passage projection as comment capture.
     """
     document = SourceDocument(markup)
@@ -159,17 +159,15 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
     # Replay is scheme-blind, so one scheme's reading covers both.
     conflicts = []
     silent = []
-    missing_conversations = []
+    missing_threads = []
     undeclared_attrs = []
     retired = []
     if scheme == "light":
-        # x-conversation promises one page view per matching instance. A widget in
-        # thread chrome already has the thread's reply surface and conversationBox
+        # x-thread-seat promises one page view per matching instance. A widget in
+        # thread chrome already has the thread's reply surface and threadBox
         # deliberately returns none there. Everywhere else, ask the merged registry
         # for the instances and the module's own marker for the host it placed.
-        missing_conversations = evaluate_probe(
-            page, "missingConversations", declarations
-        )
+        missing_threads = evaluate_probe(page, "missingThreads", declarations)
         # Behind the caught-up wait above: a report moves a painted attribute and
         # the pass that speaks it runs before the stamp, so a reading taken any
         # earlier asks after a word the page has not been asked to say yet. A page
@@ -353,11 +351,11 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
         )
     found += [f"[{scheme}] {d}" for d in dishonest_verbatim]
     found += [f"[{scheme}] {s}" for s in silent]
-    for c in missing_conversations:
+    for c in missing_threads:
         found.append(
-            f"[{scheme}] <{c['tag']} id={c['id']!r}> declares x-conversation but "
+            f"[{scheme}] <{c['tag']} id={c['id']!r}> declares x-thread-seat but "
             f"rendered {c['hosts']} matching hosts; its module must place exactly "
-            "one conversationBox"
+            "one threadBox"
         )
     for u in {(x["tag"], x["attr"]): x for x in undeclared_attrs}.values():
         found.append(

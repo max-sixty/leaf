@@ -274,7 +274,7 @@ export class ThreadView {
     this.node.classList.toggle("lf-thread", panel && !model.folding);
     this.node.classList.toggle("grow", this.#growing && !model.folding);
     if (!panel) {
-      this.node.classList.add("lf-conversation-thread", "lf-ui");
+      this.node.classList.add("lf-page-thread", "lf-ui");
       this.node.dataset.lfGen = "1";
       this.node.dataset.lfOffer = "";
     }
@@ -366,7 +366,7 @@ export class ThreadView {
         ${
           model.surface === "outlet"
             ? html`<summary
-                class="lf-conversation-summary lf-ui"
+                class="lf-page-thread-summary lf-ui"
                 data-lf-gen="1"
                 data-lf-offer=""
                 ?hidden=${!model.resolved}
@@ -423,7 +423,7 @@ export class ThreadView {
         ${
           model.resolved && !model.folding && !marginControls
             ? html`<div
-                class=${panel ? "lf-thread-actions" : "lf-conversation-resolved lf-ui"}
+                class=${panel ? "lf-thread-actions" : "lf-page-thread-resolved lf-ui"}
               >
                 <span
                   >${
@@ -451,7 +451,7 @@ export class ThreadView {
     ) {
       standing.focus({ preventScroll: true });
     } else if (heldFocus && !this.node.contains(standing) && !panel) {
-      this.#commands.landInConversation(this.node.querySelector(SAY_BOX) ?? this.node);
+      this.#commands.landInThread(this.node.querySelector(SAY_BOX) ?? this.node);
     }
     return this.node;
   }
@@ -616,7 +616,7 @@ export class ThreadView {
       ]);
     }
     const button = this.node.querySelector(
-      ":scope .lf-thread-meta-actions > .lf-resolve, :scope .lf-thread-meta-actions > .lf-reopen, :scope > .lf-thread-actions > .lf-reopen, :scope > .lf-conversation-resolved > .lf-reopen",
+      ":scope .lf-thread-meta-actions > .lf-resolve, :scope .lf-thread-meta-actions > .lf-reopen, :scope > .lf-thread-actions > .lf-reopen, :scope > .lf-page-thread-resolved > .lf-reopen",
     );
     if (button && !this.#keys.has(button)) {
       this.#keys.add(button);
@@ -666,7 +666,7 @@ export class ThreadView {
     if (disclosure) {
       input.lfRevealReply = reveal;
       input.lfCollapseReply = collapse;
-      disclosure.onclick = () => this.#commands.landInConversation(input);
+      disclosure.onclick = () => this.#commands.landInThread(input);
     }
     const lifetime = wireReply(
       { root: { id: model.id, attempt: model.attempt } },

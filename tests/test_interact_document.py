@@ -46,7 +46,6 @@ from interact_support import (
 )
 from leaf import anchor_capture as anchor_capture_model
 from leaf import cli as cli_model
-from leaf import conversation as conversation_model
 from leaf import data as data_model
 from leaf import data_contracts as data_contracts_model
 from leaf import delivery as delivery_model
@@ -64,6 +63,7 @@ from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
 from leaf import service as service_model
 from leaf import structure as structure_model
+from leaf import thread as thread_model
 from leaf.registry.storage import read_page_registry
 from leaf.render_gate import readings as render_gate_readings
 from leaf.validation import compatibility as validation_model
@@ -1111,12 +1111,10 @@ def test_page_inspection_retires_idless_slots_and_reads_frozen_construction(
         },
     )
     runner = CliRunner()
-    result = runner.invoke(
-        cli_model.cli, ["conversation", "read", str(page_dir), root["id"]]
-    )
+    result = runner.invoke(cli_model.cli, ["thread", "read", str(page_dir), root["id"]])
     assert result.exit_code == 0, result.output
     reading = json.loads(result.output)
-    assert reading["conversation"]["id"] == root["id"]
+    assert reading["thread"]["id"] == root["id"]
     [message] = reading["content"]
     assert message["text"] == "Choose a route."
     assert message["content"][0] == "Before "
@@ -1124,8 +1122,8 @@ def test_page_inspection_retires_idless_slots_and_reads_frozen_construction(
     frozen = construction_nodes(message["content"])
     assert "chosen" in frozen["second"]["attrs"]
     assert frozen["frozen"]["edit"] == {
-        "kind": "conversation",
-        "conversation": root["id"],
+        "kind": "thread",
+        "thread": root["id"],
     }
     assert message["source"]["event"] == root["id"]
     drawing = {
@@ -1143,16 +1141,14 @@ def test_page_inspection_retires_idless_slots_and_reads_frozen_construction(
         },
     )
     result = runner.invoke(
-        cli_model.cli, ["conversation", "read", str(page_dir), drawn["id"]]
+        cli_model.cli, ["thread", "read", str(page_dir), drawn["id"]]
     )
     assert result.exit_code == 0, result.output
     [drawn_message] = json.loads(result.output)["content"]
     assert "text" not in drawn_message
     assert drawn_message["drawing"] == drawing
-    refused = runner.invoke(
-        cli_model.cli, ["conversation", "read", str(page_dir), "missing"]
-    )
-    assert refused.exit_code != 0 and "unknown conversation" in refused.output
+    refused = runner.invoke(cli_model.cli, ["thread", "read", str(page_dir), "missing"])
+    assert refused.exit_code != 0 and "unknown thread" in refused.output
 
 
 def test_version_descriptors_scan_the_revision_directory_once(tmp_path, monkeypatch):
@@ -1534,7 +1530,7 @@ def test_the_block_a_text_node_sits_in_is_one_list_on_both_sides():
 def test_the_context_an_anchor_stores_is_one_number_on_both_sides():
     """CONTEXT (the file side) and the capture's own CONTEXT are how much of a passage's
     surroundings an anchor writes down, and both sides must mean the same by it: the
-    browser writes the prefix and suffix, and `leaf comment` writes them from a version
+    browser writes the prefix and suffix, and `leaf thread open` writes them from a version
     file, so a file-side capture storing a different amount makes an anchor the browser
     would never have made — and the resolver demands a full contextual match before it
     calls two identical quotes apart.
@@ -2108,6 +2104,7 @@ def test_reply_refuses_a_suggestion(page_dir):
     result = CliRunner().invoke(
         cli_model.cli,
         [
+            "thread",
             "reply",
             str(page_dir),
             "--to",
@@ -2145,7 +2142,7 @@ def test_reply_infers_one_obligation_and_activates_the_current_source(page_dir):
 
     result = CliRunner().invoke(
         cli_model.cli,
-        ["reply", str(page_dir), "--text", "Updated."],
+        ["thread", "reply", str(page_dir), "--text", "Updated."],
     )
 
     assert result.exit_code == 0, result.output
@@ -2175,7 +2172,7 @@ def test_reply_refuses_an_invalid_current_source(page_dir):
 
     result = CliRunner().invoke(
         cli_model.cli,
-        ["reply", str(page_dir), "--text", "Updated."],
+        ["thread", "reply", str(page_dir), "--text", "Updated."],
     )
 
     assert result.exit_code != 0
@@ -2215,7 +2212,7 @@ def test_reply_uses_for_to_select_one_of_several_obligations(page_dir):
 
     ambiguous = CliRunner().invoke(
         cli_model.cli,
-        ["reply", str(page_dir), "--text", "Updated."],
+        ["thread", "reply", str(page_dir), "--text", "Updated."],
     )
     assert ambiguous.exit_code != 0
     assert "use --for EVENT_ID" in ambiguous.output
@@ -2223,7 +2220,7 @@ def test_reply_uses_for_to_select_one_of_several_obligations(page_dir):
 
     selected = CliRunner().invoke(
         cli_model.cli,
-        ["reply", str(page_dir), "--for", "c2", "--text", "Updated."],
+        ["thread", "reply", str(page_dir), "--for", "c2", "--text", "Updated."],
     )
 
     assert selected.exit_code == 0, selected.output
@@ -2260,7 +2257,7 @@ def test_inferred_reply_never_settles_a_newer_undelivered_correction(page_dir):
 
     result = CliRunner().invoke(
         cli_model.cli,
-        ["reply", str(page_dir), "--text", "Made it blue."],
+        ["thread", "reply", str(page_dir), "--text", "Made it blue."],
     )
 
     assert result.exit_code != 0
@@ -2291,7 +2288,7 @@ def test_inferred_reply_belongs_to_the_session_with_the_opened_delivery(
 
     result = CliRunner().invoke(
         cli_model.cli,
-        ["reply", str(page_dir), "--text", "Updated."],
+        ["thread", "reply", str(page_dir), "--text", "Updated."],
     )
 
     assert result.exit_code != 0
@@ -2316,7 +2313,7 @@ def test_inferred_reply_cannot_borrow_a_closed_turns_delivery(page_dir):
 
     result = CliRunner().invoke(
         cli_model.cli,
-        ["reply", str(page_dir), "--text", "Updated."],
+        ["thread", "reply", str(page_dir), "--text", "Updated."],
     )
 
     assert result.exit_code != 0
@@ -2344,7 +2341,7 @@ def test_a_cli_write_is_admitted_through_the_browser_door(page_dir):
         {"kind": "comment", "id": "c1", "author": "agent", "revision": 1, "text": "?"},
     )
     with pytest.raises(SystemExit) as refused:
-        conversation_model.cmd_reply(
+        thread_model.cmd_reply(
             page_dir,
             "c1",
             "Answered.",
@@ -2362,7 +2359,7 @@ def test_a_cli_write_is_admitted_through_the_browser_door(page_dir):
     )
 
     with pytest.raises(SystemExit) as unknown_widget:
-        conversation_model.cmd_report(page_dir, "no-such-widget", "status", ())
+        thread_model.cmd_report(page_dir, "no-such-widget", "status", ())
     assert "unknown report widget 'no-such-widget'" in str(unknown_widget.value)
 
     assert [event["kind"] for event in events_model.read_events(page_dir)] == [
@@ -2390,7 +2387,7 @@ def test_inferred_reply_attempt_is_idempotent(page_dir):
             turn=claim["turn"],
         )
 
-    first = conversation_model.cmd_reply(
+    first = thread_model.cmd_reply(
         page_dir,
         None,
         "Updated.",
@@ -2398,7 +2395,7 @@ def test_inferred_reply_attempt_is_idempotent(page_dir):
         for_event=None,
         attempt=attempt,
     )
-    retried = conversation_model.cmd_reply(
+    retried = thread_model.cmd_reply(
         page_dir,
         None,
         "Updated.",
@@ -2425,7 +2422,7 @@ def test_reply_for_a_stale_event_reports_the_failed_fence(page_dir):
         page_dir,
         {"kind": "comment", "id": "c1", "author": "user", "text": "update it"},
     )
-    conversation_model.cmd_reply(
+    thread_model.cmd_reply(
         page_dir,
         "c1",
         "Updated.",
@@ -2435,13 +2432,13 @@ def test_reply_for_a_stale_event_reports_the_failed_fence(page_dir):
 
     result = CliRunner().invoke(
         cli_model.cli,
-        ["reply", str(page_dir), "--for", "c1", "--text", "Again."],
+        ["thread", "reply", str(page_dir), "--for", "c1", "--text", "Again."],
     )
 
     assert result.exit_code != 0
     assert (
         "event 'c1' takes no reply; c1 is a comment in this page's log, and nothing is "
-        "owed for it — `leaf reply <page> --to c1` replies to it"
+        "owed for it — `leaf thread reply <page> --to c1` replies to it"
     ) in result.output
 
 
@@ -3075,7 +3072,7 @@ def test_receipt_settles_one_known_request_once(page_dir, monkeypatch):
     assert misdirected.exit_code == 1
     assert (
         f"{comment['id']!r} is not a request; {comment['id']} is a comment in this "
-        f"page's log — `leaf reply <page> --for {comment['id']}` answers it; "
+        f"page's log — `leaf thread reply <page> --for {comment['id']}` answers it; "
         f"open requests: {request['id']!r}"
     ) in misdirected.output
     # And the other way round: a request handed to a writer that takes a message is
@@ -3086,13 +3083,21 @@ def test_receipt_settles_one_known_request_once(page_dir, monkeypatch):
         f"`leaf experimental receipt <page> {request['id']} succeeded|failed` answers it"
     )
     resolved = CliRunner().invoke(
-        cli_model.cli, ["resolve", str(page_dir), "--to", request["id"]]
+        cli_model.cli, ["thread", "resolve", str(page_dir), "--to", request["id"]]
     )
     assert resolved.exit_code != 0
     assert settles in resolved.output
     replied = CliRunner().invoke(
         cli_model.cli,
-        ["reply", str(page_dir), "--for", request["id"], "--text", "Restarted"],
+        [
+            "thread",
+            "reply",
+            str(page_dir),
+            "--for",
+            request["id"],
+            "--text",
+            "Restarted",
+        ],
     )
     assert replied.exit_code != 0
     assert f"event {request['id']!r} takes no reply; {settles}" in replied.output
@@ -3362,7 +3367,7 @@ def test_stamp_and_report_choose_one_log_order(page_dir, monkeypatch):
         assert at_commit.wait(timeout=10), "publish never reached its note commit"
         serialized = leases_model.lock_is_held(page_dir / "events.jsonl")
         reporting = executor.submit(
-            conversation_model.cmd_report,
+            thread_model.cmd_report,
             page_dir,
             "t-parser",
             "status",
@@ -4050,7 +4055,7 @@ def test_page_state_folds_the_log_onto_the_published_page(page_dir):
             "tag": "lf-ask",
             "source": "g1",
             "source_tag": "lf-options",
-            "conversation": None,
+            "thread": None,
         }
     ]
     assert {"g1", "o-shim", "o-stage"} <= {el["id"] for el in state["elements"]}
@@ -4080,7 +4085,7 @@ def test_page_state_folds_the_log_onto_the_published_page(page_dir):
             # On every entry, and null for a page widget: the key names which of the
             # page's two documents the decision was made in, and `asks` above has
             # carried it exactly this way all along.
-            "conversation": None,
+            "thread": None,
         }
     ]
     assert state["pending"] == 1 and state["unacked"] == 1
@@ -4572,7 +4577,7 @@ def test_a_source_bound_only_by_frozen_reply_markup_can_be_set(page_dir):
             "text": "Show the feed here.",
         },
     )
-    reply = conversation_model.cmd_reply(
+    reply = thread_model.cmd_reply(
         page_dir,
         "data-question",
         "Here it is.",
@@ -4622,7 +4627,7 @@ def test_thread_markup_cannot_rebind_a_page_source(page_dir):
     )
 
     with pytest.raises(SystemExit, match="use a new source id for the new meaning"):
-        conversation_model.cmd_reply(
+        thread_model.cmd_reply(
             page_dir,
             "data-question",
             "Here it is.",
@@ -4678,7 +4683,7 @@ def test_thread_markup_cannot_rebind_a_draft_only_page_source(page_dir):
     )
 
     with pytest.raises(SystemExit, match="use a new source id for the new meaning"):
-        conversation_model.cmd_reply(
+        thread_model.cmd_reply(
             page_dir,
             "draft-data-question",
             "Here it is.",
@@ -4805,7 +4810,7 @@ def test_page_state_names_the_ask_region_but_keeps_state_on_its_request(page_dir
             "tag": "lf-ask",
             "source": "g1",
             "source_tag": "lf-options",
-            "conversation": None,
+            "thread": None,
         },
     ]
 
@@ -4837,7 +4842,7 @@ def test_page_state_reads_an_authored_answer_with_no_log(page_dir):
 
 
 def test_page_state_keeps_thread_history_out_of_its_current_reading(page_dir):
-    """State stays flat as a conversation grows; the exact-id event lookup owns its
+    """State stays flat as a thread grows; the exact-id event lookup owns its
     history while the append-only log remains the one copy of its prose."""
     (page_dir / "index.html").write_text(PAGE)
     publish(page_dir)
@@ -4862,7 +4867,7 @@ def test_page_state_keeps_thread_history_out_of_its_current_reading(page_dir):
         },
     )
 
-    assert state_json(page_dir)["conversations"] == [
+    assert state_json(page_dir)["threads"] == [
         {
             "id": opened["id"],
             "anchor": {"section": "s-1", "quote": "Ship dark"},
@@ -4873,7 +4878,7 @@ def test_page_state_keeps_thread_history_out_of_its_current_reading(page_dir):
         }
     ]
     history = CliRunner().invoke(
-        cli_model.cli, ["events", str(page_dir), "--conversation", opened["id"]]
+        cli_model.cli, ["events", str(page_dir), "--thread", opened["id"]]
     )
     assert history.exit_code == 0, history.output
     assert [json.loads(line)["id"] for line in history.output.splitlines()] == [
@@ -4890,7 +4895,7 @@ def test_page_state_keeps_thread_history_out_of_its_current_reading(page_dir):
         [
             "events",
             str(page_dir),
-            "--conversation",
+            "--thread",
             opened["id"],
             "--after",
             str(opening_seq),
@@ -4901,10 +4906,10 @@ def test_page_state_keeps_thread_history_out_of_its_current_reading(page_dir):
         answered["id"]
     ]
     unknown = CliRunner().invoke(
-        cli_model.cli, ["events", str(page_dir), "--conversation", "not-a-thread"]
+        cli_model.cli, ["events", str(page_dir), "--thread", "not-a-thread"]
     )
     assert unknown.exit_code != 0
-    assert "unknown conversation id 'not-a-thread'" in unknown.output
+    assert "unknown thread id 'not-a-thread'" in unknown.output
 
 
 class Follower:
@@ -5015,9 +5020,9 @@ def test_page_state_points_to_a_users_suggestion_record(page_dir):
         },
     )
 
-    [thread] = state_json(page_dir)["conversations"]
+    [thread] = state_json(page_dir)["threads"]
     history = CliRunner().invoke(
-        cli_model.cli, ["events", str(page_dir), "--conversation", thread["id"]]
+        cli_model.cli, ["events", str(page_dir), "--thread", thread["id"]]
     )
     assert history.exit_code == 0, history.output
     records = [json.loads(line) for line in history.output.splitlines()]
@@ -5050,7 +5055,7 @@ def test_page_state_holds_a_thread_ask_open_until_its_verb(page_dir):
             "tag": "lf-ask",
             "source": "gm",
             "source_tag": "lf-options",
-            "conversation": root["id"],
+            "thread": root["id"],
         },
     ]
     append_command(
@@ -5070,7 +5075,7 @@ def test_page_state_holds_a_thread_ask_open_until_its_verb(page_dir):
             "tag": "lf-ask",
             "source": "gm",
             "source_tag": "lf-options",
-            "conversation": root["id"],
+            "thread": root["id"],
         },
     ]
     append_command(
@@ -5120,14 +5125,14 @@ def test_tasks_roll_up_explicit_requests_without_asking_themselves(page_dir):
             "tag": "lf-ask",
             "source": "future-review",
             "source_tag": "lf-options",
-            "conversation": None,
+            "thread": None,
         },
         {
             "id": "decision-decision",
             "tag": "lf-ask",
             "source": "decision-options",
             "source_tag": "lf-options",
-            "conversation": None,
+            "thread": None,
         },
     ]
 
@@ -5409,7 +5414,7 @@ def test_a_quoted_ask_does_not_hide_a_real_request_in_the_same_goal(page_dir):
             "tag": "lf-ask",
             "source": "real",
             "source_tag": "lf-options",
-            "conversation": None,
+            "thread": None,
         },
     ]
 
@@ -5438,7 +5443,7 @@ def test_page_state_and_browser_share_a_conditional_edit_decision(page_dir):
             "tag": "lf-draft",
             "source": "cargo",
             "source_tag": "lf-draft",
-            "conversation": None,
+            "thread": None,
         },
     ]
 

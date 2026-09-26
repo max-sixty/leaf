@@ -28,7 +28,7 @@ leaf version export <page> -o <file>
 Hand back the `file://` URL. Do not start a server or wait. The file opens
 offline and runs the page's own runtime against the captured revision and its
 state: widgets, local controls, and page-owned computation work as served. No host
-stands behind it, so conversation and any action or request that needs an agent or
+stands behind it, so thread and any action or request that needs an agent or
 server are unavailable. A page that declares a live specimen needs a server and
 cannot be exported. Write the file where the project keeps user-facing artifacts.
 A live page can be exported without ending its loop.
@@ -123,7 +123,7 @@ leaf page state <page>
 ```
 
 Read `content` for the current document and its construction origins, then the active
-revision, open Asks, current conversation state, and `measurement_lag` for figures
+revision, open Asks, current thread state, and `measurement_lag` for figures
 whose sources have run again. Before editing, follow `authoring-revisions.md`'s "Read
 before editing" section. Then run `leaf wait <page>` to claim it. Starting a server
 when the standing one is already live prints its URL without changing its lifetime.

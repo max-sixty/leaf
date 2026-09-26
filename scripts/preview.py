@@ -20,7 +20,7 @@ answered. A session driving its own preview would read every gesture it makes ba
 as user input, so nothing claims a preview unless this flag asks for it.
 
 An example can also ship companion `.jsonl` events and `.data.json` source
-values. The first lets a page arrive mid-conversation; the second supplies the
+values. The first lets a page arrive mid-thread; the second supplies the
 same page-bound external data a real host would replace through `leaf data set`.
 
 A preview is a foreground process, like any dev server: it prints its URL and

@@ -6,7 +6,7 @@ references. When an existing name disagrees with this glossary, change the name;
 not add an alias.
 
 This reference does not define the protocol between the page and its agent. Events,
-comments, conversations, replies, Asks, requests, receipts, activity, and their
+comments, threads, replies, Asks, requests, receipts, activity, and their
 lifecycles are owned by their protocol references.
 
 ## How to use the vocabulary
@@ -76,7 +76,7 @@ item.
 | **Frame** | A box whose size comes from outside it: `main`, a root tab panel, a workspace, a pane, a grid cell, or any box declaring `--lf-block-frame: 1`. What it holds takes the frame's width, never the page's room |
 | **Grid** | `lf-grid`, which places its direct children in two dimensions |
 | **Cell** | A direct child of a grid; a frame |
-| **Text** and **surface** | How a block uses its frame's width: text keeps the reading measure, a surface (`x-measure: surface`, or `x-space` past the column) fills the frame; a group (`x-measure: group`) passes the measure to what it holds |
+| **Text** and **surface** | How a block uses its frame's width: text keeps the reading measure, a surface (`x-measure: surface`, or `x-space` past the column) fills the frame; a group (`x-measure: group`) passes the measure to what it holds. A members element that draws its members as cells of one block declares `x-measure: text` |
 | **Bounded block** | A block that holds its own height and scrolls inside it (`x-bound`, `data-bound`); not a reading region |
 | **Workspace** | An authored structural composition that keeps task regions together; as `main`'s only block, or a root tab's, it is the **root workspace** and holds the window |
 | **Pane** | One reading region in a workspace: an optional header, exactly one body element, an optional footer |
@@ -161,8 +161,8 @@ spine instead.
 | **Walk** | Ordered semantic movement among same-kind destinations |
 | **Trip** | One travel to a destination, a thread's passage, an Ask, or a datum: it clears the auxiliary surface hiding the destination, then stays when the user already has it or departs, leaving a history entry |
 | **Journey** | Consecutive trips each leaving from the last one's landing, which share one history entry so Back returns to where the first began; it may mix threads and Asks, and is not a walk |
-| **Standing** | Holding a destination or a control inside it: a conversation on the page or in the panel, an Ask, or authored page content. A panel thread's title and conversation are one destination. Chrome controls, margin markers, mark notes, and contents-outline links are apparatus rather than destinations |
-| **Standing target** | The addressable element a user stands at, from whichever side they hold it: the element or anything inside it, its margin cluster, or the thread card showing its conversations. The element is a conversation's parent, so the card shows while the user stands at its target and goes when they stand elsewhere on the page or let go. With Threads open, the list's expanded thread plays the card's part |
+| **Standing** | Holding a destination or a control inside it: a thread on the page or in the panel, an Ask, or authored page content. A panel thread's title and its messages are one destination. Chrome controls, margin markers, mark notes, and contents-outline links are apparatus rather than destinations |
+| **Standing target** | The addressable element a user stands at, from whichever side they hold it: the element or anything inside it, its margin cluster, or the thread card showing its threads. The element is a thread's parent, so the card shows while the user stands at its target and goes when they stand elsewhere on the page or let go. With Threads open, the list's expanded thread plays the card's part |
 | **Floor** | The place in a layer where the user stands on nothing: the page's body, the whole thread panel |
 | **Unwind** | What Escape takes off, read from what stands in front of the user rather than from how they reached it: the innermost step of the ladder `skills/leaf/assets/runtime/keyboard/AGENTS.md` states, with containment before kind, each landing them at the parent of what it closed |
 | **Landing** | Where a step leaves the user: a box at its container, a standing at its floor, a surface at the document, which is the block they are reading, focused and then blurred |

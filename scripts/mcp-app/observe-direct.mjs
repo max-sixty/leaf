@@ -132,7 +132,7 @@ try {
   // to receive focus before opening the overview that continuation would close.
   await app
     .locator(
-      `.lf-margin-thread .lf-conversation-thread[data-thread="${comment.id}"] textarea:focus`,
+      `.lf-margin-thread .lf-page-thread[data-thread="${comment.id}"] textarea:focus`,
     )
     .waitFor();
   const threadsToggle = app.getByRole("button", { name: /^Threads/ });

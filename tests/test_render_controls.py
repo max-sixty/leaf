@@ -2415,10 +2415,10 @@ def test_each_control_archetype_holds_its_neighbours_still(browser, serve, arche
     )
 
 
-def test_a_seat_conversation_leaves_the_pick_it_is_about_live(browser, serve):
+def test_a_seat_thread_leaves_the_pick_it_is_about_live(browser, serve):
     """The user's own remark must not lock the control it is a remark about.
 
-    A conversation standing in the widget's seat takes the decision off the user's
+    A thread standing in the widget's seat takes the decision off the user's
     list — the banner stops counting it — but answers nothing, so the press that would
     answer it is still live. This is the browser half of the split, and the half the
     user meets first: the POST door only sees a hand-posted event, while here
@@ -2431,7 +2431,7 @@ def test_a_seat_conversation_leaves_the_pick_it_is_about_live(browser, serve):
     The subject is the project widget SEATED_ASK_ENTRY declares rather than an entry out
     of the default package, because the pair the split needs — a visible ask and a seat
     of the widget's own — is a pair of declarations and not a tag. No shipped entry has
-    carried both since 292de9c took `x-conversation` off `lf-options`, and the reading
+    carried both since 292de9c took `x-thread-seat` off `lf-options`, and the reading
     under test never asked which widget it was."""
     url = serve(
         leaf_page(
@@ -3491,7 +3491,7 @@ def test_covering_threads_keeps_the_user_and_their_work_inside(browser, serve):
 
     The same open panel leaves the page beside it live on a wide window and covers it
     where it leaves too little of a narrow one. Crossing that line must not rebuild the
-    conversation: the exact thread in focus, the general draft, and the list's reading
+    thread: the exact thread in focus, the general draft, and the list's reading
     place survive both directions.
     While it covers, Tab, the Leaf reading keys, native paging, and the wheel all stay in
     the panel; none can move to or scroll the covered document. Closing gives a keyboard
@@ -5297,9 +5297,9 @@ RING_CASES = (
         ("g", "Shift+t", "t"),
         {"ship-review": ((None, "thread-summary"),)},
     ),
-    # The same walk with the panel shut lands in the margin's conversation view, on the
+    # The same walk with the panel shut lands in the margin's thread view, on the
     # thread itself rather than a control inside it.
-    ("an inline thread", ("t",), {"ship-review": ((None, "conversation-thread"),)}),
+    ("an inline thread", ("t",), {"ship-review": ((None, "page-thread"),)}),
     ("passage search", ("/",), {"corpus": ((".lf-page-search-box", "target-search"),)}),
     # Item hints, and the anchored bar the user answers a chosen item on. Both open the
     # same mode, and both step back and then forward through it, which lands on the last
@@ -5385,7 +5385,7 @@ RING_CASES = (
     (
         "a thread card",
         (),
-        {"ship-review": ((".lf-margin-preview .lf-resolve", "conversation"),)},
+        {"ship-review": ((".lf-margin-preview .lf-resolve", "thread"),)},
     ),
     ("message media", (), {"feature-gallery": ((".lf-message-media", "media"),)}),
     # Both controls of a summarized range wear one band: the checkpoint's own button, and

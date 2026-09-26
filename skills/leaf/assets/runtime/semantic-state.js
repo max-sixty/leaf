@@ -35,12 +35,12 @@ export const attachWidgetPresentation = (widget, kind, renderer) =>
 
 // Where a document-wide renderer stands in one presentation pass. The projection
 // materializes provenance words and coordinate chrome inside authored elements, the
-// conversation resolves its passages over the nodes that leaves, and the Ask inventory
-// reads the conversation those passages placed. Declaring the order here is what lets
+// thread resolves its passages over the nodes that leaves, and the Ask inventory
+// reads the thread those passages placed. Declaring the order here is what lets
 // every publisher simply publish.
 export const PRESENTATION_ORDER = Object.freeze({
   projection: 0,
-  conversation: 1,
+  thread: 1,
   asks: 2,
 });
 

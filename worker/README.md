@@ -17,7 +17,7 @@ release. The Worker answers for the edge instead of passing that container's rep
 the user is unseated, `GET api/state` returns the published projection, and every other
 request waits behind a 503 until the rollout lands. The copied page directories and
 append-only logs remain private to that user and disappear when Cloudflare replaces the
-container; no website-only projection or conversation store exists.
+container; no website-only projection or thread store exists.
 
 The build gives every document, state response, and module graph one release digest.
 Runtime assets live behind release-addressed URLs with immutable cache headers, while
@@ -357,12 +357,12 @@ same completed text through the canonical reply writer, even if its subscription
 its turn closes, or the next turn opens first. The App Server adapter presents ordered
 input in delivery slices containing at most one plain reply; a later plain reply remains
 pending for the next turn. Version, markup, and receipt obligations may share that
-turn and remain explicit operations: a stamped version, `leaf resolve`, and
+turn and remain explicit operations: a stamped version, `leaf thread resolve`, and
 `leaf experimental receipt`. There is no second
 website reply endpoint or helper. `leaf` remains the interface for delivery claims and
 reads, resolves, and receipts.
 Once App Server reports a terminal turn, the container closes that exact Leaf turn.
-The bound final-answer message, a page revision closed with `leaf resolve`, or a `leaf
+The bound final-answer message, a page revision closed with `leaf thread resolve`, or a `leaf
 receipt` settles accepted input.
 A turn is followed on the connection it was started on, which App Server subscribes for
 that connection's life; nothing reconnects or resumes. A completion notification is the

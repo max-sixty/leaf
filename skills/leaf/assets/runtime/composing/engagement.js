@@ -1,7 +1,7 @@
 /* User gestures and drafts that a document replacement would discard. */
 import { runtime } from "../context.js";
 import { focused } from "../keyboard/scopes.js";
-import { replyBoxHasDraft } from "../conversation/replies.js";
+import { replyBoxHasDraft } from "../thread/replies.js";
 import { draftOf } from "./input.js";
 import { composerOpen } from "./selection.js";
 

@@ -2,7 +2,7 @@
  *
  * One pass resolves every thread and draft, writes every anchor highlight/outline, and
  * records exactly what it drew. Consumers ask this instance for marks and placement;
- * they never re-resolve a thread independently. Controls, commands, conversation state,
+ * they never re-resolve a thread independently. Controls, commands, thread state,
  * and frame invalidation are supplied above this module.
  */
 
@@ -26,7 +26,7 @@ import {
   pageWords,
   rangeOf,
 } from "./passages.js";
-import { bareReaction } from "./conversation/model.js";
+import { bareReaction } from "./thread/model.js";
 import { under } from "./shadow.js";
 import { annotationsHidden } from "./annotation-layer.js";
 

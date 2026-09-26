@@ -573,7 +573,7 @@ test("one pass paints its presenters in declared order and coalesces repeated cl
       },
     });
   // Registered out of order, claimed out of order: the pass still runs them by rank.
-  const late = presenter("conversation", 1);
+  const late = presenter("thread", 1);
   const early = presenter("projection", 0);
   void late.sync("first");
   void early.sync("only");
@@ -582,7 +582,7 @@ test("one pass paints its presenters in declared order and coalesces repeated cl
 
   assert.deepEqual(painted, []);
   await ready;
-  assert.deepEqual(painted, ["projection:only", "conversation:second"]);
+  assert.deepEqual(painted, ["projection:only", "thread:second"]);
   assert.equal(coordinator.read().presentedEpoch, 0);
 });
 
@@ -598,7 +598,7 @@ test("a reading held open does not keep the next one off the page", async () => 
     release = resolve;
   });
   const presenter = schedule.presenter({
-    attach: () => coordinator.attach("conversation", renderer),
+    attach: () => coordinator.attach("thread", renderer),
     paint: async (value, current) => {
       painted.push(value);
       // The first reading waits on something that has not arrived — a widget that has
@@ -618,10 +618,7 @@ test("a reading held open does not keep the next one off the page", async () => 
   release();
   await ready;
 
-  assert.equal(
-    coordinator.committed("conversation", renderer, "newer").status,
-    "committed",
-  );
+  assert.equal(coordinator.committed("thread", renderer, "newer").status, "committed");
   assert.equal(coordinator.read().presentedEpoch, 0);
 });
 
@@ -675,7 +672,7 @@ test("a failing paint reports through the region and fails the pass it was in", 
   const publication = coordinator.begin(document, 0);
   const schedule = createPresentationSchedule();
   const presenter = schedule.presenter({
-    attach: () => coordinator.attach("conversation", {}),
+    attach: () => coordinator.attach("thread", {}),
     paint: () => {
       throw new Error("paint failed");
     },
@@ -685,7 +682,7 @@ test("a failing paint reports through the region and fails the pass it was in", 
 
   await assert.rejects(ready, /paint failed/);
   assert.equal(failures.length, 1);
-  assert.deepEqual(coordinator.read().pending, ["conversation"]);
+  assert.deepEqual(coordinator.read().pending, ["thread"]);
   assert.equal(coordinator.read().presentedEpoch, -1);
 });
 
@@ -703,7 +700,7 @@ test("a failure reported for one region does not withhold the others' readings",
     },
   });
   const following = schedule.presenter({
-    attach: () => coordinator.attach("conversation", {}),
+    attach: () => coordinator.attach("thread", {}),
     order: 1,
     paint: (value) => {
       painted.push(value);
@@ -727,7 +724,7 @@ test("a fail-soft paint commits an explicit failure state", async () => {
   const publication = coordinator.begin(document, 0);
   const schedule = createPresentationSchedule();
   const presenter = schedule.presenter({
-    attach: () => coordinator.attach("conversation", renderer),
+    attach: () => coordinator.attach("thread", renderer),
     failSoft: () => "retained",
     paint: () => Promise.reject(new Error("list failed")),
   });
@@ -739,10 +736,7 @@ test("a fail-soft paint commits an explicit failure state", async () => {
 
   assert.equal(failures.length, 1);
   assert.equal(coordinator.read().presentedEpoch, 0);
-  assert.equal(
-    coordinator.committed("conversation", renderer, "value").status,
-    "failed",
-  );
+  assert.equal(coordinator.committed("thread", renderer, "value").status, "failed");
 });
 
 test("a paint that claims another region joins the same pass", async () => {
@@ -752,10 +746,10 @@ test("a paint that claims another region joins the same pass", async () => {
   const painted = [];
   const schedule = createPresentationSchedule();
   const following = schedule.presenter({
-    attach: () => coordinator.attach("conversation", {}),
+    attach: () => coordinator.attach("thread", {}),
     order: 1,
     paint: (value) => {
-      painted.push(`conversation:${value}`);
+      painted.push(`thread:${value}`);
       return value;
     },
   });
@@ -778,7 +772,7 @@ test("a paint that claims another region joins the same pass", async () => {
 
   // The claim a paint makes belongs to the same pass, so the promise the pass hands
   // back is proof that the page caught up rather than that one renderer ran.
-  assert.deepEqual(painted, ["projection:first", "conversation:mounted"]);
+  assert.deepEqual(painted, ["projection:first", "thread:mounted"]);
   assert.equal(coordinator.read().presentedEpoch, 0);
 });
 
@@ -791,7 +785,7 @@ test("a reading claimed mid-paint is installed before the finished one settles",
   let claimDuringPaint = null;
   const readings = [];
   const presenter = schedule.presenter({
-    attach: () => coordinator.attach("conversation", renderer),
+    attach: () => coordinator.attach("thread", renderer),
     paint: async (value) => {
       claimDuringPaint?.();
       claimDuringPaint = null;
@@ -808,10 +802,7 @@ test("a reading claimed mid-paint is installed before the finished one settles",
 
   assert.deepEqual(readings, [-1, -1]);
   assert.equal(coordinator.read().presentedEpoch, 0);
-  assert.equal(
-    coordinator.committed("conversation", renderer, "second").status,
-    "committed",
-  );
+  assert.equal(coordinator.committed("thread", renderer, "second").status, "committed");
 });
 
 test("a paint that fails after a newer claim supersedes it still reports", async () => {
@@ -823,7 +814,7 @@ test("a paint that fails after a newer claim supersedes it still reports", async
   const renderer = {};
   let first = true;
   const presenter = schedule.presenter({
-    attach: () => coordinator.attach("conversation", renderer),
+    attach: () => coordinator.attach("thread", renderer),
     paint: (value) => {
       if (!first) return value;
       first = false;
@@ -843,12 +834,12 @@ test("a paint that fails after a newer claim supersedes it still reports", async
     ["the superseded paint failed"],
   );
   assert.equal(
-    coordinator.committed("conversation", renderer, "current").status,
+    coordinator.committed("thread", renderer, "current").status,
     "committed",
     "the reading that superseded it still commits",
   );
   assert.equal(
-    coordinator.committed("conversation", renderer, "stale"),
+    coordinator.committed("thread", renderer, "stale"),
     null,
     "the failed reading commits nothing",
   );

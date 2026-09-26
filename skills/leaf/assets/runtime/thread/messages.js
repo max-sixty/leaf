@@ -189,7 +189,7 @@ export class MessageView {
     const panel = model.panel;
     if (prior && prior.author !== model.author)
       this.node.classList.remove(prior.author);
-    this.node.classList.add(panel ? "lf-msg" : "lf-conversation-msg", model.author);
+    this.node.classList.add(panel ? "lf-msg" : "lf-page-thread-msg", model.author);
     if (!panel) {
       this.node.classList.add("lf-ui");
       this.node.dataset.lfGen = "1";
@@ -215,7 +215,7 @@ export class MessageView {
           model.reactions,
         )
       : nothing;
-    this.#header.className = panel ? "lf-msg-head" : "lf-conversation-head";
+    this.#header.className = panel ? "lf-msg-head" : "lf-page-thread-head";
     render(
       html`
         <b>${model.by}</b
@@ -269,7 +269,7 @@ export class MessageView {
           !panel && model.body.authored
             ? html`<button
                 type="button"
-                class="lf-btn lf-conversation-open lf-ui"
+                class="lf-btn lf-page-thread-open lf-ui"
                 data-lf-gen="1"
                 data-lf-offer="button"
                 @click=${() => this.#commands.showThread(this.#model.id)}
@@ -293,7 +293,7 @@ export class MessageView {
     this.#commands.read.observeBody(
       this.node,
       this.node.querySelector(
-        panel ? ":scope > .lf-msg-body" : ":scope > .lf-conversation-body",
+        panel ? ":scope > .lf-msg-body" : ":scope > .lf-page-thread-body",
       ),
       model,
     );
@@ -318,15 +318,15 @@ export class MessageView {
 
   #inlineBody(body) {
     if (body.kind === "suggestion")
-      return html`<div class="lf-conversation-body" .textContent=${body.text}></div>`;
+      return html`<div class="lf-page-thread-body" .textContent=${body.text}></div>`;
     if (body.kind === "reaction")
-      return html`<div class="lf-conversation-body">
+      return html`<div class="lf-page-thread-body">
         <span class="lf-react-said" title=${body.meaning ?? nothing}
           >${`${body.glyph} ${body.token}`.trim()}</span
         >
       </div>`;
     return html`<div
-      class="lf-conversation-body"
+      class="lf-page-thread-body"
       .innerHTML=${
         body.html +
         (body.drawing

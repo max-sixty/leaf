@@ -186,7 +186,7 @@ def test_agent_reply_arrivals_keep_open_panel_drafts_and_summarize_batches(
 
 def test_incoming_reply_follows_a_thread_at_its_latest_message(browser, serve):
     url = serve(LONG_PAGE)
-    root = panel_comment(serve.page_dir, "Start this conversation.")
+    root = panel_comment(serve.page_dir, "Start this thread.")
     for index in range(14):
         events_model.append_event(
             serve.page_dir,
@@ -294,8 +294,8 @@ def test_incoming_reply_follows_when_the_panel_has_unfilled_room(
 ):
     url = serve(LONG_PAGE)
     for index in range(earlier_cards):
-        panel_comment(serve.page_dir, f"An earlier conversation {index}.")
-    root = panel_comment(serve.page_dir, "A short conversation.")
+        panel_comment(serve.page_dir, f"An earlier thread {index}.")
+    root = panel_comment(serve.page_dir, "A short thread.")
     events_model.append_event(
         serve.page_dir,
         {
@@ -307,7 +307,7 @@ def test_incoming_reply_follows_when_the_panel_has_unfilled_room(
         },
     )
     for index in range(later_cards):
-        panel_comment(serve.page_dir, f"A later conversation {index}.")
+        panel_comment(serve.page_dir, f"A later thread {index}.")
     page = open_page(browser, url)
     page.emulate_media(reduced_motion="reduce")
     page.locator(".lf-threads-toggle").click()
@@ -345,7 +345,7 @@ def test_incoming_reply_follows_when_the_panel_has_unfilled_room(
 
 def test_incoming_reply_follows_a_visible_composer_below_earlier_words(browser, serve):
     url = serve(LONG_PAGE)
-    root = panel_comment(serve.page_dir, "A conversation with a draft.")
+    root = panel_comment(serve.page_dir, "A thread with a draft.")
     for index in range(14):
         events_model.append_event(
             serve.page_dir,
@@ -398,8 +398,8 @@ def test_incoming_reply_follows_a_visible_composer_below_earlier_words(browser, 
 
 def test_another_threads_reply_keeps_the_selected_thread_in_place(browser, serve):
     url = serve(LONG_PAGE)
-    other = panel_comment(serve.page_dir, "An earlier conversation.")
-    selected = panel_comment(serve.page_dir, "The selected conversation.")
+    other = panel_comment(serve.page_dir, "An earlier thread.")
+    selected = panel_comment(serve.page_dir, "The selected thread.")
     for index in range(14):
         events_model.append_event(
             serve.page_dir,
@@ -433,7 +433,7 @@ def test_another_threads_reply_keeps_the_selected_thread_in_place(browser, serve
             "author": "agent",
             "agent": "Codex",
             "parent": other,
-            "text": "This belongs to the other conversation. " * 5,
+            "text": "This belongs to the other thread. " * 5,
         },
     )
     page.evaluate(
@@ -450,7 +450,7 @@ def test_incoming_reply_follows_a_selected_thread_before_later_cards(
     browser, serve, later_cards
 ):
     url = serve(LONG_PAGE)
-    selected = panel_comment(serve.page_dir, "The conversation I am reading.")
+    selected = panel_comment(serve.page_dir, "The thread I am reading.")
     for index in range(14):
         events_model.append_event(
             serve.page_dir,
@@ -463,7 +463,7 @@ def test_incoming_reply_follows_a_selected_thread_before_later_cards(
             },
         )
     for index in range(later_cards):
-        panel_comment(serve.page_dir, f"A later conversation {index}.")
+        panel_comment(serve.page_dir, f"A later thread {index}.")
     page = open_page(browser, url)
     page.emulate_media(reduced_motion="reduce")
     page.locator(".lf-threads-toggle").click()
@@ -490,7 +490,7 @@ def test_incoming_reply_follows_a_selected_thread_before_later_cards(
             "author": "agent",
             "agent": "Codex",
             "parent": selected,
-            "text": "This new answer belongs to the selected conversation. " * 5,
+            "text": "This new answer belongs to the selected thread. " * 5,
         },
     )
     page.evaluate(
@@ -550,8 +550,7 @@ def test_incoming_reply_follows_a_selected_thread_before_later_cards(
                 "author": "agent",
                 "agent": "Codex",
                 "parent": selected,
-                "text": "A long answer must not pull me back to this conversation. "
-                * 120,
+                "text": "A long answer must not pull me back to this thread. " * 120,
             },
         )
         page.evaluate(
@@ -565,7 +564,7 @@ def test_incoming_reply_follows_a_selected_thread_before_later_cards(
 @pytest.mark.parametrize("intent", ["focus", "pointer"])
 def test_a_later_cards_reader_stays_at_the_list_end(browser, serve, intent):
     url = serve(LONG_PAGE)
-    selected = panel_comment(serve.page_dir, "The conversation above.")
+    selected = panel_comment(serve.page_dir, "The thread above.")
     for index in range(14):
         events_model.append_event(
             serve.page_dir,
@@ -578,7 +577,7 @@ def test_a_later_cards_reader_stays_at_the_list_end(browser, serve, intent):
             },
         )
     for index in range(4):
-        panel_comment(serve.page_dir, f"A later conversation {index}.")
+        panel_comment(serve.page_dir, f"A later thread {index}.")
     page = open_page(browser, url)
     page.emulate_media(reduced_motion="reduce")
     page.locator(".lf-threads-toggle").click()
@@ -684,8 +683,8 @@ def test_live_revision_retains_the_runtime_favicon(browser, serve):
 
 
 @pytest.mark.parametrize("scheme", ["light", "dark"])
-def test_a_margin_reply_shares_its_conversations_opaque_surface(browser, serve, scheme):
-    """The reply surround stays continuous as focus enters and leaves the conversation.
+def test_a_margin_reply_shares_its_threads_opaque_surface(browser, serve, scheme):
+    """The reply surround stays continuous as focus enters and leaves the thread.
 
     An opaque shared surface also lets a pinned reply cover scrolled messages without
     introducing a differently colored band above its input.
@@ -696,7 +695,7 @@ def test_a_margin_reply_shares_its_conversations_opaque_surface(browser, serve, 
     resized(page, 1440, 900)
     page.locator('.lf-margin-marker[data-lf-kinds~="comment"]').click()
     preview = page.locator(".lf-margin-preview")
-    thread = preview.locator(".lf-conversation-thread")
+    thread = preview.locator(".lf-page-thread")
     surround = thread.locator(".lf-say")
     reply = preview.get_by_role("button", name="Reply", exact=True)
     editor = preview.locator("textarea")
@@ -707,7 +706,7 @@ def test_a_margin_reply_shares_its_conversations_opaque_surface(browser, serve, 
             reply.click()
             expect(editor).to_be_focused()
         elif state == "outside":
-            preview.get_by_role("button", name="Dismiss conversation").focus()
+            preview.get_by_role("button", name="Dismiss thread").focus()
         surface = thread.evaluate("""node => {
           const color = getComputedStyle(node).backgroundColor;
           const canvas = document.createElement('canvas');
@@ -878,7 +877,7 @@ def test_page_thread_dismiss_and_resolve_share_the_metadata_row(
     page.locator('.lf-margin-marker[data-lf-kinds~="comment"]').first.click()
     preview = page.locator(".lf-margin-preview:not([hidden])")
     resolve = preview.get_by_role("button", name="Resolve thread")
-    dismiss = preview.get_by_role("button", name="Dismiss conversation view")
+    dismiss = preview.get_by_role("button", name="Dismiss thread view")
     expect(resolve).to_be_visible()
     expect(dismiss).to_be_visible()
     assert dismiss.evaluate("button => button.closest('.lf-thread-root-meta') !== null")
@@ -900,9 +899,9 @@ def test_page_thread_dismiss_and_resolve_share_the_metadata_row(
               };
               return {
                 nav: middle('.lf-margin-preview-nav'),
-                author: middle('.lf-conversation-head > b'),
+                author: middle('.lf-page-thread-head > b'),
                 actions: middle('.lf-thread-meta-actions'),
-                authorRight: meta.querySelector('.lf-conversation-head')
+                authorRight: meta.querySelector('.lf-page-thread-head')
                   .getBoundingClientRect().right,
                 navLeft: meta.querySelector('.lf-margin-preview-nav')
                   .getBoundingClientRect().left,
@@ -1050,7 +1049,7 @@ def test_the_banner_reads_in_one_order_at_every_width(browser, serve, other_leaf
         )
     for width, order in orders.items():
         assert order[-1].startswith("Threads"), (
-            f"the conversation no longer finishes the row at {width}px: {order}"
+            f"the thread no longer finishes the row at {width}px: {order}"
         )
     resized(page, 500, 900)
     control = banner_control(page, ".lf-others")

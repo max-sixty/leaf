@@ -8,7 +8,7 @@ The user follows your work on the page:
 | --- | --- | --- |
 | Banner | one sentence for the whole page: what you are doing, or what you want back | `leaf status <page> <state> "<detail>"` |
 | Beside a thread or widget | **Working** and your sentence, above the message or on the control the work answers | `leaf delivery claim`, `leaf status … --on <id>` |
-| Thread | your answer to the user's message | `leaf reply` |
+| Thread | your answer to the user's message | `leaf thread reply` |
 | Page | the revised content in place, and a stamp's changelog | saving `index.html`, `leaf version stamp` |
 | Request | the outcome of a request the user made | `leaf experimental receipt` |
 
@@ -21,9 +21,9 @@ reaches the page.
 Two readings in `leaf page state <page>` describe the user's side between their
 moves. `viewed` says whether they are there: the last time a browser tab had the page
 visible, in epoch seconds, renewed about every half minute while it stays visible, and
-`null` when nobody has opened the page. Each conversation's `unread` says which of your
+`null` when nobody has opened the page. Each thread's `unread` says which of your
 messages they have not read yet
-([conversation threads](conversation-threads.md#what-the-user-has-read)). A status
+([threads](threads.md#what-the-user-has-read)). A status
 has no such reading, so one they have not reacted to may not have been seen.
 
 ## When to write
@@ -105,7 +105,8 @@ For work that will run longer than a few minutes, coordinate it rather than perf
 it. Hand the reading, editing, and testing to background subagents or background
 commands, and end your turn as the host contract says, so the watcher's next delivery
 reaches you while the work runs instead of waiting behind it. When a worker reports
-back, settle its result with a reply, a revision, or a receipt.
+back, put its result on the page; the thread or request that asked for it then gets a
+reply saying what changed and linking to it, or its receipt.
 
 You drive the page and your workers do not. The server, the watcher and its
 acknowledgements, replies, receipts, status, edits to `index.html`, and stamps stay

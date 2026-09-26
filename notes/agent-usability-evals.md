@@ -9,7 +9,7 @@ page succeeds only when both can recover the same meaning.
 The former `leaf page catalog` output was 92,130 bytes, 13,058 words, or about
 22,500 tokens under both `o200k_base` and `cl100k_base`. Before selective
 registry reading and phase-specific references, an agent also read the roughly
-1,400-token skill, 3,100-token authoring reference, and 3,800-token conversation
+1,400-token skill, 3,100-token authoring reference, and 3,800-token thread
 reference. That made the required path about 30,800 tokens before the user's
 material or the page itself.
 
@@ -62,7 +62,7 @@ The resulting source diff contained only the requested sentence replacement;
 standing user state and raw data were unchanged. This checks one successful
 edit route, not a paired comparison or a general comprehension score.
 
-Long conversations add a smaller version of the same problem. A delivered batch
+Long threads add a smaller version of the same problem. A delivered batch
 may elide the middle of a thread. The agent has to notice the marker, use the
 thread id from `page state`, and retrieve `leaf events --thread ID` before
 answering a question that depends on the missing records.
@@ -74,8 +74,8 @@ Keep Leaf's agent-facing surface small and semantic:
 - `leaf page state PAGE` reads the effective document with construction origins,
   source and data revisions, standing actions and reports, decisions, requests,
   reactions, compact thread state, and an event-log watermark;
-- `leaf page state PAGE --thread THREAD` selects one conversation's current
-  messages and effective frozen markup; its edits continue that conversation;
+- `leaf page state PAGE --thread THREAD` selects one thread's current
+  messages and effective frozen markup; its edits continue that thread;
 - `leaf page guidance PAGE [AUDIENCE]` composes explicit operating guidance;
 - `leaf events PAGE [--after SEQ] [--thread THREAD]` prints the append-only JSONL
   history admitted at validated write boundaries; `--after` is a sequence cursor
@@ -149,7 +149,7 @@ solved the agent experience.
 | Read then revise | Plain prose, a user-owned draft, live data, and a pinned capture | The agent changes the correct construction input, preserves user authority, and rebinds a fresh capture when changing pinned data. |
 | Work lands on a handed-over page | A plan, a list of problems found, or a refuted finding, with a user's pick standing, a milestone rail whose next step is now done, prose the user has seen that would read better at half the length, a user-owned draft holding a fact the work moved, and a task line that only asks to note what merged | The title and headings state the present; finished items sit in a collapsed section rather than marked done in the open list; the answered Ask moves there under the words it was picked under and what remains is a new Ask; the rail keeps its done members; the shorter prose is put to the user as an `lf-suggestion` with the current words verbatim in `lf-old`; the draft's moved fact is written into the draft's body with `restated` on the draft, and no suggestion wraps it. |
 | Revise after feedback | A comment changes prose beside an already chosen option | The comment is answered; the prose changes; surviving ids and the choice remain; `restated` appears only if the agent deliberately replaces the decision. |
-| Elided conversation | The decisive premise is in the elided middle of a long thread | The agent uses the thread id to select its raw events before replying and answers from the missing premise. |
+| Elided thread | The decisive premise is in the elided middle of a long thread | The agent uses the thread id to select its raw events before replying and answers from the missing premise. |
 | Mixed event batch | A comment, action, reaction, undo, and page error arrive together | Each event receives its defined treatment; the withdrawn gesture is not carried; acknowledgement advances only after the complete batch is available. |
 
 ## First executable slice
@@ -201,7 +201,7 @@ Compare the former HTML-plus-state path with the current construction-linked
 inspection using the same reading and revision tasks. Score correct mutations as
 well as answers: a user who understands a value but edits a derived display has
 not recovered its construction. Measure context cost with large data manifests and
-long conversations, including exact thread selection.
+long threads, including exact thread selection.
 
 A browser or accessibility snapshot can check the oracle for rendered semantics.
 It omits some inactive content and includes generated presentation, so keep it as
@@ -218,7 +218,7 @@ only 2,258 bytes; repeated structure and edit metadata dominated this example.
 An in-memory variant inheriting ordinary source-edit defaults, including the id
 already present in attributes, reduced compact output to 60,816 bytes without
 removing content. Apply this inheritance before adding a summary interface, and
-retain exceptional event, data, and conversation authorities explicitly.
+retain exceptional event, data, and thread authorities explicitly.
 
 A separate browser context established a visibility gap:
 

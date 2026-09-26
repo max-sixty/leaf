@@ -75,7 +75,7 @@ directory explicitly; export or copy anything that must outlive the page directo
    exact URL, or with what the host contract hands over instead.
 5. When a delivery arrives, read `references/event-batches.md`, the host
    contract, and, for user messages,
-   `references/conversation-threads.md`, and answer every event as they say.
+   `references/threads.md`, and answer every event as they say.
    Say what you are doing before doing it, as `references/conversation-loop.md`,
    "When to write", orders it.
 6. Stamp checkpoints and end the page as `references/page-checkpoints.md` says.
@@ -176,7 +176,7 @@ so a phase does not depend on discovering a chain of references.
 ### Continue after input
 
 - `references/event-batches.md`: after delivery and before processing its events.
-- `references/conversation-threads.md`: before opening, naming, replying to,
+- `references/threads.md`: before opening, naming, replying to,
   editing, summarizing, or resolving a thread.
 - `references/page-checkpoints.md`: before stamping or ending a page.
 

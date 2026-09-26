@@ -65,34 +65,34 @@ import {
 import { createPageGeometry } from "./runtime/page-geometry.js";
 import * as targetPaint from "./runtime/target-paint.js";
 import { pointerAt } from "./runtime/pointer.js";
-import { allThreads } from "./runtime/conversation/state.js";
-import { anchorLabel } from "./runtime/conversation/messages.js";
+import { allThreads } from "./runtime/thread/state.js";
+import { anchorLabel } from "./runtime/thread/messages.js";
 import {
-  createConversationLanding,
+  createThreadLanding,
   declareThreadKeys,
-  revealConversation,
-  retainConversationFocus,
+  scrollThreadIntoView,
+  retainThreadFocus,
   retainPanelLanding,
-  standingConversation,
+  standingThread,
   wireThreadLanding,
-} from "./runtime/conversation/landing.js";
-import { createPanelComposer } from "./runtime/conversation/panel.js";
-import { focusSurface } from "./runtime/conversation/surfaces.js";
-import { focusedThreadOf } from "./runtime/conversation/focus.js";
-import { mountThreadList } from "./runtime/conversation/thread-list.js";
+} from "./runtime/thread/landing.js";
+import { createPanelComposer } from "./runtime/thread/panel.js";
+import { focusSurface } from "./runtime/thread/surfaces.js";
+import { focusedThreadOf } from "./runtime/thread/focus.js";
+import { mountThreadList } from "./runtime/thread/thread-list.js";
 import {
   mountNarrowing,
   retainNarrowing,
   revealThread,
   widen,
-} from "./runtime/conversation/narrowing.js";
+} from "./runtime/thread/narrowing.js";
 import {
   panel,
   closeBtn,
   panelFoot,
   threadsBox,
   mountPanelReadingRegion,
-} from "./runtime/conversation/panel-elements.js";
+} from "./runtime/thread/panel-elements.js";
 import { createMarginProjection } from "./runtime/margin-projection.js";
 import { createPageMapDialog } from "./runtime/page-map-dialog.js";
 import { createAskView } from "./runtime/asks/view.js";
@@ -246,7 +246,7 @@ const hintChrome = {
   viewportTop: chromeTop,
 };
 const focusedAnchorThreadId = () =>
-  focused()?.closest?.(".lf-conversation-thread")?.dataset.thread ??
+  focused()?.closest?.(".lf-page-thread")?.dataset.thread ??
   focusedThreadOf()?.dataset.id;
 const anchorPaint = createAnchorPaint({
   targetPaint: targetPaintCaps,
@@ -310,13 +310,13 @@ const anchorTravel = createAnchorTravel({
   anchors: anchorPaint,
   surfaces: auxiliarySurfaces,
   currentThreads: allThreads,
-  refreshConversation: () => app.refreshConversation(),
+  refreshThread: () => app.refreshThread(),
   announce,
 });
-landing = createConversationLanding({
+landing = createThreadLanding({
   setPanel: (...args) => threadPanelController.setPanel(...args),
   scrollToThread: anchorTravel.scrollToThread,
-  revealThread: (id) => revealThread(id, app.presentConversation),
+  revealThread: (id) => revealThread(id, app.presentThread),
 });
 declareThreadKeys(landing.landIn, {
   markThread: (id) => app.read.markThread(id),
@@ -326,7 +326,7 @@ const anchorControls = createAnchorControls({
   openThread: (...args) => app.margin.openPageThread(...args),
   withdrawReaction: (...args) => app.withdraw(...args),
   labelAnchor: anchorLabel,
-  invalidateConversation: () => app.refreshConversation(),
+  invalidateThread: () => app.refreshThread(),
   invalidatePageGeometry: pageGeometry.invalidate,
   messageReferenceRoot: panel,
   draftQuote: composerQuote,
@@ -359,7 +359,7 @@ const inputs = createCompositionInputs({
 });
 
 app = mountApplication({
-  conversationAvailable: !offlineInteractive,
+  threadAvailable: !offlineInteractive,
   reportPageError,
   createEngagement,
   targetChooserOpen: () => targets.targetChooserOpen(),
@@ -370,7 +370,7 @@ app = mountApplication({
   drawingPaint,
   pageGeometry,
   anchorTravel,
-  readConversationDraft: () => ({
+  readThreadDraft: () => ({
     open: composerOpen,
     anchor: pendingAnchor,
     about: pendingAbout,
@@ -388,16 +388,16 @@ app = mountApplication({
     seat: (...args) => responseSurface.seatFab(...args),
     restore: (...args) => responseSurface?.restoreFab(...args) ?? false,
   },
-  landInConversation: (...args) => landing.landInConversation(...args),
+  landInThread: (...args) => landing.landInThread(...args),
   showThread: (...args) => landing.showThread(...args),
   panelIsOpen,
-  onConversationChanged: repaint,
+  onThreadChanged: repaint,
   retainPanelLanding: (source) => retainPanelLanding(source, panelIsOpen),
-  retainThreadNarrowing: () => retainNarrowing(app.presentConversation),
-  retainConversationFocus: () => retainConversationFocus(panelIsOpen),
+  retainThreadNarrowing: () => retainNarrowing(app.presentThread),
+  retainThreadFocus: () => retainThreadFocus(panelIsOpen),
   revealReplyEditor: (input, { behavior, block } = {}) =>
-    revealConversation(
-      input.closest(".lf-thread, .lf-conversation-thread, .lf-conversation"),
+    scrollThreadIntoView(
+      input.closest(".lf-thread, .lf-page-thread, .lf-thread-seat"),
       input,
       behavior,
       block,
@@ -419,7 +419,7 @@ app = mountApplication({
     openPageMap: (...args) => pageMapDialog.openPageMap(...args),
     pageMapDialogContains: (...args) => pageMapDialog.pageMapDialogContains(...args),
     renderPageMapDialog: (...args) => pageMapDialog.renderPageMapDialog(...args),
-    revealConversation,
+    scrollThreadIntoView,
     goToAsk: (...args) => asks.goToAsk(...args),
   },
   state: {
@@ -486,7 +486,7 @@ asks = createAskView({
   setPanel: (...args) => threadPanelController.setPanel(...args),
   trip: anchorTravel.trip,
   scrollToElement: anchorTravel.scrollToElement,
-  refreshConversation: () => app.refreshConversation(),
+  refreshThread: () => app.refreshThread(),
   announce,
   repaint,
 });
@@ -531,7 +531,7 @@ selectionComposer = createSelectionComposer({
   createComment: app.createComment,
   focusSurface,
   showThread: landing.showThread,
-  refreshConversation: app.refreshConversation,
+  refreshThread: app.refreshThread,
   wireInput: inputs.wireInput,
 });
 responseSurface = createResponseSurface({
@@ -566,7 +566,7 @@ responseSurface = createResponseSurface({
   versionMenuIsOpen,
   openPageThread: app.margin.openPageThread,
   drawModeActive: () => drawing.drawModeActive(),
-  refreshConversation: app.refreshConversation,
+  refreshThread: app.refreshThread,
   responseHome: chromeRoot,
 });
 reactions = createReactionController({
@@ -585,7 +585,7 @@ reactions = createReactionController({
   showFab: responseSurface.showFab,
   showFabOptions: responseSurface.showFabOptions,
   updateFab: responseSurface.updateFab,
-  standingConversation,
+  standingThread,
   standingElement,
 });
 targets = createTargetChooser({
@@ -644,10 +644,10 @@ layout = createChromeLayout({
 threadPanelController = createThreadPanelController({
   auxiliarySurfaces,
   elements: { panel, toggleBtn, threadsBox },
-  widen: () => widen(app.presentConversation),
+  widen: () => widen(app.presentThread),
   activeInlineThread: app.margin.activeInlineThread,
   showThread: landing.showThread,
-  refreshConversation: app.refreshConversation,
+  refreshThread: app.refreshThread,
   closeReactionMode: () => reactions.setReact(false),
   closePreview: app.margin.closePreview,
   syncGeneral: panelComposer.syncGeneral,
@@ -752,7 +752,7 @@ if (!offlineInteractive) {
   auxiliarySurfaces.mount();
   // Connect the search field before mount awaits its rendered input: Lit does not
   // resolve updateComplete until connection, and keyboard registration needs that input.
-  mountNarrowing(app.presentConversation);
+  mountNarrowing(app.presentThread);
   await panelComposer.mount();
   selectionComposer.mount();
   responseSurface.mount();
@@ -767,7 +767,7 @@ if (!offlineInteractive) {
   pageMapDialog.mount(chromeRoot);
   asks.mount();
   app.margin.mount();
-  app.mountConversation();
+  app.mountThread();
   app.mountRead();
   mountThreadList(panelIsOpen);
   wireThreadLanding();
@@ -867,8 +867,8 @@ async function presentPage() {
   if (document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented)) return;
   setAnchoringReady(true);
   try {
-    await app.presentConversation();
-    // Anchoring changes where conversation chrome is painted. That final paint is part
+    await app.presentThread();
+    // Anchoring changes where thread chrome is painted. That final paint is part
     // of initial presentation too: opening interaction before it commits can expose a
     // malformed page that the unanchored provisional pass could not yet inspect.
     await whenApplicationPresented();

@@ -58,9 +58,7 @@ export function wireReply(
       tellDraft(draftCtx, v);
     },
     send: (_text, raw, owns) => {
-      const held = input.closest(
-        ".lf-thread, .lf-conversation-thread, .lf-conversation",
-      );
+      const held = input.closest(".lf-thread, .lf-page-thread, .lf-thread-seat");
       const mayReveal =
         held && (focused() === input || focused() === send)
           ? retainUserIntent({ source: held, available: () => held.isConnected })
@@ -82,14 +80,14 @@ export function wireReply(
   // A box growing under the user pushes its embedded Send below the list's foot:
   // eight lines of reply left the blue button a sliver at the scrollport's edge,
   // reachable only by the send key the placeholder happened to name. Landing reveals
-  // the composer with its controls (revealConversation); growth is the same claim made
+  // the composer with its controls (scrollThreadIntoView); growth is the same claim made
   // again. On the user's own keystrokes and nothing else: a send settling after they
   // scrolled away, or a draft mirrored from another tab, must not pull the list back.
   // Instant, not smooth — a line typed while the last line's glide is still running
   // lands the list where that glide was going, two lines short of the box it is now.
   input.addEventListener("input", () => {
     if (focused() !== input) return;
-    const held = input.closest(".lf-thread, .lf-conversation-thread, .lf-conversation");
+    const held = input.closest(".lf-thread, .lf-page-thread, .lf-thread-seat");
     if (held) revealReplyEditor(input, { behavior: "instant" });
   });
   const dispose = mirrorDraft(

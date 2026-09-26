@@ -20,9 +20,9 @@
    closed.
    Reset restores Open and clears the other refinements and search together.
 
-   These are the panel's own view. The page's marks, inline conversation seats and
+   These are the panel's own view. The page's marks, inline thread seats and
    banner counts keep reading the whole log. No narrowing is stored: returning to a
-   page should not silently hide conversation. Cards remain in the document while
+   page should not silently hide thread. Cards remain in the document while
    filtered so reply widgets keep their identity and the rest of the runtime can still
    read them by id. The list captures one immutable user intent and checkpoints the
    resulting summary and facets with its rows; repainting that reading does not change
@@ -287,9 +287,9 @@ export function narrowingReading(reading, threads, groups = new Map()) {
   });
 }
 
-function renarrow(repaintConversation) {
+function renarrow(repaintThread) {
   if (runtime.statePhase !== "ready") return;
-  const ready = repaintConversation();
+  const ready = repaintThread();
   // Reset after the keyed list has committed. The coordinator owns rejection reporting;
   // observe this continuation on both paths so an event listener that discards the
   // returned ticket cannot create another page-level rejection.
@@ -304,11 +304,11 @@ function replaceIntent(changes) {
   intent = Object.freeze({ ...intent, ...changes });
 }
 
-const chooseFacet = (kind, value, repaintConversation) => {
+const chooseFacet = (kind, value, repaintThread) => {
   if (kind === "order") {
     if (intent.order === value) return;
     replaceIntent({ order: value });
-    return renarrow(repaintConversation);
+    return renarrow(repaintThread);
   }
   const next = transition(
     intent,
@@ -317,19 +317,19 @@ const chooseFacet = (kind, value, repaintConversation) => {
   );
   if (next === intent) return;
   intent = next;
-  return renarrow(repaintConversation);
+  return renarrow(repaintThread);
 };
 
-export function mountNarrowing(repaintConversation) {
+export function mountNarrowing(repaintThread) {
   narrowingView.configure({
     initial: narrowingModel([], new Map()).presentation,
     changeWords: (words) => {
       replaceIntent({ words, finding: words.trim().toLowerCase() });
-      renarrow(repaintConversation);
+      renarrow(repaintThread);
     },
-    chooseFacet: (kind, value) => chooseFacet(kind, value, repaintConversation),
-    toggleUser: () => chooseFacet("waiting", "user", repaintConversation),
-    reset: () => widen(repaintConversation),
+    chooseFacet: (kind, value) => chooseFacet(kind, value, repaintThread),
+    toggleUser: () => chooseFacet("waiting", "user", repaintThread),
+    reset: () => widen(repaintThread),
   });
 }
 
@@ -349,7 +349,7 @@ function clearNarrowing(nextStatus = "open") {
 // transition captures this reading before it reveals that destination, so refusal can
 // put back the exact list the user was operating rather than merely selecting the
 // thread's lifecycle again.
-export function retainNarrowing(repaintConversation) {
+export function retainNarrowing(repaintThread) {
   const retained = intent;
   let replacement = null;
   return {
@@ -371,27 +371,27 @@ export function retainNarrowing(repaintConversation) {
       if (intent !== prepared) return false;
       intent = retained;
       narrowingView.setSearchWords(retained.words);
-      await renarrow(repaintConversation);
+      await renarrow(repaintThread);
       return true;
     },
   };
 }
 
-export function widen(repaintConversation) {
+export function widen(repaintThread) {
   if (!clearNarrowing()) return false;
-  renarrow(repaintConversation);
+  renarrow(repaintThread);
   return true;
 }
 
 // A direct destination overrides the current view, including the default Open state.
 // It clears unrelated refinements and selects the lifecycle value that can contain the
 // requested thread, rather than making Resolved a special disclosure outside filtering.
-export function revealThread(id, repaintConversation) {
+export function revealThread(id, repaintThread) {
   const thread = threadList().find(
     (candidate) =>
       candidate.root.id === id || candidate.msgs.some((message) => message.id === id),
   );
   if (!thread) return false;
   clearNarrowing(thread.resolved ? "resolved" : "open");
-  return renarrow(repaintConversation);
+  return renarrow(repaintThread);
 }

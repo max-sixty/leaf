@@ -217,7 +217,7 @@ def test_how_it_works_quotes_the_real_check_and_stamp_lines(page_dir):
 def test_how_it_works_delivery_has_the_shape_a_real_delivery_has(page_dir):
     """The captured envelope is hand-copied, so it carries what a delivery carries now.
 
-    A batch names each conversation its events land in, with that conversation's
+    A batch names each thread its events land in, with that thread's
     metadata, and the page's sample once kept an empty list beside a comment that
     opened one. The entry keys are read off a delivery frozen here rather than
     listed, so a field the envelope gains has to be written into the page too. Each
@@ -244,22 +244,22 @@ def test_how_it_works_delivery_has_the_shape_a_real_delivery_has(page_dir):
     assert shown["carrier"] == real["carrier"]
     assert shown["acknowledge"] == real["acknowledge"].replace(real["id"], shown["id"])
     [real_batch] = real["batches"]
-    (real_conversation,) = real_batch["conversations"]
+    (real_thread,) = real_batch["threads"]
     registry = active_registry(page_dir)
 
     for batch in shown["batches"]:
         assert batch.keys() == real_batch.keys()
-        named = [c for event in batch["events"] for c in event["conversations"]]
-        assert [c["id"] for c in batch["conversations"]] == list(dict.fromkeys(named))
-        for conversation in batch["conversations"]:
-            assert conversation.keys() == real_conversation.keys()
-        digests = {c["id"]: c for c in batch["conversations"]}
+        named = [c for event in batch["events"] for c in event["threads"]]
+        assert [c["id"] for c in batch["threads"]] == list(dict.fromkeys(named))
+        for thread in batch["threads"]:
+            assert thread.keys() == real_thread.keys()
+        digests = {c["id"]: c for c in batch["threads"]}
         for event in batch["events"]:
             shown_clauses = [batch["handling"][h] for h in event["handling"]]
-            # A clause reads the event's conversation beside the event.
+            # A clause reads the event's thread beside the event.
             case = dict(event)
-            if event["conversations"]:
-                case["conversation"] = digests[event["conversations"][0]]
+            if event["threads"]:
+                case["thread"] = digests[event["threads"][0]]
             told = event_clauses(case, registry)
             delivered = [c["text"] for c in told]
             assert shown_clauses == delivered, event["id"]

@@ -436,7 +436,7 @@ def _validate_widget_structure(
                 "must be required and declare a date-time string"
             )
     said = set(entry.get("x-says", {}))
-    for role in ("x-awaits", "x-conversation", "x-request"):
+    for role in ("x-awaits", "x-thread-seat", "x-request"):
         if entry.get(role) is not None and (
             not isinstance(properties.get("id"), dict)
             or properties["id"].get("type") != "string"
@@ -524,7 +524,7 @@ def _validate_widget_predicates(tag: str, entry: dict, properties: dict, path) -
             ("x-awaits", condition.get("when", {}))
             for condition in awaits.get("answered", {}).values()
         ),
-        ("x-conversation", entry.get("x-conversation", {}).get("when", {})),
+        ("x-thread-seat", entry.get("x-thread-seat", {}).get("when", {})),
     ]
     for declaration, condition in conditions:
         for attr, values in condition.items():
@@ -565,15 +565,15 @@ def _validate_widget_predicates(tag: str, entry: dict, properties: dict, path) -
                         f"{value!r}, which its own schema does not admit: "
                         f"{errors[0].message}"
                     )
-    conversation = entry.get("x-conversation", {})
+    thread = entry.get("x-thread-seat", {})
     mutable_values = {
         spec["record"]["attr"]
         for _verb, spec in state_specs(entry)
         if (spec.get("record") or {}).get("kind") == "value"
     }
-    if dynamic := sorted(set(conversation.get("when", {})) & mutable_values):
+    if dynamic := sorted(set(thread.get("when", {})) & mutable_values):
         raise RegistryError(
-            f"{path}: <{tag}> x-conversation predicate attributes are authored "
+            f"{path}: <{tag}> x-thread-seat predicate attributes are authored "
             f"and static, but {dynamic} are written by value records"
         )
     data_bindings = {spec["source"] for spec in entry.get("x-data", {}).values()}
@@ -640,7 +640,7 @@ def _validate_widget_interactions(
             "x-verbatim",
             "x-shadow",
             "x-thread-surface",
-            "x-conversation",
+            "x-thread-seat",
             "x-history",
         )
         if entry.get(key) and not entry["x-upgrade"]

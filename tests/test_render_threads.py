@@ -10,18 +10,17 @@ import pytest
 from click.testing import CliRunner
 from interact_support import append_command, record_claim
 from leaf import cli as cli_model
-from leaf import conversation as conversation_model
 from leaf import delivery as delivery_model
 from leaf import event_log as events_model
 from leaf import leases as leases_model
 from leaf import render_checks as render_checks_model
 from leaf import service as service_model
+from leaf import thread as thread_model
 from PIL import Image
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_cases_interaction import (
     ASK_PAGE,
-    CONVERSATION_DIFF_PAGE,
     FRAME_BY_FRAME,
     HOLD_MOTION,
     LIST_RUNS,
@@ -30,6 +29,7 @@ from render_cases_interaction import (
     SEATED_ASK_LAYER,
     SEATED_ASK_WIDGETS,
     SEATED_QUESTION_PAGE,
+    THREAD_DIFF_PAGE,
     panel_comment,
 )
 from render_cases_layout import (
@@ -129,15 +129,15 @@ def hold_visible_thread_presentation(page, thread_id):
 
 # Named from the command's own answer: a page open on this directory appends a
 # bookkeeping `read` of its own, so the log's tail is not reliably this summary.
-def summarize_conversation(page_dir, conversation, first, last, text):
+def summarize_thread(page_dir, thread, first, last, text):
     """Admit one agent summary through the public command door."""
     result = CliRunner().invoke(
         cli_model.cli,
         [
-            "conversation",
+            "thread",
             "summarize",
             str(page_dir),
-            conversation,
+            thread,
             "--from",
             first,
             "--through",
@@ -297,7 +297,7 @@ def test_a_durable_reply_completes_an_empty_stream_placeholder(browser, serve, r
         attempt,
     )
 
-    reply = conversation_model.cmd_reply(
+    reply = thread_model.cmd_reply(
         serve.page_dir,
         root,
         "The complete answer.",
@@ -343,7 +343,7 @@ def test_a_durable_reply_completes_an_empty_stream_placeholder(browser, serve, r
 
 
 @pytest.mark.parametrize("resolved", [False, True])
-def test_an_inline_reply_link_reveals_its_conversation(browser, serve, resolved):
+def test_an_inline_reply_link_reveals_its_thread(browser, serve, resolved):
     """A direct reply link opens and cues the exact message, even in a long thread or
     in the Resolved state. The surrounding card can span more than a viewport,
     so using it as the arrival flash obscures the destination the link named."""
@@ -351,7 +351,7 @@ def test_an_inline_reply_link_reveals_its_conversation(browser, serve, resolved)
     root = panel_comment(
         serve.page_dir, "Which job should come first?", {"section": "jobs"}
     )
-    reply = conversation_model.cmd_reply(
+    reply = thread_model.cmd_reply(
         serve.page_dir,
         root,
         "Choose the first job.",
@@ -380,7 +380,7 @@ def test_an_inline_reply_link_reveals_its_conversation(browser, serve, resolved)
     page = open_page(browser, url)
     thread = page.locator(f'.lf-thread[data-id="{root}"]')
     destination = thread.locator(f'.lf-msg[data-mid="{reply["id"]}"]')
-    page.locator(".lf-conversation-open").evaluate(
+    page.locator(".lf-page-thread-open").evaluate(
         """(open, destination) => open.addEventListener(
           'click',
           () => {
@@ -397,7 +397,7 @@ def test_an_inline_reply_link_reveals_its_conversation(browser, serve, resolved)
         )""",
         destination.element_handle(),
     )
-    page.locator(".lf-conversation-open").click()
+    page.locator(".lf-page-thread-open").click()
     panel_settled(page)
     page.wait_for_function("() => window.__arrival !== null")
     arrival = page.evaluate("() => window.__arrival")
@@ -435,7 +435,7 @@ def test_a_summary_folds_originals_and_a_direct_reply_link_reveals_them(browser,
     root = panel_comment(
         serve.page_dir, "Keep the opening question visible.", {"section": "jobs"}
     )
-    first = conversation_model.cmd_reply(
+    first = thread_model.cmd_reply(
         serve.page_dir,
         root,
         "The first job establishes the dependency.",
@@ -454,7 +454,7 @@ def test_a_summary_folds_originals_and_a_direct_reply_link_reveals_them(browser,
     latest = append_user_reply(
         serve.page_dir, root, "Then keep the latest exception visible."
     )
-    summary = summarize_conversation(
+    summary = summarize_thread(
         serve.page_dir,
         root,
         first["id"],
@@ -525,7 +525,7 @@ def test_a_summary_folds_originals_and_a_direct_reply_link_reveals_them(browser,
     expand = checkpoint.locator(".lf-summary-expand")
     expect(expand).to_have_attribute("aria-expanded", "false")
 
-    page.locator(".lf-conversation-open").click()
+    page.locator(".lf-page-thread-open").click()
     destination = card.locator(f'.lf-msg[data-mid="{last["id"]}"]')
     expect(destination).to_be_visible()
     expect(destination).to_be_focused()
@@ -538,7 +538,7 @@ def test_a_root_summary_keeps_thread_actions_outside_its_fold(browser, serve):
     root = panel_comment(serve.page_dir, "Start with the measured constraint.")
     reply = append_agent_reply(serve.page_dir, root, "The constraint still applies.")
     append_agent_reply(serve.page_dir, root, "The later result remains visible.")
-    summary = summarize_conversation(
+    summary = summarize_thread(
         serve.page_dir, root, root, reply["id"], "The constraint was confirmed."
     )
     events_model.append_event(
@@ -583,12 +583,12 @@ def test_a_later_summary_replaces_its_overlap_and_an_edit_restores_originals(
     """The browser follows the canonical summary fold as the transcript changes."""
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "Start with the measured constraint.")
-    first = conversation_model.cmd_reply(
+    first = thread_model.cmd_reply(
         serve.page_dir, root, "The first constraint.", None, for_event=root
     )
     second = append_agent_reply(serve.page_dir, root, "The second constraint.")
     third = append_agent_reply(serve.page_dir, root, "The third constraint.")
-    old = summarize_conversation(
+    old = summarize_thread(
         serve.page_dir,
         root,
         first["id"],
@@ -607,7 +607,7 @@ def test_a_later_summary_replaces_its_overlap_and_an_edit_restores_originals(
     standing.focus()
     expect(standing).to_be_focused()
 
-    replacement = summarize_conversation(
+    replacement = summarize_thread(
         serve.page_dir,
         root,
         first["id"],
@@ -670,7 +670,7 @@ def test_a_summary_cannot_hide_an_active_question(browser, serve):
     root = panel_comment(
         serve.page_dir, "Which job should come first?", {"section": "jobs"}
     )
-    question = conversation_model.cmd_reply(
+    question = thread_model.cmd_reply(
         serve.page_dir,
         root,
         "Choose the first job.",
@@ -681,7 +681,7 @@ def test_a_summary_cannot_hide_an_active_question(browser, serve):
         "</lf-options></lf-ask>",
         for_event=root,
     )
-    summary = summarize_conversation(
+    summary = summarize_thread(
         serve.page_dir,
         root,
         root,
@@ -722,7 +722,7 @@ def test_a_held_inline_reply_reveal_yields_to_new_user_focus(browser, serve):
     root = panel_comment(
         serve.page_dir, "Which job should come first?", {"section": "jobs"}
     )
-    reply = conversation_model.cmd_reply(
+    reply = thread_model.cmd_reply(
         serve.page_dir,
         root,
         "Choose the first job.",
@@ -743,7 +743,7 @@ def test_a_held_inline_reply_reveal_yields_to_new_user_focus(browser, serve):
     hold_visible_thread_presentation(page, root)
 
     page.locator(
-        f'#jobs .lf-conversation-thread[data-thread="{root}"] .lf-conversation-open'
+        f'#jobs .lf-page-thread[data-thread="{root}"] .lf-page-thread-open'
     ).click()
     page.wait_for_function(
         "() => window.visibleThreadPresentationHeld === true", timeout=3000
@@ -773,7 +773,7 @@ def test_inline_settlement_retains_focus_when_its_controls_are_replaced(browser,
             layer_widgets=SEATED_ASK_WIDGETS,
         ),
     )
-    first = page.locator("#proposal > .lf-conversation > .lf-say")
+    first = page.locator("#proposal > .lf-thread-seat > .lf-say")
     first.locator("textarea").fill("Please combine the jobs.")
     with sending(page, "the root comment"):
         first.get_by_role("button", name="Send", exact=True).click()
@@ -782,7 +782,7 @@ def test_inline_settlement_retains_focus_when_its_controls_are_replaced(browser,
         for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "comment"
     )
-    thread = page.locator(f'.lf-conversation-thread[data-thread="{root["id"]}"]')
+    thread = page.locator(f'.lf-page-thread[data-thread="{root["id"]}"]')
     destination = thread.locator("textarea")
     expect(destination).to_have_count(1)
     thread.get_by_role("button", name="Resolve thread", exact=True).focus()
@@ -986,7 +986,7 @@ def test_a_card_repaint_keeps_the_user_on_the_control_they_reached(browser, serv
               node.matches?.('.lf-margin-thread')
             ) {
                   window.__lfDetachedThread = Boolean(
-                    node.querySelector('.lf-conversation-thread')
+                    node.querySelector('.lf-page-thread')
                   );
             }
             return insertBefore.call(this, node, before);
@@ -995,7 +995,7 @@ def test_a_card_repaint_keeps_the_user_on_the_control_they_reached(browser, serv
     )
     page.locator('.lf-margin-marker[data-lf-kinds="comment"]').click()
     assert page.evaluate("() => window.__lfDetachedThread"), (
-        "the detached margin card reached display before its conversation rendered"
+        "the detached margin card reached display before its thread rendered"
     )
     resolve = page.locator(".lf-margin-thread").get_by_role(
         "button", name="Resolve thread", exact=True
@@ -1198,7 +1198,7 @@ def test_settlement_controls_share_one_request_across_page_and_panel(
     resized(page, 1920, 900)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    inline = page.locator(f'#jobs .lf-conversation-thread[data-thread="{root}"]')
+    inline = page.locator(f'#jobs .lf-page-thread[data-thread="{root}"]')
     panel = page.locator(f'.lf-thread[data-id="{root}"]')
     with page.expect_request("**/api/event"):
         inline.get_by_role("button", name="Resolve thread", exact=True).click()
@@ -1244,7 +1244,7 @@ def test_a_poll_accounted_settlement_repaints_before_its_post_response(
     """A poll may prove acceptance while the original POST response remains held.
 
     The poll paints and accounts the receipt first. Delivery then retires the already
-    accounted ledger entry, which must invalidate the unchanged conversation reading;
+    accounted ledger entry, which must invalidate the unchanged thread reading;
     otherwise every mirrored settlement control stays busy until an unrelated clock
     tick or state read.
     """
@@ -1264,7 +1264,7 @@ def test_a_poll_accounted_settlement_repaints_before_its_post_response(
     resized(page, 1920, 900)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    inline = page.locator(f'#jobs .lf-conversation-thread[data-thread="{root}"]')
+    inline = page.locator(f'#jobs .lf-page-thread[data-thread="{root}"]')
     panel = page.locator(f'.lf-thread[data-id="{root}"]')
 
     with page.expect_request("**/api/event"):
@@ -1899,7 +1899,7 @@ def test_an_arrival_interrupts_nothing_the_user_holds(browser, serve):
 
 
 def test_opening_message_reactions_does_not_reflow_the_thread_list(browser, serve):
-    """The picker floats from its message corner without moving the conversation.
+    """The picker floats from its message corner without moving the thread.
 
     A reaction list used to add forty pixels to its thread only while open. That moved
     every later thread under the pointer and made choosing a reaction change the layout
@@ -2044,7 +2044,7 @@ def test_a_failed_thread_list_update_retries_one_coherent_reading(browser, serve
             '/runtime/semantic-state.js'
           );
           const {ThreadView} = await window.__lfRuntimeImport(
-            '/runtime/conversation/thread-card.js'
+            '/runtime/thread/thread-card.js'
           );
           const list = document.querySelector('leaf-thread-list');
           const presentCard = ThreadView.prototype.present;
@@ -2101,7 +2101,7 @@ def test_a_failed_thread_list_update_retries_one_coherent_reading(browser, serve
     page.wait_for_function(
         "() => window.threadChildFailed && window.threadRetryHeld && "
         "window.threadListPresentation.readApplicationPresentation().pending"
-        ".includes('conversation')",
+        ".includes('thread')",
         timeout=5000,
     )
 
@@ -2177,7 +2177,7 @@ def test_a_failed_narrowing_restore_has_one_owned_presentation_error(browser, se
         """async () => {
           const {readApplicationPresentation} = await window.__lfRuntimeImport(
             '/runtime/semantic-state.js');
-          return readApplicationPresentation().pending.includes('conversation');
+          return readApplicationPresentation().pending.includes('thread');
         }"""
     )
     expected = [
@@ -2193,7 +2193,7 @@ def test_a_failed_narrowing_restore_has_one_owned_presentation_error(browser, se
         """async () => {
           const {readApplicationPresentation} = await window.__lfRuntimeImport(
             '/runtime/semantic-state.js');
-          return !readApplicationPresentation().pending.includes('conversation');
+          return !readApplicationPresentation().pending.includes('thread');
         }"""
     )
 
@@ -2240,7 +2240,7 @@ def test_a_failed_narrowing_view_restores_its_committed_list_and_keeps_the_input
         """async () => {
           const {readApplicationPresentation} = await window.__lfRuntimeImport(
             '/runtime/semantic-state.js');
-          return readApplicationPresentation().pending.includes('conversation');
+          return readApplicationPresentation().pending.includes('thread');
         }"""
     )
 
@@ -2277,7 +2277,7 @@ def test_a_failed_narrowing_view_restores_its_committed_list_and_keeps_the_input
         """async () => {
           const {readApplicationPresentation} = await window.__lfRuntimeImport(
             '/runtime/semantic-state.js');
-          return !readApplicationPresentation().pending.includes('conversation');
+          return !readApplicationPresentation().pending.includes('thread');
         }"""
     )
 
@@ -2329,7 +2329,7 @@ def test_a_failed_reopen_reveal_still_processes_its_durable_answer(held_events, 
         """async () => {
           const {readApplicationPresentation} = await window.__lfRuntimeImport(
             '/runtime/semantic-state.js');
-          return readApplicationPresentation().pending.includes('conversation');
+          return readApplicationPresentation().pending.includes('thread');
         }"""
     )
     expected = [
@@ -2358,7 +2358,7 @@ def test_a_failed_reopen_reveal_still_processes_its_durable_answer(held_events, 
         """async () => {
           const {readApplicationPresentation} = await window.__lfRuntimeImport(
             '/runtime/semantic-state.js');
-          return !readApplicationPresentation().pending.includes('conversation');
+          return !readApplicationPresentation().pending.includes('thread');
         }"""
     )
     expect(page.locator('[data-filter-value="resolved"]')).to_have_attribute(
@@ -2413,7 +2413,7 @@ def test_an_approval_made_elsewhere_reaches_the_panel_and_the_banner(browser, se
     )
 
 
-def test_the_conversation_clock_reopens_its_same_epoch_ticket(browser, serve):
+def test_the_thread_clock_reopens_its_same_epoch_ticket(browser, serve):
     """A system-row age is presented mechanically without advancing semantic time."""
     url = serve(LONG_PAGE, comments=1)
     events_model.append_event(
@@ -2441,52 +2441,52 @@ def test_the_conversation_clock_reopens_its_same_epoch_ticket(browser, serve):
             armed = false;
             return held.then(schedule);
           };
-          window.releaseConversationClock = release;
-          window.conversationPresence = await window.__lfRuntimeImport(
+          window.releaseThreadClock = release;
+          window.threadPresence = await window.__lfRuntimeImport(
             '/runtime/presence.js'
           );
-          window.conversationPresentation = await window.__lfRuntimeImport(
+          window.threadPresentation = await window.__lfRuntimeImport(
             '/runtime/semantic-state.js'
           );
-          return conversationPresentation.readApplicationPresentation();
+          return threadPresentation.readApplicationPresentation();
         }"""
     )
     held = page.evaluate(
         """() => {
-          conversationPresence.observeServerNow(
+          threadPresence.observeServerNow(
             new Date(Date.now() + 60_000).toISOString()
           );
-          window.conversationClockTick = conversationPresence.tickClock(() => {});
-          window.conversationClockReady = false;
-          conversationPresentation.whenApplicationPresented().then(() => {
-            window.conversationClockReady = true;
+          window.threadClockTick = threadPresence.tickClock(() => {});
+          window.threadClockReady = false;
+          threadPresentation.whenApplicationPresented().then(() => {
+            window.threadClockReady = true;
           });
-          const reading = conversationPresentation.readApplicationPresentation();
+          const reading = threadPresentation.readApplicationPresentation();
           return {
             pending: reading.pending,
             semanticEpoch: reading.semanticEpoch,
             presentedEpoch: reading.presentedEpoch,
-            ready: conversationClockReady,
+            ready: threadClockReady,
           };
         }"""
     )
-    assert "conversation" in held["pending"]
+    assert "thread" in held["pending"]
     assert held["semanticEpoch"] == before["semanticEpoch"]
     assert held["presentedEpoch"] == before["presentedEpoch"]
     assert held["ready"] is False
 
-    page.evaluate("releaseConversationClock()")
-    page.wait_for_function("conversationClockReady", timeout=3000)
-    page.evaluate("conversationClockTick")
+    page.evaluate("releaseThreadClock()")
+    page.wait_for_function("threadClockReady", timeout=3000)
+    page.evaluate("threadClockTick")
     expect(system).to_have_text("✓ Approved 1m ago")
-    after = page.evaluate("conversationPresentation.readApplicationPresentation()")
+    after = page.evaluate("threadPresentation.readApplicationPresentation()")
     assert after["semanticEpoch"] == before["semanticEpoch"]
     assert after["presentedEpoch"] == before["presentedEpoch"]
 
 
-def test_the_panel_reads_the_conversation_in_the_pages_own_order(browser, serve):
+def test_the_panel_reads_the_thread_in_the_pages_own_order(browser, serve):
     """The list is the page's order, not the log's. A user walking a long
-    conversation walks it the way they walk the prose it is about, and every other
+    thread walks it the way they walk the prose it is about, and every other
     reading of these threads already does: the marks down the page and the t/T walk. So
     the threads are written here in the reverse of the page's order and
     the panel is asked for its own, which is only the page's if something sorted it.
@@ -2571,9 +2571,7 @@ def test_recent_order_lists_threads_by_their_latest_message(browser, serve):
     cap = comment("Is forty enough?", {"section": "how-cap"}, 3)
     whole = comment("The whole thing needs a summary.", None, 12)
     # A reply today makes the oldest thread the most recent one.
-    conversation_model.cmd_reply(
-        d, whole, "Added one at the top.", None, for_event=whole
-    )
+    thread_model.cmd_reply(d, whole, "Added one at the top.", None, for_event=whole)
 
     page = open_page(browser, url)
     page.locator(".lf-threads-toggle").click()
@@ -2890,7 +2888,7 @@ def test_a_run_of_threads_says_which_part_of_the_page_it_is_about(browser, serve
 def test_finding_narrows_the_list_and_says_how_much_of_it_is_left(browser, serve):
     """A search box is what every panel with a long list has, and the trap every one of
     them has too: the list goes quiet about the threads it is hiding. So the head says
-    how much of the conversation is in front of the user for as long as a narrowing
+    how much of the thread is in front of the user for as long as a narrowing
     stands, and a thread asked for by name — a mark on the page, a send that landed —
     lets the narrowing go rather than declining to appear.
 
@@ -3106,7 +3104,7 @@ def test_the_panel_can_show_only_what_is_waiting_on_the_user(browser, serve):
     expect(page.locator(".lf-threads")).to_be_focused()
 
     # Escape unwinds the narrowing before it closes the panel, from wherever the user
-    # is standing: a list that is not the whole conversation is a layer they put on.
+    # is standing: a list that is not the whole thread is a layer they put on.
     expect(page.locator(".lf-shortcut-bar")).to_contain_text("show all")
     page.keyboard.press("Escape")
     expect(page.locator(".lf-threads > .lf-thread:not([hidden])")).to_have_count(2)
@@ -3147,7 +3145,7 @@ def test_the_panel_composes_state_scope_subject_and_placement_facets(browser, se
 
     # One open thread awaits neither party after a complete agent answer.
     settled_turn = panel_comment(d, "A complete answer is available.")
-    conversation_model.cmd_reply(
+    thread_model.cmd_reply(
         d, settled_turn, "Done; nothing more is needed.", None, for_event=settled_turn
     )
     page = open_page(browser, url)
@@ -3315,14 +3313,14 @@ def test_an_agent_reply_says_when_the_user_owes_an_answer(browser, serve):
     url = serve(PANEL_PAGE)
     answered = panel_comment(serve.page_dir, "Why forty?", {"section": "how-cap"})
     asked = panel_comment(serve.page_dir, "What remains?", {"section": "how-store"})
-    conversation_model.cmd_reply(
+    thread_model.cmd_reply(
         serve.page_dir,
         answered,
         "Forty is what the slowest supported device can hold.",
         None,
         for_event=answered,
     )
-    conversation_model.cmd_reply(
+    thread_model.cmd_reply(
         serve.page_dir,
         asked,
         "One choice remains. Which store should own the result?",
@@ -3391,7 +3389,7 @@ def test_an_agent_reply_says_when_the_user_owes_an_answer(browser, serve):
     # The completed thread is absent under the narrowing. A later structured ask must
     # still be projected before the filter decides whether to admit that thread, or the
     # question can never render itself into the list that would discover it.
-    widget_reply = conversation_model.cmd_reply(
+    widget_reply = thread_model.cmd_reply(
         serve.page_dir,
         answered,
         "Choose the backend here.",
@@ -3452,7 +3450,7 @@ def test_a_host_failure_receipt_does_not_read_as_an_answer(browser, serve):
     the page's own record of the failure — `failure` — went unread. The mark belongs
     in the head because that is the part of a message a user takes on trust.
     """
-    url = serve(CONVERSATION_DIFF_PAGE)
+    url = serve(THREAD_DIFF_PAGE)
     answered, unanswered = (
         events_model.append_event(
             serve.page_dir,
@@ -3466,14 +3464,14 @@ def test_a_host_failure_receipt_does_not_read_as_an_answer(browser, serve):
         )
         for text in ("Widen the north bracket?", "And the south pair?")
     )
-    answer = conversation_model.cmd_reply(
+    answer = thread_model.cmd_reply(
         serve.page_dir,
         answered["id"],
         "Widened it to forty.",
         None,
         for_event=answered["id"],
     )
-    receipt = conversation_model.cmd_reply(
+    receipt = thread_model.cmd_reply(
         serve.page_dir,
         unanswered["id"],
         "The agent's turn ended without an answer to this message. "
@@ -3485,12 +3483,12 @@ def test_a_host_failure_receipt_does_not_read_as_an_answer(browser, serve):
 
     page = open_page(browser, url)
     resized(page, 1200, 900)
-    inline = page.locator(f'#cd-q .lf-conversation-msg[data-event="{receipt["id"]}"]')
+    inline = page.locator(f'#cd-q .lf-page-thread-msg[data-event="{receipt["id"]}"]')
     expect(inline.locator(".lf-msg-failure")).to_have_text("Not answered")
     assert inline.get_attribute("data-failure") == "turn_failed"
     # The real answer above it wears nothing, so the mark is a difference the user
     # can see rather than a decoration every agent message carries.
-    real = page.locator(f'#cd-q .lf-conversation-msg[data-event="{answer["id"]}"]')
+    real = page.locator(f'#cd-q .lf-page-thread-msg[data-event="{answer["id"]}"]')
     expect(real.locator(".lf-msg-failure")).to_have_count(0)
 
     # The server settled its turn, so raw awaits_user is false. Canonical recovery
@@ -4172,7 +4170,7 @@ def test_an_inline_reply_link_finishes_a_resolution_fold(browser, serve):
     """A direct jump uses the resolved card, even before its outgoing fold ends."""
     url = serve(SEATED_QUESTION_PAGE)
     root = panel_comment(serve.page_dir, "Which job first?", {"section": "jobs"})
-    reply = conversation_model.cmd_reply(
+    reply = thread_model.cmd_reply(
         serve.page_dir,
         root,
         "Pick the first job.",
@@ -4187,7 +4185,7 @@ def test_an_inline_reply_link_finishes_a_resolution_fold(browser, serve):
     resized(page, 1920, 900)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    inline = page.locator(f'#jobs .lf-conversation-thread[data-thread="{root}"]')
+    inline = page.locator(f'#jobs .lf-page-thread[data-thread="{root}"]')
     inline.get_by_role("button", name="Resolve thread", exact=True).click()
     round_trip(page)
     expect(page.locator(f'.lf-going[data-id="{root}"]')).to_have_count(1)
@@ -4464,8 +4462,8 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
                            for (const p of c) out[p] = c.getPropertyValue(p); return out; };
         const a = cs(probe), b = cs(plain);
         const body = document.createElement("div");
-        body.className = "lf-conversation-body";
-        body.textContent = "Authored conversation words";
+        body.className = "lf-page-thread-body";
+        body.textContent = "Authored thread words";
         document.getElementById("s").append(body);
         return { scoped: [...scoped], global: [...global_], themed: [...themed],
                  moved: Object.keys(a).filter(p => a[p] !== b[p]),
@@ -4514,7 +4512,7 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         "lf-compose-placeholder",
         "lf-compose-submit",
         # Reply disclosure is shared by inline threads in authored content and the
-        # conversation surfaces in chrome.
+        # thread surfaces in chrome.
         "lf-reply-disclosure",
         # The one canonical composer can be seated in a widget's own Thread outlet,
         # where the chrome's scoped rules cannot reach it. The authored theme dresses
@@ -4523,25 +4521,25 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         # its target press and the response options behind it — wears a document face
         # for the same reason .lf-margin-projection below does.
         "lf-composer",
-        # A conversation keeps the authored theme's shared card and message
+        # A thread keeps the authored theme's shared card and message
         # structure when the margin projects it into the chrome.
-        "lf-conversation-body",
+        "lf-page-thread-body",
         "lf-thread-root-meta",
         "lf-msg-meta",
         # The row that carries a message's name, time and state, and the word saying a
         # send is still going. Both are that same shared structure — the theme dresses
         # them wherever a message renders — and the scoped rules do nothing but fit the
         # row into the margin card's sticky head.
-        "lf-conversation-head",
+        "lf-page-thread-head",
         "lf-msg-sending",
         # The message's own box. The theme gives the authored and margin-projected copies
         # their spacing while the chrome's scoped rules dress the panel's. The runtime
-        # sheet used to name it at document level too, in a `.lf-conversation-msg.lf-ui`
+        # sheet used to name it at document level too, in a `.lf-page-thread-msg.lf-ui`
         # spelling of the shared face that answered nothing once that face moved to the
         # theme: no rule anywhere states a face on this class, so the extra weight was
         # only weight.
-        "lf-conversation-msg",
-        "lf-conversation-thread",
+        "lf-page-thread-msg",
+        "lf-page-thread",
         "lf-edited",
         # A host receipt's mark is part of that same shared message structure: the
         # head carries it in the panel and inline, so the theme dresses it here.
@@ -4589,10 +4587,10 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
     # What is not here is the shared vocabulary, whose faces the theme states — see the
     # exception above, and chrome.css's header for why.
     assert {c for c in surface["global"] if c.startswith("lf-")} == {
-        # Drawing is a body state, and an inline conversation lives inside authored
+        # Drawing is a body state, and an inline thread lives inside authored
         # widget markup. Both deliberately cross the chrome scope so drawing can spare
-        # the conversation's controls.
-        "lf-conversation",
+        # the thread's controls.
+        "lf-thread-seat",
         # The compact response field, named the same way: the general text box's rule
         # excludes it at document level because the field takes its whole geometry from
         # the response controls it shares a baseline with, inside the chrome's own scope.
@@ -4621,7 +4619,7 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         # from inside its own scope.
         "lf-say",
         # A pasted image's writing projection and inspection control cross the same
-        # seam: widget conversation boxes live in the page, while general comments,
+        # seam: widget thread boxes live in the page, while general comments,
         # anchored comments, and the viewer live in the chrome.
         "lf-compose",
         "lf-general",
@@ -4682,7 +4680,7 @@ BOTH_BOXES = """() => ({
 
 
 def seed_reply(d, markup, anchor_id, chatter=0, after=0):
-    """A conversation whose reply carries `markup`, with a thread anchored on it.
+    """A thread whose reply carries `markup`, with a thread anchored on it.
 
     `chatter` is what makes the panel a scroller of its own: a travel that lands by
     accident when the whole list already fits proves nothing about which box moved.
@@ -5489,7 +5487,7 @@ def thread_mark_fault(reading, ring="solid"):
     return None
 
 
-def test_forced_colors_keep_current_conversation_regions_distinct(browser, serve):
+def test_forced_colors_keep_current_thread_regions_distinct(browser, serve):
     """High contrast keeps the current region visible from list, card, and reply box."""
     url = serve(PANEL_PAGE)
     d = serve.page_dir
@@ -6543,7 +6541,7 @@ def test_a_thread_on_a_rewrite_is_named_by_its_old_and_new_words(browser, serve)
 
 
 def test_accordion_keyboard_travel_keeps_drafts_and_respects_narrowing(browser, serve):
-    """Native focus order and thread travel keep retained conversations and drafts."""
+    """Native focus order and thread travel keep retained threads and drafts."""
     url = serve(PANEL_PAGE)
     first = panel_comment(
         serve.page_dir, "Check the cap first.", {"section": "how-cap"}
@@ -6574,7 +6572,7 @@ def test_accordion_keyboard_travel_keeps_drafts_and_respects_narrowing(browser, 
     page.keyboard.press("Tab")
     assert page.evaluate(
         "id => document.activeElement.closest('.lf-thread')?.dataset.id === id", first
-    ), "native focus order skipped the open conversation"
+    ), "native focus order skipped the open thread"
     header.focus()
     page.keyboard.press("Escape")
     expect(page.locator(".lf-threads")).to_be_focused()
@@ -6598,7 +6596,7 @@ def test_accordion_keyboard_travel_keeps_drafts_and_respects_narrowing(browser, 
     page.keyboard.press("Tab")
     assert page.evaluate(
         "id => document.activeElement.closest('.lf-thread')?.dataset.id === id", first
-    ), "native focus order skipped the open conversation"
+    ), "native focus order skipped the open thread"
     header.focus()
     page.keyboard.press("c")
     editor = card.get_by_role("textbox", name="Reply", exact=True)
@@ -6679,7 +6677,7 @@ def test_agent_titles_update_without_losing_the_users_draft(browser, serve):
         result = CliRunner().invoke(
             cli_model.cli,
             [
-                "conversation",
+                "thread",
                 "title",
                 str(serve.page_dir),
                 root,

@@ -1,5 +1,5 @@
-/* This module owns page-seated first-message boxes: the conversation a widget declares
- * through `x-conversation`, built by `conversationBox`. */
+/* This module owns page-seated first-message boxes: the thread a widget declares
+ * through `x-thread-seat`, built by `threadBox`. */
 import { loadDraft, saveDraft, sendMessage, watchDraft } from "../drafts.js";
 import { inChrome } from "../passages.js";
 import { matchesWhen, registry } from "../registry.js";
@@ -7,21 +7,16 @@ import { offer, quoted } from "../widget-elements.js";
 import { notice } from "../notifications.js";
 import { mountFirstMessage } from "./inline.js";
 
-export const conversationBox = (
-  el,
-  hint,
-  { createComment, onDraftChanged, wireInput },
-) => {
+export const threadBox = (el, hint, { createComment, onDraftChanged, wireInput }) => {
   if (inChrome(el) || quoted(el)) return null;
-  const declaration = registry[el.localName]?.["x-conversation"];
+  const declaration = registry[el.localName]?.["x-thread-seat"];
   if (!declaration || !matchesWhen(el, declaration.when))
     throw new TypeError(
-      `<${el.localName}> placed a conversation outside its x-conversation predicate`,
+      `<${el.localName}> placed a thread outside its x-thread-seat predicate`,
     );
-  if (!el.id)
-    throw new TypeError(`<${el.localName}> needs an id to own a conversation`);
-  const box = offer("div", "lf-conversation");
-  box.dataset.lfConversation = el.id;
+  if (!el.id) throw new TypeError(`<${el.localName}> needs an id to own a thread`);
+  const box = offer("div", "lf-thread-seat");
+  box.dataset.lfThreadSeat = el.id;
   const row = offer("div", "lf-say");
   const ta = offer("textarea");
   ta.name = "comment";
@@ -46,7 +41,7 @@ export const conversationBox = (
     sendBtn: send,
     altBtn: hold,
     save: (value) => saveDraft(ctx, value),
-    // The message stands in the seat's own conversation the moment it is sent, and that
+    // The message stands in the seat's own thread the moment it is sent, and that
     // is the acknowledgement; a notice saying the same thing would be a second one. A
     // user with no view of the seat hears the send from the live region, which `post`
     // writes for every message. The hold says what its press did beyond sending — and

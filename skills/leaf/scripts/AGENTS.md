@@ -14,7 +14,7 @@ The main owners are:
 - `revision_artifact` and `revision_delivery`: captured revision inputs and their delivery URLs;
 - `locations`: filesystem path identity, containment, and overlap;
 - `page`: vendored page guidance;
-- `agent_state`: the agent-facing folded page-state and exact-conversation readings;
+- `agent_state`: the agent-facing folded page-state and exact-thread readings;
 - `delivery`: the host-neutral immutable delivery envelope and delivery lookup;
 - `document_reading`: the shared document, projection, and decision reading;
 - `page_snapshot`: the transaction-consistent document, state, data, registry,
@@ -38,8 +38,8 @@ The main owners are:
   sendable fields, retries, and HTTP answers;
 - `event_meaning`: admitted widget-command meaning and layer compatibility;
 - `events` and `projection`: standing event and durable state folds;
-- `thread_context` and `conversation`: thread identity, frozen markup, bounded
-  delivery context, conversation writes, and the host-neutral delivery-bound reply
+- `thread_context` and `thread`: thread identity, frozen markup, bounded
+  delivery context, thread writes, and the host-neutral delivery-bound reply
   lifecycle;
 - `workflows`: unsettled user moves and their strongest delivery or
   subject-work evidence;
@@ -67,7 +67,7 @@ The main owners are:
   whose acknowledgement commits its start — the page server's and the Codex
   adapter's;
 - `specimens`: disposable child pages built from captured templates and selected
-  conversations, with independent event logs and server-owned lifetimes;
+  threads, with independent event logs and server-owned lifetimes;
 - `session` and `hooks`: direct wait delivery and host lifecycle;
 - `codex`: the durable delivery records every Codex carrier prepares, accepts, opens,
   and abandons, and, for the carriers that are App Server clients, the connection, the
@@ -106,7 +106,7 @@ Do not put domain logic into `cli.py` or branch across these owners there.
 Read the reference that owns the boundary before changing it:
 
 - `leaf/page-storage.md` for page files and atomic state;
-- `leaf/events.md` for event shapes, conversations, undo, edits, and reactions;
+- `leaf/events.md` for event shapes, threads, undo, edits, and reactions;
 - `leaf/layer-registry.md` for composition, vendoring, and layer generations;
 - `leaf/session-lifetime.md` for claims, watchers, and service lifetime;
 - `leaf/validation.md` for static checks, browser checks, parsed source, and file-side
@@ -135,7 +135,7 @@ records declaration and widget provenance, `storage` owns the vendored-file
 cache and page lookup, and `reactions` owns reaction descriptions. Import the
 owner directly; the package initializer is only a marker.
 
-Within `served_state/`, `wire` serializes one declared fold, `conversation` and
+Within `served_state/`, `wire` serializes one declared fold, `thread` and
 `document` own their scoped browser readings, `browser` assembles the requested
 views, `page` composes the complete served response, and `reading` names
 filesystem changes for the news stream. `service` owns the transport-neutral

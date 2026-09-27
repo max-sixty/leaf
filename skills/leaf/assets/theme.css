@@ -222,13 +222,13 @@
      that the arrangement read as a centred page with something in the margin rather
      than as a page with a margin. */
   --note: 384px;
-  /* A page thread uses a wider reading card than an authored sidenote. The card takes
-     the room beside its margin cluster down to the minimum; with less than that it
-     stands under or over the cluster, its right edge on the visible edge and its width
-     the room from the cluster's left edge within these two measures, so it crosses the
-     column by only what the rail lacks. Its height is never cut to spare the cluster
-     (thread-card-geometry.js). */
-  --thread-card: 380px;
+  /* A page thread's card is read as prose, so its preferred measure is the column's,
+     720px at 17px, at the card's 14px face. It takes the room right of the words it is
+     about down to the minimum, covering its margin cluster where it must; with less
+     than that it stands under or over the cluster at the minimum, its right edge on the
+     visible edge, so it crosses the column by only what that room lacks. Its height is
+     never cut to spare the cluster (thread-card-geometry.js). */
+  --thread-card: 592px;
   --thread-card-min: 320px;
   /* A compact left margin for page-level wayfinding or reference. Unlike a sidenote,
      which annotates one block at its own height, a sidebar may remain beside the user

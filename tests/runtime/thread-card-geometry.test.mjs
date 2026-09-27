@@ -10,8 +10,10 @@ import { threadCardGeometry } from "/runtime/thread-card-geometry.js";
 
 const boundary = (width) => new DOMRect(8, 50, width - 16, 797);
 const cluster = (left, top) => new DOMRect(left, top, 37, 32);
+// The words a cluster is about end 46px left of it, as a column's do.
+const words = (at) => new DOMRect(at.left - 586, at.top, 540, at.height);
 // A card of `natural` height, rendered as the browser renders it under the cap.
-const place = (width, at, natural, { target = null, hold = null, edge } = {}) =>
+const place = (width, at, natural, { target = words(at), hold = null, edge } = {}) =>
   threadCardGeometry({
     cluster: at,
     target,
@@ -23,32 +25,39 @@ const place = (width, at, natural, { target = null, hold = null, edge } = {}) =>
     hold,
     edge,
   });
-const ask = (width, at, natural, target = null) =>
+const ask = (width, at, natural, target = words(at)) =>
   place(width, at, natural, { target });
 
-test("the card takes the rail's room beside its cluster", () => {
-  const clamped = ask(1440, cluster(934, 436), 500);
+test("the card takes the room right of its words, over its cluster if it must", () => {
+  // Room for the preferred measure beside the cluster: the card clears it.
+  const wide = ask(2000, cluster(1400, 100), 500);
+  assert.deepEqual([wide.placement, wide.x, wide.width], ["right", 1445, 460]);
+  // Less: the card keeps its measure by standing further left, over the cluster.
+  const over = ask(1440, cluster(1000, 100), 500);
+  assert.deepEqual([over.placement, over.x, over.width], ["right", 972, 460]);
+  // Less again: it stands beside the words, as wide as the room from there.
+  const beside = ask(1440, cluster(1126, 436), 500);
   assert.deepEqual(
-    [clamped.placement, clamped.x, clamped.width, clamped.y],
-    ["right", 979, 453, 347],
+    [beside.placement, beside.x, beside.width, beside.y],
+    ["right", 1088, 344, 347],
   );
   // Tall enough to reach the boundary's foot, the card slides up to it rather than
   // being shortened; a card that fits keeps its cluster's top edge.
-  assert.equal(ask(1440, cluster(934, 100), 500).y, 100);
-  const wide = ask(2000, cluster(1400, 100), 500);
-  assert.deepEqual([wide.x, wide.width], [1445, 460]);
+  assert.equal(ask(1440, cluster(1126, 100), 500).y, 100);
+  // A thread with no target has only its cluster to stand clear of.
+  const alone = ask(1440, cluster(1000, 100), 500, null);
+  assert.deepEqual([alone.x, alone.width], [1045, 387]);
 });
 
-test("too little room beside it puts the card under or over its cluster", () => {
-  // Too tall for the room under or over the cluster, the card holds at the foot,
-  // across the cluster, rather than taking either room's height.
-  const rail = ask(1160, cluster(794, 436), 500);
-  assert.deepEqual(
-    [rail.placement, rail.x, rail.width, rail.y],
-    ["below", 794, 358, 347],
-  );
+test("too little room right of its words puts the card under or over its cluster", () => {
+  // At its minimum, its right edge on the visible edge. Too tall for the room under or
+  // over the cluster, the card holds at the foot, across the cluster, rather than taking
+  // either room's height.
   const crossing = ask(1024, cluster(871, 436), 500);
-  assert.deepEqual([crossing.x, crossing.width, crossing.y], [696, 320, 347]);
+  assert.deepEqual(
+    [crossing.placement, crossing.x, crossing.width, crossing.y],
+    ["below", 696, 320, 347],
+  );
 
   const under = ask(1024, cluster(871, 100), 300);
   assert.deepEqual([under.placement, under.y], ["below", 140]);
@@ -59,9 +68,9 @@ test("too little room beside it puts the card under or over its cluster", () => 
   assert.deepEqual([top.placement, top.y], ["below", 70]);
 });
 
-test("room exactly the card's minimum is still room beside it", () => {
-  // The rail's edge case: 320px of room and a 320px minimum, where `>=` and `>` part.
-  const exact = ask(1440, cluster(1067, 100), 500);
+test("room exactly the card's minimum is still room beside its words", () => {
+  // The edge case: 320px of room and a 320px minimum, where `>=` and `>` part.
+  const exact = ask(1440, cluster(1150, 100), 500);
   assert.deepEqual([exact.placement, exact.x, exact.width], ["right", 1112, 320]);
 });
 
@@ -70,6 +79,7 @@ test("a drafting card keeps its side and its foot as its reply grows", () => {
   const rail = ask(1920, cluster(934, 160), 160);
   assert.deepEqual(rail.hold, {
     placement: "right",
+    width: 460,
     top: 0,
     foot: 160,
     height: 160,
@@ -178,13 +188,21 @@ test("a keyboard hiding the cluster keeps the card in what the user sees", () =>
   assert.deepEqual([typing.y, typing.y + typing.height], [100, 400]);
 });
 
-test("a held side the room no longer allows gives way to a fresh choice", () => {
+test("a hold whose side or width the room no longer gives yields to a fresh choice", () => {
   const rail = ask(1920, cluster(934, 160), 160);
   const narrowed = place(1024, cluster(871, 160), 160, {
     hold: rail.hold,
     edge: "foot",
   });
   assert.deepEqual([narrowed.placement, narrowed.hold.placement], ["below", "below"]);
+  // Narrower on the same side, a card whose words reflowed taller stands at its spot
+  // again at its whole height, rather than capped by the room under its held top.
+  const read = ask(1440, cluster(1126, 500), 300);
+  const reflowed = place(1400, cluster(1106, 500), 500, { hold: read.hold });
+  assert.deepEqual(
+    [reflowed.placement, reflowed.width, reflowed.y, reflowed.height],
+    ["right", 324, 347, 500],
+  );
 });
 
 test("a boundary narrower than the card's minimum still bounds its width", () => {

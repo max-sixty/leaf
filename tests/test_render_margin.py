@@ -4470,6 +4470,14 @@ def test_a_spilled_thread_opens_the_full_thread_without_a_hidden_anchor(browser,
     )
 
 
+# The right edge of the column's words, inside `main`'s padding. A thread card beside
+# them stands clear of it, over the margin cluster if its measure needs that room.
+WORDS_RIGHT = """() => {
+  const main = document.querySelector('main');
+  return main.getBoundingClientRect().right - parseFloat(getComputedStyle(main).paddingRight);
+}"""
+
+
 def _walk_gallery_thread(page, thread_id):
     """Reach a gallery thread by identity as samples change page order."""
     walked = page.locator(".lf-margin-preview .lf-page-thread")
@@ -4491,7 +4499,8 @@ def _walk_gallery_thread(page, thread_id):
 def test_a_forced_inline_thread_keeps_its_control_inside_the_margin_budget(
     browser, serve
 ):
-    """A walked thread uses the free strip without covering its whole control cluster."""
+    """A walked thread on a crowded cluster keeps its measure by standing over the
+    cluster, clear of its words, rather than dropping under it."""
     # The gallery's thread on the crowded suggestion, which is where this walk is going.
     crowded_thread = "a554d5e884abffdb6494a2fb90b0634f"
     page = open_page(browser, serve(FEATURE_GALLERY))
@@ -4525,21 +4534,29 @@ def test_a_forced_inline_thread_keeps_its_control_inside_the_margin_budget(
               '.lf-shortcut-bar, .lf-bottom-status')]
             .filter(node => node.checkVisibility())
             .map(node => node.getBoundingClientRect());
+          const words = document.querySelector('#bg-crowded').getBoundingClientRect();
           return {placement: cardNode.dataset.lfThreadPlacement,
-                  controlsTop: controls.top, controlsBottom: controls.bottom,
-                  cardLeft: card.left, cardTop: card.top, cardBottom: card.bottom,
-                  cardWidth: card.width, coveredControls,
+                  controlsLeft: controls.left, controlsRight: controls.right,
+                  wordsRight: words.right, cardLeft: card.left, cardRight: card.right,
+                  cardWidth: card.width, viewport: innerWidth,
+                  preferred: parseFloat(getComputedStyle(cardNode)
+                    .getPropertyValue('--thread-card')),
                   bottomChrome: bottomChrome.length,
                   coveredBottomChrome: bottomChrome.filter(box => overlaps(card, box)).length};
         }"""
     )
-    assert geometry["placement"] in ("below", "above"), geometry
-    assert (
-        geometry["cardBottom"] <= geometry["controlsTop"] - 7
-        or geometry["cardTop"] >= geometry["controlsBottom"] + 7
-    ), geometry
-    assert geometry["cardWidth"] >= 379, geometry
-    assert geometry["coveredControls"] == 0, geometry
+    # The rail beside this cluster is short of the card's minimum; the room right of the
+    # words is not, so the card takes its measure there, across the cluster.
+    assert geometry["viewport"] - 8 - (geometry["controlsRight"] + 8) < 320, geometry
+    assert geometry["placement"] == "right", geometry
+    assert geometry["cardWidth"] == pytest.approx(geometry["preferred"], abs=0.5), (
+        geometry
+    )
+    assert geometry["cardLeft"] >= geometry["wordsRight"] + 7.5, geometry
+    assert geometry["cardLeft"] < geometry["controlsLeft"], geometry
+    assert geometry["cardRight"] == pytest.approx(geometry["viewport"] - 8, abs=0.5), (
+        geometry
+    )
     assert geometry["bottomChrome"] > 0, geometry
     assert geometry["coveredBottomChrome"] == 0, geometry
     reply = page.locator(".lf-margin-preview leaf-text")
@@ -4579,18 +4596,24 @@ def test_a_thread_uses_a_free_margin_and_tracks_its_source(browser, serve):
             .map(rect)
             .filter(other => other.width && other.height && overlaps(card, other)).length;
           return {placement: cardNode.dataset.lfThreadPlacement,
-                  controlsRight: controls.right,
+                  controlsRight: controls.right, targetRight: target.right,
                   controlsTop: controls.top, cardLeft: card.left,
                   cardTop: card.top, cardWidth: card.width, coveredControls,
                   targetTop: target.top, targetBottom: target.bottom,
+                  preferred: parseFloat(getComputedStyle(cardNode)
+                    .getPropertyValue('--thread-card')),
                   bannerBottom: rect(document.querySelector('.lf-banner')).bottom};
         }"""
     )
+    # With room for its whole measure, the card clears both its words and its cluster,
+    # which here is a pin standing on the block the thread is about.
     assert geometry["placement"] == "right", geometry
     assert geometry["cardLeft"] == pytest.approx(
-        geometry["controlsRight"] + 8, abs=0.5
+        max(geometry["controlsRight"], geometry["targetRight"]) + 8, abs=0.5
     ), geometry
-    assert geometry["cardWidth"] >= 379, geometry
+    assert geometry["cardWidth"] == pytest.approx(geometry["preferred"], abs=0.5), (
+        geometry
+    )
     assert geometry["coveredControls"] == 0, geometry
     assert geometry["targetTop"] >= geometry["bannerBottom"], geometry
     assert geometry["targetBottom"] <= 900, geometry
@@ -4652,11 +4675,11 @@ def test_a_thread_uses_a_free_margin_and_tracks_its_source(browser, serve):
     assert gone["card"] == pytest.approx(gone["controls"], abs=0.5), gone
 
 
-def test_a_thread_beside_its_cluster_takes_the_room_to_the_visible_edge(browser, serve):
-    """Room beside a cluster a few pixels short of the card's measure narrows the card,
-    not its height.
+def test_a_thread_beside_its_words_takes_the_room_to_the_visible_edge(browser, serve):
+    """Room right of a thread's words short of the card's measure narrows the card, not
+    its height.
 
-    The width is the arrangement: this cluster pins on a block that breaks out of the
+    The width is the arrangement: this thread is about a block that breaks out of the
     column, so the room right of it grows with half the viewport, and the case only says
     anything where that room falls between `--thread-card-min` and `--thread-card`.
     Wider and the card takes its preferred measure with room to spare, narrower and it
@@ -4679,25 +4702,24 @@ def test_a_thread_beside_its_cluster_takes_the_room_to_the_visible_edge(browser,
           const cardNode = document.querySelector('.lf-margin-preview');
           const list = cardNode.querySelector('.lf-margin-preview-list');
           const card = cardNode.getBoundingClientRect();
-          const controls = document.querySelector(
-            '[data-lf-margin-for="bg-thread-text"]').getBoundingClientRect();
+          const words = document.querySelector('#bg-thread-text').getBoundingClientRect();
           const style = getComputedStyle(cardNode);
           return {placement: cardNode.dataset.lfThreadPlacement,
                   cardLeft: card.left, cardRight: card.right, cardWidth: card.width,
-                  controlsRight: controls.right, viewport: innerWidth,
+                  wordsRight: words.right, viewport: innerWidth,
                   preferred: parseFloat(style.getPropertyValue('--thread-card')),
                   minimum: parseFloat(style.getPropertyValue('--thread-card-min')),
                   clipped: list.scrollHeight - list.clientHeight};
         }"""
     )
     assert geometry["placement"] == "right", geometry
-    assert geometry["cardLeft"] == pytest.approx(
-        geometry["controlsRight"] + 8, abs=0.5
-    ), geometry
-    # The room between the cluster and the visible edge is what the card has to fit
+    assert geometry["cardLeft"] == pytest.approx(geometry["wordsRight"] + 8, abs=0.5), (
+        geometry
+    )
+    # The room between the words and the visible edge is what the card has to fit
     # into, and this case is the one where that room falls short of the preferred
-    # measure without reaching the minimum.
-    room = geometry["viewport"] - 8 - (geometry["controlsRight"] + 8)
+    # measure without falling short of the minimum.
+    room = geometry["viewport"] - 8 - (geometry["wordsRight"] + 8)
     assert geometry["minimum"] <= room < geometry["preferred"], geometry
     assert geometry["cardRight"] == pytest.approx(geometry["viewport"] - 8, abs=0.5), (
         geometry
@@ -4739,9 +4761,8 @@ def test_a_thread_in_a_short_rail_crosses_the_column_by_only_what_the_rail_lacks
                   minimum: parseFloat(style.getPropertyValue('--thread-card-min'))};
         }"""
     )
-    assert geometry["viewport"] - 8 - geometry["controlsRight"] < geometry["minimum"], (
-        geometry
-    )
+    words = page.evaluate(WORDS_RIGHT)
+    assert geometry["viewport"] - 8 - (words + 8) < geometry["minimum"], geometry
     assert geometry["placement"] in ("below", "above"), geometry
     # This thread is taller than the room under or over its cluster. It keeps its
     # whole height and holds at the foot, across the controls, rather than shrinking
@@ -5627,15 +5648,8 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
     expect(preview).to_be_visible()
     expect(marker.locator(".lf-margin-entry-label")).to_be_hidden()
     expect(page.locator('.lf-target-trace[data-for="bracket"]')).to_be_visible()
-    main_box = page.locator("main").bounding_box()
-    controls_box = marker.locator("xpath=..").bounding_box()
     preview_box = preview.bounding_box()
-    assert preview_box["x"] >= main_box["x"] + main_box["width"]
-    assert (
-        preview_box["x"] >= controls_box["x"] + controls_box["width"] + 7
-        or preview_box["y"] + preview_box["height"] <= controls_box["y"] - 7
-        or preview_box["y"] >= controls_box["y"] + controls_box["height"] + 7
-    )
+    assert preview_box["x"] >= page.evaluate(WORDS_RIGHT) + 7.5
     assert preview_box["x"] >= 0
     assert preview_box["x"] + preview_box["width"] <= page.evaluate("innerWidth")
     assert page.evaluate("() => document.scrollingElement.scrollTop") == before
@@ -5940,20 +5954,23 @@ def test_a_thread_can_be_answered_in_the_margin_without_opening_threads(
           const controls = document.querySelector('[data-lf-kinds="comment"]')
             .closest('[data-lf-margin-for]').getBoundingClientRect();
           const card = document.querySelector('.lf-margin-preview').getBoundingClientRect();
-          return {mainLeft: main.left, mainRight: main.right,
-                  controlsRight: controls.right, controlsTop: controls.top,
-                  controlsBottom: controls.bottom, cardLeft: card.left,
-                  cardRight: card.right, cardTop: card.top,
-                  cardBottom: card.bottom, cardWidth: card.width};
+          return {controlsLeft: controls.left, controlsRight: controls.right,
+                  cardLeft: card.left, cardRight: card.right, cardWidth: card.width,
+                  viewport: innerWidth};
         }"""
     )
-    assert geometry["cardLeft"] >= geometry["mainRight"], geometry
-    assert (
-        geometry["cardLeft"] >= geometry["controlsRight"] + 7
-        or geometry["cardBottom"] <= geometry["controlsTop"] - 7
-        or geometry["cardTop"] >= geometry["controlsBottom"] + 7
+    # Short of its measure beside the cluster, the card stands beside the words
+    # instead, across the cluster, and is wider than the rail beside the cluster.
+    assert geometry["cardLeft"] == pytest.approx(
+        page.evaluate(WORDS_RIGHT) + 8, abs=0.5
     ), geometry
-    assert 319 <= geometry["cardWidth"] <= 460, geometry
+    assert geometry["cardLeft"] < geometry["controlsLeft"], geometry
+    assert geometry["cardRight"] == pytest.approx(geometry["viewport"] - 8, abs=0.5), (
+        geometry
+    )
+    assert (
+        geometry["cardWidth"] > geometry["viewport"] - 8 - geometry["controlsRight"]
+    ), geometry
     expect(thread.locator(".lf-page-thread")).to_be_focused()
     assert page.evaluate("() => window.__firstReplyHint") == "Reply c"
     expect(reply).to_have_attribute("placeholder", "Reply c")
@@ -6596,13 +6613,18 @@ THREAD_CARD_GEOMETRY = """() => {
     .getBoundingClientRect();
   return {
     mainLeft: main.left, mainRight: main.right,
-    controlsRight: controls.right, controlsTop: controls.top,
+    wordsRight: main.right - parseFloat(getComputedStyle(document.querySelector('main'))
+      .paddingRight),
+    controlsLeft: controls.left, controlsRight: controls.right,
+    controlsTop: controls.top,
     controlsBottom: controls.bottom,
     cardLeft: card.left, cardRight: card.right, cardTop: card.top,
     cardBottom: card.bottom, cardWidth: card.width,
     replyWidth: reply.width, innerWidth: window.innerWidth,
     minimum: parseFloat(getComputedStyle(document.querySelector('.lf-margin-preview'))
       .getPropertyValue('--thread-card-min')),
+    preferred: parseFloat(getComputedStyle(document.querySelector('.lf-margin-preview'))
+      .getPropertyValue('--thread-card')),
   };
 }"""
 
@@ -6634,7 +6656,7 @@ def test_an_inline_thread_keeps_one_readable_card_across_page_claims(browser, se
     ).click()
 
     narrow = page.evaluate(THREAD_CARD_GEOMETRY)
-    assert narrow["innerWidth"] - 8 - narrow["controlsRight"] < narrow["minimum"], (
+    assert narrow["innerWidth"] - 8 - (narrow["wordsRight"] + 8) < narrow["minimum"], (
         narrow
     )
     assert narrow["cardWidth"] == pytest.approx(narrow["minimum"], abs=0.5), narrow
@@ -6659,8 +6681,7 @@ def test_an_inline_thread_keeps_one_readable_card_across_page_claims(browser, se
 
     wide = page.evaluate(THREAD_CARD_GEOMETRY)
     assert wide["cardWidth"] >= 379, wide
-    assert wide["cardLeft"] >= wide["mainRight"], wide
-    assert wide["cardLeft"] >= wide["controlsRight"] + 7, wide
+    assert wide["cardLeft"] >= wide["wordsRight"] + 7.5, wide
 
 
 def test_a_shared_passage_steps_between_single_thread_cards(browser, serve):
@@ -7061,10 +7082,9 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
                   panelOpen: document.querySelector('.lf-thread-panel').classList.contains('open')};
         }"""
     )
-    assert geometry["cardLeft"] >= geometry["mainRight"], geometry
+    assert geometry["cardLeft"] >= page.evaluate(WORDS_RIGHT) + 7.5, geometry
     assert geometry["cardRight"] <= geometry["viewportRight"] - 7, geometry
     assert geometry["cardWidth"] >= 379, geometry
-    assert geometry["cardLeft"] >= geometry["controlsRight"] + 7, geometry
     assert geometry["cardTop"] >= geometry["bannerBottom"] + 7, geometry
     assert geometry["cardBottom"] <= 892, geometry
     assert geometry["replyTop"] >= geometry["cardTop"], geometry
@@ -7173,15 +7193,15 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
                   shellWidth: document.body.getBoundingClientRect().width};
         }"""
     )
-    assert beside["cardLeft"] >= beside["mainRight"], beside
-    assert beside["cardRight"] <= beside["shellWidth"] - 8 + 0.5, beside
-    assert beside["cardWidth"] >= 319, beside
-    # This shell leaves less than the card's minimum beside the wide cluster, and the
-    # exchange is taller than the room under or over it. It keeps its whole height.
+    # This shell leaves less than the card's minimum beside the wide cluster, and more
+    # right of the words, so the card stands there, across the cluster, at its whole
+    # height.
     assert beside["shellWidth"] - 8 - beside["controlsRight"] < 320, beside
-    assert beside["cardBottom"] - beside["cardTop"] > max(
-        beside["controlsTop"] - 50, 847 - beside["controlsBottom"]
-    ), beside
+    assert beside["cardLeft"] >= page.evaluate(WORDS_RIGHT) + 7.5, beside
+    assert beside["cardRight"] == pytest.approx(beside["shellWidth"] - 8, abs=0.5), (
+        beside
+    )
+    assert beside["cardWidth"] >= 319, beside
     assert beside["clipped"] <= 0, beside
 
     resized(page, 1471, 900)
@@ -7436,14 +7456,9 @@ def test_the_thread_card_survives_trays_and_authored_sidebars(browser, serve):
         }"""
     )
     assert composition["mainWidth"] >= 639.5, composition
-    assert composition["cardLeft"] >= composition["mainRight"], composition
+    assert composition["cardLeft"] >= page.evaluate(WORDS_RIGHT) + 7.5, composition
     assert composition["cardRight"] <= composition["shellWidth"] + 0.5, composition
     assert composition["cardWidth"] >= 319, composition
-    assert (
-        composition["cardLeft"] >= composition["controlsRight"] + 7
-        or composition["cardBottom"] <= composition["controlsTop"] - 7
-        or composition["cardTop"] >= composition["controlsBottom"] + 7
-    ), composition
 
 
 def test_the_margin_keeps_its_page_coordinate_while_the_user_scrolls(browser, serve):
@@ -7724,7 +7739,7 @@ def test_an_open_desktop_preview_reconciles_arriving_meanings(browser, serve):
 
 @pytest.mark.parametrize("width", [1440, 1920])
 def test_a_reflow_that_moves_a_marker_carries_its_open_card(browser, serve, width):
-    """The card beside or above a cluster follows it when the page moves under it.
+    """The card beside a cluster's words follows it when the page moves under it.
 
     A margin row stands at its target by anchor positioning, so it moves with the
     reflow itself — a diagram finishing, an image arriving, a disclosure opening above
@@ -7747,9 +7762,10 @@ def test_a_reflow_that_moves_a_marker_carries_its_open_card(browser, serve, widt
       const card = document.querySelector('.lf-margin-preview');
       const m = controls.getBoundingClientRect();
       const c = card.getBoundingClientRect();
-      const clear = c.left >= m.right + 7 || c.right <= m.left - 7
-        || c.bottom <= m.top - 7 || c.top >= m.bottom + 7;
-      return {marker: m.top, clear, controlsRight: m.right,
+      const main = document.querySelector('main');
+      const words = main.getBoundingClientRect().right
+        - parseFloat(getComputedStyle(main).paddingRight);
+      return {marker: m.top, clear: c.left >= words + 7.5, words,
               cardLeft: c.left, cardTop: c.top};
     }"""
     before = page.evaluate(placement)

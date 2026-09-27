@@ -22,9 +22,10 @@
 
    The thread card stands by its owning cluster, or, where the rail has no room for that
    cluster, by the page target the cluster is about. `thread-card-geometry.js` states
-   where it stands: in the rail beside the cluster when the room there takes the card's
-   minimum measure, otherwise under or over the cluster with its right edge on the
-   visible edge, so it crosses the column by no more than the rail's shortfall. The card
+   where it stands: right of its target, across the rail and over the cluster where the
+   card's measure needs it, when that room takes the card's minimum measure, otherwise
+   under or over the cluster with its right edge on the visible edge, so it crosses the
+   column by no more than that room's shortfall. The card
    keeps its height in every case; one too tall for its spot slides across its cluster
    rather than shrinking. This module supplies the visible boundary — the reading region
    or the viewport under the banner and over the bottom chrome — measures the card, and

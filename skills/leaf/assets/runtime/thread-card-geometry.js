@@ -5,37 +5,42 @@
    grows from the edge it holds until the visible boundary stops it, and leaves with its
    cluster on a scroll rather than closing.
 
-   Beside the cluster is preferred: in the rail, top edges aligned, as wide as the room
-   between the cluster and the visible edge allows within the card's minimum and preferred
-   measures (`right`). When that room is under the minimum, the card keeps its right edge
-   on the visible edge, takes the room from the cluster's left edge to that edge within
-   the same measures, and stands under the cluster when its whole height fits there
-   (`below`), else over it when it fits there (`above`), else under it again. It crosses
-   the reading column by no more than the rail's shortfall. Where that crossing reaches
-   the `target` the card is about, under and over are measured from the target and
-   cluster together, so a user standing on the target sees it and its threads at once.
+   Beside the words it is about is preferred (`right`), top edge on its cluster's: the
+   card's lane runs from the `target`'s right edge, or the cluster's where the thread has
+   no target, to the visible edge, and the card is as wide as that lane allows up to its
+   preferred measure. Within the lane it stands as far right as that width lets it, so it
+   clears its cluster where the lane has room for both and covers the cluster where it
+   does not: the transcript's width outranks the rail's other entries, which the card
+   gives back when it closes. When the lane is under the card's minimum measure, the card
+   takes that minimum with its right edge on the visible edge, crossing the reading
+   column by no more than the lane's shortfall, and stands under the cluster when its
+   whole height fits there (`below`), else over it when it fits there (`above`), else
+   under it again. Where that crossing reaches the target, under and over are measured
+   from the target and cluster together, so a user standing on the target sees it and
+   its threads at once.
 
    Choosing its spot, the card is never shortened to make any of that true. Its height is
    capped by the boundary alone, and the spot is then clamped inside the boundary, so a
    card too tall for the room under or over its cluster slides across the controls that
    opened it rather than shrinking to spare them.
 
-   Every result carries the `hold` it leaves: its side, the offsets of its top and foot
-   from the cluster's top, its height, and whether its cluster has been `seen` in the
-   scrollport since the card was placed. A top chosen here is the spot's own, before the
-   boundary clamped it, so a card opened low in the window rises back to its cluster once
-   a scroll gives it room; every other offset is where the card stood. The caller passes
-   the hold back on every later placement, with the `edge` the user's attention is on: the
-   foot while the reply is being drafted, the top while the thread is read. The card keeps
-   its side and keeps that edge at its offset, and grows from it. Drafting, a new line
-   pushes the lines above the caret up, as a chat composer does, so the caret's line stays
-   under the user's hand. Reading, a turn arriving extends the card downward, so the words
-   being read stay where they are, and once the card meets the boundary the transcript,
-   which scrolls inside the card, takes the turn instead. Its height is capped by the room
-   from the held edge to the boundary's far edge, so from there the transcript gives up
-   its room to further growth. Switching edges leaves the card where it stands, since the
-   other edge's offset is always where the card last stood, and from then on the card
-   keeps that place relative to its cluster; only the room the new edge opens can grow it.
+   Every result carries the `hold` it leaves: its side and width, the offsets of its top
+   and foot from the cluster's top, its height, and whether its cluster has been `seen`
+   in the scrollport since the card was placed. A top chosen here is the spot's own,
+   before the boundary clamped it, so a card opened low in the window rises back to its
+   cluster once a scroll gives it room; every other offset is where the card stood. The
+   caller passes the hold back on every later placement, with the `edge` the user's
+   attention is on: the foot while the reply is being drafted, the top while the thread
+   is read. The card keeps its side and keeps that edge at its offset, and grows from
+   it. Drafting, a new line pushes the lines above the caret up, as a chat composer
+   does, so the caret's line stays under the user's hand. Reading, a turn arriving
+   extends the card downward, so the words being read stay where they are, and once the
+   card meets the boundary the transcript, which scrolls inside the card, takes the turn
+   instead. Its height is capped by the room from the held edge to the boundary's far
+   edge, so from there the transcript gives up its room to further growth. Switching
+   edges leaves the card where it stands, since the other edge's offset is always where
+   the card last stood, and from then on the card keeps that place relative to its
+   cluster; only the room the new edge opens can grow it.
 
    A scroll carries the held edge with its cluster, and the boundary clamps it there: the
    whole card, at its last height, stays inside the boundary for as long as the cluster
@@ -49,8 +54,9 @@
    clears `seen` for the same reason. The boundary can be smaller than the scrollport
    where pinch zoom or a phone's software keyboard hides part of the window; a cluster in
    the hidden part has not been scrolled away, so the card stays in what the user sees. A
-   held side the room no longer allows, after a resize carries the cluster into or out of
-   the rail's room, gives way to a fresh choice, whose hold the caller keeps from then on.
+   hold whose side or width the room no longer gives, as after a resize, gives way to a
+   fresh choice, whose hold the caller keeps from then on: at another width the card's
+   words reflow, so neither of its edges holds what the user was reading or writing.
 
    The inputs are client rectangles and lengths and the module reads no DOM, so the rule
    is arithmetic a test can state. `heightAt(width, cap)` is the one measurement: the
@@ -73,12 +79,12 @@ export function threadCardGeometry({
 }) {
   const preferred = Math.min(preferredWidth, boundary.width);
   const minimum = Math.min(minWidth, preferred);
-  const room = boundary.right - cluster.right - gap;
-  const beside = room >= minimum;
-  const width = beside
-    ? Math.min(preferred, room)
-    : clamp(boundary.right - cluster.left, minimum, preferred);
-  const x = beside ? cluster.right + gap : boundary.right - width;
+  const lane = (target ?? cluster).right + gap;
+  const beside = boundary.right - lane >= minimum;
+  const x = beside
+    ? clamp(boundary.right - preferred, lane, cluster.right + gap)
+    : boundary.right - minimum;
+  const width = beside ? Math.min(preferred, boundary.right - x) : minimum;
   // The boundary holds the card in only while its cluster is inside the scrollport, once
   // the cluster has been there.
   const seen =
@@ -97,6 +103,7 @@ export function threadCardGeometry({
     away: y + height <= boundary.top || y >= boundary.bottom,
     hold: {
       placement,
+      width,
       top: y - cluster.top,
       foot: y + height - cluster.top,
       height,
@@ -105,7 +112,7 @@ export function threadCardGeometry({
     },
   });
 
-  if (hold && (hold.placement === "right") === beside) {
+  if (hold && (hold.placement === "right") === beside && hold.width === width) {
     const last = Math.min(hold.height, boundary.height);
     const at = cluster.top + hold[edge];
     // The room from the held edge to the boundary's far edge, with the edge inside the

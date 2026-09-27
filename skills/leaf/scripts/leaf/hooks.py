@@ -202,9 +202,10 @@ def announce_wait(session_id: str) -> bool:
     )
 
 
-# Claude Code writes a hook's context over this many characters to a file and
-# hands the turn a 2 KB preview and the path instead: measured at 2.1.283, 9,990
-# characters arrived whole and 10,010 did not.
+# Claude Code writes a hook's context over this size to a file and hands the turn
+# a 2 KB preview and the path instead: measured at 2.1.283 with ASCII, 9,990
+# characters arrived whole and 10,010 did not. Which unit it counts is unmeasured,
+# so the context is held to UTF-8 bytes, the strictest reading.
 HOOK_CONTEXT_LIMIT = 10_000
 
 
@@ -239,7 +240,7 @@ def compose(batches: list[dict], attention: list[str]) -> tuple[str, dict | None
             *attention,
         ]
     )
-    if len(message) < HOOK_CONTEXT_LIMIT:
+    if len(message.encode("utf-8")) < HOOK_CONTEXT_LIMIT:
         return message, delivery
     pointer = freeze_delivery(
         batches, carrier="hook", acknowledge=pointer_acknowledgement
@@ -343,13 +344,20 @@ def cmd_hook(payload: dict) -> None:
     # nothing. A page whose receipt is refused keeps its batch pending for the
     # next hook, which a page and sequence already handled treats as a retry.
     message, confirmed = compose(batches, attention)
-    if confirmed:
-        for batch in confirmed["batches"]:
-            try:
-                receive_one(batch, sid)
-            except ReceiptRefused:
-                continue
-        open_session_turn(sid)
+    refused = []
+    for batch in confirmed["batches"] if confirmed else ():
+        try:
+            receive_one(batch, sid)
+        except (ReceiptRefused, FileNotFoundError):
+            # Changed hands or went away since it was read: nothing is confirmed
+            # for it, and whoever holds it now takes that input.
+            refused.append(batch["page"])
+    if refused:
+        message += "\n" + "\n".join(
+            f"- {page} changed hands before Leaf could confirm its input, so it is "
+            "not yours to answer: leave it to the page's new owner."
+            for page in refused
+        )
     if event == "Stop":
         print(json.dumps({"decision": "block", "reason": message}))
     else:

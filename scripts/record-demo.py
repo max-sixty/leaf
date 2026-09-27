@@ -267,10 +267,10 @@ class DemoWaiter:
         restart twice — so the empty result is the symptom and that line is the
         reason."""
         stdout, stderr = self.process.communicate(timeout=10)
-        # A wait prints the delivery, or only wakes a session whose hooks carry it.
-        hooked = bool(stdout.strip()) and not stdout.lstrip().startswith("{")
+        harness = session_harness()
+        hooked = harness is not None and harness.hooks_carry()
         if hooked:
-            payload = take_input(session_harness().session)
+            payload = take_input(harness.session) if stdout.strip() else None
         else:
             payload = json.loads(stdout) if stdout.strip() else None
         if payload is not None and payload.get("format") != DELIVERY_FORMAT:

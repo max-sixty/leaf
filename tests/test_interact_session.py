@@ -1869,6 +1869,13 @@ def test_only_a_fresh_turn_whose_hooks_take_input_reads_listening(
     assert (stale["turn_takes_input"], stale["turn_closed"]) == (True, None)
     assert stale["activity"]["kind"] == "away"
 
+    # A claim an older Leaf wrote, with no `turn_opened`, owes no belief either.
+    files_model.write_json(
+        service_model.claim_path(claimed),
+        {k: v for k, v in claim.items() if k != "turn_opened"},
+    )
+    assert page_state(claimed)["activity"]["kind"] == "away"
+
 
 def test_direct_delivery_progress_does_not_become_page_activity(claimed, capsys):
     """Delivery stays exact interaction evidence while page activity continues to
@@ -10526,6 +10533,8 @@ def test_a_page_that_changed_hands_before_receipt_keeps_its_input(
         str(moved),
         str(claimed),
     ]
+    # The context it already composed says which page is no longer this turn's.
+    assert f"{moved} changed hands before Leaf could confirm" in answer["reason"]
 
     assert service_model.page_claim(moved)["id"] == "s2"
     assert files_model.read_json(moved / "cursor.json") is None

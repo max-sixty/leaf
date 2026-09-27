@@ -82,6 +82,7 @@ from render_harness import (
     ask_actions_hint,
     compare_with,
     consume_browser_errors,
+    displayed,
     expect_banner_control_offered,
     holding,
     holds_the_window,
@@ -767,6 +768,69 @@ def test_a_pane_inside_a_plain_section_of_a_workspace_flows(browser, serve):
     resized(page, 1280, 720)
     pane_posture(page, page.locator("#held-pane"), "bounded")
     holds_the_window(page, page.locator("main"), True)
+
+
+ZONE_PACKAGE = {
+    "lf-zone": {
+        "description": "A project package's differently named pane.",
+        "type": "object",
+        "properties": {"id": {"type": "string"}, "label": {"type": "string"}},
+        "required": ["id", "label"],
+        "additionalProperties": False,
+        "x-content": "markup",
+        "x-reading-role": "pane",
+        "x-upgrade": False,
+    }
+}
+NESTED_PANES_PAGE = leaf_page(
+    "a pane in a pane's body",
+    """<div id="cells">
+  <lf-zone id="outer-zone" label="Zones"><div>
+    <lf-zone id="inner-zone" label="Inner zone"><div>
+      <p>A zone's reading.</p><div style="height: 900px"></div>
+    </div></lf-zone>
+  </div></lf-zone>
+  <lf-pane id="outer-pane" label="Panes"><div>
+    <lf-pane id="inner-pane" label="Inner pane"><div>
+      <p>A pane's reading.</p><div style="height: 900px"></div>
+    </div></lf-pane>
+  </div></lf-pane>
+</div>""",
+    head=regions_side_by_side("cells"),
+    layout="workspace",
+)
+
+
+def test_a_package_pane_is_held_where_an_lf_pane_is(browser, serve):
+    """Which panes a held workspace scrolls is read from the pane role, whichever
+    package names the tag. A package's pane that is a cell of the body scrolls its own
+    body, and one written inside that pane's body is content there and scrolls with it,
+    exactly as lf-panes nested the same way do. The role arrives with the document, so
+    the workspace holds the same panes while the runtime has not started."""
+    boot = []
+    context = browser.new_context(viewport={"width": 1280, "height": 720})
+    page = context.new_page()
+    page.route("**/leaf.js", lambda route: boot.append(route))
+    url = serve(NESTED_PANES_PAGE, layer_registry=ZONE_PACKAGE)
+
+    def postures():
+        for tag in ("zone", "pane"):
+            pane_posture(page, page.locator(f"#outer-{tag}"), "bounded")
+            pane_posture(page, page.locator(f"#inner-{tag}"), "flow")
+
+    try:
+        with page.expect_request("**/leaf.js"):
+            page.goto(url, wait_until="commit")
+        displayed(page)
+        assert boot, "the runtime was not held"
+        postures()
+        boot.pop().continue_()
+        wait_until_ready(page)
+        postures()
+    finally:
+        for route in boot:
+            route.continue_()
+        page.unroute_all(behavior="wait")
 
 
 def test_an_ask_with_more_than_one_answer_part_keeps_each_parts_height(browser, serve):

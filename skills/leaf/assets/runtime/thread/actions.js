@@ -17,7 +17,7 @@ export function createThreadActions({ post, withdraw, sendReaction, currentRevis
 
   const reply = (key, text, { attempt } = {}) => {
     if (typeof text !== "string") throw new TypeError("A Thread reply needs text");
-    if (!text.trim()) return null;
+    if (!text) return null;
     if (attempt !== undefined && (typeof attempt !== "string" || !attempt))
       throw new TypeError("A Thread reply attempt must be a non-empty string");
     const thread = find(key);

@@ -251,9 +251,9 @@ lf-chip[tone="danger"] { background: var(--danger-tint); color: var(--danger-ink
  * tests exercise the terse comparison and inline-widget outcomes instead of
  * reflecting the selectors through a second list. The marker at the end is the
  * inversion's one wrong answer, an inline widget being a custom element like
- * any other: the registry says which widgets those are and the
- * runtime paints it where a selector can reach it (data-lf-inline, leaf.js
- * markDeclared), so a chip keeps the grid here by the same declaration that
+ * any other: the registry says which widgets those are and
+ * delivery paints it where a selector can reach it (data-lf-inline,
+ * `mark_declared`), so a chip keeps the grid here by the same declaration that
  * keeps a suggestion inline in a sentence. It is in :where() for the reason the
  * suggestion slots' copy states: an attribute selector inside :not() would lift
  * this whole rule a specificity column and let a layout question outrank the
@@ -351,8 +351,8 @@ lf-compare:has(> lf-variant > :not(a, abbr, area, audio, b, bdi, bdo, br, button
  * to expect rather than a gap to go looking for.
  *
  * The marker rather than the tag. Which widgets quote what they hold is the registry's to
- * say (x-exhibit) and a stylesheet cannot read it, so the runtime paints the declaration
- * where a selector can reach it (data-lf-exhibit, leaf.js markDeclared) and the descendant
+ * say (x-exhibit) and a stylesheet cannot read it, so delivery paints the declaration
+ * where a selector can reach it (data-lf-exhibit, `mark_declared`) and the descendant
  * combinator asks the descendant half of quoted()'s question: does this element stand
  * inside one. quoted() answers for the element itself too, and that half is nobody's
  * here while lf-options is not an exhibit — a layer declaring it one would have to say

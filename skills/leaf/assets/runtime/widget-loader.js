@@ -1,7 +1,6 @@
 /* This module owns registry loading, pre-upgrade passage fences, dynamic widget
  * imports, and initial presentation. */
 import { dress, watchExternalLinks } from "./presentation.js";
-import { MARKED_IN_PAGE, markDeclared } from "./declared-paint.js";
 import { reachScrollers } from "./reach.js";
 import { adoptRegistry, registry, tagsDeclaring } from "./registry.js";
 import { loadShadowRules } from "./shadow.js";
@@ -162,7 +161,6 @@ async function installDocument(scope) {
       descriptors: new Map([...prior.descriptors, ...descriptors.descriptors]),
     });
     commitWidgetDescriptors(descriptors);
-    markDeclared(scope, MARKED_IN_PAGE);
     watchExternalLinks(scope);
     await importWidgets(scope);
     await settle(presentation, scope, [scope], whenApplicationPresented);

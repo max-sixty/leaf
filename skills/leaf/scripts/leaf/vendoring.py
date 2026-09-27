@@ -36,6 +36,7 @@ from .leases import lock_is_held, page_locked
 from .locations import located, locations_overlap, path_is_within, path_location
 from .projection import page_reading
 from .registry.storage import compose_candidate, layer_packages, widget_paths
+from .revision_artifact import read_revision
 from .schema import (
     CURSOR_FILE,
     EVENTS_FILE,
@@ -47,7 +48,7 @@ from .schema import (
     STATUS_FILE,
 )
 from .service import PageTransaction, claim_path
-from .structure import SourceDocument, parse_revision
+from .structure import SourceDocument
 from .validation.compatibility import candidate_vocabulary_gaps
 from .validation.source import check_source
 from .work import widget_work_without_targets
@@ -205,7 +206,7 @@ def _refuse_vocabulary_drift(
     except (FileNotFoundError, UnicodeDecodeError):
         # An unreadable candidate cannot activate, but re-vendoring must still
         # preserve the active page until the source is repaired.
-        document = parse_revision(page_dir, revision)
+        document = read_revision(page_dir, revision).document
     gaps = candidate_vocabulary_gaps(
         page_dir,
         events,
@@ -264,8 +265,10 @@ def _refuse_untargeted_work(page_dir: Path, events: list[dict], incoming: dict) 
     revision = latest_revision(page_dir)
     if revision is None:
         return
-    document = parse_revision(page_dir, revision)
-    page = page_reading(document, events, incoming, revision)
+    page = page_reading(
+        read_revision(page_dir, revision).under(incoming), events, revision
+    )
+    document = page.document
     untargeted = widget_work_without_targets(
         document,
         page.projection,

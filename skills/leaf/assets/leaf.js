@@ -9,6 +9,7 @@ import { initializeServedDocument } from "./runtime/document-identity.js";
 import { chromeRoot } from "./runtime/chrome.js";
 import { readingBlock } from "./runtime/reading-place.js";
 import { mountHistory } from "./runtime/history.js";
+import { holdArrivingBounds } from "./runtime/bounds.js";
 import { chromeSheet, marksSheet } from "./runtime/stylesheets.js";
 import { keepPageRulesOffLayer } from "./runtime/page-sheets.js";
 import { reportPageError, uploadMedia } from "./runtime/layer-client.js";
@@ -108,6 +109,7 @@ import {
 
 initializeServedDocument();
 keepPageRulesOffLayer();
+holdArrivingBounds();
 
 // A published shell may bundle the entry without publishing its source modules beside
 // it. Keep the synchronous validation seam on Leaf's own bootstrap element so render

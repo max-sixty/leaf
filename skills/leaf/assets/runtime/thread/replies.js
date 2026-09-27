@@ -38,7 +38,6 @@ export function wireReply(
     accessibleName: "Reply",
     sends: "send",
     sendBtn: send,
-    hasContent: (raw) => Boolean(raw.trim()),
     // localStorage notifies other tabs but skips this document. Page, margin, and panel
     // reply boxes are views of one draft here, so they take the same bus directly.
     // Other draft kinds still have one view per document.

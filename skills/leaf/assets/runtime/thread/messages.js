@@ -20,8 +20,7 @@ import {
 } from "../projection/authored.js";
 import { stageWidgetDescriptors } from "../widget-descriptors.js";
 import { strongestWorkflow, workflowLabel, workflowTitle } from "./workflow.js";
-import { renderQuiet, renderSaid } from "../presentation.js";
-import { MARKED_ANYWHERE, markDeclared } from "../declared-paint.js";
+import { markDeclared, renderQuiet, renderSaid } from "../presentation.js";
 import { highlightBlocks } from "../syntax.js";
 import { ago } from "../presence.js";
 import { elementById, pageQueryAll } from "../passages.js";
@@ -284,7 +283,7 @@ export class MessageView {
       this.node,
     );
     if (this.#authored && !this.#dressed) {
-      markDeclared(this.node, MARKED_ANYWHERE);
+      markDeclared(this.node);
       renderSaid(this.node);
       renderQuiet(this.node);
       this.#dressed = true;

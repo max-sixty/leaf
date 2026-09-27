@@ -35,13 +35,14 @@
    document scrolls its listing under a caption that stays put. The outermost box
    declaring it is the scroller, and it is the region's body.
 
-   A block is held from the pass that paints its bound (`markDeclared` calls
-   `holdBounds`), in the page or in a message's markup, whether it stands in the
-   document yet or not. From then each block is watched on its own, for what it holds
-   and for its size, so nothing here runs for a change elsewhere on the page. Its size
-   answers for its connection too: a block entering the document gets a box and is
-   registered, and one leaving it loses its box and is let go, so what is registered is
-   what stands in the document. */
+   A block is held as it arrives in the document, whoever painted its bound: delivery
+   paints a page's, and a revision patched in arrives painted the same way, while
+   `markDeclared` paints a message's markup as the thread renders it. So one watch on
+   the document (`holdArrivingBounds`, started at boot) holds what the page opens with,
+   every node added since, and any element whose bound is painted or taken away in
+   place, and lets go of a block that leaves. Each held block is then watched on its
+   own, for what it holds and for its size. What is registered is what stands in the
+   document. */
 import { sizeObserver } from "./rendering.js";
 import { PAGE_PAINT_ATTRIBUTE, elementsIn } from "./presentation.js";
 import { authoredScope, pageDocument } from "./passages.js";
@@ -146,13 +147,29 @@ function holdBlock(bounded) {
   return hold;
 }
 
-// Hold every bounded block in `root`, and let go of any block that has left the document
-// or lost its bound without its size saying so.
-export function holdBounds(root) {
-  for (const hold of registered)
-    if (!hold.bounded.isConnected || !hold.bounded.matches(BOUNDED)) hold.sync();
-  for (const bounded of elementsIn(root, BOUNDED)) {
-    if (!holds.has(bounded)) holds.set(bounded, holdBlock(bounded));
-    holds.get(bounded).sync();
-  }
+// Hold an element whose bound is painted, or let go of one whose bound was taken away.
+function holdAt(el) {
+  if (!holds.has(el) && el.matches(BOUNDED)) holds.set(el, holdBlock(el));
+  holds.get(el)?.sync();
+}
+
+export function holdArrivingBounds() {
+  for (const bounded of elementsIn(document.body, BOUNDED)) holdAt(bounded);
+  new MutationObserver((records) => {
+    let removed = false;
+    for (const record of records) {
+      if (record.type === "attributes") holdAt(record.target);
+      removed ||= record.removedNodes.length > 0;
+      for (const node of record.addedNodes)
+        if (node.nodeType === Node.ELEMENT_NODE)
+          for (const bounded of elementsIn(node, BOUNDED)) holdAt(bounded);
+    }
+    if (removed)
+      for (const hold of registered) if (!hold.bounded.isConnected) hold.sync();
+  }).observe(document.body, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: [PAGE_PAINT_ATTRIBUTE.bound],
+  });
 }

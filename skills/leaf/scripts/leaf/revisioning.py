@@ -4,7 +4,7 @@ Activation judges a candidate: a source whose captured artifact differs from the
 active revision's becomes the next revision if `check_source` finds nothing wrong
 with it, and is refused otherwise, leaving the active revision live. A source
 whose artifact is the active revision's is no candidate, and `check_source` judges
-no transition for it (see its gate on `RevisionReading.unchanged`).
+no transition for it (see its gate on `PredecessorReading.unchanged`).
 
 Every state read asks for activation first, so each page holds its last answer,
 keyed on the page's stamps as `served_state.reading.source_readings` splits them.
@@ -22,7 +22,7 @@ from typing import NamedTuple
 
 from leaf.event_log import read_events
 from leaf.files import list_revisions
-from leaf.revision_artifact import read_artifact, write_artifact
+from leaf.revision_artifact import read_revision, write_artifact
 from leaf.served_state.reading import source_readings
 from leaf.validation.source import SourceCheck, check_source
 
@@ -78,7 +78,7 @@ def activate_checked_source(page_dir: Path, checked: SourceCheck) -> Activation:
         return Activation(active, "; ".join(checked.errors), False)
     if (
         active is not None
-        and read_artifact(page_dir, active).digest == checked.artifact.digest
+        and read_revision(page_dir, active).digest == checked.artifact.digest
     ):
         return Activation(active, None, False)
     revision = (active or 0) + 1

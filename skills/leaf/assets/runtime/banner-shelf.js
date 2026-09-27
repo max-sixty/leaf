@@ -33,6 +33,7 @@ export const BANNER_CONTROL_RANK = Object.freeze({
   latest: 50,
   asks: 60,
   map: 70,
+  annotations: 75,
   blanket: 80,
   versions: 90,
   approval: 100,

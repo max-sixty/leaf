@@ -1,4 +1,6 @@
 import { focused, keys } from "../keyboard/scopes.js";
+import { repaint } from "../repaint.js";
+import { keeps, keepsText } from "../widget-elements.js";
 import { submitBindings, submitHint, submitLabel } from "../keyboard/bindings.js";
 import { readPastedMedia, scopedMediaUrl, writePastedMedia } from "../media.js";
 import { notice } from "../notifications.js";
@@ -20,10 +22,21 @@ import { followBoxGrowth, readBoxPlace } from "../thread/reply-landing.js";
 // Markdown, while the field shows only the user's words and a thumbnail projection.
 // So the box holds more than its .value, and wire() returns the seam that says so:
 // sync.value() reads the complete draft, sync.load() replaces it — a stored record, a
-// draft mirrored from another tab, or the emptiness a send leaves — and sync() repaints
-// the send button, the placeholder, and the composer's placement around what stands.
-// Outside this module, .value is the user's words alone and nothing writes it.
+// draft mirrored from another tab, or the emptiness a send leaves — and sync() says the
+// box's standing changed. Outside this module, .value is the user's words alone and
+// nothing writes it.
 // The submit binding owns the shortcut spelling used by the placeholder and tooltip.
+//
+// What the box holds changes in the turn that changes it: the words and pasted images
+// (the field's own value, which its caret and every reader after the writer depend on),
+// and whether a send or upload is under way. What that looks like is painted once per
+// frame, in the runtime's one standing paint (repaint.js): the send button's name, its
+// disabled state and the placeholder in `paintInputs`, and the floating composer's
+// placement in chrome layout's pass, which runs first. A change marks its box stale and
+// asks for that paint, so a keystroke, an open that loads a draft twice, and a send that
+// settles and closes the box each paint and measure once, after their writes, instead of
+// interleaving a forced style recalculation with each. That paint runs in the frame the
+// change first shows in, so the button and placeholder never trail the words.
 const inputDrafts = new WeakMap();
 
 const MEDIA_SHELF_TAG = "leaf-pasted-media-shelf";
@@ -90,9 +103,12 @@ export const draftOf = (ta) => inputDrafts.get(ta)?.value() ?? ta?.value ?? "";
 // reading. Fields keep those capabilities for their lifetime; importing this module
 // never installs or replaces application callbacks.
 export function createCompositionInputs({ uploadMedia, inputHint }) {
-  // Focus and contextual-entry hints join the runtime's one standing paint. Repaint the
-  // previous and current box for each fact, since either may need to lose or gain its hint.
+  // The standing paint paints every box whose own state changed since it last ran, and
+  // the previous and current box for focus and for the contextual-entry hint, since
+  // either may need to lose or gain its hint. A focus move asks for that paint itself
+  // (keyboard/controller.js).
   const inputPaints = new WeakMap();
+  const stale = new Set();
   let paintedInput = null;
   let paintedHintTarget = null;
   const paintInputs = () => {
@@ -100,8 +116,15 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     const input = held && inputPaints.has(held) ? held : null;
     const hint = inputHint();
     const hintedInput = hint?.box && inputPaints.has(hint.box) ? hint.box : null;
-    for (const ta of new Set([paintedInput, input, paintedHintTarget, hintedInput]))
-      inputPaints.get(ta)?.(hint);
+    const boxes = new Set([
+      ...stale,
+      paintedInput,
+      input,
+      paintedHintTarget,
+      hintedInput,
+    ]);
+    stale.clear();
+    for (const ta of boxes) inputPaints.get(ta)?.(hint);
     paintedInput = input;
     paintedHintTarget = hintedInput;
   };
@@ -123,7 +146,8 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       allowsMedia = () => true,
       busy = () => false,
       hasContent = (raw) => Boolean(raw),
-      layout = () => {},
+      // The caller's own rendering of what the box holds, run in the box's paint.
+      paint: paintOwn = () => {},
     },
   ) {
     const field = document.createElement("div");
@@ -189,7 +213,12 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       const word = sendWord();
       return word.charAt(0).toUpperCase() + word.slice(1);
     };
-    const paint = (contextualHint = inputHint()) => {
+    if (altBtn) altBtn.title = altBtn.textContent;
+    let sending = false;
+    let uploading = false;
+    // Everything the box shows about its standing, written only where it differs from
+    // what stands: a text node replaced inside the chrome restyles far more than the node.
+    const paint = (contextualHint) => {
       // Read the shared logical focus so this hint agrees with the shortcut bar and rings.
       const standing = focused() === ta;
       const sendKeys = submitHint();
@@ -202,44 +231,33 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       const placeholder = suffix ? `${word} ${suffix}` : word;
       if (ta.placeholder !== placeholder) ta.placeholder = placeholder;
       if (suffix) {
-        hintLabel.textContent = word;
-        hintKey.textContent = suffix;
+        keepsText(hintLabel, word);
+        keepsText(hintKey, suffix);
         if (visibleHint.parentNode !== ta) ta.append(visibleHint);
       } else visibleHint.remove();
       const ariaLabel = name();
-      if (ariaLabel && ta.getAttribute("aria-label") !== ariaLabel)
-        ta.setAttribute("aria-label", ariaLabel);
+      if (ariaLabel) keeps(ta, "aria-label", ariaLabel);
+      const action = sendLabel();
+      keeps(sendBtn, "aria-label", action);
+      keeps(sendBtn, "title", sendKeys ? `${action} (${sendKeys})` : action);
+      // Keep a disabled send reachable so the user can discover why it will not send;
+      // submit() is the behavioral guard and aria-disabled exposes the same state.
+      const disabled = sending || uploading || busy() || !hasContent(draftValue());
+      keeps(sendBtn, "aria-disabled", disabled);
+      if (altBtn) keeps(altBtn, "aria-disabled", disabled);
+      paintOwn();
     };
     inputPaints.set(ta, paint);
-    const repaint = () => {
-      const label = sendLabel();
-      const sendKeys = submitHint();
-      if (sendBtn.getAttribute("aria-label") !== label)
-        sendBtn.setAttribute("aria-label", label);
-      sendBtn.title = sendKeys ? `${label} (${sendKeys})` : label;
-      if (focused() === ta) paintInputs();
-      else paint();
-    };
-    if (altBtn) altBtn.title = altBtn.textContent;
-    let sending = false;
-    let uploading = false;
-    // Keep a disabled send reachable so the user can discover why it will not send;
-    // submit() is the behavioral guard and aria-disabled exposes the same state.
     const refresh = () => {
+      stale.add(ta);
       repaint();
-      const disabled = String(
-        sending || uploading || busy() || !hasContent(draftValue()),
-      );
-      sendBtn.setAttribute("aria-disabled", disabled);
-      altBtn?.setAttribute("aria-disabled", disabled);
-      layout();
     };
-    // sync() repaints what the box holds. It is not how a draft gets in: what the user
-    // would miss is the words and the pasted images together, and the images show only in
-    // the shelf, so a caller writing .value states half a draft. Emptying a box that way
-    // left an image standing in a box the runtime then read as still holding something —
-    // the box said "draft kept" over a comment it had just sent, and the picture rode into
-    // the next passage's draft.
+    // sync() asks for the paint of what the box holds. It is not how a draft gets in:
+    // what the user would miss is the words and the pasted images together, and the
+    // images show only in the shelf, so a caller writing .value states half a draft.
+    // Emptying a box that way left an image standing in a box the runtime then read as
+    // still holding something — the box said "draft kept" over a comment it had just
+    // sent, and the picture rode into the next passage's draft.
     const sync = () => refresh();
     sync.value = draftValue;
     sync.hasMedia = () => pastedMedia.length > 0;
@@ -252,9 +270,9 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       refresh();
     };
     inputDrafts.set(ta, sync);
-    // A runtime-built box is normally wired before it can receive focus. Preserve the
-    // bookkeeping too if a caller wires one that is already standing.
-    repaint();
+    // The box's first paint names its send button and placeholder, and keeps the focus
+    // bookkeeping if a caller wires one that is already standing.
+    refresh();
     const submit = async (sender) => {
       if (sending || uploading || busy()) return;
       // A send key on an empty box answered with silence reads as a send that
@@ -378,11 +396,5 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     return sync;
   }
 
-  // A focus move can finish after a card's placement. Paint its box in that same
-  // turn so the binding is present when the newly focused card first appears.
-  return {
-    wireInput,
-    paintInputs,
-    mount: () => document.addEventListener("focusin", paintInputs),
-  };
+  return { wireInput, paintInputs };
 }

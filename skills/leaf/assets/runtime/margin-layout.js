@@ -518,9 +518,9 @@ export function layoutMarginRows() {
   const stands = (main.getAttribute("data-lf-margin") ?? "")
     .split(" ")
     .includes("rail");
-  // Said once, for the chrome: where the markers are pins, the banner offers the Page
-  // Map in their place (chrome.css).
-  layer.root.toggleAttribute("data-lf-pins", !stands);
+  // Said once, on the chrome root: where the markers are pins, the banner offers the
+  // Page Map in their place (chrome.css).
+  layer.root.closest(".lf-chrome").toggleAttribute("data-lf-pins", !stands);
   const rootStyle = getComputedStyle(document.documentElement);
   const hang = parseFloat(rootStyle.getPropertyValue("--rail-hang")) || 0;
   const pinInset = parseFloat(rootStyle.getPropertyValue("--pin-inset")) || 0;

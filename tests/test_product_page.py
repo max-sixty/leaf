@@ -6,6 +6,7 @@ import json
 import re
 import shlex
 import subprocess
+import sys
 from pathlib import Path
 
 import click
@@ -553,14 +554,14 @@ def test_demo_recording_drives_the_browser_journey(tmp_path):
     # same nothing. This is `open_page`'s complaint about "Failed to load
     # resource" one file over — carry what failed into the failure.
     recorded = subprocess.run(
-        [ROOT / "scripts" / "record-demo.sh", "--output", output],
+        [sys.executable, ROOT / "scripts" / "record-demo.py", "--output", output],
         capture_output=True,
         text=True,
         check=False,
     )
 
     assert recorded.returncode == 0, (
-        f"record-demo.sh exited {recorded.returncode}\n"
+        f"record-demo.py exited {recorded.returncode}\n"
         f"{recorded.stdout}{recorded.stderr}".rstrip()
     )
     assert recorded.stdout.strip() == f"Recorded {output}"

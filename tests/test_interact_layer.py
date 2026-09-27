@@ -273,7 +273,7 @@ def test_wt_merge_runs_every_npm_gate_ci_runs():
     """Each npm gate CI runs, the direct landing path runs in the same directory.
 
     Neither the suite nor pre-commit reaches the TypeScript under `worker/src/` and
-    `scripts/browser/`, so a `wt merge` that skipped one of their gates would land a
+    `build/browser/`, so a `wt merge` that skipped one of their gates would land a
     red main that a pull request would have caught. A step's `working-directory`
     becomes `--prefix` in the hook, which runs from the root: npm's bare `test` in
     `worker/` is `npm test --prefix worker` there. `npm ci` installs rather than gates.

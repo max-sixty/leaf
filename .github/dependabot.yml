@@ -6,7 +6,7 @@ version: 2
 #
 # The npm entry watches the root `package.json`, which names every JavaScript
 # package the committed browser output is built from: the browser framework build's
-# page payload and every bundle `scripts/vendor.py` makes. Its PR moves the pins and
+# page payload and every bundle `build/vendor.py` makes. Its PR moves the pins and
 # the lock but not the output, so CI stays red on it until the rebuilt bundles are
 # committed to the same branch; `running-tend` says how. `esbuild` is left out: it is
 # the tool every bundle shares rather than payload, so it moves when a bundle needs

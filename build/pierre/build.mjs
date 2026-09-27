@@ -1,6 +1,6 @@
 /*
  * Resolve Shiki and Pierre's theme registry onto Leaf's shims, recording in
- * `meta.json` what reached the bundle so `scripts/browser/shipped.mjs` can write
+ * `meta.json` what reached the bundle so `build/browser/shipped.mjs` can write
  * its license notices.
  */
 import fs from "node:fs";

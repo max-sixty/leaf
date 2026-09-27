@@ -1,13 +1,13 @@
 # Repository tooling
 
 These scripts are developer tooling. A host copies them with the tracked tree, but
-nothing under `skills/leaf` reads them at runtime. Python tools use the root
-`pyproject.toml` and `uv.lock`; the JavaScript builds use `package.json` and
-`package-lock.json`. What they share, and the `leaf-dev` commands, live in the
-`leaf_dev` package under `dev/` (`dev/AGENTS.md`).
+nothing under `skills/leaf` reads them at runtime. They use the root `pyproject.toml`
+and `uv.lock`. What they share, and the `leaf-dev` commands, live in the `leaf_dev`
+package under `dev/` (`dev/AGENTS.md`); what builds the committed browser bundles
+lives in `build/` (`build/AGENTS.md`).
 
 A script's output lands under `.tmp/` unless its reader finds it at a committed
-path: the vendored bundles, `examples/corpus.html` and its companions, the catalog
+path: `examples/corpus.html` and its companions, the catalog
 pin in `example-previews.json`, and the demo frames the README and site cards draw.
 Evidence, previews, staged sites, and probe results leave the tracked tree unchanged.
 
@@ -42,7 +42,7 @@ Evidence, previews, staged sites, and probe results leave the tracked tree uncha
 - `profile_page.py SOURCE TRANSITION` says where one of those transitions spends its
   time in this checkout: main-thread tasks up to the painted frame, forced style
   recalculations and the writes that invalidated them, and JS by function.
-- `record-demo.sh` regenerates `docs/demo.gif`, the README stills, and
+- `record-demo.py` regenerates `docs/demo.gif`, the README stills, and
   `docs/session-card.png`.
 
 ## MCP Apps probe
@@ -51,20 +51,3 @@ Evidence, previews, staged sites, and probe results leave the tracked tree uncha
 host; `mcp-app/README.md` owns it. Its evidence under `.tmp/mcp-app/experiments/`
 is scratch. Copy into `notes/mcp-apps/experiments/<number>/results/` only what a
 written-up result cites.
-
-## Vendored bundles
-
-`browser/build.mjs` builds the browser framework and `lit.js` from the TypeScript
-under `scripts/browser/`; `vendor.py` rebuilds every other third-party bundle.
-Installation, page init, and export consume the committed output and never run a
-compiler. After `npm ci`, both reproduce the tracked bytes, so a diff after a
-rebuild means the lock, a build script, or the registry input changed:
-
-```sh
-npm ci
-npm run build:browser      # npm run check:browser compares without writing
-uv run scripts/vendor.py   # all bundles, or name the ones to rebuild
-```
-
-Rebuild after `npm install` moves a pin or the lock, or after changing registry
-input a bundle reads. `package.json` pins every JavaScript version that ships.

@@ -27,7 +27,7 @@ worker-node = "npm ci --prefix worker"
 # The bundles build from the installed lock, so a rebuild reproduces the tracked bytes
 # exactly, and any difference is a lock nobody rebuilt from.
 [[pre-merge]]
-bundles = 'uv run scripts/vendor.py > /dev/null && git status --porcelain && test -z "$(git status --porcelain)"'
+bundles = 'uv run build/vendor.py > /dev/null && git status --porcelain && test -z "$(git status --porcelain)"'
 
 # Broad discovery keeps the local gate quick. CI runs the nightly-marked tests after
 # main moves.

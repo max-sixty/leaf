@@ -28,21 +28,29 @@ needs re-vendoring, and doesn't list reviving it as follow-up work.
 
 ## Explore an open design
 
-When a new interface leaves a material visual or interaction choice unsettled,
-first look in the shipped examples and `notes/` for an exploration of the same
-surface, and extend its playground when it owns the same decision. Otherwise
-initialize a page with the `playground` package and follow
-`<root>/skills/leaf/packages/playground/guidance/author.md`: several coherent
-options as named presets, each built far enough that the user can operate it in
-the shared preview. The user's submitted configuration or feedback chooses the
-one implementation the change keeps.
+Whenever the user is to choose among designs for a visual or interaction
+question, whether options for a new interface, alternatives to a shipped one, or
+sketches they asked for, put the candidates in one playground, where the user
+operates each, comments on it, and submits a choice. The submitted configuration
+or feedback chooses the one implementation the change keeps. First look in the
+shipped examples and `notes/` for an exploration of the same surface, and extend
+its playground when it owns the same decision.
 
-When the subject already exists, implement each candidate in the runtime and
-theme that own the surface and present it through a shipped example or fixture.
-When the user asks for sketches without implementation, keep the current surface
-as the baseline, derive each sketch from its actual controls, copy, and styling,
-and embed the operable current surface with a live `lf-sample`
-(`skills/leaf/references/page-authoring.md`).
+A playground is one HTML file, like a standalone sketch. Write it under `.tmp/`
+and serve it with `scripts/preview.py --source <file> --user` ("Preview a
+page"), which builds the page from that file alone. Its CSS reads the live
+theme's tokens, and the `playground` package's elements
+(`<root>/skills/leaf/packages/playground/guidance/author.md`) wrap the
+candidates: a `choice` control naming them, the candidates in its preview, and
+an output saying what to build. Add presets and further controls only where the
+user tunes more than the choice.
+
+When the subject already exists and the candidates are to be implemented,
+implement each in the runtime and theme that own the surface and present it
+through a shipped example or fixture. A sketch without implementation is
+page-local markup derived from the current surface's controls, copy, and
+styling, shown beside that surface as the baseline, which a live `lf-sample`
+(`skills/leaf/references/page-authoring.md`) embeds operable.
 
 ## Prove and hand off a visible change
 
@@ -80,12 +88,13 @@ viewport, theme, and interaction state. A live preview handed to the user
 carries the fragment of the semantic block it is about (a titled section's own
 id) and stays running.
 
-## Preview a shipped example
+## Preview a page
 
 `scripts/preview.py <example> --export` writes one file that opens offline.
 `scripts/preview.py <example>` serves a live page at `.tmp/previews/<example>`
 in the foreground, like a dev server, so run it as a long-running command
-(`run_in_background` in Claude Code). It follows source and runtime edits at one
+(`run_in_background` in Claude Code). `--source <file>` serves any authored HTML
+file in place of a shipped example. It follows source and runtime edits at one
 URL; each start rebuilds the page from the fixture, and `--slot <name>` runs another copy.
 
 A plain preview takes no task claim, so its presses reach only the page's log;

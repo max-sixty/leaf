@@ -1907,7 +1907,7 @@ def test_the_live_page_adopts_a_revision_and_stamps_it_without_replacing_main(
     page.evaluate("window.__leafMain = document.querySelector('main')")
     stamped = CliRunner().invoke(
         cli_model.cli,
-        ["version", "stamp", str(serve.page_dir), "--text", "new findings"],
+        ["page", "stamp", str(serve.page_dir), "--text", "new findings"],
     )
     assert stamped.exit_code == 0, stamped.output
     told(page)
@@ -1940,7 +1940,7 @@ def test_a_stamped_live_draft_and_its_unstamped_view_keep_distinct_menu_rows(
     told(page)
     stamped = CliRunner().invoke(
         cli_model.cli,
-        ["version", "stamp", str(serve.page_dir), "--text", "second"],
+        ["page", "stamp", str(serve.page_dir), "--text", "second"],
     )
     assert stamped.exit_code == 0, stamped.output
     told(page)
@@ -4672,7 +4672,7 @@ def test_the_ask_walk_follows_registry_declarations(browser, serve):
 def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
     browser, serve
 ):
-    """The agent channel, end to end in the browser: a `leaf experimental report`
+    """The agent channel, end to end in the browser: a `leaf page report`
     reaches the open page on the next poll and paints as provisional news — the status
     attribute moves, the parent's done-fraction recounts, and Page Map identifies a
     Reported update rather than the user's change. Task status remains work
@@ -4693,7 +4693,7 @@ def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
 
     sent = CliRunner().invoke(
         cli_model.cli,
-        ["experimental", "report", str(d), "t-parser", "status", "status=review"],
+        ["page", "report", str(d), "t-parser", "status", "status=review"],
     )
     assert sent.exit_code == 0, sent.output
     told(page)
@@ -4718,7 +4718,7 @@ def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
     # fraction chip recounts across the tree.
     sent = CliRunner().invoke(
         cli_model.cli,
-        ["experimental", "report", str(d), "t-parser", "status", "status=done"],
+        ["page", "report", str(d), "t-parser", "status", "status=done"],
     )
     assert sent.exit_code == 0, sent.output
     told(page)
@@ -4881,7 +4881,7 @@ def test_a_rosters_row_says_when_the_log_last_heard_from_that_worker(browser, se
         # A state the markup does not already hold, or there is no news to paint: a
         # report saying what the page says is blessed silence, not provisional state.
         [
-            "experimental",
+            "page",
             "report",
             str(d),
             "ag-wren",
@@ -4952,7 +4952,7 @@ def test_claims_and_reports_share_one_canonical_update_feed(
     report = CliRunner().invoke(
         cli_model.cli,
         [
-            "experimental",
+            "page",
             "report",
             str(d),
             "ag-wren",
@@ -5067,7 +5067,7 @@ def test_report_words_and_widget_state_wait_together_for_a_drag(browser, serve):
     first = CliRunner().invoke(
         cli_model.cli,
         [
-            "experimental",
+            "page",
             "report",
             str(d),
             "ag-wren",
@@ -5092,7 +5092,7 @@ def test_report_words_and_widget_state_wait_together_for_a_drag(browser, serve):
     second = CliRunner().invoke(
         cli_model.cli,
         [
-            "experimental",
+            "page",
             "report",
             str(d),
             "ag-wren",
@@ -5177,7 +5177,7 @@ def test_a_rosters_row_survives_the_polls_that_keep_it_fresh(browser, serve):
     sent = CliRunner().invoke(
         cli_model.cli,
         [
-            "experimental",
+            "page",
             "report",
             str(d),
             "ag-finch",
@@ -5199,7 +5199,7 @@ def test_a_rosters_row_survives_the_polls_that_keep_it_fresh(browser, serve):
     sent = CliRunner().invoke(
         cli_model.cli,
         [
-            "experimental",
+            "page",
             "report",
             str(d),
             "ag-wren",
@@ -5273,7 +5273,7 @@ def test_a_recounted_fraction_holds_the_width_it_had(browser, serve):
 
     sent = CliRunner().invoke(
         cli_model.cli,
-        ["experimental", "report", str(d), "t-parser", "status", "status=done"],
+        ["page", "report", str(d), "t-parser", "status", "status=done"],
     )
     assert sent.exit_code == 0, sent.output
     told(page)
@@ -5561,7 +5561,7 @@ def test_the_render_gate_applies_every_standing_action_a_second_time(browser, se
     ]:
         sent = CliRunner().invoke(
             cli_model.cli,
-            ["experimental", "report", str(serve.page_dir), widget, verb, *fields],
+            ["page", "report", str(serve.page_dir), widget, verb, *fields],
         )
         assert sent.exit_code == 0, sent.output
 
@@ -8223,7 +8223,7 @@ def test_command_hub_derives_the_operator_reading_from_its_goal_tree(browser, se
 
     sent = CliRunner().invoke(
         cli_model.cli,
-        ["experimental", "report", str(d), "api-errors", "status", "status=done"],
+        ["page", "report", str(d), "api-errors", "status", "status=done"],
     )
     assert sent.exit_code == 0, sent.output
     told(page)
@@ -8269,7 +8269,7 @@ def test_command_hub_reads_one_publication_before_worker_presentation_commits(
     sent = CliRunner().invoke(
         cli_model.cli,
         [
-            "experimental",
+            "page",
             "report",
             str(serve.page_dir),
             "w-1",
@@ -8517,7 +8517,7 @@ def test_command_hub_keeps_projection_focus_when_unrelated_news_arrives(browser,
     sent = CliRunner().invoke(
         cli_model.cli,
         [
-            "experimental",
+            "page",
             "report",
             str(d),
             "w-2",
@@ -8535,7 +8535,7 @@ def test_command_hub_keeps_projection_focus_when_unrelated_news_arrives(browser,
     sent = CliRunner().invoke(
         cli_model.cli,
         [
-            "experimental",
+            "page",
             "report",
             str(d),
             "w-2",
@@ -8651,7 +8651,7 @@ def test_command_hub_repaints_anchors_after_generated_projections_change(
     round_trip(page)
     sent = CliRunner().invoke(
         cli_model.cli,
-        ["experimental", "report", str(d), "goal-parser", "status", "status=review"],
+        ["page", "report", str(d), "goal-parser", "status", "status=review"],
     )
     assert sent.exit_code == 0, sent.output
     told(page)

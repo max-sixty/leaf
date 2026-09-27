@@ -1,18 +1,20 @@
-"""Arms, served pages, and Claude Code children for evals and probes that run a
+"""Arms, served pages, and agent-host children for evals and probes that run a
 version of Leaf.
 
     uv run leaf-dev arm REF DEST
 
 builds one arm at DEST from git REF; `evals/README.md`'s A/B recipe builds its other
 arm with it. `leaf-dev stills` and `leaf-dev probe`, `eval_claude_delivery.py`, the
-two `bench_*.py` scripts, `notes/arrangement-eval/harness.py` and
-`notes/usability-eval/harness.py` import the rest.
+two `bench_*.py` scripts, `verify_codex_task.py`, `verify_site.py`,
+`notes/arrangement-eval/harness.py` and `notes/usability-eval/harness.py` import the
+rest.
 
-An arm is the plugin payload at one ref (`PAYLOAD`: the manifest, hooks, launcher,
-skills and uv project) and nothing else. It has no `.git`, examples, docs or notes, so a
-child cannot read its way to another arm's version through history or the worked
-corpus. Building runs the launcher once, so uv builds the arm's environment before a
-timed run starts.
+An arm is the plugin payload at one ref (`PAYLOAD`: both hosts' manifests, hooks,
+launcher, skills and uv project) and nothing else. It has no `.git`, examples, docs or
+notes, so a child cannot read its way to another arm's version through history or the
+worked corpus. Building runs the launcher once, so uv builds the arm's environment
+before a timed run starts. `extract_payload` alone also copies the working tree's
+payload, which a Codex home (`codex_home`) installs as its plugin.
 
 A child is `claude -p` from a scratch cwd outside any repository, with project-only
 settings, no MCP servers, auto-memory off, and none of the variables that identify an
@@ -61,9 +63,16 @@ from leaf_dev.page_fixtures import prepare_page, read_fixture
 # needs that file to read the lock. The package itself stays out: the launcher never
 # installs the dev group. A ref from before the package has no such file.
 PAYLOAD = (
-    ".claude-plugin", "bin", "hooks", "skills", "pyproject.toml", "uv.lock",
+    ".agents/plugins",
+    ".claude-plugin",
+    ".codex-plugin",
+    "bin",
+    "hooks",
+    "skills",
+    "pyproject.toml",
+    "uv.lock",
     "dev/pyproject.toml",
-)  # fmt: skip
+)
 
 
 def environment(**extra: str) -> dict[str, str]:
@@ -155,24 +164,48 @@ def merge_base(ref: str = "HEAD") -> str:
     ).stdout.strip()
 
 
-def build_arm(ref: str, dest: Path) -> str:
-    """Extract PAYLOAD at `ref` into `dest`, replacing any earlier arm there, and
-    build its environment; return the commit."""
+def extract_payload(dest: Path, ref: str | None = None) -> None:
+    """Write PAYLOAD at git `ref`, or as the working tree has it when `ref` is None,
+    into `dest`, replacing whatever was there. The working tree's payload is its
+    tracked and unignored files, the ones an install copies."""
     if dest.exists():
         # A caller may have made an arm read-only.
         subprocess.run(["chmod", "-R", "u+w", dest], check=True)
         shutil.rmtree(dest)
     dest.mkdir(parents=True)
-    present = subprocess.run(
-        ["git", "-C", ROOT, "ls-tree", "--name-only", ref, *PAYLOAD],
+    if ref is not None:
+        # An older ref lacks some of PAYLOAD, which `git archive` would refuse.
+        present = subprocess.run(
+            ["git", "-C", ROOT, "ls-tree", "--name-only", ref, *PAYLOAD],
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.split()
+        archive = subprocess.run(
+            ["git", "-C", ROOT, "archive", ref, *present],
+            capture_output=True,
+            check=True,
+        ).stdout
+        subprocess.run(["tar", "-x", "-C", dest], input=archive, check=True)
+        return
+    listed = subprocess.run(
+        ["git", "-C", ROOT, "ls-files", "-z", "--cached", "--others"]
+        + ["--exclude-standard", "--", *PAYLOAD],
         capture_output=True,
         text=True,
         check=True,
-    ).stdout.split()
-    archive = subprocess.run(
-        ["git", "-C", ROOT, "archive", ref, *present], capture_output=True, check=True
     ).stdout
-    subprocess.run(["tar", "-x", "-C", dest], input=archive, check=True)
+    for name in filter(None, listed.split("\0")):
+        # A tracked file deleted from the working tree is still listed.
+        if (ROOT / name).exists():
+            (dest / name).parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(ROOT / name, dest / name)
+
+
+def build_arm(ref: str, dest: Path) -> str:
+    """Extract PAYLOAD at `ref` into `dest`, replacing any earlier arm there, and
+    build its environment; return the commit."""
+    extract_payload(dest, ref)
     with tempfile.TemporaryDirectory() as state:
         run_leaf(dest, Path(state), "--root", check=True)
     return subprocess.run(
@@ -181,6 +214,20 @@ def build_arm(ref: str, dest: Path) -> str:
         text=True,
         check=True,
     ).stdout.strip()
+
+
+def codex_home(path: Path, config: str = "") -> Path:
+    """Make `path` a Codex home holding a copy of the host's login and `config` as its
+    `config.toml`, so a Codex child run with `CODEX_HOME=path` reads none of the
+    host's settings, plugins, hooks or task history. Codex still reads the user's
+    `~/.agents/skills`, which `CODEX_HOME` does not move."""
+    path.mkdir(mode=0o700)
+    host = Path(os.environ.get("CODEX_HOME", Path.home() / ".codex"))
+    auth = path / "auth.json"
+    shutil.copyfile(host / "auth.json", auth)
+    auth.chmod(0o600)
+    (path / "config.toml").write_text(config)
+    return path
 
 
 def scratch() -> Path:

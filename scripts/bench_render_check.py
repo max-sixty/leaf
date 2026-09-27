@@ -34,6 +34,8 @@ Known limits:
 - The rows name functions in the arm's code. A ref that renames or restructures one
   shows `-` for its row and moves that time into `other`; update FUNCTIONS and
   `phases` when the gate's structure changes.
+- Both arms run `page check`, so a base older than that command, which was
+  `version check` until 2026-09, fails every run and says so under its tables.
 - The tracer needs Python 3.12 or newer in the arm's environment.
 - Pages come from this checkout's `examples/` for both arms, so an example that
   needs something the base lacks fails there; a failing check is reported under its

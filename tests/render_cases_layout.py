@@ -485,37 +485,19 @@ LOOSE_SCROLLER_PAGE = LONG_PAGE.replace(
     "<div style='width: 700px'>The same row, in a box that holds its own.</div></div>"
     "\n</main>",
 )
-# Boxes the page's own stylesheet makes scroll, each through a rule shape the runtime has
-# to read to find it: a nested rule's `&`, a rule inside @media and @layer, `:scope`
-# inside @scope and inside a scope whose root is relative to another, one axis hidden (which turns the other's `visible` into `auto`), and an
-# overflow only `var()` substitution decides. The last stands in a closed disclosure, content the browser does
-# not render until it opens.
-STYLED_SCROLLERS_PAGE = leaf_page(
-    "styled-scrollers",
+# A box the page's own stylesheet makes scroll, standing in a closed disclosure: content
+# the browser does not render until it opens.
+FOLDED_SCROLLER_PAGE = leaf_page(
+    "folded-scroller",
     """
-<h1 id="t">Styled scrollers</h1>
-<div class="nest"><div id="nested" class="box"><div class="row">A nested rule scrolls this row.</div></div></div>
-<div id="wrapped" class="box"><div class="row">A rule in @media and @layer scrolls this row.</div></div>
-<div class="outer"><div id="scoped" class="box"><div class="row">A scoped rule scrolls this row.</div></div>
-<div class="inner"><div id="nested-scope" class="box"><div class="row">A rule in a scope inside a scope scrolls this row.</div></div></div></div>
-<div id="one-axis" class="box"><div class="row">A rule hiding one axis scrolls this row.</div></div>
-<div id="substituted" class="box"><div class="row">A substituted overflow scrolls this row.</div></div>
+<h1 id="t">Folded scroller</h1>
 <details id="folded"><summary>Folded</summary>
-<div id="unfolded" class="box"><div class="row">A folded rule scrolls this row once opened.</div></div>
+<div id="unfolded"><div class="row">A row wider than the box that scrolls it.</div></div>
 </details>
 """,
     head="""<style>
-.box { width: 240px; }
+#unfolded { width: 240px; overflow-x: auto; }
 .row { width: 700px; }
-.nest { & > .box { overflow-x: auto; } }
-@media (min-width: 1px) { @layer page { #wrapped { overflow-x: auto; } } }
-@scope (.outer) {
-  :scope > .box { overflow-x: auto; }
-  @scope (:scope > .inner) { :scope > .box { overflow-x: auto; } }
-}
-#one-axis { overflow-y: hidden; }
-#substituted { --lf-test-overflow: auto; overflow: var(--lf-test-overflow) hidden; }
-#unfolded { overflow-x: auto; }
 </style>""",
 )
 SCROLLED_CONTAINER = LONG_PAGE.replace(

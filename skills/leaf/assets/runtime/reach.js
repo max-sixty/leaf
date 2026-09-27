@@ -69,8 +69,9 @@ import { LAYOUT } from "./widget-elements.js";
 // sweep time alone, a `pre` that fits a desk and scrolls on a phone got no stop at all,
 // which is the very case the sweep was written for. So the two questions are asked at the
 // two times each is answerable: the declaration once, when a tree arrives or a box in it
-// is first rendered, and the measurement again whenever the layout moves. The candidate set is what the declaration
-// leaves behind, so the re-measure walks a handful of boxes rather than the document.
+// is first rendered, and the measurement again whenever the layout moves. The candidate
+// set is what the declaration leaves behind, so the re-measure walks a handful of boxes
+// rather than the document.
 const overflows = (el) =>
   el.scrollWidth > el.clientWidth || el.scrollHeight > el.clientHeight;
 // The box's own controls, which is every focusable inside it but the note above.
@@ -143,127 +144,53 @@ function paintReadingReach(el) {
   );
 }
 
-// Which boxes to ask is read off the stylesheets in force rather than off every element.
-// A box scrolls only because some rule says so, so the rules are where the candidates
-// come from: every style rule in a sheet the tree's cascade reads that declares an
-// overflow able to scroll contributes its selector, and one query over the scope
-// returns the boxes those rules could reach — a few hundred of the corpus's ten
-// thousand elements. The computed style still decides, on those alone, since a later
-// rule may take the overflow back. So nobody declares a scroller beside the rule that
-// makes it one — theme, package, runtime chrome, and the page's own stylesheet are read
-// on the same terms — and a revision that swaps the page's CSS is read afresh, since
-// each call reads the sheets the tree holds at that moment.
-//
-// The query reads what a rule can say. `visible` on one axis computes to `auto` beside
-// `hidden` on the other, so a rule hiding a single axis is a candidate; so is a value
-// only substitution decides (`var()`, in a longhand or in the shorthand, whose
-// longhands then read empty). A nested rule's `&` stands for its parent's selector, as
-// nesting defines it, and `:scope` inside `@scope` for the scope's root selector with
-// its limit left out: a superset, which the computed style then narrows. The list is
-// wrapped in `:is()`, which forgives, so a selector no query can take (a pseudo-element,
-// a vendor prefix) drops out alone. The user agent's sheet is not in the CSSOM, and of
-// what it scrolls a text box and a list box are stops already, which leaves popovers
-// and modal dialogs; an inline style is named too. A shadow host is always asked, since
-// its `:host` rule sits in a tree whose query cannot return the host.
-const UNSCROLLED = /^(|visible|clip|hidden|initial|unset)$/;
-const axis = (style, physical, logical) =>
-  style.getPropertyValue(physical).trim() || style.getPropertyValue(logical).trim();
-function declaresScroll(style) {
-  if (style.getPropertyValue("overflow").includes("var(")) return true;
-  const x = axis(style, "overflow-x", "overflow-inline");
-  const y = axis(style, "overflow-y", "overflow-block");
-  if (!UNSCROLLED.test(x) || !UNSCROLLED.test(y)) return true;
-  return (x === "hidden") !== (y === "hidden") && x !== "clip" && y !== "clip";
-}
-// A selector as the document can query it: `:scope` and `&` stand for what encloses it.
-const resolved = (selector, parent, scope) =>
-  selector
-    .replaceAll(":scope", `:is(${scope ?? "*"})`)
-    .replaceAll("&", `:is(${parent ?? "*"})`);
-function scrollingSelectors(rules, parent, scope, into) {
-  for (const rule of rules) {
-    if (rule instanceof CSSImportRule) {
-      if (rule.styleSheet)
-        scrollingSelectors(rule.styleSheet.cssRules, null, null, into);
-      continue;
-    }
-    // A scope's root is itself read against the scope around it, so a nested one's
-    // `:scope > .inner` names the inner root from the outer.
-    if (rule instanceof CSSScopeRule) {
-      const root = rule.start ? resolved(rule.start, parent, scope) : "*";
-      scrollingSelectors(rule.cssRules, root, root, into);
-      continue;
-    }
-    const selector =
-      rule instanceof CSSStyleRule
-        ? resolved(rule.selectorText, parent, scope)
-        : parent;
-    // A nested declaration block reads its parent's selector; a top-level at-rule's
-    // own descriptors (@page, @font-face) select no element.
-    if (selector !== null && rule.style && declaresScroll(rule.style))
-      into.push(selector);
-    if (rule.cssRules) scrollingSelectors(rule.cssRules, selector, scope, into);
-  }
-  return into;
-}
-// Read once per sheet, since no sheet's rules change in place: the layer's constructed
-// sheets are built once (stylesheets.js, shadow-stage.js), and a `<style>` or `<link>`
-// whose text changes, as a revision's head does, is a new sheet. Walking every sheet on
-// every call cost a thread-panel pass as much as the element sweep this replaced.
-const sheetScrollers = new WeakMap();
-function scrollersOf(sheet) {
-  let selectors = sheetScrollers.get(sheet);
-  if (!selectors)
-    sheetScrollers.set(
-      sheet,
-      (selectors = scrollingSelectors(sheet.cssRules, null, null, [])),
-    );
-  return selectors;
-}
-const scrollerQuery = (tree) =>
-  `:is(${[
-    '[style*="overflow" i]',
-    "[popover]",
-    "dialog",
-    ...[...tree.styleSheets, ...tree.adoptedStyleSheets].flatMap(scrollersOf),
-  ].join(",")})`;
-function candidateScrollers(root) {
-  const found = new Set();
-  const query = scrollerQuery(root.getRootNode());
-  // The root too: a rebuilt widget is handed as itself, and the panel's thread list is
-  // its own scroller.
-  if (root.nodeType === Node.ELEMENT_NODE && root.matches(query)) found.add(root);
-  for (const el of root.querySelectorAll(query)) found.add(el);
-  for (const shadow of shadowRootsIn(root)) {
-    found.add(shadow.host);
-    for (const el of shadow.querySelectorAll(scrollerQuery(shadow))) found.add(el);
-  }
-  return found;
-}
-
-// And a box in skipped content is not asked (`skipped`, which says why): a hidden
-// tab's code block would otherwise cost a style pass over its whole panel. Such a
-// candidate waits, observed, and is reached when it comes to have a box — the size
-// observer hears that — which is the first moment its answers could matter to anyone.
+// Every element in the scope is asked, except content the browser skips (`skipped`,
+// which says why): asking about a box in a hidden tab's panel or a closed disclosure
+// makes the browser style and lay out that whole subtree first, which on the corpus was
+// nearly all of a revision's sweep. So the walk stops at the first skipped box on each
+// path and leaves its subtree waiting, observed: a box in skipped content has no size,
+// and the size observer hears it come to have one, which is the first moment its
+// answers could matter to anyone. It is swept then. Every other element is asked,
+// whoever's rule made it scroll — theme, package, runtime chrome, or the page's own
+// stylesheet — so nobody declares a scroller, and a revision that swaps the page's CSS
+// is read afresh by the sweep its install runs.
 const waiting = new Set();
 
 export function reachScrollers(root) {
-  for (const el of candidateScrollers(root)) reach(el);
+  sweep(root);
   paintReach();
 }
 
-// Reached from the size observer's own callback too, when a waiting box is drawn. So its observation is dropped only once nothing is left to watch: dropping and
-// taking it again inside the callback is a fresh observation the same delivery cannot
-// reach, which the browser reports as a ResizeObserver loop.
-function reach(el) {
-  if (skipped(el)) {
-    waiting.add(el);
-    reachSizes.observe(el);
-    return;
-  }
-  waiting.delete(el);
-  classify(el);
-  if (!watched(el)) reachSizes.unobserve(el);
+const wait = (el) => {
+  waiting.add(el);
+  reachSizes.observe(el);
+};
+function sweep(root) {
+  if (root.nodeType === Node.ELEMENT_NODE && skipped(root)) return wait(root);
+  // The x-shadow trees the walk enters, which it reaches through their hosts, so a
+  // host in skipped content leaves its tree unasked too.
+  const trees = new Set(shadowRootsIn(root));
+  const walk = (scope) => {
+    const walker = document.createTreeWalker(scope, NodeFilter.SHOW_ELEMENT, (el) => {
+      if (el.checkVisibility() || !skipped(el)) return NodeFilter.FILTER_ACCEPT;
+      wait(el);
+      return NodeFilter.FILTER_REJECT;
+    });
+    // The root too: a rebuilt widget is handed as itself, and the panel's thread list
+    // is its own scroller.
+    let el = scope.nodeType === Node.ELEMENT_NODE ? scope : walker.nextNode();
+    for (; el; el = walker.nextNode()) {
+      // Swept from the size observer's own callback too, when a waiting box is drawn,
+      // so its observation is dropped only once nothing is left to watch: dropping and
+      // taking it again inside the callback is a fresh observation the same delivery
+      // cannot reach, which the browser reports as a ResizeObserver loop.
+      const waited = waiting.delete(el);
+      classify(el);
+      if (waited && !watched(el)) reachSizes.unobserve(el);
+      if (trees.has(el.shadowRoot)) walk(el.shadowRoot);
+    }
+  };
+  walk(root);
 }
 
 function classify(el) {
@@ -345,7 +272,7 @@ function gone(el) {
 // stop and shows no edge.
 const unpainted = (el) => gone(el) || skipped(el);
 function paintReach() {
-  for (const el of waiting) if (!unpainted(el)) reach(el);
+  for (const el of waiting) if (!unpainted(el)) sweep(el);
   for (const el of mayScroll) {
     if (unpainted(el)) continue;
     const wanted = overflows(el) && !holdsOwnStop(el) ? 0 : -1;

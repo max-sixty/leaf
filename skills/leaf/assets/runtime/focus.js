@@ -103,7 +103,10 @@ export const deepFocus = (at = document.activeElement) => {
 // stand-ins, most particular first: the replacement keyed on the identity the held node
 // had, then the widget's own fallback. The user lands on the first that is drawn and
 // takes focus, and the caret goes with them, since a stand-in is the same place under a
-// new node. Restoring answers whether the user now stands on one of them.
+// new node. A stand-in that is somewhere else, such as the reply of the thread a seat's
+// box gave way to, is the caller's own landing: a function that puts the user there its
+// own way, takes no caret, and answers whether it did. Restoring answers whether the user
+// now stands on one of them.
 //
 // Nothing is owed while the user still stands on the held node and it is drawn, and
 // nothing once focus has been placed anywhere since the hold began: a user who moved on
@@ -113,7 +116,19 @@ export const deepFocus = (at = document.activeElement) => {
 // `null` where the user does not stand inside `scope`, which may be a shadow root. The
 // platform's retargeting answers that: a user inside a widget's shadow tree stands
 // inside the scope holding the widget.
+//
+// A hold is a reading and nothing more, so one its caller never restores, such as a
+// batch's that commits, costs nothing: the one listener below counts placements for
+// every hold, and a hold compares the count it began at.
 let restoring = false;
+let placements = 0;
+document.addEventListener(
+  "focusin",
+  () => {
+    if (!restoring) placements += 1;
+  },
+  true,
+);
 // Drawn counts `visibility: hidden` as hidden: a node under it keeps focus for a frame
 // and then the browser blurs it to the body, as it does a node under `display: none`.
 const drawn = (node) =>
@@ -123,32 +138,33 @@ export function holdFocus(scope) {
   if (!standing || standing === document.body || !scope.contains(standing)) return null;
   const held = deepFocus(standing);
   const caret = readCaret(held);
-  let placed = false;
-  // Once, so a hold its caller never restores leaves nothing behind past the next move.
-  const listen = () =>
-    document.addEventListener("focusin", place, { capture: true, once: true });
-  const place = () => {
-    if (restoring) listen();
-    else placed = true;
-  };
-  listen();
+  const began = placements;
   return (...standIns) => {
-    document.removeEventListener("focusin", place, { capture: true });
-    if (placed) return false;
-    for (const node of [held, ...standIns]) {
-      if (!drawn(node)) continue;
-      if (deepFocus() === node) return true;
-      restoring = true;
-      try {
-        focusDestination(node, caret);
-      } finally {
-        restoring = false;
+    if (placements !== began) return false;
+    for (const standIn of [held, ...standIns]) {
+      if (typeof standIn === "function") {
+        if (land(standIn)) return true;
+        continue;
       }
-      if (node.matches(":focus")) return true;
+      if (!drawn(standIn)) continue;
+      if (deepFocus() === standIn) return true;
+      const landed = land(() => {
+        focusDestination(standIn, caret);
+        return standIn.matches(":focus");
+      });
+      if (landed) return true;
     }
     return false;
   };
 }
+const land = (landing) => {
+  restoring = true;
+  try {
+    return landing();
+  } finally {
+    restoring = false;
+  }
+};
 
 const TYPED_TYPES = new Set([
   "text",

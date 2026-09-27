@@ -143,7 +143,7 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 | Notices and announcements | `semantic-news.js`, `notifications.js`, `keyboard/shortcut-bar.js` |
 | Reactions and design review | `reactions.js`, `design.js`, `design-readings.js` |
 | Presentation and validation | `presentation.js`, `validation.js`, `projection-watch.js`, `retained-face.js` |
-| Child pages and gallery playback | `specimen.js`, `interaction-gallery*.js` |
+| Child pages and gallery playback | `sample.js`, `interaction-gallery*.js` |
 | Shadow trees and styles | `shadow.js`, `shadow-stage.js`, `stylesheets.js` |
 | Utilities | `icons.js`, `markdown.js`, `syntax.js`, `motion.js`, `storage.js`, `interaction-log.js` |
 
@@ -305,6 +305,11 @@ ids, nesting, passages, event shapes, and file readings; the browser owns comput
 layout, composed trees, module writes, focus, and replay idempotence.
 Readings of widget state use the publisher's own reading; never write a test-only
 interpretation of it.
+
+The gates judge contracts, not how the page looks. A change to what the page
+draws, including one made for geometry, is proved with before/after screenshots
+of each state it touches (`/developing-leaf`, "Prove and hand off a visible
+change").
 
 ## Working on the runtime
 

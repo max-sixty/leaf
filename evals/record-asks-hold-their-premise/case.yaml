@@ -21,7 +21,7 @@ execution:
       thread proposed. Include it verbatim as
       `<figure id="seat-figure"><svg class="drawing" viewBox="0 0 680 272"></svg></figure>`.
     - You also built a live demo the user can operate: two numbered steps, then
-      `<lf-specimen id="seat-specimen" label="practice plan"><template data-specimen><!-- demo page --></template></lf-specimen>`,
+      `<lf-sample id="seat-sample" label="practice plan"><template data-sample><!-- demo page --></template></lf-sample>`,
       which renders about 700px tall at desktop width.
 
     The page directory is not reachable from here, so reply with the section's HTML
@@ -50,7 +50,7 @@ graders:
     3. The `lf-ask` itself says what happens today: focus stays in the task's box, so a
        second send makes a second thread. Wording may differ; a restatement counts, and
        so does an option that states it.
-    4. The numbered steps and `<lf-specimen id="seat-specimen">` come after the
+    4. The numbered steps and `<lf-sample id="seat-sample">` come after the
        `lf-options`, not before the `lf-ask` or between its heading and its options.
     Fail if the figure or the numbered steps and demo stand before the `lf-ask`, with
     the `lf-ask` holding little more than the question and its options.

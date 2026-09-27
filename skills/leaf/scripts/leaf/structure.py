@@ -280,7 +280,7 @@ class SourceDocument:
         self.title = ""  # what <title> says, for the transcript's heading
         # {tag, line, attrs, parent, direct, children, text, body, holder}
         self.lf_elements = []
-        self.specimens = []
+        self.samples = []
         # id → the innermost lf-* element standing around it, an element's own id
         # standing in itself. Where an id lives is structure; which of those elements is
         # a slot a decision retires and which widget holds it is the registry's word,
@@ -502,7 +502,7 @@ class SourceDocument:
             if reference.startswith(("/page/", "page/", "./page/", "https:", "http:"))
         )
 
-        if tag == "noscript" or (tag == "template" and "data-specimen" not in attrs):
+        if tag == "noscript" or (tag == "template" and "data-sample" not in attrs):
             self.errors.append(
                 f"<{tag}> at line {line}: the browser renders none of its content; "
                 "write it plainly or leave it out"
@@ -556,7 +556,7 @@ class SourceDocument:
                 if isinstance(child, turbohtml.Text)
             )
 
-    def _specimen_resources(self, template) -> None:
+    def _sample_resources(self, template) -> None:
         """Read the complete child document without merging its identity space."""
         attrs = element_attrs(template)
         location = template.source_location
@@ -571,20 +571,20 @@ class SourceDocument:
         if not attrs.get("id"):
             line, _ = self._position(template)
             self.errors.append(
-                f"<template data-specimen> at line {line}: needs a stable id"
+                f"<template data-sample> at line {line}: needs a stable id"
             )
         source = (
             '<!doctype html><html lang="en"><head>'
             '<meta name="viewport" content="width=device-width, initial-scale=1">'
-            f"<title>{escape(attrs.get('id', 'Specimen'))}</title></head>"
-            # A specimen shows a column page; the template is its content, not its frame.
+            f"<title>{escape(attrs.get('id', 'Sample'))}</title></head>"
+            # A sample shows a column page; the template is its content, not its frame.
             '<body><main class="layout-column">'
-            # Preserve authored lines, including multiline tags in nested specimens.
+            # Preserve authored lines, including multiline tags in nested samples.
             + "\n" * (location.start_tag.end_line - 1)
             + self._source[content_start:content_end]
             + "</main></body></html>"
         )
-        self.specimens.append(
+        self.samples.append(
             {
                 "attrs": attrs,
                 "document": SourceDocument(source),
@@ -719,8 +719,8 @@ class SourceDocument:
                 ):
                     self.outside_main.append(f"text in <{element.tag}> at line {line}")
 
-        if element.tag == "template" and "data-specimen" in attrs:
-            self._specimen_resources(element)
+        if element.tag == "template" and "data-sample" in attrs:
+            self._sample_resources(element)
 
         if element.tag == "style":
             self.css += element.text

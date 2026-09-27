@@ -25,6 +25,8 @@ from render_cases_interaction import (
 )
 from render_cases_layout import (
     banner_control,
+    ring_faults,
+    rings_drawn,
     standing_ring,
     toggle_asks,
     token_colour,
@@ -1297,16 +1299,14 @@ def test_the_feature_gallery_displays_the_complete_margin_entry_inventory(
     resized(page, 1440, 900)
     page.locator("#bg-gallery-tabs").get_by_role("tab", name="Page & layout").click()
 
-    atlas = page.locator("#bg-margin-controls-specimens")
+    atlas = page.locator("#bg-margin-controls-samples")
     expect(atlas).to_be_visible()
 
-    def specimen(name):
-        return atlas.locator(
-            f'[data-margin-entry-specimen="{name}"] > .lf-margin-entry'
-        )
+    def sample(name):
+        return atlas.locator(f'[data-margin-entry-sample="{name}"] > .lf-margin-entry')
 
     for name in ("label + context", "hover or focus", "open"):
-        expect(specimen(name)).to_have_css("cursor", "pointer")
+        expect(sample(name)).to_have_css("cursor", "pointer")
     for name in (
         "save",
         "cancel",
@@ -1327,7 +1327,7 @@ def test_the_feature_gallery_displays_the_complete_margin_entry_inventory(
         "resting",
         "selected",
     ):
-        expect(specimen(name)).to_have_css("cursor", "default")
+        expect(sample(name)).to_have_css("cursor", "default")
 
     axes = atlas.locator(".lf-margin-entry").evaluate_all(
         """buttons => ({
@@ -1359,11 +1359,11 @@ def test_the_feature_gallery_displays_the_complete_margin_entry_inventory(
         ]
     )
 
-    glyph = specimen("glyph face")
+    glyph = sample("glyph face")
     expect(glyph.locator(".lf-margin-entry-glyph")).to_have_text("🤔")
-    count = specimen("count badge")
+    count = sample("count badge")
     expect(count.locator(":scope > .lf-margin-count")).to_have_text("3")
-    label = specimen("label + context")
+    label = sample("label + context")
     label.hover()
     expect(label.locator(".lf-margin-entry-label-word")).to_have_text(
         "Label + context…"
@@ -1372,11 +1372,11 @@ def test_the_feature_gallery_displays_the_complete_margin_entry_inventory(
     expect(label.locator(".lf-margin-entry-label")).to_have_css("visibility", "visible")
     page.mouse.move(0, 0)
 
-    resting = specimen("resting")
-    picked_up = specimen("picked up")
-    working = specimen("working")
-    stale = specimen("update stale")
-    fallback = specimen("working · fallback")
+    resting = sample("resting")
+    picked_up = sample("picked up")
+    working = sample("working")
+    stale = sample("update stale")
+    fallback = sample("working · fallback")
     expect(resting).not_to_have_attribute("data-lf-agent-workflow", re.compile(".+"))
     expect(picked_up).to_have_attribute("data-lf-agent-workflow", "picked_up")
     expect(picked_up).to_have_css(
@@ -1415,13 +1415,13 @@ def test_the_feature_gallery_displays_the_complete_margin_entry_inventory(
         ("queued", "pickup"),
         ("turn ended", "waiting"),
     ):
-        status = specimen(name)
+        status = sample(name)
         expect(status).to_have_attribute("role", "status")
         expect(status.locator(".lf-margin-entry-icon")).to_have_attribute(
             "data-lf-icon", icon
         )
-    not_selected = specimen("resting")
-    selected = specimen("selected")
+    not_selected = sample("resting")
+    selected = sample("selected")
     expect(not_selected).not_to_have_attribute(
         "data-lf-target-selected", re.compile(".*")
     )
@@ -1464,7 +1464,7 @@ def test_the_feature_gallery_displays_the_complete_margin_entry_inventory(
         page.locator("#bg-margin-controls > .eyebrow.bg-feature-elements")
     ).to_have_text("lf-margin-entry")
 
-    interactive = specimen("hover or focus")
+    interactive = sample("hover or focus")
     interactive.hover()
     expect(interactive).to_have_css("background-color", token_colour(page, "--chip"))
     expect(interactive).to_have_css("border-top-color", token_colour(page, "--accent"))
@@ -1478,9 +1478,9 @@ def test_the_feature_gallery_displays_the_complete_margin_entry_inventory(
     expect(interactive).to_be_focused()
     expect(interactive).to_have_css("outline-style", "solid")
 
-    opened = specimen("open")
+    opened = sample("open")
     opened_result = atlas.locator(
-        '[data-margin-entry-specimen="open"] .margin-entry-gallery-disclosure'
+        '[data-margin-entry-sample="open"] .margin-entry-gallery-disclosure'
     )
     expect(opened).to_have_attribute("aria-expanded", "true")
     expect(opened).to_have_css("border-top-color", token_colour(page, "--accent"))
@@ -1490,7 +1490,7 @@ def test_the_feature_gallery_displays_the_complete_margin_entry_inventory(
     expect(opened_result).to_be_hidden()
 
     projection = page.locator(
-        '[data-lf-margin-for="bg-margin-controls-specimens"]'
+        '[data-lf-margin-for="bg-margin-controls-samples"]'
     ).get_by_role("button", name="Inspect projection", exact=True)
     expect(projection).to_be_visible()
     projection.hover()
@@ -1541,7 +1541,7 @@ def test_the_feature_gallery_fragment_lands_after_presented_controls_take_space(
 def test_the_feature_gallery_carries_a_margin_entry_through_its_whole_lifecycle(
     browser, serve
 ):
-    """The margin entry specimen shows the stable endpoints and exercises each transition.
+    """The margin entry sample shows the stable endpoints and exercises each transition.
 
     A pending user action and an external work claim are different facts, so the
     journey holds each one long enough to prove that the former only dims until
@@ -1699,7 +1699,7 @@ def test_the_feature_gallery_balances_one_margin_entry_sample_with_feature_secti
         "bg-margin-controls": (
             "Margin entries: every face, state, and projection",
             "#bg-margin-controls-guide",
-            "#bg-margin-controls-specimens",
+            "#bg-margin-controls-samples",
         ),
         "bg-changes": (
             "Suggestions: proposed text changes",
@@ -4471,7 +4471,7 @@ def test_a_spilled_thread_opens_the_full_thread_without_a_hidden_anchor(browser,
 
 
 def _walk_gallery_thread(page, thread_id):
-    """Reach a gallery thread by identity as specimens change page order."""
+    """Reach a gallery thread by identity as samples change page order."""
     walked = page.locator(".lf-margin-preview .lf-page-thread")
     seen = set()
     while True:
@@ -5211,6 +5211,31 @@ def test_the_margin_reply_pinned_to_the_card_foot_shows_its_whole_ring(browser, 
     expect(reply).to_be_focused()
     assert page.evaluate(pinned, [row.element_handle(), transcript.element_handle()])
     assert standing_ring(page)["cuts"] == []
+
+
+def test_a_card_s_thread_ring_closes_under_its_reply_row(browser, serve):
+    """The thread the keyboard opens a card onto wears its ring on all four sides.
+
+    The reply row is pinned to the transcript's foot and paints the thread's surface,
+    so it stands over anything its thread draws beneath it, the thread's own inset
+    ring included.
+    """
+    page = open_page(browser, serve(LONG_THREAD_PAGE, events=[LONG_THREAD_ROOT]))
+    page.emulate_media(reduced_motion="reduce")
+    resized(page, 1440, 900)
+    marker = page.locator('[data-lf-margin-for="open"] .lf-margin-marker')
+    page.keyboard.press("Tab")  # keyboard modality, so the thread's focus is visible
+    marker.focus()
+    page.keyboard.press("Enter")
+    thread = page.locator(".lf-margin-preview .lf-page-thread")
+    expect(thread).to_be_focused()
+    assert thread.evaluate("node => node.matches(':focus-visible')")
+    rendered(page)
+    drawn = rings_drawn(page)
+    assert any(seen["focused"] and seen["here"] for seen in drawn), drawn
+    assert not (faults := ring_faults(drawn, "on a card the keyboard opened")), (
+        "\n".join(faults)
+    )
 
 
 # Whether a message stands wholly between the transcript's top and the reply row pinned
@@ -8120,7 +8145,7 @@ def test_a_row_behind_an_inactive_tab_is_withheld(browser, serve):
 def test_the_feature_gallery_shows_a_pin_on_a_wide_figure_and_o_hides_it(
     browser, serve
 ):
-    """The gallery's rail-and-pins specimen: a comment on the schedule, which is wider
+    """The gallery's rail-and-pins sample: a comment on the schedule, which is wider
     than the column, stands on it as a pin while the prose beside it keeps the rail, and
     `o` hides the pin while the rail stays."""
     page = open_page(browser, serve(FEATURE_GALLERY))

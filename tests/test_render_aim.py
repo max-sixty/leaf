@@ -65,7 +65,7 @@ from render_harness import (
     EXAMPLES,
     LONG_PAGE,
     REPLAYED_PAGE,
-    SPECIMEN_PAGE,
+    SAMPLE_PAGE,
     leaf_page,
     open_page,
     panel_settled,
@@ -1395,7 +1395,7 @@ def test_an_aimed_press_does_only_what_the_outline_promised(
         # display: contents — is nowhere a user can aim (AIM_POINT finds no point
         # in it either), and
         # scroll_into_view can wait on its stability forever when it stands inside
-        # a table box (a specimen). Its slots are their own targets.
+        # a table box (a sample). Its slots are their own targets.
         if not target.evaluate("el => el.getClientRects().length"):
             continue
         target.scroll_into_view_if_needed()
@@ -1531,7 +1531,7 @@ def test_an_aim_on_a_seam_promises_and_takes_the_same_element(browser, serve):
     promise was kept for a year on the machine where it was. So the seam is aimed at
     here rather than waited for, and the assertion is the platform-independent half —
     whichever way each reading rounds, both answer the same item."""
-    page = open_page(browser, serve(SPECIMEN_PAGE))
+    page = open_page(browser, serve(SAMPLE_PAGE))
     edge = page.evaluate(
         """() => {
             const above = document.querySelector('#l-shim').getBoundingClientRect();

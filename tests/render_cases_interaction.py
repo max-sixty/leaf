@@ -332,9 +332,9 @@ EXHIBIT_EXTENT = """
 }
 """
 
-SPECIMEN_EXAMPLES = [p for p in EXAMPLES if "<lf-specimen" in p.read_text()]
-assert SPECIMEN_EXAMPLES, (
-    "no shipped example holds a specimen — the sweep below would drive the fixture "
+SAMPLE_EXAMPLES = [p for p in EXAMPLES if "<lf-sample" in p.read_text()]
+assert SAMPLE_EXAMPLES, (
+    "no shipped example holds a sample — the sweep below would drive the fixture "
     "page alone, and the rule it holds is one the corpus is the whole test of"
 )
 TABLE_REPLY = """The ceilings, unchanged:
@@ -544,11 +544,11 @@ ASKS_PAGE = leaf_page(
   <lf-milestone id="m-build" status="active"><strong>Build the feeders</strong></lf-milestone>
   <lf-milestone id="m-install" status="blocked"><strong>Install and watch</strong></lf-milestone>
 </lf-milestones>
-<lf-specimen id="spec" label="a decision">
+<lf-sample id="spec" label="a decision">
   <lf-options id="spec-opts" choose>
     <lf-option id="spec-paper"><strong>Paper maps</strong></lf-option>
   </lf-options>
-</lf-specimen>
+</lf-sample>
 """,
 )
 ASKS_IN_ORDER = [

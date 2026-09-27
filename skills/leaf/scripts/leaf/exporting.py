@@ -209,9 +209,9 @@ def export_document(
     external origins a page may name, so the file reaches no other network and opens
     offline wherever the page itself loads nothing from a CDN.
     """
-    if SourceDocument(artifact.html.decode("utf-8")).specimens:
+    if SourceDocument(artifact.html.decode("utf-8")).samples:
         sys.exit(
-            "Live specimens need a server, so a page that declares one "
+            "Live samples need a server, so a page that declares one "
             "cannot be exported."
         )
     modules = _module_urls(

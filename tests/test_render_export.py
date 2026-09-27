@@ -1517,13 +1517,13 @@ def test_exporting_an_example_leaves_the_live_preview_untouched(
         live_server.wait(timeout=5)
 
 
-def test_export_refuses_server_dependent_specimens(serve, tmp_path):
+def test_export_refuses_server_dependent_samples(serve, tmp_path):
     serve(
         leaf_page(
-            "Live specimen",
-            '<lf-specimen id="practice" label="practice">'
-            '<template id="practice-source" data-specimen><h1>Child</h1></template>'
-            "</lf-specimen>",
+            "Live sample",
+            '<lf-sample id="practice" label="practice">'
+            '<template id="practice-source" data-sample><h1>Child</h1></template>'
+            "</lf-sample>",
         )
     )
     output = tmp_path / "offline.html"
@@ -1538,7 +1538,7 @@ def test_export_refuses_server_dependent_specimens(serve, tmp_path):
         ],
     )
     assert result.exit_code != 0
-    assert "Live specimens need a server" in result.output
+    assert "Live samples need a server" in result.output
     assert not output.exists()
 
 

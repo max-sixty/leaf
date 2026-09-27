@@ -123,7 +123,7 @@ def phases(sample: dict) -> tuple[dict[str, float], ...]:
     """The run's phase rows, its render passes split by stage, and its CPU time.
 
     Only main-thread spans count, since the preview server's threads run work of
-    their own (the corpus validates its specimens there) beside the main thread's
+    their own (the corpus validates its samples there) beside the main thread's
     waits. A row is missing when its function never ran in this arm."""
     spans = [span for span in sample["trace"]["spans"] if span["main"]]
 

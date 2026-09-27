@@ -1333,14 +1333,14 @@ class WebsitePageEndpoint(PageEndpoint):
             head=site_metadata(self.page_root, self.pages[self.page_root or "/"]),
         )
 
-    def _specimen_asset_root(self, revision: int) -> str:
+    def _sample_asset_root(self, revision: int) -> str:
         page = self.pages[self.page_root or "/"]
         # Published revisions share the public shell's release-captured graph.
         # User-created revisions belong to this container, not that release.
         if str(revision) in page["states"]:
             name = self._revision_name(revision).removesuffix(".html")
             return f"{page['assets']}/revisions/{name}"
-        return super()._specimen_asset_root(revision)
+        return super()._sample_asset_root(revision)
 
     def _post(self) -> Response:
         path = self.path

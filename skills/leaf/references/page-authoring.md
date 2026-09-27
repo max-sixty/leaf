@@ -6,7 +6,7 @@
 - [Draw the subject](#draw-the-subject)
 - [Theme and vocabulary](#theme-and-vocabulary)
 - [Page behavior](#page-behavior)
-- [Live specimens](#live-specimens)
+- [Live samples](#live-samples)
 - [Stable anchors](#stable-anchors)
 - [Reading cost](#reading-cost)
 - [Pre-handover review](#pre-handover-review)
@@ -394,24 +394,24 @@ reference to any other origin is refused, and the refusal names the ones admitte
 Typed data and media remain inert inputs. Read them through their Leaf/browser APIs;
 do not turn their contents into source code or markup.
 
-## Live specimens
+## Live samples
 
-Use `lf-specimen` with one direct `template[data-specimen]` to let the user
+Use `lf-sample` with one direct `template[data-sample]` to let the user
 operate a complete Leaf page inside the surrounding document. Give both the
 element and template stable ids, and put the child page's main content in the
 template:
 
 ```html
-<lf-specimen id="practice" label="practice release note">
-  <template id="practice-page" data-specimen>
+<lf-sample id="practice" label="practice release note">
+  <template id="practice-page" data-sample>
     <h1>Weekend service</h1>
     <p id="service-note">The sample shuttle runs every hour.</p>
   </template>
-</lf-specimen>
+</lf-sample>
 ```
 
-The specimen's gutter contains only the content being demonstrated. Keep labels,
-host controls, and instructions about using the specimen outside that gutter;
+The sample's gutter contains only the content being demonstrated. Keep labels,
+host controls, and instructions about using the sample outside that gutter;
 instructions that belong to the demonstrated page remain inside it.
 
 The child uses the parent's selected layer and starts with its own event log. It
@@ -422,21 +422,21 @@ the child's open controls before returning to the surrounding page. Reset create
 fresh page from the template.
 Child decisions and comments do not change the parent's log or Ask inventory.
 The child is temporary: use an ordinary Leaf page when its history must outlive
-the specimen. A live specimen needs a server, so a page declaring one cannot be
+the sample. A live sample needs a server, so a page declaring one cannot be
 exported (`references/serving-pages.md`, "Exported files").
 
-To begin with threads from the parent, set `data-specimen-threads` on the
+To begin with threads from the parent, set `data-sample-threads` on the
 template to their space-separated thread ids. The declaration selects from the
 parent's standing log rather than requiring it: a page whose log does not hold one
 of those threads yet — a first version, or a copy made from the source alone — opens
-the specimen without that thread. Their anchored content must exist in the
+the sample without that thread. Their anchored content must exist in the
 child. Reset copies those threads again from the parent; subsequent child
 replies remain independent.
 
 A page module can await the element's `ready` promise to receive the child
 `Document`, and await `reset()` to replace it. Author child content in the
 template rather than copying rendered controls from the parent. Ordinary
-`lf-specimen` children, without a template, remain static quoted material.
+`lf-sample` children, without a template, remain static quoted material.
 
 ## Stable anchors
 

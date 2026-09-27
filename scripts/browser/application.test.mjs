@@ -13,8 +13,6 @@ const descriptor = {
   parent: null,
   ancestors: [],
   quoted: false,
-  bindings: {},
-  offers: [],
 };
 const empty = () => ({ entries: [], actions: [], reports: [], desired: [] });
 // The Ask reading `served_state` sends, in its own wire spelling.
@@ -252,80 +250,20 @@ test("one widget selection publishes optimistic state and delivery without writa
 });
 
 test("an offline document publishes every host command as unavailable", () => {
-  const commands = {
-    ...descriptor,
-    declaration: {
-      ...descriptor.declaration,
-      "x-request": { verbs: { run: {} } },
-    },
-    offers: [{ tag: "lf-command", attribute: "verb", verb: "run" }],
-  };
-  const app = setup([[commands.id, commands]]);
+  const app = setup();
   const pending = app.enqueue(action("first"), "now");
-  assert.equal(app.selectWidget(commands).read().actions.decide.available, true);
-  assert.equal(app.selectWidget(commands).read().requests.run.available, true);
+  assert.equal(app.selectWidget(descriptor).read().actions.decide.available, true);
   assert.equal(
-    app.selectWidget(commands).read().actions.decide.undo[0].id,
+    app.selectWidget(descriptor).read().actions.decide.undo[0].id,
     pending.localId,
   );
 
   app.setHostAvailable(false);
-  const reading = app.selectWidget(commands).read();
+  const reading = app.selectWidget(descriptor).read();
   assert.equal(reading.actions.decide.available, false);
   assert.equal(reading.actions.decide.unavailable, "no agent or server is available");
-  assert.equal(reading.requests.run.available, false);
-  assert.equal(reading.requests.run.unavailable, "no agent or server is available");
   assert.deepEqual(reading.actions.decide.undo, []);
   assert.equal(outcomeOf(reading.state), "accept");
-});
-
-test("projected requests expose one lifecycle per data record", () => {
-  const rows = {
-    ...descriptor,
-    id: "jobs",
-    tag: "lf-jobs",
-    declaration: {
-      "x-request": {
-        records: "jobs",
-        verbs: { restart: { unit: "target" } },
-      },
-    },
-  };
-  const app = setup([[rows.id, rows]]);
-  const accepted = state(2);
-  accepted.browser.views[1].document.requests = [
-    {
-      seat: { widget: "jobs", unit: "alpha", source_revision: "0123456789abcdef" },
-      phase: "pending",
-    },
-    {
-      seat: { widget: "jobs", unit: "beta", source_revision: "0123456789abcdef" },
-      phase: "ready",
-    },
-    { seat: { widget: "jobs", unit: "gone", offered: false }, phase: "ready" },
-  ];
-  app.adopt(accepted);
-  let reading = app.selectWidget(rows).read();
-  assert.equal(reading.requestUnits.alpha.phase, "pending");
-  assert.equal(reading.requestUnits.beta.phase, "ready");
-  assert.equal(reading.requests.restart.available, true);
-  app.enqueue(
-    {
-      kind: "request",
-      widget: "jobs",
-      action: "restart",
-      detail: { target: "beta" },
-      source_revision: "0123456789abcdef",
-      revision: 1,
-      attempt: "pending-beta",
-    },
-    "now",
-  );
-  reading = app.selectWidget(rows).read();
-  assert.equal(reading.requestUnits.alpha.phase, "pending");
-  assert.equal(reading.requestUnits.beta.phase, "pending");
-  assert.equal(reading.requestUnits.gone.phase, "ready");
-  assert.equal(reading.requests.restart.available, false);
 });
 
 test("widget undo candidates name only exact currently standing attempts", () => {
@@ -704,19 +642,19 @@ test("a version being marked read reads read, outside the gesture ledger", () =>
 
 test("semantic epochs include visible revision facts but not transport metadata", () => {
   const app = setup();
-  const lifecycle = state(2);
-  lifecycle.browser.views[1].document.requests = [
-    {
-      seat: { document: { kind: "page", revision: 1 }, widget: "choice" },
-      phase: "failed",
-    },
-  ];
+  const asked = state(2);
+  const choice = wireAsk("choice", "lf-choice");
+  asked.browser.views[1].document.asks = {
+    all: [choice],
+    user: [choice],
+    unanswered: [choice],
+  };
   const before = app.read().semanticEpoch;
-  app.adopt(lifecycle);
+  app.adopt(asked);
   assert.ok(app.read().semanticEpoch > before);
 
   const beforeRevisionFacts = app.read().semanticEpoch;
-  const revisionFacts = structuredClone(lifecycle);
+  const revisionFacts = structuredClone(asked);
   revisionFacts.taken = 3;
   revisionFacts.browser.views[1].published_at = "2026-09-12T10:00:00-07:00";
   revisionFacts.browser.views[1].updates = [

@@ -831,8 +831,7 @@ export function createVersionController({
   // `.lf-ui`; comments, copies, and later comparisons therefore continue to read the exact
   // current document rather than the temporary historical words on screen.
   const inlineId = (target) => `lf-version-inline-${target.id}`;
-  const authoredReading = (target) =>
-    readingFrom(textNodesUnder(target, authored(target)));
+  const authoredReading = (target) => readingFrom(textNodesUnder(target, "wrote"));
 
   function pointAt(target, reading, offset) {
     if (!reading.units.length) return { node: target, offset: 0 };

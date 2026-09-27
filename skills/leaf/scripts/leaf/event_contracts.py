@@ -5,8 +5,7 @@ standing log, and a command. `append_admitted` performs that reading and write
 under `service.PageTransaction`'s lease.
 
 This module selects each kind's gates. Their implementations stay with their
-domains: request lifecycles in `requests`, undo in `events`, and widget meaning
-in `event_meaning`.
+domains: undo in `events` and widget meaning in `event_meaning`.
 """
 
 from leaf.anchor_capture import capture_anchor
@@ -41,10 +40,6 @@ from leaf.registry.contract import (
     visual_parts,
 )
 from leaf.registry.reactions import reaction_tokens
-from leaf.requests import (
-    receipt_contract_error,
-    request_contract_error,
-)
 from leaf.schema import MESSAGE_KINDS, WIDGET_KINDS
 from leaf.served_state.thread import browser_thread
 from leaf.structure import review_mode
@@ -478,7 +473,7 @@ def _approval_error(view, event: dict, events: list, registry: dict):
         )
     page = page_reading(view.reading(revision, registry), events, revision)
     threads = build_threads(events, page.within)
-    document_state = read_document(page, threads, view.data(registry))
+    document_state = read_document(page, threads)
     thread, _reading = browser_thread(events, registry, threads)
     unanswered = [
         *document_state.asks["unanswered"],
@@ -496,22 +491,10 @@ def _action_error(view, event: dict, readings: AdmissionReadings):
     return action_contract_error(view, event, readings)
 
 
-def _request_error(view, event: dict, events: list, registry: dict):
-    if event["kind"] != "request":
-        return None
-    return request_contract_error(view, event, events, registry)
-
-
 def _report_error(view, event: dict, registry: dict) -> str | None:
     if event["kind"] != "report":
         return None
     return report_contract_error(event, view.document(event["revision"]), registry)
-
-
-def _receipt_error(view, event: dict, events: list) -> str | None:
-    if event["kind"] != "receipt":
-        return None
-    return receipt_contract_error(view, event, events)
 
 
 def _reaction_error(event: dict, registry: dict) -> str | None:
@@ -646,9 +629,7 @@ def admission_error(
         _revision_error(view, event)
         or _approval_error(view, event, events, registry)
         or _action_error(view, event, readings)
-        or _request_error(view, event, events, registry)
         or _report_error(view, event, registry)
-        or _receipt_error(view, event, events)
         or _reaction_error(event, registry)
         or _anchored_comment_error(view, event, events, registry, capture_anchors)
         or _parent_error(event, events)

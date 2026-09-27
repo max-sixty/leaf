@@ -2832,9 +2832,6 @@ def test_a_removed_subject_keeps_its_thread_open_and_detached(browser, serve):
     assert page.evaluate("() => CSS.highlights.get('lf-mark')?.size ?? 0") == 0
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    expect(page.locator('.lf-group[data-group="gone"]')).to_have_text(
-        "No longer in this version"
-    )
     quote = page.locator(f'.lf-thread[data-id="{root["id"]}"] .lf-quote')
     expect(quote).to_contain_text("The version stamp never lands")
     expect(quote).to_have_class(re.compile(r"\bdetached\b"))

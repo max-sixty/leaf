@@ -135,20 +135,6 @@ class ThreadListView extends RetainedFace {
     this.#focusListAfterPaint ||= this.contains(focused());
     const rows = [];
     const wanted = new Set();
-    const visibleRows = this.model.rows.filter(
-      (row) => row.kind === "thread" && row.descriptor.visible,
-    );
-    const visibleGroups = new Map(visibleRows.map((row) => [row.group.key, row.group]));
-    // Only hide a sole page-section heading when every thread has its own
-    // passage link; heading-anchored threads still need the group jump.
-    const soleGroup =
-      visibleGroups.size === 1 ? visibleGroups.values().next().value : null;
-    const showGroups =
-      !soleGroup?.target ||
-      visibleRows.some(
-        (row) => !row.descriptor.quote?.anchored || !row.descriptor.quote.found,
-      );
-    let group = null;
     for (const row of this.model.rows) {
       if (row.kind !== "thread") {
         rows.push(row);
@@ -194,11 +180,6 @@ class ThreadListView extends RetainedFace {
         draftChanged: () => view.present(view.model),
       });
       view.present(descriptor);
-      if ((descriptor.visible || descriptor.folding) && row.group.key !== group) {
-        group = row.group.key;
-        if (showGroups && row.group.label)
-          rows.push({ kind: "group", ...row.group, key: `group:${row.group.key}` });
-      }
       rows.push({ kind: "thread", key: row.key, node: view.node });
     }
     for (const [key, view] of this.#views) if (!wanted.has(key)) view.retire();
@@ -218,22 +199,7 @@ class ThreadListView extends RetainedFace {
   #row(row) {
     if (row.kind === "thread") return row.node;
     if (row.kind === "empty") return html`<div class="lf-empty">${row.text}</div>`;
-    if (row.kind === "system")
-      return html`<div class="lf-system" data-id=${row.id}>${row.text}</div>`;
-    if (row.target)
-      return html`<button
-        type="button"
-        class="lf-group lf-pinned"
-        data-group=${row.key.slice("group:".length)}
-        title="Jump to this part of the page"
-        @click=${() => this.#commands.activateGroup(row.target)}
-        .textContent=${row.label}
-      ></button>`;
-    return html`<div
-      class="lf-group lf-pinned"
-      data-group=${row.key.slice("group:".length)}
-      .textContent=${row.label}
-    ></div>`;
+    return html`<div class="lf-system" data-id=${row.id}>${row.text}</div>`;
   }
   render() {
     return repeat(

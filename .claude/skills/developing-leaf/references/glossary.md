@@ -81,7 +81,7 @@ item.
 | **Pane** | One reading region, typically in a workspace's body: an optional header, exactly one body element, an optional footer |
 | **Reading region** | A stable semantic place used by navigation and reading-position recovery |
 | **Effective reading scroller** | The scroll container currently governing one reading region |
-| **Sticky cover** | A sticky box declared through `declareCoverRoom` that stands over an edge of the scroller it sticks in, such as a thread-list run heading, an `lf-diff` file header, or a root `lf-tabs` strip. What passes under it is not on screen, and a landing arrives clear of it |
+| **Sticky cover** | A sticky box declared through `declareCoverRoom` that stands over an edge of the scroller it sticks in, such as an `lf-diff` file header or a root `lf-tabs` strip. What passes under it is not on screen, and a landing arrives clear of it |
 | **Reading posture** | Whether a region's body scrolls on its own (`bounded`) or the region is carried by its container (`flow`); the stylesheet decides, for a pane the workspace Layout's media query, and the runtime reads the result |
 
 A root `lf-tabs` and an embedded `lf-tabs` remain the same element type; placement

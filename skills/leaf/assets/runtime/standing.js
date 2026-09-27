@@ -30,8 +30,13 @@ export function createStanding({
     renderShortcutBar();
   }
 
-  // Controls and geometry that depend on the laid-out content above.
+  // Controls and geometry that depend on the laid-out content above. Text boxes paint
+  // first: their contextual hints read which box is shown, and the Go-to chips below read
+  // each send button's aria-disabled to decide whether it is a destination. Nothing a box
+  // paints changes geometry — a placeholder never widens its box and a disabled send keeps
+  // its size — so chrome layout above measures the composer before this paint.
   function paintStandingGeometry() {
+    paintInputs();
     // The chips are where the user can go, beside the ring saying where they are and the
     // line saying what the next press does — one paint, because a chip repainted by its
     // own door alone went stale on the door it did not
@@ -41,7 +46,6 @@ export function createStanding({
     paintTargetChooserHints();
     paintCoreControls();
     paintVersionShortcuts();
-    paintInputs();
   }
 
   return { paintStandingContent, paintStandingGeometry };

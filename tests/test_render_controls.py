@@ -247,7 +247,7 @@ def test_product_gallery_threads_tab_operates_seeded_panel_views(browser, serve)
         ("you", "2be2443f0bb6cc49fc86b52f340e6073", 2, "Workshop room photo"),
         ("resolved", "bab3cdfcfb8c02aacbb27da731de947a", 1, "Projector map"),
         ("summary", "9ee465bb3f9c1fa309ea9cb1767fa365", 3, "Afternoon workshop"),
-        ("overview", "72e031c5bf0d485ba9054628e09869d4", 3, "..."),
+        ("overview", "72e031c5bf0d485ba9054628e09869d4", 3, "Generating title"),
     ):
         button = page.locator(f'#bg-panel-presets [data-view="{view}"]')
         button.click()
@@ -3230,7 +3230,7 @@ def test_a_leaves_clock_change_reopens_only_its_same_epoch_presentation(
           );
           const state = structuredClone(context.runtime.state);
           state.others[0].activity.kind = 'away';
-          state.others[0].activity.quiet = true;
+          state.others[0].activity.counts.overdue = 1;
           state.others[0].activity.dropped = false;
           state.others[0].activity.ts = new Date().toISOString();
           presence.observeServerNow(new Date().toISOString());

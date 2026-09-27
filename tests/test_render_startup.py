@@ -2919,7 +2919,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     text, dot = page.locator(".lf-status-detail"), page.locator(".lf-banner .lf-dot")
     summary = page.locator(".lf-status-text")
     UNHELD = (
-        "No session holds this page. 1 update is saved."
+        "No session holds this page. 2 updates are saved."
         " It picks up again when a session does."
     )
 
@@ -3163,13 +3163,35 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
 
     expect(summary).to_have_text("Claude away · 1 saved")
 
-    # With nobody listening the same ending carries the remedy, because the user's
-    # next word has nowhere to land until a session picks the page up again.
+    # With nobody listening and the turn over, an update that has only just arrived
+    # still reads away: the session's next turn takes it, and a harness Leaf can
+    # message was sent it as it arrived.
     declare("working", "running the migration", quiet_for=6 * 60, turn_ended=5 * 60)
     expect(text).to_have_text(
-        "Claude left this when its turn ended 5m ago. 1 update is saved."
-        " Nudge it in the terminal."
+        "Claude isn't watching right now. 1 update is saved."
+        " It picks them up next turn."
     )
+    expect(dot).to_have_class(re.compile(r"\baway\b"))
+
+    # Once an update has waited past the pickup grace with nothing to carry it, the
+    # remedy is the user's, and the reading says since when nobody has been there.
+    events_model.append_event(
+        d,
+        {
+            "kind": "comment",
+            "author": "user",
+            "text": "Still there?",
+            "ts": (datetime.now().astimezone() - timedelta(minutes=3)).isoformat(
+                timespec="seconds"
+            ),
+        },
+    )
+    declare("working", "running the migration", quiet_for=6 * 60, turn_ended=5 * 60)
+    expect(text).to_have_text(
+        "Claude left this when its turn ended 5m ago. 2 updates are saved."
+        " Nothing is answering them, so nudge it in the terminal."
+    )
+    expect(summary).to_have_text("Nudge Claude in terminal · 2 saved")
     expect(dot).to_have_class(re.compile(r"\baway\b"))
 
     # Claude's own status gets a far longer rope: the same silence is just a long turn.
@@ -3181,7 +3203,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     # claim it left has nothing behind it however lately it was written.
     declare("working", "running the migration", session_pid=dead_pid)
     expect(text).to_have_text(UNHELD)
-    expect(summary).to_have_text("No session · 1 saved")
+    expect(summary).to_have_text("No session · 2 saved")
     # Grey, not the amber a session falling behind wears: nobody is on the line, which
     # is a page's reading arrangement rather than something for the user to chase.
     expect(dot).to_have_class(re.compile(r"^lf-dot\s*$"))

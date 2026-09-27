@@ -25,15 +25,28 @@ same `/tmp` names and can read each other's.
 
 A trace is the child's stream-json. It counts only when its model call completed: it
 reached a `result` that is not an error, and it loaded no auto-memory (`completed`).
+
+A live child (`LiveChild`) keeps its session open across turns, so a driver can serve
+it a page and post user moves through the page's API (`PageClient`) as a tab would;
+the stream readers below find its backgrounded waits and the deliveries Leaf's hooks
+hand it.
 """
 
+import http.cookiejar
 import json
 import os
+import re
 import shutil
 import subprocess
 import tempfile
+import threading
+import urllib.error
+import urllib.parse
+import urllib.request
 from collections.abc import Iterable
+from datetime import datetime
 from pathlib import Path
+from typing import Self
 
 import click
 from leaf.host import IDENTITY_VARIABLES
@@ -152,6 +165,159 @@ def run_claude(
             check=False,
         )
     return read_trace(out)
+
+
+class LiveChild:
+    """A `claude_child` whose session stays open for later turns, as a context
+    manager: `prompt` is its first message, and `records` yields its stream-json,
+    hook events included, each stamped `received_at`.
+
+    A later turn opens when a background task, such as a `leaf wait`, ends. `claude
+    -p` terminates its background shells once the final result is out and stdin has
+    closed, so the caller holds stdin open while it expects another turn and calls
+    `close` to end the session. A session still running `limit` seconds after it
+    started is killed and `timed_out` touched; the deadline runs beside the read, so
+    a stream that stops producing lines still ends. Leaving the block, however it is
+    left, cancels the deadline and kills a child still running, so no timer or child
+    outlives a failed driver."""
+
+    def __init__(
+        self,
+        cwd: Path,
+        prompt: str,
+        *args: str,
+        stderr: Path,
+        limit: float,
+        timed_out: Path,
+        dirs: Iterable[Path] = (),
+        env: dict | None = None,
+    ) -> None:
+        self.prompt, self.stderr, self.timed_out = prompt, stderr, timed_out
+        self.popen = claude_child(
+            cwd,
+            "--input-format",
+            "stream-json",
+            "--include-hook-events",
+            *args,
+            dirs=dirs,
+            env=env,
+        )
+        self.deadline = threading.Timer(limit, self._give_up)
+
+    def __enter__(self) -> Self:
+        self.proc = subprocess.Popen(
+            **self.popen,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=self.stderr.open("w"),
+            text=True,
+        )
+        message = {"type": "user", "message": {"role": "user", "content": self.prompt}}
+        self.proc.stdin.write(json.dumps(message) + "\n")
+        self.proc.stdin.flush()
+        self.deadline.start()
+        return self
+
+    def records(self):
+        """Each stream record until the child exits."""
+        for line in self.proc.stdout:
+            yield {**json.loads(line), "received_at": now()}
+        self.proc.wait(timeout=60)
+
+    def close(self) -> None:
+        """End the session once the turn in progress, if any, has ended."""
+        if not self.proc.stdin.closed:
+            self.proc.stdin.close()
+
+    def _give_up(self) -> None:
+        self.timed_out.touch()
+        self.proc.kill()
+
+    def __exit__(self, *exc) -> None:
+        self.deadline.cancel()
+        if self.proc.poll() is None:
+            self.proc.kill()
+            self.proc.wait()
+
+
+def now() -> str:
+    """The time a live driver stamps on each record as `received_at`."""
+    return datetime.now().astimezone().isoformat()
+
+
+# A served page's keyed URL, as `leaf server start` prints it.
+URL = re.compile(r"https?://[^\s\"\\]+\?t=[A-Za-z0-9_-]+")
+
+
+class PageClient:
+    """A served page's API, reached the way a tab reaches it: token and cookies."""
+
+    def __init__(self, url: str) -> None:
+        parts = urllib.parse.urlsplit(url)
+        self.origin = f"{parts.scheme}://{parts.netloc}"
+        self.token = urllib.parse.parse_qs(parts.query)["t"][0]
+        self.opener = urllib.request.build_opener(
+            urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar())
+        )
+
+    def state(self) -> dict:
+        with self.opener.open(f"{self.origin}/api/state?t={self.token}") as response:
+            return json.loads(response.read())
+
+    def post(self, event: dict) -> None:
+        """Post one move as the page does: keyed, on the served layer. The caller
+        names the revision and the retry key, as the browser does."""
+        request = urllib.request.Request(
+            f"{self.origin}/api/event?t={self.token}",
+            data=json.dumps(event).encode(),
+            headers={"Leaf-Layer": self.state()["layer"]["generation"]},
+        )
+        try:
+            self.opener.open(request).close()
+        except urllib.error.HTTPError as error:
+            raise click.ClickException(
+                f"posting {event}: HTTP {error.code} {error.read().decode()}"
+            ) from error
+
+
+def tool_calls(record: dict) -> list[tuple[str, str]]:
+    """Each tool call in one stream record: its id, and what it runs, or the tool
+    and its file."""
+    content = (record.get("message") or {}).get("content")
+    return [
+        (
+            block["id"],
+            block["input"].get("command")
+            or " ".join(filter(None, [block["name"], block["input"].get("file_path")])),
+        )
+        for block in (content if isinstance(content, list) else ())
+        if block.get("type") == "tool_use"
+    ]
+
+
+def commands(record: dict) -> list[str]:
+    return [ran for _, ran in tool_calls(record)]
+
+
+def waits_started(record: dict) -> list[str]:
+    """The ids of the backgrounded `leaf wait` calls one stream record makes, however
+    the command spells the launcher: `leaf`, its path, or a variable holding it."""
+    content = (record.get("message") or {}).get("content")
+    return [
+        block["id"]
+        for block in (content if isinstance(content, list) else ())
+        if block.get("type") == "tool_use"
+        and block["name"] == "Bash"
+        and re.search(r"(\bleaf|\$\{?\w+\}?) wait\b", block["input"].get("command", ""))
+        and block["input"].get("run_in_background")
+    ]
+
+
+def hook_delivered(record: dict) -> bool:
+    """Whether one stream record is a Leaf hook handing a delivery to the turn."""
+    return record.get("subtype") == "hook_response" and "leaf-delivery-v" in (
+        record.get("output") or ""
+    )
 
 
 def read_trace(stream: Path) -> list[dict]:

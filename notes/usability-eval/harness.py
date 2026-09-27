@@ -34,6 +34,23 @@ Cases (`CASES`):
 - `board`: a board whose cards the user moved into a column at ranks between the
   authored cards, with one move undone. Phase 1 asks for the column's order; phase 2
   asks for a change that obliges the version to write the moved cards in place.
+- `package`: a page that selects a package the base layer lacks, whose one widget
+  (`fixtures/slo/`) the agent is asked to use without being told its tag or contract.
+- `shared-source`: two `lf-worktree` widgets reading one source whose value file also
+  holds an unrelated record, listed first and resembling one widget's. Phase 1 asks
+  what each widget shows; phase 2 asks for one worker's new state.
+
+The live cases, those with `rounds`, serve a page from the child's own session and
+post user moves through the served page as a tab does, one round each time a turn
+ends with the earlier rounds delivered (`execute_live`):
+
+- `handoff`: a drafted page to hand over, then an edit request and, after that turn,
+  a question. Each turn is scored for the status it leaves and the wait it re-arms.
+- `mixed`: a comment, an Ask's pick, a reaction, a card move and its undo, and a page
+  error, posted together so one delivery carries them.
+- `elided`: a thread of twenty-four messages another session answered and the user
+  closed, whose middle holds the premise a new question in it turns on. The delivery
+  shows the thread's first and latest messages only.
 
 The paired check's arms were the payload at 387dfed45, whose `page state` carried a
 construction tree of the document, and the same payload with the tree dropped and the
@@ -55,7 +72,9 @@ Choices the note asks for before automating:
 - Fixtures: `build_*` writes each fixture with the arm's own launcher and admits
   user moves through the browser's door (`event_endpoint.accept_event`) in the arm's
   own environment, so a fixture is what that arm's server would have written.
-- Trace: the child's stream-json, one file per phase.
+- Trace: the child's stream-json, one file per phase; a live case's one file also
+  holds each post (`eval_post`) and the page's status at each turn's end
+  (`eval_status`).
 - Normalization: reading and `constructs` answers are numbered lines, one per
   question; each line is matched case-insensitively against its question's pattern.
   Resume answers lead with `Date:`, `Approach:` and `Next:` lines, matched the same
@@ -66,7 +85,8 @@ Choices the note asks for before automating:
   which is committed so a later run compares against it.
 
 A run counts only when every trace through its phase completed
-(`eval_harness.completed`). The first round of a new case fixes its fixture and
+(`eval_harness.completed`), and a live run only when every turn did and the session
+ended before its deadline. The first round of a new case fixes its fixture and
 scorer and is not reported.
 """
 
@@ -75,8 +95,11 @@ import re
 import shutil
 import subprocess
 import sys
+import threading
+import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
+from html import unescape
 from pathlib import Path
 
 import click
@@ -85,15 +108,22 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 from eval_harness import (
+    URL,
+    LiveChild,
+    PageClient,
     blocks,
     build_arm,
+    commands,
     completed,
     environment,
+    hook_delivered,
+    now,
     read_trace,
     run_claude,
     run_leaf,
     scratch,
     trace_result,
+    waits_started,
 )
 
 DATA = ROOT / ".tmp/usability-eval"
@@ -195,12 +225,90 @@ BOARD_MOVES = [
 ]
 BOARD_DOING = ["card-docs", "card-inventory", "card-audit", "card-alerts"]
 
+PACKAGE = """The Leaf page at {page} is a reliability review I'm writing with an agent.
+It uses our team's `slo` package, which has a widget for error budgets. Add checkout's
+error budget to the Checkout section: the objective is 99.9% availability over 28 days,
+and 62% of the budget is spent so far. Check the page and stamp the new version.
+{quiet}"""
+
+SHARED_SOURCE = [
+    """The directory {page} is a Leaf page I've been working on with an agent. Before
+we change it, answer from what the page currently shows me, one numbered line each:
+
+1. Which branch is finch's worktree on, and are its tests passing?
+2. How many commits ahead of its base is wren's worktree?
+
+Don't change anything yet. {quiet}""",
+    """finch just pushed a fix: its worktree's head is now 3f0a6be, 7 commits ahead of
+main, and its tests pass. Update the page to show that. {quiet}""",
+]
+
+# The live cases' first messages. Each names the page; none names a reference.
+HANDOFF = """I've drafted a Leaf page at {page} comparing three ways to run the
+order-history backfill. Hand it over so I can pick one in my browser and leave
+comments, and handle what I send you."""
+REOPEN = """The Leaf page at {page} is one I've been reviewing with another agent
+session, which has ended. Serve it again so I can keep working on it in my browser,
+and handle what I send you."""
+
+# What a live case's user does, one list of moves per round. `anchor` is an
+# (element, quote) pair in the served HTML; `undoes: "previous"` names the move posted
+# just before it; `parent: "latest"` the page's newest message; `{origin}` in text is
+# the served origin. Every document-bound move names the served revision.
+DRY_RUN = {
+    "kind": "comment",
+    "text": "Add how long the dry run took: 3 h 10 min.",
+    "anchor": ("dry-run", "finished without errors"),
+}
+FREEZE_QUESTION = {
+    "kind": "comment",
+    "text": "Which option needs a write freeze, and for how long?",
+    "anchor": ("lede", "Pick how the copy runs."),
+}
+PICK = {
+    "kind": "action",
+    "widget": "copy-mode",
+    "action": "choose",
+    "detail": {"options": ["opt-online"]},
+}
+SHORTEN = {
+    "kind": "comment",
+    "token": "shorten",
+    "anchor": ("why-now", "The reporting team moves its dashboards"),
+}
+CARD_MOVE = {
+    "kind": "action",
+    "widget": "follow-board",
+    "action": "move",
+    "detail": {"card": "card-lag-alert", "to": "col-done", "rank": "1"},
+}
+# The duration the `DRY_RUN` comment asks for, as the edited paragraph may write it.
+DRY_RUN_DONE = r"3\s*h(ours?)?\s*(and\s*)?10"
+UNDO = {"kind": "undo", "undoes": "previous"}
+SUMMARY_ERROR = {
+    "kind": "error",
+    "text": "Uncaught TypeError: replaceAll must be called with a global RegExp "
+    "({origin}/:{line})",
+}
+START_QUESTION = {
+    "kind": "reply",
+    "parent": "latest",
+    "text": "Remind me what time the copy starts each night, in UTC? I'm putting it "
+    "in the on-call calendar.",
+}
+# The thread another session held on the elided page: the user's messages and its
+# answers, alternating. The fifth settles the window; the delivery of a new message
+# shows the first and the latest seven, so the premise is in the part it leaves out.
+ELIDED_THREAD = json.loads((FIXTURES / "elided-thread.json").read_text())
+
 
 @dataclass(frozen=True)
 class Case:
     name: str
     prompts: tuple[str, ...]
     fixture: str | None = None
+    # A live case's user moves, one tuple per round (`execute_live`).
+    rounds: tuple[tuple[dict, ...], ...] = ()
 
 
 def reading_case(surface: str | None) -> Case:
@@ -220,6 +328,23 @@ CASES = {
     "resume": Case("resume", tuple(RESUME), fixture="resume"),
     "constructs": Case("constructs", tuple(CONSTRUCTS), fixture="constructs"),
     "board": Case("board", tuple(BOARD), fixture="board"),
+    "package": Case("package", (PACKAGE,), fixture="package"),
+    "shared-source": Case(
+        "shared-source", tuple(SHARED_SOURCE), fixture="shared-source"
+    ),
+    "handoff": Case(
+        "handoff",
+        (HANDOFF,),
+        fixture="handoff",
+        rounds=((DRY_RUN,), (FREEZE_QUESTION,)),
+    ),
+    "mixed": Case(
+        "mixed",
+        (REOPEN,),
+        fixture="mixed",
+        rounds=((DRY_RUN, PICK, SHORTEN, CARD_MOVE, UNDO, SUMMARY_ERROR),),
+    ),
+    "elided": Case("elided", (REOPEN,), fixture="elided", rounds=((START_QUESTION,),)),
 }
 BASELINE = ("cold-report", "cold-decision", "near-miss", "reading", "resume")
 
@@ -262,8 +387,17 @@ class Run:
 
     def usable(self) -> bool:
         traces = self.traces()
-        return len(traces) == len(CASES[self.case].prompts) and all(
-            completed(t) for t in traces
+        return (
+            len(traces) == len(CASES[self.case].prompts)
+            and all(completed(t) for t in traces)
+            # A live trace holds a result per turn, and every turn must complete.
+            and all(
+                d.get("is_error") is False
+                for t in traces
+                for d in t
+                if d.get("type") == "result"
+            )
+            and not (self.dir / "timed-out").exists()
         )
 
 
@@ -296,24 +430,31 @@ def arm(ref: str, name: str):
 # Fixtures
 
 
-def admit(run: Run, page: Path, event: dict) -> None:
-    """Admit one user move through the arm's browser door."""
-    code = (
-        "import json, sys\nfrom pathlib import Path\nfrom leaf import event_endpoint\n"
-        "status, body = event_endpoint.accept_event(Path(sys.argv[1]), "
-        "json.loads(sys.argv[2]), dict)\n"
-        "assert status == 200, body\n"
-    )
+def arm_python(run: Run, code: str, *args: str) -> None:
+    """Run `code` with the arm's own `leaf` package, in the run's state home."""
     proc = subprocess.run(
         ["uv", "run", "-q", "--no-dev", "--project", str(run.payload), "python", "-c"]
-        + [code, str(page), json.dumps(event)],
+        + [code, *args],
         capture_output=True,
         text=True,
         check=False,
         env=environment(XDG_STATE_HOME=str(run.state)),
     )
     if proc.returncode:
-        raise click.ClickException(f"admitting {event}: {proc.stderr}")
+        raise click.ClickException(f"{code.splitlines()[-1]} {args}: {proc.stderr}")
+
+
+def admit(run: Run, page: Path, event: dict) -> None:
+    """Admit one user move through the arm's browser door."""
+    arm_python(
+        run,
+        "import json, sys\nfrom pathlib import Path\nfrom leaf import event_endpoint\n"
+        "status, body = event_endpoint.accept_event(Path(sys.argv[1]), "
+        "json.loads(sys.argv[2]), dict)\n"
+        "assert status == 200, body",
+        str(page),
+        json.dumps(event),
+    )
 
 
 def page_events(page: Path) -> list[dict]:
@@ -452,17 +593,104 @@ def build_board(run: Run, page: Path) -> None:
     admit(run, page, {"kind": "undo", "undoes": page_events(page)[-1]["id"]})
 
 
+def build_package(run: Run, page: Path) -> None:
+    """A stamped page that selects the `slo` package, installed in the run's own
+    state home as a team's package would be on its machine."""
+    run.leaf("package", "install", str(FIXTURES / "slo"), check=True)
+    run.leaf("page", "init", "--package", "slo", str(page), check=True)
+    (page / "index.html").write_text((FIXTURES / "slo.html").read_text())
+    run.leaf("version", "stamp", str(page), "--text", "September review", check=True)
+
+
+def build_shared_source(run: Run, page: Path) -> None:
+    """Two worktree widgets on one source, whose snapshot lists an unrelated record
+    first."""
+    run.leaf("page", "init", "--package", "command-hub", str(page), check=True)
+    (page / "index.html").write_text((FIXTURES / "hub.html").read_text())
+    run.leaf(
+        "data", "set", str(page), "project-worktrees",
+        input_text=(FIXTURES / "hub-worktrees.json").read_text(), check=True,
+    )  # fmt: skip
+    run.leaf("version", "stamp", str(page), "--text", "Parser workers", check=True)
+
+
+def build_handoff(run: Run, page: Path) -> None:
+    """A drafted page nobody has checked, served or stamped."""
+    run.leaf("page", "init", str(page), check=True)
+    (page / "index.html").write_text((FIXTURES / "backfill.html").read_text())
+
+
+def build_mixed(run: Run, page: Path) -> None:
+    """A stamped page another session handed over; its copy button's script
+    throws on a click."""
+    run.leaf("page", "init", str(page), check=True)
+    (page / "index.html").write_text((FIXTURES / "mixed.html").read_text())
+    run.leaf("version", "stamp", str(page), "--text", "Backfill plan", check=True)
+    run.leaf("status", str(page), "waiting", "Pick how the copy runs", check=True)
+
+
+def build_elided(run: Run, page: Path) -> None:
+    """A stamped page whose thread another session answered to the end and the user
+    then closed, with every delivery acknowledged. A closed thread is no open work,
+    so a session picking the page up has no call to read it."""
+    html = (FIXTURES / "elided.html").read_text()
+    run.leaf("page", "init", str(page), check=True)
+    (page / "index.html").write_text(html)
+    run.leaf("version", "stamp", str(page), "--text", "Backfill schedule", check=True)
+    run.leaf("status", str(page), "waiting", "", check=True)
+    first, *rest = ELIDED_THREAD
+    admit(run, page, {
+        "kind": "comment", "revision": 1, "text": first,
+        "anchor": anchor(html, "window", "in the maintenance window"),
+    })  # fmt: skip
+    thread = page_events(page)[-1]["id"]
+    for n, text in enumerate(rest):
+        latest = page_events(page)[-1]["id"]
+        if n % 2 == 0:
+            run.leaf("thread", "reply", str(page), "--for", latest, "--text", text,
+                     check=True)  # fmt: skip
+        else:
+            admit(run, page, {
+                "kind": "reply", "revision": 1, "parent": latest, "text": text,
+            })  # fmt: skip
+    admit(run, page, {"kind": "resolve", "parent": thread})
+    acknowledge(run, page)
+
+
+def acknowledge(run: Run, page: Path) -> None:
+    """Confirm every pending event as the session that answered them did, through
+    a delivery its wait would have printed."""
+    arm_python(
+        run,
+        "import sys\nfrom pathlib import Path\n"
+        "from leaf.delivery import batch_data, freeze_delivery\n"
+        "from leaf.service import PageTransaction, unacknowledged\n"
+        "from leaf.session import receive\n"
+        "page_dir = Path(sys.argv[1])\n"
+        "with PageTransaction(page_dir) as page:\n"
+        "    batch = batch_data(page_dir, page, unacknowledged(page.events, page.cursor))\n"
+        "receive(freeze_delivery([batch], carrier='wait'), None)",
+        str(page),
+    )
+
+
+BUILDERS = {
+    "board": build_board,
+    "constructs": build_constructs,
+    "resume": build_resume,
+    "package": build_package,
+    "shared-source": build_shared_source,
+    "handoff": build_handoff,
+    "mixed": build_mixed,
+    "elided": build_elided,
+}
+
+
 def build_fixture(run: Run, name: str, page: Path) -> None:
-    if name == "board":
-        build_board(run, page)
-    elif name == "constructs":
-        build_constructs(run, page)
-    elif name == "resume":
-        build_resume(run, page)
-    elif name == "reading":
-        build_reading(run, page, None)
+    if name in BUILDERS:
+        BUILDERS[name](run, page)
     else:
-        build_reading(run, page, name.removeprefix("reading-"))
+        build_reading(run, page, name.removeprefix("reading").removeprefix("-") or None)
 
 
 @cli.command()
@@ -484,7 +712,7 @@ def fixture(case: str, arm_name: str, dest: Path):
 
 def execute(run: Run) -> None:
     """One run: build the case's fixture, then run each phase, resuming the first
-    phase's session."""
+    phase's session, or the live session."""
     case = CASES[run.case]
     shutil.rmtree(run.dir, ignore_errors=True)
     run.state.mkdir(parents=True)
@@ -494,6 +722,128 @@ def execute(run: Run) -> None:
     if case.fixture:
         build_fixture(run, case.fixture, page)
         shutil.copytree(page, run.dir / "fixture", ignore=ignore)
+    if case.rounds:
+        execute_live(run, case, work, page)
+    else:
+        execute_phases(run, case, work, page)
+    for found in pages(work, run.state):
+        shutil.copytree(found, run.dir / "pages" / found.name, ignore=ignore)
+    click.echo(f"{run.dir} done")
+
+
+# How long a live session may run, how long a posted round may wait for the delivery
+# that carries it, and how long a finished session stays open for a trailing turn.
+LIVE_LIMIT = 1500
+DELIVERY_LIMIT = 300
+GRACE = 20
+
+
+def execute_live(run: Run, case: Case, work: Path, page: Path) -> None:
+    """Serve the case's page from a live session and play its user.
+
+    Each time a turn ends with every posted round delivered, the next round goes out
+    through the served page, a few seconds later so that a wait the turn started has
+    taken its lease. The session closes once the last round's turn has ended, when a
+    round waits past DELIVERY_LIMIT, or at LIVE_LIMIT, which voids the run. At each
+    turn's end the stream records the page's status."""
+    prompt = case.prompts[0].replace("{page}", str(page))
+    (run.dir / "prompt-1.txt").write_text(prompt)
+    # The deadline for the posted round's delivery; unstarted until the first post.
+    waiting = threading.Timer(DELIVERY_LIMIT, lambda: None)
+    url, posted, delivered = None, 0, 0
+    try:
+        with (
+            LiveChild(
+                work,
+                prompt,
+                "--model",
+                MODEL,
+                "--plugin-dir",
+                str(run.payload),
+                stderr=run.dir / "err-1.txt",
+                limit=LIVE_LIMIT,
+                timed_out=run.dir / "timed-out",
+                dirs=[run.payload],
+                env={"XDG_STATE_HOME": str(run.state)},
+            ) as child,
+            (run.dir / "stream-1.jsonl").open("w") as stream,
+        ):
+
+            def note(record: dict) -> None:
+                stream.write(json.dumps(record) + "\n")
+                stream.flush()
+
+            for record in child.records():
+                note(record)
+                arrived = hook_delivered(record) + sum(
+                    "wait --ack" in c or "delivery read" in c for c in commands(record)
+                )
+                if arrived:
+                    delivered += arrived
+                    waiting.cancel()
+                if not url and (found := URL.search(json.dumps(record))):
+                    url = found[0]
+                if record.get("type") != "result":
+                    continue
+                status = page_state(run, page).get("status")
+                note({"type": "eval_status", "status": status, "received_at": now()})
+                if delivered < posted:
+                    continue
+                if url and posted < len(case.rounds):
+                    time.sleep(3)
+                    post_round(run, page, PageClient(url), case.rounds[posted], posted)
+                    posted += 1
+                    note({"type": "eval_post", "round": posted, "received_at": now()})
+                    waiting = threading.Timer(DELIVERY_LIMIT, child.close)
+                    waiting.start()
+                else:
+                    threading.Timer(GRACE, child.close).start()
+    finally:
+        waiting.cancel()
+        run.leaf("server", "stop", str(page))
+
+
+def post_round(
+    run: Run, page: Path, client: PageClient, moves: tuple[dict, ...], n: int
+) -> None:
+    """Post one round's moves as the user's tab would, resolving each placeholder
+    against the page as it is served now."""
+    served = page_state(run, page)
+    html = (page / served["active"]["file"]).read_text()
+    for i, move in enumerate(moves):
+        event = dict(move)
+        if move["kind"] != "error":
+            event["attempt"] = attempt_key(n, i)
+        if "anchor" in move:
+            event["anchor"] = anchor(html, *move["anchor"])
+        if move.get("undoes") == "previous":
+            event["undoes"] = posted_event(page, attempt_key(n, i - 1))["id"]
+        if move.get("parent") == "latest":
+            event["parent"] = [
+                e for e in page_events(page) if e["kind"] in ("comment", "reply")
+            ][-1]["id"]
+        if "text" in move:
+            event["text"] = move["text"].format(
+                origin=client.origin,
+                line=html[: html.find("replaceAll(")].count("\n") + 1,
+            )
+        if move["kind"] != "undo":
+            event["revision"] = served["active"]["revision"]
+        client.post(event)
+
+
+def attempt_key(n: int, i: int) -> str:
+    """The retry key of round `n`'s move `i`, which finds its event in the log."""
+    return f"usability-eval-{n}-{i}"
+
+
+def posted_event(page: Path, key: str) -> dict:
+    return next(e for e in page_events(page) if e.get("attempt") == key)
+
+
+def execute_phases(run: Run, case: Case, work: Path, page: Path) -> None:
+    """Run each of the case's prompts as a headless phase, resuming the first
+    phase's session."""
     session = None
     for phase, template in enumerate(case.prompts, 1):
         prompt = (
@@ -518,9 +868,6 @@ def execute(run: Run) -> None:
         session = trace_result(trace).get("session_id")
         if not session:
             break
-    for found in pages(work, run.state):
-        shutil.copytree(found, run.dir / "pages" / found.name, ignore=ignore)
-    click.echo(f"{run.dir} done")
 
 
 def ignore(directory, names):
@@ -632,21 +979,25 @@ def trace_scores(trace: list[dict]) -> dict:
         }
     )
     done = trace_result(trace)
-    usage = done.get("usage", {})
+    # A live trace ends each turn with a result: its usage, turns and duration are
+    # that turn's, and its cost is the session's so far.
+    ended = [d for d in trace if d.get("type") == "result"]
+    usage = [d.get("usage", {}) for d in ended]
     return {
         "completed": completed(trace),
-        "turns": done.get("num_turns"),
+        "turns": sum(d.get("num_turns", 0) for d in ended),
         "cost_usd": round(done.get("total_cost_usd", 0), 3),
-        "minutes": round(done.get("duration_ms", 0) / 60000, 1),
+        "minutes": round(sum(d.get("duration_ms", 0) for d in ended) / 60000, 1),
         "input_tokens": sum(
-            usage.get(k, 0)
+            u.get(k, 0)
+            for u in usage
             for k in (
                 "input_tokens",
                 "cache_creation_input_tokens",
                 "cache_read_input_tokens",
             )
         ),
-        "output_tokens": usage.get("output_tokens"),
+        "output_tokens": sum(u.get("output_tokens", 0) for u in usage),
         "denials": len(done.get("permission_denials") or []),
         "leaf_skill": any("leaf" in s for s in skills),
         "references": references,
@@ -849,6 +1200,361 @@ def score_resume(run: Run, replies: list[str]) -> dict:
     return out
 
 
+def active_html(run: Run, page: Path) -> tuple[dict, str]:
+    """The page's state and the HTML of its active revision."""
+    state = page_state(run, page)
+    return state, (page / state["active"]["file"]).read_text() if state else ""
+
+
+def element_html(html: str, element: str) -> str:
+    """The markup of the element with id `element`, up to its first closing tag of
+    the same name."""
+    found = re.search(
+        rf'<(\w[\w-]*)\b[^>]*\bid="{element}"[^>]*>.*?</\1>', html, re.DOTALL
+    )
+    return found[0] if found else ""
+
+
+def element_text(html: str, element: str) -> str:
+    """The text of the element with id `element`, as `text` reads it."""
+    return text(element_html(html, element))
+
+
+def text(markup: str) -> str:
+    """Markup's text: tags dropped, entities decoded and space collapsed."""
+    return " ".join(unescape(re.sub(r"<[^>]+>", " ", markup)).split())
+
+
+# A tool call that writes `index.html`: the Write or Edit tool, a shell redirect or
+# in-place edit, or a script fed through a heredoc that names the file.
+WRITES_PAGE = (
+    r"^(Write|Edit)\b.*index\.html|>\s*\S*index\.html|sed -i.*index\.html"
+    r"|(?s:<<.*index\.html|index\.html.*<<)"
+)
+
+
+def score_package(run: Run, trace: list[dict]) -> dict:
+    """The widget used from its registry entry, with the contract's values."""
+    ran = [c for record in trace for c in commands(record)]
+    wrote = next((i for i, c in enumerate(ran) if re.search(WRITES_PAGE, c)), len(ran))
+    out = {
+        # The markup comes from the entry: read before the first write that uses it,
+        # with no look at the widget's source before that write.
+        "entry_read": any("registry.json" in c for c in ran[:wrote]),
+        "source_unread": not any(
+            re.search(r"lf-burn\.js|packages/slo", c) for c in ran[:wrote]
+        ),
+    }
+    page = run.work / "page"
+    state, html = active_html(run, page)
+    if not state or len(state["versions"]) < 2:
+        return out | {"stamped": False}
+    burn = re.search(r"<lf-burn\b([^>]*)>", element_html(html, "checkout"))
+    attrs = dict(re.findall(r'([\w-]+)="([^"]*)"', burn[1])) if burn else {}
+    return out | {
+        "stamped": True,
+        "valid": run.leaf("version", "check", str(page)).returncode == 0,
+        "widget_used": burn is not None,
+        "objective": attrs.get("objective") == "99.9",
+        "window": attrs.get("window") == "28d",
+        "consumed": attrs.get("consumed") in ("0.62", ".62"),
+    }
+
+
+def score_shared_source(run: Run, traces: list[list[dict]], replies: list[str]) -> dict:
+    """Each widget's record read and edited through its authored id, and nothing
+    else in the snapshot touched."""
+    lines = answered_lines(replies[0] if replies else "")
+    out = {
+        # The first branch the answer names is finch's; it may go on to name the
+        # stale record's.
+        "finch_branch": (
+            re.findall(r"cdata-escapes(-v1)?", lines.get(1, "")) or ["missing"]
+        )[0]
+        == "",
+        "finch_failing": check(r"fail|not passing|no\b", lines.get(1, "")),
+        "wren_ahead": check(r"\b4\b|\bfour\b", lines.get(2, "")),
+        # The join from widget to record came from the declarations: no look at
+        # the renderer in either phase.
+        "source_unread": not any(
+            "lf-worktree.js" in c for t in traces for d in t for c in commands(d)
+        ),
+    }
+    page = run.work / "page"
+    before = json.loads((FIXTURES / "hub-worktrees.json").read_text())
+    after = json.loads((page / "data/project-worktrees.json").read_text())
+    finch = after.get("tree-finch", {})
+    html = (page / "index.html").read_text()
+    return out | {
+        "finch_updated": finch.get("head", "").startswith("3f0a6be")
+        and finch.get("ahead") == 7
+        and finch.get("tests") == "passing",
+        "others_kept": {k: after.get(k) for k in ("tree-finch-old", "tree-wren")}
+        == {k: before[k] for k in ("tree-finch-old", "tree-wren")},
+        "markup_kept": "3f0a6be" not in html
+        and html.count('source="project-worktrees"') == 2,
+        "source_valid": not page_state(run, page).get("source", {}).get("error"),
+    }
+
+
+def live_rounds(trace: list[dict]) -> list[dict]:
+    """Each posted round: where it went out, the delivery that carried it, the end of
+    the turn that took it, and the status recorded at that end."""
+    rounds = []
+    for n, post in enumerate(
+        i for i, d in enumerate(trace) if d["type"] == "eval_post"
+    ):
+        arrived = next(
+            (i for i in range(post, len(trace)) if hook_delivered(trace[i])), None
+        )
+        end = arrived and next(
+            (i for i in range(arrived, len(trace)) if trace[i]["type"] == "result"),
+            None,
+        )
+        rounds.append(
+            {
+                "round": n + 1,
+                "post": post,
+                "delivery": arrived,
+                "end": end,
+                "status": end is not None
+                and next(
+                    (d["status"] for d in trace[end:] if d["type"] == "eval_status"),
+                    None,
+                ),
+            }
+        )
+    return rounds
+
+
+def ran_between(trace: list[dict], start: int, end: int) -> list[str]:
+    return [c for record in trace[start:end] for c in commands(record)]
+
+
+def first_index(ran: list[str], pattern: str) -> int | None:
+    return next((i for i, c in enumerate(ran) if re.search(pattern, c)), None)
+
+
+def claimed_first(ran: list[str]) -> bool:
+    """Whether a `working` claim on a thread or widget precedes the first reply."""
+    claim = first_index(ran, r"\bstatus\b[^|;&]*\bworking\b[^|;&]*--on\b")
+    reply = first_index(ran, r"\bthread reply\b")
+    return claim is not None and (reply is None or claim < reply)
+
+
+def answered(events: list[dict], event_id: str) -> list[dict]:
+    """The agent's replies to one event."""
+    return [
+        e
+        for e in events
+        if e["kind"] == "reply"
+        and e["author"] == "agent"
+        and event_id in (e.get("parent"), e.get("responds"))
+    ]
+
+
+def round_scores(trace: list[dict], r: dict, name: str) -> dict:
+    """What every live round is held to: delivered, a wait re-armed in the turn
+    that took it, and that turn ending on a waiting page whose URL it repeats."""
+    if r["delivery"] is None or r["end"] is None:
+        return {f"{name}_delivered": False}
+    end = trace[r["end"]]
+    return {
+        f"{name}_delivered": True,
+        f"{name}_rearmed": any(
+            waits_started(d) for d in trace[r["delivery"] : r["end"]]
+        ),
+        f"{name}_waiting": (r["status"] or {}).get("state") == "waiting",
+        f"{name}_url": bool(URL.search(end.get("result") or "")),
+    }
+
+
+def score_handoff(run: Run, trace: list[dict]) -> dict:
+    events = page_events(run.work / "page")
+    first_end = next(
+        (i for i, d in enumerate(trace) if d["type"] == "result"), len(trace)
+    )
+    handover = trace[first_end] if first_end < len(trace) else {}
+    status = (
+        next((d["status"] for d in trace if d["type"] == "eval_status"), None) or {}
+    )
+    out = {
+        "served": bool(URL.search(handover.get("result") or "")),
+        "checked": any("version check" in c for c in ran_between(trace, 0, first_end)),
+        "handoff_waiting": status.get("state") == "waiting",
+        "detail_names_ask": check(
+            r"cop(y|ies)|backfill|approach|option|how .*run", status.get("detail") or ""
+        ),
+        "wait_started": any(waits_started(d) for d in trace[:first_end]),
+        "gesture_named": check(
+            r"\b(pick|choose|select|click)", handover.get("result") or ""
+        ),
+    }
+    rounds = live_rounds(trace)
+    if rounds:
+        r = rounds[0]
+        comment = posted_event(run.work / "page", attempt_key(0, 0))
+        _, html = active_html(run, run.work / "page")
+        out |= round_scores(trace, r, "edit") | {
+            "edit_claimed": r["delivery"] is not None
+            and claimed_first(
+                ran_between(trace, r["delivery"], r["end"] or len(trace))
+            ),
+            "edit_replied": bool(answered(events, comment["id"])),
+            "edit_done": check(DRY_RUN_DONE, element_text(html, "dry-run")),
+        }
+    if len(rounds) > 1:
+        question = posted_event(run.work / "page", attempt_key(1, 0))
+        replies = answered(events, question["id"])
+        out |= round_scores(trace, rounds[1], "question") | {
+            "question_answered": any(
+                check(r"snapshot", e.get("text", ""))
+                and check(r"\b40\b", e.get("text", ""))
+                for e in replies
+            ),
+        }
+    return out
+
+
+def score_mixed(run: Run, trace: list[dict]) -> dict:
+    page = run.work / "page"
+    events = page_events(page)
+    rounds = live_rounds(trace)
+    if not rounds:
+        return {"batch_delivered": False}
+    r = rounds[0]
+    # The error carries no retry key, as the runtime sends none.
+    posted = [posted_event(page, attempt_key(0, i)) for i in range(5)]
+    comment, pick, reaction, _, _ = posted
+    picked = {i for e in events if e["kind"] == "pickup" for i in e.get("events", [])}
+    fixture_words = len(
+        element_text((FIXTURES / "mixed.html").read_text(), "why-now").split()
+    )
+    state, html = active_html(run, page)
+    ran = ran_between(trace, r["delivery"] or 0, r["end"] or len(trace))
+    out = round_scores(trace, r, "batch") | {
+        # One delivery carried every user move, and nothing else arrived in its turn.
+        "one_delivery": r["delivery"] is not None
+        and sum(hook_delivered(d) for d in trace[r["post"] : r["end"] or len(trace)])
+        == 1
+        and {e["id"] for e in posted if e["author"] == "user"} <= picked,
+        "comment_claimed": claimed_first(ran),
+        "comment_replied": bool(answered(events, comment["id"])),
+        "comment_done": check(DRY_RUN_DONE, element_text(html, "dry-run")),
+        "stamped": len(state.get("versions", [])) >= 2,
+        # Leaf's own reading: the pick owes nothing more, and the user still sees it,
+        # as the markup's `chosen` or as their standing move.
+        "pick_answered": not any(
+            w.get("input") == pick["id"] for w in state.get("workflows", [])
+        )
+        and (
+            bool(re.search(r'<lf-option\b[^>]*\bid="opt-online"[^>]*\bchosen', html))
+            or any(
+                s["widget"] == "copy-mode" and s["detail"] == PICK["detail"]
+                for s in state.get("state", [])
+            )
+        ),
+        # The reaction is acted on, by shortening the paragraph in place or by
+        # proposing a shorter one as a suggestion, and closed, by the agent or by the
+        # suggestion that `resolves` it once the user decides.
+        "reaction_handled": (
+            0 < len(element_text(html, "why-now").split()) < 0.7 * fixture_words
+            or any(
+                "every dashboard that reads" in text(old)
+                and len(text(new).split()) < 0.7 * fixture_words
+                for old, new in re.findall(
+                    r"<lf-old\b.*?>(.*?)</lf-old\s*>\s*<lf-new\b.*?>(.*?)</lf-new\s*>",
+                    html,
+                    re.DOTALL,
+                )
+            )
+        )
+        and (
+            any(
+                e["kind"] == "resolve"
+                and e["author"] == "agent"
+                and e["parent"] == reaction["id"]
+                for e in events
+            )
+            or f'resolves="{reaction["id"]}"' in html
+        ),
+        "reaction_unreplied": not answered(events, reaction["id"]),
+        "undo_kept": "card-lag-alert" in column_cards(html, "col-open")
+        and column_cards(html, "col-done") == [],
+        # Every regular expression the page's script passes to replaceAll is global.
+        "error_fixed": all(
+            "g" in flags
+            for flags in re.findall(r"replaceAll\(\s*/(?:[^/\\\n]|\\.)+/([a-z]*)", html)
+        ),
+    }
+    return out
+
+
+PREMISE = "the vacuum job now owns the ops window"
+
+
+def score_elided(run: Run, trace: list[dict]) -> dict:
+    page = run.work / "page"
+    events = page_events(page)
+    rounds = live_rounds(trace)
+    if not rounds:
+        return {"question_delivered": False}
+    r = rounds[0]
+    question = posted_event(page, attempt_key(0, 0))
+    thread = next(e["id"] for e in events if e["kind"] == "comment")
+    out = round_scores(trace, r, "question")
+    if r["delivery"] is None:
+        return out
+    delivery = trace[r["delivery"]].get("output", "")
+    replying = next(
+        (
+            i
+            for i in range(r["delivery"], len(trace))
+            if any("thread reply" in c for c in commands(trace[i]))
+        ),
+        len(trace),
+    )
+    # Where the premise first reached the agent: a tool result carrying its words,
+    # which the delivery leaves out. The agent can write them nowhere before that.
+    premise = next(
+        (
+            i
+            for i, d in enumerate(trace)
+            if any(
+                b.get("type") == "tool_result" and PREMISE in text_of(b.get("content"))
+                for b in blocks([d])
+            )
+        ),
+        None,
+    )
+    replies = answered(events, question["id"])
+    return out | {
+        # Validity: the delivery shortened the thread, as the case assumes.
+        "shown_elided": bool(
+            re.search(r'\\?"elided\\?":\s*\{\\?"messages\\?":\s*[1-9]', delivery)
+        )
+        and PREMISE not in delivery,
+        "middle_read": premise is not None and premise < replying,
+        "premise_read_in": None
+        if premise is None
+        else "resume"
+        if premise < r["post"]
+        else "delivery",
+        "answer_right": any(
+            check(r"\b22[:.]?00\b|\b10\s*p\.?m\b", e.get("text", "")) for e in replies
+        ),
+        "titled": any(
+            e["kind"] == "thread_title" and e.get("thread") == thread for e in events
+        ),
+        "summarized": any(
+            e["kind"] == "summary" and e.get("thread") == thread for e in events
+        ),
+    }
+
+
+LIVE_SCORES = {"handoff": score_handoff, "mixed": score_mixed, "elided": score_elided}
+
+
 @cli.command()
 @click.argument("batch")
 def score(batch: str):
@@ -869,7 +1575,13 @@ def score(batch: str):
                 for t in traces
             ],
         }
-        if run.case in COLD:
+        if run.case in LIVE_SCORES:
+            row["score"] = LIVE_SCORES[run.case](run, run.traces()[0])
+        elif run.case == "package":
+            row["score"] = score_package(run, run.traces()[0])
+        elif run.case == "shared-source":
+            row["score"] = score_shared_source(run, run.traces(), replies)
+        elif run.case in COLD:
             row["score"] = score_cold(run, replies[-1] if replies else "", calls)
         elif run.case.startswith("reading"):
             row["score"] = score_reading(run, replies[-1] if replies else "")

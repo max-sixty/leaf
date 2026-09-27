@@ -27,9 +27,9 @@ from pathlib import Path
 
 from example_assets import LOCK, specification
 from example_assets import example_previews as locked_previews
-from example_data import catalog_sources
 from leaf.hosting import LeafHTTPServer
 from leaf.render_checks import wait_until_ready
+from leaf_dev.example_data import catalog_sources
 from PIL import Image
 from playwright.sync_api import Page, sync_playwright
 

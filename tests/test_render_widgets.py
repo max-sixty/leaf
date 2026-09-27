@@ -5,7 +5,6 @@ from itertools import pairwise
 from pathlib import Path
 
 import pytest
-from example_data import patch_manifest
 from interact_support import append_command
 from leaf import data as data_model
 from leaf import delivery as delivery_model
@@ -17,6 +16,7 @@ from leaf import thread as thread_model
 from leaf.render_checks import rendered, wait_until_ready
 from leaf.render_gate import version as render_gate_model
 from leaf.schema import ELEMENT_ID
+from leaf_dev.example_data import patch_manifest
 from playwright.sync_api import expect
 from render_cases_interaction import (
     ALL_ASKS_IN_ORDER,

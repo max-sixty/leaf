@@ -16,7 +16,6 @@ from pathlib import Path
 import pytest
 from click.testing import CliRunner
 from conftest import LEAF_COMMAND
-from example_data import captured_value, patch_manifest
 from interact_support import (
     OPTIONS,
     PAGE,
@@ -68,6 +67,7 @@ from leaf.served_state.page import read_served_page
 from leaf.validation import compatibility as validation_model
 from leaf.validation.source import check_source
 from leaf.validation.source_history import PROTECTED_REMEDIES, predecessor_reading
+from leaf_dev.example_data import captured_value, patch_manifest
 
 
 def test_check_accepts_a_valid_page(page_dir):

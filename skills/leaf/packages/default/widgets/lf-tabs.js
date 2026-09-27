@@ -13,7 +13,7 @@
  * panel entries. A switch, by press, key, Back, or Forward, is not
  * fragment travel, because a view is not a destination: the strip stays where it is on
  * screen, and the view opens where this user last read it, or at its start when they
- * never read past it. Links and anchors inside a panel keep native fragment navigation.
+ * never read past it. A link inside a panel is still fragment travel (history.js).
  * Embedded tab sets retain the ordinary framed-widget behavior.
  * While the version diff is on, a tab whose panel holds marked passages wears
  * a Δ count, so a change can't hide behind an inactive tab. Unupgraded,

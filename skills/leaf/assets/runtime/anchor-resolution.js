@@ -8,7 +8,7 @@
  */
 
 import { sameAnchor } from "./anchor-coordinate.js";
-import { resolvedElement, resolvedPassage } from "./resolved-target.js";
+import { resolvedElement, resolvedPassage, targetElement } from "./resolved-target.js";
 import { inUi, under, upFrom } from "./shadow.js";
 import {
   registeredVisualPart,
@@ -118,6 +118,17 @@ export function addressedElements(source, key) {
   if (part) return [part];
   const datum = currentDatum(source, key) ?? suppliedDatum(source, key);
   return datum ? [datum] : [];
+}
+
+// Travel's half of that key space: ask the widget to draw what a key addresses before
+// anything reads it. A visual part drawn only in another state is drawn now, as
+// `registerVisualParts` promises; a lazy datum answers with its hydration promise. Every
+// travel to a part of a widget asks this, a thread's anchor (`anchor.visual` or
+// `anchor.datum`) and a module's `navigateToDatum` key alike, so neither route reaches a
+// part the other cannot.
+export function revealAddressed(source, key) {
+  if (revealVisualPart(source, key)) return null;
+  return source.lfRevealDatum?.(key) ?? null;
 }
 
 // A generated visual part keeps a semantic id its provider's declaration admits
@@ -514,3 +525,10 @@ export function fragmentId(fragment) {
     return raw;
   }
 }
+
+// The page element a fragment names: the anchor `{section}` it spells, resolved as every
+// other anchor is, so an id in chrome, in a message's own markup, or on content a
+// revision settled away names nothing here. A fresh load's arrival, a followed link, and
+// a reply's reference all read their destination through this.
+export const fragmentTarget = (fragment) =>
+  fragment ? targetElement(resolveAnchor({ section: fragmentId(fragment) })) : null;

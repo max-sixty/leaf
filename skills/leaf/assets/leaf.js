@@ -867,7 +867,7 @@ if (!passiveSpecimen && !offlineInteractive) {
   // for the browser to carry on from.
   releaseFocus();
 }
-mountHistory();
+mountHistory({ followFragment: anchorTravel.followFragment });
 const landFragment = version.aimArrival();
 const { landArrival, savedView } = offlineInteractive
   ? { landArrival: () => {}, savedView: null }

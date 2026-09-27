@@ -6914,11 +6914,11 @@ def test_a_reply_renders_the_markdown_it_was_written_in(browser, serve):
 
 
 def test_a_message_reference_travels_or_says_it_cant(browser, serve, one_user):
-    """A message can point at the page with a fragment link, and the platform is what
-    carries the user: collapsed content wears hidden="until-found", so the jump
-    fires beforematch and the tab holding the target opens itself. That half is
-    pinned here rather than implemented — a runtime that starts intercepting these
-    presses has to keep doing it, reveal included.
+    """A message can point at the page with a fragment link, and following it is a trip
+    to the element it names: the tab holding the target opens, and where Threads
+    covers a narrow window, the panel the link was pressed in gives the page back,
+    as a press on the thread's own quote does. Left to the browser, the page moved
+    behind the panel and the user was left looking at the reply.
 
     The half the browser has no answer for is an id this version hasn't got, which
     needs nobody to have erred: a comment outlives the version it was written on.
@@ -6934,7 +6934,8 @@ def test_a_message_reference_travels_or_says_it_cant(browser, serve, one_user):
             "id": "c-ref",
             "author": "user",
             "revision": 1,
-            "text": "See [the bath](#p-bath), not [the old note](#gone).",
+            "text": "See [the bath](#p-bath), [the end](#tail-end), "
+            "not [the old note](#gone).",
         },
     )
     page = open_page(browser, url, context=one_user)
@@ -6943,8 +6944,7 @@ def test_a_message_reference_travels_or_says_it_cant(browser, serve, one_user):
 
     live = page.locator('.lf-msg-body a[href="#p-bath"]')
     expect(live).to_have_attribute("title", "Jump to § p-bath")
-    # Collapsed behind the inactive tab until the jump asks for it, which is the
-    # platform half: hidden="until-found" answers a fragment navigation.
+    # Collapsed behind the inactive tab until the jump asks for it.
     hidden = re.compile(".*")
     expect(page.locator("#tab-bath")).to_have_attribute("hidden", hidden)
     live.click()
@@ -6987,6 +6987,59 @@ def test_a_message_reference_travels_or_says_it_cant(browser, serve, one_user):
     dead.click(force=True)
     assert page.url == was, page.url
     assert page.evaluate("() => document.scrollingElement.scrollTop") == at
+
+    # A window too narrow to hold the page beside Threads: the panel covers the page,
+    # and the reference is pressed from inside it.
+    resized(page, 600, 800)
+    panel = page.locator(".lf-thread-panel")
+    expect(panel).to_be_visible()
+    page.locator('.lf-msg-body a[href="#tail-end"]').click()
+    expect(panel).to_be_hidden()
+    page.wait_for_function(
+        """() => { const r = document.getElementById('tail-end').getBoundingClientRect();
+                   const at = document.elementFromPoint(r.left + 4, r.top + r.height / 2);
+                   return r.top >= 0 && r.bottom <= innerHeight
+                     && document.getElementById('tail-end').contains(at); }"""
+    )
+
+
+def test_a_followed_link_arrives_as_a_fresh_load_of_it_does(browser, serve):
+    """A link followed on the page and the same URL opened in a new tab are one
+    destination, so they arrive alike: the worker's worktree sits in a goal the command
+    hub keeps shut (`display: none`, which `hidden="until-found"` would not be), and the
+    browser's own jump landed on nothing where the fresh load revealed it. Back then
+    returns the user to where they pressed."""
+    url = live_url(serve(COMMAND_HUB_EXAMPLE))
+    shown = """(id) => { const t = document.getElementById(id);
+                         const r = t.getBoundingClientRect();
+                         return t.checkVisibility() && r.top >= 0 && r.bottom <= innerHeight
+                           ? Math.round(document.scrollingElement.scrollTop) : null; }"""
+
+    fresh = open_page(browser, f"{url}#tree-w-5")
+    landed = fresh.wait_for_function(shown, arg="tree-w-5").json_value()
+    fresh.close()
+
+    page = open_page(browser, url)
+    assert page.evaluate(shown, "tree-w-5") is None
+    link = page.locator('a[href="#tree-w-5"]')
+    link.scroll_into_view_if_needed()
+    pressed_at = page.evaluate("() => document.scrollingElement.scrollTop")
+    link.click()
+    followed = page.wait_for_function(shown, arg="tree-w-5").json_value()
+    assert followed == landed, (followed, landed)
+
+    # Shut again and followed again: a press on a link to the fragment the page already
+    # shows is still a trip there.
+    page.locator("#parser-dedupe > strong").click()
+    expect(page.locator("#tree-w-5")).to_be_hidden()
+    link.click()
+    page.wait_for_function(shown, arg="tree-w-5")
+
+    page.go_back()
+    page.wait_for_function(
+        "(at) => Math.abs(document.scrollingElement.scrollTop - at) <= 1",
+        arg=pressed_at,
+    )
 
 
 def test_an_arrival_lands_where_the_url_aimed(browser, serve):

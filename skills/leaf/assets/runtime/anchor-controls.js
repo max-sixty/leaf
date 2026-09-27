@@ -20,6 +20,7 @@ import {
 } from "../vendor/browser-runtime.js";
 import {
   fragmentId,
+  fragmentTarget,
   resolveAnchor,
   unclaimedVisualGesture,
   visualAt,
@@ -314,8 +315,9 @@ export function createAnchorControls({
     // Missing targets share the quote's detached meaning, but retain the message
     // link's own contour: muted ink and a dashed underline, with its press withheld.
     for (const anchor of messageReferenceRoot.querySelectorAll(MSG_REF)) {
-      const id = fragmentId(anchor.getAttribute("href"));
-      const alive = Boolean(resolveAnchor({ section: id }));
+      const href = anchor.getAttribute("href");
+      const id = fragmentId(href);
+      const alive = Boolean(fragmentTarget(href));
       anchor.classList.toggle("detached", !alive);
       if (alive) anchor.removeAttribute("aria-disabled");
       else anchor.setAttribute("aria-disabled", "true");
@@ -355,8 +357,7 @@ export function createAnchorControls({
 
   const onMessageReference = (event) => {
     const anchor = event.target.closest(MSG_REF);
-    if (anchor && !resolveAnchor({ section: fragmentId(anchor.getAttribute("href")) }))
-      event.preventDefault();
+    if (anchor && !fragmentTarget(anchor.getAttribute("href"))) event.preventDefault();
   };
 
   const onOutsideReaction = (event) => {

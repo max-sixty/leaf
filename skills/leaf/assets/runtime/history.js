@@ -16,18 +16,39 @@
  * element the page no longer shows (a tab or disclosure closed since): the offset was
  * saved over a page that has changed, so the browser's own fragment landing, which
  * reveals the element, answers instead. Focus stays where it is either way, as an
- * unintercepted traversal leaves it. A push, a fragment link among them, is not a
- * traversal and keeps native fragment landing; a browser without the Navigation API
- * keeps its own traversals. */
+ * unintercepted traversal leaves it.
+ *
+ * A fragment navigation, a followed `#id` link, is not a traversal: it adds its entry
+ * and is a trip to the element it names. The travel owner claims it (`mountHistory`'s
+ * `followFragment`, anchor-travel.js) where the fragment names an element of the page,
+ * and lands it through the browser's own fragment scroll once travel has cleared and
+ * revealed the way; any other fragment keeps native landing. An entry this document
+ * writes through `pushEntry` or `replaceEntry`, as travel and a tab set do, is not a
+ * fragment navigation and is never claimed. A browser without the Navigation API keeps its own traversals and
+ * fragment landings. */
 
 const claims = new Set();
 
+// Whether this document is writing an entry itself. The Navigation API fires `navigate`
+// synchronously inside `pushState` and `replaceState`, and those events look like a
+// press on a link to the fragment the page already shows: both are a same-document
+// `replace` or `push` with no hash change. Only the writer can tell them apart.
+let writing = false;
+function write(method, state, url) {
+  writing = true;
+  try {
+    history[method](state, "", url);
+  } finally {
+    writing = false;
+  }
+}
+
 export function pushEntry(url, state = null) {
-  history.pushState(state, "", url);
+  write("pushState", state, url);
 }
 
 export function replaceEntry(url, state = history.state) {
-  history.replaceState(state, "", url);
+  write("replaceState", state, url);
 }
 
 // `claim(url)` returns the handler that places the page at a traversal to `url`, or
@@ -38,17 +59,25 @@ export function claimTraversals(claim, { signal } = {}) {
 }
 
 let mounted = false;
-export function mountHistory() {
+export function mountHistory({ followFragment }) {
   if (mounted) return;
   mounted = true;
   window.navigation?.addEventListener("navigate", (event) => {
-    if (
-      event.navigationType !== "traverse" ||
-      !event.destination.sameDocument ||
-      !event.canIntercept
-    )
-      return;
+    if (!event.destination.sameDocument || !event.canIntercept) return;
     const url = new URL(event.destination.url);
+    if (event.navigationType !== "traverse") {
+      // A followed link again to the fragment already shown is a `replace` with no
+      // hash change, and still a trip: its target may have been shut since.
+      if (writing || event.formData || !url.hash) return;
+      const arrive = followFragment(url);
+      if (arrive)
+        event.intercept({
+          scroll: "manual",
+          focusReset: "manual",
+          handler: () => arrive(() => event.scroll()),
+        });
+      return;
+    }
     for (const claim of claims) {
       const handler = claim(url);
       if (!handler) continue;

@@ -435,7 +435,9 @@ A module that takes the user to a thread calls `openThread(id, {focus})`
 with the Thread's `id`. It opens the thread where the page shows it, inline beside
 its passage or widget, and in Threads when it has no place on the page, the same choice a
 mark and `t` make; `focus: "thread"` lands on the thread and the default `"reply"` lands in
-its reply box. A place on the page is an ordinary fragment link.
+its reply box. A place on the page is an ordinary fragment link; Leaf follows it the
+way it travels to a thread, clearing a panel that covers the page and opening whatever
+holds the element.
 
 A module that names an element away from it, in a feed row or a summary, reads the page's
 shared names rather than its own. `addressableName(element)` is the name the authoring
@@ -530,8 +532,8 @@ whatever its `lfElementsFor(key)` maps to elements under itself. `lf-code` answe
 `hi` grammar, so `"3-5,8"` addresses those lines.
 
 `navigateToDatum(widget, attribute, key, messages)` travels to the first element a key
-addresses. Leaf resolves declared shadow trees, asks the target to hydrate lazy data,
-opens its containing disclosure, focuses that disclosure, updates the fragment, and
+addresses. Leaf resolves declared shadow trees, asks the target to hydrate lazy data or
+draw a visual part it shows only in another state, opens its containing disclosure, focuses that disclosure, updates the fragment, and
 announces the supplied `success` or `missing` message. A lazy target may implement
 `lfRevealDatum(key)` to return its hydration promise and `lfDataDatum(key)` to map a
 semantic key to the rendered projected element.

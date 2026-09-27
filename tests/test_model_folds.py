@@ -184,3 +184,14 @@ def test_a_retraction_outlives_the_version_that_made_it():
     assert standing(2) == []
     # The version that says nothing inherits it.
     assert standing(3) == []
+
+
+def test_the_runtime_tests_build_on_the_records_the_server_serves():
+    """`served_records.json` is this fold's output, so a Node test built on it carries
+    every field the server sends; a change to the served shape fails here until the
+    file is rewritten."""
+    import served_records
+
+    assert served_records.RECORDS.read_text() == served_records.serialized(), (
+        "the served thread or workflow changed — rerun `uv run tests/served_records.py`"
+    )

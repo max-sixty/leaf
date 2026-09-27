@@ -527,7 +527,10 @@ const standingBox = (surface) => ({
   right: surface.offsetLeft + surface.offsetWidth,
   bottom: surface.offsetTop + surface.offsetHeight,
 });
-export const declareOccluder = (surface) => occluders.add(surface);
+export const declareOccluder = (surface) => {
+  occluders.add(surface);
+  return () => occluders.delete(surface);
+};
 // A clip pass that reads past some occluders. Travel asks what the page shows of a
 // destination beside the surface it leaves standing, which is the most any movement of
 // the page can show while that surface stands.

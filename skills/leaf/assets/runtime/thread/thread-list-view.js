@@ -153,17 +153,17 @@ class ThreadListView extends RetainedFace {
       }
       let descriptor = row.descriptor;
       const prior = view.model;
-      if (this.#retaining || !descriptor.resolved) finishFold(descriptor.id);
+      if (this.#retaining || !descriptor.resolved) finishFold(view.node);
       const folding =
         !this.#retaining &&
         descriptor.resolved &&
-        (isFolding(descriptor.id) ||
+        (isFolding(view.node) ||
           (prior &&
             !prior.resolved &&
             !prior.folding &&
             prior.visible &&
             !descriptor.visible &&
-            foldOut(descriptor.id, view.node, this.#commands.repaintThread)));
+            foldOut(view.node, this.#commands.repaintThread)));
       if (folding) {
         view.retire();
         descriptor = Object.freeze({
@@ -175,7 +175,8 @@ class ThreadListView extends RetainedFace {
         });
         if (view.node.contains(focused())) this.focus({ preventScroll: true });
       }
-      view.node.name = folding ? "" : "threads";
+      if (folding) view.node.removeAttribute("name");
+      else view.node.setAttribute("name", this.#commands.card.detailsGroup);
       view.setNavigation({
         draftChanged: () => view.present(view.model),
       });

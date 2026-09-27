@@ -1,8 +1,8 @@
-/* Registry-declared widget-local placements for canonical Thread views.
+/* Exact widget-local placement for canonical Thread conversations.
 
-   Registrations are the domain's durable extension points. Each public registration is
-   supplied the application invalidation that owns its next semantic render; the module
-   stores no application service or generic event channel. */
+   A placement claims one Thread's page position, so reconciliation joins the core
+   Thread presentation before the margin chooses its fallback. Ordinary mirrors live
+   in mirrors.js and cannot hold that presentation open. */
 import { reportPageError } from "../layer-client.js";
 import { datumAimTarget, resolveAnchor } from "../anchor-resolution.js";
 import { sameAnchor } from "../anchor-coordinate.js";
@@ -30,6 +30,7 @@ function update(registration) {
 export function consumeThreads(owner, render, { invalidate, composition, reveal }) {
   if (!(owner instanceof Element))
     throw new TypeError("consumeThreads needs an Element owner");
+  requireSurface(owner);
   if (typeof render !== "function")
     throw new TypeError("consumeThreads needs a render callback");
   if (typeof invalidate !== "function")
@@ -182,12 +183,19 @@ export function renderSurfaces(collection, placedAt, commands) {
         let placing = true;
         const acceptOutlet = (outlet) => {
           if (!placing || abort.signal.aborted)
-            throw new Error(
-              "Thread placements belong to their current render callback",
-            );
-          requireSurface(owner);
+            throw new Error("Thread outlets belong to their current render callback");
           if (!(outlet instanceof Element))
             throw new TypeError("A Thread outlet must be an Element");
+        };
+        const placeThread = (key, outlet) => {
+          acceptOutlet(outlet);
+          const thread = byKey.get(key);
+          if (!thread) throw new Error(`No Thread has key ${key}`);
+          const held = byOutlet.get(outlet) ?? [];
+          if ([...byOutlet.values()].some((threads) => threads.includes(thread)))
+            throw new Error("A consumer may place a Thread only once");
+          held.push(thread);
+          byOutlet.set(outlet, held);
         };
         try {
           const rendering = render(collection, {
@@ -195,17 +203,11 @@ export function renderSurfaces(collection, placedAt, commands) {
             target,
             composition: compositionTarget,
             place(key, outlet) {
-              acceptOutlet(outlet);
               if (!target(key))
                 throw new Error(
                   "A Thread outlet requires an exact target owned by its widget",
                 );
-              const held = byOutlet.get(outlet) ?? [];
-              const thread = byKey.get(key);
-              if ([...byOutlet.values()].some((items) => items.includes(thread)))
-                throw new Error("A consumer may place a Thread only once");
-              held.push(thread);
-              byOutlet.set(outlet, held);
+              placeThread(key, outlet);
             },
             placeComposition(outlet) {
               acceptOutlet(outlet);
@@ -225,8 +227,9 @@ export function renderSurfaces(collection, placedAt, commands) {
           continue;
         }
         for (const outlet of byOutlet.keys()) {
-          if (!outlet.isConnected) byOutlet.delete(outlet);
-          else if (!under(outlet, owner))
+          if (!outlet.isConnected) {
+            byOutlet.delete(outlet);
+          } else if (!under(outlet, owner))
             throw new Error(
               `consumeThreads(${owner.localName}) returned an outlet outside its widget`,
             );
@@ -268,14 +271,14 @@ export function renderSurfaces(collection, placedAt, commands) {
       }
       clearOutlets([...registration.outlets].filter((outlet) => !byOutlet.has(outlet)));
       registration.outlets = new Set(byOutlet.keys());
-      for (const [outlet, localThreads] of byOutlet) {
+      for (const [outlet, threads] of byOutlet) {
         outlet.dataset.lfThreadSurface = "";
         const response =
           compositionPrepared && outlet === compositionOutlet
             ? commands.composition.node()
             : null;
-        renderThreadSurface(outlet, localThreads, commands, response);
-        for (const thread of localThreads) nextClaimed.add(thread.id);
+        renderThreadSurface(outlet, threads, commands, response);
+        for (const thread of threads) nextClaimed.add(thread.id);
       }
     }
     if (!compositionSeated) commands.composition.restore();
@@ -288,10 +291,11 @@ export const claimed = (id) => claimedIds.has(id);
 
 export function focusSurface(id, { focus = "reply" } = {}) {
   for (const registration of registrations.values()) {
-    const root = registration.owner.shadowRoot ?? registration.owner;
-    const thread = root.querySelector(
-      `.lf-page-thread[data-thread="${CSS.escape(id)}"]`,
-    );
+    const thread = [...registration.outlets]
+      .map((outlet) =>
+        outlet.querySelector(`.lf-page-thread[data-thread="${CSS.escape(id)}"]`),
+      )
+      .find(Boolean);
     if (!thread) continue;
     const summary = thread.querySelector(":scope > summary");
     const target =

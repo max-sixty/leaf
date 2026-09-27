@@ -129,7 +129,10 @@ const authoredMessage = (message) => {
   return prepared;
 };
 const FAILURE_LABEL = "Not answered";
-export function messageReading(message, { panel, reactions, workflows }) {
+export function messageReading(
+  message,
+  { panel, nativeAuthored = false, reactions, workflows },
+) {
   const workflow = strongestWorkflow(workflows);
   const token = isReaction(message) ? tokenEntry(message.token) : null;
   const kind = isReaction(message)
@@ -166,6 +169,7 @@ export function messageReading(message, { panel, reactions, workflows }) {
       authored: message.body.kind === "authored",
     }),
     panel,
+    nativeAuthored,
     reactions,
   });
 }
@@ -204,7 +208,7 @@ export class MessageView {
     else this.node.removeAttribute("aria-busy");
     if (model.failure) this.node.dataset.failure = model.failure;
     else delete this.node.dataset.failure;
-    if (panel && model.body.authored && !this.#authored)
+    if (model.nativeAuthored && model.body.authored && !this.#authored)
       this.#authored = authoredMessage({
         id: model.id,
         attempt: model.attempt,
@@ -260,12 +264,14 @@ export class MessageView {
                     ? html`<span class="lf-drawing-reference">Drawing comment</span>`
                     : nothing
                 }
-                ${model.body.authored ? this.#authored : nothing}
+                ${
+                  model.nativeAuthored && model.body.authored ? this.#authored : nothing
+                }
               </div>`
             : this.#inlineBody(model.body)
         }
         ${
-          !panel && model.body.authored
+          model.body.authored && !model.nativeAuthored
             ? html`<button
                 type="button"
                 class="lf-btn lf-page-thread-open lf-ui"

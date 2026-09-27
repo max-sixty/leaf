@@ -4,7 +4,7 @@
     <title>How leaf works</title>
     <meta
       name="description"
-      content="The mechanism behind leaf, one part per tab: the loop that carries your feedback to the agent, what a page is made of, how it is laid out, how revisions keep your decisions, and where a page is stored and served."
+      content="The mechanism behind leaf, one part per tab: the loop that carries your feedback to the agent, what a page is made of, how it is laid out, how revisions keep your decisions, where its data lives and how its state is derived, and how it is served."
     />
     <link rel="icon" href="/icon.svg" type="image/svg+xml" />
     <style>
@@ -2195,18 +2195,129 @@ flowchart TD
           </section>
         </lf-tab>
 
+        <lf-tab id="data" label="Data">
+          <section id="data-home">
+            <h2>The page directory is the record</h2>
+            <p id="data-directory">
+              Everything durable about a page lives in its directory. Copying the
+              directory copies the page, its history, and every decision on it. There
+              is no database.
+            </p>
+            <table id="data-table">
+              <thead>
+                <tr>
+                  <th>What</th>
+                  <th>Where</th>
+                  <th>Written by</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr id="data-row-markup">
+                  <td>The page's content and each widget's starting value</td>
+                  <td>
+                    <code>index.html</code>, copied into <code>revisions/</code> on each
+                    valid save
+                  </td>
+                  <td>the agent</td>
+                </tr>
+                <tr id="data-row-log">
+                  <td>
+                    Your picks, drags, comments, and undos; the agent's replies, notes,
+                    and versions
+                  </td>
+                  <td><code>events.jsonl</code>, append-only</td>
+                  <td>Leaf's one append door, for the browser and commands alike</td>
+                </tr>
+                <tr id="data-row-sources">
+                  <td>Values from outside: a measurement, a CI status, a file excerpt</td>
+                  <td>
+                    <code>data/&lt;source&gt;.json</code>, with each source's contract in
+                    <code>data.json</code>
+                  </td>
+                  <td><code>leaf data set</code>, or any process rewriting the file</td>
+                </tr>
+                <tr id="data-row-bookkeeping">
+                  <td>
+                    Bookkeeping: how far the agent has read, when you last looked, the
+                    agent's declared status, a diagnostic trace of requests
+                  </td>
+                  <td>
+                    <code>cursor.json</code>, <code>viewed.json</code>,
+                    <code>status.json</code>, <code>interactions.jsonl</code>
+                  </td>
+                  <td>Leaf</td>
+                </tr>
+                <tr id="data-row-machine">
+                  <td>
+                    Which session claims each page, the batches delivered to agents, and
+                    the access key in the page's URL
+                  </td>
+                  <td>the machine's state home, outside any page</td>
+                  <td>Leaf</td>
+                </tr>
+              </tbody>
+            </table>
+          </section>
+
+          <section id="data-fold">
+            <h2>Current state is computed on every read</h2>
+            <p id="data-fold-lede">
+              Nothing stores the page's current state. The live revision's markup is
+              where it starts, and the log records every change since. Your browser and
+              <code>leaf page state</code> each start from that markup and fold the log
+              over it: for each widget, unit, and verb, the latest action still standing
+              wins.
+            </p>
+            <p id="data-fold-append">
+              A change enters the log only through the append door, which checks each
+              event against the verbs the page's layer declares and records what the
+              action meant when it was taken. A later reader recovers that meaning from
+              the record, even once the widget that sent it is gone. Nothing is removed
+              from the log: an undo is a new event that names the gesture it withdraws.
+              The <a href="/event-log/">event log reference</a> follows one pick and its
+              undo through the log and the fold.
+            </p>
+          </section>
+
+          <section id="data-sources">
+            <h2>External values are replaced, not logged</h2>
+            <p id="data-sources-lede">
+              A value an agent or another process supplies, such as a benchmark result
+              or a build's status, lives in one JSON file per source. The page's markup
+              binds each source to a contract its value must meet; the first write
+              records that contract in <code>data.json</code>, and the source keeps it
+              for the page's lifetime. Any process may rewrite the file,
+              so every reading checks the value against that contract, and a failing
+              value shows as that source's error rather than as data.
+            </p>
+            <p id="data-sources-live">
+              Rewriting the file changes what an open page shows without a new
+              revision. No earlier value is kept. A number frozen into prose with
+              <code>lf-num</code> keeps the value it was authored with, and
+              <code>leaf version check</code> advises when its source has moved on.
+            </p>
+          </section>
+
+          <section id="data-browser">
+            <h2>What your browser keeps</h2>
+            <p id="data-browser-lede">
+              The browser keeps your view and your unsent words, nothing more. Each tab
+              remembers its reading position, the tab or panel it has open, and whether
+              design mode is on, and forgets them when it closes. What you have typed
+              and not sent survives a closed tab and shows in every tab of the page, and
+              the chrome you arrange follows you across pages. Once you send a comment
+              or make a move, it is in the log, where every tab and the agent read
+              it.
+            </p>
+          </section>
+        </lf-tab>
+
         <lf-tab id="serving" label="Serving">
           <section id="lifetime">
-            <h2>The page directory is the record</h2>
-            <p id="page-directory">
-              Everything a page is lives in its directory: the mutable
-              <code>index.html</code>, an immutable copy of each revision with the layer
-              it used, the append-only <code>events.jsonl</code>, and one JSON file per
-              external data source under <code>data/</code>. Copying the directory
-              copies the page, its history, and every decision on it.
-            </p>
+            <h2>How long a server runs</h2>
             <p id="wait-stateless">
-              A server is only a way to reach that directory. One started by an agent
+              A server is only a way to reach the
+              <a href="#data-home">page directory</a>. One started by an agent
               session retires when no live session claims the page; one started from
               your shell, or with <code>--standing</code>, stays up until
               <code>leaf server stop</code>.

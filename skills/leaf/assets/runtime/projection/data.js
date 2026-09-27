@@ -272,11 +272,9 @@ export function createDataProjection({ invalidateDom }) {
           }
         }
     } else {
-      // A projection's children are its rendering. Remove source whitespace or an old
-      // non-element rendering first, then use the runtime's stable-child reconciler so a
-      // node already in the right place is not detached and reinserted.
-      for (const child of [...root.childNodes])
-        if (child.nodeType !== Node.ELEMENT_NODE) child.remove();
+      // A projection's children are its rendering, so source whitespace and an old
+      // rendering leave, and a node already in the right place is not detached and
+      // reinserted.
       setChildren(root, wanted);
     }
     applyProjection(root);

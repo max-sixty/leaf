@@ -47,6 +47,9 @@ export { inUi, uiInside, upFrom } from "./shadow.js";
 // stand on. TEXT_FIELD is the tag of the box a widget offers for the user to write
 // Markdown in; TEXT_BOX matches it and any native textarea.
 export { focusDestination, holdFocus, TEXT_BOX, TEXT_FIELD } from "./focus.js";
+// Making an element's children a list, moving only what is out of place and keeping the
+// user standing in a node it moves.
+export { setChildren } from "./dom-children.js";
 export { openAsks, watchAsks } from "./application.js";
 export { registerVisualParts } from "./visual-parts.js";
 export {

@@ -2209,6 +2209,7 @@ def test_a_delayed_thread_reveal_reports_that_new_user_focus_cancelled_it(
           const landing = createThreadLanding({
             setPanel: () => {},
             scrollToThread: () => {},
+            threadsBox: document.querySelector('.lf-threads'),
             revealThread: () => {
               window.threadRevealStarted = true;
               return held.then(() => { thread.hidden = false; });

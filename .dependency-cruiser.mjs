@@ -23,10 +23,11 @@ const isModule = (name) => `^${runtime}${escaped(name)}$`;
 const isOneOf = (names) => `^${runtime}(?:${names.map(escaped).join("|")})$`;
 
 // Each root reaches these modules and nothing else. The pure record folds take values
-// and return values; the keyboard dispatcher resolves a key against the register and
+// and return values, and `scripts/stills.py` loads image-difference.js on its own; the keyboard dispatcher resolves a key against the register and
 // the focused scope. If either reached a painter or an application service, every
 // caller would acquire that owner's initialization graph.
 const exactClosures = {
+  "image-difference.js": [],
   "margin-entry-model.js": [],
   "margin-model.js": ["margin-entry-model.js"],
   "margin-map-model.js": ["margin-entry-model.js"],

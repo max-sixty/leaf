@@ -131,6 +131,7 @@ links.
 For a real visual change, use `lf-shot` with before and after captures from the
 same viewport, of the versions the page compares. Before writing the prose and
 `alt` around a pair, open both images and compare them where the change should be.
-The page shows each spot from one side of the divider at a time, so a screenshot of
-the page cannot show that the two sides match. Where they match, capture a case that
-shows the change, or say that nothing changed.
+On the page, the pair outlines each region where its images differ and its rail
+counts them, or reads "identical"; check that the outlines stand where the prose
+puts the change. Where the captures match there, capture a case that shows the
+change, or say that nothing changed.

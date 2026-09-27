@@ -24,12 +24,14 @@ same order on both arms, so whatever an earlier state left in the log, both arms
 A state whose input fails on one arm is reported as failed there, with its error.
 
 A state changed when any pixel differs: two arms with the same runtime capture every
-state here identically, pixel for pixel. For each changed state the report crops both
-stills to the changed region, with a margin, and marks the changed pixels over the
+state here identically, pixel for pixel. What counts as a difference, and how changed
+pixels gather into regions, is `lf-shot`'s rule (`runtime/image-difference.js`), which
+this script loads into its browser. For each changed state the report crops both
+stills to the union of the regions, with a margin, and outlines each region over the
 candidate. Everything lands in `.tmp/stills/`: `index.html` shows the changed states
 first, and each state's directory holds `base.png`, `head.png`, and for a change
-`base-crop.png`, `head-crop.png` and `diff.png`, ready to hand off as an `lf-shot`
-pair.
+`base-crop.png`, `head-crop.png` and `diff.png`. The crops are ready to hand off as an
+`lf-shot` pair, which outlines the same regions itself.
 """
 
 import html
@@ -45,7 +47,7 @@ from eval_harness import build_arm, merge_base, run_leaf, serving
 from leaf.render_checks import PageNotReady, wait_for_probe, wait_until_ready
 from leaf.render_gate.browser import launch_browser
 from page_fixtures import prepare_page, read_fixture
-from PIL import Image, ImageChops
+from PIL import Image, ImageDraw
 from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import Page, sync_playwright
 
@@ -55,6 +57,9 @@ DESKTOP = (1440, 900)
 # The width of a window beside an editor.
 BESIDE = (900, 900)
 CROP_MARGIN = 32
+DIFFERENCE = ROOT / "skills" / "leaf" / "assets" / "runtime" / "image-difference.js"
+# Where `differences` serves the stills and the module that compares them.
+ORIGIN = "http://stills.invalid"
 OPEN_CARD = "() => document.querySelector('.lf-margin-preview:not([hidden])')"
 
 
@@ -193,32 +198,70 @@ class Compared:
     box: tuple | None = None
 
 
-def compare(state: State, folder: Path, failed: dict) -> Compared:
-    """Read the two stills and, where they differ, write the crops."""
+def differences(browser, names: list[str]) -> dict[str, dict]:
+    """`lf-shot`'s reading of each named state's two stills, from the module that
+    owns it, served beside them to a blank page."""
+
+    def serve(route) -> None:
+        path = route.request.url.removeprefix(ORIGIN)
+        if path == "/image-difference.js":
+            route.fulfill(path=DIFFERENCE, content_type="text/javascript")
+        elif path.endswith(".png"):
+            route.fulfill(path=OUT / path.lstrip("/"))
+        else:
+            route.fulfill(body="<!doctype html>", content_type="text/html")
+
+    context = browser.new_context()
+    try:
+        context.route(f"{ORIGIN}/**", serve)
+        page = context.new_page()
+        page.goto(f"{ORIGIN}/")
+        return {
+            name: page.evaluate(
+                """async (name) => {
+                  const { compareImages } = await import("/image-difference.js");
+                  const load = async (arm) => {
+                    const image = new Image();
+                    image.src = `/${name}/${arm}.png`;
+                    await image.decode();
+                    return image;
+                  };
+                  return compareImages(await load("base"), await load("head"));
+                }""",
+                name,
+            )
+            for name in names
+        }
+    finally:
+        context.close()
+
+
+def compare(state: State, folder: Path, failed: dict, difference: dict) -> Compared:
+    """Where the two stills differ, write the crops."""
     result = Compared(state, failed)
-    if failed:
+    if failed or not difference["changed"]:
         return result
     base = Image.open(folder / "base.png").convert("RGB")
     head = Image.open(folder / "head.png").convert("RGB")
-    # A pixel's largest difference in any one channel.
-    red, green, blue = ImageChops.difference(base, head).split()
-    largest = ImageChops.lighter(ImageChops.lighter(red, green), blue)
-    mask = largest.point(lambda v: 255 if v else 0)
-    changed = mask.histogram()[255]
-    if not changed:
-        return result
-    left, top, right, bottom = mask.getbbox()
+    regions = [
+        (r["x"], r["y"], r["x"] + r["width"], r["y"] + r["height"])
+        for r in difference["regions"]
+    ]
     box = (
-        max(left - CROP_MARGIN, 0),
-        max(top - CROP_MARGIN, 0),
-        min(right + CROP_MARGIN, head.width),
-        min(bottom + CROP_MARGIN, head.height),
+        max(min(r[0] for r in regions) - CROP_MARGIN, 0),
+        max(min(r[1] for r in regions) - CROP_MARGIN, 0),
+        min(max(r[2] for r in regions) + CROP_MARGIN, head.width),
+        min(max(r[3] for r in regions) + CROP_MARGIN, head.height),
     )
-    result.changed, result.box = changed, box
+    result.changed, result.box = difference["changed"], box
     base.crop(box).save(folder / "base-crop.png")
     head.crop(box).save(folder / "head-crop.png")
     faded = Image.blend(head, Image.new("RGB", head.size, "white"), 0.6)
-    faded.paste(Image.new("RGB", head.size, (220, 0, 0)), mask=mask)
+    draw = ImageDraw.Draw(faded)
+    for left, top, right, bottom in regions:
+        draw.rectangle(
+            (left - 3, top - 3, right + 2, bottom + 2), outline=(220, 0, 0), width=2
+        )
     faded.crop(box).save(folder / "diff.png")
     return result
 
@@ -248,7 +291,7 @@ def report(results: list[Compared], commits: dict) -> Path:
                 f"<p>{r.changed} pixels changed in {r.box}.</p><div class=pair>"
                 + figure("base", f"{name}/base-crop.png")
                 + figure("head", f"{name}/head-crop.png")
-                + figure("changed pixels", f"{name}/diff.png")
+                + figure("changed regions", f"{name}/diff.png")
                 + "</div>"
                 + f'<p><a href="{name}/base.png">base viewport</a> · '
                 f'<a href="{name}/head.png">head viewport</a></p>'
@@ -313,10 +356,15 @@ def main(base_ref: str | None) -> None:
                                     + (f": failed: {error}" if error else ""),
                                     err=True,
                                 )
+                read = differences(
+                    browser,
+                    [state.name for state in STATES if not failures[state.name]],
+                )
             finally:
                 browser.close()
     results = [
-        compare(state, OUT / state.name, failures[state.name]) for state in STATES
+        compare(state, OUT / state.name, failures[state.name], read.get(state.name))
+        for state in STATES
     ]
     changed = [r for r in results if r.changed]
     failed = [r for r in results if r.failed]

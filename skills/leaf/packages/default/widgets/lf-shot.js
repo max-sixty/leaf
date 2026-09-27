@@ -10,6 +10,12 @@
  * the quick endpoint toggle, while a click on the handle only puts the user on it.
  * Print stacks both frames.
  *
+ * Once the page has presented, the widget compares the two images pixel for pixel
+ * (`runtime/image-difference.js` owns what counts as a difference) and outlines each
+ * region that changed over both frames, with a count between the rail labels. A reader
+ * looking at one side of the divider, or at a screenshot of the page, then still sees
+ * where the pair differs, and that it differs nowhere when the two are one picture.
+ *
  * One two-ended rail stays fixed above the frames while CSS moves its active rule. Its
  * labels are generated page words, available to selection, and become the order key
  * above the two stacked frames on paper.
@@ -21,6 +27,7 @@ import {
   PRESS,
   afterPresentation,
   commandScope,
+  compareImages,
   once,
   offer,
   failSoft,
@@ -144,7 +151,13 @@ customElements.define(
         ((promise) => widgetController(this).present(promise));
       const registered = this.register(shots);
       present(registered);
-      void registered.then(() => this.#requestComparison());
+      void registered.then((aligned) => {
+        this.#requestComparison();
+        if (aligned)
+          void afterPresentation(() => this.#markDifference(shots)).catch((reason) =>
+            failSoft(this, reason),
+          );
+      });
     }
 
     disconnectedCallback() {
@@ -257,6 +270,41 @@ customElements.define(
       );
     }
 
+    // Each region is placed in shares of the pair's frame, the natural width by the
+    // taller image's height that `--lf-shot-ratio` sizes, so the marks scale with the
+    // images at every width.
+    #markDifference(shots) {
+      if (!this.isConnected) return;
+      const { width, height, regions } = compareImages(...shots);
+      const share = (length, whole) => `${(100 * length) / whole}%`;
+      for (const frame of this.#frames) {
+        const marks = document.createElement("div");
+        marks.className = "lf-shotdiff";
+        marks.dataset.lfGen = "1";
+        marks.ariaHidden = "true";
+        for (const region of regions) {
+          const mark = document.createElement("span");
+          mark.style.setProperty("--lf-shot-x", share(region.x, width));
+          mark.style.setProperty("--lf-shot-y", share(region.y, height));
+          mark.style.setProperty("--lf-shot-w", share(region.width, width));
+          mark.style.setProperty("--lf-shot-h", share(region.height, height));
+          marks.append(mark);
+        }
+        frame.append(marks);
+      }
+      const count = document.createElement("span");
+      count.className = "lf-shotdelta";
+      count.dataset.lfShotDelta = regions.length ? "changed" : "identical";
+      relabel(
+        count,
+        regions.length === 0
+          ? "identical"
+          : `${regions.length} changed ${regions.length === 1 ? "area" : "areas"}`,
+        { says: false },
+      );
+      this.#captions.get("before").after(count);
+    }
+
     #show(state) {
       this.#chose = true;
       if (this.#comparison) {
@@ -358,10 +406,12 @@ customElements.define(
     // failure this widget cannot afford: it is silent, it is convincing, and the
     // user has no way to tell it from the truth. Heights may differ freely —
     // content reflowing taller is a real thing to see, and it stays registered.
+    // Answers whether the pair decoded at one width, which is when comparing it
+    // pixel for pixel means anything.
     async register(shots) {
       await Promise.all(shots.map((img) => img.decode().catch(() => {})));
       const [before, after] = shots.map((img) => img.naturalWidth);
-      if (before && after && before !== after)
+      if (before && after && before !== after) {
         failSoft(
           this,
           new Error(
@@ -369,9 +419,12 @@ customElements.define(
               `at one viewport, or the flip moves everything`,
           ),
         );
+        return false;
+      }
       const height = Math.max(...shots.map((img) => img.naturalHeight));
       if (before && height)
         this.style.setProperty("--lf-shot-ratio", `${before} / ${height}`);
+      return Boolean(before && after);
     }
   },
 );

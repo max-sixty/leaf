@@ -31,7 +31,7 @@ export const threadBox = (el, hint, { createComment, onDraftChanged, wireInput }
   // A seat that keeps its box after the send shows the new thread above it; one that
   // gives its box up hands the user to the thread it started (inline.js).
   const sendComment = (text, owns, holds = false) => {
-    const land = sendLanding(ta, holds ? hold : send);
+    const land = sendLanding(ta);
     const sent = sendMessage(ctx, owns, (attempt) =>
       createComment({
         anchor: { section: el.id },

@@ -178,9 +178,12 @@ the user:
 
 ## Author or revise a page
 
-Read `<root>/skills/leaf/SKILL.md` completely and follow its authoring,
-validation, handoff, and conversation-loop routes, using the checkout launcher
-for every `leaf` command and resolving its references from `<root>/skills/leaf/`.
+Every authored Leaf source is a page: a site page under `docs/`, a shipped
+example or fixture, a playground, or a page made for this conversation. Before
+writing its content, read `<root>/skills/leaf/SKILL.md` completely and follow
+its authoring, validation, handoff, and conversation-loop routes, using the
+checkout launcher for every `leaf` command and resolving its references from
+`<root>/skills/leaf/`.
 To make an existing page exercise the current checkout, re-vendor it with the
 checkout launcher (`<root>/skills/leaf/references/serving-pages.md`); fix or
 report a compatibility refusal rather than falling back to the installed plugin.
@@ -192,28 +195,18 @@ A page that explains how a Leaf interface behaves lets the user operate it
 Each `evals/<case>/case.yaml` is a moment in a session that `claude plugin eval`
 hands a headless Claude Code, with this checkout as its only plugin, so the child
 loads `leaf:leaf` and reads the references as a real session does. Score a change to
-`skills/leaf/` on the cases it bears on, with the base and the change run together
-(below). From an arm's root:
+`skills/leaf/` on the cases it bears on:
 
 ```bash
-claude plugin eval . --no-publish --ablation none --trust-plugin \
-    --judge-model opus --allow-tools Skill Read -j 8 --case '<glob>' --runs 3
+uv run leaf-dev guidance-ab [CASE]... [--base REF] [--runs N]
 ```
 
-Without `--allow-tools Skill Read`, the child's `dontAsk` mode denies the skill and
-the references, and every run answers with no guidance, while `loads-leaf` still
-passes on the attempt. So every case also grades that the child read the reference
-it tests, and a run that fails that check measured nothing.
-
-Build the base arm outside the checkout, because a run loads every plugin and case
-below its target, and give it this tree's cases. Run the command in both arms at
-once: batches an hour apart drift.
-
-```bash
-base=$(mktemp -d)/leaf
-uv run leaf-dev arm <rev> "$base"
-cp -R evals "$base/evals"
-```
+It runs the cases on the base's guidance (the merge base with `main` by default) and
+the working tree's at once, and prints each case's passes per arm and the cost. It
+passes `--allow-tools Skill Read`, without which the child's `dontAsk` mode denies
+the skill and the references and every run answers with no guidance, while
+`loads-leaf` still passes on the attempt. So every case also grades that the child
+read the reference it tests, and a run that fails that check measured nothing.
 
 Grow the suite slowly, toward a modest set of cases that each tell two wordings
 apart; several older cases predate this rule, and their comments say where they

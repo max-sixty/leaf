@@ -22,7 +22,7 @@ import { focusThread } from "./focus.js";
 import { renderMarkdown } from "../markdown.js";
 import { summaryRanges, unreadBoundaries } from "./summary-ranges.js";
 import { threadAttention } from "./workflow.js";
-import { shownRect } from "../geometry.js";
+import { seenRect } from "../geometry.js";
 import { ago, shortAgo } from "../presence.js";
 import { retainUserIntent } from "../user-intent.js";
 import { scrollThreadIntoView } from "./reply-landing.js";
@@ -242,7 +242,7 @@ export class ThreadView {
       const clips = new Map();
       const beingRead = new Set(
         [...this.node.querySelectorAll(":scope .lf-msg[data-mid]")]
-          .filter((message) => shownRect(message, clips))
+          .filter((message) => seenRect(message, clips))
           .map((message) => message.dataset.mid),
       );
       for (const summary of model.summaries) {

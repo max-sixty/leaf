@@ -273,7 +273,8 @@ playground, which is one HTML file and one preview command (`/developing-leaf`,
 Before finishing a feature:
 
 - Give every action a keyboard route, without spending a page-level binding on
-  each one.
+  each one, and a route a finger can take (`runtime/keyboard/AGENTS.md`, "Touch
+  routes").
 - Follow `examples/AGENTS.md` when adding or changing a feature, and regenerate
   the derived corpus.
 - If the feature changes what an agent can do or how it should do it, update

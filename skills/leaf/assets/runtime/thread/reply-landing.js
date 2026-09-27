@@ -16,11 +16,11 @@
    seat holds answers both, whichever owner built it. The climbs cross shadow roots,
    since a widget may draw a thread inside its own tree and still be scrolled by the
    page, and the box that scrolls a thread is the reading region's (`scrollerFor`). */
-import { landingBand, shownBox } from "../geometry.js";
+import { landingBand, seenRect, shownBox } from "../geometry.js";
 import { focused } from "../keyboard/scopes.js";
 import { scrollBehavior } from "../motion.js";
 import { whenDocumentPresented } from "../semantic-state.js";
-import { scrollerFor } from "../reading-regions.js";
+import { scrollerFor, scrollersOf } from "../reading-regions.js";
 import { renderedParent } from "../shadow.js";
 import { retainUserIntent } from "../user-intent.js";
 import { SAYS_IN } from "./selectors.js";
@@ -49,11 +49,10 @@ const landingRoom = (held) => {
   }
   return room;
 };
-const onScreen = (node) => {
-  const band = landingBand(scrollerFor(node));
-  const box = shownBox(node);
-  return !band || (box.bottom > band.top && box.top < band.bottom);
-};
+// Whether any of the node is in front of the user (geometry.js, `seenRect`): a node in
+// view inside a bounded block the page has scrolled away is not, and neither is one
+// standing under the banner.
+const onScreen = (node) => seenRect(node, new Map()) !== null;
 
 export const fitsWhole = (held) => shownBox(held).height <= landingRoom(held);
 // Keep a whole thread in view when it fits. A long thread reveals its reply
@@ -83,18 +82,18 @@ export function scrollThreadIntoView(
 }
 
 // Taken as the user sends, before the send's own render: once the page has drawn the new
-// turn above the box, land the thread around the control the user sent from, so the
-// turn's end shows with that control, unless a newer gesture has taken the user
-// elsewhere. A control the send removed has handed the user on already.
-export function sendLanding(input, send) {
+// turn above the box, land the thread around the box the user sent from — every press
+// of its submit controls leaves them in it (`wireInput`) — so the turn's end shows with
+// the box, unless a newer gesture has taken the user elsewhere. A box the send removed
+// has handed the user on already.
+export function sendLanding(input) {
   const held = input.closest(SAYS_IN);
-  const control = focused();
-  if (!held || (control !== input && control !== send)) return () => {};
+  if (!held) return () => {};
   const mayLand = retainUserIntent({ source: held, available: () => held.isConnected });
   return () =>
     void whenDocumentPresented()
       .then(() => {
-        if (mayLand() && control.isConnected) scrollThreadIntoView(held, control);
+        if (mayLand() && input.isConnected) scrollThreadIntoView(held, input);
       })
       .catch(() => {});
 }
@@ -134,15 +133,18 @@ export function readBoxPlace(input) {
 // control under the user's hands. Only one on screen is under their hands: a user who
 // has scrolled away from it is reading something else, which the news must not move. A
 // pinned row stands still by itself, and a control the render replaced has nothing to
-// hold.
+// hold. The box scrolling the control takes the move first and the boxes around it
+// whatever it cannot: a bounded block not yet full grows in the page instead.
 export function holdBox(control) {
   const held = control?.closest?.(SAYS_IN);
   if (!held || pinned(replyRowOf(held, control)) || !onScreen(control)) return () => {};
   const top = control.getBoundingClientRect().top;
   return () => {
     if (focused() !== control || !control.isConnected) return;
-    const moved = control.getBoundingClientRect().top - top;
-    if (Math.abs(moved) >= 1)
-      scrollerFor(control).scrollBy({ top: moved, behavior: "instant" });
+    for (const box of scrollersOf(control)) {
+      const moved = control.getBoundingClientRect().top - top;
+      if (Math.abs(moved) < 1) return;
+      box.scrollBy({ top: moved, behavior: "instant" });
+    }
   };
 }

@@ -19,11 +19,11 @@ command: a module here that owns its mechanism, registered in `cli.py`. A mechan
 two tools need, such as building an arm or serving a page, lives in one module here
 and the others import it; a script under `scripts/` imports it too.
 
-- `harness.py`: arms (the plugin payload at a ref) and an A/B's pair of them, whose
-  base defaults to the merge base with `main` (`base_ref`); pages served from an
-  authored source on an arm; the machine's load average a timed command prints; the
-  isolated `claude -p` children evals run; and the throwaway Codex homes a Codex
-  child runs under.
+- `harness.py`: arms (the plugin payload at a ref, or as the working tree has it) and
+  an A/B's pair of them, whose base defaults to the merge base with `main`
+  (`base_ref`); pages served from an authored source on an arm; the machine's load
+  average a timed command prints; the isolated `claude -p` children evals run; and the
+  throwaway Codex homes a Codex child runs under.
 - `page_fixtures.py` builds a page directory from an authored source;
   `example_data.py` reads the catalog, names, and each page's companions.
 - `browser.py` launches Chrome, and opens and settles a tab, the same way for every
@@ -34,8 +34,6 @@ and the others import it; a script under `scripts/` imports it too.
 - `leaf-dev stills [BASE_REF]` screenshots a catalogue of UI states, at rest and
   reached by input, on a base runtime and HEAD's, and crops each state that changed
   into a before/after pair under `.tmp/stills/`.
-- `leaf-dev arm REF DEST` builds one arm, for an eval's A/B (`/developing-leaf`,
-  "Score a guidance change").
 - `leaf-dev bench-latency [BASE_REF]` times an open page's answer to a gesture, an
   agent write, and a revision in Chrome, with the traffic each causes, for a base
   runtime and HEAD's.
@@ -48,3 +46,6 @@ and the others import it; a script under `scripts/` imports it too.
 - `leaf-dev delivery-ab [BASE_REF]` compares how a live Claude Code agent handles a
   comment through `leaf wait`, and what the page shows meanwhile, between a base plugin
   and HEAD's. Its children cost about a dollar each.
+- `leaf-dev guidance-ab [CASE]...` runs the guidance cases in `evals/` on the merge
+  base's guidance and the working tree's at once, and prints each case's passes per
+  arm (`/developing-leaf`, "Score a guidance change").

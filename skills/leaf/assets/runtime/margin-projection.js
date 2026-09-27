@@ -117,7 +117,7 @@ import {
   holdFocus,
   letGo,
 } from "./focus.js";
-import { el, keeps, keepsHidden, keepsText, offer } from "./widget-elements.js";
+import { el, keeps, keepsHidden, offer } from "./widget-elements.js";
 import { setChildren } from "./dom-children.js";
 import { PRESS } from "./keyboard/bindings.js";
 import { beginWalk, listWalkPosition, rowWalk } from "./walk-position.js";
@@ -159,13 +159,7 @@ import { anchorLabel } from "./thread/messages.js";
 import { createMarginClusterViews } from "./margin-cluster-view.js";
 
 import { outlineSubjectFor, pageOutline } from "./thread/placement.js";
-import {
-  BANNER_CONTROL_RANK,
-  bannerControlDoor,
-  dismissBannerControls,
-  registerBannerControl,
-  showBannerControl,
-} from "./banner-shelf.js";
+import { bannerControlDoor } from "./banner-shelf.js";
 import { coarsePointer } from "./pointer.js";
 import { threadCardGeometry } from "./thread-card-geometry.js";
 import { shownWindow } from "./geometry.js";
@@ -183,22 +177,6 @@ import { retainUserIntent } from "./user-intent.js";
 
 // A margin card's reply box.
 const REPLY_BOX = `.lf-say ${TEXT_FIELD}`;
-
-// A pin covers the corner of its block, and `o`, which clears it, has no key under a
-// finger. Wherever the pointer is coarse, More holds the same toggle.
-const annotationsButton = el("button", "lf-btn lf-annotations-toggle");
-annotationsButton.type = "button";
-registerBannerControl({
-  key: "annotations",
-  control: annotationsButton,
-  rank: BANNER_CONTROL_RANK.annotations,
-  present: coarsePointer.matches,
-});
-const paintAnnotationsButton = () =>
-  keepsText(
-    annotationsButton,
-    annotationsHidden() ? "Show annotations" : "Hide annotations",
-  );
 
 export function createMarginProjection({
   panel,
@@ -709,8 +687,8 @@ export function createMarginProjection({
   function placeThreadPreview({ dismissDetached = false } = {}) {
     if (!previewOpen() || !previewMarginEntry?.isConnected) return false;
     const replyEditor = previewList.querySelector(REPLY_BOX);
-    // Drafting is standing anywhere in the reply's row, Send included: a pressed Send
-    // keeps its focus while the send empties the box, and the card must not move then.
+    // Drafting is standing anywhere in the reply's row, Send included. A send leaves the
+    // user in the box it empties, and the card must not move then.
     const drafting =
       replyEditor?.checkVisibility() &&
       (replyEditor.closest(".lf-say").contains(document.activeElement) ||
@@ -1413,7 +1391,6 @@ export function createMarginProjection({
     );
   }
   watchAnnotations((hidden) => {
-    paintAnnotationsButton();
     if (hidden) {
       const holding = closestAcross(document.activeElement, ".lf-margin-cluster");
       if (holding?.dataset.lfPlace === "pin" && holding.lfTarget?.isConnected)
@@ -1431,6 +1408,8 @@ export function createMarginProjection({
     keys: ["o"],
     does: "Hide or show the annotations drawn over the page",
     line: () => (annotationsHidden() ? "show annotations" : "hide annotations"),
+    // A pin covers the corner of its block, and a finger has no `o` to clear it.
+    touch: () => (annotationsHidden() ? "Show annotations" : "Hide annotations"),
     run: toggleAnnotations,
   });
 
@@ -2756,16 +2735,6 @@ export function createMarginProjection({
 
   function mount() {
     mountMarginLayer(toolbar);
-    paintAnnotationsButton();
-    coarsePointer.addEventListener("change", () => {
-      showBannerControl(annotationsButton, coarsePointer.matches);
-      repaint();
-    });
-    annotationsButton.addEventListener("click", () => {
-      dismissBannerControls();
-      bannerControlDoor(annotationsButton)?.focus({ preventScroll: true });
-      toggleAnnotations();
-    });
     onPaper.addEventListener("change", () => {
       if (!onPaper.matches) renderMargin.refresh();
     });

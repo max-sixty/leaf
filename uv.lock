@@ -12,6 +12,7 @@ resolution-markers = [
 members = [
     "leaf",
     "leaf-dev",
+    "leaf-website",
 ]
 
 [[package]]
@@ -640,6 +641,7 @@ dependencies = [
 dev = [
     { name = "axe-playwright-python" },
     { name = "leaf-dev" },
+    { name = "leaf-website" },
     { name = "pillow" },
     { name = "pre-commit" },
     { name = "pytest" },
@@ -675,6 +677,7 @@ requires-dist = [
 dev = [
     { name = "axe-playwright-python", specifier = ">=0.1.4" },
     { name = "leaf-dev", editable = "dev" },
+    { name = "leaf-website", editable = "worker" },
     { name = "pillow", specifier = ">=12.1" },
     { name = "pre-commit", specifier = ">=4.6.2" },
     { name = "pytest", specifier = ">=9.1" },
@@ -700,6 +703,17 @@ requires-dist = [
     { name = "click", specifier = ">=8" },
     { name = "pillow", specifier = ">=12.1" },
 ]
+
+[[package]]
+name = "leaf-website"
+version = "0"
+source = { editable = "worker" }
+dependencies = [
+    { name = "leaf" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "leaf", editable = "." }]
 
 [[package]]
 name = "markdown-it-py"

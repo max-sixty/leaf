@@ -187,8 +187,8 @@ def _render_scheme(
 ):
     """Read and report the browser gate for one color scheme and viewport.
 
-    `then`, when given, is handed the settled page after every reading here, for the
-    readings a version takes once rather than per scheme and viewport."""
+    `then`, when given, is handed the settled page and its registry after every reading
+    here, for the readings a version takes once rather than per scheme and viewport."""
     from playwright.sync_api import Error as PlaywrightError
     from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
@@ -383,7 +383,7 @@ def _render_scheme(
     )
     found, notices = _scheme_findings(context)
     if then is not None:
-        then(page)
+        then(page, registry)
     # Revealing a part moves its visual off the state every reading above checked, so
     # the reveals come last, on a page nothing reads again.
     found += [

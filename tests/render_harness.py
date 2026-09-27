@@ -835,61 +835,6 @@ def ticked(page):
     page.wait_for_function("() => window.__lfTicked")
 
 
-def author_test_widget(root: Path, tag: str, *, upgrade: bool = False) -> Path:
-    """Author one small widget in the project package for browser fixtures."""
-    package = root / ".leaf"
-    created = CliRunner().invoke(cli_model.cli, ["package", "init", str(package)])
-    assert created.exit_code == 0, created.output
-    registry_path = package / "registry.json"
-    registry = json.loads(registry_path.read_text())
-    entry = {
-        "description": f"A <{tag}> test block.",
-        "type": "object",
-        "properties": {"id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"}},
-        "required": ["id"],
-        "additionalProperties": False,
-        "x-content": "markup",
-        "x-upgrade": upgrade,
-        "x-example": f'<{tag} id="{tag.removeprefix("lf-")}-example">Example</{tag}>',
-    }
-    if upgrade:
-        entry["x-verbatim"] = True
-    registry[tag] = entry
-    registry_path.write_text(json.dumps(registry, indent=2))
-    with (package / "theme.css").open("a") as theme:
-        theme.write(
-            f"\n{tag} {{\n"
-            "  display: block;\n"
-            "  margin: var(--sp-3) 0;\n"
-            "  padding: var(--sp-3);\n"
-            "  border: 1px solid var(--rule);\n"
-            "  border-radius: var(--r);\n"
-            "  background: var(--card);\n"
-            "  --lf-block-frame: 1;\n"
-            "}\n"
-        )
-    if upgrade:
-        (package / "widgets" / f"{tag}.js").write_text(
-            'import { once, widgetController } from "/runtime/widget-api.js";\n\n'
-            "customElements.define(\n"
-            f'  "{tag}",\n'
-            "  class extends HTMLElement {\n"
-            "    #controller = widgetController(this);\n"
-            "    #stop = null;\n"
-            "    connectedCallback() {\n"
-            "      once(this);\n"
-            "      this.#stop ??= this.#controller.subscribe(() => {});\n"
-            "    }\n"
-            "    disconnectedCallback() {\n"
-            "      this.#stop?.();\n"
-            "      this.#stop = null;\n"
-            "    }\n"
-            "  },\n"
-            ");\n"
-        )
-    return package
-
-
 # `z` is the one press whose subject is read rather than pointed at, so the dispatcher
 # holds it dead while the page holds a gesture no log read has accounted for — this
 # press's own trip included (unrecordedGesture). Every other press acts on what is under

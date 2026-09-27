@@ -305,34 +305,9 @@ def state(dir: str) -> None:
     cmd_page_state(resolve_dir(dir))
 
 
-@cli.group(short_help="Claim or read input delivered by any Leaf host.")
+@cli.group(short_help="Read input delivered by any Leaf host.")
 def delivery() -> None:
     """Handle transport-independent Leaf deliveries."""
-
-
-@delivery.command("claim", short_help="Mark delivered user input as Working.")
-@click.argument("delivery_id", metavar="DELIVERY_ID")
-@click.option(
-    "--event",
-    "event_id",
-    metavar="EVENT_ID",
-    help="Claim this delivered event instead of the first outstanding user move.",
-)
-@click.option(
-    "--detail",
-    required=True,
-    help="What the page says the agent is doing, naming the work and its subject.",
-)
-def delivery_claim(delivery_id: str, event_id: str | None, detail: str) -> None:
-    """Claim one still-outstanding user move from DELIVERY_ID.
-
-    The page and subject come from the immutable delivery. Current page state is
-    checked in the same transaction that writes the Working receipt, so a stale
-    delivery is a successful no-op rather than a claim on newer input.
-    """
-    from leaf.session import cmd_delivery_claim
-
-    click.echo(cmd_delivery_claim(delivery_id, detail=detail, event_id=event_id))
 
 
 @delivery.command("read", short_help="Read one immutable delivery envelope.")
@@ -678,7 +653,7 @@ def _status_line(state: str, detail: str, on: str | None) -> str:
     "--on",
     "on",
     metavar="SUBJECT",
-    help="The open thread or local page widget this work is about.",
+    help="The open thread or widget this work is about.",
 )
 def status(dir: str, state: str, detail: str, on: str | None) -> None:
     """Set the agent's banner state.
@@ -688,8 +663,9 @@ def status(dir: str, state: str, detail: str, on: str | None) -> None:
     DETAIL invites text comments. Use idle when finished; unacknowledged input
     and unanswered user moves prevent it.
 
-    With working, --on names an open thread or page widget. The user sees
-    DETAIL beside that subject as well as in the banner.
+    With working, --on names an open thread, by any message in it, or a widget:
+    whatever a delivered event gives as its address, which then reads Working.
+    The user sees DETAIL beside that subject as well as in the banner.
     Your next reply ends a thread claim; a version stamp with --completes ends
     a widget claim. Renew the status as work changes: a claim left after your
     turn ends, or without updates, eventually reads as stalled.

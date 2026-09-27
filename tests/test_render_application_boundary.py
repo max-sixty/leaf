@@ -6,6 +6,7 @@ from itertools import pairwise
 
 from leaf import event_log as events_model
 from leaf.render_checks import wait_until_ready
+from leaf.schema import ELEMENT_ID
 from playwright.sync_api import expect
 from render_cases_interaction import (
     LIVE_READING,
@@ -905,7 +906,7 @@ PAGE_DECLARATION = {
         "description": "A page-owned local widget.",
         "type": "object",
         "properties": {
-            "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
+            "id": {"type": "string", "pattern": f"^{ELEMENT_ID}$"},
             "choice": {"type": "string"},
             "restated": {"type": "boolean"},
         },

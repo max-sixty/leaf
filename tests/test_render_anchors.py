@@ -17,6 +17,7 @@ from leaf import files as files_model
 from leaf import service as service_model
 from leaf import structure as structure_model
 from leaf.registry import storage as registry_storage
+from leaf.schema import ELEMENT_ID
 from PIL import Image
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
@@ -3449,9 +3450,7 @@ def test_version_comparison_distinguishes_authored_graphics_from_button_icons(
             "lf-decoration": {
                 "description": "Generated prose and a graphic with its own marker.",
                 "type": "object",
-                "properties": {
-                    "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"}
-                },
+                "properties": {"id": {"type": "string", "pattern": f"^{ELEMENT_ID}$"}},
                 "required": ["id"],
                 "additionalProperties": False,
                 "x-content": "markup",

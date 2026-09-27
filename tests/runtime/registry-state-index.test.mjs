@@ -9,6 +9,7 @@
    by these declarations and by nothing else a page might have vendored. */
 
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import {
@@ -75,4 +76,17 @@ test("a later generation inherits nothing from the index warmed before it", () =
     ["lf-index-fresh"],
   );
   assert.equal(recordedWidgetSelector(), "");
+});
+
+// The writer each verb resolves to at intake, held to the cases `test_interact_contract.py`
+// holds Python's `verb_writer` to, so both runtimes read an unstated writer as the user.
+test("an unstated writer is the user, as Python's verb_writer reads it", () => {
+  const cases = JSON.parse(
+    readFileSync(new URL("../verb_writer_cases.json", import.meta.url)),
+  );
+  load("writer-cases", structuredClone(cases.declarations));
+  assert.deepEqual(
+    stateSpecs().map(({ tag, verb, spec }) => [tag, verb, spec.writer]),
+    cases.writers,
+  );
 });

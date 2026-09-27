@@ -110,6 +110,7 @@ import {
   inUi,
   overIn,
   pageShadowRoots,
+  shadowHost,
   shadowRootsIn,
   uiInside,
   under,
@@ -275,7 +276,7 @@ export const layerPart = (el) => inChrome(el) && el.id.startsWith("lf-");
 // being broken, which is the one thing it isn't.
 export const elementOver = (n) => {
   if (n.parentElement) return n.parentElement;
-  const host = n.getRootNode()?.host;
+  const host = shadowHost(n);
   const at = host
     ? `<${host.localName}${host.id ? ` id="${host.id}"` : ""}>`
     : "a module";
@@ -538,7 +539,7 @@ export function closestAcross(node, selector) {
   while (el) {
     const hit = el.closest(selector);
     if (hit) return hit;
-    el = el.getRootNode()?.host ?? null;
+    el = shadowHost(el);
   }
   return null;
 }

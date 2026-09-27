@@ -740,13 +740,13 @@ def test_a_shot_outlines_where_its_images_differ(browser, serve):
     """A reader shown one side of the divider, or a screenshot of the page, can't tell
     where a pair differs, or that it differs nowhere: a handoff once shipped a pair
     whose sides matched in every part its prose described. So the widget outlines each
-    changed region over both frames, at the same place, dashed where no pixel moved
-    far, and says on the rail what they add up to."""
+    changed region over both frames, at the same place, and says on the rail what they
+    add up to, including a difference too slight to point at."""
     plain = solid_png(600, 300, (210, 220, 235))
     patched = solid_png(
         600, 300, (210, 220, 235), patch=(420, 200, 60, 40, (30, 30, 30))
     )
-    # Ten levels off in each channel: slight, as a redrawn shadow or tint is.
+    # Ten levels off in each channel, as a redrawn shadow is: nothing to point at.
     tinted = solid_png(
         600, 300, (210, 220, 235), patch=(40, 40, 60, 40, (200, 210, 225))
     )
@@ -771,13 +771,8 @@ def test_a_shot_outlines_where_its_images_differ(browser, serve):
     expect(page.locator("#shot-patch .lf-shotdelta")).to_have_text("1 changed area")
     expect(page.locator("#shot-same .lf-shotdelta")).to_have_text("identical")
     assert page.locator("#shot-same .lf-shotdiff > span").count() == 0
-    expect(page.locator("#shot-tint .lf-shotdelta")).to_have_text("1 slight change")
-    styles = [
-        mark.evaluate("mark => getComputedStyle(mark).borderTopStyle")
-        for mark in page.locator(".lf-shotdiff > span").all()
-    ]
-    # Two frames each: the dark square solid, the slight tint dashed.
-    assert sorted(styles) == ["dashed", "dashed", "solid", "solid"]
+    expect(page.locator("#shot-tint .lf-shotdelta")).to_have_text("only slight changes")
+    assert page.locator("#shot-tint .lf-shotdiff > span").count() == 0
 
     # Each frame's mark stands just outside the square, in the frame's own scale.
     readings = page.locator("#shot-patch .lf-shotframe").evaluate_all(

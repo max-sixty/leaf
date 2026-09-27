@@ -131,9 +131,7 @@ links.
 For a real visual change, use `lf-shot` with before and after captures from the
 same viewport, of the versions the page compares. Before writing the prose and
 `alt` around a pair, open both images and compare them where the change should be.
-On the page, the pair outlines each region where its images differ, dashed where
-no pixel moved far, and its rail says what they add up to, or reads "identical".
-Check that a solid outline stands where the prose puts the change; a dashed one
-marks pixels that moved only a little, such as a shadow edge or a contrast shift.
-Where none does, capture a case that shows the change, or say that nothing
-changed.
+On the page, the pair outlines each region where its images differ, and its rail
+says what they add up to: a count, "changed throughout", "only slight changes", or
+"identical". Check that an outline stands where the prose puts the change. Where none
+does, capture a case that shows the change, or say that nothing changed.

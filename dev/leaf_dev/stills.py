@@ -27,8 +27,8 @@ A state changed when any pixel differs: two arms with the same runtime capture e
 state here identically, pixel for pixel. What counts as a difference, and how changed
 pixels gather into regions, is `lf-shot`'s rule (`runtime/image-difference.js`), which
 this script loads into its browser. For each changed state the report crops both
-stills to the union of its strong regions (of every region when all are slight), with a
-margin, and outlines each region over the candidate, a slight one paler. Everything
+stills to the union of its regions with a margin, or keeps the whole still when the
+reading names none, and outlines each region over the candidate. Everything
 lands in `.tmp/stills/`: `index.html` shows the changed states first, and each state's
 directory holds `base.png`, `head.png`, and for a change `base-crop.png`,
 `head-crop.png` and `diff.png`. The crops are ready to hand off as an `lf-shot` pair,
@@ -243,12 +243,15 @@ def compare(
     base = Image.open(folder / "base.png").convert("RGB")
     head = Image.open(folder / "head.png").convert("RGB")
     regions = difference["regions"]
-    cropped = [r for r in regions if not r["slight"]] or regions
     box = (
-        max(min(r["x"] for r in cropped) - CROP_MARGIN, 0),
-        max(min(r["y"] for r in cropped) - CROP_MARGIN, 0),
-        min(max(r["x"] + r["width"] for r in cropped) + CROP_MARGIN, head.width),
-        min(max(r["y"] + r["height"] for r in cropped) + CROP_MARGIN, head.height),
+        (
+            max(min(r["x"] for r in regions) - CROP_MARGIN, 0),
+            max(min(r["y"] for r in regions) - CROP_MARGIN, 0),
+            min(max(r["x"] + r["width"] for r in regions) + CROP_MARGIN, head.width),
+            min(max(r["y"] + r["height"] for r in regions) + CROP_MARGIN, head.height),
+        )
+        if regions
+        else (0, 0, head.width, head.height)
     )
     result.changed, result.box = difference["changed"], box
     base.crop(box).save(folder / "base-crop.png")
@@ -258,7 +261,7 @@ def compare(
     for r in regions:
         draw.rectangle(
             (r["x"] - 3, r["y"] - 3, r["x"] + r["width"] + 2, r["y"] + r["height"] + 2),
-            outline=(240, 150, 150) if r["slight"] else (220, 0, 0),
+            outline=(220, 0, 0),
             width=2,
         )
     faded.crop(box).save(folder / "diff.png")

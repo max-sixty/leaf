@@ -27,8 +27,15 @@ export const pageShadowRoots = () => shadowRootsIn(document);
 // which section, which block, which passage cell, whether it is chrome — is asked of the
 // page, and a climb that stops at a shadow root answers about the widget's own markup
 // instead.
-export const upFrom = (node) =>
-  node?.parentElement ?? node?.getRootNode()?.host ?? null;
+export const upFrom = (node) => node?.parentElement ?? (node && shadowHost(node));
+// The element whose shadow tree holds `node`, or null where the tree it stands in is a
+// document or a detached subtree. The root of a detached subtree is an element, and an
+// `<a>` answers `host` with its URL's host name, which a climb then took for a node.
+// Asked by node type, so a shadow root in a sample's frame answers too.
+export const shadowHost = (node) => {
+  const root = node.getRootNode();
+  return root.nodeType === Node.DOCUMENT_FRAGMENT_NODE ? (root.host ?? null) : null;
+};
 // The same step through the tree as rendered: a node slotted into a shadow tree renders
 // inside its slot, so the slot is where it is scrolled and ordered, not its light parent.
 export const renderedParent = (node) => node?.assignedSlot ?? upFrom(node);
@@ -55,7 +62,7 @@ export const under = (node, root) => {
 // questions, which the platform answers only within one tree, are asked of this.
 export const hostIn = (node, root) => {
   let at = node;
-  while (at && at.getRootNode() !== root) at = at.getRootNode().host ?? null;
+  while (at && at.getRootNode() !== root) at = shadowHost(at);
   return at;
 };
 

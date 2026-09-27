@@ -31,7 +31,7 @@ import { registerMarginContribution } from "./margin-entries.js";
 import { commandScope } from "./keyboard/scopes.js";
 import { pageQueryAll, pageText } from "./passages.js";
 import { registry } from "./registry.js";
-import { upFrom } from "./shadow.js";
+import { shadowHost, upFrom } from "./shadow.js";
 import { targetElement, targetParts } from "./resolved-target.js";
 import { keepsText, offer, reveal } from "./widget-elements.js";
 import { retainUserIntent } from "./user-intent.js";
@@ -79,10 +79,7 @@ export function createAnchorControls({
   // A proxy sits after the outer disclosure that controls its visibility. Shadow
   // renderers share their host so sibling holders do not reorder on each paint.
   function visualActionSeat(candidate) {
-    let seat =
-      candidate.getRootNode() instanceof ShadowRoot
-        ? candidate.getRootNode().host
-        : candidate;
+    let seat = shadowHost(candidate) ?? candidate;
     for (let current = seat; current; current = upFrom(current))
       if (current.matches?.("details")) seat = current;
     return seat;

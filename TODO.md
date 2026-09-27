@@ -208,6 +208,20 @@ and its chrome coordinate.
 - **Ask once whether the page has caught up with a reading.** `tests/render_harness.py`
   `told()` waits for `data-lf-reading` to match the server's reading, and the `data`
   and `log` stages of the runtime's `pageReadiness` (#1250) answer the same question.
+- **Say which panes the workspace holds without naming `lf-pane`.** `layouts.css`
+  holds an authored pane only as the workspace body or a cell of it (a pane in a
+  section flows), and a generated pane at any depth. It tells the two apart by the
+  `lf-pane` tag, so a package's authored pane takes the generated rule, and it names
+  the tag for first paint too: the runtime paints `data-lf-reading-role` about half a
+  second after the panes first draw. Both need a mark the stylesheet can read before
+  the script: an authored/generated distinction in the paint, and the role in the
+  first paint.
+- **Pick "any suggestion's control" without its owner key.** The harness's
+  `suggestion_owner` is the suite's one spelling of `lf-suggestion`'s contribution key,
+  but four prefix selectors in `test_render_controls.py` (`^="suggestion:"`,
+  `^="draft:"`), one that slices the key apart there, and one in
+  `test_render_threads.py` still spell it. Give the harness a by-kind locator, or
+  find these controls by the widget's own element.
 
 ## Etc
 

@@ -14,6 +14,7 @@ import urllib.error
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
+from dataclasses import replace
 from email.message import Message
 from pathlib import Path
 from types import SimpleNamespace
@@ -38,10 +39,11 @@ from leaf.delivery import current_responses
 from leaf.event_log import append_event, read_events
 from leaf.files import revision_path
 from leaf.hosting import LeafHTTPServer
-from leaf.http import supervised_document
+from leaf.http import page_delivery
 from leaf.machine import pid_alive
 from leaf.requests import request_lifecycles
 from leaf.revision_artifact import Resource
+from leaf.revision_delivery import compose_document
 from leaf.revisioning import activate_source
 from leaf.schema import ASSETS
 from leaf.served_state import page as served_page
@@ -248,25 +250,26 @@ def test_a_published_document_names_its_page_to_a_crawler(page_root, kind, url):
         "image": "/media/card.png",
     }
     addition = website_server.site_metadata(page_root, page)
-    served = supervised_document(
+    resources = {
+        path: Resource((ASSETS / path.lstrip("/")).read_bytes(), mime)
+        for path, mime in (
+            ("/runtime/bootstrap.js", "application/javascript"),
+            ("/runtime/chrome.css", "text/css"),
+            ("/runtime/marks.css", "text/css"),
+        )
+    }
+    delivery = page_delivery(
+        resources, server_id="server", layer_id="layer", page_root=page_root
+    )
+    served = compose_document(
         PAGE_SOURCE,
         1,
         1,
         executable="sha256:executable",
         widgets={},
-        server_id="server",
-        layer_id="layer",
-        resources={
-            path: Resource((ASSETS / path.lstrip("/")).read_bytes(), mime)
-            for path, mime in (
-                ("/runtime/bootstrap.js", "application/javascript"),
-                ("/runtime/chrome.css", "text/css"),
-                ("/runtime/marks.css", "text/css"),
-            )
-        },
-        page_root=page_root,
-        before_runtime=addition,
-    ).decode()
+        resources=resources,
+        delivery=replace(delivery, head=addition),
+    )
     head = served[: served.index("</head>")]
     assert f'<link rel="canonical" href="{page_root}/" data-lf-runtime>' in head
     assert f'<meta property="og:url" content="{url}" data-lf-runtime>' in head

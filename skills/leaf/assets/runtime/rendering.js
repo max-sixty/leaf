@@ -45,7 +45,7 @@
    update, which may land after the check), what vendored bundles schedule for
    themselves, and a layout change no counted callback or observer takes part in. A
    reader outside the page that caused such a change lets one rendering update pass
-   before it asks (`rendered` in tests/render_harness.py).
+   before it asks (`rendered` in scripts/leaf/render_checks.py).
 
    A document nobody can see gets no rendering updates: a hidden page, and a child page
    whose frame is not rendered — an inactive tab's panel and a closed disclosure hold

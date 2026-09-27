@@ -6,8 +6,7 @@ from pathlib import Path
 from mcp.types import CallToolResult, TextContent
 
 from .event_endpoint import accept_event
-from .exporting import inline_assets, inline_css_assets
-from .http import runtime_document
+from .exporting import embedding, inline_css_assets
 from .mcp_page import (
     PAGE_APP_RESOURCE,
     require_active_revision,
@@ -17,6 +16,7 @@ from .mcp_page import (
 from .passages import TEXT_BLOCK_TAGS
 from .registry.contract import RegistryError
 from .revision_artifact import Resource, read_artifact
+from .revision_delivery import compose_document
 from .served_state.service import PageStateService
 from .structure import SourceDocument, parse_revision
 
@@ -53,11 +53,14 @@ def app_snapshot(page: str) -> tuple[dict, dict]:
             )
         return resource
 
-    document = inline_assets(
-        runtime_document(
-            source, revision, artifact.executable, widgets=artifact.widgets
-        ).decode(),
-        read_resource=read_resource,
+    document = compose_document(
+        source,
+        revision,
+        None,
+        executable=artifact.executable,
+        widgets=artifact.widgets,
+        resources=artifact.resources,
+        delivery=embedding(read_resource=read_resource),
     )
     title = parse_revision(page_dir, revision).title.strip() or page_dir.name
     theme = inline_css_assets(

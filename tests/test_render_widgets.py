@@ -14,7 +14,7 @@ from leaf import render_checks as render_checks_model
 from leaf import service as service_model
 from leaf import session as session_model
 from leaf import thread as thread_model
-from leaf.render_checks import wait_until_ready
+from leaf.render_checks import rendered, wait_until_ready
 from leaf.render_gate import version as render_gate_model
 from leaf.schema import ELEMENT_ID
 from playwright.sync_api import expect
@@ -92,7 +92,6 @@ from render_harness import (
     post_event,
     refuse,
     regions_side_by_side,
-    rendered,
     resized,
     root_overflow,
     round_trip,
@@ -135,8 +134,7 @@ WORKSPACE_PAGE = leaf_page(
     """
   <header>
     <h1>Review queue</h1>
-    <p>Work through the queue on the left one item at a time, reading each item's
-    evidence and decision on the right before settling it and moving to the next.</p>
+    <p id="review-status"><span class="tag warn">3 waiting</span></p>
   </header>
   <div id="review-regions">
     <lf-pane id="queue" label="Items">
@@ -164,19 +162,16 @@ WORKSPACE_PAGE = leaf_page(
 def test_a_root_workspace_bounds_independent_regions_and_flows_when_it_cannot_fit(
     browser, serve
 ):
-    """The workspace Layout stands in the wide page's frame, title included, with its
-    lede at the reading measure, and takes the window's height below the banner: each
-    pane's body scrolls on its own. A window too short to hold it hands the scroll to
-    the page."""
+    """The workspace Layout stands in the wide page's frame and takes the window's
+    height below the banner: each pane's body scrolls on its own. Its header is one row,
+    the title at a heading's ordinary size with the status beside it, so the panes keep
+    the window. A window too short to hold it hands the scroll to the page."""
     frame = """() => {
       const main = document.querySelector('main');
       const style = getComputedStyle(main);
       const box = main.getBoundingClientRect();
-      const lede = document.querySelector('main > header > p');
       return [box.left + parseFloat(style.paddingLeft),
-              box.width - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight),
-              getComputedStyle(document.querySelector('main h1')).fontSize,
-              lede.getBoundingClientRect().width];
+              box.width - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight)];
     }"""
     declared = open_page(
         browser,
@@ -198,12 +193,21 @@ def test_a_root_workspace_bounds_independent_regions_and_flows_when_it_cannot_fi
     holds_the_window(page, workspace, True)
     assert page.evaluate(frame) == wide
     assert wide[1] > 1080, wide
-    column = page.evaluate(
-        "() => parseFloat(getComputedStyle(document.body).getPropertyValue('--col'))"
+    header = page.evaluate(
+        """() => {
+          const title = document.querySelector('main > header h1');
+          const status = document.getElementById('review-status');
+          const probe = document.createElement('h2');
+          probe.textContent = 'x';
+          document.querySelector('#queue').append(probe);
+          const heading = getComputedStyle(probe).fontSize;
+          probe.remove();
+          const t = title.getBoundingClientRect(), s = status.getBoundingClientRect();
+          return {title: getComputedStyle(title).fontSize, heading,
+                  oneRow: s.top < t.bottom && s.left >= t.right};
+        }"""
     )
-    # The workspace groups what it holds, so its lede keeps the measure every wide
-    # page's text does rather than running the workspace's width.
-    assert wide[3] == column, (wide, column)
+    assert header["title"] == header["heading"] and header["oneRow"], header
     assert page.evaluate("() => document.scrollingElement.scrollTop") == 0
     readings = page.evaluate(
         """() => {
@@ -742,9 +746,9 @@ THREE_PART_ASK_PAGE = leaf_page(
 
 def test_a_pane_inside_a_plain_section_of_a_workspace_flows(browser, serve):
     """Only a box that passes the height on holds what it contains. A section in the
-    body's grid is a grouping, so a pane in one takes its natural height and the page
-    scrolls it. The control is the same pane as the workspace's body, which the window
-    holds."""
+    body's grid is a grouping, so a pane in one takes its natural height and the body,
+    which the window holds, scrolls it. The control is the same pane as the workspace's
+    body, which the window holds."""
     page = open_page(browser, serve(SECTIONED_PANE_PAGE))
     resized(page, 1280, 720)
     pane = page.locator("#held-pane")
@@ -753,7 +757,7 @@ def test_a_pane_inside_a_plain_section_of_a_workspace_flows(browser, serve):
         """async node => {
           const leaf = await window.__lfRuntimeImport('/runtime/widget-api.js');
           return leaf.readingPosture(node) === 'flow'
-            && leaf.effectiveScroller(node) === document.scrollingElement;
+            && leaf.effectiveScroller(node) === document.getElementById('cells');
         }"""
     )
     page.close()
@@ -794,19 +798,26 @@ def test_an_ask_with_more_than_one_answer_part_keeps_each_parts_height(browser, 
     holds_the_window(page, page.locator("main"), True)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="A held workspace keeps no end room: a pane in a grid cell that passes no "
-    "height on overflows the window-high main, and its end scrolls under the band; "
-    "TODO.md, Layouts, 'Give a held workspace's overflow its end room'",
-)
 def test_a_held_workspace_that_overflows_scrolls_its_end_clear_of_the_band(
     browser, serve
 ):
-    """Whatever the page scrolls to in a held workspace clears the shortcut band, as a
-    document's last line does."""
+    """Whatever the user scrolls to in a held workspace clears the shortcut band, as a
+    document's last line does. A pane inside a section of the body takes its content's
+    height, so the body scrolls as a whole and its end stands above the band."""
     page = open_page(browser, serve(SECTIONED_PANE_PAGE))
     resized(page, 1280, 720)
+    holds_the_window(page, page.locator("main"), True)
+    # Every reader asks one owner which box scrolls a node, so the body that now scrolls
+    # is the answer for the pane it carries: page steps and reading-place recovery move
+    # the box the user sees move.
+    carrier = page.evaluate(
+        """async () => {
+          const {scrollerFor} = await window.__lfRuntimeImport('/runtime/reading-regions.js');
+          return scrollerFor(document.getElementById('pane-end'))?.id ?? null;
+        }"""
+    )
+    assert carrier == "cells", carrier
+    page.locator("#pane-end").evaluate("node => node.scrollIntoView({block: 'end'})")
     end = clear_of_the_bottom_chrome(page, "#pane-end")
     assert end["clear"], end
 
@@ -2048,7 +2059,12 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
     expect(start).to_have_attribute("href", re.compile(r"^#lf-contents-section-0"))
     expect(start).to_have_attribute("aria-current", "location")
     expect(toc).to_have_css("position", "fixed")
-    expect(page.locator("aside.sidebar")).to_have_css("position", "sticky")
+    # The map is all its sidebar holds, so the sidebar stands as the map alone and floats
+    # nothing beside the column.
+    expect(page.locator("main")).to_have_attribute(
+        "data-lf-margin", re.compile(r"\bmap\b")
+    )
+    expect(page.locator("aside.sidebar")).to_have_css("float", "none")
     expect(prepare).to_have_css("opacity", "0")
     expect(prepare).to_have_css("pointer-events", "none")
     motion = prepare.evaluate(
@@ -2566,7 +2582,8 @@ def test_the_reading_map_returns_when_a_hidden_sidebar_comes_back(browser, serve
         "hidden sidebar map",
         """
 <style>
-  @container lf-shell (max-width: 847px) { #route { display: none; } }
+  main:not([data-lf-margin~="map"], [data-lf-margin~="sidebar"]) #route {
+    display: none; }
 </style>
 <h1>Migration plan for the readers already in flight</h1>
 <aside class="sidebar" id="route"><lf-toc id="contents"></lf-toc></aside>

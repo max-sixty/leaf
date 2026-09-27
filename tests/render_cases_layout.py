@@ -22,6 +22,7 @@ from leaf import http as http_model
 from leaf import machine as machine_model
 from leaf import render_checks as render_checks_model
 from leaf.registry import storage as registry_storage
+from leaf.render_checks import rendered
 from leaf.render_gate import scheme as render_gate_model
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
@@ -34,7 +35,6 @@ from render_harness import (
     TOKEN,
     banner_control,
     leaf_page,
-    rendered,
     stamp_page,
 )
 
@@ -74,8 +74,7 @@ def resize_notice_after_last_probe(page):
     evaluate = page.evaluate
 
     def with_notice(expression, *args, **kwargs):
-        call = args[0] if args else kwargs.get("arg")
-        if isinstance(call, dict) and call.get("name") == "requestFrame":
+        if "requestFrame()" in expression:
             evaluate(
                 "() => requestAnimationFrame(() => {"
                 "if (matchMedia('(prefers-color-scheme: light)').matches) {"
@@ -369,8 +368,10 @@ LINKED_CELLS_PAGE = WIDE_TABLE_PAGE.replace(
 # 840px against a 720px column, so it stands 120px out in the margin with
 # the body not scrolling by a pixel. In vw rather than px because the static lint
 # counts pixels and would have caught it before a browser ever saw it.
+# 65vw passes the 720px column at the desktop viewport, and falls short of scrolling the
+# page sideways at every width the gate sweeps: it would from about 2400px.
 SPILLING_PAGE = LONG_PAGE.replace(
-    "</main>", "<div id='too-wide' style='width: 70vw'>Wide.</div>\n</main>"
+    "</main>", "<div id='too-wide' style='width: 65vw'>Wide.</div>\n</main>"
 )
 # Two wrappers that generate no box, differing only in whether anything inside them does.
 # `#veiled` is the shape the vocabulary shipped while a suggestion was display: contents,

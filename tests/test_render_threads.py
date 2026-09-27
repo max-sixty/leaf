@@ -10,13 +10,14 @@ import pytest
 from click.testing import CliRunner
 from interact_support import append_command, record_claim
 from leaf import cli as cli_model
+from leaf import data as data_model
 from leaf import delivery as delivery_model
 from leaf import event_log as events_model
 from leaf import leases as leases_model
 from leaf import render_checks as render_checks_model
 from leaf import service as service_model
 from leaf import thread as thread_model
-from leaf.render_checks import wait_until_ready
+from leaf.render_checks import one_frame, rendered, wait_until_ready
 from PIL import Image
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
@@ -46,13 +47,13 @@ from render_cases_layout import (
     rings_drawn,
     token_colour,
 )
+from render_cases_navigation import source_revision
 from render_harness import (
     EXAMPLE_MEDIA,
     EXAMPLE_PACKAGES,
     EXAMPLES,
     FEATURE_GALLERY,
     LONG_PAGE,
-    ONE_FRAME,
     CutOff,
     any_owner_entry,
     holding,
@@ -60,7 +61,6 @@ from render_harness import (
     open_page,
     panel_settled,
     primed,
-    rendered,
     resized,
     round_trip,
     scroll_settled,
@@ -4182,7 +4182,7 @@ def test_a_folding_thread_keeps_the_card_under_the_pointer_put(browser, serve):
         "window.__lfHeld[i].effect.getComputedTiming().duration / 2; }",
         before,
     )
-    page.evaluate(ONE_FRAME)
+    one_frame(page)
     halfway = target_card.evaluate("el => el.getBoundingClientRect().top")
     assert halfway == pytest.approx(setup["target"]["top"], abs=1), (
         f"the fold carried the target card from {setup['target']['top']:.1f}px "
@@ -4195,7 +4195,7 @@ def test_a_folding_thread_keeps_the_card_under_the_pointer_put(browser, serve):
     threads = page.locator(".lf-threads")
     scroll_before = threads.evaluate("el => el.scrollTop")
     page.mouse.wheel(0, 40)
-    page.evaluate(ONE_FRAME)
+    one_frame(page)
     scroll_after = threads.evaluate("el => el.scrollTop")
     assert scroll_after > scroll_before, "the fold undid the user's wheel scroll"
     scrolled_top = target_card.evaluate("el => el.getBoundingClientRect().top")
@@ -4203,7 +4203,7 @@ def test_a_folding_thread_keeps_the_card_under_the_pointer_put(browser, serve):
         halfway - (scroll_after - scroll_before), abs=1
     ), "the scroll hold changed the distance the user deliberately travelled"
     threads.evaluate("(el, top) => { el.scrollTop = top; }", scroll_before)
-    page.evaluate(ONE_FRAME)
+    one_frame(page)
     restored = target_card.evaluate("el => el.getBoundingClientRect().top")
     assert restored == pytest.approx(setup["target"]["top"], abs=1)
 
@@ -4277,7 +4277,7 @@ def test_a_folding_reference_hands_its_hold_to_the_next_card(browser, serve):
         "window.__lfHeld[i].effect.getComputedTiming().duration / 2; }",
         before,
     )
-    page.evaluate(ONE_FRAME)
+    one_frame(page)
     halfway = target_card.evaluate("el => el.getBoundingClientRect().top")
     assert halfway == pytest.approx(target_top, abs=1), (
         f"the disappearing reference moved its successor from {target_top:.1f}px "
@@ -4337,7 +4337,7 @@ def test_a_render_arriving_mid_fold_keeps_the_place_the_fold_is_holding(browser,
         "window.__lfHeld[i].effect.getComputedTiming().duration / 2; }",
         before,
     )
-    page.evaluate(ONE_FRAME)
+    one_frame(page)
 
     # Far enough down the list that its own card cannot move the target, so what the
     # arrival costs is the hold and nothing else.
@@ -4351,7 +4351,7 @@ def test_a_render_arriving_mid_fold_keeps_the_place_the_fold_is_holding(browser,
         },
     )
     told(page)
-    page.evaluate(ONE_FRAME)
+    one_frame(page)
     joined = target_card.evaluate("el => el.getBoundingClientRect().top")
     assert joined == pytest.approx(target_top, abs=1), (
         f"the arriving render moved the held card from {target_top:.1f}px "
@@ -4873,9 +4873,6 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         # while the scoped rule only sets its line height in the response bar.
         "lf-compose-placeholder",
         "lf-compose-submit",
-        # Reply disclosure is shared by inline threads in authored content and the
-        # thread surfaces in chrome.
-        "lf-reply-disclosure",
         # The one canonical composer can be seated in a widget's own Thread outlet,
         # where the chrome's scoped rules cannot reach it. The authored theme dresses
         # that seat at document level, under [data-lf-presentation="inline"], so every
@@ -4981,7 +4978,6 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         "lf-skip",  # the keyboard entry point stands before the chrome container
         "lf-aiming",
         "lf-over-item",
-        "lf-quiet",
         # The shared textual thread box renders both in page-owned widget seats and in
         # the chrome-owned margin preview, so its pasted-image shelf is dressed here.
         # Its message rows are not: they take the shared face from the theme like every
@@ -6890,6 +6886,574 @@ def test_a_growing_panel_reply_keeps_the_previous_turn_visible(browser, serve):
     assert visible["tail"] < visible["editor"], visible
     assert reply.evaluate("input => input.scrollTop > 0")
     in_threads_scrollport(page, f'.lf-thread[data-id="{root}"] .lf-thread-send')
+
+
+LANDING_WORDS = (
+    "This message has enough words in it to wrap over several lines in the panel, "
+    "so that a thread of a dozen of them is taller than the list's scrollport. "
+)
+
+
+def seed_panel_threads(page_dir, threads, long_index=None, messages=12):
+    """`threads` panel threads of two turns each, the one at `long_index` with
+    `messages` turns, so it stands taller than the list's scrollport."""
+    roots = []
+    for i in range(threads):
+        root = panel_comment(page_dir, f"Thread {i} opening. " + LANDING_WORDS)
+        roots.append(root)
+        for turn in range(1, messages if i == long_index else 2):
+            agent = turn % 2 == 1
+            events_model.append_event(
+                page_dir,
+                {
+                    "kind": "reply",
+                    "author": "agent" if agent else "user",
+                    **({"agent": "Codex"} if agent else {}),
+                    "parent": root,
+                    "text": f"Turn {turn} of thread {i}. " + LANDING_WORDS,
+                },
+            )
+    return roots
+
+
+def open_threads_list(page, width, height):
+    resized(page, width, height)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+
+
+def reply_by_keyboard(page, root):
+    """Stand on the thread's title and press `c` into its reply box."""
+    card = page.locator(f'.lf-thread[data-id="{root}"]')
+    title = card.locator(":scope > .lf-thread-summary")
+    if card.get_attribute("open") is None:
+        title.click()
+    title.focus()
+    rendered(page)
+    title.press("c")
+    expect(card.locator("leaf-text")).to_be_focused()
+    rendered(page)
+    scroll_settled(page, ".lf-threads")
+    return card
+
+
+# Where a node stands against the list's landing band: its scrollport less the
+# scroll padding a stuck heading and the focus ring take.
+IN_LANDING_BAND = """node => {
+  const list = document.querySelector('.lf-threads');
+  const shown = list.getBoundingClientRect();
+  const style = getComputedStyle(list);
+  const band = [shown.top + parseFloat(style.scrollPaddingTop),
+                shown.bottom - parseFloat(style.scrollPaddingBottom)];
+  const box = node.getBoundingClientRect();
+  return {inside: box.top >= band[0] - 1 && box.bottom <= band[1] + 1,
+          box: [Math.round(box.top), Math.round(box.bottom)],
+          band: band.map(Math.round)};
+}"""
+
+
+@pytest.mark.parametrize("size", [(1200, 900), (800, 520)])
+def test_an_agent_turn_arriving_while_the_user_writes_keeps_their_box_in_view(
+    browser, serve, size
+):
+    """The list's place hold keeps the card's top still, so a turn arriving at the
+    thread's end pushed the reply box, and the Send beside it, below the list's foot
+    while the user was typing in it. Following lands the thread's end instead."""
+    url = serve(PANEL_PAGE)
+    root = seed_panel_threads(serve.page_dir, 4, long_index=2)[2]
+    page = open_page(browser, url)
+    open_threads_list(page, *size)
+    card = reply_by_keyboard(page, root)
+    page.keyboard.type("Half a thought I am still typing")
+    rendered(page)
+    send = card.locator(".lf-thread-send")
+    assert send.evaluate(IN_LANDING_BAND)["inside"], "Send starts outside the band"
+    arrived = events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Codex",
+            "parent": root,
+            "text": "An agent answer arrives. " + LANDING_WORDS,
+        },
+    )
+    told(page)
+    expect(card.locator(".lf-msg")).to_have_count(13)
+    rendered(page)
+    scroll_settled(page, ".lf-threads")
+    assert card.locator(f'.lf-msg[data-mid="{arrived["id"]}"]').evaluate(
+        IN_LANDING_BAND
+    )["inside"]
+    expect(card.locator("leaf-text")).to_be_focused()
+    held = send.evaluate(IN_LANDING_BAND)
+    assert held["inside"], f"the arrival pushed Send out of the list's band: {held}"
+
+
+@pytest.mark.parametrize("size", [(1200, 900), (800, 520)])
+def test_a_thread_sent_from_the_panels_foot_lands_in_view(browser, serve, size):
+    """The list's place hold finishing a render cancelled the smooth landing already
+    under way, leaving the new thread below the list's foot."""
+    url = serve(PANEL_PAGE)
+    seed_panel_threads(serve.page_dir, 8 if size[1] < 600 else 20, long_index=0)
+    page = open_page(browser, url)
+    open_threads_list(page, *size)
+    page.locator(".lf-threads").evaluate("list => list.scrollTop = list.scrollHeight")
+    scroll_settled(page, ".lf-threads")
+    write(page.locator(".lf-general leaf-text"), "What the general box says.")
+    with sending(page, "the page comment"):
+        page.keyboard.press("Enter")
+    rendered(page)
+    scroll_settled(page, ".lf-threads")
+    sent = events_model.read_events(serve.page_dir)[-1]
+    card = page.locator(f'.lf-thread[data-id="{sent["id"]}"]')
+    landed = card.locator(":scope > .lf-thread-summary").evaluate(IN_LANDING_BAND)
+    assert landed["inside"], f"the new thread was left outside the band: {landed}"
+    assert page.evaluate(
+        "() => Boolean(document.activeElement.closest('.lf-general'))"
+    ), "the send moved focus out of the general box"
+
+
+@pytest.mark.parametrize("how", ["r", "button"])
+def test_resolving_a_long_thread_lands_the_next_title_in_view(browser, serve, how):
+    """The landing of the thread focus moved on to was measured while the resolved
+    thread still stood open above it, and the fold then took that room away under a
+    smooth scroll: the next title ended above the list."""
+    url = serve(PANEL_PAGE)
+    roots = seed_panel_threads(serve.page_dir, 8, long_index=3)
+    page = open_page(browser, url)
+    open_threads_list(page, 800, 520)
+    card = page.locator(f'.lf-thread[data-id="{roots[3]}"]')
+    title = card.locator(":scope > .lf-thread-summary")
+    title.click()
+    rendered(page)
+    title.focus()
+    with sending(page, "the resolve"):
+        if how == "r":
+            page.keyboard.press("r")
+        else:
+            card.locator(".lf-resolve").click()
+    rendered(page)
+    scroll_settled(page, ".lf-threads")
+    following = page.locator(f'.lf-thread[data-id="{roots[4]}"] > .lf-thread-summary')
+    expect(following).to_be_focused()
+    rendered(page)
+    scroll_settled(page, ".lf-threads")
+    landed = following.evaluate(IN_LANDING_BAND)
+    assert landed["inside"], f"focus landed outside the list's band: {landed}"
+
+
+def test_escape_then_enter_round_trips_a_panel_reply(browser, serve):
+    """Escape hands a reply back to its thread's title, and Enter there puts the user
+    back in the box. The row answering Enter asked for a focused card root, which a
+    panel thread's title is not, so the round trip stopped at the title."""
+    url = serve(PANEL_PAGE)
+    roots = seed_panel_threads(serve.page_dir, 3)
+    page = open_page(browser, url)
+    open_threads_list(page, 1200, 900)
+    card = reply_by_keyboard(page, roots[1])
+    page.keyboard.type("draft")
+    page.keyboard.press("Escape")
+    expect(card.locator(":scope > .lf-thread-summary")).to_be_focused()
+    page.keyboard.press("Enter")
+    expect(card.locator("leaf-text")).to_be_focused()
+    expect(card.locator("leaf-text")).to_have_js_property("value", "draft")
+
+
+def test_leaving_a_long_threads_reply_keeps_the_list_where_it_was(browser, serve):
+    """Escape out of the reply of a thread taller than the list focuses its title
+    without landing it: the landing took the list to the thread's head, away from the
+    turn the user was answering."""
+    url = serve(PANEL_PAGE)
+    root = seed_panel_threads(serve.page_dir, 4, long_index=2)[2]
+    page = open_page(browser, url)
+    open_threads_list(page, 1200, 900)
+    card = reply_by_keyboard(page, root)
+    before = page.locator(".lf-threads").evaluate("list => list.scrollTop")
+    assert before > 0, "the reply landed without scrolling, so this proves nothing"
+    page.keyboard.press("Escape")
+    expect(card.locator(":scope > .lf-thread-summary")).to_be_focused()
+    rendered(page)
+    scroll_settled(page, ".lf-threads")
+    assert page.locator(".lf-threads").evaluate("list => list.scrollTop") == before
+    assert card.locator(".lf-msg").last.evaluate(IN_LANDING_BAND)["inside"]
+
+
+def test_walking_down_the_list_shows_each_thread_under_its_title(browser, serve):
+    """`t` opens the next thread and lands its title. Where the opened thread is taller
+    than the list, the nearest edge put the title at the list's foot with none of the
+    thread under it, on every step down the walk."""
+    url = serve(PANEL_PAGE)
+    roots = seed_panel_threads(serve.page_dir, 8, long_index=3)
+    page = open_page(browser, url)
+    open_threads_list(page, 800, 520)
+    page.locator(".lf-threads").focus()
+    landings = []
+    for root in roots[:6]:
+        page.keyboard.press("t")
+        title = page.locator(f'.lf-thread[data-id="{root}"] > .lf-thread-summary')
+        expect(title).to_be_focused()
+        rendered(page)
+        scroll_settled(page, ".lf-threads")
+        landings.append(title.evaluate(IN_LANDING_BAND))
+    assert all(landed["inside"] for landed in landings), landings
+    assert all(landed["band"][1] - landed["box"][1] > 100 for landed in landings), (
+        f"a title landed at the list's foot with its thread below it: {landings}"
+    )
+
+
+SEAT_FILLER = "".join(
+    f"<p>Filler paragraph {n}, long enough to occupy a line of reading.</p>"
+    for n in range(40)
+)
+SEAT_WORDS = (
+    "This is a longer message that wraps onto a second line at a normal reading "
+    "width, so a thread of a dozen of them is taller than a short window."
+)
+SEAT_DIFF = (
+    "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n"
+    '@@ -1 +1 @@\n-return "old"\n+return "new"\n'
+)
+THIRTY_LINES = "\n".join(f"Pasted line {n}" for n in range(30))
+
+
+def seated_page(serve, kind):
+    """A page whose seat sits past a screen of filler with more below it, and the
+    selector of the widget holding it: `task` keeps its box after a send to offer
+    Send & pause, `verdict` gives it up to the thread it starts."""
+    if kind == "task":
+        return serve(
+            leaf_page(
+                "seat",
+                f'<h1 id="h">Three jobs</h1>{SEAT_FILLER}<lf-command id="hub" '
+                'label="Before the frost"><lf-task id="jobs" status="active" talk>'
+                "<strong>Which jobs are worth starting?</strong> The mounts came "
+                f"down in January.</lf-task></lf-command>{SEAT_FILLER}",
+            )
+        ), "#jobs"
+    return serve(
+        leaf_page(
+            "seat",
+            f'<h1>Review the plan</h1>{SEAT_FILLER}<lf-verdict id="proposal" asks>'
+            f"Should these jobs share a visit?</lf-verdict>{SEAT_FILLER}",
+        ),
+        layer_registry=SEATED_ASK_LAYER,
+        layer_widgets=SEATED_ASK_WIDGETS,
+    ), "#proposal"
+
+
+def seated_thread(serve, kind, messages):
+    """A thread of `messages` turns on a page seat (`task`, `verdict`) or on a diff
+    line (`diff`, drawn inside the widget's shadow tree), and the page's URL."""
+    if kind == "diff":
+        url = serve(
+            leaf_page(
+                "diff",
+                f'<h1 id="title">Review</h1>{SEAT_FILLER}<lf-diff id="patch" '
+                f'source="review-patch"><pre></pre></lf-diff>{SEAT_FILLER}',
+            )
+        )
+        data_model.cmd_data_set(serve.page_dir, "review-patch", SEAT_DIFF)
+        anchor = {
+            "section": "patch",
+            "datum": '["app.py","new",1]',
+            "source": "review-patch",
+            "source_revision": source_revision(serve.page_dir, "review-patch"),
+        }
+    else:
+        url, host = seated_page(serve, kind)
+        anchor = {"section": host[1:]}
+    root = events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Opening remark. " + SEAT_WORDS,
+            "anchor": anchor,
+        },
+    )["id"]
+    for n in range(messages - 1):
+        events_model.append_event(
+            serve.page_dir,
+            {
+                "kind": "reply",
+                "author": "agent" if n % 2 == 0 else "user",
+                "agent": "Codex",
+                "parent": root,
+                "revision": 1,
+                "text": f"Message {n + 2}. " + SEAT_WORDS,
+            },
+        )
+    return url, root
+
+
+def paste(page, text):
+    """Paste `text` into the focused box through the clipboard, as a user's paste
+    arrives: one edit, which CodeMirror scrolls its caret into view for."""
+    page.context.grant_permissions(["clipboard-read", "clipboard-write"])
+    page.evaluate("text => navigator.clipboard.writeText(text)", text)
+    page.keyboard.press("ControlOrMeta+v")
+    rendered(page)
+
+
+def to_window_foot(page, locator, gap):
+    """Scroll the page so `locator`'s foot stands `gap` px above the window's."""
+    page.evaluate(
+        """([node, gap]) => document.scrollingElement.scrollBy({
+          top: node.getBoundingClientRect().bottom - (innerHeight - gap),
+          behavior: 'instant'})""",
+        [locator.element_handle(), gap],
+    )
+    scroll_settled(page)
+
+
+def clear_of_the_bar(page, locator):
+    """Whether the node is wholly in the window above the fixed shortcut bar."""
+    return page.evaluate(
+        """([node, bar]) => {
+          const box = node.getBoundingClientRect();
+          const foot = bar ? bar.getBoundingClientRect().top : innerHeight;
+          return box.height > 0 && box.top >= 0 && box.bottom <= foot + 0.5;
+        }""",
+        [locator.element_handle(), page.locator(".lf-shortcut-bar").element_handle()],
+    )
+
+
+def focus_clear_of_the_bar(page):
+    """Whether the focused node, through open shadow roots, shows in the window."""
+    return page.evaluate(
+        """() => {
+          let node = document.activeElement;
+          while (node?.shadowRoot?.activeElement) node = node.shadowRoot.activeElement;
+          const box = node.getBoundingClientRect();
+          const bar = document.querySelector('.lf-shortcut-bar');
+          const foot = bar ? bar.getBoundingClientRect().top : innerHeight;
+          return box.height > 0 && box.bottom > 0 && box.top < foot;
+        }"""
+    )
+
+
+def test_a_seat_send_puts_the_user_in_the_thread_it_started(browser, serve):
+    """A seat that gives its box up to the thread its first message starts took the
+    focus with it, so the next keys the user typed ran page commands."""
+    url, host = seated_page(serve, "verdict")
+    page = open_page(browser, url)
+    box = page.locator(f"{host} > .lf-thread-seat > .lf-say leaf-text")
+    box.scroll_into_view_if_needed()
+    write(box, "First thought.")
+    with sending(page, "the first message"):
+        page.keyboard.press("Enter")
+    thread = page.locator(f"{host} > .lf-thread-seat > .lf-page-thread")
+    expect(thread).to_have_count(1)
+    expect(thread.locator(":scope > .lf-say leaf-text")).to_be_focused()
+
+
+@pytest.mark.parametrize("kind", ["task", "verdict"])
+def test_a_seat_send_at_the_window_foot_shows_the_thread_it_started(
+    browser, serve, kind
+):
+    url, host = seated_page(serve, kind)
+    page = open_page(browser, url)
+    box = page.locator(f"{host} > .lf-thread-seat > .lf-say leaf-text")
+    box.scroll_into_view_if_needed()
+    write(box, "First thought.")
+    to_window_foot(page, box, 60)
+    with sending(page, "the first message"):
+        page.keyboard.press("Enter")
+    rendered(page)
+    scroll_settled(page)
+    sent = page.locator(f"{host} .lf-page-thread .lf-page-thread-msg").last
+    expect(sent).to_contain_text("First thought.")
+    assert clear_of_the_bar(page, sent), "the sent message was left below the fold"
+    focused = page.locator(f"{host} leaf-text:focus")
+    expect(focused).to_have_count(1)
+    assert clear_of_the_bar(page, focused), "the box the user is in went below the fold"
+
+
+def test_a_seat_box_grown_by_a_paste_keeps_its_send_above_the_bar(browser, serve):
+    """The growth reveal lived in the reply wiring alone, so a seat's own box grew
+    under the shortcut bar, CodeMirror's caret scrolling knowing nothing of it."""
+    url, host = seated_page(serve, "verdict")
+    page = open_page(browser, url)
+    box = page.locator(f"{host} > .lf-thread-seat > .lf-say leaf-text")
+    box.scroll_into_view_if_needed()
+    write(box, "First line")
+    to_window_foot(page, box, 60)
+    paste(page, THIRTY_LINES)
+    send = page.locator(f"{host} > .lf-thread-seat > .lf-say .lf-compose-submit")
+    assert clear_of_the_bar(page, send)
+
+
+def test_a_diff_thread_reply_grown_by_a_paste_keeps_its_send_above_the_bar(
+    browser, serve
+):
+    """A diff draws its threads in its own shadow tree. The landing's climb stopped at
+    that root, never met the page's scroller, and read a thread taller than the window
+    as one that fits, so the growth reveal moved nothing."""
+    url, root = seated_thread(serve, "diff", 12)
+    page = open_page(browser, url)
+    thread = page.locator(f'.lf-page-thread[data-thread="{root}"]')
+    box = thread.locator(":scope > .lf-say leaf-text")
+    box.scroll_into_view_if_needed()
+    write(box, "First line")
+    to_window_foot(page, box, 60)
+    paste(page, THIRTY_LINES)
+    assert clear_of_the_bar(page, thread.locator(":scope > .lf-say .lf-compose-submit"))
+
+
+@pytest.mark.parametrize("kind", ["task", "diff"])
+def test_an_agent_turn_arriving_holds_still_the_page_box_being_typed_in(
+    browser, serve, kind
+):
+    """The new turn went in above the reply box the user was typing in and pushed it,
+    caret and all, below the fold. News moves no control under the user's hands."""
+    url, root = seated_thread(serve, kind, 3)
+    page = open_page(browser, url)
+    thread = page.locator(f'.lf-page-thread[data-thread="{root}"]')
+    box = thread.locator(":scope > .lf-say leaf-text")
+    box.scroll_into_view_if_needed()
+    write(box, "Half a thought")
+    to_window_foot(page, box, 50)
+    before = box.evaluate("box => box.getBoundingClientRect().top")
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Codex",
+            "parent": root,
+            "responds": root,
+            "revision": 1,
+            "text": "The agent's answer. " + SEAT_WORDS,
+        },
+    )
+    told(page)
+    expect(thread.locator(".lf-page-thread-msg")).to_have_count(4)
+    rendered(page)
+    expect(box).to_be_focused()
+    assert box.evaluate("box => box.getBoundingClientRect().top") == pytest.approx(
+        before, abs=1
+    )
+
+
+@pytest.mark.parametrize("kind", ["task", "verdict"])
+def test_resolving_a_long_page_thread_by_its_button_leaves_the_page_still(
+    browser, serve, kind
+):
+    """The pressed Resolve leaves with the state it changed, and the thread took the
+    focus back with a landing: the nearest edge of a thread taller than the window was
+    a 700px jump to its head."""
+    url, root = seated_thread(serve, kind, 12)
+    page = open_page(browser, url)
+    thread = page.locator(f'.lf-page-thread[data-thread="{root}"]')
+    resolve = thread.locator(".lf-resolve")
+    resolve.scroll_into_view_if_needed()
+    to_window_foot(page, resolve, 120)
+    before = page.evaluate("() => document.scrollingElement.scrollTop")
+    box = resolve.bounding_box()
+    with sending(page, "the resolve"):
+        page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+    rendered(page)
+    scroll_settled(page)
+    expect(thread).to_be_focused()
+    after = page.evaluate("() => document.scrollingElement.scrollTop")
+    assert abs(after - before) < 10, f"the page jumped {after - before}px"
+
+
+def test_settling_a_long_diff_thread_by_key_keeps_it_in_view(browser, serve):
+    """A diff thread folds to its summary when resolved and unfolds when reopened, and
+    nothing landed it either way: the summary the user stood on went above the window,
+    and the reopened thread with it."""
+    url, root = seated_thread(serve, "diff", 12)
+    page = open_page(browser, url)
+    thread = page.locator(f'.lf-page-thread[data-thread="{root}"]')
+    box = thread.locator(":scope > .lf-say leaf-text")
+    box.scroll_into_view_if_needed()
+    to_window_foot(page, box, 60)
+    box.focus()
+    page.keyboard.press("Escape")
+    expect(thread).to_be_focused()
+    with sending(page, "the resolve"):
+        page.keyboard.press("r")
+    rendered(page)
+    scroll_settled(page)
+    assert focus_clear_of_the_bar(page), "the resolved thread left the window"
+    with sending(page, "the reopen"):
+        page.keyboard.press("r")
+    rendered(page)
+    scroll_settled(page)
+    assert focus_clear_of_the_bar(page), "the reopened thread left the window"
+
+
+@pytest.mark.parametrize("kind", ["task", "diff"])
+def test_a_turn_arriving_leaves_a_user_who_scrolled_away_from_their_box_reading(
+    browser, serve, kind
+):
+    """The box a turn arrives above is held still only while it is on screen. A user
+    who wheeled up to read the page with focus still in the box is reading the page,
+    and holding the box there moved what they were reading."""
+    url, root = seated_thread(serve, kind, 3)
+    page = open_page(browser, url)
+    thread = page.locator(f'.lf-page-thread[data-thread="{root}"]')
+    box = thread.locator(":scope > .lf-say leaf-text")
+    box.scroll_into_view_if_needed()
+    write(box, "Half a thought")
+    page.evaluate(
+        """node => document.scrollingElement.scrollBy({
+          top: node.getBoundingClientRect().top - innerHeight - 400,
+          behavior: 'instant'})""",
+        thread.element_handle(),
+    )
+    scroll_settled(page)
+    expect(box).to_be_focused()
+    before = page.evaluate("() => document.scrollingElement.scrollTop")
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Codex",
+            "parent": root,
+            "responds": root,
+            "revision": 1,
+            "text": "The agent's answer. " + SEAT_WORDS,
+        },
+    )
+    told(page)
+    expect(thread.locator(".lf-page-thread-msg")).to_have_count(4)
+    rendered(page)
+    after = page.evaluate("() => document.scrollingElement.scrollTop")
+    assert after == pytest.approx(before, abs=1), f"the page moved {after - before}px"
+
+
+def test_a_wheel_during_a_resolution_fold_outranks_the_landing_after_it(browser, serve):
+    """The landing of the next title waits for the fold, and a user who scrolls the
+    list meanwhile has taken it somewhere else: the deferred landing pulled the list
+    back toward the title once the fold ended."""
+    url = serve(PANEL_PAGE)
+    roots = seed_panel_threads(serve.page_dir, 8, long_index=3)
+    page = open_page(browser, url, init_script=HOLD_MOTION)
+    open_threads_list(page, 800, 520)
+    title = page.locator(f'.lf-thread[data-id="{roots[3]}"] > .lf-thread-summary')
+    title.click()
+    rendered(page)
+    title.focus()
+    with sending(page, "the resolve"):
+        page.keyboard.press("r")
+    following = page.locator(f'.lf-thread[data-id="{roots[4]}"] > .lf-thread-summary')
+    expect(following).to_be_focused()
+    page.wait_for_function("() => window.__lfHeld.length > 0")
+    threads = page.locator(".lf-threads")
+    threads.hover()
+    page.mouse.wheel(0, 300)
+    scroll_settled(page, ".lf-threads")
+    wheeled = threads.evaluate("list => list.scrollTop")
+    page.evaluate("() => window.__lfHeld.slice().forEach(motion => motion.finish())")
+    rendered(page)
+    scroll_settled(page, ".lf-threads")
+    expect(following).to_be_focused()
+    assert threads.evaluate("list => list.scrollTop") == pytest.approx(wheeled, abs=2)
 
 
 def test_a_walk_to_a_question_the_narrowing_hides_widens_the_list(browser, serve):

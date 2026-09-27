@@ -15,7 +15,7 @@ from leaf import files as files_model
 from leaf import leases as leases_model
 from leaf import service as service_model
 from leaf import session as session_model
-from leaf.render_checks import wait_until_ready
+from leaf.render_checks import rendered, wait_until_ready
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -89,7 +89,6 @@ from render_harness import (
     open_versions,
     opened_tab,
     panel_settled,
-    rendered,
     resized,
     root_overflow,
     round_trip,

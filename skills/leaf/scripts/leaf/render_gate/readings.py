@@ -9,6 +9,7 @@ Leaf's half."""
 
 import json
 from dataclasses import dataclass
+from itertools import pairwise
 
 from leaf.passages import page_passages
 from leaf.projection import (
@@ -20,7 +21,7 @@ from leaf.projection import (
     rewritten_bodies,
 )
 from leaf.registry.state import retirement_slots
-from leaf.render_checks import evaluate_probe, wait_for_probe
+from leaf.render_checks import evaluate_probe, one_frame, rendered
 from leaf.structure import SourceDocument
 
 # A probe's arguments cross as JSON, so a node only CDP can name is handed to the
@@ -341,11 +342,8 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
         relative = evaluate_probe(page, "relativeReplays")
     # The replay above can resize what an observer watches. Chrome
     # delivers that notice in the next rendering turn, so closing on the write
-    # would call an attempt complete before its last error channel had spoken. Ask
-    # synchronously and poll the presented-frame fact from the driver: a compositor
-    # that never draws cannot strand page.evaluate on its unresolved Promise.
-    requested_frame = evaluate_probe(page, "requestFrame")
-    wait_for_probe(page, "framePresented", requested_frame)
+    # would call an attempt complete before its last error channel had spoken.
+    one_frame(page)
     found = [f"[{scheme}] console: {e}" for e in errors]
     for failure in failsoft:
         owner = f"<{failure['tag']}" + (
@@ -434,10 +432,26 @@ def _overflow(overflow: int, misplaced: list) -> list[tuple[tuple[str, str], str
 
 
 # The widths the sweep takes a loaded page through: a version holds at every width from
-# the narrowest phone to the desktop viewport, and the fixed viewports read it at two. A
+# the narrowest phone to a wide desktop window, and the fixed viewports read it at two. A
 # grid that stacks at one width can leave its narrow track narrower than what it holds
-# just above it, a band neither viewport lands in.
-SWEEP_WIDTHS = range(360, 1201, 40)
+# just above it, a band neither viewport lands in, and the margin's residents arrive
+# above the desktop viewport.
+SWEEP_WIDTHS = range(360, 1921, 40)
+
+# What of the page's own stands in its margin: the tokens the margin pass writes on
+# `main` (margin-layout.js, `settleResidency`), less the rail, which holds only Leaf's
+# markers and never moves the column.
+MARGIN_READING = (
+    "(document.querySelector('main')?.getAttribute('data-lf-margin') ?? '')"
+    ".split(' ').filter(t => t && t !== 'rail').join(' ')"
+)
+
+
+def _settle_at(page, width: int, height: int) -> None:
+    page.set_viewport_size({"width": width, "height": height})
+    # What the resize set moving in script (an observer, the layout that observer's
+    # write causes, and whatever that chains into) has run and been laid out.
+    rendered(page)
 
 
 def sweep(page, viewports) -> list[tuple[int, dict]]:
@@ -455,22 +469,41 @@ def sweep(page, viewports) -> list[tuple[int, dict]]:
     # than from the desktop: a jump from 1200px straight to 360px left an lf-shot laid
     # out for the desktop for a frame under load, and the sweep read that frame.
     for width in sorted({*SWEEP_WIDTHS, *fixed}, reverse=True):
-        page.set_viewport_size({"width": width, "height": height})
-        # One rendering turn for the resize to be heard, then the runtime's settled
-        # reading, so what it set moving in script (an observer, the layout that
-        # observer's write causes, and whatever that chains into) has run and been laid out.
-        wait_for_probe(page, "framePresented", evaluate_probe(page, "requestFrame"))
-        wait_for_probe(page, "renderingSettled")
+        _settle_at(page, width, height)
         readings.append(
             (
                 width,
                 {
                     "overflow": evaluate_probe(page, "rootOverflow"),
                     "misplaced": evaluate_probe(page, "misplacedBoxes"),
+                    "margin": page.evaluate(MARGIN_READING),
                 },
             )
         )
     return readings
+
+
+def margin_changes(page, readings, height: int) -> list[int]:
+    """The widths at which the page's margin content changes, narrowest first.
+
+    For each sweep step across which what stands in the margin differs, the narrowest
+    width at which the wider reading holds, found by halving the step on the loaded
+    page. That is where each resident first stands in the margin, with the least room it
+    will ever have there, so the gate renders the page at each."""
+    stepped = sorted((width, reading["margin"]) for width, reading in readings)
+    changes = []
+    for (low, below), (high, above) in pairwise(stepped):
+        if below == above:
+            continue
+        while high - low > 1:
+            middle = (low + high) // 2
+            _settle_at(page, middle, height)
+            if page.evaluate(MARGIN_READING) == above:
+                high = middle
+            else:
+                low = middle
+        changes.append(high)
+    return changes
 
 
 def swept_overflow(readings, viewports) -> list[str]:

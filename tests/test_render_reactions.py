@@ -7,7 +7,7 @@ import pytest
 from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf import thread as thread_model
-from leaf.render_checks import wait_until_ready
+from leaf.render_checks import rendered, wait_until_ready
 from playwright.sync_api import expect
 from render_cases_interaction import (
     PANEL_PAGE,
@@ -33,7 +33,6 @@ from render_harness import (
     leaf_page,
     open_page,
     panel_settled,
-    rendered,
     resized,
     round_trip,
     select,
@@ -1060,7 +1059,7 @@ def test_a_response_draft_yields_focus_when_the_panel_leaves_no_usable_room(
     # Start with Threads beside the page. A covering panel makes the background inert,
     # even when some of the page remains visible beyond its edge.
     resized(page, 1000, 900)
-    page.get_by_role("button", name=re.compile("^Threads")).click()
+    page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     field = page.locator(".lf-fab-input")
     bar = page.locator(".lf-fab-bar")

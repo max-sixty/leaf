@@ -43,9 +43,13 @@ export { placeKeeper } from "./user-place.js";
 export { inUi, uiInside, upFrom } from "./shadow.js";
 // Putting the user on an element that may be no tab stop of its own, which is what a
 // widget landing them anywhere but a control needs: the lend leaves with the first blur.
-// TEXT_FIELD is the tag of the box a widget offers for the user to write Markdown in;
-// TEXT_BOX matches it and any native textarea.
-export { focusDestination, TEXT_BOX, TEXT_FIELD } from "./focus.js";
+// Holding the user's place, caret included, across a move or re-render of the node they
+// stand on. TEXT_FIELD is the tag of the box a widget offers for the user to write
+// Markdown in; TEXT_BOX matches it and any native textarea.
+export { focusDestination, holdFocus, TEXT_BOX, TEXT_FIELD } from "./focus.js";
+// Making an element's children a list, moving only what is out of place and keeping the
+// user standing in a node it moves.
+export { setChildren } from "./dom-children.js";
 export { openAsks, watchAsks } from "./application.js";
 export { registerVisualParts } from "./visual-parts.js";
 export {
@@ -121,7 +125,7 @@ export {
 export { ago, clocked, clockValue, quietSince, shortAgo } from "./presence.js";
 export { shallowSigs } from "./application.js";
 export { shadowStage } from "./shadow-stage.js";
-export { agentName, revisionLabel } from "./context.js";
+export { revisionLabel } from "./context.js";
 export { loadDeferred, watchData } from "./data.js";
 export { clearDraft, loadDraft, saveDraft, sendDraft, watchDraft } from "./drafts.js";
 export {

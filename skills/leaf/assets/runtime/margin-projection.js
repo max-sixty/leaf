@@ -30,11 +30,12 @@
    or the viewport under the banner and over the bottom chrome — measures the card, and
    closes it once what it stands by has left that boundary. The card contains the
    complete inline thread view; the Threads panel remains the complete index and
-   takes over when already open. A right-rail card aligns its top to the cluster while
-   reading. While its reply has focus or draft text, its foot stays at the same
-   distance from the cluster as the editor grows; the boundary still has the last
-   word. Leaving an empty reply, closing the card, or selecting another thread
-   restores the reading alignment.
+   takes over when already open. While the card's reply has focus or draft text, the
+   card is held where it stood when that drafting began: on the same side, its foot
+   and the editor pinned to it at the same distance from the cluster, whatever the
+   draft, an arriving turn, or a send does to its height (the geometry's `held`).
+   Leaving an empty reply, closing the card, or selecting another thread lets it
+   choose its spot afresh.
 
    The card is margin chrome, not a native layer: it shows the threads of the target the
    user stands at, from the target, its cluster, or the card itself, so standing on an
@@ -109,14 +110,15 @@ import { compareMarginContributions } from "./margin-entry-model.js";
 import { mapButton } from "./page-map-dialog.js";
 import { watchProjection } from "./projection-watch.js";
 import {
-  TEXT_BOX,
   TEXT_FIELD,
   declareRelease,
   focusDestination,
   handBack,
+  holdFocus,
   letGo,
 } from "./focus.js";
 import { el, keeps, keepsHidden, offer } from "./widget-elements.js";
+import { setChildren } from "./dom-children.js";
 import { PRESS } from "./keyboard/bindings.js";
 import { beginWalk, listWalkPosition, rowWalk } from "./walk-position.js";
 import { ago, clocked } from "./presence.js";
@@ -470,12 +472,16 @@ export function createMarginProjection({
 
   let workflowCarriers = new Set();
   let selectedReadingCarriers = new Set();
-  const workflowReceipt = (items) =>
-    strongestWorkflow(
-      items
-        .map((item) => item.workflowReceipt)
-        .filter((workflow) => workflow && isWorkflowProgress(workflow)),
+  // Selected from the published workflows rather than gathered from the items, whose
+  // order is the margin's, so the strongest is the server's.
+  const workflowReceipt = (items) => {
+    const receipts = new Set(items.map((item) => item.workflowReceipt?.id));
+    return strongestWorkflow(
+      workflows().filter(
+        (workflow) => receipts.has(workflow.id) && isWorkflowProgress(workflow),
+      ),
     );
+  };
   const rows = new Map();
   const moreMarginEntries = new Map();
   const readingMarginEntries = new Map();
@@ -578,7 +584,10 @@ export function createMarginProjection({
   let previewReferenceSeen = false;
   let previewPositionWaiters = [];
   let previewFocusPending = null;
-  let rightFootOffset = null;
+  // Where the card last stood, and where it stands while its reply is drafted
+  // (thread-card-geometry.js, `hold`).
+  let lastHold = null;
+  let held = null;
   function answerThreadPreviewPosition(positioned) {
     const waiters = previewPositionWaiters;
     previewPositionWaiters = [];
@@ -597,8 +606,10 @@ export function createMarginProjection({
     previewPositionFrame = 0;
     previewPositionDismissDetached = false;
     previewReferenceSeen = false;
-    rightFootOffset = null;
+    lastHold = null;
+    held = null;
     delete preview.dataset.lfThreadPlacement;
+    delete preview.dataset.lfThreadHeld;
     preview.style.opacity = "0";
     preview.style.pointerEvents = "none";
   }
@@ -634,8 +645,9 @@ export function createMarginProjection({
       gap: CARD_GAP,
     });
   }
-  function measureThreadCard(width) {
+  function measureThreadCard(width, cap) {
     preview.style.setProperty("--lf-thread-width", `${width}px`);
+    preview.style.setProperty("--lf-thread-max-height", `${cap}px`);
     fitThreadCardEditors();
     return preview.getBoundingClientRect().height;
   }
@@ -674,17 +686,18 @@ export function createMarginProjection({
   function placeThreadPreview({ dismissDetached = false } = {}) {
     if (!previewOpen() || !previewMarginEntry?.isConnected) return false;
     const replyEditor = previewList.querySelector(REPLY_BOX);
+    // Drafting is standing anywhere in the reply's row, Send included: a pressed Send
+    // keeps its focus while the send empties the box, and the card must not move then.
     const drafting =
       replyEditor?.checkVisibility() &&
-      (replyEditor === document.activeElement || replyEditor.value !== "");
-    if (!drafting) rightFootOffset = null;
+      (replyEditor.closest(".lf-say").contains(document.activeElement) ||
+        replyEditor.value !== "");
+    // Drafting holds the card where it stood when the drafting began.
+    held = drafting ? (held ?? lastHold) : null;
     const cluster = threadCardCluster();
     const boundary = threadCardBoundary(targetFor(previewEntry));
     if (!boundary.width || !boundary.height) return false;
     const style = getComputedStyle(preview);
-    // The boundary alone caps the card's height; the geometry measures it under that
-    // cap at the width it chose, which the card is then wearing.
-    preview.style.setProperty("--lf-thread-max-height", `${boundary.height}px`);
     const geometry = threadCardGeometry({
       cluster,
       target: targetFor(previewEntry)?.getBoundingClientRect() ?? null,
@@ -693,10 +706,10 @@ export function createMarginProjection({
       minWidth: parseFloat(style.getPropertyValue("--thread-card-min")),
       preferredWidth: parseFloat(style.getPropertyValue("--thread-card")),
       heightAt: measureThreadCard,
-      rightFootOffset,
+      held,
     });
-    if (geometry.placement === "right" && rightFootOffset === null && drafting)
-      rightFootOffset = geometry.y + geometry.height - cluster.top;
+    lastHold = geometry.hold;
+    if (drafting) held = geometry.hold;
     if (geometry.detached) {
       if (previewReferenceSeen && dismissDetached) {
         closePreview();
@@ -704,8 +717,11 @@ export function createMarginProjection({
       }
     } else previewReferenceSeen = true;
     preview.style.left = `${geometry.x}px`;
-    preview.style.top = `${geometry.y + (geometry.placement === "right" ? geometry.height : 0)}px`;
+    // A held card writes its foot, so growth before the next placement moves its top.
+    preview.style.top = `${geometry.y + (drafting ? geometry.height : 0)}px`;
     preview.dataset.lfThreadPlacement = geometry.placement;
+    if (drafting) preview.dataset.lfThreadHeld = "";
+    else delete preview.dataset.lfThreadHeld;
     preview.style.removeProperty("opacity");
     preview.style.removeProperty("pointer-events");
     answerThreadPreviewPosition(true);
@@ -795,11 +811,7 @@ export function createMarginProjection({
     const groups = new Map();
     const receiptByCoordinate = new Map();
     for (const receipt of visibleWidgetWorkflows()) {
-      const coordinate =
-        typeof receipt.coordinate === "string"
-          ? receipt.coordinate
-          : JSON.stringify(receipt.coordinate);
-      receiptByCoordinate.set(coordinate, receipt);
+      receiptByCoordinate.set(JSON.stringify(receipt.coordinate), receipt);
     }
     const representedThreads = new Set();
     for (const thread of threadList()) {
@@ -973,7 +985,7 @@ export function createMarginProjection({
           false;
         const age = ago(update.ts);
         const account = [
-          update.agent || "Agent",
+          update.agent,
           update.text || humanized(update.action),
           quiet ? `Was working ${age}` : null,
         ]
@@ -1678,7 +1690,7 @@ export function createMarginProjection({
   }
 
   function moveHost(host, move) {
-    const held = host.contains(document.activeElement) ? document.activeElement : null;
+    const restoreFocus = holdFocus(host);
     // Moving a focused expanded cluster between lanes, when its target's scroller
     // changes, synchronously emits focusout. That is a placement transition, not the user
     // leaving the cluster, so keep the options state machine from treating it as an
@@ -1688,9 +1700,10 @@ export function createMarginProjection({
     const wasPlacingChrome = runtime.placingChrome;
     settlingOptionsFocus = true;
     runtime.placingChrome = true;
+    let kept = true;
     try {
       move();
-      if (held?.isConnected) held.focus({ preventScroll: true });
+      kept = restoreFocus?.() ?? true;
     } finally {
       settlingOptionsFocus = wasSettlingOptionsFocus;
       runtime.placingChrome = wasPlacingChrome;
@@ -1698,7 +1711,7 @@ export function createMarginProjection({
     // The one case where the placement did move the user: the control they were
     // standing on did not survive it, so focus is wherever the removal left it and the
     // standing paint is owed the news the guard above withheld.
-    if (held && document.activeElement !== held) repaint();
+    if (!kept) repaint();
   }
 
   function unfoldOpenThreadOwner(entry) {
@@ -1983,19 +1996,17 @@ export function createMarginProjection({
   }
 
   function buildThreadCard(entry, requestedItem = null) {
-    const focusedControl = [previewPrevious, previewNext, previewClose].find(
-      (control) => control === document.activeElement,
-    );
-    const focusedNode = preview.contains(document.activeElement)
-      ? document.activeElement.closest?.("[data-lf-margin-entry]")
+    const restoreFocus = holdFocus(preview);
+    const focusedItem = restoreFocus
+      ? (document.activeElement.closest?.("[data-lf-margin-entry]")?.lfMarginItem ??
+        null)
       : null;
-    const focusedItem = focusedNode?.lfMarginItem ?? null;
     const threadItems = entry.items.filter((item) => item.kind === "comment");
     const wanted = requestedItem ?? previewThreadItem ?? focusedItem;
     const selected = threadItems.find((item) => item.id === wanted) ?? threadItems[0];
     // Another thread starts at its top; an update to this one holds the reader's place.
     const arriving = previewThreadItem !== (selected?.id ?? null);
-    if (arriving) rightFootOffset = null;
+    if (arriving) held = null;
     const latest = selected ? turns(sourceItem(selected).thread).at(-1) : null;
     const messageSelector =
       ":scope > .lf-margin-thread > .lf-margin-thread-body > " +
@@ -2038,31 +2049,13 @@ export function createMarginProjection({
     previewPosition.textContent = `${selectedIndex + 1}/${threadItems.length}`;
     previewPrevious.disabled = selectedIndex === 0;
     previewNext.disabled = selectedIndex === threadItems.length - 1;
-    const nodes = selected ? [previewItemNode(selected)] : [];
-    const keep = new Set(nodes);
-    for (const child of [...previewList.children]) if (!keep.has(child)) child.remove();
-    let cursor = previewList.firstChild;
-    for (const node of nodes) {
-      if (node === cursor) cursor = cursor.nextSibling;
-      else previewList.insertBefore(node, cursor);
-    }
-    if (focusedItem && !focusedNode?.isConnected) {
-      const replacement = [
-        ...previewList.querySelectorAll("[data-lf-margin-entry]"),
-      ].find((candidate) => candidate.lfMarginItem === focusedItem);
-      const destination = replacement?.matches(
-        `button, :is(${TEXT_BOX}):not([disabled])`,
-      )
-        ? replacement
-        : (replacement?.querySelector(".lf-page-thread") ??
-          previewList.querySelector(".lf-page-thread") ??
-          previewClose);
-      destination.focus({ preventScroll: true });
-    }
-    if (focusedControl && document.activeElement !== focusedControl)
-      (previewNav.hidden ? previewClose : focusedControl).focus({
-        preventScroll: true,
-      });
+    setChildren(previewList, selected ? [previewItemNode(selected)] : []);
+    // The list holds the one thread the card shows, so a user whose place in a thread
+    // the rebuild took lands on that thread; a step button it hid hands them to Close.
+    restoreFocus?.(
+      focusedItem && previewList.querySelector(".lf-page-thread"),
+      previewClose,
+    );
     placeThreadPreview();
     previewPlace.finish(hold);
     previewLatest = latest && { thread: selected.id, id: latest.id, text: latest.text };
@@ -2212,11 +2205,7 @@ export function createMarginProjection({
     previewFocusPending = null;
     answerThreadPreviewPosition(false);
     resetThreadPreviewPosition();
-    if (previewOpen()) {
-      for (const reply of previewList.querySelectorAll(TEXT_FIELD))
-        reply.lfCollapseReply?.();
-      preview.hidden = true;
-    }
+    if (previewOpen()) preview.hidden = true;
     if (forcedOptionsKey && expandedOptionsKey === forcedOptionsKey)
       setOptionsOpen(null, false);
     refreshHighlight();
@@ -2736,14 +2725,13 @@ export function createMarginProjection({
       if (!onPaper.matches) renderMargin.refresh();
     });
     previewClose.onclick = () => closePreview(true);
-    preview.addEventListener("focusin", (event) => {
-      if (!event.target.matches(REPLY_BOX) || rightFootOffset !== null) return;
-      if (previewMarginEntry && preview.dataset.lfThreadPlacement === "right")
-        rightFootOffset =
-          preview.getBoundingClientRect().bottom - threadCardCluster().top;
-    });
     preview.addEventListener("focusout", (event) => {
-      if (event.target.matches(REPLY_BOX) && !event.target.value)
+      const row = event.target.closest?.(".lf-say");
+      if (
+        row &&
+        !row.contains(event.relatedTarget) &&
+        !row.querySelector(REPLY_BOX)?.value
+      )
         scheduleThreadPreviewPosition();
     });
     sizeObserver(() => scheduleThreadPreviewPosition()).observe(preview);

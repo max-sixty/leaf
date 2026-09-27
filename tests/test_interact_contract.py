@@ -4617,27 +4617,6 @@ def test_a_fresh_server_does_not_revalidate_the_active_revisions_inputs(
     assert linted == ["page <style>"]
 
 
-def test_a_margin_resident_s_floor_is_the_column_box_and_its_width_each_side():
-    """A sidebar or sidenote stands in the room free beside the centred column and claims
-    none of it, so it stands where that room holds it on each side: the column box plus
-    twice its width. Container queries cannot read custom properties, so each floor is a
-    pixel copy of tokens; hold the copy to them rather than let a width change strand a
-    resident over the prose or keep it in flow with room to spare."""
-    css = (schema_model.ASSETS / "theme.css").read_text()
-    token = lambda name: int(re.search(rf"{name}:\s*(\d+)px", css)[1])
-    box = token("--col") + 2 * token("--col-pad")
-    for resident, width in (
-        ("aside.sidebar", "--sidebar"),
-        ("aside.sidenote", "--note"),
-    ):
-        floor = box + 2 * token(width)
-        query = rf"@container lf-shell \(min-width: {floor}px\) \{{"
-        # The resident's rules, up to the next query.
-        assert re.search(rf"{query}(?:(?!@container)[\s\S])*?{resident}", css), (
-            f"{resident} does not stand from the {floor}px its {width} leaves each side"
-        )
-
-
 def test_media_names_a_file_by_its_bytes_and_serves_it(page_dir, tmp_path, server):
     """An image reaches a page by reference, because the page's author is a language
     model and a screenshot is a megabyte of base64 it cannot type. The name is the
@@ -4648,8 +4627,12 @@ def test_media_names_a_file_by_its_bytes_and_serves_it(page_dir, tmp_path, serve
     shot.write_bytes(b"\x89PNG\r\n\x1a\n" + b"pretend pixels")
     (url,) = [u for _, u in media_model.cmd_media(page_dir, [shot])]
     assert re.fullmatch(r"/media/[a-f0-9]{16}\.png", url)
-    # Re-adding the same bytes is the same file, not a second copy of it.
+    # Re-adding the same bytes is the same file, not a second copy of it, whatever
+    # case the source's suffix is in: the name is the one the server serves.
     assert media_model.cmd_media(page_dir, [shot])[0][1] == url
+    loud = tmp_path / "NAV.PNG"
+    loud.write_bytes(shot.read_bytes())
+    assert media_model.cmd_media(page_dir, [loud])[0][1] == url
     assert len(list((page_dir / "media").iterdir())) == 1
 
     status, body = fetch(server + url)
@@ -5071,12 +5054,15 @@ def test_the_reply_door_refuses_a_picture_the_page_directory_has_not_got(page_di
     them can only be one of the two having stopped asking."""
     shot = (
         '<lf-shot id="ps-shot" alt="the panel before and after" '
-        'before="/media/nope.png" after="/media/gone.png"></lf-shot>'
+        'before="/media/0000000000000001.png" after="/media/0000000000000002.png">'
+        "</lf-shot>"
     )
     (page_dir / "index.html").write_text(PAGE.replace("</main>", shot + "</main>"))
     refused = check(page_dir)
     assert refused.exit_code == 1
-    assert "/media/nope.png isn't in the page directory" in refused.output, (
+    assert (
+        "/media/0000000000000001.png isn't in the page directory" in refused.output
+    ), (
         f"the version door stopped asking, so the comparison below is empty: "
         f"{refused.output}"
     )
@@ -5103,7 +5089,9 @@ def test_the_reply_door_refuses_a_picture_the_page_directory_has_not_got(page_di
         f"the reply door froze a picture the page has not got into the log:\n"
         f"{posted.output}"
     )
-    assert "/media/nope.png isn't in the page directory" in posted.output, posted.output
+    assert "/media/0000000000000001.png isn't in the page directory" in posted.output, (
+        posted.output
+    )
     assert not [e for e in events_model.read_events(page_dir) if e["kind"] == "reply"]
 
 
@@ -5120,7 +5108,7 @@ def test_the_text_door_refuses_a_picture_the_page_directory_has_not_got(page_dir
     of the words, so the same path quoted in a sentence — a page explaining leaf writes
     one, and `version check` has always let it through — stays the author's prose. Every
     `/media/…` destination is asked about, the predicate the markup door's attribute
-    harvest already keeps: the directory holds digest-named files and nothing else, so a
+    harvest already keeps, and the server answers only a digest name there, so a
     destination that isn't one renders as a picture no request will ever answer."""
     publish(page_dir)
     missing = "/media/deadbeefdeadbeef.png"
@@ -5196,23 +5184,31 @@ def test_the_text_door_refuses_a_picture_the_page_directory_has_not_got(page_dir
         f"{referenced.output}"
     )
 
-    unnamed = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "thread",
-            "open",
-            str(page_dir),
-            "--text",
-            "look:\n\n![shot](/media/screenshot.png)",
-        ],
-    )
-    assert unnamed.exit_code == 1, (
-        f"the directory holds digest-named files and nothing else, so a destination "
-        f"under /media/ that isn't one is a picture it can never answer — the reading "
-        f"the markup door's attribute harvest already keeps:\n{unnamed.output}"
-    )
-
+    # A file copied in by hand under a name `leaf page media` never gives is one the
+    # server never serves, so the door asks the name before it asks the directory.
     (page_dir / "media").mkdir(exist_ok=True)
+    for unserved in ("screenshot.png", "deadbeefdeadbeef.PNG"):
+        (page_dir / "media" / unserved).write_bytes(b"\x89PNG\r\n\x1a\n")
+        unnamed = CliRunner().invoke(
+            cli_model.cli,
+            [
+                "thread",
+                "open",
+                str(page_dir),
+                "--text",
+                f"look:\n\n![shot](/media/{unserved})",
+            ],
+        )
+        assert unnamed.exit_code == 1, (
+            f"the server answers only a digest name, so a destination under /media/ "
+            f"that isn't one is a picture no request will ever load, whatever the "
+            f"directory holds:\n{unnamed.output}"
+        )
+        assert (
+            f"/media/{unserved} isn't a name `leaf page media` gives" in unnamed.output
+        ), unnamed.output
+        (page_dir / "media" / unserved).unlink()
+
     (page_dir / "media" / "deadbeefdeadbeef.png").write_bytes(b"\x89PNG\r\n\x1a\n")
     answered = CliRunner().invoke(
         cli_model.cli,

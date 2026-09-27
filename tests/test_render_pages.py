@@ -19,7 +19,7 @@ from leaf import schema as schema_model
 from leaf import structure as structure_model
 from leaf.passages import enclosing_ids, page_passages
 from leaf.registry import storage as registry_storage
-from leaf.render_checks import wait_until_ready
+from leaf.render_checks import rendered, wait_until_ready
 from leaf.render_gate import version as render_gate_model
 from PIL import Image, ImageChops, ImageStat
 from playwright.sync_api import expect
@@ -79,7 +79,6 @@ from render_harness import (
     page_registry,
     panel_settled,
     refuse,
-    rendered,
     resized,
     root_overflow,
     sending,
@@ -869,7 +868,7 @@ def test_a_reply_notice_survives_a_failed_state_and_keeps_its_agent(browser, ser
         )
     assert (
         page.evaluate(
-            "async () => (await window.__lfRuntimeImport('/runtime/widget-api.js')).agentName()"
+            "async () => (await window.__lfRuntimeImport('/runtime/context.js')).runtime.state.agent"
         )
         == "Agent"
     )
@@ -2741,23 +2740,26 @@ def test_a_wide_widget_leaves_the_sidenote_its_margin(browser, serve):
 
 
 def test_a_note_hangs_in_the_margin_where_the_room_holds_it(browser, serve):
-    """A sidenote claims nothing: the column keeps the page's axis at every width, and
-    the note hangs in the room beside it where that room holds the note's 384px, and
-    stands in the flow as a small indented block where it doesn't.
+    """A sidenote claims nothing from the column: it hangs in the room beside it where
+    the room either side of the column, together, holds the note's 384px, the column
+    moving left by what the right side lacks, and stands in the flow as a small indented
+    block where it doesn't. Where centring already leaves it the room, the column keeps
+    the page's axis.
 
     Every reading is against the page's box rather than the window, the two being the
-    same width only where a scrollbar takes no room. Body owns the document's scroll and
-    reserves a stable gutter for it, so on most platforms the page is 15px narrower than
-    the window and sits 7.5px to its left — a settled fact about the scroll region
-    (leaf.js) that the note has no part in."""
+    same width only where a scrollbar takes no room."""
     page = open_page(browser, serve(NOTE_AND_WIDE_PAGE))
-    for width, hangs in ((1190, False), (1600, True)):
+    for width, hangs, centred in (
+        (1100, False, True),
+        (1190, True, False),
+        (1600, True, True),
+    ):
         resized(page, width, 900)
         at = page.evaluate(ROOM_GEOMETRY)
         axis = at["pageBox"]["left"] + at["pageBox"]["width"] / 2
-        assert abs(at["column"]["centre"] - axis) <= 1, (
-            f"the column left the page's axis at {width}px: centred at "
-            f"{at['column']['centre']:.0f}px of a {at['pageBox']['width']:.0f}px page"
+        assert (abs(at["column"]["centre"] - axis) <= 1) == centred, (
+            f"at {width}px the column is centred at {at['column']['centre']:.0f}px of a "
+            f"{at['pageBox']['width']:.0f}px page"
         )
         float_ = page.evaluate(
             "() => getComputedStyle(document.getElementById('note')).float"
@@ -2776,6 +2778,35 @@ def test_a_note_hangs_in_the_margin_where_the_room_holds_it(browser, serve):
         assert root_overflow(page) == 0
 
 
+def test_a_note_the_page_does_not_show_takes_no_room(browser, serve):
+    """A note inside a closed disclosure is not on screen, so it needs no room beside
+    the column and the column stays centred; opening the disclosure brings it into the
+    margin, and closing it gives the room back."""
+    source = leaf_page(
+        "a note in a disclosure",
+        """
+<h1>Migration plan</h1>
+<details id="more"><summary>Why twice a month</summary>
+<aside class="sidenote" id="frequency">Support runs this twice a month.</aside>
+<p>The cadence follows the support rota.</p>
+</details>
+<p>Shift one cohort at a time while keeping the old readers available.</p>
+""",
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1200, 800)
+    main = page.locator("main")
+    expect(main).to_have_attribute("data-lf-margin", "rail")
+    centred = main.evaluate("node => node.getBoundingClientRect().left")
+    page.locator("#more > summary").click()
+    expect(main).to_have_attribute("data-lf-margin", "rail note")
+    expect(page.locator("#frequency")).to_have_css("float", "right")
+    page.locator("#more > summary").click()
+    expect(main).to_have_attribute("data-lf-margin", "rail")
+    expect(main).not_to_have_attribute("style", re.compile("--lf-shift"))
+    assert main.evaluate("node => node.getBoundingClientRect().left") == centred
+
+
 def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, serve):
     """The sidebar is a page-level margin resident rather than a narrower prose column.
 
@@ -2786,20 +2817,25 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
     to stop short of it.
 
     The Asks tray stands over the left margin and moves nothing in it. A narrow viewport
-    returns the aside to the flow from CSS alone, and print proves paper reserves no
-    blank margin for a posture it cannot use."""
-    # Compose the wide release-note exhibit with a sidebar; the short public draft
-    # no longer needs one of its own.
-    example = (
-        next(p for p in EXAMPLES if p.stem == "release-notes")
-        .read_text()
-        .replace(
+    returns the aside to the flow, and print proves paper reserves no blank margin for a
+    posture it cannot use.
+
+    A sidebar that holds only the map has nothing for a float to hold, so wherever the
+    map stands in the margin that sidebar stands as the map alone and takes no room in
+    the flow: the block after it stands where it would with the sidebar gone."""
+    # Compose the wide release-note exhibit with a sidebar holding the map and a line of
+    # its own; the short public draft no longer needs one of its own.
+    release = next(p for p in EXAMPLES if p.stem == "release-notes").read_text()
+
+    def with_sidebar(holds):
+        return release.replace(
             '<section id="rn-cli-section">',
-            '<aside class="sidebar" id="test-sidebar">'
+            f'<aside class="sidebar" id="test-sidebar">{holds}'
             '<lf-toc id="test-sidebar-toc"></lf-toc></aside>'
             '<section id="rn-cli-section">',
         )
-    )
+
+    example = with_sidebar('<p id="test-sidebar-release">Release 4.2</p>')
     page = open_page(browser, serve(example))
     sidebar = page.locator("aside.sidebar")
 
@@ -2980,29 +3016,29 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
 
     page.close()
 
-    page = open_page(browser, serve(example))
-    # Between the map's margin posture (848px of shell) and the sidebar's float (1296px),
-    # the sidebar stays in the flow with nothing in it, and takes no room there: the
-    # block after it stands where it would with the sidebar gone.
-    resized(page, 1100, 900)
-    margins_laid_out(page)
-    band = page.evaluate(
-        """() => {
-          const sidebar = document.querySelector('aside.sidebar');
-          const next = sidebar.nextElementSibling;
-          const kept = next.getBoundingClientRect().top;
-          sidebar.style.display = 'none';
-          const gone = next.getBoundingClientRect().top;
-          sidebar.style.display = '';
-          return {kept, gone, toc: getComputedStyle(sidebar.firstElementChild).position,
-                  float: getComputedStyle(sidebar).float};
-        }"""
-    )
-    assert band["toc"] == "fixed" and band["float"] == "none", band
-    assert band["kept"] == band["gone"], (
-        f"the sidebar the map left opened a gap in the flow: {band}"
-    )
+    page = open_page(browser, serve(with_sidebar("")))
+    for width in (1100, 1400):
+        resized(page, width, 900)
+        margins_laid_out(page)
+        band = page.evaluate(
+            """() => {
+              const sidebar = document.querySelector('aside.sidebar');
+              const next = sidebar.nextElementSibling;
+              const kept = next.getBoundingClientRect().top;
+              sidebar.style.display = 'none';
+              const gone = next.getBoundingClientRect().top;
+              sidebar.style.display = '';
+              return {kept, gone, float: getComputedStyle(sidebar).float,
+                      toc: getComputedStyle(sidebar.querySelector('lf-toc')).position};
+            }"""
+        )
+        assert band["toc"] == "fixed" and band["float"] == "none", (width, band)
+        assert band["kept"] == band["gone"], (
+            f"at {width}px the sidebar the map left opened a gap in the flow: {band}"
+        )
+    page.close()
 
+    page = open_page(browser, serve(example))
     resized(page, 700, 900)
     narrow = page.evaluate(reading)
     assert narrow["taken"] == 0
@@ -3021,11 +3057,13 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
 def test_margin_residents_stand_where_the_room_beside_the_column_holds_them(
     browser, serve
 ):
-    """Neither resident claims room from the column: each stands in the margin on its
-    side where the room free beside a centred column holds it, a sidebar's 264px from
-    1296px of shell and a note's 384px from 1536px, and in the flow where it doesn't.
-    So the column keeps its measure and its axis at every width, and each resident
-    arrives on its own.
+    """One measurement admits the margin's residents in order: the rail where the room
+    right of the centred column holds it, then the sidebar, then the note, each where the
+    room on both sides together holds what those admitted need on each side. The column
+    moves over by what one side lacks, so a sidebar stands from the column box plus the
+    rail and its own width, and a note beside it from the box plus both widths. Neither
+    takes from the column: it keeps its measure at every width, and each resident stands
+    inside the window.
 
     The second sidebar is the other composition case: only the first direct child of
     main may take the sticky page-level slot, so an accidental second one remains in
@@ -3055,47 +3093,66 @@ def test_margin_residents_stand_where_the_room_beside_the_column_holds_them(
         probe.remove();
         return width;
       };
+      const box = (node) => {
+        const s = getComputedStyle(node), b = node.getBoundingClientRect();
+        return {float: s.float, position: s.position, left: b.left, right: b.right};
+      };
       return {
-        sidebars: [...document.querySelectorAll('aside.sidebar')].map(node => {
-          const s = getComputedStyle(node), b = node.getBoundingClientRect();
-          return {float: s.float, position: s.position, left: b.left,
-                  right: b.right, top: b.top, bottom: b.bottom};
-        }),
-        noteFloat: getComputedStyle(document.querySelector('aside.sidenote')).float,
+        sidebars: [...document.querySelectorAll('aside.sidebar')].map(box),
+        note: box(document.querySelector('aside.sidenote')),
         column: {
           left: mb.left + parseFloat(ms.paddingLeft),
           right: mb.right - parseFloat(ms.paddingRight),
           width: mb.width - parseFloat(ms.paddingLeft) - parseFloat(ms.paddingRight),
+          box: mb.width,
         },
         taken: length('--lf-taken-l, 0px'),
+        needs: {rail: length('--rail'), sidebar: length('--sidebar'),
+                note: length('--note')},
         shell: document.body.clientWidth,
       };
     }"""
 
     page = open_page(browser, url)
-    residents = lambda at: (
-        [(side["float"], side["position"]) for side in at["sidebars"]],
-        at["noteFloat"],
-    )
-    in_flow = [("none", "static"), ("none", "static")]
-    sidebar = [("left", "sticky"), ("none", "static")]
-    for width, expected in (
-        (1200, (in_flow, "none")),
-        (1400, (sidebar, "none")),
-        (1600, (sidebar, "right")),
+    at = page.evaluate(reading)
+    box, needs = at["column"]["box"], at["needs"]
+    sidebar_from = round(box + needs["rail"] + needs["sidebar"])
+    note_from = round(box + needs["sidebar"] + needs["note"])
+    for width, standing in (
+        (sidebar_from - 1, "rail"),
+        (sidebar_from, "rail sidebar"),
+        (note_from - 1, "rail sidebar"),
+        (note_from, "rail sidebar note"),
     ):
         resized(page, width, 800)
+        expect(page.locator("main")).to_have_attribute("data-lf-margin", standing)
         at = page.evaluate(reading)
-        assert residents(at) == expected, (width, at)
         assert at["column"]["width"] == 720, (width, at)
-        centre = (at["column"]["left"] + at["column"]["right"]) / 2
-        assert abs(centre - at["shell"] / 2) <= 1, (width, at)
         assert root_overflow(page) == 0, (width, at)
-        if expected[0] == sidebar:
+        first, second = at["sidebars"]
+        assert (second["float"], second["position"]) == ("none", "static"), (width, at)
+        if "sidebar" in standing:
+            assert (first["float"], first["position"]) == ("left", "sticky"), (
+                width,
+                at,
+            )
             # Sticky, the sidebar can stand level with any band, so it takes its side.
             assert at["taken"] > 0, (width, at)
-            assert at["sidebars"][0]["right"] <= at["column"]["left"] - 23, (width, at)
-            assert at["sidebars"][1]["left"] >= at["column"]["left"] - 1, (width, at)
+            assert first["left"] >= 0, (width, at)
+            assert first["right"] <= at["column"]["left"] - 23, (width, at)
+        else:
+            assert (first["float"], first["position"]) == ("none", "static"), (
+                width,
+                at,
+            )
+            centre = (at["column"]["left"] + at["column"]["right"]) / 2
+            assert abs(centre - at["shell"] / 2) <= 1, (width, at)
+        if "note" in standing:
+            assert at["note"]["float"] == "right", (width, at)
+            assert at["note"]["left"] >= at["column"]["right"] + 23, (width, at)
+            assert at["note"]["right"] <= at["shell"], (width, at)
+        else:
+            assert at["note"]["float"] == "none", (width, at)
 
     # The Asks tray stands over the page and grants or withdraws no margin.
     toggle_asks(page)

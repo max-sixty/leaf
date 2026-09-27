@@ -12,8 +12,7 @@ ORPHAN_GRACE_SECS = 1
 # session pages. Claim renewal and service lifetime: session-lifetime.md.
 ACTIVITY_GRACE_SECS = 4 * 60 * 60
 # The harness-neutral name of an agent nothing names: a page's when no claimant
-# supplies one, and an agent-authored event's that carries no `agent`. context.js
-# uses the same label before a browser has an authoritative state, including exports.
+# supplies one, and an agent-authored event's that carries no `agent` (`agent_name`).
 UNNAMED_AGENT = "Agent"
 # Non-message gesture kinds eligible for withdrawal; events.undo_error handles
 # reactions. The complete eligibility contract is events.md, "Undo".
@@ -490,6 +489,11 @@ MEDIA_TYPES = {
     ".webp": "image/webp",
     ".svg": "image/svg+xml",
 }
+# A media file's name is the first MEDIA_DIGEST hex characters of its bytes' SHA-256
+# and a lowercase MEDIA_TYPES suffix: `media.media_name` mints it, `DIR_FILES` serves
+# it, and the agent's reference doors refuse any other name under `/media/`. The
+# browser and the Worker know the directory and never the name.
+MEDIA_DIGEST = 16
 NO_KEY = "open the link leaf printed; it carries the key"
 DATA_FILE = "data.json"
 DATA_DIR = "data"
@@ -540,7 +544,9 @@ DIR_FILES = {
     "runtime": r"(?:[a-z0-9-]+/)*[a-z0-9-]+\.(?:js|css)",
     "widgets": r"(?:[a-z0-9-]+/)*[a-z0-9-]+\.js",
     "vendor": (r"(?:(?!\.{1,2}/)[A-Za-z0-9._-]+/)*" r"(?!\.{1,2}$)[A-Za-z0-9._-]+"),
-    MEDIA_DIR: r"[a-f0-9]{16}(?:" + "|".join(re.escape(e) for e in MEDIA_TYPES) + ")",
+    MEDIA_DIR: rf"[a-f0-9]{{{MEDIA_DIGEST}}}(?:"
+    + "|".join(re.escape(e) for e in MEDIA_TYPES)
+    + ")",
 }
 SERVED_PATH = re.compile(
     "/(?:"
@@ -560,3 +566,14 @@ CONTENT_TYPES = {
     **MEDIA_TYPES,
 }
 BINARY_TYPES = frozenset(MEDIA_TYPES.values()) - {"image/svg+xml"}
+
+
+def agent_name(event: dict) -> str | None:
+    """The name an agent-authored event is shown under, and None for any other
+    author's: its posting session's `agent`, or `UNNAMED_AGENT` where it was written
+    outside a host session and so carries none. The log stores no placeholder
+    (`host.message_identity`); every reading that shows the event names it through
+    here, so the browser, the margin, the activity feed and the transcript agree."""
+    if event["author"] != "agent":
+        return None
+    return event.get("agent") or UNNAMED_AGENT

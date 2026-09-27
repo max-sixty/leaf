@@ -1084,14 +1084,16 @@ lf-metric[direction="up-bad"][delta^="+"] > [data-lf-said="delta"]
 /* The board's minimum is every column at its floor and the gaps between them. A layout
  * that respects a widget's minimum, as a flex item's or a grid track's automatic minimum
  * does, gives the board that much or wraps it onto a row of its own; held to less, the
- * board scrolls its columns inside itself. The shell caps it, so a phone narrower than
- * the minimum scrolls the board rather than the page. Screen only: a sheet has no room
+ * board scrolls its columns inside itself. The nearest size container caps it: the
+ * shell, or a framed box holding the board (a pane's body, a card), and a specimen,
+ * which cannot be one, through `--lf-box-cap`. So a phone or a box narrower
+ * than the minimum scrolls the board rather than the page. Screen only: a sheet has no room
  * beside the column to give, so on paper the board is the column's width. */
 lf-board { --lf-board-columns: 1; }
 @media screen {
   lf-board { min-inline-size: min(calc(var(--lf-board-columns)
                * var(--lf-reading-column-floor) + (var(--lf-board-columns) - 1) * var(--sp-2)),
-               calc(100cqi - 2 * var(--col-pad))); }
+               calc(100cqi - 2 * var(--col-pad)), var(--lf-box-cap, 100vw)); }
 }
 lf-board:has(> lf-column:nth-of-type(2)) { --lf-board-columns: 2; }
 lf-board:has(> lf-column:nth-of-type(3)) { --lf-board-columns: 3; }
@@ -1175,7 +1177,8 @@ lf-column:has(> [data-lf-said="label"])::before { content: none; }
 lf-card { display: block; position: relative; background: var(--card);
           font: var(--t-5)/1.5 var(--sans);
           border: 1px solid var(--rule); border-radius: var(--r);
-          padding: 12px var(--lf-card-inset); margin: 0 0 var(--sp-2); --lf-block-frame: 1; }
+          padding: 12px var(--lf-card-inset); margin: 0 0 var(--sp-2);
+          container-type: inline-size; --lf-block-frame: 1; }
 /* The column the grip hangs in, spent only where a grip hangs: the module measures its
    own grip's box and states the room (--lf-grip-room, lf-board.js), the same answer the
    pick column already is, so the ladder moving or a platform substituting a different
@@ -1613,7 +1616,8 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
        * document beneath it. */
       lf-toc[data-lf-outline] .lf-toc-nav {
         --lf-toc-label-opacity: 1;
-        width: max(40px, min(320px, calc(var(--lf-beside) - 2 * var(--sp-4))));
+        width: max(40px, min(320px,
+          calc(var(--lf-beside) + var(--lf-shift, 0px) - 2 * var(--sp-4))));
         background: var(--paper);
         overflow-y: auto; pointer-events: auto;
       }
@@ -1803,6 +1807,10 @@ lf-ask { display: block; }
 lf-specimen { display: table; table-layout: fixed; width: 100%;
               box-sizing: border-box; margin: 18px 0; padding-left: var(--sp-4);
               border-left: 3px solid var(--border-2); --lf-block-frame: 1; }
+/* Containment does not apply to a table, so the specimen cannot be the size container
+ * a framed box is (theme.css, at the pane's body). Its width is fixed, so it states the
+ * cap for what it holds as a percentage instead, which resolves against its cell. */
+lf-specimen > * { --lf-box-cap: 100%; }
 lf-specimen::before,
 lf-specimen > [data-lf-said="label"] { display: table-caption;
               font-size: var(--t-6); margin-bottom: var(--sp-1);

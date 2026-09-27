@@ -50,7 +50,7 @@ from leaf import render_checks as render_checks_model
 from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
 from leaf import structure as structure_model
-from leaf.render_checks import wait_until_ready
+from leaf.render_checks import one_frame, rendered, wait_until_ready
 from leaf.render_gate import scheme as render_gate_model
 from model_folds import leaf_page
 from page_fixtures import package_selection_args, prepare_page, read_fixture
@@ -754,59 +754,26 @@ def holding(page, held, count, what):
 # on whatever budget expect() happens to carry. Timed, that wait takes 1.8 to 2.3 of the
 # default five seconds, and it takes them every time.
 #
-# So ask the page what it holds. The server names each state it serves with a reading
-# and the runtime paints the one it has completely applied, so "has this page taken in
-# what I just wrote" is one comparison and names no transport. Counting answered
-# requests said the same thing only while a fixed interval made them the same thing:
-# the page now asks when its news stream says the page has moved, so a count of asks
-# started here reaches the answer that carries the news only by luck of the ordering.
-#
-# The wanted reading is re-read each round rather than fixed at entry, because the page
-# is allowed to move past it — a work claim ages, a neighbour writes — and a wait pinned
-# to a reading the page has already overtaken would sit out its whole deadline.
-def _server_reading(page):
-    """What the server would answer with now, asked without disturbing the page.
-
-    Through the context's request API rather than the page: it carries the same cookie,
-    and it is not seen by page routes or by the traffic watcher, so a test that stubs or
-    counts /api/state sees exactly what it did before this call existed.
-    """
-    origin = urlsplit(page.url)
-    answer = page.request.get(f"{origin.scheme}://{origin.netloc}/api/state")
-    assert answer.ok, f"the server would not say what it holds: {answer.status}"
-    return answer.json()["reading"]
-
-
+# So ask the page whether it has caught up with what the server holds: its readiness
+# reading answers that against an `/api/state` answer, and names no transport.
+# Counting answered requests said the same thing only while a fixed interval made them
+# the same thing: the page now asks when its news stream says the page has moved, so a
+# count of asks started here reaches the answer that carries the news only by luck of
+# the ordering.
 def told(page):
     """Wait until the page has taken in everything the server now holds.
 
     Call it after the test writes a version, event, status, or lease behind a live
-    page, before reading that page."""
-    deadline = time.monotonic() + 30
-    began = None
-    while True:
-        want = _server_reading(page)
-        if began is None:
-            began = want
-        remaining = deadline - time.monotonic()
-        if remaining <= 0:
-            raise AssertionError(
-                f"the page never took in what the server holds: waiting for {began}, "
-                f"the page last applied "
-                f"{page.evaluate('() => document.body?.dataset.lfReading')}"
-            )
-        try:
-            page.wait_for_function(
-                "want => document.body?.dataset.lfReading === want",
-                arg=want,
-                timeout=min(500, remaining * 1000),
-                polling=50,
-            )
-            return
-        except PlaywrightTimeout:
-            # Either the page has not caught up yet or the revision moved under this
-            # wait. Both are answered by asking again with what the server holds now.
-            continue
+    page, before reading that page. It asks only through the `state` stage: a test may
+    write behind a page it is holding mid-gesture, where the rest of readiness waits on
+    the gesture rather than the write. The server's answer is asked through the
+    context's request API rather than the page: it carries the same cookie, and it is
+    not seen by page routes or by the traffic watcher, so a test that stubs or counts
+    /api/state sees exactly what it did before this call existed."""
+    origin = urlsplit(page.url)
+    answer = page.request.get(f"{origin.scheme}://{origin.netloc}/api/state")
+    assert answer.ok, f"the server would not say what it holds: {answer.status}"
+    wait_until_ready(page, answer.json(), through="state")
 
 
 def nudge(page_dir):
@@ -1131,60 +1098,6 @@ def consume_browser_errors(page, *expected):
     return errors
 
 
-# Frame waits compose into page scripts such as RING_NEW_STOP. Since evaluate
-# supplies no timeout, their page-side timer rejects when frames stop arriving.
-# It cannot bound a blocked renderer main thread: that also stops setTimeout.
-FRAME_DEADLINE_MS = 30_000
-FRAMES = (
-    "(turns) => new Promise((rendered, ranOut) => {\n"
-    "  const deadline = setTimeout(\n"
-    "    () => ranOut(new Error(`only ${turns - left} of ${turns} rendering turns arrived`)),\n"
-    f"    {FRAME_DEADLINE_MS});\n"
-    "  let left = turns;\n"
-    "  const step = () => {\n"
-    "    if (--left > 0) return requestAnimationFrame(step);\n"
-    "    setTimeout(() => {\n"
-    "      clearTimeout(deadline);\n"
-    "      rendered();\n"
-    "    });\n"
-    "  };\n"
-    "  requestAnimationFrame(step);\n"
-    "})"
-)
-# One turn is the frame a write has been through: nested animation-frame callbacks have one
-# complete rendering turn between them, so this states rendered progress rather than
-# elapsed time between two frame polls. Each wait ends in a task queued from its last
-# callback, after that update's ResizeObserver deliveries.
-ONE_FRAME = f"() => ({FRAMES})(1)"
-RENDERING_SETTLED = """() => {
-  const settled = document.querySelector('script[data-lf-entry]')?.lfRenderingSettled;
-  if (!settled) throw new Error('this document has no Leaf rendering reading');
-  return settled();
-}"""
-
-
-def rendered(page):
-    """Wait until the runtime has rendered what the input so far asked for.
-
-    Its settled reading (runtime/rendering.js) says nothing it queued is waiting and its
-    last rendering update was quiet. A read after a coalesced repaint, however many
-    updates that repaint chains through, waits here instead of guessing a count. One
-    whole update passes first, observers included, so a change no Leaf callback took
-    part in — a wheel, a resize — has had its turn to unsettle the reading.
-
-    Work that re-queues itself on every update never settles: a fold the test holds
-    mid-animation keeps its place hold correcting each frame. Wait `ONE_FRAME` there,
-    where one update is the claim."""
-    page.evaluate(ONE_FRAME)
-    try:
-        page.wait_for_function(RENDERING_SETTLED, timeout=FRAME_DEADLINE_MS)
-    except PlaywrightTimeout as error:
-        raise AssertionError(
-            "the page's rendering never settled: counted work was queued again on "
-            "every update"
-        ) from error
-
-
 # What navigate reports when a ResizeObserver loop notice comes back on the confirming
 # navigation, so a one-off notice is dropped and a recurring one fails the test.
 RECURRING_RESIZE_NOTICE = (
@@ -1215,7 +1128,7 @@ def navigate(page, url, *, wait_until="load", upgraded=True):
             )
         # Let the rendering turn that earned the readiness stamp finish. A loop
         # notice is delivered by that turn, rather than by the DOM write alone.
-        page.evaluate(ONE_FRAME)
+        one_frame(page)
         fresh = errors[start:]
         del errors[start:]
         notices = [
@@ -1809,7 +1722,7 @@ def resized(page, width, height):
     """Resize and wait for the page's listeners and rendering update.
 
     `set_viewport_size` alone does not prove that resize listeners ran. The
-    counter is installed after the runtime's listeners; `ONE_FRAME` then lets
+    counter is installed after the runtime's listeners; `one_frame` then lets
     the document's scrolling area catch up before the caller measures it.
     Wait separately for any resulting motion whose geometry is under test.
 
@@ -1825,7 +1738,7 @@ def resized(page, width, height):
     }""")
     page.set_viewport_size({"width": width, "height": height})
     page.wait_for_function("() => window.lfResizes > window.lfResizesWas")
-    page.evaluate(ONE_FRAME)
+    one_frame(page)
 
 
 def root_overflow(page) -> float:

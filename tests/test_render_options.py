@@ -2631,12 +2631,6 @@ def test_the_gutter_runs_beside_the_exhibit_and_no_further(source, browser, serv
             )
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="lf-board caps its minimum at the shell less the column's gutters, which a "
-    "specimen's own rule and inset overrun on a phone; TODO.md, Layouts, 'Cap a "
-    "widget's minimum by the box that holds it'",
-)
 def test_a_specimen_holds_a_wide_exhibit_inside_the_column(browser, serve):
     """An exhibit wider than the column scrolls inside its own box, as it does
     anywhere else on the page. What makes that true here is one declaration —

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createSemanticApplication } from "./application.ts";
 import { createPresentationCoordinator } from "./presentation.ts";
+import { servedThread, servedWorkflow } from "../../tests/served.mjs";
 
 const spec = { unit: "widget" };
 const descriptor = {
@@ -63,6 +64,9 @@ const state = (taken, events = []) => ({
               spec,
               scope: "page",
               value: event.action,
+              restated: [],
+              absorbed: false,
+              stands: true,
             })),
             actions: events.map((event) => event.id),
             reports: [],
@@ -73,6 +77,17 @@ const state = (taken, events = []) => ({
     },
   },
 });
+// A served workflow for one input to `thread`, its opening message unless named.
+const threadWorkflow = (id, { thread = "root", input = thread, ...changes } = {}) =>
+  servedWorkflow({
+    id,
+    input,
+    subject: { kind: "thread", id: thread },
+    thread,
+    coordinate: ["thread", thread],
+    answer: { kind: "reply", to: input, for: input },
+    ...changes,
+  });
 const capture = (extraDescriptors = [], extraAuthored = []) => {
   const app = createSemanticApplication();
   app.identify(1);
@@ -503,16 +518,8 @@ test("one publication keeps per-input workflows and user-first thread attention"
   const app = setup();
   const reading = state(2);
   reading.browser.thread.threads = [
-    {
-      id: "root",
-      root: {
-        id: "root",
-        kind: "comment",
-        author: "user",
-        ts: "2026-09-22T10:00:00-07:00",
-        text: "First",
-      },
-      msgs: [
+    servedThread(
+      [
         {
           id: "root",
           kind: "comment",
@@ -529,34 +536,12 @@ test("one publication keeps per-input workflows and user-first thread attention"
           text: "Second",
         },
       ],
-      anchor: null,
-      resolved: null,
-      bare_reaction: false,
-      unread: [],
-      seat: null,
-      summaries: [],
-      attention: { kind: "needs_user", reason: "ask", workflow: null },
-    },
+      { attention: { kind: "needs_user", reason: "ask", workflow: null } },
+    ),
   ];
   reading.workflows = [
-    {
-      id: "first-work",
-      input: "root",
-      subject: { kind: "thread", id: "root" },
-      stage: "replying",
-      activity: [],
-      condition: null,
-      next_actor: "agent",
-    },
-    {
-      id: "second-work",
-      input: "newer",
-      subject: { kind: "thread", id: "root" },
-      stage: "queued",
-      activity: [],
-      condition: null,
-      next_actor: "agent",
-    },
+    threadWorkflow("first-work", { stage: "replying", seq: 1 }),
+    threadWorkflow("second-work", { input: "newer", stage: "queued", seq: 2 }),
   ];
   app.adopt(reading);
   const thread = app.read().effective.thread.all[0];
@@ -589,32 +574,15 @@ test("local delivery supplies and can override non-Ask thread attention", () => 
   const app = setup();
   const reading = state(2);
   reading.browser.thread.threads = [
-    {
-      id: "root",
-      root: {
+    servedThread([
+      {
         id: "root",
         kind: "comment",
         author: "user",
         ts: "2026-09-22T10:00:00-07:00",
         text: "First",
       },
-      msgs: [
-        {
-          id: "root",
-          kind: "comment",
-          author: "user",
-          ts: "2026-09-22T10:00:00-07:00",
-          text: "First",
-        },
-      ],
-      anchor: null,
-      resolved: null,
-      bare_reaction: false,
-      unread: [],
-      seat: null,
-      summaries: [],
-      attention: null,
-    },
+    ]),
   ];
   app.adopt(reading);
   app.enqueue(
@@ -635,19 +603,7 @@ test("local delivery supplies and can override non-Ask thread attention", () => 
 
   const acceptedApp = setup();
   const acceptedReading = structuredClone(reading);
-  acceptedReading.workflows = [
-    {
-      id: "accepted-send",
-      seq: 1,
-      revision: 1,
-      input: "root",
-      subject: { kind: "thread", id: "root" },
-      stage: "sent",
-      activity: [],
-      condition: null,
-      next_actor: "agent",
-    },
-  ];
+  acceptedReading.workflows = [threadWorkflow("accepted-send")];
   acceptedReading.browser.thread.threads[0].attention = {
     kind: "waiting",
     reason: "workflow",
@@ -690,6 +646,20 @@ test("a refused local message publishes one failed workflow before retirement", 
   assert.equal(app.read().effective.workflows.length, 0);
 });
 
+test("a local send's workflow takes the served workflow's shape", () => {
+  const app = setup();
+  app.enqueue(action("move"), "now");
+  app.reject("move");
+  const [move] = app.read().effective.workflows;
+  assert.deepEqual(
+    [move.subject, move.thread, move.holds_thread, move.coordinate],
+    [{ kind: "widget", id: "choice" }, null, false, coordinate],
+  );
+  // Every field the server sends but the undelivered-only ones it has no reading of.
+  const { quiet: _quiet, dropped: _dropped, ...served } = servedWorkflow();
+  assert.deepEqual(Object.keys(move).sort(), Object.keys(served).sort());
+});
+
 test("a version being marked read reads read, outside the gesture ledger", () => {
   const app = setup();
   const reading = state(2);
@@ -703,18 +673,9 @@ test("a version being marked read reads read, outside the gesture ledger", () =>
     text: "Answer",
   };
   reading.browser.thread.threads = [
-    {
-      id: root.id,
-      root,
-      msgs: [root],
-      anchor: null,
-      resolved: null,
-      bare_reaction: false,
-      seat: null,
-      summaries: [],
-      attention: null,
+    servedThread([root], {
       unread: [{ message: "agent-root", version: "agent-root" }],
-    },
+    }),
   ];
   app.adopt(reading);
   const thread = () => app.read().effective.thread.all[0];
@@ -811,6 +772,27 @@ test("filtered widget state is selected inside the publisher", () => {
   assert.equal(outcomeOf(app.selectWidgets(null).get("choice").state), "accept");
 });
 
+test("undoing the standing decision reveals the newest one the server says stands", () => {
+  const older = { ...action("older", "reject"), id: "e1", seq: 1 };
+  const newer = { ...action("newer"), id: "e2", seq: 2 };
+  // Whether the older decision survives is the server's reading: taken back or
+  // retracted, it no longer stands, and the authored state shows through instead.
+  for (const [olderStands, revealed] of [
+    [true, "reject"],
+    [false, null],
+  ]) {
+    const app = setup();
+    const reading = state(2, [older, newer]);
+    const projection = reading.browser.views[1].document.projection;
+    projection.entries[0].stands = olderStands;
+    projection.actions = [newer.id];
+    app.adopt(reading);
+    assert.equal(decision(app), "accept");
+    app.enqueue({ kind: "undo", undoes: newer.id, attempt: "undo" }, "now");
+    assert.equal(decision(app), revealed);
+  }
+});
+
 test("receipt adoption keeps attempts until presentation proof and preserves dependent undo", () => {
   const app = setup();
   const first = app.enqueue(action("first"), "now");
@@ -841,9 +823,7 @@ test("thread acceptance is semantic before presentation can retire its local han
   const accepted = { ...comment, id: "e1", author: "user", ts: "now" };
   const read = state(2);
   read.browser.receipts = [accepted];
-  read.browser.thread.threads = [
-    { id: accepted.id, root: accepted, msgs: [accepted], resolved: false, unread: [] },
-  ];
+  read.browser.thread.threads = [servedThread([accepted])];
   app.adopt(read);
   app.accept("comment", accepted);
   assert.equal(app.read().effective.thread.all.length, 1);
@@ -865,18 +845,7 @@ test("widget selections publish the canonical held thread", () => {
     ts: "now",
   };
   const accepted = state(2);
-  accepted.browser.thread.threads = [
-    {
-      id: root.id,
-      root,
-      anchor: null,
-      msgs: [root],
-      resolved: null,
-      bare_reaction: false,
-      unread: [],
-      seat: descriptor.id,
-    },
-  ];
+  accepted.browser.thread.threads = [servedThread([root], { seat: descriptor.id })];
   app.adopt(accepted);
   assert.equal(selected.read().thread.heldBy, accepted.browser.thread.threads[0].id);
 
@@ -898,26 +867,25 @@ for (const resolved of [null, { author: "user" }]) {
       text: "Which one?",
       ts: "now",
     };
+    // The server owes nobody a turn in a resolved thread; an open one waits on the
+    // user's answer.
+    const standing = resolved ? null : "needs_user";
     const accepted = state(2);
     accepted.browser.thread.threads = [
-      {
-        id: root.id,
-        root,
-        anchor: null,
-        msgs: [root],
+      servedThread([root], {
         resolved,
-        attention: { kind: "needs_user", reason: "ask", workflow: null },
-        bare_reaction: false,
-        unread: [],
-        seat: null,
-      },
+        user_prompt: resolved ? null : { message: root.id, version: root.id },
+        attention: resolved
+          ? null
+          : { kind: "needs_user", reason: "ask", workflow: null },
+      }),
     ];
     app.adopt(accepted);
     const turn = () => {
       const thread = app.read().effective.thread.all[0];
       return [thread.attention?.kind ?? null, thread.resolved];
     };
-    assert.deepEqual(turn(), ["needs_user", resolved]);
+    assert.deepEqual(turn(), [standing, resolved]);
 
     app.enqueue(
       {
@@ -931,7 +899,7 @@ for (const resolved of [null, { author: "user" }]) {
     );
     assert.deepEqual(turn(), ["waiting", null]);
     app.remove(new Set(["answer"]));
-    assert.deepEqual(turn(), ["needs_user", resolved]);
+    assert.deepEqual(turn(), [standing, resolved]);
 
     app.enqueue(
       {
@@ -966,16 +934,9 @@ test("a pending prose reply does not hide a frozen structural Ask", () => {
     unanswered: [frozen],
   };
   accepted.browser.thread.threads = [
-    {
-      id: root.id,
-      root,
-      anchor: null,
-      msgs: [root],
-      resolved: null,
-      bare_reaction: false,
-      unread: [],
-      seat: null,
-    },
+    servedThread([root], {
+      attention: { kind: "needs_user", reason: "ask", workflow: null },
+    }),
   ];
   app.adopt(accepted);
 
@@ -1014,17 +975,12 @@ test("a thread whose opening message the log lost is known by its id, not its ro
     const reading = state(2);
     reading.browser.thread.asks = { all: asks, user: asks, unanswered: asks };
     reading.browser.thread.threads = [
-      {
+      servedThread([kept], {
         id: "lost",
-        root: kept,
-        anchor: null,
-        msgs: [kept],
-        resolved: null,
-        attention: null,
-        bare_reaction: false,
-        unread: [],
-        seat: null,
-      },
+        attention: asks.length
+          ? { kind: "needs_user", reason: "ask", workflow: null }
+          : null,
+      }),
     ];
     return reading;
   };
@@ -1066,34 +1022,21 @@ test("a pending resend replaces accepted recovery until refusal", () => {
   };
   const accepted = state(2);
   accepted.browser.thread.threads = [
-    {
-      id: root.id,
-      root,
-      anchor: null,
-      msgs: [root],
-      resolved: null,
+    servedThread([root], {
       attention: {
         kind: "needs_user",
         reason: "recovery",
         workflow: "failed-response",
       },
-      bare_reaction: false,
-      unread: [],
-      seat: null,
-    },
+    }),
   ];
   accepted.workflows = [
-    {
-      id: "failed-response",
-      seq: 1,
-      revision: 1,
-      input: root.id,
-      subject: { kind: "thread", id: root.id },
+    threadWorkflow("failed-response", {
+      thread: root.id,
       stage: "answered",
-      activity: [],
       condition: { kind: "failed", operation: "response" },
       next_actor: "user",
-    },
+    }),
   ];
   app.adopt(accepted);
 
@@ -1220,6 +1163,9 @@ test("a standing report supplies desired widget state", () => {
         spec: valueSpec,
         scope: "page",
         value: "reported",
+        restated: [],
+        absorbed: false,
+        stands: false,
       },
     ],
     actions: [],
@@ -1249,18 +1195,7 @@ test("a reaction root is not a spoken turn awaiting the user", () => {
     ts: "now",
   };
   const accepted = state(2);
-  accepted.browser.thread.threads = [
-    {
-      id: root.id,
-      root,
-      anchor: null,
-      msgs: [root],
-      resolved: null,
-      bare_reaction: true,
-      unread: [],
-      seat: null,
-    },
-  ];
+  accepted.browser.thread.threads = [servedThread([root], { bare_reaction: true })];
 
   app.adopt(accepted);
   assert.equal(app.read().effective.thread.all[0].attention, null);

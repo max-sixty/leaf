@@ -265,7 +265,7 @@ def asset_site(out: Path) -> Path:
 
 def media_url(source: Path) -> str:
     """The page path an image takes once `leaf page media` has stored it."""
-    return f"/{MEDIA_DIR}/{media_name(source.read_bytes(), source.suffix.lower())}"
+    return f"/{MEDIA_DIR}/{media_name(source.read_bytes(), source.suffix)}"
 
 
 def social_images(catalog_previews: Path | None = None) -> dict[str, str]:
@@ -500,7 +500,7 @@ def publish_live_shells(
             page_root=page_root,
             release_id=release,
             asset_root=asset_root,
-            before_runtime=site_metadata(page_root, entry),
+            head=site_metadata(page_root, entry),
         )
     write_crawler_directives(assets, sorted(manifest["pages"]))
     manifest_text = json.dumps(manifest, indent=2, sort_keys=True) + "\n"

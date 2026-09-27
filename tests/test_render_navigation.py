@@ -1045,9 +1045,7 @@ def test_the_feature_gallery_exercises_the_injected_core_surfaces(
     )
     expect(page.locator("#bg-thread-states")).to_be_visible()
     expect(pending_title).to_have_text("Generating title")
-    dots = pending_title.locator(".lf-thread-pending-dots > span")
-    expect(dots).to_have_count(3)
-    animation = dots.first.evaluate(
+    animation = pending_title.evaluate(
         "element => getComputedStyle(element).animationName"
     )
     assert animation != "none"

@@ -47,8 +47,8 @@ own window (an approval, a question) is observed work that stands for as long as
 its observer does. Delivery opened into the claimant's running turn also proves
 generic activity before its first work declaration; the receipt itself remains
 Picked up. `counts.overdue` counts the owed moves that stalled with the agent to
-act, still Sent past the pickup grace or left by a turn that ended or went quiet
-before answering; over an `away` page they are when the banner asks the user to
+act, still Sent past the pickup grace or left by a turn that ended or was
+interrupted before answering; over an `away` page they are when the banner asks the user to
 nudge the session. The banner and Leaves tray consume this same reading and present
 delivery counts separately.
 

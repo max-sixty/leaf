@@ -3190,7 +3190,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     declare("working", "running the migration", quiet_for=6 * 60, turn_ended=5 * 60)
     expect(text).to_have_text(
         "Claude left this when its turn ended 5m ago. 2 updates are saved."
-        " Nothing has picked them up, so nudge it in the terminal."
+        " Nothing is answering them, so nudge it in the terminal."
     )
     expect(summary).to_have_text("Nudge Claude in terminal · 2 saved")
     expect(dot).to_have_class(re.compile(r"\baway\b"))

@@ -480,13 +480,13 @@ function statusWords({
   }
   if (kind === "stalled")
     return [shortDate, `${dated}${detail ? ": " + detail : ""}. ${saved}`];
-  // Away is only worth a nudge once input has waited past the pickup grace with
-  // nothing to carry it: the session's next turn picks up whatever it finds, and
-  // for a harness Leaf can message, a new comment is itself the nudge.
+  // Away is only worth a nudge once input has stalled (`counts.overdue`): the
+  // session's next turn picks up whatever it finds, and Leaf messages a harness it
+  // can reach once it has seen the turn end.
   return overdue
     ? [
         `Nudge ${agent} in terminal${savedSummary}`,
-        `${dated}. ${saved} Nothing has picked them up, so nudge it in the terminal.`,
+        `${dated}. ${saved} Nothing is answering them, so nudge it in the terminal.`,
       ]
     : [
         `${agent} away${savedSummary}`,

@@ -1043,11 +1043,11 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-threads > .lf-thread:nth-last-child(1 of :not([hidden])) {
     border-block-end-color: transparent; margin-bottom: 0; }
   /* A single title row remains when the retained thread is closed. Optional
-     labels occupy only the space they use; count and time share the trailing keyline. */
+     status and recency occupy only the space they use. */
   .lf-thread-compact { --lf-thread-pad: 0px; margin: 0; padding: 0;
     background: transparent; border-radius: 0; }
   .lf-pinned + .lf-thread-compact { padding-top: 0; }
-  .lf-thread-summary { display: grid; grid-template-columns: minmax(0, 1fr) auto;
+  .lf-thread-summary { display: grid; grid-template-columns: minmax(0, 1fr) auto auto;
     align-items: center; gap: 8px; width: 100%; min-height: max(32px, var(--aim-floor)); border: 0;
     padding: 4px 8px; background: transparent; color: var(--ink);
     text-align: left; font: 500 13px/20px var(--sans); cursor: pointer; }
@@ -1074,7 +1074,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-thread-status { max-width: 150px; min-width: 0; overflow: hidden; text-overflow: ellipsis;
     white-space: nowrap; color: var(--muted); font-size: 11px; }
   .lf-thread-status[data-lf-turn="user"] { color: var(--turn-ink); }
-  .lf-thread-trailing { grid-column: 2; display: flex; align-items: center;
+  .lf-thread-trailing { grid-column: 3; display: flex; align-items: center;
     justify-content: flex-end; gap: 4px; color: var(--muted); white-space: nowrap; }
   .lf-thread-recency { font-size: 11px; }
   @container (max-width: 400px) {

@@ -89,6 +89,25 @@ def test_gallery_thread_rows_name_action_in_existing_status(browser, serve):
     expect(recency).to_have_attribute("datetime", "2026-09-02T00:12:56-07:00")
     expect(recency).to_have_text(re.compile(r"^(now|\d+[mhd])$"))
     expect(summary.locator(".lf-thread-count")).to_have_count(0)
+    regular = summary.evaluate(
+        """summary => {
+          const box = selector => summary.querySelector(selector).getBoundingClientRect();
+          const topic = box('.lf-thread-topic');
+          const status = box('.lf-thread-status');
+          const trailing = box('.lf-thread-trailing');
+          const center = rect => rect.top + rect.height / 2;
+          return {
+            panelWidth: summary.closest('.lf-thread-panel').getBoundingClientRect().width,
+            statusBesideTopic: Math.abs(center(topic) - center(status)) < 2,
+            timeBesideStatus: Math.abs(center(status) - center(trailing)) < 2,
+            timeAfterStatus: trailing.left >= status.right,
+          };
+        }"""
+    )
+    assert regular["panelWidth"] > 400
+    assert regular["statusBesideTopic"]
+    assert regular["timeBesideStatus"]
+    assert regular["timeAfterStatus"]
     page.evaluate(
         "document.documentElement.style.setProperty('--lf-thread-panel-width', '320px')"
     )

@@ -1099,36 +1099,46 @@ export function createVersionController({
   }
 
   // ---------- live revision activation ----------
+  // What the outgoing revision wrote on a root and the arriving one does not comes off,
+  // what the arriving one writes differently goes on, and what both write is left
+  // standing. These roots are `html` and `body`, where a class or attribute that comes
+  // off and goes back on restyles the whole document, so the layer's rule against
+  // rewriting what a node already says (`keeps`) matters most here.
   function replaceAuthoredAttributes(target, source, prior) {
-    const scratch = document.createElement(target.localName);
-    for (const [name, value] of prior) scratch.setAttribute(name, value);
     const runtimeState = runtimeRootState(target);
-    for (const name of prior.keys()) {
-      if (name === "class")
-        for (const token of scratch.classList) target.classList.remove(token);
-      else if (name === "style")
-        for (const property of scratch.style) {
-          // Inline style is the one root attribute whose members can have different
-          // owners. Registered runtime properties survive; every other declaration is
-          // authored and retires with its revision like every other source attribute.
-          if (!runtimeState.styles.has(property)) target.style.removeProperty(property);
-        }
-      else if (!runtimeState.attributes.has(name)) target.removeAttribute(name);
-    }
     const next = authoredAttributes(source);
-    for (const [name, value] of next) {
-      if (name === "class") {
-        for (const token of value.split(" ")) target.classList.add(token);
-      } else if (name === "style") {
-        for (const property of source.style)
-          if (!runtimeState.styles.has(property))
-            target.style.setProperty(
-              property,
-              source.style.getPropertyValue(property),
-              source.style.getPropertyPriority(property),
-            );
-      } else if (!runtimeState.attributes.has(name)) target.setAttribute(name, value);
+    const tokens = (value) => new Set(value?.split(" "));
+    const nextTokens = tokens(next.get("class"));
+    for (const token of tokens(prior.get("class")))
+      if (!nextTokens.has(token)) target.classList.remove(token);
+    for (const token of nextTokens)
+      if (!target.classList.contains(token)) target.classList.add(token);
+    // Inline style is the one root attribute whose members can have different owners.
+    // Registered runtime properties survive; every other declaration is authored and
+    // retires with its revision like every other source attribute.
+    const priorStyle = document.createElement(target.localName).style;
+    priorStyle.cssText = prior.get("style") ?? "";
+    for (const property of priorStyle)
+      if (
+        !runtimeState.styles.has(property) &&
+        !source.style.getPropertyValue(property)
+      )
+        target.style.removeProperty(property);
+    for (const property of source.style) {
+      if (runtimeState.styles.has(property)) continue;
+      const value = source.style.getPropertyValue(property);
+      const priority = source.style.getPropertyPriority(property);
+      if (
+        target.style.getPropertyValue(property) !== value ||
+        target.style.getPropertyPriority(property) !== priority
+      )
+        target.style.setProperty(property, value, priority);
     }
+    const plain = (name) =>
+      name !== "class" && name !== "style" && !runtimeState.attributes.has(name);
+    for (const name of prior.keys())
+      if (plain(name) && !next.has(name)) target.removeAttribute(name);
+    for (const [name, value] of next) if (plain(name)) keeps(target, name, value);
     return next;
   }
 

@@ -45,8 +45,8 @@ from leaf.validation.markup import (
     unpointable_blocks,
 )
 from leaf.validation.source_history import (
+    EMPTY_READING,
     NO_PREDECESSOR,
-    NO_PREVIOUS,
     PredecessorReading,
     continuity_errors,
     predecessor_reading,
@@ -263,7 +263,7 @@ def check_source(
     """Check ``index.html`` against the last activated revision."""
     data, source_error = _source_bytes(page_dir)
     if source_error:
-        return SourceCheck(NO_PREVIOUS, None, [source_error], [])
+        return SourceCheck(EMPTY_READING, None, [source_error], [])
     html = data.decode("utf-8")
     document = SourceDocument(html)
     errors = []

@@ -68,9 +68,10 @@ class TransitionReading(NamedTuple):
     projection: StateProjection
 
 
-# No document to keep anything of: a first version, or a sample's child.
-NO_PREVIOUS = SourceReading(SourceDocument(""), {})
-NO_PREDECESSOR = PredecessorReading(0, False, False, 0, NO_PREVIOUS)
+# An empty document under no vocabulary: the predecessor of a first version or a
+# sample's child, and the reading of a source that could not be read at all.
+EMPTY_READING = SourceReading(SourceDocument(""), {})
+NO_PREDECESSOR = PredecessorReading(0, False, False, 0, EMPTY_READING)
 
 
 def predecessor_reading(
@@ -103,7 +104,7 @@ def predecessor_reading(
         committed_active,
         bool(active and same_as_active and artifact is not None),
         predecessor,
-        read_revision(page_dir, predecessor) if predecessor else NO_PREVIOUS,
+        read_revision(page_dir, predecessor) if predecessor else EMPTY_READING,
     )
 
 

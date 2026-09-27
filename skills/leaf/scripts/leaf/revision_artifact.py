@@ -671,7 +671,7 @@ def write_artifact(
     page_dir: Path,
     revision: int,
     artifact: RevisionArtifact,
-    reading: SourceReading | None = None,
+    reading: SourceReading,
 ) -> Path:
     """Publish a complete immutable bundle, then its discoverable HTML marker.
 
@@ -713,9 +713,8 @@ def write_artifact(
         raise ArtifactError(f"{destination}: immutable artifact digest collision")
     os.link(destination / "index.html", marker)
     fsync_parents([marker])
-    if reading is not None:
-        marker = marker.absolute()
-        _hold(marker, file_stamp(marker), RevisionReading(marker, reading))
+    marker = marker.absolute()
+    _hold(marker, file_stamp(marker), RevisionReading(marker, reading))
     return marker
 
 

@@ -8940,7 +8940,8 @@ customElements.define('lf-ranked', class extends HTMLElement {
 
 def test_a_reordered_projection_keeps_the_user_in_the_row_they_stand_in(browser, serve):
     """A renderer reusing a row keeps its focused control, so a reorder moving that row
-    must not drop the user to the page body: they stay in its box, caret included."""
+    must not drop the user to the page body: they stay in its box, caret included. A row
+    hidden in place hands them to the stand-in its renderer names."""
     entry = {
         "description": "Rows a widget ranks and re-ranks.",
         "type": "object",
@@ -8973,6 +8974,20 @@ def test_a_reordered_projection_keeps_the_user_in_the_row_they_stand_in(browser,
     ).to_be_attached()
     expect(note).to_be_focused()
     assert note.evaluate("(box) => [box.selectionStart, box.selectionEnd]") == [2, 5]
+
+    # A row the renderer hides with `visibility: hidden` still holds focus until the
+    # browser blurs it a frame later, so the hold hands the user to the stand-in.
+    page.evaluate(
+        """async () => {
+          const {holdFocus} = await window.__lfRuntimeImport('/runtime/focus.js');
+          const row = document.querySelector('[data-lf-datum="worker"]');
+          const restore = holdFocus(row.parentElement);
+          row.style.visibility = 'hidden';
+          window.landed = restore(document.querySelector('[data-lf-datum="api"] input'));
+        }"""
+    )
+    expect(page.get_by_role("textbox", name="Note on api")).to_be_focused()
+    assert page.evaluate("() => window.landed")
 
 
 def test_command_hub_repaints_anchors_after_generated_projections_change(

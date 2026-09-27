@@ -114,6 +114,10 @@ export const deepFocus = (at = document.activeElement) => {
 // platform's retargeting answers that: a user inside a widget's shadow tree stands
 // inside the scope holding the widget.
 let restoring = false;
+// Drawn counts `visibility: hidden` as hidden: a node under it keeps focus for a frame
+// and then the browser blurs it to the body, as it does a node under `display: none`.
+const drawn = (node) =>
+  node?.isConnected && node.checkVisibility({ visibilityProperty: true });
 export function holdFocus(scope) {
   const standing = scope.getRootNode().activeElement;
   if (!standing || standing === document.body || !scope.contains(standing)) return null;
@@ -132,7 +136,7 @@ export function holdFocus(scope) {
     document.removeEventListener("focusin", place, { capture: true });
     if (placed) return false;
     for (const node of [held, ...standIns]) {
-      if (!node?.isConnected || !node.checkVisibility()) continue;
+      if (!drawn(node)) continue;
       if (deepFocus() === node) return true;
       restoring = true;
       try {

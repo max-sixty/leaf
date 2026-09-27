@@ -12,9 +12,9 @@ BESIDE = (900, 900)
 
 
 @contextmanager
-def tab(browser: Browser, address: str, viewport=DESKTOP, scheme="light"):
-    """A fresh tab at `address`, settled, at `viewport` and in `scheme`, with reduced
-    motion so a still never catches a transition midway."""
+def tab(browser: Browser, viewport=DESKTOP, scheme="light"):
+    """A fresh blank tab at `viewport` and in `scheme`, with reduced motion so a still
+    never catches a transition midway. A caller listens on it before it `load`s."""
     context = browser.new_context(
         viewport={"width": viewport[0], "height": viewport[1]},
         color_scheme=scheme,
@@ -23,11 +23,15 @@ def tab(browser: Browser, address: str, viewport=DESKTOP, scheme="light"):
     try:
         page = context.new_page()
         page.set_default_timeout(15_000)
-        page.goto(address)
-        settle(page)
         yield page
     finally:
         context.close()
+
+
+def load(page: Page, address: str) -> None:
+    """Open `address` and wait until the page has settled."""
+    page.goto(address)
+    settle(page)
 
 
 def settle(page: Page) -> None:

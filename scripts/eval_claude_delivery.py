@@ -5,7 +5,7 @@ This is a basic, imperfect eval: a starting point that needs work before its num
 support more than "no obvious regression". Each round launches one headless Claude
 Code session per arm and case at the same time, with the plugin from BASE_REF or
 from HEAD, so commit what you want measured. Each arm and child is built by
-`eval_harness.py`. Each session serves the same page (this checkout's
+`leaf_dev.harness`. Each session serves the same page (this checkout's
 `examples/triage-board.html`) and starts its background `leaf wait`. The script then
 posts real comments over HTTP, at the moments a case names:
 

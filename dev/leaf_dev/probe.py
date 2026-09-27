@@ -14,8 +14,14 @@ settles before and after the input (`leaf_dev.browser`). The steps (`STEPS`, lis
 `probe --help`) are the inputs throwaway probes kept writing; `drive:NAME` reuses a
 `leaf-dev stills` state's input, so a state added there is reachable here too.
 
+Console errors are collected from the first request, so a page that fails to boot
+says why. A failure at any stage, from building the page to the screenshot, ends
+that arm's reading with the stage and the error, and the next arm still runs: a
+probe is most often run where one version is broken.
+
 The page is not held open afterwards: each run is a fresh page, so two runs read the
-same starting state.
+same starting state. Each run's screenshots go in a directory of their own under
+`.tmp/probe/`, so concurrent probes never overwrite each other.
 """
 
 import json
@@ -29,7 +35,7 @@ from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import Page, sync_playwright
 
 from leaf_dev import ROOT
-from leaf_dev.browser import DESKTOP, settle, tab
+from leaf_dev.browser import DESKTOP, load, settle, tab
 from leaf_dev.example_data import named_source
 from leaf_dev.harness import build_arm, merge_base, serving_source
 from leaf_dev.stills import DRIVERS
@@ -51,6 +57,10 @@ STEPS = {
 }
 
 
+class NotShown(Exception):
+    """The element a screenshot was to be cropped to is not displayed."""
+
+
 def step(value: str) -> tuple[str, str]:
     verb, _, arg = value.partition(":")
     if verb not in STEPS or not arg:
@@ -64,7 +74,9 @@ def step(value: str) -> tuple[str, str]:
 
 def source_path(value: str) -> Path:
     path = Path(value).expanduser()
-    if path.suffix == ".html" and path.is_file():
+    if path.suffix == ".html":
+        if not path.is_file():
+            raise click.BadParameter(f"no file at {path}")
         return path.resolve()
     try:
         return named_source(value)
@@ -80,10 +92,14 @@ def viewport(value: str) -> tuple[int, int]:
 
 
 def crop(page: Page, selector: str) -> dict:
-    """The viewport region around the first element `selector` matches. A viewport
-    capture clipped to it, rather than an element screenshot, keeps fixed chrome
-    where the user sees it."""
-    box = page.locator(selector).first.bounding_box()
+    """The viewport region around the first element `selector` matches, scrolled into
+    view. A viewport capture clipped to it, rather than an element screenshot, keeps
+    fixed chrome where the user sees it."""
+    element = page.locator(selector).first
+    if not element.is_visible():
+        raise NotShown(f"nothing matching {selector} is displayed")
+    element.scroll_into_view_if_needed()
+    box = element.bounding_box()
     size = page.viewport_size
     left, top = max(box["x"] - CROP_MARGIN, 0), max(box["y"] - CROP_MARGIN, 0)
     right = min(box["x"] + box["width"] + CROP_MARGIN, size["width"])
@@ -91,28 +107,39 @@ def crop(page: Page, selector: str) -> dict:
     return {"x": left, "y": top, "width": right - left, "height": bottom - top}
 
 
-def read(page: Page, steps, expression, shot, path: Path) -> dict:
-    """Run the steps on a settled tab and read it; a step or read that fails ends the
-    reading with its error, since the other arm may still answer."""
-    errors = []
-    page.on(
-        "console",
-        lambda message: message.type == "error" and errors.append(message.text),
-    )
-    page.on("pageerror", lambda error: errors.append(str(error)))
-    reading = {}
+def read_arm(browser, label: str, arm: Path, source: Path, look: dict) -> dict:
+    """Build and serve `source` on `arm`, bring a tab to the state `look` asks for,
+    and read it. A stage that fails ends the reading with the stage and its error."""
+    errors, reading = [], {}
+    doing = "build"
     try:
-        for verb, arg in steps:
-            doing = f"{verb}:{arg}"
-            STEPS[verb](page, arg)
-        doing = "settle"
-        settle(page)
-        doing = "read"
-        reading["result"] = page.evaluate(expression) if expression else None
-        if shot is not None:
-            page.screenshot(path=path, clip=crop(page, shot) if shot else None)
-            reading["shot"] = str(path)
-    except (PlaywrightError, PageNotReady) as error:
+        with (
+            serving_source(arm, source, look["scratch"] / label) as address,
+            tab(browser, look["viewport"], look["scheme"]) as page,
+        ):
+            page.on(
+                "console",
+                lambda message: message.type == "error" and errors.append(message.text),
+            )
+            page.on("pageerror", lambda error: errors.append(str(error)))
+            doing = "load"
+            load(page, address)
+            for verb, arg in look["steps"]:
+                doing = f"{verb}:{arg}"
+                STEPS[verb](page, arg)
+            doing = "settle"
+            settle(page)
+            doing = "eval"
+            expression = look["expression"]
+            reading["result"] = page.evaluate(expression) if expression else None
+            if (shot := look["shot"]) is not None:
+                doing = "shot"
+                path = look["out"] / f"{label}.png"
+                page.screenshot(path=path, clip=crop(page, shot) if shot else None)
+                reading["shot"] = str(path)
+    except click.ClickException as error:
+        reading["failed"] = f"{doing}: {error.format_message()}"
+    except (PlaywrightError, PageNotReady, NotShown) as error:
         reading["failed"] = f"{doing}: {str(error).splitlines()[0]}"
     return {**reading, "errors": errors}
 
@@ -173,34 +200,33 @@ def probe(source, steps, expression, shot, size, dark, base) -> None:
       drive:NAME    a `leaf-dev stills` state's input, e.g. card-by-keyboard
 
     Focus rings draw only once a key has been pressed, so start a keyboard journey
-    with press:Tab or a drive: input that does.
+    with press:Tab or a drive: input that does. --shot and --base take an optional
+    value, so put SOURCE before them or give them one (--base=, --shot=SEL).
 
-    Prints one JSON line per arm: what --eval returned (or where it failed), the
-    page's console errors and uncaught exceptions, and with --shot the screenshot's
-    path under .tmp/probe/.
+    Prints one JSON line per arm: what --eval returned, or the stage that failed
+    and why; the page's console errors and uncaught exceptions from its first
+    request; and with --shot the screenshot's path under .tmp/probe/.
     """
     OUT.mkdir(parents=True, exist_ok=True)
+    look = {
+        "steps": steps,
+        "expression": expression,
+        "shot": shot,
+        "viewport": size,
+        "scheme": "dark" if dark else "light",
+        "out": Path(tempfile.mkdtemp(prefix=f"{source.stem}-", dir=OUT)),
+    }
     with tempfile.TemporaryDirectory(prefix="leaf-probe-") as built:
-        scratch = Path(built)
+        scratch = look["scratch"] = Path(built)
         arms = {"worktree": ("worktree", ROOT)}
         if base is not None:
-            commit = build_arm(base or merge_base(), scratch / "base")
-            arms = {"base": (commit, scratch / "base"), **arms}
+            commit = build_arm(base or merge_base(), scratch / "base-arm")
+            arms = {"base": (commit, scratch / "base-arm"), **arms}
         with sync_playwright() as playwright:
             browser, _ = launch_browser(playwright)
             try:
                 for arm, (ran, arm_dir) in arms.items():
-                    with (
-                        serving_source(
-                            arm_dir, source, scratch / f"{arm}-page"
-                        ) as address,
-                        tab(
-                            browser, address, size, "dark" if dark else "light"
-                        ) as page,
-                    ):
-                        reading = read(
-                            page, steps, expression, shot, OUT / f"{arm}.png"
-                        )
+                    reading = read_arm(browser, arm, arm_dir, source, look)
                     click.echo(json.dumps({"arm": arm, "ran": ran, **reading}))
             finally:
                 browser.close()

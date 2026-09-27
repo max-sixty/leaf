@@ -126,13 +126,19 @@ def serving(arm: Path, state: Path, page: Path):
         server.wait(10)
 
 
+def build_source(arm: Path, state: Path, source: Path, page: Path) -> None:
+    """Build the authored `source` into the page directory `page` with the arm's own
+    launcher under the state home `state`. The checkout is an arm too: `ROOT` runs
+    its working tree."""
+    prepare_page(page, read_fixture(source), partial(run_leaf, arm, state, check=True))
+
+
 @contextmanager
 def serving_source(arm: Path, source: Path, scratch: Path):
-    """Build the authored `source` into a page under `scratch` with the arm's own
-    launcher and a state home of its own, serve it (`serving`), and yield the
-    address. The checkout is an arm too: `ROOT` runs its working tree."""
+    """Build `source` into a page under `scratch` (`build_source`), serve it
+    (`serving`), and yield the address."""
     state, page = scratch / "state", scratch / "page"
-    prepare_page(page, read_fixture(source), partial(run_leaf, arm, state, check=True))
+    build_source(arm, state, source, page)
     with serving(arm, state, page) as address:
         yield address
 

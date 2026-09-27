@@ -2,17 +2,18 @@
 # commands; the scripts under `scripts/`, the suite, and the eval harnesses in `notes/`
 # import its modules. It is a workspace member that only the root dev group depends
 # on, so `bin/leaf`, which runs `--no-dev`, never installs it or what it needs.
+#
+# It names no dependency on `leaf`, though its modules import it: it always runs
+# beside one, and which one is the caller's choice. `preview.py --runtime` overlays
+# this package onto another checkout's environment, whose `leaf` it must not replace.
 [project]
 name = "leaf-dev"
 version = "0"
 requires-python = ">=3.10"
-dependencies = ["leaf", "click>=8", "pillow>=12.1"]
+dependencies = ["click>=8", "pillow>=12.1"]
 
 [project.scripts]
 leaf-dev = "leaf_dev.cli:cli"
-
-[tool.uv.sources]
-leaf = { workspace = true }
 
 [build-system]
 requires = ["uv_build>=0.9"]

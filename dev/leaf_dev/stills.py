@@ -47,7 +47,7 @@ from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import Page, sync_playwright
 
 from leaf_dev import ROOT
-from leaf_dev.browser import BESIDE, DESKTOP, settle, tab
+from leaf_dev.browser import BESIDE, DESKTOP, load, settle, tab
 from leaf_dev.harness import build_arm, merge_base, serving_source
 
 OUT = ROOT / ".tmp" / "stills"
@@ -172,7 +172,8 @@ def capture(browser, address: str, state: State, path: Path) -> str | None:
     """Bring a fresh tab to `state` and screenshot its viewport to `path`; return
     the error if the state's input failed."""
     try:
-        with tab(browser, address, state.viewport, state.scheme) as page:
+        with tab(browser, state.viewport, state.scheme) as page:
+            load(page, address)
             state.drive(page)
             settle(page)
             page.screenshot(path=path)

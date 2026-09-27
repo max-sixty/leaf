@@ -690,14 +690,12 @@ version = "0"
 source = { editable = "dev" }
 dependencies = [
     { name = "click" },
-    { name = "leaf" },
     { name = "pillow" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "click", specifier = ">=8" },
-    { name = "leaf", editable = "." },
     { name = "pillow", specifier = ">=12.1" },
 ]
 

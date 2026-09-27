@@ -814,7 +814,9 @@ def start_preview_worker(source: Path, page: Path, runtime: Path, user: bool) ->
     """Become the preview, in the selected checkout's uv environment.
 
     That environment is the one `bin/leaf` syncs, which carries no dev group, so the
-    watcher's own dependency is overlaid onto it rather than installed into it. The
+    watcher's own dependency and this checkout's `leaf_dev`, which builds the page from
+    the fixture, are overlaid onto it rather than installed into it. `leaf_dev` names
+    no `leaf` of its own, so the overlay leaves the selected checkout's `leaf` in place. The
     launcher is replaced rather than kept as a parent, so whatever stops this
     process — Ctrl-C, or a runner's SIGTERM, which `uv run` forwards — reaches the
     preview itself.
@@ -828,6 +830,8 @@ def start_preview_worker(source: Path, page: Path, runtime: Path, user: bool) ->
         str(runtime),
         "--with",
         WATCHER_PACKAGE,
+        "--with-editable",
+        str(ROOT / "dev"),
         "python",
         str(Path(__file__).resolve()),
         "--source",

@@ -1369,26 +1369,77 @@ def test_no_has_rule_restyles_the_whole_document():
     )
 
 
+def _without_has_arguments(compound):
+    """The compound with each `:has(…)`'s argument removed, so an element the `:has()`
+    looks for is not read as the element it stands on."""
+    while (at := compound.find(":has(")) >= 0:
+        depth = 0
+        for end in range(at + 4, len(compound)):
+            depth += {"(": 1, ")": -1}.get(compound[end], 0)
+            if not depth:
+                break
+        compound = compound[:at] + compound[end + 1 :]
+    return compound
+
+
 def test_no_has_rule_stands_on_the_chrome_root():
     """Chrome re-reads a `:has()` on every insertion below the element it stands on, and
     one on the chrome root answered by restyling the whole chrome. The Page Map toggle's
     `:scope:has(> .lf-margin-projection > …[data-lf-pins])` did that for every text node
     the runtime wrote anywhere in the chrome: each geometry read after a write paid about
     4 ms for 800 elements on the corpus page, several times per comment sent. Say such a
-    condition as an attribute on the root, as `data-lf-rail-covered` is."""
-    root = re.compile(r"^(:scope|\.lf-chrome)(?![-\w])")
+    condition as an attribute on the root, as `data-lf-rail-covered` is.
+
+    The root is `.lf-chrome` in any sheet and, inside the layer's one `@scope`, which is
+    the chrome's, `:scope` and a top-level `&`, each also inside `:is()` or `:where()`."""
+    sheets = [
+        *sorted(schema_model.ASSETS.glob("*.css")),
+        *sorted((schema_model.ASSETS / "runtime").glob("*.css")),
+        *sorted(schema_model.BUNDLED_PACKAGES.glob("*/*.css")),
+    ]
+
+    def scope_roots(rules):
+        for rule in rules:
+            if rule.type != "at-rule" or rule.content is None:
+                continue
+            if rule.lower_at_keyword == "scope":
+                yield " ".join(tinycss2.serialize(rule.prelude).split())
+            yield from scope_roots(
+                tinycss2.parse_blocks_contents(
+                    rule.content, skip_comments=True, skip_whitespace=True
+                )
+            )
+
+    scopes = {
+        root
+        for sheet in sheets
+        for root in scope_roots(
+            tinycss2.parse_stylesheet(
+                sheet.read_text(), skip_comments=True, skip_whitespace=True
+            )
+        )
+    }
+    assert scopes == {"(.lf-chrome)"}, scopes
+    chrome = re.compile(r"\.lf-chrome(?![-\w])")
+    scoped = re.compile(r":scope(?![-\w])|&")
     read = 0
     rooted = []
-    for _conditions, _enclosing, selector, _declarations in _style_rules(
-        schema_model.ASSETS / "runtime" / "chrome.css"
-    ):
-        read += 1
-        if any(
-            root.match(compound) and ":has(" in compound
-            for compound in _split_top(selector, " >+~")
-        ):
-            rooted.append(selector)
-    assert read, "no rules read from chrome.css — the reading is broken"
+    for sheet in sheets:
+        for _conditions, enclosing, selector, _declarations in _style_rules(sheet):
+            read += 1
+            for compound in _split_top(selector, " >+~"):
+                if ":has(" not in compound:
+                    continue
+                stands = _without_has_arguments(compound)
+                if chrome.search(stands) or (
+                    "scope" in enclosing and scoped.search(stands)
+                ):
+                    rooted.append(
+                        f"{sheet.relative_to(schema_model.ASSETS.parent)}: {selector}"
+                    )
+                    break
+    assert read, "no rules read from the layer's sheets — the reading is broken"
+    assert _without_has_arguments(".a:has(.b:has(.c)).d") == ".a.d"
     assert not rooted, "a :has() on the chrome root restyles the whole chrome:\n" + (
         "\n".join(rooted)
     )

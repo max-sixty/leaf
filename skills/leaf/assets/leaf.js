@@ -806,6 +806,10 @@ if (!offlineInteractive) {
     pageShifted: pageGeometry.pageShifted,
     paintStandingGeometry: standing.paintStandingGeometry,
   });
+} else {
+  // An interactive export attaches no chrome, so its standing is only what a widget's
+  // own box shows: an options group's addition field paints there as it does live.
+  mountRepaint({ paintStandingGeometry: inputs.paintInputs });
 }
 
 const replayReady = passiveSpecimen

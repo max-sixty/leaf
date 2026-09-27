@@ -274,22 +274,19 @@ def run(
 
 def outcome(reports: list[dict], root: Path) -> Outcome | None:
     """One item's outcome from its reports, one per phase it reached; None when
-    they end before the item did. A passing call counts only once its teardown has
-    reported too: a process that dies in teardown has written the passing call and
-    nothing after it."""
+    they end before the item did. `passed` needs all three phases reported and
+    passed: a process that dies in teardown has written the passing call and
+    nothing after it, and a teardown can skip after its call passed."""
     phases = {r["when"]: r for r in reports}
     # `???` is xdist's report for a worker that crashed under the item.
     if broken := next((r for r in reports if r["when"] in ("setup", "???") and r["outcome"] == "failed"), None):  # fmt: skip
         return Outcome("error", crash(broken["longrepr"], root))
-    call = phases.get("call")
+    call, teardown = phases.get("call"), phases.get("teardown")
     if call and call["outcome"] == "failed":
         return Outcome("failed", crash(call["longrepr"], root))
-    teardown = phases.get("teardown")
-    if call and call["outcome"] == "passed":
-        if not teardown:
-            return None
-        if teardown["outcome"] == "failed":
-            return Outcome("teardown-failed", crash(teardown["longrepr"], root))
+    if teardown and teardown["outcome"] == "failed":
+        return Outcome("teardown-failed", crash(teardown["longrepr"], root))
+    if len(phases) == 3 and all(r["outcome"] == "passed" for r in reports):
         return Outcome("passed")
     skipped = any(r["outcome"] == "skipped" for r in reports)
     return Outcome("skipped") if skipped else None

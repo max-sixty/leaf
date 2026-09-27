@@ -3814,61 +3814,17 @@ def test_a_failed_verifier_page_reports_its_browser_errors(browser):
     )
 
 
-def test_local_release_verification_recovers_once_from_a_browser_network_change(
-    monkeypatch,
-):
+@pytest.mark.parametrize("agent", [False, True])
+def test_local_verification_settles_host_network_only_for_release(monkeypatch, agent):
     @contextmanager
     def worker():
         yield "http://127.0.0.1:8787"
 
     attempts = []
 
-    def verify(origin, release, *, agent):
-        attempts.append((origin, release, agent))
-        if len(attempts) == 1:
-            raise verify_site.UnpresentedPage(
-                "entry module did not load; browser errors: "
-                "['Failed to load resource: net::ERR_NETWORK_CHANGED']",
-                ["Failed to load resource: net::ERR_NETWORK_CHANGED"],
-            )
-
-    monkeypatch.setattr(verify_site, "built_release", lambda release: "release")
-    monkeypatch.setattr(verify_site, "local_worker", worker)
-    monkeypatch.setattr(verify_site, "run_verification", verify)
-
-    result = CliRunner().invoke(verify_site.main, ["wrangler"])
-
-    assert result.exit_code == 0, result.output
-    assert attempts == [
-        ("http://127.0.0.1:8787", "release", False),
-        ("http://127.0.0.1:8787", "release", False),
-    ]
-
-
-@pytest.mark.parametrize(
-    "failures,agent,expected_attempts",
-    [
-        (
-            ["Failed to load resource: net::ERR_NETWORK_CHANGED", "script failed"],
-            False,
-            1,
-        ),
-        (["Failed to load resource: net::ERR_NETWORK_CHANGED"], True, 1),
-        (["Failed to load resource: net::ERR_NETWORK_CHANGED"], False, 2),
-    ],
-)
-def test_local_verification_limits_recovery_to_one_network_change(
-    monkeypatch, failures, agent, expected_attempts
-):
-    @contextmanager
-    def worker():
-        yield "http://127.0.0.1:8787"
-
-    attempts = []
-
-    def verify(origin, release, *, agent):
-        attempts.append(agent)
-        raise verify_site.UnpresentedPage("page did not present", failures)
+    def verify(origin, release, *, agent, settle_after_activation=None):
+        attempts.append((agent, settle_after_activation))
+        raise RuntimeError("page did not present: net::ERR_NETWORK_CHANGED")
 
     monkeypatch.setattr(verify_site, "built_release", lambda release: "release")
     monkeypatch.setattr(verify_site, "local_worker", worker)
@@ -3878,8 +3834,26 @@ def test_local_verification_limits_recovery_to_one_network_change(
         verify_site.main, ["wrangler", *(["--agent"] if agent else [])]
     )
 
-    assert isinstance(result.exception, verify_site.UnpresentedPage)
-    assert attempts == [agent] * expected_attempts
+    assert isinstance(result.exception, RuntimeError)
+    assert len(attempts) == 1
+    assert attempts[0] == (
+        agent,
+        None if agent else verify_site.wait_for_host_network,
+    )
+
+
+def test_host_network_waits_for_addresses_to_stop_changing(monkeypatch):
+    now = [0.0]
+    readings = iter(["before", "before", "after", "after", "after", "after"])
+    monkeypatch.setattr(verify_site.time, "monotonic", lambda: now[0])
+    monkeypatch.setattr(
+        verify_site.time, "sleep", lambda seconds: now.__setitem__(0, now[0] + seconds)
+    )
+    monkeypatch.setattr(verify_site, "host_addresses", lambda: next(readings))
+
+    verify_site.wait_for_host_network(quiet_for=0.2, poll_every=0.1)
+
+    assert now[0] >= 0.4
 
 
 def test_the_agent_response_clock_waits_until_the_reply_is_on_screen(browser):

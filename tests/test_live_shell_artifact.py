@@ -11,9 +11,9 @@ from interact_support import PAGE
 from leaf.event_log import append_event
 from leaf.files import replace_files, revision_path
 from leaf.hosting import TemporaryPageServer
-from leaf.http import scope_script_routes
 from leaf.live_shell import write_live_shell
 from leaf.revision_artifact import RESOURCE_TYPES, read_artifact
+from leaf.revision_delivery import layer_import_map
 from leaf.revisioning import activate_source
 from leaf.structure import SourceDocument
 from playwright.sync_api import expect
@@ -142,17 +142,13 @@ def test_published_shells_bind_documents_and_resources_to_their_revision(
         assert (resources / "page" / "nested" / "theme.css").read_text() == (
             f'main {{ background-image: url("{root}/page/image.svg#paint"); }}'
         )
-        assert (resources / "leaf.js").read_bytes() == scope_script_routes(
-            artifact.resources["/leaf.js"].data,
-            page_root,
-            asset_root=root,
-        )
-        bootstrap = scope_script_routes(
-            artifact.resources["/runtime/bootstrap.js"].data,
-            page_root,
-            asset_root=root,
-        ).decode()
-        assert bootstrap in document
+        # The layer is published as captured; the document's import map sends its
+        # rooted imports to this revision.
+        assert (resources / "leaf.js").read_bytes() == artifact.resources[
+            "/leaf.js"
+        ].data
+        assert artifact.resources["/runtime/bootstrap.js"].data.decode() in document
+        assert layer_import_map(root) in document
         # CSP authorizes what executes: the nonce the policy names is on every script
         # this delivery composed, and the runtime's stylesheet text is inert data.
         policy = next(
@@ -167,11 +163,7 @@ def test_published_shells_bind_documents_and_resources_to_their_revision(
         expected_widget = (
             f'export * from "{root}/page/widgets/lf-options.js";\n'.encode()
             if version == 2
-            else scope_script_routes(
-                artifact.resources["/widgets/lf-options.js"].data,
-                page_root,
-                asset_root=root,
-            )
+            else artifact.resources["/widgets/lf-options.js"].data
         )
         assert (resources / "widgets" / "lf-options.js").read_bytes() == expected_widget
         if version == 2:

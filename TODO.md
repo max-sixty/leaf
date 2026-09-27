@@ -164,6 +164,13 @@ and its chrome coordinate.
   and refines it if a reading warrants, while a failure still blocks a record's
   stamp. **Unconfirmed:** measure how long the pass takes on a typical page, and
   whether agents act on findings that arrive after handover, before building it.
+- **Consider loading a page once per render check.** `version check --render` loads
+  the page afresh for each of its four passes, including dark mode and the narrow
+  viewport. Switching those in place would save at most about 1.4 s on
+  `triage-board` and 12.6 s on the corpus, measured with
+  `scripts/bench_render_check.py`. The price is that dark mode and the narrow width
+  would no longer be checked from a fresh start. Decide whether that coverage is
+  worth the time before building it.
 - **Scale a drawing by the box it was drawn in.** On replay, scale the strokes by
   the anchored element's size over the recorded `box`, so a mark stays on its
   element in a narrower window; reflowed text still moves under it. Verify replay
@@ -193,11 +200,11 @@ and its chrome coordinate.
 
 ### Shared definitions
 
-- **Re-address resource references in one pass.** Capture, delivery and export share
-  one CSS reference walker (#1217), but `http.py` still rescopes delivered bytes with
-  regexes, `media.js` spells a constant in pieces to get past that pass, and a page's
-  head is composed in three places. One `rebase_document(source, address)`, with an
-  import map for layer JavaScript, would delete the regex scopers.
+- **Compose a delivered page's head once.** `http.py` `runtime_document` and
+  `supervised_document` and `exporting.py` `export_document` each prepend the prelude,
+  policy, runtime script, sheets, theme and entry at the head's open, and the MCP ready
+  signal and a specimen's `<html>`/`<body>` marks are spliced in by regex after. One
+  composer taking each host's differences as data would replace all five.
 - **Ask once whether the page has caught up with a reading.** `tests/render_harness.py`
   `told()` waits for `data-lf-reading` to match the server's reading, and the `data`
   and `log` stages of the runtime's `pageReadiness` (#1250) answer the same question.

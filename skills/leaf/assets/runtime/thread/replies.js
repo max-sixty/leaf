@@ -10,6 +10,11 @@ import {
   tellDraft,
 } from "../drafts.js";
 import { SAYS_IN } from "./selectors.js";
+import {
+  followReplyGrowth,
+  readReplyPlace,
+  scrollThreadIntoView,
+} from "./reply-landing.js";
 import { focused } from "../keyboard/scopes.js";
 import { retainUserIntent } from "../user-intent.js";
 import { whenDocumentPresented } from "../semantic-state.js";
@@ -37,7 +42,7 @@ export function wireReply(
   key,
   input,
   send,
-  { parent, createReply, revealReplyEditor, wireInput, onDraftLoaded = null },
+  { parent, createReply, wireInput, onDraftLoaded = null },
 ) {
   const draftCtx = "reply:" + key;
   input[REPLY_DRAFT_CONTEXT] = draftCtx;
@@ -67,7 +72,7 @@ export function wireReply(
           .then(() => {
             // The new turn is above the composer. Landing the composer's foot shows
             // the turn's end and keeps the focused control in the visible band.
-            if (mayReveal()) revealReplyEditor(control, { block: "end" });
+            if (mayReveal()) scrollThreadIntoView(held, control, undefined, "end");
           })
           .catch(() => {});
     },
@@ -78,14 +83,14 @@ export function wireReply(
   // eight lines of reply left the blue button a sliver at the scrollport's edge,
   // reachable only by the send key the placeholder happened to name. Landing reveals
   // the composer with its controls (scrollThreadIntoView); growth is the same claim made
-  // again. On the user's own keystrokes and nothing else: a send settling after they
-  // scrolled away, or a draft mirrored from another tab, must not pull the list back.
-  // Instant, not smooth — a line typed while the last line's glide is still running
+  // again, and a box pinned over its transcript keeps the turn above it in view
+  // (`followReplyGrowth`). On the user's own keystrokes and nothing else: a send settling
+  // after they scrolled away, or a draft mirrored from another tab, must not pull the list
+  // back. Instant, not smooth — a line typed while the last line's glide is still running
   // lands the list where that glide was going, two lines short of the box it is now.
+  input.addEventListener("focus", () => readReplyPlace(input));
   input.addEventListener("input", () => {
-    if (focused() !== input) return;
-    const held = input.closest(SAYS_IN);
-    if (held) revealReplyEditor(input, { behavior: "instant" });
+    if (focused() === input) followReplyGrowth(input);
   });
   const dispose = mirrorDraft(
     input,

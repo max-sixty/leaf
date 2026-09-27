@@ -306,7 +306,6 @@ export function mountApplication(dependencies) {
 
   const replyView = {
     createReply,
-    revealReplyEditor: dependencies.revealReplyEditor,
     wireInput: dependencies.wireInput,
   };
   const settlementView = { pendingEntries: ledger.snapshot, setResolved };

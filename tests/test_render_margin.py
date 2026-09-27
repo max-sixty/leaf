@@ -5217,8 +5217,99 @@ def test_the_margin_reply_pinned_to_the_card_foot_shows_its_whole_ring(browser, 
     disclosure.press("Enter")
     editor = preview.locator("leaf-text")
     expect(editor).to_be_focused()
-    assert page.evaluate(pinned, [row.element_handle(), transcript.element_handle()])
+    # Entering the reply lands the transcript's end; reading back up pins the row again.
+    transcript.hover()
+    page.mouse.wheel(0, -200)
+    page.wait_for_function(
+        pinned, arg=[row.element_handle(), transcript.element_handle()]
+    )
     assert standing_ring(page)["cuts"] == []
+
+
+# Whether a message stands wholly between the transcript's top and the reply row pinned
+# over its foot, which is the part of the transcript the user can read.
+SHOWN_ABOVE_THE_REPLY = """message => {
+  const list = message.closest('.lf-margin-preview-list').getBoundingClientRect();
+  const reply = message.closest('.lf-page-thread').querySelector(':scope > .lf-say')
+    .getBoundingClientRect();
+  const box = message.getBoundingClientRect();
+  return {shown: box.top >= list.top - 0.5 && box.bottom <= reply.top + 0.5,
+          message: [box.top, box.bottom], list: list.top, reply: reply.top};
+}"""
+
+
+def long_thread_in_reply(browser, serve):
+    """The long thread's margin card with the user in its reply box. Scroll
+    anchoring is off on the transcript, so every move read is the runtime's own."""
+    page, preview, transcript = open_long_thread(browser, serve)
+    transcript.evaluate("list => list.style.overflowAnchor = 'none'")
+    preview.get_by_role("button", name="Reply", exact=True).click()
+    editor = preview.locator("leaf-text")
+    expect(editor).to_be_focused()
+    rendered(page)
+    return page, preview, editor, transcript
+
+
+def test_replying_on_a_long_margin_card_shows_the_turn_being_answered(browser, serve):
+    """The reply row is pinned to the transcript's foot, so it always reads as shown
+    and a landing aimed at it moved the transcript by its scroll padding alone: the
+    user wrote under a transcript stopped partway up. Entering the reply lands the
+    thread's end."""
+    _page, preview, _editor, _transcript = long_thread_in_reply(browser, serve)
+    reading = preview.locator(".lf-page-thread-msg").last.evaluate(
+        SHOWN_ABOVE_THE_REPLY
+    )
+    assert reading["shown"], reading
+
+
+@pytest.mark.parametrize("place", ["end", "partway"])
+def test_a_margin_reply_send_shows_the_sent_turn(browser, serve, place):
+    page, preview, editor, transcript = long_thread_in_reply(browser, serve)
+    write(editor, "My new reply words")
+    transcript.evaluate(
+        "(list, place) => list.scrollTop = place === 'end' ? list.scrollHeight : 40",
+        place,
+    )
+    with sending(page, "the reply"):
+        editor.press("Enter")
+    sent = preview.locator(".lf-page-thread-msg").last
+    expect(sent).to_contain_text("My new reply words")
+    rendered(page)
+    reading = sent.evaluate(SHOWN_ABOVE_THE_REPLY)
+    assert reading["shown"], reading
+
+
+def test_typing_in_a_margin_reply_leaves_the_transcript_where_the_reader_put_it(
+    browser, serve
+):
+    """The growth reveal aimed at the pinned row crept the transcript by its scroll
+    padding on every keystroke, pulling a reader partway up down to the end."""
+    page, _preview, editor, transcript = long_thread_in_reply(browser, serve)
+    transcript.evaluate("list => list.scrollTop = 100")
+    rendered(page)
+    editor.type("twenty characters!!!")
+    rendered(page)
+    assert transcript.evaluate("list => list.scrollTop") == 100
+
+
+def test_a_block_pasted_into_a_margin_reply_keeps_the_last_turn_above_it(
+    browser, serve
+):
+    """A pinned row grows upward over the transcript, so the transcript moves by what
+    the row now covers. `test_a_growing_margin_reply_keeps_the_previous_turn_visible`
+    reads the same contract on a card too short for the editor to grow."""
+    page, preview, editor, transcript = long_thread_in_reply(browser, serve)
+    transcript.evaluate("list => list.scrollTop = list.scrollHeight")
+    editor.type("first")
+    rendered(page)
+    grew = editor.evaluate("box => box.getBoundingClientRect().height")
+    page.keyboard.insert_text("\n" + "\n".join(f"pasted {n}" for n in range(30)))
+    rendered(page)
+    assert editor.evaluate("box => box.getBoundingClientRect().height") > grew + 100
+    reading = preview.locator(".lf-page-thread-msg").last.evaluate(
+        SHOWN_ABOVE_THE_REPLY
+    )
+    assert reading["shown"], reading
 
 
 def test_a_growing_margin_reply_keeps_the_previous_turn_visible(browser, serve):
@@ -5373,6 +5464,14 @@ def test_agent_status_leaves_the_margin_transcript_where_the_user_scrolled_it(
     transcript.evaluate("list => list.style.overflowAnchor = 'none'")
     preview.get_by_role("button", name="Reply", exact=True).click()
     expect(preview.locator("leaf-text")).to_be_focused()
+    # Entering the reply lands the transcript's end; the user reads back up from there.
+    transcript.hover()
+    page.mouse.wheel(0, -300)
+    page.wait_for_function(
+        "list => list.scrollTop < list.scrollHeight - list.clientHeight - 100",
+        arg=transcript.element_handle(),
+    )
+    scroll_settled(page, ".lf-margin-preview-list")
     place = "list => [list.scrollTop, list.scrollHeight - list.clientHeight]"
     settled = (
         "() => new Promise(resolve => "

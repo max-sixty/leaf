@@ -77,4 +77,7 @@ export function finishFold(id) {
 }
 export const hasFolding = () =>
   [...folding.values()].some(({ node }) => node.isConnected);
+// Settles once every fold now running has ended, finished or cancelled.
+export const whenFolded = () =>
+  Promise.allSettled([...folding.values()].map(({ played }) => played.finished));
 export const isFolding = (id) => folding.has(id);

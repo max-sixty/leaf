@@ -390,13 +390,6 @@ app = mountApplication({
   retainPanelLanding: (source) => retainPanelLanding(source, panelIsOpen),
   retainThreadNarrowing: () => retainNarrowing(app.presentThread),
   retainThreadFocus: () => retainThreadFocus(panelIsOpen),
-  revealReplyEditor: (input, { behavior, block } = {}) =>
-    scrollThreadIntoView(
-      input.closest(".lf-thread, .lf-page-thread, .lf-thread-seat"),
-      input,
-      behavior,
-      block,
-    ),
   setThreadCounts,
   registerReactSurface: (...args) => reactions.registerReactSurface(...args),
   sendReaction,

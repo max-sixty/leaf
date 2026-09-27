@@ -1933,8 +1933,12 @@ def test_a_revision_leaves_root_attributes_it_does_not_change_untouched(browser,
     """Authored `html` and `body` attributes both revisions write stay where they are.
 
     A body class taken off and put back restyles the whole document, so a revision
-    that changes only the page's words writes nothing to either root."""
-    page = open_page(browser, live_url(serve(LIVE_V2)))
+    that changes only the page's words writes nothing to either root. An empty custom
+    property reads back as "", and stays declared all the same."""
+    empty = '<body class="live-second" data-live-body="second" style="--live-body: 2'
+    page = open_page(
+        browser, live_url(serve(LIVE_V2.replace(empty, f"{empty}; --live-empty: ")))
+    )
     page.evaluate(
         """() => {
           window.__lfRootWrites = [];
@@ -1955,11 +1959,24 @@ def test_a_revision_leaves_root_attributes_it_does_not_change_untouched(browser,
         }).observe(document.body, { attributes: true, attributeOldValue: true })"""
     )
     (serve.page_dir / "index.html").write_text(
-        LIVE_V2.replace("<title>Live second</title>", "<title>Live again</title>")
+        LIVE_V2.replace(
+            "<title>Live second</title>", "<title>Live again</title>"
+        ).replace(empty, f"{empty}; --live-empty: ")
     )
     told(page)
     expect(page).to_have_title("Live again")
     assert page.evaluate("window.__lfRootWrites") == []
+    assert page.evaluate("[...document.body.style].includes('--live-empty')")
+
+    # A revision that newly declares an empty property puts it on.
+    (serve.page_dir / "index.html").write_text(
+        LIVE_V2.replace(
+            "<title>Live second</title>", "<title>Live more</title>"
+        ).replace(empty, f"{empty}; --live-empty: ; --live-added: ")
+    )
+    told(page)
+    expect(page).to_have_title("Live more")
+    assert page.evaluate("[...document.body.style].includes('--live-added')")
 
 
 def test_a_stamped_live_draft_and_its_unstamped_view_keep_distinct_menu_rows(

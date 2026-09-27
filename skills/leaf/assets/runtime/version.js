@@ -1115,24 +1115,27 @@ export function createVersionController({
       if (!target.classList.contains(token)) target.classList.add(token);
     // Inline style is the one root attribute whose members can have different owners.
     // Registered runtime properties survive; every other declaration is authored and
-    // retires with its revision like every other source attribute.
+    // retires with its revision like every other source attribute. Declarations are
+    // compared by name, not value, since an empty custom property (`--x: ;`) reads
+    // back as "", and `setProperty` with "" removes rather than declares, so an empty
+    // one is written as the single space that parses to it.
+    const declared = new Set(source.style);
     const priorStyle = document.createElement(target.localName).style;
     priorStyle.cssText = prior.get("style") ?? "";
     for (const property of priorStyle)
-      if (
-        !runtimeState.styles.has(property) &&
-        !source.style.getPropertyValue(property)
-      )
+      if (!runtimeState.styles.has(property) && !declared.has(property))
         target.style.removeProperty(property);
-    for (const property of source.style) {
+    const standing = new Set(target.style);
+    for (const property of declared) {
       if (runtimeState.styles.has(property)) continue;
       const value = source.style.getPropertyValue(property);
       const priority = source.style.getPropertyPriority(property);
       if (
+        !standing.has(property) ||
         target.style.getPropertyValue(property) !== value ||
         target.style.getPropertyPriority(property) !== priority
       )
-        target.style.setProperty(property, value, priority);
+        target.style.setProperty(property, value || " ", priority);
     }
     const plain = (name) =>
       name !== "class" && name !== "style" && !runtimeState.attributes.has(name);

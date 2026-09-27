@@ -7208,7 +7208,7 @@ def test_a_reply_widget_replays_and_withdraws_its_action(browser, serve):
             "markup": SPECIMEN_MARKUP,
         },
     )
-    append_command(
+    decision = append_command(
         d,
         {
             "kind": "action",
@@ -7234,7 +7234,11 @@ def test_a_reply_widget_replays_and_withdraws_its_action(browser, serve):
     expect(page.locator("#rp-shim")).to_have_attribute("chosen", "")
 
     undo(page)
-    assert events_model.read_events(d)[-1]["kind"] == "undo"
+    assert [
+        event["undoes"]
+        for event in events_model.read_events(d)
+        if event["kind"] == "undo"
+    ] == [decision["id"]]
     expect(page.locator("#rp-live lf-option[chosen]")).to_have_count(0)
 
 
@@ -7427,6 +7431,17 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     assert sent[-1]["action"] == "answer", "the sequence's digit must not pick"
 
 
+def _gesture_request(request):
+    return "/api/event" in request.url and bool(request.post_data_json.get("attempt"))
+
+
+def _hold_gesture(route, held):
+    if _gesture_request(route.request):
+        held.append(route)
+    else:
+        route.continue_()
+
+
 def test_a_thread_answer_is_not_repainted_after_its_undo_arrives_with_it(
     browser, serve
 ):
@@ -7438,9 +7453,9 @@ def test_a_thread_answer_is_not_repainted_after_its_undo_arrives_with_it(
     page = open_page(browser, url)
     page.keyboard.press("a")
     held = []
-    page.route("**/api/event", lambda route: held.append(route))
+    page.route("**/api/event", lambda route: _hold_gesture(route, held))
     done = page.locator("#tq-set .lf-done")
-    with page.expect_request("**/api/event"):
+    with page.expect_request(_gesture_request):
         done.click()
     holding(page, held, 1, "the thread answer")
     accepted_answer = held[0].fetch()
@@ -7476,9 +7491,9 @@ def test_a_refused_thread_choice_restores_its_frozen_markup(browser, serve):
     page.keyboard.press("a")
     expect(page.locator(".lf-thread-panel")).to_be_visible()
     held = []
-    page.route("**/api/event", lambda route: held.append(route))
+    page.route("**/api/event", lambda route: _hold_gesture(route, held))
 
-    with page.expect_request("**/api/event"):
+    with page.expect_request(_gesture_request):
         page.locator("#tq-logs").click()
     expect(page.locator("#tq-logs")).to_have_attribute("chosen", "")
     attempt = held[0].request.post_data_json["attempt"]
@@ -7516,8 +7531,8 @@ def test_a_refused_thread_choice_replays_recorded_and_recordless_history(
     expect(page.locator("#tq-set .lf-done")).to_have_attribute("aria-pressed", "true")
 
     held = []
-    page.route("**/api/event", lambda route: held.append(route))
-    with page.expect_request("**/api/event"):
+    page.route("**/api/event", lambda route: _hold_gesture(route, held))
+    with page.expect_request(_gesture_request):
         page.locator("#tq-metrics").click()
     expect(page.locator("#tq-metrics")).to_have_attribute("chosen", "")
     attempt = held[0].request.post_data_json["attempt"]
@@ -7552,8 +7567,8 @@ def test_refusal_restores_queued_recordless_thread_actions_in_order(browser, ser
     page = open_page(browser, url)
     page.keyboard.press("a")
     held = []
-    page.route("**/api/event", lambda route: held.append(route))
-    with page.expect_request("**/api/event"):
+    page.route("**/api/event", lambda route: _hold_gesture(route, held))
+    with page.expect_request(_gesture_request):
         page.locator("#tq-logs").click()
     done = page.locator("#tq-set .lf-done")
     done.click()
@@ -7563,7 +7578,7 @@ def test_refusal_restores_queued_recordless_thread_actions_in_order(browser, ser
     first_attempt = held[0].request.post_data_json["attempt"]
     with page.expect_request(
         lambda request: (
-            "/api/event" in request.url
+            _gesture_request(request)
             and request.post_data_json.get("attempt") != first_attempt
         )
     ):
@@ -7610,7 +7625,7 @@ def test_a_done_press_answers_optimistically_and_only_once(browser, serve):
     expect(page.locator("#tq-set-decision")).to_be_focused()
     done = page.locator("#tq-set .lf-done")
     held = []
-    page.route("**/api/event", lambda route: held.append(route))
+    page.route("**/api/event", lambda route: _hold_gesture(route, held))
     done.click()
     holding(page, held, 1, "the answer")
 

@@ -1048,6 +1048,7 @@ def test_the_feature_gallery_exercises_the_injected_core_surfaces(
     expect(page.locator("#bg-choice-ask")).to_be_focused()
     banner_control(page, ".lf-asks").click()
 
+    page.locator("#bg-gallery-tabs").get_by_role("tab", name="Threads").click()
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
     expect(page.locator(".lf-thread-panel")).to_be_visible()
@@ -1124,7 +1125,7 @@ def test_the_feature_gallery_exercises_the_injected_core_surfaces(
     # left in the flow it lands a screen below the fold. Which section that is belongs
     # to the gallery's authored order: naming one heading here made a section added
     # above it read as a layout failure.
-    expect(page.locator("main > section").first).to_be_in_viewport()
+    expect(page.locator("#bg-view-threads > section").first).to_be_in_viewport()
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
     sheet = page.get_by_role("dialog", name="Page Map", exact=True)
@@ -1169,11 +1170,25 @@ def test_the_feature_gallery_keeps_a_choice_when_its_proposal_is_undone(browser,
     )
 
 
-def test_the_feature_gallery_sections_are_stable_preview_destinations(browser, serve):
+@pytest.mark.parametrize(
+    ("destination", "view"),
+    [
+        ("#bg-core-surfaces", "Decisions"),
+        ("#bg-thread-states", "Threads"),
+        ("#bg-quoted-and-visual", "Page & layout"),
+        ("#bg-external-data", "Data & work"),
+        ("#bg-interactions", "Interactions"),
+    ],
+)
+def test_the_feature_gallery_sections_are_stable_preview_destinations(
+    browser, serve, destination, view
+):
     """A preview can name its subject directly instead of asking the user to find it."""
     root = live_url(serve(FEATURE_GALLERY))
-    destination = "#bg-quoted-and-visual"
     page = open_page(browser, root + destination)
+    expect(
+        page.locator("#bg-gallery-tabs").get_by_role("tab", name=view)
+    ).to_have_attribute("aria-selected", "true")
 
     links = page.get_by_role("navigation", name="On this page").get_by_role(
         "link", include_hidden=True

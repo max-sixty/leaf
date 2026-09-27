@@ -9,6 +9,7 @@ import { initializeServedDocument } from "./runtime/document-identity.js";
 import { chromeRoot } from "./runtime/chrome.js";
 import { readingBlock } from "./runtime/reading-place.js";
 import { mountHistory } from "./runtime/history.js";
+import { holdArrivingBounds } from "./runtime/bounds.js";
 import { chromeSheet, marksSheet } from "./runtime/stylesheets.js";
 import { keepPageRulesOffLayer } from "./runtime/page-sheets.js";
 import { reportPageError, uploadMedia } from "./runtime/layer-client.js";
@@ -108,6 +109,7 @@ import {
 
 initializeServedDocument();
 keepPageRulesOffLayer();
+holdArrivingBounds();
 
 // A published shell may bundle the entry without publishing its source modules beside
 // it. Keep the synchronous validation seam on Leaf's own bootstrap element so render
@@ -139,6 +141,7 @@ import { bannerFoot } from "./runtime/geometry.js";
 import { declareStanding } from "./runtime/keyboard/page.js";
 import { mountKeyboard } from "./runtime/keyboard/controller.js";
 import { paintCoreControls } from "./runtime/keyboard/control-keys.js";
+import { paintTouchControls } from "./runtime/keyboard/touch-controls.js";
 import { commandReferenceDialog } from "./runtime/keyboard/command-reference.js";
 import {
   bottomChromeBoxes,
@@ -279,6 +282,9 @@ const designMode = createDesignMode({
   },
   closePreview: (...args) => app.margin.closePreview(...args),
   marginTargetAt: (...args) => app.margin.marginTargetAt(...args),
+  closeDrawMode: () => drawing.setDrawMode(false, { spoken: false }),
+  closeTargetChooser: () => targets.closeTargetChooser(),
+  closeReactionMode: () => reactions.setReact(false),
   banner,
   announce,
   repaint,
@@ -704,6 +710,7 @@ const standing = createStanding({
         target: anchorPaint.placedAt(heldThreadId())?.element,
       },
     ]),
+  paintTouchControls,
   renderShortcutBar: () => renderShortcutBar(goToSequence.goToStatus),
   paintGoToHints: goToSequence.paintGoToHints,
   paintTargetChooserHints: targets.paintTargetChooserHints,

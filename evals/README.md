@@ -41,19 +41,18 @@ fails did not read the guidance it was meant to test.
 
 ## A/B
 
-For an A/B, build the other arm from its revision and run both arms at once, since
-batches an hour apart drift. `leaf-dev arm` builds an arm as the plugin payload at a
-revision. The other arm goes outside this checkout: a run loads every plugin and case
-below its target, so an arm under `.tmp/` would load as a second leaf.
+An A/B runs the cases on the base's guidance and the working tree's at once, since
+batches an hour apart drift:
 
 ```
-base=$(mktemp -d)/leaf
-uv run leaf-dev arm <rev> "$base"
-cp -R evals "$base/evals"
+uv run leaf-dev guidance-ab [CASE]... [--base REF] [--runs N]
 ```
 
-Then run the command above from each arm's root. Copying the cases puts both arms on
-the same suite, even when `<rev>` predates a case.
+It builds both arms outside this checkout, since a run loads every plugin and case
+below its target, gives both the working tree's cases, and runs the suite in each as
+the command at the top of this file does. It prints each case's passes per arm, the
+cost, and a Record row whose "Tried" cell is yours to fill. The base is the merge base
+with `main` unless `--base` names another.
 
 ## Cases
 

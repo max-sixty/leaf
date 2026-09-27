@@ -68,7 +68,7 @@ from pathlib import Path
 import click
 
 from leaf_dev import ROOT
-from leaf_dev.harness import merge_base
+from leaf_dev.harness import base_ref
 from leaf_dev.suite import Outcome, collect, present, run, stoppable
 
 OUT = ROOT / ".tmp" / "bugback"
@@ -217,11 +217,7 @@ def bugback(
         raise click.ClickException(
             f"bugback runs HEAD in a scratch worktree; commit first:\n{dirty}"
         )
-    base = (
-        git("rev-parse", "--verify", f"{base}^{{commit}}").strip()
-        if base
-        else merge_base()
-    )
+    base = git("rev-parse", "--verify", f"{base_ref(base)}^{{commit}}").strip()
     if not selection:
         selection, unselected = changed_tests(base)
         for hunk in unselected:

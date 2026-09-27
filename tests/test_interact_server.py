@@ -4640,7 +4640,9 @@ def test_the_key_arrives_in_the_query_and_stays_in_the_cookie(server, page_dir):
 
     with opener.open(f"{server}/versions/v1.html?t={TOKEN}") as arrival:
         assert arrival.status == 200
-    assert [c.value for c in jar] == [TOKEN]
+    # Persistent rather than a session cookie: the tab holds only the bare address,
+    # which has to open again after the browser restarts.
+    assert [(c.value, c.discard) for c in jar] == [(TOKEN, False)]
 
     # No query this time: the runtime's own fetches never carry one.
     with opener.open(f"{server}/api/state") as polled:

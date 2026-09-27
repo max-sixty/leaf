@@ -239,8 +239,8 @@
                 feed never grows the page: <code>start</code> opens at its first line
                 and <code>end</code> follows its newest entry while the user is at the
                 end, and stays where the user scrolled back to otherwise. An authored
-                occurrence may state or override it with data-bound=start|end; the
-                runtime paints it as data-lf-bound.
+                occurrence may state or override it with data-bound=start|end; delivery
+                paints it into the served document as data-lf-bound.
               </p>
             </div>
           </section>
@@ -674,9 +674,9 @@
                 <p>
                   The declaration says nothing about how the package arranges content
                   inside that allocation. An authored occurrence may override the
-                  default with data-width=column|wide|available; the runtime resolves
-                  that choice into data-lf-space and the theme allocates it without
-                  moving the prose axis.
+                  default with data-width=column|wide|available; delivery paints that
+                  choice into the served document as data-lf-space and the theme
+                  allocates it without moving the prose axis.
                 </p>
               </details>
             </div>

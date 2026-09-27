@@ -3168,26 +3168,36 @@ def test_margin_residents_stand_where_the_room_beside_the_column_holds_them(
 
 def test_the_handed_over_url_opens_the_latest_version(browser, serve):
     """The URL `server run` prints is the page root carrying the key, so every handover
-    reads the latest version there while keeping the live address. Two things only a
-    real browser can say have to hold: the arrival sets the cookie used by the page's
-    relative polling requests, and that cookie still admits a later query-less arrival.
-    A `SameSite` cookie withheld from either would leave the page open and frozen with
-    no console error to show for it."""
+    reads the latest version there while keeping the live address, and the key leaves
+    the address bar on arrival. Three things only a real browser can say have to hold:
+    the arrival sets the cookie used by the page's relative polling requests, the tab
+    is left on the bare address, and a reload of that bare address is admitted. The
+    link is followed from another site, as it is from a chat or an issue, since a
+    `SameSite=Strict` cookie is withheld from requests another site starts: one
+    withheld from the reload would land the user on a refusal."""
     url = serve(INLINE_PAGE)
-    root = url.rsplit("/versions/", 1)[0] + f"/?t={TOKEN}"
+    bare = url.rsplit("/versions/", 1)[0] + "/"
+    handover = f"{bare}?t={TOKEN}"
 
-    page = open_page(browser, root)
-
-    expect(page).to_have_url(root)
+    page = browser.new_page()
+    page.route(
+        "https://elsewhere.test/",
+        lambda route: route.fulfill(
+            content_type="text/html", body=f'<a href="{handover}">the page</a>'
+        ),
+    )
+    page.goto("https://elsewhere.test/")
+    page.click("a")
+    page.wait_for_url(bare)
+    wait_until_ready(page)
     expect(page.locator(".lf-banner")).to_be_visible()
     # The poll is the page's own fetch, relative and query-less: it answers only if the
     # cookie rode along.
     assert page.evaluate("() => fetch('/api/state').then(r => r.status)") == 200
 
-    # A later top-level arrival carries no query. A cookie the browser withheld from it
-    # would land the user on a refusal rather than the same live page.
-    page.evaluate("() => { location.href = '/' }")
-    page.wait_for_url(root.rsplit("?", 1)[0])
+    page.reload()
+    wait_until_ready(page)
+    expect(page).to_have_url(bare)
     expect(page.locator(".lf-banner")).to_be_visible()
 
 

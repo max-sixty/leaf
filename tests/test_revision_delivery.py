@@ -322,6 +322,7 @@ def test_a_host_marks_the_delivered_document_where_it_asks(explicit_html):
         executable=None,
         widgets={},
         resources={},
+        registry={},
         delivery=Delivery(
             address=ADDRESS,
             policy=lambda nonce: f"script-src 'nonce-{nonce}'",
@@ -345,3 +346,67 @@ def test_a_host_marks_the_delivered_document_where_it_asks(explicit_html):
         nonce,
     ]
     assert served.title == "T" and "<p>Text.</p>" in delivered
+
+
+def test_a_delivered_document_carries_its_declared_marks_in_the_source():
+    """The theme and the workspace Layout read what an element's registry entry
+    declares, and a stylesheet cannot read the registry, so the document arrives with
+    each declaration painted on the element: the first paint lays out a board's room and
+    a package's pane before any script runs. An occurrence's own `data-width` or
+    `data-bound` says it for that occurrence. Markup inside a template is inert, and
+    everything else in the source stays as written."""
+    registry = {
+        "lf-zone": {"x-reading-role": "pane"},
+        "lf-board": {"x-space": "wide"},
+        "lf-chip": {"x-inline": True},
+        "lf-feed": {"x-bound": "end"},
+    }
+    source = (
+        "<!doctype html><html><head><title>T</title></head><body><main>"
+        '<lf-zone id="queue" label="Queue"><div><lf-chip>new</lf-chip></div></lf-zone>'
+        '<lf-board id="board" data-width="column"></lf-board>'
+        '<lf-feed id="feed"></lf-feed><section id="wide" data-width="wide"></section>'
+        '<pre data-bound="start">log</pre>'
+        "<template><lf-zone id=later label=Later><p>x</p></lf-zone></template>"
+        "</main></body></html>"
+    )
+    delivered = compose_document(
+        source,
+        1,
+        None,
+        executable=None,
+        widgets={},
+        resources={},
+        registry=registry,
+        delivery=Delivery(address=ADDRESS),
+    )
+
+    served = SourceDocument(delivered.removeprefix("﻿"))
+    marks = {
+        (element.tag, element.attrs.get("id")): {
+            name: value
+            for name, value in element.attrs.items()
+            if name.startswith("data-lf-")
+        }
+        for element in served.tree.find("main").find_all(True)
+    }
+    assert marks[("lf-zone", "queue")] == {"data-lf-reading-role": "pane"}
+    assert marks[("lf-chip", None)] == {"data-lf-inline": ""}
+    assert marks[("lf-board", "board")] == {"data-lf-space": "column"}
+    assert marks[("lf-feed", "feed")] == {"data-lf-bound": "end"}
+    assert marks[("section", "wide")] == {"data-lf-space": "wide"}
+    assert marks[("pre", None)] == {"data-lf-bound": "start"}
+    assert marks[("lf-zone", "later")] == {}
+    unmarked = delivered
+    for mark in (
+        ' data-lf-reading-role="pane"',
+        ' data-lf-inline=""',
+        ' data-lf-space="column"',
+        ' data-lf-bound="end"',
+        ' data-lf-space="wide"',
+        ' data-lf-bound="start"',
+    ):
+        unmarked = unmarked.replace(mark, "", 1)
+    assert source.removeprefix("<!doctype html><html><head>").split("</head>")[1] in (
+        unmarked
+    )

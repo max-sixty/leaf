@@ -172,8 +172,8 @@ nothing. A box that lays its children
 out side by side (a flex row, a grid) declares `--lf-holds-edge: 1`, so the trim stops at
 it rather than taking one item's margin and leaving the others'.
 
-The runtime exposes declared layout facts as `[data-lf-inline]`, `[data-lf-space]`,
-`[data-lf-bound]`, and `[data-lf-exhibit]`; shared selectors read those attributes
+Delivery paints declared layout facts into the served document as `[data-lf-inline]`,
+`[data-lf-space]`, `[data-lf-bound]`, and `[data-lf-exhibit]`; shared selectors read those attributes
 instead of naming widget tags. The registry's `$keys` entries for `x-space` and
 `x-bound` say what each declaration requests; none of them
 chooses the widget's internal layout, which the package arranges inside the allocation.
@@ -348,22 +348,25 @@ current entry's candidates. The server remains final admission for every command
 
 A pane declares `x-reading-role: pane` and keeps `x-content: markup`: exactly one direct
 body element between an optional native `header` first and an optional native `footer`
-last. The validator reads the role rather than the tag name, and the runtime paints it
-as `data-lf-reading-role`, which the kernel's theme lays out as a pane, so a package's
-differently named pane takes the same rules as `lf-pane`; its module registers the
-pane's body as described below.
+last. The validator reads the role rather than the tag name, and delivery paints it into
+the served document as `data-lf-reading-role`, which the kernel's theme and the
+workspace Layout lay out as a pane from the first paint, so every package's pane takes
+the same rules; its module registers the pane's body as described below.
 
 Whether a pane's body scrolls is the workspace Layout's (`layouts.css`): where the
-window holds the workspace, the Layout gives its body a definite height, each pane in it
-may shrink below its content, and each pane's body scrolls; elsewhere every pane takes its
-content's height. Nothing in a module measures a minimum or chooses a posture. While it
-holds the window, the Layout sets `--lf-held: 1` on `main`, and a widget that should grow
-to fill the height it is given, such as a playground's stage, keys its rules on
-`@container style(--lf-held: 1)`. A behavior module that composes regions out of boxes it
-generates, such as a playground's controls beside its preview, takes the pane rules by
-marking those boxes `data-lf-reading-role="pane"`, with the pane grammar of one header,
-one body, and one footer. The attribute is the module's to write and never an author's,
-since `page check` refuses `data-lf-` markup. Keep the package theme to placement
+window holds the workspace, the Layout gives its body a definite height, and a pane that
+is the body or a direct cell of it may shrink below its content and scrolls its body; a
+pane inside a section of the body, or inside another pane's body, flows with what holds
+it, and elsewhere every pane takes its content's height. Nothing in a module measures a
+minimum or chooses a posture. While it holds the window, the Layout sets `--lf-held: 1`
+on `main`, and a widget that should grow to fill the height it is given, such as a
+playground's stage, keys its rules on `@container style(--lf-held: 1)`. A behavior
+module that composes regions out of boxes it generates, such as a playground's controls
+beside its preview, takes the pane rules by marking those boxes
+`data-lf-reading-role="pane"` and `data-lf-generated`, with the pane grammar of one
+header, one body, and one footer. A generated pane scrolls its body wherever it stands in
+a held workspace, since its widget sizes it. The attributes are the module's to write and
+never an author's, since `page check` refuses `data-lf-` markup. Keep the package theme to placement
 inside that grammar, such as track sizes and chrome; a package copy of the held rules is
 a second posture decision that drifts from the Layout's. Generate boxes rather than
 `lf-pane` elements themselves: those are authored words the render gate pairs with the

@@ -252,6 +252,7 @@ def test_a_published_document_names_its_page_to_a_crawler(page_root, kind, url):
         executable="sha256:executable",
         widgets={},
         resources=resources,
+        registry={},
         delivery=replace(delivery, head=addition),
     )
     head = served[: served.index("</head>")]

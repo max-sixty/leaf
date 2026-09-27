@@ -196,8 +196,15 @@ def test_thread_panel_gallery_shows_independent_live_views(browser, serve):
     }
     for frame in views.values():
         expect(frame.locator(".lf-thread-panel")).to_be_visible()
+        expect(frame.locator(".lf-threads > .lf-group")).to_have_count(0)
+        expect(frame.locator(".lf-thread[open] .lf-thread-topic")).to_have_css(
+            "clip-path", "inset(50%)"
+        )
 
     expect(views["overview"].locator(".lf-thread:not([hidden])")).to_have_count(3)
+    expect(
+        views["overview"].locator(".lf-thread:not([open]) .lf-thread-topic").first
+    ).to_be_visible()
     expect(views["you"].locator(".lf-thread-view-summary")).to_have_text(
         "1 open thread · On you"
     )
@@ -5242,6 +5249,7 @@ def test_the_ring_reading_sees_a_neighbour_paint_over_a_ring_drawn_inside_its_bo
     """
     url = serve(PANEL_PAGE)
     panel_comment(serve.page_dir, "About the lede.", {"section": "lede"})
+    panel_comment(serve.page_dir, "About the store.", {"section": "how-store"})
     page = open_page(browser, url)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)

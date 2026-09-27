@@ -262,9 +262,9 @@ const rowModel = (all, commands) => {
   // whole list with the resolved ones taken at their own place. A folding thread is
   // walked by nothing: the log has already settled it, and only its room is still here.
   //
-  // A heading goes in wherever the run changes, so the user scrolling a list four
-  // thousand pixels long is told which part of the page they are reading about — and,
-  // the headings being sticky, is still told halfway down a long run.
+  // The view shows headings where runs change; it omits a lone page-section heading
+  // when each thread has its own passage link. In a long list, a sticky heading says
+  // which part of the page is in view.
   //
   // An open thread the narrowing hides keeps its node, hidden, rather than leaving the
   // list: a widget an agent sent in a reply is instantiated once, here, and every other

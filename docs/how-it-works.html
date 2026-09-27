@@ -2205,8 +2205,8 @@ flowchart TD
             <h2>The page directory is the record</h2>
             <p id="data-directory">
               Everything durable about a page lives in its directory. Copying the
-              directory copies the page, its history, and every decision on it. There
-              is no database. Three stores hold what a page shows, each written its own
+              directory copies the page, its history, and every decision on it. There is
+              no database. Three stores hold what a page shows, each written its own
               way:
             </p>
             <lf-diagram
@@ -2306,13 +2306,13 @@ flowchart TD
               or a build's status, lives in one JSON file per source. The page's markup
               binds each source to a contract its value must meet; the first write
               records that contract in <code>data.json</code>, and the source keeps it
-              for the page's lifetime. Any process may rewrite the file,
-              so every reading checks the value against that contract, and a failing
-              value shows as that source's error rather than as data.
+              for the page's lifetime. Any process may rewrite the file, so every
+              reading checks the value against that contract, and a failing value shows
+              as that source's error rather than as data.
             </p>
             <p id="data-sources-live">
-              Rewriting the file changes what an open page shows without a new
-              revision. No earlier value is kept. A number frozen into prose with
+              Rewriting the file changes what an open page shows without a new revision.
+              No earlier value is kept. A number frozen into prose with
               <code>lf-num</code> keeps the value it was authored with, and
               <code>leaf page check</code> advises when its source has moved on.
             </p>
@@ -2387,9 +2387,9 @@ flowchart TD
             <h2>How long a server runs</h2>
             <p id="wait-stateless">
               A server is only a way to reach the
-              <a href="#data-home">page directory</a>. One started by an agent
-              session retires when no live session claims the page; one started from
-              your shell, or with <code>--standing</code>, stays up until
+              <a href="#data-home">page directory</a>. One started by an agent session
+              retires when no live session claims the page; one started from your shell,
+              or with <code>--standing</code>, stays up until
               <code>leaf server stop</code>.
             </p>
           </section>

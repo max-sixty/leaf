@@ -98,16 +98,16 @@ def test_gallery_thread_rows_name_action_in_existing_status(browser, serve):
           const center = rect => rect.top + rect.height / 2;
           return {
             panelWidth: summary.closest('.lf-thread-panel').getBoundingClientRect().width,
-            statusBesideTopic: Math.abs(center(topic) - center(status)) < 2,
-            timeBesideStatus: Math.abs(center(status) - center(trailing)) < 2,
-            timeAfterStatus: trailing.left >= status.right,
+            statusBelowTopic: status.top >= topic.bottom,
+            timeBesideTopic: Math.abs(center(topic) - center(trailing)) < 2,
+            timeAfterTopic: trailing.left >= topic.right,
           };
         }"""
     )
     assert regular["panelWidth"] > 400
-    assert regular["statusBesideTopic"]
-    assert regular["timeBesideStatus"]
-    assert regular["timeAfterStatus"]
+    assert regular["statusBelowTopic"]
+    assert regular["timeBesideTopic"]
+    assert regular["timeAfterTopic"]
     page.evaluate(
         "document.documentElement.style.setProperty('--lf-thread-panel-width', '320px')"
     )
@@ -514,7 +514,8 @@ def test_a_summary_folds_originals_and_a_direct_reply_link_reveals_them(browser,
     )
     expand = checkpoint.locator(".lf-summary-expand")
     expect(expand).to_have_attribute("aria-expanded", "false")
-    expect(expand).to_have_accessible_name("Show 3 messages")
+    expect(expand).to_have_accessible_name("Show 3 earlier messages")
+    expect(checkpoint.locator(".lf-summary-label")).to_have_text("Earlier discussion")
     expect(checkpoint.locator(".lf-summary-text")).to_have_text(
         "Checkpoint digest: the dependency remains and the measurement took 18 minutes."
     )
@@ -524,7 +525,7 @@ def test_a_summary_folds_originals_and_a_direct_reply_link_reveals_them(browser,
         checkpoint.locator(".lf-summary-text").evaluate(
             "node => getComputedStyle(node).fontStyle"
         )
-        == "italic"
+        == "normal"
     )
     assert (
         checkpoint.locator(".lf-summary-text code").evaluate(
@@ -542,10 +543,9 @@ def test_a_summary_folds_originals_and_a_direct_reply_link_reveals_them(browser,
     expect(expand).to_have_attribute("aria-expanded", "true")
     for message in (first, middle, last):
         expect(card.locator(f'.lf-msg[data-mid="{message["id"]}"]')).to_be_visible()
-    refold = checkpoint.locator(".lf-summary-refold")
-    expect(refold).to_have_accessible_name("Hide 3 messages")
-    expect(refold).to_have_text("Hide")
-    refold.focus()
+    expect(checkpoint.locator(".lf-summary-refold")).to_have_count(0)
+    expect(expand).to_have_accessible_name("Collapse 3 earlier messages")
+    expand.focus()
     page.keyboard.press("Enter")
     expect(expand).to_have_attribute("aria-expanded", "false")
     expect(card.locator(f'.lf-msg[data-mid="{last["id"]}"]')).to_be_hidden()
@@ -744,17 +744,13 @@ def test_a_summary_cannot_hide_an_active_question(browser, serve):
     expect(checkpoint.locator(".lf-summary-expand")).to_have_count(0)
     expect(checkpoint.locator(".lf-summary-refold")).to_have_count(0)
     originals = checkpoint.locator(".lf-summary-originals")
-    messages = checkpoint.locator(".lf-summary-messages")
     widths = originals.evaluate(
-        "(originals, messages) => ({"
-        "originals: originals.getBoundingClientRect().width, "
-        "messages: messages.getBoundingClientRect().width, "
-        "columns: getComputedStyle(originals).gridTemplateColumns"
-        "})",
-        messages.element_handle(),
+        "originals => ({"
+        "available: originals.getBoundingClientRect().width, "
+        "message: originals.querySelector('.lf-msg').getBoundingClientRect().width"
+        "})"
     )
-    assert widths["originals"] == pytest.approx(widths["messages"], abs=0.5), widths
-    assert widths["columns"].endswith(" 0px"), widths
+    assert widths["available"] - widths["message"] < 20, widths
 
 
 def test_a_held_inline_reply_reveal_yields_to_new_user_focus(browser, serve):
@@ -889,7 +885,7 @@ def test_resolve_acknowledges_the_press_and_recovers_a_refusal(
     resolve.scroll_into_view_if_needed()
     with page.expect_request("**/api/event"):
         resolve.click()
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (0)")
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads · 0 open")
     expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
     if view == "inline":
         expect(thread.get_by_role("button", name="Resolve thread")).to_have_count(0)
@@ -903,7 +899,7 @@ def test_resolve_acknowledges_the_press_and_recovers_a_refusal(
     held.pop().fulfill(
         json={"ok": False, "final": True, "error": "Please retry."},
     )
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (1)")
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads · 1 open")
     if view == "inline":
         page.locator('.lf-margin-marker[data-lf-kinds="comment"]').click()
         thread = page.locator(".lf-margin-thread")
@@ -918,7 +914,7 @@ def test_resolve_acknowledges_the_press_and_recovers_a_refusal(
     resolve.focus()
     with page.expect_request("**/api/event"):
         page.keyboard.press("Enter")
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (0)")
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads · 0 open")
     if view == "panel":
         write(
             page.locator(".lf-general leaf-text"), "My next thought can keep its focus."
@@ -972,7 +968,7 @@ def test_resolving_one_of_two_threads_leaves_the_user_in_the_card(browser, serve
     resolve.focus()
     with sending(page, "the resolve"):
         page.keyboard.press("Enter")
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (1)")
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads · 1 open")
     expect(card).to_be_visible()
     expect(
         card.get_by_role("button", name="Resolve thread", exact=True)
@@ -2031,7 +2027,7 @@ def test_resolving_an_early_thread_keeps_the_rest_in_place(browser, serve):
         page.locator(f'.lf-threads > .lf-thread[data-id="{c1}"][hidden]')
     ).to_have_count(1)
     expect(page.locator(f'.lf-thread[data-id="{c1}"] leaf-text')).to_have_count(0)
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (2)")
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads · 2 open")
     # The survivor stays the same node.
     expect(page.locator(f'.lf-thread[data-id="{c2}"] leaf-text')).to_have_attribute(
         "placeholder", "Reply c"
@@ -2080,7 +2076,7 @@ def test_a_failed_thread_list_update_retries_one_coherent_reading(browser, serve
     panel_settled(page)
     expect(page.locator(".lf-thread-panel .lf-auxiliary-title")).to_have_text("Threads")
     expect(page.locator(".lf-thread-view-summary")).to_have_text("1 open thread")
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (1)")
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads · 1 open")
     page.evaluate(
         """async (id) => {
           const presentation = await window.__lfRuntimeImport(
@@ -2171,7 +2167,7 @@ def test_a_failed_thread_list_update_retries_one_coherent_reading(browser, serve
     )
     expect(page.locator(".lf-thread-panel .lf-auxiliary-title")).to_have_text("Threads")
     expect(page.locator(".lf-thread-view-summary")).to_have_text("1 open thread")
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (1)")
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads · 1 open")
 
     page.evaluate("window.releaseThreadRetry()")
     page.wait_for_function(
@@ -2187,7 +2183,7 @@ def test_a_failed_thread_list_update_retries_one_coherent_reading(browser, serve
         root,
     ), "successful retry replaced the retained card"
     expect(page.locator(".lf-thread-view-summary")).to_have_text("0 open threads")
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (0)")
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads · 0 open")
     assert take_browser_errors(page) == [
         "leaf: Presentation failed: injected thread-card failure"
     ]
@@ -2997,7 +2993,7 @@ def test_finding_narrows_the_list_and_says_how_much_of_it_is_left(browser, serve
     expect(page.locator(".lf-thread-panel .lf-auxiliary-title")).to_have_text("Threads")
     expect(page.locator(".lf-thread-view-summary")).to_have_text("1 of 3 open threads")
     # The page's own count is the log's and says so throughout.
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (3)")
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads · 3 open")
 
     # The part of the page a thread is on is one of its words: a user looking for the
     # merge rule finds the thread under that heading without its message saying so.
@@ -3689,7 +3685,7 @@ def test_a_resolved_thread_can_be_reopened(browser, serve):
     expect(page.locator('[data-filter-value="open"]')).to_have_attribute(
         "aria-pressed", "true"
     )
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (18)")
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads · 18 open")
     assert events_model.read_events(serve.page_dir)[-1]["kind"] == "unresolve"
 
 
@@ -3904,7 +3900,7 @@ def test_a_resolved_thread_gives_its_room_back_as_motion(browser, serve):
         "was stated, so the fold started from somewhere other than the box the user "
         "was looking at"
     )
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (2)")
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads · 2 open")
     expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
     expect(page.locator(f'[data-id="{c1}"] leaf-text')).to_have_attribute(
         "placeholder", "Reply"

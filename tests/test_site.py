@@ -2179,7 +2179,7 @@ def test_what_a_user_leaves_on_one_page_stays_on_it(served_example, browser):
     page.locator(".lf-general .lf-compose-submit").click()
     # One, and typed: this example ships no log, so the count is the comment
     # just written and nothing else.
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (1)")
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads · 1 open")
     # The page's own scroller (the runtime's `pageScroller`), moved the way a
     # user moves it far enough down that the landmark is worth restoring.
     page.evaluate(
@@ -2199,7 +2199,7 @@ def test_what_a_user_leaves_on_one_page_stays_on_it(served_example, browser):
     )
     _, plain_url = served_example(plain)
     opened(page, plain_url)
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (0)")
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads · 0 open")
     assert page.evaluate("() => document.scrollingElement.scrollTop") == 0, (
         "the second example opened at the offset left on the first"
     )

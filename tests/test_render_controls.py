@@ -258,7 +258,25 @@ def test_product_gallery_threads_tab_operates_seeded_panel_views(browser, serve)
         expect(topic).to_have_text(title)
         assert topic.evaluate("element => element.getBoundingClientRect().width") > 40
 
+    page.locator('#bg-panel-presets [data-view="you"]').click()
+    frame.get_by_role("searchbox", name="Find in threads").fill("xyz-nothing")
+    expect(frame.locator(".lf-thread:not([hidden])")).to_have_count(0)
     page.locator('#bg-panel-presets [data-view="resolved"]').click()
+    resolved = frame.locator('.lf-thread[data-id="bab3cdfcfb8c02aacbb27da731de947a"]')
+    expect(frame.get_by_role("searchbox", name="Find in threads")).to_have_value("")
+    expect(
+        frame.locator('[data-filter-kind="status"][data-filter-value="resolved"]')
+    ).to_have_attribute("aria-pressed", "true")
+    expect(resolved).to_have_attribute("open", "")
+    expect(frame.locator(".lf-thread:not([hidden])")).to_have_count(1)
+    expect(frame.locator(".lf-thread-filter-toggle")).to_have_attribute(
+        "aria-expanded", "false"
+    )
+    page.locator('#bg-panel-presets [data-view="resolved"]').click()
+    expect(resolved).to_have_attribute("open", "")
+    page.locator('#bg-panel-presets [data-view="you"]').click()
+    page.locator('#bg-panel-presets [data-view="resolved"]').click()
+    expect(resolved).to_have_attribute("open", "")
     page.locator("#bg-panel-specimen").get_by_role(
         "button", name="Reset", exact=True
     ).click()
@@ -2618,8 +2636,8 @@ def test_the_poll_leaves_the_banner_where_it_was(browser, serve):
 
     The banner is where all of it lands, and it is packed to the right against a spacer,
     which decides who pays. A control that grows moves itself and everything to its
-    *left*; everything to its right keeps its place. So `Threads (9)` becoming
-    `Threads (10)` — a comment posted from the terminal while the user reads —
+    *left*; everything to its right keeps its place. So `Threads · 9 open` becoming
+    `Threads · 10 open` — a comment posted from the terminal while the user reads —
     slid the version chooser 6px left, and the Accept all a second tab's decision puts
     away took the New-version chip with it.
 
@@ -2640,7 +2658,7 @@ def test_the_poll_leaves_the_banner_where_it_was(browser, serve):
     comments = ".lf-banner .lf-threads-toggle"
     accept_all = '[title^="Accept every"]'
     page.wait_for_function(
-        f"() => document.querySelector('{comments}').textContent === 'Threads (9)'"
+        f"() => document.querySelector('{comments}').textContent === 'Threads · 9 open'"
     )
     page_at_rest(page)
 
@@ -2675,7 +2693,7 @@ def test_the_poll_leaves_the_banner_where_it_was(browser, serve):
                     "text": "A tenth.",
                 },
             ),
-            f"() => document.querySelector('{comments}').textContent === 'Threads (10)'",
+            f"() => document.querySelector('{comments}').textContent === 'Threads · 10 open'",
         ),
         (
             "a new version is published",

@@ -124,9 +124,9 @@ def test_first_unread_opens_the_exact_message_and_exposure_acknowledges_it(
     expect(page.locator(".lf-first-unread")).to_have_attribute(
         "aria-label", "1 unread message. Go to first unread message"
     )
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (2)")
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads · 2 open")
     expect(page.locator(".lf-threads-toggle")).to_have_attribute(
-        "aria-label", "Threads (2), 1 unread thread"
+        "aria-label", "Threads · 2 open, 1 unread thread"
     )
     expect(page.locator(".lf-threads-toggle")).to_have_attribute(
         "data-unread-threads", ""
@@ -165,7 +165,7 @@ def test_first_unread_opens_the_exact_message_and_exposure_acknowledges_it(
     assert _read_events(serve.page_dir)[-1]["messages"] == [
         {"message": root, "version": root}
     ]
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (2)")
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads · 2 open")
     page.reload()
     expect(page.locator(".lf-first-unread")).to_be_hidden()
 
@@ -325,7 +325,7 @@ def test_first_unread_reveals_a_resolved_thread_and_covered_original(browser, se
         "aria-label", "2 unread messages. Go to first unread message"
     )
     expect(page.locator(".lf-threads-toggle")).to_have_attribute(
-        "aria-label", "Threads (0), 1 unread thread"
+        "aria-label", "Threads · 0 open, 1 unread thread"
     )
 
     page.locator(".lf-first-unread").click()

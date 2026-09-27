@@ -131,15 +131,9 @@ function retitle(box, title) {
 function button(label, target, cls = "") {
   const node = offer("a", cls);
   relabel(node, label, { says: "echo" });
+  // Following it opens a shut goal around a worker as any trip does, through the goal's
+  // `lf-reveal` below.
   node.href = `#${target.id}`;
-  node.addEventListener("click", () => {
-    if (commandRole(target, "worker")) {
-      const command = closestCommandRole(target, "command");
-      const goal = closestCommandRole(target.parentElement, "goal");
-      if (goal && closestCommandRole(goal, "command") === command)
-        setWorkers(goal, true);
-    }
-  });
   return node;
 }
 

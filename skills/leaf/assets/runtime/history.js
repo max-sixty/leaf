@@ -16,9 +16,16 @@
  * element the page no longer shows (a tab or disclosure closed since): the offset was
  * saved over a page that has changed, so the browser's own fragment landing, which
  * reveals the element, answers instead. Focus stays where it is either way, as an
- * unintercepted traversal leaves it. A push, a fragment link among them, is not a
- * traversal and keeps native fragment landing; a browser without the Navigation API
- * keeps its own traversals. */
+ * unintercepted traversal leaves it.
+ *
+ * A fragment navigation, a followed `#id` link, is not a traversal: it adds its entry
+ * and is a trip to the element it names. The travel owner claims it (`mountHistory`'s
+ * `followFragment`, anchor-travel.js) where the fragment names an element of the page,
+ * and lands it through the browser's own fragment scroll once travel has cleared and
+ * revealed the way; any other fragment keeps native landing. `pushEntry` and
+ * `replaceEntry` are not fragment navigations, so an entry travel or a tab set records
+ * is never claimed. A browser without the Navigation API keeps its own traversals and
+ * fragment landings. */
 
 const claims = new Set();
 
@@ -38,17 +45,23 @@ export function claimTraversals(claim, { signal } = {}) {
 }
 
 let mounted = false;
-export function mountHistory() {
+export function mountHistory({ followFragment }) {
   if (mounted) return;
   mounted = true;
   window.navigation?.addEventListener("navigate", (event) => {
-    if (
-      event.navigationType !== "traverse" ||
-      !event.destination.sameDocument ||
-      !event.canIntercept
-    )
-      return;
+    if (!event.destination.sameDocument || !event.canIntercept) return;
     const url = new URL(event.destination.url);
+    if (event.hashChange && event.navigationType !== "traverse") {
+      const arrive = followFragment(url);
+      if (arrive)
+        event.intercept({
+          scroll: "manual",
+          focusReset: "manual",
+          handler: () => arrive(() => event.scroll()),
+        });
+      return;
+    }
+    if (event.navigationType !== "traverse") return;
     for (const claim of claims) {
       const handler = claim(url);
       if (!handler) continue;

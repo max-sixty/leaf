@@ -67,14 +67,13 @@ import {
 } from "./presentation.js";
 import { html, nothing } from "../../vendor/browser-runtime.js";
 import { isExternalPageLink, PAGE_PAINT_ATTRIBUTE } from "../presentation.js";
-import { targetElement } from "../resolved-target.js";
 import { focusDestination } from "../focus.js";
 import { el, PRESSABLE } from "../widget-elements.js";
 import { allButCommandReference, pageCommand, pageScope } from "./register.js";
 import { focusedThreadTarget } from "../thread/focus.js";
 import { letGo } from "../focus.js";
 import { pageParts } from "../passages.js";
-import { fragmentId, addressableSays, resolveAnchor } from "../anchor-resolution.js";
+import { addressableSays, fragmentTarget } from "../anchor-resolution.js";
 import { announce, notice } from "../notifications.js";
 import { closestAcross, pageQueryAll } from "../passages.js";
 import {
@@ -157,10 +156,11 @@ export function createGoToSequence({
   const pageControls = () => pageParts(PRESSABLE);
 
   // A link keeps the platform activation that its author wrote. The sequence adds only the
-  // arrival it otherwise lacks: a local fragment hands focus to the place the browser just
-  // revealed, while an external link names the new tab that Leaf opens. A cancelled click
-  // does neither, because its handler has replaced the link's trip with one of its own.
-  function fragmentSection(link) {
+  // arrival it otherwise lacks: a local fragment hands focus to the place travel just
+  // revealed and landed, while an external link names the new tab that Leaf opens. A
+  // cancelled click does neither, because its handler has replaced the link's trip with
+  // one of its own.
+  function sameDocumentFragment(link) {
     try {
       const url = new URL(link.getAttribute("href"), document.baseURI);
       if (!url.hash) return null;
@@ -171,7 +171,7 @@ export function createGoToSequence({
         url.search !== here.search
       )
         return null;
-      return fragmentId(url.hash);
+      return url.hash;
     } catch {
       return null;
     }
@@ -191,7 +191,7 @@ export function createGoToSequence({
   }
 
   function followLink(link) {
-    const section = fragmentSection(link);
+    const fragment = sameDocumentFragment(link);
     let activation = null;
     link.addEventListener("click", (event) => (activation = event), {
       capture: true,
@@ -199,10 +199,19 @@ export function createGoToSequence({
     });
     link.click();
     if (!activation || activation.defaultPrevented) return;
-    const destination = fragmentFocusTarget(
-      section && targetElement(resolveAnchor({ section })),
-    );
-    if (destination) return focusDestination(destination);
+    if (fragmentTarget(fragment)) {
+      // Travel lands the fragment once it has revealed the way (history.js). Standing the
+      // user there before that would be a focus move the landing reads as a newer one.
+      const landed = window.navigation?.transition?.finished ?? Promise.resolve();
+      landed.then(
+        () => {
+          const destination = fragmentFocusTarget(fragmentTarget(fragment));
+          if (destination) focusDestination(destination);
+        },
+        () => {},
+      );
+      return;
+    }
     if (isExternalPageLink(link) && link.target === "_blank") {
       const name =
         link.getAttribute("aria-label")?.trim() || addressableSays(link) || "Link";

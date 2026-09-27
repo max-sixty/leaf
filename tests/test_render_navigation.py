@@ -1663,6 +1663,7 @@ def test_an_addressed_link_leaves_the_user_at_its_destination(
 <h1>Addressed links</h1>
 <p><a id="internal" href="#arrival">Read the conclusion</a>.</p>
 <p><a id="external" href="{destination}" aria-label="Leaf guide">Open the guide</a>.</p>
+<div style="height: 1600px"></div>
 <h2 id="arrival">Conclusion</h2>
 <p>The internal trip ends here.</p>
 """,
@@ -1674,6 +1675,10 @@ def test_an_addressed_link_leaves_the_user_at_its_destination(
     go_to_address(page, "Link", "internal")
     page.wait_for_url(re.compile(r"#arrival$"))
     expect(page.locator("#arrival")).to_be_focused()
+    expect(page.locator("#arrival")).to_be_in_viewport()
+    page.evaluate(
+        "() => document.scrollingElement.scrollTo({top: 0, behavior: 'instant'})"
+    )
 
     page.keyboard.press("g")
     external_code = address_code(page, "Link", "external")
@@ -6924,6 +6929,10 @@ def test_generated_hints_are_browsable_without_entering_the_paint_layer(browser,
     page.keyboard.press("Enter")
     page.wait_for_url(re.compile(r"#arrival$"))
     expect(page.locator("#arrival")).to_be_focused()
+    expect(page.locator("#arrival")).to_be_in_viewport()
+    page.evaluate(
+        "() => document.scrollingElement.scrollTo({top: 0, behavior: 'instant'})"
+    )
     expect(page.locator(CHIPS)).to_have_count(0)
 
 

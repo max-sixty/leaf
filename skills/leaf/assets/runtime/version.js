@@ -80,7 +80,6 @@ import {
 } from "./passages.js";
 import { registry, stateSpecs, tagsDeclaring } from "./registry.js";
 import { prepareDeclaredInlineMarkdown } from "./markdown.js";
-import { targetElement } from "./resolved-target.js";
 import { pageScroller } from "./scrolling.js";
 import {
   containingReadingRegionFor,
@@ -102,7 +101,7 @@ import { pointerAt, restorePointer } from "./pointer.js";
 import { reportPageError } from "./layer-client.js";
 import { projectView, readApplication } from "./semantic-state.js";
 
-import { anchoringIsReady, fragmentId, resolveAnchor } from "./anchor-resolution.js";
+import { anchoringIsReady, fragmentTarget } from "./anchor-resolution.js";
 import { rowWalk } from "./walk-position.js";
 import {
   domValue,
@@ -1825,15 +1824,16 @@ export function createVersionController({
   // moved stays where it is. The fragment is read before widgets upgrade, since a widget
   // may write its own view into the URL (a root tab set names its open panel), and that
   // is display state, not a destination. A reload or history traversal keeps the
-  // browser's restored offset instead, and input during the arrival ends it.
+  // browser's restored offset instead, and input during the arrival ends it. A fragment
+  // followed once the page is here is travel's (anchor-travel.js, `followFragment`),
+  // which reads the same destination and reveals it the same way.
   let aimedAt = null;
   function aimArrival() {
     const fresh = performance.getEntriesByType("navigation")[0]?.type === "navigate";
     const arrivedAt = location.hash;
     const currentIntent = retainUserIntent();
     return function landFragment() {
-      aimedAt ??=
-        fresh && targetElement(resolveAnchor({ section: fragmentId(arrivedAt) }));
+      aimedAt ??= fresh && fragmentTarget(arrivedAt);
       if (!aimedAt || !currentIntent()) return;
       reveal(aimedAt, currentIntent);
       aimedAt.scrollIntoView({

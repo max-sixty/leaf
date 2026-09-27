@@ -265,7 +265,7 @@ def asset_site(out: Path) -> Path:
 
 def media_url(source: Path) -> str:
     """The page path an image takes once `leaf page media` has stored it."""
-    return f"/{MEDIA_DIR}/{media_name(source.read_bytes(), source.suffix.lower())}"
+    return f"/{MEDIA_DIR}/{media_name(source.read_bytes(), source.suffix)}"
 
 
 def social_images(catalog_previews: Path | None = None) -> dict[str, str]:

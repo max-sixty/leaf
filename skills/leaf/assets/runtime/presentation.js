@@ -170,8 +170,7 @@ let appliedState = null;
 /** Record `state` as applied. Called once per answer, after its document's presentation
     pass and every data subscriber it told have finished. */
 export function markStateApplied(state) {
-  if (state.reading !== null)
-    document.body.setAttribute(PAGE_PAINT_ATTRIBUTE.reading, state.reading);
+  document.body.setAttribute(PAGE_PAINT_ATTRIBUTE.reading, state.reading);
   appliedState = { reading: state.reading, taken: state.taken };
 }
 

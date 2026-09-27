@@ -5,9 +5,9 @@
    differently. `watchData(widget, input, callback)` delivers a clone of `{source,
    contract, revision, updated, value, origin}`, or `null` while the bound source has no
    readable value. It redelivers only when that source revision changes; overlapping
-   reads await the same in-flight rendering before stamping readiness. Its synchronous
-   time readings refresh independently of data delivery. Modules project the result
-   into the authored seat; they do not fetch it, mutate the accepted copy, or keep a
+   reads await the same in-flight rendering before stamping the version presented. Its
+   synchronous time readings refresh independently of data delivery. Modules project the
+   result into the authored seat; they do not fetch it, mutate the accepted copy, or keep a
    hidden current-value map of their own.*/
 
 import { offlineData, offlineInteractive, pageUrl, runtime } from "./context.js";

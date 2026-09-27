@@ -200,9 +200,6 @@ and its chrome coordinate.
 
 ### Shared definitions
 
-- **Ask once whether the page has caught up with a reading.** `tests/render_harness.py`
-  `told()` waits for `data-lf-reading` to match the server's reading, and the `data`
-  and `log` stages of the runtime's `pageReadiness` (#1250) answer the same question.
 - **Hold focus in the thread seats with `holdFocus`.** `focus.js` `holdFocus` is the
   one hand-over of the user's place across a DOM move, but `thread/inline.js`
   `ThreadSeat.present` (across one render) and `retain` (across a refused batch) still

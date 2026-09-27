@@ -281,7 +281,7 @@ Before finishing a feature:
   other references point at that section by name. Shipped guidance sets goals
   for the user's experience and names the surface they read on; it leaves
   format and phrasing to the agent. Score the change with `evals/` before and
-  after, and add a case for the behavior it targets (`evals/README.md`).
+  after (`/developing-leaf`, "Score a guidance change").
 
 `uv run pytest tests` and `npm run test:runtime` are the everyday gate
 (`tests/AGENTS.md`). Two TypeScript trees, `worker/src/` and `build/browser/`, and

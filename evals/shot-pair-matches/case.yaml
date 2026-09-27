@@ -1,3 +1,6 @@
+# From session 9a24bf96, whose handoff page put an identical capture pair under an
+# alt claiming a change (#1344). Both arms opened the captures the prompt names and
+# passed 3 of 3; the fix rests on the session log.
 schema_version: '1.0'
 name: shot-pair-matches
 description: "Source files and media: open both captures of an lf-shot before writing around it; a pair whose sides match does not go on the page as a change."

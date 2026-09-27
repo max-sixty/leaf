@@ -1,3 +1,5 @@
+# Added with the Layout classes (#1246). Base at aec3eea3d wrote `lf-grid` and
+# `main[data-width]` (0 of 3); the change wrote a sidebar page with tiles (3 of 3).
 schema_version: '1.0'
 name: page-arrangement-uses-layouts
 description: "Arranging a page: a page wider than the column takes a shipped Layout class on main or a block, rather than a retired element or its own grid."

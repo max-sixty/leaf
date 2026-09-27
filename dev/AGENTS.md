@@ -31,4 +31,5 @@ and the others import it; a script under `scripts/` imports it too.
 - `leaf-dev stills [BASE_REF]` screenshots a catalogue of UI states, at rest and
   reached by input, on a base runtime and HEAD's, and crops each state that changed
   into a before/after pair under `.tmp/stills/`.
-- `leaf-dev arm REF DEST` builds one arm, for an eval's A/B (`evals/README.md`).
+- `leaf-dev arm REF DEST` builds one arm, for an eval's A/B (`/developing-leaf`,
+  "Score a guidance change").

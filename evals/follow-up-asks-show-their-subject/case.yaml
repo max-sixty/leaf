@@ -1,3 +1,6 @@
+# From session 78ca368e's review page, whose follow-up Asks named defects without
+# showing them. Every arm measured passed it 3 of 3, except in #1246, where base
+# passed 1 of 3 and candidate 2 of 3 with its clause unchanged: its judgment is noisy.
 schema_version: '1.0'
 name: follow-up-asks-show-their-subject
 description: "Asks: an Ask about a captured defect shows its capture inside the lf-ask, not only a pointer to where the page shows it."

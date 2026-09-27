@@ -3,7 +3,7 @@ version of Leaf.
 
     uv run leaf-dev arm REF DEST
 
-builds one arm at DEST from git REF; `evals/README.md`'s A/B recipe builds its other
+builds one arm at DEST from git REF; `/developing-leaf`'s A/B recipe builds its other
 arm with it. `leaf-dev stills` and `leaf-dev probe`, `eval_claude_delivery.py`, the
 two `bench_*.py` scripts, `verify_codex_task.py`, `verify_site.py`,
 `notes/arrangement-eval/harness.py` and `notes/usability-eval/harness.py` import the

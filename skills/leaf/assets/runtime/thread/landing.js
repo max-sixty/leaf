@@ -309,11 +309,16 @@ const land = (thread, behavior, threadsBox, block) => {
   // resolving a long thread left the next one's title above the list. Land once the fold
   // has ended and its removal painted, if the user is still standing there.
   if (hasFolding(threadsBox)) {
+    const mayLand = retainUserIntent({
+      source: thread,
+      available: () => thread.isConnected,
+    });
     void whenFolded(threadsBox)
       .then(whenDocumentPresented)
       .catch(() => {})
       .then(() => {
-        if (thread.contains(focused())) land(thread, behavior, threadsBox, block);
+        if (mayLand() && thread.contains(focused()))
+          land(thread, behavior, threadsBox, block);
       });
     return;
   }

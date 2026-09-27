@@ -6844,7 +6844,7 @@ def drafting_in_a_short_card(browser, serve, width, height):
     page.locator('[data-lf-margin-for="open"] .lf-margin-marker').click()
     preview = page.locator(".lf-margin-preview")
     expect(preview).to_be_visible()
-    preview.get_by_role("button", name="Reply", exact=True).click()
+    preview.get_by_role("textbox", name="Reply", exact=True).click()
     editor = preview.locator("leaf-text")
     expect(editor).to_be_focused()
     editor.type("words")

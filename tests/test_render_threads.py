@@ -7390,6 +7390,76 @@ def test_settling_a_long_diff_thread_by_key_keeps_it_in_view(browser, serve):
     assert focus_clear_of_the_bar(page), "the reopened thread left the window"
 
 
+@pytest.mark.parametrize("kind", ["task", "diff"])
+def test_a_turn_arriving_leaves_a_user_who_scrolled_away_from_their_box_reading(
+    browser, serve, kind
+):
+    """The box a turn arrives above is held still only while it is on screen. A user
+    who wheeled up to read the page with focus still in the box is reading the page,
+    and holding the box there moved what they were reading."""
+    url, root = seated_thread(serve, kind, 3)
+    page = open_page(browser, url)
+    thread = page.locator(f'.lf-page-thread[data-thread="{root}"]')
+    box = thread.locator(":scope > .lf-say leaf-text")
+    box.scroll_into_view_if_needed()
+    write(box, "Half a thought")
+    page.evaluate(
+        """node => document.scrollingElement.scrollBy({
+          top: node.getBoundingClientRect().top - innerHeight - 400,
+          behavior: 'instant'})""",
+        thread.element_handle(),
+    )
+    scroll_settled(page)
+    expect(box).to_be_focused()
+    before = page.evaluate("() => document.scrollingElement.scrollTop")
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Codex",
+            "parent": root,
+            "responds": root,
+            "revision": 1,
+            "text": "The agent's answer. " + SEAT_WORDS,
+        },
+    )
+    told(page)
+    expect(thread.locator(".lf-page-thread-msg")).to_have_count(4)
+    rendered(page)
+    after = page.evaluate("() => document.scrollingElement.scrollTop")
+    assert after == pytest.approx(before, abs=1), f"the page moved {after - before}px"
+
+
+def test_a_wheel_during_a_resolution_fold_outranks_the_landing_after_it(browser, serve):
+    """The landing of the next title waits for the fold, and a user who scrolls the
+    list meanwhile has taken it somewhere else: the deferred landing pulled the list
+    back toward the title once the fold ended."""
+    url = serve(PANEL_PAGE)
+    roots = seed_panel_threads(serve.page_dir, 8, long_index=3)
+    page = open_page(browser, url, init_script=HOLD_MOTION)
+    open_threads_list(page, 800, 520)
+    title = page.locator(f'.lf-thread[data-id="{roots[3]}"] > .lf-thread-summary')
+    title.click()
+    rendered(page)
+    title.focus()
+    with sending(page, "the resolve"):
+        page.keyboard.press("r")
+    following = page.locator(f'.lf-thread[data-id="{roots[4]}"] > .lf-thread-summary')
+    expect(following).to_be_focused()
+    page.wait_for_function("() => window.__lfHeld.length > 0")
+    threads = page.locator(".lf-threads")
+    threads.hover()
+    page.mouse.wheel(0, 300)
+    scroll_settled(page, ".lf-threads")
+    wheeled = threads.evaluate("list => list.scrollTop")
+    page.evaluate("() => window.__lfHeld.slice().forEach(motion => motion.finish())")
+    rendered(page)
+    scroll_settled(page, ".lf-threads")
+    expect(following).to_be_focused()
+    assert threads.evaluate("list => list.scrollTop") == pytest.approx(wheeled, abs=2)
+
+
 def test_a_walk_to_a_question_the_narrowing_hides_widens_the_list(browser, serve):
     """A card the narrowing hid keeps its node, so the `a` walk can still name the
     question in it — and arriving there has to show it, the way showThread does:

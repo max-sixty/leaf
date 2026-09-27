@@ -38,6 +38,7 @@ from render_harness import (
     SETTLED_PAGE,
     SPECIMEN_MARKUP,
     SPECIMEN_TEXT,
+    leaf_page,
     open_page,
     page_registry,
     primed,
@@ -256,6 +257,52 @@ def test_check_render_refuses_what_only_a_browser_can_see(serve, headless_shell)
     broken = gate()
     assert broken.returncode == 1
     assert "scrolls sideways" in broken.stderr
+
+
+def test_a_passing_render_check_saves_the_screens_the_author_reads(
+    serve, headless_shell
+):
+    """A clean `version check --render` saves screens and names them: the page top to
+    bottom at the desktop viewport and on a phone, and one screen at each width where
+    the page's own arrangement is at its tightest before it changes. A sidebar page with
+    four tiles in its body changes twice there: its tiles wrap before its track stacks.
+    A second check replaces the first's screens rather than adding to them."""
+    tiles = "".join(
+        f"<lf-metric id='m{i}' value='{i}'>metric {i}</lf-metric>" for i in range(4)
+    )
+    serve(
+        leaf_page(
+            "a sidebar page",
+            "<header><h1>Rollout</h1></header>"
+            f"<div id='body'><div class='layout-tiles' id='numbers'>{tiles}</div>"
+            + "<p>Body paragraph. " * 30
+            + "</p></div><aside id='checks'><p>Checks beside the body.</p></aside>",
+            layout="sidebar",
+        )
+    )
+
+    def check():
+        ran = subprocess.run(
+            [*LEAF_COMMAND, "version", "check", str(serve.page_dir), "--render"],
+            capture_output=True,
+            text=True,
+            check=True,
+            env=unnamed_browser() | {"LEAF_BROWSER_EXECUTABLE": headless_shell},
+        )
+        lines = ran.stdout.splitlines()
+        heading = next(line for line in lines if "screens to read" in line)
+        into = Path(heading.split(" in ", 1)[1].rstrip(":"))
+        return into, lines[lines.index(heading) + 1 :]
+
+    into, listed = check()
+    names = sorted(path.name for path in into.iterdir())
+    assert "1200px-1.png" in names and "390px-1.png" in names
+    stacks = next(line for line in listed if "main 1+2 → 1+1+1" in line)
+    assert (into / stacks.split(":")[0].strip()).exists()
+    assert any("#numbers 4 → " in line for line in listed)
+    again, _listed = check()
+    assert again == into
+    assert sorted(path.name for path in into.iterdir()) == names
 
 
 def test_a_named_browser_that_is_not_one_names_the_variable(serve, tmp_path):

@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from leaf.render_checks import RENDER_VIEWPORT, SERVED_TIMEOUT_MS
 
 from .readings import (
+    arrangement_changes,
     margin_changes,
     margin_cover_advice,
     shrunk_label_advice,
@@ -23,11 +24,13 @@ RENDER_VIEWPORTS = (
 class RenderReading:
     """What the browser gate read of a version: a failure refuses it, advice does not.
     `margin_widths` are the widths, besides the fixed viewports, it rendered because the
-    page's margin content changes there."""
+    page's margin content changes there. `arrangement` is each swept width at which the
+    page's own arrangement is at its tightest before it changes, with what changes."""
 
     failures: list[str]
     advice: list[str]
     margin_widths: list[int]
+    arrangement: list[tuple[int, str, str]]
 
 
 def _viewport_label(viewport: dict) -> str:
@@ -109,6 +112,7 @@ def _render_version_attempt(
     swept = []
     advice = []
     changes = []
+    arrangement = []
 
     def once(page):
         # Advice first, at the viewport it is about; the sweep then resizes the page.
@@ -116,6 +120,7 @@ def _render_version_attempt(
         advice.extend(shrunk_label_advice(page))
         widths = sweep(page, RENDER_VIEWPORTS)
         swept.extend(swept_overflow(widths, RENDER_VIEWPORTS))
+        arrangement.extend(arrangement_changes(widths))
         height = RENDER_VIEWPORTS[0]["height"]
         fixed = {viewport["width"] for viewport in RENDER_VIEWPORTS}
         changes.extend(
@@ -156,6 +161,7 @@ def _render_version_attempt(
         all(completed),
         advice,
         changes,
+        arrangement,
     )
 
 
@@ -197,25 +203,26 @@ def render_version(
                 False,
                 [],
                 [],
+                [],
             )
 
-    found, notices, complete, advice, widths = attempt()
+    found, notices, complete, advice, widths, arrangement = attempt()
     retain(found)
     if not complete:
         retain(notices)
-        return RenderReading(failures, advice, widths)
+        return RenderReading(failures, advice, widths, arrangement)
     if not notices:
-        return RenderReading(failures, advice, widths)
+        return RenderReading(failures, advice, widths, arrangement)
 
-    found, confirming_notices, complete, _advice, _widths = attempt()
+    found, confirming_notices, complete, _advice, _widths, _arrangement = attempt()
     retain(found)
     if not complete:
         for notice in [*notices, *confirming_notices]:
             retain([f"{notice} (the confirming render attempt did not complete)"])
-        return RenderReading(failures, advice, widths)
+        return RenderReading(failures, advice, widths, arrangement)
     if confirming_notices:
         failures.extend(
             f"{notice} (recurred on the confirming render attempt)"
             for notice in confirming_notices
         )
-    return RenderReading(failures, advice, widths)
+    return RenderReading(failures, advice, widths, arrangement)

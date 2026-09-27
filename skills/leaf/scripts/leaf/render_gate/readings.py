@@ -447,6 +447,40 @@ MARGIN_READING = (
 )
 
 
+# How the page's own arrangement stands: for each flex or grid box the page wrote (a
+# Layout, or the page's own grid), how many of its children stand in each row, as
+# `name:counts` (`#regions:1+2`, a header across a body and its track). A widget's
+# insides are the widget's own business and are left out, as is Leaf's chrome.
+ARRANGEMENT_READING = """() => {
+  const main = document.querySelector('main');
+  if (!main) return [];
+  const own = (el) => !el.tagName.includes('-') && !el.matches('.lf-ui, [data-lf-gen]');
+  const boxes = [];
+  const walk = (el) => {
+    if (!own(el)) return;
+    boxes.push(el);
+    for (const child of el.children) walk(child);
+  };
+  walk(main);
+  const name = (el) => el.id ? '#' + el.id
+    : el === main ? 'main' : el.tagName.toLowerCase() + (el.classList.length ? '.' + el.classList[0] : '');
+  return boxes.flatMap((box) => {
+    if (!/flex|grid/.test(getComputedStyle(box).display)) return [];
+    const tops = [...box.children]
+      .map((child) => child.getBoundingClientRect())
+      .filter((r) => r.width > 0 && r.height > 0)
+      .map((r) => Math.round(r.top));
+    if (tops.length < 2) return [];
+    const rows = [];
+    for (const top of tops) {
+      const row = rows.find((r) => Math.abs(r.top - top) <= 2);
+      row ? row.count++ : rows.push({ top, count: 1 });
+    }
+    return [name(box) + ':' + rows.map((r) => r.count).join('+')];
+  });
+}"""
+
+
 def _settle_at(page, width: int, height: int) -> None:
     page.set_viewport_size({"width": width, "height": height})
     # What the resize set moving in script (an observer, the layout that observer's
@@ -477,10 +511,32 @@ def sweep(page, viewports) -> list[tuple[int, dict]]:
                     "overflow": evaluate_probe(page, "rootOverflow"),
                     "misplaced": evaluate_probe(page, "misplacedBoxes"),
                     "margin": page.evaluate(MARGIN_READING),
+                    "arrangement": page.evaluate(ARRANGEMENT_READING),
                 },
             )
         )
     return readings
+
+
+def arrangement_changes(readings) -> list[tuple[int, str, str]]:
+    """Where the page's own arrangement changes, widest first, at the sweep's steps.
+
+    For each step across which a flex or grid box of the page's own splits its children
+    into rows differently, the narrowest swept width at which the wider arrangement still
+    holds, the first box that changes (a selector), and what changes below it
+    (`#regions 1+2 → 1+1+1`). That is the arrangement at its tightest, the width an
+    author most needs to see."""
+    changes = []
+    for (high, above), (_low, below) in pairwise(readings):
+        wide = dict(entry.rsplit(":", 1) for entry in above["arrangement"])
+        narrow = dict(entry.rsplit(":", 1) for entry in below["arrangement"])
+        moved = [box for box, rows in wide.items() if narrow.get(box) != rows]
+        if moved:
+            said = "; ".join(
+                f"{box} {wide[box]} → {narrow.get(box, 'none')}" for box in moved
+            )
+            changes.append((high, moved[0], said))
+    return changes
 
 
 def margin_changes(page, readings, height: int) -> list[int]:

@@ -498,6 +498,14 @@ leaf version check <page> --render
 It runs the browser gate in both color schemes, including when the host gives you
 no separate browser tool. Fix every failure; a screenshot is not a substitute.
 
+A clean check then saves screens of the page and names them: top to bottom on a desktop
+and on a phone, and one screen at each width where the page's own arrangement is at its
+tightest before it changes, such as a sidebar page just before its track stacks or a row
+of tiles just before it wraps. Read every one. The gate finds what is broken; only a
+reading finds a drawing whose labels shrink past reading in a narrow body, a row that
+wraps to leave one tile alone, a pin over the end of a heading, or a summary the phone
+puts after everything else. Fix what the page can fix, and check again.
+
 Then read the page as the user will. Take the headings on their own first, and
 check that none of them promises a finding it does not give. Confirm that
 referents are introduced, claims have evidence, decisions have controls, each

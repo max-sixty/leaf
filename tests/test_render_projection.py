@@ -6560,7 +6560,7 @@ def test_a_settled_holder_in_a_reply_joins_the_panel_wearing_its_mark(
         },
     )
     page = open_page(browser, url)
-    page.get_by_role("button", name="Threads (1)").click()
+    page.locator(".lf-threads-toggle").click()
     expect(page.locator("#rq-now")).to_be_visible()
     expect(page.locator("#rq-cache")).to_have_attribute("data-lf-state", "shelve")
     expect(page.locator("#rq-next")).to_be_hidden()
@@ -9270,7 +9270,7 @@ def test_command_hub_send_and_pause_is_one_thread_fold(browser, serve):
     expect(inline_link).to_have_attribute("target", "_blank")
     expect(inline_link.locator(":scope > svg.lf-external-mark")).to_be_visible()
 
-    page.get_by_role("button", name=re.compile("^Threads")).click()
+    page.locator(".lf-threads-toggle").click()
     thread = page.locator(f'.lf-thread[data-id="{root["id"]}"]')
     thread.locator(".lf-thread-summary").click()
     with sending(page, "the resolution"):

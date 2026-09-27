@@ -220,6 +220,12 @@ and its chrome coordinate.
 - **Ask once whether the page has caught up with a reading.** `tests/render_harness.py`
   `told()` waits for `data-lf-reading` to match the server's reading, and the `data`
   and `log` stages of the runtime's `pageReadiness` (#1250) answer the same question.
+- **Hold focus in the thread seats with `holdFocus`.** `focus.js` `holdFocus` is the
+  one hand-over of the user's place across a DOM move, but `thread/inline.js`
+  (`ThreadSeat.present`/`retain`) and `thread/landing.js` (`retainThreadFocus`) still
+  pair `readCaret` with `focusDestination` by hand, and `auxiliary-surfaces.js` walks
+  `shadowRoot.activeElement` beside `deepFocus`. They were left while another session
+  had uncommitted edits to those functions.
 
 ## Etc
 

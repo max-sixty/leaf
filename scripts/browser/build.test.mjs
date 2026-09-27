@@ -85,6 +85,9 @@ test("the bundle gate reads the parsed module, not its text", () => {
     ['new Function("return 1")();', "calls Function"],
     ['window.Function("return 1")();', "calls Function"],
     ['require("lit");', "calls require"],
+    ['setTimeout("document.body.dataset.ready=1", 0);', "passes setTimeout a string"],
+    ["window.setInterval(`tick(${a})`, 9);", "passes setInterval a string"],
+    ['setTimeout("tick(" + a + ")", 9);', "passes setTimeout a string"],
   ]) {
     assert.throws(
       () => checkModule(`const a = 1;\n${source}`, "x.js"),
@@ -96,6 +99,7 @@ test("the bundle gate reads the parsed module, not its text", () => {
     );
   }
   checkModule('import { html } from "./lit.js";');
+  checkModule("setTimeout(() => tick(), 9); setInterval(tick, 9 + 1);");
   checkModule('import { html } from "/vendor/lit.js"; export * from "../a.js";');
   // Pierre's TextMate grammars carry both as data.
   checkModule('export const grammar = { begin: "import\\\\(", end: "eval(x)" };');

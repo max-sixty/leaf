@@ -29,8 +29,22 @@ import { fileURLToPath } from "node:url";
 import { parse } from "acorn";
 
 const COMPILERS = new Set(["eval", "Function", "require"]);
+// A timer given a string compiles it, as eval does; given a function, it does not.
+const TIMERS = new Set(["setTimeout", "setInterval"]);
 const GLOBALS = new Set(["globalThis", "window", "self"]);
 const LOCAL = /^(?:\/(?!\/)|\.{1,2}\/)/;
+
+/** Whether an expression is a string the source states: literal, template, or sum. */
+function isString(node) {
+  if (!node) return false;
+  if (node.type === "Literal") return typeof node.value === "string";
+  if (node.type === "TemplateLiteral") return true;
+  return (
+    node.type === "BinaryExpression" &&
+    node.operator === "+" &&
+    (isString(node.left) || isString(node.right))
+  );
+}
 
 /** The function a call reaches by name, through `(0, eval)` or `globalThis.eval`. */
 function calleeName(node) {
@@ -72,6 +86,8 @@ export function checkModule(source, name = "<module>") {
     if (["CallExpression", "NewExpression"].includes(node.type)) {
       const callee = calleeName(node.callee);
       if (COMPILERS.has(callee)) refuse(node, `it calls ${callee}`);
+      if (TIMERS.has(callee) && isString(node.arguments[0]))
+        refuse(node, `it passes ${callee} a string to compile`);
     }
     for (const value of Object.values(node)) {
       if (Array.isArray(value)) value.forEach(visit);

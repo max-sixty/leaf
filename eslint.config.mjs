@@ -733,7 +733,7 @@ export default [
   {
     // This transport boot entry loads Leaf after installing the MCP fetch bridge.
     // It may boot /leaf.js, but must not reach private runtime owners.
-    files: ["scripts/mcp-app/direct-entry.js"],
+    files: ["notes/mcp-apps/probe/direct-entry.js"],
     rules: {
       "no-restricted-syntax": [
         "error",

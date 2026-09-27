@@ -19,10 +19,10 @@ const {
   RESOURCE_MIME_TYPE,
 } = require("@modelcontextprotocol/ext-apps/server");
 const { z } = require("zod");
-const repo = path.resolve(new URL(import.meta.url).pathname, "../../..");
+const repo = path.resolve(new URL(import.meta.url).pathname, "../../../..");
 const worker = spawn(
   path.join(repo, ".venv/bin/python"),
-  ["-u", path.join(repo, "scripts/mcp-app/direct.py"), page, bundle],
+  ["-u", path.join(repo, "notes/mcp-apps/probe/direct.py"), page, bundle],
   { stdio: ["pipe", "pipe", "inherit"] },
 );
 const pending = new Map();

@@ -12,10 +12,11 @@ posts real comments over HTTP, at the moments a case names:
 - `idle`: after the setup turn ends, so the comment reaches an idle session the way
   it does when a user reads the page before commenting, and it arrives through
   Claude Code's background-task notification; then a second comment once the turn
-  that handled the first has ended, which only arrives if the ack re-armed the wait.
+  that handled the first has ended, which only arrives if the agent restarted the
+  wait.
 - `mid-turn`: as soon as the setup turn's wait is running, so the wait ends while
-  the turn is still going and the Stop hook or the notification carries the comment
-  into that same turn.
+  the turn is still going and the comment reaches that same turn, at a tool result or
+  as the turn tries to end.
 
 For each comment it reads the page log and the session's stream for:
 
@@ -26,10 +27,14 @@ For each comment it reads the page log and the session's stream for:
 - `turn`: seconds from the post to the end of the turn that handled it, with the
   time from the delivery to that end split into time inside tool calls and the rest
   (`model`: model latency, hooks, and harness), and the slowest single call;
-- `ack`: seconds from the delivery reaching the agent to that pickup, which is the
-  agent's own share of the pickup time;
-- `extra`: anything the agent ran between the delivery and `leaf wait --ack` other
-  than reading the delivery, which should be nothing;
+- `route`: what brought the comment in: the wait's notification, whose output the
+  agent reads, or a hook that put the delivery in context (`prompt hook`, `stop
+  hook`); a Stop hook that only said input was waiting counts as `stop hook` too;
+- `receipt`: seconds from the delivery reaching the agent to that pickup, which is
+  the agent's own share of the pickup time, none where a hook confirms it;
+- `before claim`: what the agent ran after the delivery and before the message that
+  claims its work (`leaf status … working`), which should be nothing: a read of the
+  wait's output and `leaf wait --ack` show here where the protocol asks for them;
 - any acknowledgement command the agent invented rather than `leaf wait --ack`.
 
 It also samples what the page tells the user, as an open tab reads it: from the
@@ -50,7 +55,7 @@ disagreements with the stream:
 
 `claude -p` terminates a background shell once the final result is out and stdin has
 closed, so each session runs with `--input-format stream-json` and stdin held open
-until every comment it was sent has been acked and a turn has ended. Each stream
+until every comment it was sent has been received and a turn has ended. Each stream
 record is saved with `received_at`, the time the script read it, and each post as an
 `eval_comment` record.
 
@@ -94,6 +99,7 @@ from pathlib import Path
 
 import click
 from eval_harness import build_arm, claude_child, run_leaf, scratch
+from leaf.event_log import read_events
 
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / ".tmp" / "eval-claude-delivery"
@@ -269,6 +275,18 @@ def tool_time(
     return inside, slowest and (slowest[1] - slowest[0], slowest[2])
 
 
+def hook_delivered(record: dict) -> bool:
+    """Whether one stream record is a Leaf hook handing a delivery to the turn."""
+    return record.get("subtype") == "hook_response" and "leaf-delivery-v" in (
+        record.get("output") or ""
+    )
+
+
+def claims(ran: str) -> bool:
+    """Whether one command writes a work claim."""
+    return bool(re.search(r"\bstatus\b[^|;&]*\bworking\b|delivery claim", ran))
+
+
 def stop_blocked(record: dict) -> bool:
     """Whether one stream record is the Stop hook holding a turn open."""
     return (
@@ -333,7 +351,7 @@ def run_session(arm: Path, case: str, run: Path) -> None:
     # The sampler runs in a pool so that its failure raises here, not in a thread.
     sampled, sampling, sampler = threading.Event(), ThreadPoolExecutor(1), None
     try:
-        url, waits, due, posted, acks = None, set(), list(CASES[case]), 0, 0
+        url, waits, due, posted, received = None, set(), list(CASES[case]), 0, 0
         with (run / "stream.jsonl").open("w") as stream:
 
             def post() -> None:
@@ -348,7 +366,9 @@ def run_session(arm: Path, case: str, run: Path) -> None:
                 record = {**json.loads(line), "received_at": now()}
                 stream.write(json.dumps(record) + "\n")
                 waits.update(waits_started(record))
-                acks += sum("leaf wait --ack" in c for c in commands(record))
+                received += hook_delivered(record) + sum(
+                    "leaf wait --ack" in c for c in commands(record)
+                )
                 content = (record.get("message") or {}).get("content")
                 for block in content if isinstance(content, list) else ():
                     if block.get("type") != "tool_result":
@@ -368,7 +388,7 @@ def run_session(arm: Path, case: str, run: Path) -> None:
                 if due[:1] == ["idle"] and url and waits:
                     # A turn is over and the session idles on its wait.
                     post()
-                elif not due and acks >= posted:
+                elif not due and received >= posted:
                     # Every comment is picked up. A trailing wake may follow,
                     # hence the grace period.
                     threading.Timer(20, close_stdin).start()
@@ -391,9 +411,7 @@ def run_session(arm: Path, case: str, run: Path) -> None:
 
 def score(run: Path) -> list[dict]:
     """Read one run's page log and stream into one reading per comment it was sent."""
-    events = [
-        json.loads(line) for line in (run / "events.jsonl").read_text().splitlines()
-    ]
+    events = read_events(run)
     stream = [
         json.loads(line) for line in (run / "stream.jsonl").read_text().splitlines()
     ]
@@ -405,11 +423,6 @@ def score(run: Path) -> list[dict]:
     )
     markers = [r for r in stream if r["type"] == "eval_comment"]
     waits = {wait for r in stream for wait in waits_started(r)}
-    outputs = {
-        r["output_file"]
-        for r in stream
-        if r.get("subtype") == "task_notification" and r["tool_use_id"] in waits
-    }
     readings = []
     for i, marker in enumerate(markers):
         comment = next(e for e in events if e.get("attempt") == attempt(marker["n"]))
@@ -429,29 +442,28 @@ def score(run: Path) -> list[dict]:
             for e in events
             if e["kind"] == "reply" and e.get("parent") == comment["id"]
         ]
-        # What followed the post up to the ack: what carried the comment in, and
-        # what the agent ran once it had.
-        notified, blocked, before_ack = None, None, []
+        # What followed the post up to the message claiming its work: what carried
+        # the comment in, and what the agent ran once it had.
+        notified, carried, before_claim = None, None, []
         for record in stream[stream.index(marker) + 1 :]:
             ran = commands(record)
-            ack = next((i for i, c in enumerate(ran) if "leaf wait --ack" in c), None)
-            if ack is not None:
-                if notified or blocked:
-                    # A call made before the ack in the same record still counts.
-                    before_ack += ran[:ack]
+            if (notified or carried) and any(claims(c) for c in ran):
+                break
+            if record["type"] == "result" and (notified or carried):
                 break
             if (
                 record.get("subtype") == "task_notification"
                 and record["tool_use_id"] in waits
             ):
                 notified = notified or record
-            elif stop_blocked(record) and not blocked:
-                # The Stop hook blocks only a turn ending with the comment unread,
-                # so when it fires, it and not the notification carried it in.
-                blocked, before_ack = record, []
-            elif notified or blocked:
-                before_ack += ran
-        delivery = blocked or notified
+            elif (stop_blocked(record) or hook_delivered(record)) and not carried:
+                # A hook that brings the comment in, or a Stop hook blocking a turn
+                # from ending with it unread, carried it rather than the
+                # notification.
+                carried, before_claim = record, []
+            elif notified or carried:
+                before_claim += ran
+        delivery = carried or notified
         # The turn that handled the comment ends at the first result after it came in.
         ended = delivery and next(
             (
@@ -469,8 +481,10 @@ def score(run: Path) -> list[dict]:
         readings.append(
             {
                 "comment": marker["n"],
-                "route": "stop hook"
-                if blocked
+                "route": f"{carried['hook_event'].lower()} hook".replace(
+                    "userpromptsubmit", "prompt"
+                )
+                if carried
                 else "notification"
                 if notified
                 else None,
@@ -478,19 +492,14 @@ def score(run: Path) -> list[dict]:
                 "woken_s": delivery and round(moment(delivery) - moment(marker), 1),
                 "reply_s": replies and round((replies[0] - posted_at).total_seconds()),
                 "done_s": done and round((done - posted_at).total_seconds()),
-                "ack_s": pickup
+                "receipt_s": pickup
                 and delivery
                 and round(
                     (
                         pickup - datetime.fromisoformat(delivery["received_at"])
                     ).total_seconds()
                 ),
-                # Reading the wait's output is the one expected step.
-                "extra_before_ack": [
-                    c for c in before_ack if not any(o in c for o in outputs)
-                ]
-                if delivery
-                else None,
+                "before_claim": [short(c) for c in before_claim] if delivery else None,
                 **(
                     turn_reading(
                         stream,
@@ -571,8 +580,7 @@ def turn_reading(
         "turn_s": round(ended - posted, 1),
         "model_s": round(ended - woken - inside, 1),
         "tools_s": round(inside, 1),
-        "slowest": slowest
-        and [round(slowest[0], 1), re.sub(r"(?<![\w$])/[^\s;&|]*/", "", slowest[1])],
+        "slowest": slowest and [round(slowest[0], 1), short(slowest[1])],
         "stages": [
             [value, round(begun, 1)]
             for value, begun, _ in spans(
@@ -595,6 +603,11 @@ def turn_reading(
         if after[0][0] == "working"
         else 0,
     }
+
+
+def short(ran: str) -> str:
+    """One command with its directories dropped, so a table can show it."""
+    return re.sub(r"(?<![\w$])/[^\s;&|]*/", "", ran)
 
 
 def shown(runs: list[list]) -> str:
@@ -623,8 +636,8 @@ def report(results: dict) -> None:
                     f"slowest {seconds}s {ran[:70]!r}"
                 )
             print(
-                f"{indent}ack {r['ack_s']}s after {r['route'] or 'no delivery'}  "
-                f"extra {r['extra_before_ack'] or 'none'}  "
+                f"{indent}receipt {r['receipt_s']}s via {r['route'] or 'no delivery'}  "
+                f"before claim {[c[:40] for c in r['before_claim'] or []] or 'nothing'}  "
                 f"invented {r['invented_ack'] or 'none'}"
             )
             if "turn_s" in r:

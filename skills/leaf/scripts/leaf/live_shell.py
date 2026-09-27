@@ -3,11 +3,12 @@
 Every document selects its captured registry, bootstrap, layer, and authored
 resources. Revision resource trees share the same logical URLs as HTTP delivery,
 including widget aliases resolved through implementation provenance. Mutable
-candidate inputs never participate in publishing. Content-addressed media also
-keeps its page-root address for thread markup and website metadata.
+candidate inputs never participate in publishing. Content-addressed media is written
+at the page root, where every document, message, and card addresses it.
 """
 
 import json
+from dataclasses import replace
 from pathlib import Path
 
 from .event_log import read_events
@@ -18,13 +19,9 @@ from .files import (
     revision_path,
     version_revisions,
 )
-from .http import (
-    scope_script_routes,
-    scope_stylesheet_routes,
-    supervised_document,
-)
+from .http import page_delivery
 from .revision_artifact import read_artifact
-from .revision_delivery import deliver_document, deliver_resource
+from .revision_delivery import DeliveryAddress, compose_document, deliver_resource
 from .schema import MEDIA_DIR, SERVED_PATH
 
 
@@ -36,12 +33,13 @@ def write_live_shell(
     server_id: str = "published",
     release_id: str | None = None,
     asset_root: str | None = None,
-    before_runtime: str = "",
+    head: str = "",
 ) -> None:
     """Write live documents and browser assets without copying session state.
 
     The runtime and its API routes remain unchanged. A static host may serve this
-    derived tree while the canonical Leaf server answers those API routes.
+    derived tree while the canonical Leaf server answers those API routes. `head` is
+    the host's own metadata in each document (`Delivery.head`).
 
     Each document's script nonce is minted here, once, and every user of that
     release receives the same one in the page source. It still admits only the inline
@@ -69,41 +67,35 @@ def write_live_shell(
         root = asset_root if asset_root is not None else page_root
         revision_root = root.rstrip("/") + "/" + relative_root.as_posix()
         version = reverse_versions.get(revision)
-        documents[revision] = supervised_document(
-            deliver_document(artifact.html.decode("utf-8"), revision_root),
+        delivery = page_delivery(
+            artifact.resources,
+            server_id=server_id,
+            layer_id=artifact.registry["$layer"]["generation"],
+            release_id=release_id,
+            page_root=page_root,
+            asset_root=revision_root,
+        )
+        documents[revision] = compose_document(
+            artifact.html.decode("utf-8"),
             revision,
             version,
             executable=artifact.executable,
             widgets=artifact.widgets,
-            server_id=server_id,
-            layer_id=artifact.registry["$layer"]["generation"],
             resources=artifact.resources,
-            release_id=release_id,
-            page_root=page_root,
-            asset_root=revision_root,
-            before_runtime=before_runtime,
-        )
+            delivery=replace(delivery, head=head),
+        ).encode()
         aliases = {
             f"/widgets/{tag}.js": implementation["path"]
             for tag, implementation in artifact.implementations.items()
         }
+        address = DeliveryAddress(page_root, revision_root)
         for logical in sorted(artifact.resources.keys() | aliases.keys()):
             source = aliases.get(logical, logical)
-            resource = artifact.resources[source]
             body = (
                 f"export * from {json.dumps(revision_root + source)};\n".encode()
                 if logical != source
-                else deliver_resource(resource, source, revision_root)
+                else deliver_resource(artifact.resources[source], source, address)
             )
-            if not source.startswith("/page/"):
-                if resource.mime == "text/css":
-                    body = scope_stylesheet_routes(
-                        body, page_root, asset_root=revision_root
-                    )
-                elif resource.mime == "application/javascript":
-                    body = scope_script_routes(
-                        body, page_root, asset_root=revision_root
-                    )
             write(relative_root / logical.lstrip("/"), body)
 
     write(Path("index.html"), documents[active])

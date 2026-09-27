@@ -35,8 +35,8 @@ class ThreadSeat {
     this.#marginControls = marginControls;
   }
 
-  present(model) {
-    activeBatch?.seats.add(this);
+  present(model, batch = activeBatch) {
+    batch?.seats.add(this);
     const standing = focused();
     const held = this.node.contains(standing);
     this.#focus ??= held ? { element: standing, caret: readCaret(standing) } : null;
@@ -85,7 +85,7 @@ class ThreadSeat {
       if (box && !this.node.contains(focused())) this.#commands?.landInThread(box);
     }
     restoreBox();
-    if (!activeBatch) this.commit();
+    if (!batch) this.commit();
   }
 
   commit() {
@@ -144,6 +144,16 @@ export function renderThreadSurface(host, threads, commands, response = null) {
 
 export function clearThreadSurface(host) {
   seats.get(host)?.present(EMPTY);
+}
+
+// Package mirrors are independent of the core Thread batch. A slow package callback
+// may hold its own view, but cannot hold the panel, margin, or read presentation.
+export function renderThreadMirrors(host, threads, commands) {
+  seatFor(host, commands).present(seatReading(threads, "outlet", commands, null), null);
+}
+
+export function clearThreadMirrors(host) {
+  seats.get(host)?.present(EMPTY, null);
 }
 
 export function mountFirstMessage(host, editor) {

@@ -21,29 +21,29 @@ key, the address it binds, and a URL the user cannot reach.
 New user input reaches you only between your own operations, at the next tool
 result.
 
-One unnamed `leaf wait` watches every page the host session owns. It prints one
-complete envelope inline (`references/event-batches.md`, "One envelope on every
-transport"). Name a page only to pick up a page this session did not serve;
-`leaf wait <page>` claims it.
+One unnamed `leaf wait` watches every page the host session owns. Name a page only
+to pick up a page this session did not serve; `leaf wait <page>` claims it.
 
-Start `leaf wait` as a background task and end the turn. Its completion becomes
-host input. Once the complete envelope is in context, acknowledge it by starting
-`leaf wait --ack <delivery-id>` as the next background task; it acknowledges that
-delivery and waits for another. `references/conversation-loop.md`, "When to write",
-orders the acknowledgement, the replies, and the work. The event reference owns the
-complete-batch and acknowledgement rules.
+Start `leaf wait` as a background task and end the turn. When input arrives, the
+wait ends, and its ending opens a turn, or reaches the current one at its next tool
+result. As that turn takes it, Leaf's prompt hook puts the whole delivery in your
+context (`references/event-batches.md`, "One envelope on every transport") and
+confirms it, so the user's moves read **Picked up** and nothing is left for you to
+read or acknowledge. Input that arrives as a turn ends comes through the Stop hook
+the same way. Start the next `leaf wait` as a background task alongside your first
+step, which for a request is naming its work
+(`references/conversation-loop.md`, "When to write").
 
-If a turn ends without answering an acknowledged move, the next prompt hook
-carries that obligation back into context and renews its **Picked up** receipt
-for the new turn without a status write. The banner reports overall page activity
-separately.
+If a turn ends without answering a delivered move, the next prompt hook carries
+that obligation back into context and renews its **Picked up** receipt for the new
+turn without a status write. The banner reports overall page activity separately.
 
-How `leaf wait` ends, and what each ending asks of the loop, is in
+How `leaf wait` ends otherwise, and what each ending asks of the loop, is in
 `references/event-batches.md` under "Delivery and acknowledgement". The signal that
 reference leaves to the host is a message from Leaf saying a page has new input and
-no `leaf wait` is running for this session: start a replacement unnamed wait. It
-comes through Claude Code's session messaging, so it is presented as coming from
-another session.
+no `leaf wait` is running for this session: the input arrives with it, and you
+start a replacement unnamed wait. It comes through Claude Code's session messaging,
+so it is presented as coming from another session.
 
 ## Session list
 
@@ -70,7 +70,7 @@ environment tells Leaf otherwise, so to Leaf it is this session. A page it
 claims, by serving it or naming it to `leaf wait`, is this session's, and this
 session's Stop hook holds its turns open for every user move there. A
 `leaf wait` it starts competes for this session's one watcher: it is refused
-while yours runs, and otherwise takes the batches from every page you hold into
-the subagent's context instead of yours. That is why the page stays with you
+while yours runs, and otherwise wakes the subagent instead of you, so the input
+from every page you hold goes into the subagent's turn. That is why the page stays with you
 (`references/conversation-loop.md`, "Long-running work"). A separate Claude Code
 session has its own id and can drive a page of its own.

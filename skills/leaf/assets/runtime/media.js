@@ -10,17 +10,13 @@
    native dialog remains a direct chrome child while its light-DOM Lit face owns the
    generated title, control, and image. */
 
-// Joined rather than written whole: the MCP boundary's route scoper rewrites a quoted
-// media root in served JS (http.py's _ROOTED_PAGE_ROUTE), and this constant has to keep
-// speaking the canonical text that drafts and events carry. MEDIA_PATH's escaped form
-// below dodges the same rewrite; neither may be spelled the obvious way.
 import { LitElement, html } from "../vendor/browser-runtime.js";
 import { offlineInteractive, pageUrl, runtimeResource } from "./context.js";
 import { handBack } from "./focus.js";
 
-const CANONICAL_MEDIA_ROOT = "/" + "media/";
+const CANONICAL_MEDIA_ROOT = "/media/";
 const MEDIA_NAME = /^[a-f0-9]{16}\.(?:png|jpe?g|gif|webp|svg)$/;
-const MEDIA_PATH = String.raw`\/media\/[a-f0-9]{16}\.(?:png|jpe?g|gif|webp|svg)`;
+const MEDIA_PATH = String.raw`/media/[a-f0-9]{16}\.(?:png|jpe?g|gif|webp|svg)`;
 const PASTED_MEDIA = new RegExp(String.raw`!\[Pasted image\]\((${MEDIA_PATH})\)`, "g");
 
 export const isCanonicalMediaUrl = (href) => {

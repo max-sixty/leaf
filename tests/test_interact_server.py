@@ -258,8 +258,9 @@ def test_specimens_use_captured_resources_and_independent_event_logs(server, pag
     root = "/revisions/" + files_model.revision_path(page_dir, 1).stem
     assert f'data-lf-entry="{root}/leaf.js"'.encode() in document
     assert f'data-lf-page-root="{child.removeprefix(server)}"'.encode() in document
-    assert b"<html data-lf-contained" in document
-    assert re.search(rb"<body[^>]*\binert", document)
+    served = structure_model.SourceDocument(document.decode()).tree
+    assert "data-lf-contained" in served.find("html").attrs
+    assert "inert" in served.find("body").attrs
     assert fetch(child + "/theme.css") == (200, captured_theme)
     [module_path] = re.findall(rb'src="([^"]+/page/specimen.js)"', document)
     assert module_path == f"{root}/page/specimen.js".encode()
@@ -3662,7 +3663,7 @@ def test_a_stated_host_restates_the_address_and_nothing_else(page_dir):
     assert access["lifetime"] == "standing"
 
 
-def test_the_page_reports_its_own_errors_to_the_watcher(server, page_dir):
+def test_the_page_reports_its_own_errors_to_the_watcher(server, page_dir, sessionless):
     """kind "error" through the browser door: the page's runtime reporting a
     live-session fault. Stamped author "page" (the machine speaking, not the
     user), heard by the watcher beside comments and reports, acknowledged
@@ -5282,6 +5283,8 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
         "claim_session": None,
         "claim_turn": None,
         "turn_closed": None,
+        "turn_opened": None,
+        "turn_takes_input": False,
         "viewed": None,
         "session_cwd": None,
         "workflows": [],

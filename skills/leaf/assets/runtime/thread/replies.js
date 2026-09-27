@@ -17,24 +17,18 @@ const REPLY_DRAFT_CONTEXT = Symbol("reply draft context");
 // gesture that sends it. A second view pressing Send afterwards reads the generation as
 // spent and refuses on its own — in this tab and in any other showing the page, which is
 // further than a hold kept in this document's memory reached.
-const sendReply = (draftCtx, parent, text, owns, createReply) =>
-  sendMessage(draftCtx, owns, (attempt) =>
-    createReply({
-      parent: parent(),
-      text,
-      attempt,
-    }),
-  );
+const sendReply = (draftCtx, key, text, owns, actions) =>
+  sendMessage(draftCtx, owns, (attempt) => actions.reply(key, text, { attempt }));
 
 // One reply draft, send, and typing continuation across every view of a thread. `key`
 // is the thread's `threadKey`, which names its draft; `parent` reads the message the
 // reply answers when it is sent, since the log can name that message after the draft
-// began.
+// began. The typed action resolves that target from the current reading.
 export function wireReply(
   key,
   input,
   send,
-  { parent, createReply, wireInput, onDraftLoaded = null },
+  { actions, wireInput, onDraftLoaded = null },
 ) {
   const draftCtx = "reply:" + key;
   input[REPLY_DRAFT_CONTEXT] = draftCtx;
@@ -44,6 +38,7 @@ export function wireReply(
     accessibleName: "Reply",
     sends: "send",
     sendBtn: send,
+    hasContent: (raw) => Boolean(raw.trim()),
     // localStorage notifies other tabs but skips this document. Page, margin, and panel
     // reply boxes are views of one draft here, so they take the same bus directly.
     // Other draft kinds still have one view per document.
@@ -55,7 +50,7 @@ export function wireReply(
     // user sent from.
     send: (_text, raw, owns) => {
       const land = sendLanding(input, send);
-      if (sendReply(draftCtx, parent, raw, owns, createReply)) land();
+      if (sendReply(draftCtx, key, raw, owns, actions)) land();
     },
   });
   sync();

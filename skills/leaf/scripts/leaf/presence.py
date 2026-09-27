@@ -15,6 +15,7 @@ from .files import (
     latest_revision,
     read_json,
 )
+from .host import claim_harness
 from .interaction_log import INTERACTIONS_FILE
 from .leases import wait_is_live, waiter_lease_path
 from .machine import state_home
@@ -277,6 +278,12 @@ def presence_with_activity(
         # an hour after it. Read with .get like the rest of the claim's fields,
         # since a record written before this existed is still a valid claim.
         "turn_closed": claim.get("turn_closed") if claim else None,
+        # When that turn opened, and whether an open turn of this session's takes
+        # new input before it ends: its hooks carry input, so the Stop hook hands
+        # over what arrives. The banner reads such a turn as listening between two
+        # waits; a session whose carrier is a process it runs has no such turn.
+        "turn_opened": claim.get("turn_opened") if claim else None,
+        "turn_takes_input": bool(active and claim_harness(active).hooks_carry()),
         # When a browser last had the page visible (the server bumps viewed.json,
         # throttled, while a visible tab's news stream stands), or None for a page
         # nobody has ever viewed — which used to be indistinguishable from one the

@@ -173,6 +173,11 @@ export function createAuxiliarySurfaces({ chromeRoot, syncLayout, afterChange })
       suspended: new Map(),
     };
     controllers.set(key, controller);
+    return () => {
+      if (controllers.get(key) !== controller) return;
+      if (selectedKey === key) select(null);
+      controllers.delete(key);
+    };
   }
 
   function sync() {

@@ -9,7 +9,7 @@ import { TEXT_FIELD } from "../focus.js";
 import { html, render, repeat, nothing } from "../../vendor/browser-runtime.js";
 import { turns, threadKey, threadSummary } from "./model.js";
 import { anchorLabel, MessageView, messageReading } from "./messages.js";
-import { reactionReading } from "./reaction-strips.js";
+import { reactionReading } from "./reaction-model.js";
 import { offer, reachedForWords } from "../widget-elements.js";
 import { keys, focused } from "../keyboard/scopes.js";
 import { PRESS } from "../keyboard/bindings.js";
@@ -114,6 +114,7 @@ export function threadReading(
       turns(thread).map((message) =>
         messageReading(message, {
           panel,
+          nativeAuthored: panel && commands.nativeAuthored !== false,
           reactions: reactionReading(thread, message, panel || surface === "outlet"),
           workflows: message.workflows,
         }),
@@ -200,6 +201,8 @@ function readBoundary(kind) {
   ></div>`;
 }
 
+let nextViewId = 0;
+
 export class ThreadView {
   #commands;
   #model = null;
@@ -213,13 +216,14 @@ export class ThreadView {
   #growing = false;
   #navigation = null;
   #marginControls = null;
+  #viewId = ++nextViewId;
 
   constructor(surface, commands) {
     this.#commands = commands;
     this.node = document.createElement(
       surface === "outlet" || surface === "panel" ? "details" : "div",
     );
-    if (surface === "panel") this.node.name = "threads";
+    if (surface === "panel") this.node.setAttribute("name", commands.detailsGroup);
     else this.node.tabIndex = -1;
     this.node.addEventListener("animationend", () => {
       this.#growing = false;
@@ -466,7 +470,7 @@ export class ThreadView {
     const count = range.messages.length;
     const unread = range.messages.filter((message) => message.unread).length;
     const id = range.summary.id;
-    const originalsId = `lf-summary-originals-${id}`;
+    const originalsId = `lf-summary-originals-${this.#viewId}-${id}`;
     return html`<section
       class="lf-thread-checkpoint"
       data-summary-id=${id}
@@ -555,6 +559,7 @@ export class ThreadView {
     if (model.folding) return;
     void settleThread({
       parent: () => this.#model.root,
+      key: model.key,
       resolved: model.resolved,
       prepareLanding:
         model.surface === "panel"
@@ -665,7 +670,6 @@ export class ThreadView {
       disclosure.onclick = () => this.#commands.landInThread(input);
     }
     const lifetime = wireReply(model.key, input, send, {
-      parent: () => this.#model.root,
       ...this.#commands.reply,
       onDraftLoaded: () => {
         if (hasDraft()) reveal();

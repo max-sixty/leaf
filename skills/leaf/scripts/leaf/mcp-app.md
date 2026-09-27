@@ -65,12 +65,14 @@ is registered. Its exact `http://localhost:<port>` origin is the resource's sole
 no `service.json`, and drops every path when it exits. There is no wildcard CSP,
 query token, cookie, or durable host key in the tool result.
 
-The canonical page contract speaks root-relative Leaf routes. At this multiplexing
-boundary, every HTML response and validated frozen `markup` value in state passes
-through document route scoping, textual served assets scope their known routes, and
-version URLs in state receive the page prefix. Together these adapt `api`, `runtime`,
-`widgets`, `vendor`, `media`, registry, theme, icon, and runtime paths below the
-capability. This keeps arbitrary package modules on the ordinary
+The canonical page contract speaks root-relative Leaf paths, and this boundary is
+one more host with a page root of its own: the capability path. Delivery addresses
+what a document, stylesheet, or authored module names exactly as the ordinary server
+does (`revision_delivery.py`), with media at the page root and everything else at the
+revision's address beneath it. Layer modules keep their rooted imports and resolve
+through the document's import map, the runtime reaches `api` routes through the page
+root its document declares, and version URLs and frozen `markup` in state are
+addressed at the page root. This keeps arbitrary package modules on the ordinary
 `/runtime/widget-api.js` contract while ensuring every subsequent request proves the
 same page capability. Unknown or unscoped paths receive 404. The nested frame
 therefore runs the same authored document, package modules, comments, actions,

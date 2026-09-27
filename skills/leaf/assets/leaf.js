@@ -65,7 +65,7 @@ import {
 import { createPageGeometry } from "./runtime/page-geometry.js";
 import * as targetPaint from "./runtime/target-paint.js";
 import { pointerAt } from "./runtime/pointer.js";
-import { allThreads } from "./runtime/thread/state.js";
+import { allThreads, threadList } from "./runtime/thread/state.js";
 import { anchorLabel } from "./runtime/thread/messages.js";
 import {
   createThreadLanding,
@@ -79,27 +79,16 @@ import {
 import { createPanelComposer } from "./runtime/thread/panel.js";
 import { focusSurface } from "./runtime/thread/surfaces.js";
 import { heldThreadId } from "./runtime/thread/focus.js";
-import { mountThreadList } from "./runtime/thread/thread-list.js";
-import {
-  mountNarrowing,
-  retainNarrowing,
-  revealThread,
-  widen,
-} from "./runtime/thread/narrowing.js";
-import {
-  panel,
-  closeBtn,
-  panelFoot,
-  threadsBox,
-  mountPanelReadingRegion,
-} from "./runtime/thread/panel-elements.js";
+import { createThreadListController } from "./runtime/thread/thread-list.js";
+import { createThreadNarrowing } from "./runtime/thread/narrowing.js";
+import { createThreadPanelElements } from "./runtime/thread/panel-elements.js";
 import { createMarginProjection } from "./runtime/margin-projection.js";
 import { createPageMapDialog } from "./runtime/page-map-dialog.js";
 import { createAskView } from "./runtime/asks/view.js";
 import { askActionLayer, ASK_CONTROL } from "./runtime/asks/view-elements.js";
 import { createDesignMode, inspectEl, legendRoot } from "./runtime/design.js";
 import { createChromeLayout } from "./runtime/chrome-layout.js";
-import { createThreadPanelController, panelIsOpen } from "./runtime/thread-panel.js";
+import { createThreadPanelController } from "./runtime/thread-panel.js";
 import { createTrays, asksPanel, currentTray, othersPanel } from "./runtime/trays.js";
 import { createAuxiliarySurfaces } from "./runtime/auxiliary-surfaces.js";
 import { restoreUserView } from "./runtime/restore-state.js";
@@ -184,7 +173,19 @@ import { announce, liveEl, notice } from "./runtime/notifications.js";
 import { mediaViewer } from "./runtime/media.js";
 import { offer } from "./runtime/widget-elements.js";
 
+const panelElements = createThreadPanelElements({ id: "lf-threads" });
+const { panel, closeBtn, panelFoot, threadsBox, narrowingView } = panelElements;
+const threadListController = createThreadListController(panelElements);
+const panelIsOpen = () => auxiliarySurfaces.selectedSurface() === panel;
+
 let app;
+const narrowing = createThreadNarrowing({
+  view: narrowingView,
+  listRoot: threadsBox,
+  readThreads: threadList,
+  ready: () => runtime.statePhase === "ready",
+  repaint: () => app.presentThread(),
+});
 const paintVersionApproval = () =>
   paintApproval(
     app.pendingApprovals(),
@@ -218,7 +219,10 @@ const auxiliarySurfaces = createAuxiliarySurfaces({
   },
 });
 const navigation = createNavigation({
+  panelElements,
+  openThreads: threadListController.openThreads,
   panelIsOpen,
+  narrowing,
   coveringAuxiliaryScroller: auxiliarySurfaces.coveringScroller,
   threadDestinations: {
     openPageThread: (...args) => app.margin.openPageThread(...args),
@@ -311,11 +315,12 @@ const anchorTravel = createAnchorTravel({
   announce,
 });
 landing = createThreadLanding({
+  threadsBox,
   setPanel: (...args) => threadPanelController.setPanel(...args),
   scrollToThread: anchorTravel.scrollToThread,
-  revealThread: (id) => revealThread(id, app.presentThread),
+  revealThread: narrowing.revealThread,
 });
-declareThreadKeys(landing.landIn);
+declareThreadKeys(landing.landIn, narrowing);
 const anchorControls = createAnchorControls({
   commentOnTarget: (...args) => responseSurface.commentOnTarget(...args),
   openThread: (...args) => app.margin.openPageThread(...args),
@@ -354,6 +359,10 @@ const inputs = createCompositionInputs({
 });
 
 app = mountApplication({
+  panel,
+  firstUnreadBtn: panelElements.firstUnreadBtn,
+  accompaniedThread: (...args) => landing.accompaniedThread(...args),
+  accompanyThread: (...args) => landing.accompanyThread(...args),
   threadAvailable: !offlineInteractive,
   reportPageError,
   createEngagement,
@@ -386,11 +395,7 @@ app = mountApplication({
   landInThread: (...args) => landing.landInThread(...args),
   showThread: (...args) => landing.showThread(...args),
   panelIsOpen,
-  onThreadChanged: repaint,
-  retainPanelLanding: (source) => retainPanelLanding(source, panelIsOpen),
-  retainThreadNarrowing: () => retainNarrowing(app.presentThread),
-  retainThreadFocus: () => retainThreadFocus(panelIsOpen),
-  setThreadCounts,
+  retainThreadFocus: () => retainThreadFocus(panelIsOpen, threadsBox),
   registerReactSurface: (...args) => reactions.registerReactSurface(...args),
   sendReaction,
   updateFab: (...args) => responseSurface.updateFab(...args),
@@ -425,6 +430,25 @@ app = mountApplication({
     renderStatus,
   },
 });
+app.registerThreadPanel({
+  required: true,
+  controller: threadListController,
+  threadsBox,
+  view: {
+    narrowing,
+    panelIsOpen,
+    scrollToElement: anchorTravel.scrollToElement,
+    setThreadCounts,
+    onListChanged: repaint,
+    refreshAnchorHover: anchorPaint.refreshHover,
+    travel: {
+      showThread: (...args) => landing.showThread(...args),
+      retainPanelLanding: (source) =>
+        retainPanelLanding(source, panelIsOpen, threadsBox),
+      retainNarrowing: narrowing.retainNarrowing,
+    },
+  },
+});
 if (offlineInteractive) applicationState.setHostAvailable(false);
 
 // Where a landing in the document goes, which is version continuity's reading of what is
@@ -445,6 +469,8 @@ declareCovering({
 // The let-go's external readings stand by now, so the scope is declared before anything
 // reads the register.
 declareStanding({
+  threadsBox,
+  narrowing,
   pageState: () =>
     Boolean(
       responseSurface.fabAnchorAt() ||
@@ -482,6 +508,9 @@ const standingElement = createStandingElement({
 });
 
 panelComposer = createPanelComposer({
+  elements: panelElements,
+  openThreads: threadListController.openThreads,
+  narrowing,
   designModeActive: designMode.active,
   wireInput: inputs.wireInput,
   createPageComment: app.createPageComment,
@@ -519,6 +548,7 @@ selectionComposer = createSelectionComposer({
   wireInput: inputs.wireInput,
 });
 responseSurface = createResponseSurface({
+  panelElements,
   panelIsOpen,
   landIn: landing.landIn,
   setPanel: (...args) => threadPanelController.setPanel(...args),
@@ -626,9 +656,9 @@ layout = createChromeLayout({
   repaintPage,
 });
 threadPanelController = createThreadPanelController({
+  narrowing,
   auxiliarySurfaces,
-  elements: { panel, toggleBtn, threadsBox },
-  widen: () => widen(app.presentThread),
+  elements: { panel, toggleBtn, threadsBox, inPanel: panelElements.inPanel },
   threadHere: app.margin.threadHere,
   showThread: landing.showThread,
   refreshThread: app.refreshThread,
@@ -646,7 +676,7 @@ trays = createTrays({
 });
 goToSequence = createGoToSequence({
   panelIsOpen,
-  elements: { banner, toggleBtn },
+  elements: { banner, toggleBtn, threadsBox },
   hintChrome,
   directDestinations: () => [version.CHOOSER, selectionComposer.KEPT_DRAFT],
   setPanel: threadPanelController.setPanel,
@@ -727,7 +757,8 @@ if (!offlineInteractive) {
   );
   document.body.prepend(skipToChrome);
   document.body.append(chromeRoot);
-  mountPanelReadingRegion();
+  panelElements.mountReadingRegion();
+  panelElements.mountOverlay();
   version.mount();
   mountBanner({
     approveVersion: () => app.post({ kind: "done", version: runtime.currentStamp }),
@@ -736,7 +767,7 @@ if (!offlineInteractive) {
   auxiliarySurfaces.mount();
   // Connect the search field before mount awaits its rendered input: Lit does not
   // resolve updateComplete until connection, and keyboard registration needs that input.
-  mountNarrowing(app.presentThread);
+  narrowing.mount();
   await panelComposer.mount();
   selectionComposer.mount();
   responseSurface.mount();
@@ -753,8 +784,8 @@ if (!offlineInteractive) {
   app.margin.mount();
   app.mountThread();
   app.mountRead();
-  mountThreadList(panelIsOpen);
-  wireThreadLanding();
+  threadListController.mountThreadList(panelIsOpen);
+  wireThreadLanding(threadsBox);
   trays.mountTrays();
   threadPanelController.mountThreadPanel();
   layout.mountLayoutObservers();

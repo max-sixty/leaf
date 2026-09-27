@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import secrets
 import threading
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from functools import partial
 from pathlib import Path
 
@@ -16,7 +16,8 @@ from .files import latest_revision
 from .hosting import LeafHTTPServer
 from .http import PageEndpoint
 from .registry.contract import RegistryError
-from .revision_artifact import read_registry
+from .revision_artifact import RevisionArtifact, read_registry
+from .revision_delivery import Delivery
 from .schema import EVENTS_FILE, MCP_APP
 from .served_state.service import PageStateService
 from .server import preview_metadata, running_server
@@ -27,16 +28,6 @@ PAGE_APP_RESOURCE = MCP_APP / "page-app.html"
 PAGE_FORMAT = "leaf.page/v1"
 PAGE_READY_SOURCE = Path(__file__).with_name("mcp-page-ready.js")
 _READY_PATH = "/mcp-ready.js"
-
-
-def _with_ready_signal(body: bytes, page_root: str) -> bytes:
-    """Let the parent App distinguish a loaded page from a browser error document."""
-    closing = body.lower().rfind(b"</body>")
-    if closing < 0:
-        return body
-    source = f"{page_root}{_READY_PATH}"
-    script = f'<script type="module" src="{source}" data-lf-runtime></script>'.encode()
-    return body[:closing] + script + body[closing:]
 
 
 @dataclass
@@ -79,10 +70,13 @@ class RoutedPageEndpoint(PageEndpoint):
         self.path = f"/{parts[3]}" if len(parts) == 4 and parts[3] else "/"
         return None
 
-    def _content(self, status: int, ctype: str, body: bytes) -> Response:
-        if status == 200 and ctype.startswith("text/html"):
-            body = _with_ready_signal(body, self.page_root)
-        return super()._content(status, ctype, body)
+    def _delivery(self, artifact: RevisionArtifact, revision: int) -> Delivery:
+        # Lets the parent App tell a loaded page from a browser error document.
+        return replace(
+            super()._delivery(artifact, revision),
+            body_end=f'<script type="module" src="{self.page_root}{_READY_PATH}" '
+            "data-lf-runtime></script>",
+        )
 
     def _get(self) -> Response | None:
         if self.path == _READY_PATH:

@@ -2,7 +2,8 @@
 
     uv run scripts/eval_harness.py REF DEST
 
-builds one arm at DEST from git REF. `eval_claude_delivery.py` and
+builds one arm at DEST from git REF. `eval_claude_delivery.py`,
+`bench_render_check.py`, `bench_page_latency.py` and
 `notes/arrangement-eval/harness.py` import the rest, and `evals/README.md`'s A/B
 recipe builds its other arm with the command.
 
@@ -31,7 +32,7 @@ from collections.abc import Iterable
 from pathlib import Path
 
 import click
-from leaf.host import SESSION_VARIABLES
+from leaf.host import IDENTITY_VARIABLES
 
 ROOT = Path(__file__).resolve().parent.parent
 PAYLOAD = (".claude-plugin", "bin", "hooks", "skills", "pyproject.toml", "uv.lock")
@@ -47,7 +48,7 @@ def environment(**extra: str) -> dict[str, str]:
     env = {
         key: value
         for key, value in os.environ.items()
-        if key not in SESSION_VARIABLES
+        if key not in IDENTITY_VARIABLES
         and not (key.startswith("CLAUDE") and key != "CLAUDE_CONFIG_DIR")
     }
     return {**env, **extra}
@@ -59,10 +60,12 @@ def run_leaf(
     *args: str,
     check: bool = False,
     timeout: float | None = None,
+    input_text: str | None = None,
 ) -> subprocess.CompletedProcess:
     """Run an arm's launcher under a state home of its own."""
     proc = subprocess.run(
         [str(arm / "bin/leaf"), *args],
+        input=input_text,
         capture_output=True,
         text=True,
         check=False,

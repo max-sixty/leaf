@@ -149,6 +149,16 @@ export function trappedMargins() {
   return found;
 }
 
+// The items a flex or grid box lays out: its children the page put there and the box
+// places, which leaves out what is not drawn, what is out of flow, and the layer's own
+// generated boxes. The arrangement reading (layout.js) counts the same items.
+export const laidOutItems = (box) =>
+  [...box.children].filter((child) => {
+    if (child.matches(".lf-ui, [data-lf-gen]")) return false;
+    const c = getComputedStyle(child);
+    return c.display !== "none" && c.position !== "absolute" && c.position !== "fixed";
+  });
+
 // A box that lays its children out side by side and stands at a frame's edge, where the
 // shared trim took the margin off its edge item but not off the items beside it: the row
 // no longer lines up. The trim follows the edge through whatever stands at it, and a
@@ -164,13 +174,7 @@ export function splitEdges() {
       if (!s.display.includes("flex") && !s.display.includes("grid")) continue;
       if (el.closest("[hidden]")) continue;
       if (s.getPropertyValue("--lf-holds-edge").trim() === "1") continue;
-      const items = [...el.children].filter((child) => {
-        if (child.matches(".lf-ui, [data-lf-gen]")) return false;
-        const c = getComputedStyle(child);
-        return (
-          c.display !== "none" && c.position !== "absolute" && c.position !== "fixed"
-        );
-      });
+      const items = laidOutItems(el);
       if (items.length < 2) continue;
       for (const [edge, token, prop, item, line] of [
         [

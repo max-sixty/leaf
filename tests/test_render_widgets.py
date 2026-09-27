@@ -546,7 +546,7 @@ def test_embedded_tab_selection_preserves_the_document_reading_position(browser,
     page = open_page(browser, serve(source))
     resized(page, 1280, 720)
     tabs = page.locator("#root-tabs")
-    expect(tabs).to_have_attribute("data-lf-tabs-context", "embedded")
+    expect(tabs).to_have_attribute("data-lf-tabs-flow", "box")
     evidence = tabs.get_by_role("tab", name="Evidence", exact=True)
     evidence.evaluate("el => el.scrollIntoView({block: 'start', behavior: 'instant'})")
     scroll_settled(page)
@@ -604,7 +604,7 @@ def test_page_tabs_take_the_page_width_and_its_one_left_edge(browser, serve):
     page = open_page(browser, serve(source))
     resized(page, 1440, 900)
     tabs = page.locator("#root-tabs")
-    expect(tabs).to_have_attribute("data-lf-tabs-context", "root")
+    expect(tabs).to_have_attribute("data-lf-tabs-flow", "page")
     boxes = page.evaluate(
         """() => {
           const box = (el) => {
@@ -638,12 +638,23 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
     walked down as well as across; on a phone it is a row above the panel, so the open
     item never lands below the whole queue. A row carries its panel's summary under its
     name, and each tab counts the Asks in its panel the user still owes: an answer
-    clears its tab's count while the others keep theirs."""
+    clears its tab's count while the others keep theirs, and moves no row. A tab's name
+    is its label whatever the row shows, and a panel bounds what it holds."""
+
+    BOARD = (
+        '<lf-board id="board">'
+        + "".join(
+            f'<lf-column id="col-{i}" label="Column {i}"><lf-card id="card-{i}">'
+            f"<strong>Card {i}</strong> text</lf-card></lf-column>"
+            for i in range(6)
+        )
+        + "</lf-board>"
+    )
 
     def ticket(key):
         return f"""
 <lf-tab id="t-{key}" label="Ticket {key}" summary="sev {key} · suggested fix">
-  <p id="p-{key}">What went wrong with {key}.</p>
+  <p id="p-{key}">What went wrong with {key}.</p>{BOARD if key == "a" else ""}
   <lf-ask id="ask-{key}"><h3 id="q-{key}">What happens to {key}?</h3>
     <lf-options id="o-{key}" choose>
       <lf-option id="o-{key}-fix"><strong>Fix</strong> Ship the patch.</lf-option>
@@ -670,11 +681,21 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
     assert wide["stripRight"] <= wide["panelLeft"] + 1, wide
     owed = page.locator("#queue > .lf-tabstrip .lf-tabowed")
     expect(owed).to_have_text(["1", "1", "1"])
+    bounds = page.evaluate("""() => ({
+      board: document.querySelector('#board').getBoundingClientRect().right,
+      panel: document.querySelector('#t-a').getBoundingClientRect().right})""")
+    assert bounds["board"] <= bounds["panel"] + 1, bounds
     expect(page.locator("#queue > .lf-tabstrip .lf-tab-summary").first).to_have_text(
         "sev a · suggested fix"
     )
 
     tabs = page.get_by_role("tab")
+    expect(tabs.first).to_have_accessible_name("Ticket a")
+    rows = (
+        "() => [...document.querySelectorAll('#queue .lf-tab-btn')]"
+        ".map((b) => b.getBoundingClientRect().height)"
+    )
+    heights = page.evaluate(rows)
     tabs.first.focus()
     page.keyboard.press("ArrowDown")
     expect(tabs.nth(1)).to_have_attribute("aria-selected", "true")
@@ -683,12 +704,42 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
 
     page.locator("#o-a-fix .lf-pick").click()
     told(page)
-    expect(tabs.first.locator(".lf-tabowed")).to_have_count(0)
-    expect(owed).to_have_text(["1", "1"])
+    expect(owed).to_have_text(["", "1", "1"])
+    assert page.evaluate(rows) == heights
 
     resized(page, 390, 844)
     narrow = page.evaluate(boxes)
     assert narrow["stripBottom"] <= narrow["panelTop"] + 1, narrow
+
+    # As a scrolling page's root set, a side list keeps the page's history but is a
+    # box: nothing sticks, so a switch leaves the page where the user stands.
+    def long(key):
+        return "".join(
+            f"<p id='filler-{key}-{i}'>{'Background. ' * 40}</p>" for i in range(12)
+        )
+
+    column = leaf_page(
+        "a long queue",
+        "<header><h1>Queue</h1></header>"
+        '<lf-tabs id="queue" list="side">'
+        + "".join(ticket(k).replace("</lf-tab>", long(k) + "</lf-tab>") for k in "bc")
+        + "</lf-tabs>",
+    )
+    page = open_page(browser, serve(column))
+    resized(page, 1200, 900)
+    # The list is off screen above, so the walk is the gesture: a click would first
+    # scroll the tab into view.
+    page.get_by_role("tab", name="Ticket b", exact=True).evaluate(
+        "tab => tab.focus({preventScroll: true})"
+    )
+    page.evaluate("document.scrollingElement.scrollTop = 900")
+    before = page.evaluate("document.scrollingElement.scrollTop")
+    page.keyboard.press("ArrowDown")
+    expect(page.get_by_role("tab", name="Ticket c", exact=True)).to_have_attribute(
+        "aria-selected", "true"
+    )
+    rendered(page)
+    assert page.evaluate("document.scrollingElement.scrollTop") == before
 
 
 def test_root_tab_targets_remain_global(browser, serve):

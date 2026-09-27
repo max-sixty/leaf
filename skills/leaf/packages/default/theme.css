@@ -1251,22 +1251,19 @@ lf-tabs.lf-rendered > lf-tab { margin-top: 14px; }
                outline-offset: calc(-1 * var(--here-ring-w)); }
 /* Every name reserves the same square face; selection paints it without changing any
  * control's measure. */
-.lf-tabstrip .lf-tab-btn > [data-lf-said] {
+.lf-tabstrip .lf-tab-btn > .lf-tab-name {
                display: inline-block; padding: 2px 5px; }
-.lf-tabstrip .lf-tab-btn[aria-selected="true"] > [data-lf-said] {
+.lf-tabstrip .lf-tab-btn[aria-selected="true"] > .lf-tab-name {
                background: var(--card); color: var(--ink); }
-.lf-tabdiff { font-size: var(--t-6); font-weight: 400; margin-left: 6px;
+/* A tab's counts: the passages the version diff marks, and, in the tone the tray's
+ * count wears, the Asks that still wait on the user. A count with nothing to count
+ * takes no room. */
+:is(.lf-tabdiff, .lf-tabowed) { font-size: var(--t-6); margin-left: 6px;
               padding: var(--chip-pad); line-height: var(--chip-lh);
-              border-radius: var(--chip-r);
-              background: var(--add-tint); color: var(--ok-ink); }
-/* How many Asks behind a side list's row still wait on the user, in the tone the
- * tray's count wears. The slot is always there, empty when none wait, so an answer
- * moves nothing in the row. */
-.lf-tabowed { font-size: var(--t-6); font-weight: 600; margin-left: 6px;
-              padding: var(--chip-pad); line-height: var(--chip-lh);
-              border-radius: var(--chip-r);
-              background: var(--warn-tint); color: var(--warn-ink); }
-.lf-tabowed:empty { visibility: hidden; }
+              border-radius: var(--chip-r); }
+:is(.lf-tabdiff, .lf-tabowed):empty { display: none; }
+.lf-tabdiff { font-weight: 400; background: var(--add-tint); color: var(--ok-ink); }
+.lf-tabowed { font-weight: 600; background: var(--warn-tint); color: var(--warn-ink); }
 /* One panel at a time is the whole of what the strip's handler does, so it is
  * offered only in the live page and the rest is what the markup already says.
  * A control whose state the browser owns needs no such block and has none;
@@ -1294,13 +1291,15 @@ lf-tabs.lf-rendered > lf-tab { margin-top: 14px; }
      * display:block above outranks the UA's [hidden] rule. */
     lf-tabs.lf-rendered > lf-tab[hidden]:not([hidden="until-found"]) { display: none; }
 
+    /* A boxed set's panel is a bounded box, so it is the container what it holds
+     * measures itself against (theme.css in the kernel says why a framed box is one). */
+    lf-tabs.lf-rendered[data-lf-tabs-flow="box"] > lf-tab { container-type: inline-size; }
+
     /* A list beside its panels (`list="side"`): a queue beside the item it opens. The
      * list is a column left of the open panel wherever the set holds both, and a row
      * over it below that, as a narrow window or a phone gives it, so the open item is
      * never below the whole list. The set is the container its own parts ask, which
-     * is why the stacking is written on them and not on the set; each panel is the
-     * container what it holds measures, a bounded box beside the list. A side list is
-     * a list, not a cover: as the page's root set it neither sticks nor scrolls apart. */
+     * is why the stacking is written on them and not on the set. */
     lf-tabs[list="side"].lf-rendered {
       container-type: inline-size;
       display: grid;
@@ -1318,32 +1317,28 @@ lf-tabs.lf-rendered > lf-tab { margin-top: 14px; }
       border-inline-end: 1px solid var(--border-2);
       border-radius: calc(var(--r) - 1px) 0 0 calc(var(--r) - 1px);
       align-self: stretch;
-      position: static;
-      overflow: visible;
     }
-    /* A row is its name, then its count, with the summary on a line under both. */
+    /* A row is its name, then its counts, with the summary on a line under them. The
+     * row keeps the Asks count's slot when none wait, so an answer moves nothing. */
     lf-tabs[list="side"].lf-rendered > .lf-tabstrip .lf-tab-btn {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) auto;
+      grid-template-columns: minmax(0, 1fr) auto auto;
       align-items: baseline;
       justify-items: start;
       text-align: start;
     }
-    /* The selection face is the name's; the summary under it keeps its own. */
-    lf-tabs[list="side"].lf-rendered > .lf-tabstrip .lf-tab-btn[aria-selected] > .lf-tab-summary {
+    lf-tabs[list="side"].lf-rendered > .lf-tabstrip .lf-tabowed:empty {
+      display: inline-block;
+      visibility: hidden;
+    }
+    lf-tabs[list="side"].lf-rendered > .lf-tabstrip .lf-tab-summary {
       grid-column: 1 / -1;
       grid-row: 2;
       padding: 0 5px 2px;
-      border-bottom-color: transparent;
-      background: transparent;
       font-size: var(--t-6);
       color: var(--muted);
     }
-    lf-tabs[list="side"].lf-rendered > lf-tab {
-      grid-column: 2;
-      grid-row: 1;
-      container-type: inline-size;
-    }
+    lf-tabs[list="side"].lf-rendered > lf-tab { grid-column: 2; grid-row: 1; }
     @container (width < 36rem) {
       lf-tabs[list="side"].lf-rendered > .lf-tabstrip {
         grid-column: 1 / -1;
@@ -1357,19 +1352,20 @@ lf-tabs.lf-rendered > lf-tab { margin-top: 14px; }
       lf-tabs[list="side"].lf-rendered > lf-tab { grid-column: 1 / -1; grid-row: auto; }
     }
 
-    /* A root tab set is navigation over sections of one page rather than a framed
-     * widget inside it: a sticky horizontal index, one panel shown. It lays out nothing
+    /* A set in the page's flow (the root set, its strip a row; lf-tabs.js) is
+     * navigation over sections of one page rather than a framed widget inside it: a
+     * sticky horizontal index, one panel shown. It lays out nothing
      * of its own. The strip and the panel are blocks of `main` like any other, so they
      * take the page's width, column or wide, and whatever stands in `main` beside the set
      * (a header, a sidebar) stays where it would on a page without tabs. */
-    :where(lf-tabs.lf-rendered[data-lf-tabs-context="root"]) {
+    :where(lf-tabs.lf-rendered[data-lf-tabs-flow="page"]) {
       margin-block: 0 32px;
       border: 0;
       border-radius: 0;
       background: transparent;
       --lf-block-frame: 0;
     }
-    lf-tabs[data-lf-tabs-context="root"] > .lf-tabstrip {
+    lf-tabs[data-lf-tabs-flow="page"] > .lf-tabstrip {
       position: sticky;
       top: var(--lf-banner-h);
       z-index: 2;
@@ -1382,32 +1378,32 @@ lf-tabs.lf-rendered > lf-tab { margin-top: 14px; }
     }
     /* The strip scrolls when its names outrun it; a tab that shrank instead would
      * cut its own name, which the strip's scroll could never reach. */
-    lf-tabs[data-lf-tabs-context="root"] > .lf-tabstrip .lf-tab-btn { flex: none; }
-    lf-tabs[data-lf-tabs-context="root"]
+    lf-tabs[data-lf-tabs-flow="page"] > .lf-tabstrip .lf-tab-btn { flex: none; }
+    lf-tabs[data-lf-tabs-flow="page"]
       > .lf-tabstrip
       .lf-tab-btn
-      > [data-lf-said] {
+      > .lf-tab-name {
       border-bottom: 2px solid transparent;
       background: transparent;
     }
-    lf-tabs[data-lf-tabs-context="root"]
+    lf-tabs[data-lf-tabs-flow="page"]
       > .lf-tabstrip
       .lf-tab-btn[aria-selected="true"]
-      > [data-lf-said] {
+      > .lf-tab-name {
       border-bottom-color: currentColor;
       background: transparent;
     }
-    lf-tabs.lf-rendered[data-lf-tabs-context="root"] > lf-tab:not([hidden]) {
+    lf-tabs.lf-rendered[data-lf-tabs-flow="page"] > lf-tab:not([hidden]) {
       padding: var(--sp-4) 0 0;
     }
     /* A page tab is a section of the page, not a box on it: it declares the frame only
      * so its first line trims under the strip and, like `main`, hands the room back to
      * what it holds, so a wide exhibit in a page tab grows out as it would on a page
      * without tabs. */
-    lf-tabs.lf-rendered[data-lf-tabs-context="root"] > lf-tab:not([hidden]) > * {
+    lf-tabs.lf-rendered[data-lf-tabs-flow="page"] > lf-tab:not([hidden]) > * {
       --lf-room: inherit;
     }
-    lf-tabs.lf-rendered[data-lf-tabs-context="root"] > lf-tab[hidden] {
+    lf-tabs.lf-rendered[data-lf-tabs-flow="page"] > lf-tab[hidden] {
       align-self: start;
       height: 0;
       min-height: 0;

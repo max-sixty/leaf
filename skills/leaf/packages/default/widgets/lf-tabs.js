@@ -8,22 +8,29 @@
  * switching is reading, not editing, so it never sends an action and no
  * version carries it — this widget doesn't ride the action channel at all.
  * The first tab set placed directly in main is the page's navigation over sections of
- * that page, whatever else main holds: its strip sticks under the banner, its panels
- * take the page's width, its panel id is the URL fragment, and history follows those
- * panel entries. A switch, by press, key, Back, or Forward, is not
- * fragment travel, because a view is not a destination: the strip stays where it is on
- * screen, and the view opens where this user last read it, or at its start when they
- * never read past it. A link inside a panel is still fragment travel (history.js).
- * Embedded tab sets retain the ordinary framed-widget behavior.
- * While the version diff is on, a tab whose panel holds marked passages wears
- * a Δ count, so a change can't hide behind an inactive tab. With `list="side"` the
- * list stands beside the panels, a queue beside the item it opens, walked up and down
- * as well as across (theme.css says where it stacks). Each row there is its name, the
- * panel's `summary` under it, and a count of the Asks in the panel the user still
- * owes, read from the page's Ask selection; the row is tall enough for the count, so
- * an answer moves nothing. The tab's accessible name stays its name, and the summary
- * and count are its description. A side list is a list, not a cover: even as the
- * page's root set it neither sticks nor claims scroll padding. Unupgraded,
+ * that page, whatever else main holds: its panel id is the URL fragment, and history
+ * follows those panel entries. A link inside a panel is still fragment travel
+ * (history.js).
+ *
+ * How a set is drawn is one fact, its flow (`data-lf-tabs-flow`), which this module
+ * writes and reads and every rule for the set's presentation reads. The root set with
+ * its strip written as a row is the page's own flow ("page"): its strip sticks under the
+ * banner as a cover over the document it indexes, and its panels are sections of the
+ * page, taking the page's width. Each is then a view with a place of its own: a switch,
+ * by press, key, Back, or Forward, is not fragment travel, because a view is not a
+ * destination, so the strip stays where it is on screen and the view opens where this
+ * user last read it, or at its start when they never read past it. Every other set is a
+ * box ("box"): framed, its strip in flow, each panel a bounded box that what it holds
+ * measures itself against, and a switch leaves the page where it stands. `list="side"`
+ * stands the list beside the panels, a queue beside the item it opens, walked up and
+ * down as well as across (theme.css says where it stacks); a side list is a box even as
+ * the root set, which keeps the root's history.
+ *
+ * Every tab's accessible name is its label; what else the tab shows describes it. A
+ * side list's row adds the panel's `summary` under the name. Every tab wears two
+ * counts about what its panel holds, so neither can hide behind an inactive tab: Δ, the
+ * passages the version diff marks, while the diff is on, and the Asks there the user
+ * still owes, from the page's Ask selection. Unupgraded,
  * panels stack as labeled sections; authored content is never replaced, so
  * there is no failSoft. */
 import {
@@ -77,6 +84,7 @@ customElements.define(
     #covering = false;
     #stopAsks = null;
     #side = false;
+    #pageFlow = false;
 
     connectedCallback() {
       if (!once(this)) {
@@ -89,6 +97,8 @@ customElements.define(
       // Own panels only (a nested lf-tabs wires its own).
       const panels = [...this.querySelectorAll(":scope > lf-tab")];
       if (!panels.length) return;
+      const side = this.getAttribute("list") === "side";
+      this.#side = side;
       this.#watchRootContext();
       this.#syncRootContext();
       // The strip is a thing to work, and its tabs ride inside it, so paper drops the
@@ -97,24 +107,23 @@ customElements.define(
       // is the only place that name is written. So the name goes in its own span,
       // declared the page speaking, and the anchor pass reads it over the chrome around
       // it: a user points at a tab's name the way they point at a heading. Its own
-      // span rather than the tab's whole text, because the Δ badge lands here too and
-      // that one is the runtime talking about the document.
+      // span rather than the tab's whole text, because the counts land here too and
+      // they are the runtime talking about the document.
       //
       // A press is a span wearing the role rather than a <button> (see `offer`), which
       // is what makes a drag across the name possible at all.
       const strip = offer("div", "lf-tabstrip");
       this.#strip = strip;
       strip.setAttribute("role", "tablist");
-      const side = this.getAttribute("list") === "side";
-      this.#side = side;
       if (side) strip.setAttribute("aria-orientation", "vertical");
       for (const panel of panels) {
         const btn = selectableOffer("tab", "lf-tab-btn");
         btn.setAttribute("aria-controls", panel.id);
         const name = document.createElement("span");
+        name.className = "lf-tab-name";
         relabel(name, panel.getAttribute("label"), { says: true });
         btn.append(name);
-        if (side) btn.setAttribute("aria-label", panel.getAttribute("label"));
+        btn.setAttribute("aria-label", panel.getAttribute("label"));
         // A queue's row says more than its name: in a side list the panel's `summary`
         // stands under it, the page's words like the name.
         if (side && panel.hasAttribute("summary")) {
@@ -122,6 +131,13 @@ customElements.define(
           summary.className = "lf-tab-summary";
           relabel(summary, panel.getAttribute("summary"), { says: true });
           btn.append(summary);
+        }
+        // The counts, empty until there is something to count (`#marks`).
+        for (const kind of ["lf-tabdiff", "lf-tabowed"]) {
+          const chip = document.createElement("span");
+          chip.className = kind;
+          chip.setAttribute("aria-hidden", "true");
+          btn.append(chip);
         }
         btn.onclick = () => this.#activate(panel, true, "ordinary");
         strip.append(btn);
@@ -221,7 +237,7 @@ customElements.define(
         this.#listenForHistory();
         this.#replaceLocation(this.#active);
       }
-      // Δ badges follow the version diff; the runtime announces each toggle.
+      // The Δ count follows the version diff; the runtime announces each toggle.
       this.#listenForDiff();
       this.#listenForAsks();
     }
@@ -238,30 +254,32 @@ customElements.define(
     }
 
     #listenForAsks() {
-      if (!this.#side || !this.#buttons.size || this.#stopAsks) return;
-      this.#stopAsks = watchAsks(this, () => this.#owed());
-      this.#owed();
+      if (!this.#buttons.size || this.#stopAsks) return;
+      this.#stopAsks = watchAsks(this, () => this.#marks());
+      this.#marks();
     }
 
-    // A side list's rows count the Asks in their panel the user still owes, from the
-    // page's one Ask selection, and say the count and summary as the tab's description.
-    #owed() {
+    // Each tab's counts of what its panel holds: the passages the version diff marks
+    // while it is on, and the Asks the user still owes, from the page's one Ask
+    // selection. They are said with the summary as the tab's description.
+    #marks() {
       const owed = openAsks()
         .map((ask) => document.getElementById(ask.sourceId))
         .filter(Boolean);
       for (const [panel, btn] of this.#buttons) {
-        const n = owed.filter((element) => panel.contains(element)).length;
-        let chip = btn.querySelector(".lf-tabowed");
-        if (!chip) {
-          chip = document.createElement("span");
-          chip.className = "lf-tabowed";
-          chip.setAttribute("aria-hidden", "true");
-          btn.append(chip);
-        }
-        const said = n ? String(n) : "";
-        if (chip.textContent !== said) chip.textContent = said;
-        const words = n === 1 ? "1 Ask waits on you" : n ? `${n} Asks wait on you` : "";
-        const description = [panel.getAttribute("summary"), words]
+        const changed = panel.querySelectorAll(".lf-ins-block").length;
+        const asks = owed.filter((element) => panel.contains(element)).length;
+        const show = (kind, text) => {
+          const chip = btn.querySelector(`:scope > .${kind}`);
+          if (chip.textContent !== text) chip.textContent = text;
+        };
+        show("lf-tabdiff", changed ? `Δ${changed}` : "");
+        show("lf-tabowed", asks ? String(asks) : "");
+        const description = [
+          panel.getAttribute("summary"),
+          changed === 1 ? "1 change" : changed ? `${changed} changes` : "",
+          asks === 1 ? "1 Ask waits on you" : asks ? `${asks} Asks wait on you` : "",
+        ]
           .filter(Boolean)
           .join(". ");
         if (description) btn.setAttribute("aria-description", description);
@@ -272,7 +290,7 @@ customElements.define(
     #listenForDiff() {
       if (!this.#buttons.size || this.#diffEvents) return;
       this.#diffEvents = new AbortController();
-      document.addEventListener("lf-comparison", () => this.#badges(), {
+      document.addEventListener("lf-comparison", () => this.#marks(), {
         signal: this.#diffEvents.signal,
       });
     }
@@ -283,10 +301,10 @@ customElements.define(
       const previous = this.#active;
       // A press or a traversal between views switches them; a reveal is travel to
       // something inside the view, which the traveller lands.
-      const switched = this.#root && ["ordinary", "history"].includes(reason);
+      const switched = this.#pageFlow && ["ordinary", "history"].includes(reason);
       const change = () => {
         const from = pageScroller.scrollTop;
-        if (this.#root && previous) this.#leave(previous);
+        if (this.#pageFlow && previous) this.#leave(previous);
         if (this.#root && reason === "ordinary") this.#pushLocation(active);
         // Whatever opened another view, the entry the user stands on names it, so
         // Back and Forward to that entry return to this view. A fragment already
@@ -300,7 +318,6 @@ customElements.define(
         for (const [panel, btn] of this.#buttons) {
           if (panel === active) panel.removeAttribute("hidden");
           else panel.setAttribute("hidden", HIDDEN);
-          panel.toggleAttribute("data-lf-root-reading", this.#root && panel === active);
           btn.setAttribute("aria-selected", panel === active ? "true" : "false");
           btn.tabIndex = panel === active ? 0 : -1;
         }
@@ -315,7 +332,9 @@ customElements.define(
         presentation.push(layoutChanged(this));
         return Promise.all(presentation);
       };
-      return this.#root && previous ? preserveReadingRegions(this, change) : change();
+      return this.#pageFlow && previous
+        ? preserveReadingRegions(this, change)
+        : change();
     }
 
     #panelForLocation(panels, hash = location.hash) {
@@ -337,31 +356,28 @@ customElements.define(
     }
 
     #syncRootContext() {
-      const wasRoot = this.#root;
+      const wasFlow = this.#pageFlow;
       // The first tab set directly in the page is its navigation, whatever else the page
       // holds beside it; a later one is a tabbed section like any nested set.
       const main = this.parentElement;
       this.#root =
         Boolean(main?.matches("body > main")) &&
         main.querySelector(":scope > lf-tabs") === this;
-      this.dataset.lfTabsContext = this.#root ? "root" : "embedded";
+      this.#pageFlow = this.#root && !this.#side;
+      this.dataset.lfTabsFlow = this.#pageFlow ? "page" : "box";
       if (!this.#root) {
         this.#historyEvents?.abort();
         this.#historyEvents = null;
       } else if (this.#buttons.size) {
         this.#listenForHistory();
       }
-      for (const panel of this.#buttons.keys()) {
-        const marked = panel.hasAttribute("data-lf-root-reading");
-        const rootPanel = this.#root && panel === this.#active;
-        panel.toggleAttribute("data-lf-root-reading", rootPanel);
-        if (marked !== rootPanel) {
-          const child = soleSubstantiveElement(panel);
-          if (child) layoutChanged(child);
-        }
-      }
       this.#declareCover();
-      if (wasRoot !== this.#root) layoutChanged(this);
+      // A set that changed flow drew its open panel at another width.
+      if (wasFlow !== this.#pageFlow && this.#active) {
+        const child = soleSubstantiveElement(this.#active);
+        if (child) layoutChanged(child);
+        layoutChanged(this);
+      }
     }
 
     #watchRootContext() {
@@ -375,14 +391,14 @@ customElements.define(
       this.#contextObserver.observe(main, { childList: true });
     }
 
-    // A root strip sticks under the banner, over the document it indexes, so it is a
-    // cover there (`declareCoverRoom`): what it stands over is not on screen, and the room
+    // A page-flow strip sticks under the banner, over the document it indexes, so it is
+    // a cover there (`declareCoverRoom`): what it stands over is not on screen, and the room
     // it takes is kept as `--lf-root-tab-clear`, which the document's `scroll-padding`
     // reads. The document's covers are one set, so only a set that declared its strip
     // withdraws one, and a tab set nested in a root panel never clears the root's. A strip
     // that leaves the document is let go on its own.
     #declareCover() {
-      const covering = this.#root && !this.#side && Boolean(this.#strip?.isConnected);
+      const covering = this.#pageFlow && Boolean(this.#strip?.isConnected);
       if (!covering && !this.#covering) return;
       this.#covering = covering;
       declareCoverRoom(
@@ -425,8 +441,8 @@ customElements.define(
       pushEntry(this.#locationFor(panel));
     }
 
-    // Every view starts where the strip sticks, so an offset short of that is the shared
-    // header, not a place in the view.
+    // A page-flow view starts where its strip sticks, so an offset short of that is the
+    // shared header, not a place in the view.
     #start() {
       return (
         this.getBoundingClientRect().top +
@@ -460,20 +476,6 @@ customElements.define(
 
     #placeKey(panel) {
       return `${PLACE_KEY}${this.id}:${panel.id}`;
-    }
-
-    // One Δn chip per tab holding marked passages, so the notice's count is
-    // accounted for even where the marks sit behind an inactive tab.
-    #badges() {
-      for (const [panel, btn] of this.#buttons) {
-        btn.querySelector(".lf-tabdiff")?.remove();
-        const n = panel.querySelectorAll(".lf-ins-block").length;
-        if (!n) continue;
-        const chip = document.createElement("span");
-        chip.className = "lf-tabdiff";
-        chip.textContent = `Δ${n}`;
-        btn.append(chip);
-      }
     }
   },
 );

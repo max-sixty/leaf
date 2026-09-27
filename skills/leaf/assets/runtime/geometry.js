@@ -139,7 +139,7 @@ export function shownBand(el) {
 //
 // `visibleBand` is what the user can see through a scroller now: its shown band less
 // the covers stuck over an edge of it. A cover is a sticky box declared through
-// `declareCoverRoom` (below): an `lf-diff` file header, a root `lf-tabs` strip.
+// `declareCoverRoom` (below): an `lf-diff` file header, a page `lf-tabs` strip.
 // Stuck, it paints over the scroller's contents without clipping them, so a band that
 // ignored it would call what is under it shown. The clip walk below applies this band at
 // every ancestor, so `shownRect` and the readings built on it (read acknowledgement, the

@@ -169,11 +169,12 @@ checks and log, where it stands on the right. Stack each track's regions inside 
 every region stands on the same two vertical lines, rather than a new split per row whose
 edges land somewhere new each time.
 
-While the two stand side by side, a track shorter than the window can stay in view as
-the body scrolls: `position: sticky; top: var(--lf-top)` inside
-`@media (width >= 870px)` holds it just below Leaf's banner. Below that width the track
-stacks with the body, and a stuck track would stand over it, so leave it in flow there,
-and leave a taller track in flow at every width, since sticking it would hide its end
+A track shorter than the window can stay in view while the body scrolls beside it:
+give the `aside` `align-self: stretch`, so it runs the body's height, and the block it
+holds `position: sticky; top: var(--lf-top)`, which keeps that block just below Leaf's
+banner. The block sticks only inside the track, so wherever the two stack, for either
+reason, the track is only as tall as what it holds and nothing sticks over the body; no
+width is needed. Leave a taller track in flow, since sticking it would hide its end
 until the page ends.
 
 Draw each region the same way, as a `section.panel` with a short heading, and keep a

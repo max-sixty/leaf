@@ -13,13 +13,20 @@ child cannot read its way to another arm's version through history or the worked
 corpus. Building runs the launcher once, so uv builds the arm's environment before a
 timed run starts.
 
-A child is `claude -p` from a scratch cwd outside any repository, with project-only
-settings, no MCP servers, auto-memory off, and none of the variables that identify an
-agent session running the harness (`environment`). Claude Code loads project
-instructions above its cwd, so a child whose cwd sat in this checkout read its
-`AGENTS.md` whatever arm it ran. With auto-memory on it also read the repository's
-memory, and saved to it. `--add-dir` grants reads without loading a directory's
-project instructions.
+A child is `claude -p` from a scratch cwd outside any repository, under a home of its
+own, with no MCP servers, auto-memory off, and none of the variables that identify an
+agent session running the harness (`environment`). Its permissions are bypassed, so
+whatever a child writes to its host's user configuration lands in that home and not the
+user's: a child told of a standing preference saves it where its host keeps them, as
+the guidance says to, and children given the user's home appended six copies to the
+user's own `~/.claude/CLAUDE.md`. The home holds nothing the user wrote, so none of the
+user's instructions, settings, plugins or memory load either. The login lives in the
+macOS keychain, which the child reaches through a link to the user's `Library`, and uv
+keeps the user's cache. Claude Code loads project instructions above its cwd, so a
+child whose cwd sat in this checkout read its `AGENTS.md` whatever arm it ran.
+`--add-dir` grants reads without loading a directory's project instructions. Two
+phases of one session share a cwd, and so a home, which is where `--resume` finds the
+session.
 The child's `TMPDIR` is inside its cwd, because concurrent children otherwise write the
 same `/tmp` names and can read each other's.
 
@@ -131,8 +138,12 @@ def claude_child(
     `args` follow `-p`, so a prompt goes first. `dirs` are what the child may read
     beyond `cwd`, and `env` adds to `environment()`. Output is verbose stream-json."""
     (cwd / "tmp").mkdir(exist_ok=True)
+    home = cwd / "home"
+    home.mkdir(exist_ok=True)
+    if not (home / "Library").exists():
+        (home / "Library").symlink_to(Path.home() / "Library")
     command = [
-        "claude", "-p", *args, "--setting-sources", "project", "--strict-mcp-config",
+        "claude", "-p", *args, "--strict-mcp-config",
         "--permission-mode", "bypassPermissions", "--output-format", "stream-json",
         "--verbose", *(arg for d in dirs for arg in ("--add-dir", str(d))),
     ]  # fmt: skip
@@ -140,7 +151,11 @@ def claude_child(
         "args": command,
         "cwd": cwd,
         "env": environment(
-            CLAUDE_CODE_DISABLE_AUTO_MEMORY="1", TMPDIR=str(cwd / "tmp"), **(env or {})
+            HOME=str(home),
+            UV_CACHE_DIR=os.environ.get("UV_CACHE_DIR", str(Path.home() / ".cache/uv")),
+            CLAUDE_CODE_DISABLE_AUTO_MEMORY="1",
+            TMPDIR=str(cwd / "tmp"),
+            **(env or {}),
         ),
     }
 

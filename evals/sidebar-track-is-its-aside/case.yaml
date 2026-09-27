@@ -34,4 +34,6 @@ graders:
     document's order, so a phone, which stacks the two, shows the summary and contents
     first. The page's own CSS does not rebuild the arrangement: fail if it declares a
     grid or flex layout for `main`, or moves the summary with `order`. Keeping the
-    summary in view with `position: sticky` is fine.
+    summary in view is fine when the sticky block sits inside an `aside` with
+    `align-self: stretch`; fail if `position: sticky` is on the `aside` itself, which on
+    a phone would stand the stacked summary over the sections.

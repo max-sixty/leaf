@@ -76,8 +76,9 @@ Three requests in `subjects/`, each with the same content in both arms:
 ## A run
 
 `harness.py run` starts a fresh `claude -p` (Opus 5.5, Bash/Read/Write/Edit/Glob/Grep,
-bypass permissions) from a scratch cwd with project-only settings, so neither the user's
-`CLAUDE.md` nor the installed Leaf plugin loads. The prompt points it at the arm's
+bypass permissions) from a scratch cwd under a home of its own, so neither the user's
+`CLAUDE.md` nor the installed Leaf plugin loads, and what the child saves as a standing
+preference stays in that home (`scripts/eval_harness.py`). The prompt points it at the arm's
 `SKILL.md` and sets `$LEAF` to the arm's launcher; the run's own `XDG_STATE_HOME`
 keeps its pages and claims off this machine's. It asks for a finished record: write
 the page, pass `version check --render`, stamp it, no server.

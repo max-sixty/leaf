@@ -835,8 +835,8 @@ def claim_update_sources(status: dict) -> list[dict]:
             "text": claim["detail"],
             "ts": claim["ts"],
             "log_floor": claim["after"],
-            "agent": claim["agent"],
-            "session": claim["session"],
+            "agent": claim.get("agent"),
+            "session": claim.get("session"),
         }
         if event := claim.get("event"):
             source["event"] = event

@@ -9,21 +9,16 @@ Options:
   --help     Show this message and exit.
 
 Commands:
-  codex         Launch Codex and connect Leaf pages to its tasks.
-  data          Set or clear page-bound external data.
-  delivery      Read input delivered by any Leaf host.
-  events        Print the event log as JSON lines.
-  experimental  Commands optional packages use; they may change.
-  interactions  Print browser and server interactions as JSON lines.
-  mcp           Run Leaf's bundled MCP Apps server.
-  package       Create, check, install, and run packages.
-  page          Create, check, and read pages.
-  server        Start, run, or stop the local server.
-  status        Set the agent's banner state.
-  thread        Open, answer, name, summarize, or read a thread.
-  transcript    Print the page's exchange as Markdown.
-  version       Stamp and export versions.
-  wait          Confirm a delivery, if given, then wait for the next batch.
+  codex     Launch Codex and connect Leaf pages to its tasks.
+  data      Set or clear page-bound external data.
+  delivery  Read input delivered by any Leaf host.
+  mcp       Run Leaf's bundled MCP Apps server.
+  package   Create, check, install, and run packages.
+  page      Create, check, stamp, and read pages.
+  server    Start, run, or stop the local server.
+  status    Set the agent's banner state.
+  thread    Open, answer, name, summarize, or read a thread.
+  wait      Confirm a delivery, if given, then wait for the next batch.
 
 ## codex
 Usage: leaf codex [OPTIONS] COMMAND [ARGS]...
@@ -77,29 +72,23 @@ Options:
 ## page
 Usage: leaf page [OPTIONS] COMMAND [ARGS]...
 
-  Create, check, and read pages.
+  Create, check, stamp, and read pages.
 
 Options:
   --help  Show this message and exit.
 
 Commands:
-  check     Check the mutable page source.
-  guidance  List or print composed guidance by audience.
-  init      Create or re-vendor a page directory.
-  media     Add images and print their page paths.
-  state     Print where the page stands, as JSON.
-
-## version
-Usage: leaf version [OPTIONS] COMMAND [ARGS]...
-
-  Stamp and export versions.
-
-Options:
-  --help  Show this message and exit.
-
-Commands:
-  export  Export a stamped version to one HTML file.
-  stamp   Stamp the current source as the next version.
+  check         Check the mutable page source.
+  events        Print the event log as JSON lines.
+  export        Export a stamped version to one HTML file.
+  guidance      List or print composed guidance by audience.
+  init          Create or re-vendor a page directory.
+  interactions  Print browser and server interactions as JSON lines.
+  media         Add images and print their page paths.
+  report        Report a state change onto a page widget, as a worker.
+  stamp         Stamp the current source as the next version.
+  state         Print where the page stands, as JSON.
+  transcript    Print the page's exchange as Markdown.
 
 ## server
 Usage: leaf server [OPTIONS] COMMAND [ARGS]...

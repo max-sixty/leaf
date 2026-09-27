@@ -168,7 +168,7 @@ def hold_visible_thread_presentation(page, thread_id):
 
 # Named from the command's own answer: a page open on this directory appends a
 # bookkeeping `read` of its own, so the log's tail is not reliably this summary.
-def summarize_thread(page_dir, thread, first, last, text):
+def summarize_thread(page_dir, first, last, text):
     """Admit one agent summary through the public command door."""
     result = CliRunner().invoke(
         cli_model.cli,
@@ -176,7 +176,6 @@ def summarize_thread(page_dir, thread, first, last, text):
             "thread",
             "summarize",
             str(page_dir),
-            thread,
             "--from",
             first,
             "--through",
@@ -495,7 +494,6 @@ def test_a_summary_folds_originals_and_a_direct_reply_link_reveals_them(browser,
     )
     summary = summarize_thread(
         serve.page_dir,
-        root,
         first["id"],
         last["id"],
         "Checkpoint digest: the **dependency** remains and the measurement took "
@@ -594,7 +592,7 @@ def test_a_summary_gathering_the_message_the_user_is_on_keeps_them_on_it(
     expect(message).to_be_focused()
 
     summary = summarize_thread(
-        serve.page_dir, root, first["id"], held["id"], "The constraint was confirmed."
+        serve.page_dir, first["id"], held["id"], "The constraint was confirmed."
     )
     told(page)
     checkpoint = card.locator(f'[data-summary-id="{summary["id"]}"]')
@@ -611,7 +609,7 @@ def test_a_root_summary_keeps_thread_actions_outside_its_fold(browser, serve):
     reply = append_agent_reply(serve.page_dir, root, "The constraint still applies.")
     append_agent_reply(serve.page_dir, root, "The later result remains visible.")
     summary = summarize_thread(
-        serve.page_dir, root, root, reply["id"], "The constraint was confirmed."
+        serve.page_dir, root, reply["id"], "The constraint was confirmed."
     )
     events_model.append_event(
         serve.page_dir, {"kind": "resolve", "author": "user", "parent": root}
@@ -662,7 +660,6 @@ def test_a_later_summary_replaces_its_overlap_and_an_edit_restores_originals(
     third = append_agent_reply(serve.page_dir, root, "The third constraint.")
     old = summarize_thread(
         serve.page_dir,
-        root,
         first["id"],
         second["id"],
         "Two constraints were established.",
@@ -681,7 +678,6 @@ def test_a_later_summary_replaces_its_overlap_and_an_edit_restores_originals(
 
     replacement = summarize_thread(
         serve.page_dir,
-        root,
         first["id"],
         third["id"],
         "All three constraints now form one decision.",
@@ -755,7 +751,6 @@ def test_a_summary_cannot_hide_an_active_question(browser, serve):
     )
     summary = summarize_thread(
         serve.page_dir,
-        root,
         root,
         question["id"],
         "The discussion narrowed the work to two jobs.",

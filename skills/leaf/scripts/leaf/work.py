@@ -16,6 +16,7 @@ from .projection import (
 )
 from .registry.storage import require_registry
 from .revision_artifact import read_revision
+from .thread_context import thread_names
 from .workflows import canonical_workflows
 
 
@@ -134,13 +135,8 @@ def work_subject(page_dir: Path, events: list, target: str, *, standing: list) -
     # against no page here bought nothing and could answer differently from
     # `page state` for the same thread.
     threads = build_threads(events, page.within if page is not None else {})
-    thread_of = {
-        message["id"]: root
-        for root, thread in threads.items()
-        for message in thread["msgs"]
-    }
     frozen = frozen_thread_reading(events, registry) if registry is not None else None
-    thread_id = thread_of.get(target)
+    thread_id = thread_names(events).get(target)
     if thread_id is None and frozen is not None:
         thread_id = frozen.thread_by_widget.get(target)
     thread = threads.get(thread_id) if thread_id is not None else None

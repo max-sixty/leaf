@@ -380,7 +380,7 @@ def publish_product_pages(
         target = product_page(out, source.name)
         shutil.copytree(page, target)
         (target / "index.html").write_bytes(markup)
-        leaf(env, "version", "stamp", str(target), "--text", "As published")
+        leaf(env, "page", "stamp", str(target), "--text", "As published")
         leaf(env, "status", str(target), "idle")
 
 

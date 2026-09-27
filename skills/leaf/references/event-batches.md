@@ -82,8 +82,8 @@ A newly opened thread still carries its metadata; messages already in the
 batch are omitted from its history. A long thread includes
 its opening and most recent messages, with `elided` counting omitted records.
 Use `leaf thread read <page> <thread-id>` for an exact, bounded
-current reading and paginate with `--after`; use `leaf events <page>
---thread <thread-id>` only for raw-log diagnostics. `leaf transcript
+current reading and paginate with `--after`; use `leaf page events <page>
+--thread <thread-id>` only for raw-log diagnostics. `leaf page transcript
 <page>` is the human-facing Markdown export.
 
 Long-thread context may include `summary_hint`, naming a contiguous message range to
@@ -111,7 +111,7 @@ acknowledge nothing and rerun with enough output capacity for the whole envelope
 a scalar cursor cannot represent a missing event in the middle. Acknowledgement
 is monotonic and idempotent; an event posted after capture has a higher sequence
 and stays pending. Until a delivery is confirmed, a wait that prints it repeats
-the events. `leaf events` reads the
+the events. `leaf page events` reads the
 full log without acking it.
 
 Receipt and work have separate evidence. Confirming a direct delivery records its

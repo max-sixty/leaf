@@ -23,7 +23,7 @@
  * was invisible while document and chrome were the one system face.
  *
  * The serif is stacked, not shipped. theme.css is inlined whole into every
- * `version export` and parsed by `page check` on every version, so a webfont
+ * `page export` and parsed by `page check` on every version, so a webfont
  * would have to arrive as a base64 blob in both — and referenced by URL instead
  * it silently falls back in exactly the medium (an exported file, mailed on) that
  * has no server to ask. Charter and Iowan Old Style ship on macOS, Georgia everywhere

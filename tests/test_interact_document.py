@@ -1174,7 +1174,7 @@ def test_thread_read_reads_frozen_construction(page_dir):
     assert "text" not in drawn_message
     assert drawn_message["drawing"] == drawing
     refused = runner.invoke(cli_model.cli, ["thread", "read", str(page_dir), "missing"])
-    assert refused.exit_code != 0 and "unknown thread" in refused.output
+    assert refused.exit_code != 0 and "unknown comment id" in refused.output
 
 
 def test_version_descriptors_scan_the_revision_directory_once(tmp_path, monkeypatch):
@@ -2052,8 +2052,6 @@ def test_reply_refuses_a_suggestion(page_dir):
             "thread",
             "reply",
             str(page_dir),
-            "--to",
-            "c1",
             "--for",
             "c1",
             "--text",
@@ -2375,7 +2373,7 @@ def test_reply_for_a_stale_event_reports_the_failed_fence(page_dir):
     assert result.exit_code != 0
     assert (
         "event 'c1' takes no reply; c1 is a comment in this page's log, and nothing is "
-        "owed for it — `leaf thread reply <page> --to c1` replies to it"
+        "owed for it — `leaf thread reply <page> c1` replies to it"
     ) in result.output
 
 
@@ -2883,7 +2881,7 @@ def test_restating_a_widget_that_kept_its_words_is_refused(page_dir):
 
 
 def test_report_validates_at_the_door_and_stamps_identity(page_dir, monkeypatch):
-    """`leaf experimental report` is the report event's one door, so the widget,
+    """`leaf page report` is the report event's one door, so the widget,
     verb, and detail are held to the widget's agent verb there — the CLI mirror of the
     POST door's action gate — and the event leaves stamped with the posting
     session's voice and the exact revision the user is looking at."""
@@ -2944,7 +2942,7 @@ def test_report_validates_at_the_door_and_stamps_identity(page_dir, monkeypatch)
     # A bare call names the coordinate it moved; `_report` above asks for the event.
     named = CliRunner().invoke(
         cli_model.cli,
-        ["experimental", "report", str(page_dir), "t-parser", "status", "status=done"],
+        ["page", "report", str(page_dir), "t-parser", "status", "status=done"],
     )
     assert named.exit_code == 0, named.output
     assert named.output == "reported status on t-parser\n"
@@ -3627,7 +3625,7 @@ def test_user_state_survives_without_source_copying(page_dir):
     assert result.exit_code == 0
     assert "record behind the log" not in result.output
 
-    result = CliRunner().invoke(cli_model.cli, ["transcript", str(page_dir)])
+    result = CliRunner().invoke(cli_model.cli, ["page", "transcript", str(page_dir)])
     assert result.exit_code == 0, result.output
     assert "record behind the log" not in result.output
     assert "g1" in result.output and "o-shim" in result.output
@@ -4588,7 +4586,7 @@ def test_page_state_keeps_thread_history_out_of_its_current_reading(page_dir):
         }
     ]
     history = CliRunner().invoke(
-        cli_model.cli, ["events", str(page_dir), "--thread", opened["id"]]
+        cli_model.cli, ["page", "events", str(page_dir), "--thread", opened["id"]]
     )
     assert history.exit_code == 0, history.output
     assert [json.loads(line)["id"] for line in history.output.splitlines()] == [
@@ -4603,6 +4601,7 @@ def test_page_state_keeps_thread_history_out_of_its_current_reading(page_dir):
     continued = CliRunner().invoke(
         cli_model.cli,
         [
+            "page",
             "events",
             str(page_dir),
             "--thread",
@@ -4616,18 +4615,18 @@ def test_page_state_keeps_thread_history_out_of_its_current_reading(page_dir):
         answered["id"]
     ]
     unknown = CliRunner().invoke(
-        cli_model.cli, ["events", str(page_dir), "--thread", "not-a-thread"]
+        cli_model.cli, ["page", "events", str(page_dir), "--thread", "not-a-thread"]
     )
     assert unknown.exit_code != 0
-    assert "unknown thread id 'not-a-thread'" in unknown.output
+    assert "unknown comment id 'not-a-thread'" in unknown.output
 
 
 class Follower:
-    """`leaf events --follow` in its own process, its lines read as they arrive."""
+    """`leaf page events --follow` in its own process, its lines read as they arrive."""
 
     def __init__(self, spawn, page_dir, *args):
         self.process = spawn(
-            [*LEAF_COMMAND, "events", str(page_dir), "--follow", *args],
+            [*LEAF_COMMAND, "page", "events", str(page_dir), "--follow", *args],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
@@ -4732,7 +4731,7 @@ def test_page_state_points_to_a_users_suggestion_record(page_dir):
 
     [thread] = state_json(page_dir)["threads"]
     history = CliRunner().invoke(
-        cli_model.cli, ["events", str(page_dir), "--thread", thread["id"]]
+        cli_model.cli, ["page", "events", str(page_dir), "--thread", thread["id"]]
     )
     assert history.exit_code == 0, history.output
     records = [json.loads(line) for line in history.output.splitlines()]

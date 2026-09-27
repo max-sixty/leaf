@@ -283,7 +283,7 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
     """An example that ships a companion log opens with its event state.
 
     Threads and user decisions are log state: markup alone cannot describe what
-    happened, and `version export` drops the layer that draws it. What an example
+    happened, and `page export` drops the layer that draws it. What an example
     *can* ship is the log itself, beside it, exactly as one that wants a screenshot
     ships the bytes beside it. `scripts/preview.py <example>` then opens with those
     events replayed. A thread-bearing log opens mid-thread; an action-only log

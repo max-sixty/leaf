@@ -794,7 +794,7 @@ def _publish(page_dir, version, html, note):
     result = CliRunner().invoke(
         cli_model.cli,
         [
-            "version",
+            "page",
             "stamp",
             "--json",
             str(page_dir),

@@ -23,7 +23,7 @@ Each of RUNS runs reloads the page and times five transitions against the object
 - `reply`: `leaf thread reply` on an agent thread, painted when the reply shows. The
   thread is opened first, since the panel shows only the open thread's messages.
 - `status`: `leaf status <page> working "..."`, painted when the banner shows it.
-- `revision`: a changed `index.html` saved, then `leaf version stamp`, presented when
+- `revision`: a changed `index.html` saved, then `leaf page stamp`, presented when
   the new revision's words show after `data-lf-presented`. Install says whether the
   runtime patched the document in place or reloaded it.
 
@@ -447,7 +447,7 @@ class Session:
         act = self.written(
             "events.jsonl",
             *("thread", "reply", str(self.page_dir)),
-            *("--to", self.thread, "--text", words),
+            *(self.thread, "--text", words),
         )
         return self.measure("reply", {"painted": ("message", words)}, act)
 
@@ -470,7 +470,7 @@ class Session:
             index.write_text(html.replace(LEDE_END, f"{LEDE_END} {words}"), "utf-8")
             saved = index.stat().st_mtime_ns / 1e6
             run_leaf(
-                self.arm_dir, self.state, "version", "stamp", str(self.page_dir),
+                self.arm_dir, self.state, "page", "stamp", str(self.page_dir),
                 "--text", words, check=True,
             )  # fmt: skip
             return saved

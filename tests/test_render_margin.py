@@ -3355,7 +3355,7 @@ def test_page_map_only_origins_do_not_count_as_margin_entries(browser, serve):
     sent = CliRunner().invoke(
         cli_model.cli,
         [
-            "experimental",
+            "page",
             "report",
             str(serve.page_dir),
             "t-mounts",

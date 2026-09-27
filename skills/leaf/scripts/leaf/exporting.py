@@ -282,8 +282,7 @@ def cmd_export(page_dir: Path, out: Path, version) -> int:
     published = published_versions(page_dir, events)
     if not published:
         sys.exit(
-            f"{page_dir} has no stamped version to export; "
-            "run `leaf version stamp` first"
+            f"{page_dir} has no stamped version to export; run `leaf page stamp` first"
         )
     version = version if version else published[-1]
     if version not in published:

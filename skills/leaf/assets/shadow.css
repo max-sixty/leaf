@@ -65,7 +65,7 @@
 
    Here and not in runtime/chrome.css, because content widgets write it into the page
    and into declared trees, and the chrome's sheet is the one an exported page never
-   adopts: every quiet word stood on screen in a file `leaf version export` wrote. */
+   adopts: every quiet word stood on screen in a file `leaf page export` wrote. */
 .lf-quiet { position: absolute; width: 1px; height: 1px; overflow: hidden;
     clip-path: inset(50%); white-space: nowrap;
     user-select: none; -webkit-user-select: none; }

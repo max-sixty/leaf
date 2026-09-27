@@ -18,6 +18,7 @@ from .schema import DATA_DIR, DATA_FILE
 from .served_state.page import read_served_page
 from .server import running_server
 from .service import PageTransaction, unacknowledged
+from .thread import thread_named
 
 
 def standing_entry(coordinate, e: dict, thread: str | None = None) -> dict:
@@ -48,19 +49,19 @@ def cmd_page_state(page_dir: Path) -> None:
 
 def cmd_thread_read(
     page_dir: Path,
-    thread_id: str,
+    thread: str,
     *,
     after: int = 0,
     limit: int = 50,
 ) -> None:
-    """Print one exact current thread and one bounded history page."""
+    """Print the current thread `thread` reaches and one bounded history page."""
     with PageTransaction(page_dir) as page:
         activation = activate_source(page_dir)
         _write_page_state(
             page_dir,
             page.events,
             activation.error,
-            thread_id=thread_id,
+            thread_id=thread_named(page_dir, page.events, thread),
             after=after,
             limit=limit,
         )
@@ -93,7 +94,7 @@ def _base_state(
         # wait would still print, workers' reports included.
         "unacked": len(unacknowledged(events, presence_reading["cursor"])),
         # The last physical log record folded into this transaction-consistent
-        # snapshot. This is the continuation boundary for `events --after`, not
+        # snapshot. This is the continuation boundary for `page events --after`, not
         # the watcher's acknowledgement cursor above.
         "event_seq": events[-1]["seq"] if events else 0,
         "server": running_server(page_dir),
@@ -109,7 +110,7 @@ def _base_state(
         "measurement_lag": [],
         "asks": [],
         # Current semantic facts only. Exact raw history belongs to
-        # `events --thread`; keeping its sequence list here would make this
+        # `page events --thread`; keeping its sequence list here would make this
         # default snapshot grow with every thread turn. A reaction nobody
         # has replied to opened no thread: it is paint on the page and
         # stands under `reactions` below.
@@ -226,8 +227,8 @@ def _write_page_state(
 ) -> None:
     """Where the page stands, as one JSON object — the agent-facing projection
     beside the browser projection in /api/state. A session picking a page up needs
-    the same reading; doing it in-head over `leaf events` is how a standing decision
-    gets missed. So this prints the active revision's elements, the projection of
+    the same reading; doing it in-head over `leaf page events` is how a standing
+    decision gets missed. So this prints the active revision's elements, the projection of
     the user's standing state and the reports standing on the agent channel,
     authored measurements whose live source has run again
     (`measurement_lag_entries`), the open Asks on the page and in threads (the

@@ -2333,8 +2333,6 @@ def test_a_widget_a_reply_carries_arrives_with_its_module(browser, serve):
             "thread",
             "reply",
             str(d),
-            "--to",
-            "c-store",
             "--for",
             "c-store",
             "--text",

@@ -219,7 +219,7 @@ Revisit these when their stated trigger becomes real; they are not an active que
 - **#22 — MCP workspace hosting:** compare an iframe, a constrained host, and
   browser handoff when an inline-hosting task calls for it. See the
   [research brief](notes/workspace-followups.md#item-22).
-- **Decide whether an exported page carries its threads.** `leaf version
+- **Decide whether an exported page carries its threads.** `leaf page
   export` writes a file that boots the page's own runtime offline, and that file
   embeds the page's threads in its state reading. The runtime turns the
   thread surface off offline (`threadAvailable: !offlineInteractive`

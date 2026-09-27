@@ -86,25 +86,16 @@ def logged_id(events: list, value: str, responses: dict) -> str | None:
     `thread_obligation`, the same reading `cmd_reply`'s guard refuses on.
 
     A thread's id is its opening comment's, so an agent holding a thread id names
-    it as a message. Where the log lost that comment the id names no event, and the
-    thread is answered through the first message it still holds, as the panel
-    answers it.
+    it as a message. Where the log lost that comment the id names no event, yet
+    still names the thread to every thread command (`thread_context.thread_address`).
     """
     event = next((event for event in events if event.get("id") == value), None)
     if event is None:
-        surviving = next(
-            (
-                name
-                for name, thread in thread_names(events).items()
-                if thread == value and name != value
-            ),
-            None,
-        )
-        if surviving is None:
+        if value not in thread_names(events):
             return None
         return (
             f"{value} is a thread whose opening message this page's log lost — "
-            f"`leaf thread reply <page> {surviving}` replies in it"
+            f"`leaf thread reply <page> {value}` replies in it"
         )
     kind = event["kind"]
     article = "an" if kind[:1] in "aeiou" else "a"

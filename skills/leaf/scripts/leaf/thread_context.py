@@ -52,6 +52,27 @@ def sample_events(
     ]
 
 
+def thread_address(events: list, name: str) -> tuple[str, str] | None:
+    """The thread `name` reaches, and the message an event written into it names.
+
+    `name` is the thread's own id or the id of any message in it, which is how every
+    command that addresses a thread takes it. The message is `name` itself, except
+    where `name` is a thread whose opening comment the log lost: that id names no
+    event, so the thread is addressed through the first message it still holds, as
+    the panel answers it. None where `name` reaches no thread."""
+    names = thread_names(events)
+    thread = names.get(name)
+    if thread is None:
+        return None
+    if name != thread or any(event["id"] == name for event in events):
+        return thread, name
+    return thread, next(
+        message
+        for message, owner in names.items()
+        if owner == thread and message != name
+    )
+
+
 def thread_names(events: list) -> dict:
     """Every name that reaches a thread → that thread's id.
 

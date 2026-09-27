@@ -917,7 +917,7 @@ def run_batch(arms: str, batch: str, rounds: int, cases: tuple[str, ...], start:
 BASH_KINDS = {
     "reference": r"references/|SKILL\.md",
     "page state": r"\bpage state\b",
-    "events": r"\bleaf events\b|/leaf page events\b",
+    "events": r"\bpage events\b",
     "thread read": r"\bthread read\b",
     "transcript": r"\btranscript\b",
     "page check": r"\bpage check\b",

@@ -208,7 +208,7 @@ Keep Leaf's agent-facing surface small and semantic:
 - `leaf page guidance PAGE [AUDIENCE]` composes explicit operating guidance;
 - `leaf page events PAGE [--after SEQ] [--thread THREAD]` prints the append-only JSONL
   history admitted at validated write boundaries; `--after` is a sequence cursor
-  and `--thread` is one exact semantic identity lookup;
+  and `--thread` selects the thread any message in it names;
 - `active.file` names the readable canonical HTML when a valid revision exists,
   `source.file` names the mutable author target, `data.file` is always readable,
   and `registry.json` remains the canonical vocabulary.

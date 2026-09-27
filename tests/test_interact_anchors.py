@@ -235,7 +235,7 @@ def test_a_message_whose_thread_owes_a_reply_is_sent_to_for(page_dir):
         ["thread", "reply", str(page_dir), own["id"], "--text", "more"],
     )
     assert posted.exit_code != 0
-    assert f"answer it with `--for {asked['id']}`" in posted.output
+    assert f"`leaf thread reply <page> --for {asked['id']}` answers it" in posted.output
     answered = CliRunner().invoke(
         cli_model.cli,
         ["thread", "reply", str(page_dir), "--for", asked["id"], "--text", "a week"],

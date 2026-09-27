@@ -15,9 +15,9 @@ leaf thread open <page> --text "…"
 including edits and retired content. Quote exact visible authored words inside
 one widget part. The command refuses ambiguous, retired, replaced, or
 cross-boundary text instead of creating a detached comment. It prints the id of
-the thread it opened. Every command that names a thread (`leaf thread read`,
-`title`, `reply`, and `resolve`, `leaf status --on`, and `leaf page events
---thread`) takes the id of any message in it.
+the thread it opened. `leaf thread read`, `title`, `reply` and `resolve`, `leaf
+status --on`, and `leaf page events --thread` all take the id of any message in
+the thread.
 
 Give a thread you open a short, descriptive title, and name an untitled one
 the user opened when a delivered message in it says to. Choose a few words that
@@ -138,8 +138,8 @@ The page labels the message `edited`. Leaf keeps the original and every revision
 in the append-only event log. Only text is revised; any widget markup stays frozen.
 `leaf thread open`, `leaf thread reply`, `leaf thread edit` and `leaf thread resolve` each print one
 sentence naming what they wrote; `leaf thread open` adds the command that titles the
-new thread. `--json` prints the posted event instead; its `id` names the message,
-and so its thread, to every command here. A refusal lists the ids it knows.
+new thread. `--json` prints the posted event instead. A refusal lists the ids it
+knows.
 
 An ordinary reply leaves the thread open, or reopens a resolved thread, so the user
 can inspect the answer or revised page. Reactions and failure receipts do not reopen it. The user closes it by default. Resolve it yourself only when the

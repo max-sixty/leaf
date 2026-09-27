@@ -18,6 +18,7 @@ from .schema import DATA_DIR, DATA_FILE
 from .served_state.page import read_served_page
 from .server import running_server
 from .service import PageTransaction, unacknowledged
+from .thread import thread_named
 
 
 def standing_entry(coordinate, e: dict, thread: str | None = None) -> dict:
@@ -54,8 +55,6 @@ def cmd_thread_read(
     limit: int = 50,
 ) -> None:
     """Print the current thread `thread` reaches and one bounded history page."""
-    from .thread import thread_named
-
     with PageTransaction(page_dir) as page:
         activation = activate_source(page_dir)
         _write_page_state(

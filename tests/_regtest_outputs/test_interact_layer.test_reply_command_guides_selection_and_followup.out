@@ -8,7 +8,7 @@ cannot infer a reply: this turn's opened delivery holds 2 reply obligations. Rea
 
 $ leaf thread reply /page user-1 --text Answer
 exit: 1
-thread 'user-1' currently requires a response; answer it with `--for user-1`
+thread 'user-1' currently requires a response; `leaf thread reply <page> --for user-1` answers it
 
 $ leaf thread reply /page --for user-1 --text Answer
 exit: 0

@@ -3,7 +3,7 @@
 import sys
 from pathlib import Path
 
-from leaf.activity import reply_binding_stands
+from leaf.activity import answer_command, reply_binding_stands
 from leaf.asks import local_ask_entry
 from leaf.delivery import current_responses, record_pickup
 from leaf.event_contracts import append_admitted
@@ -26,7 +26,7 @@ from leaf.projection import (
 from leaf.revision_artifact import active_enclosing, read_revision
 from leaf.schema import MESSAGE_KINDS, THREAD_ANSWER_KINDS
 from leaf.service import PageTransaction, delivery_reply_attempt
-from leaf.thread_context import thread_names
+from leaf.thread_context import thread_address, thread_names
 from leaf.validation.admission import (
     check_markup,
     logged_id,
@@ -55,22 +55,18 @@ def _message(page_dir: Path, events: list, to: str) -> dict:
     return messages[to]
 
 
-def thread_named(page_dir: Path, events: list, name: str) -> str:
-    """The id of the thread `name` reaches: the thread's own id or the id of any
-    message in it. Every command that addresses a thread takes it this way, so the
-    id a delivery or a panel shows for any message is enough to reach its thread."""
-    thread_id = thread_names(events).get(name)
-    if thread_id is None:
+def thread_addressed(page_dir: Path, events: list, name: str) -> tuple[str, str]:
+    """`thread_address`, refusing a name that reaches no thread with what the log
+    holds it as instead."""
+    address = thread_address(events, name)
+    if address is None:
         _unknown_message(page_dir, events, name)
-    return thread_id
+    return address
 
 
-def _thread(page_dir: Path, events: list, to: str) -> tuple[str, dict | None]:
-    """The id of the thread holding message `to`, and the comment that opened it,
-    or None where the log lost that comment."""
-    _message(page_dir, events, to)
-    thread_id = thread_names(events)[to]
-    return thread_id, _messages(events).get(thread_id)
+def thread_named(page_dir: Path, events: list, name: str) -> str:
+    """The id of the thread `name` reaches."""
+    return thread_addressed(page_dir, events, name)[0]
 
 
 def reserve_delivery_reply(session_id: str, delivery_id: str, target: dict) -> None:
@@ -491,7 +487,8 @@ def cmd_reply(
             elif to is None:
                 to = expected["to"]
         assert to is not None
-        thread_id, opening = _thread(page_dir, events, to)
+        thread_id, to = thread_addressed(page_dir, events, to)
+        opening = _messages(events).get(thread_id)
         if for_event is not None:
             expected = responses.get(for_event)
             if (
@@ -521,7 +518,7 @@ def cmd_reply(
             if standing is not None:
                 sys.exit(
                     f"thread {thread_id!r} currently requires a response; "
-                    f"answer it with `--for {standing['for']}`"
+                    f"{answer_command(standing)} answers it"
                 )
         if only_if_unclaimed and any(
             event["kind"] == "pickup" and for_event in event["events"]
@@ -819,7 +816,7 @@ def cmd_resolve(page_dir: Path, to: str) -> dict:
     `parent` — any message in the thread names it — and `author` the whole
     difference, which is how the panel can say who closed it."""
     with PageTransaction(page_dir) as page:
-        _message(page_dir, page.events, to)
+        _thread_id, to = thread_addressed(page_dir, page.events, to)
         event = {
             "kind": "resolve",
             "author": "agent",

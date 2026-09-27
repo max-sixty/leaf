@@ -5144,15 +5144,17 @@ def test_a_thread_whose_opening_message_was_torn_away_still_reads(page_dir):
     assert rows["r-kept"]["thread"] == lost_thread
     assert rows[closed["id"]]["thread"] == lost_thread
 
-    # An agent holding the thread's id names it as the message to answer, as it may
-    # for any thread whose opening comment survives; the refusal sends it to the
-    # message the thread is answered through.
-    refused = CliRunner().invoke(
+    # The thread's id still names the thread to the writers, as it does for any
+    # thread whose opening comment survives; the reply is addressed through the
+    # first message the thread still holds, since the id names no event.
+    replied = CliRunner().invoke(
         cli_model.cli,
-        ["thread", "reply", str(page_dir), "c-lost", "--text", "Retrying."],
+        ["thread", "reply", "--json", str(page_dir), "c-lost", "--text", "Retrying."],
     )
-    assert refused.exit_code != 0
-    assert (
-        "c-lost is a thread whose opening message this page's log lost — "
-        "`leaf thread reply <page> r-kept` replies in it"
-    ) in refused.output
+    assert replied.exit_code == 0, replied.output
+    assert json.loads(replied.output)["parent"] == "r-kept"
+    resolved = CliRunner().invoke(
+        cli_model.cli, ["thread", "resolve", str(page_dir), "c-lost"]
+    )
+    assert resolved.exit_code == 0, resolved.output
+    assert resolved.output == "resolved c-lost\n"

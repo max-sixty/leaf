@@ -104,7 +104,13 @@ function settleResidency() {
   if (!main) return false;
   const style = getComputedStyle(main);
   const need = (token) => parseFloat(style.getPropertyValue(token)) || 0;
-  const shifted = parseFloat(main.style.getPropertyValue("--lf-shift")) || 0;
+  // The offset the column stands at, which is the written shift only where the Layout
+  // applies it: page CSS may override the offset, and under `dir="rtl"` it is `right`.
+  const shifted =
+    style.position === "relative"
+      ? parseFloat(style.left) || -parseFloat(style.right) || 0
+      : 0;
+  const written = parseFloat(main.style.getPropertyValue("--lf-shift")) || 0;
   const column = main.getBoundingClientRect();
   const shell = document.body.getBoundingClientRect();
   const room = {
@@ -118,7 +124,11 @@ function settleResidency() {
     taken.right = need("--rail");
   }
   const declared = new Map();
+  // A resident inside a box the page does not show (a closed disclosure, a tab not
+  // chosen) needs no room; one the page hides itself stays a resident, since a page may
+  // hide it until it stands in the margin.
   for (const aside of main.querySelectorAll("aside")) {
+    if (!aside.parentElement.checkVisibility()) continue;
     const postures = getComputedStyle(aside)
       .getPropertyValue("--lf-resident")
       .split(" ")
@@ -146,7 +156,7 @@ function settleResidency() {
   );
   const tokens = standing.join(" ");
   const changed =
-    (main.getAttribute("data-lf-margin") ?? "") !== tokens || shift !== shifted;
+    (main.getAttribute("data-lf-margin") ?? "") !== tokens || shift !== written;
   if (!changed) return false;
   main.setAttribute("data-lf-margin", tokens);
   setStyle(main, "--lf-shift", shift ? `${shift}px` : null);

@@ -43,11 +43,13 @@ def _findings_with_viewports(
         viewports = viewports_by_finding.setdefault(finding, [])
         if viewport not in viewports:
             viewports.append(viewport)
-    every_viewport = [_viewport_label(viewport) for viewport in rendered]
+    # A finding at both fixed viewports is universal: the margin widths render in one
+    # scheme only, so a dark finding never reaches them.
+    fixed = {_viewport_label(viewport) for viewport in RENDER_VIEWPORTS}
     return [
         (
             finding
-            if viewports == every_viewport
+            if fixed <= set(viewports)
             else f"{finding} (at {', '.join(viewports)})"
         )
         for finding, viewports in viewports_by_finding.items()
@@ -83,9 +85,10 @@ def _render_version_attempt(
     drawing's fit to its box shrinks its labels past reading; and then, resizing that
     loaded page through every width from 360px to 1920px, the sideways readings again:
     a version holds at each of them, not only at the two it renders. That pass also
-    finds each width where the page's margin content changes (a sidebar, note or the
-    rail first standing in the margin), and the gate renders the page there too, in the
-    light scheme: what stands in the margin is layout, which the scheme does not change.
+    finds each width where the page's margin content changes (a sidebar, contents map
+    or note first standing in the margin), and the gate renders the page there too, in
+    the light scheme: what stands in the margin is layout, which the scheme does not
+    change.
     Returns the failures and the advice; no failures is a pass.
 
     One implementation with two callers — `version check --render` on the page an agent

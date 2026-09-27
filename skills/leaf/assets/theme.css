@@ -751,8 +751,12 @@ main {
 @property --lf-width { syntax: "<length>"; inherits: true; initial-value: 0px; }
 @property --lf-free-l { syntax: "<length>"; inherits: true; initial-value: 99999px; }
 @property --lf-free-r { syntax: "<length>"; inherits: true; initial-value: 99999px; }
-/* Registered so the runtime reads the rail's width in pixels (margin-layout.js). */
+/* Registered so the runtime reads each margin resident's width in pixels, whatever
+ * unit a page restates it in (margin-layout.js, `settleResidency`). */
 @property --rail { syntax: "<length>"; inherits: true; initial-value: 0px; }
+@property --map { syntax: "<length>"; inherits: true; initial-value: 0px; }
+@property --sidebar { syntax: "<length>"; inherits: true; initial-value: 0px; }
+@property --note { syntax: "<length>"; inherits: true; initial-value: 0px; }
 /* Content that needs more space than the argument about it. The column above is the measure
  * prose is read at, and a board's columns or a diagram's graph are as wide as what they
  * hold — so a page carrying one was a cramped board, or a page whose every paragraph had
@@ -1219,8 +1223,8 @@ section.panel > :last-child { margin-bottom: 0; }
    only: paper has no tray and no margin to grant. A sidebar in the margin stands sticky
    below the banner in the room its --sidebar takes left of the column box. A contents
    map rests as a spine a few pixels wide and reveals its labels over the page, so with a
-   fine pointer a sidebar holding one can stand as the map alone, in --map, where the
-   sidebar does not fit. Direct-child margins are trimmed because a sidebar is a
+   fine pointer a sidebar holding one stands as the map alone, in --map, where the
+   sidebar does not fit or the map is all it holds. Direct-child margins are trimmed because a sidebar is a
    placement wrapper, not a second rhythm around what it holds. */
 @property --lf-resident { syntax: "*"; inherits: false; }
 aside.sidebar { display: flow-root; margin: var(--sp-4) 0 30px; }
@@ -1249,6 +1253,9 @@ main.layout-column aside.sidenote { --lf-resident: note; }
 @media screen and (hover: hover) and (pointer: fine) {
   main.layout-column > aside.sidebar:nth-child(1 of aside.sidebar):has(lf-toc) {
     --lf-resident: sidebar map; }
+  /* A sidebar holding only the map has nothing for a float to hold, so the map alone. */
+  main.layout-column > aside.sidebar:nth-child(1 of aside.sidebar):has(> lf-toc:only-child) {
+    --lf-resident: map; }
   main.layout-column[data-lf-margin~="map"] { --lf-sidebar-posture: margin; }
   /* At rest the map is its spine, chrome fixed in the left margin, so a breakout stops
    * short of it (layouts.css, the column's free room); its labels reveal over the page. */

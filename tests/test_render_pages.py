@@ -2789,20 +2789,25 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
     to stop short of it.
 
     The Asks tray stands over the left margin and moves nothing in it. A narrow viewport
-    returns the aside to the flow from CSS alone, and print proves paper reserves no
-    blank margin for a posture it cannot use."""
-    # Compose the wide release-note exhibit with a sidebar; the short public draft
-    # no longer needs one of its own.
-    example = (
-        next(p for p in EXAMPLES if p.stem == "release-notes")
-        .read_text()
-        .replace(
+    returns the aside to the flow, and print proves paper reserves no blank margin for a
+    posture it cannot use.
+
+    A sidebar that holds only the map has nothing for a float to hold, so wherever the
+    map stands in the margin that sidebar stands as the map alone and takes no room in
+    the flow: the block after it stands where it would with the sidebar gone."""
+    # Compose the wide release-note exhibit with a sidebar holding the map and a line of
+    # its own; the short public draft no longer needs one of its own.
+    release = next(p for p in EXAMPLES if p.stem == "release-notes").read_text()
+
+    def with_sidebar(holds):
+        return release.replace(
             '<section id="rn-cli-section">',
-            '<aside class="sidebar" id="test-sidebar">'
+            f'<aside class="sidebar" id="test-sidebar">{holds}'
             '<lf-toc id="test-sidebar-toc"></lf-toc></aside>'
             '<section id="rn-cli-section">',
         )
-    )
+
+    example = with_sidebar('<p id="test-sidebar-release">Release 4.2</p>')
     page = open_page(browser, serve(example))
     sidebar = page.locator("aside.sidebar")
 
@@ -2983,29 +2988,29 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
 
     page.close()
 
-    page = open_page(browser, serve(example))
-    # Between the map's margin posture (848px of shell) and the sidebar's float (1296px),
-    # the sidebar stays in the flow with nothing in it, and takes no room there: the
-    # block after it stands where it would with the sidebar gone.
-    resized(page, 1100, 900)
-    margins_laid_out(page)
-    band = page.evaluate(
-        """() => {
-          const sidebar = document.querySelector('aside.sidebar');
-          const next = sidebar.nextElementSibling;
-          const kept = next.getBoundingClientRect().top;
-          sidebar.style.display = 'none';
-          const gone = next.getBoundingClientRect().top;
-          sidebar.style.display = '';
-          return {kept, gone, toc: getComputedStyle(sidebar.firstElementChild).position,
-                  float: getComputedStyle(sidebar).float};
-        }"""
-    )
-    assert band["toc"] == "fixed" and band["float"] == "none", band
-    assert band["kept"] == band["gone"], (
-        f"the sidebar the map left opened a gap in the flow: {band}"
-    )
+    page = open_page(browser, serve(with_sidebar("")))
+    for width in (1100, 1400):
+        resized(page, width, 900)
+        margins_laid_out(page)
+        band = page.evaluate(
+            """() => {
+              const sidebar = document.querySelector('aside.sidebar');
+              const next = sidebar.nextElementSibling;
+              const kept = next.getBoundingClientRect().top;
+              sidebar.style.display = 'none';
+              const gone = next.getBoundingClientRect().top;
+              sidebar.style.display = '';
+              return {kept, gone, float: getComputedStyle(sidebar).float,
+                      toc: getComputedStyle(sidebar.querySelector('lf-toc')).position};
+            }"""
+        )
+        assert band["toc"] == "fixed" and band["float"] == "none", (width, band)
+        assert band["kept"] == band["gone"], (
+            f"at {width}px the sidebar the map left opened a gap in the flow: {band}"
+        )
+    page.close()
 
+    page = open_page(browser, serve(example))
     resized(page, 700, 900)
     narrow = page.evaluate(reading)
     assert narrow["taken"] == 0

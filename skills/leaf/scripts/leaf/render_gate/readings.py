@@ -441,9 +441,13 @@ def _overflow(overflow: int, misplaced: list) -> list[tuple[tuple[str, str], str
 # above the desktop viewport.
 SWEEP_WIDTHS = range(360, 1921, 40)
 
-# What stands in the page's margin: the tokens the margin pass writes on `main`
-# (margin-layout.js, `settleResidency`).
-MARGIN_READING = "document.querySelector('main')?.getAttribute('data-lf-margin') ?? ''"
+# What of the page's own stands in its margin: the tokens the margin pass writes on
+# `main` (margin-layout.js, `settleResidency`), less the rail, which holds only Leaf's
+# markers and never moves the column.
+MARGIN_READING = (
+    "(document.querySelector('main')?.getAttribute('data-lf-margin') ?? '')"
+    ".split(' ').filter(t => t && t !== 'rail').join(' ')"
+)
 
 
 def _settle_at(page, width: int, height: int) -> None:

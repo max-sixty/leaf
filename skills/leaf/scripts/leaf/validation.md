@@ -91,9 +91,10 @@ at a desktop and a phone viewport; once they are done, the loaded desktop page i
 resized through the widths from 360px to 1920px and the two sideways readings are taken
 again at each: a version holds at every width from the narrowest phone to a wide
 desktop, not only at the two the gate renders, and each fault the sweep alone finds is
-reported with the widths it spans. The sweep also finds each width where what stands in
-the page's margin changes (`data-lf-margin` on `main`), and the readings run again there
-in the light scheme, where each resident has the least room it will ever have.
+reported with the widths it spans. The sweep also finds each width where the page's own
+margin residents change (`data-lf-margin` on `main`, less the rail), and the readings
+run again there in the light scheme, where each resident has the least room it will
+ever have.
 The invariants live in render_version, which the tests/test_render_*.py modules drive over
 the shipped examples. The suite uses Chromium's headless shell, while its
 end-to-end render-check tests run the launches used here — the installed Chrome

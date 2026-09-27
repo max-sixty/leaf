@@ -119,13 +119,13 @@ def _init_page(page_dir: Path, selected: tuple[str, ...] | None) -> None:
         _commit_layer(page_dir, _plan_page(page_dir, selected, page.events))
         events = page.events
     # The re-vendored layer is in place, but the page shows it only once index.html
-    # activates, which runs the same check `version check` does. Say now what would
+    # activates, which runs the same check `page check` does. Say now what would
     # hold it back, rather than leave the next read to refuse it unseen.
     check = check_source(page_dir, events, allow_transition=False)
     if check.errors:
         print(
             f"re-vendored {page_dir}, but index.html will not activate until "
-            "`leaf version check` passes:",
+            "`leaf page check` passes:",
             file=sys.stderr,
         )
         for error in check.errors:

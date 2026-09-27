@@ -44,6 +44,7 @@ from leaf.revision_artifact import Resource
 from leaf.revision_delivery import compose_document
 from leaf.schema import ASSETS
 from leaf.served_state import page as served_page
+from leaf.served_state.reading import join_reading
 from leaf.service import delivery_reply_attempt, open_session_turn
 from leaf.thread import cmd_reply, cmd_resolve
 from playwright.sync_api import expect
@@ -1128,7 +1129,7 @@ def test_the_website_app_server_inherits_the_ready_leaf_cli(tmp_path, monkeypatc
     # the status to the host.
     instructions = " ".join(website_server.CODEX_INSTRUCTIONS.split())
     assert "Leave the page's status to the host" in instructions
-    assert "leaf version check" not in instructions
+    assert "leaf page check" not in instructions
 
 
 def test_a_timed_out_app_server_is_stopped_before_startup_retries(
@@ -2265,7 +2266,7 @@ def test_the_starting_connection_projects_codex_activity(page_dir, monkeypatch, 
                         "item": {
                             "id": "command-1",
                             "type": "commandExecution",
-                            "command": "leaf version check .",
+                            "command": "leaf page check .",
                         },
                     },
                 }
@@ -2280,7 +2281,7 @@ def test_the_starting_connection_projects_codex_activity(page_dir, monkeypatch, 
                         "item": {
                             "id": "command-1",
                             "type": "commandExecution",
-                            "command": "leaf version check .",
+                            "command": "leaf page check .",
                             "status": "completed",
                             "exitCode": 0,
                         },
@@ -2384,7 +2385,7 @@ def test_the_starting_connection_projects_codex_activity(page_dir, monkeypatch, 
         (
             "hosted-thread",
             "initial-turn",
-            {"kind": "tool", "detail": "Running leaf version check ."},
+            {"kind": "tool", "detail": "Running leaf page check ."},
         ),
         ("hosted-thread", "initial-turn", {"kind": "working"}),
         ("hosted-thread", "initial-turn", {"kind": "replying"}),
@@ -3822,13 +3823,16 @@ def test_an_undrawn_reply_says_whether_the_page_took_the_answer_in():
     got an answer, or took the answer in and drew nothing. The page paints the reading it
     last applied, so the message says which.
     """
+    current = join_reading("abc123", "p1")
+    presence_moved = join_reading("abc123", "p2")
+    older = join_reading("0bd999", "p1")
     drew_nothing = verify_site.undrawn_reply(
         "https://leaf.page/examples/triage-board/",
         {
             "panel": True,
             "visibility": "visible",
             "presented": True,
-            "reading": "abc123.p1",
+            "reading": current,
             "traffic": '{"asked":9,"heard":9}',
             "revision": "1",
             "status": "Codex is listening",
@@ -3844,7 +3848,7 @@ def test_an_undrawn_reply_says_whether_the_page_took_the_answer_in():
                 }
             ],
         },
-        "abc123.p2",
+        presence_moved,
     )
     assert "the answer reached it and was not drawn" in drew_nothing
     # The identity the panel is standing on, which says a stream placeholder outlived
@@ -3855,16 +3859,16 @@ def test_an_undrawn_reply_says_whether_the_page_took_the_answer_in():
 
     behind = verify_site.undrawn_reply(
         "https://leaf.page/examples/triage-board/",
-        {"reading": "older.p1", "messages": []},
-        "abc123.p1",
+        {"reading": older, "messages": []},
+        current,
     )
     assert "never took the answer in" in behind
-    assert "older.p1" in behind and "abc123.p1" in behind
+    assert older in behind and current in behind
 
     silent = verify_site.undrawn_reply(
         "https://leaf.page/examples/triage-board/",
         {"reading": None, "messages": []},
-        "abc123.p1",
+        current,
     )
     assert "applied no state at all" in silent
 

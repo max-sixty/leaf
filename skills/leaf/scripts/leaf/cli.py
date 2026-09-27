@@ -144,9 +144,9 @@ def codex_run(
         sys.exit(run_adapter(codex_path, answer, app_server))
 
 
-@cli.group(short_help="Create pages and add media.")
+@cli.group(short_help="Create, check, and read pages.")
 def page() -> None:
-    """Create pages and add media."""
+    """Create, check, and read pages."""
 
 
 @page.command(short_help="Create or re-vendor a page directory.")
@@ -260,6 +260,23 @@ def package_run(name: str, script: str, arguments: tuple[str, ...]) -> None:
     from leaf.packages import cmd_package_run
 
     cmd_package_run(name, script, arguments)
+
+
+@page.command(short_help="Check the mutable page source.")
+@click.argument("dir", metavar="PAGE")
+@click.option(
+    "--render", is_flag=True, help="also check the rendered page in the host's browser"
+)
+def check(dir: str, render: bool) -> None:
+    """Check PAGE/index.html.
+
+    Runs deterministic markup checks. --render also checks the drawn page in the
+    host's browser: whichever executable LEAF_BROWSER_EXECUTABLE, CHROME_PATH, or
+    CHROME_BIN names, else the installed Chrome, else the first browser on PATH.
+    """
+    from leaf.validation.command import cmd_check
+
+    sys.exit(cmd_check(resolve_dir(dir), render))
 
 
 @page.command(short_help="Add images and print their page paths.")
@@ -458,26 +475,9 @@ def data_clear(dir: str, source: str) -> None:
     cmd_data_clear(resolve_dir(dir), source)
 
 
-@cli.group(short_help="Check, stamp, and export versions.")
+@cli.group(short_help="Stamp and export versions.")
 def version() -> None:
-    """Check, stamp, and export versions."""
-
-
-@version.command(short_help="Check the mutable page source.")
-@click.argument("dir", metavar="PAGE")
-@click.option(
-    "--render", is_flag=True, help="also check the rendered page in the host's browser"
-)
-def check(dir: str, render: bool) -> None:
-    """Check PAGE/index.html.
-
-    Runs deterministic markup checks. --render also checks the drawn page in the
-    host's browser: whichever executable LEAF_BROWSER_EXECUTABLE, CHROME_PATH, or
-    CHROME_BIN names, else the installed Chrome, else the first browser on PATH.
-    """
-    from leaf.validation.command import cmd_check
-
-    sys.exit(cmd_check(resolve_dir(dir), render))
+    """Stamp and export versions."""
 
 
 @version.command(short_help="Stamp the current source as the next version.")

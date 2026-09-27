@@ -1,6 +1,6 @@
 /* A data body's text, the lines a module draws and numbers.
 
-   `version check` counts the same lines to hold an lf-code `lines` numbering to its
+   `page check` counts the same lines to hold an lf-code `lines` numbering to its
    body, and `test_interact_document.py` reads these cases against that gate. The
    whitespace at the edges is where the two runtimes' own `\s` differ, so a body ending
    in one of those characters is numbered here exactly as the gate counts it. */

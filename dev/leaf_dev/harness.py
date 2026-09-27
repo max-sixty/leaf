@@ -1,12 +1,13 @@
-"""Arms and children for evals that run an agent host against a version of Leaf.
+"""Arms, served pages, and agent-host children for evals and probes that run a
+version of Leaf.
 
-    uv run scripts/eval_harness.py REF DEST
+    uv run leaf-dev arm REF DEST
 
-builds one arm at DEST from git REF. `eval_claude_delivery.py`,
-`bench_render_check.py`, `bench_page_latency.py`, `stills.py`, `verify_codex_task.py`,
-`verify_site.py`, `notes/arrangement-eval/harness.py` and
-`notes/usability-eval/harness.py` import the rest, and `evals/README.md`'s A/B recipe
-builds its other arm with the command.
+builds one arm at DEST from git REF; `evals/README.md`'s A/B recipe builds its other
+arm with it. `leaf-dev stills` and `leaf-dev probe`, `eval_claude_delivery.py`, the
+two `bench_*.py` scripts, `verify_codex_task.py`, `verify_site.py`,
+`notes/arrangement-eval/harness.py` and `notes/usability-eval/harness.py` import the
+rest.
 
 An arm is the plugin payload at one ref (`PAYLOAD`: both hosts' manifests, hooks,
 launcher, skills and uv project) and nothing else. It has no `.git`, examples, docs or
@@ -57,13 +58,19 @@ import urllib.request
 from collections.abc import Iterable
 from contextlib import contextmanager
 from datetime import datetime
+from functools import partial
 from pathlib import Path
 from typing import Self
 
 import click
 from leaf.host import IDENTITY_VARIABLES
 
-ROOT = Path(__file__).resolve().parent.parent
+from leaf_dev import ROOT
+from leaf_dev.page_fixtures import prepare_page, read_fixture
+
+# The uv project names this package's `pyproject.toml` as a workspace member, so uv
+# needs that file to read the lock. The package itself stays out: the launcher never
+# installs the dev group. A ref from before the package has no such file.
 PAYLOAD = (
     ".agents/plugins",
     ".claude-plugin",
@@ -73,6 +80,7 @@ PAYLOAD = (
     "skills",
     "pyproject.toml",
     "uv.lock",
+    "dev/pyproject.toml",
 )
 
 
@@ -136,6 +144,23 @@ def serving(arm: Path, state: Path, page: Path):
         server.wait(10)
 
 
+def build_source(arm: Path, state: Path, source: Path, page: Path) -> None:
+    """Build the authored `source` into the page directory `page` with the arm's own
+    launcher under the state home `state`. The checkout is an arm too: `ROOT` runs
+    its working tree."""
+    prepare_page(page, read_fixture(source), partial(run_leaf, arm, state, check=True))
+
+
+@contextmanager
+def serving_source(arm: Path, source: Path, scratch: Path):
+    """Build `source` into a page under `scratch` (`build_source`), serve it
+    (`serving`), and yield the address."""
+    state, page = scratch / "state", scratch / "page"
+    build_source(arm, state, source, page)
+    with serving(arm, state, page) as address:
+        yield address
+
+
 def merge_base() -> str:
     """The commit HEAD branched from `main`: the base an A/B script compares HEAD
     against unless it is handed another."""
@@ -157,8 +182,15 @@ def extract_payload(dest: Path, ref: str | None = None) -> None:
         shutil.rmtree(dest)
     dest.mkdir(parents=True)
     if ref is not None:
+        # An older ref lacks some of PAYLOAD, which `git archive` would refuse.
+        present = subprocess.run(
+            ["git", "-C", ROOT, "ls-tree", "--name-only", ref, *PAYLOAD],
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.split()
         archive = subprocess.run(
-            ["git", "-C", ROOT, "archive", ref, *PAYLOAD],
+            ["git", "-C", ROOT, "archive", ref, *present],
             capture_output=True,
             check=True,
         ).stdout
@@ -441,15 +473,3 @@ def completed(trace: list[dict]) -> bool:
     """Whether a trace counts: its model call reached a result that is not an
     error, without auto-memory."""
     return trace_result(trace).get("is_error") is False and not loaded_memory(trace)
-
-
-@click.command()
-@click.argument("ref")
-@click.argument("dest", type=click.Path(path_type=Path))
-def main(ref: str, dest: Path) -> None:
-    """Build an arm at DEST from git REF."""
-    click.echo(f"{dest}: {build_arm(ref, dest.resolve())}")
-
-
-if __name__ == "__main__":
-    main()

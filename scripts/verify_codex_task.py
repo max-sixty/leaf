@@ -42,19 +42,19 @@ from pathlib import Path
 
 import click
 import psutil
-from eval_harness import (
-    PageClient,
-    codex_home,
-    environment,
-    extract_payload,
-    run_leaf,
-)
 from leaf.codex import app_server_connect, app_server_handshake, app_server_request
 from leaf.codex_adapter import private_app_server
 from leaf.event_log import read_events
 from leaf.leases import adapter_is_live
 from leaf.server import running_server
 from leaf.service import page_claim
+from leaf_dev.harness import (
+    PageClient,
+    codex_home,
+    environment,
+    extract_payload,
+    run_leaf,
+)
 
 ROOT = Path(__file__).resolve().parent.parent
 # How long one step may take, and how long it has to stay settled before its

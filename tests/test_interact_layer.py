@@ -54,7 +54,7 @@ from leaf.registry import reactions as registry_reactions
 from leaf.registry import storage as registry_storage
 from leaf.render_gate import browser as browser_model
 from leaf.render_gate.preview import preview_server
-from page_fixtures import package_selection_args
+from leaf_dev.page_fixtures import package_selection_args
 
 
 def storage_contract() -> tuple[list[str], list[str]]:

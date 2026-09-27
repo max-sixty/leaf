@@ -1673,11 +1673,9 @@ def test_a_drawing_stands_on_the_columns_axis_until_it_needs_the_free_margin(
 ):
     """A drawing's box is the room, and a drawing is placed rather than the box: on the
     column's axis while it fits, out into the margins when it needs the room, and behind
-    a reachable scrollbar when even the room is short. The rail's claim reaches only the
-    rows' own bands, and neither drawing here stands level with the row — the change is
-    a block above them — so both margins are the drawings' to take: the wide one held to
-    the column's right edge with the margin beside it empty was the reading the claim's
-    page-wide form produced, and is now the fault rather than the bargain.
+    a reachable scrollbar when even the room is short. The rail claims nothing, so with
+    a row standing in it both margins are still the drawings' to take: the wide one held
+    to the column's right edge with the margin beside it empty is the fault.
 
     The narrow read is the other half. With the window closed in, the room genuinely
     runs short, the box scrolls, and the overflow must be laid out where the scroll can
@@ -1685,13 +1683,13 @@ def test_a_drawing_stands_on_the_columns_axis_until_it_needs_the_free_margin(
     drawing's first node is the one a user follows the graph from."""
     page = open_page(browser, serve(DIAGRAM_AND_RAIL_PAGE))
     # Linux's DejaVu labels draw this graph at 1217px. Use a width where the drawing
-    # fits after the control rail and a classic scrollbar have both been taken.
+    # fits the room after a classic scrollbar has been taken, with the rail standing.
     resized(page, 1920, 900)
     at = page.evaluate(DRAWING_PLACEMENT)
 
     assert at["place"] == "rail", (
-        "the row is not in the rail, so there is no claim on the margin and nothing "
-        "here is proved"
+        "the row is not in the rail, so nothing here shows a standing rail leaving the "
+        "margin to the drawing"
     )
     assert at["small"]["width"] < at["col"]["right"] - at["col"]["left"], (
         "the small drawing must fit the column, or its placement says nothing"
@@ -1711,7 +1709,7 @@ def test_a_drawing_stands_on_the_columns_axis_until_it_needs_the_free_margin(
     assert at["flow"]["box"]["right"] > at["col"]["right"] + 1, (
         f"a drawing no row is level with is held to the column's right edge: its box "
         f"ends at {at['flow']['box']['right']:.0f}px, the column at "
-        f"{at['col']['right']:.0f}px — the rail claims the rows' bands, not the side"
+        f"{at['col']['right']:.0f}px — the rail claims none of the margin"
     )
     assert not at["flow"]["scrolls"], (
         "with both margins the room holds this drawing whole, so a scrollbar here is "
@@ -2155,10 +2153,9 @@ def test_the_room_follows_a_margin_taken_after_the_handover(
 
 
 def test_a_wide_widget_keeps_its_margins_and_its_comment_lands_on_it(browser, serve):
-    """The rail is reserved out of the right of the page and the controls hang 22px off
-    the column, and those are the same place only when the column is flush against the
-    strip. It never is — the column centres in what the strip leaves — so on any window
-    wider than that a widget grown toward the strip reaches the rail's markers.
+    """The rail claims nothing: its markers hang 22px off the column wherever the room
+    beside it holds them, and a wide widget grows into that same room, so a widget grown
+    toward the right margin reaches the rail's markers.
 
     Nothing Leaf draws moves the page's content, so a comment arriving on a board cannot
     narrow it: both boards grow both ways at every width. The change inside the near
@@ -2167,9 +2164,9 @@ def test_a_wide_widget_keeps_its_margins_and_its_comment_lands_on_it(browser, se
     lands on what it is about. The change above the board keeps the rail. Either way
     the controls stay pressable: they stand over the page, not under it.
 
-    A range of windows rather than one, because the gap between the reservation and the
-    occupancy is the column's leftover and grows with the window: a single viewport can
-    be picked where the two happen to agree."""
+    A range of windows rather than one, because what stops the boards' growth changes
+    with the window: the free room beside the column just past where the rail first
+    stands, the wide measure beyond it. A single viewport reads only one of the two."""
     url = serve(RAIL_BAND_PAGE)
     page = open_page(browser, url)
 

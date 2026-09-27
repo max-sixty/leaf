@@ -322,8 +322,8 @@ Leaf captures the owner's identity and revision-bound declaration before upgrade
 author change to those facts fails closed. Its methods are `read`, `subscribe`,
 `dispatch`, `defer`, and `present`.
 
-`read()` returns an immutable `{authored, state, thread, provenance, actions,
-delivery}` snapshot. `authored` is the typed baseline decoded from
+`read()` returns an immutable `{authored, state, thread, provenance, actions}`
+snapshot. `authored` is the typed baseline decoded from
 validated source markup; `state` is that baseline with admitted and unresolved records
 folded over it; `thread.heldBy` is the `id` of the open, admitted Thread whose root
 holds this widget, or `null`. Each `actions` entry carries its availability and

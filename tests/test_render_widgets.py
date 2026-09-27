@@ -8579,7 +8579,8 @@ def test_pending_action_waits_for_the_ask_list_paint_before_retiring(
     held.pop(0).continue_()
     page.unroute("**/api/event")
     page.wait_for_function(
-        "() => __lfReadAskApplication().unresolved.some(entry => entry.answered)"
+        "() => __lfReadAskApplication().unresolved.some("
+        "entry => entry.state === 'accepted:logged')"
     )
     assert "asks" in page.evaluate("__lfReadAskPresentation().pending")
     assert page.evaluate("__lfReadAskApplication().unresolved.length") == 1
@@ -8626,7 +8627,8 @@ def test_pending_action_waits_for_the_ask_banner_paint_before_retiring(
     held.pop(0).continue_()
     page.unroute("**/api/event")
     page.wait_for_function(
-        "() => __lfReadAskApplication().unresolved.some(entry => entry.answered)"
+        "() => __lfReadAskApplication().unresolved.some("
+        "entry => entry.state === 'accepted:logged')"
     )
     assert "asks" in page.evaluate("__lfReadAskPresentation().pending")
     assert page.evaluate("__lfReadAskApplication().unresolved.length") == 1

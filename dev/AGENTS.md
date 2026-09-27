@@ -20,7 +20,8 @@ two tools need, such as building an arm or serving a page, lives in one module h
 and the others import it; a script under `scripts/` imports it too.
 
 - `harness.py`: arms (the plugin payload at a ref), pages served from an authored
-  source on an arm, and the isolated `claude -p` children evals run.
+  source on an arm, the isolated `claude -p` children evals run, and the throwaway
+  Codex homes a Codex child runs under.
 - `page_fixtures.py` builds a page directory from an authored source;
   `example_data.py` reads the catalog, names, and each page's companions.
 - `browser.py` opens and settles a tab the same way for every command that reads one.

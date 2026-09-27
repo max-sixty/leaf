@@ -39,16 +39,30 @@ def _messages(events: list) -> dict[str, dict]:
     return {event["id"]: event for event in events if event["kind"] in MESSAGE_KINDS}
 
 
+def _unknown_message(page_dir: Path, events: list, name: str) -> None:
+    held = logged_id(events, name, current_responses(page_dir, events))
+    sys.exit(
+        f"unknown comment id {name!r}"
+        + (f"; {held}" if held else "")
+        + f"; known: {sorted(_messages(events))}"
+    )
+
+
 def _message(page_dir: Path, events: list, to: str) -> dict:
     messages = _messages(events)
     if to not in messages:
-        held = logged_id(events, to, current_responses(page_dir, events))
-        sys.exit(
-            f"unknown comment id {to!r}"
-            + (f"; {held}" if held else "")
-            + f"; known: {sorted(messages)}"
-        )
+        _unknown_message(page_dir, events, to)
     return messages[to]
+
+
+def thread_named(page_dir: Path, events: list, name: str) -> str:
+    """The id of the thread `name` reaches: the thread's own id or the id of any
+    message in it. Every command that addresses a thread takes it this way, so the
+    id a delivery or a panel shows for any message is enough to reach its thread."""
+    thread_id = thread_names(events).get(name)
+    if thread_id is None:
+        _unknown_message(page_dir, events, name)
+    return thread_id
 
 
 def _thread(page_dir: Path, events: list, to: str) -> tuple[str, dict | None]:
@@ -458,8 +472,8 @@ def cmd_reply(
                     "cannot infer a reply: this turn's opened delivery holds "
                     f"{len(pending)} reply obligations. Read what the page still "
                     "owes with `leaf page state <page>`; use --for EVENT_ID to "
-                    "answer one, or --to ID to post a new message only if that "
-                    "read shows nothing owed"
+                    "answer one, or name the thread to post a new message only if "
+                    "that read shows nothing owed"
                 )
             for_event, expected = pending[0]
             to = expected["to"]
@@ -756,7 +770,8 @@ def cmd_edit(page_dir: Path, to: str, text) -> dict:
 
 @contract_writer
 def cmd_title(page_dir: Path, thread: str, text: str) -> dict:
-    """Name a thread without adding a turn or changing its obligations."""
+    """Name the thread `thread` reaches without adding a turn or changing its
+    obligations."""
     with PageTransaction(page_dir) as page:
         return append_admitted(
             page,
@@ -764,7 +779,7 @@ def cmd_title(page_dir: Path, thread: str, text: str) -> dict:
                 "kind": "thread_title",
                 "author": "agent",
                 **message_identity(),
-                "thread": thread,
+                "thread": thread_named(page_dir, page.events, thread),
                 "title": text,
             },
         )
@@ -773,12 +788,12 @@ def cmd_title(page_dir: Path, thread: str, text: str) -> dict:
 @contract_writer
 def cmd_summarize(
     page_dir: Path,
-    thread: str,
     from_message: str,
     through_message: str,
     text,
 ) -> dict:
-    """Append a presentation summary over one contiguous message range."""
+    """Append a presentation summary over one contiguous message range, in the
+    thread its first message sits in."""
     from leaf.registry.storage import require_registry
 
     body = read_text_arg(page_dir, text)
@@ -790,7 +805,7 @@ def cmd_summarize(
                 "kind": "summary",
                 "author": "agent",
                 **message_identity(),
-                "thread": thread,
+                "thread": thread_named(page_dir, page.events, from_message),
                 "from": from_message,
                 "through": through_message,
                 "text": body,
@@ -825,7 +840,7 @@ def cmd_report(
     widget, admitted the way the append door admits a user's action,
     stamped with the posting session's voice, and made against the active revision —
     the page the user is looking at. The runtime paints it live; it stands until
-    a stamped revision absorbs or overrules it by id (see `version stamp`), and the
+    a stamped revision absorbs or overrules it by id (see `page stamp`), and the
     page's watcher wakes to fold it in. Field values
     are strings — the declared detail schemas for reports speak in attribute
     values, which is all a report may move."""

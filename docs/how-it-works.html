@@ -164,7 +164,7 @@ initialized /home/you/review
 $ leaf page check ./review
 ✓ index.html: parses, widgets, authored modules, and styles validate, protected ids and decisions carried over
 
-$ leaf version stamp ./review --text "Two ways to shed load — which?"
+$ leaf page stamp ./review --text "Two ways to shed load — which?"
 stamped v1 — Two ways to shed load — which?
 
 $ leaf wait ./review
@@ -428,8 +428,8 @@ flowchart LR
   subgraph Sources["Who writes it"]
     Reply["agent: leaf thread reply · leaf thread open"]
     Awaits["agent: leaf thread reply --awaits"]
-    Stamp["agent: leaf version stamp"]
-    Report["agent: leaf experimental report"]
+    Stamp["agent: leaf page stamp"]
+    Report["agent: leaf page report"]
     Status["agent: leaf status"]
     Pickup["Leaf: how far your input got"]
     Turn["Leaf: the agent's turn and watcher"]
@@ -484,7 +484,7 @@ flowchart LR
                 your thread, which clears the label beside your comment.
               </li>
               <li id="updates-written-followup">
-                <strong><code>leaf thread reply --to …</code></strong> A later message
+                <strong><code>leaf thread reply … &lt;thread&gt;</code></strong> A later message
                 in a thread already answered, such as the result of work the first reply
                 promised.
               </li>
@@ -502,16 +502,16 @@ flowchart LR
                 <em>edited</em>, or a thread it closes (<em>✓ Resolved by Claude</em>).
               </li>
               <li id="updates-written-stamp">
-                <strong><code>leaf version stamp --text "…"</code></strong> A revision.
+                <strong><code>leaf page stamp --text "…"</code></strong> A revision.
                 The page updates in place, the status line says <em>Updated to v4</em>,
                 and the text joins the versions menu as that revision's note. While you
                 read an earlier revision, a chip offers the new one:
                 <em>New page available → open v4</em>.
               </li>
             </ul>
-            <p id="updates-written-experimental">
-              <code>leaf experimental report</code> lets optional packages' widgets show
-              a worker's progress. It may change.
+            <p id="updates-written-report">
+              <code>leaf page report</code> lets optional packages' widgets show
+              a worker's progress.
             </p>
 
             <h3 id="updates-observed-heading">Written by Leaf beside your input</h3>
@@ -824,7 +824,7 @@ flowchart TD
             <p id="agent-versions">
               Each changed, valid save of <code>index.html</code> becomes an immutable
               revision, including the document and its local dependencies, and goes live
-              at once. <code>leaf version stamp</code> marks a revision as a public
+              at once. <code>leaf page stamp</code> marks a revision as a public
               version, served at an address such as <code>/versions/v2.html</code>: the
               live address follows revisions, and a tab pinned to v1 stays there.
             </p>

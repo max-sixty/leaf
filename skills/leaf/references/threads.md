@@ -15,8 +15,9 @@ leaf thread open <page> --text "…"
 including edits and retired content. Quote exact visible authored words inside
 one widget part. The command refuses ambiguous, retired, replaced, or
 cross-boundary text instead of creating a detached comment. It prints the id of
-the thread it opened, which `leaf status --on`, `leaf thread edit --to`, and
-`leaf thread resolve --to` take.
+the thread it opened. Every command that names a thread (`leaf thread read`,
+`title`, `reply`, and `resolve`, `leaf status --on`, and `leaf page events
+--thread`) takes the id of any message in it.
 
 Give a thread you open a short, descriptive title, and name an untitled one
 the user opened when a delivered message in it says to. Choose a few words that
@@ -98,7 +99,7 @@ leaf thread reply <page> --detach --text "Removed this; the thread no longer has
 ```
 
 The reply records the active revision and its anchor transition atomically. The opening
-comment keeps its original anchor in `leaf events --thread`. The panel keeps a
+comment keeps its original anchor in `leaf page events --thread`. The panel keeps a
 detached thread open, its passage link marked as gone from this version, and the
 **No longer here** filter lists it. `page state` reports its
 null current anchor and the prior anchor as `detached_from`. A later reply may move it
@@ -120,8 +121,8 @@ leaf thread reply <page> --awaits --text "Which store should own it?"
 ```
 
 To add an agent-initiated turn to a thread that currently owes no reply, name the
-thread with `--to <message-id>` and leave out `--for`. Leaf refuses it while any event
-in that thread has a standing reply obligation.
+thread instead of `--for`: `leaf thread reply <page> <message-id>`. Leaf refuses
+it while any event in that thread has a standing reply obligation.
 
 A widget whose registry entry declares a local `x-awaits` already joins the
 page's Ask list and keeps its thread "On you" while that Ask stands. Leaf refuses
@@ -130,15 +131,15 @@ page's Ask list and keeps its thread "On you" while that Ask stands. Leaf refuse
 Correct one of this session's sent messages without adding another turn:
 
 ```bash
-leaf thread edit <page> --to <comment-or-reply-id> --text "Corrected wording."
+leaf thread edit <page> <comment-or-reply-id> --text "Corrected wording."
 ```
 
 The page labels the message `edited`. Leaf keeps the original and every revision
 in the append-only event log. Only text is revised; any widget markup stays frozen.
 `leaf thread open`, `leaf thread reply`, `leaf thread edit` and `leaf thread resolve` each print one
 sentence naming what they wrote; `leaf thread open` adds the command that titles the
-new thread. `--json` prints the posted event instead, whose
-`id` is what `--to` takes here. A refusal lists the ids it knows.
+new thread. `--json` prints the posted event instead; its `id` names the message,
+and so its thread, to every command here. A refusal lists the ids it knows.
 
 An ordinary reply leaves the thread open, or reopens a resolved thread, so the user
 can inspect the answer or revised page. Reactions and failure receipts do not reopen it. The user closes it by default. Resolve it yourself only when the
@@ -149,7 +150,7 @@ leave the thread open. Answer any unanswered user message in the thread before
 resolving it:
 
 ```bash
-leaf thread resolve <page> --to <thread-id>
+leaf thread resolve <page> <message-id>
 ```
 
 ## What the user has read
@@ -172,7 +173,7 @@ when it is still useful to read directly. A summary helps users navigate the
 discussion; incorporate its outcomes into the document too.
 
 ```bash
-leaf thread summarize <page> <thread-id> --from <first-message-id> --through <last-message-id> < summary.md
+leaf thread summarize <page> --from <first-message-id> --through <last-message-id> < summary.md
 ```
 
 The summary replaces that range in the presentation, while the original messages

@@ -355,14 +355,14 @@ flowchart LR
           </tbody>
         </table>
         <p id="captured-how">
-          <code>leaf events</code> printed the log below, one record per line; here each
+          <code>leaf page events</code> printed the log below, one record per line; here each
           record is broken over a few lines. The first line of the log, at
           <code>seq</code> 1, is the <code>note</code> that published the page's first
           version. The browser minted the added option's id and each
           <code>attempt</code>.
         </p>
         <!-- Captured by driving this page's sample markup in Chrome on a scratch
-             page and printing its log with `leaf events PAGE`. The suite replays
+             page and printing its log with `leaf page events PAGE`. The suite replays
              these commands through the append door and fails, printing the records
              to paste here, when the door would store anything different:
              tests/test_product_page.py::test_the_event_log_page_shows_the_records_the_door_writes -->
@@ -454,7 +454,7 @@ flowchart LR
         <h2>An agent's state moves through the same fold</h2>
         <p id="reports-writer">
           A verb that declares <code>"writer": "agent"</code> is the agent's:
-          <code>leaf experimental report</code> appends a <code>report</code> at a
+          <code>leaf page report</code> appends a <code>report</code> at a
           coordinate like an action's, and it stands until a stamped version answers it.
           The package contract's
           <a
@@ -468,7 +468,7 @@ flowchart LR
       <section id="follow">
         <h2>A program can follow the log as it grows</h2>
         <p id="follow-feed">
-          <code>leaf events PAGE --follow</code> prints every stored record and then
+          <code>leaf page events PAGE --follow</code> prints every stored record and then
           each one the door admits as it lands, and a reader that restarts with
           <code>--after</code> the last <code>seq</code> it printed picks up where it
           stopped.

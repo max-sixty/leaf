@@ -518,7 +518,7 @@ screen a token at a time. leaf has no state object. The version's markup states 
 initial condition, the log records every transition, and the standing state is the fold
 over it. Each widget's `renderState` receives the complete result, including the
 initial values restored by undo. CopilotKit streams down to the token, where a leaf page changes
-a version at a time and `leaf experimental report` is what lets a dashboard tick over
+a version at a time and `leaf page report` is what lets a dashboard tick over
 between versions. leaf keeps a decision across a rewrite: a card the user moved is still where
 they moved it after the agent publishes v4, and taking that back costs the author the
 word `restated`. CopilotKit has nothing equivalent because it has nothing to rewrite —
@@ -676,7 +676,7 @@ one. What it has instead is Skillet, a Zod-shaped schema language in which
 `s.streaming.string()` marks a value safe to render half-written, and a streaming JSON
 parser that mounts a component while the model is still writing its props. That is the
 axis leaf is weakest on: a leaf page changes a version at a time,
-`leaf experimental report` is what lets a dashboard tick over between them, and nothing in leaf paints a sentence as it
+`leaf page report` is what lets a dashboard tick over between them, and nothing in leaf paints a sentence as it
 arrives. It is also the axis leaf's design makes expensive, since a version is published
 whole and a comment anchors into it.
 
@@ -846,7 +846,7 @@ mechanism, or the two existing host hooks.
   application calls for users who never see a terminal, none of the loop applies; that is
   what CopilotKit and AG-UI are for.
 - **A page that has to outlive the session.** The server and the wait go down with it.
-  The page directory stays on disk and `version export` writes a file that opens
+  The page directory stays on disk and `page export` writes a file that opens
   offline, but no agent answers it afterwards. A Claude Code artifact is hosted and outlives the session
   that published it; a document a team will edit for months belongs in the repository.
 - **Editing the document yourself.** The user works the affordances the page offers —

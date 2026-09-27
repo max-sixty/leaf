@@ -416,6 +416,9 @@ def test_a_released_entry_that_never_arrives_is_named_like_any_other_file(
             ).path
         finally:
             release.set()
+            # The browser still holds the unfinished entry request. End its
+            # connection before asking uvicorn to drain active requests.
+            page.close()
 
     assert asked.is_set(), "the browser never asked for the entry, so nothing dropped"
     assert str(stopped.value) == (

@@ -208,6 +208,13 @@ function assemble() {
   if (absent.length)
     throw new Error(`leaf: the page's keyboard has no owner for ${absent.join(", ")}`);
   const rows = PAGE_COMMANDS.map((id) => commands.get(id));
+  // Every page command answers whether a finger needs a stand-in for its keys (AGENTS.md,
+  // "Touch routes"), so a new one meets the question where it is declared.
+  const unanswered = rows.filter((row) => row.touch === undefined).map((row) => row.id);
+  if (unanswered.length)
+    throw new Error(
+      `leaf: ${unanswered.join(", ")} must declare \`touch\`: its words under a finger, or false where a finger reaches it directly`,
+    );
   const covering = rows.filter((row) => row.covering);
   return STACK.flatMap((name) => {
     if (name === PAGE) return { rows };
@@ -242,6 +249,23 @@ export function pageScopes() {
         checked(scope.rows, scope.title ?? "the page's own keys");
   }
   return resolved;
+}
+// The rows a finger reaches through a banner control rather than a key (AGENTS.md, "Touch
+// routes"): each page command declaring `touch` words, in line order, and each row of a page
+// scope declaring them, beside the scopes it stands in. Read from the live register, since
+// a scope may join or leave it.
+export function touchRows() {
+  pageScopes();
+  const steps = new Map();
+  for (const name of STACK)
+    if (typeof name === "string")
+      for (const scope of scopes.get(name) ?? [])
+        for (const row of scope.rows)
+          if (row.touch) steps.set(row, [...(steps.get(row) ?? []), scope]);
+  return {
+    commands: PAGE_COMMANDS.map((id) => commands.get(id)).filter((row) => row?.touch),
+    steps: [...steps].map(([row, standsIn]) => ({ row, standsIn })),
+  };
 }
 export const universalCommandReference = () => commands.get(COMMAND_REFERENCE);
 export const textEntryScope = () => scopes.get("text entry")?.[0];

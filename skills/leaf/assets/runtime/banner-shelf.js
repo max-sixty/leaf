@@ -12,9 +12,10 @@
  * - `row`: Approval and Threads, the page's standing reading loop.
  * - `menu`: every secondary action, in one stable seat behind More.
  * - `gesture`: the next step of something the user is doing right now, such as
- *   commenting on the words a touch just selected. It exists only while that gesture
- *   holds it, and it is the one thing the user came to the banner for, so it stands
- *   on the row in the reading loop's place until the gesture ends. The row has no
+ *   commenting on the words a touch just selected, or a finger's way out of the mode it
+ *   stands in. It exists only while that gesture or mode holds it, and it is the one
+ *   thing the user came to the banner for, so it stands on the row in the reading
+ *   loop's place until the gesture ends. The row has no
  *   room to seat both beside More on a 320px phone, and a step hidden behind More is
  *   two presses on a door nothing points to.
  */
@@ -28,17 +29,19 @@ export const BANNER_CONTROL_RANK = Object.freeze({
   session: 10,
   preview: 20,
   layer: 30,
-  select: 35,
   leaves: 40,
   latest: 50,
   asks: 60,
   map: 70,
-  annotations: 75,
+  // The page's commands a finger reaches here rather than by key (touch-controls.js),
+  // among themselves in the shortcut line's order.
+  commands: 75,
   blanket: 80,
   versions: 90,
   approval: 100,
   threads: 110,
-  cancelSelection: 120,
+  // The way out of the mode or chooser the user stands in, under a finger.
+  steps: 120,
   commentSelection: 130,
 });
 
@@ -269,6 +272,13 @@ export function bannerControlDoor(control) {
   const menu = control.closest(".lf-banner-menu");
   return menu?.lfInvoker?.checkVisibility() ? menu.lfInvoker : null;
 }
+
+// The gesture step a node stands in, if any. It is the user's own next move rather than a
+// part of the chrome to remark on, so Design mode lets a press on it through.
+export const gestureStepAt = (node) =>
+  [...controls.values()].find(
+    (entry) => entry.seat === "gesture" && entry.control.contains(node),
+  )?.control ?? null;
 
 export function dismissBannerControls() {
   if (overflowMenu.matches(":popover-open")) overflowMenu.hidePopover();

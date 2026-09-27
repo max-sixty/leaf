@@ -28,7 +28,7 @@ import {
   textNodesUnder,
 } from "../passages.js";
 import { anchoringIsReady } from "../anchor-resolution.js";
-import { pressIsKeyboardActivation } from "../pointer.js";
+import { coarsePointer, pressIsKeyboardActivation } from "../pointer.js";
 import { pageCommand, pageRung, pageScope } from "../keyboard/register.js";
 import {
   DRAWING_COORDINATE_LIMIT,
@@ -165,7 +165,11 @@ export function createDrawingController({
     if (spoken)
       announce(
         on
-          ? "Draw mode: draw anywhere on the page; each stroke adds to one drawing. Escape leaves."
+          ? `Draw mode: draw anywhere on the page; each stroke adds to one drawing. ${
+              coarsePointer.matches
+                ? "Exit Draw on the banner leaves."
+                : "Escape leaves."
+            }`
           : "Draw mode off",
       );
     paintDrawings();
@@ -483,6 +487,7 @@ export function createDrawingController({
         keys: ["w"],
         does: "Exit Draw mode",
         line: "exit Draw mode",
+        touch: "Exit Draw",
         run: () => setDrawMode(false),
       },
     ],
@@ -503,7 +508,8 @@ export function createDrawingController({
     keys: ["w"],
     does: "Draw on the page and attach the drawing to a comment",
     line: "draw",
-    when: () => anchoringIsReady(),
+    touch: "Draw mode",
+    when: () => anchoringIsReady() && !drawModeOn,
     run: () => setDrawMode(true),
   });
 

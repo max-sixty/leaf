@@ -59,6 +59,11 @@
      at the user's current position.
    - `run` performs one result. A run-less row names a press it does not make: the
      platform's own on a link, or one another scope's row already runs.
+   - `touch` is the words of the banner control that stands in for the row's keys under a
+     finger, or a function when state chooses them, on a page command or a page-scope row
+     a finger has no other way to reach (keyboard/AGENTS.md, "Touch routes"). Such a row
+     needs a `run` and makes one press, so it carries no `routes`. Every page command
+     declares it, `false` where a finger reaches the result directly.
    - A command that enters a layer declares no way back out of it. The layer's own
      owner declares that step, against the layer standing rather than against the press
      that opened it, so one state has one way out however the user reached it.
@@ -462,6 +467,10 @@ export function checked(rows, where) {
         `leaf: row ${i} of ${where} leaves the native press to the platform but runs no result`,
       );
     if (!row.id) throw new Error(`leaf: row ${i} of ${where} has no stable command id`);
+    if (row.touch && (!row.run || row.routes))
+      throw new Error(
+        `leaf: ${row.id} stands in for its keys under a finger, so it needs one run and no routes`,
+      );
     if (typeof row.id !== "string" || !COMMAND_ID.test(row.id))
       throw new Error(
         `leaf: row ${i} of ${where} names ${String(row.id)}, which is not a stable command id`,

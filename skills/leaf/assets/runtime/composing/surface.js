@@ -1537,6 +1537,7 @@ export function createResponseSurface({
   // left behind, which is the order the destination reading above uses.
   pageCommand({
     id: "comment.create",
+    touch: false,
     keys: ["c"],
     // The surfaces name the destination in front of the user rather than the capability:
     // "Comment" covered all four and so promised none of them.

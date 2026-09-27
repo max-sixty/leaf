@@ -13,6 +13,7 @@ from render_cases_layout import (
 )
 from render_cases_navigation import (
     TARGETS_PAGE,
+    UNDO_PAGE,
     pending_text,
 )
 from render_cases_widgets import (
@@ -84,9 +85,9 @@ def test_touch_user_selects_an_element_comments_and_finds_its_thread(browser, se
     )
     banner_control(page, ".lf-banner-menu .lf-btn:text-is('Select element')").tap()
     expect(page.locator(".lf-banner-menu")).to_be_hidden()
-    cancel = page.get_by_role("button", name="Cancel selecting an element")
+    cancel = page.get_by_role("button", name="Cancel selection", exact=True)
     page.locator(".lf-banner-actions").get_by_role(
-        "button", name="Cancel selecting an element"
+        "button", name="Cancel selection", exact=True
     ).tap()
     expect(page.locator(".lf-banner-menu")).to_be_hidden()
     expect(cancel).to_be_hidden()
@@ -107,6 +108,74 @@ def test_touch_user_selects_an_element_comments_and_finds_its_thread(browser, se
     expect(page.locator(".lf-thread-panel")).to_contain_text(
         "Please clarify this paragraph."
     )
+
+
+def test_a_finger_reaches_the_page_commands_its_keys_reach(browser, serve):
+    """Undo, Draw mode and Design mode have no key under a finger, so More holds each, read
+    off the command's own row, and a mode's way out stands on the banner's row while the
+    mode holds. Design mode lets that step's press through rather than commenting on it."""
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
+    )
+    page = open_page(browser, serve(UNDO_PAGE), context=context)
+    menu = page.locator(".lf-banner-menu")
+    row = page.locator(".lf-banner-actions")
+    undo_entry = menu.get_by_role(
+        "button", name="Undo", exact=True, include_hidden=True
+    )
+    expect(undo_entry).to_be_disabled()
+
+    with sending(page, "the pick"):
+        page.locator("#opt-a").tap()
+    expect(page.locator("lf-option[chosen]")).to_have_attribute("id", "opt-a")
+    banner_control(page, ".lf-banner-menu .lf-btn:text-is('Undo')")
+    expect(undo_entry).to_be_enabled()
+    with sending(page, "the withdrawal"):
+        undo_entry.tap()
+    expect(menu).to_be_hidden()
+    expect(page.locator("lf-option[chosen]")).to_have_attribute("id", "opt-b")
+    assert events_model.read_events(serve.page_dir)[-1]["kind"] == "undo"
+
+    for entry, mode, exit_step in (
+        ("Draw mode", "data-lf-draw-mode", "Exit Draw"),
+        ("Design mode", "data-lf-design-mode", "Exit Design"),
+    ):
+        banner_control(page, f".lf-banner-menu .lf-btn:text-is('{entry}')").tap()
+        expect(page.locator("body")).to_have_attribute(mode, "")
+        step = row.get_by_role("button", name=exit_step, exact=True)
+        expect(step).to_be_visible()
+        expect(page.locator(".lf-threads-toggle")).to_be_hidden()
+        step.tap()
+        expect(page.locator("body")).not_to_have_attribute(mode, "")
+        expect(step).to_have_count(0)
+        expect(page.locator(".lf-threads-toggle")).to_be_visible()
+    expect(page.locator(".lf-fab-input")).to_be_hidden()
+
+    # The chooser ignores presses on the chrome, so More stays open to a finger while it
+    # stands; entering Design mode from there puts the chooser away rather than stacking.
+    banner_control(page, ".lf-banner-menu .lf-btn:text-is('Select element')").tap()
+    cancel = row.get_by_role("button", name="Cancel selection", exact=True)
+    expect(cancel).to_be_visible()
+    banner_control(page, ".lf-banner-menu .lf-btn:text-is('Design mode')").tap()
+    expect(page.locator(".lf-live")).to_contain_text(
+        "Exit Design on the banner leaves."
+    )
+    expect(cancel).to_have_count(0)
+    expect(page.locator(".lf-target-chooser-hint")).to_have_count(0)
+    exit_design = row.get_by_role("button", name="Exit Design", exact=True)
+
+    # Prose still selects in Design mode, so a touch selection's step can stand beside the
+    # mode's own on the narrowest phone row.
+    page.set_viewport_size({"width": 320, "height": 700})
+    page.locator("#h").evaluate("el => getSelection().selectAllChildren(el)")
+    expect(
+        row.get_by_role("button", name="Comment on selection", exact=True)
+    ).to_be_visible()
+    assert row.evaluate("el => el.scrollWidth <= el.clientWidth"), (
+        "the mode's exit and the selection's step overflow a 320px row"
+    )
+    exit_design.tap()
+    expect(page.locator("body")).not_to_have_attribute("data-lf-design-mode", "")
 
 
 def test_desktop_target_hints_leave_plain_link_clicks_available(browser, serve):
@@ -150,7 +219,7 @@ def test_selection_banner_controls_follow_the_primary_pointer(browser, serve):
     """Touch selection controls retire when a fine pointer takes over; keyboard aim stays."""
     page = open_page(browser, serve(TARGETS_PAGE))
     select = page.get_by_role("button", name="Select element", exact=True)
-    cancel = page.get_by_role("button", name="Cancel selecting an element")
+    cancel = page.get_by_role("button", name="Cancel selection", exact=True)
     page.get_by_role("button", name="More page controls", exact=True).click()
     expect(page.locator(".lf-banner-menu")).to_be_visible()
     expect(select).to_be_hidden()

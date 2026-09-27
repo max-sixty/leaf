@@ -96,6 +96,7 @@ export function createProjectionCommands({ post, stateApplying, unaccountedGestu
     keys: ["z"],
     does: () => undoSentence(undoable),
     line: "undo",
+    touch: "Undo",
     // Dead while the page holds a gesture no log read accounts for, this one's own send
     // included. The line drops the chip for as long as that is true rather than
     // promising a press that would undo the wrong thing.

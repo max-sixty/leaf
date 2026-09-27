@@ -1,13 +1,6 @@
 /* This module owns the target chooser and whole-page text search. Its transient hints,
  * search marks, and status are synchronous Lit projections over native controller state. */
 import { aimTargets, anchoringIsReady } from "../anchor-resolution.js";
-import {
-  BANNER_CONTROL_RANK,
-  bannerControlDoor,
-  dismissBannerControls,
-  registerBannerControl,
-  showBannerControl,
-} from "../banner-shelf.js";
 import { bindings } from "../keyboard/bindings.js";
 import { el, LAYOUT } from "../widget-elements.js";
 import { coarsePointer } from "../pointer.js";
@@ -53,24 +46,6 @@ import {
 // the platform's rather than a keyboard interaction's imitation of one.
 export const targetChooserHintLayer = el("div", "lf-ui lf-target-chooser-hints");
 targetChooserHintLayer.setAttribute("aria-hidden", "true");
-const targetChooserCancel = el("button", "lf-btn", "Cancel selection");
-targetChooserCancel.type = "button";
-targetChooserCancel.setAttribute("aria-label", "Cancel selecting an element");
-registerBannerControl({
-  key: "cancel-selection",
-  control: targetChooserCancel,
-  rank: BANNER_CONTROL_RANK.cancelSelection,
-  seat: "gesture",
-  present: false,
-});
-const selectElement = el("button", "lf-btn", "Select element");
-selectElement.type = "button";
-registerBannerControl({
-  key: "select-element",
-  control: selectElement,
-  rank: BANNER_CONTROL_RANK.select,
-  present: coarsePointer.matches,
-});
 export const pageSearchSurface = el("div", "lf-ui lf-page-search");
 pageSearchSurface.setAttribute("role", "search");
 pageSearchSurface.hidden = true;
@@ -229,7 +204,6 @@ export function createTargetChooser({
     if (on) opener = focused();
     const returnTo = !on && restore ? opener : null;
     chooserOpen = on;
-    showBannerControl(targetChooserCancel, coarsePointer.matches && on && withHints);
     pageSearchOpen = false;
     searchReturnsToHints = false;
     matches = [];
@@ -253,7 +227,6 @@ export function createTargetChooser({
 
   function setPageSearch(on) {
     pageSearchOpen = on;
-    showBannerControl(targetChooserCancel, coarsePointer.matches && !on);
     pageSearchSurface.hidden = !on;
     if (on) {
       pageSearchInput.focus({ preventScroll: true });
@@ -569,13 +542,13 @@ export function createTargetChooser({
   }
 
   function paintTargetChooserHints() {
-    selectElement.disabled = !canChoose();
     if (chooserOpen && pageSearchOpen) return paintSearchMatches();
     hints.paint();
   }
 
   const PAGE_SEARCH = {
     id: "page.search.open",
+    touch: false,
     keys: ["/"],
     does: "Search all the text on the page",
     line: "search page",
@@ -588,6 +561,7 @@ export function createTargetChooser({
 
   const REPEAT_PAGE_SEARCH = {
     id: "page.search.repeat",
+    touch: false,
     keys: ["n", "Shift+n"],
     routes: [
       {
@@ -630,6 +604,14 @@ export function createTargetChooser({
         : hints.prefix()
           ? "back one letter"
           : "close chooser",
+    touch: () =>
+      pageSearchOpen
+        ? searchReturnsToHints
+          ? "Back to hints"
+          : "Close search"
+        : hints.prefix()
+          ? "Back one letter"
+          : "Cancel selection",
     run: back,
   };
 
@@ -731,24 +713,6 @@ export function createTargetChooser({
   const closeTargetChooser = () => setTargetChooser(false);
 
   function mount() {
-    coarsePointer.addEventListener("change", () => {
-      showBannerControl(selectElement, coarsePointer.matches);
-      showBannerControl(
-        targetChooserCancel,
-        coarsePointer.matches && chooserOpen && !pageSearchOpen,
-      );
-      repaint();
-    });
-    selectElement.addEventListener("click", () => {
-      dismissBannerControls();
-      bannerControlDoor(selectElement)?.focus({ preventScroll: true });
-      openTargetChooser();
-    });
-    targetChooserCancel.addEventListener("click", () => {
-      dismissBannerControls();
-      setTargetChooser(false, true);
-      announce("Target chooser closed.");
-    });
     pageSearchInput.addEventListener("input", search);
     hints.mount();
     // The open search's mark is page-attached paint in a layer no ancestor scrolls, so it
@@ -772,6 +736,7 @@ export function createTargetChooser({
     keys: ["s"],
     does: "Select an element to comment by tapping it or typing its hint",
     line: "comment on target",
+    touch: "Select element",
     // Once the field is open, its typing scope owns character keys. This gate also keeps
     // the route off the short line while a target is in hand.
     lineWhen: () => !Boolean(fabAnchorAt()),

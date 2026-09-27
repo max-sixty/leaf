@@ -9,6 +9,8 @@ import { tagsDeclaring } from "./registry.js";
 import { designName, DESIGN_MODE_KEY } from "./design-readings.js";
 import { pageCommand, pageRung, pageScope } from "./keyboard/register.js";
 import { under } from "./shadow.js";
+import { gestureStepAt } from "./banner-shelf.js";
+import { coarsePointer } from "./pointer.js";
 
 // The name of what the pointer is over in design mode, floated at its corner. Chrome
 // nothing presses (pointer-events none, in the stylesheet); refreshAim is its one
@@ -41,6 +43,9 @@ export function createDesignMode({
   composer,
   closePreview,
   marginTargetAt,
+  closeDrawMode,
+  closeTargetChooser,
+  closeReactionMode,
   banner,
   announce,
   repaint,
@@ -52,7 +57,14 @@ export function createDesignMode({
   function setDesignMode(on, { spoken = true } = {}) {
     // Design mode reinterprets presses on the page and chrome as interface comments, so
     // retire the thread card rather than leave a thread up that no press can work.
-    if (on) closePreview();
+    // The page is in one mode at a time, as Draw mode's own setter keeps it. A finger
+    // reaches this from More while the chooser or Draw mode holds, where no key could.
+    if (on) {
+      closePreview();
+      closeDrawMode();
+      closeTargetChooser();
+      closeReactionMode();
+    }
     designModeOn = on;
     document.body.toggleAttribute("data-lf-design-mode", on);
     banner.toggleAttribute("data-lf-design-mode", on);
@@ -63,7 +75,11 @@ export function createDesignMode({
     if (spoken)
       announce(
         on
-          ? "Design mode: a click comments on what it lands on — a widget, a control, the chrome. Escape leaves."
+          ? `Design mode: a click comments on what it lands on — a widget, a control, the chrome. ${
+              coarsePointer.matches
+                ? "Exit Design on the banner leaves."
+                : "Escape leaves."
+            }`
           : "Design mode off",
       );
     syncGeneral(); // the general box's hint says which of the two it posts
@@ -219,14 +235,16 @@ export function createDesignMode({
   // answer the ⌥ aim gives, or inside the chrome the part the runtime named — and the
   // control the press landed on where it landed on one, since "the grip" and "the card"
   // are different remarks. Nothing where the press is the mode's own machinery: the
-  // composer being typed into, the 💬 that opens it, the name floating under the pointer.
+  // composer being typed into, the 💬 that opens it, the name floating under the pointer,
+  // and the banner's gesture step, which is how a finger leaves the mode.
   const DESIGN_OWN = ".lf-composer, .lf-fab-bar, .lf-inspect";
+  const designOwn = (at) => Boolean(closestAcross(at, DESIGN_OWN) || gestureStepAt(at));
   // Asked at use: widget-elements.js's selector reaches this module back through the
   // geometry helpers, so it is not readable as this module evaluates.
   const controls = () => `${WORKS},[data-lf-offer]`;
   function designTarget(node) {
     const at = node?.nodeType === 1 ? node : node?.parentElement;
-    if (!at || closestAcross(at, DESIGN_OWN)) return null;
+    if (!at || designOwn(at)) return null;
     const marginTarget = marginTargetAt(at);
     // In the layer, the nearest id — but the author's before the runtime's. The runtime's
     // own parts wear its namespace and are the target themselves; a widget an agent sent
@@ -271,7 +289,7 @@ export function createDesignMode({
     return Boolean(
       designModeOn &&
       at &&
-      !closestAcross(at, DESIGN_OWN) &&
+      !designOwn(at) &&
       (inChrome(at) || closestAcross(at, PRESSED())),
     );
   }
@@ -313,6 +331,9 @@ export function createDesignMode({
         keys: ["l"],
         does: "Exit Design mode",
         line: "exit Design mode",
+        // Short, because a touch selection's Comment on selection can stand beside it on a
+        // 320px row.
+        touch: "Exit Design",
         run: () => setDesignMode(false),
       },
     ],
@@ -338,6 +359,8 @@ export function createDesignMode({
     keys: ["l"],
     does: "Enter Design mode: comment on the layer — a widget, a control, the chrome — rather than the page",
     line: "design mode",
+    touch: "Design mode",
+    when: () => !designModeOn,
     run: () => setDesignMode(true),
   });
 

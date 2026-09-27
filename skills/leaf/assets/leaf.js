@@ -139,6 +139,7 @@ import { bannerFoot } from "./runtime/geometry.js";
 import { declareStanding } from "./runtime/keyboard/page.js";
 import { mountKeyboard } from "./runtime/keyboard/controller.js";
 import { paintCoreControls } from "./runtime/keyboard/control-keys.js";
+import { paintTouchControls } from "./runtime/keyboard/touch-controls.js";
 import { commandReferenceDialog } from "./runtime/keyboard/command-reference.js";
 import {
   bottomChromeBoxes,
@@ -279,6 +280,9 @@ const designMode = createDesignMode({
   },
   closePreview: (...args) => app.margin.closePreview(...args),
   marginTargetAt: (...args) => app.margin.marginTargetAt(...args),
+  closeDrawMode: () => drawing.setDrawMode(false, { spoken: false }),
+  closeTargetChooser: () => targets.closeTargetChooser(),
+  closeReactionMode: () => reactions.setReact(false),
   banner,
   announce,
   repaint,
@@ -704,6 +708,7 @@ const standing = createStanding({
         target: anchorPaint.placedAt(heldThreadId())?.element,
       },
     ]),
+  paintTouchControls,
   renderShortcutBar: () => renderShortcutBar(goToSequence.goToStatus),
   paintGoToHints: goToSequence.paintGoToHints,
   paintTargetChooserHints: targets.paintTargetChooserHints,

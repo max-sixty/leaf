@@ -328,8 +328,8 @@ cards where the fold puts them. The shared-source record case is not covered.
 | `constructs` | without tree | 30/30 | 7,426 | $0.55 |
 | `resume` | tree | 33/33 | 8,006 | $0.81 |
 | `resume` | without tree | 33/33 | 8,385 | $0.97 |
-| `board` | tree | 21/21 | 5,865 | $0.57 |
-| `board` | without tree | 21/21 | 6,368 | $0.55 |
+| `board` | tree | 24/24 | 5,865 | $0.57 |
+| `board` | without tree | 24/24 | 6,368 | $0.55 |
 
 Every failure class is empty, so the arms tie on correctness; without the tree,
 agents ordered the cards from the ranks in `state` themselves. Agents in the tree

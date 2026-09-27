@@ -45,7 +45,7 @@ from urllib.parse import unquote, urljoin, urlsplit
 from example_assets import example_previews
 from example_data import catalog_sources
 from leaf.files import latest_revision, list_revisions
-from leaf.host import SESSION_VARIABLES
+from leaf.host import IDENTITY_VARIABLES
 from leaf.live_shell import write_live_shell
 from leaf.media import media_name
 from leaf.revision_delivery import DeliveryAddress, rebase_document
@@ -265,7 +265,7 @@ def asset_site(out: Path) -> Path:
 
 def media_url(source: Path) -> str:
     """The page path an image takes once `leaf page media` has stored it."""
-    return f"/{MEDIA_DIR}/{media_name(source.read_bytes(), source.suffix.lower())}"
+    return f"/{MEDIA_DIR}/{media_name(source.read_bytes(), source.suffix)}"
 
 
 def social_images(catalog_previews: Path | None = None) -> dict[str, str]:
@@ -500,7 +500,7 @@ def publish_live_shells(
             page_root=page_root,
             release_id=release,
             asset_root=asset_root,
-            before_runtime=site_metadata(page_root, entry),
+            head=site_metadata(page_root, entry),
         )
     write_crawler_directives(assets, sorted(manifest["pages"]))
     manifest_text = json.dumps(manifest, indent=2, sort_keys=True) + "\n"
@@ -530,10 +530,10 @@ def publish_live_shells(
 def build_environment() -> dict[str, str]:
     """Keep the builder's host session identity out of published version notes.
 
-    The set comes from `host.SESSION_VARIABLES`, so a harness that arrives with
+    The set comes from `host.IDENTITY_VARIABLES`, so a harness that arrives with
     a variable of its own is scrubbed here without a second list to remember."""
     env = dict(os.environ)
-    for variable in SESSION_VARIABLES:
+    for variable in IDENTITY_VARIABLES:
         env.pop(variable, None)
     return env
 

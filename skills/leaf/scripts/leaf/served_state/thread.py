@@ -15,6 +15,7 @@ from ..events import (
 from ..projection import FrozenThreadReading, frozen_thread_reading
 from ..read_state import content_version, unread_content
 from ..requests import request_lifecycles_for, request_phases
+from ..schema import agent_name
 from .wire import browser_projection
 
 
@@ -84,6 +85,11 @@ def _answers_live_reply(event: dict, live_reply: dict) -> bool:
     )
 
 
+def _named(event: dict) -> dict:
+    """One served thread event carrying the name it is shown under (`agent_name`)."""
+    return {**event, "agent": agent_name(event)}
+
+
 def browser_thread(
     events: list,
     registry: dict,
@@ -93,7 +99,9 @@ def browser_thread(
 ) -> tuple[dict, FrozenThreadReading]:
     """The threads' browser reading. Whose turn each thread is reaches the browser
     only as its `attention`, which `served_state.browser` attaches from this
-    reading's Asks and `user_prompt` and the page's workflows."""
+    reading's Asks and `user_prompt` and the page's workflows. Each message, and the
+    event that closed a thread, carries as `agent` the name it is shown under
+    (`agent_name`), so the browser keeps no fallback name of its own."""
     settled = {identity for identity, thread in threads.items() if thread["resolved"]}
     reading = frozen_thread_reading(events, registry)
     requests = request_lifecycles_for(
@@ -143,9 +151,17 @@ def browser_thread(
             summary["protected"] = [
                 identity for identity in summary["covers"] if identity in protected
             ]
+        messages = [_named(message) for message in thread["msgs"]]
         rendered_threads.append(
             {
                 **thread,
+                "msgs": messages,
+                "root": next(
+                    message
+                    for message in messages
+                    if message["id"] == thread["root"]["id"]
+                ),
+                "resolved": thread["resolved"] and _named(thread["resolved"]),
                 "user_prompt": user_prompt,
                 "bare_reaction": bare_reaction(thread),
                 "seat": seat_root(thread),

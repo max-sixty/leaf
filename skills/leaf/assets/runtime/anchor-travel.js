@@ -1,4 +1,13 @@
-/* Anchor and projected-datum travel.
+/* Travel to a place on the page.
+ *
+ * A place is what an anchor names (anchor-resolution.js): an addressed element, which
+ * is what a fragment names too, a passage inside one, or a part of a widget, a projected
+ * datum or a visual part. A thread travels to the place its anchor names, a fragment
+ * link to its element, an Ask to its own arrival region, and a module's
+ * `navigateToDatum` to the part its declared reference addresses. Whichever route names
+ * it, a part is drawn through the one `revealAddressed`, what holds the place opens
+ * through the one `reveal`, and the surface hiding it is cleared through the one
+ * `clearFor`; where focus lands stays each route's own.
  *
  * Travel owns effects above readonly resolution and paint. It receives the current
  * semantic threads and the synchronous thread refresh from the application root;
@@ -9,14 +18,15 @@
  * the destination and then decides whether the user is already there or departs. A
  * departure leaves a history entry, so browser Back returns the user to where they
  * were reading; a journey, trips each leaving from the last one's landing, is one
- * entry.
+ * entry. A fragment link's trip (`followFragment`) departs by the browser's own entry.
  */
 
 import {
   addressedElements,
+  fragmentTarget,
   referencedProjection,
-  revealVisualPart,
   requireReference,
+  revealAddressed,
   sectionOf,
 } from "./anchor-resolution.js";
 import {
@@ -123,6 +133,29 @@ export function createAnchorTravel({
     return true;
   }
 
+  // A fragment link naming an element of the page is a trip there whose departure is
+  // the browser's: the navigation has already added the entry Back returns to, whoever
+  // followed it — a press on a page link or a reply's reference, a Go-to hint. What the
+  // platform lacks for a page place is travel's to add, the same as for any other
+  // destination: clear the surface hiding it (a covering Threads panel left the page
+  // scrolling behind it, the link's own thread still in front), and reveal what holds
+  // it, which reaches a widget's own disclosure as well as `hidden="until-found"` (a
+  // worker in a shut goal is `display: none`, and the browser landed on nothing). It
+  // then lands by the browser's own fragment rule (`land`), which moves `:target` and
+  // the sequential focus starting point with it, so the arrival at a fresh load
+  // (version.js, `aimArrival`) and one in session reveal and land alike. A fragment
+  // naming nothing here is not claimed, and the browser keeps it.
+  function followFragment(url) {
+    const where = fragmentTarget(url.hash);
+    if (!where) return null;
+    const mayArrive = retainTravel();
+    return async (land) => {
+      mayArrive.handoff(() => surfaces.clearFor(where));
+      await reveal(where, mayArrive);
+      if (mayArrive()) land();
+    };
+  }
+
   async function navigateToDatum(
     owner,
     attribute,
@@ -139,9 +172,9 @@ export function createAnchorTravel({
       return false;
     }
 
-    // The widget owns filters and lazy projection. Ask it to make the semantic key
-    // reachable before interpreting DOM presence.
-    const hydration = source.lfRevealDatum?.(key);
+    // The widget owns filters, lazy projection, and the state a visual draws. Ask it to
+    // make the key reachable before interpreting DOM presence.
+    const hydration = revealAddressed(source, key);
     if (hydration?.then) await hydration;
     if (!mayArrive()) return false;
     source = referencedProjection(owner, attribute);
@@ -319,8 +352,8 @@ export function createAnchorTravel({
     if (hydrating) {
       const source = sectionOf(anchor);
       // A visual draws the state holding its part synchronously; a lazy datum may load.
-      if (anchor.visual) revealVisualPart(source, anchor.visual);
-      const hydration = anchor.datum && source?.lfRevealDatum?.(anchor.datum);
+      const hydration =
+        source && revealAddressed(source, anchor.visual ?? anchor.datum);
       if (hydration?.then) await hydration;
       if (!mayArrive() || sectionOf(anchor) !== source) return false;
       await refreshThread();
@@ -354,6 +387,7 @@ export function createAnchorTravel({
 
   return {
     trip,
+    followFragment,
     navigateToDatum,
     scrollToElement,
     scrollRevealedElement,

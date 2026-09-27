@@ -89,8 +89,8 @@ function responseFailures(workflows) {
       key,
       kind: workflow.condition.kind,
       input: workflow.input,
-      thread: workflow.subject.kind === "thread" ? workflow.subject.id : null,
-      seq: workflow.seq ?? 0,
+      thread: workflow.thread,
+      seq: workflow.seq,
     };
     failures.set(key, failure);
   }
@@ -221,7 +221,7 @@ export function semanticNewsNotice(news) {
 
   if (content.length === 1) {
     const { message } = content[0];
-    const agent = message.agent || "Agent";
+    const { agent } = message;
     const verb = message.kind === "reply" ? "reply" : "comment";
     clauses.push(
       message.edited

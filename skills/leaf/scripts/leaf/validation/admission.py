@@ -36,7 +36,7 @@ def read_text_arg(page_dir: Path, text) -> str:
         sys.exit("empty text (pass --text or pipe via stdin)")
     if errs := text_media_errors(body, page_dir):
         sys.exit(
-            "text names media the page directory hasn't got:\n"
+            "text names media the page won't show:\n"
             + "\n".join(f"  - {e}" for e in errs)
         )
     return body

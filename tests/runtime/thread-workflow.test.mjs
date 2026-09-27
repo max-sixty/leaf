@@ -12,19 +12,41 @@ import {
   foldThreads,
   readThreadRecords,
 } from "../../skills/leaf/assets/runtime/thread/model.js";
+import { servedReading, servedThread, servedWorkflow } from "../served.mjs";
 
-const workflow = (id, stage, extra = {}) => ({
-  id,
-  seq: 1,
+// A workflow for an input in the thread `root` opened, which the agent owes a reply
+// and which holds the thread.
+const workflow = (id, stage, changes = {}) =>
+  servedWorkflow({
+    id,
+    seq: 1,
+    input: id,
+    subject: { kind: "thread", id: "root" },
+    thread: "root",
+    coordinate: ["thread", "root"],
+    answer: { kind: "reply", to: id, for: id },
+    stage,
+    ...changes,
+  });
+
+// The document a thread's frozen board is captured into: the reply `e2` in thread
+// `e1` holds the board `feeder-board`.
+const FROZEN_BOARD = {
   revision: 1,
-  input: id,
-  subject: { kind: "thread", id: "root" },
-  stage,
-  activity: [],
-  condition: null,
-  next_actor: "agent",
-  ...extra,
-});
+  descriptors: new Map([
+    [
+      "feeder-board",
+      {
+        id: "feeder-board",
+        tag: "lf-board",
+        document: { kind: "thread", thread: "e1", message: "e2" },
+      },
+    ],
+  ]),
+  messageBodies: new Map([
+    ["e2", { text: "Here is the board.", document: { thread: "e1", message: "e2" } }],
+  ]),
+};
 
 test("workflow labels retain exact input progress and positive conditions", () => {
   const older = workflow("a", "replying");
@@ -66,45 +88,61 @@ test("thread attention gives a standing user Ask precedence over agent work", ()
     workflow: recovery,
     secondary: "Working",
   });
-  assert.equal(
-    strongestWorkflow([
-      workflow("older", "picked_up", { condition: { kind: "stale" } }),
-      work,
-    ]),
-    work,
-  );
-  assert.equal(strongestWorkflow([work, recovery]), recovery);
-  assert.equal(
-    strongestWorkflow([
-      workflow("older", "working", { seq: 1 }),
-      workflow("newer", "working", { seq: 2 }),
-    ]).id,
-    "newer",
-  );
-  assert.equal(
-    strongestWorkflow([
-      workflow("fresh", "working", { seq: 1 }),
-      workflow("stale", "working", {
-        seq: 2,
-        condition: { kind: "stale", operation: "work" },
-      }),
-    ]).id,
-    "fresh",
-  );
+});
+
+test("a frozen move that owes nothing leaves an owed thread on the user alone", () => {
+  // The server's reading: the agent asked over a board it sent, and the user moved a
+  // card without answering. The move stands in the thread but does not hold it.
+  const { threads, workflows } = servedReading("frozen move owes nothing");
+  const [record] = readThreadRecords(threads, FROZEN_BOARD, new Map(), workflows);
+  assert.deepEqual(threadAttention(record), {
+    kind: "needs_user",
+    label: "On you to answer",
+    workflow: null,
+    secondary: "",
+  });
+});
+
+test("a send this tab has not delivered ranks below the served workflows of its next actor", () => {
+  // Served strongest first; the server's order is taken as given.
+  const recovery = workflow("recovery", "answered", {
+    condition: { kind: "failed", operation: "response" },
+    next_actor: "user",
+  });
+  const older = workflow("older", "sent", { seq: 1 });
+  const newer = workflow("newer", "sent", { seq: 2 });
+  const pending = workflow("pending:reply", "sending", { seq: 3 });
+  const refused = workflow("rejected:retry", "sending", {
+    seq: 4,
+    condition: { kind: "failed", operation: "delivery" },
+    next_actor: "user",
+  });
+  assert.equal(strongestWorkflow([recovery, older, pending, refused]), recovery);
+  assert.equal(strongestWorkflow([newer, older, pending, refused]), refused);
+  assert.equal(strongestWorkflow([newer, older, pending]), newer);
+  assert.equal(strongestWorkflow([older, newer, pending]), older);
+  assert.equal(strongestWorkflow([pending]), pending);
+  assert.equal(strongestWorkflow([]), null);
 });
 
 test("page widget workflows are revision-bounded independently of frozen widgets", () => {
   const widget = workflow("widget", "working", {
     revision: 2,
-    subject: { kind: "widget", id: "frozen-choice" },
-    coordinate: '["frozen-choice","choice","selection"]',
+    subject: { kind: "widget", id: "choice" },
+    thread: null,
+    coordinate: ["choice", "choice", "selection"],
   });
   assert.equal(isPageWidgetWorkflow(widget, 1), false);
   assert.equal(isPageWidgetWorkflow(widget, 2), true);
+  const frozen = { ...widget, subject: { kind: "widget", id: "frozen" } };
+  assert.equal(isPageWidgetWorkflow({ ...frozen, thread: "root" }, 2), false);
 });
 
 test("a thread the user is still sending waits on that send", () => {
-  const sending = workflow("pending:send", "sending");
+  const sending = workflow("pending:send", "sending", {
+    subject: { kind: "thread", id: "pending:send" },
+    thread: "pending:send",
+  });
   const root = {
     id: "pending:send",
     kind: "comment",
@@ -127,16 +165,10 @@ test("a thread the user is still sending waits on that send", () => {
 });
 
 test("a local prose answer clears accepted user attention until refusal", () => {
-  const thread = {
-    root: { id: "root", author: "agent", text: "Which one?", ts: "now" },
-    msgs: [{ id: "root", author: "agent", text: "Which one?", ts: "now" }],
-    anchor: null,
-    resolved: null,
-    attention: { kind: "needs_user", reason: "recovery", workflow: "failed" },
-    bare_reaction: false,
-    unread: [],
-    seat: null,
-  };
+  const thread = servedThread(
+    [{ id: "root", kind: "comment", author: "agent", text: "Which one?", ts: "now" }],
+    { attention: { kind: "needs_user", reason: "recovery", workflow: "failed" } },
+  );
   const reply = {
     id: "pending:retry",
     kind: "reply",
@@ -172,49 +204,30 @@ test("a local prose answer clears accepted user attention until refusal", () => 
 });
 
 test("a frozen message widget keeps its exact workflow in the message and thread", () => {
-  const widgetWork = workflow("action-1", "working", {
-    revision: 2,
-    input: "action-1",
-    subject: { kind: "widget", id: "frozen-choice" },
-  });
-  const thread = {
-    root: { id: "root", author: "user", text: "Question", ts: "2026-09-22T10:00:00Z" },
-    msgs: [
-      { id: "root", author: "user", text: "Question", ts: "2026-09-22T10:00:00Z" },
-      {
-        id: "agent-reply",
-        parent: "root",
-        author: "agent",
-        markup: "<lf-choice id='frozen-choice'></lf-choice>",
-        ts: "2026-09-22T10:01:00Z",
-      },
-    ],
-    anchor: null,
-    resolved: null,
-    bare_reaction: false,
-    unread: [],
-    seat: null,
+  // The server's reading of a card the user moved on a board the agent sent.
+  const { threads, workflows } = servedReading("frozen move owes nothing");
+  const [record] = readThreadRecords(threads, FROZEN_BOARD, new Map(), workflows);
+  assert.deepEqual(
+    record.msgs.map((message) => message.workflows.map(({ id }) => id)),
+    [[], ["e3"]],
+  );
+  assert.deepEqual(
+    record.workflows.map(({ id }) => id),
+    ["e3"],
+  );
+});
+
+test("a thread this tab opened carries every field a served thread does", () => {
+  const root = {
+    id: "pending:ask",
+    kind: "comment",
+    author: "user",
+    text: "Question",
+    ts: "2026-09-22T10:00:00Z",
   };
-  const document = {
-    revision: 1,
-    descriptors: new Map([
-      [
-        "frozen-choice",
-        {
-          id: "frozen-choice",
-          tag: "lf-choice",
-          document: { kind: "thread", thread: "root", message: "agent-reply" },
-        },
-      ],
-    ]),
-    messageBodies: new Map([
-      [
-        "agent-reply",
-        { text: "Choose", document: { thread: "root", message: "agent-reply" } },
-      ],
-    ]),
-  };
-  const [record] = readThreadRecords([thread], document, new Map(), [widgetWork]);
-  assert.deepEqual(record.msgs[1].workflows, [widgetWork]);
-  assert.deepEqual(record.workflows, [widgetWork]);
+  const [opened] = foldThreads([], [root], [], []);
+  assert.deepEqual(
+    Object.keys(opened).sort(),
+    Object.keys(servedThread([root])).sort(),
+  );
 });

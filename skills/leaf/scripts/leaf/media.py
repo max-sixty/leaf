@@ -11,7 +11,7 @@ import sys
 from pathlib import Path
 
 from leaf.files import replace_files
-from leaf.schema import MEDIA_DIR, MEDIA_TYPES
+from leaf.schema import MEDIA_DIGEST, MEDIA_DIR, MEDIA_TYPES
 from leaf.service import PageTransaction
 
 MAX_MEDIA_UPLOAD_BYTES = 10 * 1024 * 1024
@@ -35,13 +35,13 @@ _UPLOAD_TYPES = {
 
 
 def media_name(data: bytes, suffix: str) -> str:
-    """The one name a page's media directory gives these bytes.
+    """The one name a page's media directory gives these bytes (`schema.MEDIA_DIGEST`).
 
     A caller that needs an image's public path before the page holds it — the site
     build naming a social image it has already published — derives it here rather
-    than restating the digest rule.
+    than restating the digest rule. `suffix` is the source file's, in any case.
     """
-    return hashlib.sha256(data).hexdigest()[:16] + suffix
+    return hashlib.sha256(data).hexdigest()[:MEDIA_DIGEST] + suffix.lower()
 
 
 def _store_media(page_dir: Path, data: bytes, suffix: str) -> str:
@@ -95,6 +95,6 @@ def cmd_media(page_dir: Path, files: list) -> list:
                 f"{src}: not an image leaf serves — {', '.join(sorted(MEDIA_TYPES))}"
             )
         data = src.read_bytes()
-        path = _store_media(page_dir, data, src.suffix.lower())
+        path = _store_media(page_dir, data, src.suffix)
         out.append((str(src), path))
     return out

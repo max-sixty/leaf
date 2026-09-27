@@ -3,9 +3,9 @@
     uv run scripts/eval_harness.py REF DEST
 
 builds one arm at DEST from git REF. `eval_claude_delivery.py`,
-`bench_render_check.py`, `bench_page_latency.py` and
-`notes/arrangement-eval/harness.py` import the rest, and `evals/README.md`'s A/B
-recipe builds its other arm with the command.
+`bench_render_check.py`, `bench_page_latency.py`,
+`notes/arrangement-eval/harness.py` and `notes/usability-eval/harness.py` import the
+rest, and `evals/README.md`'s A/B recipe builds its other arm with the command.
 
 An arm is the plugin payload at one ref (`PAYLOAD`: the manifest, hooks, launcher,
 skills and uv project) and nothing else. It has no `.git`, examples, docs or notes, so a
@@ -22,8 +22,12 @@ memory, and saved to it. `--add-dir` grants reads without loading a directory's
 project instructions.
 The child's `TMPDIR` is inside its cwd, because concurrent children otherwise write the
 same `/tmp` names and can read each other's.
+
+A trace is the child's stream-json. It counts only when its model call completed: it
+reached a `result` that is not an error, and it loaded no auto-memory (`completed`).
 """
 
+import json
 import os
 import shutil
 import subprocess
@@ -32,7 +36,7 @@ from collections.abc import Iterable
 from pathlib import Path
 
 import click
-from leaf.host import SESSION_VARIABLES
+from leaf.host import IDENTITY_VARIABLES
 
 ROOT = Path(__file__).resolve().parent.parent
 PAYLOAD = (".claude-plugin", "bin", "hooks", "skills", "pyproject.toml", "uv.lock")
@@ -48,7 +52,7 @@ def environment(**extra: str) -> dict[str, str]:
     env = {
         key: value
         for key, value in os.environ.items()
-        if key not in SESSION_VARIABLES
+        if key not in IDENTITY_VARIABLES
         and not (key.startswith("CLAUDE") and key != "CLAUDE_CONFIG_DIR")
     }
     return {**env, **extra}
@@ -126,6 +130,57 @@ def claude_child(
             CLAUDE_CODE_DISABLE_AUTO_MEMORY="1", TMPDIR=str(cwd / "tmp"), **(env or {})
         ),
     }
+
+
+def run_claude(
+    cwd: Path,
+    *args: str,
+    out: Path,
+    err: Path,
+    dirs: Iterable[Path] = (),
+    env: dict | None = None,
+) -> list[dict]:
+    """Run one `claude_child` to its end; return its trace.
+
+    `out` receives the stream-json trace and `err` the child's stderr."""
+    with out.open("w") as stdout, err.open("w") as stderr:
+        subprocess.run(
+            **claude_child(cwd, *args, dirs=dirs, env=env),
+            stdin=subprocess.DEVNULL,
+            stdout=stdout,
+            stderr=stderr,
+            check=False,
+        )
+    return read_trace(out)
+
+
+def read_trace(stream: Path) -> list[dict]:
+    return [json.loads(line) for line in stream.read_text().splitlines()]
+
+
+def trace_result(trace: list[dict]) -> dict:
+    """The trace's closing `result` event, or {} when the child never finished."""
+    return next((d for d in reversed(trace) if d.get("type") == "result"), {})
+
+
+def blocks(trace: list[dict]):
+    """Every content block of every message: tool calls, tool results, text."""
+    for d in trace:
+        message = d.get("message")
+        content = message.get("content") if isinstance(message, dict) else None
+        yield from (b for b in content or [] if isinstance(b, dict))
+
+
+def loaded_memory(trace: list[dict]) -> bool:
+    """Whether the child loaded auto-memory, which reads the user's notes and voids
+    the run."""
+    return any(d.get("type") == "system" and d.get("memory_paths") for d in trace)
+
+
+def completed(trace: list[dict]) -> bool:
+    """Whether a trace counts: its model call reached a result that is not an
+    error, without auto-memory."""
+    return trace_result(trace).get("is_error") is False and not loaded_memory(trace)
 
 
 @click.command()

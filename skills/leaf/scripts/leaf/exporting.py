@@ -7,11 +7,8 @@ is shared with the MCP App resource, which embeds a page the same way.
 """
 
 import base64
-import re
-import secrets
 import sys
 from collections.abc import Callable
-from html import escape
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -21,7 +18,6 @@ from leaf.files import (
     version_name,
     version_revisions,
 )
-from leaf.http import authorize_inline_scripts, head_open_end_offset
 from leaf.page_snapshot import capture_page_snapshot
 from leaf.revision_artifact import (
     RESOURCE_TYPES,
@@ -32,16 +28,14 @@ from leaf.revision_artifact import (
     read_artifact,
 )
 from leaf.revision_delivery import (
-    delivery_prelude,
-    delivery_sheets,
+    Delivery,
+    compose_document,
     json_script,
     rebase_css,
-    rebase_document,
 )
 from leaf.served_state.service import PageStateService
 from leaf.structure import (
     EXTERNAL_SOURCES,
-    UTF8_BOM,
     SourceDocument,
     parse_revision,
 )
@@ -134,26 +128,22 @@ def inline_css_assets(
     return _AssetInliner(read_resource).css(css, document_url)
 
 
-def inline_assets(
-    html: str,
-    page_dir: Path | None = None,
-    *,
-    read_resource: ResourceReader | None = None,
-) -> str:
-    """Embed styles and media without changing prose, scripts, or shadow roots.
+def embedding(
+    page_dir: Path | None = None, *, read_resource: ResourceReader | None = None
+) -> Delivery:
+    """Deliver a document with its styles and media embedded, its modules as named.
 
     Resource readers own the authority boundary. A projection of the page directory
     reads its files; a non-browser projection can supply the artifact's captured
-    resources. Delivery's own walk (`rebase_document`) finds the references, so an
-    embedded document names exactly what a served one does; a module keeps its path.
+    resources. Delivery's own walk finds the references, so an embedded document names
+    exactly what a served one does.
     """
     if read_resource is None:
         assert page_dir is not None
         read_resource = _file_reader(page_dir)
     assets = _AssetInliner(read_resource)
-    return rebase_document(
-        html,
-        lambda path: (
+    return Delivery(
+        address=lambda path: (
             path if Path(path).suffix in {".js", ".mjs"} else assets.address(path)
         ),
         inline_stylesheet=assets.stylesheet,
@@ -232,64 +222,52 @@ def export_document(
         ],
     )
     inliner = _AssetInliner(artifact.resources.__getitem__)
-    # An authored module is addressed at the same embedded URL the import map gives
-    # its `leaf:` name, so a page module is one instance however it is reached.
-    html = rebase_document(
-        artifact.html.decode("utf-8"),
-        lambda path: modules[path] if path in modules else inliner.address(path),
-        inline_stylesheet=inliner.stylesheet,
-    )
-    # The file's script nonce is what separates the blocks this export composed from
-    # markup a later user's inputs write into it.
-    nonce = secrets.token_urlsafe(16)
-    html = authorize_inline_scripts(SourceDocument(html), nonce)
     embedded_resources = {
         path: _data_url(resource)
         for path, resource in artifact.resources.items()
         if resource.mime not in {"application/javascript", "text/css"}
     }
-
-    def sheet(path: str) -> str:
-        return inliner.css(artifact.resources[path].data.decode("utf-8"), path, (path,))
-
-    theme = sheet("/theme.css")
-    embedded_resources["/shadow.css"] = _data_url(
-        Resource(sheet("/shadow.css").encode(), "text/css")
-    )
+    embedded_resources["/shadow.css"] = inliner.address("/shadow.css")
     embedded_resources["/registry.json"] = _data_url(
         artifact.resources["/registry.json"]
-    )
-    import_map = json_script(
-        {"imports": {f"leaf:{path}": url for path, url in sorted(modules.items())}}
     )
     payload = json_script(
         {"state": state, "data": data, "resources": embedded_resources}
     )
-    policy = (
-        "default-src 'none'; base-uri 'none'; form-action 'none'; object-src 'none'; "
-        f"connect-src data: {EXTERNAL_SOURCES}; img-src data: {EXTERNAL_SOURCES}; "
-        f"media-src data: {EXTERNAL_SOURCES}; font-src data: {EXTERNAL_SOURCES}; "
-        f"style-src 'unsafe-inline' data: {EXTERNAL_SOURCES}; "
-        f"script-src data: 'nonce-{nonce}' {EXTERNAL_SOURCES}"
+    # An authored module is addressed at the same embedded URL the import map gives
+    # its `leaf:` name, so a page module is one instance however it is reached.
+    return compose_document(
+        artifact.html.decode("utf-8"),
+        revision,
+        version,
+        executable=artifact.executable,
+        widgets=artifact.widgets,
+        resources=artifact.resources,
+        delivery=Delivery(
+            address=lambda path: (
+                modules[path] if path in modules else inliner.address(path)
+            ),
+            inline_stylesheet=inliner.stylesheet,
+            policy=lambda nonce: (
+                "default-src 'none'; base-uri 'none'; form-action 'none'; "
+                f"object-src 'none'; connect-src data: {EXTERNAL_SOURCES}; "
+                f"img-src data: {EXTERNAL_SOURCES}; media-src data: {EXTERNAL_SOURCES}; "
+                f"font-src data: {EXTERNAL_SOURCES}; "
+                f"style-src 'unsafe-inline' data: {EXTERNAL_SOURCES}; "
+                f"script-src data: 'nonce-{nonce}' {EXTERNAL_SOURCES}"
+            ),
+            import_map={
+                "imports": {
+                    f"leaf:{path}": url for path, url in sorted(modules.items())
+                }
+            },
+            runtime=lambda _nonce: (
+                '<script type="application/json" data-lf-runtime data-lf-offline '
+                'data-lf-page-root="" data-lf-entry="leaf:/leaf.js" data-lf-probe="">'
+                f"{payload}</script>"
+            ),
+        ),
     )
-    escaped_theme = re.sub(r"</style", r"<\/style", theme, flags=re.IGNORECASE)
-    document = SourceDocument(html)
-    runtime_head = (
-        delivery_prelude(
-            document, revision, version, artifact.executable, artifact.widgets
-        )
-        + f'<meta http-equiv="Content-Security-Policy" content="{escape(policy, quote=True)}">'
-        f'<script type="importmap" nonce="{nonce}">{import_map}</script>'
-        '<script type="application/json" data-lf-runtime data-lf-offline '
-        'data-lf-page-root="" data-lf-entry="leaf:/leaf.js" data-lf-probe="">'
-        f"{payload}</script>"
-        + delivery_sheets(artifact.resources, inliner.address)
-        + f"<style data-lf-runtime>{escaped_theme}</style>"
-        f'<script type="module" src="{escape(modules["/leaf.js"], quote=True)}" '
-        "data-lf-runtime></script>"
-    )
-    offset = head_open_end_offset(document)
-    return UTF8_BOM + html[:offset] + runtime_head + html[offset:]
 
 
 def cmd_export(page_dir: Path, out: Path, version) -> int:

@@ -33,6 +33,7 @@ from interact_support import running_http_server
 from leaf import data as data_model
 from leaf import files as files_model
 from leaf import hosting as hosting_model
+from leaf import layer as layer_model
 from leaf import schema as schema_model
 from leaf.event_log import _parse_events, read_events
 from leaf.events import bare_reaction, build_threads
@@ -251,29 +252,16 @@ def opened(page, url):
 
 def test_product_pages_vendor_the_composed_theme(site):
     """Every authored product source becomes an independent complete page."""
-    theme_halves = [
-        ROOT / "skills" / "leaf" / "assets" / "theme.css",
-        ROOT / "skills" / "leaf" / "packages" / "default" / "theme.css",
-        *(
-            theme
-            for name in json.loads((EXAMPLES / "layer.json").read_text())
-            for theme in (ROOT / "skills" / "leaf" / "packages" / name).glob(
-                "theme.css"
-            )
-        ),
-        DOCS / "package" / "theme.css",
-    ]
-    assert all(source.is_file() for source in theme_halves)
+    packages = tuple(json.loads((EXAMPLES / "layer.json").read_text()))
+    inputs = [*layer_model.layer_inputs(packages), DOCS / "package"]
+    expected_theme = layer_model.composed_sheets(inputs)["theme.css"]
     for page in pages_under(DOCS):
         target = site_build.product_page(site, page.name)
         published = (target / "index.html").read_text()
         source_markup = page.read_text()
         assert 'href="/theme.css"' not in source_markup, page.name
         assert published == source_markup, page.name
-        for theme in theme_halves:
-            assert theme.read_text().rstrip() in (target / "theme.css").read_text(), (
-                f"{page.name} is missing {theme.parent.name}'s theme"
-            )
+        assert (target / "theme.css").read_bytes() == expected_theme, page.name
 
 
 @pytest.mark.parametrize("source", pages_under(DOCS), ids=lambda p: p.stem)
@@ -1582,6 +1570,9 @@ def test_the_interaction_gallery_reads_where_it_is_now(serve, browser):
     gallery = page.locator("#bg-interactions")
     status = gallery.locator("[data-interaction-status]")
     expect(status).to_have_text("Ready")
+    page.locator("#bg-gallery-tabs").get_by_role(
+        "tab", name="Interactions", exact=True
+    ).click()
     gallery.evaluate("node => node.scrollIntoView({block: 'start'})")
     expect(status).to_have_text("Playing")
 
@@ -1602,8 +1593,14 @@ def test_interaction_gallery_contains_page_chrome(serve, browser):
         "Ready — motion will start only when you press Play", timeout=15_000
     )
 
+    page.locator("#bg-gallery-tabs").get_by_role(
+        "tab", name="Threads", exact=True
+    ).click()
     page.locator('[data-lf-margin-for="bg-thread-text"] > .lf-margin-marker').click()
     expect(page.locator("#lf-margin-preview")).to_contain_text(GALLERY_THREAD_TEXT)
+    page.locator("#bg-gallery-tabs").get_by_role(
+        "tab", name="Interactions", exact=True
+    ).click()
     comment_tab.click()
     comment_frame = gallery.locator(
         "#bg-interaction-comment [data-interaction-frame]"

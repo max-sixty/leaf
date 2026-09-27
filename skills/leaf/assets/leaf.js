@@ -71,7 +71,6 @@ import {
   createThreadLanding,
   declareThreadKeys,
   scrollThreadIntoView,
-  retainThreadFocus,
   retainPanelLanding,
   standingThread,
   wireThreadLanding,
@@ -395,14 +394,6 @@ app = mountApplication({
   landInThread: (...args) => landing.landInThread(...args),
   showThread: (...args) => landing.showThread(...args),
   panelIsOpen,
-  retainThreadFocus: () => retainThreadFocus(panelIsOpen, threadsBox),
-  revealReplyEditor: (input, { behavior, block } = {}) =>
-    scrollThreadIntoView(
-      input.closest(".lf-thread, .lf-page-thread, .lf-thread-seat"),
-      input,
-      behavior,
-      block,
-    ),
   registerReactSurface: (...args) => reactions.registerReactSurface(...args),
   sendReaction,
   updateFab: (...args) => responseSurface.updateFab(...args),
@@ -876,7 +867,7 @@ if (!passiveSpecimen && !offlineInteractive) {
   // for the browser to carry on from.
   releaseFocus();
 }
-mountHistory();
+mountHistory({ followFragment: anchorTravel.followFragment });
 const landFragment = version.aimArrival();
 const { landArrival, savedView } = offlineInteractive
   ? { landArrival: () => {}, savedView: null }

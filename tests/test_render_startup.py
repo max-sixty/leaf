@@ -23,7 +23,7 @@ from leaf import hosting as hosting_model
 from leaf import render_checks as render_checks_model
 from leaf import service as service_model
 from leaf import session as session_model
-from leaf.render_checks import wait_until_ready
+from leaf.render_checks import rendered, wait_until_ready
 from leaf.schema import ELEMENT_ID
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
@@ -84,7 +84,6 @@ from render_harness import (
     panel_settled,
     primed,
     refuse,
-    rendered,
     round_trip,
     select,
     sending,
@@ -1366,6 +1365,9 @@ def test_opt_in_page_interface_joins_initial_widget_settlement(browser, serve):
     expect(controls).to_be_hidden()
     page.evaluate("releaseHeldPageInterface()")
     page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
+    page.locator("#bg-gallery-tabs").get_by_role(
+        "tab", name="Interactions", exact=True
+    ).click()
     expect(controls).to_be_visible()
     expect(page.locator(".lf-status-detail")).to_have_text(re.compile(r"^Connecting"))
 
@@ -1490,7 +1492,7 @@ def test_a_current_auxiliary_choice_replaces_a_persisted_tray_during_replay(
     expect(page.locator(".lf-asks-panel")).to_be_hidden()
     expect_banner_control_offered(page.locator(".lf-answer-all"), offered=False)
 
-    comments = page.get_by_role("button", name=re.compile("^Threads"))
+    comments = page.locator(".lf-threads-toggle")
     expect(comments).to_be_enabled()
     comments.click()
     expect(body).not_to_have_attribute("data-lf-auxiliary-surface", "asks")
@@ -1531,7 +1533,7 @@ def test_comments_wait_for_the_first_log_to_be_renderable(browser, serve):
     page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
     assert held, "the positive control did not hold the Markdown renderer"
 
-    page.get_by_role("button", name=re.compile("^Threads")).click()
+    page.locator(".lf-threads-toggle").click()
     expect(page.locator(".lf-empty")).to_have_text("Loading current threads…")
     expect(page.locator(".lf-thread")).to_have_count(0)
 
@@ -1940,7 +1942,7 @@ def test_accepting_a_suggestion_resolves_its_thread_in_one_event(browser, serve)
     d = serve.page_dir
     page = open_page(browser, url)
     page.get_by_role("button", name=re.compile("^Accept the suggested change")).click()
-    page.get_by_role("button", name=re.compile("^Threads")).click()
+    page.locator(".lf-threads-toggle").click()
     expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
     events = events_model.read_events(d)
     accept = next(e for e in events if e.get("kind") == "action")
@@ -1978,7 +1980,7 @@ def test_the_thread_follows_the_decision_that_still_stands(browser, serve):
     d = serve.page_dir
     page = open_page(browser, url)
     page.get_by_role("button", name=re.compile("^Accept the suggested change")).click()
-    page.get_by_role("button", name=re.compile("^Threads")).click()
+    page.locator(".lf-threads-toggle").click()
     expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
 
     # What the other tab's press leaves in the log, made against the same version:
@@ -2074,7 +2076,7 @@ def test_startup_continues_while_the_registry_fetch_is_held(browser, serve):
         == "none"
     )
     expect(page.locator(".lf-banner")).to_be_visible()
-    expect(page.get_by_role("button", name=re.compile("^Threads"))).to_be_enabled()
+    expect(page.locator(".lf-threads-toggle")).to_be_enabled()
     expect(page.locator("#gate-milestone .lf-chips")).to_have_count(0)
     expect(page.locator("#draft-ops .lf-draft-body")).to_have_count(0)
     assert (
@@ -2092,7 +2094,7 @@ def test_startup_continues_while_the_registry_fetch_is_held(browser, serve):
         == "leaf: state vocabulary requested before registry loaded"
     )
 
-    page.get_by_role("button", name=re.compile("^Threads")).click()
+    page.locator(".lf-threads-toggle").click()
     expect(page.locator(".lf-thread-panel")).to_be_visible()
     expect(page.locator(".lf-empty")).to_have_text("Loading current threads…")
     expect(page.locator(".lf-thread")).to_have_count(0)
@@ -2352,7 +2354,7 @@ def test_a_widget_a_reply_carries_arrives_with_its_module(browser, serve):
     assert "/widgets/lf-options.js" in asked
     assert page.evaluate("() => !!customElements.get('lf-options')")
 
-    page.get_by_role("button", name=re.compile("^Threads")).click()
+    page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     options = page.locator(".lf-thread-panel lf-options#store-pick")
     # The sole visible thread is expanded as soon as the panel opens.
@@ -2377,7 +2379,7 @@ def test_a_state_waiting_for_markdown_cannot_overwrite_a_newer_one(browser, serv
         ),
         serve(LONG_PAGE),
     )
-    page.get_by_role("button", name=re.compile("^Threads")).click()
+    page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     holding(page, marked, 1, "the Markdown module")
     assert len(marked) == 1
@@ -2428,7 +2430,7 @@ def test_a_page_hears_news_without_asking_for_it(browser, serve):
     poll left it up to two seconds), which `told` below waits through. The quiet
     three seconds are the half of this no faster poll could pass."""
     page = open_page(browser, serve(LONG_PAGE))
-    page.get_by_role("button", name=re.compile("^Threads")).click()
+    page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     asked = _traffic(page).asked
     page.wait_for_timeout(3000)
@@ -2708,7 +2710,7 @@ def test_a_page_whose_read_failed_asks_again_on_its_own(browser, serve):
     spacing a failed exchange has always had. Without that a page would sit under
     an offline banner until something else happened to it."""
     page = open_page(browser, serve(LONG_PAGE))
-    page.get_by_role("button", name=re.compile("^Threads")).click()
+    page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     page.route("**/api/state*", refuse)
     with page.expect_event(
@@ -2737,7 +2739,7 @@ def test_a_page_hears_again_when_its_server_comes_back(browser, serve):
     thing it knew about the server is from before the silence."""
     url = serve(LONG_PAGE)
     page = open_page(browser, url)
-    page.get_by_role("button", name=re.compile("^Threads")).click()
+    page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     status = page.locator(".lf-status-detail")
     port = serve.httpd.server_address[1]
@@ -4310,7 +4312,7 @@ customElements.define('lf-test-surface', class extends HTMLElement {
     # stays shut; a disconnected widget leaves no such destination and the panel answers.
     if failure in {"disconnect", "target-removed"}:
         expect(markers).to_have_count(0)
-        page.get_by_role("button", name=re.compile(r"^Threads")).click()
+        page.locator(".lf-threads-toggle").click()
         fallback = page.locator(f'.lf-thread[data-id="{roots[0]}"]')
     else:
         expect(markers).to_have_count(1)
@@ -4693,12 +4695,9 @@ def test_a_source_that_returns_under_an_unfinished_reading_stays_current(
         ],
     )
 
-    # The page accepted the reading that returned the source, so it is waiting on none;
+    # The page presents the reading that returned the source, so it is waiting on none;
     # what it shows is that reading's value rather than the one it overtook.
-    page.wait_for_function(
-        "taken => Number(document.body.dataset.lfDataTaken) >= taken",
-        arg=back.json()["taken"],
-    )
+    wait_until_ready(page, back.json())
     expect(page.locator("#notes code")).to_have_text("First.\n")
     expect(page.locator(".lf-thread", has_text="A message arriving")).to_have_count(1)
 

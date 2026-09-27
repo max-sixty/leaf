@@ -1233,10 +1233,11 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-fab-bar { position: fixed; display: none; width: max-content;
     align-items: flex-end; gap: 4px; white-space: nowrap;
     max-width: var(--lf-float-w, calc(100vw - 16px)); }
-  /* A side response and a right-rail thread card both write top as their foot. Intrinsic
-     field growth moves their top edge upward in the same layout pass. */
+  /* A side response and a thread card whose reply is being drafted both write top as
+     their foot. Intrinsic field growth moves their top edge upward in the same layout
+     pass. */
   :is(.lf-fab-bar:is([data-lf-placement^="right"], [data-lf-placement^="left"]),
-    .lf-margin-preview[data-lf-thread-placement="right"]) {
+    .lf-margin-preview[data-lf-thread-held]) {
     translate: 0 -100%; }
   .lf-fab-bar[data-lf-margin-raised] { display: none !important; }
   /* The field and its choices are one anchored response control. This primitive owns
@@ -1466,8 +1467,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     --lf-here-ring: help-command; outline-offset: 1px; }
   .lf-command-reference-command[data-lf-available="false"] { color: var(--muted); }
   .lf-page-map-toggle { display: none; }
-  /* margin-projection.js writes the width thread-card-geometry.js chose and the visible
-     boundary's height as the cap; these are the fallbacks for a card no placement has
+  /* margin-projection.js writes the width and height cap thread-card-geometry.js
+     measured the card under; these are the fallbacks for a card no placement has
      measured yet. The card itself never scrolls: its thread list does, in every
      posture and before the first open, so the list is the preview's one reading
      scroller (reading-regions.js reads posture off that list's overflow). */
@@ -1510,20 +1511,22 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      so its opaque background covers text scrolling beneath it. */
   .lf-margin-thread .lf-page-thread-msg { margin-bottom: 0; }
   /* The reply uses the scroll area's width while its text shares the
-     thread column. */
-  .lf-margin-thread .lf-page-thread { padding-inline: 12px; }
+     thread column. The thread's foot padding moves into the pinned reply below. */
+  .lf-margin-thread .lf-page-thread { padding-inline: 12px; padding-bottom: 0; }
   /* The reply surround shares the thread's opaque surface, including its focus
      tint, so pinning the reply cannot introduce a separate background band. The surface
      is a default the thread's own states paint over (shadow.css), so it stands in their
      layer, where their selectors outrank it. */
   @layer lf-base { :where(.lf-margin-thread) .lf-page-thread { background: var(--paper); } }
   /* Pinned to the transcript's foot, the row keeps its controls' ring room as bottom
-     padding (the compact ring's room, in this file's header). */
+     padding (the compact ring's room, in this file's header), and with it the thread's
+     own foot padding, so nothing lies under the row in flow: it stands on the
+     transcript's foot whether or not the transcript scrolls, and a transcript starting
+     to scroll does not drop it by that padding. */
   .lf-margin-thread .lf-say { align-items: stretch; position: sticky; bottom: 0;
     margin-top: 0; margin-inline: calc(-1 * var(--sp-2));
-    padding-block: var(--sp-3) var(--here-ring-room);
+    padding-block: var(--sp-3) calc(var(--here-ring-room) + var(--sp-1));
     background: inherit; }
-  .lf-margin-thread .lf-page-thread > .lf-say > .lf-reply-disclosure,
   .lf-margin-thread .lf-say leaf-text { padding-inline-start: 7px; }
   .lf-margin-thread .lf-say leaf-text { min-width: 0;
     max-height: min(50vh, var(--lf-thread-editor-room, 50vh)); }

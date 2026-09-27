@@ -66,7 +66,17 @@ import plain_arm
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
-from eval_harness import build_arm, claude_child, run_leaf, scratch
+from eval_harness import (
+    blocks,
+    build_arm,
+    completed,
+    loaded_memory,
+    read_trace,
+    run_claude,
+    run_leaf,
+    scratch,
+)
+from eval_harness import trace_result as result
 
 DATA = ROOT / ".tmp/arrangement-eval"
 SUBJECTS = ("document", "dashboard", "queue")
@@ -107,7 +117,7 @@ def claude(
     """Run one `claude_child` from `cwd`; return its stream-json events.
 
     `out` receives the trace and `err` the child's stderr."""
-    child = claude_child(
+    return run_claude(
         cwd,
         prompt,
         "--model",
@@ -115,35 +125,11 @@ def claude(
         "--tools",
         tools,
         *(("--resume", resume) if resume else ()),
+        out=out,
+        err=err,
         dirs=dirs,
         env=env,
     )
-    with out.open("w") as stdout, err.open("w") as stderr:
-        subprocess.run(
-            **child,
-            stdin=subprocess.DEVNULL,
-            stdout=stdout,
-            stderr=stderr,
-            check=False,
-        )
-    return events(out)
-
-
-def events(stream: Path) -> list[dict]:
-    return [json.loads(line) for line in stream.read_text().splitlines()]
-
-
-def result(trace: list[dict]) -> dict:
-    """The trace's closing `result` event, or {} when the child never finished."""
-    return next((d for d in reversed(trace) if d.get("type") == "result"), {})
-
-
-def blocks(trace: list[dict]):
-    """Every content block of every message: tool calls, tool results, text."""
-    for d in trace:
-        message = d.get("message")
-        content = message.get("content") if isinstance(message, dict) else None
-        yield from (b for b in content or [] if isinstance(b, dict))
 
 
 # Runs and batches
@@ -354,7 +340,7 @@ def run_batch(arms: str, batch: str, rounds: int, subjects: tuple[str, ...]):
 def trace_scores(stream: Path) -> dict:
     if not stream.exists():
         return {"missing": True}
-    trace = events(stream)
+    trace = read_trace(stream)
     calls, results, reads = {}, {}, []
     for block in blocks(trace):
         if block.get("type") == "tool_use":
@@ -391,9 +377,8 @@ def trace_scores(stream: Path) -> dict:
     usage = done.get("usage", {})
     return {
         # A child that loaded auto-memory read the user's notes, so the run is void.
-        "memory": any(
-            d.get("type") == "system" and d.get("memory_paths") for d in trace
-        ),
+        "memory": loaded_memory(trace),
+        "completed": completed(trace),
         "finished": bool(done),
         "turns": done.get("num_turns"),
         "is_error": done.get("is_error"),
@@ -412,11 +397,7 @@ def trace_scores(stream: Path) -> dict:
 def counts(trace: dict) -> bool:
     """Whether a phase's `trace_scores` count: it reached its result, which says it did
     not fail, and it loaded no auto-memory."""
-    return (
-        bool(trace.get("finished"))
-        and trace["is_error"] is False
-        and not trace["memory"]
-    )
+    return bool(trace.get("completed"))
 
 
 def page_scores(page: Path) -> dict:

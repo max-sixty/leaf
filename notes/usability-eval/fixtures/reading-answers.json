@@ -1,0 +1,61 @@
+{
+  "questions": [
+    {
+      "surface": "plain",
+      "section": "schedule",
+      "question": "On what date does the migration window open?",
+      "answer": "14 October",
+      "pattern": "\\b(14\\s*(th)?\\s*oct|oct(ober)?\\.?\\s*14|10[-/]14)"
+    },
+    {
+      "surface": "collapsed",
+      "section": "rollback",
+      "question": "Who owns the rollback?",
+      "answer": "Priya Raman",
+      "pattern": "priya"
+    },
+    {
+      "surface": "inactive-tab",
+      "section": "attempts",
+      "question": "At which shard did the earlier attempt stop?",
+      "answer": "37",
+      "pattern": "\\b37\\b"
+    },
+    {
+      "surface": "widget-data",
+      "section": "rehearsal",
+      "question": "How many write errors did ap-south record in the rehearsal?",
+      "answer": "1284",
+      "pattern": "\\b1,?284\\b"
+    },
+    {
+      "surface": "external-data",
+      "section": "copier",
+      "question": "What is max_parallel_copies set to in the copier configuration the page shows?",
+      "answer": "6",
+      "pattern": "\\b6\\b|\\bsix\\b"
+    },
+    {
+      "surface": "standing-action",
+      "section": "mode",
+      "question": "Which cutover mode has the user picked?",
+      "answer": "Shard by shard: the user picked it, then picked Dual write, then undid the Dual write pick",
+      "pattern": "^\\W*shard"
+    },
+    {
+      "surface": "view",
+      "section": "attempts",
+      "question": "Which attempt tab am I looking at right now?",
+      "answer": "Not recorded: the open tab is the viewer's own browser state, which the page directory does not hold; Current attempt is only the default",
+      "pattern": "(can.?t|cannot|not|no way|unknown|don.?t know|isn.?t|only).{0,80}(tell|know|record|see|determine|say|visible|stor)|local|browser|default"
+    }
+  ],
+  "data": {
+    "copier-config": "# Copier settings\n[copy]\nmax_parallel_copies = 6\nverify_checksums = true\n\n[throttle]\nmax_write_mb_per_s = 180\n"
+  },
+  "moves": [
+    {"kind": "action", "revision": 1, "widget": "cutover-mode", "action": "choose", "detail": {"options": ["mode-shard"]}},
+    {"kind": "action", "revision": 1, "widget": "cutover-mode", "action": "choose", "detail": {"options": ["mode-dual"]}},
+    {"kind": "undo", "undoes": "previous"}
+  ]
+}

@@ -25,6 +25,8 @@ import { summaryRanges, unreadBoundaries } from "./summary-ranges.js";
 import { threadAttention } from "./workflow.js";
 import { shownRect } from "../geometry.js";
 import { ago, shortAgo } from "../presence.js";
+import { retainUserIntent } from "../user-intent.js";
+import { scrollThreadIntoView } from "./reply-landing.js";
 
 function quoteReading(thread, anchors, outline) {
   const group = groupFor(thread, outline, anchors.placedAt);
@@ -101,13 +103,13 @@ export function threadReading(
     attention: threadAttention(thread),
     resolvedBy:
       thread.resolved?.author === "agent"
-        ? `✓ Resolved by ${thread.resolved.agent || "Agent"}`
+        ? `✓ Resolved by ${thread.resolved.agent}`
         : panel
           ? ""
           : "✓ Resolved",
     settlement: Object.freeze({ kind, word, label, pending: settling }),
     reply: !resolved,
-    summaries: panel ? Object.freeze(thread.summaries ?? []) : Object.freeze([]),
+    summaries: panel ? Object.freeze(thread.summaries) : Object.freeze([]),
     messages: Object.freeze(
       turns(thread).map((message) =>
         messageReading(message, {
@@ -562,11 +564,29 @@ export class ThreadView {
       prepareLanding:
         model.surface === "panel"
           ? () => this.#prepareLanding(model.resolved)
-          : model.surface === "margin" && !model.resolved
-            ? this.#marginControls?.prepareLanding
-            : null,
+          : model.surface === "margin"
+            ? model.resolved
+              ? null
+              : this.#marginControls?.prepareLanding
+            : this.#prepareInlineLanding,
       ...this.#commands.settlement,
     }).catch(() => {});
+  };
+
+  // A thread on the page changes shape as it settles: a resolved outlet folds to its
+  // summary, and a reopened one unfolds under it. Where the user still stands in it, land
+  // it around their focus, which a thread too tall to show leaves where it is.
+  #prepareInlineLanding = () => {
+    const mayLand = retainUserIntent({
+      source: this.node,
+      available: () => this.node.isConnected,
+    });
+    const land = () => {
+      if (!mayLand() || !this.node.contains(focused())) return false;
+      scrollThreadIntoView(this.node, focused());
+      return true;
+    };
+    return { optimistic: land, refused: land };
   };
 
   #returnToQuote = (event) => {
@@ -619,46 +639,23 @@ export class ThreadView {
   #createReply(model) {
     const panel = model.surface === "panel";
     const row = offer("div", panel ? "lf-compose" : "lf-say");
-    const compact = model.surface === "margin";
-    const disclosure = compact
-      ? offer("button", "lf-btn lf-reply-disclosure", "Reply")
-      : null;
+    // The reply is its editor on every surface, at rest too: `c`, its key badge and
+    // landing all name this box, so nothing stands in for it on screen.
     const input = offer(TEXT_FIELD);
     input.name = "reply";
     const send = offer("button", panel ? "lf-btn lf-thread-send" : "lf-btn", "Send");
-    if (disclosure) row.append(disclosure);
     row.append(input, send);
-    const hasDraft = () => loadDraft("reply:" + model.key) !== null;
-    const reveal = () => {
-      if (!disclosure) return;
-      row.classList.remove("lf-reply-collapsed");
-      disclosure.hidden = true;
-      disclosure.setAttribute("aria-expanded", "true");
-    };
-    const collapse = () => {
-      if (!disclosure || hasDraft()) return;
-      row.classList.add("lf-reply-collapsed");
-      disclosure.hidden = false;
-      disclosure.setAttribute("aria-expanded", "false");
-    };
     if (panel)
       input.lfRevealReply = () =>
         this.#commands.listRoot.revealNavigation(this.#model.id);
-    if (disclosure) {
-      input.lfRevealReply = reveal;
-      input.lfCollapseReply = collapse;
-      disclosure.onclick = () => this.#commands.landInThread(input);
-    }
     const lifetime = wireReply(model.key, input, send, {
       ...this.#commands.reply,
       onDraftLoaded: () => {
-        if (hasDraft()) reveal();
         // Initial construction is already painting this reading; mirrored edits
         // arrive later and must refresh the collapsed row's Draft indication.
         if (panel && this.#reply) this.#navigation.draftChanged();
       },
     });
-    collapse();
     return { node: row, dispose: lifetime.dispose };
   }
 

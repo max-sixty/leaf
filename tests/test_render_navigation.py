@@ -6,6 +6,7 @@ import re
 import pytest
 from leaf import data as data_model
 from leaf import event_log as events_model
+from leaf.render_checks import one_frame, rendered
 from playwright.sync_api import expect
 from render_cases_interaction import (
     ASKS_PAGE,
@@ -82,7 +83,6 @@ from render_harness import (
     post_event,
     refuse,
     regions_side_by_side,
-    rendered,
     resized,
     round_trip,
     scroll_settled,
@@ -1663,6 +1663,7 @@ def test_an_addressed_link_leaves_the_user_at_its_destination(
 <h1>Addressed links</h1>
 <p><a id="internal" href="#arrival">Read the conclusion</a>.</p>
 <p><a id="external" href="{destination}" aria-label="Leaf guide">Open the guide</a>.</p>
+<div style="height: 1600px"></div>
 <h2 id="arrival">Conclusion</h2>
 <p>The internal trip ends here.</p>
 """,
@@ -1674,12 +1675,50 @@ def test_an_addressed_link_leaves_the_user_at_its_destination(
     go_to_address(page, "Link", "internal")
     page.wait_for_url(re.compile(r"#arrival$"))
     expect(page.locator("#arrival")).to_be_focused()
+    expect(page.locator("#arrival")).to_be_in_viewport()
+    page.evaluate(
+        "() => document.scrollingElement.scrollTo({top: 0, behavior: 'instant'})"
+    )
 
     page.keyboard.press("g")
     external_code = address_code(page, "Link", "external")
     tab = opened_tab(page, destination, lambda: page.keyboard.type(external_code))
     expect(tab).to_have_url(destination)
     expect(page.locator(".lf-live")).to_have_text("Opened Leaf guide in a new tab")
+
+
+def test_a_link_hint_leaves_a_newer_gesture_where_it_is(browser, serve):
+    """A link hint's trip may wait on what holds its destination. A press made
+    meanwhile is the user's newer word: neither the landing nor the hint's focus
+    takes them back from it."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "held link",
+                """
+<h1>Held link</h1>
+<p><a id="internal" href="#arrival">Read the conclusion</a>.</p>
+<p><button id="elsewhere" type="button">Elsewhere</button></p>
+<div style="height: 1600px"></div>
+<section id="holder"><h2 id="arrival">Conclusion</h2></section>
+""",
+            )
+        ),
+    )
+    page.evaluate(
+        """() => document.getElementById('holder').addEventListener('lf-reveal',
+             (event) => event.detail.present(new Promise((r) => (window.__release = r))))"""
+    )
+    go_to_address(page, "Link", "internal")
+    page.wait_for_url(re.compile(r"#arrival$"))
+    page.wait_for_function("() => typeof window.__release === 'function'")
+    page.locator("#elsewhere").click()
+    page.evaluate("() => window.__release()")
+    one_frame(page)
+    one_frame(page)
+    expect(page.locator("#elsewhere")).to_be_focused()
+    expect(page.locator("#arrival")).not_to_be_in_viewport()
 
 
 def test_generated_hints_include_links_revealed_by_a_page_widget(browser, serve):
@@ -2739,7 +2778,7 @@ def test_the_thread_walk_stays_inline_until_threads_is_opened(browser, serve):
 
     # A panel search belongs to the panel. Closing it keeps that search for the next
     # visit, but must not silently remove a visible page thread from the inline walk.
-    page.get_by_role("button", name=re.compile("^Threads")).click()
+    page.locator(".lf-threads-toggle").click()
     panel_settled(page, True)
     page.get_by_role("searchbox", name="Find in threads").fill("neighbouring block")
     expect(page.locator(f'.lf-thread[data-id="{roots[0]}"]')).to_be_hidden()
@@ -2765,7 +2804,7 @@ def test_the_thread_walk_stays_inline_until_threads_is_opened(browser, serve):
     )
     assert panel_status["statusRight"] < panel_status["panelLeft"], panel_status
     assert position_is_front(), "the open Threads panel painted over its walk position"
-    page.get_by_role("button", name=re.compile("^Threads")).click()
+    page.locator(".lf-threads-toggle").click()
     panel_settled(page, False)
     expect(position).to_be_hidden()
 
@@ -2999,7 +3038,9 @@ def test_c_lands_where_its_badge_is_and_in_the_card_on_screen(browser, serve, ro
 
     The badge and the press read the same destination, and the card's being up is part
     of that destination rather than a second reading of where the user stands, so no
-    route may leave a card on screen whose reply `c` does not reach.
+    route may leave a card on screen whose reply `c` does not reach. The badge is read
+    where the user reads it, as a drawn key: the box's placeholder attribute is the
+    runtime's own record of the hint and says nothing about whether it shows.
     """
     page = open_page(
         browser,
@@ -3024,6 +3065,10 @@ def test_c_lands_where_its_badge_is_and_in_the_card_on_screen(browser, serve, ro
     card = page.locator(".lf-margin-preview")
     card_up = card.is_visible()
     assert box.evaluate("box => Boolean(box.closest('.lf-margin-preview'))") == card_up
+    if card_up:
+        expect(
+            badged.locator(".lf-compose-placeholder > .lf-key-badge")
+        ).to_be_visible()
     page.keyboard.press("c")
     rendered(page)
     assert box.evaluate("box => box === document.activeElement")
@@ -3541,11 +3586,11 @@ def test_an_absent_walk_destination_returns_to_the_callers_fallback(browser, ser
     page = open_page(browser, url)
     page.wait_for_function("() => document.querySelectorAll('.lf-thread').length === 1")
 
-    page.get_by_role("button", name=re.compile("^Threads")).click()
+    page.locator(".lf-threads-toggle").click()
     panel_settled(page, True)
     page.get_by_role("searchbox", name="Find in threads").fill("no matching thread")
     expect(page.locator(".lf-thread")).to_be_hidden()
-    page.get_by_role("button", name=re.compile("^Threads")).click()
+    page.locator(".lf-threads-toggle").click()
     panel_settled(page, False)
     page.locator("body").focus()
     fallback = page.evaluate(
@@ -3774,7 +3819,7 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
     browser, serve, reply_paragraphs
 ):
     """Pointer and keyboard arrival open one compact thread card. Enter or c
-    reveals its reply, and Escape returns through each layer. The Page Map fallback
+    enters its reply, and Escape returns through each layer. The Page Map fallback
     remains live at the same time: declaration order cannot move it ahead of the causal
     frame. The page mark follows both focus modes."""
     url = serve(
@@ -3817,8 +3862,7 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
     expect(page.locator(".lf-thread-panel")).not_to_have_class(re.compile(r"\bopen\b"))
 
     expect(thread).to_be_focused()
-    expect(reply).to_be_hidden()
-    expect(thread.get_by_role("button", name="Reply", exact=True)).to_be_visible()
+    expect(reply).to_be_visible()
     wait_standing(page, "bold text")
     assert "back to page" in shortcut_bar_text(page)
     page.keyboard.press("Enter")
@@ -5369,7 +5413,6 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
     go_to_address(page, "Margin entry", "p1")
     expect(page.locator(".lf-margin-preview")).to_be_visible()
     expect(page.locator(".lf-margin-thread .lf-page-thread")).to_be_focused()
-    expect(page.locator(".lf-margin-thread leaf-text").first).to_be_hidden()
     page.keyboard.press("Escape")  # onto the element the thread is about
     expect(page.locator("#p1")).to_be_focused()
     expect(page.locator(".lf-margin-preview")).to_be_visible()
@@ -6920,6 +6963,10 @@ def test_generated_hints_are_browsable_without_entering_the_paint_layer(browser,
     page.keyboard.press("Enter")
     page.wait_for_url(re.compile(r"#arrival$"))
     expect(page.locator("#arrival")).to_be_focused()
+    expect(page.locator("#arrival")).to_be_in_viewport()
+    page.evaluate(
+        "() => document.scrollingElement.scrollTo({top: 0, behavior: 'instant'})"
+    )
     expect(page.locator(CHIPS)).to_have_count(0)
 
 
@@ -7053,7 +7100,7 @@ def test_the_arrows_say_which_way_the_section_under_the_user_goes(browser, serve
     # stand: without this the summary took no focus, the user was still on the page's own
     # row, and the line went on describing that one — an assertion that would have passed
     # for the wrong reason had the two been in the same state.
-    page.get_by_role("button", name=re.compile("Threads")).click()
+    page.locator(".lf-threads-toggle").click()
     page.locator(".lf-thread-summary").click()
     staged = page.locator("#msg-diff summary").first
     expect(staged).to_be_visible()
@@ -9029,7 +9076,7 @@ def test_the_key_line_keeps_local_and_page_hints_and_progressively_reveals_the_r
     symptom disappear merely by covering both surfaces."""
     page = open_page(browser, serve(NOTED_PAGE, comments=2))
     page.set_viewport_size({"width": 1200, "height": 800})
-    page.get_by_role("button", name=re.compile("^Threads")).click()
+    page.locator(".lf-threads-toggle").click()
 
     line = page.locator(".lf-shortcut-bar")
     visible_hints = line.locator(".lf-shortcut:not([hidden])")
@@ -9387,7 +9434,7 @@ def test_the_key_line_stands_in_a_band_of_its_own(browser, serve):
     # can move the line; the document's existing band remains a reading reservation for
     # the viewport-fixed line when the sheet closes again.
     resized(page, 420, 900)
-    page.get_by_role("button", name=re.compile("^Threads")).click()
+    page.locator(".lf-threads-toggle").click()
     rendered(page)
     covered = page.evaluate(FOOT_ROOM)
     assert covered["footprint"] == pytest.approx(ended["footprint"], abs=1), (
@@ -9625,7 +9672,7 @@ def test_escape_backs_out_from_a_control_nothing_is_typed_into(browser, serve):
     # The mouse opens between rounds because c is the select's own letter, and the
     # press has to be made the same way on both to be comparing anything.
     for control in ("#zoom", "#pick"):
-        page.get_by_role("button", name=re.compile("^Threads")).click()
+        page.locator(".lf-threads-toggle").click()
         expect(page.locator(".lf-thread-panel")).to_be_visible()
         page.locator(control).focus()
         expect(page.locator(".lf-shortcut-bar")).to_contain_text("let go")

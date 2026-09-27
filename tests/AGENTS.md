@@ -52,8 +52,11 @@ File-side fixtures live in `interact_support.py`, browser fixtures in
 `render_harness.py`, reusable browser cases in `render_cases_*.py`.
 `tests/runtime/*.test.mjs` holds what one runtime module decides on its own, in the
 document `tests/runtime/dom.mjs` puts up; `scripts/browser/application.test.mjs` owns
-the publisher's composition of those folds. `fixtures/pages/` holds full-page
-regressions under `examples/AGENTS.md`'s rules.
+the publisher's composition of those folds. Both build served threads and workflows
+with `served.mjs` from what `served_records.py` folds through the server: a record
+that carries every field the server sends, with only the fields a case is about
+changed, or a whole reading where the case rests on how the server relates them.
+`fixtures/pages/` holds full-page regressions under `examples/AGENTS.md`'s rules.
 
 A fold whose result rests on a platform primitive that differs between Node and
 Chrome, such as `Intl.Segmenter`, is a browser fact: its test stays in the browser
@@ -149,8 +152,10 @@ the collector is not an assertion.
 
 Open pages through `open_page`, and call `wait_until_ready` (`leaf.render_checks`)
 after any manual navigation. It waits on the runtime's one readiness reading
-(`pageReadiness`): upgrade, replay, current presentation, deferred arrivals, and
-settled rendering, in that order. They are independent facts, network quiet implies
+(`pageReadiness`): upgrade, replay, an `/api/state` answer the caller holds
+presented whole, current presentation, deferred arrivals, and settled rendering, in
+that order. `told` holds the answer the server gives now and asks only through the
+`state` stage, so it also answers behind a page held mid-gesture. They are independent facts, network quiet implies
 none of them, and a key pressed before replay can be lost silently. Never combine the
 stamps yourself, and never wait for a fixture's deferred widget by name; the arrived
 stage covers work an owner declares after presentation. Call `displayed` before a
@@ -160,8 +165,8 @@ pre-runtime measurement.
 
 Elapsed time, matching samples, a fixed count of animation frames, and network quiet
 all describe a page that has not started an effect as well as one that has finished
-it. Wait on a fact the system states instead; count frames (`ONE_FRAME`) only where
-one rendering update is itself the claim. A computed style under a transition
+it. Wait on a fact the system states instead; count frames (`one_frame` in
+`leaf.render_checks`) only where one rendering update is itself the claim. A computed style under a transition
 reports the animated value, so ask `getAnimations()` where the subject may be in
 transit. `page.evaluate` takes no timeout; state readiness synchronously in the page
 and poll it with `wait_for_probe`.
@@ -184,8 +189,8 @@ helpers in `render_harness.py`:
 - `told` waits until the page has applied what the server holds now;
 - `nudge` gives the page a reason to read; `ticked` waits for its next tick;
 - `undo` presses `z` once it is offered and waits for the withdrawal's trip;
-- `rendered` waits for every repaint the input so far queued, and `shortcut_bar_text`
-  reads the bar once after it;
+- `rendered` (`leaf.render_checks`) waits for every repaint the input so far queued,
+  and `shortcut_bar_text` reads the bar once after it;
 - `panel_settled`, `edge_settled`, `resized`, and `scroll_settled` end one kind of
   motion.
 

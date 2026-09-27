@@ -78,6 +78,7 @@ FUNCTIONS = {
     "leaf/render_gate/readings.py:margin_cover_advice": [],
     "leaf/render_gate/readings.py:shrunk_label_advice": [],
     "leaf/render_checks.py:wait_for_probe": ["name"],
+    "leaf/render_checks.py:one_frame": [],
     "leaf/render_checks.py:wait_until_ready": [],
     "playwright/sync_api/_generated.py:Browser.new_page": [],
     "playwright/sync_api/_generated.py:Browser.close": [],
@@ -195,12 +196,8 @@ def phases(sample: dict) -> tuple[dict[str, float], ...]:
             "ready and settled": in_passes("wait_until_ready")
             + in_passes("wait_for_probe", "pageSettled"),
             "readings": in_passes("_scheme_findings"),
-            "all frame waits (framePresented), whole run": total(
-                [
-                    span
-                    for span in named("wait_for_probe", within=render)
-                    if span["args"]["name"] == "framePresented"
-                ]
+            "all frame waits (one_frame), whole run": total(
+                named("one_frame", within=render)
             ),
         }
     rows["other"] = sample["wall"] - sum(rows.values())

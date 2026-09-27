@@ -2505,21 +2505,28 @@ def test_the_gutter_runs_beside_the_exhibit_and_no_further(source, browser, serv
     # document's height. `checkVisibility` is the question `lf-suggestion` already asks
     # for the same reason.
     specimens = page.locator("lf-specimen").evaluate_all(
-        "els => els.filter(e => e.checkVisibility()).map(e => e.id)"
+        """elements => elements.map(specimen => {
+            const path = [];
+            for (let tab = specimen.closest('lf-tab'); tab;
+                 tab = tab.parentElement.closest('lf-tab')) {
+                path.push({set: tab.parentElement.id, label: tab.getAttribute('label')});
+            }
+            return {id: specimen.id, path: path.reverse()};
+        })"""
     )
-    if not specimens:
-        owners = page.locator("#corpus > lf-tab:has(lf-specimen)")
-        assert owners.count(), (
-            "this page declares a specimen but no visible exhibit or corpus panel owns it"
-        )
-        label = owners.first.get_attribute("label")
-        page.get_by_role("tab", name=label, exact=True).click()
-        specimens = page.locator("lf-specimen").evaluate_all(
-            "els => els.filter(e => e.checkVisibility()).map(e => e.id)"
-        )
-    assert specimens, "this page shows no specimen: the reading below asserts nothing"
+    assert specimens, (
+        "this page declares no specimen: the reading below asserts nothing"
+    )
 
-    for spec in specimens:
+    for specimen in specimens:
+        for owner in specimen["path"]:
+            page.locator(f"#{owner['set']}").get_by_role(
+                "tab", name=owner["label"], exact=True
+            ).click()
+        spec = specimen["id"]
+        assert page.locator(f"#{spec}").evaluate("el => el.checkVisibility()"), (
+            f"{spec} remained hidden after opening its tabs"
+        )
         ink = tuple(
             int(n)
             for n in re.findall(
@@ -2624,12 +2631,6 @@ def test_the_gutter_runs_beside_the_exhibit_and_no_further(source, browser, serv
             )
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="lf-board caps its minimum at the shell less the column's gutters, which a "
-    "specimen's own rule and inset overrun on a phone; TODO.md, Layouts, 'Cap a "
-    "widget's minimum by the box that holds it'",
-)
 def test_a_specimen_holds_a_wide_exhibit_inside_the_column(browser, serve):
     """An exhibit wider than the column scrolls inside its own box, as it does
     anywhere else on the page. What makes that true here is one declaration —

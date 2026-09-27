@@ -22,8 +22,8 @@ subpackage's initializer is only a marker, never a second API.
 - `event_meaning`: admitted widget-command meaning and layer compatibility;
 - `interaction_log`: page-local diagnostics of browser gestures and requests;
 - `events`, `projection`, `document_reading`, `construction`: standing event and
-  durable state folds, the shared document and decision reading, and effective
-  content with its origins;
+  durable state folds, the shared document and decision reading, and a thread's
+  frozen markup as effective content with its origins;
 - `page_snapshot`: the transaction-consistent reading one browser preview serves;
 - `agent_state`, `read_state`, `gesture_words`, `history`, `transcript`: agent-facing
   page and thread readings, what the user has not read, what a gesture's ids say,

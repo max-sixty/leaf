@@ -68,6 +68,32 @@ export function registerReadingRegion({ id, host, body }) {
   };
 }
 
+// The box a page's Layout makes scroll, which no widget owns: the workspace's body,
+// which scrolls as a whole where a pane in it does not bound itself (layouts.css). The
+// stylesheet marks it (`--lf-reading-region: layout`) and it is registered like any
+// other region, so a flowing pane inside it is carried by it rather than by the page.
+// Chrome layout asks on every pass, since a revision can replace `main`'s children.
+let layoutRegion = null;
+export function syncLayoutRegion() {
+  const main = document.querySelector("main");
+  const body = main
+    ? [...main.children].find(
+        (child) =>
+          child.checkVisibility() &&
+          getComputedStyle(child).getPropertyValue("--lf-reading-region").trim() ===
+            "layout",
+      )
+    : undefined;
+  if (body === layoutRegion?.body) return;
+  layoutRegion?.stop();
+  layoutRegion = body
+    ? {
+        body,
+        stop: registerReadingRegion({ id: "lf-region:layout", host: body, body }),
+      }
+    : null;
+}
+
 export const readingRegion = (id) => {
   const region = regions.get(id);
   return live(region) ? regionRecord(region) : undefined;

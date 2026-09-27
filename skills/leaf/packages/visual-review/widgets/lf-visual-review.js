@@ -11,6 +11,7 @@ import {
   compoundReadingRegionId,
   consumeThreads,
   failSoft,
+  holdFocus,
   layoutChanged,
   nextRender,
   notice,
@@ -829,10 +830,9 @@ customElements.define(
     #select(id) {
       if (!this.#caseEntries.has(id)) return;
       const currentEntry = this.#caseEntries.get(this.#selected);
-      const active = document.activeElement;
-      const leavingCase = Boolean(active && currentEntry?.article.contains(active));
-      const disposition = leavingCase
-        ? active.closest(".lf-vr-disposition")?.dataset.disposition
+      const restoreFocus = currentEntry && holdFocus(currentEntry.article);
+      const disposition = restoreFocus
+        ? document.activeElement.closest(".lf-vr-disposition")?.dataset.disposition
         : null;
       if (id !== this.#selected) this.#scope = "focus";
       this.#selected = id;
@@ -849,24 +849,15 @@ customElements.define(
       layoutChanged(this);
       this.#scheduleEvidenceLayout();
       paintKeys();
-      // Moving the shared inspector between articles makes the browser drop its focus.
-      // Restore that exact destination; a hidden case-local control instead lands on
-      // the corresponding disposition — or the primary disposition when it has no
+      // Moving the shared inspector between articles makes the browser drop its focus,
+      // which the hold hands back. A hidden case-local control instead lands on the
+      // corresponding disposition — or the primary disposition when it has no
       // counterpart — rather than leaving a keyboard user on the document body.
-      if (
-        leavingCase &&
-        (document.activeElement !== active ||
-          !active.isConnected ||
-          !active.checkVisibility())
-      ) {
-        const counterpart =
-          active.isConnected && active.checkVisibility()
-            ? active
-            : disposition
-              ? selected.article.querySelector(`[data-disposition="${disposition}"]`)
-              : selected.article.querySelector(".lf-vr-disposition");
-        counterpart?.focus({ preventScroll: true });
-      }
+      restoreFocus?.(
+        disposition &&
+          selected.article.querySelector(`[data-disposition="${disposition}"]`),
+        selected.article.querySelector(".lf-vr-disposition"),
+      );
     }
 
     #step(delta) {

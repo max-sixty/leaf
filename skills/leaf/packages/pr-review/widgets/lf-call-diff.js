@@ -9,6 +9,7 @@ import {
   navigateToDatum,
   offer,
   projectData,
+  setChildren,
   watchData,
 } from "/runtime/widget-api.js";
 
@@ -63,18 +64,6 @@ function parse(text) {
       status,
     };
   });
-}
-
-function reconcileChildren(parent, wanted) {
-  const retained = new Set(wanted);
-  for (const child of [...parent.childNodes])
-    if (child.nodeType !== Node.ELEMENT_NODE) child.remove();
-  let cursor = parent.firstElementChild;
-  for (const child of wanted) {
-    if (child !== cursor) parent.insertBefore(child, cursor);
-    cursor = child.nextElementSibling;
-  }
-  for (const child of [...parent.children]) if (!retained.has(child)) child.remove();
 }
 
 function buildLine(tag = "div") {
@@ -290,7 +279,7 @@ customElements.define(
 
       const headerTarget =
         this.querySelector(":scope > .lf-call-line[data-meta]") ?? buildLine();
-      reconcileChildren(this, [
+      setChildren(this, [
         toolbar,
         headerTarget,
         ...[...groups.values()].map(({ group }) => group),
@@ -328,15 +317,15 @@ customElements.define(
           rootNode.append(count);
         }
         keepsText(count, groupLabel(groupRecords));
-        reconcileChildren(
+        setChildren(
           parts.body,
           groupRecords
             .filter((record) => !record.root)
             .map((record) => nodesByKey.get(record.key)),
         );
-        reconcileChildren(parts.group, [rootNode, parts.body]);
+        setChildren(parts.group, [rootNode, parts.body]);
       }
-      reconcileChildren(this, [
+      setChildren(this, [
         toolbar,
         header,
         ...[...groups.values()].map(({ group }) => group),

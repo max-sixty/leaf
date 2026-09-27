@@ -181,6 +181,12 @@ How wide the page is, and how its blocks are arranged, is the page's choice, mad
 Layout class or its own CSS (`page-authoring.md`, "Layouts"); a package's element fills
 the box it is given, and its `x-space` states the width it prefers, which a page may
 override.
+A widget that needs a minimum width to stay usable, such as a board's columns at a
+readable size, states it as `min-inline-size` capped by the box it stands in:
+`min(<its floor>, 100cqi, var(--lf-box-cap, 100vw))`. `100cqi` measures the nearest size
+container, which is the page's shell or a framed box around the widget (a pane's body, a
+card), and a specimen, which cannot be one, states `--lf-box-cap`. So in a box
+narrower than the floor the widget scrolls inside itself rather than widening the page.
 When a bounded widget's scroller should be a box inside it, such as a listing under a
 caption that stays in view, the package theme moves the bound there under
 `[data-lf-bound]` and declares `--lf-bound-box: 1` on that box, which is the one Leaf
@@ -417,11 +423,21 @@ continues from there and no `tabindex` is left on the page behind the user. What
 it is a widget's own Escape step landing them back in the thing it took them out of: the
 patch a file filter belongs to, the exhibit a box was about.
 
+A module that moves, hides, or replaces nodes the user may be standing in, as a reorder or
+a re-render does, calls `holdFocus(scope)` before the change and the function it returns
+after it. Moving a focused node drops its focus to the page body; the returned function
+puts the user back on that node, with its caret, or on the first drawn stand-in it is
+passed, such as the replacement keyed on the same identity. It does nothing once focus was
+placed elsewhere in the meantime, and `holdFocus` returns `null` where the user stands
+outside `scope`.
+
 A module that takes the user to a thread calls `openThread(id, {focus})`
 with the Thread's `id`. It opens the thread where the page shows it, inline beside
 its passage or widget, and in Threads when it has no place on the page, the same choice a
 mark and `t` make; `focus: "thread"` lands on the thread and the default `"reply"` lands in
-its reply box. A place on the page is an ordinary fragment link.
+its reply box. A place on the page is an ordinary fragment link; Leaf follows it the
+way it travels to a thread, clearing a panel that covers the page and opening whatever
+holds the element.
 
 A module that names an element away from it, in a feed row or a summary, reads the page's
 shared names rather than its own. `addressableName(element)` is the name the authoring
@@ -516,8 +532,8 @@ whatever its `lfElementsFor(key)` maps to elements under itself. `lf-code` answe
 `hi` grammar, so `"3-5,8"` addresses those lines.
 
 `navigateToDatum(widget, attribute, key, messages)` travels to the first element a key
-addresses. Leaf resolves declared shadow trees, asks the target to hydrate lazy data,
-opens its containing disclosure, focuses that disclosure, updates the fragment, and
+addresses. Leaf resolves declared shadow trees, asks the target to hydrate lazy data or
+draw a visual part it shows only in another state, opens its containing disclosure, focuses that disclosure, updates the fragment, and
 announces the supplied `success` or `missing` message. A lazy target may implement
 `lfRevealDatum(key)` to return its hydration promise and `lfDataDatum(key)` to map a
 semantic key to the rendered projected element.
@@ -807,8 +823,9 @@ verb, detail})` sends it.
 
 A widget that renders the page's history declares `x-history` and reads it through
 `watchHistory(owner, callback)`: the server's rows, newest first, each already
-carrying its thread, whether it was undone, and a gesture's words as the document it
-was made in had them. The widget words those facts; it does not fold the log.
+carrying its thread, whether it was undone, the name an agent's row is shown under
+as `agent`, and a gesture's words as the document it was made in had them. The
+widget words those facts; it does not fold the log.
 
 ```js
 defineRequestElement("lf-operations", {
@@ -1084,7 +1101,9 @@ non-empty rendering key, unique in that projection; `render` receives
 preserves a focused control or selection. Leaf marks those words as readable data
 rather than authored prose and reconciles their order by key. A renderer
 that owns a nested layout passes `{nested: true}` and returns its existing descendants;
-Leaf labels those nodes without moving them. Add `labelOf(record, index)` when a thread
+Leaf labels those nodes without moving them, and the module orders each container with
+`setChildren(parent, nodes)`, which moves only what is out of place and keeps the user
+in a node it moves. Add `labelOf(record, index)` when a thread
 should name a projected datum with a human coordinate; the rendering key remains opaque to
 the runtime. A widget declaring `x-data` passes `{snapshot}` with the delivery from
 `watchData`, including `null` when no current value exists. Leaf stamps the projection
@@ -1118,7 +1137,8 @@ widget with that collection initially and after relevant application updates; it
 function for `disconnectedCallback`. Each widget keeps its own search, filter, and
 order state and derives its displayed rows from the collection. `threadTurns(thread)`
 selects a Thread's displayed turns, and `threadSummary(thread)` gives its topic and
-latest activity. `openThread(thread.id)` takes the user to Leaf's canonical
+latest activity. An agent-authored message or closing event carries `agent`, the
+name it is shown under. `openThread(thread.id)` takes the user to Leaf's canonical
 conversation surface for that Thread. The widget does not need to render or own the
 conversation to provide that route.
 

@@ -7,21 +7,6 @@
       content="An animated trace of the merge sort Rust shipped in 1.15: natural runs, insertion-sort extension, the run stack's invariants, and merges through a half-size buffer, beside excerpts of the real source that follow each step."
     />
     <style>
-      .sort-intro {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-        gap: clamp(18px, 3vw, 48px);
-        align-items: start;
-      }
-      .sort-intro > :is(h1, p) {
-        margin: 0;
-      }
-      @media (width < 1140px) {
-        .sort-intro {
-          grid-template-columns: 1fr;
-          gap: 8px;
-        }
-      }
       /* The sort beside the source it follows, stacked where the workspace flows. */
       #sort-regions {
         display: grid;
@@ -177,19 +162,8 @@
   </head>
   <body>
     <main class="layout-workspace" id="sort-workspace">
-      <header class="sort-intro">
+      <header>
         <h1>How Rust's 2016 merge sort uses the order already in a slice</h1>
-        <p id="sort-lede">
-          In December 2016
-          <a href="https://github.com/rust-lang/rust/pull/38192"
-            >rust-lang/rust#38192</a
-          >
-          replaced <code>slice::sort</code> with a merge sort borrowing from TimSort: it
-          cuts the slice into runs that are already in order, and merges them under two
-          stack invariants. On the PR's benchmarks, sorting an already ascending slice
-          got 89% faster, a descending one 95%, and a random one 4%. Play it on each
-          input; the source on the right follows along.
-        </p>
       </header>
       <div id="sort-regions">
         <lf-pane id="sort-stage-pane" label="The sort">
@@ -206,6 +180,17 @@
         <lf-pane id="sort-source-pane" label="Source">
           <header><h2>The code as it shipped in Rust 1.15</h2></header>
           <div id="sort-source">
+            <p id="sort-lede">
+              In December 2016
+              <a href="https://github.com/rust-lang/rust/pull/38192"
+                >rust-lang/rust#38192</a
+              >
+              replaced <code>slice::sort</code> with a merge sort borrowing from
+              TimSort: it cuts the slice into runs that are already in order, and merges
+              them under two stack invariants. On the PR's benchmarks, sorting an
+              already ascending slice got 89% faster, a descending one 95%, and a random
+              one 4%. Play it on each input; this source follows along.
+            </p>
             <p id="sort-source-note">
               Quoted from
               <a

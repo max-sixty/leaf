@@ -125,10 +125,15 @@ class Harness:
 class EnvironmentHarness(Harness):
     """A harness the environment implies, by the variable its session id arrives
     in. It also names the display default a launch that set no LEAF_AGENT gets.
-    A harness that declares itself, as an embedded host does, states neither."""
+    A harness that declares itself, as an embedded host does, states neither.
+
+    `identity_variables` is every variable the harness reads to know which
+    session this is and how long it lives: its session variables, then the ones
+    `lifetime` reads."""
 
     default_agent: ClassVar[str]
     session_variables: ClassVar[tuple[str, ...]]
+    identity_variables: ClassVar[tuple[str, ...]]
 
 
 class ClaudeCodeHarness(EnvironmentHarness):
@@ -138,6 +143,7 @@ class ClaudeCodeHarness(EnvironmentHarness):
     name = "claude-code"
     default_agent = "Claude"
     session_variables = ("CLAUDE_CODE_SESSION_ID",)
+    identity_variables = (*session_variables, "CLAUDE_PID", "CLAUDE_JOB_DIR")
     # Claude Code runs the prompt hook on every turn a background task's end
     # opens, idle or mid-turn, and adds what it returns to that turn's context.
     hook_delivers = True
@@ -210,6 +216,7 @@ class CodexHarness(EnvironmentHarness):
     name = "codex"
     default_agent = "Codex"
     session_variables = ("LEAF_SESSION_ID", "CODEX_THREAD_ID")
+    identity_variables = session_variables
 
     def lifetime(self) -> dict:
         """Codex states no process, so this one is discovered: the nearest
@@ -338,13 +345,19 @@ _ENVIRONMENT_HARNESSES: tuple[type[EnvironmentHarness], ...] = (
 HARNESSES: dict[str, type[Harness]] = {
     harness.name: harness for harness in (*_ENVIRONMENT_HARNESSES, EmbeddedHarness)
 }
-# Every variable a host session states its id in. A build that publishes pages
-# scrubs the set so the builder's own session does not sign them
-# (`scripts/site.py`).
-SESSION_VARIABLES = tuple(
-    variable
-    for harness in _ENVIRONMENT_HARNESSES
-    for variable in harness.session_variables
+# The display name a launch gives its session, whichever harness it runs under.
+AGENT_VARIABLE = "LEAF_AGENT"
+# Every variable that makes a process a host session: each harness's identity and
+# the display name. A process that must not act as the session it was started from
+# scrubs the set: a build that publishes pages (`scripts/site.py`), an eval's child
+# (`scripts/eval_harness.py`), the test suite (`tests/conftest.py`).
+IDENTITY_VARIABLES = (
+    *(
+        variable
+        for harness in _ENVIRONMENT_HARNESSES
+        for variable in harness.identity_variables
+    ),
+    AGENT_VARIABLE,
 )
 
 
@@ -364,7 +377,7 @@ def session_harness() -> Harness | None:
             if session := os.environ.get(variable):
                 return harness(
                     session=session,
-                    agent=os.environ.get("LEAF_AGENT") or harness.default_agent,
+                    agent=os.environ.get(AGENT_VARIABLE) or harness.default_agent,
                 )
     return None
 

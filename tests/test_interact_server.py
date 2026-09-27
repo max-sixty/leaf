@@ -274,8 +274,9 @@ def test_specimens_use_captured_resources_and_independent_event_logs(server, pag
     root = "/revisions/" + files_model.revision_path(page_dir, 1).stem
     assert f'data-lf-entry="{root}/leaf.js"'.encode() in document
     assert f'data-lf-page-root="{child.removeprefix(server)}"'.encode() in document
-    assert b"<html data-lf-contained" in document
-    assert re.search(rb"<body[^>]*\binert", document)
+    served = structure_model.SourceDocument(document.decode()).tree
+    assert "data-lf-contained" in served.find("html").attrs
+    assert "inert" in served.find("body").attrs
     assert fetch(child + "/theme.css") == (200, captured_theme)
     [module_path] = re.findall(rb'src="([^"]+/page/specimen.js)"', document)
     assert module_path == f"{root}/page/specimen.js".encode()
@@ -2272,7 +2273,9 @@ def test_undo_candidates_keep_only_standing_user_gestures():
             "text": "answered",
         },
     ]
-    empty = projection_model.StateProjection({}, {}, {}, {}, {}, frozenset())
+    empty = projection_model.StateProjection(
+        {}, {}, {}, {}, {}, frozenset(), frozenset()
+    )
     document = document_reading_model.DocumentReading(
         None, empty, {}, None, [], {}, {}, {}
     )
@@ -5265,7 +5268,8 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
     corrupt_url = neighbour_page(pages / "corrupt", title="A corrupted page")
     (pages / "corrupt" / "events.jsonl").write_text('{"kind": "note", "author"')
     # Presence belongs to the same isolation boundary as the log and version. A
-    # malformed private claim on another page must not make this page's poll fail.
+    # malformed private claim on another page must not make this page's poll fail:
+    # it is absent from that page's reading, which lists the page with no claims.
     malformed = pages / "malformed-status"
     neighbour_page(malformed, title="Malformed status")
     files_model.write_json(
@@ -5324,7 +5328,12 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
             "obligations": [],
         },
     }
-    assert state["others"] == [
+    [malformed_row] = [
+        row for row in state["others"] if row["title"] == "Malformed status"
+    ]
+    assert malformed_row["status"]["state"] == "working"
+    assert malformed_row["claims"] == [] and malformed_row["workflows"] == []
+    assert [row for row in state["others"] if row is not malformed_row] == [
         {
             "title": "A corrupted page",
             "url": corrupt_url,

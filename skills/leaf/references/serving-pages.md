@@ -132,8 +132,8 @@ that page. First read the page:
 leaf page state <page>
 ```
 
-Read `content` for the current document and its construction origins, then the active
-revision, open Asks, current thread state, and `measurement_lag` for figures
-whose sources have run again. Before editing, follow `authoring-revisions.md`'s "Read
+Read the active revision's HTML (`active.file`) and the standing `state` over it,
+then open Asks, current thread state, and `measurement_lag` for figures whose sources
+have run again. Before editing, follow `authoring-revisions.md`'s "Read
 before editing" section. Then run `leaf wait <page>` to claim it. Starting a server
 when the standing one is already live prints its URL without changing its lifetime.

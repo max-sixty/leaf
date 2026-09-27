@@ -13,7 +13,7 @@ from leaf.files import replace_files, revision_path
 from leaf.hosting import TemporaryPageServer
 from leaf.live_shell import write_live_shell
 from leaf.revision_artifact import RESOURCE_TYPES, read_artifact
-from leaf.revision_delivery import layer_import_map
+from leaf.revision_delivery import json_script, layer_import_map
 from leaf.revisioning import activate_source
 from leaf.structure import SourceDocument
 from playwright.sync_api import expect
@@ -105,7 +105,7 @@ def test_published_shells_bind_documents_and_resources_to_their_revision(
         page_root=page_root,
         asset_root=asset_root,
         release_id="release",
-        before_runtime=additions,
+        head=additions,
     )
 
     for version, revision, artifact in [
@@ -148,7 +148,7 @@ def test_published_shells_bind_documents_and_resources_to_their_revision(
             "/leaf.js"
         ].data
         assert artifact.resources["/runtime/bootstrap.js"].data.decode() in document
-        assert layer_import_map(root) in document
+        assert json_script(layer_import_map(root)) in document
         # CSP authorizes what executes: the nonce the policy names is on every script
         # this delivery composed, and the runtime's stylesheet text is inert data.
         policy = next(
@@ -297,3 +297,11 @@ def test_a_browser_executes_the_published_capture_with_live_api_routes(
         assert root + "/page/widgets/lf-options.js" in loaded
         assert root + "/page/nested/value.js" in loaded
         assert root + "/page/nested/theme.css" in loaded
+        # A layer module named by its rooted path, from a document a directory below
+        # the page root, is the revision's: the instance the runtime itself imported.
+        assert page.evaluate(
+            """async root =>
+              (await import('/runtime/widget-api.js')) ===
+              (await import(`${root}/runtime/widget-api.js`))""",
+            root,
+        )

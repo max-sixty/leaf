@@ -12,6 +12,7 @@ from leaf import event_log as events_model
 from leaf import render_checks as render_checks_model
 from leaf import service as service_model
 from leaf import session as session_model
+from leaf.render_checks import rendered
 from leaf.served_state import page as served_page
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -56,7 +57,6 @@ from render_harness import (
     pane_posture,
     panel_settled,
     regions_side_by_side,
-    rendered,
     resized,
     round_trip,
     scroll_settled,
@@ -394,7 +394,9 @@ def test_unchanged_margin_refresh_cost_is_bounded_by_refresh_count(browser, serv
     # scales with every Page Map location.
     assert work["LayoutCount"] <= refreshes * 8, work
     assert work["RecalcStyleCount"] <= refreshes * 30, work
-    assert refreshes <= geometry_reads <= refreshes * 2, geometry_reads
+    # Each refresh reads `main` in the margin pass, the Page Map's render and the
+    # residency reading (margin-layout.js, `scheduleResidency`), each once.
+    assert refreshes <= geometry_reads <= refreshes * 3, geometry_reads
 
 
 # Both pages stand still with nothing dispatched, so both give the settled reading:
@@ -4551,7 +4553,7 @@ def test_a_forced_inline_thread_keeps_its_control_inside_the_margin_budget(
     assert geometry["coveredBottomChrome"] == 0, geometry
     reply = page.locator(".lf-margin-preview leaf-text")
     page.locator(".lf-margin-preview").get_by_role(
-        "button", name="Reply", exact=True
+        "textbox", name="Reply", exact=True
     ).click()
     write(reply, "The covered terrace is easier to find.")
     expect(page.locator(".lf-margin-preview")).to_be_visible()
@@ -4660,6 +4662,11 @@ def test_a_thread_beside_its_cluster_takes_the_room_to_the_visible_edge(browser,
     width to re-pick rather than reading as a layout regression."""
     page = open_page(browser, serve(FEATURE_GALLERY))
     page.emulate_media(reduced_motion="reduce")
+    # The gallery's sidenote would stand in the margin at this width and move the column
+    # left for its room, which holds the room beside the cluster at more than the card's
+    # measure; without it the column stays centred, the arrangement this width was
+    # picked for.
+    page.evaluate("document.getElementById('bg-compare-note').remove()")
     resized(page, 1360, 900)
     page.evaluate("location.hash = 'bg-margin-controls'")
     page.locator("body").focus()
@@ -5195,8 +5202,8 @@ def test_the_margin_reply_pinned_to_the_card_foot_shows_its_whole_ring(browser, 
     """A reply stuck over a transcript scrolled partway still has room for its ring.
 
     Pinned, the reply row stands on the edge the transcript clips to, where the list's
-    scroll padding reserves nothing. Both of the row's rings are read: the resting
-    Reply control's from the keyboard, and the text box's once the user is in it.
+    scroll padding reserves nothing. The ring is read with the user in the box from
+    the keyboard.
     """
     page, preview, transcript = open_long_thread(browser, serve)
     row = preview.locator(".lf-say")
@@ -5207,18 +5214,101 @@ def test_the_margin_reply_pinned_to_the_card_foot_shows_its_whole_ring(browser, 
         "the reply row is not pinned over the transcript"
     )
 
-    disclosure = preview.get_by_role("button", name="Reply", exact=True)
-    page.keyboard.press("Tab")
-    disclosure.focus()
-    expect(disclosure).to_be_focused()
-    assert disclosure.evaluate("node => node.matches(':focus-visible')")
-    assert standing_ring(page)["cuts"] == []
-
-    disclosure.press("Enter")
-    editor = preview.locator("leaf-text")
-    expect(editor).to_be_focused()
+    reply = preview.get_by_role("textbox", name="Reply", exact=True)
+    page.keyboard.press("Tab")  # keyboard modality, so the focus below is visible
+    reply.focus()
+    expect(reply).to_be_focused()
     assert page.evaluate(pinned, [row.element_handle(), transcript.element_handle()])
     assert standing_ring(page)["cuts"] == []
+
+
+# Whether a message stands wholly between the transcript's top and the reply row pinned
+# over its foot, which is the part of the transcript the user can read.
+SHOWN_ABOVE_THE_REPLY = """message => {
+  const list = message.closest('.lf-margin-preview-list').getBoundingClientRect();
+  const reply = message.closest('.lf-page-thread').querySelector(':scope > .lf-say')
+    .getBoundingClientRect();
+  const box = message.getBoundingClientRect();
+  return {shown: box.top >= list.top - 0.5 && box.bottom <= reply.top + 0.5,
+          message: [box.top, box.bottom], list: list.top, reply: reply.top};
+}"""
+
+
+def long_thread_in_reply(browser, serve):
+    """The long thread's margin card with the user in its reply box, entered by
+    Enter on the thread. Scroll anchoring is off on the transcript, so every move read
+    is the runtime's own."""
+    page, preview, transcript = open_long_thread(browser, serve)
+    transcript.evaluate("list => list.style.overflowAnchor = 'none'")
+    thread = preview.locator(".lf-page-thread").first
+    expect(thread).to_be_focused()
+    page.keyboard.press("Enter")
+    editor = preview.locator("leaf-text")
+    expect(editor).to_be_focused()
+    rendered(page)
+    return page, preview, editor, transcript
+
+
+def test_replying_on_a_long_margin_card_shows_the_turn_being_answered(browser, serve):
+    """The reply row is pinned to the transcript's foot, so it always reads as shown
+    and a landing aimed at it moved the transcript by its scroll padding alone: the
+    user wrote under a transcript stopped partway up. Entering the reply lands the
+    thread's end."""
+    _page, preview, _editor, _transcript = long_thread_in_reply(browser, serve)
+    reading = preview.locator(".lf-page-thread-msg").last.evaluate(
+        SHOWN_ABOVE_THE_REPLY
+    )
+    assert reading["shown"], reading
+
+
+@pytest.mark.parametrize("place", ["end", "partway"])
+def test_a_margin_reply_send_shows_the_sent_turn(browser, serve, place):
+    page, preview, editor, transcript = long_thread_in_reply(browser, serve)
+    write(editor, "My new reply words")
+    transcript.evaluate(
+        "(list, place) => list.scrollTop = place === 'end' ? list.scrollHeight : 40",
+        place,
+    )
+    with sending(page, "the reply"):
+        editor.press("Enter")
+    sent = preview.locator(".lf-page-thread-msg").last
+    expect(sent).to_contain_text("My new reply words")
+    rendered(page)
+    reading = sent.evaluate(SHOWN_ABOVE_THE_REPLY)
+    assert reading["shown"], reading
+
+
+def test_typing_in_a_margin_reply_leaves_the_transcript_where_the_reader_put_it(
+    browser, serve
+):
+    """The growth reveal aimed at the pinned row crept the transcript by its scroll
+    padding on every keystroke, pulling a reader partway up down to the end."""
+    page, _preview, editor, transcript = long_thread_in_reply(browser, serve)
+    transcript.evaluate("list => list.scrollTop = 100")
+    rendered(page)
+    editor.type("twenty characters!!!")
+    rendered(page)
+    assert transcript.evaluate("list => list.scrollTop") == 100
+
+
+def test_a_block_pasted_into_a_margin_reply_keeps_the_last_turn_above_it(
+    browser, serve
+):
+    """A pinned row grows upward over the transcript, so the transcript moves by what
+    the row now covers. `test_a_growing_margin_reply_keeps_the_previous_turn_visible`
+    reads the same contract on a card too short for the editor to grow."""
+    page, preview, editor, transcript = long_thread_in_reply(browser, serve)
+    transcript.evaluate("list => list.scrollTop = list.scrollHeight")
+    editor.type("first")
+    rendered(page)
+    grew = editor.evaluate("box => box.getBoundingClientRect().height")
+    page.keyboard.insert_text("\n" + "\n".join(f"pasted {n}" for n in range(30)))
+    rendered(page)
+    assert editor.evaluate("box => box.getBoundingClientRect().height") > grew + 100
+    reading = preview.locator(".lf-page-thread-msg").last.evaluate(
+        SHOWN_ABOVE_THE_REPLY
+    )
+    assert reading["shown"], reading
 
 
 def test_a_growing_margin_reply_keeps_the_previous_turn_visible(browser, serve):
@@ -5228,7 +5318,7 @@ def test_a_growing_margin_reply_keeps_the_previous_turn_visible(browser, serve):
     preview = page.locator(".lf-margin-preview")
     expect(preview).to_be_visible()
     transcript = preview.locator(".lf-margin-preview-list")
-    preview.get_by_role("button", name="Reply", exact=True).click()
+    preview.get_by_role("textbox", name="Reply", exact=True).click()
     editor = preview.locator("leaf-text")
     transcript.evaluate("list => list.scrollTop = list.scrollHeight")
     write(editor, "A reply that grows.\n" * 30)
@@ -5255,7 +5345,7 @@ def test_a_short_margin_thread_lets_the_editor_use_available_room(browser, serve
     resized(page, 1440, 900)
     page.locator('[data-lf-margin-for="open"] .lf-margin-marker').click()
     preview = page.locator(".lf-margin-preview")
-    preview.get_by_role("button", name="Reply", exact=True).click()
+    preview.get_by_role("textbox", name="Reply", exact=True).click()
     editor = preview.locator("leaf-text")
     write(editor, "A reply with several lines.\n" * 8)
     assert editor.evaluate("input => input.getBoundingClientRect().height") > 120
@@ -5371,7 +5461,7 @@ def test_agent_status_leaves_the_margin_transcript_where_the_user_scrolled_it(
     """
     page, preview, transcript = open_long_thread(browser, serve)
     transcript.evaluate("list => list.style.overflowAnchor = 'none'")
-    preview.get_by_role("button", name="Reply", exact=True).click()
+    preview.get_by_role("textbox", name="Reply", exact=True).click()
     expect(preview.locator("leaf-text")).to_be_focused()
     place = "list => [list.scrollTop, list.scrollHeight - list.clientHeight]"
     settled = (
@@ -5411,7 +5501,7 @@ def test_agent_status_leaves_the_margin_transcript_where_the_user_scrolled_it(
 def test_the_margin_reply_keeps_its_shape_when_the_user_enters_it(
     browser, serve, color_scheme
 ):
-    """The compact reply is the editor at rest, not a differently shaped precursor."""
+    """The compact reply keeps its box and face when the user enters it."""
     page = open_page(
         browser,
         serve(ASK_PAGE, events=[COMMENT_ON_ASK]),
@@ -5421,8 +5511,7 @@ def test_the_margin_reply_keeps_its_shape_when_the_user_enters_it(
     page.locator('.lf-margin-marker[data-lf-kinds~="comment"]').click()
 
     preview = page.locator(".lf-margin-preview")
-    reply = preview.get_by_role("button", name="Reply", exact=True)
-    editor = preview.locator("leaf-text")
+    reply = preview.get_by_role("textbox", name="Reply", exact=True)
     expect(reply).to_be_visible()
     resting_box = reply.bounding_box()
     message_left = preview.locator(".lf-page-thread-msg").first.bounding_box()["x"]
@@ -5444,14 +5533,14 @@ def test_the_margin_reply_keeps_its_shape_when_the_user_enters_it(
     reply.hover()
     expect(reply).to_have_css("background-color", resting_face[0])
     reply.click()
-    expect(editor).to_be_focused()
-    assert editor.bounding_box() == pytest.approx(resting_box, abs=0.5)
-    assert text_left(editor) == pytest.approx(message_left, abs=0.5)
+    expect(reply).to_be_focused()
+    assert reply.bounding_box() == pytest.approx(resting_box, abs=0.5)
+    assert text_left(reply) == pytest.approx(message_left, abs=0.5)
     assert preview.locator(".lf-margin-preview-list").evaluate(
         "list => list.scrollWidth === list.clientWidth"
     )
     assert (
-        editor.evaluate(
+        reply.evaluate(
             """node => {
           const style = getComputedStyle(node);
           return [style.backgroundColor, style.borderRadius];
@@ -5530,9 +5619,8 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
     expect(resolve.locator('svg[data-lf-icon="check"]')).to_have_count(1)
     expect(close).to_have_text("")
     expect(resolve).to_have_text("")
-    reply_button = preview.get_by_role("button", name="Reply", exact=True)
-    expect(reply_button).to_be_visible()
-    expect(preview.locator("leaf-text")).to_be_hidden()
+    reply = preview.get_by_role("textbox", name="Reply", exact=True)
+    expect(reply).to_be_visible()
     geometry = preview.evaluate(
         """preview => {
           const thread = preview.querySelector('.lf-page-thread');
@@ -5563,18 +5651,16 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
     # The card opens on the row containing Dismiss and Resolve.
     assert geometry["metaRow"]["top"] <= geometry["close"]["top"]
     assert geometry["metaRow"]["bottom"] >= geometry["close"]["bottom"]
-    reply_button.click()
-    expect(preview.locator("leaf-text")).to_be_visible()
+    reply.click()
+    expect(reply).to_be_focused()
     page.locator("h1").click()
     expect(preview).to_be_hidden()
     marker.click()
-    expect(reply_button).to_be_visible()
-    expect(preview.locator("leaf-text")).to_be_hidden()
-    reply_button.click()
-    expect(reply_button).to_be_hidden()
-    expect(preview.locator("leaf-text")).to_be_focused()
-    expect(preview.locator("leaf-text")).to_be_visible()
-    write(preview.locator("leaf-text"), "Keep this draft visible.")
+    expect(reply).to_be_visible()
+    expect(reply).not_to_be_focused()
+    reply.click()
+    expect(reply).to_be_focused()
+    write(reply, "Keep this draft visible.")
     page.locator(".lf-margin-preview-close").click()
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
     expect(marker).to_be_focused()
@@ -5807,14 +5893,14 @@ def test_a_thread_can_be_answered_in_the_margin_without_opening_threads(
         """card => ({left: card.getBoundingClientRect().left,
                       top: card.getBoundingClientRect().top,
                       height: card.getBoundingClientRect().height,
-                      placement: card.dataset.lfThreadPlacement,
+                      held: 'lfThreadHeld' in card.dataset,
                       placedLeft: card.style.left, placedTop: card.style.top})"""
     )
     assert placed["left"] == pytest.approx(
         float(placed["placedLeft"].removesuffix("px")), abs=0.5
     ), placed
     positioned_top = float(placed["placedTop"].removesuffix("px"))
-    if placed["placement"] == "right":
+    if placed["held"]:
         positioned_top -= placed["height"]
     assert placed["top"] == pytest.approx(positioned_top, abs=0.5), placed
     expect(thread.locator(".lf-page-thread-body")).to_have_text(COMMENT_ON_ASK["text"])
@@ -5845,8 +5931,8 @@ def test_a_thread_can_be_answered_in_the_margin_without_opening_threads(
     expect(reply).to_have_attribute("placeholder", "Reply c")
     expect(marker).to_have_attribute("data-lf-target-selected", "")
     expect(marker).to_have_css("border-top-color", token_colour(page, "--accent"))
-    expect(reply).to_be_hidden()
-    thread.get_by_role("button", name="Reply", exact=True).click()
+    expect(reply.locator(".lf-compose-placeholder > .lf-key-badge")).to_be_visible()
+    reply.click()
     expect(reply).to_be_focused()
     page.keyboard.press("Escape")
     expect(thread.locator(".lf-page-thread")).to_be_focused()
@@ -5941,10 +6027,9 @@ def test_a_thread_margin_entry_opens_inline_when_the_panel_is_closed(browser, se
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
     expect(page.locator(".lf-margin-preview")).to_be_visible()
     expect(page.locator(".lf-margin-thread .lf-page-thread")).to_be_focused()
-    expect(page.locator(".lf-margin-thread leaf-text")).to_be_hidden()
     expect(
         page.locator(".lf-margin-thread").get_by_role(
-            "button", name="Reply", exact=True
+            "textbox", name="Reply", exact=True
         )
     ).to_be_visible()
     expect(marker).to_have_attribute("aria-controls", "lf-margin-preview")
@@ -6002,7 +6087,7 @@ def test_a_new_anchored_comment_keeps_the_users_thread_view(
     if panel_open:
         thread.locator("leaf-text").click()
     else:
-        thread.get_by_role("button", name="Reply").click()
+        thread.get_by_role("textbox", name="Reply", exact=True).click()
     expect(thread.locator("leaf-text")).to_be_focused()
     page.keyboard.type("the next thought")
     expect(thread.locator("leaf-text")).to_have_js_property("value", "the next thought")
@@ -6516,7 +6601,9 @@ def test_an_inline_thread_keeps_one_readable_card_across_page_claims(browser, se
     page = open_page(browser, serve(sidebar_page, events=[COMMENT_ON_ASK]))
     resized(page, 1200, 900)
     send_anchored_comment(page, "Check the January failure mode.")
-    page.locator(".lf-margin-thread").get_by_role("button", name="Reply").click()
+    page.locator(".lf-margin-thread").get_by_role(
+        "textbox", name="Reply", exact=True
+    ).click()
 
     narrow = page.evaluate(THREAD_CARD_GEOMETRY)
     assert narrow["innerWidth"] - 8 - narrow["controlsRight"] < narrow["minimum"], (
@@ -6538,7 +6625,9 @@ def test_an_inline_thread_keeps_one_readable_card_across_page_claims(browser, se
     page = open_page(browser, serve(ASK_PAGE, events=[COMMENT_ON_ASK]))
     resized(page, 1920, 900)
     send_anchored_comment(page, "Check the January failure mode.")
-    page.locator(".lf-margin-thread").get_by_role("button", name="Reply").click()
+    page.locator(".lf-margin-thread").get_by_role(
+        "textbox", name="Reply", exact=True
+    ).click()
 
     wide = page.evaluate(THREAD_CARD_GEOMETRY)
     assert wide["cardWidth"] >= 379, wide
@@ -6660,7 +6749,7 @@ def test_margin_card_anchors_reading_by_top_and_drafting_by_foot(browser, serve)
     )
     assert reading["top"] == pytest.approx(initial["top"], abs=0.5), (initial, reading)
     assert reading["height"] > initial["height"] + 10, (initial, reading)
-    preview.get_by_role("button", name="Reply", exact=True).click()
+    preview.get_by_role("textbox", name="Reply", exact=True).click()
     editor = preview.locator("leaf-text")
     editor.evaluate("node => node.blur()")
     page.wait_for_function(
@@ -6698,23 +6787,29 @@ def test_margin_card_anchors_reading_by_top_and_drafting_by_foot(browser, serve)
         before,
         after,
     )
+    # A draft taller than the room above the foot scrolls inside the editor; the card
+    # stays inside the boundary and its foot does not move.
     write(editor, "\n".join(f"Line {n}" for n in range(30)))
-    page.wait_for_function(
-        """() => {
-          const top = document.querySelector('.lf-margin-preview').getBoundingClientRect().top;
-          return top >= 49 && top <= 51;
-        }"""
-    )
+    rendered(page)
     tall = page.evaluate(measure)
     assert tall["cardTop"] >= 49, tall
-    assert tall["cardBottom"] <= 847.5, tall
-    assert tall["editorBottom"] <= tall["cardBottom"] - 12, tall
+    assert tall["cardBottom"] == pytest.approx(before["cardBottom"], abs=0.5), tall
+    assert tall["editorBottom"] == pytest.approx(before["editorBottom"], abs=0.5), tall
+    assert editor.evaluate("box => box.scrollHeight > box.clientHeight")
 
     write(editor, "Sent")
-    preview.get_by_role("button", name="Send", exact=True).click()
+    send = preview.get_by_role("button", name="Send", exact=True)
+    pressed = send.evaluate("button => button.getBoundingClientRect().top")
+    send.click()
     expect(preview).to_contain_text("Sent")
-    editor.evaluate("node => node.lfCollapseReply()")
-    expect(preview.locator(".lf-say")).to_have_class(re.compile("lf-reply-collapsed"))
+    # The pressed Send keeps the focus, and the card holds under it; leaving the reply
+    # row ends the drafting, and the card returns to where reading put it.
+    rendered(page)
+    expect(send).to_be_focused()
+    assert send.evaluate(
+        "button => button.getBoundingClientRect().top"
+    ) == pytest.approx(pressed, abs=0.5)
+    send.evaluate("button => button.blur()")
     page.wait_for_function(
         """top => Math.abs(document.querySelector('.lf-margin-preview')
           .getBoundingClientRect().top - top) < 0.5""",
@@ -6734,7 +6829,7 @@ def test_open_reply_keeps_its_foot_after_card_moves_to_right_rail(browser, serve
     page.locator('.lf-margin-marker[data-lf-kinds="comment"]').click()
     preview = page.locator(".lf-margin-preview")
     expect(preview).not_to_have_attribute("data-lf-thread-placement", "right")
-    preview.get_by_role("button", name="Reply", exact=True).click()
+    preview.get_by_role("textbox", name="Reply", exact=True).click()
     editor = preview.locator("leaf-text")
     write(editor, "First line")
 
@@ -6756,6 +6851,100 @@ def test_open_reply_keeps_its_foot_after_card_moves_to_right_rail(browser, serve
         before["editor"]["bottom"], abs=0.5
     ), (before, after)
     assert after["card"] == pytest.approx(before["card"], abs=0.5), (before, after)
+
+
+def drafting_in_a_short_card(browser, serve, width, height):
+    """A one-comment thread's card at this window, a word typed into its open reply."""
+    page = open_page(browser, serve(LONG_THREAD_PAGE, events=[LONG_THREAD_ROOT]))
+    page.emulate_media(reduced_motion="reduce")
+    resized(page, width, height)
+    page.locator('[data-lf-margin-for="open"] .lf-margin-marker').click()
+    preview = page.locator(".lf-margin-preview")
+    expect(preview).to_be_visible()
+    preview.get_by_role("textbox", name="Reply", exact=True).click()
+    editor = preview.locator("leaf-text")
+    expect(editor).to_be_focused()
+    editor.type("words")
+    rendered(page)
+    return page, preview, editor
+
+
+DRAFTING_CARD = """preview => {
+  const editor = preview.querySelector('leaf-text').getBoundingClientRect();
+  return {side: preview.dataset.lfThreadPlacement,
+          editorTop: Math.round(editor.top), editorFoot: Math.round(editor.bottom)};
+}"""
+
+
+@pytest.mark.parametrize("size", [(800, 520), (1000, 600)])
+def test_a_growing_draft_holds_its_card_s_side_and_the_editor_s_foot(
+    browser, serve, size
+):
+    """Each new line keeps the card on its side and the caret's line where it was.
+
+    The card extends upward from its held foot, within the room above that foot, until
+    the editor fills its share and scrolls, so no keystroke flips the card over its
+    cluster (800x520 stands over it) or slides it along the boundary (1000x600 stands
+    under it, where it once grew down into the boundary's foot)."""
+    page, preview, editor = drafting_in_a_short_card(browser, serve, *size)
+    held = preview.evaluate(DRAFTING_CARD)
+    for line in range(12):
+        editor.press("Shift+Enter")
+        rendered(page)
+        now = preview.evaluate(DRAFTING_CARD)
+        assert (now["side"], now["editorFoot"]) == (
+            held["side"],
+            held["editorFoot"],
+        ), (line, held, now)
+    assert editor.evaluate("box => box.scrollHeight > box.clientHeight"), (
+        "twelve lines never outgrew the editor's room"
+    )
+
+
+@pytest.mark.parametrize("size", [(1200, 900), (800, 520)])
+def test_an_agent_reply_leaves_the_reply_being_typed_where_it_stands(
+    browser, serve, size
+):
+    """News arriving without a gesture moves no control the user is working in."""
+    page, preview, editor = drafting_in_a_short_card(browser, serve, *size)
+    before = preview.evaluate(DRAFTING_CARD)
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Claude",
+            "revision": 1,
+            "parent": LONG_THREAD_ROOT["id"],
+            "responds": LONG_THREAD_ROOT["id"],
+            "text": "An agent answer arriving while the user types. " * 6,
+        },
+    )
+    told(page)
+    expect(preview).to_contain_text("An agent answer arriving while the user types.")
+    rendered(page)
+    expect(editor).to_be_focused()
+    assert preview.evaluate(DRAFTING_CARD) == before
+
+
+@pytest.mark.parametrize("how", ["key", "press"])
+@pytest.mark.parametrize("size", [(1200, 900), (800, 520)])
+def test_a_sent_reply_leaves_the_reply_box_where_it_stands(browser, serve, size, how):
+    """The sent turn joins the transcript above the box the user sent it from. A pressed
+    Send keeps the focus while the send empties the box, and the card read that as the
+    drafting over: it chose its spot again, flipping sides under the pointer."""
+    page, preview, editor = drafting_in_a_short_card(browser, serve, *size)
+    before = preview.evaluate(DRAFTING_CARD)
+    send = preview.locator(".lf-say .lf-compose-submit")
+    with sending(page, "the reply"):
+        if how == "key":
+            editor.press("Enter")
+        else:
+            send.click()
+    expect(preview.locator(".lf-page-thread-msg").last).to_contain_text("words")
+    rendered(page)
+    expect(editor if how == "key" else send).to_be_focused()
+    assert preview.evaluate(DRAFTING_CARD) == before
 
 
 def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve):
@@ -6782,7 +6971,6 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
         thread.get_by_role("button", name="Open interactive reply in Threads")
     ).to_have_count(1)
     expect(thread.locator(".lf-page-thread")).to_be_focused()
-    expect(thread.locator("leaf-text")).to_be_hidden()
     geometry = marker.evaluate(
         """markerNode => {
           const main = document.querySelector('main').getBoundingClientRect();
@@ -6824,7 +7012,7 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
     selected = page.evaluate("getSelection().toString()")
     assert len(selected) > 10 and selected in words.inner_text(), selected
 
-    thread.get_by_role("button", name="Reply", exact=True).click()
+    thread.get_by_role("textbox", name="Reply", exact=True).click()
     send = preview.get_by_role("button", name="Send")
     send.focus()
     page.evaluate("() => dispatchEvent(new Event('resize'))")
@@ -6897,7 +7085,6 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
     page.keyboard.press("Enter")
     expect(preview).to_be_visible()
     expect(preview.locator(".lf-page-thread")).to_be_focused()
-    expect(preview.locator("leaf-text")).to_be_hidden()
 
     resized_shell(page, 1436, 900)
     beside = page.evaluate(
@@ -6944,7 +7131,7 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
     resized(page, 1280, 600)
     marker.evaluate("node => scrollBy(0, node.getBoundingClientRect().top - 330)")
     marker.click()
-    preview.get_by_role("button", name="Reply", exact=True).click()
+    preview.get_by_role("textbox", name="Reply", exact=True).click()
     editor = preview.locator("leaf-text")
     draft = "\n".join(
         f"Line {n}: " + "The reply keeps its complete editor visible. " * 2
@@ -8095,7 +8282,7 @@ def test_a_thread_card_reply_stays_in_the_visible_viewport(browser, serve, windo
     page.locator('[data-lf-margin-for="low"] .lf-margin-marker').click()
     card = page.locator(".lf-margin-preview")
     expect(card).to_be_visible()
-    card.get_by_role("button", name="Reply", exact=True).click()
+    card.get_by_role("textbox", name="Reply", exact=True).click()
     expect(card.locator("leaf-text")).to_be_focused()
 
     def stands_in_the_visible_viewport():

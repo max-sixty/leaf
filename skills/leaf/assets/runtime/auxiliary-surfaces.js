@@ -31,7 +31,7 @@ import { openPopovers } from "./keyboard/layer-stack.js";
 import { registerAuxiliaryModality } from "./keyboard/register.js";
 import { hides, placeHolder } from "./geometry.js";
 import { under } from "./shadow.js";
-import { tabStops } from "./focus.js";
+import { deepFocus, tabStops } from "./focus.js";
 import { userStore } from "./storage.js";
 import { pagePresented } from "./presentation.js";
 
@@ -56,11 +56,6 @@ export function createAuxiliarySurfaces({ chromeRoot, syncLayout, afterChange })
   let mounted = false;
   let arriving = null;
 
-  const deepestFocus = () => {
-    let node = document.activeElement;
-    while (node?.shadowRoot?.activeElement) node = node.shadowRoot.activeElement;
-    return node;
-  };
   const place = (node) => {
     placingFocus = true;
     try {
@@ -254,7 +249,7 @@ export function createAuxiliarySurfaces({ chromeRoot, syncLayout, afterChange })
           place(active.surface);
           return;
         }
-        const at = available.indexOf(deepestFocus());
+        const at = available.indexOf(deepFocus());
         if (
           (!event.shiftKey && at === available.length - 1) ||
           (event.shiftKey && at === 0)

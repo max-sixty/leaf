@@ -139,7 +139,7 @@
         box-shadow: 0 18px 46px color-mix(in srgb, var(--ink) 11%, transparent);
       }
 
-      .interaction-gallery .interaction-controls {
+      .interaction-gallery .lf-interaction-controls {
         display: flex;
         flex-wrap: wrap;
         align-items: center;
@@ -149,13 +149,13 @@
 
       /* Placement and density only. The runtime gives the playback action the shared
          lf-btn face; the gallery keeps its changing labels on one stable row. */
-      .interaction-gallery .interaction-control {
+      .interaction-gallery .lf-interaction-control {
         min-height: var(--aim-floor);
         padding: 6px 13px;
         font: 600 var(--t-6) / 1.2 var(--sans);
       }
 
-      .interaction-gallery .interaction-setting {
+      .interaction-gallery .lf-interaction-setting {
         display: inline-flex;
         min-height: var(--aim-floor);
         align-items: center;
@@ -164,7 +164,7 @@
         font: var(--t-6) / 1.2 var(--sans);
       }
 
-      .interaction-gallery .interaction-setting select {
+      .interaction-gallery .lf-interaction-setting select {
         min-height: var(--aim-floor);
         padding: 5px 24px 5px 8px;
         border: 1px solid var(--border-2);
@@ -174,14 +174,14 @@
         font: inherit;
       }
 
-      .interaction-gallery .interaction-loop {
+      .interaction-gallery .lf-interaction-loop {
         margin: 0;
       }
 
       /* Under the persistent controls rather than beside them, at every width. The
          runtime rewrites this line as the demo runs, and changing prose on the button's
          line would move the row while the user is aiming at it. */
-      .interaction-gallery .interaction-status {
+      .interaction-gallery .lf-interaction-status {
         flex-basis: 100%;
         color: var(--muted);
         font: var(--t-6) / 1.4 var(--sans);
@@ -308,7 +308,7 @@
       }
 
       @media print {
-        .interaction-controls,
+        .lf-interaction-controls,
         .interaction-pointer {
           display: none !important;
         }

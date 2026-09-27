@@ -1361,11 +1361,14 @@ def test_opt_in_page_interface_joins_initial_widget_settlement(browser, serve):
     assert held, "the positive control did not hold the first state response"
     gallery = page.locator("#bg-interactions")
     expect(gallery).to_have_attribute("data-interaction-installed", "1")
-    controls = gallery.locator(".interaction-controls")
+    controls = gallery.locator(".lf-interaction-controls")
     expect(controls).to_have_count(1)
     expect(controls).to_be_hidden()
     page.evaluate("releaseHeldPageInterface()")
     page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
+    page.locator("#bg-gallery-tabs").get_by_role(
+        "tab", name="Interactions", exact=True
+    ).click()
     expect(controls).to_be_visible()
     expect(page.locator(".lf-status-detail")).to_have_text(re.compile(r"^Connecting"))
 

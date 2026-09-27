@@ -656,8 +656,6 @@ export function createSemanticApplication({
         collection: {
           phase,
           threads: threads.filter(discussed),
-          // Admitted approvals are semantic input even when no Thread changes.
-          done: state?.browser.thread.done ?? [],
         },
       },
       asks,
@@ -665,6 +663,7 @@ export function createSemanticApplication({
       // updates, publication time, requests, or undo list still reaches its watchers.
       view,
       threadRequests: state?.browser.thread.requests ?? [],
+      acceptedApprovals: state?.browser.thread.done ?? [],
       pendingApprovals: pendingApprovals(unresolved, receipts),
       pendingRequests: projectedRequests,
       delivery: unresolvedAttempts(unresolved),

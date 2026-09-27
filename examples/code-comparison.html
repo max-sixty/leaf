@@ -14,8 +14,9 @@
         container-type: inline-size;
       }
 
-      .code-comparison-toolbar,
-      .code-candidate-controls {
+      /* The controls this element's module builds wear the layer's .lf-ui, and a page
+         rule reaches those only by naming the widget they stand in. */
+      code-reader-comparison :is(.code-comparison-toolbar, .code-candidate-controls) {
         display: flex;
         flex-wrap: wrap;
         gap: var(--sp-2);

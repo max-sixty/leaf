@@ -16,18 +16,8 @@ import {
   sendMessage,
   watchDraft,
 } from "../drafts.js";
-import {
-  closeBtn,
-  findInput,
-  generalInput,
-  generalSend,
-  inPanel as panelFocusIsInside,
-  narrowingView,
-} from "./panel-elements.js";
 import { focused, keys } from "../keyboard/scopes.js";
 import { pageScope } from "../keyboard/register.js";
-import { needsYou, threadSearchActive } from "./narrowing.js";
-import { openThreads } from "./thread-list.js";
 import { standingThread } from "./landing.js";
 import { runtime } from "../context.js";
 import { pagePresented } from "../presentation.js";
@@ -36,12 +26,22 @@ const drawingIn = (payload) =>
   validDrawing(payload?.drawing) ? payload.drawing : null;
 
 export function createPanelComposer({
+  elements: {
+    closeBtn,
+    findInput,
+    generalInput,
+    generalSend,
+    narrowingView,
+    inPanel: panelFocusIsInside,
+  },
+  openThreads,
   designModeActive,
   wireInput,
   createPageComment,
   showThread,
   setPanel,
   panelIsOpen,
+  narrowing,
   stepThread,
   firstUnread,
   unreadCount,
@@ -49,6 +49,8 @@ export function createPanelComposer({
   paintDrawings,
 }) {
   let sync = () => {};
+  let stopMirroringDraft = () => {};
+  let stopWatchingDraft = () => {};
   let generalDrawing = drawingIn(loadDraftPayload("general"));
   const generalHint = () =>
     designModeActive() && !generalDrawing
@@ -98,8 +100,8 @@ export function createPanelComposer({
       },
     });
     sync();
-    mirrorDraft(generalInput, sync, "general");
-    watchDraft("general", (_value, payload) => {
+    stopMirroringDraft = mirrorDraft(generalInput, sync, "general");
+    stopWatchingDraft = watchDraft("general", (_value, payload) => {
       generalDrawing = drawingIn(payload);
       sync();
       paintDrawings();
@@ -138,7 +140,7 @@ export function createPanelComposer({
     run: () => generalInput.focus({ preventScroll: true }),
   };
 
-  pageScope("panel", {
+  const stopPanelScope = pageScope("panel", {
     title: "In the thread panel",
     root: focused,
     at: inPanel,
@@ -159,7 +161,7 @@ export function createPanelComposer({
         does: "Next / previous thread found",
         line: "search matches",
         repeat: true,
-        when: () => threadSearchActive() && hasThreads(),
+        when: () => narrowing.threadSearchActive() && hasThreads(),
         run: (binding) => stepThread(binding === "n" ? 1 : -1),
       },
       {
@@ -173,8 +175,10 @@ export function createPanelComposer({
         // when requesting waiting threads and preserving every other restriction.
         keys: ["w"],
         does: () =>
-          needsYou() ? "Clear waiting filter" : "Show only the threads waiting on you",
-        line: () => (needsYou() ? "clear waiting filter" : "waiting on you"),
+          narrowing.needsYou()
+            ? "Clear waiting filter"
+            : "Show only the threads waiting on you",
+        line: () => (narrowing.needsYou() ? "clear waiting filter" : "waiting on you"),
         control: () => narrowingView.userControl,
         when: () => runtime.statePhase === "ready" && narrowingView.canToggleUser,
         run: () => narrowingView.toggleUser(),
@@ -234,5 +238,10 @@ export function createPanelComposer({
     pageComposerDrawing,
     openPageDrawing,
     mount,
+    dispose: () => {
+      stopPanelScope();
+      stopMirroringDraft();
+      stopWatchingDraft();
+    },
   };
 }

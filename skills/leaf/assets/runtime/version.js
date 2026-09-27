@@ -132,6 +132,7 @@ import {
   rememberPassageParts,
 } from "./widget-loader.js";
 import { under } from "./shadow.js";
+import { keepPageRulesOffLayer } from "./page-sheets.js";
 import { replaceEntry } from "./history.js";
 import {
   blocksOnScreen,
@@ -177,11 +178,7 @@ const versionedHeadNode = (node) =>
     node.localName === "base" ||
     (node.localName === "meta" &&
       (node.hasAttribute("name") || node.hasAttribute("property"))) ||
-    (node.localName === "link" &&
-      !(
-        node.rel === "stylesheet" &&
-        new URL(node.href, document.baseURI).pathname === "/theme.css"
-      )));
+    node.localName === "link");
 // This document as its author wrote it, kept inert beside the page it became. A patch
 // applies the difference between two revisions, so it needs the revision the page is
 // standing on as source — not the page, which by then carries a tokenizer's spans, a
@@ -1143,6 +1140,9 @@ export function createVersionController({
     for (const node of doc.head.children) {
       if (!versionedHeadNode(node)) continue;
       const imported = document.importNode(node, true);
+      // A linked sheet, or one that imports, is complete only once it has loaded.
+      if (imported.localName === "link" || imported.localName === "style")
+        imported.addEventListener("load", keepPageRulesOffLayer, { once: true });
       document.head.append(imported);
       next.add(imported);
     }
@@ -1349,6 +1349,8 @@ export function createVersionController({
           if (upgraded(element)) forgetAuthoredOwners(new Set([element.id]));
         },
       });
+      // The revision's sheets, in its head and in its body alike, keep off the layer.
+      keepPageRulesOffLayer();
       restoreCarryScroll = restoreCarry(
         carry.records,
         carry.held,

@@ -1318,7 +1318,7 @@ def test_the_interaction_gallery_drives_real_widgets(serve, browser):
             }"""
     )
     assert gallery.locator(
-        ".interaction-control, .interaction-setting, .interaction-status"
+        ".lf-interaction-control, .lf-interaction-setting, .lf-interaction-status"
     ).evaluate_all("nodes => nodes.map(node => getComputedStyle(node).fontSize)") == [
         "11.5px",
         "11.5px",
@@ -1582,6 +1582,9 @@ def test_the_interaction_gallery_reads_where_it_is_now(serve, browser):
     gallery = page.locator("#bg-interactions")
     status = gallery.locator("[data-interaction-status]")
     expect(status).to_have_text("Ready")
+    page.locator("#bg-gallery-tabs").get_by_role(
+        "tab", name="Interactions", exact=True
+    ).click()
     gallery.evaluate("node => node.scrollIntoView({block: 'start'})")
     expect(status).to_have_text("Playing")
 
@@ -1602,8 +1605,14 @@ def test_interaction_gallery_contains_page_chrome(serve, browser):
         "Ready — motion will start only when you press Play", timeout=15_000
     )
 
+    page.locator("#bg-gallery-tabs").get_by_role(
+        "tab", name="Threads", exact=True
+    ).click()
     page.locator('[data-lf-margin-for="bg-thread-text"] > .lf-margin-marker').click()
     expect(page.locator("#lf-margin-preview")).to_contain_text(GALLERY_THREAD_TEXT)
+    page.locator("#bg-gallery-tabs").get_by_role(
+        "tab", name="Interactions", exact=True
+    ).click()
     comment_tab.click()
     comment_frame = gallery.locator(
         "#bg-interaction-comment [data-interaction-frame]"

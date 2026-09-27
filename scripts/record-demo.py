@@ -23,9 +23,11 @@ import time
 from pathlib import Path
 
 from leaf.delivery import DELIVERY_FORMAT
+from leaf.host import session_harness
 from leaf.render_checks import wait_until_ready
 from leaf.render_gate.browser import launch_browser
 from leaf.render_gate.scheme import served
+from leaf.session import take_input
 from PIL import Image
 from playwright.sync_api import Page, sync_playwright
 
@@ -243,7 +245,10 @@ def select_text(page: Page, selector: str, text: str) -> None:
 
 
 class DemoWaiter:
-    """Own one background wait, confirming each complete delivery when rearming."""
+    """Own one background wait and take each delivery the way this host's agent
+    does: where the session's hooks carry input, the wait only wakes it and
+    `take_input`, as the hook does, hands over and confirms the delivery; elsewhere
+    the wait prints it and rearming with `--ack` confirms it."""
 
     def __init__(self, page_dir: Path) -> None:
         self.page_dir = page_dir
@@ -262,7 +267,12 @@ class DemoWaiter:
         restart twice — so the empty result is the symptom and that line is the
         reason."""
         stdout, stderr = self.process.communicate(timeout=10)
-        payload = json.loads(stdout) if stdout.strip() else None
+        harness = session_harness()
+        hooked = harness is not None and harness.hooks_carry()
+        if hooked:
+            payload = take_input(harness.session) if stdout.strip() else None
+        else:
+            payload = json.loads(stdout) if stdout.strip() else None
         if payload is not None and payload.get("format") != DELIVERY_FORMAT:
             raise RuntimeError(
                 f"the demo waiter received an unknown delivery format "
@@ -282,7 +292,7 @@ class DemoWaiter:
                 f"{stderr}".rstrip()
             )
         self.process = subprocess.Popen(
-            [str(LEAF), "wait", "--ack", payload["id"]],
+            [str(LEAF), "wait", *([] if hooked else ["--ack", payload["id"]])],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,

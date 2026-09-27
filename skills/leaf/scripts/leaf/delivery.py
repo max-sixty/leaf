@@ -15,7 +15,7 @@ The envelope names the carrier that brings it into an agent's context, and the
 two facts that differ by carrier are stated once for the whole delivery rather
 than per event. `acknowledge` says who confirms receipt: the reader of a `leaf
 wait`, in the way its harness runs that command, or nobody, where the carrier
-confirmed it itself. And a carrier whose turn speaks for the delivery, App Server,
+confirmed it itself, as a hook does when it hands the whole envelope to the turn. And a carrier whose turn speaks for the delivery, App Server,
 turns the one thread reply the delivery owes into a `turn` answer, which that
 turn's own messages write; every other carrier leaves it a `reply` for `leaf thread
 reply`. Each event's `answer` is that same address, so its `answering` clauses
@@ -56,9 +56,10 @@ from .thread_context import (
 )
 
 DELIVERY_FORMAT = "leaf-delivery-v3"
-# The routes that carry a delivery to an agent: `leaf wait`'s output, a pointer
-# queued with `codex queue`, and a turn Leaf starts over Codex App Server.
-CARRIERS = ("wait", "queue", "app-server")
+# The routes that carry a delivery to an agent: `leaf wait`'s output, a host hook's
+# context for the turn it opens, a pointer queued with `codex queue`, and a turn
+# Leaf starts over Codex App Server.
+CARRIERS = ("wait", "hook", "queue", "app-server")
 # The one carrier whose turn writes the delivery's thread reply with its own
 # messages.
 TURN_CARRIER = "app-server"

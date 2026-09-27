@@ -299,6 +299,14 @@ page-local `<style>` only for presentation unique to this page.
 For a page-specific inset, use the frame declaration in `references/packages.md`,
 "A theme change".
 
+The page's own CSS reaches the page's content and leaves Leaf's apparatus alone: the
+banner, the thread panel, and the controls a widget builds. A rule for `button` or
+`input` dresses the page's own buttons and fields, and a face set on `body` stops at
+those controls. To change them on purpose, name the widget they stand in or Leaf's
+class for them: `lf-options button`, `lf-board .lf-btn`, or, for controls a page
+module builds with `offer`, the page's own element (`my-explorer .toolbar`). A token
+such as `--accent` on `:root` changes every surface that reads it.
+
 Widget attributes carry scalars; children carry prose; a titled compound member uses a
 leading `<strong>`. A data-bodied widget such as `lf-code` holds escaped
 notation in `<pre>`, because its whitespace is part of the data. Escape `&`

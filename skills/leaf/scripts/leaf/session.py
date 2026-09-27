@@ -1,4 +1,4 @@
-"""Agent status, waiting, and acknowledgement policy."""
+"""Agent status, waiting, and receipt policy."""
 
 import json
 import sys
@@ -111,19 +111,24 @@ def cmd_idle(page_dir: Path, detail: str, on: str | None) -> None:
         check_local_claim("idle")
     with PageTransaction(page_dir) as page:
         events = page.events
-        cursor = page.cursor
-        pending = len(unacknowledged(events, cursor))
-        if pending:
-            sys.exit(
-                f"{pending} update{'s' if pending != 1 else ''} nobody has picked up; "
-                "read them with `leaf wait` before idling"
-            )
         state = full_state(page_dir, events)
         claim = page.active_claim
+        harness = claim_harness(claim) if claim is not None else None
+        pending = len(unacknowledged(events, page.cursor))
+        if pending:
+            remedy = (
+                harness.input_unpicked(page_dir, listening=state["listening"])
+                if harness
+                else "`leaf wait` prints them."
+            )
+            sys.exit(
+                f"{pending} update{'s' if pending != 1 else ''} nobody has picked up, "
+                f"so the page cannot idle yet. {remedy}"
+            )
         owed = blocking_obligations(
             state,
-            carried=claim is not None
-            and claim_harness(claim).carrier_live(listening=state["listening"]),
+            carried=harness is not None
+            and harness.carrier_live(listening=state["listening"]),
         )
         if owed:
             sys.exit(
@@ -484,29 +489,75 @@ def _ended_watch(readings: list[PageTick], page_dir: Path | None) -> int:
 
 
 def receive_delivery(delivery_id: str) -> list[Path]:
-    """Confirm complete input and record its entry into this consumer's turn.
+    """Confirm complete input a `leaf wait` printed, as its reader, and record its
+    entry into this consumer's turn. Printing cannot confirm receipt."""
+    harness = session_harness()
+    return receive(read_delivery(delivery_id), harness.session if harness else None)
+
+
+def receive(payload: dict, session_id: str | None) -> list[Path]:
+    """Confirm one complete delivery and record its entry into `session_id`'s turn.
 
     Each page uses its own transaction. Interrupted multi-page receipt can be
     retried against the same immutable bounds; no receipt transfers ownership.
     Sibling turns open after releasing the page locks, so concurrent receipts
-    never nest transactions across pages. Printing cannot confirm receipt.
+    never nest transactions across pages.
     """
-    payload = read_delivery(delivery_id)
-    harness = session_harness()
-    session_id = harness.session if harness else None
-    pages = []
-    for batch in payload["batches"]:
-        page_dir = Path(batch["page"])
-        with (
-            PageTransaction(page_dir) as page,
-            receive_batch(page, batch, session_id=session_id) as events,
-        ):
-            turn = page.open_turn(session_id) if session_id else None
-            record_pickup(page, events, session=session_id, turn=turn)
-        pages.append(page_dir)
+    pages = [receive_one(batch, session_id) for batch in payload["batches"]]
     if session_id:
         open_session_turn(session_id)
     return pages
+
+
+def receive_one(batch: dict, session_id: str | None) -> Path:
+    """Confirm one page's batch of a delivery and record its entry into
+    `session_id`'s turn, under that page's transaction; raise `ReceiptRefused`
+    when the page no longer matches."""
+    page_dir = Path(batch["page"])
+    with (
+        PageTransaction(page_dir) as page,
+        receive_batch(page, batch, session_id=session_id) as events,
+    ):
+        turn = page.open_turn(session_id) if session_id else None
+        record_pickup(page, events, session=session_id, turn=turn)
+    return page_dir
+
+
+def pending_batches(session_id: str) -> list[dict]:
+    """Every page's pending input for a session whose hooks carry it, one batch
+    per page, captured under that page's transaction and not yet confirmed.
+
+    Receipt is a separate step, taken when the carrier hands the batches over:
+    it rechecks ownership and the captured events, and anything appended between
+    the two readings stays pending, above the cursor it advances."""
+    batches = []
+    for page_dir in owned_pages(session_id):
+        try:
+            with PageTransaction(page_dir) as page:
+                claim = page.active_claim
+                if not (
+                    claim
+                    and claim["id"] == session_id
+                    and claim_harness(claim).hooks_carry()
+                ):
+                    continue
+                if batch := unacknowledged(page.events, page.cursor):
+                    batches.append(batch_data(page_dir, page, batch))
+        except FileNotFoundError:
+            continue
+    return batches
+
+
+def take_input(session_id: str) -> dict | None:
+    """Freeze and confirm a hook-carried session's pending input as its hook
+    does, and return the delivery, or None when nothing is pending. For a driver
+    standing in for the host, such as the demo recorder."""
+    batches = pending_batches(session_id)
+    if not batches:
+        return None
+    payload = freeze_delivery(batches, carrier="hook")
+    receive(payload, session_id)
+    return payload
 
 
 def cmd_wait(page_dir: Path | None = None, *, ack: str | None = None) -> int:
@@ -533,8 +584,16 @@ def cmd_wait(page_dir: Path | None = None, *, ack: str | None = None) -> int:
         return 2
 
     def print_delivery(reading: PageTick) -> None:
-        """Print immutable input; only the consumer can confirm receipt."""
-        print(delivery_json(reading, harness), flush=True)
+        """Print immutable input; only the consumer can confirm receipt. Where the
+        harness's hook carries input into the turn, the wait only wakes it."""
+        if harness and harness.hooks_carry():
+            print(
+                f"{reading.page_dir} has new input; Leaf's prompt hook puts it in "
+                "your context with this notification",
+                flush=True,
+            )
+        else:
+            print(delivery_json(reading, harness), flush=True)
 
     try:
         while True:

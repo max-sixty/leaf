@@ -24,9 +24,79 @@
  * them: the same declarations there beat every component's own rule, and .lf-ref drew
  * ink at 14px where it asked for muted at 11.5px while .lf-worktree-head and
  * .lf-swipe-progress drew sans where they asked for mono. Nothing catches that, because
- * no test and no browser gate reads a rule that never applied. */
+ * no test and no browser gate reads a rule that never applied.
+ *
+ * The rest of the face is stated too, at no weight at all. A page's own rules select no
+ * control unless they name its widget (runtime/page-sheets.js), and inheritance is the
+ * route that leaves open: a page that set its body bold, italic, small-capped, spaced
+ * or in capitals set every control standing in it so too. The `font` shorthand resets
+ * every font property it has, weight, slant, variants and stretch among them. Any declared value beats an inherited one,
+ * so a rule that weighs nothing is enough to stop that, and it leaves every rule that
+ * sets these on purpose winning: at a class's weight it took the pane header's 600 off
+ * each playground's presets. */
 :where(:root) .lf-ui { font-family: var(--sans); font-size: var(--t-5);
     line-height: var(--lf-ui-lh); color: var(--ink); }
+:where(:root .lf-ui) { font: var(--t-5) / var(--lf-ui-lh) var(--sans);
+    font-feature-settings: normal; font-variation-settings: normal;
+    letter-spacing: normal; word-spacing: normal; text-transform: none; }
+/* Words for a user listening, silent on screen: real text, the one thing every
+   screen reader announces in every mode, clipped to nothing where paint already says
+   the same fact to the eye (renderQuiet, lf-code's highlighted lines, the status word
+   x-paints writes). Worn with
+   .lf-ui, since an invisible word is apparatus the anchor pass must not offer — a
+   quote resolved into a clipped box would paint a mark nobody can see. Out of flow,
+   so it holds no room; the covered-words gate skips this class the way it skips a
+   thread mark's own note, which keeps the same one-pixel geometry.
+
+   And out of the selection, which the clip does not do on its own: a word standing
+   among the page's own words is inside any selection drawn across them, so the
+   runtime's reading skipped it and the user's clipboard did not — a copied task line
+   came away carrying the word "done", and a copied code block would carry
+   "highlighted" into whatever editor it was bound for. The thread mark's note had
+   answered this the day it was written and this recipe had not.
+
+   No offsets, so the box keeps the static position its holder gives it. That place is
+   read: shownBox reads it for a wrapper that draws no box of its own, and everything
+   asking where such an element is asks through that. What the box must not do is
+   escape the box it sits in, which it did — an out-of-flow box with no positioned
+   ancestor is positioned against the page, so the count on a cell of a table scrolling
+   inside itself stood three hundred pixels past the window with the page scrolling
+   sideways to reach it. The scroller answers for it, and the runtime sees to that:
+   reachScrollers marks every static box that scrolls, and the theme positions the
+   mark ([data-lf-holds]).
+
+   Here and not in runtime/chrome.css, because content widgets write it into the page
+   and into declared trees, and the chrome's sheet is the one an exported page never
+   adopts: every quiet word stood on screen in a file `leaf version export` wrote. */
+.lf-quiet { position: absolute; width: 1px; height: 1px; overflow: hidden;
+    clip-path: inset(50%); white-space: nowrap;
+    user-select: none; -webkit-user-select: none; }
+/* A pending suggestion still has to say it is proposed when generated controls are
+ * absent. On screen the ✓/✗ row carries that fact and this word stays clipped for
+ * whoever is listening. Paper exposes the word #voice already writes
+ * in each slot, so the proposal remains distinguishable from settled content without
+ * adding another label or moving it elsewhere.
+ *
+ * The page the markup describes is the base, and the live page's clipped version goes
+ * inside the screen guard. `user-select` is not touched: this is the runtime's reading
+ * of the paint rather than authored prose, so copying a published paragraph must not
+ * carry the word with it.
+ *
+ * inline-block, because lf-old is struck and CSS runs a decoration through every
+ * in-flow inline descendant — a descendant cannot cancel it, and `text-decoration:
+ * none` here is inert. Unclipped as a plain inline, the one word saying the change has
+ * *not* been made was itself painted struck in the deletion's red, which is the reading
+ * this whole rule exists to prevent. An atomic inline is where the line stops.
+ *
+ * Here beside `.lf-quiet`, because the two must meet in one cascade layer. */
+lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
+  position: static; width: auto; height: auto; overflow: visible; clip-path: none;
+  display: inline-block; margin-right: 5px; }
+@media screen {
+  html:root lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
+    position: absolute; width: 1px; height: 1px; overflow: hidden;
+    clip-path: inset(50%); margin-right: 0; }
+}
 /* A key badge has one face in the document, in the chrome, and in declared shadow
    trees: a binding's steps, a transient hint code, and a control's binding seat all
    wear it. Where it stands is each surface's. A seat a widget builds empty draws

@@ -7,64 +7,6 @@
 /* ---------- element-widgets ---------- */
 
 
-/* lf-pane is one task region: authored grammar with no generated wrappers, an optional
- * header, one body element, an optional footer. The rows are `auto 1fr auto`, because a
- * grid row's minimum is its content's: a body that scrolls contributes nothing and the
- * row takes what the header and footer leave, while a body that doesn't holds the row at
- * its full height. Whether a body scrolls is the stylesheet's: the workspace Layout
- * scrolls pane bodies where it holds the window (layouts.css), and `reading-regions.js`
- * reads which box scrolls from the result.
- *
- * A widget that composes regions out of boxes it generates, such as a playground's
- * controls beside its preview, marks them data-lf-reading-role="pane" and takes these
- * same rules, so no package keeps a copy of them. The attribute sits inside :where(), so
- * every selector keeps the tag's specificity. */
-:is(lf-pane, :where([data-lf-reading-role="pane"])) {
-  display: grid;
-  grid-template-rows: auto 1fr auto;
-  grid-template-columns: minmax(0, 1fr);
-  min-width: 0;
-  --lf-block-frame: 1;
-}
-:is(lf-pane, :where([data-lf-reading-role="pane"])) > header {
-  grid-row: 1; margin: 0;
-}
-:is(lf-pane, :where([data-lf-reading-role="pane"])) > footer {
-  grid-row: 3; margin: 0;
-}
-:is(lf-pane, :where([data-lf-reading-role="pane"])) > :not(header, footer) {
-  grid-row: 2; min-width: 0; margin: 0;
-}
-:is(lf-pane, :where([data-lf-reading-role="pane"])) {
-  border: 1px solid var(--rule);
-  border-radius: var(--r);
-  background: var(--paper);
-}
-:is(lf-pane, :where([data-lf-reading-role="pane"])) > header {
-  padding: 10px 14px;
-  border-bottom: 1px solid var(--rule);
-  font: 600 var(--t-5)/1.4 var(--sans);
-  --lf-block-frame: 1;
-}
-/* A pane is a region of a workspace, so its name takes a panel's voice (section.panel,
- * theme.css): small capitals that rank below the page's title and the pane's own
- * headings, where a bare h2 drew the region's label larger than anything it held. */
-:is(lf-pane, :where([data-lf-reading-role="pane"])) > header > :is(h2, h3, h4, h5, h6) {
-  margin: 0;
-  font: 600 var(--t-6)/1.3 var(--sans);
-  letter-spacing: .06em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-:is(lf-pane, :where([data-lf-reading-role="pane"])) > footer {
-  padding: 10px 14px;
-  border-top: 1px solid var(--rule);
-  --lf-block-frame: 1;
-}
-:is(lf-pane, :where([data-lf-reading-role="pane"])) > :not(header, footer) {
-  padding: 14px;
-  --lf-block-frame: 1;
-}
 
 
 /* lf-gloss: the prose stays prose, and its underline is the whole visible
@@ -148,16 +90,15 @@ lf-gloss:has(> .lf-gloss-mark:is(:focus-visible, .lf-focus-visible)) {
  * metric's value, a tree's badge — and in the sans's own figures each rewrite resizes
  * the chip the number is set in, and moves whatever stands after it. The integrated
  * theme's copy of this rule carries the measurement and the norm it answers. */
-.lf-chips span, .lf-tree-badge, .lf-shotcap, lf-metric,
+.lf-tree-badge, .lf-shotcap, lf-metric,
 lf-specimen::before, lf-specimen > [data-lf-said="label"], lf-column::before,
 lf-column > [data-lf-said="label"], lf-tab::before,
-.lf-state, .lf-heard, .lf-cold,
 lf-chip {
   font-family: var(--sans); font-variant-numeric: tabular-nums; }
 
 /* The kernel's chip face (.tag), in the chip tokens it is set in, so a band of chips
  * and an inline label stand the same height. */
-lf-chip, .lf-chips span {
+lf-chip {
   display: inline-block; font-size: var(--t-6); line-height: var(--chip-lh);
   padding: var(--chip-pad);
   box-sizing: border-box; max-width: 100%; overflow-wrap: anywhere;
@@ -958,19 +899,6 @@ lf-options:not(:has(> lf-option > strong)) > lf-option > .lf-pick {
  * level with each other. */
 lf-options:not(:has(> lf-option > strong)) > lf-option > .lf-key-badge {
                      top: 0; bottom: 0; margin: auto 0; }
-/* The block a row is about (`for`). It points; it never supplies the row's words, so it
- * reads as what it is — an id, written the way the thread panel writes an element
- * anchor — and rides at the line's end with the mark, out of the way of what the row
- * says.
- *
- * The secondary interface ink and not the document's muted, because a row's ground is
- * one of the surfaces the layer itself paints: a chosen row wears --ok-tint, and
- * --muted reads 4.43:1 on it, under AA. --muted-2 is the ink the palette holds to
- * 4.5:1 against the surfaces it lands on (theme.css), which is the promise this
- * reference needs and the document's own muted does not make. */
-.lf-ref { font-size: var(--t-6); color: var(--muted-2); text-decoration: none;
-          white-space: nowrap; }
-.lf-ref:hover { color: var(--accent); text-decoration: underline; }
 /* The thread's shared rules live with the integrated theme. The group's own
  * placement of it is stated above, in the choose-group block. */
 /* Paper takes no input, so the group prints as one that was never choosable: the
@@ -1051,7 +979,6 @@ lf-milestone[status="active"]::before { border-color: var(--accent);
 lf-milestone[status="blocked"]::before { background: var(--danger); border-color: var(--danger); }
 lf-milestone > strong { display: block; margin: 0 0 2px; }
 lf-milestone[status="done"] > strong { color: var(--muted); }
-.lf-chips { display: flex; gap: 6px; flex-wrap: wrap; margin: 2px 0 6px; }
 /* The status word a user listening gets wears the runtime's .lf-ui .lf-quiet —
  * real text, clipped on screen where the dot already says it. Which attributes get
  * one is declared (x-paints) and the writing is the runtime's own pass, so
@@ -1415,15 +1342,6 @@ lf-tabs.lf-rendered > lf-tab { margin-top: 14px; }
     }
   }
 }
-@media screen {
-  html[data-lf-live]:has(
-      body > main > lf-tabs[data-lf-tabs-context="root"]
-    ) {
-    scroll-padding-top: calc(
-      var(--lf-banner-h) + var(--lf-root-tab-clear, 0px) + 12px
-    );
-  }
-}
 /* Paper cannot edit the document, so inactive panels keep their hidden attribute and the
  * content-visibility it carries is undone here. */
 @media print {
@@ -1595,27 +1513,13 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
   /* The contents map owns one stable margin rectangle whether its labels are hidden or
    * revealed, so revealing it changes no page geometry. At rest only its spine takes
    * presses; the rectangle does once the spine is hovered or focused (below). */
-  @container lf-shell (min-width: 848px) {
-    html:root main.layout-column:has(> aside.sidebar:nth-child(1 of aside.sidebar) lf-toc) {
-      --lf-sidebar-posture: margin;
-      /* At rest the map is its spine, chrome fixed in the left margin, so a breakout
-       * stops short of it (layouts.css, the column's free room); its labels reveal over
-       * the page. */
-      --lf-taken-l: calc(2 * var(--sp-4));
-    }
-  }
-  main:has(> aside.sidebar:nth-child(1 of aside.sidebar) lf-toc) {
-    --lf-sidebar-claim: var(--sidebar-max);
-    --lf-sidebar-free-left: calc(var(--lf-beside) + var(--lf-shift)
-      - var(--lf-gutter-l));
-  }
   @container lf-content-frame style(--lf-sidebar-posture: margin) {
     @container style(--lf-sidebar-slot: margin) {
       lf-toc { position: fixed;
                left: var(--sp-4);
                top: var(--lf-banner-h, 0px);
                z-index: 4;
-               width: calc(var(--lf-sidebar-claim) - var(--sp-4));
+               width: calc(var(--sidebar-max) - var(--sp-4));
                box-sizing: border-box;
                padding-block: var(--sp-4);
                pointer-events: none;
@@ -1709,8 +1613,7 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
        * document beneath it. */
       lf-toc[data-lf-outline] .lf-toc-nav {
         --lf-toc-label-opacity: 1;
-        width: max(40px, min(320px,
-          calc(var(--lf-beside) + var(--lf-shift) - 2 * var(--sp-4))));
+        width: max(40px, min(320px, calc(var(--lf-beside) - 2 * var(--sp-4))));
         background: var(--paper);
         overflow-y: auto; pointer-events: auto;
       }
@@ -1748,7 +1651,6 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
     forced-color-adjust: none; background: Highlight;
   }
 }
-.lf-toc-target { display: block; width: 1px; height: 0; }
 
 /* lf-activity: the page's history, newest first. One row is an initial, a sentence, and
  * an optional excerpt under it. The sentence's place is its link or thread button, drawn

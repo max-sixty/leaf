@@ -191,6 +191,17 @@ test("one synchronous immutable reading combines authored, accepted, and later p
   assert.equal(decision(app), "accept");
 });
 
+test("the public Thread collection contains conversations while approvals stay page-wide", () => {
+  const app = capture();
+  const reading = state(1);
+  reading.browser.thread.done = [{ id: "approval", kind: "done" }];
+  app.adopt(reading);
+
+  const effective = app.read().effective;
+  assert.deepEqual(Object.keys(effective.thread.collection), ["phase", "threads"]);
+  assert.deepEqual(effective.acceptedApprovals, reading.browser.thread.done);
+});
+
 test("one widget selection publishes optimistic state and delivery without writable access", () => {
   const app = setup();
   const selected = app.selectWidget(descriptor);

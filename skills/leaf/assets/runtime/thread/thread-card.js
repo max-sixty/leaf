@@ -117,19 +117,18 @@ function navigationSummary(navigation, model) {
   const status = model.resolved ? "Resolved" : model.attention?.label || "";
   const draft = Boolean(loadDraft("reply:" + model.key)?.trim());
   const hasMeta = draft || status || model.unreadCount;
+  // Until the agent names the thread, the title slot says so in words set apart from
+  // any title, and the dots after them say the naming is under way.
   return html`<summary
     class="lf-thread-summary"
-    title=${pendingTitle ? "Title pending" : title}
+    title=${pendingTitle ? nothing : title}
   >
-    <span
-      class="lf-thread-topic"
-      data-lf-pending-title=${pendingTitle ? "" : nothing}
-      aria-label=${pendingTitle ? "Title pending" : nothing}
+    <span class="lf-thread-topic" data-lf-pending-title=${pendingTitle ? "" : nothing}
       >${
         pendingTitle
-          ? html`<span class="lf-thread-pending-dot" aria-hidden="true">.</span
-              ><span class="lf-thread-pending-dot" aria-hidden="true">.</span
-              ><span class="lf-thread-pending-dot" aria-hidden="true">.</span>`
+          ? html`Generating title<span class="lf-thread-pending-dots" aria-hidden="true"
+                ><span></span><span></span><span></span
+              ></span>`
           : title
       }</span
     >

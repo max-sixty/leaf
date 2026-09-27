@@ -808,6 +808,8 @@ export function createMarginProjection({
     );
   }
 
+  // A receipt's face is its category's icon and rank under the receipt's own label,
+  // so one reading of a receipt never names a different stage than its text does.
   function agentWorkflowFace(receipt) {
     if (!receipt) return null;
     const label = workflowLabel(receipt);
@@ -820,7 +822,9 @@ export function createMarginProjection({
             ? "activity"
             : receipt.stage === "picked_up"
               ? "pickup"
-              : "sent",
+              : receipt.stage === "queued"
+                ? "queued"
+                : "sent",
       text: label,
       context: [receipt.ts ? ago(receipt.ts) : "", receipt.detail]
         .filter(Boolean)
@@ -950,7 +954,7 @@ export function createMarginProjection({
         kind: face.kind,
         id: `acknowledgment:${receipt.id}`,
         text: labelWords(`${face.text} · ${account}`),
-        workflowFace: KINDS[face.kind],
+        workflowFace: Object.freeze({ ...KINDS[face.kind], label: face.text }),
         workflowReceipt: receipt,
         ...(face.context ? { context: face.context } : {}),
         activate: () =>
@@ -1003,15 +1007,8 @@ export function createMarginProjection({
           update.target.kind === "thread"
             ? placedAt(update.target.id)?.element
             : elementById(update.target.id);
-        const quiet =
-          claimActivity.get(`${update.target.kind}:${update.target.id}`)?.quiet ??
-          false;
         const age = ago(update.ts);
-        const account = [
-          update.agent,
-          update.text || humanized(update.action),
-          quiet ? `Was working ${age}` : null,
-        ]
+        const account = [update.agent, update.text || humanized(update.action)]
           .filter(Boolean)
           .join(" · ");
         add(groups, target, {
